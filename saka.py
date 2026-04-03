@@ -22,9 +22,9 @@ if str(_root) not in sys.path:
 if str(_maisaka_path) not in sys.path:
     sys.path.insert(0, str(_maisaka_path))
 
-from src.prompt.prompt_manager import prompt_manager
-from src.maisaka.cli import BufferCLI
-from src.maisaka.config import console
+from src.prompt.prompt_manager import prompt_manager  # noqa: E402
+from src.maisaka.cli import BufferCLI  # noqa: E402
+from src.maisaka.config import console  # noqa: E402
 
 
 def main():

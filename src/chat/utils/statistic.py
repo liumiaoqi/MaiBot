@@ -1058,12 +1058,9 @@ class StatisticOutputTask(AsyncTask):
             from src.chat.message_receive.chat_manager import chat_manager as _stat_chat_manager
 
             if chat_id in _stat_chat_manager.sessions:
-                session = _stat_chat_manager.sessions[chat_id]
                 name = _stat_chat_manager.get_session_name(chat_id)
                 if name and name.strip():
                     return name.strip()
-                    if user_name and user_name.strip():
-                        return user_name.strip()
 
             # 如果从chat_stream获取失败，尝试解析chat_id格式
             if chat_id.startswith("g"):

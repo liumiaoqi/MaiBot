@@ -36,8 +36,8 @@ def get_chat_name(chat_id: str) -> str:
                 elif chat_stream.user_nickname:
                     return f"{chat_stream.user_nickname}的私聊"
 
-        if get_chat_manager:
-            chat_manager = get_chat_manager()
+        if _script_chat_manager:
+            chat_manager = _script_chat_manager
             stream_name = chat_manager.get_stream_name(chat_id)
             if stream_name:
                 return stream_name
