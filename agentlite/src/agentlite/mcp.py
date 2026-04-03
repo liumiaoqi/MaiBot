@@ -6,10 +6,8 @@ tools from external MCP-compatible servers.
 
 from __future__ import annotations
 
-import asyncio
 from typing import TYPE_CHECKING, Any
 
-from agentlite.message import TextPart
 from agentlite.tool import CallableTool, ToolOk, ToolResult, ToolError
 
 if TYPE_CHECKING:

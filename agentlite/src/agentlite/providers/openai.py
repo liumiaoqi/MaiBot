@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING, Any
 import httpx
 from openai import AsyncOpenAI, OpenAIError
 from openai.types.chat import (
-    ChatCompletion,
     ChatCompletionChunk,
     ChatCompletionMessageParam,
     ChatCompletionToolParam,
@@ -27,7 +26,6 @@ from agentlite.message import (
 )
 from agentlite.provider import (
     APIConnectionError,
-    APIEmptyResponseError,
     APIStatusError,
     APITimeoutError,
     ChatProviderError,

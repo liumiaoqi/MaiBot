@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator, Sequence
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING
 
 from agentlite.message import (
     ContentPart,
@@ -17,8 +17,8 @@ from agentlite.message import (
     ToolCall,
     ToolCallPart,
 )
-from agentlite.provider import ChatProvider, StreamedMessage, TokenUsage
-from agentlite.tool import SimpleToolset, Tool, ToolResult, ToolType
+from agentlite.provider import ChatProvider
+from agentlite.tool import SimpleToolset, ToolResult, ToolType
 from agentlite.labor_market import LaborMarket
 
 if TYPE_CHECKING:
@@ -311,7 +311,7 @@ class Agent:
         # Execute all tool calls concurrently
         futures = [self.tools.handle(tc) for tc in tool_calls]
 
-        for tc, future in zip(tool_calls, futures):
+        for tc, future in zip(tool_calls, futures, strict=False):
             try:
                 if asyncio.isfuture(future):
                     result = await future

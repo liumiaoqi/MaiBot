@@ -7,7 +7,7 @@ and provides the base types for streaming responses.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Sequence
-from typing import Protocol, runtime_checkable
+from typing import Protocol, Union, runtime_checkable
 
 from pydantic import BaseModel
 
@@ -43,8 +43,6 @@ class TokenUsage(BaseModel):
         """Total tokens used (input + output)."""
         return self.input_tokens + self.output_tokens
 
-
-from typing import Union
 
 StreamedPart = Union[ContentPart, ToolCall, ToolCallPart]
 

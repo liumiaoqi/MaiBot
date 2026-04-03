@@ -6,7 +6,7 @@ without the overhead of an Agent.
 
 import asyncio
 
-from agentlite import LLMClient, llm_complete, llm_stream
+from agentlite import LLMClient
 from agentlite.config import AgentConfig, ProviderConfig, ModelConfig
 
 
@@ -55,7 +55,7 @@ async def main():
     )
 
     # Create client
-    client = LLMClient(config)
+    LLMClient(config)
 
     # Make a call
     # response = await client.complete(
@@ -91,7 +91,7 @@ async def main():
         temperature=0.8,
     )
 
-    client = LLMClient(provider=provider)
+    LLMClient(provider=provider)
 
     # response = await client.complete(
     #     user_prompt="What are the benefits of type hints?",

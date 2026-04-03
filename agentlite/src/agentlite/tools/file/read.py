@@ -165,7 +165,6 @@ class ReadFile(CallableTool2[Params]):
 
             for i, line in enumerate(selected_lines):
                 line_num = start_idx + i + 1
-                original_line = line
 
                 # Truncate if needed
                 if len(line) > self._max_line_length:

@@ -8,8 +8,6 @@ from typing import Optional
 
 import asyncio
 import platform
-import shlex
-from pathlib import Path
 
 from pydantic import BaseModel, Field
 
@@ -152,7 +150,7 @@ class Shell(CallableTool2[Params]):
             if process.returncode == 0:
                 return ToolOk(
                     output=output,
-                    message=f"Command executed successfully (exit code 0).",
+                    message="Command executed successfully (exit code 0).",
                 )
             else:
                 return ToolError(

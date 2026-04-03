@@ -56,7 +56,7 @@ async def main():
     start_time = time.time()
     message = "Run 'echo test' and tell me the result."
 
-    logger.info(f"\n=== Starting Agent Run ===")
+    logger.info("\n=== Starting Agent Run ===")
     logger.info(f"Message: {message}")
     logger.info(f"Max iterations: {agent.max_iterations}")
     logger.info(f"Tools: {[t.name for t in agent.tools.tools]}")
@@ -178,7 +178,7 @@ async def main():
                 output_preview = output[:100] if output else "None"
                 logger.info(f"    Output preview: {output_preview}...")
             except asyncio.TimeoutError:
-                logger.error(f"    !!! Tool execution TIMEOUT")
+                logger.error("    !!! Tool execution TIMEOUT")
                 output = "Tool execution timed out"
                 is_error = True
             except Exception as e:
@@ -209,7 +209,7 @@ async def main():
         final_response = f"Max iterations ({agent.max_iterations}) reached"
 
     logger.info(f"\n{'=' * 60}")
-    logger.info(f"FINAL RESULT:")
+    logger.info("FINAL RESULT:")
     logger.info(f"{'=' * 60}")
     logger.info(f"{final_response}")
     logger.info(f"Total iterations: {iterations}")

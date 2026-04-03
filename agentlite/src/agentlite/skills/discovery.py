@@ -195,7 +195,6 @@ def discover_skills(skills_dir: Path) -> list["Skill"]:
         >>> for skill in skills:
         ...     print(f"{skill.name}: {skill.description}")
     """
-    from agentlite.skills.models import Skill
 
     if not skills_dir.is_dir():
         return []

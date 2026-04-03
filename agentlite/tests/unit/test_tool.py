@@ -195,7 +195,6 @@ class TestToolDecoratorMemorixBug:
         This is an integration-style test to ensure the decorated tool
         has all required attributes for Agent usage.
         """
-        from agentlite import Agent, OpenAIProvider
 
         @tool()
         async def add_memory(content: str, importance: float = 0.5) -> dict:

@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import urllib.request
 import urllib.error
-from pathlib import Path
 
 from pydantic import BaseModel, Field
 

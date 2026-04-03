@@ -6,8 +6,7 @@ This example shows how to use skills with an Agent.
 import asyncio
 from pathlib import Path
 
-from agentlite import Agent, OpenAIProvider
-from agentlite.skills import discover_skills, index_skills_by_name, SkillTool
+from agentlite.skills import discover_skills, index_skills_by_name
 
 
 async def main():

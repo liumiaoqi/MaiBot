@@ -7,7 +7,6 @@ and delegate tasks to them using the Task tool.
 import asyncio
 
 from agentlite import Agent, OpenAIProvider
-from agentlite.labor_market import LaborMarket
 from agentlite.tools.multiagent.task import Task
 
 
@@ -61,8 +60,8 @@ async def main():
     parent.tools.add(Task(labor_market=parent.labor_market))
 
     print("Created parent agent with subagents:")
-    print(f"  - coder: Writes code")
-    print(f"  - reviewer: Reviews code")
+    print("  - coder: Writes code")
+    print("  - reviewer: Reviews code")
 
     # Example 2: Using subagents
     print("\n=== Example 2: Delegating Tasks ===")

@@ -16,7 +16,7 @@ from typing import Any
 import pytest
 import yaml
 
-from agentlite import Agent, Message, TextPart, tool
+from agentlite import Agent, tool
 
 
 def tool_output(result: Any) -> Any:

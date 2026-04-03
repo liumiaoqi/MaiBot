@@ -32,11 +32,10 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from typing import Optional
 
-from agentlite.config import AgentConfig, ModelConfig, ProviderConfig
+from agentlite.config import AgentConfig
 from agentlite.message import Message, TextPart
 from agentlite.provider import ChatProvider, TokenUsage
 from agentlite.providers.openai import OpenAIProvider
-from agentlite.tool import Tool
 
 
 class LLMResponse:
@@ -174,7 +173,7 @@ class LLMClient:
             try:
                 if usage is None and hasattr(stream, "usage") and stream.usage:
                     usage = stream.usage
-            except:
+            except Exception:
                 pass
 
         content = "".join(content_parts)

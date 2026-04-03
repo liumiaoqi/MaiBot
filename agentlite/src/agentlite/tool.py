@@ -19,7 +19,6 @@ from typing import (
     Protocol,
     TypeVar,
     Union,
-    cast,
     Generic,
     get_type_hints,
 )
@@ -296,10 +295,6 @@ class CallableTool2(ABC, Generic[Params]):
             return result
         except Exception as e:
             return ToolError(message=f"Tool execution failed: {e}")
-
-
-# Import Generic here to avoid issues with type checking
-from typing import Generic
 
 
 class Toolset(Protocol):

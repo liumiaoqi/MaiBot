@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from agentlite import Agent, TextPart
+from agentlite import Agent
 
 
 @pytest.mark.integration

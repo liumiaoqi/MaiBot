@@ -6,7 +6,6 @@ allowing users to enable/disable specific tools.
 
 from __future__ import annotations
 
-from typing import Any
 
 from pydantic import BaseModel, Field
 

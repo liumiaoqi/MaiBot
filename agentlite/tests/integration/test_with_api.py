@@ -17,7 +17,7 @@ import pytest
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from agentlite import Agent, OpenAIProvider, LLMClient, llm_complete
+from agentlite import Agent, OpenAIProvider, LLMClient
 from agentlite.skills import discover_skills, SkillTool, index_skills_by_name
 from agentlite.tools import ConfigurableToolset
 
@@ -74,7 +74,7 @@ async def test_agent_with_tools():
     print("=" * 60)
 
     try:
-        from agentlite.tools import ToolSuiteConfig, ReadFile, Glob
+        from agentlite.tools import ToolSuiteConfig
 
         provider = get_provider()
 
@@ -173,7 +173,6 @@ async def test_subagents():
     print("=" * 60)
 
     try:
-        from agentlite.labor_market import LaborMarket
         from agentlite.tools.multiagent.task import Task
 
         provider = get_provider()
@@ -246,7 +245,7 @@ async def test_skills():
         skill_tool = SkillTool(skill_index, parent_agent=agent)
         agent.tools.add(skill_tool)
 
-        print(f"✅ Added SkillTool to agent")
+        print("✅ Added SkillTool to agent")
         print("✅ Skills test PASSED")
         return True
 

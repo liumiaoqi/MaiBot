@@ -6,7 +6,6 @@ and all exception types.
 
 from __future__ import annotations
 
-import pytest
 
 from agentlite.provider import (
     TokenUsage,
@@ -106,7 +105,6 @@ class TestChatProviderProtocol:
     def test_protocol_is_runtime_checkable(self):
         """Test that ChatProvider is runtime checkable."""
         # ChatProvider should have @runtime_checkable
-        from typing import runtime_checkable
 
         assert hasattr(ChatProvider, "__protocol_attrs__")
 

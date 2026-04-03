@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from agentlite import Agent, TextPart, tool
+from agentlite import Agent, tool
 
 
 # =============================================================================

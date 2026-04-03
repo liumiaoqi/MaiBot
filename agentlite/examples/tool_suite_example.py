@@ -7,7 +7,6 @@ to enable/disable specific tools.
 import asyncio
 from pathlib import Path
 
-from agentlite import Agent, OpenAIProvider
 from agentlite.tools import (
     ConfigurableToolset,
     ToolSuiteConfig,
@@ -57,7 +56,7 @@ async def main():
         )
     )
     toolset = ConfigurableToolset(config)
-    print(f"File tool settings:")
+    print("File tool settings:")
     print(f"  Max lines: {config.file_tools.max_lines}")
     print(f"  Max bytes: {config.file_tools.max_bytes}")
     print(f"  Allow outside work dir: {config.file_tools.allow_write_outside_work_dir}")
@@ -66,7 +65,7 @@ async def main():
     print("\n=== Example 5: Using with Agent ===")
 
     # Create a safe configuration (no shell, no write outside work dir)
-    safe_config = ToolSuiteConfig(
+    ToolSuiteConfig(
         file_tools=FileToolsConfig(
             allow_write_outside_work_dir=False,
         ),

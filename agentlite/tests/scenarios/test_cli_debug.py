@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 import sys
 import asyncio
-import signal
 
 sys.path.insert(0, "/home/tcmofashi/proj/l2d_backend/agentlite/src")
 
