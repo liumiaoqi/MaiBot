@@ -459,6 +459,62 @@ class PluginRunner:
             return normalized_config, False
 
     @staticmethod
+    def _merge_plugin_config_document(target: Any, source: Any) -> None:
+        """递归更新现有 TOML 文档，尽量保留原注释与格式。
+
+        这里采用“更新已有键、补充缺失键”的策略，而不是直接整体重写，
+        这样插件启动时因补齐默认配置触发落盘时，可以尽量保留用户手写的注释。
+
+        Args:
+            target: 现有的 TOML 文档或表对象。
+            source: 最新的配置字典。
+        """
+
+        if isinstance(source, list) or not isinstance(source, dict) or not isinstance(target, dict):
+            return
+
+        for key, value in source.items():
+            if key in target:
+                target_value = target[key]
+                if isinstance(value, dict) and isinstance(target_value, dict):
+                    PluginRunner._merge_plugin_config_document(target_value, value)
+                else:
+                    try:
+                        target[key] = tomlkit.item(value)
+                    except (TypeError, ValueError):
+                        target[key] = value
+            else:
+                try:
+                    target[key] = tomlkit.item(value)
+                except (TypeError, ValueError):
+                    target[key] = value
+
+    @staticmethod
+    def _has_extra_config_keys(existing_config: Any, latest_config: Any) -> bool:
+        """判断现有配置中是否包含新配置不存在的键。
+
+        如果插件归一化后的结果删除了某些旧键，就需要回退到完整重写，
+        否则仅做增量合并会把旧键残留在文件里。
+
+        Args:
+            existing_config: 现有配置字典。
+            latest_config: 最新配置字典。
+
+        Returns:
+            bool: 是否存在需要通过整文件重写才能删除的旧键。
+        """
+
+        if not isinstance(existing_config, dict) or not isinstance(latest_config, dict):
+            return False
+
+        for key, existing_value in existing_config.items():
+            if key not in latest_config:
+                return True
+            if PluginRunner._has_extra_config_keys(existing_value, latest_config[key]):
+                return True
+        return False
+
+    @staticmethod
     def _is_plugin_enabled(config_data: Optional[Mapping[str, Any]]) -> bool:
         """根据配置内容判断插件是否应被视为启用。
 
@@ -496,6 +552,19 @@ class PluginRunner:
 
         config_path = Path(plugin_dir) / "config.toml"
         config_path.parent.mkdir(parents=True, exist_ok=True)
+        if config_path.exists():
+            try:
+                with config_path.open("r", encoding="utf-8") as handle:
+                    existing_document = tomlkit.load(handle)
+                existing_config = existing_document.unwrap()
+                if not PluginRunner._has_extra_config_keys(existing_config, config_data):
+                    PluginRunner._merge_plugin_config_document(existing_document, config_data)
+                    with config_path.open("w", encoding="utf-8") as handle:
+                        handle.write(tomlkit.dumps(existing_document))
+                    return
+            except Exception as exc:
+                logger.warning(f"保留插件配置注释失败，将回退为整文件重写: {config_path}: {exc}")
+
         with config_path.open("w", encoding="utf-8") as handle:
             handle.write(tomlkit.dumps(config_data))
 
