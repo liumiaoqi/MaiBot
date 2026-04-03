@@ -1,5 +1,6 @@
 """reply 内置工具。"""
 
+import traceback
 from typing import Optional
 
 from src.chat.replyer.replyer_manager import replyer_manager
@@ -82,6 +83,7 @@ async def handle_tool(
         logger.exception(
             f"{tool_ctx.runtime.log_prefix} 获取回复生成器时发生异常: 目标消息编号={target_message_id}"
         )
+        logger.info(traceback.format_exc())
         return tool_ctx.build_failure_result(
             invocation.tool_name,
             "获取 Maisaka 回复生成器时发生异常。",

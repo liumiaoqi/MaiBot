@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
-
 import random
 import time
 
@@ -9,6 +8,7 @@ from sqlmodel import select
 
 from src.chat.message_receive.chat_manager import BotChatSession
 from src.common.database.database import get_db_session
+from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
 from src.common.database.database_model import Expression
 from src.common.data_models.reply_generation_data_models import (
     GenerationMetrics,
@@ -17,14 +17,15 @@ from src.common.data_models.reply_generation_data_models import (
 )
 from src.common.logger import get_logger
 from src.common.prompt_i18n import load_prompt
+from src.common.utils.utils_session import SessionUtils
 from src.config.config import global_config
 from src.core.types import ActionInfo
+from src.llm_models.payload_content.message import ImageMessagePart, Message, MessageBuilder, RoleType, TextMessagePart
 from src.services.llm_service import LLMServiceClient
 
 from src.chat.message_receive.message import SessionMessage
-from src.llm_models.payload_content.message import Message, MessageBuilder, RoleType
 from src.maisaka.context_messages import AssistantMessage, LLMContextMessage, ReferenceMessage, SessionBackedMessage, ToolResultMessage
-from src.maisaka.message_adapter import parse_speaker_content
+from src.maisaka.message_adapter import clone_message_sequence, parse_speaker_content
 
 logger = get_logger("replyer")
 
@@ -126,13 +127,35 @@ class MaisakaReplyGenerator:
 
         return segments
 
+    def _build_target_message_block(self, reply_message: Optional[SessionMessage]) -> str:
+        """构建当前需要回复的目标消息摘要。"""
+        if reply_message is None:
+            return ""
+
+        user_info = reply_message.message_info.user_info
+        sender_name = user_info.user_cardname or user_info.user_nickname or user_info.user_id
+        target_message_id = reply_message.message_id.strip() if reply_message.message_id else "未知"
+        target_content = self._normalize_content((reply_message.processed_plain_text or "").strip(), limit=300)
+        if not target_content:
+            target_content = "[无可见文本内容]"
+
+        return (
+            "【本次回复目标】\n"
+            f"- 目标消息ID：{target_message_id}\n"
+            f"- 发送者：{sender_name}\n"
+            f"- 消息内容：{target_content}\n"
+            "- 你这次要回复的就是这条目标消息，请结合整段上下文理解，但不要误把其他历史消息当成当前回复对象。"
+        )
+
     def _build_system_prompt(
         self,
+        reply_message: Optional[SessionMessage],
         reply_reason: str,
         expression_habits: str = "",
     ) -> str:
         """构建 Maisaka replyer 使用的系统提示词。"""
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        target_message_block = self._build_target_message_block(reply_message)
 
         try:
             system_prompt = load_prompt(
@@ -148,9 +171,10 @@ class MaisakaReplyGenerator:
         extra_sections: List[str] = []
         if expression_habits.strip():
             extra_sections.append(expression_habits.strip())
+        if target_message_block:
+            extra_sections.append(target_message_block)
         if reply_reason.strip():
             extra_sections.append(f"【回复信息参考】\n{reply_reason}")
-
         if not extra_sections:
             return system_prompt
         return f"{system_prompt}\n\n" + "\n\n".join(extra_sections)
@@ -158,6 +182,34 @@ class MaisakaReplyGenerator:
     def _build_reply_instruction(self) -> str:
         """构建追加在上下文末尾的回复指令。"""
         return "请基于以上逐条对话消息，自然地继续回复。直接输出你要说的话，不要额外解释。"
+
+    def _build_multimodal_user_message(
+        self,
+        message: SessionBackedMessage,
+        default_user_name: str,
+    ) -> Optional[Message]:
+        """构建保留图片等多模态片段的用户消息。"""
+        speaker_name, _ = parse_speaker_content(message.processed_plain_text.strip())
+        visible_speaker = speaker_name or default_user_name
+
+        raw_message = clone_message_sequence(message.raw_message)
+        if not raw_message.components:
+            raw_message = MessageSequence([TextComponent(f"[{visible_speaker}]")])
+        elif isinstance(raw_message.components[0], TextComponent):
+            first_text = raw_message.components[0].text or ""
+            raw_message.components[0] = TextComponent(f"[{visible_speaker}]{first_text}")
+        else:
+            raw_message.components.insert(0, TextComponent(f"[{visible_speaker}]"))
+
+        multimodal_message = SessionBackedMessage(
+            raw_message=raw_message,
+            visible_text=f"[{visible_speaker}]{message.processed_plain_text}",
+            timestamp=message.timestamp,
+            message_id=message.message_id,
+            original_message=message.original_message,
+            source_kind=message.source_kind,
+        )
+        return multimodal_message.to_llm_message()
 
     def _build_history_messages(self, chat_history: List[LLMContextMessage]) -> List[Message]:
         """将 replyer 上下文拆成多条 LLM 消息。"""
@@ -175,6 +227,11 @@ class MaisakaReplyGenerator:
                     messages.append(
                         MessageBuilder().set_role(RoleType.Assistant).add_text_content(guided_reply).build()
                     )
+                    continue
+
+                multimodal_message = self._build_multimodal_user_message(message, default_user_name)
+                if multimodal_message is not None:
+                    messages.append(multimodal_message)
                     continue
 
                 for speaker_name, content_body in self._split_user_message_segments(message.processed_plain_text):
@@ -205,12 +262,14 @@ class MaisakaReplyGenerator:
     def _build_request_messages(
         self,
         chat_history: List[LLMContextMessage],
+        reply_message: Optional[SessionMessage],
         reply_reason: str,
         expression_habits: str = "",
     ) -> List[Message]:
         """构建发给大模型的消息列表。"""
         messages: List[Message] = []
         system_prompt = self._build_system_prompt(
+            reply_message=reply_message,
             reply_reason=reply_reason,
             expression_habits=expression_habits,
         )
@@ -227,7 +286,14 @@ class MaisakaReplyGenerator:
         preview_lines: List[str] = []
         for message in messages:
             role_name = message.role.value.capitalize()
-            preview_lines.append(f"{role_name}: {message.get_text_content()}")
+            part_previews: List[str] = []
+            for part in message.parts:
+                if isinstance(part, TextMessagePart):
+                    part_previews.append(part.text)
+                    continue
+                if isinstance(part, ImageMessagePart):
+                    part_previews.append(f"[图片:{part.normalized_image_format}]")
+            preview_lines.append(f"{role_name}: {''.join(part_previews)}")
         return "\n\n".join(preview_lines)
 
     def _resolve_session_id(self, stream_id: Optional[str]) -> str:
@@ -292,18 +358,52 @@ class MaisakaReplyGenerator:
         )
         return block, selected_ids
 
+    def _get_related_session_ids(self, session_id: str) -> List[str]:
+        """根据表达互通组配置，解析当前会话可共享的会话 ID。"""
+        related_session_ids = {session_id}
+        expression_groups = global_config.expression.expression_groups
+
+        for expression_group in expression_groups:
+            target_items = expression_group.expression_groups
+            group_session_ids: set[str] = set()
+            contains_current_session = False
+
+            for target_item in target_items:
+                platform = target_item.platform.strip()
+                item_id = target_item.item_id.strip()
+                if not platform or not item_id:
+                    continue
+
+                rule_type = target_item.rule_type
+                target_session_id = SessionUtils.calculate_session_id(
+                    platform,
+                    group_id=item_id if rule_type == "group" else None,
+                    user_id=None if rule_type == "group" else item_id,
+                )
+                group_session_ids.add(target_session_id)
+                if target_session_id == session_id:
+                    contains_current_session = True
+
+            if contains_current_session:
+                related_session_ids.update(group_session_ids)
+
+        return list(related_session_ids)
+
     def _load_expression_records(self, session_id: str) -> List[_ExpressionRecord]:
         """提取表达方式静态数据，避免 detached ORM 对象。"""
-        with get_db_session(auto_commit=False) as session:
-            query = select(Expression).where(Expression.rejected.is_(False))  # type: ignore[attr-defined]
-            if global_config.expression.expression_checked_only:
-                query = query.where(Expression.checked.is_(True))  # type: ignore[attr-defined]
+        related_session_ids = self._get_related_session_ids(session_id)
 
-            query = query.where(
-                (Expression.session_id == session_id) | (Expression.session_id.is_(None))  # type: ignore[attr-defined]
+        with get_db_session(auto_commit=False) as session:
+            base_query = select(Expression).where(Expression.rejected.is_(False))  # type: ignore[attr-defined]
+            scoped_query = base_query.where(
+                (Expression.session_id.in_(related_session_ids)) | (Expression.session_id.is_(None))  # type: ignore[attr-defined]
             ).order_by(Expression.count.desc(), Expression.last_active_time.desc())  # type: ignore[attr-defined]
 
-            expressions = session.exec(query.limit(5)).all()
+            if global_config.expression.expression_checked_only:
+                scoped_query = scoped_query.where(Expression.checked.is_(True))  # type: ignore[attr-defined]
+
+            expressions = session.exec(scoped_query.limit(5)).all()
+
             return [
                 _ExpressionRecord(
                     expression_id=expression.id,
@@ -393,6 +493,7 @@ class MaisakaReplyGenerator:
         try:
             request_messages = self._build_request_messages(
                 chat_history=filtered_history,
+                reply_message=reply_message,
                 reply_reason=reply_reason or "",
                 expression_habits=merged_expression_habits,
             )

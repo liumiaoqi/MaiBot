@@ -51,6 +51,18 @@ class MaisakaReasoningEngine:
         self._runtime = runtime
         self._last_reasoning_content: str = ""
 
+    @staticmethod
+    def _get_runtime_manager() -> Any:
+        """获取插件运行时管理器。
+
+        Returns:
+            Any: 插件运行时管理器单例。
+        """
+
+        from src.plugin_runtime.integration import get_plugin_runtime_manager
+
+        return get_plugin_runtime_manager()
+
     @property
     def last_reasoning_content(self) -> str:
         """返回最近一轮思考文本。"""
@@ -122,8 +134,8 @@ class MaisakaReasoningEngine:
 
                             reasoning_content = response.content or ""
                             if self._should_replace_reasoning(reasoning_content):
-                                response.content = "让我根据新情况重新思考："
-                                response.raw_message.content = "让我根据新情况重新思考："
+                                response.content = "我应该根据我上面思考的内容进行反思，重新思考我下一步的行动，我需要分析当前场景，对话，以及我可以使用的工具，然后先输出想法再使用工具"
+                                response.raw_message.content = "我应该根据我上面思考的内容进行反思，重新思考我下一步的行动，我需要分析当前场景，对话，以及我可以使用的工具，然后先输出想法再使用工具"
                                 logger.info(f"{self._runtime.log_prefix} 当前思考与上一轮过于相似，已替换为重新思考提示")
 
                             self._last_reasoning_content = reasoning_content
@@ -266,7 +278,7 @@ class MaisakaReasoningEngine:
         source_sequence = message.raw_message
 
         planner_components = clone_message_sequence(source_sequence).components
-        if global_config.chat.direct_image_input:
+        if global_config.chat.multimodal_planner:
             await self._hydrate_visual_components(planner_components)
         if planner_components and isinstance(planner_components[0], TextComponent):
             planner_components[0].text = planner_prefix + planner_components[0].text

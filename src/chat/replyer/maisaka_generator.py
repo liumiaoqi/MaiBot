@@ -17,6 +17,7 @@ from src.common.data_models.reply_generation_data_models import (
 )
 from src.common.logger import get_logger
 from src.common.prompt_i18n import load_prompt
+from src.common.utils.utils_session import SessionUtils
 from src.config.config import global_config
 from src.core.types import ActionInfo
 from src.services.llm_service import LLMServiceClient
@@ -162,15 +163,37 @@ class MaisakaReplyGenerator:
 
         return "\n".join(parts)
 
+    def _build_target_message_block(self, reply_message: Optional[SessionMessage]) -> str:
+        """构建当前需要回复的目标消息摘要。"""
+        if reply_message is None:
+            return ""
+
+        user_info = reply_message.message_info.user_info
+        sender_name = user_info.user_cardname or user_info.user_nickname or user_info.user_id
+        target_message_id = reply_message.message_id.strip() if reply_message.message_id else "未知"
+        target_content = self._normalize_content((reply_message.processed_plain_text or "").strip(), limit=300)
+        if not target_content:
+            target_content = "[无可见文本内容]"
+
+        return (
+            "【本次回复目标】\n"
+            f"- 目标消息ID：{target_message_id}\n"
+            f"- 发送者：{sender_name}\n"
+            f"- 消息内容：{target_content}\n"
+            "- 你这次要回复的就是这条目标消息，请结合整段上下文理解，但不要误把其他历史消息当成当前回复对象。"
+        )
+
     def _build_prompt(
         self,
         chat_history: List[LLMContextMessage],
+        reply_message: Optional[SessionMessage],
         reply_reason: str,
         expression_habits: str = "",
     ) -> str:
         """构建 Maisaka replyer 提示词。"""
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         formatted_history = self._format_chat_history(chat_history)
+        target_message_block = self._build_target_message_block(reply_message)
 
         try:
             system_prompt = load_prompt(
@@ -191,6 +214,8 @@ class MaisakaReplyGenerator:
             f"当前时间：{current_time}",
             f"【聊天记录】\n{formatted_history}",
         ]
+        if target_message_block:
+            user_sections.append(target_message_block)
         if extra_sections:
             user_sections.append("\n\n".join(extra_sections))
         user_sections.append(f"【回复信息参考】\n{reply_reason}")
@@ -261,18 +286,52 @@ class MaisakaReplyGenerator:
         )
         return block, selected_ids
 
+    def _get_related_session_ids(self, session_id: str) -> List[str]:
+        """根据表达互通组配置，解析当前会话可共享的会话 ID。"""
+        related_session_ids = {session_id}
+        expression_groups = global_config.expression.expression_groups
+
+        for expression_group in expression_groups:
+            target_items = expression_group.expression_groups
+            group_session_ids: set[str] = set()
+            contains_current_session = False
+
+            for target_item in target_items:
+                platform = target_item.platform.strip()
+                item_id = target_item.item_id.strip()
+                if not platform or not item_id:
+                    continue
+
+                rule_type = target_item.rule_type
+                target_session_id = SessionUtils.calculate_session_id(
+                    platform,
+                    group_id=item_id if rule_type == "group" else None,
+                    user_id=None if rule_type == "group" else item_id,
+                )
+                group_session_ids.add(target_session_id)
+                if target_session_id == session_id:
+                    contains_current_session = True
+
+            if contains_current_session:
+                related_session_ids.update(group_session_ids)
+
+        return list(related_session_ids)
+
     def _load_expression_records(self, session_id: str) -> List[_ExpressionRecord]:
         """提取表达方式静态数据，避免 detached ORM 对象。"""
-        with get_db_session(auto_commit=False) as session:
-            query = select(Expression).where(Expression.rejected.is_(False))  # type: ignore[attr-defined]
-            if global_config.expression.expression_checked_only:
-                query = query.where(Expression.checked.is_(True))  # type: ignore[attr-defined]
+        related_session_ids = self._get_related_session_ids(session_id)
 
-            query = query.where(
-                (Expression.session_id == session_id) | (Expression.session_id.is_(None))  # type: ignore[attr-defined]
+        with get_db_session(auto_commit=False) as session:
+            base_query = select(Expression).where(Expression.rejected.is_(False))  # type: ignore[attr-defined]
+            scoped_query = base_query.where(
+                (Expression.session_id.in_(related_session_ids)) | (Expression.session_id.is_(None))  # type: ignore[attr-defined]
             ).order_by(Expression.count.desc(), Expression.last_active_time.desc())  # type: ignore[attr-defined]
 
-            expressions = session.exec(query.limit(5)).all()
+            if global_config.expression.expression_checked_only:
+                scoped_query = scoped_query.where(Expression.checked.is_(True))  # type: ignore[attr-defined]
+
+            expressions = session.exec(scoped_query.limit(5)).all()
+
             return [
                 _ExpressionRecord(
                     expression_id=expression.id,
@@ -362,6 +421,7 @@ class MaisakaReplyGenerator:
         try:
             prompt = self._build_prompt(
                 chat_history=filtered_history,
+                reply_message=reply_message,
                 reply_reason=reply_reason or "",
                 expression_habits=merged_expression_habits,
             )
