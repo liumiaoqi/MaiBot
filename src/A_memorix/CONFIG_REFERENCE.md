@@ -17,7 +17,7 @@
 enabled = true
 
 [storage]
-data_dir = "data/plugins/a-dawn.a-memorix"
+data_dir = "data/a-memorix"
 
 [embedding]
 model_name = "auto"
@@ -126,8 +126,13 @@ default_sample_size = 24
 
 ### `storage`
 
-- `storage.data_dir` (代码默认 `./data`；当前内置配置推荐 `data/plugins/a-dawn.a-memorix`)
+- `storage.data_dir` (当前配置模板默认 `data/a-memorix`)
 : 数据目录。相对路径按 MaiBot 仓库根目录解析。
+
+补充说明：
+
+- 部分离线脚本若未显式覆盖路径，会回退到 `A_memorix.paths.default_data_dir()`（当前为 `data/plugins/a-dawn.a-memorix`）。
+- 建议在运维侧统一目录策略，避免“控制台写入目录”和“脚本处理目录”不一致。
 
 ### `embedding`
 

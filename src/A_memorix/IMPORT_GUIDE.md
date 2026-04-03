@@ -29,6 +29,11 @@ python src/A_memorix/scripts/runtime_self_check.py --json
 data/plugins/a-dawn.a-memorix/raw/
 ```
 
+说明：
+
+- `process_knowledge.py` 当前默认扫描上述目录。
+- 若你的运行配置使用 `storage.data_dir = "data/a-memorix"`，请在执行脚本前统一目录，避免脚本导入目录与运行目录不一致。
+
 执行：
 
 ```bash
@@ -52,7 +57,7 @@ python src/A_memorix/scripts/import_lpmm_json.py <json文件或目录>
 ## 2.3 LPMM 数据转换
 
 ```bash
-python src/A_memorix/scripts/convert_lpmm.py -i <lpmm数据目录> -o data/plugins/a-dawn.a-memorix
+python src/A_memorix/scripts/convert_lpmm.py -i <lpmm数据目录> -o data/a-memorix
 ```
 
 ## 2.4 历史数据迁移
@@ -115,7 +120,7 @@ python src/A_memorix/scripts/audit_vector_consistency.py --json
   "arguments": {
     "action": "create_paste",
     "content": "今天完成了检索调优回归。",
-    "input_mode": "plain_text",
+    "input_mode": "text",
     "source": "manual:worklog"
   }
 }

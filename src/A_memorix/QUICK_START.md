@@ -42,7 +42,7 @@ pip install -r requirements.txt --upgrade
 enabled = true
 
 [storage]
-data_dir = "data/plugins/a-dawn.a-memorix"
+data_dir = "data/a-memorix"
 
 [embedding]
 model_name = "auto"
@@ -157,11 +157,13 @@ python src/A_memorix/scripts/runtime_self_check.py --json
 
 ### 4.1 文本批量导入
 
-把文本放到：
+`process_knowledge.py` 当前默认扫描目录为：
 
 ```text
 data/plugins/a-dawn.a-memorix/raw/
 ```
+
+若你当前运行目录使用 `storage.data_dir = "data/a-memorix"`，建议先把文本同步到脚本默认目录再执行，避免导入目录与运行目录不一致。
 
 执行：
 
@@ -181,7 +183,7 @@ python src/A_memorix/scripts/process_knowledge.py --chat-log --chat-reference-ti
 
 ```bash
 python src/A_memorix/scripts/import_lpmm_json.py <json文件或目录>
-python src/A_memorix/scripts/convert_lpmm.py -i <lpmm数据目录> -o data/plugins/a-dawn.a-memorix
+python src/A_memorix/scripts/convert_lpmm.py -i <lpmm数据目录> -o data/a-memorix
 python src/A_memorix/scripts/migrate_chat_history.py --help
 python src/A_memorix/scripts/migrate_maibot_memory.py --help
 python src/A_memorix/scripts/migrate_person_memory_points.py --help

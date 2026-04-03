@@ -73,7 +73,7 @@ class GraphStore:
 
     def __init__(
         self,
-        matrix_format: str = "csr",
+        matrix_format: Union[str, SparseMatrixFormat] = "csr",
         data_dir: Optional[Union[str, Path]] = None,
     ):
         """

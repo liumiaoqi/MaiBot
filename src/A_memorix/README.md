@@ -21,7 +21,7 @@ A_Memorix 是 MaiBot 内置的长期记忆子系统。
 
 - 旧 `components/commands/*`、`components/tools/*` 与 `server.py` 已移除。
 - 统一入口为宿主侧 host service + [`core/runtime/sdk_memory_kernel.py`](core/runtime/sdk_memory_kernel.py)。
-- 元数据 schema 为 `v8`，新增外部引用与运维操作记录（如 `external_memory_refs`、`memory_v5_operations`、`delete_operations`）。
+- 元数据 schema 为 `v9`，支持外部引用与运维操作记录（如 `external_memory_refs`、`memory_v5_operations`、`delete_operations`）。
 
 如果你还在使用旧版 slash 命令（如 `/query`、`/memory`、`/visualize`），需要按本文的 Tool 接口迁移。
 
@@ -140,6 +140,7 @@ enabled = true
 ### 配置方式
 
 - 默认配置文件：`config/a_memorix.toml`
+- 运行目录主路径：`storage.data_dir`（当前模板默认 `data/a-memorix`）
 - 长期记忆控制台：适合修改常用高频项，如 embedding、检索、Episode、人物画像、导入与调优开关。
 - 原始 TOML：适合复制整份配置、批量粘贴参数，或编辑未在可视化表单中展示的高级项。
 - 配置参考：请结合 [CONFIG_REFERENCE.md](CONFIG_REFERENCE.md) 查看各键的运行时语义与默认值。
@@ -171,7 +172,7 @@ python src/A_memorix/scripts/process_knowledge.py
 - `web/import.html`（导入中心）
 - `web/tuning.html`（检索调优）
 
-当前分支不再内置独立 `server.py`，页面路由与 API 暴露由宿主侧 React 页面和 `/api/webui/memory/*` 接口承接。
+当前分支不再内置独立 `server.py`，页面路由与 API 暴露由宿主侧 React 页面和 `/api/webui/memory/*` 接口承接（并保留 `/api/*` 兼容路由）。
 
 ### WebUI 验证脚本
 
