@@ -1522,6 +1522,26 @@ class MaiSakaConfig(ConfigBase):
     )
     """每个入站消息的最大内部规划轮数"""
 
+    enable_memory_query_tool: bool = Field(
+        default=True,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "database",
+        },
+    )
+    """是否启用 Maisaka 内置长期记忆检索工具 query_memory"""
+
+    memory_query_default_limit: int = Field(
+        default=5,
+        ge=1,
+        le=20,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "hash",
+        },
+    )
+    """Maisaka 内置长期记忆检索工具 query_memory 的默认返回条数"""
+
     tool_filter_task_name: str = Field(
         default="utils",
         json_schema_extra={
