@@ -125,7 +125,8 @@ class DeletePurgeRequest(BaseModel):
 
 
 def _build_import_guide_markdown(settings: dict[str, Any]) -> str:
-    path_aliases = settings.get("path_aliases") if isinstance(settings.get("path_aliases"), dict) else {}
+    path_aliases_raw = settings.get("path_aliases")
+    path_aliases = path_aliases_raw if isinstance(path_aliases_raw, dict) else {}
     alias_lines = [
         f"- `{name}` -> `{path}`"
         for name, path in sorted(path_aliases.items())
@@ -394,15 +395,7 @@ async def _memory_config_get() -> dict:
 
 
 async def _memory_config_get_raw() -> dict:
-    raw_payload_getter = getattr(a_memorix_host_service, "get_raw_config_with_meta", None)
-    if callable(raw_payload_getter):
-        raw_payload = raw_payload_getter()
-    else:
-        raw_payload = {
-            "config": a_memorix_host_service.get_raw_config(),
-            "exists": bool(a_memorix_host_service.get_config_path().exists()),
-            "using_default": False,
-        }
+    raw_payload = a_memorix_host_service.get_raw_config_with_meta()
     return {
         "success": True,
         "config": str(raw_payload.get("config", "") or ""),
@@ -628,8 +621,10 @@ async def _tuning_apply_best(task_id: str) -> dict:
 
 
 async def _tuning_report(task_id: str, fmt: str) -> dict:
-    payload = await memory_service.tuning_admin(action="get_report", task_id=task_id, format=fmt)
-    report = payload.get("report") if isinstance(payload.get("report"), dict) else {}
+    payload_raw = await memory_service.tuning_admin(action="get_report", task_id=task_id, format=fmt)
+    payload = payload_raw if isinstance(payload_raw, dict) else {}
+    report_raw = payload.get("report")
+    report = report_raw if isinstance(report_raw, dict) else {}
     return {
         "success": bool(payload.get("success", False)),
         "format": report.get("format", fmt),

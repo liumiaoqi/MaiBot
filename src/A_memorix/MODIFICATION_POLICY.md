@@ -27,9 +27,13 @@
 - `src/services/memory_service.py`
 - `src/webui/routers/memory.py`
 - `dashboard/src/routes/resource/knowledge-base.tsx`
+- `dashboard/src/routes/resource/__tests__/knowledge-base.test.tsx`
 - `dashboard/src/routes/resource/knowledge-graph/`
+- `dashboard/src/lib/memory-api.ts`
 - `config/a_memorix.toml`
-- `data/plugins/a-dawn.a-memorix/`
+- `data/a-memorix/`
+- `data/plugins/a-dawn.a-memorix/`（旧脚本默认路径）
+- `data/memory_upload_staging/`（Web 上传暂存）
 - `pytests/A_memorix_test/`
 - 同步脚本与同步文档，例如 `scripts/sync_a_memorix_subtree.sh`
 

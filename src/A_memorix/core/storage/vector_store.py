@@ -79,6 +79,7 @@ class VectorStore:
         self.quantization_type = QuantizationType.INT8 
         self.index_type = "sq8" 
         self.buffer_size = buffer_size
+        self.min_train_threshold = self.DEFAULT_MIN_TRAIN
 
         self._index: Optional[faiss.IndexIDMap2] = None
         self._init_index()

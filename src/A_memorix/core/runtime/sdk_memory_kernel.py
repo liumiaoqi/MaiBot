@@ -7,7 +7,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Dict, Iterable, List, Optional, Sequence
+from typing import Any, Callable, Coroutine, Dict, Iterable, List, Optional, Sequence
 
 from src.common.logger import get_logger
 
@@ -83,7 +83,7 @@ class _KernelRuntimeFacade:
     async def execute_request_with_dedup(
         self,
         request_key: str,
-        executor: Callable[[], Awaitable[Dict[str, Any]]],
+        executor: Callable[[], Coroutine[Any, Any, Dict[str, Any]]],
     ) -> tuple[bool, Dict[str, Any]]:
         return await self._kernel.execute_request_with_dedup(request_key, executor)
 
@@ -769,7 +769,7 @@ class SDKMemoryKernel:
     async def execute_request_with_dedup(
         self,
         request_key: str,
-        executor: Callable[[], Awaitable[Dict[str, Any]]],
+        executor: Callable[[], Coroutine[Any, Any, Dict[str, Any]]],
     ) -> tuple[bool, Dict[str, Any]]:
         token = str(request_key or "").strip()
         if not token:
@@ -1761,8 +1761,22 @@ class SDKMemoryKernel:
             profile = manager.get_profile_snapshot()
             return {"success": True, "profile": profile, "toml": manager.export_toml_snippet(profile)}
         if act == "apply_profile":
-            profile = kwargs.get("profile") if isinstance(kwargs.get("profile"), dict) else kwargs
-            return {"success": True, **await manager.apply_profile(profile, reason=str(kwargs.get("reason", "manual") or "manual"))}
+            profile_raw = kwargs.get("profile")
+            if isinstance(profile_raw, dict):
+                profile_payload: Dict[str, Any] = dict(profile_raw)
+            else:
+                profile_payload = {
+                    key: value
+                    for key, value in kwargs.items()
+                    if key not in {"reason", "profile"}
+                }
+            return {
+                "success": True,
+                **await manager.apply_profile(
+                    profile_payload,
+                    reason=str(kwargs.get("reason", "manual") or "manual"),
+                ),
+            }
         if act == "rollback_profile":
             return {"success": True, **await manager.rollback_profile()}
         if act == "export_profile":
@@ -1999,7 +2013,11 @@ class SDKMemoryKernel:
             self._ensure_background_task("memory_maintenance", self._memory_maintenance_loop)
             self._ensure_background_task("person_profile_refresh", self._person_profile_refresh_loop)
 
-    def _ensure_background_task(self, name: str, factory: Callable[[], Awaitable[None]]) -> None:
+    def _ensure_background_task(
+        self,
+        name: str,
+        factory: Callable[[], Coroutine[Any, Any, None]],
+    ) -> None:
         task = self._background_tasks.get(name)
         if task is not None and not task.done():
             return

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Coroutine, cast
 
 from src.common.logger import get_logger
 
@@ -106,7 +106,8 @@ def start_background_tasks(plugin: Any) -> None:
         and bool(plugin.get_config("episode.generation_enabled", True))
         and (episode_task is None or episode_task.done())
     ):
-        plugin._episode_generation_task = asyncio.create_task(episode_loop())
+        episode_loop_fn = cast(Callable[[], Coroutine[Any, Any, Any]], episode_loop)
+        plugin._episode_generation_task = asyncio.create_task(episode_loop_fn())
 
 
 async def cancel_background_tasks(plugin: Any) -> None:
