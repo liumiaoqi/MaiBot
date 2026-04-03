@@ -3,6 +3,7 @@
 from collections.abc import Awaitable, Callable
 from typing import Dict, List, Optional
 
+from src.config.config import global_config
 from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
 from src.llm_models.payload_content.tool_option import ToolDefinitionInput
 
@@ -11,6 +12,8 @@ from .no_reply import get_tool_spec as get_no_reply_tool_spec
 from .no_reply import handle_tool as handle_no_reply_tool
 from .query_jargon import get_tool_spec as get_query_jargon_tool_spec
 from .query_jargon import handle_tool as handle_query_jargon_tool
+from .query_memory import get_tool_spec as get_query_memory_tool_spec
+from .query_memory import handle_tool as handle_query_memory_tool
 from .query_person_info import get_tool_spec as get_query_person_info_tool_spec
 from .query_person_info import handle_tool as handle_query_person_info_tool
 from .reply import get_tool_spec as get_reply_tool_spec
@@ -33,6 +36,7 @@ def get_builtin_tool_specs() -> List[ToolSpec]:
         get_reply_tool_spec(),
         get_view_complex_message_tool_spec(),
         get_query_jargon_tool_spec(),
+        get_query_memory_tool_spec(enabled=bool(global_config.maisaka.enable_memory_query_tool)),
         get_no_reply_tool_spec(),
         get_send_emoji_tool_spec(),
     ]
@@ -46,6 +50,7 @@ def get_all_builtin_tool_specs() -> List[ToolSpec]:
         get_reply_tool_spec(),
         get_view_complex_message_tool_spec(),
         get_query_jargon_tool_spec(),
+        get_query_memory_tool_spec(enabled=True),
         get_query_person_info_tool_spec(),
         get_no_reply_tool_spec(),
         get_send_emoji_tool_spec(),
@@ -65,6 +70,7 @@ def build_builtin_tool_handlers(tool_ctx: BuiltinToolRuntimeContext) -> Dict[str
         "reply": lambda invocation, context=None: handle_reply_tool(tool_ctx, invocation, context),
         "no_reply": lambda invocation, context=None: handle_no_reply_tool(tool_ctx, invocation, context),
         "query_jargon": lambda invocation, context=None: handle_query_jargon_tool(tool_ctx, invocation, context),
+        "query_memory": lambda invocation, context=None: handle_query_memory_tool(tool_ctx, invocation, context),
         "query_person_info": lambda invocation, context=None: handle_query_person_info_tool(
             tool_ctx,
             invocation,

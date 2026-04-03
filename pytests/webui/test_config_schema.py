@@ -99,6 +99,25 @@ def test_maisaka_is_host_tab_and_mcp_is_attached_to_it():
     assert mcp_schema.get("uiParent") == "maisaka"
 
 
+def test_maisaka_memory_query_config_fields_are_exposed():
+    """MaiSaka 长期记忆检索开关和默认条数应出现在配置 schema 中。"""
+    schema = ConfigSchemaGenerator.generate_schema(Config)
+    maisaka_schema = schema["nested"]["maisaka"]
+
+    enable_field = next(field for field in maisaka_schema["fields"] if field["name"] == "enable_memory_query_tool")
+    limit_field = next(field for field in maisaka_schema["fields"] if field["name"] == "memory_query_default_limit")
+
+    assert enable_field["type"] == "boolean"
+    assert enable_field.get("x-widget") == "switch"
+    assert enable_field.get("x-icon") == "database"
+
+    assert limit_field["type"] == "integer"
+    assert limit_field.get("x-widget") == "input"
+    assert limit_field.get("x-icon") == "hash"
+    assert limit_field.get("minValue") == 1
+    assert limit_field.get("maxValue") == 20
+
+
 def test_set_field_is_mapped_as_array():
     """set[str] 应映射为前端可识别的 array。"""
     schema = ConfigSchemaGenerator.generate_schema(MessageReceiveConfig)

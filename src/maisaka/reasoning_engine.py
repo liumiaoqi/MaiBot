@@ -637,6 +637,15 @@ class MaisakaReasoningEngine:
                 return f"你查询了人物信息：{person_name}"
             return "你查询了一次人物信息。"
 
+        if invocation.tool_name == "query_memory":
+            query_text = str(invocation.arguments.get("query") or "").strip()
+            mode = str(invocation.arguments.get("mode") or "search").strip() or "search"
+            hit_items = structured_content.get("hits")
+            hit_count = len(hit_items) if isinstance(hit_items, list) else 0
+            if query_text:
+                return f"你查询了长期记忆：{query_text}（模式：{mode}，命中 {hit_count} 条）"
+            return f"你按时间范围查询了一次长期记忆（模式：{mode}，命中 {hit_count} 条）。"
+
         if invocation.tool_name == "view_complex_message":
             target_message_id = str(invocation.arguments.get("msg_id") or "").strip()
             if target_message_id:
