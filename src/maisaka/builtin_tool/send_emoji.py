@@ -3,7 +3,6 @@
 from datetime import datetime
 from io import BytesIO
 from random import sample
-from secrets import token_hex
 from typing import Any, Dict, Optional
 
 import asyncio
@@ -32,8 +31,7 @@ logger = get_logger("maisaka_builtin_send_emoji")
 
 _EMOJI_SUB_AGENT_CONTEXT_LIMIT = 12
 _EMOJI_SUB_AGENT_MAX_TOKENS = 240
-_EMOJI_CANDIDATE_GROUP_COUNT = 3
-_EMOJI_CANDIDATES_PER_GROUP = 5
+_EMOJI_CANDIDATE_COUNT = 25
 _EMOJI_CANDIDATE_TILE_SIZE = 256
 _EMOJI_SUCCESS_MESSAGE = "表情包发送成功"
 
@@ -41,8 +39,8 @@ _EMOJI_SUCCESS_MESSAGE = "表情包发送成功"
 class EmojiSelectionResult(BaseModel):
     """表情包子代理的结构化选择结果。"""
 
-    emoji_id: str = PydanticField(default="", description="选中的候选消息 ID。")
-    emoji_index: int = PydanticField(default=1, description="该候选消息中第几张图片，从 1 开始计数。")
+    emoji_index: int = PydanticField(default=1, description="选中的表情包序号，从 1 开始计数。")
+    reason: str = PydanticField(default="", description="选择这张表情包的简短理由。")
 
 
 def get_tool_spec() -> ToolSpec:
@@ -136,44 +134,46 @@ def _build_labeled_tile(image_bytes: bytes, index: int, tile_size: int) -> PILIm
 
 
 def _merge_emoji_tiles(image_bytes_list: list[bytes]) -> bytes:
-    """将三张候选表情图拼接成一张横向图片。"""
+    """将候选表情图拼接成一张 5x5 网格图片。"""
 
     tile_size = _EMOJI_CANDIDATE_TILE_SIZE
     gap = 12
+    grid_columns = 5
+    grid_rows = 5
     tiles = [
         _build_labeled_tile(image_bytes=image_bytes, index=index, tile_size=tile_size)
         for index, image_bytes in enumerate(image_bytes_list, start=1)
     ]
-    canvas_width = tile_size * len(tiles) + gap * max(len(tiles) - 1, 0)
-    canvas = PILImage.new("RGBA", (canvas_width, tile_size), color=(255, 255, 255, 255))
+    canvas_width = tile_size * grid_columns + gap * (grid_columns - 1)
+    canvas_height = tile_size * grid_rows + gap * (grid_rows - 1)
+    canvas = PILImage.new("RGBA", (canvas_width, canvas_height), color=(255, 255, 255, 255))
 
-    current_x = 0
-    for tile in tiles:
-        canvas.paste(tile, (current_x, 0), tile)
-        current_x += tile_size + gap
+    for index, tile in enumerate(tiles):
+        row = index // grid_columns
+        column = index % grid_columns
+        offset_x = column * (tile_size + gap)
+        offset_y = row * (tile_size + gap)
+        canvas.paste(tile, (offset_x, offset_y), tile)
 
     output = BytesIO()
     canvas.convert("RGB").save(output, format="PNG")
     return output.getvalue()
 
 
-async def _build_emoji_candidate_message(
-    emojis: list[MaiEmoji],
-    candidate_id: str,
-) -> SessionBackedMessage:
-    """构建供子代理挑选的拼图候选消息。"""
+async def _build_emoji_candidate_message(emojis: list[MaiEmoji]) -> SessionBackedMessage:
+    """构建供子代理挑选的 5x5 拼图候选消息。"""
 
     image_bytes_list = await asyncio.gather(*[_load_emoji_bytes(emoji) for emoji in emojis])
     merged_image_bytes = await asyncio.to_thread(_merge_emoji_tiles, list(image_bytes_list))
     raw_message = MessageSequence(
         [
-            TextComponent(f"ID: {candidate_id}"),
+            TextComponent("请从这张 5x5 拼图中选择一个序号。"),
             ImageComponent(binary_hash="", binary_data=merged_image_bytes),
         ]
     )
     return SessionBackedMessage(
         raw_message=raw_message,
-        visible_text=f"ID: {candidate_id}",
+        visible_text="[表情包拼图候选]",
         timestamp=datetime.now(),
         source_kind="emoji_candidate",
     )
@@ -185,6 +185,7 @@ async def _select_emoji_with_sub_agent(
     reasoning: str,
     context_texts: list[str],
     sample_size: int,
+    selection_metadata: Optional[Dict[str, str]] = None,
 ) -> tuple[MaiEmoji | None, str]:
     """通过临时子代理从候选表情包中选出一个结果。"""
 
@@ -194,33 +195,18 @@ async def _select_emoji_with_sub_agent(
     if not available_emojis:
         return None, ""
 
-    total_candidate_count = min(
-        len(available_emojis),
-        _EMOJI_CANDIDATE_GROUP_COUNT * _EMOJI_CANDIDATES_PER_GROUP,
-    )
+    total_candidate_count = min(len(available_emojis), _EMOJI_CANDIDATE_COUNT)
     sampled_emojis = sample(available_emojis, total_candidate_count)
-
-    candidate_map: dict[str, list[MaiEmoji]] = {}
-    candidate_messages: list[LLMContextMessage] = []
-    for group_index in range(0, len(sampled_emojis), _EMOJI_CANDIDATES_PER_GROUP):
-        emoji_group = sampled_emojis[group_index : group_index + _EMOJI_CANDIDATES_PER_GROUP]
-        if not emoji_group:
-            continue
-
-        candidate_id = token_hex(4)
-        while candidate_id in candidate_map:
-            candidate_id = token_hex(4)
-        candidate_map[candidate_id] = emoji_group
-        candidate_messages.append(await _build_emoji_candidate_message(emoji_group, candidate_id))
+    candidate_message = await _build_emoji_candidate_message(sampled_emojis)
 
     system_prompt = (
         "你是 Maisaka 的临时表情包选择子代理。\n"
-        "你会收到群聊上下文，以及 3 条候选消息。每条候选消息都包含 5 张横向拼接的表情图。\n"
-        "每条候选消息都有一个临时 ID，图片左上角标有 1、2、3、4、5，对应这条消息中的第 1 到第 5 张图。\n"
-        "你的任务是根据上下文和当前语气，从候选中选出最合适的一张表情包。\n"
+        "你会收到群聊上下文，以及 1 条额外候选消息，其中包含一张 5x5 的表情包拼图，一共 25 个位置。\n"
+        "每张小图左上角都有一个较大的序号，范围是 1 到 25。\n"
+        "你的任务是根据上下文和当前语气，从这 25 张图里选出最合适的一张表情包。\n"
         "如果提供了 requested_emotion，请优先考虑与其接近的候选；如果没有完全匹配，则选择最符合上下文语气的候选。\n"
         "你必须返回一个 JSON 对象（json object），不要输出任何 JSON 之外的内容。\n"
-        '返回格式固定为：{"emoji_id":"候选消息ID","emoji_index":1}'
+        '返回格式固定为：{"emoji_index":1,"reason":"简短理由"}'
     )
     prompt_message = ReferenceMessage(
         content=(
@@ -237,7 +223,7 @@ async def _select_emoji_with_sub_agent(
     response = await tool_ctx.runtime.run_sub_agent(
         context_message_limit=_EMOJI_SUB_AGENT_CONTEXT_LIMIT,
         system_prompt=system_prompt,
-        extra_messages=[prompt_message, *candidate_messages],
+        extra_messages=[prompt_message, candidate_message],
         max_tokens=_EMOJI_SUB_AGENT_MAX_TOKENS,
         response_format=RespFormat(
             format_type=RespFormatType.JSON_SCHEMA,
@@ -252,22 +238,17 @@ async def _select_emoji_with_sub_agent(
         fallback_emoji = sampled_emojis[0] if sampled_emojis else None
         return fallback_emoji, ""
 
-    selected_group = candidate_map.get(selection.emoji_id.strip())
-    if selected_group is None:
-        logger.warning(
-            f"{tool_ctx.runtime.log_prefix} 表情包子代理返回了无效 ID: {selection.emoji_id!r}，将回退到候选首项"
-        )
-        fallback_emoji = sampled_emojis[0] if sampled_emojis else None
-        return fallback_emoji, ""
+    if selection_metadata is not None:
+        selection_metadata["reason"] = selection.reason.strip()
 
     emoji_index = int(selection.emoji_index)
-    if emoji_index < 1 or emoji_index > len(selected_group):
+    if emoji_index < 1 or emoji_index > len(sampled_emojis):
         logger.warning(
-            f"{tool_ctx.runtime.log_prefix} 表情包子代理返回了无效序号: {emoji_index!r}，将回退到该组第 1 张"
+            f"{tool_ctx.runtime.log_prefix} 表情包子代理返回了无效序号: {emoji_index!r}，将回退到第 1 张"
         )
         emoji_index = 1
 
-    return selected_group[emoji_index - 1], ""
+    return sampled_emojis[emoji_index - 1], ""
 
 
 async def handle_tool(
@@ -291,7 +272,9 @@ async def handle_tool(
         "emotion": [],
         "requested_emotion": emotion,
         "matched_emotion": "",
+        "reason": "",
     }
+    selection_metadata: Dict[str, str] = {"reason": ""}
 
     logger.info(f"{tool_ctx.runtime.log_prefix} 触发表情包发送工具，请求情绪={emotion!r}")
 
@@ -307,6 +290,7 @@ async def handle_tool(
                 reasoning,
                 list(context_texts or []),
                 sample_size,
+                selection_metadata,
             ),
         )
     except Exception as exc:
@@ -320,6 +304,7 @@ async def handle_tool(
 
     if send_result.success:
         structured_result["message"] = _EMOJI_SUCCESS_MESSAGE
+        structured_result["reason"] = selection_metadata["reason"]
         logger.info(
             f"{tool_ctx.runtime.log_prefix} 表情包发送成功 "
             f"描述={send_result.description!r} 情绪标签={send_result.emotions} "
@@ -332,7 +317,7 @@ async def handle_tool(
         structured_result["success"] = True
         return tool_ctx.build_success_result(
             invocation.tool_name,
-            _EMOJI_SUCCESS_MESSAGE,
+            selection_metadata["reason"] or _EMOJI_SUCCESS_MESSAGE,
             structured_content=structured_result,
         )
 
