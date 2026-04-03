@@ -239,8 +239,7 @@ def load_utils_via_file(monkeypatch):
 @pytest.mark.asyncio
 async def test_message_utils(monkeypatch):
     load_message_via_file(monkeypatch)
-    utils_module = load_utils_via_file(monkeypatch)
-    MessageUtils = utils_module.MessageUtils
+    load_utils_via_file(monkeypatch)
 
 
 @pytest.mark.asyncio

@@ -15,7 +15,7 @@ ROOT_PATH = Path(__file__).resolve().parent.parent
 if str(ROOT_PATH) not in sys_path:
     sys_path.insert(0, str(ROOT_PATH))
 
-from src.common.database.database_model import Expression, Jargon, ModifiedBy
+from src.common.database.database_model import Expression, Jargon, ModifiedBy  # noqa: E402
 
 
 def build_argument_parser() -> ArgumentParser:

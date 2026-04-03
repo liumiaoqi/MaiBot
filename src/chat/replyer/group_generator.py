@@ -1135,9 +1135,6 @@ class DefaultReplyer:
         return content, reasoning_content, model_name, tool_calls
 
     async def get_prompt_info(self, message: str, sender: str, target: str):
-        del message
-        del sender
-        del target
         return ""
         related_info = ""
         start_time = time.time()
