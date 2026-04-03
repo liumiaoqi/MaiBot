@@ -8,9 +8,9 @@ from typing import Any, Dict, List, Tuple
 
 import json
 
+from src.common.data_models.embedding_service_data_models import EmbeddingResult
 from src.common.data_models.llm_service_data_models import (
     LLMAudioTranscriptionResult,
-    LLMEmbeddingResult,
     LLMGenerationOptions,
     LLMImageOptions,
     LLMResponseResult,
@@ -21,14 +21,19 @@ from src.common.data_models.llm_service_data_models import (
     PromptMessage,
 )
 from src.common.logger import get_logger
-from src.config.config import config_manager
-from src.config.model_configs import TaskConfig
 from src.llm_models.model_client.base_client import BaseClient
 from src.llm_models.payload_content.message import Message, MessageBuilder, RoleType
 from src.llm_models.payload_content.tool_option import ToolCall
 from src.llm_models.utils_model import LLMOrchestrator
+from src.services.embedding_service import EmbeddingServiceClient
+from src.services.service_task_resolver import (
+    get_available_models as _get_available_models,
+    resolve_task_name as _resolve_task_name,
+    resolve_task_name_from_model_config as _resolve_task_name_from_model_config,
+)
 
 logger = get_logger("llm_service")
+
 
 class LLMServiceClient:
     """面向上层模块的 LLM 服务对象式门面。
@@ -38,7 +43,7 @@ class LLMServiceClient:
     - `generate_response_with_messages`
     - `generate_response_for_image`
     - `transcribe_audio`
-    - `embed_text`
+    - `embed_text`（兼容入口，推荐改用 `EmbeddingServiceClient`）
     """
 
     def __init__(self, task_name: str, request_type: str = "") -> None:
@@ -48,7 +53,7 @@ class LLMServiceClient:
             task_name: 任务配置名称，对应 `model_task_config` 下的字段名。
             request_type: 当前请求的业务类型标识。
         """
-        self.task_name = resolve_task_name(task_name)
+        self.task_name = _resolve_task_name(task_name)
         self.request_type = request_type
         self._orchestrator = LLMOrchestrator(task_name=self.task_name, request_type=request_type)
 
@@ -169,41 +174,29 @@ class LLMServiceClient:
         """
         return await self._orchestrator.generate_response_for_voice(voice_base64)
 
-    async def embed_text(self, embedding_input: str) -> LLMEmbeddingResult:
-        """生成文本嵌入向量。
+    async def embed_text(self, embedding_input: str) -> EmbeddingResult:
+        """兼容旧调用的文本嵌入入口。
 
         Args:
             embedding_input: 待编码的文本。
 
         Returns:
-            LLMEmbeddingResult: 向量生成结果对象。
+            EmbeddingResult: 向量生成结果对象。
         """
-        return await self._orchestrator.get_embedding(embedding_input)
+        embedding_client = EmbeddingServiceClient(
+            task_name=self.task_name,
+            request_type=self.request_type,
+        )
+        return await embedding_client.embed_text(embedding_input)
 
 
-def get_available_models() -> Dict[str, TaskConfig]:
+def get_available_models() -> Dict[str, Any]:
     """获取所有可用模型配置。
 
     Returns:
-        Dict[str, TaskConfig]: 以模型任务名为键的配置映射。
+        Dict[str, Any]: 以模型任务名为键的配置映射。
     """
-    try:
-        models = config_manager.get_model_config().model_task_config
-        available_models: Dict[str, TaskConfig] = {}
-        for attr_name in dir(models):
-            if attr_name.startswith("__"):
-                continue
-            try:
-                attr_value = getattr(models, attr_name)
-            except Exception as exc:
-                logger.debug(f"[LLMService] 获取属性 {attr_name} 失败: {exc}")
-                continue
-            if not callable(attr_value) and isinstance(attr_value, TaskConfig):
-                available_models[attr_name] = attr_value
-        return available_models
-    except Exception as exc:
-        logger.error(f"[LLMService] 获取可用模型失败: {exc}")
-        return {}
+    return _get_available_models()
 
 
 def resolve_task_name(task_name: str = "") -> str:
@@ -214,30 +207,12 @@ def resolve_task_name(task_name: str = "") -> str:
 
     Returns:
         str: 解析得到的任务配置名。
-
-    Raises:
-        RuntimeError: 当前没有任何可用模型配置。
-        ValueError: 指定名称不存在时抛出。
     """
-    models = get_available_models()
-    if not models:
-        raise RuntimeError("没有可用的模型配置")
-    normalized_task_name = task_name.strip()
-    if not normalized_task_name:
-        return next(iter(models.keys()))
-    if normalized_task_name not in models:
-        raise ValueError(f"未找到名为 `{normalized_task_name}` 的模型配置")
-    return normalized_task_name
+    return _resolve_task_name(task_name)
 
 
 def resolve_task_name_from_model_config(model_config: Any, preferred_task_name: str = "") -> str:
     """根据旧版 `TaskConfig` 风格参数解析可用任务名。
-
-    该方法用于兼容仍以 `model_config` 传参的调用方：
-    1. 优先使用显式给出的 `preferred_task_name`；
-    2. 其次匹配对象同一性；
-    3. 再尝试按 `model_list` 精确匹配；
-    4. 最后按 `model_list` 中首个命中的模型进行近似映射。
 
     Args:
         model_config: 旧调用方持有的任务配置对象。
@@ -245,44 +220,11 @@ def resolve_task_name_from_model_config(model_config: Any, preferred_task_name: 
 
     Returns:
         str: 可用于 `LLMServiceRequest.task_name` 的任务名。
-
-    Raises:
-        RuntimeError: 当前没有可用模型配置。
-        ValueError: 无法解析任何可用任务名时抛出。
     """
-    models = get_available_models()
-    if not models:
-        raise RuntimeError("没有可用的模型配置")
-
-    normalized_preferred = str(preferred_task_name or "").strip()
-    if normalized_preferred and normalized_preferred in models:
-        return normalized_preferred
-
-    for task_name, task_cfg in models.items():
-        if task_cfg is model_config:
-            return task_name
-
-    requested_model_list_raw = getattr(model_config, "model_list", [])
-    requested_model_list = [str(item).strip() for item in (requested_model_list_raw or []) if str(item).strip()]
-    if requested_model_list:
-        for task_name, task_cfg in models.items():
-            candidate_list = [str(item).strip() for item in getattr(task_cfg, "model_list", []) if str(item).strip()]
-            if candidate_list == requested_model_list:
-                return task_name
-
-        for requested_model in requested_model_list:
-            for task_name, task_cfg in models.items():
-                candidate_list = [str(item).strip() for item in getattr(task_cfg, "model_list", []) if str(item).strip()]
-                if requested_model in candidate_list:
-                    logger.info(
-                        "[LLMService] 旧版 model_config 未命中任务配置，"
-                        f"按模型 `{requested_model}` 近似映射到任务 `{task_name}`"
-                    )
-                    return task_name
-
-    if normalized_preferred:
-        logger.warning(f"[LLMService] 无法映射旧版 model_config，回退默认任务: preferred={normalized_preferred}")
-    return resolve_task_name("")
+    return _resolve_task_name_from_model_config(
+        model_config=model_config,
+        preferred_task_name=preferred_task_name,
+    )
 
 
 def _normalize_role(role_name: str) -> RoleType:

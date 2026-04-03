@@ -162,7 +162,7 @@ class MaisakaReplyGenerator:
     def _build_history_messages(self, chat_history: List[LLMContextMessage]) -> List[Message]:
         """将 replyer 上下文拆成多条 LLM 消息。"""
         bot_nickname = global_config.bot.nickname.strip() or "Bot"
-        default_user_name = global_config.maisaka.user_name.strip() or "User"
+        default_user_name = global_config.maisaka.cli_user_name.strip() or "User"
         messages: List[Message] = []
 
         for message in chat_history:

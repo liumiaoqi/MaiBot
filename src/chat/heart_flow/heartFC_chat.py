@@ -205,7 +205,7 @@ class HeartFChatting:
         # TODO: Planner逻辑
         # TODO: 动作执行逻辑
 
-        cycle_detail = self._end_cycle(current_cycle_detail)
+        self._end_cycle(current_cycle_detail)
         await asyncio.sleep(0.1)  # 最小等待时间，避免过快循环
         return True
 

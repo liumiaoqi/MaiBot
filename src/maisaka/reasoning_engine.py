@@ -266,7 +266,7 @@ class MaisakaReasoningEngine:
         source_sequence = message.raw_message
 
         planner_components = clone_message_sequence(source_sequence).components
-        if global_config.maisaka.direct_image_input:
+        if global_config.chat.direct_image_input:
             await self._hydrate_visual_components(planner_components)
         if planner_components and isinstance(planner_components[0], TextComponent):
             planner_components[0].text = planner_prefix + planner_components[0].text
@@ -610,16 +610,8 @@ class MaisakaReasoningEngine:
             return f"你尝试回复消息 {target_message_id or 'unknown'}，但失败了：{error_text}"
 
         if invocation.tool_name == "send_emoji":
-            description = str(structured_content.get("description") or "").strip()
-            emotion_list = structured_content.get("emotion")
-            if isinstance(emotion_list, list):
-                emotion_text = "、".join(str(item).strip() for item in emotion_list if str(item).strip())
-            else:
-                emotion_text = ""
-            if result.success and description:
-                if emotion_text:
-                    return f"你发送了表情包：{description}（情绪：{emotion_text}）"
-                return f"你发送了表情包：{description}"
+            if result.success:
+                return "你发送了表情包。"
             return f"你尝试发送表情包，但失败了：{self._truncate_tool_record_text(result.error_message or history_content, 120)}"
 
         if invocation.tool_name == "wait":

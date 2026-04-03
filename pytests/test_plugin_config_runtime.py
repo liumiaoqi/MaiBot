@@ -169,6 +169,33 @@ def test_runner_apply_plugin_config_generates_config_file(tmp_path: Path) -> Non
     assert saved_config == {"plugin": {"enabled": False, "retry_count": 3}}
 
 
+def test_runner_apply_plugin_config_preserves_existing_comments(tmp_path: Path) -> None:
+    """Runner 补齐配置时应尽量保留现有 config.toml 注释。"""
+
+    plugin = _DemoConfigPlugin()
+    runner = PluginRunner(
+        host_address="ipc://unused",
+        session_token="session-token",
+        plugin_dirs=[],
+    )
+    meta = SimpleNamespace(plugin_id="demo.plugin", plugin_dir=str(tmp_path), instance=plugin)
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        '# 插件配置头注释\n[plugin]\nenabled = false # 启用开关注释\n',
+        encoding="utf-8",
+    )
+
+    runner._apply_plugin_config(cast(Any, meta))
+
+    config_text = config_path.read_text(encoding="utf-8")
+    assert "# 插件配置头注释" in config_text
+    assert "# 启用开关注释" in config_text
+
+    with config_path.open("rb") as handle:
+        saved_config = tomllib.load(handle)
+    assert saved_config == {"plugin": {"enabled": False, "retry_count": 3}}
+
+
 def test_component_query_service_returns_plugin_config_schema(monkeypatch: Any) -> None:
     """组件查询服务应支持按插件 ID 返回配置 Schema。"""
 

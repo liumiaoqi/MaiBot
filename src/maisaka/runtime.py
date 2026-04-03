@@ -1,6 +1,6 @@
 ﻿"""Maisaka 非 CLI 运行时。"""
 
-from typing import Any, Literal, Optional
+from typing import Any, Literal, Optional, Sequence
 
 import asyncio
 import time
@@ -20,12 +20,14 @@ from src.core.tooling import ToolRegistry
 from src.know_u.knowledge import KnowledgeLearner
 from src.learners.expression_learner import ExpressionLearner
 from src.learners.jargon_miner import JargonMiner
+from src.llm_models.payload_content.resp_format import RespFormat
+from src.llm_models.payload_content.tool_option import ToolDefinitionInput
 from src.mcp_module import MCPManager
 from src.mcp_module.host_llm_bridge import MCPHostLLMBridge
 from src.mcp_module.provider import MCPToolProvider
 from src.plugin_runtime.tool_provider import PluginToolProvider
 
-from .chat_loop_service import MaisakaChatLoopService
+from .chat_loop_service import ChatResponse, MaisakaChatLoopService
 from .context_messages import LLMContextMessage
 from .reasoning_engine import MaisakaReasoningEngine
 from .tool_provider import MaisakaBuiltinToolProvider
@@ -196,6 +198,40 @@ class MaisakaHeartFlowChatting:
         )
         self._tool_registry.register_provider(PluginToolProvider())
         self._chat_loop_service.set_tool_registry(self._tool_registry)
+
+    async def run_sub_agent(
+        self,
+        *,
+        context_message_limit: int,
+        system_prompt: str,
+        extra_messages: Optional[Sequence[LLMContextMessage]] = None,
+        max_tokens: int = 512,
+        response_format: RespFormat | None = None,
+        temperature: float = 0.2,
+        tool_definitions: Optional[Sequence[ToolDefinitionInput]] = None,
+    ) -> ChatResponse:
+        """运行一个复制上下文的临时子代理，并在完成后立即销毁。"""
+
+        selected_history, _ = MaisakaChatLoopService.select_llm_context_messages(
+            self._chat_history,
+            max_context_size=context_message_limit,
+        )
+        sub_agent_history = list(selected_history)
+        if extra_messages:
+            sub_agent_history.extend(list(extra_messages))
+
+        sub_agent = MaisakaChatLoopService(
+            chat_system_prompt=system_prompt,
+            session_id=self.session_id,
+            is_group_chat=self.chat_stream.is_group_session,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        return await sub_agent.chat_loop_step(
+            sub_agent_history,
+            response_format=response_format,
+            tool_definitions=[] if tool_definitions is None else tool_definitions,
+        )
 
     async def _main_loop(self) -> None:
         try:
@@ -421,7 +457,7 @@ class MaisakaHeartFlowChatting:
         if self.chat_stream.user_id:
             return UserInfo(
                 user_id=self.chat_stream.user_id,
-                user_nickname=global_config.maisaka.user_name.strip() or "用户",
+                user_nickname=global_config.maisaka.cli_user_name.strip() or "用户",
                 user_cardname=None,
             )
         return UserInfo(user_id="maisaka_user", user_nickname="用户", user_cardname=None)
@@ -455,7 +491,7 @@ class MaisakaHeartFlowChatting:
         tool_results: Optional[list[str]] = None,
     ) -> None:
         """在终端展示当前聊天流的上下文占用、规划结果与工具摘要。"""
-        if not global_config.maisaka.show_thinking:
+        if not global_config.debug.show_maisaka_thinking:
             return
 
         session_name = chat_manager.get_session_name(self.session_id) or self.session_id

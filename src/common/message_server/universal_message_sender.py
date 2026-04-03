@@ -92,7 +92,6 @@ class UniversalMessageSender:
         """
         # TODO: 重构至新的发送模型
         message_preview = (message.processed_plain_text or "")[:200]
-        platform = message.platform
 
         try:
             # 尝试通过主 API 发送

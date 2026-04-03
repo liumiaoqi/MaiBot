@@ -67,7 +67,7 @@ class BufferCLI:
             timestamp=timestamp,
             platform=BufferCLI._CLI_PLATFORM,
         )
-        user_name = global_config.maisaka.user_name.strip() or "用户"
+        user_name = global_config.maisaka.cli_user_name.strip() or "用户"
         message.message_info = MessageInfo(
             user_info=UserInfo(
                 user_id=BufferCLI._CLI_USER_ID,

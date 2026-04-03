@@ -5,6 +5,7 @@ import sys
 import time
 import json
 import importlib
+from dataclasses import dataclass
 from typing import Optional, Dict, Any
 from datetime import datetime
 
@@ -23,7 +24,17 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from src.common.logger import initialize_logging, get_logger
 from src.common.database.database import db
 from src.common.database.database_model import LLMUsage
-from maim_message import UserInfo, GroupInfo
+from src.common.data_models.mai_message_data_model import UserInfo, GroupInfo
+
+try:
+    from maim_message import ChatStream, UserInfo, GroupInfo
+except Exception:
+    @dataclass
+    class ChatStream:
+        stream_id: str
+        platform: str
+        user_info: UserInfo
+        group_info: GroupInfo
 
 logger = get_logger("test_memory_retrieval")
 

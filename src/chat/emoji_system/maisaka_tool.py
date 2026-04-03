@@ -1,5 +1,6 @@
 """Maisaka 表情工具内置能力。"""
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any, Optional, Sequence
 
@@ -16,6 +17,11 @@ from src.services import send_service
 from .emoji_manager import _serialize_emoji_for_hook, emoji_manager, emoji_manager_emotion_judge_llm
 
 logger = get_logger("emoji_maisaka_tool")
+
+EmojiSelector = Callable[
+    [str, str, Sequence[str] | None, int],
+    Awaitable[tuple[MaiEmoji | None, str]],
+]
 
 
 @dataclass(slots=True)
@@ -198,13 +204,14 @@ async def send_emoji_for_maisaka(
     requested_emotion: str = "",
     reasoning: str = "",
     context_texts: Sequence[str] | None = None,
+    emoji_selector: EmojiSelector | None = None,
 ) -> MaisakaEmojiSendResult:
     """为 Maisaka 选择并发送一个表情。"""
 
     normalized_requested_emotion = requested_emotion.strip()
     normalized_reasoning = reasoning.strip()
     normalized_context_texts = _normalize_context_texts(context_texts)
-    sample_size = 30
+    sample_size = 20
 
     before_select_result = await _get_runtime_manager().invoke_hook(
         "emoji.maisaka.before_select",
@@ -232,12 +239,20 @@ async def send_emoji_for_maisaka(
         normalized_context_texts = _normalize_context_texts(before_select_kwargs.get("context_texts"))
     sample_size = _coerce_positive_int(before_select_kwargs.get("sample_size"), sample_size)
 
-    selected_emoji, matched_emotion = await select_emoji_for_maisaka(
-        requested_emotion=normalized_requested_emotion,
-        reasoning=normalized_reasoning,
-        context_texts=normalized_context_texts,
-        sample_size=sample_size,
-    )
+    if emoji_selector is None:
+        selected_emoji, matched_emotion = await select_emoji_for_maisaka(
+            requested_emotion=normalized_requested_emotion,
+            reasoning=normalized_reasoning,
+            context_texts=normalized_context_texts,
+            sample_size=sample_size,
+        )
+    else:
+        selected_emoji, matched_emotion = await emoji_selector(
+            normalized_requested_emotion,
+            normalized_reasoning,
+            normalized_context_texts,
+            sample_size,
+        )
     after_select_result = await _get_runtime_manager().invoke_hook(
         "emoji.maisaka.after_select",
         stream_id=stream_id,

@@ -282,7 +282,24 @@ class ChatConfig(ConfigBase):
             "x-icon": "list",
         },
     )
-    """_wrap_为指定聊天添加额外的 prompt 配置列表"""
+
+    direct_image_input: bool = Field(
+        default=True,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "image",
+        },
+    )
+    """是否直接输入图片"""
+
+    replyer_generator_type: Literal["legacy", "multi"] = Field(
+        default="legacy",
+        json_schema_extra={
+            "x-widget": "select",
+            "x-icon": "git-branch",
+        },
+    )
+    """Maisaka replyer 生成器类型：legacy（旧版单 prompt）/ multi（多消息版）"""
 
     enable_talk_value_rules: bool = Field(
         default=True,
@@ -1018,6 +1035,14 @@ class DebugConfig(ConfigBase):
             "x-icon": "brain",
         },
     )
+
+    show_maisaka_thinking: bool = Field(
+        default=True,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "brain",
+        },
+    )
     """是否显示回复器推理"""
 
     show_jargon_prompt: bool = Field(
@@ -1481,16 +1506,7 @@ class MaiSakaConfig(ConfigBase):
         },
     )
     """启用知识库模块"""
-    show_thinking: bool = Field(
-        default=True,
-        json_schema_extra={
-            "x-widget": "switch",
-            "x-icon": "brain",
-        },
-    )
-    """是否显示MaiSaka思考过程"""
-
-    user_name: str = Field(
+    cli_user_name: str = Field(
         default="用户",
         json_schema_extra={
             "x-widget": "input",
@@ -1498,33 +1514,6 @@ class MaiSakaConfig(ConfigBase):
         },
     )
     """MaiSaka 使用的用户名称"""
-
-    direct_image_input: bool = Field(
-        default=True,
-        json_schema_extra={
-            "x-widget": "switch",
-            "x-icon": "image",
-        },
-    )
-    """是否直接输入图片"""
-
-    merge_user_messages: bool = Field(
-        default=True,
-        json_schema_extra={
-            "x-widget": "switch",
-            "x-icon": "merge",
-        },
-    )
-    """是否将新接收的用户发言合并为单个用户消息"""
-
-    replyer_generator_type: Literal["legacy", "multi"] = Field(
-        default="legacy",
-        json_schema_extra={
-            "x-widget": "select",
-            "x-icon": "git-branch",
-        },
-    )
-    """Maisaka replyer 生成器类型：legacy（旧版单 prompt）/ multi（多消息版）"""
 
     max_internal_rounds: int = Field(
         default=6,
@@ -1565,14 +1554,14 @@ class MaiSakaConfig(ConfigBase):
     )
     """工具筛选阶段最多保留的非内置工具数量"""
 
-    terminal_image_display_mode: Literal["legacy", "path_link"] = Field(
-        default="legacy",
+    show_image_path: bool = Field(
+        default=True,
         json_schema_extra={
-            "x-widget": "select",
+            "x-widget": "switch",
             "x-icon": "image",
         },
     )
-    """图片展示模式：legacy（仅显示元信息）/ path_link（可点击本地路径）"""
+    """是否显示图片本地路径"""
 
 
 class MCPAuthorizationConfig(ConfigBase):

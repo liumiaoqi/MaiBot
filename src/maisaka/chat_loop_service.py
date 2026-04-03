@@ -210,7 +210,7 @@ class MaisakaChatLoopService:
         self._extra_tools: List[ToolOption] = []
         self._interrupt_flag: asyncio.Event | None = None
         self._tool_registry: ToolRegistry | None = None
-        self._prompts_loaded = False
+        self._prompts_loaded = chat_system_prompt is not None
         self._prompt_load_lock = asyncio.Lock()
         self._personality_prompt = self._build_personality_prompt()
         if chat_system_prompt is None:
@@ -392,7 +392,12 @@ class MaisakaChatLoopService:
         """设置当前 planner 请求使用的中断标记。"""
         self._interrupt_flag = interrupt_flag
 
-    def _build_request_messages(self, selected_history: List[LLMContextMessage]) -> List[Message]:
+    def _build_request_messages(
+        self,
+        selected_history: List[LLMContextMessage],
+        *,
+        system_prompt: Optional[str] = None,
+    ) -> List[Message]:
         """构造发给大模型的消息列表。
 
         Args:
@@ -404,7 +409,7 @@ class MaisakaChatLoopService:
 
         messages: List[Message] = []
         system_msg = MessageBuilder().set_role(RoleType.System)
-        system_msg.add_text_content(self._chat_system_prompt)
+        system_msg.add_text_content(system_prompt if system_prompt is not None else self._chat_system_prompt)
         messages.append(system_msg.build())
 
         for msg in selected_history:
@@ -691,7 +696,13 @@ class MaisakaChatLoopService:
 
         return extract_category_ids_from_result(generation_result.response or "")
 
-    async def chat_loop_step(self, chat_history: List[LLMContextMessage]) -> ChatResponse:
+    async def chat_loop_step(
+        self,
+        chat_history: List[LLMContextMessage],
+        *,
+        response_format: RespFormat | None = None,
+        tool_definitions: Sequence[ToolDefinitionInput] | None = None,
+    ) -> ChatResponse:
         """执行一轮 Maisaka 规划器请求。
 
         Args:
@@ -701,8 +712,9 @@ class MaisakaChatLoopService:
             ChatResponse: 本轮规划器返回结果。
         """
 
-        await self.ensure_chat_prompt_loaded()
-        selected_history, selection_reason = self._select_llm_context_messages(chat_history)
+        if not self._prompts_loaded:
+            await self.ensure_chat_prompt_loaded()
+        selected_history, selection_reason = self.select_llm_context_messages(chat_history)
         built_messages = self._build_request_messages(selected_history)
 
         def message_factory(_client: BaseClient) -> List[Message]:
@@ -719,7 +731,9 @@ class MaisakaChatLoopService:
             return built_messages
 
         all_tools: List[ToolDefinitionInput]
-        if self._tool_registry is not None:
+        if tool_definitions is not None:
+            all_tools = list(tool_definitions)
+        elif self._tool_registry is not None:
             tool_specs = await self._tool_registry.list_tools()
             filtered_tool_specs = await self._filter_tool_specs_for_planner(selected_history, tool_specs)
             all_tools = [tool_spec.to_llm_definition() for tool_spec in filtered_tool_specs]
@@ -748,10 +762,10 @@ class MaisakaChatLoopService:
 
         ordered_panels = PromptCLIVisualizer.build_prompt_panels(
             built_messages,
-            image_display_mode=global_config.maisaka.terminal_image_display_mode,
+            image_display_mode="path_link" if global_config.maisaka.show_image_path else "legacy",
         )
 
-        if global_config.maisaka.show_thinking and ordered_panels:
+        if global_config.debug.show_maisaka_thinking and ordered_panels:
             console.print(
                 Panel(
                     Group(*ordered_panels),
@@ -776,6 +790,7 @@ class MaisakaChatLoopService:
                 tool_options=all_tools if all_tools else None,
                 temperature=self._temperature,
                 max_tokens=self._max_tokens,
+                response_format=response_format,
                 interrupt_flag=self._interrupt_flag,
             ),
         )
@@ -835,6 +850,40 @@ class MaisakaChatLoopService:
             built_message_count=len(built_messages),
             completion_tokens=completion_tokens,
             total_tokens=total_tokens,
+        )
+
+    @staticmethod
+    def select_llm_context_messages(
+        chat_history: List[LLMContextMessage],
+        *,
+        max_context_size: Optional[int] = None,
+    ) -> tuple[List[LLMContextMessage], str]:
+        """??????? LLM ???????"""
+
+        effective_context_size = max(1, int(max_context_size or global_config.chat.max_context_size))
+        selected_indices: List[int] = []
+        counted_message_count = 0
+
+        for index in range(len(chat_history) - 1, -1, -1):
+            message = chat_history[index]
+            if message.to_llm_message() is None:
+                continue
+
+            selected_indices.append(index)
+            if message.count_in_context:
+                counted_message_count += 1
+                if counted_message_count >= effective_context_size:
+                    break
+
+        if not selected_indices:
+            return [], f"???????? {effective_context_size} ? user/assistant??? 0 ??"
+
+        selected_indices.reverse()
+        selected_history = [chat_history[index] for index in selected_indices]
+        selected_history = MaisakaChatLoopService._drop_leading_orphan_tool_results(selected_history)
+        return (
+            selected_history,
+            f"???????? {effective_context_size} ? user/assistant??????????? {len(selected_history)} ?",
         )
 
     @staticmethod

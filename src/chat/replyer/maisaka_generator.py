@@ -151,7 +151,7 @@ class MaisakaReplyGenerator:
                     content = self._normalize_content(content_body)
                     if not content:
                         continue
-                    visible_speaker = speaker_name or global_config.maisaka.user_name.strip() or "User"
+                    visible_speaker = speaker_name or global_config.maisaka.cli_user_name.strip() or "User"
                     parts.append(f"{timestamp} {visible_speaker}: {content}")
                 continue
 
