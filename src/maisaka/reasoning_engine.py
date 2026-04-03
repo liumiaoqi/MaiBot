@@ -51,6 +51,18 @@ class MaisakaReasoningEngine:
         self._runtime = runtime
         self._last_reasoning_content: str = ""
 
+    @staticmethod
+    def _get_runtime_manager() -> Any:
+        """获取插件运行时管理器。
+
+        Returns:
+            Any: 插件运行时管理器单例。
+        """
+
+        from src.plugin_runtime.integration import get_plugin_runtime_manager
+
+        return get_plugin_runtime_manager()
+
     @property
     def last_reasoning_content(self) -> str:
         """返回最近一轮思考文本。"""

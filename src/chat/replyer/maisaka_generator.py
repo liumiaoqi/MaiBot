@@ -162,15 +162,37 @@ class MaisakaReplyGenerator:
 
         return "\n".join(parts)
 
+    def _build_target_message_block(self, reply_message: Optional[SessionMessage]) -> str:
+        """构建当前需要回复的目标消息摘要。"""
+        if reply_message is None:
+            return ""
+
+        user_info = reply_message.message_info.user_info
+        sender_name = user_info.user_cardname or user_info.user_nickname or user_info.user_id
+        target_message_id = reply_message.message_id.strip() if reply_message.message_id else "未知"
+        target_content = self._normalize_content((reply_message.processed_plain_text or "").strip(), limit=300)
+        if not target_content:
+            target_content = "[无可见文本内容]"
+
+        return (
+            "【本次回复目标】\n"
+            f"- 目标消息ID：{target_message_id}\n"
+            f"- 发送者：{sender_name}\n"
+            f"- 消息内容：{target_content}\n"
+            "- 你这次要回复的就是这条目标消息，请结合整段上下文理解，但不要误把其他历史消息当成当前回复对象。"
+        )
+
     def _build_prompt(
         self,
         chat_history: List[LLMContextMessage],
+        reply_message: Optional[SessionMessage],
         reply_reason: str,
         expression_habits: str = "",
     ) -> str:
         """构建 Maisaka replyer 提示词。"""
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         formatted_history = self._format_chat_history(chat_history)
+        target_message_block = self._build_target_message_block(reply_message)
 
         try:
             system_prompt = load_prompt(
@@ -191,6 +213,8 @@ class MaisakaReplyGenerator:
             f"当前时间：{current_time}",
             f"【聊天记录】\n{formatted_history}",
         ]
+        if target_message_block:
+            user_sections.append(target_message_block)
         if extra_sections:
             user_sections.append("\n\n".join(extra_sections))
         user_sections.append(f"【回复信息参考】\n{reply_reason}")
@@ -362,6 +386,7 @@ class MaisakaReplyGenerator:
         try:
             prompt = self._build_prompt(
                 chat_history=filtered_history,
+                reply_message=reply_message,
                 reply_reason=reply_reason or "",
                 expression_habits=merged_expression_habits,
             )

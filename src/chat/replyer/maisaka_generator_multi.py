@@ -126,13 +126,35 @@ class MaisakaReplyGenerator:
 
         return segments
 
+    def _build_target_message_block(self, reply_message: Optional[SessionMessage]) -> str:
+        """构建当前需要回复的目标消息摘要。"""
+        if reply_message is None:
+            return ""
+
+        user_info = reply_message.message_info.user_info
+        sender_name = user_info.user_cardname or user_info.user_nickname or user_info.user_id
+        target_message_id = reply_message.message_id.strip() if reply_message.message_id else "未知"
+        target_content = self._normalize_content((reply_message.processed_plain_text or "").strip(), limit=300)
+        if not target_content:
+            target_content = "[无可见文本内容]"
+
+        return (
+            "【本次回复目标】\n"
+            f"- 目标消息ID：{target_message_id}\n"
+            f"- 发送者：{sender_name}\n"
+            f"- 消息内容：{target_content}\n"
+            "- 你这次要回复的就是这条目标消息，请结合整段上下文理解，但不要误把其他历史消息当成当前回复对象。"
+        )
+
     def _build_system_prompt(
         self,
+        reply_message: Optional[SessionMessage],
         reply_reason: str,
         expression_habits: str = "",
     ) -> str:
         """构建 Maisaka replyer 使用的系统提示词。"""
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        target_message_block = self._build_target_message_block(reply_message)
 
         try:
             system_prompt = load_prompt(
@@ -148,16 +170,26 @@ class MaisakaReplyGenerator:
         extra_sections: List[str] = []
         if expression_habits.strip():
             extra_sections.append(expression_habits.strip())
-        if reply_reason.strip():
-            extra_sections.append(f"【回复信息参考】\n{reply_reason}")
-
+        if target_message_block:
+            extra_sections.append(target_message_block)
         if not extra_sections:
             return system_prompt
         return f"{system_prompt}\n\n" + "\n\n".join(extra_sections)
 
-    def _build_reply_instruction(self) -> str:
+    def _build_reply_instruction(
+        self,
+        reply_message: Optional[SessionMessage],
+        reply_reason: str,
+    ) -> str:
         """构建追加在上下文末尾的回复指令。"""
-        return "请基于以上逐条对话消息，自然地继续回复。直接输出你要说的话，不要额外解释。"
+        sections: List[str] = []
+        target_message_block = self._build_target_message_block(reply_message)
+        if target_message_block:
+            sections.append(target_message_block)
+        if reply_reason.strip():
+            sections.append(f"【回复信息参考】\n{reply_reason}")
+        sections.append("请基于以上逐条对话消息，自然地继续回复。直接输出你要说的话，不要额外解释。")
+        return "\n\n".join(sections)
 
     def _build_multimodal_user_message(
         self,
@@ -238,16 +270,21 @@ class MaisakaReplyGenerator:
     def _build_request_messages(
         self,
         chat_history: List[LLMContextMessage],
+        reply_message: Optional[SessionMessage],
         reply_reason: str,
         expression_habits: str = "",
     ) -> List[Message]:
         """构建发给大模型的消息列表。"""
         messages: List[Message] = []
         system_prompt = self._build_system_prompt(
+            reply_message=reply_message,
             reply_reason=reply_reason,
             expression_habits=expression_habits,
         )
-        instruction = self._build_reply_instruction()
+        instruction = self._build_reply_instruction(
+            reply_message=reply_message,
+            reply_reason=reply_reason,
+        )
 
         messages.append(MessageBuilder().set_role(RoleType.System).add_text_content(system_prompt).build())
         messages.extend(self._build_history_messages(chat_history))
@@ -433,6 +470,7 @@ class MaisakaReplyGenerator:
         try:
             request_messages = self._build_request_messages(
                 chat_history=filtered_history,
+                reply_message=reply_message,
                 reply_reason=reply_reason or "",
                 expression_habits=merged_expression_habits,
             )
