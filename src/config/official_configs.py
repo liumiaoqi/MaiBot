@@ -716,17 +716,16 @@ class EmojiConfig(ConfigBase):
     __ui_label__ = "功能"
     __ui_icon__ = "puzzle"
 
-    emoji_chance: float = Field(
-        default=0.4,
-        ge=0,
-        le=1,
+    emoji_send_num: int = Field(
+        default=25,
+        ge=1,
+        le=64,
         json_schema_extra={
-            "x-widget": "slider",
-            "x-icon": "smile",
-            "step": 0.1,
+            "x-widget": "input",
+            "x-icon": "grid",
         },
     )
-    """发送表情包的基础概率"""
+    """一次从多少个表情包中选择发送，最大为 64"""
 
     max_reg_num: int = Field(
         default=100,

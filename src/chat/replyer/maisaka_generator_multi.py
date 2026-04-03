@@ -17,6 +17,7 @@ from src.common.data_models.reply_generation_data_models import (
 )
 from src.common.logger import get_logger
 from src.common.prompt_i18n import load_prompt
+from src.common.utils.utils_session import SessionUtils
 from src.config.config import global_config
 from src.core.types import ActionInfo
 from src.llm_models.payload_content.message import ImageMessagePart, Message, MessageBuilder, RoleType, TextMessagePart
@@ -172,24 +173,15 @@ class MaisakaReplyGenerator:
             extra_sections.append(expression_habits.strip())
         if target_message_block:
             extra_sections.append(target_message_block)
+        if reply_reason.strip():
+            extra_sections.append(f"【回复信息参考】\n{reply_reason}")
         if not extra_sections:
             return system_prompt
         return f"{system_prompt}\n\n" + "\n\n".join(extra_sections)
 
-    def _build_reply_instruction(
-        self,
-        reply_message: Optional[SessionMessage],
-        reply_reason: str,
-    ) -> str:
+    def _build_reply_instruction(self) -> str:
         """构建追加在上下文末尾的回复指令。"""
-        sections: List[str] = []
-        target_message_block = self._build_target_message_block(reply_message)
-        if target_message_block:
-            sections.append(target_message_block)
-        if reply_reason.strip():
-            sections.append(f"【回复信息参考】\n{reply_reason}")
-        sections.append("请基于以上逐条对话消息，自然地继续回复。直接输出你要说的话，不要额外解释。")
-        return "\n\n".join(sections)
+        return "请基于以上逐条对话消息，自然地继续回复。直接输出你要说的话，不要额外解释。"
 
     def _build_multimodal_user_message(
         self,
@@ -281,10 +273,7 @@ class MaisakaReplyGenerator:
             reply_reason=reply_reason,
             expression_habits=expression_habits,
         )
-        instruction = self._build_reply_instruction(
-            reply_message=reply_message,
-            reply_reason=reply_reason,
-        )
+        instruction = self._build_reply_instruction()
 
         messages.append(MessageBuilder().set_role(RoleType.System).add_text_content(system_prompt).build())
         messages.extend(self._build_history_messages(chat_history))
@@ -369,18 +358,52 @@ class MaisakaReplyGenerator:
         )
         return block, selected_ids
 
+    def _get_related_session_ids(self, session_id: str) -> List[str]:
+        """根据表达互通组配置，解析当前会话可共享的会话 ID。"""
+        related_session_ids = {session_id}
+        expression_groups = global_config.expression.expression_groups
+
+        for expression_group in expression_groups:
+            target_items = expression_group.expression_groups
+            group_session_ids: set[str] = set()
+            contains_current_session = False
+
+            for target_item in target_items:
+                platform = target_item.platform.strip()
+                item_id = target_item.item_id.strip()
+                if not platform or not item_id:
+                    continue
+
+                rule_type = target_item.rule_type
+                target_session_id = SessionUtils.calculate_session_id(
+                    platform,
+                    group_id=item_id if rule_type == "group" else None,
+                    user_id=None if rule_type == "group" else item_id,
+                )
+                group_session_ids.add(target_session_id)
+                if target_session_id == session_id:
+                    contains_current_session = True
+
+            if contains_current_session:
+                related_session_ids.update(group_session_ids)
+
+        return list(related_session_ids)
+
     def _load_expression_records(self, session_id: str) -> List[_ExpressionRecord]:
         """提取表达方式静态数据，避免 detached ORM 对象。"""
-        with get_db_session(auto_commit=False) as session:
-            query = select(Expression).where(Expression.rejected.is_(False))  # type: ignore[attr-defined]
-            if global_config.expression.expression_checked_only:
-                query = query.where(Expression.checked.is_(True))  # type: ignore[attr-defined]
+        related_session_ids = self._get_related_session_ids(session_id)
 
-            query = query.where(
-                (Expression.session_id == session_id) | (Expression.session_id.is_(None))  # type: ignore[attr-defined]
+        with get_db_session(auto_commit=False) as session:
+            base_query = select(Expression).where(Expression.rejected.is_(False))  # type: ignore[attr-defined]
+            scoped_query = base_query.where(
+                (Expression.session_id.in_(related_session_ids)) | (Expression.session_id.is_(None))  # type: ignore[attr-defined]
             ).order_by(Expression.count.desc(), Expression.last_active_time.desc())  # type: ignore[attr-defined]
 
-            expressions = session.exec(query.limit(5)).all()
+            if global_config.expression.expression_checked_only:
+                scoped_query = scoped_query.where(Expression.checked.is_(True))  # type: ignore[attr-defined]
+
+            expressions = session.exec(scoped_query.limit(5)).all()
+
             return [
                 _ExpressionRecord(
                     expression_id=expression.id,

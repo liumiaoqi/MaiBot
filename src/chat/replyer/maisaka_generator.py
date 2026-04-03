@@ -17,6 +17,7 @@ from src.common.data_models.reply_generation_data_models import (
 )
 from src.common.logger import get_logger
 from src.common.prompt_i18n import load_prompt
+from src.common.utils.utils_session import SessionUtils
 from src.config.config import global_config
 from src.core.types import ActionInfo
 from src.services.llm_service import LLMServiceClient
@@ -285,18 +286,52 @@ class MaisakaReplyGenerator:
         )
         return block, selected_ids
 
+    def _get_related_session_ids(self, session_id: str) -> List[str]:
+        """根据表达互通组配置，解析当前会话可共享的会话 ID。"""
+        related_session_ids = {session_id}
+        expression_groups = global_config.expression.expression_groups
+
+        for expression_group in expression_groups:
+            target_items = expression_group.expression_groups
+            group_session_ids: set[str] = set()
+            contains_current_session = False
+
+            for target_item in target_items:
+                platform = target_item.platform.strip()
+                item_id = target_item.item_id.strip()
+                if not platform or not item_id:
+                    continue
+
+                rule_type = target_item.rule_type
+                target_session_id = SessionUtils.calculate_session_id(
+                    platform,
+                    group_id=item_id if rule_type == "group" else None,
+                    user_id=None if rule_type == "group" else item_id,
+                )
+                group_session_ids.add(target_session_id)
+                if target_session_id == session_id:
+                    contains_current_session = True
+
+            if contains_current_session:
+                related_session_ids.update(group_session_ids)
+
+        return list(related_session_ids)
+
     def _load_expression_records(self, session_id: str) -> List[_ExpressionRecord]:
         """提取表达方式静态数据，避免 detached ORM 对象。"""
-        with get_db_session(auto_commit=False) as session:
-            query = select(Expression).where(Expression.rejected.is_(False))  # type: ignore[attr-defined]
-            if global_config.expression.expression_checked_only:
-                query = query.where(Expression.checked.is_(True))  # type: ignore[attr-defined]
+        related_session_ids = self._get_related_session_ids(session_id)
 
-            query = query.where(
-                (Expression.session_id == session_id) | (Expression.session_id.is_(None))  # type: ignore[attr-defined]
+        with get_db_session(auto_commit=False) as session:
+            base_query = select(Expression).where(Expression.rejected.is_(False))  # type: ignore[attr-defined]
+            scoped_query = base_query.where(
+                (Expression.session_id.in_(related_session_ids)) | (Expression.session_id.is_(None))  # type: ignore[attr-defined]
             ).order_by(Expression.count.desc(), Expression.last_active_time.desc())  # type: ignore[attr-defined]
 
-            expressions = session.exec(query.limit(5)).all()
+            if global_config.expression.expression_checked_only:
+                scoped_query = scoped_query.where(Expression.checked.is_(True))  # type: ignore[attr-defined]
+
+            expressions = session.exec(scoped_query.limit(5)).all()
+
             return [
                 _ExpressionRecord(
                     expression_id=expression.id,
