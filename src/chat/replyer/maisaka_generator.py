@@ -1,15 +1,12 @@
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Awaitable, Callable, Dict, List, Optional, Tuple
 
 import random
 import time
 
-from sqlmodel import select
-
 from src.chat.message_receive.chat_manager import BotChatSession
-from src.common.database.database import get_db_session
-from src.common.database.database_model import Expression
+from src.chat.message_receive.message import SessionMessage
 from src.common.data_models.reply_generation_data_models import (
     GenerationMetrics,
     LLMCompletionResult,
@@ -17,13 +14,12 @@ from src.common.data_models.reply_generation_data_models import (
 )
 from src.common.logger import get_logger
 from src.common.prompt_i18n import load_prompt
-from src.common.utils.utils_session import SessionUtils
 from src.config.config import global_config
 from src.core.types import ActionInfo
 from src.services.llm_service import LLMServiceClient
 
-from src.chat.message_receive.message import SessionMessage
 from src.maisaka.context_messages import AssistantMessage, LLMContextMessage, ReferenceMessage, SessionBackedMessage, ToolResultMessage
+from .maisaka_expression_selector import maisaka_expression_selector
 from src.maisaka.message_adapter import parse_speaker_content
 
 logger = get_logger("replyer")
@@ -35,15 +31,6 @@ class MaisakaReplyContext:
 
     expression_habits: str = ""
     selected_expression_ids: List[int] = field(default_factory=list)
-
-
-@dataclass
-class _ExpressionRecord:
-    """表达方式的轻量记录。"""
-
-    expression_id: Optional[int]
-    situation: str
-    style: str
 
 
 class MaisakaReplyGenerator:
@@ -238,108 +225,29 @@ class MaisakaReplyGenerator:
         reply_message: Optional[SessionMessage],
         reply_reason: str,
         stream_id: Optional[str],
+        sub_agent_runner: Optional[Callable[[str], Awaitable[str]]],
     ) -> MaisakaReplyContext:
-        """在 replyer 内部构建表达习惯和黑话解释。"""
+        """构建回复上下文：表达习惯和已选表达 ID。"""
         session_id = self._resolve_session_id(stream_id)
         if not session_id:
             logger.warning("构建 Maisaka 回复上下文失败：缺少会话标识")
             return MaisakaReplyContext()
 
-        expression_habits, selected_expression_ids = self._build_expression_habits(
+        if sub_agent_runner is None:
+            logger.info("表达方式选择跳过：缺少子代理执行器")
+            return MaisakaReplyContext()
+
+        selection_result = await maisaka_expression_selector.select_for_reply(
             session_id=session_id,
             chat_history=chat_history,
             reply_message=reply_message,
             reply_reason=reply_reason,
+            sub_agent_runner=sub_agent_runner,
         )
         return MaisakaReplyContext(
-            expression_habits=expression_habits,
-            selected_expression_ids=selected_expression_ids,
+            expression_habits=selection_result.expression_habits,
+            selected_expression_ids=selection_result.selected_expression_ids,
         )
-
-    def _build_expression_habits(
-        self,
-        session_id: str,
-        chat_history: List[LLMContextMessage],
-        reply_message: Optional[SessionMessage],
-        reply_reason: str,
-    ) -> tuple[str, List[int]]:
-        """查询并格式化适合当前会话的表达习惯。"""
-        del chat_history
-        del reply_message
-        del reply_reason
-
-        expression_records = self._load_expression_records(session_id)
-        if not expression_records:
-            return "", []
-
-        lines: List[str] = []
-        selected_ids: List[int] = []
-        for expression in expression_records:
-            if expression.expression_id is not None:
-                selected_ids.append(expression.expression_id)
-            lines.append(f"- 当{expression.situation}时，可以自然地用{expression.style}这种表达习惯。")
-
-        block = "【表达习惯参考】\n" + "\n".join(lines)
-        logger.info(
-            f"已构建 Maisaka 表达习惯: 会话标识={session_id} "
-            f"数量={len(selected_ids)} 表达编号={selected_ids!r}"
-        )
-        return block, selected_ids
-
-    def _get_related_session_ids(self, session_id: str) -> List[str]:
-        """根据表达互通组配置，解析当前会话可共享的会话 ID。"""
-        related_session_ids = {session_id}
-        expression_groups = global_config.expression.expression_groups
-
-        for expression_group in expression_groups:
-            target_items = expression_group.expression_groups
-            group_session_ids: set[str] = set()
-            contains_current_session = False
-
-            for target_item in target_items:
-                platform = target_item.platform.strip()
-                item_id = target_item.item_id.strip()
-                if not platform or not item_id:
-                    continue
-
-                rule_type = target_item.rule_type
-                target_session_id = SessionUtils.calculate_session_id(
-                    platform,
-                    group_id=item_id if rule_type == "group" else None,
-                    user_id=None if rule_type == "group" else item_id,
-                )
-                group_session_ids.add(target_session_id)
-                if target_session_id == session_id:
-                    contains_current_session = True
-
-            if contains_current_session:
-                related_session_ids.update(group_session_ids)
-
-        return list(related_session_ids)
-
-    def _load_expression_records(self, session_id: str) -> List[_ExpressionRecord]:
-        """提取表达方式静态数据，避免 detached ORM 对象。"""
-        related_session_ids = self._get_related_session_ids(session_id)
-
-        with get_db_session(auto_commit=False) as session:
-            base_query = select(Expression).where(Expression.rejected.is_(False))  # type: ignore[attr-defined]
-            scoped_query = base_query.where(
-                (Expression.session_id.in_(related_session_ids)) | (Expression.session_id.is_(None))  # type: ignore[attr-defined]
-            ).order_by(Expression.count.desc(), Expression.last_active_time.desc())  # type: ignore[attr-defined]
-
-            if global_config.expression.expression_checked_only:
-                scoped_query = scoped_query.where(Expression.checked.is_(True))  # type: ignore[attr-defined]
-
-            expressions = session.exec(scoped_query.limit(5)).all()
-
-            return [
-                _ExpressionRecord(
-                    expression_id=expression.id,
-                    situation=expression.situation,
-                    style=expression.style,
-                )
-                for expression in expressions
-            ]
 
     async def generate_reply_with_context(
         self,
@@ -357,6 +265,7 @@ class MaisakaReplyGenerator:
         chat_history: Optional[List[LLMContextMessage]] = None,
         expression_habits: str = "",
         selected_expression_ids: Optional[List[int]] = None,
+        sub_agent_runner: Optional[Callable[[str], Awaitable[str]]] = None,
     ) -> Tuple[bool, ReplyGenerationResult]:
         """结合上下文生成 Maisaka 的最终可见回复。"""
         del available_actions
@@ -399,6 +308,7 @@ class MaisakaReplyGenerator:
                 reply_message=reply_message,
                 reply_reason=reply_reason or "",
                 stream_id=stream_id,
+                sub_agent_runner=sub_agent_runner,
             )
         except Exception as exc:
             import traceback

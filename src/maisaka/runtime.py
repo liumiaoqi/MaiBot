@@ -84,7 +84,6 @@ class MaisakaHeartFlowChatting:
         self._enable_expression_use = expr_use
         self._enable_expression_learning = expr_learn
         self._enable_jargon_learning = jargon_learn
-        self._min_messages_for_extraction = 10
         self._min_extraction_interval = 30
         self._last_expression_extraction_time = 0.0
         self._last_knowledge_extraction_time = 0.0
@@ -351,88 +350,84 @@ class MaisakaHeartFlowChatting:
             logger.error(f"{self.log_prefix} 知识学习任务异常退出: {knowledge_result}")
 
     async def _trigger_expression_learning(self, messages: list[SessionMessage]) -> None:
-        """基于新收集的一批消息触发表达学习。"""
-        self._expression_learner.add_messages(messages)
-
+        """?????????????????"""
         if not self._enable_expression_learning:
-            logger.debug(f"{self.log_prefix} 表达学习未启用，跳过当前批次")
+            logger.debug(f"{self.log_prefix} ??????????????")
             return
 
         elapsed = time.time() - self._last_expression_extraction_time
         if elapsed < self._min_extraction_interval:
             logger.debug(
-                f"{self.log_prefix} 表达学习尚未达到触发间隔: "
-                f"已过={elapsed:.2f} 秒 阈值={self._min_extraction_interval} 秒"
+                f"{self.log_prefix} ????????????: "
+                f"??={elapsed:.2f} ? ??={self._min_extraction_interval} ?"
             )
             return
 
-        cache_size = self._expression_learner.get_cache_size()
-        if cache_size < self._min_messages_for_extraction:
+        pending_count = self._expression_learner.get_pending_count(self.message_cache)
+        if pending_count < self._expression_learner.min_messages_for_extraction:
             logger.debug(
-                f"{self.log_prefix} 表达学习因缓存数量不足而跳过: "
-                f"学习器缓存={cache_size} 阈值={self._min_messages_for_extraction} "
-                f"消息总缓存={len(self.message_cache)}"
+                f"{self.log_prefix} ??????????????: "
+                f"??????={pending_count} ??={self._expression_learner.min_messages_for_extraction} "
+                f"?????={len(self.message_cache)}"
             )
             return
 
         self._last_expression_extraction_time = time.time()
         logger.info(
-            f"{self.log_prefix} 开始表达学习: "
-            f"新批次消息数={len(messages)} 学习器缓存={cache_size} "
-            f"消息总缓存={len(self.message_cache)} "
-            f"启用黑话学习={self._enable_jargon_learning}"
+            f"{self.log_prefix} ??????: "
+            f"??????={len(messages)} ??????={pending_count} "
+            f"?????={len(self.message_cache)} "
+            f"??????={self._enable_jargon_learning}"
         )
 
         try:
             jargon_miner = self._jargon_miner if self._enable_jargon_learning else None
-            learnt_style = await self._expression_learner.learn(jargon_miner)
+            learnt_style = await self._expression_learner.learn(self.message_cache, jargon_miner)
             if learnt_style:
-                logger.info(f"{self.log_prefix} 表达学习已完成")
+                logger.info(f"{self.log_prefix} ???????")
             else:
-                logger.debug(f"{self.log_prefix} 表达学习已完成，但没有可用结果")
+                logger.debug(f"{self.log_prefix} ???????????????")
         except Exception:
-            logger.exception(f"{self.log_prefix} 表达学习失败")
+            logger.exception(f"{self.log_prefix} ??????")
 
     async def _trigger_knowledge_learning(self, messages: list[SessionMessage]) -> None:
-        """基于新收集的一批消息触发知识学习。"""
-        self._knowledge_learner.add_messages(messages)
-
+        """?????????????????"""
         if not global_config.maisaka.enable_knowledge_module:
-            logger.debug(f"{self.log_prefix} 知识学习未启用，跳过当前批次")
+            logger.debug(f"{self.log_prefix} ??????????????")
             return
 
         elapsed = time.time() - self._last_knowledge_extraction_time
         if elapsed < self._min_extraction_interval:
             logger.debug(
-                f"{self.log_prefix} 知识学习尚未达到触发间隔: "
-                f"已过={elapsed:.2f} 秒 阈值={self._min_extraction_interval} 秒"
+                f"{self.log_prefix} ????????????: "
+                f"??={elapsed:.2f} ? ??={self._min_extraction_interval} ?"
             )
             return
 
-        cache_size = self._knowledge_learner.get_cache_size()
-        if cache_size < self._min_messages_for_extraction:
+        pending_count = self._knowledge_learner.get_pending_count(self.message_cache)
+        if pending_count < self._knowledge_learner.min_messages_for_extraction:
             logger.debug(
-                f"{self.log_prefix} 知识学习因缓存数量不足而跳过: "
-                f"学习器缓存={cache_size} 阈值={self._min_messages_for_extraction} "
-                f"消息总缓存={len(self.message_cache)}"
+                f"{self.log_prefix} ??????????????: "
+                f"??????={pending_count} ??={self._knowledge_learner.min_messages_for_extraction} "
+                f"?????={len(self.message_cache)}"
             )
             return
 
         self._last_knowledge_extraction_time = time.time()
         logger.info(
-            f"{self.log_prefix} 开始知识学习: "
-            f"新批次消息数={len(messages)} 学习器缓存={cache_size} "
-            f"消息总缓存={len(self.message_cache)}"
+            f"{self.log_prefix} ??????: "
+            f"??????={len(messages)} ??????={pending_count} "
+            f"?????={len(self.message_cache)}"
         )
 
         try:
-            added_count = await self._knowledge_learner.learn()
+            added_count = await self._knowledge_learner.learn(self.message_cache)
             if added_count > 0:
-                logger.info(f"{self.log_prefix} 知识学习已完成: 新增条目数={added_count}")
+                logger.info(f"{self.log_prefix} ???????: ?????={added_count}")
             else:
-                logger.debug(f"{self.log_prefix} 知识学习已完成，但没有可用结果")
+                logger.debug(f"{self.log_prefix} ???????????????")
         except Exception:
-            logger.exception(f"{self.log_prefix} 知识学习失败")
+            logger.exception(f"{self.log_prefix} ??????")
 
     async def _init_mcp(self) -> None:
         """初始化 MCP 工具并注册到统一工具层。"""
@@ -502,9 +497,8 @@ class MaisakaHeartFlowChatting:
 
         session_name = chat_manager.get_session_name(self.session_id) or self.session_id
         body_lines = [
-            f"聊天流: {session_name}",
-            f"Chat ID: {self.session_id}",
-            f"上下文占用: {selected_history_count}条 / {self._format_token_count(prompt_tokens)}",
+            f"上下文占用：{selected_history_count}/{self._max_context_size} 条",
+            f"本次请求token消耗：{self._format_token_count(prompt_tokens)}",
         ]
 
         renderables: list[RenderableType] = [Text("\n".join(body_lines))]
@@ -584,7 +578,7 @@ class MaisakaHeartFlowChatting:
     def _log_history_trimmed(self, removed_count: int, user_message_count: int) -> None:
         logger.info(
             f"{self.log_prefix} 已裁剪 {removed_count} 条历史消息; "
-            f"剩余计入上下文的消息数={user_message_count}"
+            # f"剩余计入上下文的消息数={user_message_count}"
         )
 
     def _log_internal_loop_cancelled(self) -> None:

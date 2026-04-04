@@ -80,28 +80,23 @@ class KnowledgeLearner:
         self._store = get_knowledge_store()
         self._llm = LLMServiceClient(task_name="utils", request_type="maisaka.knowledge.learn")
         self._learning_lock = asyncio.Lock()
-        self._messages_cache: List[SessionMessage] = []
+        self._last_processed_index = 0
+        self.min_messages_for_extraction = 10
 
-    def add_messages(self, messages: List[SessionMessage]) -> None:
-        """缓存待学习的消息。"""
-        self._messages_cache.extend(messages)
+    def get_pending_count(self, message_cache: List[SessionMessage]) -> int:
+        """??????????????"""
+        return max(0, len(message_cache) - self._last_processed_index)
 
-    def get_cache_size(self) -> int:
-        """获取缓存消息数量。"""
-        return len(self._messages_cache)
-
-    async def learn(self) -> int:
-        """
-        从缓存消息中提取知识并落库。
-
-        Returns:
-            新增入库的知识条数
-        """
-        if not self._messages_cache:
+    async def learn(self, message_cache: List[SessionMessage]) -> int:
+        """?????????????????????"""
+        pending_messages = message_cache[self._last_processed_index :]
+        if not pending_messages:
+            return 0
+        if len(pending_messages) < self.min_messages_for_extraction:
             return 0
 
         async with self._learning_lock:
-            chat_excerpt = self._build_chat_excerpt()
+            chat_excerpt = self._build_chat_excerpt(pending_messages)
             if not chat_excerpt:
                 return 0
 
@@ -115,12 +110,13 @@ class KnowledgeLearner:
                     ),
                 )
             except Exception:
-                logger.exception("知识学习模型调用失败")
+                logger.exception("??????????")
                 return 0
 
             knowledge_items = self._parse_learning_result(result.response or "")
             if not knowledge_items:
-                logger.debug("知识学习已完成，但未提取到有效条目")
+                logger.debug("?????????????????")
+                self._last_processed_index = len(message_cache)
                 return 0
 
             added_count = 0
@@ -146,23 +142,25 @@ class KnowledgeLearner:
                 ):
                     added_count += 1
 
+            self._last_processed_index = len(message_cache)
+
             if added_count > 0:
                 logger.info(
-                    f"Maisaka 知识学习已完成: 会话标识={self._session_id} 新增条数={added_count}"
+                    f"Maisaka ???????: ????={self._session_id} ????={added_count}"
                 )
             else:
                 logger.debug(
-                    f"Maisaka 知识学习已完成，但没有新增条目: 会话标识={self._session_id}"
+                    f"Maisaka ???????????????: ????={self._session_id}"
                 )
 
             return added_count
 
-    def _build_chat_excerpt(self) -> str:
+    def _build_chat_excerpt(self, messages: List[SessionMessage]) -> str:
         """
         构建适合画像提取的对话片段，只保留用户可见文本。
         """
         lines: List[str] = []
-        for message in self._messages_cache[-30:]:
+        for message in messages[-30:]:
             if isinstance(message, (AssistantMessage, ToolResultMessage)):
                 continue
             if isinstance(message, SessionBackedMessage):

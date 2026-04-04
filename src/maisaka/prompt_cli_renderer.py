@@ -652,10 +652,14 @@ class PromptCLIVisualizer:
         dump_uri = cls._build_file_uri(prompt_dump_path)
 
         body = Group(
-            Text(f"富文本预览：{viewer_html_path}", style="bold green"),
-            Text(f"原始文本备份：{prompt_dump_path}", style="magenta"),
-            Text.from_markup(f"[link={viewer_uri}]点击在浏览器打开富文本 Prompt 视图[/link]", style="bold green"),
-            Text.from_markup(f"[link={dump_uri}]点击直接打开 Prompt 文本[/link]", style="cyan"),
+            Text.from_markup(
+                f"[bold green]富文本预览：{viewer_html_path}[/bold green] "
+                f"[link={viewer_uri}]点击在浏览器打开富文本 Prompt 视图[/link]"
+            ),
+            Text.from_markup(
+                f"[magenta]原始文本备份：{prompt_dump_path}[/magenta] "
+                f"[cyan][link={dump_uri}]点击直接打开 Prompt 文本[/link][/cyan]"
+            ),
         )
         return body
 
@@ -812,10 +816,14 @@ class PromptCLIVisualizer:
         dump_uri = cls._build_file_uri(text_dump_path)
 
         body = Group(
-            Text(f"富文本预览：{viewer_html_path}", style="bold green"),
-            Text(f"原始文本备份：{text_dump_path}", style="magenta"),
-            Text.from_markup(f"[link={viewer_uri}]点击在浏览器打开富文本 Prompt 视图[/link]", style="bold green"),
-            Text.from_markup(f"[link={dump_uri}]点击直接打开 Prompt 文本[/link]", style="cyan"),
+            Text.from_markup(
+                f"[bold green]富文本预览：{viewer_html_path}[/bold green] "
+                f"[link={viewer_uri}]点击在浏览器打开富文本 Prompt 视图[/link]"
+            ),
+            Text.from_markup(
+                f"[magenta]原始文本备份：{text_dump_path}[/magenta] "
+                f"[cyan][link={dump_uri}]点击直接打开 Prompt 文本[/link][/cyan]"
+            ),
         )
         return body
 

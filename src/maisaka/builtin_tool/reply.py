@@ -14,6 +14,18 @@ from .context import BuiltinToolRuntimeContext
 logger = get_logger("maisaka_builtin_reply")
 
 
+async def _run_expression_selector(tool_ctx: BuiltinToolRuntimeContext, system_prompt: str) -> str:
+    """运行 replyer 侧表达方式选择子代理，并返回文本结果。"""
+    response = await tool_ctx.runtime.run_sub_agent(
+        context_message_limit=10,
+        system_prompt=system_prompt,
+        request_kind="expression_selector",
+        max_tokens=256,
+        temperature=0.1,
+    )
+    return (response.content or "").strip()
+
+
 def get_tool_spec() -> ToolSpec:
     """获取 reply 工具声明。"""
 
@@ -102,6 +114,10 @@ async def handle_tool(
             stream_id=tool_ctx.runtime.session_id,
             reply_message=target_message,
             chat_history=tool_ctx.runtime._chat_history,
+            sub_agent_runner=lambda system_prompt: _run_expression_selector(
+                tool_ctx,
+                system_prompt,
+            ),
             log_reply=False,
         )
     except Exception as exc:
