@@ -1,12 +1,14 @@
+from typing import Optional
+
 import asyncio
 
-from fastapi import FastAPI, APIRouter
+from fastapi import APIRouter, FastAPI
 from rich.traceback import install
-from typing import Optional
 from uvicorn import Config, Server as UvicornServer
 
 from src.common.logger import get_logger
 from src.common.utils.port_checker import assert_port_available, is_port_conflict_error, log_port_conflict
+from src.config.startup_bindings import resolve_main_bind_address
 
 install(extra_lines=3)
 
@@ -21,7 +23,7 @@ class Server:
         self._server: Optional[UvicornServer] = None
         self.set_address(host, port)
 
-    def register_router(self, router: APIRouter, prefix: str = ""): 
+    def register_router(self, router: APIRouter, prefix: str = ""):
         """注册路由
 
         APIRouter 用于对相关的路由端点进行分组和模块化管理：
@@ -121,11 +123,8 @@ global_server = None
 
 def get_global_server() -> Server:
     """获取全局服务器实例"""
-    from src.config.config import global_config
-
     global global_server
     if global_server is None:
-        global_server = Server(
-            host=global_config.maim_message.ws_server_host, port=global_config.maim_message.ws_server_port
-        )
+        bind_address = resolve_main_bind_address()
+        global_server = Server(host=bind_address.host, port=bind_address.port)
     return global_server

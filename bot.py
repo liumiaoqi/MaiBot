@@ -30,7 +30,7 @@ if env_path.exists():
     load_dotenv(str(env_path), override=True)
 else:
     print("[WIP] no .env file found, and templates is not ready yet.")
-    raise
+    print("[WIP] continue startup, use environment and existing config values.")
     # try:
     #     if template_env_path.exists():
     #         shutil.copyfile(template_env_path, env_path)

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Check, ChevronsUpDown, Copy, Eye, EyeOff } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -42,8 +42,16 @@ export function ProviderForm({
   const [localProvider, setLocalProvider] = useState<APIProvider | null>(editingProvider)
   const { toast } = useToast()
 
-  // 同步外部状态到本地
-  if (editingProvider !== localProvider && open) {
+  // 当弹窗打开时，根据当前编辑对象同步一次本地编辑状态
+  useEffect(() => {
+    if (!open) {
+      setLocalProvider(null)
+      setFormErrors({})
+      setShowApiKey(false)
+      setSelectedTemplate('custom')
+      return
+    }
+
     setLocalProvider(editingProvider)
     setFormErrors({})
     setShowApiKey(false)
@@ -57,7 +65,7 @@ export function ProviderForm({
     } else {
       setSelectedTemplate('custom')
     }
-  }
+  }, [open, editingProvider, editingIndex])
 
   const isUsingTemplate = useMemo(() => selectedTemplate !== 'custom', [selectedTemplate])
 

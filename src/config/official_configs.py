@@ -1414,6 +1414,24 @@ class WebUIConfig(ConfigBase):
     )
     """是否启用WebUI"""
 
+    host: str = Field(
+        default="127.0.0.1",
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "globe",
+        },
+    )
+    """WebUI 绑定主机地址"""
+
+    port: int = Field(
+        default=8001,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "hash",
+        },
+    )
+    """WebUI 绑定端口"""
+
     mode: Literal["development", "production"] = Field(
         default="production",
         json_schema_extra={

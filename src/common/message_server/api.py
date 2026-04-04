@@ -1,11 +1,10 @@
-from maim_message import MessageServer
-
+from importlib import metadata
 import traceback
-import importlib.metadata
+
+from maim_message import MessageServer
 
 from src.common.logger import adopt_library_logger, get_logger
 from src.common.utils.port_checker import assert_port_available
-from src.config.config import global_config
 from .server import get_global_server
 
 global_api = None
@@ -14,10 +13,12 @@ adopt_library_logger("maim_message", handler_names={"maim_message_default_handle
 
 def get_global_api() -> MessageServer:  # sourcery skip: extract-method
     """获取全局MessageServer实例"""
+    from src.config.config import global_config
+
     global global_api
     if global_api is None:
         # 检查maim_message版本
-        maim_message_version = importlib.metadata.version("maim_message")
+        maim_message_version = metadata.version("maim_message")
         version_int = [int(x) for x in maim_message_version.split(".")]
         if version_int < [0, 6, 2]:
             raise RuntimeError("maim_message 版本过低，请升级到 0.6.2 或更高版本。")

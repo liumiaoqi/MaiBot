@@ -1,16 +1,26 @@
-"""独立的 WebUI 服务器 - 运行在 0.0.0.0:8001"""
+"""独立的 WebUI 服务器。"""
+
+from typing import Any, Optional
 
 import asyncio
+import sys
 
 from uvicorn import Config
 from uvicorn import Server as UvicornServer
 
 from src.common.logger import get_logger
 from src.common.utils.port_checker import assert_port_available, is_port_conflict_error, log_port_conflict
-from src.config.config import config_manager
+from src.config.startup_bindings import resolve_webui_bind_address
 from src.webui.app import create_app, show_access_token
 
 logger = get_logger("webui_server")
+
+
+def _get_loaded_config_manager() -> Optional[Any]:
+    config_module = sys.modules.get("src.config.config")
+    if config_module is None:
+        return None
+    return getattr(config_module, "config_manager", None)
 
 
 class _ASGIProxy:
@@ -32,10 +42,33 @@ class WebUIServer:
         self.port = port
         self._app = create_app(host=host, port=port, enable_static=True)
         self.app = _ASGIProxy(self._app)
-        self._server = None
+        self._server: Optional[UvicornServer] = None
+        self._reload_callback_registered = False
 
         show_access_token()
+        self._maybe_register_reload_callback()
+
+    def _maybe_register_reload_callback(self) -> None:
+        if self._reload_callback_registered:
+            return
+
+        config_manager = _get_loaded_config_manager()
+        if config_manager is None:
+            return
+
         config_manager.register_reload_callback(self.reload_app)
+        self._reload_callback_registered = True
+
+    def _maybe_unregister_reload_callback(self) -> None:
+        if not self._reload_callback_registered:
+            return
+
+        config_manager = _get_loaded_config_manager()
+        if config_manager is None:
+            return
+
+        config_manager.unregister_reload_callback(self.reload_app)
+        self._reload_callback_registered = False
 
     async def reload_app(self) -> None:
         self._app = create_app(host=self.host, port=self.port, enable_static=True)
@@ -44,12 +77,13 @@ class WebUIServer:
 
     async def start(self):
         """启动服务器"""
+        self._maybe_register_reload_callback()
         assert_port_available(
             host=self.host,
             port=self.port,
             service_name="WebUI 服务器",
             logger=logger,
-            config_hint="WEBUI_PORT (.env)",
+            config_hint="webui.port (config/bot_config.toml)",
             allow_reuse_addr=True,
         )
 
@@ -88,7 +122,7 @@ class WebUIServer:
                     service_name="WebUI 服务器",
                     host=self.host,
                     port=self.port,
-                    config_hint="WEBUI_PORT (.env)",
+                    config_hint="webui.port (config/bot_config.toml)",
                 )
             else:
                 logger.error(f"❌ WebUI 服务器启动失败 (网络错误): {e}")
@@ -97,7 +131,7 @@ class WebUIServer:
             logger.error(f"❌ WebUI 服务器运行错误: {e}", exc_info=True)
             raise
         finally:
-            config_manager.unregister_reload_callback(self.reload_app)
+            self._maybe_unregister_reload_callback()
 
     async def shutdown(self):
         """关闭服务器"""
@@ -123,10 +157,6 @@ def get_webui_server() -> WebUIServer:
     """获取全局 WebUI 服务器实例"""
     global _webui_server
     if _webui_server is None:
-        # 从环境变量读取
-        import os
-
-        host = os.getenv("WEBUI_HOST", "127.0.0.1")
-        port = int(os.getenv("WEBUI_PORT", "8001"))
-        _webui_server = WebUIServer(host=host, port=port)
+        bind_address = resolve_webui_bind_address()
+        _webui_server = WebUIServer(host=bind_address.host, port=bind_address.port)
     return _webui_server

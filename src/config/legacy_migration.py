@@ -14,6 +14,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Optional
 
+import os
+
 from src.common.logger import get_logger
 
 logger = get_logger("legacy_migration")
@@ -36,6 +38,41 @@ def _as_dict(x: Any) -> Optional[dict[str, Any]]:
 
 def _as_list(x: Any) -> Optional[list[Any]]:
     return x if isinstance(x, list) else None
+
+
+def _parse_host_env(value: Any) -> Optional[str]:
+    if not isinstance(value, str):
+        return None
+    normalized_value = value.strip()
+    return normalized_value or None
+
+
+def _parse_port_env(value: Any) -> Optional[int]:
+    if isinstance(value, bool):
+        return None
+
+    try:
+        normalized_value = int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+
+    if normalized_value <= 0 or normalized_value > 65535:
+        return None
+    return normalized_value
+
+
+def _migrate_env_value(section: dict[str, Any], key: str, parsed_env_value: Any, default_value: Any) -> bool:
+    if parsed_env_value is None:
+        return False
+
+    current_value = section.get(key)
+    if current_value == parsed_env_value:
+        return False
+    if key in section and current_value != default_value:
+        return False
+
+    section[key] = parsed_env_value
+    return True
 
 
 def _parse_triplet_target(s: str) -> Optional[dict[str, str]]:
@@ -234,6 +271,43 @@ def _migrate_extra_prompt_list(exp: dict[str, Any], key: str) -> bool:
         items.append(parsed)
     exp[key] = items
     return True
+
+
+def migrate_legacy_bind_env_to_bot_config_dict(data: dict[str, Any]) -> MigrationResult:
+    """将旧版环境变量中的绑定地址迁移到主配置结构。"""
+
+    migrated_any = False
+    reasons: list[str] = []
+
+    main_host_env = _parse_host_env(os.getenv("HOST"))
+    main_port_env = _parse_port_env(os.getenv("PORT"))
+    maim_message = _as_dict(data.get("maim_message"))
+    if maim_message is None and (main_host_env is not None or main_port_env is not None):
+        maim_message = {}
+        data["maim_message"] = maim_message
+
+    if maim_message is not None and _migrate_env_value(maim_message, "ws_server_host", main_host_env, "127.0.0.1"):
+        migrated_any = True
+        reasons.append("HOST->maim_message.ws_server_host")
+    if maim_message is not None and _migrate_env_value(maim_message, "ws_server_port", main_port_env, 8080):
+        migrated_any = True
+        reasons.append("PORT->maim_message.ws_server_port")
+
+    webui_host_env = _parse_host_env(os.getenv("WEBUI_HOST"))
+    webui_port_env = _parse_port_env(os.getenv("WEBUI_PORT"))
+    webui = _as_dict(data.get("webui"))
+    if webui is None and (webui_host_env is not None or webui_port_env is not None):
+        webui = {}
+        data["webui"] = webui
+
+    if webui is not None and _migrate_env_value(webui, "host", webui_host_env, "127.0.0.1"):
+        migrated_any = True
+        reasons.append("WEBUI_HOST->webui.host")
+    if webui is not None and _migrate_env_value(webui, "port", webui_port_env, 8001):
+        migrated_any = True
+        reasons.append("WEBUI_PORT->webui.port")
+
+    return MigrationResult(data=data, migrated=migrated_any, reason=",".join(reasons))
 
 
 def try_migrate_legacy_bot_config_dict(data: dict[str, Any]) -> MigrationResult:

@@ -480,8 +480,20 @@ class EmojiManager:
             logger.error(f"[注册表情包] 表情包文件不存在: {emoji.full_path}")
             return False
 
-        # 将表情包移动到已注册目录
         target_path = EMOJI_REGISTERED_DIR / emoji.file_name
+
+        # 先查库，避免重复记录导致文件被误移动后无法回收
+        original_path = emoji.full_path
+        try:
+            with get_db_session() as session:
+                statement = select(Images).filter_by(image_hash=emoji.file_hash, image_type=ImageType.EMOJI).limit(1)
+                existing_record = session.exec(statement).first()
+                if existing_record and not existing_record.no_file_flag:
+                    logger.warning(f"[注册表情包] 数据库中已存在表情包记录: {emoji.file_hash}")
+                    return False
+        except Exception as e:
+            logger.error(f"[注册表情包] 查询数据库时出错: {e}")
+            return False
         try:
             emoji.full_path.replace(target_path)
             emoji.full_path = target_path
@@ -490,6 +502,7 @@ class EmojiManager:
             return False
 
         # 注册到数据库
+        restore_file = False
         try:
             with get_db_session() as session:
                 statement = select(Images).filter_by(image_hash=emoji.file_hash, image_type=ImageType.EMOJI).limit(1)
@@ -509,6 +522,7 @@ class EmojiManager:
                         )
                     else:
                         logger.warning(f"[注册表情包] 数据库中已存在表情包记录: {emoji.file_hash}")
+                        restore_file = True
                         return False
                 else:
                     image_record = emoji.to_db_instance()
@@ -521,7 +535,15 @@ class EmojiManager:
                     logger.info(f"[注册表情包] 成功注册表情包到数据库, ID: {record_id}, 路径: {emoji.full_path}")
         except Exception as e:
             logger.error(f"[注册表情包] 注册到数据库时出错: {e}")
+            restore_file = True
             return False
+        finally:
+            if restore_file:
+                try:
+                    emoji.full_path.replace(original_path)
+                    emoji.full_path = original_path
+                except Exception as e:
+                    logger.error(f"[注册表情包] 回滚文件移动失败: {e}")
         return True
 
     def delete_emoji(self, emoji: MaiEmoji, no_desc: bool = False) -> bool:
@@ -1045,7 +1067,13 @@ class EmojiManager:
             logger.error(f"[注册表情包] 创建表情包对象时出错: {e}")
             return False
 
-        # 0. 先验证数据库中是否已经存在相同哈希的表情包，避免重复构建
+        calc_success = await target_emoji.calculate_hash_format()
+        if not calc_success:
+            logger.error(f"[注册表情包] 计算表情包哈希值和格式失败: {file_full_path}")
+            return False
+        file_full_path = target_emoji.full_path  # 更新为可能修正后的路径
+
+        # 2. 先验证数据库中是否已经存在相同哈希的表情包，避免重复构建
         try:
             with get_db_session_manual() as session:
                 statement = (
@@ -1068,13 +1096,7 @@ class EmojiManager:
             logger.error(f"[注册表情包] 查询数据库时出错: {e}")
             return False
 
-        # 1. 计算哈希值和格式
-        calc_success = await target_emoji.calculate_hash_format()
-        if not calc_success:
-            logger.error(f"[注册表情包] 计算表情包哈希值和格式失败: {file_full_path}")
-            return False
-        file_full_path = target_emoji.full_path  # 更新为可能修正后的路径
-        # 2. 检查是否已经存在过
+        # 3. 检查内存缓存是否已经存在
         if existing_emoji := self.get_emoji_by_hash(target_emoji.file_hash):
             logger.warning(f"[注册表情包] 表情包已存在，跳过注册: {existing_emoji.file_name}")
             return False

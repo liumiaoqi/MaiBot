@@ -12,7 +12,7 @@ import tomlkit
 from .config_base import AttributeData, ConfigBase, Field
 from .config_utils import compare_versions, output_config_changes, recursive_parse_item_to_table
 from .file_watcher import FileChange, FileWatcher
-from .legacy_migration import try_migrate_legacy_bot_config_dict
+from .legacy_migration import migrate_legacy_bind_env_to_bot_config_dict, try_migrate_legacy_bot_config_dict
 from .model_configs import APIProvider, ModelInfo, ModelTaskConfig
 from .official_configs import (
     BotConfig,
@@ -55,7 +55,7 @@ CONFIG_DIR: Path = PROJECT_ROOT / "config"
 BOT_CONFIG_PATH: Path = (CONFIG_DIR / "bot_config.toml").resolve().absolute()
 MODEL_CONFIG_PATH: Path = (CONFIG_DIR / "model_config.toml").resolve().absolute()
 MMC_VERSION: str = "1.0.0"
-CONFIG_VERSION: str = "8.3.0"
+CONFIG_VERSION: str = "8.3.1"
 MODEL_CONFIG_VERSION: str = "1.13.1"
 
 logger = get_logger("config")
@@ -472,6 +472,11 @@ def load_config_from_file(
     old_ver: str = inner_version
     config_data.remove("inner")  # 移除 inner 部分，避免干扰后续处理
     config_data = config_data.unwrap()  # 转换为普通字典，方便后续处理
+    if config_path.name == "bot_config.toml" and config_class.__name__ == "Config":
+        env_migration = migrate_legacy_bind_env_to_bot_config_dict(config_data)
+        if env_migration.migrated:
+            logger.warning(f"检测到旧版环境变量绑定配置，已迁移到主配置: {env_migration.reason}")
+        config_data = env_migration.data
     # 保留一份“干净”的原始数据副本，避免第一次 from_dict 过程中对 dict 的就地修改
     original_data: dict[str, Any] = copy.deepcopy(config_data)
     try:
