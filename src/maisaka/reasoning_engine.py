@@ -38,6 +38,14 @@ from .message_adapter import (
     clone_message_sequence,
     format_speaker_content,
 )
+from .monitor_events import (
+    emit_cycle_end,
+    emit_cycle_start,
+    emit_message_ingested,
+    emit_planner_response,
+    emit_timing_gate_result,
+    emit_tool_execution,
+)
 from .planner_message_utils import build_planner_user_prefix_from_session_message
 
 if TYPE_CHECKING:
@@ -291,15 +299,35 @@ class MaisakaReasoningEngine:
                         if self._runtime._pending_wait_tool_call_id:
                             self._runtime._chat_history.append(self._build_wait_timeout_message())
                         self._trim_chat_history()
+
                     try:
                         for round_index in range(self._runtime._max_internal_rounds):
                             cycle_detail = self._start_cycle()
                             self._runtime._log_cycle_started(cycle_detail, round_index)
+                            await emit_cycle_start(
+                                session_id=self._runtime.session_id,
+                                cycle_id=cycle_detail.cycle_id,
+                                round_index=round_index,
+                                max_rounds=self._runtime._max_internal_rounds,
+                                history_count=len(self._runtime._chat_history),
+                            )
                             planner_started_at = 0.0
                             try:
                                 timing_started_at = time.time()
                                 timing_action, timing_response, timing_tool_results = await self._run_timing_gate(anchor_message)
-                                cycle_detail.time_records["timing_gate"] = time.time() - timing_started_at
+                                timing_duration_ms = (time.time() - timing_started_at) * 1000
+                                cycle_detail.time_records["timing_gate"] = timing_duration_ms / 1000
+                                await emit_timing_gate_result(
+                                    session_id=self._runtime.session_id,
+                                    cycle_id=cycle_detail.cycle_id,
+                                    action=timing_action,
+                                    content=timing_response.content,
+                                    tool_calls=timing_response.tool_calls,
+                                    messages=[],
+                                    prompt_tokens=timing_response.prompt_tokens,
+                                    selected_history_count=timing_response.selected_history_count,
+                                    duration_ms=timing_duration_ms,
+                                )
                                 self._runtime._render_context_usage_panel(
                                     selected_history_count=timing_response.selected_history_count,
                                     prompt_tokens=timing_response.prompt_tokens,
@@ -326,11 +354,22 @@ class MaisakaReasoningEngine:
                                 response = await self._run_interruptible_planner(
                                     tool_definitions=action_tool_definitions,
                                 )
-                                cycle_detail.time_records["planner"] = time.time() - planner_started_at
+                                planner_duration_ms = (time.time() - planner_started_at) * 1000
+                                cycle_detail.time_records["planner"] = planner_duration_ms / 1000
                                 logger.info(
                                     f"{self._runtime.log_prefix} 规划器执行完成: "
                                     f"回合={round_index + 1} "
                                     f"耗时={cycle_detail.time_records['planner']:.3f} 秒"
+                                )
+                                await emit_planner_response(
+                                    session_id=self._runtime.session_id,
+                                    cycle_id=cycle_detail.cycle_id,
+                                    content=response.content,
+                                    tool_calls=response.tool_calls,
+                                    prompt_tokens=response.prompt_tokens,
+                                    completion_tokens=response.completion_tokens,
+                                    total_tokens=response.total_tokens,
+                                    duration_ms=planner_duration_ms,
                                 )
 
                                 reasoning_content = response.content or ""
@@ -383,6 +422,12 @@ class MaisakaReasoningEngine:
                                 break
                             finally:
                                 self._end_cycle(cycle_detail)
+                                await emit_cycle_end(
+                                    session_id=self._runtime.session_id,
+                                    cycle_id=cycle_detail.cycle_id,
+                                    time_records=dict(cycle_detail.time_records),
+                                    agent_state=self._runtime._agent_state,
+                                )
                     finally:
                         if self._runtime._agent_state == self._runtime._STATE_RUNNING:
                             self._runtime._agent_state = self._runtime._STATE_STOP
@@ -469,6 +514,17 @@ class MaisakaReasoningEngine:
 
             self._insert_chat_history_message(history_message)
             self._trim_chat_history()
+
+            # 向监控前端广播新消息注入事件
+            user_info = message.message_info.user_info
+            speaker_name = user_info.user_cardname or user_info.user_nickname or user_info.user_id
+            await emit_message_ingested(
+                session_id=self._runtime.session_id,
+                speaker_name=speaker_name,
+                content=(message.processed_plain_text or "").strip(),
+                message_id=message.message_id,
+                timestamp=message.timestamp.timestamp(),
+            )
 
     async def _build_history_message(self, message: SessionMessage) -> Optional[LLMContextMessage]:
         """根据真实消息构造对应的上下文消息。"""
@@ -1030,7 +1086,9 @@ class MaisakaReasoningEngine:
         }
         for tool_call in tool_calls:
             invocation = self._build_tool_invocation(tool_call, latest_thought)
+            tool_started_at = time.time()
             result = await self._runtime._tool_registry.invoke(invocation, execution_context)
+            tool_duration_ms = (time.time() - tool_started_at) * 1000
             await self._store_tool_execution_record(
                 invocation,
                 result,
@@ -1038,6 +1096,18 @@ class MaisakaReasoningEngine:
             )
             self._append_tool_execution_result(tool_call, result)
             tool_result_summaries.append(self._build_tool_result_summary(tool_call, result))
+
+            # 向监控前端广播工具执行结果
+            cycle_id = self._runtime._current_cycle_detail.cycle_id if self._runtime._current_cycle_detail else 0
+            await emit_tool_execution(
+                session_id=self._runtime.session_id,
+                cycle_id=cycle_id,
+                tool_name=tool_call.func_name,
+                tool_args=invocation.arguments if isinstance(invocation.arguments, dict) else {},
+                result_summary=result.content[:500] if result.content else (result.error_message or "")[:500],
+                success=result.success,
+                duration_ms=tool_duration_ms,
+            )
 
             if not result.success and tool_call.func_name == "reply":
                 logger.warning(f"{self._runtime.log_prefix} 回复工具未生成可见消息，将继续下一轮循环")

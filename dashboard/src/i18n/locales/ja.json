@@ -38,7 +38,7 @@
       "configTemplate": "設定テンプレート",
       "pluginConfig": "プラグイン設定",
       "logViewer": "ログビューア",
-      "plannerMonitor": "プランナー & リプライヤー監視",
+      "maisakaMonitor": "MaiSaka チャット監視",
       "localChat": "ローカルチャット",
       "settings": "設定"
     }

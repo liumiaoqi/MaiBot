@@ -69,13 +69,22 @@ class _FakeGatewayCapability:
 class _FakeNapCatQueryService:
     """用于驱动 NapCat 入站编解码测试的查询服务替身。"""
 
-    def __init__(self, forward_payloads: Dict[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        forward_payloads: Dict[str, Any] | None = None,
+        group_member_payloads: Dict[tuple[str, str], Dict[str, Any] | None] | None = None,
+        stranger_payloads: Dict[str, Dict[str, Any] | None] | None = None,
+    ) -> None:
         """初始化查询服务替身。
 
         Args:
             forward_payloads: 预置的合并转发响应映射。
+            group_member_payloads: 预置的群成员资料映射。
+            stranger_payloads: 预置的陌生人资料映射。
         """
         self._forward_payloads = forward_payloads or {}
+        self._group_member_payloads = group_member_payloads or {}
+        self._stranger_payloads = stranger_payloads or {}
 
     async def download_binary(self, url: str) -> bytes | None:
         """模拟下载远程二进制资源。
@@ -111,6 +120,20 @@ class _FakeNapCatQueryService:
             Any: 预置的合并转发消息详情。
         """
         return self._forward_payloads.get(message_id)
+
+    async def get_group_member_info(
+        self,
+        group_id: str,
+        user_id: str,
+        no_cache: bool = True,
+    ) -> Dict[str, Any] | None:
+        """模拟获取群成员资料。"""
+        del no_cache
+        return self._group_member_payloads.get((group_id, user_id))
+
+    async def get_stranger_info(self, user_id: str) -> Dict[str, Any] | None:
+        """模拟获取 QQ 昵称资料。"""
+        return self._stranger_payloads.get(user_id)
 
     async def get_record_detail(self, file_name: str, file_id: str | None = None) -> Dict[str, Any] | None:
         """模拟获取语音详情。
@@ -477,6 +500,137 @@ async def test_inbound_codec_parses_nested_inline_forward_content() -> None:
     assert nested_nodes[0]["user_id"] == "10002"
     assert nested_nodes[0]["user_nickname"] == "李四"
     assert nested_nodes[0]["content"] == [{"type": "text", "data": "内层消息"}]
+
+
+@pytest.mark.asyncio
+async def test_inbound_codec_resolves_at_to_group_cardname() -> None:
+    """入站编解码器应优先将 ``at`` 解析为群昵称。"""
+
+    inbound_codec_cls = _load_napcat_inbound_codec_cls()
+    codec = inbound_codec_cls(
+        logger=logging.getLogger("test.napcat_adapter.at_cardname"),
+        query_service=_FakeNapCatQueryService(
+            group_member_payloads={
+                ("12345", "1206069534"): {
+                    "nickname": "QQ昵称",
+                    "card": "群昵称",
+                }
+            }
+        ),
+    )
+
+    message_dict = await codec.build_message_dict(
+        payload={
+            "message_type": "group",
+            "group_id": "12345",
+            "message_id": "msg-1",
+            "message": [{"type": "at", "data": {"qq": "1206069534"}}],
+            "sender": {"user_id": "10001", "nickname": "发送者"},
+            "time": 1710000000,
+        },
+        self_id="20001",
+        sender_user_id="10001",
+        sender={"user_id": "10001", "nickname": "发送者"},
+    )
+
+    assert message_dict["processed_plain_text"] == "@群昵称"
+    assert message_dict["display_message"] == "@群昵称"
+    assert message_dict["raw_message"] == [
+        {
+            "type": "at",
+            "data": {
+                "target_user_id": "1206069534",
+                "target_user_nickname": "QQ昵称",
+                "target_user_cardname": "群昵称",
+            },
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_inbound_codec_falls_back_to_qq_nickname_when_group_cardname_is_empty() -> None:
+    """入站编解码器在群昵称为空时应回退到 QQ 昵称。"""
+
+    inbound_codec_cls = _load_napcat_inbound_codec_cls()
+    codec = inbound_codec_cls(
+        logger=logging.getLogger("test.napcat_adapter.at_nickname"),
+        query_service=_FakeNapCatQueryService(
+            group_member_payloads={
+                ("12345", "1206069534"): {
+                    "nickname": "QQ昵称",
+                    "card": "",
+                }
+            }
+        ),
+    )
+
+    message_dict = await codec.build_message_dict(
+        payload={
+            "message_type": "group",
+            "group_id": "12345",
+            "message_id": "msg-2",
+            "message": [{"type": "at", "data": {"qq": "1206069534"}}],
+            "sender": {"user_id": "10001", "nickname": "发送者"},
+            "time": 1710000000,
+        },
+        self_id="20001",
+        sender_user_id="10001",
+        sender={"user_id": "10001", "nickname": "发送者"},
+    )
+
+    assert message_dict["processed_plain_text"] == "@QQ昵称"
+    assert message_dict["display_message"] == "@QQ昵称"
+    assert message_dict["raw_message"] == [
+        {
+            "type": "at",
+            "data": {
+                "target_user_id": "1206069534",
+                "target_user_nickname": "QQ昵称",
+                "target_user_cardname": None,
+            },
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_inbound_codec_falls_back_to_stranger_nickname_when_group_profile_is_missing() -> None:
+    """入站编解码器在群资料缺失时应继续回退到 QQ 昵称。"""
+
+    inbound_codec_cls = _load_napcat_inbound_codec_cls()
+    codec = inbound_codec_cls(
+        logger=logging.getLogger("test.napcat_adapter.at_stranger_nickname"),
+        query_service=_FakeNapCatQueryService(
+            group_member_payloads={("12345", "1206069534"): None},
+            stranger_payloads={"1206069534": {"nickname": "QQ昵称"}},
+        ),
+    )
+
+    message_dict = await codec.build_message_dict(
+        payload={
+            "message_type": "group",
+            "group_id": "12345",
+            "message_id": "msg-3",
+            "message": [{"type": "at", "data": {"qq": "1206069534"}}],
+            "sender": {"user_id": "10001", "nickname": "发送者"},
+            "time": 1710000000,
+        },
+        self_id="20001",
+        sender_user_id="10001",
+        sender={"user_id": "10001", "nickname": "发送者"},
+    )
+
+    assert message_dict["processed_plain_text"] == "@QQ昵称"
+    assert message_dict["display_message"] == "@QQ昵称"
+    assert message_dict["raw_message"] == [
+        {
+            "type": "at",
+            "data": {
+                "target_user_id": "1206069534",
+                "target_user_nickname": "QQ昵称",
+                "target_user_cardname": None,
+            },
+        }
+    ]
 
 
 @pytest.mark.asyncio

@@ -83,11 +83,14 @@ async function getWsToken(): Promise<string | null> {
 }
 
 class UnifiedWebSocketClient {
+  private readonly heartbeatIntervalMs = 30000
+  private readonly heartbeatTimeoutMs = 90000
   private connectPromise: Promise<void> | null = null
   private connectionListeners: Set<ConnectionListener> = new Set()
   private eventListeners: Set<EventListener> = new Set()
   private hasConnectedOnce = false
   private heartbeatIntervalId: number | null = null
+  private lastPongAt = 0
   private manualDisconnect = false
   private pendingRequests: Map<string, PendingRequest> = new Map()
   private reconnectAttempts = 0
@@ -151,10 +154,21 @@ class UnifiedWebSocketClient {
   private startHeartbeat(): void {
     this.stopHeartbeat()
     this.heartbeatIntervalId = window.setInterval(() => {
-      if (this.ws?.readyState === WebSocket.OPEN) {
-        this.ws.send(JSON.stringify({ op: 'ping' }))
+      if (this.ws?.readyState !== WebSocket.OPEN) {
+        return
       }
-    }, 30000)
+
+      const now = Date.now()
+      if (this.lastPongAt > 0 && now - this.lastPongAt > this.heartbeatTimeoutMs) {
+        console.warn('统一 WebSocket 心跳超时，准备重连')
+        void this.restart().catch((error) => {
+          console.error('统一 WebSocket 心跳重连失败:', error)
+        })
+        return
+      }
+
+      this.ws.send(JSON.stringify({ op: 'ping' }))
+    }, this.heartbeatIntervalMs)
   }
 
   private clearReconnectTimer(): void {
@@ -252,7 +266,11 @@ class UnifiedWebSocketClient {
     }
   }
 
-  private handleServerMessage(rawData: string): void {
+  private handleServerMessage(socket: WebSocket, rawData: string): void {
+    if (this.ws !== socket) {
+      return
+    }
+
     let message: WsServerEnvelope
     try {
       message = JSON.parse(rawData) as WsServerEnvelope
@@ -262,6 +280,7 @@ class UnifiedWebSocketClient {
     }
 
     if (message.op === 'pong') {
+      this.lastPongAt = Date.now()
       return
     }
 
@@ -297,8 +316,13 @@ class UnifiedWebSocketClient {
     }
   }
 
-  private handleClose(event: CloseEvent): void {
+  private handleClose(socket: WebSocket, event: CloseEvent): void {
+    if (this.ws !== socket) {
+      return
+    }
+
     this.stopHeartbeat()
+    this.lastPongAt = 0
     this.ws = null
     this.connectPromise = null
     this.setStatus('idle')
@@ -340,10 +364,16 @@ class UnifiedWebSocketClient {
         this.ws = socket
 
         socket.onopen = () => {
+          if (this.ws !== socket) {
+            socket.close()
+            return
+          }
+
           settled = true
           const shouldNotifyReconnect = this.hasConnectedOnce
           this.hasConnectedOnce = true
           this.reconnectAttempts = 0
+          this.lastPongAt = Date.now()
           this.startHeartbeat()
           this.setStatus('connected')
           resolve()
@@ -351,10 +381,14 @@ class UnifiedWebSocketClient {
         }
 
         socket.onmessage = (event) => {
-          this.handleServerMessage(event.data)
+          this.handleServerMessage(socket, event.data)
         }
 
         socket.onerror = () => {
+          if (this.ws !== socket) {
+            return
+          }
+
           if (!settled) {
             settled = true
             reject(new Error('统一 WebSocket 连接失败'))
@@ -366,7 +400,7 @@ class UnifiedWebSocketClient {
             settled = true
             reject(new Error(`统一 WebSocket 已关闭 (${event.code})`))
           }
-          this.handleClose(event)
+          this.handleClose(socket, event)
         }
       })
     })()
@@ -384,6 +418,7 @@ class UnifiedWebSocketClient {
     this.manualDisconnect = true
     this.clearReconnectTimer()
     this.stopHeartbeat()
+    this.lastPongAt = 0
     this.rejectPendingRequests(new Error('统一 WebSocket 已手动断开'))
     this.connectPromise = null
     if (this.ws) {

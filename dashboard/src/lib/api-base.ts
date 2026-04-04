@@ -30,7 +30,7 @@ export async function getApiBaseUrl(): Promise<string> {
 /**
  * Get WebSocket base URL
  * - Electron: Convert HTTP/HTTPS URL to WS/WSS
- * - Browser DEV: ws://127.0.0.1:8001 (hardcoded, same as log-websocket.ts)
+ * - Browser DEV: Use same-origin WS URL and let Vite proxy forward requests
  * - Browser PROD: Construct WS URL from window.location
  */
 export async function getWsBaseUrl(): Promise<string> {
@@ -47,9 +47,10 @@ export async function getWsBaseUrl(): Promise<string> {
     })
   }
 
-  // Browser DEV: Use hardcoded WebSocket server
+  // Browser DEV: Use same-origin URL so Vite proxy can forward WebSocket requests
   if (import.meta.env.DEV) {
-    return 'ws://127.0.0.1:8001'
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    return `${protocol}//${window.location.host}`
   }
 
   // Browser PROD: Construct WS URL from current location

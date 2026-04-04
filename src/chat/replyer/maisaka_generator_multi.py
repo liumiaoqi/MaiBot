@@ -22,6 +22,7 @@ from src.common.prompt_i18n import load_prompt
 from src.config.config import global_config
 from src.core.types import ActionInfo
 from src.llm_models.payload_content.message import ImageMessagePart, Message, MessageBuilder, RoleType, TextMessagePart
+from src.maisaka.monitor_events import emit_replier_request, emit_replier_response
 from src.services.llm_service import LLMServiceClient
 
 from src.maisaka.context_messages import (
@@ -428,6 +429,14 @@ class MaisakaReplyGenerator:
             )
 
         started_at = time.perf_counter()
+
+        # 向监控前端广播回复器请求事件
+        await emit_replier_request(
+            session_id=preview_chat_id,
+            messages=request_messages,
+            model_name=getattr(self.express_model, "model_name", ""),
+        )
+
         try:
             generation_result = await self.express_model.generate_response_with_messages(
                 message_factory=message_factory
@@ -451,6 +460,19 @@ class MaisakaReplyGenerator:
         )
         result.metrics = GenerationMetrics(
             overall_ms=round((time.perf_counter() - started_at) * 1000, 2),
+        )
+
+        # 向监控前端广播回复器响应事件
+        await emit_replier_response(
+            session_id=preview_chat_id,
+            content=response_text,
+            reasoning=generation_result.reasoning or "",
+            model_name=generation_result.model_name or "",
+            prompt_tokens=generation_result.prompt_tokens,
+            completion_tokens=generation_result.completion_tokens,
+            total_tokens=generation_result.total_tokens,
+            duration_ms=result.metrics.overall_ms or 0.0,
+            success=result.success,
         )
 
         if global_config.debug.show_replyer_reasoning and result.completion.reasoning_text:
