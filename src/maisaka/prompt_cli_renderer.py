@@ -2,23 +2,25 @@
 
 from __future__ import annotations
 
-import hashlib
-import html
-import json
 from base64 import b64decode
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from urllib.parse import quote
 from typing import Any, Dict, List, Literal
+from urllib.parse import quote
 
+import hashlib
+import html
+import json
 import tempfile
 
 from pydantic import BaseModel, Field as PydanticField
 from rich.console import Group, RenderableType
-from rich.pretty import Pretty
 from rich.panel import Panel
+from rich.pretty import Pretty
 from rich.text import Text
+
+from .prompt_preview_logger import PromptPreviewLogger
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent.absolute().resolve()
 DATA_IMAGE_DIR = PROJECT_ROOT / "data" / "images"
@@ -53,8 +55,6 @@ class _MessageRenderResult:
 class PromptCLIVisualizer:
     """负责构建 CLI 下 prompt 展示所需的所有可视化组件。"""
 
-    PROMPT_DUMP_DIR = Path(tempfile.gettempdir()) / "maisaka_prompt_dumps"
-
     @staticmethod
     def get_request_panel_style(request_kind: str) -> tuple[str, str]:
         """返回不同请求类型对应的标题与边框颜色。"""
@@ -62,6 +62,8 @@ class PromptCLIVisualizer:
         normalized_kind = str(request_kind or "planner").strip().lower()
         if normalized_kind == "timing_gate":
             return "MaiSaka 大模型请求 - Timing Gate 子代理", "bright_magenta"
+        if normalized_kind == "replyer":
+            return "MaiSaka 回复器 Prompt", "bright_yellow"
         if normalized_kind == "sub_agent":
             return "MaiSaka 大模型请求 - 子代理", "bright_blue"
         return "MaiSaka 大模型请求 - 对话单步", "cyan"
@@ -133,18 +135,8 @@ class PromptCLIVisualizer:
 
     @staticmethod
     def _build_file_uri(file_path: Path) -> str:
-        normalized = file_path.as_posix()
+        normalized = file_path.resolve().as_posix()
         return f"file:///{quote(normalized, safe='/:')}"
-
-    @classmethod
-    def _build_prompt_dump_base_path(cls, messages: list[Any]) -> Path:
-        cls.PROMPT_DUMP_DIR.mkdir(parents=True, exist_ok=True)
-        try:
-            payload = json.dumps(messages, ensure_ascii=False, default=str)
-        except Exception:
-            payload = repr(messages)
-        digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
-        return cls.PROMPT_DUMP_DIR / digest
 
     @staticmethod
     def _build_official_image_path(image_format: str, image_base64: str) -> Path | None:
@@ -611,15 +603,14 @@ class PromptCLIVisualizer:
         cls,
         messages: list[Any],
         *,
+        category: str,
+        chat_id: str,
         request_kind: str,
         selection_reason: str,
         image_display_mode: Literal["legacy", "path_link"],
-    ) -> Panel:
-        """构建用于查看完整 prompt 的入口面板。"""
+    ) -> RenderableType:
+        """构建用于查看完整 prompt 的折叠入口内容。"""
 
-        base_path = cls._build_prompt_dump_base_path(messages)
-        prompt_dump_path = base_path.with_suffix(".txt")
-        prompt_dump_path.write_text(cls._build_prompt_dump_text(messages), encoding="utf-8")
         viewer_messages: list[dict[str, Any]] = []
         for message in messages:
             if isinstance(message, dict):
@@ -641,15 +632,22 @@ class PromptCLIVisualizer:
                 ]
             viewer_messages.append(normalized_message)
 
-        viewer_html_path = base_path.with_suffix(".html")
-        viewer_html_path.write_text(
-            cls._build_prompt_viewer_html(
-                viewer_messages,
-                request_kind=request_kind,
-                selection_reason=selection_reason,
-            ),
-            encoding="utf-8",
+        prompt_dump_text = cls._build_prompt_dump_text(messages)
+        viewer_html_text = cls._build_prompt_viewer_html(
+            viewer_messages,
+            request_kind=request_kind,
+            selection_reason=selection_reason,
         )
+        saved_paths = PromptPreviewLogger.save_preview_files(
+            chat_id,
+            category,
+            {
+                ".html": viewer_html_text,
+                ".txt": prompt_dump_text,
+            },
+        )
+        viewer_html_path = saved_paths[".html"]
+        prompt_dump_path = saved_paths[".txt"]
         viewer_uri = cls._build_file_uri(viewer_html_path)
         dump_uri = cls._build_file_uri(prompt_dump_path)
 
@@ -659,10 +657,198 @@ class PromptCLIVisualizer:
             Text.from_markup(f"[link={viewer_uri}]点击在浏览器打开富文本 Prompt 视图[/link]", style="bold green"),
             Text.from_markup(f"[link={dump_uri}]点击直接打开 Prompt 文本[/link]", style="cyan"),
         )
+        return body
+
+    @classmethod
+    def build_prompt_section(
+        cls,
+        messages: list[Any],
+        *,
+        category: str,
+        chat_id: str,
+        request_kind: str,
+        selection_reason: str,
+        image_display_mode: Literal["legacy", "path_link"],
+        folded: bool,
+    ) -> Panel:
+        """构建用于嵌入结果面板中的 Prompt 区块。"""
+
+        panel_title, panel_border_style = cls.get_request_panel_style(request_kind)
+        if folded:
+            prompt_renderable = cls.build_prompt_access_panel(
+                messages,
+                category=category,
+                chat_id=chat_id,
+                request_kind=request_kind,
+                selection_reason=selection_reason,
+                image_display_mode=image_display_mode,
+            )
+        else:
+            ordered_panels = cls.build_prompt_panels(
+                messages,
+                image_display_mode=image_display_mode,
+            )
+            prompt_renderable = Group(*ordered_panels)
+
         return Panel(
-            body,
-            title=Text(" Prompt 查看入口 ", style="bold white on blue"),
-            border_style="blue",
+            prompt_renderable,
+            title=panel_title,
+            subtitle=selection_reason,
+            border_style=panel_border_style,
+            padding=(0, 1),
+        )
+
+    @classmethod
+    def _build_text_preview_html(
+        cls,
+        content: str,
+        *,
+        request_kind: str,
+        subtitle: str,
+    ) -> str:
+        panel_title, _ = cls.get_request_panel_style(request_kind)
+        subtitle_html = f"<div class='subtitle'>{html.escape(subtitle)}</div>" if subtitle.strip() else ""
+        return f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{html.escape(panel_title)}</title>
+  <style>
+    :root {{
+      --bg: #f6f7fb;
+      --card: #ffffff;
+      --border: #d7dfeb;
+      --text: #18212f;
+      --muted: #5b6878;
+      --shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+    }}
+    body {{
+      margin: 0;
+      background:
+        radial-gradient(circle at top left, rgba(202, 138, 4, 0.12), transparent 24%),
+        radial-gradient(circle at top right, rgba(29, 78, 216, 0.10), transparent 24%),
+        var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }}
+    .page {{
+      width: min(1200px, calc(100vw - 40px));
+      margin: 24px auto 40px;
+    }}
+    .hero {{
+      background: linear-gradient(135deg, #ffffff 0%, #fff8eb 100%);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+      padding: 20px 24px;
+      margin-bottom: 18px;
+    }}
+    .title {{
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }}
+    .subtitle {{
+      margin-top: 10px;
+      color: var(--muted);
+      white-space: pre-wrap;
+    }}
+    .content-card {{
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 18px 20px;
+    }}
+    pre {{
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: "Cascadia Mono", "JetBrains Mono", "Consolas", monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #1e293b;
+    }}
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <div class="title">{html.escape(panel_title)}</div>
+      {subtitle_html}
+    </header>
+    <section class="content-card">
+      <pre>{html.escape(content)}</pre>
+    </section>
+  </main>
+</body>
+</html>"""
+
+    @classmethod
+    def build_text_access_panel(
+        cls,
+        content: str,
+        *,
+        category: str,
+        chat_id: str,
+        request_kind: str,
+        subtitle: str,
+    ) -> RenderableType:
+        """构建文本型 Prompt 的折叠入口内容。"""
+
+        html_content = cls._build_text_preview_html(content, request_kind=request_kind, subtitle=subtitle)
+        saved_paths = PromptPreviewLogger.save_preview_files(
+            chat_id,
+            category,
+            {
+                ".html": html_content,
+                ".txt": content,
+            },
+        )
+        viewer_html_path = saved_paths[".html"]
+        text_dump_path = saved_paths[".txt"]
+        viewer_uri = cls._build_file_uri(viewer_html_path)
+        dump_uri = cls._build_file_uri(text_dump_path)
+
+        body = Group(
+            Text(f"富文本预览：{viewer_html_path}", style="bold green"),
+            Text(f"原始文本备份：{text_dump_path}", style="magenta"),
+            Text.from_markup(f"[link={viewer_uri}]点击在浏览器打开富文本 Prompt 视图[/link]", style="bold green"),
+            Text.from_markup(f"[link={dump_uri}]点击直接打开 Prompt 文本[/link]", style="cyan"),
+        )
+        return body
+
+    @classmethod
+    def build_text_section(
+        cls,
+        content: str,
+        *,
+        category: str,
+        chat_id: str,
+        request_kind: str,
+        subtitle: str,
+        folded: bool,
+    ) -> Panel:
+        """构建文本型 Prompt 的嵌入区块。"""
+
+        panel_title, panel_border_style = cls.get_request_panel_style(request_kind)
+        if folded:
+            prompt_renderable = cls.build_text_access_panel(
+                content,
+                category=category,
+                chat_id=chat_id,
+                request_kind=request_kind,
+                subtitle=subtitle,
+            )
+        else:
+            prompt_renderable = Text(content)
+
+        return Panel(
+            prompt_renderable,
+            title=panel_title,
+            subtitle=subtitle,
+            border_style=panel_border_style,
             padding=(0, 1),
         )
 

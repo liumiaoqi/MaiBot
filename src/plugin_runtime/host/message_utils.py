@@ -238,15 +238,6 @@ class PluginMessageUtils:
                         logger.info(f"解析转发节点时跳过非字典节点: {node!r}")
                         continue
                     raw_content = node.get("content", [])
-                    logger.info(
-                        "开始解析转发节点: "
-                        f"message_id={node.get('message_id')!r} "
-                        f"user_id={node.get('user_id')!r} "
-                        f"user_nickname={node.get('user_nickname')!r} "
-                        f"user_cardname={node.get('user_cardname')!r} "
-                        f"raw_content_type={type(raw_content).__name__} "
-                        f"raw_content={raw_content!r}"
-                    )
                     node_components: List[StandardMessageComponents] = []
                     if isinstance(raw_content, list):
                         node_components = [
@@ -254,12 +245,6 @@ class PluginMessageUtils:
                             for content in raw_content
                             if isinstance(content, dict)
                         ]
-                    logger.info(
-                        "转发节点解析结果: "
-                        f"message_id={node.get('message_id')!r} "
-                        f"component_types={[component.__class__.__name__ for component in node_components]!r} "
-                        f"component_values={[getattr(component, 'text', None) for component in node_components]!r}"
-                    )
                     if not node_components:
                         logger.warning(
                             "转发节点内容为空，使用占位文本回退: "

@@ -1,15 +1,20 @@
+import random
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
-import random
-import time
 
+from rich.console import Group, RenderableType
+from rich.panel import Panel
+from rich.text import Text
 from sqlmodel import select
 
 from src.chat.message_receive.chat_manager import BotChatSession
+from src.chat.message_receive.message import SessionMessage
+from src.cli.console import console
 from src.common.database.database import get_db_session
-from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
 from src.common.database.database_model import Expression
+from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
 from src.common.data_models.reply_generation_data_models import (
     GenerationMetrics,
     LLMCompletionResult,
@@ -23,9 +28,15 @@ from src.core.types import ActionInfo
 from src.llm_models.payload_content.message import ImageMessagePart, Message, MessageBuilder, RoleType, TextMessagePart
 from src.services.llm_service import LLMServiceClient
 
-from src.chat.message_receive.message import SessionMessage
-from src.maisaka.context_messages import AssistantMessage, LLMContextMessage, ReferenceMessage, SessionBackedMessage, ToolResultMessage
+from src.maisaka.context_messages import (
+    AssistantMessage,
+    LLMContextMessage,
+    ReferenceMessage,
+    SessionBackedMessage,
+    ToolResultMessage,
+)
 from src.maisaka.message_adapter import clone_message_sequence, parse_speaker_content
+from src.maisaka.prompt_cli_renderer import PromptCLIVisualizer
 
 logger = get_logger("replyer")
 
@@ -509,9 +520,17 @@ class MaisakaReplyGenerator:
             return request_messages
 
         result.completion.request_prompt = prompt_preview
-
+        preview_chat_id = self._resolve_session_id(stream_id)
+        replyer_prompt_section: RenderableType | None = None
         if global_config.debug.show_replyer_prompt:
-            logger.info(f"\nMaisaka 回复器提示词：\n{prompt_preview}\n")
+            replyer_prompt_section = PromptCLIVisualizer.build_text_section(
+                prompt_preview,
+                category="replyer",
+                chat_id=preview_chat_id,
+                request_kind="replyer",
+                subtitle=f"会话流标识：{preview_chat_id}",
+                folded=global_config.debug.fold_maisaka_thinking,
+            )
 
         started_at = time.perf_counter()
         try:
@@ -550,5 +569,41 @@ class MaisakaReplyGenerator:
             f"总耗时毫秒={result.metrics.overall_ms} "
             f"已选表达编号={result.selected_expression_ids!r}"
         )
+        if global_config.debug.show_replyer_prompt or global_config.debug.show_replyer_reasoning:
+            summary_lines = [
+                f"会话流标识: {preview_chat_id or 'unknown'}",
+                f"总耗时: {result.metrics.overall_ms} ms",
+            ]
+            if result.selected_expression_ids:
+                summary_lines.append(f"表达习惯编号: {result.selected_expression_ids!r}")
+
+            renderables: List[RenderableType] = [Text("\n".join(summary_lines))]
+            if replyer_prompt_section is not None:
+                renderables.append(replyer_prompt_section)
+            if global_config.debug.show_replyer_reasoning and result.completion.reasoning_text:
+                renderables.append(
+                    Panel(
+                        Text(result.completion.reasoning_text),
+                        title="回复器思考",
+                        border_style="magenta",
+                        padding=(0, 1),
+                    )
+                )
+            renderables.append(
+                Panel(
+                    Text(response_text),
+                    title="回复结果",
+                    border_style="green",
+                    padding=(0, 1),
+                )
+            )
+            console.print(
+                Panel(
+                    Group(*renderables),
+                    title="MaiSaka 回复器结果",
+                    border_style="bright_yellow",
+                    padding=(0, 1),
+                )
+            )
         result.text_fragments = [response_text]
         return True, result

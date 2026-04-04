@@ -290,6 +290,7 @@ class MaisakaReasoningEngine:
                                 planner_response=timing_response.content or "",
                                 tool_calls=timing_response.tool_calls,
                                 tool_results=timing_tool_results,
+                                prompt_section=timing_response.prompt_section,
                             )
                             if timing_action != "continue":
                                 logger.info(
@@ -340,6 +341,7 @@ class MaisakaReasoningEngine:
                                     planner_response=response.content or "",
                                     tool_calls=response.tool_calls,
                                     tool_results=tool_result_summaries,
+                                    prompt_section=response.prompt_section,
                                 )
                                 if should_pause:
                                     break
@@ -349,6 +351,7 @@ class MaisakaReasoningEngine:
                                 selected_history_count=response.selected_history_count,
                                 prompt_tokens=response.prompt_tokens,
                                 planner_response=response.content or "",
+                                prompt_section=response.prompt_section,
                             )
                             if not response.content:
                                 break

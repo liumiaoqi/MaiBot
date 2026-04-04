@@ -10,10 +10,8 @@ import json
 import random
 
 from pydantic import BaseModel, Field as PydanticField
-from rich.console import Group
+from rich.console import RenderableType
 from rich.panel import Panel
-
-from src.cli.console import console
 from src.common.data_models.llm_service_data_models import LLMGenerationOptions
 from src.common.logger import get_logger
 from src.common.prompt_i18n import load_prompt
@@ -53,6 +51,7 @@ class ChatResponse:
     built_message_count: int
     completion_tokens: int
     total_tokens: int
+    prompt_section: Optional[RenderableType] = None
 
 
 class ToolFilterSelection(BaseModel):
@@ -765,30 +764,17 @@ class MaisakaChatLoopService:
         if isinstance(raw_tool_definitions, list):
             all_tools = [item for item in raw_tool_definitions if isinstance(item, dict)]
 
+        prompt_section: RenderableType | None = None
         if global_config.debug.show_maisaka_thinking:
-            panel_title, panel_border_style = PromptCLIVisualizer.get_request_panel_style(request_kind)
             image_display_mode: str = "path_link" if global_config.maisaka.show_image_path else "legacy"
-            if global_config.debug.fold_maisaka_thinking:
-                prompt_renderable = PromptCLIVisualizer.build_prompt_access_panel(
-                    built_messages,
-                    request_kind=request_kind,
-                    selection_reason=selection_reason,
-                    image_display_mode=image_display_mode,
-                )
-            else:
-                ordered_panels = PromptCLIVisualizer.build_prompt_panels(
-                    built_messages,
-                    image_display_mode=image_display_mode,
-                )
-                prompt_renderable = Group(*ordered_panels)
-            console.print(
-                Panel(
-                    prompt_renderable,
-                    title=panel_title,
-                    subtitle=selection_reason,
-                    border_style=panel_border_style,
-                    padding=(0, 1),
-                )
+            prompt_section = PromptCLIVisualizer.build_prompt_section(
+                built_messages,
+                category="planner" if request_kind != "timing_gate" else "timing_gate",
+                chat_id=self._session_id,
+                request_kind=request_kind,
+                selection_reason=selection_reason,
+                image_display_mode=image_display_mode,
+                folded=global_config.debug.fold_maisaka_thinking,
             )
 
         request_started_at = perf_counter()
@@ -809,8 +795,6 @@ class MaisakaChatLoopService:
                 interrupt_flag=self._interrupt_flag,
             ),
         )
-        request_elapsed = perf_counter() - request_started_at
-        logger.info(f"规划器请求完成，耗时={request_elapsed:.3f} 秒")
 
         prompt_stats_text = PromptCLIVisualizer.build_prompt_stats_text(
             selected_history_count=len(selected_history),
@@ -865,6 +849,7 @@ class MaisakaChatLoopService:
             built_message_count=len(built_messages),
             completion_tokens=completion_tokens,
             total_tokens=total_tokens,
+            prompt_section=prompt_section,
         )
 
     @staticmethod

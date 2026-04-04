@@ -5,6 +5,7 @@ from typing import Any, Literal, Optional, Sequence
 import asyncio
 import time
 
+from rich.console import Group, RenderableType
 from rich.panel import Panel
 from rich.text import Text
 
@@ -493,6 +494,7 @@ class MaisakaHeartFlowChatting:
         planner_response: str = "",
         tool_calls: Optional[list[Any]] = None,
         tool_results: Optional[list[str]] = None,
+        prompt_section: Optional[RenderableType] = None,
     ) -> None:
         """在终端展示当前聊天流的上下文占用、规划结果与工具摘要。"""
         if not global_config.debug.show_maisaka_thinking:
@@ -505,21 +507,46 @@ class MaisakaHeartFlowChatting:
             f"上下文占用: {selected_history_count}条 / {self._format_token_count(prompt_tokens)}",
         ]
 
+        renderables: list[RenderableType] = [Text("\n".join(body_lines))]
+        if prompt_section is not None:
+            renderables.append(prompt_section)
+
         normalized_response = planner_response.strip()
         if normalized_response:
-            body_lines.extend(["", "Maisaka 返回:", normalized_response])
+            renderables.append(
+                Panel(
+                    Text(normalized_response),
+                    title="Maisaka 返回",
+                    border_style="green",
+                    padding=(0, 1),
+                )
+            )
 
         normalized_tool_calls = self._build_tool_call_summary_lines(tool_calls or [])
         if normalized_tool_calls:
-            body_lines.extend(["", "工具调用:", *normalized_tool_calls])
+            renderables.append(
+                Panel(
+                    Text("\n".join(normalized_tool_calls)),
+                    title="工具调用",
+                    border_style="magenta",
+                    padding=(0, 1),
+                )
+            )
 
         normalized_tool_results = [result.strip() for result in tool_results or [] if isinstance(result, str) and result.strip()]
         if normalized_tool_results:
-            body_lines.extend(["", "工具结果:", *normalized_tool_results])
+            renderables.append(
+                Panel(
+                    Text("\n".join(normalized_tool_results)),
+                    title="工具结果",
+                    border_style="yellow",
+                    padding=(0, 1),
+                )
+            )
 
         console.print(
             Panel(
-                Text("\n".join(body_lines)),
+                Group(*renderables),
                 title="MaiSaka 上下文与结果",
                 border_style="bright_blue",
                 padding=(0, 1),
