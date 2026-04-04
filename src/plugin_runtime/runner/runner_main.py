@@ -10,6 +10,7 @@
 """
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Protocol, Set, Tuple, cast
@@ -28,6 +29,7 @@ import tomllib
 import tomlkit
 
 from src.common.logger import get_console_handler, get_logger, initialize_logging
+from src.config.config_utils import compare_versions
 from src.plugin_runtime import (
     ENV_BLOCKED_PLUGIN_REASONS,
     ENV_EXTERNAL_PLUGIN_IDS,
@@ -152,6 +154,122 @@ class PluginActivationStatus(str, Enum):
     LOADED = "loaded"
     INACTIVE = "inactive"
     FAILED = "failed"
+
+
+@dataclass(frozen=True)
+class PluginConfigNormalizationResult:
+    """描述插件配置归一化结果。"""
+
+    normalized_config: Dict[str, Any]
+    changed: bool
+    should_persist: bool
+
+
+class PluginConfigVersionError(ValueError):
+    """插件配置版本不合法时抛出的异常。"""
+
+
+def _deep_copy_plugin_config_value(value: Any) -> Any:
+    """递归复制插件配置值。
+
+    Args:
+        value: 待复制的任意配置值。
+
+    Returns:
+        Any: 深复制后的配置值。
+    """
+
+    if isinstance(value, Mapping):
+        return _deep_copy_plugin_config_mapping(value)
+    if isinstance(value, list):
+        return [_deep_copy_plugin_config_value(item) for item in value]
+    return value
+
+
+def _deep_copy_plugin_config_mapping(value: Mapping[str, Any]) -> Dict[str, Any]:
+    """递归复制插件配置字典。
+
+    Args:
+        value: 待复制的插件配置映射。
+
+    Returns:
+        Dict[str, Any]: 深复制后的插件配置字典。
+    """
+
+    return {str(key): _deep_copy_plugin_config_value(item) for key, item in value.items()}
+
+
+def _overlay_plugin_config_fields(target: Dict[str, Any], source: Mapping[str, Any]) -> None:
+    """将旧配置中的已有字段覆盖到新配置骨架中。
+
+    Args:
+        target: 以最新默认配置构造出的目标配置字典。
+        source: 旧版本配置字典。
+    """
+
+    for key, source_value in source.items():
+        if key not in target:
+            continue
+        if key == "config_version":
+            continue
+
+        target_value = target[key]
+        if isinstance(target_value, dict) and isinstance(source_value, Mapping):
+            _overlay_plugin_config_fields(target_value, source_value)
+            continue
+
+        target[key] = _deep_copy_plugin_config_value(source_value)
+
+
+def extract_plugin_config_version(config_data: Mapping[str, Any]) -> str:
+    """提取插件配置中的版本号。
+
+    Args:
+        config_data: 插件配置字典。
+
+    Returns:
+        str: ``plugin.config_version`` 的规范化字符串值。
+
+    Raises:
+        PluginConfigVersionError: 当缺少 ``[plugin]`` 配置节或 ``config_version``
+            字段为空时抛出。
+    """
+
+    plugin_section = config_data.get("plugin")
+    if not isinstance(plugin_section, Mapping):
+        raise PluginConfigVersionError(
+            "插件配置文件缺少 [plugin] 配置节，且必须提供 plugin.config_version 版本号"
+        )
+
+    version_value = plugin_section.get("config_version")
+    normalized_version = str(version_value or "").strip()
+    if not normalized_version:
+        raise PluginConfigVersionError(
+            "插件配置文件缺少 plugin.config_version 版本号，当前版本策略不再兼容无版本配置"
+        )
+    return normalized_version
+
+
+def rebuild_plugin_config_data(
+    default_config: Mapping[str, Any],
+    current_config: Mapping[str, Any],
+) -> Dict[str, Any]:
+    """基于默认结构重建插件配置。
+
+    该方法用于版本升级场景：以最新默认配置为骨架，仅迁移仍然存在的旧字段值，
+    从而达到“补齐新增字段、移除废弃字段、保留用户已有值”的效果。
+
+    Args:
+        default_config: 最新默认配置内容。
+        current_config: 旧版本配置内容。
+
+    Returns:
+        Dict[str, Any]: 按最新结构重建后的配置字典。
+    """
+
+    rebuilt_config = _deep_copy_plugin_config_mapping(default_config)
+    _overlay_plugin_config_fields(rebuilt_config, current_config)
+    return rebuilt_config
 
 
 def _install_shutdown_signal_handlers(
@@ -414,12 +532,19 @@ class PluginRunner:
             Dict[str, Any]: 归一化后的当前插件配置。
         """
         instance = meta.instance
-        raw_config = config_data if config_data is not None else self._load_plugin_config(meta.plugin_dir)
-        plugin_config, should_persist = self._normalize_plugin_config(instance, raw_config)
-        config_path = Path(meta.plugin_dir) / "config.toml"
         default_config = self._get_plugin_default_config(instance)
+        raw_config = config_data if config_data is not None else self._load_plugin_config(meta.plugin_dir, meta.plugin_id)
+        normalization_result = self._normalize_plugin_config(
+            instance,
+            raw_config,
+            default_config=default_config,
+            suppress_errors=False,
+            enforce_version=True,
+        )
+        plugin_config = normalization_result.normalized_config
+        config_path = Path(meta.plugin_dir) / "config.toml"
         should_initialize_file = not config_path.exists() and bool(default_config)
-        if should_persist or should_initialize_file:
+        if normalization_result.should_persist or should_initialize_file:
             self._save_plugin_config(meta.plugin_dir, plugin_config)
         if hasattr(instance, "set_plugin_config"):
             try:
@@ -433,30 +558,105 @@ class PluginRunner:
         instance: object,
         config_data: Optional[Dict[str, Any]],
         *,
+        default_config: Optional[Dict[str, Any]] = None,
         suppress_errors: bool = True,
-    ) -> Tuple[Dict[str, Any], bool]:
+        enforce_version: bool = True,
+    ) -> PluginConfigNormalizationResult:
         """对插件配置做统一归一化处理。
 
         Args:
             instance: 插件实例。
             config_data: 原始配置数据。
+            default_config: 插件声明的默认配置。
             suppress_errors: 是否在归一化失败时吞掉异常并回退原始配置。
+            enforce_version: 是否强制执行 ``plugin.config_version`` 版本检查。
 
         Returns:
-            Tuple[Dict[str, Any], bool]: 归一化后的配置，以及是否需要回写文件。
+            PluginConfigNormalizationResult: 归一化结果、是否发生变更以及是否应写回文件。
         """
 
-        normalized_config = dict(config_data or {})
-        if not hasattr(instance, "normalize_plugin_config"):
-            return normalized_config, False
+        raw_config = dict(config_data or {})
+        latest_default_config = default_config if default_config is not None else self._get_plugin_default_config(instance)
+        config_for_normalize = rebuild_plugin_config_data(raw_config, {})
+        should_persist = False
 
         try:
-            return cast(_ConfigAwarePlugin, instance).normalize_plugin_config(normalized_config)
+            if latest_default_config:
+                if enforce_version:
+                    config_for_normalize, should_persist = self._prepare_plugin_config_for_version_update(
+                        raw_config=raw_config,
+                        default_config=latest_default_config,
+                    )
+                elif not raw_config:
+                    config_for_normalize = rebuild_plugin_config_data(latest_default_config, {})
+        except Exception as exc:
+            if not suppress_errors:
+                raise
+            logger.warning(f"插件配置版本检查失败，将回退为原始配置: {exc}")
+            return PluginConfigNormalizationResult(
+                normalized_config=raw_config,
+                changed=False,
+                should_persist=False,
+            )
+
+        if not hasattr(instance, "normalize_plugin_config"):
+            return PluginConfigNormalizationResult(
+                normalized_config=config_for_normalize,
+                changed=config_for_normalize != raw_config,
+                should_persist=should_persist,
+            )
+
+        try:
+            normalized_config, normalized_changed = cast(_ConfigAwarePlugin, instance).normalize_plugin_config(
+                config_for_normalize
+            )
         except Exception as exc:
             if not suppress_errors:
                 raise
             logger.warning(f"插件配置归一化失败，将回退为原始配置: {exc}")
-            return normalized_config, False
+            return PluginConfigNormalizationResult(
+                normalized_config=raw_config,
+                changed=False,
+                should_persist=False,
+            )
+
+        return PluginConfigNormalizationResult(
+            normalized_config=normalized_config,
+            changed=normalized_changed or normalized_config != raw_config,
+            should_persist=should_persist,
+        )
+
+    @staticmethod
+    def _prepare_plugin_config_for_version_update(
+        raw_config: Mapping[str, Any],
+        default_config: Mapping[str, Any],
+    ) -> Tuple[Dict[str, Any], bool]:
+        """基于配置版本决定是否需要重建插件配置。
+
+        Args:
+            raw_config: 当前磁盘上的插件配置。
+            default_config: 插件最新默认配置。
+
+        Returns:
+            Tuple[Dict[str, Any], bool]: 用于后续归一化的配置副本，以及是否需要写回文件。
+
+        Raises:
+            PluginConfigVersionError: 当默认配置或当前配置缺少版本号时抛出。
+        """
+
+        if not default_config:
+            return rebuild_plugin_config_data(raw_config, {}), False
+
+        latest_version = extract_plugin_config_version(default_config)
+        if not raw_config:
+            return rebuild_plugin_config_data(default_config, {}), False
+
+        current_version = extract_plugin_config_version(raw_config)
+        if compare_versions(current_version, latest_version):
+            logger.info(f"检测到插件配置版本升级: {current_version} -> {latest_version}")
+            return rebuild_plugin_config_data(default_config, raw_config), True
+
+        return rebuild_plugin_config_data(raw_config, {}), False
 
     @staticmethod
     def _merge_plugin_config_document(target: Any, source: Any) -> None:
@@ -642,6 +842,7 @@ class PluginRunner:
         config_data: Optional[Dict[str, Any]] = None,
         use_provided_config: bool = False,
         suppress_errors: bool = True,
+        enforce_version: bool = True,
     ) -> InspectPluginConfigResultPayload:
         """解析插件代码定义的配置元数据。
 
@@ -650,6 +851,7 @@ class PluginRunner:
             config_data: 可选的配置内容。
             use_provided_config: 是否优先使用传入的配置内容。
             suppress_errors: 是否在归一化失败时回退原始配置。
+            enforce_version: 是否强制校验 ``plugin.config_version``。
 
         Returns:
             InspectPluginConfigResultPayload: 结构化解析结果。
@@ -659,14 +861,18 @@ class PluginRunner:
         if use_provided_config and config_data is None:
             raw_config = {}
 
-        normalized_config, changed = self._normalize_plugin_config(
+        default_config = self._get_plugin_default_config(meta.instance)
+        normalization_result = self._normalize_plugin_config(
             meta.instance,
             raw_config,
+            default_config=default_config,
             suppress_errors=suppress_errors,
+            enforce_version=enforce_version,
         )
-        default_config = self._get_plugin_default_config(meta.instance)
+        normalized_config = normalization_result.normalized_config
+        changed = normalization_result.changed
         if not normalized_config and not raw_config and default_config:
-            normalized_config = dict(default_config)
+            normalized_config = rebuild_plugin_config_data(default_config, {})
             changed = True
 
         return InspectPluginConfigResultPayload(
@@ -946,7 +1152,16 @@ class PluginRunner:
             PluginActivationStatus: 插件激活结果。
         """
         self._inject_context(meta.plugin_id, meta.instance)
-        plugin_config = self._apply_plugin_config(meta)
+        try:
+            plugin_config = self._apply_plugin_config(meta)
+        except PluginConfigVersionError as exc:
+            logger.error(f"插件 {meta.plugin_id} 配置版本非法: {exc}")
+            self._loader.purge_plugin_modules(meta.plugin_id, meta.plugin_dir)
+            return PluginActivationStatus.FAILED
+        except Exception as exc:
+            logger.error(f"插件 {meta.plugin_id} 配置加载失败: {exc}", exc_info=True)
+            self._loader.purge_plugin_modules(meta.plugin_id, meta.plugin_dir)
+            return PluginActivationStatus.FAILED
         if not self._is_plugin_enabled(plugin_config):
             logger.info(f"插件 {meta.plugin_id} 已在配置中禁用，跳过激活")
             self._loader.purge_plugin_modules(meta.plugin_id, meta.plugin_dir)
@@ -1604,7 +1819,8 @@ class PluginRunner:
                 meta,
                 config_data=payload.config_data,
                 use_provided_config=payload.use_provided_config,
-                suppress_errors=True,
+                suppress_errors=payload.use_provided_config,
+                enforce_version=not payload.use_provided_config,
             )
         except Exception as exc:
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
@@ -1643,6 +1859,7 @@ class PluginRunner:
                 config_data=payload.config_data,
                 use_provided_config=True,
                 suppress_errors=False,
+                enforce_version=True,
             )
         except Exception as exc:
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))

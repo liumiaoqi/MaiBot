@@ -26,6 +26,8 @@ from src.webui.routers.plugin.schemas import UpdatePluginConfigRequest
 class _DemoConfigPlugin:
     """用于测试 Runner 配置归一化流程的伪插件。"""
 
+    _config_version: str = "2.0.0"
+
     def __init__(self) -> None:
         """初始化测试插件状态。"""
 
@@ -43,7 +45,8 @@ class _DemoConfigPlugin:
 
         current_config = dict(config_data or {})
         plugin_section = dict(current_config.get("plugin", {}))
-        changed = "retry_count" not in plugin_section
+        changed = "retry_count" not in plugin_section or "config_version" not in plugin_section
+        plugin_section.setdefault("config_version", self._config_version)
         plugin_section.setdefault("enabled", True)
         plugin_section.setdefault("retry_count", 3)
         return {"plugin": plugin_section}, changed
@@ -64,7 +67,7 @@ class _DemoConfigPlugin:
             Dict[str, Any]: 默认配置字典。
         """
 
-        return {"plugin": {"enabled": True, "retry_count": 3}}
+        return {"plugin": {"config_version": self._config_version, "enabled": True, "retry_count": 3}}
 
     def get_webui_config_schema(
         self,
@@ -131,6 +134,7 @@ class _StrictConfigPlugin:
 
         current_config = dict(config_data or {})
         plugin_section = dict(current_config.get("plugin", {}))
+        plugin_section.setdefault("config_version", "2.0.0")
         retry_count = int(plugin_section.get("retry_count", 0))
         if retry_count < 0:
             raise ValueError("重试次数不能小于 0")
@@ -146,6 +150,15 @@ class _StrictConfigPlugin:
 
         del config
 
+    def get_default_config(self) -> Dict[str, Any]:
+        """返回测试插件的默认配置。
+
+        Returns:
+            Dict[str, Any]: 默认配置字典。
+        """
+
+        return {"plugin": {"config_version": "2.0.0", "enabled": True, "retry_count": 0}}
+
 
 def test_runner_apply_plugin_config_generates_config_file(tmp_path: Path) -> None:
     """Runner 注入配置时应自动补齐并落盘 config.toml。"""
@@ -158,19 +171,22 @@ def test_runner_apply_plugin_config_generates_config_file(tmp_path: Path) -> Non
     )
     meta = SimpleNamespace(plugin_id="demo.plugin", plugin_dir=str(tmp_path), instance=plugin)
 
-    runner._apply_plugin_config(cast(Any, meta), config_data={"plugin": {"enabled": False}})
+    runner._apply_plugin_config(
+        cast(Any, meta),
+        config_data={"plugin": {"config_version": "2.0.0", "enabled": False}},
+    )
 
     config_path = tmp_path / "config.toml"
     assert config_path.exists()
-    assert plugin.received_config == {"plugin": {"enabled": False, "retry_count": 3}}
+    assert plugin.received_config == {"plugin": {"config_version": "2.0.0", "enabled": False, "retry_count": 3}}
 
     with config_path.open("rb") as handle:
         saved_config = tomllib.load(handle)
-    assert saved_config == {"plugin": {"enabled": False, "retry_count": 3}}
+    assert saved_config == {"plugin": {"config_version": "2.0.0", "enabled": False, "retry_count": 3}}
 
 
 def test_runner_apply_plugin_config_preserves_existing_comments(tmp_path: Path) -> None:
-    """Runner 补齐配置时应尽量保留现有 config.toml 注释。"""
+    """Runner 在版本升级时应尽量保留现有 config.toml 注释。"""
 
     plugin = _DemoConfigPlugin()
     runner = PluginRunner(
@@ -181,7 +197,7 @@ def test_runner_apply_plugin_config_preserves_existing_comments(tmp_path: Path) 
     meta = SimpleNamespace(plugin_id="demo.plugin", plugin_dir=str(tmp_path), instance=plugin)
     config_path = tmp_path / "config.toml"
     config_path.write_text(
-        '# 插件配置头注释\n[plugin]\nenabled = false # 启用开关注释\n',
+        '# 插件配置头注释\n[plugin]\nconfig_version = "1.0.0"\nenabled = false # 启用开关注释\n',
         encoding="utf-8",
     )
 
@@ -193,7 +209,44 @@ def test_runner_apply_plugin_config_preserves_existing_comments(tmp_path: Path) 
 
     with config_path.open("rb") as handle:
         saved_config = tomllib.load(handle)
-    assert saved_config == {"plugin": {"enabled": False, "retry_count": 3}}
+    assert saved_config == {"plugin": {"config_version": "2.0.0", "enabled": False, "retry_count": 3}}
+
+
+def test_runner_apply_plugin_config_same_version_does_not_rewrite_file(tmp_path: Path) -> None:
+    """Runner 在配置版本未变化时不应仅因补齐默认值而重写文件。"""
+
+    plugin = _DemoConfigPlugin()
+    runner = PluginRunner(
+        host_address="ipc://unused",
+        session_token="session-token",
+        plugin_dirs=[],
+    )
+    meta = SimpleNamespace(plugin_id="demo.plugin", plugin_dir=str(tmp_path), instance=plugin)
+    config_path = tmp_path / "config.toml"
+    original_config_text = '# 原始注释\n[plugin]\nconfig_version = "2.0.0"\nenabled = false\n'
+    config_path.write_text(original_config_text, encoding="utf-8")
+
+    runner._apply_plugin_config(cast(Any, meta))
+
+    assert plugin.received_config == {"plugin": {"config_version": "2.0.0", "enabled": False, "retry_count": 3}}
+    assert config_path.read_text(encoding="utf-8") == original_config_text
+
+
+def test_runner_apply_plugin_config_requires_config_version(tmp_path: Path) -> None:
+    """Runner 应拒绝缺少配置版本号的插件配置文件。"""
+
+    plugin = _DemoConfigPlugin()
+    runner = PluginRunner(
+        host_address="ipc://unused",
+        session_token="session-token",
+        plugin_dirs=[],
+    )
+    meta = SimpleNamespace(plugin_id="demo.plugin", plugin_dir=str(tmp_path), instance=plugin)
+    config_path = tmp_path / "config.toml"
+    config_path.write_text("[plugin]\nenabled = true\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="config_version"):
+        runner._apply_plugin_config(cast(Any, meta))
 
 
 def test_component_query_service_returns_plugin_config_schema(monkeypatch: Any) -> None:
@@ -246,14 +299,18 @@ async def test_runner_validate_plugin_config_handler_returns_normalized_config(m
         message_type=MessageType.REQUEST,
         method="plugin.validate_config",
         plugin_id="demo.plugin",
-        payload=ValidatePluginConfigPayload(config_data={"plugin": {"enabled": False}}).model_dump(),
+        payload=ValidatePluginConfigPayload(
+            config_data={"plugin": {"config_version": "2.0.0", "enabled": False}}
+        ).model_dump(),
     )
 
     response = await runner._handle_validate_plugin_config(envelope)
 
     assert response.error is None
     assert response.payload["success"] is True
-    assert response.payload["normalized_config"] == {"plugin": {"enabled": False, "retry_count": 3}}
+    assert response.payload["normalized_config"] == {
+        "plugin": {"config_version": "2.0.0", "enabled": False, "retry_count": 3}
+    }
 
 
 @pytest.mark.asyncio
@@ -308,8 +365,12 @@ async def test_runner_inspect_plugin_config_handler_supports_unloaded_plugin(
     assert response.error is None
     assert response.payload["success"] is True
     assert response.payload["enabled"] is False
-    assert response.payload["normalized_config"] == {"plugin": {"enabled": False, "retry_count": 3}}
-    assert response.payload["default_config"] == {"plugin": {"enabled": True, "retry_count": 3}}
+    assert response.payload["normalized_config"] == {
+        "plugin": {"config_version": "2.0.0", "enabled": False, "retry_count": 3}
+    }
+    assert response.payload["default_config"] == {
+        "plugin": {"config_version": "2.0.0", "enabled": True, "retry_count": 3}
+    }
     assert purged_plugins == [("demo.plugin", "/tmp/demo-plugin")]
 
 
@@ -333,7 +394,9 @@ async def test_runner_validate_plugin_config_handler_returns_error_on_invalid_co
         message_type=MessageType.REQUEST,
         method="plugin.validate_config",
         plugin_id="demo.plugin",
-        payload=ValidatePluginConfigPayload(config_data={"plugin": {"retry_count": -1}}).model_dump(),
+        payload=ValidatePluginConfigPayload(
+            config_data={"plugin": {"config_version": "2.0.0", "retry_count": -1}}
+        ).model_dump(),
     )
 
     response = await runner._handle_validate_plugin_config(envelope)
@@ -363,10 +426,37 @@ async def test_update_plugin_config_prefers_runtime_validation(
         """
 
         assert plugin_id == "demo.plugin"
-        assert config_data == {"plugin": {"enabled": False}}
-        return {"plugin": {"enabled": False, "retry_count": 3}}
+        assert config_data == {"plugin": {"config_version": "2.0.0", "enabled": False, "retry_count": 3}}
+        return {"plugin": {"config_version": "2.0.0", "enabled": False, "retry_count": 3}}
 
-    fake_runtime_manager = SimpleNamespace(validate_plugin_config=_mock_validate_plugin_config)
+    async def _mock_inspect_plugin_config(
+        plugin_id: str,
+        config_data: Optional[Dict[str, Any]] = None,
+        *,
+        use_provided_config: bool = False,
+    ) -> SimpleNamespace | None:
+        """返回运行时配置快照。
+
+        Args:
+            plugin_id: 插件 ID。
+            config_data: 可选配置。
+            use_provided_config: 是否使用传入配置。
+
+        Returns:
+            SimpleNamespace | None: 运行时配置快照。
+        """
+
+        del config_data, use_provided_config
+        if plugin_id != "demo.plugin":
+            return None
+        return SimpleNamespace(
+            normalized_config={"plugin": {"config_version": "2.0.0", "enabled": True, "retry_count": 3}}
+        )
+
+    fake_runtime_manager = SimpleNamespace(
+        inspect_plugin_config=_mock_inspect_plugin_config,
+        validate_plugin_config=_mock_validate_plugin_config,
+    )
 
     monkeypatch.setattr(
         "src.webui.routers.plugin.config_routes.require_plugin_token",
@@ -390,7 +480,7 @@ async def test_update_plugin_config_prefers_runtime_validation(
     assert response["success"] is True
     with config_path.open("rb") as handle:
         saved_config = tomllib.load(handle)
-    assert saved_config == {"plugin": {"enabled": False, "retry_count": 3}}
+    assert saved_config == {"plugin": {"config_version": "2.0.0", "enabled": False, "retry_count": 3}}
 
 
 @pytest.mark.asyncio
@@ -432,7 +522,7 @@ async def test_webui_config_endpoints_use_runtime_inspection_for_unloaded_plugin
                 "sections": {"plugin": {"fields": {}}},
                 "layout": {"type": "auto", "tabs": []},
             },
-            normalized_config={"plugin": {"enabled": True, "retry_count": 3}},
+            normalized_config={"plugin": {"config_version": "2.0.0", "enabled": True, "retry_count": 3}},
             enabled=True,
         )
 
@@ -458,6 +548,6 @@ async def test_webui_config_endpoints_use_runtime_inspection_for_unloaded_plugin
     assert schema_response["schema"]["plugin_id"] == "demo.plugin"
     assert config_response == {
         "success": True,
-        "config": {"plugin": {"enabled": True, "retry_count": 3}},
+        "config": {"plugin": {"config_version": "2.0.0", "enabled": True, "retry_count": 3}},
         "message": "配置文件不存在，已返回默认配置",
     }

@@ -3,8 +3,8 @@
 from pathlib import Path
 from typing import Any, Dict, Optional, cast
 
-import tomlkit
 from fastapi import APIRouter, Cookie, HTTPException
+import tomlkit
 
 from src.common.logger import get_logger
 from src.plugin_runtime.protocol.envelope import InspectPluginConfigResultPayload
@@ -13,6 +13,7 @@ from src.webui.utils.toml_utils import save_toml_with_format
 from .schemas import UpdatePluginConfigRequest, UpdatePluginRawConfigRequest
 from .support import (
     backup_file,
+    deep_merge,
     find_plugin_path_by_id,
     get_plugin_config_path,
     normalize_dotted_keys,
@@ -26,6 +27,15 @@ router = APIRouter()
 
 
 def _to_builtin_data(obj: Any) -> Any:
+    """将 TOML 对象递归转换为内建 Python 数据。
+
+    Args:
+        obj: 原始对象。
+
+    Returns:
+        Any: 转换后的内建数据结构。
+    """
+
     if hasattr(obj, "unwrap"):
         try:
             obj = obj.unwrap()
@@ -37,6 +47,22 @@ def _to_builtin_data(obj: Any) -> Any:
     if isinstance(obj, list):
         return [_to_builtin_data(value) for value in obj]
     return obj
+
+
+def _merge_plugin_config_patch(base_config: Dict[str, Any], patch_config: Dict[str, Any]) -> Dict[str, Any]:
+    """以现有配置为基线合并本次插件配置改动。
+
+    Args:
+        base_config: 当前完整配置。
+        patch_config: 本次提交的局部配置改动。
+
+    Returns:
+        Dict[str, Any]: 合并后的完整配置。
+    """
+
+    merged_config = cast(Dict[str, Any], _to_builtin_data(base_config))
+    deep_merge(merged_config, patch_config)
+    return merged_config
 
 
 def _build_schema_from_current_config(plugin_id: str, current_config: Any) -> Dict[str, Any]:
@@ -489,7 +515,19 @@ async def update_plugin_config(
 
         config_data = request.config or {}
         if isinstance(config_data, dict):
-            config_data = normalize_dotted_keys(config_data)
+            config_patch = normalize_dotted_keys(config_data)
+            runtime_snapshot = None
+            try:
+                runtime_snapshot = await _inspect_plugin_config_via_runtime(plugin_id)
+            except ValueError as exc:
+                logger.warning(f"插件 {plugin_id} 保存前配置检查失败，将回退到磁盘内容: {exc}")
+
+            base_config = (
+                dict(runtime_snapshot.normalized_config)
+                if runtime_snapshot is not None
+                else _load_plugin_config_from_disk(plugin_path)
+            )
+            config_data = _merge_plugin_config_patch(base_config, config_patch)
             runtime_validated_config = await _validate_plugin_config_via_runtime(plugin_id, config_data)
             if isinstance(runtime_validated_config, dict):
                 config_data = runtime_validated_config
