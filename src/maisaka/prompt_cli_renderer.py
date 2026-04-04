@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+import html
+import json
 from base64 import b64decode
 from dataclasses import dataclass
 from enum import Enum
@@ -50,6 +52,19 @@ class _MessageRenderResult:
 
 class PromptCLIVisualizer:
     """负责构建 CLI 下 prompt 展示所需的所有可视化组件。"""
+
+    PROMPT_DUMP_DIR = Path(tempfile.gettempdir()) / "maisaka_prompt_dumps"
+
+    @staticmethod
+    def get_request_panel_style(request_kind: str) -> tuple[str, str]:
+        """返回不同请求类型对应的标题与边框颜色。"""
+
+        normalized_kind = str(request_kind or "planner").strip().lower()
+        if normalized_kind == "timing_gate":
+            return "MaiSaka 大模型请求 - Timing Gate 子代理", "bright_magenta"
+        if normalized_kind == "sub_agent":
+            return "MaiSaka 大模型请求 - 子代理", "bright_blue"
+        return "MaiSaka 大模型请求 - 对话单步", "cyan"
 
     @staticmethod
     def _get_role_badge_style(role: str) -> str:
@@ -120,6 +135,16 @@ class PromptCLIVisualizer:
     def _build_file_uri(file_path: Path) -> str:
         normalized = file_path.as_posix()
         return f"file:///{quote(normalized, safe='/:')}"
+
+    @classmethod
+    def _build_prompt_dump_base_path(cls, messages: list[Any]) -> Path:
+        cls.PROMPT_DUMP_DIR.mkdir(parents=True, exist_ok=True)
+        try:
+            payload = json.dumps(messages, ensure_ascii=False, default=str)
+        except Exception:
+            payload = repr(messages)
+        digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+        return cls.PROMPT_DUMP_DIR / digest
 
     @staticmethod
     def _build_official_image_path(image_format: str, image_base64: str) -> Path | None:
@@ -210,6 +235,36 @@ class PromptCLIVisualizer:
         return Pretty(content, expand_all=True)
 
     @classmethod
+    def _serialize_message_content_for_dump(cls, content: Any) -> str:
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            parts: List[str] = []
+            for item in content:
+                if isinstance(item, str):
+                    parts.append(item)
+                    continue
+                if isinstance(item, tuple) and len(item) == 2:
+                    image_format, image_base64 = item
+                    approx_size = max(0, len(str(image_base64)) * 3 // 4)
+                    parts.append(f"[图片 image/{image_format} {approx_size} B]")
+                    continue
+                if isinstance(item, dict) and item.get("type") == "text" and isinstance(item.get("text"), str):
+                    parts.append(item["text"])
+                    continue
+                try:
+                    parts.append(json.dumps(item, ensure_ascii=False, indent=2, default=str))
+                except Exception:
+                    parts.append(str(item))
+            return "\n".join(part for part in parts if part).strip()
+        if content is None:
+            return ""
+        try:
+            return json.dumps(content, ensure_ascii=False, indent=2, default=str)
+        except Exception:
+            return str(content)
+
+    @classmethod
     def format_tool_call_for_display(cls, tool_call: Any) -> Dict[str, Any]:
         if isinstance(tool_call, dict):
             function_info = tool_call.get("function", {})
@@ -239,6 +294,379 @@ class PromptCLIVisualizer:
         )
 
     @classmethod
+    def _build_prompt_dump_text(cls, messages: list[Any]) -> str:
+        sections: List[str] = []
+        for index, message in enumerate(messages, start=1):
+            if isinstance(message, dict):
+                raw_role = message.get("role", "unknown")
+                content = message.get("content")
+                tool_call_id = message.get("tool_call_id")
+                tool_calls = message.get("tool_calls") or []
+            else:
+                raw_role = getattr(message, "role", "unknown")
+                content = getattr(message, "content", None)
+                tool_call_id = getattr(message, "tool_call_id", None)
+                tool_calls = getattr(message, "tool_calls", None) or []
+
+            role = raw_role.value if hasattr(raw_role, "value") else str(raw_role)
+            block_lines = [f"[{index}] role={role}"]
+            if tool_call_id:
+                block_lines.append(f"tool_call_id={tool_call_id}")
+
+            normalized_content = cls._serialize_message_content_for_dump(content)
+            if normalized_content:
+                block_lines.append("")
+                block_lines.append(normalized_content)
+
+            if tool_calls:
+                block_lines.append("")
+                block_lines.append("tool_calls:")
+                for tool_call in tool_calls:
+                    normalized_tool_call = cls.format_tool_call_for_display(tool_call)
+                    block_lines.append(json.dumps(normalized_tool_call, ensure_ascii=False, indent=2, default=str))
+
+            sections.append("\n".join(block_lines).strip())
+
+        return "\n\n" + ("\n\n" + ("=" * 80) + "\n\n").join(sections) if sections else "[空 Prompt]"
+
+    @classmethod
+    def _render_message_content_html(cls, content: Any) -> str:
+        if isinstance(content, str):
+            return f"<pre>{html.escape(content)}</pre>"
+
+        if isinstance(content, list):
+            parts: List[str] = []
+            for item in content:
+                if isinstance(item, str):
+                    parts.append(f"<pre>{html.escape(item)}</pre>")
+                    continue
+                if isinstance(item, tuple) and len(item) == 2:
+                    image_format, image_base64 = item
+                    image_html = cls._render_image_item_html(str(image_format), str(image_base64))
+                    parts.append(image_html)
+                    continue
+                if isinstance(item, dict) and item.get("type") == "text" and isinstance(item.get("text"), str):
+                    parts.append(f"<pre>{html.escape(item['text'])}</pre>")
+                    continue
+                parts.append(f"<pre>{html.escape(json.dumps(item, ensure_ascii=False, indent=2, default=str))}</pre>")
+            return "".join(parts) if parts else "<pre></pre>"
+
+        if content is None:
+            return "<pre></pre>"
+
+        return f"<pre>{html.escape(json.dumps(content, ensure_ascii=False, indent=2, default=str))}</pre>"
+
+    @classmethod
+    def _render_image_item_html(cls, image_format: str, image_base64: str) -> str:
+        normalized_format = cls._normalize_image_format(image_format)
+        approx_size = max(0, len(image_base64) * 3 // 4)
+        size_text = f"{approx_size / 1024:.1f} KB" if approx_size >= 1024 else f"{approx_size} B"
+        path_result = cls._build_image_file_link(image_format, image_base64)
+        if path_result is None:
+            return (
+                "<div class='image-card'>"
+                f"<div class='image-meta'>图片 image/{html.escape(normalized_format)} {html.escape(size_text)}</div>"
+                "</div>"
+            )
+
+        file_uri, file_path = path_result
+        return (
+            "<div class='image-card'>"
+            f"<div class='image-meta'>图片 image/{html.escape(normalized_format)} {html.escape(size_text)}</div>"
+            f"<div class='image-path'>{html.escape(str(file_path))}</div>"
+            f"<a class='image-link' href='{html.escape(file_uri, quote=True)}'>打开图片</a>"
+            "</div>"
+        )
+
+    @classmethod
+    def _build_html_role_class(cls, role: str) -> str:
+        return {
+            "system": "system",
+            "user": "user",
+            "assistant": "assistant",
+            "tool": "tool",
+        }.get(role, "unknown")
+
+    @classmethod
+    def _build_prompt_viewer_html(
+        cls,
+        messages: list[dict[str, Any]],
+        *,
+        request_kind: str,
+        selection_reason: str,
+    ) -> str:
+        panel_title, _ = cls.get_request_panel_style(request_kind)
+        message_cards: List[str] = []
+        for index, message in enumerate(messages, start=1):
+            raw_role = message.get("role", "unknown")
+            role = raw_role.value if hasattr(raw_role, "value") else str(raw_role)
+            role_label = cls._get_role_badge_label(role)
+            role_class = cls._build_html_role_class(role)
+            content_html = cls._render_message_content_html(message.get("content"))
+            tool_call_id = message.get("tool_call_id")
+            tool_call_html = ""
+            if tool_call_id:
+                tool_call_html = (
+                    "<div class='tool-call-id'>"
+                    "<span class='tool-call-label'>工具调用 ID</span>"
+                    f"<code>{html.escape(str(tool_call_id))}</code>"
+                    "</div>"
+                )
+
+            tool_panels = ""
+            raw_tool_calls = message.get("tool_calls") or []
+            if isinstance(raw_tool_calls, list) and raw_tool_calls:
+                tool_items = []
+                for tool_call_index, tool_call in enumerate(raw_tool_calls, start=1):
+                    normalized_tool_call = cls.format_tool_call_for_display(tool_call)
+                    tool_items.append(
+                        "<div class='tool-panel'>"
+                        f"<div class='tool-panel-title'>工具调用 #{index}.{tool_call_index}</div>"
+                        f"<pre>{html.escape(json.dumps(normalized_tool_call, ensure_ascii=False, indent=2, default=str))}</pre>"
+                        "</div>"
+                    )
+                tool_panels = "".join(tool_items)
+
+            message_cards.append(
+                "<section class='message-card'>"
+                "<div class='message-head'>"
+                f"<span class='role-badge {role_class}'>{html.escape(role_label)}</span>"
+                f"<span class='message-index'>#{index}</span>"
+                "</div>"
+                f"<div class='message-content'>{content_html}</div>"
+                f"{tool_call_html}"
+                f"{tool_panels}"
+                "</section>"
+            )
+
+        subtitle_html = ""
+        if selection_reason.strip():
+            subtitle_html = f"<div class='subtitle'>{html.escape(selection_reason)}</div>"
+
+        return f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{html.escape(panel_title)}</title>
+  <style>
+    :root {{
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --border: #d7dfeb;
+      --text: #18212f;
+      --muted: #5b6878;
+      --system: #1d4ed8;
+      --user: #16a34a;
+      --assistant: #ca8a04;
+      --tool: #c026d3;
+      --unknown: #475569;
+      --shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+    }}
+    * {{ box-sizing: border-box; }}
+    body {{
+      margin: 0;
+      background:
+        radial-gradient(circle at top left, rgba(29, 78, 216, 0.12), transparent 28%),
+        radial-gradient(circle at top right, rgba(192, 38, 211, 0.10), transparent 26%),
+        var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }}
+    .page {{
+      width: min(1200px, calc(100vw - 40px));
+      margin: 24px auto 40px;
+    }}
+    .hero {{
+      background: linear-gradient(135deg, #ffffff 0%, #eef4ff 100%);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+      padding: 20px 24px;
+      margin-bottom: 18px;
+    }}
+    .title {{
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }}
+    .subtitle {{
+      margin-top: 10px;
+      color: var(--muted);
+      white-space: pre-wrap;
+    }}
+    .message-card {{
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 16px 18px;
+      margin-bottom: 14px;
+    }}
+    .message-head {{
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }}
+    .role-badge {{
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 5px 12px;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+    }}
+    .role-badge.system {{ background: var(--system); }}
+    .role-badge.user {{ background: var(--user); }}
+    .role-badge.assistant {{ background: var(--assistant); color: #1f2937; }}
+    .role-badge.tool {{ background: var(--tool); }}
+    .role-badge.unknown {{ background: var(--unknown); }}
+    .message-index {{
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+    }}
+    .message-content pre,
+    .tool-panel pre {{
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: "Cascadia Mono", "JetBrains Mono", "Consolas", monospace;
+      font-size: 13px;
+      line-height: 1.55;
+      color: #1e293b;
+    }}
+    .tool-call-id {{
+      margin-top: 12px;
+      color: var(--tool);
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }}
+    .tool-call-label {{
+      font-weight: 700;
+    }}
+    .tool-call-id code {{
+      background: #faf5ff;
+      border: 1px solid #e9d5ff;
+      border-radius: 8px;
+      padding: 3px 8px;
+    }}
+    .tool-panel {{
+      margin-top: 12px;
+      background: #fcf4ff;
+      border: 1px solid #f0d7fb;
+      border-radius: 14px;
+      padding: 12px 14px;
+    }}
+    .tool-panel-title {{
+      color: #a21caf;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }}
+    .image-card {{
+      background: #f8fafc;
+      border: 1px solid #dbe4f0;
+      border-radius: 14px;
+      padding: 12px 14px;
+      margin: 8px 0;
+    }}
+    .image-meta {{
+      color: #a21caf;
+      font-weight: 700;
+    }}
+    .image-path {{
+      margin-top: 6px;
+      color: var(--muted);
+      font-family: "Cascadia Mono", "JetBrains Mono", "Consolas", monospace;
+      word-break: break-all;
+    }}
+    .image-link {{
+      display: inline-block;
+      margin-top: 8px;
+      color: #0f766e;
+      font-weight: 700;
+      text-decoration: none;
+    }}
+    .image-link:hover {{ text-decoration: underline; }}
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <div class="title">{html.escape(panel_title)}</div>
+      {subtitle_html}
+    </header>
+    {''.join(message_cards)}
+  </main>
+</body>
+</html>"""
+
+    @classmethod
+    def build_prompt_access_panel(
+        cls,
+        messages: list[Any],
+        *,
+        request_kind: str,
+        selection_reason: str,
+        image_display_mode: Literal["legacy", "path_link"],
+    ) -> Panel:
+        """构建用于查看完整 prompt 的入口面板。"""
+
+        base_path = cls._build_prompt_dump_base_path(messages)
+        prompt_dump_path = base_path.with_suffix(".txt")
+        prompt_dump_path.write_text(cls._build_prompt_dump_text(messages), encoding="utf-8")
+        viewer_messages: list[dict[str, Any]] = []
+        for message in messages:
+            if isinstance(message, dict):
+                viewer_messages.append(dict(message))
+                continue
+
+            normalized_message = {
+                "content": getattr(message, "content", None),
+                "role": getattr(getattr(message, "role", "unknown"), "value", getattr(message, "role", "unknown")),
+            }
+            tool_call_id = getattr(message, "tool_call_id", None)
+            if tool_call_id:
+                normalized_message["tool_call_id"] = tool_call_id
+
+            tool_calls = getattr(message, "tool_calls", None)
+            if tool_calls:
+                normalized_message["tool_calls"] = [
+                    cls.format_tool_call_for_display(tool_call) for tool_call in tool_calls
+                ]
+            viewer_messages.append(normalized_message)
+
+        viewer_html_path = base_path.with_suffix(".html")
+        viewer_html_path.write_text(
+            cls._build_prompt_viewer_html(
+                viewer_messages,
+                request_kind=request_kind,
+                selection_reason=selection_reason,
+            ),
+            encoding="utf-8",
+        )
+        viewer_uri = cls._build_file_uri(viewer_html_path)
+        dump_uri = cls._build_file_uri(prompt_dump_path)
+
+        body = Group(
+            Text(f"富文本预览：{viewer_html_path}", style="bold green"),
+            Text(f"原始文本备份：{prompt_dump_path}", style="magenta"),
+            Text.from_markup(f"[link={viewer_uri}]点击在浏览器打开富文本 Prompt 视图[/link]", style="bold green"),
+            Text.from_markup(f"[link={dump_uri}]点击直接打开 Prompt 文本[/link]", style="cyan"),
+        )
+        return Panel(
+            body,
+            title=Text(" Prompt 查看入口 ", style="bold white on blue"),
+            border_style="blue",
+            padding=(0, 1),
+        )
+
+    @classmethod
     def _render_message_panel(cls, message: Any, index: int, settings: PromptImageDisplaySettings) -> _MessageRenderResult:
         if isinstance(message, dict):
             raw_role = message.get("role", "unknown")
@@ -257,7 +685,6 @@ class PromptCLIVisualizer:
 
         parts: List[RenderableType] = []
         if content not in (None, "", []):
-            parts.append(Text(" 内容 ", style="bold cyan"))
             parts.append(cls._render_message_content(content, settings))
 
         if tool_call_id:
