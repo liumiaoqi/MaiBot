@@ -170,8 +170,11 @@ class PromptCLIVisualizer:
             path_result = cls._build_image_file_link(image_format, image_base64)
             if path_result is not None:
                 file_uri, file_path = path_result
-                preview_parts.append(Text.from_markup(f"\n[link={file_uri}]点击打开图片[/link]", style="cyan"))
-                preview_parts.append(Text(f"\n{file_path}", style="dim"))
+                preview_parts: List[RenderableType] = [
+                    Text(f"图片格式 image/{normalized_format}  {size_text} 路径：{file_path}", style="magenta")
+                ]
+                
+                preview_parts.append(Text.from_markup(f"[link={file_uri}]点击打开图片[/link]", style="cyan"))
 
         return Panel(
             Group(*preview_parts),

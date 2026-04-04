@@ -880,10 +880,17 @@ class MaisakaChatLoopService:
 
         selected_indices.reverse()
         selected_history = [chat_history[index] for index in selected_indices]
+        selected_history, hidden_assistant_count = MaisakaChatLoopService._hide_early_assistant_messages(selected_history)
         selected_history = MaisakaChatLoopService._drop_leading_orphan_tool_results(selected_history)
+        selection_reason = (
+            f"上下文裁剪：最近 {effective_context_size} 条 user/assistant 消息，"
+            f"实际发送 {len(selected_history)} 条"
+        )
+        if hidden_assistant_count > 0:
+            selection_reason += f"，已隐藏最早 {hidden_assistant_count} 条 assistant 消息"
         return (
             selected_history,
-            f"???????? {effective_context_size} ? user/assistant??????????? {len(selected_history)} ?",
+            selection_reason,
         )
 
     @staticmethod
@@ -917,6 +924,7 @@ class MaisakaChatLoopService:
 
         selected_indices.reverse()
         selected_history = [chat_history[index] for index in selected_indices]
+        selected_history, hidden_assistant_count = MaisakaChatLoopService._hide_early_assistant_messages(selected_history)
         selected_history = MaisakaChatLoopService._drop_leading_orphan_tool_results(selected_history)
         return (
             selected_history,
@@ -925,6 +933,41 @@ class MaisakaChatLoopService:
                 f"展示并发送窗口内消息 {len(selected_history)} 条"
             ),
         )
+
+    @staticmethod
+    def _hide_early_assistant_messages(
+        selected_history: List[LLMContextMessage],
+    ) -> tuple[List[LLMContextMessage], int]:
+        """隐藏上下文中最早 50% 的 assistant 文本消息，但保留工具调用链路。"""
+
+        assistant_indices = [
+            index
+            for index, message in enumerate(selected_history)
+            if isinstance(message, AssistantMessage)
+        ]
+        hidden_assistant_count = len(assistant_indices) // 2
+        if hidden_assistant_count <= 0:
+            return selected_history, 0
+
+        removed_assistant_indices = set(assistant_indices[:hidden_assistant_count])
+
+        filtered_history: List[LLMContextMessage] = []
+        for index, message in enumerate(selected_history):
+            if index in removed_assistant_indices:
+                if not message.tool_calls:
+                    continue
+                filtered_history.append(
+                    AssistantMessage(
+                        content="",
+                        timestamp=message.timestamp,
+                        tool_calls=list(message.tool_calls),
+                        source_kind=message.source_kind,
+                    )
+                )
+                continue
+            filtered_history.append(message)
+
+        return filtered_history, hidden_assistant_count
 
     @staticmethod
     def _drop_leading_orphan_tool_results(
