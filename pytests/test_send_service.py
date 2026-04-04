@@ -29,6 +29,7 @@ class _FakePlatformIOManager:
         self.sent_messages.append(
             {
                 "message": message,
+                "message_id_before_send": str(getattr(message, "message_id", "") or ""),
                 "route_key": route_key,
                 "metadata": metadata,
             }
@@ -67,15 +68,42 @@ def test_inherit_platform_io_route_metadata_falls_back_to_bot_account(
 
 @pytest.mark.asyncio
 async def test_text_to_stream_delegates_to_platform_io(monkeypatch: pytest.MonkeyPatch) -> None:
+    import src.common.message_server.api as message_server_api
+
     fake_manager = _FakePlatformIOManager(
         delivery_batch=SimpleNamespace(
             has_success=True,
-            sent_receipts=[SimpleNamespace(driver_id="plugin.qq.sender")],
+            sent_receipts=[
+                SimpleNamespace(
+                    driver_id="plugin.qq.sender",
+                    external_message_id="real-message-id",
+                    metadata={
+                        "adapter_callbacks": [
+                            {
+                                "name": "message_id_echo",
+                                "payload": {
+                                    "content": {
+                                        "type": "echo",
+                                        "echo": "send_api_test",
+                                        "actual_id": "real-message-id",
+                                    }
+                                },
+                            }
+                        ]
+                    },
+                )
+            ],
             failed_receipts=[],
             route_key=SimpleNamespace(platform="qq"),
         )
     )
+    callback_payloads: List[Dict[str, Any]] = []
     stored_messages: List[Any] = []
+
+    async def fake_echo_handler(payload: Dict[str, Any]) -> None:
+        """记录发送成功后的消息 ID 回调。"""
+
+        callback_payloads.append(payload)
 
     monkeypatch.setattr(send_service, "get_platform_io_manager", lambda: fake_manager)
     monkeypatch.setattr(send_service, "get_bot_account", lambda platform: "bot-qq")
@@ -89,6 +117,11 @@ async def test_text_to_stream_delegates_to_platform_io(monkeypatch: pytest.Monke
         "store_message_to_db",
         lambda message: stored_messages.append(message),
     )
+    monkeypatch.setattr(
+        message_server_api,
+        "global_api",
+        SimpleNamespace(_custom_message_handlers={"message_id_echo": fake_echo_handler}),
+    )
 
     result = await send_service.text_to_stream(text="你好", stream_id="test-session")
 
@@ -97,6 +130,16 @@ async def test_text_to_stream_delegates_to_platform_io(monkeypatch: pytest.Monke
     assert len(fake_manager.sent_messages) == 1
     assert fake_manager.sent_messages[0]["metadata"] == {"show_log": False}
     assert len(stored_messages) == 1
+    assert stored_messages[0].message_id == "real-message-id"
+    assert callback_payloads == [
+        {
+            "content": {
+                "type": "echo",
+                "echo": "send_api_test",
+                "actual_id": "real-message-id",
+            }
+        }
+    ]
 
 
 @pytest.mark.asyncio

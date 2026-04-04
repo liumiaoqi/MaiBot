@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Tuple
 
 import logging
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -329,6 +330,66 @@ async def test_runtime_state_reports_via_gateway_capability() -> None:
     assert gateway_capability.calls[1]["gateway_name"] == napcat_gateway_name
     assert gateway_capability.calls[1]["ready"] is False
     assert gateway_capability.calls[1]["platform"] == "qq"
+
+
+@pytest.mark.asyncio
+async def test_napcat_plugin_send_result_contains_message_id_echo_callback() -> None:
+    """NapCat 插件发送成功后应显式返回消息 ID 回调数据。"""
+
+    _napcat_gateway_name, _napcat_server_config, napcat_plugin_cls, _runtime_state_cls = _load_napcat_sdk_symbols()
+    plugin = napcat_plugin_cls()
+
+    class _FakeOutboundCodec:
+        """用于测试的出站编码器替身。"""
+
+        @staticmethod
+        def build_outbound_action(message: Dict[str, Any], route: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+            """返回固定动作与参数。"""
+
+            del message
+            del route
+            return "send_msg", {"message": "hello"}
+
+    class _FakeTransport:
+        """用于测试的传输层替身。"""
+
+        @staticmethod
+        async def call_action(action_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
+            """返回带平台消息 ID 的成功响应。"""
+
+            del action_name
+            del params
+            return {
+                "status": "ok",
+                "data": {
+                    "message_id": "platform-message-id",
+                },
+            }
+
+    plugin._require_runtime_bundle = lambda: SimpleNamespace(  # type: ignore[method-assign]
+        outbound_codec=_FakeOutboundCodec(),
+        transport=_FakeTransport(),
+    )
+
+    result = await plugin.handle_napcat_gateway(
+        message={"message_id": "internal-message-id"},
+        route={},
+    )
+
+    assert result["success"] is True
+    assert result["external_message_id"] == "platform-message-id"
+    assert result["metadata"]["adapter_callbacks"] == [
+        {
+            "name": "message_id_echo",
+            "payload": {
+                "content": {
+                    "type": "echo",
+                    "echo": "internal-message-id",
+                    "actual_id": "platform-message-id",
+                }
+            },
+        }
+    ]
 
 
 @pytest.mark.asyncio

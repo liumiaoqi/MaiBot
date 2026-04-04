@@ -101,7 +101,9 @@ class MessageGateway:
             return False
 
         first_successful_receipt = delivery_batch.sent_receipts[0]
-        internal_message.message_id = first_successful_receipt.external_message_id or internal_message.message_id
+        external_message_id = str(first_successful_receipt.external_message_id or "").strip()
+        if external_message_id:
+            internal_message.message_id = external_message_id
         if save_to_db:
             try:
                 from src.common.utils.utils_message import MessageUtils

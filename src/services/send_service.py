@@ -637,6 +637,61 @@ def _store_sent_message(message: SessionMessage) -> None:
     MessageUtils.store_message_to_db(message)
 
 
+async def _apply_successful_delivery_receipt(message: SessionMessage, delivery_batch: DeliveryBatch) -> None:
+    """将成功回执中的平台消息 ID 回填到内部消息。
+
+    Args:
+        message: 已发送成功的内部消息对象。
+        delivery_batch: Platform IO 返回的批量回执。
+    """
+    if not delivery_batch.sent_receipts:
+        return
+
+    original_message_id = str(message.message_id or "").strip()
+    external_message_id = str(delivery_batch.sent_receipts[0].external_message_id or "").strip()
+    if not external_message_id or external_message_id == original_message_id:
+        return
+
+    message.message_id = external_message_id
+
+
+async def _dispatch_adapter_callbacks(delivery_batch: DeliveryBatch) -> None:
+    """分发适配器随成功回执返回的自定义回调。
+
+    Args:
+        delivery_batch: Platform IO 返回的批量回执。
+    """
+    try:
+        from src.common.message_server import api as message_server_api
+
+        global_api = getattr(message_server_api, "global_api", None)
+        custom_handlers = getattr(global_api, "_custom_message_handlers", None)
+        if not isinstance(custom_handlers, dict):
+            return
+
+        for receipt in delivery_batch.sent_receipts:
+            raw_callbacks = receipt.metadata.get("adapter_callbacks")
+            if not isinstance(raw_callbacks, list):
+                continue
+
+            for raw_callback in raw_callbacks:
+                if not isinstance(raw_callback, dict):
+                    continue
+
+                callback_name = str(raw_callback.get("name") or "").strip()
+                payload = raw_callback.get("payload")
+                if not callback_name or not isinstance(payload, dict):
+                    continue
+
+                handler = custom_handlers.get(callback_name)
+                if handler is None:
+                    continue
+
+                await handler(payload)
+    except Exception as exc:
+        logger.warning(f"[SendService] 分发适配器回调失败: {exc}")
+
+
 async def _notify_memory_automation_on_message_sent(message: SessionMessage) -> None:
     """在发送成功后通知长期记忆自动化服务。
 
@@ -740,6 +795,9 @@ async def _send_via_platform_io(
         return False
 
     sent = bool(delivery_batch.has_success)
+    if sent:
+        await _apply_successful_delivery_receipt(message, delivery_batch)
+        await _dispatch_adapter_callbacks(delivery_batch)
     await _invoke_send_hook(
         "send_service.after_send",
         message,
