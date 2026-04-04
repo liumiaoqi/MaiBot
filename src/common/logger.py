@@ -1,15 +1,16 @@
 # 使用基于时间戳的文件处理器，简单的轮转份数限制
 
-import logging
-import json
-import threading
-import time
-import structlog
-import tomlkit
-
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable, Optional
-from datetime import datetime, timedelta
+
+import json
+import logging
+import threading
+import time
+
+import structlog
+import tomlkit
 
 from .logger_color_and_mapping import MODULE_ALIASES, RESET_COLOR, CONVERTED_MODULE_COLORS as MODULE_COLORS
 
@@ -200,6 +201,8 @@ class WebSocketLogHandler(logging.Handler):
         """发送日志到 WebSocket 客户端"""
         if not self._initialized or self.loop is None:
             return
+        if self.loop.is_closed():
+            return
 
         try:
             # 获取格式化后的消息
@@ -233,7 +236,12 @@ class WebSocketLogHandler(logging.Handler):
                 import asyncio
                 from src.webui.logs_ws import broadcast_log
 
-                asyncio.run_coroutine_threadsafe(broadcast_log(log_data), self.loop)
+                coroutine = broadcast_log(log_data)
+                try:
+                    asyncio.run_coroutine_threadsafe(coroutine, self.loop)
+                except Exception:
+                    coroutine.close()
+                    raise
             except Exception:
                 # WebSocket 推送失败不影响日志记录
                 pass

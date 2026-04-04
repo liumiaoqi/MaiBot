@@ -253,124 +253,142 @@ class MaisakaReasoningEngine:
         """独立消费消息批次，并执行对应的内部思考轮次。"""
         try:
             while self._runtime._running:
-                cached_messages = await self._runtime._internal_turn_queue.get()
-                timeout_triggered = cached_messages is None
-                if not timeout_triggered and not cached_messages:
-                    self._runtime._internal_turn_queue.task_done()
-                    continue
-
-                self._runtime._agent_state = self._runtime._STATE_RUNNING
-                if cached_messages:
-                    self._clear_pending_wait_tool_call_id()
-                    await self._ingest_messages(cached_messages)
-                    anchor_message = cached_messages[-1]
-                else:
-                    anchor_message = self._get_timeout_anchor_message()
-                    if anchor_message is None:
-                        logger.warning(
-                            f"{self._runtime.log_prefix} 等待超时后缺少可复用的锚点消息，跳过本轮继续思考"
-                        )
-                        self._runtime._internal_turn_queue.task_done()
-                        continue
-                    logger.info(f"{self._runtime.log_prefix} 等待超时后开始新一轮思考")
-                    self._clear_pending_wait_tool_call_id()
-                    self._trim_chat_history()
+                queue_item_done_count = 0
                 try:
-                    for round_index in range(self._runtime._max_internal_rounds):
-                        cycle_detail = self._start_cycle()
-                        self._runtime._log_cycle_started(cycle_detail, round_index)
-                        planner_started_at = 0.0
-                        try:
-                            timing_started_at = time.time()
-                            timing_action, timing_response, timing_tool_results = await self._run_timing_gate(anchor_message)
-                            cycle_detail.time_records["timing_gate"] = time.time() - timing_started_at
-                            self._runtime._render_context_usage_panel(
-                                selected_history_count=timing_response.selected_history_count,
-                                prompt_tokens=timing_response.prompt_tokens,
-                                planner_response=timing_response.content or "",
-                                tool_calls=timing_response.tool_calls,
-                                tool_results=timing_tool_results,
-                                prompt_section=timing_response.prompt_section,
+                    queued_trigger = await self._runtime._internal_turn_queue.get()
+                    (
+                        message_triggered,
+                        timeout_triggered,
+                        queue_item_done_count,
+                    ) = self._drain_ready_turn_triggers(queued_trigger)
+
+                    if message_triggered:
+                        await self._runtime._wait_for_message_quiet_period()
+                        self._runtime._message_turn_scheduled = False
+
+                    cached_messages = (
+                        self._runtime._collect_pending_messages()
+                        if self._runtime._has_pending_messages()
+                        else []
+                    )
+                    if not timeout_triggered and not cached_messages and not message_triggered:
+                        continue
+
+                    self._runtime._agent_state = self._runtime._STATE_RUNNING
+                    if cached_messages:
+                        asyncio.create_task(self._runtime._trigger_batch_learning(cached_messages))
+                        self._append_wait_interrupted_message_if_needed()
+                        await self._ingest_messages(cached_messages)
+                        anchor_message = cached_messages[-1]
+                    else:
+                        anchor_message = self._get_timeout_anchor_message()
+                        if anchor_message is None:
+                            logger.warning(
+                                f"{self._runtime.log_prefix} 等待超时后缺少可复用的锚点消息，跳过本轮继续思考"
                             )
-                            if timing_action != "continue":
+                            continue
+                        logger.info(f"{self._runtime.log_prefix} 等待超时后开始新一轮思考")
+                        if self._runtime._pending_wait_tool_call_id:
+                            self._runtime._chat_history.append(self._build_wait_timeout_message())
+                        self._trim_chat_history()
+                    try:
+                        for round_index in range(self._runtime._max_internal_rounds):
+                            cycle_detail = self._start_cycle()
+                            self._runtime._log_cycle_started(cycle_detail, round_index)
+                            planner_started_at = 0.0
+                            try:
+                                timing_started_at = time.time()
+                                timing_action, timing_response, timing_tool_results = await self._run_timing_gate(anchor_message)
+                                cycle_detail.time_records["timing_gate"] = time.time() - timing_started_at
+                                self._runtime._render_context_usage_panel(
+                                    selected_history_count=timing_response.selected_history_count,
+                                    prompt_tokens=timing_response.prompt_tokens,
+                                    planner_response=timing_response.content or "",
+                                    tool_calls=timing_response.tool_calls,
+                                    tool_results=timing_tool_results,
+                                    prompt_section=timing_response.prompt_section,
+                                )
+                                if timing_action != "continue":
+                                    logger.info(
+                                        f"{self._runtime.log_prefix} Timing Gate 结束当前回合: "
+                                        f"回合={round_index + 1} 动作={timing_action}"
+                                    )
+                                    break
+
+                                planner_started_at = time.time()
+                                action_tool_definitions = await self._build_action_tool_definitions()
                                 logger.info(
-                                    f"{self._runtime.log_prefix} Timing Gate 结束当前回合: "
-                                    f"回合={round_index + 1} 动作={timing_action}"
+                                    f"{self._runtime.log_prefix} 规划器开始执行: "
+                                    f"回合={round_index + 1} "
+                                    f"历史消息数={len(self._runtime._chat_history)} "
+                                    f"开始时间={planner_started_at:.3f}"
                                 )
-                                break
-
-                            planner_started_at = time.time()
-                            action_tool_definitions = await self._build_action_tool_definitions()
-                            logger.info(
-                                f"{self._runtime.log_prefix} 规划器开始执行: "
-                                f"回合={round_index + 1} "
-                                f"历史消息数={len(self._runtime._chat_history)} "
-                                f"开始时间={planner_started_at:.3f}"
-                            )
-                            response = await self._run_interruptible_planner(
-                                tool_definitions=action_tool_definitions,
-                            )
-                            cycle_detail.time_records["planner"] = time.time() - planner_started_at
-                            logger.info(
-                                f"{self._runtime.log_prefix} 规划器执行完成: "
-                                f"回合={round_index + 1} "
-                                f"耗时={cycle_detail.time_records['planner']:.3f} 秒"
-                            )
-
-                            reasoning_content = response.content or ""
-                            if self._should_replace_reasoning(reasoning_content):
-                                response.content = "我应该根据我上面思考的内容进行反思，重新思考我下一步的行动，我需要分析当前场景，对话，以及我可以使用的工具，然后先输出想法再使用工具"
-                                response.raw_message.content = "我应该根据我上面思考的内容进行反思，重新思考我下一步的行动，我需要分析当前场景，对话，以及我可以使用的工具，然后先输出想法再使用工具"
-                                logger.info(f"{self._runtime.log_prefix} 当前思考与上一轮过于相似，已替换为重新思考提示")
-
-                            self._last_reasoning_content = reasoning_content
-                            self._runtime._chat_history.append(response.raw_message)
-                            tool_result_summaries: list[str] = []
-
-                            if response.tool_calls:
-                                tool_started_at = time.time()
-                                should_pause, tool_result_summaries = await self._handle_tool_calls(
-                                    response.tool_calls,
-                                    response.content or "",
-                                    anchor_message,
+                                response = await self._run_interruptible_planner(
+                                    tool_definitions=action_tool_definitions,
                                 )
-                                cycle_detail.time_records["tool_calls"] = time.time() - tool_started_at
+                                cycle_detail.time_records["planner"] = time.time() - planner_started_at
+                                logger.info(
+                                    f"{self._runtime.log_prefix} 规划器执行完成: "
+                                    f"回合={round_index + 1} "
+                                    f"耗时={cycle_detail.time_records['planner']:.3f} 秒"
+                                )
+
+                                reasoning_content = response.content or ""
+                                if self._should_replace_reasoning(reasoning_content):
+                                    response.content = "我应该根据我上面思考的内容进行反思，重新思考我下一步的行动，我需要分析当前场景，对话，以及我可以使用的工具，然后先输出想法再使用工具"
+                                    response.raw_message.content = "我应该根据我上面思考的内容进行反思，重新思考我下一步的行动，我需要分析当前场景，对话，以及我可以使用的工具，然后先输出想法再使用工具"
+                                    logger.info(f"{self._runtime.log_prefix} 当前思考与上一轮过于相似，已替换为重新思考提示")
+
+                                self._last_reasoning_content = reasoning_content
+                                self._runtime._chat_history.append(response.raw_message)
+                                tool_result_summaries: list[str] = []
+
+                                if response.tool_calls:
+                                    tool_started_at = time.time()
+                                    should_pause, tool_result_summaries = await self._handle_tool_calls(
+                                        response.tool_calls,
+                                        response.content or "",
+                                        anchor_message,
+                                    )
+                                    cycle_detail.time_records["tool_calls"] = time.time() - tool_started_at
+                                    self._runtime._render_context_usage_panel(
+                                        selected_history_count=response.selected_history_count,
+                                        prompt_tokens=response.prompt_tokens,
+                                        planner_response=response.content or "",
+                                        tool_calls=response.tool_calls,
+                                        tool_results=tool_result_summaries,
+                                        prompt_section=response.prompt_section,
+                                    )
+                                    if should_pause:
+                                        break
+                                    continue
+
                                 self._runtime._render_context_usage_panel(
                                     selected_history_count=response.selected_history_count,
                                     prompt_tokens=response.prompt_tokens,
                                     planner_response=response.content or "",
-                                    tool_calls=response.tool_calls,
-                                    tool_results=tool_result_summaries,
                                     prompt_section=response.prompt_section,
                                 )
-                                if should_pause:
+                                if not response.content:
                                     break
-                                continue
-
-                            self._runtime._render_context_usage_panel(
-                                selected_history_count=response.selected_history_count,
-                                prompt_tokens=response.prompt_tokens,
-                                planner_response=response.content or "",
-                                prompt_section=response.prompt_section,
-                            )
-                            if not response.content:
+                            except ReqAbortException:
+                                interrupted_at = time.time()
+                                logger.info(
+                                    f"{self._runtime.log_prefix} 规划器打断成功: "
+                                    f"回合={round_index + 1} "
+                                    f"开始时间={planner_started_at:.3f} "
+                                    f"打断时间={interrupted_at:.3f} "
+                                    f"耗时={interrupted_at - planner_started_at:.3f} 秒"
+                                )
                                 break
-                        except ReqAbortException:
-                            interrupted_at = time.time()
-                            logger.info(
-                                f"{self._runtime.log_prefix} 规划器打断成功: "
-                                f"回合={round_index + 1} "
-                                f"开始时间={planner_started_at:.3f} "
-                                f"打断时间={interrupted_at:.3f} "
-                                f"耗时={interrupted_at - planner_started_at:.3f} 秒"
-                            )
-                            break
-                        finally:
-                            self._end_cycle(cycle_detail)
+                            finally:
+                                self._end_cycle(cycle_detail)
+                    finally:
+                        if self._runtime._agent_state == self._runtime._STATE_RUNNING:
+                            self._runtime._agent_state = self._runtime._STATE_STOP
                 finally:
-                    if self._runtime._agent_state == self._runtime._STATE_RUNNING:
-                        self._runtime._agent_state = self._runtime._STATE_STOP
-                    self._runtime._internal_turn_queue.task_done()
+                    for _ in range(queue_item_done_count):
+                        self._runtime._internal_turn_queue.task_done()
         except asyncio.CancelledError:
             self._runtime._log_internal_loop_cancelled()
             raise
@@ -379,15 +397,41 @@ class MaisakaReasoningEngine:
             logger.error(traceback.format_exc())
             raise
 
+    def _drain_ready_turn_triggers(
+        self,
+        queued_trigger: Literal["message", "timeout"],
+    ) -> tuple[bool, bool, int]:
+        """合并当前已就绪的 turn 触发信号。"""
+
+        queue_item_done_count = 1
+        message_triggered = queued_trigger == "message"
+        timeout_triggered = queued_trigger == "timeout"
+
+        while True:
+            try:
+                next_trigger = self._runtime._internal_turn_queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+
+            queue_item_done_count += 1
+            if next_trigger == "message":
+                message_triggered = True
+                continue
+            if next_trigger == "timeout":
+                timeout_triggered = True
+                continue
+
+        if message_triggered:
+            # 这些消息触发将由当前 turn 接手，旧的事件位不应再污染后续 wait 判定。
+            self._runtime._new_message_event.clear()
+
+        return message_triggered, timeout_triggered, queue_item_done_count
+
     def _get_timeout_anchor_message(self) -> Optional[SessionMessage]:
         """在 wait 超时后复用最近一条真实用户消息作为锚点。"""
         if self._runtime.message_cache:
             return self._runtime.message_cache[-1]
         return None
-
-    def _clear_pending_wait_tool_call_id(self) -> None:
-        """清理等待状态残留的 wait 工具调用编号。"""
-        self._runtime._pending_wait_tool_call_id = None
 
     def _build_wait_timeout_message(self) -> ToolResultMessage:
         """构造 wait 超时后的工具结果消息。"""

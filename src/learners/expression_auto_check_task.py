@@ -190,12 +190,12 @@ class ExpressionAutoCheckTask(AsyncTask):
             set_review_state(expression.id, True, not suitable, "ai")
 
             status = "通过" if suitable else "不通过"
-            logger.info(
-                f"表达方式评估完成 [ID: {expression.id}] - {status} | "
-                f"Situation: {expression.situation}... | "
-                f"Style: {expression.style}... | "
-                f"Reason: {reason[:50]}..."
-            )
+            # logger.info(
+                # f"表达方式评估完成 [ID: {expression.id}] - {status} | "
+                # f"Situation: {expression.situation}... | "
+                # f"Style: {expression.style}... | "
+                # f"Reason: {reason[:50]}..."
+            # )
 
             if error:
                 logger.warning(f"表达方式评估时出现错误 [ID: {expression.id}]: {error}")
