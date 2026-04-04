@@ -156,7 +156,7 @@ const logsRoute = createRoute({
   component: LogViewerPage,
 })
 
-// 计划器&恢复器监控路由
+// MaiSaka 聊天流监控路由
 const plannerMonitorRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/planner-monitor',

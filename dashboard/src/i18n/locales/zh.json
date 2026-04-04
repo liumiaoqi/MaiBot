@@ -38,7 +38,7 @@
       "configTemplate": "配置模板市场",
       "pluginConfig": "插件配置",
       "logViewer": "日志查看器",
-      "plannerMonitor": "计划器&回复器监控",
+      "maisakaMonitor": "MaiSaka 聊天流监控",
       "localChat": "本地聊天室",
       "settings": "系统设置"
     }

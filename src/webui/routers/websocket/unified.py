@@ -1,6 +1,7 @@
 """统一 WebSocket 路由。"""
 
 from typing import Any, Dict, Optional, Set, cast
+
 import asyncio
 import time
 import uuid
@@ -140,6 +141,26 @@ async def _handle_plugin_progress_subscribe(connection_id: str, request_id: Opti
     )
 
 
+async def _handle_maisaka_monitor_subscribe(connection_id: str, request_id: Optional[str]) -> None:
+    """处理 MaiSaka 监控域订阅请求。
+
+    Args:
+        connection_id: 连接 ID。
+        request_id: 请求 ID。
+    """
+    logger.info(
+        f"MaiSaka 监控订阅请求: connection_id={connection_id} "
+        f"manager_id={id(websocket_manager)}"
+    )
+    websocket_manager.subscribe(connection_id, domain="maisaka_monitor", topic="main")
+    await websocket_manager.send_response(
+        connection_id,
+        request_id=request_id,
+        ok=True,
+        data={"domain": "maisaka_monitor", "topic": "main"},
+    )
+
+
 async def _handle_subscribe(connection_id: str, message: Dict[str, Any]) -> None:
     """处理主题订阅请求。
 
@@ -158,6 +179,10 @@ async def _handle_subscribe(connection_id: str, message: Dict[str, Any]) -> None
 
     if domain == "plugin_progress" and topic == "main":
         await _handle_plugin_progress_subscribe(connection_id, request_id)
+        return
+
+    if domain == "maisaka_monitor" and topic == "main":
+        await _handle_maisaka_monitor_subscribe(connection_id, request_id)
         return
 
     await websocket_manager.send_response(
@@ -541,8 +566,16 @@ async def websocket_endpoint(websocket: WebSocket, token: Optional[str] = Query(
             await handle_client_message(connection_id, cast(Dict[str, Any], raw_message))
     except WebSocketDisconnect:
         logger.info("统一 WebSocket 客户端已断开: connection=%s", connection_id)
+    except asyncio.CancelledError:
+        logger.warning("统一 WebSocket 连接处理被取消: connection=%s", connection_id)
+        raise
     except Exception as exc:
-        logger.error(f"统一 WebSocket 处理失败: {exc}")
+        logger.error("统一 WebSocket 处理失败: connection=%s, error=%s", connection_id, exc, exc_info=True)
     finally:
         chat_manager.disconnect_connection(connection_id)
         await websocket_manager.disconnect(connection_id)
+        logger.info(
+            "统一 WebSocket 连接清理完成: connection=%s, 剩余连接=%s",
+            connection_id,
+            len(websocket_manager.connections),
+        )

@@ -1,10 +1,12 @@
 """统一 WebSocket 连接管理器。"""
 
-import asyncio
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Set
 
+import asyncio
+
 from fastapi import WebSocket
+from starlette.websockets import WebSocketState
 
 from src.common.logger import get_logger
 
@@ -41,6 +43,24 @@ class UnifiedWebSocketManager:
             str: 订阅索引键。
         """
         return f"{domain}:{topic}"
+
+    async def _close_websocket(self, connection: WebSocketConnection) -> None:
+        """显式关闭底层 WebSocket 连接。
+
+        某些异常退出路径只会执行清理逻辑，但不会自动向客户端发送关闭帧。
+        这里主动关闭底层连接，确保浏览器能够及时感知断线并触发重连。
+
+        Args:
+            connection: 目标连接上下文。
+        """
+        websocket = connection.websocket
+        if (
+            websocket.client_state == WebSocketState.DISCONNECTED
+            or websocket.application_state == WebSocketState.DISCONNECTED
+        ):
+            return
+
+        await websocket.close()
 
     async def _sender_loop(self, connection: WebSocketConnection) -> None:
         """串行发送指定连接的出站消息。
@@ -84,6 +104,11 @@ class UnifiedWebSocketManager:
         connection = self.connections.pop(connection_id, None)
         if connection is None:
             return
+
+        try:
+            await self._close_websocket(connection)
+        except Exception as exc:
+            logger.debug("关闭统一 WebSocket 底层连接时出现异常: connection=%s, error=%s", connection_id, exc)
 
         await connection.send_queue.put(None)
         if connection.sender_task is not None:

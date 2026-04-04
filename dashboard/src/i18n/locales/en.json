@@ -38,7 +38,7 @@
       "configTemplate": "Config Templates",
       "pluginConfig": "Plugin Config",
       "logViewer": "Log Viewer",
-      "plannerMonitor": "Planner & Replier Monitor",
+      "maisakaMonitor": "MaiSaka Chat Monitor",
       "localChat": "Local Chat",
       "settings": "Settings"
     }
