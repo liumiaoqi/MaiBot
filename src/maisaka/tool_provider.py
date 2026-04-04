@@ -7,7 +7,7 @@ from typing import Dict, Optional
 
 from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolProvider, ToolSpec
 
-from .builtin_tool import get_builtin_tool_specs
+from .builtin_tool import get_all_builtin_tool_specs
 
 BuiltinToolHandler = Callable[[ToolInvocation, Optional[ToolExecutionContext]], Awaitable[ToolExecutionResult]]
 
@@ -30,7 +30,7 @@ class MaisakaBuiltinToolProvider(ToolProvider):
     async def list_tools(self) -> list[ToolSpec]:
         """列出全部内置工具。"""
 
-        return list(get_builtin_tool_specs())
+        return list(get_all_builtin_tool_specs())
 
     async def invoke(
         self,

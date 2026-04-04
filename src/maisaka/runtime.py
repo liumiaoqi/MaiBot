@@ -204,7 +204,9 @@ class MaisakaHeartFlowChatting:
         *,
         context_message_limit: int,
         system_prompt: str,
+        request_kind: str = "sub_agent",
         extra_messages: Optional[Sequence[LLMContextMessage]] = None,
+        interrupt_flag: asyncio.Event | None = None,
         max_tokens: int = 512,
         response_format: RespFormat | None = None,
         temperature: float = 0.2,
@@ -227,8 +229,10 @@ class MaisakaHeartFlowChatting:
             temperature=temperature,
             max_tokens=max_tokens,
         )
+        sub_agent.set_interrupt_flag(interrupt_flag)
         return await sub_agent.chat_loop_step(
             sub_agent_history,
+            request_kind=request_kind,
             response_format=response_format,
             tool_definitions=[] if tool_definitions is None else tool_definitions,
         )

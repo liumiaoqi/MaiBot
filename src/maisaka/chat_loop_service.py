@@ -290,17 +290,21 @@ class MaisakaChatLoopService:
         """
         async with self._prompt_load_lock:
             try:
-                self._chat_system_prompt = load_prompt(
-                    "maisaka_chat",
-                    file_tools_section=tools_section,
-                    bot_name=global_config.bot.nickname,
-                    group_chat_attention_block=self._build_group_chat_attention_block(),
-                    identity=self._personality_prompt,
-                )
+                self._chat_system_prompt = load_prompt("maisaka_chat", **self.build_prompt_template_context(tools_section))
             except Exception:
                 self._chat_system_prompt = f"{self._personality_prompt}\n\nYou are a helpful AI assistant."
 
             self._prompts_loaded = True
+
+    def build_prompt_template_context(self, tools_section: str = "") -> dict[str, str]:
+        """构造 Maisaka prompt 模板的公共渲染参数。"""
+
+        return {
+            "bot_name": global_config.bot.nickname,
+            "file_tools_section": tools_section,
+            "group_chat_attention_block": self._build_group_chat_attention_block(),
+            "identity": self._personality_prompt,
+        }
 
     def _build_group_chat_attention_block(self) -> str:
         """构建当前聊天场景下的额外注意事项块。"""
@@ -700,6 +704,7 @@ class MaisakaChatLoopService:
         self,
         chat_history: List[LLMContextMessage],
         *,
+        request_kind: str = "planner",
         response_format: RespFormat | None = None,
         tool_definitions: Sequence[ToolDefinitionInput] | None = None,
     ) -> ChatResponse:
@@ -760,18 +765,28 @@ class MaisakaChatLoopService:
         if isinstance(raw_tool_definitions, list):
             all_tools = [item for item in raw_tool_definitions if isinstance(item, dict)]
 
-        ordered_panels = PromptCLIVisualizer.build_prompt_panels(
-            built_messages,
-            image_display_mode="path_link" if global_config.maisaka.show_image_path else "legacy",
-        )
-
-        if global_config.debug.show_maisaka_thinking and ordered_panels:
+        if global_config.debug.show_maisaka_thinking:
+            panel_title, panel_border_style = PromptCLIVisualizer.get_request_panel_style(request_kind)
+            image_display_mode: str = "path_link" if global_config.maisaka.show_image_path else "legacy"
+            if global_config.debug.fold_maisaka_thinking:
+                prompt_renderable = PromptCLIVisualizer.build_prompt_access_panel(
+                    built_messages,
+                    request_kind=request_kind,
+                    selection_reason=selection_reason,
+                    image_display_mode=image_display_mode,
+                )
+            else:
+                ordered_panels = PromptCLIVisualizer.build_prompt_panels(
+                    built_messages,
+                    image_display_mode=image_display_mode,
+                )
+                prompt_renderable = Group(*ordered_panels)
             console.print(
                 Panel(
-                    Group(*ordered_panels),
-                    title="MaiSaka 大模型请求 - 对话单步",
+                    prompt_renderable,
+                    title=panel_title,
                     subtitle=selection_reason,
-                    border_style="cyan",
+                    border_style=panel_border_style,
                     padding=(0, 1),
                 )
             )

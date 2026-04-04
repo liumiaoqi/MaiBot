@@ -1,7 +1,7 @@
 """Maisaka 推理引擎。"""
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Literal, Optional
 
 import asyncio
 import difflib
@@ -14,13 +14,16 @@ from src.chat.message_receive.message import SessionMessage
 from src.chat.utils.utils import process_llm_response
 from src.common.data_models.message_component_data_model import EmojiComponent, ImageComponent, MessageSequence, TextComponent
 from src.common.logger import get_logger
+from src.common.prompt_i18n import load_prompt
 from src.config.config import global_config
 from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
 from src.llm_models.exceptions import ReqAbortException
 from src.llm_models.payload_content.tool_option import ToolCall
 from src.services import database_service as database_api
 
+from .builtin_tool import get_action_tool_specs
 from .builtin_tool import build_builtin_tool_handlers as build_split_builtin_tool_handlers
+from .builtin_tool import get_timing_tools
 from .builtin_tool.context import BuiltinToolRuntimeContext
 from .context_messages import (
     AssistantMessage,
@@ -42,6 +45,12 @@ if TYPE_CHECKING:
     from .tool_provider import BuiltinToolHandler
 
 logger = get_logger("maisaka_reasoning_engine")
+
+TIMING_GATE_CONTEXT_LIMIT = 24
+TIMING_GATE_MAX_TOKENS = 384
+TIMING_GATE_TOOL_NAMES = {"continue", "no_reply", "wait"}
+ACTION_HIDDEN_TOOL_NAMES = {"continue", "no_reply", "wait"}
+ACTION_BUILTIN_TOOL_NAMES = {tool_spec.name for tool_spec in get_action_tool_specs()}
 
 
 class MaisakaReasoningEngine:
@@ -78,6 +87,168 @@ class MaisakaReasoningEngine:
 
         return build_split_builtin_tool_handlers(BuiltinToolRuntimeContext(self, self._runtime))
 
+    async def _run_interruptible_planner(
+        self,
+        *,
+        tool_definitions: Optional[list[dict[str, Any]]] = None,
+    ) -> Any:
+        """运行一轮可被新消息打断的主 planner 请求。"""
+
+        interrupt_flag = asyncio.Event()
+        self._runtime._planner_interrupt_flag = interrupt_flag
+        self._runtime._chat_loop_service.set_interrupt_flag(interrupt_flag)
+        try:
+            return await self._runtime._chat_loop_service.chat_loop_step(
+                self._runtime._chat_history,
+                tool_definitions=tool_definitions,
+            )
+        finally:
+            if self._runtime._planner_interrupt_flag is interrupt_flag:
+                self._runtime._planner_interrupt_flag = None
+            self._runtime._chat_loop_service.set_interrupt_flag(None)
+
+    async def _run_interruptible_sub_agent(
+        self,
+        *,
+        context_message_limit: int,
+        system_prompt: str,
+        tool_definitions: list[dict[str, Any]],
+    ) -> Any:
+        """运行一轮可被新消息打断的临时子代理请求。"""
+
+        interrupt_flag = asyncio.Event()
+        self._runtime._planner_interrupt_flag = interrupt_flag
+        try:
+            return await self._runtime.run_sub_agent(
+                context_message_limit=context_message_limit,
+                system_prompt=system_prompt,
+                request_kind="timing_gate",
+                interrupt_flag=interrupt_flag,
+                max_tokens=TIMING_GATE_MAX_TOKENS,
+                temperature=0.1,
+                tool_definitions=tool_definitions,
+            )
+        finally:
+            if self._runtime._planner_interrupt_flag is interrupt_flag:
+                self._runtime._planner_interrupt_flag = None
+
+    @staticmethod
+    def _build_timing_gate_fallback_prompt() -> str:
+        """构造 Timing Gate 子代理的兜底提示词。"""
+
+        return (
+            "你是 Maisaka 的 timing gate 子代理，只负责决定当前会话下一步的节奏控制。\n"
+            "你必须且只能调用一个工具，不要输出普通文本答案。\n"
+            "可用工具只有三个：\n"
+            "1. wait: 适合暂时等待一段时间，再重新判断是否继续。\n"
+            "2. no_reply: 适合当前不继续本轮，直接等待新的外部消息。\n"
+            "3. continue: 适合现在立刻进入下一轮正常思考、回复、查询和其他工具执行。\n"
+            "如果需要真正回复消息、查询信息或使用其他工具，应该调用 continue，让主分支继续执行，而不是在这里完成。\n"
+            "不要连续调用多个工具，也不要输出工具之外的计划。"
+        )
+
+    def _build_timing_gate_system_prompt(self) -> str:
+        """构造 Timing Gate 子代理使用的系统提示词。"""
+
+        try:
+            return load_prompt(
+                "maisaka_timing_gate",
+                **self._runtime._chat_loop_service.build_prompt_template_context(),
+            )
+        except Exception:
+            return self._build_timing_gate_fallback_prompt()
+
+    async def _build_action_tool_definitions(self) -> list[dict[str, Any]]:
+        """构造 Action Loop 阶段可见的工具定义。"""
+
+        if self._runtime._tool_registry is None:
+            return []
+
+        tool_specs = await self._runtime._tool_registry.list_tools()
+        return [
+            tool_spec.to_llm_definition()
+            for tool_spec in tool_specs
+            if tool_spec.name not in ACTION_HIDDEN_TOOL_NAMES
+            and (
+                tool_spec.provider_name != "maisaka_builtin"
+                or tool_spec.name in ACTION_BUILTIN_TOOL_NAMES
+            )
+        ]
+
+    async def _invoke_tool_call(
+        self,
+        tool_call: ToolCall,
+        latest_thought: str,
+        anchor_message: SessionMessage,
+        *,
+        append_history: bool = True,
+        store_record: bool = True,
+    ) -> tuple[ToolInvocation, ToolExecutionResult, Optional[ToolSpec]]:
+        """执行单个工具调用，并按需写入记录与历史。"""
+
+        invocation = self._build_tool_invocation(tool_call, latest_thought)
+        if self._runtime._tool_registry is None:
+            result = ToolExecutionResult(
+                tool_name=tool_call.func_name,
+                success=False,
+                error_message="统一工具注册表尚未初始化。",
+            )
+            if store_record:
+                await self._store_tool_execution_record(invocation, result, None)
+            if append_history:
+                self._append_tool_execution_result(tool_call, result)
+            return invocation, result, None
+
+        execution_context = self._build_tool_execution_context(latest_thought, anchor_message)
+        tool_spec = await self._runtime._tool_registry.get_tool_spec(invocation.tool_name)
+        result = await self._runtime._tool_registry.invoke(invocation, execution_context)
+        if store_record:
+            await self._store_tool_execution_record(invocation, result, tool_spec)
+        if append_history:
+            self._append_tool_execution_result(tool_call, result)
+        return invocation, result, tool_spec
+
+    async def _run_timing_gate(
+        self,
+        anchor_message: SessionMessage,
+    ) -> tuple[Literal["continue", "no_reply", "wait"], Any, list[str]]:
+        """运行 Timing Gate 子代理并返回控制决策。"""
+
+        response = await self._run_interruptible_sub_agent(
+            context_message_limit=TIMING_GATE_CONTEXT_LIMIT,
+            system_prompt=self._build_timing_gate_system_prompt(),
+            tool_definitions=get_timing_tools(),
+        )
+        tool_result_summaries: list[str] = []
+        selected_tool_call: Optional[ToolCall] = None
+        for tool_call in response.tool_calls:
+            if tool_call.func_name in TIMING_GATE_TOOL_NAMES:
+                selected_tool_call = tool_call
+                break
+
+        if selected_tool_call is None:
+            logger.warning(f"{self._runtime.log_prefix} Timing Gate 未返回有效控制工具，默认继续执行 Action Loop")
+            return "continue", response, tool_result_summaries
+
+        append_history = selected_tool_call.func_name != "continue"
+        store_record = selected_tool_call.func_name != "continue"
+        _, result, _ = await self._invoke_tool_call(
+            selected_tool_call,
+            response.content or "",
+            anchor_message,
+            append_history=append_history,
+            store_record=store_record,
+        )
+        tool_result_summaries.append(self._build_tool_result_summary(selected_tool_call, result))
+
+        timing_action = str(result.metadata.get("timing_action") or selected_tool_call.func_name).strip()
+        if timing_action not in TIMING_GATE_TOOL_NAMES:
+            logger.warning(
+                f"{self._runtime.log_prefix} Timing Gate 返回未知动作 {timing_action!r}，将按 continue 处理"
+            )
+            return "continue", response, tool_result_summaries
+        return timing_action, response, tool_result_summaries
+
     async def run_loop(self) -> None:
         """独立消费消息批次，并执行对应的内部思考轮次。"""
         try:
@@ -108,23 +279,36 @@ class MaisakaReasoningEngine:
                     for round_index in range(self._runtime._max_internal_rounds):
                         cycle_detail = self._start_cycle()
                         self._runtime._log_cycle_started(cycle_detail, round_index)
-                        planner_started_at = time.time()
+                        planner_started_at = 0.0
                         try:
+                            timing_started_at = time.time()
+                            timing_action, timing_response, timing_tool_results = await self._run_timing_gate(anchor_message)
+                            cycle_detail.time_records["timing_gate"] = time.time() - timing_started_at
+                            self._runtime._render_context_usage_panel(
+                                selected_history_count=timing_response.selected_history_count,
+                                prompt_tokens=timing_response.prompt_tokens,
+                                planner_response=timing_response.content or "",
+                                tool_calls=timing_response.tool_calls,
+                                tool_results=timing_tool_results,
+                            )
+                            if timing_action != "continue":
+                                logger.info(
+                                    f"{self._runtime.log_prefix} Timing Gate 结束当前回合: "
+                                    f"回合={round_index + 1} 动作={timing_action}"
+                                )
+                                break
+
+                            planner_started_at = time.time()
+                            action_tool_definitions = await self._build_action_tool_definitions()
                             logger.info(
                                 f"{self._runtime.log_prefix} 规划器开始执行: "
                                 f"回合={round_index + 1} "
                                 f"历史消息数={len(self._runtime._chat_history)} "
                                 f"开始时间={planner_started_at:.3f}"
                             )
-                            interrupt_flag = asyncio.Event()
-                            self._runtime._planner_interrupt_flag = interrupt_flag
-                            self._runtime._chat_loop_service.set_interrupt_flag(interrupt_flag)
-                            try:
-                                response = await self._runtime._chat_loop_service.chat_loop_step(self._runtime._chat_history)
-                            finally:
-                                if self._runtime._planner_interrupt_flag is interrupt_flag:
-                                    self._runtime._planner_interrupt_flag = None
-                                self._runtime._chat_loop_service.set_interrupt_flag(None)
+                            response = await self._run_interruptible_planner(
+                                tool_definitions=action_tool_definitions,
+                            )
                             cycle_detail.time_records["planner"] = time.time() - planner_started_at
                             logger.info(
                                 f"{self._runtime.log_prefix} 规划器执行完成: "
@@ -166,10 +350,8 @@ class MaisakaReasoningEngine:
                                 prompt_tokens=response.prompt_tokens,
                                 planner_response=response.content or "",
                             )
-                            if response.content:
-                                continue
-
-                            break
+                            if not response.content:
+                                break
                         except ReqAbortException:
                             interrupted_at = time.time()
                             logger.info(
@@ -632,6 +814,9 @@ class MaisakaReasoningEngine:
 
         if invocation.tool_name == "no_reply":
             return "你暂停了当前对话循环，等待新的外部消息。"
+
+        if invocation.tool_name == "continue":
+            return "你允许当前对话继续进入下一轮完整思考与工具执行。"
 
         if invocation.tool_name == "query_jargon":
             words = invocation.arguments.get("words", [])
