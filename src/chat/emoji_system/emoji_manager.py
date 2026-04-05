@@ -168,21 +168,6 @@ def _serialize_emoji_for_hook(emoji: Optional[MaiEmoji]) -> Optional[Dict[str, A
     }
 
 
-def _normalize_string_list(raw_values: Any) -> List[str]:
-    """将任意列表值规范化为字符串列表。
-
-    Args:
-        raw_values: 待规范化的原始值。
-
-    Returns:
-        List[str]: 去空白后的字符串列表。
-    """
-
-    if not isinstance(raw_values, list):
-        return []
-    return [str(item).strip() for item in raw_values if str(item).strip()]
-
-
 def _normalize_emoji_tag_text(raw_values: Any) -> List[str]:
     """将文本或标签列表转为去重的情绪标签列表。"""
     if isinstance(raw_values, str):
@@ -416,7 +401,7 @@ class EmojiManager:
         emoji_hash: str,
         emoji_bytes: bytes,
     ) -> Optional[Tuple[str, List[str]]]:
-        """Build and cache emoji description and emotion labels."""
+        """构建并缓存表情包描述（返回标签化结果，不再走额外识别流程）。"""
         logger.info(f"Start building cached emoji description, hash={emoji_hash}")
         new_emoji = await self.ensure_emoji_saved(emoji_bytes, emoji_hash=emoji_hash)
 
@@ -931,43 +916,8 @@ class EmojiManager:
         return True, target_emoji
 
     async def build_emoji_emotion(self, target_emoji: MaiEmoji) -> Tuple[bool, MaiEmoji]:
-        """
-        构建表情包情感，使用场景标签
-
-        Args:
-            target_emoji (MaiEmoji): 目标表情包对象
-        Returns:
-            return (Tuple[bool, MaiEmoji]): 返回是否成功构建情感标签，及表情包对象
-        """
-        if not target_emoji.description:
-            logger.error("[构建情感标签] 表情包描述为空，无法构建情感标签")
-            return False, target_emoji
-
-        emotions = _normalize_emoji_tag_text(target_emoji.description)
-        if not emotions:
-            logger.warning(f"[构建情感标签] 表情包标签为空，跳过注册: {target_emoji.file_name}")
-            return False, target_emoji
-
-        hook_result = await _get_runtime_manager().invoke_hook(
-            "emoji.register.after_build_emotion",
-            emoji=_serialize_emoji_for_hook(target_emoji),
-            description=target_emoji.description,
-            emotions=list(emotions),
-        )
-        if hook_result.aborted:
-            logger.info(f"[构建情感标签] 表情包情感标签被 Hook 中止注册: {target_emoji.file_name}")
-            return False, target_emoji
-
-        raw_emotions = hook_result.kwargs.get("emotions")
-        if raw_emotions is not None:
-            emotions = _normalize_emoji_tag_text(raw_emotions)
-            if not emotions:
-                logger.warning(f"[构建情感标签] Hook 返回空情绪标签，拒绝注册: {target_emoji.file_name}")
-                return False, target_emoji
-
-        logger.info(f"[构建情感标签] 成功为表情包构建情感标签: {','.join(emotions)}")
-        target_emoji.emotion = emotions
-        return True, target_emoji
+        """兼容保留：表情包情绪标签已在 build_emoji_description 中一次性构建。"""
+        return await self.build_emoji_description(target_emoji)
 
     def check_emoji_file_integrity(self) -> None:
         """
