@@ -11,8 +11,7 @@ import traceback
 
 from src.chat.heart_flow.heartFC_utils import CycleDetail
 from src.chat.message_receive.message import SessionMessage
-from src.chat.utils.utils import process_llm_response
-from src.common.data_models.message_component_data_model import EmojiComponent, ImageComponent, MessageSequence, TextComponent
+from src.common.data_models.message_component_data_model import EmojiComponent, ImageComponent, MessageSequence
 from src.common.logger import get_logger
 from src.common.prompt_i18n import load_prompt
 from src.config.config import global_config
@@ -27,18 +26,13 @@ from .builtin_tool import get_timing_tools
 from .chat_history_visual_refresher import refresh_chat_history_visual_placeholders
 from .builtin_tool.context import BuiltinToolRuntimeContext
 from .context_messages import (
-    AssistantMessage,
     ComplexSessionMessage,
     LLMContextMessage,
     SessionBackedMessage,
     ToolResultMessage,
     contains_complex_message,
 )
-from .message_adapter import (
-    build_visible_text_from_sequence,
-    clone_message_sequence,
-    format_speaker_content,
-)
+from .history_utils import build_prefixed_message_sequence, build_session_message_visible_text, drop_leading_orphan_tool_results
 from .monitor_events import (
     emit_cycle_end,
     emit_cycle_start,
@@ -583,30 +577,9 @@ class MaisakaReasoningEngine:
         *,
         planner_prefix: str,
     ) -> MessageSequence:
-        message_sequence = MessageSequence([])
-
-        appended_component = False
-        source_sequence = message.raw_message
-
-        planner_components = clone_message_sequence(source_sequence).components
+        message_sequence = build_prefixed_message_sequence(message.raw_message, planner_prefix)
         if global_config.chat.multimodal_planner:
-            await self._hydrate_visual_components(planner_components)
-        if planner_components and isinstance(planner_components[0], TextComponent):
-            planner_components[0].text = planner_prefix + planner_components[0].text
-        else:
-            planner_components.insert(0, TextComponent(planner_prefix))
-
-        for component in planner_components:
-            message_sequence.components.append(component)
-            appended_component = True
-
-        if not appended_component:
-            if not message.processed_plain_text:
-                await message.process()
-            content = (message.processed_plain_text or "").strip()
-            if content:
-                message_sequence.text(planner_prefix + content)
-
+            await self._hydrate_visual_components(message_sequence.components)
         return message_sequence
 
     async def _hydrate_visual_components(self, planner_components: list[object]) -> None:
@@ -640,14 +613,7 @@ class MaisakaReasoningEngine:
         )
 
     def _build_legacy_visible_text(self, message: SessionMessage, source_sequence: MessageSequence) -> str:
-        user_info = message.message_info.user_info
-        speaker_name = user_info.user_cardname or user_info.user_nickname or user_info.user_id
-        legacy_sequence = MessageSequence([])
-        visible_message_id = None if message.is_notify else message.message_id
-        legacy_sequence.text(format_speaker_content(speaker_name, "", message.timestamp, visible_message_id))
-        for component in clone_message_sequence(source_sequence).components:
-            legacy_sequence.components.append(component)
-        return build_visible_text_from_sequence(legacy_sequence).strip()
+        return build_session_message_visible_text(message, source_sequence)
 
     def _insert_chat_history_message(self, message: LLMContextMessage) -> int:
         """将消息按处理顺序追加到聊天历史末尾。"""
@@ -689,7 +655,7 @@ class MaisakaReasoningEngine:
             if removed_message.count_in_context:
                 conversation_message_count -= 1
 
-        trimmed_history, pruned_orphan_count = self._drop_leading_orphan_tool_results(trimmed_history)
+        trimmed_history, pruned_orphan_count = drop_leading_orphan_tool_results(trimmed_history)
         removed_count += pruned_orphan_count
 
         self._runtime._chat_history = trimmed_history
@@ -701,29 +667,7 @@ class MaisakaReasoningEngine:
     ) -> tuple[list[LLMContextMessage], int]:
         """清理历史前缀中缺少对应 assistant tool_call 的工具结果消息。"""
 
-        if not chat_history:
-            return chat_history, 0
-
-        available_tool_call_ids = {
-            tool_call.call_id
-            for message in chat_history
-            if isinstance(message, AssistantMessage)
-            for tool_call in message.tool_calls
-            if tool_call.call_id
-        }
-
-        first_valid_index = 0
-        while first_valid_index < len(chat_history):
-            message = chat_history[first_valid_index]
-            if not isinstance(message, ToolResultMessage):
-                break
-            if message.tool_call_id in available_tool_call_ids:
-                break
-            first_valid_index += 1
-
-        if first_valid_index == 0:
-            return chat_history, 0
-        return chat_history[first_valid_index:], first_valid_index
+        return drop_leading_orphan_tool_results(chat_history)
 
     @staticmethod
     def _calculate_similarity(text1: str, text2: str) -> float:
@@ -764,15 +708,7 @@ class MaisakaReasoningEngine:
     @staticmethod
     def _post_process_reply_text(reply_text: str) -> list[str]:
         """沿用旧回复链的文本后处理，执行分段与错别字注入。"""
-        processed_segments: list[str] = []
-        for segment in process_llm_response(reply_text):
-            normalized_segment = segment.strip()
-            if normalized_segment:
-                processed_segments.append(normalized_segment)
-
-        if processed_segments:
-            return processed_segments
-        return [reply_text.strip()]
+        return BuiltinToolRuntimeContext.post_process_reply_text(reply_text)
 
     def _build_tool_invocation(self, tool_call: ToolCall, latest_thought: str) -> ToolInvocation:
         """将模型输出的工具调用转换为统一调用对象。

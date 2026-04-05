@@ -30,6 +30,7 @@ from src.plugin_runtime.tool_provider import PluginToolProvider
 
 from .chat_loop_service import ChatResponse, MaisakaChatLoopService
 from .context_messages import LLMContextMessage
+from .display_utils import build_tool_call_summary_lines, format_token_count
 from .reasoning_engine import MaisakaReasoningEngine
 from .tool_provider import MaisakaBuiltinToolProvider
 
@@ -410,27 +411,49 @@ class MaisakaHeartFlowChatting:
         if isinstance(knowledge_result, Exception):
             logger.error(f"{self.log_prefix} 知识学习任务异常退出: {knowledge_result}")
 
-    async def _trigger_expression_learning(self, messages: list[SessionMessage]) -> None:
-        """?????????????????"""
-        if not self._enable_expression_learning:
-            logger.debug(f"{self.log_prefix} ??????????????")
-            return
+    def _should_trigger_learning(
+        self,
+        *,
+        enabled: bool,
+        feature_name: str,
+        last_extraction_time: float,
+        pending_count: int,
+        min_messages_for_extraction: int,
+    ) -> bool:
+        """判断周期性学习任务是否满足执行条件。"""
 
-        elapsed = time.time() - self._last_expression_extraction_time
+        if not enabled:
+            logger.debug(f"{self.log_prefix} {feature_name}未启用，跳过本轮学习")
+            return False
+
+        elapsed = time.time() - last_extraction_time
         if elapsed < self._min_extraction_interval:
             logger.debug(
-                f"{self.log_prefix} ????????????: "
-                f"??={elapsed:.2f} ? ??={self._min_extraction_interval} ?"
+                f"{self.log_prefix} {feature_name}触发间隔不足: "
+                f"已过={elapsed:.2f} 秒 阈值={self._min_extraction_interval} 秒"
             )
-            return
+            return False
 
-        pending_count = self._expression_learner.get_pending_count(self.message_cache)
-        if pending_count < self._expression_learner.min_messages_for_extraction:
+        if pending_count < min_messages_for_extraction:
             logger.debug(
-                f"{self.log_prefix} ??????????????: "
-                f"??????={pending_count} ??={self._expression_learner.min_messages_for_extraction} "
-                f"?????={len(self.message_cache)}"
+                f"{self.log_prefix} {feature_name}待处理消息不足: "
+                f"待处理={pending_count} 阈值={min_messages_for_extraction} "
+                f"缓存总量={len(self.message_cache)}"
             )
+            return False
+
+        return True
+
+    async def _trigger_expression_learning(self, messages: list[SessionMessage]) -> None:
+        """?????????????????"""
+        pending_count = self._expression_learner.get_pending_count(self.message_cache)
+        if not self._should_trigger_learning(
+            enabled=self._enable_expression_learning,
+            feature_name="表达学习",
+            last_extraction_time=self._last_expression_extraction_time,
+            pending_count=pending_count,
+            min_messages_for_extraction=self._expression_learner.min_messages_for_extraction,
+        ):
             return
 
         self._last_expression_extraction_time = time.time()
@@ -453,25 +476,14 @@ class MaisakaHeartFlowChatting:
 
     async def _trigger_knowledge_learning(self, messages: list[SessionMessage]) -> None:
         """?????????????????"""
-        if not global_config.maisaka.enable_knowledge_module:
-            logger.debug(f"{self.log_prefix} ??????????????")
-            return
-
-        elapsed = time.time() - self._last_knowledge_extraction_time
-        if elapsed < self._min_extraction_interval:
-            logger.debug(
-                f"{self.log_prefix} ????????????: "
-                f"??={elapsed:.2f} ? ??={self._min_extraction_interval} ?"
-            )
-            return
-
         pending_count = self._knowledge_learner.get_pending_count(self.message_cache)
-        if pending_count < self._knowledge_learner.min_messages_for_extraction:
-            logger.debug(
-                f"{self.log_prefix} ??????????????: "
-                f"??????={pending_count} ??={self._knowledge_learner.min_messages_for_extraction} "
-                f"?????={len(self.message_cache)}"
-            )
+        if not self._should_trigger_learning(
+            enabled=global_config.maisaka.enable_knowledge_module,
+            feature_name="知识学习",
+            last_extraction_time=self._last_knowledge_extraction_time,
+            pending_count=pending_count,
+            min_messages_for_extraction=self._knowledge_learner.min_messages_for_extraction,
+        ):
             return
 
         self._last_knowledge_extraction_time = time.time()
@@ -535,13 +547,6 @@ class MaisakaHeartFlowChatting:
 
         return GroupInfo(group_id=group_info.group_id, group_name=group_info.group_name)
 
-    @staticmethod
-    def _format_token_count(token_count: int) -> str:
-        """格式化 token 数量展示文本。"""
-        if token_count >= 10_000:
-            return f"{token_count / 1000:.1f}k"
-        return str(token_count)
-
     def _render_context_usage_panel(
         self,
         *,
@@ -558,7 +563,7 @@ class MaisakaHeartFlowChatting:
 
         body_lines = [
             f"上下文占用：{selected_history_count}/{self._max_context_size} 条",
-            f"本次请求token消耗：{self._format_token_count(prompt_tokens)}",
+            f"本次请求token消耗：{format_token_count(prompt_tokens)}",
         ]
 
         renderables: list[RenderableType] = [Text("\n".join(body_lines))]
@@ -576,7 +581,7 @@ class MaisakaHeartFlowChatting:
                 )
             )
 
-        normalized_tool_calls = self._build_tool_call_summary_lines(tool_calls or [])
+        normalized_tool_calls = build_tool_call_summary_lines(tool_calls or [])
         if normalized_tool_calls:
             renderables.append(
                 Panel(
@@ -606,19 +611,6 @@ class MaisakaHeartFlowChatting:
                 padding=(0, 1),
             )
         )
-
-    @staticmethod
-    def _build_tool_call_summary_lines(tool_calls: list[Any]) -> list[str]:
-        """构建工具调用摘要文本。"""
-        summary_lines: list[str] = []
-        for tool_call in tool_calls:
-            tool_name = str(getattr(tool_call, "func_name", getattr(tool_call, "name", "")) or "").strip() or "unknown"
-            tool_args = getattr(tool_call, "args", getattr(tool_call, "arguments", None))
-            if isinstance(tool_args, dict) and tool_args:
-                summary_lines.append(f"- {tool_name}: {tool_args}")
-            else:
-                summary_lines.append(f"- {tool_name}")
-        return summary_lines
 
     def _log_cycle_started(self, cycle_detail: CycleDetail, round_index: int) -> None:
         logger.info(

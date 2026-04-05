@@ -20,6 +20,13 @@ from rich.panel import Panel
 from rich.pretty import Pretty
 from rich.text import Text
 
+from .display_utils import (
+    format_token_count,
+    format_tool_call_for_display as normalize_tool_call_for_display,
+    get_request_panel_style as get_shared_request_panel_style,
+    get_role_badge_label as get_shared_role_badge_label,
+    get_role_badge_style as get_shared_role_badge_style,
+)
 from .prompt_preview_logger import PromptPreviewLogger
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent.absolute().resolve()
@@ -59,44 +66,19 @@ class PromptCLIVisualizer:
     def get_request_panel_style(request_kind: str) -> tuple[str, str]:
         """返回不同请求类型对应的标题与边框颜色。"""
 
-        normalized_kind = str(request_kind or "planner").strip().lower()
-        if normalized_kind == "timing_gate":
-            return "MaiSaka 大模型请求 - Timing Gate 子代理", "bright_magenta"
-        if normalized_kind == "replyer":
-            return "MaiSaka 回复器 Prompt", "bright_yellow"
-        if normalized_kind == "sub_agent":
-            return "MaiSaka 大模型请求 - 子代理", "bright_blue"
-        return "MaiSaka 大模型请求 - 对话单步", "cyan"
+        return get_shared_request_panel_style(request_kind)
 
     @staticmethod
     def _get_role_badge_style(role: str) -> str:
-        if role == "system":
-            return "bold white on blue"
-        if role == "user":
-            return "bold black on green"
-        if role == "assistant":
-            return "bold black on yellow"
-        if role == "tool":
-            return "bold white on magenta"
-        return "bold white on bright_black"
+        return get_shared_role_badge_style(role)
 
     @staticmethod
     def _get_role_badge_label(role: str) -> str:
-        if role == "system":
-            return "系统"
-        if role == "user":
-            return "用户"
-        if role == "assistant":
-            return "助手"
-        if role == "tool":
-            return "工具"
-        return "未知"
+        return get_shared_role_badge_label(role)
 
     @staticmethod
     def _format_token_count(token_count: int) -> str:
-        if token_count >= 10_000:
-            return f"{token_count / 1000:.1f}k"
-        return str(token_count)
+        return format_token_count(token_count)
 
     @classmethod
     def build_prompt_stats_text(
@@ -258,19 +240,7 @@ class PromptCLIVisualizer:
 
     @classmethod
     def format_tool_call_for_display(cls, tool_call: Any) -> Dict[str, Any]:
-        if isinstance(tool_call, dict):
-            function_info = tool_call.get("function", {})
-            return {
-                "id": tool_call.get("id"),
-                "name": function_info.get("name", tool_call.get("name")),
-                "arguments": function_info.get("arguments", tool_call.get("arguments")),
-            }
-
-        return {
-            "id": getattr(tool_call, "call_id", getattr(tool_call, "id", None)),
-            "name": getattr(tool_call, "func_name", getattr(tool_call, "name", None)),
-            "arguments": getattr(tool_call, "args", getattr(tool_call, "arguments", None)),
-        }
+        return normalize_tool_call_for_display(tool_call)
 
     @classmethod
     def _render_tool_call_panel(cls, tool_call: Any, index: int, parent_index: int) -> Panel:

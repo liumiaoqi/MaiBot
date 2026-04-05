@@ -35,7 +35,8 @@ from src.plugin_runtime.host.hook_spec_registry import HookSpec, HookSpecRegistr
 from src.services.llm_service import LLMServiceClient
 
 from .builtin_tool import get_builtin_tools
-from .context_messages import AssistantMessage, LLMContextMessage, ToolResultMessage
+from .context_messages import AssistantMessage, LLMContextMessage
+from .history_utils import drop_leading_orphan_tool_results
 from .prompt_cli_renderer import PromptCLIVisualizer
 
 
@@ -881,7 +882,7 @@ class MaisakaChatLoopService:
         selected_indices.reverse()
         selected_history = [chat_history[index] for index in selected_indices]
         selected_history, hidden_assistant_count = MaisakaChatLoopService._hide_early_assistant_messages(selected_history)
-        selected_history = MaisakaChatLoopService._drop_leading_orphan_tool_results(selected_history)
+        selected_history, _ = drop_leading_orphan_tool_results(selected_history)
         selection_reason = (
             f"上下文裁剪：最近 {effective_context_size} 条 user/assistant 消息，"
             f"实际发送 {len(selected_history)} 条"
@@ -925,7 +926,7 @@ class MaisakaChatLoopService:
         selected_indices.reverse()
         selected_history = [chat_history[index] for index in selected_indices]
         selected_history, hidden_assistant_count = MaisakaChatLoopService._hide_early_assistant_messages(selected_history)
-        selected_history = MaisakaChatLoopService._drop_leading_orphan_tool_results(selected_history)
+        selected_history, _ = drop_leading_orphan_tool_results(selected_history)
         return (
             selected_history,
             (
@@ -975,26 +976,5 @@ class MaisakaChatLoopService:
     ) -> List[LLMContextMessage]:
         """移除窗口前缀中缺少对应 tool_call 的工具结果消息。"""
 
-        if not selected_history:
-            return selected_history
-
-        available_tool_call_ids = {
-            tool_call.call_id
-            for message in selected_history
-            if isinstance(message, AssistantMessage)
-            for tool_call in message.tool_calls
-            if tool_call.call_id
-        }
-
-        first_valid_index = 0
-        while first_valid_index < len(selected_history):
-            message = selected_history[first_valid_index]
-            if not isinstance(message, ToolResultMessage):
-                break
-            if message.tool_call_id in available_tool_call_ids:
-                break
-            first_valid_index += 1
-
-        if first_valid_index == 0:
-            return selected_history
-        return selected_history[first_valid_index:]
+        normalized_history, _ = drop_leading_orphan_tool_results(selected_history)
+        return normalized_history

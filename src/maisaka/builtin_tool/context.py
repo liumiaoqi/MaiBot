@@ -12,7 +12,8 @@ from src.config.config import global_config
 from src.core.tooling import ToolExecutionResult
 
 from ..context_messages import SessionBackedMessage
-from ..message_adapter import build_visible_text_from_sequence, clone_message_sequence, format_speaker_content
+from ..history_utils import build_prefixed_message_sequence, build_session_message_visible_text
+from ..message_adapter import format_speaker_content
 from ..planner_message_utils import build_planner_prefix, build_session_backed_text_message
 
 if TYPE_CHECKING:
@@ -142,21 +143,7 @@ class BuiltinToolRuntimeContext:
     def _build_visible_text_from_sent_message(message: "SessionMessage") -> str:
         """将已发送消息转换为 Maisaka 可见文本。"""
 
-        user_info = message.message_info.user_info
-        speaker_name = user_info.user_cardname or user_info.user_nickname or user_info.user_id
-        visible_message_id = None if message.is_notify else message.message_id
-        legacy_sequence = MessageSequence([])
-        legacy_sequence.text(
-            format_speaker_content(
-                speaker_name,
-                "",
-                message.timestamp,
-                visible_message_id,
-            )
-        )
-        for component in clone_message_sequence(message.raw_message).components:
-            legacy_sequence.components.append(component)
-        return build_visible_text_from_sequence(legacy_sequence).strip()
+        return build_session_message_visible_text(message)
 
     def append_sent_message_to_chat_history(
         self,
@@ -175,15 +162,9 @@ class BuiltinToolRuntimeContext:
             message_id=message.message_id,
             include_message_id=not message.is_notify and bool(message.message_id),
         )
-        planner_components = clone_message_sequence(message.raw_message).components
-        if planner_components and isinstance(planner_components[0], TextComponent):
-            planner_components[0].text = f"{planner_prefix}{planner_components[0].text}"
-        else:
-            planner_components.insert(0, TextComponent(planner_prefix))
-
         history_message = SessionBackedMessage.from_session_message(
             message,
-            raw_message=MessageSequence(planner_components),
+            raw_message=build_prefixed_message_sequence(message.raw_message, planner_prefix),
             visible_text=self._build_visible_text_from_sent_message(message),
             source_kind=source_kind,
         )
