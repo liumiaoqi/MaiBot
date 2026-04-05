@@ -792,14 +792,18 @@ def _migrate_images(context: MigrationExecutionContext) -> int:
             image_hash = _normalize_required_text(row.get("emoji_hash"))
             dedupe_key = (full_path, image_hash, "EMOJI")
             if full_path and dedupe_key not in existing_keys:
+                migrated_description = _normalize_required_text(row.get("description"))
+                migrated_emotion = _normalize_optional_text(row.get("emotion"))
+                if not migrated_description and migrated_emotion:
+                    migrated_description = migrated_emotion
                 connection.execute(
                     insert_sql,
                     {
                         "image_hash": image_hash,
-                        "description": _normalize_required_text(row.get("description")),
+                        "description": migrated_description,
                         "full_path": full_path,
                         "image_type": "EMOJI",
-                        "emotion": _normalize_optional_text(row.get("emotion")),
+                        "emotion": None,
                         "query_count": _normalize_int(row.get("query_count"), default=0),
                         "is_registered": _normalize_bool(row.get("is_registered"), default=False),
                         "is_banned": _normalize_bool(row.get("is_banned"), default=False),

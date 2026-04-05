@@ -19,12 +19,47 @@ class RuntimeDataCapabilityMixin:
         if not emoji_base64:
             return None
 
-        matched_emotion = emoji.emotion[0] if emoji.emotion else ""
+        matched_emotion = RuntimeDataCapabilityMixin._normalize_emoji_tags(emoji)
         return {
             "base64": emoji_base64,
             "description": emoji.description,
             "emotion": matched_emotion,
         }
+
+
+    @staticmethod
+    def _normalize_emoji_tag_text(raw_value: Any) -> List[str]:
+        """将文本或标签列表转为去重情绪标签列表。"""
+        if raw_value is None:
+            return []
+        if isinstance(raw_value, list):
+            values = raw_value
+        else:
+            values = [raw_value]
+
+        tags: List[str] = []
+        for value in values:
+            raw_text = str(value) if value is not None else ""
+            if not raw_text:
+                continue
+            tags.extend(
+                item.strip() for item in raw_text.replace("，", ",").replace("、", ",").replace("；", ",").split(",")
+            )
+
+        deduped_tags: List[str] = []
+        for tag in tags:
+            tag_text = str(tag).strip()
+            if not tag_text:
+                continue
+            if tag_text not in deduped_tags:
+                deduped_tags.append(tag_text)
+        return deduped_tags
+
+    @staticmethod
+    def _normalize_emoji_tags(emoji: MaiEmoji) -> str:
+        """从表情包对象提取兼容旧数据的情绪标签文本。"""
+        tags = RuntimeDataCapabilityMixin._normalize_emoji_tag_text(emoji.description or emoji.emotion)
+        return tags[0] if tags else ""
 
     @staticmethod
     def _build_emoji_temp_path() -> Path:
@@ -488,7 +523,16 @@ class RuntimeDataCapabilityMixin:
         try:
             from src.chat.emoji_system.emoji_manager import emoji_manager
 
-            emotions = sorted({emotion for emoji in emoji_manager.emojis for emotion in emoji.emotion})
+            emotions = sorted(
+                {
+                    str(emotion).strip()
+                    for emoji in emoji_manager.emojis
+                    for emotion in RuntimeDataCapabilityMixin._normalize_emoji_tag_text(
+                        emoji.description or emoji.emotion
+                    )
+                    if str(emotion).strip()
+                }
+            )
             return {"success": True, "emotions": emotions}
         except Exception as e:
             logger.error(f"[cap.emoji.get_emotions] 执行失败: {e}", exc_info=True)
@@ -568,7 +612,9 @@ class RuntimeDataCapabilityMixin:
                 "success": True,
                 "message": f"表情包注册成功 {'(替换旧表情包)' if replaced else '(新增表情包)'}",
                 "description": None if new_emoji is None else new_emoji.description,
-                "emotions": None if new_emoji is None else new_emoji.emotion,
+                "emotions": None
+                if new_emoji is None
+                else RuntimeDataCapabilityMixin._normalize_emoji_tag_text(new_emoji.description or new_emoji.emotion),
                 "replaced": replaced,
                 "hash": None if new_emoji is None else new_emoji.file_hash,
             }

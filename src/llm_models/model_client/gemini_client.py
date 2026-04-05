@@ -249,9 +249,13 @@ def _convert_messages(messages: List[Message]) -> Tuple[ContentListUnion, str | 
         if message.role == RoleType.Tool:
             if not message.tool_call_id:
                 raise ValueError("Gemini 工具结果消息缺少 tool_call_id")
-            tool_name = tool_name_by_call_id.get(message.tool_call_id)
+            tool_name = (message.tool_name or tool_name_by_call_id.get(message.tool_call_id, "")).strip()
             if not tool_name:
-                raise ValueError(f"Gemini 无法根据 tool_call_id={message.tool_call_id} 找到对应的工具名称")
+                raise ValueError(
+                    f"Gemini 无法根据 tool_call_id={message.tool_call_id} 找到对应的工具名称，"
+                    "且消息中未携带 tool_name"
+                )
+            tool_name_by_call_id[message.tool_call_id] = tool_name
             function_response_part = Part.from_function_response(
                 name=tool_name,
                 response=_normalize_function_response_payload(message),

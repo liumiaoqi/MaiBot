@@ -24,6 +24,7 @@ from src.services import database_service as database_api
 from .builtin_tool import get_action_tool_specs
 from .builtin_tool import build_builtin_tool_handlers as build_split_builtin_tool_handlers
 from .builtin_tool import get_timing_tools
+from .chat_history_visual_refresher import refresh_chat_history_visual_placeholders
 from .builtin_tool.context import BuiltinToolRuntimeContext
 from .context_messages import (
     AssistantMessage,
@@ -103,16 +104,22 @@ class MaisakaReasoningEngine:
         """运行一轮可被新消息打断的主 planner 请求。"""
 
         interrupt_flag = asyncio.Event()
-        self._runtime._planner_interrupt_flag = interrupt_flag
+        interrupted = False
+        self._runtime._bind_planner_interrupt_flag(interrupt_flag)
         self._runtime._chat_loop_service.set_interrupt_flag(interrupt_flag)
         try:
             return await self._runtime._chat_loop_service.chat_loop_step(
                 self._runtime._chat_history,
                 tool_definitions=tool_definitions,
             )
+        except ReqAbortException:
+            interrupted = True
+            raise
         finally:
-            if self._runtime._planner_interrupt_flag is interrupt_flag:
-                self._runtime._planner_interrupt_flag = None
+            self._runtime._unbind_planner_interrupt_flag(
+                interrupt_flag,
+                interrupted=interrupted,
+            )
             self._runtime._chat_loop_service.set_interrupt_flag(None)
 
     async def _run_interruptible_sub_agent(
@@ -125,7 +132,8 @@ class MaisakaReasoningEngine:
         """运行一轮可被新消息打断的临时子代理请求。"""
 
         interrupt_flag = asyncio.Event()
-        self._runtime._planner_interrupt_flag = interrupt_flag
+        interrupted = False
+        self._runtime._bind_planner_interrupt_flag(interrupt_flag)
         try:
             return await self._runtime.run_sub_agent(
                 context_message_limit=context_message_limit,
@@ -136,9 +144,14 @@ class MaisakaReasoningEngine:
                 temperature=0.1,
                 tool_definitions=tool_definitions,
             )
+        except ReqAbortException:
+            interrupted = True
+            raise
         finally:
-            if self._runtime._planner_interrupt_flag is interrupt_flag:
-                self._runtime._planner_interrupt_flag = None
+            self._runtime._unbind_planner_interrupt_flag(
+                interrupt_flag,
+                interrupted=interrupted,
+            )
 
     @staticmethod
     def _build_timing_gate_fallback_prompt() -> str:
@@ -313,6 +326,14 @@ class MaisakaReasoningEngine:
                             )
                             planner_started_at = 0.0
                             try:
+                                visual_refresh_started_at = time.time()
+                                refreshed_message_count = await self._refresh_chat_history_visual_placeholders()
+                                cycle_detail.time_records["visual_refresh"] = time.time() - visual_refresh_started_at
+                                if refreshed_message_count > 0:
+                                    logger.info(
+                                        f"{self._runtime.log_prefix} 本轮思考前已刷新 {refreshed_message_count} 条视觉占位历史消息"
+                                    )
+
                                 timing_started_at = time.time()
                                 timing_action, timing_response, timing_tool_results = await self._run_timing_gate(anchor_message)
                                 timing_duration_ms = (time.time() - timing_started_at) * 1000
@@ -526,7 +547,12 @@ class MaisakaReasoningEngine:
                 timestamp=message.timestamp.timestamp(),
             )
 
-    async def _build_history_message(self, message: SessionMessage) -> Optional[LLMContextMessage]:
+    async def _build_history_message(
+        self,
+        message: SessionMessage,
+        *,
+        source_kind: str = "user",
+    ) -> Optional[LLMContextMessage]:
         """根据真实消息构造对应的上下文消息。"""
 
         source_sequence = message.raw_message
@@ -537,7 +563,7 @@ class MaisakaReasoningEngine:
                 message,
                 planner_prefix=planner_prefix,
                 visible_text=visible_text,
-                source_kind="user",
+                source_kind=source_kind,
             )
 
         user_sequence = await self._build_message_sequence(message, planner_prefix=planner_prefix)
@@ -548,7 +574,7 @@ class MaisakaReasoningEngine:
             message,
             raw_message=user_sequence,
             visible_text=visible_text,
-            source_kind="user",
+            source_kind=source_kind,
         )
 
     async def _build_message_sequence(
@@ -600,6 +626,18 @@ class MaisakaReasoningEngine:
         for result in results:
             if isinstance(result, Exception):
                 logger.warning(f"{self._runtime.log_prefix} 回填图片或表情二进制数据失败，Maisaka 将退化为文本占位: {result}")
+
+    async def _refresh_chat_history_visual_placeholders(self) -> int:
+        """在进入新一轮规划前，尝试用已完成的识图结果刷新历史占位。"""
+
+        return await refresh_chat_history_visual_placeholders(
+            chat_history=self._runtime._chat_history,
+            build_history_message=lambda message, source_kind: self._build_history_message(
+                message,
+                source_kind=source_kind,
+            ),
+            build_visible_text=lambda message: self._build_legacy_visible_text(message, message.raw_message),
+        )
 
     def _build_legacy_visible_text(self, message: SessionMessage, source_sequence: MessageSequence) -> str:
         user_info = message.message_info.user_info

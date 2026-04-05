@@ -6,6 +6,7 @@ import io
 import os
 from datetime import datetime
 from pathlib import Path
+import re
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Cookie, HTTPException, Query
@@ -53,6 +54,19 @@ from .support import (
 )
 
 router = APIRouter(prefix="/emoji", tags=["Emoji"])
+
+
+def _normalize_emoji_description(description: str = "", emotion: str = "") -> str:
+    """将上传参数中的描述/情绪标签归一化为可存储 description。"""
+    normalized_description = str(description or "").strip()
+    normalized_emotion = str(emotion or "").strip()
+    if normalized_description:
+        return normalized_description
+    if not normalized_emotion:
+        return ""
+
+    tags = re.split(r"[,，、;；\s]+", normalized_emotion)
+    return ",".join(item.strip() for item in tags if item.strip())
 
 
 @router.get("/list", response_model=EmojiListResponse)
@@ -172,6 +186,14 @@ async def update_emoji(
 
             if "is_registered" in update_data and update_data["is_registered"] and not emoji.is_registered:
                 update_data["register_time"] = datetime.now()
+
+            if "emotion" in update_data:
+                normalized_description = _normalize_emoji_description(
+                    description=update_data.get("description", ""),
+                    emotion=update_data.get("emotion", ""),
+                )
+                update_data["description"] = normalized_description
+                update_data.pop("emotion", None)
 
             for field, value in update_data.items():
                 setattr(emoji, field, value)
@@ -543,7 +565,7 @@ async def upload_emoji(
             _ = output_file.write(file_content)
 
         logger.info(f"表情包文件已保存: {full_path}")
-        emotion_str = ",".join(item.strip() for item in emotion.split(",") if item.strip()) if emotion else ""
+        final_description = _normalize_emoji_description(description=description, emotion=emotion)
 
         current_time = datetime.now()
         with get_db_session() as session:
@@ -551,8 +573,8 @@ async def upload_emoji(
                 image_type=ImageType.EMOJI,
                 full_path=full_path,
                 image_hash=emoji_hash,
-                description=description,
-                emotion=emotion_str or None,
+                description=final_description,
+                emotion=None,
                 query_count=0,
                 is_registered=is_registered,
                 is_banned=False,
@@ -654,16 +676,16 @@ async def batch_upload_emoji(
                 with open(full_path, "wb") as output_file:
                     _ = output_file.write(file_content)
 
-                emotion_str = ",".join(item.strip() for item in emotion.split(",") if item.strip()) if emotion else ""
                 current_time = datetime.now()
+                final_description = _normalize_emoji_description(emotion=emotion)
 
                 with get_db_session() as session:
                     emoji = Images(
                         image_type=ImageType.EMOJI,
                         full_path=full_path,
                         image_hash=emoji_hash,
-                        description="",
-                        emotion=emotion_str or None,
+                        description=final_description,
+                        emotion=None,
                         query_count=0,
                         is_registered=is_registered,
                         is_banned=False,

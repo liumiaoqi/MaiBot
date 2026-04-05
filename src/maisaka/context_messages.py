@@ -196,6 +196,7 @@ def _build_message_from_sequence(
     fallback_text: str,
     *,
     tool_call_id: Optional[str] = None,
+    tool_name: Optional[str] = None,
     tool_calls: Optional[list[ToolCall]] = None,
 ) -> Optional[Message]:
     """根据消息片段构造统一 LLM 消息。"""
@@ -204,6 +205,8 @@ def _build_message_from_sequence(
         builder.set_tool_calls(tool_calls)
     if role == RoleType.Tool and tool_call_id:
         builder.add_tool_call(tool_call_id)
+    if role == RoleType.Tool and tool_name:
+        builder.set_tool_name(tool_name)
 
     has_content = False
     for component in message_sequence.components:
@@ -481,4 +484,5 @@ class ToolResultMessage(LLMContextMessage):
             message_sequence,
             self.content,
             tool_call_id=self.tool_call_id,
+            tool_name=self.tool_name,
         )

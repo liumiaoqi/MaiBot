@@ -84,6 +84,12 @@ class MaisakaHeartFlowChatting:
         self._wait_until: Optional[float] = None
         self._pending_wait_tool_call_id: Optional[str] = None
         self._planner_interrupt_flag: Optional[asyncio.Event] = None
+        self._planner_interrupt_requested = False
+        self._planner_interrupt_consecutive_count = 0
+        self._planner_interrupt_max_consecutive_count = max(
+            0,
+            int(global_config.maisaka.planner_interrupt_max_consecutive_count),
+        )
 
         expr_use, jargon_learn, expr_learn = ExpressionConfigUtils.get_expression_config_for_chat(session_id)
         self._enable_expression_use = expr_use
@@ -167,13 +173,50 @@ class MaisakaHeartFlowChatting:
         if self._agent_state == self._STATE_RUNNING:
             self._message_debounce_required = True
         if self._agent_state == self._STATE_RUNNING and self._planner_interrupt_flag is not None:
-            logger.info(
-                f"{self.log_prefix} 收到新消息，发起规划器打断; "
-                f"消息编号={message.message_id} 缓存条数={len(self.message_cache)} "
-                f"时间戳={time.time():.3f}"
-            )
-            self._planner_interrupt_flag.set()
+            if self._planner_interrupt_requested:
+                logger.info(
+                    f"{self.log_prefix} 收到新消息，但当前请求已发起过一次规划器打断，"
+                    f"本次不重复打断; 消息编号={message.message_id} "
+                    f"连续打断次数={self._planner_interrupt_consecutive_count}/"
+                    f"{self._planner_interrupt_max_consecutive_count}"
+                )
+            elif self._planner_interrupt_consecutive_count >= self._planner_interrupt_max_consecutive_count:
+                logger.info(
+                    f"{self.log_prefix} 收到新消息，但已达到规划器连续打断上限，"
+                    f"将等待当前请求自然完成; 消息编号={message.message_id} "
+                    f"连续打断次数={self._planner_interrupt_consecutive_count}/"
+                    f"{self._planner_interrupt_max_consecutive_count}"
+                )
+            else:
+                self._planner_interrupt_requested = True
+                self._planner_interrupt_consecutive_count += 1
+                logger.info(
+                    f"{self.log_prefix} 收到新消息，发起规划器打断; "
+                    f"消息编号={message.message_id} 缓存条数={len(self.message_cache)} "
+                    f"时间戳={time.time():.3f} "
+                    f"连续打断次数={self._planner_interrupt_consecutive_count}/"
+                    f"{self._planner_interrupt_max_consecutive_count}"
+                )
+                self._planner_interrupt_flag.set()
         self._new_message_event.set()
+
+    def _bind_planner_interrupt_flag(self, interrupt_flag: asyncio.Event) -> None:
+        """绑定当前可打断请求使用的中断标记。"""
+        self._planner_interrupt_flag = interrupt_flag
+        self._planner_interrupt_requested = False
+
+    def _unbind_planner_interrupt_flag(
+        self,
+        interrupt_flag: asyncio.Event,
+        *,
+        interrupted: bool,
+    ) -> None:
+        """解绑当前可打断请求的中断标记，并维护连续打断计数。"""
+        if self._planner_interrupt_flag is interrupt_flag:
+            self._planner_interrupt_flag = None
+        self._planner_interrupt_requested = False
+        if not interrupted:
+            self._planner_interrupt_consecutive_count = 0
 
     def _ensure_background_tasks_running(self) -> None:
         """确保后台任务仍在运行，若崩溃则自动拉起。"""
@@ -513,7 +556,6 @@ class MaisakaHeartFlowChatting:
         if not global_config.debug.show_maisaka_thinking:
             return
 
-        session_name = chat_manager.get_session_name(self.session_id) or self.session_id
         body_lines = [
             f"上下文占用：{selected_history_count}/{self._max_context_size} 条",
             f"本次请求token消耗：{self._format_token_count(prompt_tokens)}",

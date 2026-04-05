@@ -14,7 +14,12 @@ from src.common.logger import get_logger
 from src.common.utils.utils_image import ImageUtils
 from src.services import send_service
 
-from .emoji_manager import _serialize_emoji_for_hook, emoji_manager, emoji_manager_emotion_judge_llm
+from .emoji_manager import (
+    _normalize_emoji_tag_text,
+    _serialize_emoji_for_hook,
+    emoji_manager,
+    emoji_manager_emotion_judge_llm,
+)
 
 logger = get_logger("emoji_maisaka_tool")
 
@@ -113,8 +118,11 @@ def _resolve_selected_emoji(raw_value: Any) -> Optional[MaiEmoji]:
 
 def _normalize_emotions(emoji: MaiEmoji) -> list[str]:
     """提取并清洗单个表情的情绪标签。"""
-
-    return [str(item).strip() for item in emoji.emotion if str(item).strip()]
+    if emoji.description:
+        return _normalize_emoji_tag_text(emoji.description)
+    if emoji.emotion:
+        return _normalize_emoji_tag_text(emoji.emotion)
+    return []
 
 
 def _build_recent_context_text(context_texts: Sequence[str], max_items: int = 5) -> str:

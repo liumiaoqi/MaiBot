@@ -177,7 +177,7 @@ class MaisakaReplyGenerator:
         return f"{system_prompt}\n\n" + "\n\n".join(sections)
 
     def _build_reply_instruction(self) -> str:
-        return "请基于以上上下文，自然地继续回复。直接输出你要说的话，不需要额外解释。"
+        return "请自然地回复。请注意不要输出多余内容(包括不必要的前后缀，冒号，括号，表情包，at或 @等 )，只输出发言内容就好。"
 
     def _build_multimodal_user_message(
         self,

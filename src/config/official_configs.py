@@ -255,8 +255,9 @@ class ChatConfig(ConfigBase):
     )
     """_wrap_私聊说话规则，行为风格"""
 
+
     group_chat_prompt: str = Field(
-        default="不要回复的太频繁！控制回复的频率，不要每个人的消息都回复，只回复你感兴趣的或者主动提及你的。",
+        default="你需要控制自己发言的频率，如果是一对一聊天，可以以较均匀的频率发言；如果用户较多，不要每句都回复，控制回复频率，不要回复的太频繁！控制回复的频率，不要每个人的消息都回复。",
         json_schema_extra={
             "x-widget": "textarea",
             "x-icon": "users",
@@ -265,7 +266,7 @@ class ChatConfig(ConfigBase):
     """_wrap_群聊通用注意事项"""
 
     private_chat_prompts: str = Field(
-        default="",
+        default="你需要控制自己发言的频率，可以以较均匀的频率发言。",
         json_schema_extra={
             "x-widget": "textarea",
             "x-icon": "user",
@@ -1548,6 +1549,16 @@ class MaiSakaConfig(ConfigBase):
         },
     )
     """每个入站消息的最大内部规划轮数"""
+
+    planner_interrupt_max_consecutive_count: int = Field(
+        default=2,
+        ge=0,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "pause-circle",
+        },
+    )
+    """Planner 连续被新消息打断的最大次数，0 表示不启用打断"""
 
     enable_memory_query_tool: bool = Field(
         default=True,

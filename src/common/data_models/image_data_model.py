@@ -152,22 +152,30 @@ class MaiEmoji(BaseImageDataModel):
             raise ValueError(f"数据库记录 {db_record.image_hash} 标记为文件不存在，无法创建 MaiEmoji 对象")
         obj = cls(db_record.full_path)
         obj.file_hash = db_record.image_hash
-        obj.description = db_record.description
-        if db_record.emotion:
-            obj.emotion = db_record.emotion.split(",")
+        description = db_record.description or db_record.emotion or ""
+        obj.description = description
+        normalized_tags = [
+            str(item).strip()
+            for item in str(description).replace("，", ",").replace("、", ",").replace("；", ",").split(",")
+            if str(item).strip()
+        ]
+        deduped_tags: List[str] = []
+        for item in normalized_tags:
+            if item not in deduped_tags:
+                deduped_tags.append(item)
+        obj.emotion = deduped_tags
         obj.query_count = db_record.query_count
         obj.last_used_time = db_record.last_used_time
         obj.register_time = db_record.register_time
         return obj
 
     def to_db_instance(self) -> Images:
-        emotion_str = ",".join(self.emotion) if self.emotion else None
         return Images(
             image_hash=self.file_hash,
             description=self.description,
             full_path=str(self.full_path),
             image_type=ImageType.EMOJI,
-            emotion=emotion_str,
+            emotion=None,
             query_count=self.query_count,
             last_used_time=self.last_used_time,
             register_time=self.register_time,

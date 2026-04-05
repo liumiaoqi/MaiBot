@@ -75,6 +75,7 @@ class Message:
     role: RoleType
     parts: List[MessagePart] = field(default_factory=list)
     tool_call_id: str | None = None
+    tool_name: str | None = None
     tool_calls: List[ToolCall] | None = None
 
     def __post_init__(self) -> None:
@@ -87,6 +88,8 @@ class Message:
             raise ValueError("消息内容不能为空")
         if self.role == RoleType.Tool and not self.tool_call_id:
             raise ValueError("Tool 角色的工具调用 ID 不能为空")
+        if self.tool_name and self.role != RoleType.Tool:
+            raise ValueError("仅当角色为 Tool 时才能设置工具名称")
 
     @property
     def content(self) -> str | List[Tuple[str, str] | str]:
@@ -122,7 +125,7 @@ class Message:
         """
         return (
             f"Role: {self.role}, Parts: {self.parts}, "
-            f"Tool Call ID: {self.tool_call_id}, Tool Calls: {self.tool_calls}"
+            f"Tool Call ID: {self.tool_call_id}, Tool Name: {self.tool_name}, Tool Calls: {self.tool_calls}"
         )
 
 
@@ -134,6 +137,7 @@ class MessageBuilder:
         self.__role: RoleType = RoleType.User
         self.__parts: List[MessagePart] = []
         self.__tool_call_id: str | None = None
+        self.__tool_name: str | None = None
         self.__tool_calls: List[ToolCall] | None = None
 
     def set_role(self, role: RoleType = RoleType.User) -> "MessageBuilder":
@@ -247,6 +251,15 @@ class MessageBuilder:
         """
         return self.set_tool_call_id(tool_call_id)
 
+    def set_tool_name(self, tool_name: str) -> "MessageBuilder":
+        """设置 Tool 消息对应的工具名称。"""
+        if self.__role != RoleType.Tool:
+            raise ValueError("仅当角色为 Tool 时才能设置工具名称")
+        if not tool_name:
+            raise ValueError("工具名称不能为空")
+        self.__tool_name = tool_name
+        return self
+
     def set_tool_calls(self, tool_calls: List[ToolCall]) -> "MessageBuilder":
         """设置助手消息中的工具调用列表。
 
@@ -276,5 +289,6 @@ class MessageBuilder:
             role=self.__role,
             parts=list(self.__parts),
             tool_call_id=self.__tool_call_id,
+            tool_name=self.__tool_name,
             tool_calls=list(self.__tool_calls) if self.__tool_calls else None,
         )

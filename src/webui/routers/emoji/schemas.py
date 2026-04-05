@@ -1,3 +1,4 @@
+import re
 from typing import Annotated, List, Optional
 
 from fastapi import File, Form, UploadFile
@@ -5,15 +6,15 @@ from pydantic import BaseModel
 
 from src.common.database.database_model import Images
 
-EmojiFile = Annotated[UploadFile, File(description="表情包图片文件")]
-EmojiFiles = Annotated[List[UploadFile], File(description="多个表情包图片文件")]
+EmojiFile = Annotated[UploadFile, File(description="表情包上传文件")]
+EmojiFiles = Annotated[List[UploadFile], File(description="多个表情包上传文件")]
 DescriptionForm = Annotated[str, Form(description="表情包描述")]
-EmotionForm = Annotated[str, Form(description="情感标签，多个用逗号分隔")]
+EmotionForm = Annotated[str, Form(description="情绪标签，多个使用逗号分隔")]
 IsRegisteredForm = Annotated[bool, Form(description="是否直接注册")]
 
 
 class EmojiResponse(BaseModel):
-    """表情包响应"""
+    """表情包响应结构"""
 
     id: int
     full_path: str
@@ -124,7 +125,20 @@ class ThumbnailPreheatResponse(BaseModel):
 
 
 def emoji_to_response(image: Images) -> EmojiResponse:
-    """将数据库表情包模型转换为响应对象。"""
+    emotions: list[str] = []
+    if image.description:
+        emotions.extend(
+            item.strip() for item in re.split(r"[,，、;；\s]+", image.description) if item and item.strip()
+        )
+    if not emotions and image.emotion:
+        emotions.extend(item.strip() for item in re.split(r"[,，、;；\s]+", image.emotion) if item and item.strip())
+
+    deduped_emotions: list[str] = []
+    for item in emotions:
+        if item not in deduped_emotions:
+            deduped_emotions.append(item)
+    emotion = ",".join(deduped_emotions) if deduped_emotions else None
+
     return EmojiResponse(
         id=image.id if image.id is not None else 0,
         full_path=image.full_path,
@@ -133,7 +147,7 @@ def emoji_to_response(image: Images) -> EmojiResponse:
         query_count=image.query_count,
         is_registered=image.is_registered,
         is_banned=image.is_banned,
-        emotion=image.emotion,
+        emotion=emotion,
         record_time=image.record_time.timestamp() if image.record_time else 0.0,
         register_time=image.register_time.timestamp() if image.register_time else None,
         last_used_time=image.last_used_time.timestamp() if image.last_used_time else None,
