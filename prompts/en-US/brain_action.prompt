@@ -1,9 +1,0 @@
-{action_name}
-Action description: {action_description}
-Usage conditions:
-{action_require}
-{{
-    "action": "{action_name}",{action_parameters},
-    "target_message_id":"message ID that triggered the action",
-    "reason":"reason for triggering the action"
-}}

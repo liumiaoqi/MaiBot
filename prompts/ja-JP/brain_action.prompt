@@ -1,9 +1,0 @@
-{action_name}
-アクションの説明：{action_description}
-使用条件：
-{action_require}
-{{
-    "action": "{action_name}",{action_parameters},
-    "target_message_id":"アクションを発動したメッセージID",
-    "reason":"アクションを発動した理由"
-}}
