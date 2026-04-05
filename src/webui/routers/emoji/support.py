@@ -16,7 +16,8 @@ logger = get_logger("webui.emoji")
 THUMBNAIL_CACHE_DIR = Path("data/emoji_thumbnails")
 THUMBNAIL_SIZE = (200, 200)
 THUMBNAIL_QUALITY = 80
-EMOJI_REGISTERED_DIR = os.path.join("data", "emoji_registed")
+EMOJI_REGISTERED_DIR = os.path.join("data", "emoji")
+EMOJI_DIR = EMOJI_REGISTERED_DIR
 
 _thumbnail_locks: Dict[str, threading.Lock] = {}
 _locks_lock = threading.Lock()

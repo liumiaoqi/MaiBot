@@ -1,51 +1,20 @@
-import contextlib
-import time
-import json
 import asyncio
-from datetime import datetime
-from typing import List, Dict, Any, Optional, Tuple, Callable
+import contextlib
+import json
+import time
+from typing import Any, Callable, Dict, List, Optional, Tuple
+
 from src.common.logger import get_logger
 from src.config.config import global_config
 from src.prompt.prompt_manager import prompt_manager
 from src.services import llm_service as llm_api
-from sqlmodel import select, col
-from src.common.database.database import get_db_session
-from src.common.database.database_model import ThinkingQuestion
+
 from src.memory_system.retrieval_tools import get_tool_registry, init_all_tools
 from src.llm_models.payload_content.message import MessageBuilder, RoleType, Message
 from src.chat.message_receive.chat_manager import chat_manager as _chat_manager
 from src.learners.jargon_explainer_old import retrieve_concepts_with_jargon
 
 logger = get_logger("memory_retrieval")
-
-THINKING_BACK_NOT_FOUND_RETENTION_SECONDS = 36000  # 未找到答案记录保留时长
-THINKING_BACK_CLEANUP_INTERVAL_SECONDS = 3000  # 清理频率
-_last_not_found_cleanup_ts: float = 0.0
-
-
-def _cleanup_stale_not_found_thinking_back() -> None:
-    """定期清理过期的未找到答案记录"""
-    global _last_not_found_cleanup_ts
-
-    now = time.time()
-    if now - _last_not_found_cleanup_ts < THINKING_BACK_CLEANUP_INTERVAL_SECONDS:
-        return
-
-    threshold_time = now - THINKING_BACK_NOT_FOUND_RETENTION_SECONDS
-    try:
-        with get_db_session() as session:
-            statement = select(ThinkingQuestion).where(
-                col(ThinkingQuestion.found_answer).is_(False)
-                & (ThinkingQuestion.updated_timestamp < datetime.fromtimestamp(threshold_time))
-            )
-            records = session.exec(statement).all()
-            for record in records:
-                session.delete(record)
-        if records:
-            logger.info(f"清理过期的未找到答案thinking_question记录 {len(records)} 条")
-        _last_not_found_cleanup_ts = now
-    except Exception as e:
-        logger.error(f"清理未找到答案的thinking_back记录失败: {e}")
 
 
 def init_memory_retrieval_sys():
@@ -766,141 +735,6 @@ async def _react_agent_solve_question(
 
     return False, "", thinking_steps, is_timeout
 
-
-def _get_recent_query_history(chat_id: str, time_window_seconds: float = 600.0) -> str:
-    """获取最近一段时间内的查询历史（用于避免重复查询）
-
-    Args:
-        chat_id: 聊天ID
-        time_window_seconds: 时间窗口（秒），默认10分钟
-
-    Returns:
-        str: 格式化的查询历史字符串
-    """
-    try:
-        _current_time = time.time()
-
-        with get_db_session() as session:
-            statement = (
-                select(ThinkingQuestion)
-                .where(col(ThinkingQuestion.context) == chat_id)
-                .order_by(col(ThinkingQuestion.updated_timestamp).desc())
-                .limit(5)
-            )
-            records = session.exec(statement).all()
-
-        if not records:
-            return ""
-
-        history_lines = ["最近已查询的问题和结果："]
-
-        for record in records:
-            status = "✓ 已找到答案" if record.found_answer else "✗ 未找到答案"
-            answer_preview = ""
-            # 只有找到答案时才显示答案内容
-            if record.found_answer and record.answer:
-                # 截取答案前100字符
-                answer_preview = record.answer[:100]
-                if len(record.answer) > 100:
-                    answer_preview += "..."
-
-            history_lines.extend([f"- 问题：{record.question}", f"  状态：{status}"])
-            if answer_preview:
-                history_lines.append(f"  答案：{answer_preview}")
-            history_lines.append("")  # 空行分隔
-
-        return "\n".join(history_lines)
-
-    except Exception as e:
-        logger.error(f"获取查询历史失败: {e}")
-        return ""
-
-
-def _get_recent_found_answers(chat_id: str, time_window_seconds: float = 600.0) -> List[str]:
-    """获取最近一段时间内已找到答案的查询记录（用于返回给 replyer）
-
-    Args:
-        chat_id: 聊天ID
-        time_window_seconds: 时间窗口（秒），默认10分钟
-
-    Returns:
-        List[str]: 格式化的答案列表，每个元素格式为 "问题：xxx\n答案：xxx"
-    """
-    try:
-        _current_time = time.time()
-
-        # 查询最近时间窗口内已找到答案的记录，按更新时间倒序
-        with get_db_session() as session:
-            statement = (
-                select(ThinkingQuestion)
-                .where(col(ThinkingQuestion.context) == chat_id)
-                .where(col(ThinkingQuestion.found_answer))
-                .where(col(ThinkingQuestion.answer).is_not(None))
-                .where(col(ThinkingQuestion.answer) != "")
-                .order_by(col(ThinkingQuestion.updated_timestamp).desc())
-                .limit(3)
-            )
-            records = session.exec(statement).all()
-
-        if not records:
-            return []
-
-        return [f"问题：{record.question}\n答案：{record.answer}" for record in records if record.answer]
-
-    except Exception as e:
-        logger.error(f"获取最近已找到答案的记录失败: {e}")
-        return []
-
-
-def _store_thinking_back(
-    chat_id: str, question: str, context: str, found_answer: bool, answer: str, thinking_steps: List[Dict[str, Any]]
-) -> None:
-    """存储或更新思考过程到数据库（如果已存在则更新，否则创建）
-
-    Args:
-        chat_id: 聊天ID
-        question: 问题
-        context: 上下文信息
-        found_answer: 是否找到答案
-        answer: 答案内容
-        thinking_steps: 思考步骤列表
-    """
-    try:
-        now = time.time()
-
-        # 先查询是否已存在相同chat_id和问题的记录
-        with get_db_session() as session:
-            statement = (
-                select(ThinkingQuestion)
-                .where(col(ThinkingQuestion.context) == chat_id)
-                .where(col(ThinkingQuestion.question) == question)
-                .order_by(col(ThinkingQuestion.updated_timestamp).desc())
-                .limit(1)
-            )
-            if record := session.exec(statement).first():
-                record.context = context
-                record.found_answer = found_answer
-                record.answer = answer
-                record.thinking_steps = json.dumps(thinking_steps, ensure_ascii=False)
-                record.updated_timestamp = datetime.fromtimestamp(now)
-                session.add(record)
-                logger.info(f"已更新思考过程到数据库，问题: {question[:50]}...")
-                return
-
-            new_record = ThinkingQuestion(
-                question=question,
-                context=chat_id,
-                found_answer=found_answer,
-                answer=answer,
-                thinking_steps=json.dumps(thinking_steps, ensure_ascii=False),
-                created_timestamp=datetime.fromtimestamp(now),
-                updated_timestamp=datetime.fromtimestamp(now),
-            )
-            session.add(new_record)
-    except Exception as e:
-        logger.error(f"存储思考过程失败: {e}")
-
-
 async def _process_memory_retrieval(
     chat_id: str,
     context: str,
@@ -920,8 +754,6 @@ async def _process_memory_retrieval(
     Returns:
         Optional[str]: 如果找到答案，返回答案内容，否则返回None
     """
-    _cleanup_stale_not_found_thinking_back()
-
     question_initial_info = initial_info or ""
 
     # 直接使用ReAct Agent进行记忆检索

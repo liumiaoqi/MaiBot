@@ -1,16 +1,17 @@
-from datetime import datetime
-from pathlib import Path
-from PIL import Image as PILImage
-from rich.traceback import install
-from typing import Optional, List
-
 import asyncio
 import hashlib
 import io
 import traceback
+from datetime import datetime
+from pathlib import Path
+from typing import List, Optional
+
+from PIL import Image as PILImage
+from rich.traceback import install
 
 from src.common.database.database_model import Images, ImageType
 from src.common.logger import get_logger
+
 from . import BaseDatabaseDataModel
 
 
@@ -152,7 +153,7 @@ class MaiEmoji(BaseImageDataModel):
             raise ValueError(f"数据库记录 {db_record.image_hash} 标记为文件不存在，无法创建 MaiEmoji 对象")
         obj = cls(db_record.full_path)
         obj.file_hash = db_record.image_hash
-        description = db_record.description or db_record.emotion or ""
+        description = db_record.description or ""
         obj.description = description
         normalized_tags = [
             str(item).strip()
@@ -175,7 +176,6 @@ class MaiEmoji(BaseImageDataModel):
             description=self.description,
             full_path=str(self.full_path),
             image_type=ImageType.EMOJI,
-            emotion=None,
             query_count=self.query_count,
             last_used_time=self.last_used_time,
             register_time=self.register_time,

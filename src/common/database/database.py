@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import ContextManager, Generator, TYPE_CHECKING
 
 from rich.traceback import install
-from sqlalchemy import event, text
+from sqlalchemy import event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel, Session, create_engine
@@ -63,41 +63,6 @@ _migration_bootstrapper = create_database_migration_bootstrapper(engine)
 _db_initialized = False
 
 
-def _migrate_action_records_to_tool_records() -> None:
-    """将旧的 ``action_records`` 历史数据迁移到 ``tool_records``。"""
-    migration_sql = text(
-        """
-        INSERT INTO tool_records (
-            tool_id,
-            timestamp,
-            session_id,
-            tool_name,
-            tool_reasoning,
-            tool_data,
-            tool_builtin_prompt,
-            tool_display_prompt
-        )
-        SELECT
-            action_id,
-            timestamp,
-            session_id,
-            action_name,
-            action_reasoning,
-            action_data,
-            action_builtin_prompt,
-            action_display_prompt
-        FROM action_records
-        WHERE NOT EXISTS (
-            SELECT 1
-            FROM tool_records
-            WHERE tool_records.tool_id = action_records.action_id
-        )
-        """
-    )
-    with engine.begin() as connection:
-        connection.execute(migration_sql)
-
-
 def initialize_database() -> None:
     """初始化数据库连接、结构与启动期迁移。
 
@@ -105,8 +70,7 @@ def initialize_database() -> None:
         1. 确保数据库目录存在；
         2. 加载 SQLModel 模型定义；
         3. 执行已注册的启动期迁移；
-        4. 兜底执行 ``create_all`` 确保当前模型定义已建表；
-        5. 执行项目现有的轻量数据补迁移逻辑。
+        4. 兜底执行 ``create_all`` 确保当前模型定义已建表。
     """
     global _db_initialized
     if _db_initialized:
@@ -120,7 +84,6 @@ def initialize_database() -> None:
         f" 当前版本={migration_state.resolved_version.version}，目标版本={migration_state.target_version}"
     )
     SQLModel.metadata.create_all(engine)
-    _migrate_action_records_to_tool_records()
     _migration_bootstrapper.finalize_database(migration_state)
     _db_initialized = True
 

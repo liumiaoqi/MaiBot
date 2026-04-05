@@ -41,6 +41,7 @@ class ImageManager:
         """初始化图片管理器。"""
         _ensure_image_dir_exists()
         self._pending_description_tasks: Dict[str, asyncio.Task[None]] = {}
+        self.cleanup_legacy_image_registration_records()
 
         logger.info("图片管理器初始化完成")
 
@@ -49,6 +50,17 @@ class ImageManager:
         with get_db_session() as session:
             statement = select(Images).filter_by(image_hash=image_hash, image_type=ImageType.IMAGE).limit(1)
             return session.exec(statement).first()
+
+    def _normalize_image_registration_fields(self, record: Images) -> bool:
+        """Normalize accidental emoji registration fields on image records."""
+        if record.image_type != ImageType.IMAGE:
+            return False
+        if not record.is_registered and record.register_time is None:
+            return False
+
+        record.is_registered = False
+        record.register_time = None
+        return True
 
     async def get_image_description(
         self,
@@ -182,8 +194,9 @@ class ImageManager:
         try:
             with get_db_session() as session:
                 record = image.to_db_instance()
-                record.is_registered = True
-                record.register_time = record.last_used_time = datetime.now()
+                record.is_registered = False
+                record.register_time = None
+                record.last_used_time = datetime.now()
                 session.add(record)
                 session.flush()  # 确保记录被写入数据库以获取ID
                 record_id = record.id
@@ -209,6 +222,7 @@ class ImageManager:
                 if not record:
                     logger.error(f"未找到哈希值为 {image.file_hash} 的图片记录，无法更新描述")
                     return False
+                self._normalize_image_registration_fields(record)
                 record.description = image.description
                 record.last_used_time = datetime.now()
                 record.vlm_processed = image.vlm_processed
@@ -258,6 +272,7 @@ class ImageManager:
             with get_db_session() as session:
                 statement = select(Images).filter_by(image_hash=hash_str, image_type=ImageType.IMAGE).limit(1)
                 if record := session.exec(statement).first():
+                    self._normalize_image_registration_fields(record)
                     logger.info(f"图片已存在于数据库中，哈希值: {hash_str}")
                     record.last_used_time = datetime.now()
                     record.query_count += 1
@@ -334,6 +349,24 @@ class ImageManager:
             logger.error(f"清理数据库中无效图片记录时发生错误: {e}")
 
         logger.info(f"清理完成: {invalid_counter} 条无效描述记录，{null_path_counter} 条文件路径不存在记录")
+
+    def cleanup_legacy_image_registration_records(self) -> None:
+        """Clean up legacy image records with mistaken registration fields."""
+        fixed_counter = 0
+        try:
+            with get_db_session() as session:
+                statement = select(Images).filter_by(image_type=ImageType.IMAGE)
+                for record in session.exec(statement).yield_per(100):
+                    if not self._normalize_image_registration_fields(record):
+                        continue
+                    session.add(record)
+                    fixed_counter += 1
+        except Exception as e:
+            logger.error(f"Failed to clean image registration state: {e}")
+            return
+
+        if fixed_counter:
+            logger.info(f"Cleaned mistaken registration state on {fixed_counter} image records")
 
     async def _generate_image_description(self, image_bytes: bytes, image_format: str) -> str:
         prompt = global_config.personality.visual_style

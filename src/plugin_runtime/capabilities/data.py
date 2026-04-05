@@ -585,16 +585,23 @@ class RuntimeDataCapabilityMixin:
             if not ImageUtils.base64_to_image(emoji_base64, str(temp_file_path)):
                 return {"success": False, "message": "无法保存图片文件", "description": None, "emotions": None, "replaced": None, "hash": None}
 
-            register_success = await emoji_manager.register_emoji_by_filename(temp_file_path)
-            if not register_success:
-                if temp_file_path.exists():
-                    temp_file_path.unlink(missing_ok=True)
+            register_status = await emoji_manager.register_emoji_by_filename(temp_file_path)
+            if register_status == "failed":
                 return {
                     "success": False,
                     "message": "表情包注册失败，可能因为重复、格式不支持或审核未通过",
                     "description": None,
                     "emotions": None,
                     "replaced": None,
+                    "hash": None,
+                }
+            if register_status == "skipped":
+                return {
+                    "success": True,
+                    "message": "表情包已注册，已跳过本次注册",
+                    "description": None,
+                    "emotions": None,
+                    "replaced": False,
                     "hash": None,
                 }
 

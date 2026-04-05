@@ -6,12 +6,14 @@ from .legacy_v1_to_v2 import migrate_legacy_v1_to_v2
 from .models import DatabaseSchemaSnapshot, MigrationStep
 from .registry import MigrationRegistry
 from .resolver import BaseSchemaVersionDetector, SchemaVersionResolver
-from .version_store import SQLiteUserVersionStore
 from .schema import SQLiteSchemaInspector
+from .v2_to_v3 import migrate_v2_to_v3
+from .version_store import SQLiteUserVersionStore
 
 EMPTY_SCHEMA_VERSION = 0
 LEGACY_V1_SCHEMA_VERSION = 1
-LATEST_SCHEMA_VERSION = 2
+V2_SCHEMA_VERSION = 2
+LATEST_SCHEMA_VERSION = 3
 
 _LEGACY_V1_EXCLUSIVE_TABLES = (
     "chat_streams",
@@ -23,6 +25,13 @@ _LEGACY_V1_EXCLUSIVE_TABLES = (
     "jargon",
     "messages",
     "thinking_back",
+)
+_COMMON_MARKER_TABLES = (
+    "mai_messages",
+    "chat_sessions",
+    "expressions",
+    "jargons",
+    "tool_records",
 )
 
 
@@ -36,6 +45,7 @@ class LatestSchemaVersionDetector(BaseSchemaVersionDetector):
         Returns:
             str: 当前探测器名称。
         """
+
         return "latest_schema_detector"
 
     def detect_version(self, snapshot: DatabaseSchemaSnapshot) -> Optional[int]:
@@ -47,18 +57,16 @@ class LatestSchemaVersionDetector(BaseSchemaVersionDetector):
         Returns:
             Optional[int]: 若识别为最新结构则返回最新版本号，否则返回 ``None``。
         """
+
         if any(snapshot.has_table(table_name) for table_name in _LEGACY_V1_EXCLUSIVE_TABLES):
             return None
-
-        latest_marker_tables = (
-            "mai_messages",
-            "chat_sessions",
-            "expressions",
-            "jargons",
-            "thinking_questions",
-            "tool_records",
-        )
-        if not all(snapshot.has_table(table_name) for table_name in latest_marker_tables):
+        if not all(snapshot.has_table(table_name) for table_name in _COMMON_MARKER_TABLES):
+            return None
+        if snapshot.has_table("action_records"):
+            return None
+        if snapshot.has_table("thinking_questions"):
+            return None
+        if snapshot.has_column("images", "emotion"):
             return None
         if not snapshot.has_column("images", "image_hash"):
             return None
@@ -66,13 +74,53 @@ class LatestSchemaVersionDetector(BaseSchemaVersionDetector):
             return None
         if not snapshot.has_column("images", "image_type"):
             return None
+        if not snapshot.has_column("chat_history", "session_id"):
+            return None
+        if not snapshot.has_column("person_info", "user_nickname"):
+            return None
+        return LATEST_SCHEMA_VERSION
+
+
+class V2SchemaVersionDetector(BaseSchemaVersionDetector):
+    """v2 schema 结构探测器。"""
+
+    @property
+    def name(self) -> str:
+        """返回探测器名称。
+
+        Returns:
+            str: 当前探测器名称。
+        """
+
+        return "v2_schema_detector"
+
+    def detect_version(self, snapshot: DatabaseSchemaSnapshot) -> Optional[int]:
+        """检测数据库是否为 v2 结构。
+
+        Args:
+            snapshot: 当前数据库结构快照。
+
+        Returns:
+            Optional[int]: 若识别为 v2 结构则返回 ``2``，否则返回 ``None``。
+        """
+
+        if any(snapshot.has_table(table_name) for table_name in _LEGACY_V1_EXCLUSIVE_TABLES):
+            return None
+        if not all(snapshot.has_table(table_name) for table_name in _COMMON_MARKER_TABLES):
+            return None
+        if not snapshot.has_table("action_records"):
+            return None
+        if not snapshot.has_table("thinking_questions"):
+            return None
+        if not snapshot.has_column("images", "emotion"):
+            return None
         if not snapshot.has_column("action_records", "session_id"):
             return None
         if not snapshot.has_column("chat_history", "session_id"):
             return None
         if not snapshot.has_column("person_info", "user_nickname"):
             return None
-        return LATEST_SCHEMA_VERSION
+        return V2_SCHEMA_VERSION
 
 
 class LegacyV1SchemaDetector(BaseSchemaVersionDetector):
@@ -85,6 +133,7 @@ class LegacyV1SchemaDetector(BaseSchemaVersionDetector):
         Returns:
             str: 当前探测器名称。
         """
+
         return "legacy_v1_schema_detector"
 
     def detect_version(self, snapshot: DatabaseSchemaSnapshot) -> Optional[int]:
@@ -96,6 +145,7 @@ class LegacyV1SchemaDetector(BaseSchemaVersionDetector):
         Returns:
             Optional[int]: 若识别为旧版结构则返回 ``1``，否则返回 ``None``。
         """
+
         if any(snapshot.has_table(table_name) for table_name in _LEGACY_V1_EXCLUSIVE_TABLES):
             return LEGACY_V1_SCHEMA_VERSION
 
@@ -121,8 +171,10 @@ def build_default_schema_version_detectors() -> List[BaseSchemaVersionDetector]:
     Returns:
         List[BaseSchemaVersionDetector]: 按优先级排序的探测器列表。
     """
+
     return [
         LatestSchemaVersionDetector(),
+        V2SchemaVersionDetector(),
         LegacyV1SchemaDetector(),
     ]
 
@@ -133,6 +185,7 @@ def build_default_schema_version_resolver() -> SchemaVersionResolver:
     Returns:
         SchemaVersionResolver: 配置完成的 schema 版本解析器。
     """
+
     return SchemaVersionResolver(
         version_store=SQLiteUserVersionStore(),
         schema_inspector=SQLiteSchemaInspector(),
@@ -146,14 +199,22 @@ def build_default_migration_registry() -> MigrationRegistry:
     Returns:
         MigrationRegistry: 含默认迁移步骤的注册表实例。
     """
+
     return MigrationRegistry(
         steps=[
             MigrationStep(
                 version_from=LEGACY_V1_SCHEMA_VERSION,
-                version_to=LATEST_SCHEMA_VERSION,
-                name="legacy_v1_to_latest_v2",
-                description="将旧版 0.x 数据库整体迁移到当前最新 schema。",
+                version_to=V2_SCHEMA_VERSION,
+                name="legacy_v1_to_v2",
+                description="将旧版 0.x 数据库迁移到 v2 schema。",
                 handler=migrate_legacy_v1_to_v2,
-            )
+            ),
+            MigrationStep(
+                version_from=V2_SCHEMA_VERSION,
+                version_to=LATEST_SCHEMA_VERSION,
+                name="v2_to_v3",
+                description="移除废弃表，并将 emoji 标签统一收敛到 description 字段。",
+                handler=migrate_v2_to_v3,
+            ),
         ]
     )

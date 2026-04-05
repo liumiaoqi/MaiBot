@@ -94,7 +94,6 @@ class Images(SQLModel, table=True):
     full_path: str = Field(max_length=1024)  # 文件的完整路径 (包括文件名)
     image_type: ImageType = Field(sa_column=Column(SQLEnum(ImageType)), default=ImageType.EMOJI)
     """图片类型，例如 'emoji' 或 'image'"""
-    emotion: Optional[str] = Field(default=None, nullable=True)  # 表情包的情感标签，逗号分隔
 
     query_count: int = Field(default=0)  # 被查询次数
     is_registered: bool = Field(default=False)  # 是否已经注册
@@ -111,27 +110,6 @@ class Images(SQLModel, table=True):
     last_used_time: Optional[datetime] = Field(default=None, sa_column=Column(DateTime, nullable=True))  # 上次使用时间
 
     vlm_processed: bool = Field(default=False)  # 是否已经过VLM处理
-
-
-class ActionRecord(SQLModel, table=True):
-    """存储动作记录"""
-
-    __tablename__ = "action_records"  # type: ignore
-
-    id: Optional[int] = Field(default=None, primary_key=True)  # 自增主键
-
-    # 元信息
-    action_id: str = Field(index=True, max_length=255)  # 动作ID
-    timestamp: datetime = Field(default_factory=datetime.now, sa_column=Column(DateTime, index=True))  # 记录时间戳
-    session_id: str = Field(index=True, max_length=255)  # 对应的 ChatSession session_id
-
-    # 调用信息
-    action_name: str = Field(index=True, max_length=255)  # 动作名称
-    action_reasoning: Optional[str] = Field(default=None)  # 动作推理过程
-    action_data: Optional[str] = Field(default=None)  # 动作数据，JSON格式存储
-
-    action_builtin_prompt: Optional[str] = Field(default=None)  # 内置动作提示
-    action_display_prompt: Optional[str] = Field(default=None)  # 最终输入到Prompt的内容
 
 
 class ToolRecord(SQLModel, table=True):
@@ -279,28 +257,6 @@ class ChatHistory(SQLModel, table=True):
     theme: str  # 对话主题：这段对话的主要内容，一个简短的标题
     keywords: str  # 关键词：这段对话的关键词，JSON格式存储
     summary: str  # 概括：对这段话的平文本概括
-
-
-class ThinkingQuestion(SQLModel, table=True):
-    """存储思考型问题的模型"""
-
-    __tablename__ = "thinking_questions"  # type: ignore
-
-    id: Optional[int] = Field(default=None, primary_key=True)  # 自增主键
-
-    # 问答对
-    question: str  # 问题内容
-    context: Optional[str] = Field(default=None, nullable=True)  # 上下文
-    found_answer: bool = Field(default=False)  # 是否找到答案
-    answer: Optional[str] = Field(default=None, nullable=True)  # 问题答案
-
-    thinking_steps: Optional[str] = Field(default=None, nullable=True)  # 思考步骤，JSON格式存储
-    created_timestamp: datetime = Field(
-        default_factory=datetime.now, sa_column=Column(DateTime, index=True)
-    )  # 创建时间
-    updated_timestamp: datetime = Field(
-        default_factory=datetime.now, sa_column=Column(DateTime, index=True)
-    )  # 最后更新时间
 
 
 class BinaryData(SQLModel, table=True):

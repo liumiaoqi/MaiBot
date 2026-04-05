@@ -1,8 +1,8 @@
 """Maisaka 表情工具内置能力。"""
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Optional, Sequence, TYPE_CHECKING
+from typing import Any, Optional, TYPE_CHECKING
 
 import random
 
@@ -120,8 +120,6 @@ def _normalize_emotions(emoji: MaiEmoji) -> list[str]:
     """提取并清洗单个表情的情绪标签。"""
     if emoji.description:
         return _normalize_emoji_tag_text(emoji.description)
-    if emoji.emotion:
-        return _normalize_emoji_tag_text(emoji.emotion)
     return []
 
 

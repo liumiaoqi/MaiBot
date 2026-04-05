@@ -1,4 +1,4 @@
-"""旧版 ``0.x`` 数据库升级到最新 schema 的迁移逻辑。"""
+"""旧版 ``0.x`` 数据库升级到 v2 schema 的迁移逻辑。"""
 
 from __future__ import annotations
 
@@ -7,15 +7,16 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, cast
 
+import json
+
+import msgpack
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
-
-import json
-import msgpack
 
 from src.common.logger import get_logger
 
 from .exceptions import DatabaseMigrationExecutionError
+from .frozen_v2_schema import create_frozen_v2_schema
 from .models import DatabaseSchemaSnapshot, MigrationExecutionContext
 from .schema import SQLiteSchemaInspector
 
@@ -52,19 +53,15 @@ class LegacyTableData:
 
 
 def migrate_legacy_v1_to_v2(context: MigrationExecutionContext) -> None:
-    """执行旧版 ``0.x`` 数据库到最新 schema 的迁移。
+    """执行旧版 ``0.x`` 数据库到 v2 schema 的迁移。
 
     Args:
         context: 当前迁移步骤执行上下文。
     """
-    from sqlmodel import SQLModel
-
-    import src.common.database.database_model  # noqa: F401
-
     schema_inspector = SQLiteSchemaInspector()
     snapshot = schema_inspector.inspect(context.connection)
     _rename_legacy_v1_tables(context.connection, snapshot)
-    SQLModel.metadata.create_all(context.connection)
+    create_frozen_v2_schema(context.connection)
 
     table_migration_jobs: List[Tuple[str, Callable[[MigrationExecutionContext], int]]] = [
         ("chat_sessions", _migrate_chat_sessions),
@@ -794,8 +791,6 @@ def _migrate_images(context: MigrationExecutionContext) -> int:
             if full_path and dedupe_key not in existing_keys:
                 migrated_description = _normalize_required_text(row.get("description"))
                 migrated_emotion = _normalize_optional_text(row.get("emotion"))
-                if not migrated_description and migrated_emotion:
-                    migrated_description = migrated_emotion
                 connection.execute(
                     insert_sql,
                     {
@@ -803,7 +798,7 @@ def _migrate_images(context: MigrationExecutionContext) -> int:
                         "description": migrated_description,
                         "full_path": full_path,
                         "image_type": "EMOJI",
-                        "emotion": None,
+                        "emotion": migrated_emotion,
                         "query_count": _normalize_int(row.get("query_count"), default=0),
                         "is_registered": _normalize_bool(row.get("is_registered"), default=False),
                         "is_banned": _normalize_bool(row.get("is_banned"), default=False),

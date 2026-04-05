@@ -40,7 +40,7 @@ from .schemas import (
     emoji_to_response,
 )
 from .support import (
-    EMOJI_REGISTERED_DIR,
+    EMOJI_DIR,
     THUMBNAIL_CACHE_DIR,
     background_generate_thumbnail,
     cleanup_orphaned_thumbnails,
@@ -326,7 +326,7 @@ async def register_emoji(emoji_id: int, maibot_session: Optional[str] = Cookie(N
             if not emoji:
                 raise HTTPException(status_code=404, detail=f"未找到 ID 为 {emoji_id} 的表情包")
             if emoji.is_registered:
-                raise HTTPException(status_code=400, detail="该表情包已经注册")
+                return EmojiUpdateResponse(success=True, message="??????????", data=emoji_to_response(emoji))
 
             emoji.is_registered = True
             emoji.is_banned = False
@@ -549,16 +549,16 @@ async def upload_emoji(
             if existing_emoji := session.exec(existing_statement).first():
                 raise HTTPException(status_code=409, detail=f"已存在相同的表情包 (ID: {existing_emoji.id})")
 
-        os.makedirs(EMOJI_REGISTERED_DIR, exist_ok=True)
+        os.makedirs(EMOJI_DIR, exist_ok=True)
 
         timestamp = int(datetime.now().timestamp())
         filename = f"emoji_{timestamp}_{emoji_hash[:8]}.{img_format}"
-        full_path = os.path.join(EMOJI_REGISTERED_DIR, filename)
+        full_path = os.path.join(EMOJI_DIR, filename)
 
         counter = 1
         while os.path.exists(full_path):
             filename = f"emoji_{timestamp}_{emoji_hash[:8]}_{counter}.{img_format}"
-            full_path = os.path.join(EMOJI_REGISTERED_DIR, filename)
+            full_path = os.path.join(EMOJI_DIR, filename)
             counter += 1
 
         with open(full_path, "wb") as output_file:
@@ -618,7 +618,7 @@ async def batch_upload_emoji(
         }
 
         allowed_types = ["image/jpeg", "image/png", "image/gif", "image/webp"]
-        os.makedirs(EMOJI_REGISTERED_DIR, exist_ok=True)
+        os.makedirs(EMOJI_DIR, exist_ok=True)
 
         for file in files:
             try:
@@ -665,12 +665,12 @@ async def batch_upload_emoji(
 
                 timestamp = int(datetime.now().timestamp())
                 filename = f"emoji_{timestamp}_{emoji_hash[:8]}.{img_format}"
-                full_path = os.path.join(EMOJI_REGISTERED_DIR, filename)
+                full_path = os.path.join(EMOJI_DIR, filename)
 
                 counter = 1
                 while os.path.exists(full_path):
                     filename = f"emoji_{timestamp}_{emoji_hash[:8]}_{counter}.{img_format}"
-                    full_path = os.path.join(EMOJI_REGISTERED_DIR, filename)
+                    full_path = os.path.join(EMOJI_DIR, filename)
                     counter += 1
 
                 with open(full_path, "wb") as output_file:
