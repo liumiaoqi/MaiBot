@@ -1,12 +1,10 @@
 """FastAPI 应用工厂 - 创建和配置 WebUI 应用实例"""
 
-import mimetypes
-import shutil
-from dataclasses import dataclass
 from importlib import import_module
 from pathlib import Path
-from subprocess import CompletedProcess, TimeoutExpired, run
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, Tuple
+
+import mimetypes
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,28 +15,8 @@ from src.common.logger import get_logger
 
 logger = get_logger("webui.app")
 
-_DASHBOARD_BUILD_TIMEOUT_SECONDS = 300
-_DASHBOARD_INSTALL_TIMEOUT_SECONDS = 600
-_MANUAL_BUILD_COMMAND = "cd dashboard && npm install && npm run build"
-
-_DASHBOARD_BUILD_COMMANDS = {
-    "bun": ["bun", "run", "build"],
-    "npm": ["npm", "run", "build"],
-    "pnpm": ["pnpm", "build"],
-    "yarn": ["yarn", "build"],
-}
-_DASHBOARD_INSTALL_COMMANDS = {
-    "bun": ["bun", "install"],
-    "npm": ["npm", "install", "--no-package-lock"],
-    "pnpm": ["pnpm", "install"],
-    "yarn": ["yarn", "install"],
-}
-
-
-@dataclass(frozen=True)
-class DashboardAutoRecoveryResult:
-    succeeded: bool
-    manual_recovery_command: str | None = None
+_DASHBOARD_PACKAGE_NAME = "maibot-dashboard"
+_MANUAL_INSTALL_COMMAND = f"pip install {_DASHBOARD_PACKAGE_NAME}"
 
 
 def _resolve_safe_static_file_path(static_path: Path, full_path: str) -> Path | None:
@@ -58,15 +36,6 @@ def _get_project_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
-def _get_dashboard_root() -> Path:
-    return _get_project_root() / "dashboard"
-
-
-def _format_dashboard_shell_commands(*commands: List[str]) -> str:
-    formatted_commands = " && ".join(" ".join(command) for command in commands)
-    return f"cd dashboard && {formatted_commands}"
-
-
 def _validate_static_path(static_path: Path | None) -> Tuple[str, Dict[str, Any]] | None:
     if static_path is None:
         return "startup.webui_static_dir_missing", {}
@@ -81,185 +50,16 @@ def _validate_static_path(static_path: Path | None) -> Tuple[str, Dict[str, Any]
     return None
 
 
-def _summarize_command_output(command_result: CompletedProcess[str] | TimeoutExpired) -> str:
-    output_chunks: List[str] = []
-    stdout = command_result.stdout
-    stderr = command_result.stderr
-
-    if isinstance(stdout, str) and stdout.strip():
-        output_chunks.append(stdout.strip())
-    if isinstance(stderr, str) and stderr.strip():
-        output_chunks.append(stderr.strip())
-
-    if not output_chunks:
-        return ""
-
-    combined_output = "\n".join(output_chunks)
-    max_output_length = 2000
-    if len(combined_output) <= max_output_length:
-        return combined_output
-
-    return combined_output[-max_output_length:]
-
-
-def _get_preferred_dashboard_package_manager(dashboard_root: Path) -> str:
-    if (dashboard_root / "pnpm-lock.yaml").exists():
-        return "pnpm"
-    if (dashboard_root / "yarn.lock").exists():
-        return "yarn"
-    if (dashboard_root / "bun.lock").exists() or (dashboard_root / "bun.lockb").exists():
-        return "bun"
-    return "npm"
-
-
-def _get_dashboard_build_command(dashboard_root: Path) -> List[str] | None:
-    if not (dashboard_root / "package.json").exists():
-        return None
-
-    preferred_package_manager = _get_preferred_dashboard_package_manager(dashboard_root)
-    package_managers = [
-        preferred_package_manager,
-        *[
-            package_manager
-            for package_manager in _DASHBOARD_BUILD_COMMANDS
-            if package_manager != preferred_package_manager
-        ],
-    ]
-
-    for package_manager in package_managers:
-        if shutil.which(package_manager):
-            return _DASHBOARD_BUILD_COMMANDS[package_manager]
-
-    return None
-
-
-def _get_dashboard_manual_recovery_command(dashboard_root: Path, build_command: List[str] | None = None) -> str:
-    package_manager = (
-        build_command[0] if build_command is not None else _get_preferred_dashboard_package_manager(dashboard_root)
-    )
-    install_command = _DASHBOARD_INSTALL_COMMANDS.get(package_manager)
-    selected_build_command = _DASHBOARD_BUILD_COMMANDS.get(package_manager)
-
-    if install_command is None or selected_build_command is None:
-        return _MANUAL_BUILD_COMMAND
-
-    return _format_dashboard_shell_commands(install_command, selected_build_command)
-
-
-def _should_auto_install_dashboard_dependencies(dashboard_root: Path) -> bool:
-    return not (dashboard_root / "node_modules").exists()
-
-
-def _try_build_dashboard() -> DashboardAutoRecoveryResult:
-    dashboard_root = _get_dashboard_root()
-    if not dashboard_root.exists():
-        logger.warning(t("startup.webui_dashboard_source_missing", dashboard_root=dashboard_root))
-        return DashboardAutoRecoveryResult(succeeded=False)
-
-    build_command = _get_dashboard_build_command(dashboard_root)
-    if build_command is None:
-        logger.warning(t("startup.webui_auto_build_tool_missing"))
-        manual_recovery_command = _get_dashboard_manual_recovery_command(dashboard_root)
-        return DashboardAutoRecoveryResult(succeeded=False, manual_recovery_command=manual_recovery_command)
-
-    manual_recovery_command = _get_dashboard_manual_recovery_command(dashboard_root, build_command)
-
-    if _should_auto_install_dashboard_dependencies(dashboard_root):
-        install_command = _DASHBOARD_INSTALL_COMMANDS[build_command[0]]
-        logger.info(t("startup.webui_auto_install_started", command=" ".join(install_command)))
-
-        try:
-            install_result = run(
-                install_command,
-                capture_output=True,
-                check=False,
-                cwd=dashboard_root,
-                text=True,
-                timeout=_DASHBOARD_INSTALL_TIMEOUT_SECONDS,
-            )
-        except TimeoutExpired as exc:
-            logger.warning(
-                t("startup.webui_auto_install_timeout", timeout_seconds=_DASHBOARD_INSTALL_TIMEOUT_SECONDS),
-            )
-            install_output = _summarize_command_output(exc)
-            if install_output:
-                logger.warning(t("startup.webui_auto_install_failed_output", output=install_output))
-            return DashboardAutoRecoveryResult(succeeded=False, manual_recovery_command=manual_recovery_command)
-        except OSError as exc:
-            logger.warning(t("startup.webui_auto_install_exec_failed", error=exc))
-            return DashboardAutoRecoveryResult(succeeded=False, manual_recovery_command=manual_recovery_command)
-
-        if install_result.returncode != 0:
-            logger.warning(t("startup.webui_auto_install_failed", return_code=install_result.returncode))
-            install_output = _summarize_command_output(install_result)
-            if install_output:
-                logger.warning(t("startup.webui_auto_install_failed_output", output=install_output))
-            return DashboardAutoRecoveryResult(succeeded=False, manual_recovery_command=manual_recovery_command)
-
-        logger.info(t("startup.webui_auto_install_succeeded"))
-
-    logger.info(t("startup.webui_auto_build_started", command=" ".join(build_command)))
-
-    try:
-        build_result = run(
-            build_command,
-            capture_output=True,
-            check=False,
-            cwd=dashboard_root,
-            text=True,
-            timeout=_DASHBOARD_BUILD_TIMEOUT_SECONDS,
-        )
-    except TimeoutExpired as exc:
-        logger.warning(
-            t("startup.webui_auto_build_timeout", timeout_seconds=_DASHBOARD_BUILD_TIMEOUT_SECONDS),
-        )
-        build_output = _summarize_command_output(exc)
-        if build_output:
-            logger.warning(t("startup.webui_auto_build_failed_output", output=build_output))
-        return DashboardAutoRecoveryResult(succeeded=False, manual_recovery_command=manual_recovery_command)
-    except OSError as exc:
-        logger.warning(t("startup.webui_auto_build_exec_failed", error=exc))
-        return DashboardAutoRecoveryResult(succeeded=False, manual_recovery_command=manual_recovery_command)
-
-    if build_result.returncode != 0:
-        logger.warning(t("startup.webui_auto_build_failed", return_code=build_result.returncode))
-        build_output = _summarize_command_output(build_result)
-        if build_output:
-            logger.warning(t("startup.webui_auto_build_failed_output", output=build_output))
-        return DashboardAutoRecoveryResult(succeeded=False, manual_recovery_command=manual_recovery_command)
-
-    logger.info(t("startup.webui_auto_build_succeeded"))
-    return DashboardAutoRecoveryResult(succeeded=True, manual_recovery_command=manual_recovery_command)
-
-
 def _ensure_static_path_ready() -> Path | None:
     static_path = _resolve_static_path()
     validation_error = _validate_static_path(static_path)
     if validation_error is None:
         return static_path
 
-    logger.info(t("startup.webui_static_assets_try_auto_build"))
-
-    auto_recovery_result = _try_build_dashboard()
-    if auto_recovery_result.succeeded:
-        static_path = _resolve_static_path()
-        validation_error = _validate_static_path(static_path)
-        if validation_error is None:
-            return static_path
-        logger.warning(t("startup.webui_auto_build_artifacts_invalid"))
-        error_key, error_kwargs = validation_error
-        logger.warning(t(error_key, **error_kwargs))
-        logger.warning(
-            t(
-                "startup.webui_manual_build_hint",
-                command=auto_recovery_result.manual_recovery_command or _MANUAL_BUILD_COMMAND,
-            )
-        )
-        return None
-
-    if auto_recovery_result.manual_recovery_command is not None:
-        logger.warning(t("startup.webui_auto_recovery_failed"))
-        logger.warning(t("startup.webui_manual_build_hint", command=auto_recovery_result.manual_recovery_command))
+    logger.warning(t("startup.webui_static_assets_unavailable"))
+    error_key, error_kwargs = validation_error
+    logger.warning(t(error_key, **error_kwargs))
+    logger.warning(t("startup.webui_dashboard_package_hint", command=_MANUAL_INSTALL_COMMAND))
     return None
 
 
@@ -371,12 +171,12 @@ def _setup_static_files(app: FastAPI):
 
     if not static_path.exists():
         logger.warning(t("startup.webui_static_dir_missing_with_path", static_path=static_path))
-        logger.warning(t("startup.webui_manual_build_hint", command=_MANUAL_BUILD_COMMAND))
+        logger.warning(t("startup.webui_dashboard_package_hint", command=_MANUAL_INSTALL_COMMAND))
         return
 
     if not (static_path / "index.html").exists():
         logger.warning(t("startup.webui_index_missing", index_path=static_path / "index.html"))
-        logger.warning(t("startup.webui_manual_build_hint", command=_MANUAL_BUILD_COMMAND))
+        logger.warning(t("startup.webui_dashboard_package_hint", command=_MANUAL_INSTALL_COMMAND))
         return
 
     @app.get("/{full_path:path}", include_in_schema=False)
@@ -415,6 +215,7 @@ def _resolve_static_path() -> Path | None:
     except Exception:
         pass
 
+    # 开发环境允许复用仓库里的现成 dist，但不再在用户机器上触发任何前端自愈构建。
     base_dir = _get_project_root()
     static_path = base_dir / "dashboard" / "dist"
     if static_path.exists():
