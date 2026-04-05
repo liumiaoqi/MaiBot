@@ -144,13 +144,14 @@ async def handle_tool(
     combined_reply_text = "".join(reply_segments)
     try:
         sent = False
+        sent_messages = []
         if tool_ctx.runtime.chat_stream.platform == CLI_PLATFORM_NAME:
             for segment in reply_segments:
                 render_cli_message(segment)
             sent = True
         else:
             for index, segment in enumerate(reply_segments):
-                sent = await send_service.text_to_stream(
+                sent_message = await send_service.text_to_stream_with_message(
                     text=segment,
                     stream_id=tool_ctx.runtime.session_id,
                     set_reply=set_quote if index == 0 else False,
@@ -158,8 +159,10 @@ async def handle_tool(
                     selected_expressions=reply_result.selected_expression_ids or None,
                     typing=index > 0,
                 )
+                sent = sent_message is not None
                 if not sent:
                     break
+                sent_messages.append(sent_message)
     except Exception:
         logger.exception(
             f"{tool_ctx.runtime.log_prefix} 发送文字消息时发生异常，目标消息编号={target_message_id}"
@@ -183,7 +186,11 @@ async def handle_tool(
     target_user_info = target_message.message_info.user_info
     target_user_name = target_user_info.user_cardname or target_user_info.user_nickname or target_user_info.user_id
 
-    tool_ctx.append_guided_reply_to_chat_history(combined_reply_text)
+    if tool_ctx.runtime.chat_stream.platform == CLI_PLATFORM_NAME:
+        tool_ctx.append_guided_reply_to_chat_history(combined_reply_text)
+    else:
+        for sent_message in sent_messages:
+            tool_ctx.append_sent_message_to_chat_history(sent_message)
     return tool_ctx.build_success_result(
         invocation.tool_name,
         "回复已生成并发送。",

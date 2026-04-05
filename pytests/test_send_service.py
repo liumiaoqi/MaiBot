@@ -143,6 +143,46 @@ async def test_text_to_stream_delegates_to_platform_io(monkeypatch: pytest.Monke
 
 
 @pytest.mark.asyncio
+async def test_text_to_stream_with_message_returns_sent_message(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_manager = _FakePlatformIOManager(
+        delivery_batch=SimpleNamespace(
+            has_success=True,
+            sent_receipts=[
+                SimpleNamespace(
+                    driver_id="plugin.qq.sender",
+                    external_message_id="real-message-id",
+                    metadata={},
+                )
+            ],
+            failed_receipts=[],
+            route_key=SimpleNamespace(platform="qq"),
+        )
+    )
+    stored_messages: List[Any] = []
+
+    monkeypatch.setattr(send_service, "get_platform_io_manager", lambda: fake_manager)
+    monkeypatch.setattr(send_service, "get_bot_account", lambda platform: "bot-qq")
+    monkeypatch.setattr(
+        send_service._chat_manager,
+        "get_session_by_session_id",
+        lambda stream_id: _build_private_stream() if stream_id == "test-session" else None,
+    )
+    monkeypatch.setattr(
+        send_service.MessageUtils,
+        "store_message_to_db",
+        lambda message: stored_messages.append(message),
+    )
+
+    sent_message = await send_service.text_to_stream_with_message(text="你好", stream_id="test-session")
+
+    assert sent_message is not None
+    assert sent_message.message_id == "real-message-id"
+    assert fake_manager.ensure_calls == 1
+    assert len(stored_messages) == 1
+    assert stored_messages[0].message_id == "real-message-id"
+
+
+@pytest.mark.asyncio
 async def test_text_to_stream_returns_false_when_platform_io_fails(monkeypatch: pytest.MonkeyPatch) -> None:
     fake_manager = _FakePlatformIOManager(
         delivery_batch=SimpleNamespace(

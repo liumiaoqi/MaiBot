@@ -2,7 +2,7 @@
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Optional, Sequence
+from typing import Any, Optional, Sequence, TYPE_CHECKING
 
 import random
 
@@ -17,6 +17,9 @@ from src.services import send_service
 from .emoji_manager import _serialize_emoji_for_hook, emoji_manager, emoji_manager_emotion_judge_llm
 
 logger = get_logger("emoji_maisaka_tool")
+
+if TYPE_CHECKING:
+    from src.chat.message_receive.message import SessionMessage
 
 EmojiSelector = Callable[
     [str, str, Sequence[str] | None, int],
@@ -35,6 +38,7 @@ class MaisakaEmojiSendResult:
     emotions: list[str] = field(default_factory=list)
     requested_emotion: str = ""
     matched_emotion: str = ""
+    sent_message: Optional["SessionMessage"] = None
 
 
 def _get_runtime_manager() -> Any:
@@ -309,6 +313,7 @@ async def send_emoji_for_maisaka(
 
     try:
         target_session = chat_manager.get_session_by_session_id(stream_id)
+        sent_message = None
         if target_session is not None and target_session.platform == CLI_PLATFORM_NAME:
             preview_message = (
                 f"已发送表情包：{selected_emoji.description.strip()}"
@@ -318,13 +323,14 @@ async def send_emoji_for_maisaka(
             render_cli_message(preview_message)
             sent = True
         else:
-            sent = await send_service.emoji_to_stream(
+            sent_message = await send_service.emoji_to_stream_with_message(
                 emoji_base64=emoji_base64,
                 stream_id=stream_id,
                 storage_message=True,
                 set_reply=False,
                 reply_message=None,
             )
+            sent = sent_message is not None
     except Exception as exc:
         return MaisakaEmojiSendResult(
             success=False,
@@ -361,4 +367,5 @@ async def send_emoji_for_maisaka(
         emotions=emotions,
         requested_emotion=normalized_requested_emotion,
         matched_emotion=matched_emotion,
+        sent_message=sent_message,
     )

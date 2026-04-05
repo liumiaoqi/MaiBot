@@ -1,4 +1,4 @@
-"""
+﻿"""
 发送服务模块。
 
 统一封装内部模块的出站消息发送逻辑：
@@ -728,7 +728,7 @@ async def _send_via_platform_io(
     reply_message_id: Optional[str],
     storage_message: bool,
     show_log: bool,
-) -> bool:
+) -> Optional[SessionMessage]:
     """通过 Platform IO 发送消息。
 
     Args:
@@ -753,7 +753,7 @@ async def _send_via_platform_io(
     )
     if before_send_result.aborted:
         logger.info(f"[SendService] 消息 {message.message_id} 在发送前被 Hook 中止")
-        return False
+        return None
 
     before_kwargs = before_send_result.kwargs
     typing = _coerce_bool(before_kwargs.get("typing"), typing)
@@ -769,13 +769,13 @@ async def _send_via_platform_io(
     except Exception as exc:
         logger.error(f"[SendService] 准备 Platform IO 发送管线失败: {exc}")
         logger.debug(traceback.format_exc())
-        return False
+        return None
 
     try:
         route_key = platform_io_manager.build_route_key_from_message(message)
     except Exception as exc:
         logger.warning(f"[SendService] 根据消息构造 Platform IO 路由键失败: {exc}")
-        return False
+        return None
 
     try:
         await _prepare_message_for_platform_io(
@@ -792,7 +792,7 @@ async def _send_via_platform_io(
     except Exception as exc:
         logger.error(f"[SendService] Platform IO 发送异常: {exc}")
         logger.debug(traceback.format_exc())
-        return False
+        return None
 
     sent = bool(delivery_batch.has_success)
     if sent:
@@ -823,10 +823,34 @@ async def _send_via_platform_io(
                 f"(drivers: {', '.join(successful_driver_ids)}) "
                 f"message={_build_outbound_log_preview(message)}"
             )
-        return True
+        return message
 
     _log_platform_io_failures(delivery_batch)
-    return False
+    return None
+
+
+async def send_session_message_with_message(
+    message: SessionMessage,
+    *,
+    typing: bool = False,
+    set_reply: bool = False,
+    reply_message_id: Optional[str] = None,
+    storage_message: bool = True,
+    show_log: bool = True,
+) -> Optional[SessionMessage]:
+    """统一发送一条内部消息，并返回最终发送成功的消息对象。"""
+    if not message.message_id:
+        logger.error("[SendService] 消息缺少 message_id，无法发送")
+        raise ValueError("消息缺少 message_id，无法发送")
+
+    return await _send_via_platform_io(
+        message,
+        typing=typing,
+        set_reply=set_reply,
+        reply_message_id=reply_message_id,
+        storage_message=storage_message,
+        show_log=show_log,
+    )
 
 
 async def send_session_message(
@@ -861,13 +885,16 @@ async def send_session_message(
         logger.error("[SendService] 消息缺少 message_id，无法发送")
         raise ValueError("消息缺少 message_id，无法发送")
 
-    return await _send_via_platform_io(
-        message,
-        typing=typing,
-        set_reply=set_reply,
-        reply_message_id=reply_message_id,
-        storage_message=storage_message,
-        show_log=show_log,
+    return (
+        await send_session_message_with_message(
+            message,
+            typing=typing,
+            set_reply=set_reply,
+            reply_message_id=reply_message_id,
+            storage_message=storage_message,
+            show_log=show_log,
+        )
+        is not None
     )
 
 
@@ -882,6 +909,34 @@ async def _send_to_target(
     show_log: bool = True,
     selected_expressions: Optional[List[int]] = None,
 ) -> bool:
+    """向指定目标构建并发送消息，并返回是否发送成功。"""
+    return (
+        await _send_to_target_with_message(
+            message_sequence=message_sequence,
+            stream_id=stream_id,
+            display_message=display_message,
+            typing=typing,
+            set_reply=set_reply,
+            reply_message=reply_message,
+            storage_message=storage_message,
+            show_log=show_log,
+            selected_expressions=selected_expressions,
+        )
+        is not None
+    )
+
+
+async def _send_to_target_with_message(
+    message_sequence: MessageSequence,
+    stream_id: str,
+    display_message: str = "",
+    typing: bool = False,
+    set_reply: bool = False,
+    reply_message: Optional[MaiMessage] = None,
+    storage_message: bool = True,
+    show_log: bool = True,
+    selected_expressions: Optional[List[int]] = None,
+) -> Optional[SessionMessage]:
     """向指定目标构建并发送消息。
 
     Args:
@@ -901,7 +956,7 @@ async def _send_to_target(
     try:
         if set_reply and reply_message is None:
             logger.warning("[SendService] 使用引用回复，但未提供回复消息")
-            return False
+            return None
 
         if show_log:
             logger.debug(f"[SendService] 发送{_describe_message_sequence(message_sequence)}消息到 {stream_id}")
@@ -914,7 +969,7 @@ async def _send_to_target(
             selected_expressions=selected_expressions,
         )
         if outbound_message is None:
-            return False
+            return None
 
         after_build_result, outbound_message = await _invoke_send_hook(
             "send_service.after_build_message",
@@ -928,7 +983,7 @@ async def _send_to_target(
         )
         if after_build_result.aborted:
             logger.info(f"[SendService] 消息 {outbound_message.message_id} 在构建后被 Hook 中止")
-            return False
+            return None
 
         after_build_kwargs = after_build_result.kwargs
         typing = _coerce_bool(after_build_kwargs.get("typing"), typing)
@@ -936,7 +991,7 @@ async def _send_to_target(
         storage_message = _coerce_bool(after_build_kwargs.get("storage_message"), storage_message)
         show_log = _coerce_bool(after_build_kwargs.get("show_log"), show_log)
 
-        sent = await send_session_message(
+        sent_message = await send_session_message_with_message(
             outbound_message,
             typing=typing,
             set_reply=set_reply,
@@ -944,16 +999,38 @@ async def _send_to_target(
             storage_message=storage_message,
             show_log=show_log,
         )
-        if sent:
+        if sent_message is not None:
             logger.debug(f"[SendService] 成功发送消息到 {stream_id}")
-            return True
+            return sent_message
 
         logger.error("[SendService] 发送消息失败")
-        return False
+        return None
     except Exception as exc:
         logger.error(f"[SendService] 发送消息时出错: {exc}")
         traceback.print_exc()
-        return False
+        return None
+
+
+async def text_to_stream_with_message(
+    text: str,
+    stream_id: str,
+    typing: bool = False,
+    set_reply: bool = False,
+    reply_message: Optional[MaiMessage] = None,
+    storage_message: bool = True,
+    selected_expressions: Optional[List[int]] = None,
+) -> Optional[SessionMessage]:
+    """向指定流发送文本消息，并返回发送成功后的消息对象。"""
+    return await _send_to_target_with_message(
+        message_sequence=MessageSequence(components=[TextComponent(text=text)]),
+        stream_id=stream_id,
+        display_message="",
+        typing=typing,
+        set_reply=set_reply,
+        reply_message=reply_message,
+        storage_message=storage_message,
+        selected_expressions=selected_expressions,
+    )
 
 
 async def text_to_stream(
@@ -979,15 +1056,36 @@ async def text_to_stream(
     Returns:
         bool: 发送成功时返回 ``True``。
     """
-    return await _send_to_target(
-        message_sequence=MessageSequence(components=[TextComponent(text=text)]),
+    return (
+        await text_to_stream_with_message(
+            text=text,
+            stream_id=stream_id,
+            typing=typing,
+            set_reply=set_reply,
+            reply_message=reply_message,
+            storage_message=storage_message,
+            selected_expressions=selected_expressions,
+        )
+        is not None
+    )
+
+
+async def emoji_to_stream_with_message(
+    emoji_base64: str,
+    stream_id: str,
+    storage_message: bool = True,
+    set_reply: bool = False,
+    reply_message: Optional[MaiMessage] = None,
+) -> Optional[SessionMessage]:
+    """向指定流发送表情消息，并返回发送成功后的消息对象。"""
+    return await _send_to_target_with_message(
+        message_sequence=_build_message_sequence_from_custom_message("emoji", emoji_base64),
         stream_id=stream_id,
         display_message="",
-        typing=typing,
+        typing=False,
+        storage_message=storage_message,
         set_reply=set_reply,
         reply_message=reply_message,
-        storage_message=storage_message,
-        selected_expressions=selected_expressions,
     )
 
 
@@ -1010,14 +1108,15 @@ async def emoji_to_stream(
     Returns:
         bool: 发送成功时返回 ``True``。
     """
-    return await _send_to_target(
-        message_sequence=_build_message_sequence_from_custom_message("emoji", emoji_base64),
-        stream_id=stream_id,
-        display_message="",
-        typing=False,
-        storage_message=storage_message,
-        set_reply=set_reply,
-        reply_message=reply_message,
+    return (
+        await emoji_to_stream_with_message(
+            emoji_base64=emoji_base64,
+            stream_id=stream_id,
+            storage_message=storage_message,
+            set_reply=set_reply,
+            reply_message=reply_message,
+        )
+        is not None
     )
 
 
