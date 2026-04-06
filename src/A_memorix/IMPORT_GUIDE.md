@@ -163,6 +163,34 @@ python src/A_memorix/scripts/audit_vector_consistency.py --json
 }
 ```
 
+### 3.3 JSON 导入字段约束（`input_mode="json"`）
+
+`create_paste/create_upload/create_raw_scan` 在 `input_mode="json"` 下，导入内容必须是语义文本，不接受 hash 形态字段作为正文或实体名。
+
+- 段落 `paragraphs[*]`
+  - 允许字符串（视为 `content`）或对象（必须包含 `content`）。
+  - `content` 若为空，或为“整串 hex 且长度 32/40/64”的疑似 hash，会被跳过并记为 warning。
+- 实体 `entities[*]`
+  - 允许字符串，或对象（仅提取 `name/label/entity` 作为实体名）。
+  - 无法提取名称、名称为空、名称为疑似 hash 的实体会被跳过。
+- 关系 `relations[*]`
+  - 仅接受对象，且必须包含 `subject/predicate/object`。
+  - 任一字段为空或为疑似 hash 时，该关系会被跳过。
+
+说明：
+
+- “跳过”不会导致任务失败，任务会继续处理其余有效项。
+- 仅阻断未来导入；历史库中的旧数据不会自动清理。
+
+### 3.4 任务告警字段
+
+`memory_import_admin` 的 `list/get/chunks` 返回中，`task.files[*]` 提供：
+
+- `warning_count`: 文件累计告警数
+- `warnings`: 告警明细（仅保留最近若干条）
+
+这两个字段用于区分“导入成功但有跳过项”与“导入失败”，不要把 warning 当作 error 处理。
+
 ## 4. 直接写入 Tool（非任务化）
 
 若你不需要任务编排，也可以直接调用：

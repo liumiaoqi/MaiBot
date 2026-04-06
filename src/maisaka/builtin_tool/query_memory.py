@@ -131,12 +131,10 @@ def _build_success_content(result: MemorySearchResult, *, limit: int) -> str:
     snippet = result.to_text(limit=max(1, int(limit)))
 
     if result.hits:
-        if summary and snippet:
-            return f"{summary}\n{snippet}"
-        if summary:
-            return summary
         if snippet:
             return snippet
+        if summary:
+            return summary
         return "已找到匹配的长期记忆。"
 
     if result.filtered:
@@ -189,6 +187,11 @@ async def handle_tool(
         group_id=group_id,
     )
     respect_filter = bool(invocation.arguments.get("respect_filter", True))
+    fallback_applied = False
+    fallback_reason = ""
+    fallback_query = ""
+    effective_mode = mode
+    primary_hit_count = 0
 
     logger.info(
         f"{runtime.log_prefix} 触发长期记忆检索工具: "
@@ -213,12 +216,53 @@ async def handle_tool(
             invocation.tool_name,
             f"长期记忆检索失败：{exc}",
         )
+    primary_hit_count = len(result.hits)
+
+    # 方案2：人物过滤未命中时，降级到关键词检索，避免直接“空结果”。
+    if (
+        result.success
+        and person_id
+        and not result.filtered
+        and not result.hits
+        and clean_query
+    ):
+        fallback_applied = True
+        fallback_reason = "person_filter_miss"
+        fallback_query = clean_query
+        effective_mode = "search"
+        logger.info(
+            f"{runtime.log_prefix} 人物过滤未命中，降级为关键词检索: "
+            f"query={fallback_query!r} original_mode={mode} person_id={person_id!r}"
+        )
+        try:
+            fallback_result = await memory_service.search(
+                fallback_query,
+                limit=limit,
+                mode="search",
+                chat_id=session_id,
+                person_id="",
+                time_start=None,
+                time_end=None,
+                respect_filter=respect_filter,
+                user_id=user_id,
+                group_id=group_id,
+            )
+            if fallback_result.success:
+                result = fallback_result
+            else:
+                logger.warning(
+                    f"{runtime.log_prefix} 关键词降级检索失败，回退原结果: "
+                    f"error={fallback_result.error}"
+                )
+        except Exception as exc:
+            logger.warning(f"{runtime.log_prefix} 关键词降级检索异常，回退原结果: {exc}")
 
     structured_content: Dict[str, Any] = result.to_dict()
     structured_content.update(
         {
             "query": clean_query,
             "mode": mode,
+            "effective_mode": effective_mode,
             "limit": limit,
             "chat_id": session_id,
             "person_name": person_name,
@@ -228,6 +272,10 @@ async def handle_tool(
             "respect_filter": respect_filter,
             "user_id": user_id,
             "group_id": group_id,
+            "fallback_applied": fallback_applied,
+            "fallback_reason": fallback_reason,
+            "fallback_query": fallback_query,
+            "primary_hit_count": primary_hit_count,
         }
     )
 
@@ -240,6 +288,11 @@ async def handle_tool(
         )
 
     content = _build_success_content(result, limit=limit)
+    if fallback_applied:
+        content = (
+            "提示：人物定向检索未命中，已自动降级为关键词检索。\n"
+            f"{content}"
+        )
     if clean_query:
         display_prompt = f"你查询了长期记忆：{clean_query}"
     else:
