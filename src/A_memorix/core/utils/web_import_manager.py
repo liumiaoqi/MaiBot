@@ -33,7 +33,13 @@ from ..storage import (
     MetadataStore,
 )
 from ..storage.type_detection import looks_like_quote_text
-from ..utils.import_payloads import normalize_paragraph_import_item
+from ..utils.import_payloads import (
+    ImportPayloadValidationError,
+    is_probable_hash_token,
+    normalize_entity_import_item,
+    normalize_paragraph_import_item,
+    normalize_relation_import_item,
+)
 from ..utils.runtime_self_check import ensure_runtime_self_check
 from ..utils.time_parser import normalize_time_meta
 from ..storage.knowledge_types import ImportStrategy
@@ -76,6 +82,8 @@ CHUNK_STATUS = {
     "failed",
     "cancelled",
 }
+
+FILE_WARNING_KEEP_LIMIT = 50
 
 
 def _now() -> float:
@@ -219,6 +227,8 @@ class ImportFileRecord:
     content_hash: str = ""
     retry_chunk_indexes: List[int] = field(default_factory=list)
     retry_mode: str = ""
+    warning_count: int = 0
+    warnings: List[str] = field(default_factory=list)
 
     def to_dict(self, include_chunks: bool = False) -> Dict[str, Any]:
         payload = {
@@ -241,6 +251,8 @@ class ImportFileRecord:
             "content_hash": self.content_hash or "",
             "retry_chunk_indexes": list(self.retry_chunk_indexes or []),
             "retry_mode": self.retry_mode or "",
+            "warning_count": int(self.warning_count),
+            "warnings": list(self.warnings),
         }
         if include_chunks:
             payload["chunks"] = [chunk.to_dict() for chunk in self.chunks]
@@ -1386,6 +1398,7 @@ class ImportTaskManager:
                 "offset": start,
                 "limit": size,
                 "total": len(file_obj.chunks),
+                "file": file_obj.to_dict(include_chunks=False),
                 "items": [x.to_dict() for x in items],
             }
 
@@ -2775,7 +2788,9 @@ class ImportTaskManager:
             if task:
                 task.schema_detected = schema
                 task.updated_at = _now()
-        units = self._build_json_units(data, file_record.file_id, file_record.name, schema)
+        units, build_warnings = self._build_json_units(data, file_record.file_id, file_record.name, schema)
+        if build_warnings:
+            await self._append_file_warnings(task_id, file_record.file_id, build_warnings)
         await self._register_json_units(task_id, file_record.file_id, units)
 
         await self._set_file_state(task_id, file_record.file_id, "extracting", "extracting")
@@ -2829,8 +2844,15 @@ class ImportTaskManager:
             return "web_json"
         raise RuntimeError("不支持的 JSON 格式：需要 paragraphs 或 docs")
 
-    def _build_json_units(self, data: Any, file_id: str, filename: str, schema: str) -> List[Dict[str, Any]]:
+    def _build_json_units(
+        self,
+        data: Any,
+        file_id: str,
+        filename: str,
+        schema: str,
+    ) -> Tuple[List[Dict[str, Any]], List[str]]:
         units: List[Dict[str, Any]] = []
+        warnings: List[str] = []
         paragraphs: List[Any] = []
         entities: List[Any] = []
         relations: List[Any] = []
@@ -2867,11 +2889,17 @@ class ImportTaskManager:
                 }
                 paragraphs.append(para_item)
 
-        for p in paragraphs:
-            paragraph = normalize_paragraph_import_item(
-                p,
-                default_source=f"web_import:{filename}",
-            )
+        for paragraph_index, p in enumerate(paragraphs):
+            try:
+                paragraph = normalize_paragraph_import_item(
+                    p,
+                    default_source=f"web_import:{filename}",
+                )
+            except ImportPayloadValidationError as exc:
+                warnings.append(
+                    f"跳过段落[{paragraph_index}]：{exc} (code={exc.code})"
+                )
+                continue
             units.append(
                 {
                     "chunk_id": f"{file_id}_json_{len(units)}",
@@ -2887,38 +2915,51 @@ class ImportTaskManager:
                 }
             )
 
-        for e in entities:
-            name = str(e or "").strip()
-            if name:
-                units.append(
-                    {
-                        "chunk_id": f"{file_id}_json_{len(units)}",
-                        "kind": "entity",
-                        "name": name,
-                        "chunk_type": "entity",
-                        "preview": name[:120],
-                    }
+        for entity_index, e in enumerate(entities):
+            name = normalize_entity_import_item(e)
+            if not name:
+                raw = str(e or "").strip()
+                warnings.append(
+                    f"跳过实体[{entity_index}]：无效名称或疑似哈希值 ({raw[:80]})"
                 )
-
-        for r in relations:
-            if not isinstance(r, dict):
                 continue
-            s = str(r.get("subject", "")).strip()
-            p = str(r.get("predicate", "")).strip()
-            o = str(r.get("object", "")).strip()
-            if s and p and o:
-                units.append(
-                    {
-                        "chunk_id": f"{file_id}_json_{len(units)}",
-                        "kind": "relation",
-                        "subject": s,
-                        "predicate": p,
-                        "object": o,
-                        "chunk_type": "relation",
-                        "preview": f"{s} {p} {o}"[:120],
-                    }
+            units.append(
+                {
+                    "chunk_id": f"{file_id}_json_{len(units)}",
+                    "kind": "entity",
+                    "name": name,
+                    "chunk_type": "entity",
+                    "preview": name[:120],
+                }
+            )
+
+        for relation_index, r in enumerate(relations):
+            relation = normalize_relation_import_item(r)
+            if relation is None:
+                if isinstance(r, dict):
+                    raw = (
+                        f"{str(r.get('subject', '')).strip()} | "
+                        f"{str(r.get('predicate', '')).strip()} | "
+                        f"{str(r.get('object', '')).strip()}"
+                    )
+                else:
+                    raw = str(r or "").strip()
+                warnings.append(
+                    f"跳过关系[{relation_index}]：无效三元组或疑似哈希值 ({raw[:120]})"
                 )
-        return units
+                continue
+            units.append(
+                {
+                    "chunk_id": f"{file_id}_json_{len(units)}",
+                    "kind": "relation",
+                    "subject": relation["subject"],
+                    "predicate": relation["predicate"],
+                    "object": relation["object"],
+                    "chunk_type": "relation",
+                    "preview": f"{relation['subject']} {relation['predicate']} {relation['object']}"[:120],
+                }
+            )
+        return units, warnings
 
     async def _register_json_units(self, task_id: str, file_id: str, units: List[Dict[str, Any]]) -> None:
         records = [
@@ -2964,48 +3005,91 @@ class ImportTaskManager:
 
             await self._set_chunk_state(task_id, file_record.file_id, chunk_id, "writing", "writing", 0.7)
             try:
+                chunk_warnings: List[str] = []
+                skip_write = False
                 async with self._storage_lock:
                     kind = unit["kind"]
                     if kind == "paragraph":
                         content = str(unit.get("content", ""))
+                        if not content.strip():
+                            chunk_warnings.append(f"跳过分块[{chunk_id}]：段落内容为空")
+                            skip_write = True
+                        elif is_probable_hash_token(content):
+                            chunk_warnings.append(f"跳过分块[{chunk_id}]：段落内容疑似哈希值")
+                            skip_write = True
+                        if skip_write:
+                            pass
                         k_type = resolve_stored_knowledge_type(
                             unit.get("knowledge_type"),
                             content=content,
                         ).value
                         source = str(unit.get("source") or f"web_import:{file_record.name}")
-                        para_hash = self.plugin.metadata_store.add_paragraph(
-                            content=content,
-                            source=source,
-                            knowledge_type=k_type,
-                            time_meta=unit.get("time_meta"),
-                        )
-                        vector_result = await self._write_paragraph_vector_or_enqueue(
-                            paragraph_hash=para_hash,
-                            content=content,
-                            context="web_import_json",
-                        )
-                        if str(vector_result.get("warning", "") or "").strip():
-                            logger.warning(
-                                f"web_import json paragraph 向量写入降级: hash={para_hash[:8]} detail={vector_result.get('detail')}"
+                        if not skip_write:
+                            para_hash = self.plugin.metadata_store.add_paragraph(
+                                content=content,
+                                source=source,
+                                knowledge_type=k_type,
+                                time_meta=unit.get("time_meta"),
                             )
-                        for name in unit.get("entities", []) or []:
-                            n = str(name or "").strip()
-                            if n:
+                            vector_result = await self._write_paragraph_vector_or_enqueue(
+                                paragraph_hash=para_hash,
+                                content=content,
+                                context="web_import_json",
+                            )
+                            if str(vector_result.get("warning", "") or "").strip():
+                                logger.warning(
+                                    f"web_import json paragraph 向量写入降级: hash={para_hash[:8]} detail={vector_result.get('detail')}"
+                                )
+                            for name in unit.get("entities", []) or []:
+                                n = str(name or "").strip()
+                                if not n:
+                                    continue
+                                if is_probable_hash_token(n):
+                                    chunk_warnings.append(
+                                        f"跳过分块[{chunk_id}]中的实体：疑似哈希值 ({n[:32]})"
+                                    )
+                                    continue
                                 await self._add_entity_with_vector(n, source_paragraph=para_hash)
-                        for rel in unit.get("relations", []) or []:
-                            if not isinstance(rel, dict):
-                                continue
-                            s = str(rel.get("subject", "")).strip()
-                            p = str(rel.get("predicate", "")).strip()
-                            o = str(rel.get("object", "")).strip()
-                            if s and p and o:
+                            for rel in unit.get("relations", []) or []:
+                                if not isinstance(rel, dict):
+                                    continue
+                                s = str(rel.get("subject", "")).strip()
+                                p = str(rel.get("predicate", "")).strip()
+                                o = str(rel.get("object", "")).strip()
+                                if not (s and p and o):
+                                    continue
+                                if any(is_probable_hash_token(token) for token in (s, p, o)):
+                                    chunk_warnings.append(
+                                        f"跳过分块[{chunk_id}]中的关系：疑似哈希值 ({s[:24]}|{p[:24]}|{o[:24]})"
+                                    )
+                                    continue
                                 await self._add_relation(s, p, o, source_paragraph=para_hash)
                     elif kind == "entity":
-                        await self._add_entity_with_vector(unit["name"])
+                        entity_name = str(unit.get("name", "")).strip()
+                        if not entity_name:
+                            chunk_warnings.append(f"跳过分块[{chunk_id}]：实体名为空")
+                            skip_write = True
+                        elif is_probable_hash_token(entity_name):
+                            chunk_warnings.append(f"跳过分块[{chunk_id}]：实体名疑似哈希值")
+                            skip_write = True
+                        if not skip_write:
+                            await self._add_entity_with_vector(entity_name)
                     elif kind == "relation":
-                        await self._add_relation(unit["subject"], unit["predicate"], unit["object"])
+                        subject = str(unit.get("subject", "")).strip()
+                        predicate = str(unit.get("predicate", "")).strip()
+                        obj = str(unit.get("object", "")).strip()
+                        if not (subject and predicate and obj):
+                            chunk_warnings.append(f"跳过分块[{chunk_id}]：关系字段不完整")
+                            skip_write = True
+                        elif any(is_probable_hash_token(token) for token in (subject, predicate, obj)):
+                            chunk_warnings.append(f"跳过分块[{chunk_id}]：关系字段疑似哈希值")
+                            skip_write = True
+                        if not skip_write:
+                            await self._add_relation(subject, predicate, obj)
                     else:
                         raise RuntimeError(f"未知 JSON 导入单元类型: {kind}")
+                if chunk_warnings:
+                    await self._append_file_warnings(task_id, file_record.file_id, chunk_warnings)
                 await self._set_chunk_completed(task_id, file_record.file_id, chunk_id)
             except Exception as e:
                 await self._set_chunk_failed(task_id, file_record.file_id, chunk_id, f"写入失败: {e}")
@@ -3040,7 +3124,10 @@ class ImportTaskManager:
         *,
         time_meta: Optional[Dict[str, Any]] = None,
     ) -> None:
-        content = processed.chunk.text
+        content = str(processed.chunk.text or "")
+        if is_probable_hash_token(content):
+            logger.warning("跳过疑似哈希段落写入: source=%s preview=%s", self._source_label(file_record), content[:32])
+            return
         para_hash = self.plugin.metadata_store.add_paragraph(
             content=content,
             source=self._source_label(file_record),
@@ -3081,7 +3168,7 @@ class ImportTaskManager:
         for k in ("entities", "events", "verbatim_entities"):
             for e in data.get(k, []):
                 name = str(e or "").strip()
-                if name:
+                if name and not is_probable_hash_token(name):
                     entities.append(name)
 
         uniq_entities = list({x.strip().lower(): x.strip() for x in entities if str(x).strip()}.values())
@@ -3092,23 +3179,44 @@ class ImportTaskManager:
             await self._add_relation(s, p, o, source_paragraph=para_hash)
 
     async def _add_entity_with_vector(self, name: str, source_paragraph: str = "") -> str:
-        hash_value = self.plugin.metadata_store.add_entity(name=name, source_paragraph=source_paragraph)
-        self.plugin.graph_store.add_nodes([name])
+        name_token = str(name or "").strip()
+        if not name_token:
+            return ""
+        if is_probable_hash_token(name_token):
+            logger.warning(f"跳过疑似哈希实体写入: entity={name_token[:32]}")
+            return ""
+
+        hash_value = self.plugin.metadata_store.add_entity(name=name_token, source_paragraph=source_paragraph)
+        self.plugin.graph_store.add_nodes([name_token])
         if hash_value not in self.plugin.vector_store:
             try:
                 if self._is_embedding_degraded():
                     raise RuntimeError("embedding_degraded")
-                emb = await self.plugin.embedding_manager.encode(name)
+                emb = await self.plugin.embedding_manager.encode(name_token)
                 self.plugin.vector_store.add(emb.reshape(1, -1), [hash_value])
             except Exception as exc:
                 if not self._allow_metadata_only_write():
                     raise
-                logger.warning(f"实体向量写入降级，保留 metadata/graph: entity={name} error={exc}")
+                logger.warning(f"实体向量写入降级，保留 metadata/graph: entity={name_token} error={exc}")
         return hash_value
 
     async def _add_relation(self, subject: str, predicate: str, obj: str, source_paragraph: str = "") -> str:
-        await self._add_entity_with_vector(subject, source_paragraph=source_paragraph)
-        await self._add_entity_with_vector(obj, source_paragraph=source_paragraph)
+        subject_token = str(subject or "").strip()
+        predicate_token = str(predicate or "").strip()
+        object_token = str(obj or "").strip()
+        if not (subject_token and predicate_token and object_token):
+            return ""
+        if any(is_probable_hash_token(token) for token in (subject_token, predicate_token, object_token)):
+            logger.warning(
+                "跳过疑似哈希关系写入: %s | %s | %s",
+                subject_token[:24],
+                predicate_token[:24],
+                object_token[:24],
+            )
+            return ""
+
+        await self._add_entity_with_vector(subject_token, source_paragraph=source_paragraph)
+        await self._add_entity_with_vector(object_token, source_paragraph=source_paragraph)
         rv_cfg = self.plugin.get_config("retrieval.relation_vectorization", {}) or {}
         if not isinstance(rv_cfg, dict):
             rv_cfg = {}
@@ -3117,9 +3225,9 @@ class ImportTaskManager:
         relation_service = getattr(self.plugin, "relation_write_service", None)
         if relation_service is not None:
             result = await relation_service.upsert_relation_with_vector(
-                subject=subject,
-                predicate=predicate,
-                obj=obj,
+                subject=subject_token,
+                predicate=predicate_token,
+                obj=object_token,
                 confidence=1.0,
                 source_paragraph=source_paragraph,
                 write_vector=write_vector,
@@ -3127,13 +3235,13 @@ class ImportTaskManager:
             return result.hash_value
 
         rel_hash = self.plugin.metadata_store.add_relation(
-            subject=subject,
-            predicate=predicate,
-            obj=obj,
+            subject=subject_token,
+            predicate=predicate_token,
+            obj=object_token,
             source_paragraph=source_paragraph,
             confidence=1.0,
         )
-        self.plugin.graph_store.add_edges([(subject, obj)], relation_hashes=[rel_hash])
+        self.plugin.graph_store.add_edges([(subject_token, object_token)], relation_hashes=[rel_hash])
         try:
             self.plugin.metadata_store.set_relation_vector_state(rel_hash, "none")
         except Exception:
@@ -3375,6 +3483,28 @@ JSON schema:
             if step in {"preparing", "splitting", "extracting", "writing", "saving"} and task.status in {"queued", "preparing"}:
                 task.status = "running"
                 task.current_step = "running"
+
+    async def _append_file_warning(self, task_id: str, file_id: str, warning: str) -> None:
+        warning_text = str(warning or "").strip()
+        if not warning_text:
+            return
+        async with self._lock:
+            task = self._tasks.get(task_id)
+            if not task:
+                return
+            file_record = self._find_file(task, file_id)
+            if not file_record:
+                return
+            file_record.warning_count += 1
+            file_record.warnings.append(warning_text)
+            if len(file_record.warnings) > FILE_WARNING_KEEP_LIMIT:
+                file_record.warnings = file_record.warnings[-FILE_WARNING_KEEP_LIMIT:]
+            file_record.updated_at = _now()
+            task.updated_at = _now()
+
+    async def _append_file_warnings(self, task_id: str, file_id: str, warnings: List[str]) -> None:
+        for warning in warnings:
+            await self._append_file_warning(task_id, file_id, warning)
 
     async def _set_file_failed(self, task_id: str, file_id: str, error: str) -> None:
         async with self._lock:
