@@ -113,21 +113,6 @@ class PersonalityConfig(ConfigBase):
     )
     """每次构建回复时，从 multiple_reply_style 中随机替换 reply_style 的概率（0.0-1.0）"""
 
-    plan_style: str = Field(
-        default=(
-            "1.思考**所有**的可用的action中的**每个动作**是否符合当下条件，如果动作使用条件符合聊天内容就使用"
-            "2.如果相同的action已经被执行，请不要重复执行该action"
-            "3.如果有人对你感到厌烦，请减少回复"
-            "4.如果有人在追问你，或者话题没有说完，请你继续回复"
-            "5.请分析哪些对话是和你说的，哪些是其他人之间的互动，不要误认为其他人之间的互动是和你说的"
-        ),
-        json_schema_extra={
-            "x-widget": "textarea",
-            "x-icon": "book-open",
-        },
-    )
-    """_wrap_麦麦的说话规则和行为规则"""
-
     visual_style: str = Field(
         default="请用中文描述这张图片的内容。如果有文字，请把文字描述概括出来，请留意其主题，直观感受，输出为一段平文本，最多30字，请注意不要分点，就输出一段文本",
         json_schema_extra={
@@ -242,20 +227,6 @@ class ChatConfig(ConfigBase):
         },
     )
     """每个聊天流最大保存的Plan/Reply日志数量，超过此数量时会自动删除最老的日志"""
-    private_plan_style: str = Field(
-        default=(
-            "1.思考**所有**的可用的action中的**每个动作**是否符合当下条件，如果动作使用条件符合聊天内容就使用\n"
-            "2.如果相同的内容已经被执行，请不要重复执行\n"
-            "3.某句话如果已经被回复过，不要重复回复"
-        ),
-        json_schema_extra={
-            "x-widget": "textarea",
-            "x-icon": "user",
-        },
-    )
-    """_wrap_私聊说话规则，行为风格"""
-
-
     group_chat_prompt: str = Field(
         default="你需要控制自己发言的频率，如果是一对一聊天，可以以较均匀的频率发言；如果用户较多，不要每句都回复，控制回复频率，不要回复的太频繁！控制回复的频率，不要每个人的消息都回复。",
         json_schema_extra={

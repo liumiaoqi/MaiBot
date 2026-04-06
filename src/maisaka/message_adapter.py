@@ -3,9 +3,11 @@
 from copy import deepcopy
 from datetime import datetime
 from typing import Optional
+
 import re
 
 from src.common.data_models.message_component_data_model import (
+    AtComponent,
     EmojiComponent,
     ImageComponent,
     MessageSequence,
@@ -26,13 +28,15 @@ def format_speaker_content(
     message_id: Optional[str] = None,
 ) -> str:
     """将可见文本格式化为带说话人前缀的样式。"""
+
     time_prefix = timestamp.strftime("%H:%M:%S") if timestamp is not None else ""
     message_id_prefix = f"[msg_id:{message_id}]" if message_id else ""
     return f"{time_prefix}{message_id_prefix}[{speaker_name}]{content}"
 
 
 def parse_speaker_content(content: str) -> tuple[Optional[str], str]:
-    """解析形如 [speaker]message 的可见文本。"""
+    """解析形如 `[speaker]message` 的可见文本。"""
+
     match = SPEAKER_PREFIX_PATTERN.match(content or "")
     if not match:
         return None, content or ""
@@ -41,11 +45,20 @@ def parse_speaker_content(content: str) -> tuple[Optional[str], str]:
 
 def clone_message_sequence(message_sequence: MessageSequence) -> MessageSequence:
     """复制消息片段序列。"""
+
     return MessageSequence([deepcopy(component) for component in message_sequence.components])
+
+
+def _render_at_component_text(component: AtComponent) -> str:
+    """将 AtComponent 渲染为文本。"""
+
+    target_name = component.target_user_cardname or component.target_user_nickname or component.target_user_id
+    return f"@{target_name}".strip()
 
 
 def build_visible_text_from_sequence(message_sequence: MessageSequence) -> str:
     """从消息片段序列提取可见文本。"""
+
     parts: list[str] = []
     for component in message_sequence.components:
         if isinstance(component, TextComponent):
@@ -71,6 +84,10 @@ def build_visible_text_from_sequence(message_sequence: MessageSequence) -> str:
 
         if isinstance(component, ImageComponent):
             parts.append(component.content or "[图片]")
+            continue
+
+        if isinstance(component, AtComponent):
+            parts.append(_render_at_component_text(component))
             continue
 
         if isinstance(component, ReplyComponent):

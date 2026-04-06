@@ -346,6 +346,10 @@ def try_migrate_legacy_bot_config_dict(data: dict[str, Any]) -> MigrationResult:
     if chat is None:
         chat = {}
         data["chat"] = chat
+    elif "private_plan_style" in chat:
+        chat.pop("private_plan_style", None)
+        migrated_any = True
+        reasons.append("chat.private_plan_style_removed")
 
     mem = _as_dict(data.get("memory"))
     if mem is not None:
@@ -366,7 +370,12 @@ def try_migrate_legacy_bot_config_dict(data: dict[str, Any]) -> MigrationResult:
             migrated_any = True
             reasons.append("experimental.chat_prompts")
 
-        for key in ("private_plan_style", "group_chat_prompt", "private_chat_prompts", "chat_prompts"):
+        if "private_plan_style" in exp:
+            exp.pop("private_plan_style", None)
+            migrated_any = True
+            reasons.append("experimental.private_plan_style_removed")
+
+        for key in ("group_chat_prompt", "private_chat_prompts", "chat_prompts"):
             if key in exp and key not in chat:
                 chat[key] = exp[key]
                 migrated_any = True

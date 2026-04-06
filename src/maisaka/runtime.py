@@ -13,6 +13,7 @@ from src.cli.console import console
 from src.chat.heart_flow.heartFC_utils import CycleDetail
 from src.chat.message_receive.chat_manager import BotChatSession, chat_manager
 from src.chat.message_receive.message import SessionMessage
+from src.chat.utils.utils import is_mentioned_bot_in_message
 from src.common.data_models.mai_message_data_model import GroupInfo, UserInfo
 from src.common.logger import get_logger
 from src.common.utils.utils_config import ExpressionConfigUtils
@@ -72,8 +73,6 @@ class MaisakaHeartFlowChatting:
         self._running = False
         self._cycle_counter = 0
         self._internal_loop_task: Optional[asyncio.Task] = None
-        self._loop_task: Optional[asyncio.Task] = None
-        self._new_message_event = asyncio.Event()
         self._message_turn_scheduled = False
         self._message_debounce_seconds = 1.0
         self._message_debounce_required = False
@@ -84,6 +83,9 @@ class MaisakaHeartFlowChatting:
         self._agent_state: Literal["running", "wait", "stop"] = self._STATE_STOP
         self._wait_until: Optional[float] = None
         self._pending_wait_tool_call_id: Optional[str] = None
+        self._force_continue_until_reply = False
+        self._force_continue_trigger_message_id = ""
+        self._force_continue_trigger_reason = ""
         self._planner_interrupt_flag: Optional[asyncio.Event] = None
         self._planner_interrupt_requested = False
         self._planner_interrupt_consecutive_count = 0
@@ -118,6 +120,7 @@ class MaisakaHeartFlowChatting:
 
         self._running = True
         self._ensure_background_tasks_running()
+        self._schedule_message_turn()
         logger.info(f"{self.log_prefix} Maisaka 运行时已启动")
 
     async def stop(self) -> None:
@@ -126,21 +129,11 @@ class MaisakaHeartFlowChatting:
             return
 
         self._running = False
-        self._new_message_event.set()
         self._message_turn_scheduled = False
         self._message_debounce_required = False
         self._cancel_wait_timeout_task()
         while not self._internal_turn_queue.empty():
             _ = self._internal_turn_queue.get_nowait()
-
-        if self._loop_task is not None:
-            self._loop_task.cancel()
-            try:
-                await self._loop_task
-            except asyncio.CancelledError:
-                pass
-            finally:
-                self._loop_task = None
 
         if self._internal_loop_task is not None:
             self._internal_loop_task.cancel()
@@ -166,6 +159,7 @@ class MaisakaHeartFlowChatting:
         if self._running:
             self._ensure_background_tasks_running()
         self._last_message_received_at = time.time()
+        self._update_message_trigger_state(message)
         self.message_cache.append(message)
         self._source_messages_by_id[message.message_id] = message
         if self._agent_state == self._STATE_WAIT:
@@ -199,7 +193,78 @@ class MaisakaHeartFlowChatting:
                     f"{self._planner_interrupt_max_consecutive_count}"
                 )
                 self._planner_interrupt_flag.set()
-        self._new_message_event.set()
+        if self._running:
+            self._schedule_message_turn()
+
+    def _update_message_trigger_state(self, message: SessionMessage) -> None:
+        """补齐消息中的 @/提及 标记，并在命中时启用强制 continue。"""
+
+        detected_mentioned, detected_at, _ = is_mentioned_bot_in_message(message)
+        if detected_at:
+            message.is_at = True
+        if detected_mentioned:
+            message.is_mentioned = True
+
+        if not message.is_at and not message.is_mentioned:
+            return
+
+        self._arm_force_continue_until_reply(
+            message,
+            is_at=message.is_at,
+            is_mentioned=message.is_mentioned,
+        )
+
+    def _arm_force_continue_until_reply(
+        self,
+        message: SessionMessage,
+        *,
+        is_at: bool,
+        is_mentioned: bool,
+    ) -> None:
+        """在检测到 @ 或提及时，要求后续轮次跳过 Timing Gate 直到成功 reply。"""
+
+        trigger_reason = "@消息" if is_at else "提及消息" if is_mentioned else "触发消息"
+        was_armed = self._force_continue_until_reply
+        self._force_continue_until_reply = True
+        self._force_continue_trigger_message_id = message.message_id
+        self._force_continue_trigger_reason = trigger_reason
+
+        if was_armed:
+            logger.info(
+                f"{self.log_prefix} 检测到新的{trigger_reason}，刷新强制 continue 状态；"
+                f"消息编号={message.message_id}"
+            )
+            return
+
+        logger.info(
+            f"{self.log_prefix} 检测到{trigger_reason}，将跳过 Timing Gate 直到成功发送一条 reply；"
+            f"消息编号={message.message_id}"
+        )
+
+    def _clear_force_continue_until_reply(self) -> None:
+        """在成功发送 reply 后清理强制 continue 状态。"""
+
+        if not self._force_continue_until_reply:
+            return
+
+        logger.info(
+            f"{self.log_prefix} 已成功发送 reply，恢复 Timing Gate；"
+            f"触发原因={self._force_continue_trigger_reason or '未知'} "
+            f"触发消息编号={self._force_continue_trigger_message_id or 'unknown'}"
+        )
+        self._force_continue_until_reply = False
+        self._force_continue_trigger_message_id = ""
+        self._force_continue_trigger_reason = ""
+
+    def _build_force_continue_timing_reason(self) -> str:
+        """返回当前强制跳过 Timing Gate 的原因描述。"""
+
+        trigger_reason = self._force_continue_trigger_reason or "@/提及消息"
+        trigger_message_id = self._force_continue_trigger_message_id or "unknown"
+        return (
+            f"检测到新的{trigger_reason}（消息编号={trigger_message_id}），"
+            "本轮直接跳过 Timing Gate 并视作 continue，直到成功发送一条 reply。"
+        )
 
     def _bind_planner_interrupt_flag(self, interrupt_flag: asyncio.Event) -> None:
         """绑定当前可打断请求使用的中断标记。"""
@@ -234,17 +299,6 @@ class MaisakaHeartFlowChatting:
                     logger.error(f"{self.log_prefix} 内部循环任务异常退出: {exc}")
             self._internal_loop_task = asyncio.create_task(self._reasoning_engine.run_loop())
             logger.warning(f"{self.log_prefix} 已重新拉起 Maisaka 内部循环任务")
-
-        if self._loop_task is None or self._loop_task.done():
-            if self._loop_task is not None and not self._loop_task.cancelled():
-                try:
-                    exc = self._loop_task.exception()
-                except Exception:
-                    exc = None
-                if exc is not None:
-                    logger.error(f"{self.log_prefix} 主循环任务异常退出: {exc}")
-            self._loop_task = asyncio.create_task(self._main_loop())
-            logger.warning(f"{self.log_prefix} 已重新拉起 Maisaka 主循环任务")
 
     def _register_tool_providers(self) -> None:
         """注册 Maisaka 运行时默认启用的工具 Provider。"""
@@ -293,21 +347,16 @@ class MaisakaHeartFlowChatting:
             tool_definitions=[] if tool_definitions is None else tool_definitions,
         )
 
-    async def _main_loop(self) -> None:
-        try:
-            while self._running:
-                if self._has_pending_messages() and not self._message_turn_scheduled:
-                    self._message_turn_scheduled = True
-                    await self._internal_turn_queue.put("message")
-                    continue
-
-                self._new_message_event.clear()
-                await self._new_message_event.wait()
-        except asyncio.CancelledError:
-            logger.info(f"{self.log_prefix} Maisaka 运行时主循环已取消")
-
     def _has_pending_messages(self) -> bool:
         return self._last_processed_index < len(self.message_cache)
+
+    def _schedule_message_turn(self) -> None:
+        """为当前待处理消息安排一次内部 turn。"""
+        if not self._has_pending_messages() or self._message_turn_scheduled:
+            return
+
+        self._message_turn_scheduled = True
+        self._internal_turn_queue.put_nowait("message")
 
     def _collect_pending_messages(self) -> list[SessionMessage]:
         """从消息缓存中收集一批尚未处理的消息。"""
@@ -360,8 +409,6 @@ class MaisakaHeartFlowChatting:
             self._wait_timeout_task = asyncio.create_task(
                 self._schedule_wait_timeout(seconds=seconds, tool_call_id=tool_call_id)
             )
-        # 清理旧的消息触发信号，避免 wait 被历史消息残留事件立即唤醒。
-        self._new_message_event.clear()
 
     def _enter_stop_state(self) -> None:
         """切换到停止状态。"""

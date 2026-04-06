@@ -2,13 +2,13 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
-from rich.traceback import install
-
 import asyncio
 import random
 import re
 import time
 import traceback
+
+from rich.traceback import install
 
 from src.common.logger import get_logger
 from src.common.data_models.llm_service_data_models import (
@@ -50,6 +50,13 @@ from src.llm_models.utils import compress_messages, llm_usage_recorder
 install(extra_lines=3)
 
 logger = get_logger("model_utils")
+
+DATA_URI_LIMIT_PATTERN = re.compile(
+    r"Exceeded limit on max bytes per data-uri item\s*:\s*(?P<limit>\d+)",
+    re.IGNORECASE,
+)
+DATA_URI_RETRY_MARGIN_BYTES = 128 * 1024
+MIN_COMPRESSED_IMAGE_TARGET_SIZE_BYTES = 512 * 1024
 
 
 class RequestType(Enum):
@@ -131,6 +138,49 @@ class LLMOrchestrator:
                 f"LLM请求耗时过长: {request_type_display} 使用模型 {model_name} 耗时 {time_cost:.1f}s（阈值: {threshold}s），请考虑使用更快的模型\n"
                 f"  如果你认为该警告出现得过于频繁，请调整model_config.toml中对应任务的slow_threshold至符合你实际情况的合理值"
             )
+
+    @staticmethod
+    def _can_retry_with_compressed_images(
+        active_request: ClientRequest,
+        original_response_request: ResponseRequest | None,
+    ) -> bool:
+        """判断当前请求是否还可以通过压缩图片进行一次兜底重试。"""
+        return (
+            isinstance(active_request, ResponseRequest)
+            and bool(active_request.message_list)
+            and original_response_request is not None
+            and active_request.message_list == original_response_request.message_list
+        )
+
+    @staticmethod
+    def _extract_data_uri_limit_bytes(error: RespNotOkException) -> int | None:
+        """从兼容 OpenAI 的错误文本中提取 data URI 单项大小限制。"""
+        candidate_messages = [error.message, str(error)]
+        if error.__cause__ is not None:
+            candidate_messages.append(str(error.__cause__))
+
+        for candidate_message in candidate_messages:
+            if not candidate_message:
+                continue
+
+            match = DATA_URI_LIMIT_PATTERN.search(candidate_message)
+            if match is None:
+                continue
+
+            try:
+                return int(match.group("limit"))
+            except (TypeError, ValueError):
+                return None
+
+        return None
+
+    @staticmethod
+    def _build_data_uri_retry_target_size(limit_bytes: int) -> int:
+        """根据上游返回的 data URI 上限，计算压缩重试的安全目标值。"""
+        return max(
+            MIN_COMPRESSED_IMAGE_TARGET_SIZE_BYTES,
+            limit_bytes - DATA_URI_RETRY_MARGIN_BYTES,
+        )
 
     @staticmethod
     def _build_generation_result(
@@ -735,6 +785,11 @@ class LLMOrchestrator:
                 task_display = self.request_type or "未知任务"
 
                 # 可重试的HTTP错误
+                can_retry_with_compression = self._can_retry_with_compressed_images(
+                    active_request,
+                    original_response_request,
+                )
+
                 if e.status_code == 429 or e.status_code >= 500:
                     retry_remain -= 1
                     if retry_remain <= 0:
@@ -750,12 +805,23 @@ class LLMOrchestrator:
                     continue
 
                 # 特殊处理413，尝试压缩
+                data_uri_limit_bytes = self._extract_data_uri_limit_bytes(e)
+                if data_uri_limit_bytes is not None and can_retry_with_compression:
+                    target_size = self._build_data_uri_retry_target_size(data_uri_limit_bytes)
+                    logger.warning(
+                        f"任务 '{task_display}' 的模型 '{model_info.name}' 返回 data URI 图片过大错误，"
+                        f"检测到单项上限 {data_uri_limit_bytes} 字节，尝试压缩图片后重试..."
+                    )
+                    compressed_messages = compress_messages(
+                        active_request.message_list,
+                        img_target_size=target_size,
+                    )
+                    active_request = active_request.copy_with(message_list=compressed_messages)
+                    continue
+
                 if (
                     e.status_code == 413
-                    and isinstance(active_request, ResponseRequest)
-                    and active_request.message_list
-                    and original_response_request is not None
-                    and active_request.message_list == original_response_request.message_list
+                    and can_retry_with_compression
                 ):
                     logger.warning(
                         f"任务 '{task_display}' 的模型 '{model_info.name}' 返回413请求体过大，尝试压缩后重试..."

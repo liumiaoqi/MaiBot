@@ -78,6 +78,24 @@ def _append_reply_component(builder: MessageBuilder, component: ReplyComponent) 
     return True
 
 
+def _render_at_component_text(component: AtComponent) -> str:
+    """灏?AtComponent 娓叉煋涓烘枃鏈舰寮忋€?"""
+
+    target_name = component.target_user_cardname or component.target_user_nickname or component.target_user_id
+    return f"@{target_name}".strip()
+
+
+def _append_at_component(builder: MessageBuilder, component: AtComponent) -> bool:
+    """灏?@ 缁勪欢杞崲涓烘枃鏈苟鍐欏叆 LLM 娑堟伅銆?"""
+
+    rendered_text = _render_at_component_text(component)
+    if not rendered_text:
+        return False
+
+    builder.add_text_content(rendered_text)
+    return True
+
+
 def contains_complex_message(message_sequence: MessageSequence) -> bool:
     """判断消息序列中是否包含复杂消息组件。"""
 
@@ -119,8 +137,7 @@ def _render_component_for_prompt(component: StandardMessageComponents) -> str:
         return component.content.strip() if component.content else "[语音消息]"
 
     if isinstance(component, AtComponent):
-        target_name = component.target_user_cardname or component.target_user_nickname or component.target_user_id
-        return f"@{target_name}".strip()
+        return _render_at_component_text(component)
 
     if isinstance(component, ReplyComponent):
         sender_name = (
@@ -222,6 +239,10 @@ def _build_message_from_sequence(
 
         if isinstance(component, ImageComponent):
             has_content = _append_image_component(builder, component) or has_content
+            continue
+
+        if isinstance(component, AtComponent):
+            has_content = _append_at_component(builder, component) or has_content
             continue
 
         if isinstance(component, ReplyComponent):
