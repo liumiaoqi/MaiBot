@@ -431,6 +431,7 @@ class MaisakaReasoningEngine:
                                     planner_response=response.content or "",
                                     tool_calls=response.tool_calls,
                                     tool_results=tool_result_summaries,
+                                    tool_detail_results=tool_monitor_results,
                                     prompt_section=response.prompt_section,
                                 )
                                 if should_pause:
@@ -682,14 +683,6 @@ class MaisakaReasoningEngine:
 
         self._runtime._chat_history = trimmed_history
         self._runtime._log_history_trimmed(removed_count, conversation_message_count)
-
-    @staticmethod
-    def _drop_leading_orphan_tool_results(
-        chat_history: list[LLMContextMessage],
-    ) -> tuple[list[LLMContextMessage], int]:
-        """清理历史窗口中缺少对应 assistant tool_call 的工具结果消息。"""
-
-        return drop_leading_orphan_tool_results(chat_history)
 
     @staticmethod
     def _calculate_similarity(text1: str, text2: str) -> float:
@@ -1083,7 +1076,8 @@ class MaisakaReasoningEngine:
             anchor_message: 当前轮的锚点消息。
 
         Returns:
-            tuple[bool, list[str]]: 是否需要暂停当前思考循环，以及工具结果摘要列表。
+            tuple[bool, list[str], list[dict[str, Any]]]: 是否需要暂停当前思考循环、
+            工具结果摘要列表，以及最终监控事件使用的工具详情列表。
         """
 
         tool_result_summaries: list[str] = []
@@ -1125,8 +1119,6 @@ class MaisakaReasoningEngine:
             tool_monitor_results.append(
                 self._build_tool_monitor_result(tool_call, invocation, result, tool_duration_ms)
             )
-
-            # 向监控前端广播工具执行结果
 
             if not result.success and tool_call.func_name == "reply":
                 logger.warning(f"{self._runtime.log_prefix} 回复工具未生成可见消息，将继续下一轮循环")

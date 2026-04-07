@@ -2,6 +2,7 @@ from types import SimpleNamespace
 from typing import Any, Callable
 
 import pytest
+from rich.panel import Panel
 
 from src.chat.replyer import maisaka_generator as legacy_replyer_module
 from src.chat.replyer import maisaka_generator_multi as multimodal_replyer_module
@@ -13,8 +14,10 @@ from src.common.data_models.reply_generation_data_models import (
 from src.core.tooling import ToolExecutionResult, ToolInvocation
 from src.maisaka.builtin_tool.context import BuiltinToolRuntimeContext
 from src.maisaka.builtin_tool import reply as reply_tool_module
+from src.maisaka.builtin_tool import send_emoji as send_emoji_tool_module
 from src.maisaka.monitor_events import emit_planner_finalized
 from src.maisaka.reasoning_engine import MaisakaReasoningEngine
+from src.maisaka.runtime import MaisakaHeartFlowChatting
 
 
 class _FakeLLMResult:
@@ -133,6 +136,72 @@ async def test_reply_tool_puts_monitor_detail_into_metadata(monkeypatch: pytest.
 
 
 @pytest.mark.asyncio
+async def test_send_emoji_tool_puts_monitor_detail_into_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _fake_build_emoji_candidate_message(emojis: list[Any]) -> object:
+        assert emojis
+        return SimpleNamespace()
+
+    async def _fake_send_emoji_for_maisaka(**kwargs: Any) -> Any:
+        selected_emoji, matched_emotion = await kwargs["emoji_selector"](
+            kwargs["requested_emotion"],
+            kwargs["reasoning"],
+            kwargs["context_texts"],
+            2,
+        )
+        assert selected_emoji is not None
+        return SimpleNamespace(
+            success=True,
+            message="已发送表情包：开心",
+            emoji_base64="ZW1vamk=",
+            description="开心",
+            emotions=["开心", "可爱"],
+            matched_emotion=matched_emotion or "开心",
+            sent_message=None,
+        )
+
+    monkeypatch.setattr(send_emoji_tool_module, "_build_emoji_candidate_message", _fake_build_emoji_candidate_message)
+    monkeypatch.setattr(send_emoji_tool_module, "send_emoji_for_maisaka", _fake_send_emoji_for_maisaka)
+    monkeypatch.setattr(
+        send_emoji_tool_module.emoji_manager,
+        "emojis",
+        [
+            SimpleNamespace(description="开心,可爱", emotion=["开心", "可爱"]),
+            SimpleNamespace(description="难过", emotion=["难过"]),
+        ],
+    )
+
+    async def _fake_run_sub_agent(**kwargs: Any) -> Any:
+        del kwargs
+        return SimpleNamespace(
+            content='{"emoji_index": 1, "reason": "更贴合当前语气"}',
+            prompt_tokens=9,
+            completion_tokens=6,
+            total_tokens=15,
+        )
+
+    runtime = SimpleNamespace(
+        _chat_history=[],
+        log_prefix="[test]",
+        session_id="session-emoji",
+        run_sub_agent=_fake_run_sub_agent,
+    )
+    engine = SimpleNamespace(last_reasoning_content="用户刚刚表达了开心情绪")
+    tool_ctx = BuiltinToolRuntimeContext(engine=engine, runtime=runtime)
+    invocation = ToolInvocation(tool_name="send_emoji", arguments={"emotion": "开心"})
+
+    result = await send_emoji_tool_module.handle_tool(tool_ctx, invocation)
+
+    assert result.success is True
+    assert result.metadata["monitor_detail"]["prompt_text"]
+    assert result.metadata["monitor_detail"]["reasoning_text"] == "更贴合当前语气"
+    assert result.metadata["monitor_detail"]["metrics"]["total_tokens"] == 15
+    assert any(
+        section["title"] == "表情发送结果"
+        for section in result.metadata["monitor_detail"]["extra_sections"]
+    )
+
+
+@pytest.mark.asyncio
 async def test_emit_planner_finalized_broadcasts_new_protocol(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, Any] = {}
 
@@ -190,3 +259,130 @@ def test_reasoning_engine_build_tool_monitor_result_keeps_non_reply_tool_without
     assert tool_result["tool_name"] == "query_memory"
     assert tool_result["tool_args"] == {"query": "Alice"}
     assert tool_result["detail"] is None
+
+
+def test_runtime_build_tool_detail_panels_renders_reply_monitor_detail() -> None:
+    runtime = object.__new__(MaisakaHeartFlowChatting)
+    runtime.session_id = "session-1"
+    panels = runtime._build_tool_detail_panels(
+        [
+            {
+                "tool_call_id": "call-reply-1",
+                "tool_name": "reply",
+                "tool_args": {"msg_id": "m1"},
+                "success": True,
+                "duration_ms": 20.5,
+                "summary": "- reply [成功]: 已回复",
+                "detail": {
+                    "prompt_text": "reply prompt",
+                    "reasoning_text": "reply reasoning",
+                    "output_text": "reply output",
+                    "metrics": {
+                        "model_name": "fake-model",
+                        "prompt_tokens": 10,
+                        "completion_tokens": 5,
+                        "total_tokens": 15,
+                        "prompt_ms": 2.1,
+                        "llm_ms": 18.4,
+                        "overall_ms": 20.5,
+                    },
+                },
+            }
+        ]
+    )
+
+    assert len(panels) == 1
+    assert isinstance(panels[0], Panel)
+
+
+def test_runtime_filter_redundant_tool_results_keeps_only_non_detailed_summary() -> None:
+    filtered_results = MaisakaHeartFlowChatting._filter_redundant_tool_results(
+        tool_results=[
+            "- reply [成功]: 已回复",
+            "- query_memory [成功]: 查询到 2 条记录",
+        ],
+        tool_detail_results=[
+            {
+                "summary": "- reply [成功]: 已回复",
+                "detail": {"output_text": "测试回复"},
+            }
+        ],
+    )
+
+    assert filtered_results == ["- query_memory [成功]: 查询到 2 条记录"]
+
+
+def test_runtime_build_tool_detail_panels_uses_prompt_access_panel(monkeypatch: pytest.MonkeyPatch) -> None:
+    runtime = object.__new__(MaisakaHeartFlowChatting)
+    runtime.session_id = "session-link"
+    captured: dict[str, Any] = {}
+
+    def _fake_build_text_access_panel(content: str, **kwargs: Any) -> str:
+        captured["content"] = content
+        captured["kwargs"] = kwargs
+        return "PROMPT_LINK"
+
+    monkeypatch.setattr(
+        "src.maisaka.runtime.PromptCLIVisualizer.build_text_access_panel",
+        _fake_build_text_access_panel,
+    )
+
+    panels = runtime._build_tool_detail_panels(
+        [
+            {
+                "tool_call_id": "call-reply-2",
+                "tool_name": "reply",
+                "tool_args": {"msg_id": "m2"},
+                "success": True,
+                "duration_ms": 12.0,
+                "summary": "- reply [成功]: 已回复",
+                "detail": {
+                    "prompt_text": "reply prompt link",
+                    "output_text": "reply output",
+                },
+            }
+        ]
+    )
+
+    assert len(panels) == 1
+    assert captured["content"] == "reply prompt link"
+    assert captured["kwargs"]["chat_id"] == "session-link"
+    assert captured["kwargs"]["request_kind"] == "replyer"
+
+
+def test_runtime_build_tool_detail_panels_uses_emotion_prompt_access_panel(monkeypatch: pytest.MonkeyPatch) -> None:
+    runtime = object.__new__(MaisakaHeartFlowChatting)
+    runtime.session_id = "session-emotion"
+    captured: dict[str, Any] = {}
+
+    def _fake_build_text_access_panel(content: str, **kwargs: Any) -> str:
+        captured["content"] = content
+        captured["kwargs"] = kwargs
+        return "EMOTION_PROMPT_LINK"
+
+    monkeypatch.setattr(
+        "src.maisaka.runtime.PromptCLIVisualizer.build_text_access_panel",
+        _fake_build_text_access_panel,
+    )
+
+    panels = runtime._build_tool_detail_panels(
+        [
+            {
+                "tool_call_id": "call-emoji-1",
+                "tool_name": "send_emoji",
+                "tool_args": {"emotion": "开心"},
+                "success": True,
+                "duration_ms": 15.0,
+                "summary": "- send_emoji [成功]: 已发送表情包",
+                "detail": {
+                    "prompt_text": "emotion prompt link",
+                    "output_text": '{"emoji_index": 1}',
+                },
+            }
+        ]
+    )
+
+    assert len(panels) == 1
+    assert captured["content"] == "emotion prompt link"
+    assert captured["kwargs"]["chat_id"] == "session-emotion"
+    assert captured["kwargs"]["request_kind"] == "emotion"

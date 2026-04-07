@@ -935,11 +935,3 @@ class MaisakaChatLoopService:
 
         return filtered_history, hidden_assistant_count
 
-    @staticmethod
-    def _drop_orphan_tool_results(
-        selected_history: List[LLMContextMessage],
-    ) -> List[LLMContextMessage]:
-        """移除窗口中缺少对应 tool_call 的工具结果消息。"""
-
-        normalized_history, _ = drop_orphan_tool_results(selected_history)
-        return normalized_history

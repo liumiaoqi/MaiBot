@@ -10,7 +10,6 @@ from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 from rich.traceback import install
 
-from src.chat.logger.plan_reply_logger import PlanReplyLogger
 from src.chat.message_receive.chat_manager import BotChatSession
 from src.chat.replyer.group_generator import DefaultReplyer
 from src.chat.replyer.private_generator import PrivateReplyer
@@ -154,21 +153,6 @@ async def generate_reply(
         logger.debug(
             f"[GeneratorService] 回复生成成功，生成了 {len(reply_set.components) if reply_set else 0} 个回复项"
         )
-
-        try:
-            PlanReplyLogger.log_reply(
-                chat_id=chat_stream.session_id if chat_stream else (chat_id or ""),
-                prompt=llm_response.prompt or "",
-                output=llm_response.content,
-                processed_output=llm_response.processed_output,
-                model=llm_response.model,
-                timing=llm_response.timing,
-                reasoning=llm_response.reasoning,
-                think_level=think_level,
-                success=True,
-            )
-        except Exception:
-            logger.exception("[GeneratorService] 记录reply日志失败")
 
         return success, llm_response
 

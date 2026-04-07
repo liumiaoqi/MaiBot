@@ -6,6 +6,7 @@ from typing import Any
 _REQUEST_PANEL_STYLE_MAP: dict[str, tuple[str, str]] = {
     "timing_gate": ("\u004d\u0061\u0069\u0053\u0061\u006b\u0061 \u5927\u6a21\u578b\u8bf7\u6c42 - Timing Gate \u5b50\u4ee3\u7406", "bright_magenta"),
     "replyer": ("\u004d\u0061\u0069\u0053\u0061\u006b\u0061 \u56de\u590d\u5668 Prompt", "bright_yellow"),
+    "emotion": ("MaiSaka Emotion Tool Prompt", "bright_cyan"),
     "sub_agent": ("\u004d\u0061\u0069\u0053\u0061\u006b\u0061 \u5927\u6a21\u578b\u8bf7\u6c42 - \u5b50\u4ee3\u7406", "bright_blue"),
 }
 

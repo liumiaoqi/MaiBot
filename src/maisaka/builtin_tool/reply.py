@@ -5,6 +5,7 @@ from typing import Optional
 
 from src.chat.replyer.replyer_manager import replyer_manager
 from src.cli.maisaka_cli_sender import CLI_PLATFORM_NAME, render_cli_message
+from src.common.data_models.reply_generation_data_models import ReplyGenerationResult
 from src.common.logger import get_logger
 from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
 from src.services import send_service
@@ -57,10 +58,10 @@ def get_tool_spec() -> ToolSpec:
     )
 
 
-def _build_monitor_metadata(reply_result: object) -> dict[str, object]:
+def _build_monitor_metadata(reply_result: ReplyGenerationResult) -> dict[str, object]:
     """从 reply 结果中提取统一监控详情。"""
 
-    monitor_detail = getattr(reply_result, "monitor_detail", None)
+    monitor_detail = reply_result.monitor_detail
     if isinstance(monitor_detail, dict):
         return {"monitor_detail": monitor_detail}
     return {}

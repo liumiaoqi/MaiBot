@@ -5,8 +5,11 @@ from typing import Awaitable, Callable, Dict, List, Optional, Tuple
 import random
 import time
 
+from rich.panel import Panel
+
 from src.chat.message_receive.chat_manager import BotChatSession
 from src.chat.message_receive.message import SessionMessage
+from src.cli.console import console
 from src.common.data_models.reply_generation_data_models import (
     GenerationMetrics,
     LLMCompletionResult,
@@ -27,6 +30,7 @@ from src.maisaka.context_messages import (
     ToolResultMessage,
 )
 from src.maisaka.message_adapter import parse_speaker_content
+from src.maisaka.prompt_cli_renderer import PromptCLIVisualizer
 
 from .maisaka_expression_selector import maisaka_expression_selector
 
@@ -365,9 +369,23 @@ class MaisakaReplyGenerator:
         result.completion.request_prompt = prompt
         show_replyer_prompt = bool(getattr(global_config.debug, "show_replyer_prompt", False))
         show_replyer_reasoning = bool(getattr(global_config.debug, "show_replyer_reasoning", False))
+        preview_chat_id = self._resolve_session_id(stream_id) or "unknown"
 
         if show_replyer_prompt:
-            logger.info(f"\nMaisaka 回复器提示词:\n{prompt}\n")
+            console.print(
+                Panel(
+                    PromptCLIVisualizer.build_text_access_panel(
+                        prompt,
+                        category="replyer",
+                        chat_id=preview_chat_id,
+                        request_kind="replyer",
+                        subtitle=f"流ID: {preview_chat_id}",
+                    ),
+                    title="Maisaka 回复器 Prompt",
+                    border_style="bright_yellow",
+                    padding=(0, 1),
+                )
+            )
 
         llm_started_at = time.perf_counter()
         try:

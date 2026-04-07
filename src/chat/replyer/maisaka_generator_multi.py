@@ -444,13 +444,17 @@ class MaisakaReplyGenerator:
         preview_chat_id = self._resolve_session_id(stream_id)
         replyer_prompt_section: RenderableType | None = None
         if show_replyer_prompt:
-            replyer_prompt_section = PromptCLIVisualizer.build_text_section(
-                prompt_preview,
-                category="replyer",
-                chat_id=preview_chat_id,
-                request_kind="replyer",
-                subtitle=f"流ID: {preview_chat_id}",
-                folded=global_config.debug.fold_maisaka_thinking,
+            replyer_prompt_section = Panel(
+                PromptCLIVisualizer.build_text_access_panel(
+                    prompt_preview,
+                    category="replyer",
+                    chat_id=preview_chat_id,
+                    request_kind="replyer",
+                    subtitle=f"流ID: {preview_chat_id}",
+                ),
+                title="Reply Prompt",
+                border_style="bright_yellow",
+                padding=(0, 1),
             )
 
         llm_started_at = time.perf_counter()

@@ -7,6 +7,7 @@ import time
 
 from rich.console import Group, RenderableType
 from rich.panel import Panel
+from rich.pretty import Pretty
 from rich.text import Text
 
 from src.cli.console import console
@@ -31,6 +32,7 @@ from src.plugin_runtime.tool_provider import PluginToolProvider
 from .chat_loop_service import ChatResponse, MaisakaChatLoopService
 from .context_messages import LLMContextMessage
 from .display_utils import build_tool_call_summary_lines, format_token_count
+from .prompt_cli_renderer import PromptCLIVisualizer
 from .reasoning_engine import MaisakaReasoningEngine
 from .tool_provider import MaisakaBuiltinToolProvider
 
@@ -568,9 +570,10 @@ class MaisakaHeartFlowChatting:
         planner_response: str = "",
         tool_calls: Optional[list[Any]] = None,
         tool_results: Optional[list[str]] = None,
+        tool_detail_results: Optional[list[dict[str, Any]]] = None,
         prompt_section: Optional[RenderableType] = None,
     ) -> None:
-        """在终端展示当前聊天流的上下文占用、规划结果与工具摘要。"""
+        """在终端展示当前聊天流的上下文占用、规划结果与工具结果。"""
         if not global_config.debug.show_maisaka_thinking:
             return
 
@@ -605,7 +608,10 @@ class MaisakaHeartFlowChatting:
                 )
             )
 
-        normalized_tool_results = [result.strip() for result in tool_results or [] if isinstance(result, str) and result.strip()]
+        normalized_tool_results = self._filter_redundant_tool_results(
+            tool_results=tool_results or [],
+            tool_detail_results=tool_detail_results or [],
+        )
         if normalized_tool_results:
             renderables.append(
                 Panel(
@@ -616,6 +622,10 @@ class MaisakaHeartFlowChatting:
                 )
             )
 
+        detail_panels = self._build_tool_detail_panels(tool_detail_results or [])
+        if detail_panels:
+            renderables.extend(detail_panels)
+
         console.print(
             Panel(
                 Group(*renderables),
@@ -624,6 +634,231 @@ class MaisakaHeartFlowChatting:
                 padding=(0, 1),
             )
         )
+
+    @staticmethod
+    def _filter_redundant_tool_results(
+        *,
+        tool_results: list[str],
+        tool_detail_results: list[dict[str, Any]],
+    ) -> list[str]:
+        """过滤掉已经在详情卡片中展示过的工具摘要。"""
+
+        detailed_summaries = {
+            str(tool_result.get("summary") or "").strip()
+            for tool_result in tool_detail_results
+            if isinstance(tool_result.get("detail"), dict) and tool_result.get("detail")
+        }
+        return [
+            result.strip()
+            for result in tool_results
+            if isinstance(result, str)
+            and result.strip()
+            and result.strip() not in detailed_summaries
+        ]
+
+    @staticmethod
+    def _build_tool_metrics_text(metrics: dict[str, Any]) -> str:
+        """将工具监控 metrics 转换为便于 CLI 阅读的文本。"""
+
+        lines: list[str] = []
+        model_name = str(metrics.get("model_name") or "").strip()
+        if model_name:
+            lines.append(f"模型：{model_name}")
+
+        prompt_tokens = metrics.get("prompt_tokens")
+        completion_tokens = metrics.get("completion_tokens")
+        total_tokens = metrics.get("total_tokens")
+        if isinstance(prompt_tokens, int) or isinstance(completion_tokens, int) or isinstance(total_tokens, int):
+            lines.append(
+                "Token："
+                f"输入 {format_token_count(int(prompt_tokens or 0))} / "
+                f"输出 {format_token_count(int(completion_tokens or 0))} / "
+                f"总计 {format_token_count(int(total_tokens or 0))}"
+            )
+
+        prompt_ms = metrics.get("prompt_ms")
+        llm_ms = metrics.get("llm_ms")
+        overall_ms = metrics.get("overall_ms")
+        timing_parts: list[str] = []
+        if isinstance(prompt_ms, (int, float)):
+            timing_parts.append(f"prompt {round(float(prompt_ms), 2)} ms")
+        if isinstance(llm_ms, (int, float)):
+            timing_parts.append(f"llm {round(float(llm_ms), 2)} ms")
+        if isinstance(overall_ms, (int, float)):
+            timing_parts.append(f"overall {round(float(overall_ms), 2)} ms")
+        if timing_parts:
+            lines.append("耗时：" + " / ".join(timing_parts))
+
+        return "\n".join(lines)
+
+    @staticmethod
+    def _get_tool_detail_labels(tool_name: str) -> dict[str, str]:
+        """返回不同工具对应的详情区标题与预览类别。"""
+
+        normalized_tool_name = str(tool_name or "").strip().lower()
+        if normalized_tool_name == "reply":
+            return {
+                "prompt_title": "Reply Prompt",
+                "reasoning_title": "Reply 思考",
+                "output_title": "Reply 输出",
+                "prompt_category": "replyer",
+                "request_kind": "replyer",
+            }
+        if normalized_tool_name == "send_emoji":
+            return {
+                "prompt_title": "Emotion Prompt",
+                "reasoning_title": "Emotion 思考",
+                "output_title": "Emotion 输出",
+                "prompt_category": "emotion",
+                "request_kind": "emotion",
+            }
+        display_name = normalized_tool_name or "tool"
+        return {
+            "prompt_title": f"{display_name} Prompt",
+            "reasoning_title": f"{display_name} 思考",
+            "output_title": f"{display_name} 输出",
+            "prompt_category": display_name,
+            "request_kind": "sub_agent",
+        }
+
+    def _build_tool_prompt_access_panel(
+        self,
+        *,
+        tool_name: str,
+        prompt_text: str,
+        tool_call_id: str,
+    ) -> Panel:
+        """将工具 prompt 渲染为可点击查看的预览入口。"""
+
+        labels = self._get_tool_detail_labels(tool_name)
+        subtitle = f"会话ID: {self.session_id}"
+        if tool_call_id:
+            subtitle += f"\n调用ID: {tool_call_id}"
+
+        return Panel(
+            PromptCLIVisualizer.build_text_access_panel(
+                prompt_text,
+                category=labels["prompt_category"],
+                chat_id=self.session_id,
+                request_kind=labels["request_kind"],
+                subtitle=subtitle,
+            ),
+            title=labels["prompt_title"],
+            border_style="bright_yellow",
+            padding=(0, 1),
+        )
+
+    def _build_tool_detail_panels(self, tool_detail_results: list[dict[str, Any]]) -> list[RenderableType]:
+        """将 tool monitor detail 渲染为 CLI 详情卡片。"""
+
+        panels: list[RenderableType] = []
+        for tool_result in tool_detail_results:
+            detail = tool_result.get("detail")
+            if not isinstance(detail, dict) or not detail:
+                continue
+
+            tool_name = str(tool_result.get("tool_name") or "unknown").strip() or "unknown"
+            detail_labels = self._get_tool_detail_labels(tool_name)
+            tool_call_id = str(tool_result.get("tool_call_id") or "").strip()
+            tool_args = tool_result.get("tool_args")
+            summary = str(tool_result.get("summary") or "").strip()
+            duration_ms = tool_result.get("duration_ms")
+
+            parts: list[RenderableType] = []
+            header_lines: list[str] = []
+            if summary:
+                header_lines.append(summary)
+            if tool_call_id:
+                header_lines.append(f"调用ID：{tool_call_id}")
+            if isinstance(duration_ms, (int, float)):
+                header_lines.append(f"执行耗时：{round(float(duration_ms), 2)} ms")
+            if header_lines:
+                parts.append(Text("\n".join(header_lines)))
+
+            if isinstance(tool_args, dict) and tool_args:
+                parts.append(
+                    Panel(
+                        Pretty(tool_args, expand_all=True),
+                        title="工具参数",
+                        border_style="cyan",
+                        padding=(0, 1),
+                    )
+                )
+
+            metrics = detail.get("metrics")
+            if isinstance(metrics, dict):
+                metrics_text = self._build_tool_metrics_text(metrics)
+                if metrics_text:
+                    parts.append(
+                        Panel(
+                            Text(metrics_text),
+                            title="执行指标",
+                            border_style="bright_cyan",
+                            padding=(0, 1),
+                        )
+                    )
+
+            prompt_text = str(detail.get("prompt_text") or "").strip()
+            if prompt_text:
+                parts.append(
+                    self._build_tool_prompt_access_panel(
+                        tool_name=tool_name,
+                        prompt_text=prompt_text,
+                        tool_call_id=tool_call_id,
+                    )
+                )
+
+            reasoning_text = str(detail.get("reasoning_text") or "").strip()
+            if reasoning_text:
+                parts.append(
+                    Panel(
+                        Text(reasoning_text),
+                        title=detail_labels["reasoning_title"],
+                        border_style="magenta",
+                        padding=(0, 1),
+                    )
+                )
+
+            output_text = str(detail.get("output_text") or "").strip()
+            if output_text:
+                parts.append(
+                    Panel(
+                        Text(output_text),
+                        title=detail_labels["output_title"],
+                        border_style="green",
+                        padding=(0, 1),
+                    )
+                )
+
+            extra_sections = detail.get("extra_sections")
+            if isinstance(extra_sections, list):
+                for section in extra_sections:
+                    if not isinstance(section, dict):
+                        continue
+                    section_title = str(section.get("title") or "").strip() or "附加信息"
+                    section_content = str(section.get("content") or "").strip()
+                    if not section_content:
+                        continue
+                    parts.append(
+                        Panel(
+                            Text(section_content),
+                            title=section_title,
+                            border_style="white",
+                            padding=(0, 1),
+                        )
+                    )
+
+            if parts:
+                panels.append(
+                    Panel(
+                        Group(*parts),
+                        title=f"{tool_name} 工具详情",
+                        border_style="yellow",
+                        padding=(0, 1),
+                    )
+                )
+
+        return panels
 
     def _log_cycle_started(self, cycle_detail: CycleDetail, round_index: int) -> None:
         logger.info(

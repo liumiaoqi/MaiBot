@@ -33,7 +33,6 @@ from src.person_info.person_info import Person
 from src.core.types import ActionInfo, EventType
 from src.services import llm_service as llm_api
 
-from src.chat.logger.plan_reply_logger import PlanReplyLogger
 from src.memory_system.memory_retrieval import init_memory_retrieval_sys, build_memory_retrieval_prompt
 from src.learners.jargon_explainer_old import explain_jargon_in_context
 from src.chat.utils.common_utils import TempMethodsExpression
@@ -131,22 +130,6 @@ class DefaultReplyer:
                 llm_response.timing["overall_ms"] = round((time.perf_counter() - overall_start) * 1000, 2)
                 llm_response.timing["almost_zero"] = almost_zero_str
                 llm_response.timing["timing_logs"] = timing_logs
-                if log_reply:
-                    try:
-                        PlanReplyLogger.log_reply(
-                            chat_id=self.chat_stream.session_id,
-                            prompt="",
-                            output=None,
-                            processed_output=None,
-                            model=None,
-                            timing=llm_response.timing,
-                            reasoning=None,
-                            think_level=think_level,
-                            error="build_prompt_failed",
-                            success=False,
-                        )
-                    except Exception:
-                        logger.exception("记录reply日志失败")
                 return False, llm_response
             from src.core.event_bus import event_bus
             from src.chat.event_helpers import build_event_message
@@ -201,21 +184,6 @@ class DefaultReplyer:
                 llm_response.timing_logs = timing_logs
                 llm_response.timing["timing_logs"] = timing_logs
                 llm_response.timing["almost_zero"] = almost_zero_str
-                try:
-                    if log_reply:
-                        PlanReplyLogger.log_reply(
-                            chat_id=self.chat_stream.session_id,
-                            prompt=prompt,
-                            output=content,
-                            processed_output=None,
-                            model=model_name,
-                            timing=llm_response.timing,
-                            reasoning=reasoning_content,
-                            think_level=think_level,
-                            success=True,
-                        )
-                except Exception:
-                    logger.exception("记录reply日志失败")
                 _event_msg = build_event_message(
                     EventType.AFTER_LLM, llm_prompt=prompt, llm_response=llm_response, stream_id=stream_id
                 )
@@ -259,22 +227,6 @@ class DefaultReplyer:
                 llm_response.timing_logs = timing_logs
                 llm_response.timing["timing_logs"] = timing_logs
                 llm_response.timing["almost_zero"] = almost_zero_str
-                if log_reply:
-                    try:
-                        PlanReplyLogger.log_reply(
-                            chat_id=self.chat_stream.session_id,
-                            prompt=prompt or "",
-                            output=None,
-                            processed_output=None,
-                            model=model_name,
-                            timing=llm_response.timing,
-                            reasoning=None,
-                            think_level=think_level,
-                            error=str(llm_e),
-                            success=False,
-                        )
-                    except Exception:
-                        logger.exception("记录reply日志失败")
                 return False, llm_response  # LLM 调用失败则无法生成回复
 
             return True, llm_response

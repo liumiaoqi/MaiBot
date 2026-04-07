@@ -66,6 +66,25 @@ def get_tool_spec() -> ToolSpec:
     )
 
 
+def _normalize_candidate_emotions(emoji: MaiEmoji) -> list[str]:
+    """清洗候选表情上的情绪标签。"""
+
+    raw_emotions = getattr(emoji, "emotion", None)
+    if isinstance(raw_emotions, list) and raw_emotions:
+        return [str(item).strip() for item in raw_emotions if str(item).strip()]
+
+    description = str(getattr(emoji, "description", "") or "").strip()
+    if not description:
+        return []
+
+    normalized_description = (
+        description.replace("，", ",")
+        .replace("、", ",")
+        .replace("；", ",")
+    )
+    return [item.strip() for item in normalized_description.split(",") if item.strip()]
+
+
 async def _load_emoji_bytes(emoji: MaiEmoji) -> bytes:
     """读取单个表情包图片字节。"""
 
@@ -211,13 +230,126 @@ async def _build_emoji_candidate_message(emojis: list[MaiEmoji]) -> SessionBacke
     )
 
 
+def _build_emoji_candidate_summary(emojis: list[MaiEmoji]) -> str:
+    """构建供监控展示使用的候选表情摘要。"""
+
+    summary_lines: list[str] = []
+    for index, emoji in enumerate(emojis, start=1):
+        description = emoji.description.strip() or "（无描述）"
+        emotions = "、".join(_normalize_candidate_emotions(emoji)) or "无"
+        summary_lines.append(f"{index}. 描述：{description}")
+        summary_lines.append(f"   情绪：{emotions}")
+    return "\n".join(summary_lines).strip()
+
+
+def _build_send_emoji_prompt_preview(
+    *,
+    system_prompt: str,
+    requested_emotion: str,
+    grid_rows: int,
+    grid_columns: int,
+    sampled_emojis: list[MaiEmoji],
+) -> str:
+    """构建表情选择子代理的文本预览。"""
+
+    task_text = (
+        "[选择任务]\n"
+        f"requested_emotion: {requested_emotion or '未指定'}\n"
+        f"候选总数: {len(sampled_emojis)}\n"
+        f"拼图布局: {grid_rows}x{grid_columns}\n"
+        "请只输出 JSON。"
+    )
+    candidate_summary = _build_emoji_candidate_summary(sampled_emojis)
+    return (
+        f"[System Prompt]\n{system_prompt}\n\n"
+        f"{task_text}\n\n"
+        f"[候选表情摘要]\n{candidate_summary or '无候选表情'}"
+    ).strip()
+
+
+def _build_send_emoji_monitor_detail(
+    *,
+    prompt_text: str = "",
+    reasoning_text: str = "",
+    output_text: str = "",
+    metrics: Optional[Dict[str, Any]] = None,
+    extra_sections: Optional[list[dict[str, str]]] = None,
+) -> Dict[str, Any]:
+    """构建 emotion tool 统一监控详情。"""
+
+    detail: Dict[str, Any] = {}
+    if prompt_text.strip():
+        detail["prompt_text"] = prompt_text.strip()
+    if reasoning_text.strip():
+        detail["reasoning_text"] = reasoning_text.strip()
+    if output_text.strip():
+        detail["output_text"] = output_text.strip()
+    if isinstance(metrics, dict) and metrics:
+        detail["metrics"] = dict(metrics)
+    normalized_sections = [
+        {
+            "title": str(section.get("title") or "").strip(),
+            "content": str(section.get("content") or "").strip(),
+        }
+        for section in extra_sections or []
+        if isinstance(section, dict)
+        and str(section.get("title") or "").strip()
+        and str(section.get("content") or "").strip()
+    ]
+    if normalized_sections:
+        detail["extra_sections"] = normalized_sections
+    return detail
+
+
+def _build_send_emoji_monitor_metadata(
+    selection_metadata: Dict[str, Any],
+    *,
+    requested_emotion: str,
+    send_result: Optional[Any] = None,
+    error_message: str = "",
+) -> Dict[str, Any]:
+    """根据表情选择与发送结果构建统一监控 metadata。"""
+
+    raw_detail = selection_metadata.get("monitor_detail")
+    detail = dict(raw_detail) if isinstance(raw_detail, dict) else {}
+    extra_sections = list(detail.get("extra_sections", [])) if isinstance(detail.get("extra_sections"), list) else []
+
+    if send_result is not None:
+        result_lines = [
+            f"请求情绪：{requested_emotion or '未指定'}",
+            f"命中情绪：{send_result.matched_emotion or '未命中'}",
+            f"表情描述：{send_result.description or '无描述'}",
+            f"情绪标签：{'、'.join(send_result.emotions) if send_result.emotions else '无'}",
+            f"发送结果：{send_result.message or ('成功' if send_result.success else '失败')}",
+        ]
+        extra_sections.append({
+            "title": "表情发送结果",
+            "content": "\n".join(result_lines),
+        })
+    elif error_message.strip():
+        extra_sections.append({
+            "title": "表情发送结果",
+            "content": (
+                f"请求情绪：{requested_emotion or '未指定'}\n"
+                f"发送结果：{error_message.strip()}"
+            ),
+        })
+
+    if extra_sections:
+        detail["extra_sections"] = extra_sections
+
+    if detail:
+        return {"monitor_detail": detail}
+    return {}
+
+
 async def _select_emoji_with_sub_agent(
     tool_ctx: BuiltinToolRuntimeContext,
     requested_emotion: str,
     reasoning: str,
     context_texts: list[str],
     sample_size: int,
-    selection_metadata: Optional[Dict[str, str]] = None,
+    selection_metadata: Optional[Dict[str, Any]] = None,
 ) -> tuple[MaiEmoji | None, str]:
     """通过临时子代理从候选表情包中选出一个结果。"""
 
@@ -255,7 +387,15 @@ async def _select_emoji_with_sub_agent(
         remaining_uses_value=1,
         display_prefix="[表情包选择任务]",
     )
+    prompt_preview = _build_send_emoji_prompt_preview(
+        system_prompt=system_prompt,
+        requested_emotion=requested_emotion,
+        grid_rows=grid_rows,
+        grid_columns=grid_columns,
+        sampled_emojis=sampled_emojis,
+    )
 
+    selection_started_at = datetime.now()
     response = await tool_ctx.runtime.run_sub_agent(
         context_message_limit=_EMOJI_SUB_AGENT_CONTEXT_LIMIT,
         system_prompt=system_prompt,
@@ -266,16 +406,40 @@ async def _select_emoji_with_sub_agent(
             schema=EmojiSelectionResult,
         ),
     )
+    selection_duration_ms = round((datetime.now() - selection_started_at).total_seconds() * 1000, 2)
+
+    selection_metrics: Dict[str, Any] = {
+        "prompt_tokens": response.prompt_tokens,
+        "completion_tokens": response.completion_tokens,
+        "total_tokens": response.total_tokens,
+        "overall_ms": selection_duration_ms,
+    }
 
     try:
         selection = EmojiSelectionResult.model_validate_json(response.content or "")
     except Exception as exc:
         logger.warning(f"{tool_ctx.runtime.log_prefix} 表情包子代理结果解析失败，将回退到候选首项: {exc}")
+        if selection_metadata is not None:
+            selection_metadata["monitor_detail"] = _build_send_emoji_monitor_detail(
+                prompt_text=prompt_preview,
+                output_text=response.content or "",
+                metrics=selection_metrics,
+                extra_sections=[{
+                    "title": "解析异常",
+                    "content": str(exc),
+                }],
+            )
         fallback_emoji = sampled_emojis[0] if sampled_emojis else None
         return fallback_emoji, ""
 
     if selection_metadata is not None:
         selection_metadata["reason"] = selection.reason.strip()
+        selection_metadata["monitor_detail"] = _build_send_emoji_monitor_detail(
+            prompt_text=prompt_preview,
+            reasoning_text=selection.reason,
+            output_text=response.content or "",
+            metrics=selection_metrics,
+        )
 
     emoji_index = int(selection.emoji_index)
     if emoji_index < 1 or emoji_index > len(sampled_emojis):
@@ -310,7 +474,7 @@ async def handle_tool(
         "matched_emotion": "",
         "reason": "",
     }
-    selection_metadata: Dict[str, str] = {"reason": ""}
+    selection_metadata: Dict[str, Any] = {"reason": "", "monitor_detail": {}}
 
     logger.info(f"{tool_ctx.runtime.log_prefix} 触发表情包发送工具，请求情绪={emotion!r}")
 
@@ -336,6 +500,11 @@ async def handle_tool(
             invocation.tool_name,
             structured_result["message"],
             structured_content=structured_result,
+            metadata=_build_send_emoji_monitor_metadata(
+                selection_metadata,
+                requested_emotion=emotion,
+                error_message=structured_result["message"],
+            ),
         )
 
     if send_result.success:
@@ -358,6 +527,11 @@ async def handle_tool(
             invocation.tool_name,
             selection_metadata["reason"] or _EMOJI_SUCCESS_MESSAGE,
             structured_content=structured_result,
+            metadata=_build_send_emoji_monitor_metadata(
+                selection_metadata,
+                requested_emotion=emotion,
+                send_result=send_result,
+            ),
         )
 
     structured_result["description"] = send_result.description
@@ -373,4 +547,9 @@ async def handle_tool(
         invocation.tool_name,
         structured_result["message"],
         structured_content=structured_result,
+        metadata=_build_send_emoji_monitor_metadata(
+            selection_metadata,
+            requested_emotion=emotion,
+            send_result=send_result,
+        ),
     )
