@@ -352,6 +352,7 @@ class MaisakaReasoningEngine:
                         timing_response: Optional[ChatResponse] = None
                         timing_tool_results: Optional[list[str]] = None
                         response: Optional[ChatResponse] = None
+                        tool_result_summaries: list[str] = []
                         tool_monitor_results: list[dict[str, Any]] = []
                         try:
                             visual_refresh_started_at = time.time()
@@ -376,14 +377,6 @@ class MaisakaReasoningEngine:
                                 prompt_tokens=timing_response.prompt_tokens,
                                 selected_history_count=timing_response.selected_history_count,
                                 duration_ms=timing_duration_ms,
-                            )
-                            self._runtime._render_context_usage_panel(
-                                selected_history_count=timing_response.selected_history_count,
-                                prompt_tokens=timing_response.prompt_tokens,
-                                planner_response=timing_response.content or "",
-                                tool_calls=timing_response.tool_calls,
-                                tool_results=timing_tool_results,
-                                prompt_section=timing_response.prompt_section,
                             )
                             if timing_action != "continue":
                                 logger.info(
@@ -418,7 +411,6 @@ class MaisakaReasoningEngine:
 
                             self._last_reasoning_content = reasoning_content
                             self._runtime._chat_history.append(response.raw_message)
-                            tool_result_summaries: list[str] = []
                             tool_monitor_results = []
 
                             if response.tool_calls:
@@ -429,25 +421,10 @@ class MaisakaReasoningEngine:
                                     anchor_message,
                                 )
                                 cycle_detail.time_records["tool_calls"] = time.time() - tool_started_at
-                                self._runtime._render_context_usage_panel(
-                                    selected_history_count=response.selected_history_count,
-                                    prompt_tokens=response.prompt_tokens,
-                                    planner_response=response.content or "",
-                                    tool_calls=response.tool_calls,
-                                    tool_results=tool_result_summaries,
-                                    tool_detail_results=tool_monitor_results,
-                                    prompt_section=response.prompt_section,
-                                )
                                 if should_pause:
                                     break
                                 continue
 
-                            self._runtime._render_context_usage_panel(
-                                selected_history_count=response.selected_history_count,
-                                prompt_tokens=response.prompt_tokens,
-                                planner_response=response.content or "",
-                                prompt_section=response.prompt_section,
-                            )
                             if not response.content:
                                 break
                         except ReqAbortException:
@@ -462,6 +439,31 @@ class MaisakaReasoningEngine:
                             break
                         finally:
                             completed_cycle = self._end_cycle(cycle_detail)
+                            self._runtime._render_context_usage_panel(
+                                cycle_id=cycle_detail.cycle_id,
+                                timing_selected_history_count=(
+                                    timing_response.selected_history_count if timing_response is not None else None
+                                ),
+                                timing_prompt_tokens=(
+                                    timing_response.prompt_tokens if timing_response is not None else None
+                                ),
+                                timing_action=timing_action or "",
+                                timing_response=timing_response.content or "" if timing_response is not None else "",
+                                timing_tool_calls=timing_response.tool_calls if timing_response is not None else None,
+                                timing_tool_results=timing_tool_results,
+                                timing_prompt_section=(
+                                    timing_response.prompt_section if timing_response is not None else None
+                                ),
+                                planner_selected_history_count=(
+                                    response.selected_history_count if response is not None else None
+                                ),
+                                planner_prompt_tokens=response.prompt_tokens if response is not None else None,
+                                planner_response=response.content or "" if response is not None else "",
+                                planner_tool_calls=response.tool_calls if response is not None else None,
+                                planner_tool_results=tool_result_summaries,
+                                planner_tool_detail_results=tool_monitor_results,
+                                planner_prompt_section=response.prompt_section if response is not None else None,
+                            )
                             await emit_planner_finalized(
                                 session_id=self._runtime.session_id,
                                 cycle_id=cycle_detail.cycle_id,

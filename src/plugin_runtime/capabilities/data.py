@@ -63,7 +63,7 @@ class RuntimeDataCapabilityMixin:
 
     @staticmethod
     def _build_emoji_temp_path() -> Path:
-        from src.chat.emoji_system.emoji_manager import EMOJI_DIR
+        from src.emoji_system.emoji_manager import EMOJI_DIR
 
         EMOJI_DIR.mkdir(parents=True, exist_ok=True)
         return EMOJI_DIR / f"emoji_cap_{int(time.time() * 1000000)}.png"
@@ -463,7 +463,7 @@ class RuntimeDataCapabilityMixin:
             return {"success": False, "error": str(e)}
 
     async def _cap_emoji_get_by_description(self, plugin_id: str, capability: str, args: Dict[str, Any]) -> Any:
-        from src.chat.emoji_system.emoji_manager import emoji_manager
+        from src.emoji_system.emoji_manager import emoji_manager
 
         description: str = args.get("description", "")
         if not description:
@@ -485,7 +485,7 @@ class RuntimeDataCapabilityMixin:
             return {"success": False, "error": str(e)}
 
     async def _cap_emoji_get_random(self, plugin_id: str, capability: str, args: Dict[str, Any]) -> Any:
-        from src.chat.emoji_system.emoji_manager import emoji_manager
+        from src.emoji_system.emoji_manager import emoji_manager
 
         count: int = args.get("count", 1)
         try:
@@ -512,7 +512,7 @@ class RuntimeDataCapabilityMixin:
 
     async def _cap_emoji_get_count(self, plugin_id: str, capability: str, args: Dict[str, Any]) -> Any:
         try:
-            from src.chat.emoji_system.emoji_manager import emoji_manager
+            from src.emoji_system.emoji_manager import emoji_manager
 
             return {"success": True, "count": len(emoji_manager.emojis)}
         except Exception as e:
@@ -521,7 +521,7 @@ class RuntimeDataCapabilityMixin:
 
     async def _cap_emoji_get_emotions(self, plugin_id: str, capability: str, args: Dict[str, Any]) -> Any:
         try:
-            from src.chat.emoji_system.emoji_manager import emoji_manager
+            from src.emoji_system.emoji_manager import emoji_manager
 
             emotions = sorted(
                 {
@@ -540,7 +540,7 @@ class RuntimeDataCapabilityMixin:
 
     async def _cap_emoji_get_all(self, plugin_id: str, capability: str, args: Dict[str, Any]) -> Any:
         try:
-            from src.chat.emoji_system.emoji_manager import emoji_manager
+            from src.emoji_system.emoji_manager import emoji_manager
 
             emojis = []
             for emoji in emoji_manager.emojis:
@@ -556,7 +556,7 @@ class RuntimeDataCapabilityMixin:
 
     async def _cap_emoji_get_info(self, plugin_id: str, capability: str, args: Dict[str, Any]) -> Any:
         try:
-            from src.chat.emoji_system.emoji_manager import emoji_manager
+            from src.emoji_system.emoji_manager import emoji_manager
             from src.config.config import global_config
 
             current_count = len(emoji_manager.emojis)
@@ -573,7 +573,7 @@ class RuntimeDataCapabilityMixin:
             return {"success": False, "error": str(e)}
 
     async def _cap_emoji_register(self, plugin_id: str, capability: str, args: Dict[str, Any]) -> Any:
-        from src.chat.emoji_system.emoji_manager import emoji_manager
+        from src.emoji_system.emoji_manager import emoji_manager
 
         emoji_base64: str = args.get("emoji_base64", "")
         if not emoji_base64:
@@ -630,7 +630,7 @@ class RuntimeDataCapabilityMixin:
             return {"success": False, "error": str(e)}
 
     async def _cap_emoji_delete(self, plugin_id: str, capability: str, args: Dict[str, Any]) -> Any:
-        from src.chat.emoji_system.emoji_manager import emoji_manager
+        from src.emoji_system.emoji_manager import emoji_manager
 
         emoji_hash: str = args.get("emoji_hash", "")
         if not emoji_hash:

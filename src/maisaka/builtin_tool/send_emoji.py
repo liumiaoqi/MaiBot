@@ -12,8 +12,8 @@ from PIL import Image as PILImage
 from PIL import ImageDraw, ImageFont
 from pydantic import BaseModel, Field as PydanticField
 
-from src.chat.emoji_system.emoji_manager import emoji_manager
-from src.chat.emoji_system.maisaka_tool import send_emoji_for_maisaka
+from src.emoji_system.emoji_manager import emoji_manager
+from src.emoji_system.maisaka_tool import send_emoji_for_maisaka
 from src.common.data_models.image_data_model import MaiEmoji
 from src.common.data_models.message_component_data_model import ImageComponent, MessageSequence, TextComponent
 from src.common.logger import get_logger

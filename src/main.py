@@ -7,7 +7,7 @@ import time
 
 from src.A_memorix.host_service import a_memorix_host_service
 from src.learners.expression_auto_check_task import ExpressionAutoCheckTask
-from src.chat.emoji_system.emoji_manager import emoji_manager
+from src.emoji_system.emoji_manager import emoji_manager
 from src.chat.message_receive.bot import chat_bot
 from src.chat.message_receive.chat_manager import chat_manager
 from src.chat.utils.statistic import OnlineTimeRecordTask, StatisticOutputTask

@@ -58,6 +58,7 @@ class MaisakaHeartFlowChatting:
         self.chat_stream: BotChatSession = chat_stream
 
         session_name = chat_manager.get_session_name(session_id) or session_id
+        self.session_name = session_name
         self.log_prefix = f"[{session_name}]"
         self._chat_loop_service = MaisakaChatLoopService(
             session_id=session_id,
@@ -692,28 +693,117 @@ class MaisakaHeartFlowChatting:
     def _render_context_usage_panel(
         self,
         *,
-        selected_history_count: int,
-        prompt_tokens: int,
+        cycle_id: Optional[int] = None,
+        timing_selected_history_count: Optional[int] = None,
+        timing_prompt_tokens: Optional[int] = None,
+        timing_action: str = "",
+        timing_response: str = "",
+        timing_tool_calls: Optional[list[Any]] = None,
+        timing_tool_results: Optional[list[str]] = None,
+        timing_tool_detail_results: Optional[list[dict[str, Any]]] = None,
+        timing_prompt_section: Optional[RenderableType] = None,
+        planner_selected_history_count: Optional[int] = None,
+        planner_prompt_tokens: Optional[int] = None,
         planner_response: str = "",
-        tool_calls: Optional[list[Any]] = None,
-        tool_results: Optional[list[str]] = None,
-        tool_detail_results: Optional[list[dict[str, Any]]] = None,
-        prompt_section: Optional[RenderableType] = None,
+        planner_tool_calls: Optional[list[Any]] = None,
+        planner_tool_results: Optional[list[str]] = None,
+        planner_tool_detail_results: Optional[list[dict[str, Any]]] = None,
+        planner_prompt_section: Optional[RenderableType] = None,
     ) -> None:
-        """在终端展示当前聊天流的上下文占用、规划结果与工具结果。"""
+        """在终端展示当前聊天流本轮 cycle 的最终结果。"""
         if not global_config.debug.show_maisaka_thinking:
             return
 
         body_lines = [
-            f"上下文占用：{selected_history_count}/{self._max_context_size} 条",
-            f"本次请求token消耗：{format_token_count(prompt_tokens)}",
+            f"聊天流名称：{getattr(self, 'session_name', self.session_id)}",
+            f"聊天流ID：{self.session_id}",
         ]
+        if cycle_id is not None:
+            body_lines.append(f"循环编号：{cycle_id}")
 
         renderables: list[RenderableType] = [Text("\n".join(body_lines))]
+        timing_panel = self._build_cycle_stage_panel(
+            title="Timing Gate",
+            border_style="bright_magenta",
+            selected_history_count=timing_selected_history_count,
+            prompt_tokens=timing_prompt_tokens,
+            response_text=timing_response,
+            tool_calls=timing_tool_calls,
+            tool_results=timing_tool_results,
+            tool_detail_results=timing_tool_detail_results,
+            prompt_section=timing_prompt_section,
+            extra_lines=[f"门控动作：{timing_action}"] if timing_action.strip() else None,
+        )
+        if timing_panel is not None:
+            renderables.append(timing_panel)
+
+        planner_panel = self._build_cycle_stage_panel(
+            title="Planner",
+            border_style="green",
+            selected_history_count=planner_selected_history_count,
+            prompt_tokens=planner_prompt_tokens,
+            response_text=planner_response,
+            tool_calls=planner_tool_calls,
+            tool_results=planner_tool_results,
+            tool_detail_results=planner_tool_detail_results,
+            prompt_section=planner_prompt_section,
+        )
+        if planner_panel is not None:
+            renderables.append(planner_panel)
+
+        console.print(
+            Panel(
+                Group(*renderables),
+                title="MaiSaka 循环",
+                border_style="bright_blue",
+                padding=(0, 1),
+            )
+        )
+
+    def _build_cycle_stage_panel(
+        self,
+        *,
+        title: str,
+        border_style: str,
+        selected_history_count: Optional[int],
+        prompt_tokens: Optional[int],
+        response_text: str = "",
+        tool_calls: Optional[list[Any]] = None,
+        tool_results: Optional[list[str]] = None,
+        tool_detail_results: Optional[list[dict[str, Any]]] = None,
+        prompt_section: Optional[RenderableType] = None,
+        extra_lines: Optional[list[str]] = None,
+    ) -> Optional[Panel]:
+        """构建单个 cycle 阶段的展示卡片。"""
+
+        has_content = any([
+            selected_history_count is not None,
+            prompt_tokens is not None,
+            bool(response_text.strip()),
+            bool(tool_calls),
+            bool(tool_results),
+            bool(tool_detail_results),
+            prompt_section is not None,
+            bool(extra_lines),
+        ])
+        if not has_content:
+            return None
+
+        body_lines: list[str] = []
+        if selected_history_count is not None:
+            body_lines.append(f"上下文占用：{selected_history_count}/{self._max_context_size} 条")
+        if prompt_tokens is not None:
+            body_lines.append(f"本次请求token消耗：{format_token_count(prompt_tokens)}")
+        if extra_lines:
+            body_lines.extend([line for line in extra_lines if isinstance(line, str) and line.strip()])
+
+        renderables: list[RenderableType] = []
+        if body_lines:
+            renderables.append(Text("\n".join(body_lines)))
         if prompt_section is not None:
             renderables.append(prompt_section)
 
-        normalized_response = planner_response.strip()
+        normalized_response = response_text.strip()
         if normalized_response:
             renderables.append(
                 Panel(
@@ -753,13 +843,11 @@ class MaisakaHeartFlowChatting:
         if detail_panels:
             renderables.extend(detail_panels)
 
-        console.print(
-            Panel(
-                Group(*renderables),
-                title="MaiSaka 上下文与结果",
-                border_style="bright_blue",
-                padding=(0, 1),
-            )
+        return Panel(
+            Group(*renderables),
+            title=title,
+            border_style=border_style,
+            padding=(0, 1),
         )
 
     @staticmethod

@@ -1,10 +1,11 @@
+from datetime import datetime
+from pathlib import Path
+from typing import List, Optional
+
 import asyncio
 import hashlib
 import io
 import traceback
-from datetime import datetime
-from pathlib import Path
-from typing import List, Optional
 
 from PIL import Image as PILImage
 from rich.traceback import install
@@ -28,14 +29,26 @@ class BaseImageDataModel(BaseDatabaseDataModel[Images]):
         if Path(full_path).is_dir() or not Path(full_path).exists():
             raise FileNotFoundError(f"表情包路径无效: {full_path}")
         resolved_path = Path(full_path).absolute().resolve()
-        self.full_path: Path = resolved_path
-        self.dir_path: Path = resolved_path.parent.resolve()
-        self.file_name: str = resolved_path.name
+        self.full_path: Path
+        self.dir_path: Path
+        self.file_name: str
+        self._set_full_path(resolved_path)
         self.file_hash: str = None  # type: ignore
 
         self.image_bytes: Optional[bytes] = image_bytes
 
         self.image_format: str = ""  # 图片格式
+
+    def _set_full_path(self, full_path: Path) -> None:
+        """同步更新文件路径相关的运行时元数据。"""
+        resolved_path = full_path.absolute().resolve()
+        self.full_path = resolved_path
+        self.dir_path = resolved_path.parent.resolve()
+        self.file_name = resolved_path.name
+
+    def _restore_image_format_from_path(self) -> None:
+        """根据文件扩展名恢复基础图片格式信息。"""
+        self.image_format = self.full_path.suffix.removeprefix(".").lower()
 
     def read_image_bytes(self, path: Path) -> bytes:
         """
@@ -97,6 +110,7 @@ class BaseImageDataModel(BaseDatabaseDataModel[Images]):
                 image_bytes = await asyncio.to_thread(self.read_image_bytes, self.full_path)
             else:
                 image_bytes = self.image_bytes
+            self.image_bytes = image_bytes
             self.file_hash = hashlib.sha256(image_bytes).hexdigest()
             logger.debug(f"[初始化] {self.file_name} 计算哈希值成功: {self.file_hash}")
 
@@ -115,7 +129,7 @@ class BaseImageDataModel(BaseDatabaseDataModel[Images]):
                 new_file_name = ".".join(self.file_name.split(".")[:-1] + [self.image_format])
                 new_full_path = self.dir_path / new_file_name
                 self.full_path.rename(new_full_path)
-                self.full_path = new_full_path
+                self._set_full_path(new_full_path)
 
             return True
         except Exception as e:
@@ -153,6 +167,7 @@ class MaiEmoji(BaseImageDataModel):
             raise ValueError(f"数据库记录 {db_record.image_hash} 标记为文件不存在，无法创建 MaiEmoji 对象")
         obj = cls(db_record.full_path)
         obj.file_hash = db_record.image_hash
+        obj._restore_image_format_from_path()
         description = db_record.description or ""
         obj.description = description
         normalized_tags = [
@@ -207,7 +222,8 @@ class MaiImage(BaseImageDataModel):
             raise ValueError(f"数据库记录 {db_record.image_hash} 标记为文件不存在，无法创建 MaiImage 对象")
         obj = cls(db_record.full_path)
         obj.file_hash = db_record.image_hash
-        obj.full_path = Path(db_record.full_path)
+        obj._set_full_path(Path(db_record.full_path))
+        obj._restore_image_format_from_path()
         obj.description = db_record.description
         obj.vlm_processed = db_record.vlm_processed
         return obj

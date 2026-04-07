@@ -265,7 +265,7 @@ class SessionMessage(MaiMessage):
         """
         if component.content:  # 先检查是否处理过
             return component.content
-        from src.chat.emoji_system.emoji_manager import emoji_manager
+        from src.emoji_system.emoji_manager import emoji_manager
 
         # 获取表情包描述
         try:

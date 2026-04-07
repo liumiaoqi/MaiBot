@@ -296,6 +296,8 @@ class ImageManager:
     async def build_image_description(self, image_bytes: bytes) -> MaiImage:
         """在图片已保存的前提下生成或补齐图片描述。"""
         mai_image = await self.ensure_image_saved(image_bytes)
+        if not mai_image.image_format:
+            await mai_image.calculate_hash_format()
         if mai_image.vlm_processed and mai_image.description:
             return mai_image
 

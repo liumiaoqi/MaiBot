@@ -20,7 +20,7 @@ def _get_builtin_hook_spec_registrars() -> List[HookSpecRegistrar]:
     """
 
     from src.chat.message_receive.bot import register_chat_hook_specs
-    from src.chat.emoji_system.emoji_manager import register_emoji_hook_specs
+    from src.emoji_system.emoji_manager import register_emoji_hook_specs
     from src.learners.expression_learner import register_expression_hook_specs
     from src.learners.jargon_miner import register_jargon_hook_specs
     from src.maisaka.chat_loop_service import register_maisaka_hook_specs

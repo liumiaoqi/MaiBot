@@ -826,7 +826,7 @@ class EmojiManager:
         Returns:
             return (Tuple[bool, MaiEmoji]): 返回是否成功构建描述，及表情包对象
         """
-        if not target_emoji.file_hash:
+        if not target_emoji.file_hash or not target_emoji.image_format:
             # Should not happen, but just in case
             await target_emoji.calculate_hash_format()
 

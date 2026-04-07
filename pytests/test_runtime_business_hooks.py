@@ -64,7 +64,7 @@ def test_builtin_hook_catalog_includes_new_business_hooks(monkeypatch: pytest.Mo
 async def test_send_emoji_for_maisaka_can_be_aborted_by_hook(monkeypatch: pytest.MonkeyPatch) -> None:
     """表情包系统应允许在选择前被 Hook 中止。"""
 
-    from src.chat.emoji_system import maisaka_tool
+    from src.emoji_system import maisaka_tool
 
     fake_manager = _FakeHookManager(
         {

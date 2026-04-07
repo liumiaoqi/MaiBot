@@ -3,6 +3,7 @@ from typing import Any, Callable
 
 import pytest
 from rich.panel import Panel
+from rich.text import Text
 
 from src.chat.replyer import maisaka_generator as legacy_replyer_module
 from src.chat.replyer import maisaka_generator_multi as multimodal_replyer_module
@@ -445,3 +446,33 @@ def test_runtime_build_tool_detail_panels_uses_emotion_prompt_access_panel(monke
     assert captured["content"] == "emotion prompt link"
     assert captured["kwargs"]["chat_id"] == "session-emotion"
     assert captured["kwargs"]["request_kind"] == "emotion"
+
+
+def test_runtime_render_context_usage_panel_merges_timing_and_planner(monkeypatch: pytest.MonkeyPatch) -> None:
+    runtime = object.__new__(MaisakaHeartFlowChatting)
+    runtime.session_id = "session-merged"
+    runtime.session_name = "测试聊天流"
+    runtime._max_context_size = 20
+
+    printed: list[Any] = []
+    monkeypatch.setattr("src.maisaka.runtime.console.print", lambda renderable: printed.append(renderable))
+
+    runtime._render_context_usage_panel(
+        cycle_id=12,
+        timing_selected_history_count=3,
+        timing_prompt_tokens=15,
+        timing_action="continue",
+        timing_response="继续执行",
+        planner_selected_history_count=5,
+        planner_prompt_tokens=42,
+        planner_response="先查询再回复",
+    )
+
+    assert len(printed) == 1
+    outer_panel = printed[0]
+    assert isinstance(outer_panel, Panel)
+    renderables = list(outer_panel.renderable.renderables)
+    assert isinstance(renderables[0], Text)
+    assert "聊天流名称：测试聊天流" in renderables[0].plain
+    assert "聊天流ID：session-merged" in renderables[0].plain
+    assert len(renderables) == 3
