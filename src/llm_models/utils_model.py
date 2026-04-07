@@ -37,6 +37,7 @@ from src.llm_models.model_client.base_client import (
     UsageRecord,
     client_registry,
 )
+from src.llm_models.request_snapshot import format_request_snapshot_log_info
 from src.llm_models.payload_content.message import Message, MessageBuilder
 from src.llm_models.payload_content.resp_format import RespFormat
 from src.llm_models.payload_content.tool_option import (
@@ -1008,6 +1009,16 @@ class LLMOrchestrator:
         Returns:
             str: 可直接拼接到日志中的底层异常描述。
         """
+        detail_lines: List[str] = []
+        if e.__cause__:
+            detail_lines.append(f"底层异常类型: {type(e.__cause__).__name__}")
+            detail_lines.append(f"底层异常信息: {e.__cause__}")
+
+        snapshot_info = format_request_snapshot_log_info(e)
+        if detail_lines or snapshot_info:
+            detail_text = "\n  " + "\n  ".join(detail_lines) if detail_lines else ""
+            return f"{detail_text}{snapshot_info}"
+
         if e.__cause__:
             original_error_type = type(e.__cause__).__name__
             original_error_msg = str(e.__cause__)

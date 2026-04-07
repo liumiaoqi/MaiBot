@@ -4,7 +4,6 @@ import binascii
 import io
 import json
 import re
-from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any, Callable, Coroutine, Dict, List, Tuple, cast
 
@@ -59,6 +58,14 @@ from .base_client import (
     ResponseRequest,
     UsageTuple,
     client_registry,
+)
+from ..request_snapshot import (
+    attach_request_snapshot,
+    has_request_snapshot,
+    save_failed_request_snapshot,
+    serialize_audio_request_snapshot,
+    serialize_embedding_request_snapshot,
+    serialize_response_request_snapshot,
 )
 
 logger = get_logger("llm_models")
@@ -533,6 +540,13 @@ def _coerce_openai_argument(value: Any) -> Any | Omit:
     return value
 
 
+def _snapshot_openai_argument(value: Any | Omit) -> Any | None:
+    """将 OpenAI SDK 参数转换为适合写入快照的普通值。"""
+    if value is omit:
+        return None
+    return value
+
+
 def _build_api_status_message(error: APIStatusError) -> str:
     """构建更适合记录和展示的状态错误信息。
 
@@ -939,33 +953,55 @@ class OpenaiClient(AdapterClient[AsyncStream[ChatCompletionChunk], ChatCompletio
         Returns:
             Tuple[APIResponse, UsageTuple | None]: 统一响应对象与可选使用量信息。
         """
+        snapshot_provider_request = {
+            "base_url": self.api_provider.base_url,
+            "endpoint": "/chat/completions",
+            "method": "POST",
+            "operation": "chat.completions.create",
+            "organization": self.api_provider.organization,
+            "project": self.api_provider.project,
+            "request_kwargs": {},
+        }
         model_info = request.model_info
-        messages: Iterable[ChatCompletionMessageParam] = _convert_messages(request.message_list)
-        tools: Iterable[ChatCompletionToolParam] | Omit = (
-            _convert_tool_options(request.tool_options) if request.tool_options else omit
-        )
-        openai_response_format = _convert_response_format(request.response_format)
-        request_overrides = split_openai_request_overrides(
-            request.extra_params,
-            reserved_body_keys=CHAT_COMPLETIONS_RESERVED_EXTRA_BODY_KEYS,
-        )
-
-        temperature_argument = (
-            omit if "temperature" in request_overrides.extra_body else _coerce_openai_argument(request.temperature)
-        )
-        max_tokens_argument = (
-            omit
-            if "max_tokens" in request_overrides.extra_body or "max_completion_tokens" in request_overrides.extra_body
-            else _coerce_openai_argument(request.max_tokens)
-        )
 
         try:
+            messages_payload: List[ChatCompletionMessageParam] = _convert_messages(request.message_list)
+            tools_payload: List[ChatCompletionToolParam] | None = (
+                _convert_tool_options(request.tool_options) if request.tool_options else None
+            )
+            openai_response_format = _convert_response_format(request.response_format)
+            request_overrides = split_openai_request_overrides(
+                request.extra_params,
+                reserved_body_keys=CHAT_COMPLETIONS_RESERVED_EXTRA_BODY_KEYS,
+            )
+
+            temperature_argument = (
+                omit if "temperature" in request_overrides.extra_body else _coerce_openai_argument(request.temperature)
+            )
+            max_tokens_argument = (
+                omit
+                if "max_tokens" in request_overrides.extra_body or "max_completion_tokens" in request_overrides.extra_body
+                else _coerce_openai_argument(request.max_tokens)
+            )
+            snapshot_provider_request["request_kwargs"] = {
+                "extra_body": request_overrides.extra_body or None,
+                "extra_headers": request_overrides.extra_headers or None,
+                "extra_query": request_overrides.extra_query or None,
+                "max_tokens": _snapshot_openai_argument(max_tokens_argument),
+                "messages": messages_payload,
+                "model": model_info.model_identifier,
+                "response_format": _snapshot_openai_argument(openai_response_format),
+                "stream": bool(model_info.force_stream_mode),
+                "temperature": _snapshot_openai_argument(temperature_argument),
+                "tools": tools_payload,
+            }
+
             if model_info.force_stream_mode:
                 stream_task: asyncio.Task[AsyncStream[ChatCompletionChunk]] = asyncio.create_task(
                     self.client.chat.completions.create(
                         model=model_info.model_identifier,
-                        messages=messages,
-                        tools=tools,
+                        messages=messages_payload,
+                        tools=tools_payload or omit,
                         temperature=temperature_argument,
                         max_tokens=max_tokens_argument,
                         stream=True,
@@ -984,8 +1020,8 @@ class OpenaiClient(AdapterClient[AsyncStream[ChatCompletionChunk], ChatCompletio
             completion_task: asyncio.Task[ChatCompletion] = asyncio.create_task(
                 self.client.chat.completions.create(
                     model=model_info.model_identifier,
-                    messages=messages,
-                    tools=tools,
+                    messages=messages_payload,
+                    tools=tools_payload or omit,
                     temperature=temperature_argument,
                     max_tokens=max_tokens_argument,
                     stream=False,
@@ -1000,10 +1036,60 @@ class OpenaiClient(AdapterClient[AsyncStream[ChatCompletionChunk], ChatCompletio
                 await await_task_with_interrupt(completion_task, request.interrupt_flag),
             )
             return response_parser(raw_response)
+        except (EmptyResponseException, RespParseException) as exc:
+            snapshot_path = save_failed_request_snapshot(
+                api_provider=self.api_provider,
+                client_type="openai",
+                error=exc,
+                internal_request=serialize_response_request_snapshot(request),
+                model_info=model_info,
+                operation="chat.completions.create",
+                provider_request=snapshot_provider_request,
+            )
+            attach_request_snapshot(exc, snapshot_path)
+            raise
         except APIConnectionError as exc:
-            raise NetworkConnectionError(str(exc)) from exc
+            snapshot_path = save_failed_request_snapshot(
+                api_provider=self.api_provider,
+                client_type="openai",
+                error=exc,
+                internal_request=serialize_response_request_snapshot(request),
+                model_info=model_info,
+                operation="chat.completions.create",
+                provider_request=snapshot_provider_request,
+            )
+            wrapped_error = NetworkConnectionError(str(exc))
+            attach_request_snapshot(wrapped_error, snapshot_path)
+            raise wrapped_error from exc
         except APIStatusError as exc:
-            raise RespNotOkException(exc.status_code, _build_api_status_message(exc)) from exc
+            snapshot_path = save_failed_request_snapshot(
+                api_provider=self.api_provider,
+                client_type="openai",
+                error=exc,
+                internal_request=serialize_response_request_snapshot(request),
+                model_info=model_info,
+                operation="chat.completions.create",
+                provider_request=snapshot_provider_request,
+            )
+            wrapped_error = RespNotOkException(exc.status_code, _build_api_status_message(exc))
+            attach_request_snapshot(wrapped_error, snapshot_path)
+            raise wrapped_error from exc
+        except ReqAbortException:
+            raise
+        except Exception as exc:
+            if has_request_snapshot(exc):
+                raise
+            snapshot_path = save_failed_request_snapshot(
+                api_provider=self.api_provider,
+                client_type="openai",
+                error=exc,
+                internal_request=serialize_response_request_snapshot(request),
+                model_info=model_info,
+                operation="chat.completions.create",
+                provider_request=snapshot_provider_request,
+            )
+            attach_request_snapshot(exc, snapshot_path)
+            raise
 
     async def _execute_embedding_request(
         self,
@@ -1020,9 +1106,25 @@ class OpenaiClient(AdapterClient[AsyncStream[ChatCompletionChunk], ChatCompletio
         model_info = request.model_info
         embedding_input = request.embedding_input
         extra_params = request.extra_params
-        request_overrides = split_openai_request_overrides(extra_params)
+        snapshot_provider_request = {
+            "base_url": self.api_provider.base_url,
+            "endpoint": "/embeddings",
+            "method": "POST",
+            "operation": "embeddings.create",
+            "organization": self.api_provider.organization,
+            "project": self.api_provider.project,
+            "request_kwargs": {},
+        }
 
         try:
+            request_overrides = split_openai_request_overrides(extra_params)
+            snapshot_provider_request["request_kwargs"] = {
+                "extra_body": request_overrides.extra_body or None,
+                "extra_headers": request_overrides.extra_headers or None,
+                "extra_query": request_overrides.extra_query or None,
+                "input": embedding_input,
+                "model": model_info.model_identifier,
+            }
             raw_response = await self.client.embeddings.create(
                 model=model_info.model_identifier,
                 input=embedding_input,
@@ -1031,11 +1133,60 @@ class OpenaiClient(AdapterClient[AsyncStream[ChatCompletionChunk], ChatCompletio
                 extra_body=request_overrides.extra_body or None,
             )
         except APIConnectionError as exc:
-            raise NetworkConnectionError(str(exc)) from exc
+            snapshot_path = save_failed_request_snapshot(
+                api_provider=self.api_provider,
+                client_type="openai",
+                error=exc,
+                internal_request=serialize_embedding_request_snapshot(request),
+                model_info=model_info,
+                operation="embeddings.create",
+                provider_request=snapshot_provider_request,
+            )
+            wrapped_error = NetworkConnectionError(str(exc))
+            attach_request_snapshot(wrapped_error, snapshot_path)
+            raise wrapped_error from exc
         except APIStatusError as exc:
-            raise RespNotOkException(exc.status_code, _build_api_status_message(exc)) from exc
+            snapshot_path = save_failed_request_snapshot(
+                api_provider=self.api_provider,
+                client_type="openai",
+                error=exc,
+                internal_request=serialize_embedding_request_snapshot(request),
+                model_info=model_info,
+                operation="embeddings.create",
+                provider_request=snapshot_provider_request,
+            )
+            wrapped_error = RespNotOkException(exc.status_code, _build_api_status_message(exc))
+            attach_request_snapshot(wrapped_error, snapshot_path)
+            raise wrapped_error from exc
+        except Exception as exc:
+            if has_request_snapshot(exc):
+                raise
+            snapshot_path = save_failed_request_snapshot(
+                api_provider=self.api_provider,
+                client_type="openai",
+                error=exc,
+                internal_request=serialize_embedding_request_snapshot(request),
+                model_info=model_info,
+                operation="embeddings.create",
+                provider_request=snapshot_provider_request,
+            )
+            attach_request_snapshot(exc, snapshot_path)
+            raise
 
         response = APIResponse()
+        if not raw_response.data:
+            exc = RespParseException(raw_response, "嵌入响应解析失败，缺少 embeddings 数据。")
+            snapshot_path = save_failed_request_snapshot(
+                api_provider=self.api_provider,
+                client_type="openai",
+                error=exc,
+                internal_request=serialize_embedding_request_snapshot(request),
+                model_info=model_info,
+                operation="embeddings.create",
+                provider_request=snapshot_provider_request,
+            )
+            attach_request_snapshot(exc, snapshot_path)
+            raise exc
         if raw_response.data:
             response.embedding = raw_response.data[0].embedding
         else:
@@ -1059,10 +1210,27 @@ class OpenaiClient(AdapterClient[AsyncStream[ChatCompletionChunk], ChatCompletio
         model_info = request.model_info
         audio_base64 = request.audio_base64
         extra_params = request.extra_params
-        request_overrides = split_openai_request_overrides(extra_params)
-        audio_file: FileTypes = ("audio.wav", io.BytesIO(base64.b64decode(audio_base64)))
+        snapshot_provider_request = {
+            "base_url": self.api_provider.base_url,
+            "endpoint": "/audio/transcriptions",
+            "method": "POST",
+            "operation": "audio.transcriptions.create",
+            "organization": self.api_provider.organization,
+            "project": self.api_provider.project,
+            "request_kwargs": {},
+        }
 
         try:
+            request_overrides = split_openai_request_overrides(extra_params)
+            audio_file: FileTypes = ("audio.wav", io.BytesIO(base64.b64decode(audio_base64)))
+            snapshot_provider_request["request_kwargs"] = {
+                "audio_base64": audio_base64,
+                "extra_body": request_overrides.extra_body or None,
+                "extra_headers": request_overrides.extra_headers or None,
+                "extra_query": request_overrides.extra_query or None,
+                "file_name": "audio.wav",
+                "model": model_info.model_identifier,
+            }
             raw_response = await self.client.audio.transcriptions.create(
                 model=model_info.model_identifier,
                 file=audio_file,
@@ -1071,12 +1239,61 @@ class OpenaiClient(AdapterClient[AsyncStream[ChatCompletionChunk], ChatCompletio
                 extra_body=request_overrides.extra_body or None,
             )
         except APIConnectionError as exc:
-            raise NetworkConnectionError(str(exc)) from exc
+            snapshot_path = save_failed_request_snapshot(
+                api_provider=self.api_provider,
+                client_type="openai",
+                error=exc,
+                internal_request=serialize_audio_request_snapshot(request),
+                model_info=model_info,
+                operation="audio.transcriptions.create",
+                provider_request=snapshot_provider_request,
+            )
+            wrapped_error = NetworkConnectionError(str(exc))
+            attach_request_snapshot(wrapped_error, snapshot_path)
+            raise wrapped_error from exc
         except APIStatusError as exc:
-            raise RespNotOkException(exc.status_code, _build_api_status_message(exc)) from exc
+            snapshot_path = save_failed_request_snapshot(
+                api_provider=self.api_provider,
+                client_type="openai",
+                error=exc,
+                internal_request=serialize_audio_request_snapshot(request),
+                model_info=model_info,
+                operation="audio.transcriptions.create",
+                provider_request=snapshot_provider_request,
+            )
+            wrapped_error = RespNotOkException(exc.status_code, _build_api_status_message(exc))
+            attach_request_snapshot(wrapped_error, snapshot_path)
+            raise wrapped_error from exc
+        except Exception as exc:
+            if has_request_snapshot(exc):
+                raise
+            snapshot_path = save_failed_request_snapshot(
+                api_provider=self.api_provider,
+                client_type="openai",
+                error=exc,
+                internal_request=serialize_audio_request_snapshot(request),
+                model_info=model_info,
+                operation="audio.transcriptions.create",
+                provider_request=snapshot_provider_request,
+            )
+            attach_request_snapshot(exc, snapshot_path)
+            raise
 
         response = APIResponse()
         transcription_text = raw_response if isinstance(raw_response, str) else getattr(raw_response, "text", None)
+        if not isinstance(transcription_text, str):
+            exc = RespParseException(raw_response, "音频转写响应解析失败，缺少文本内容。")
+            snapshot_path = save_failed_request_snapshot(
+                api_provider=self.api_provider,
+                client_type="openai",
+                error=exc,
+                internal_request=serialize_audio_request_snapshot(request),
+                model_info=model_info,
+                operation="audio.transcriptions.create",
+                provider_request=snapshot_provider_request,
+            )
+            attach_request_snapshot(exc, snapshot_path)
+            raise exc
         if isinstance(transcription_text, str):
             response.content = transcription_text
             return response, None
