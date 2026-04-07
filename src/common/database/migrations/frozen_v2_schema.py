@@ -138,18 +138,6 @@ _V2_TABLE_STATEMENTS = (
     )
     """,
     """
-    CREATE TABLE IF NOT EXISTS mai_knowledge (
-        id INTEGER NOT NULL,
-        knowledge_id VARCHAR(255) NOT NULL,
-        category_id VARCHAR(32) NOT NULL,
-        content VARCHAR NOT NULL,
-        normalized_content VARCHAR NOT NULL,
-        metadata_json VARCHAR,
-        created_at DATETIME,
-        PRIMARY KEY (id)
-    )
-    """,
-    """
     CREATE TABLE IF NOT EXISTS mai_messages (
         id INTEGER NOT NULL,
         message_id VARCHAR(255) NOT NULL,
@@ -260,10 +248,6 @@ _V2_INDEX_STATEMENTS = (
     "CREATE INDEX IF NOT EXISTS ix_llm_usage_model_assign_name ON llm_usage (model_assign_name)",
     "CREATE INDEX IF NOT EXISTS ix_llm_usage_model_name ON llm_usage (model_name)",
     "CREATE INDEX IF NOT EXISTS ix_llm_usage_timestamp ON llm_usage (timestamp)",
-    "CREATE INDEX IF NOT EXISTS ix_mai_knowledge_category_id ON mai_knowledge (category_id)",
-    "CREATE INDEX IF NOT EXISTS ix_mai_knowledge_created_at ON mai_knowledge (created_at)",
-    "CREATE INDEX IF NOT EXISTS ix_mai_knowledge_knowledge_id ON mai_knowledge (knowledge_id)",
-    "CREATE INDEX IF NOT EXISTS ix_mai_knowledge_normalized_content ON mai_knowledge (normalized_content)",
     "CREATE INDEX IF NOT EXISTS ix_mai_messages_group_id ON mai_messages (group_id)",
     "CREATE INDEX IF NOT EXISTS ix_mai_messages_message_id ON mai_messages (message_id)",
     "CREATE INDEX IF NOT EXISTS ix_mai_messages_platform ON mai_messages (platform)",

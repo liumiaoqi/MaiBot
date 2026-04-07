@@ -19,7 +19,6 @@ from src.common.logger import get_logger
 from src.common.utils.utils_config import ExpressionConfigUtils
 from src.config.config import global_config
 from src.core.tooling import ToolRegistry
-from src.know_u.knowledge import KnowledgeLearner
 from src.learners.expression_learner import ExpressionLearner
 from src.learners.jargon_miner import JargonMiner
 from src.llm_models.payload_content.resp_format import RespFormat
@@ -102,10 +101,8 @@ class MaisakaHeartFlowChatting:
         self._enable_jargon_learning = jargon_learn
         self._min_extraction_interval = 30
         self._last_expression_extraction_time = 0.0
-        self._last_knowledge_extraction_time = 0.0
         self._expression_learner = ExpressionLearner(session_id)
         self._jargon_miner = JargonMiner(session_id, session_name=session_name)
-        self._knowledge_learner = KnowledgeLearner(session_id)
 
         self._reasoning_engine = MaisakaReasoningEngine(self)
         self._tool_registry = ToolRegistry()
@@ -449,16 +446,11 @@ class MaisakaHeartFlowChatting:
                 self._wait_timeout_task = None
 
     async def _trigger_batch_learning(self, messages: list[SessionMessage]) -> None:
-        """按同一批消息触发表达方式、黑话和 knowledge 学习。"""
-        expression_result, knowledge_result = await asyncio.gather(
-            self._trigger_expression_learning(messages),
-            self._trigger_knowledge_learning(messages),
-            return_exceptions=True,
-        )
-        if isinstance(expression_result, Exception):
-            logger.error(f"{self.log_prefix} 表达学习任务异常退出: {expression_result}")
-        if isinstance(knowledge_result, Exception):
-            logger.error(f"{self.log_prefix} 知识学习任务异常退出: {knowledge_result}")
+        """按同一批消息触发表达方式和黑话学习。"""
+        try:
+            await self._trigger_expression_learning(messages)
+        except Exception as exc:
+            logger.error(f"{self.log_prefix} 表达学习任务异常退出: {exc}")
 
     def _should_trigger_learning(
         self,
@@ -518,34 +510,6 @@ class MaisakaHeartFlowChatting:
             learnt_style = await self._expression_learner.learn(self.message_cache, jargon_miner)
             if learnt_style:
                 logger.info(f"{self.log_prefix} ???????")
-            else:
-                logger.debug(f"{self.log_prefix} ???????????????")
-        except Exception:
-            logger.exception(f"{self.log_prefix} ??????")
-
-    async def _trigger_knowledge_learning(self, messages: list[SessionMessage]) -> None:
-        """?????????????????"""
-        pending_count = self._knowledge_learner.get_pending_count(self.message_cache)
-        if not self._should_trigger_learning(
-            enabled=global_config.maisaka.enable_knowledge_module,
-            feature_name="知识学习",
-            last_extraction_time=self._last_knowledge_extraction_time,
-            pending_count=pending_count,
-            min_messages_for_extraction=self._knowledge_learner.min_messages_for_extraction,
-        ):
-            return
-
-        self._last_knowledge_extraction_time = time.time()
-        logger.info(
-            f"{self.log_prefix} ??????: "
-            f"??????={len(messages)} ??????={pending_count} "
-            f"?????={len(self.message_cache)}"
-        )
-
-        try:
-            added_count = await self._knowledge_learner.learn(self.message_cache)
-            if added_count > 0:
-                logger.info(f"{self.log_prefix} ???????: ?????={added_count}")
             else:
                 logger.debug(f"{self.log_prefix} ???????????????")
         except Exception:

@@ -1456,15 +1456,6 @@ class MaiSakaConfig(ConfigBase):
 
     __ui_label__ = "MaiSaka"
     __ui_icon__ = "message-circle"
-
-    enable_knowledge_module: bool = Field(
-        default=True,
-        json_schema_extra={
-            "x-widget": "switch",
-            "x-icon": "book",
-        },
-    )
-    """启用知识库模块"""
     cli_user_name: str = Field(
         default="用户",
         json_schema_extra={

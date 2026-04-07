@@ -221,22 +221,6 @@ class Jargon(SQLModel, table=True):
     inference_with_content_only: Optional[str] = Field(
         default=None, sa_column=Column(Text, nullable=True)
     )  # 只基于词条的推断结果，JSON格式
-
-
-class MaiKnowledge(SQLModel, table=True):
-    """存储 Maisaka 的用户画像知识。"""
-
-    __tablename__ = "mai_knowledge"  # type: ignore
-
-    id: Optional[int] = Field(default=None, primary_key=True)
-    knowledge_id: str = Field(index=True, max_length=255)
-    category_id: str = Field(index=True, max_length=32)
-    content: str
-    normalized_content: str = Field(index=True)
-    metadata_json: Optional[str] = Field(default=None, nullable=True)
-    created_at: datetime = Field(default_factory=datetime.now, sa_column=Column(DateTime, index=True))
-
-
 class ChatHistory(SQLModel, table=True):
     """存储聊天历史记录的模型"""
 

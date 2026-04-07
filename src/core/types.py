@@ -315,6 +315,9 @@ class MaiMessages:
                             call_id=str(tool_call.get("call_id", "")),
                             func_name=str(tool_call.get("func_name", "")),
                             args=tool_call.get("args"),
+                            extra_content=tool_call.get("extra_content")
+                            if isinstance(tool_call.get("extra_content"), dict)
+                            else None,
                         )
                     )
             return deserialized_tool_calls

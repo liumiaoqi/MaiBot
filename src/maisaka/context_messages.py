@@ -263,7 +263,6 @@ class ReferenceMessageType(str, Enum):
 
     CUSTOM = "custom"
     JARGON = "jargon"
-    KNOWLEDGE = "knowledge"
     MEMORY = "memory"
     TOOL_HINT = "tool_hint"
 

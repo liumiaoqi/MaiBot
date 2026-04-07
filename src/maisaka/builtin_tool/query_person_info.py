@@ -9,7 +9,6 @@ from sqlmodel import col, select
 from src.common.database.database import get_db_session
 from src.common.database.database_model import PersonInfo
 from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
-from src.know_u.knowledge_store import get_knowledge_store
 
 from .context import BuiltinToolRuntimeContext
 
@@ -79,7 +78,6 @@ async def handle_tool(
     result: Dict[str, Any] = {
         "query": person_name,
         "persons": persons,
-        "related_knowledge": _query_related_knowledge(person_name, persons, limit),
     }
     return tool_ctx.build_success_result(
         invocation.tool_name,
@@ -129,55 +127,3 @@ def _query_person_records(person_name: str, limit: int) -> List[Dict[str, Any]]:
             )
 
         return persons
-
-
-def _query_related_knowledge(
-    person_name: str,
-    persons: List[Dict[str, Any]],
-    limit: int,
-) -> List[Dict[str, Any]]:
-    """从 Maisaka knowledge 中补充检索与该人物相关的条目。"""
-
-    store = get_knowledge_store()
-    knowledge_items: List[Dict[str, Any]] = []
-    seen_ids: set[str] = set()
-
-    for person in persons:
-        matched_items = store.get_knowledge_by_user(
-            platform=str(person.get("platform", "")).strip(),
-            user_id=str(person.get("user_id", "")).strip(),
-            user_nickname=str(person.get("user_nickname", "")).strip(),
-            person_name=str(person.get("person_name", "")).strip(),
-            limit=max(limit, 5),
-        )
-        for item in matched_items:
-            item_id = str(item.get("id", "")).strip()
-            if item_id and item_id in seen_ids:
-                continue
-            if item_id:
-                seen_ids.add(item_id)
-            knowledge_items.append(item)
-
-    if not knowledge_items:
-        fallback_items = store.search_knowledge(person_name, limit=max(limit, 5))
-        for item in fallback_items:
-            item_id = str(item.get("id", "")).strip()
-            if item_id and item_id in seen_ids:
-                continue
-            if item_id:
-                seen_ids.add(item_id)
-            knowledge_items.append(item)
-
-    results: List[Dict[str, Any]] = []
-    for item in knowledge_items:
-        results.append(
-            {
-                "id": str(item.get("id", "")).strip(),
-                "category_id": str(item.get("category_id", "")).strip(),
-                "category_name": str(item.get("category_name", "")).strip(),
-                "content": str(item.get("content", "")).strip(),
-                "metadata": item.get("metadata", {}),
-                "created_at": item.get("created_at"),
-            }
-        )
-    return results

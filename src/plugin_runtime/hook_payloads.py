@@ -62,6 +62,7 @@ def serialize_tool_calls(tool_calls: Sequence[ToolCall] | None) -> List[Dict[str
                 "name": tool_call.func_name,
                 "arguments": dict(tool_call.args or {}),
             },
+            **({"extra_content": tool_call.extra_content} if tool_call.extra_content else {}),
         }
         for tool_call in tool_calls
     ]
@@ -102,11 +103,13 @@ def deserialize_tool_calls(raw_tool_calls: Any) -> List[ToolCall]:
         if not isinstance(call_id, str) or not isinstance(function_name, str):
             raise ValueError("Hook 返回的工具调用缺少 `id` 或函数名称")
 
+        extra_content = raw_tool_call.get("extra_content")
         normalized_tool_calls.append(
             ToolCall(
                 call_id=call_id,
                 func_name=function_name,
                 args=function_arguments if isinstance(function_arguments, dict) else {},
+                extra_content=extra_content if isinstance(extra_content, dict) else None,
             )
         )
     return normalized_tool_calls

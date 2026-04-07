@@ -18,7 +18,6 @@ from src.common.prompt_i18n import load_prompt
 from src.common.utils.utils_session import SessionUtils
 from src.config.config import global_config
 from src.core.tooling import ToolRegistry, ToolSpec
-from src.know_u.knowledge import extract_category_ids_from_result
 from src.llm_models.model_client.base_client import BaseClient
 from src.llm_models.payload_content.message import Message, MessageBuilder, RoleType
 from src.llm_models.payload_content.resp_format import RespFormat, RespFormatType
@@ -664,41 +663,6 @@ class MaisakaChatLoopService:
             f"保留候选工具={[tool_spec.name for tool_spec in filtered_candidate_tool_specs]}"
         )
         return filtered_tool_specs
-
-    async def analyze_knowledge_need(
-        self,
-        chat_history: List[LLMContextMessage],
-        categories_summary: str,
-    ) -> List[str]:
-        """分析当前对话是否需要检索知识库分类。"""
-        visible_history: List[str] = []
-        for message in chat_history[-8:]:
-            if not message.processed_plain_text:
-                continue
-            visible_history.append(f"{message.role}: {message.processed_plain_text}")
-
-        if not visible_history or not categories_summary.strip():
-            return []
-
-        prompt = (
-            "你需要判断当前对话是否需要查询知识库。\n"
-            "请只返回最相关的分类编号，多个编号用空格分隔；如果完全不需要，返回 none。\n\n"
-            f"【可用分类】\n{categories_summary}\n\n"
-            f"【最近对话】\n{chr(10).join(visible_history)}"
-        )
-
-        try:
-            generation_result = await self._llm_chat.generate_response(
-                prompt=prompt,
-                options=LLMGenerationOptions(
-                    temperature=0.1,
-                    max_tokens=64,
-                ),
-            )
-        except Exception:
-            return []
-
-        return extract_category_ids_from_result(generation_result.response or "")
 
     async def chat_loop_step(
         self,

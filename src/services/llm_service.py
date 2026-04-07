@@ -384,11 +384,13 @@ def _build_tool_calls(raw_tool_calls: Any) -> List[ToolCall] | None:
         if not isinstance(call_id, str) or not isinstance(func_name, str):
             raise ValueError("工具调用缺少 `id` 或函数名称")
 
+        extra_content = raw_tool_call.get("extra_content")
         tool_calls.append(
             ToolCall(
                 call_id=call_id,
                 func_name=func_name,
                 args=_normalize_tool_arguments(arguments),
+                extra_content=extra_content if isinstance(extra_content, dict) else None,
             )
         )
 

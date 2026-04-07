@@ -135,6 +135,7 @@ class LLMServiceResult(BaseDataModel):
                         "name": tool_call.func_name,
                         "arguments": tool_call.args or {},
                     },
+                    **({"extra_content": tool_call.extra_content} if tool_call.extra_content else {}),
                 }
                 for tool_call in self.completion.tool_calls
             ]

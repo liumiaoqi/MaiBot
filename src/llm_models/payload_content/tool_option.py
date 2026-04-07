@@ -524,6 +524,7 @@ class ToolCall:
     call_id: str
     func_name: str
     args: Dict[str, Any] | None = None
+    extra_content: Dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         """执行工具调用的基础校验。

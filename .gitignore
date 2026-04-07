@@ -6,7 +6,6 @@ data/
 !pytests/A_memorix_test/data/real_dialogues/private_alice_weekend.json
 pytests/A_memorix_test/data/benchmarks/results/
 data1/
-mai_knowledge/knowledge.json
 mongodb/
 NapCat.Framework.Windows.Once/
 NapCat.Framework.Windows.OneKey/
