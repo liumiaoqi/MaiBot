@@ -56,7 +56,7 @@ CONFIG_DIR: Path = PROJECT_ROOT / "config"
 BOT_CONFIG_PATH: Path = (CONFIG_DIR / "bot_config.toml").resolve().absolute()
 MODEL_CONFIG_PATH: Path = (CONFIG_DIR / "model_config.toml").resolve().absolute()
 MMC_VERSION: str = "1.0.0"
-CONFIG_VERSION: str = "8.5.0"
+CONFIG_VERSION: str = "8.5.1"
 MODEL_CONFIG_VERSION: str = "1.13.1"
 
 logger = get_logger("config")
@@ -74,20 +74,17 @@ class Config(ConfigBase):
     personality: PersonalityConfig = Field(default_factory=PersonalityConfig)
     """人格配置类"""
 
+    chat: ChatConfig = Field(default_factory=ChatConfig)
+    """聊天配置类"""
+
     visual: VisualConfig = Field(default_factory=VisualConfig)
     """视觉配置类"""
 
     expression: ExpressionConfig = Field(default_factory=ExpressionConfig)
     """表达配置类"""
 
-    chat: ChatConfig = Field(default_factory=ChatConfig)
-    """聊天配置类"""
-
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
     """记忆配置类"""
-
-    relationship: RelationshipConfig = Field(default_factory=RelationshipConfig)
-    """关系配置类"""
 
     message_receive: MessageReceiveConfig = Field(default_factory=MessageReceiveConfig)
     """消息接收配置类"""

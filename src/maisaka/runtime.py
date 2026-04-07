@@ -94,7 +94,7 @@ class MaisakaHeartFlowChatting:
         self._planner_interrupt_consecutive_count = 0
         self._planner_interrupt_max_consecutive_count = max(
             0,
-            int(global_config.maisaka.planner_interrupt_max_consecutive_count),
+            int(global_config.chat.planner_interrupt_max_consecutive_count),
         )
 
         expr_use, jargon_learn, expr_learn = ExpressionConfigUtils.get_expression_config_for_chat(session_id)

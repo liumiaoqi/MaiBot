@@ -173,21 +173,6 @@ class VisualConfig(ConfigBase):
     """_wrap_识图提示词，不建议修改"""
 
 
-class RelationshipConfig(ConfigBase):
-    """关系配置类"""
-
-    __ui_parent__ = "debug"
-
-    enable_relationship: bool = Field(
-        default=True,
-        json_schema_extra={
-            "x-widget": "switch",
-            "x-icon": "heart",
-        },
-    )
-    """是否启用关系系统，关系系统被移除，此部分配置暂时无效"""
-
-
 class TalkRulesItem(ConfigBase):
     platform: str = ""
     """平台，与ID一起留空表示全局"""
@@ -243,6 +228,16 @@ class ChatConfig(ConfigBase):
         },
     )
     """上下文长度"""
+    
+    planner_interrupt_max_consecutive_count: int = Field(
+        default=2,
+        ge=0,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "pause-circle",
+        },
+    )
+    """Planner 连续被新消息打断的最大次数，0 表示不启用打断"""
 
     plan_reply_log_max_per_chat: int = Field(
         default=1024,
@@ -1464,16 +1459,6 @@ class MaiSakaConfig(ConfigBase):
         },
     )
     """MaiSaka 使用的用户名称"""
-
-    planner_interrupt_max_consecutive_count: int = Field(
-        default=2,
-        ge=0,
-        json_schema_extra={
-            "x-widget": "input",
-            "x-icon": "pause-circle",
-        },
-    )
-    """Planner 连续被新消息打断的最大次数，0 表示不启用打断"""
 
     tool_filter_task_name: str = Field(
         default="utils",
