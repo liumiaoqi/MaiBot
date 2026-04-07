@@ -110,16 +110,21 @@ class _FakeNapCatQueryService:
         del message_id
         return None
 
-    async def get_forward_message(self, message_id: str) -> Any:
+    async def get_forward_message(
+        self,
+        message_id: str | None = None,
+        forward_id: str | None = None,
+    ) -> Any:
         """模拟获取合并转发消息详情。
 
         Args:
             message_id: 转发消息 ID。
+            forward_id: 兼容字段 ``id``。
 
         Returns:
             Any: 预置的合并转发消息详情。
         """
-        return self._forward_payloads.get(message_id)
+        return self._forward_payloads.get(forward_id or message_id or "")
 
     async def get_group_member_info(
         self,
@@ -131,22 +136,30 @@ class _FakeNapCatQueryService:
         del no_cache
         return self._group_member_payloads.get((group_id, user_id))
 
-    async def get_stranger_info(self, user_id: str) -> Dict[str, Any] | None:
+    async def get_stranger_info(self, user_id: str, no_cache: bool = False) -> Dict[str, Any] | None:
         """模拟获取 QQ 昵称资料。"""
+        del no_cache
         return self._stranger_payloads.get(user_id)
 
-    async def get_record_detail(self, file_name: str, file_id: str | None = None) -> Dict[str, Any] | None:
+    async def get_record_detail(
+        self,
+        file_name: str | None = None,
+        file_id: str | None = None,
+        out_format: str = "wav",
+    ) -> Dict[str, Any] | None:
         """模拟获取语音详情。
 
         Args:
             file_name: 文件名。
             file_id: 文件 ID。
+            out_format: 输出格式。
 
         Returns:
             Dict[str, Any] | None: 测试中默认不返回语音详情。
         """
         del file_name
         del file_id
+        del out_format
         return None
 
 
@@ -160,6 +173,8 @@ class _FakeNapCatActionService:
             response_data: 预置的 ``safe_call_action_data`` 返回值。
         """
         self._response_data = response_data
+        self.action_calls: List[Dict[str, Any]] = []
+        self.action_data_calls: List[Dict[str, Any]] = []
 
     async def safe_call_action_data(self, action_name: str, params: Dict[str, Any]) -> Any:
         """模拟安全调用 OneBot 动作。
@@ -171,9 +186,14 @@ class _FakeNapCatActionService:
         Returns:
             Any: 预置返回值。
         """
-        del action_name
-        del params
+        self.action_data_calls.append({"action_name": action_name, "params": dict(params)})
         return self._response_data
+
+    async def call_action(self, action_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
+        """模拟调用 OneBot 动作并记录参数。"""
+
+        self.action_calls.append({"action_name": action_name, "params": dict(params)})
+        return {"status": "ok", "retcode": 0, "data": {}}
 
 
 def _load_napcat_sdk_modules() -> Tuple[Any, Any, Any, Any]:
@@ -662,3 +682,201 @@ async def test_query_service_normalizes_forward_payload_list() -> None:
             }
         ]
     }
+
+
+@pytest.mark.asyncio
+async def test_query_service_supports_official_no_cache_for_get_stranger_info() -> None:
+    """查询服务应按官方字段下发 ``no_cache``。"""
+
+    action_service = _FakeNapCatActionService({"nickname": "测试用户"})
+    query_service_cls = _load_napcat_query_service_cls()
+    query_service = query_service_cls(
+        action_service=action_service,
+        logger=logging.getLogger("test.napcat_adapter.query_service.stranger"),
+    )
+
+    payload = await query_service.get_stranger_info("10001", no_cache=True)
+
+    assert payload == {"nickname": "测试用户"}
+    assert action_service.action_data_calls[-1] == {
+        "action_name": "get_stranger_info",
+        "params": {"user_id": "10001", "no_cache": True},
+    }
+
+
+@pytest.mark.asyncio
+async def test_query_service_supports_official_forward_id_alias() -> None:
+    """查询服务应兼容官方 ``id`` 字段调用 ``get_forward_msg``。"""
+
+    action_service = _FakeNapCatActionService({"messages": []})
+    query_service_cls = _load_napcat_query_service_cls()
+    query_service = query_service_cls(
+        action_service=action_service,
+        logger=logging.getLogger("test.napcat_adapter.query_service.forward_alias"),
+    )
+
+    payload = await query_service.get_forward_message(forward_id="forward-alias")
+
+    assert payload == {"messages": []}
+    assert action_service.action_data_calls[-1] == {
+        "action_name": "get_forward_msg",
+        "params": {"id": "forward-alias"},
+    }
+
+
+@pytest.mark.asyncio
+async def test_query_service_supports_custom_out_format_for_get_record() -> None:
+    """查询服务应按官方字段下发自定义 ``out_format``。"""
+
+    action_service = _FakeNapCatActionService({"file": "voice.mp3"})
+    query_service_cls = _load_napcat_query_service_cls()
+    query_service = query_service_cls(
+        action_service=action_service,
+        logger=logging.getLogger("test.napcat_adapter.query_service.record"),
+    )
+
+    payload = await query_service.get_record_detail(file_id="record-1", out_format="mp3")
+
+    assert payload == {"file": "voice.mp3"}
+    assert action_service.action_data_calls[-1] == {
+        "action_name": "get_record",
+        "params": {"file_id": "record-1", "out_format": "mp3"},
+    }
+
+
+@pytest.mark.asyncio
+async def test_query_service_supports_target_id_for_send_poke() -> None:
+    """查询服务应按官方字段下发 ``target_id``。"""
+
+    action_service = _FakeNapCatActionService(None)
+    query_service_cls = _load_napcat_query_service_cls()
+    query_service = query_service_cls(
+        action_service=action_service,
+        logger=logging.getLogger("test.napcat_adapter.query_service.poke"),
+    )
+
+    response = await query_service.send_poke(user_id=10001, group_id=20002, target_id=30003)
+
+    assert response["status"] == "ok"
+    assert action_service.action_calls[-1] == {
+        "action_name": "send_poke",
+        "params": {"user_id": 10001, "group_id": 20002, "target_id": 30003},
+    }
+
+
+@pytest.mark.asyncio
+async def test_public_api_send_poke_supports_official_fields_and_legacy_alias() -> None:
+    """公开 API 应同时兼容官方字段和旧版 ``qq_id`` 别名。"""
+
+    _napcat_gateway_name, _napcat_server_config, napcat_plugin_cls, _runtime_state_cls = _load_napcat_sdk_symbols()
+    plugin = napcat_plugin_cls()
+    captured: List[Dict[str, Any]] = []
+
+    class _SpyQueryService:
+        async def send_poke(
+            self,
+            user_id: int,
+            group_id: int | None = None,
+            target_id: int | None = None,
+        ) -> Dict[str, Any]:
+            captured.append(
+                {
+                    "user_id": user_id,
+                    "group_id": group_id,
+                    "target_id": target_id,
+                }
+            )
+            return {"status": "ok", "data": {}}
+
+    plugin._query_service = _SpyQueryService()
+    plugin._ensure_runtime_components = lambda: None  # type: ignore[method-assign]
+
+    await plugin.api_send_poke(user_id="10001", group_id="20002", target_id="30003")
+    await plugin.api_send_poke(qq_id="40004")
+
+    assert captured == [
+        {"user_id": 10001, "group_id": 20002, "target_id": 30003},
+        {"user_id": 40004, "group_id": None, "target_id": None},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_public_api_get_forward_msg_and_get_record_support_official_fields() -> None:
+    """公开 API 应接受官方 ``id`` 和 ``out_format`` 等字段。"""
+
+    _napcat_gateway_name, _napcat_server_config, napcat_plugin_cls, _runtime_state_cls = _load_napcat_sdk_symbols()
+    plugin = napcat_plugin_cls()
+    captured: Dict[str, Dict[str, Any]] = {}
+
+    class _SpyQueryService:
+        async def get_forward_message(
+            self,
+            message_id: str | None = None,
+            forward_id: str | None = None,
+        ) -> Dict[str, Any]:
+            captured["forward"] = {"message_id": message_id, "forward_id": forward_id}
+            return {"messages": []}
+
+        async def get_record_detail(
+            self,
+            file_name: str | None = None,
+            file_id: str | None = None,
+            out_format: str = "wav",
+        ) -> Dict[str, Any]:
+            captured["record"] = {
+                "file_name": file_name,
+                "file_id": file_id,
+                "out_format": out_format,
+            }
+            return {"file_id": file_id or "record-1"}
+
+    plugin._query_service = _SpyQueryService()
+    plugin._ensure_runtime_components = lambda: None  # type: ignore[method-assign]
+
+    forward_payload = await plugin.api_get_forward_msg(id="forward-1")
+    record_payload = await plugin.api_get_record(file_id="record-1", out_format="mp3")
+
+    assert forward_payload == {"messages": []}
+    assert record_payload == {"file_id": "record-1"}
+    assert captured["forward"] == {"message_id": None, "forward_id": "forward-1"}
+    assert captured["record"] == {
+        "file_name": None,
+        "file_id": "record-1",
+        "out_format": "mp3",
+    }
+
+
+@pytest.mark.asyncio
+async def test_public_api_send_poke_rejects_conflicting_alias_values() -> None:
+    """公开 ``send_poke`` API 应拒绝互相冲突的别名值。"""
+
+    _napcat_gateway_name, _napcat_server_config, napcat_plugin_cls, _runtime_state_cls = _load_napcat_sdk_symbols()
+    plugin = napcat_plugin_cls()
+    plugin._ensure_runtime_components = lambda: None  # type: ignore[method-assign]
+
+    with pytest.raises(ValueError, match="user_id 与 qq_id 不能同时传递不同的值"):
+        await plugin.api_send_poke(user_id="10001", qq_id="20002")
+
+
+@pytest.mark.asyncio
+async def test_public_api_get_forward_msg_rejects_conflicting_fields() -> None:
+    """公开 ``get_forward_msg`` API 应拒绝冲突的双字段调用。"""
+
+    _napcat_gateway_name, _napcat_server_config, napcat_plugin_cls, _runtime_state_cls = _load_napcat_sdk_symbols()
+    plugin = napcat_plugin_cls()
+    plugin._ensure_runtime_components = lambda: None  # type: ignore[method-assign]
+
+    with pytest.raises(ValueError, match="message_id 与 id 不能同时传递不同的值"):
+        await plugin.api_get_forward_msg(message_id="forward-a", id="forward-b")
+
+
+@pytest.mark.asyncio
+async def test_public_api_get_record_requires_file_or_file_id() -> None:
+    """公开 ``get_record`` API 至少需要一个官方定位字段。"""
+
+    _napcat_gateway_name, _napcat_server_config, napcat_plugin_cls, _runtime_state_cls = _load_napcat_sdk_symbols()
+    plugin = napcat_plugin_cls()
+    plugin._ensure_runtime_components = lambda: None  # type: ignore[method-assign]
+
+    with pytest.raises(ValueError, match="file 或 file_id 至少提供一个"):
+        await plugin.api_get_record()
