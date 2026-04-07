@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 from datetime import datetime
-from time import perf_counter
 from typing import Any, List, Optional, Sequence
 
 import asyncio
@@ -11,7 +10,6 @@ import random
 
 from pydantic import BaseModel, Field as PydanticField
 from rich.console import RenderableType
-from rich.panel import Panel
 from src.common.data_models.llm_service_data_models import LLMGenerationOptions
 from src.common.logger import get_logger
 from src.common.prompt_i18n import load_prompt
@@ -35,7 +33,7 @@ from src.services.llm_service import LLMServiceClient
 
 from .builtin_tool import get_builtin_tools
 from .context_messages import AssistantMessage, LLMContextMessage
-from .history_utils import drop_leading_orphan_tool_results
+from .history_utils import drop_orphan_tool_results
 from .prompt_cli_renderer import PromptCLIVisualizer
 
 
@@ -45,8 +43,10 @@ class ChatResponse:
 
     content: Optional[str]
     tool_calls: List[ToolCall]
+    request_messages: List[Message]
     raw_message: AssistantMessage
     selected_history_count: int
+    tool_count: int
     prompt_tokens: int
     built_message_count: int
     completion_tokens: int
@@ -742,7 +742,6 @@ class MaisakaChatLoopService:
                 folded=global_config.debug.fold_maisaka_thinking,
             )
 
-        request_started_at = perf_counter()
         logger.info(
             "规划器请求开始: "
             f"已选上下文消息数={len(selected_history)} "
@@ -808,8 +807,10 @@ class MaisakaChatLoopService:
         return ChatResponse(
             content=final_response or None,
             tool_calls=final_tool_calls,
+            request_messages=list(built_messages),
             raw_message=raw_message,
             selected_history_count=len(selected_history),
+            tool_count=len(all_tools),
             prompt_tokens=prompt_tokens,
             built_message_count=len(built_messages),
             completion_tokens=completion_tokens,
@@ -846,7 +847,7 @@ class MaisakaChatLoopService:
         selected_indices.reverse()
         selected_history = [chat_history[index] for index in selected_indices]
         selected_history, hidden_assistant_count = MaisakaChatLoopService._hide_early_assistant_messages(selected_history)
-        selected_history, _ = drop_leading_orphan_tool_results(selected_history)
+        selected_history, _ = drop_orphan_tool_results(selected_history)
         selection_reason = (
             f"上下文裁剪：最近 {effective_context_size} 条 user/assistant 消息，"
             f"实际发送 {len(selected_history)} 条"
@@ -890,7 +891,7 @@ class MaisakaChatLoopService:
         selected_indices.reverse()
         selected_history = [chat_history[index] for index in selected_indices]
         selected_history, hidden_assistant_count = MaisakaChatLoopService._hide_early_assistant_messages(selected_history)
-        selected_history, _ = drop_leading_orphan_tool_results(selected_history)
+        selected_history, _ = drop_orphan_tool_results(selected_history)
         return (
             selected_history,
             (
@@ -935,10 +936,10 @@ class MaisakaChatLoopService:
         return filtered_history, hidden_assistant_count
 
     @staticmethod
-    def _drop_leading_orphan_tool_results(
+    def _drop_orphan_tool_results(
         selected_history: List[LLMContextMessage],
     ) -> List[LLMContextMessage]:
-        """移除窗口前缀中缺少对应 tool_call 的工具结果消息。"""
+        """移除窗口中缺少对应 tool_call 的工具结果消息。"""
 
-        normalized_history, _ = drop_leading_orphan_tool_results(selected_history)
+        normalized_history, _ = drop_orphan_tool_results(selected_history)
         return normalized_history

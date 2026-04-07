@@ -78,3 +78,30 @@ def drop_leading_orphan_tool_results(
     if first_valid_index == 0:
         return chat_history, 0
     return chat_history[first_valid_index:], first_valid_index
+
+
+def drop_orphan_tool_results(
+    chat_history: list[LLMContextMessage],
+) -> tuple[list[LLMContextMessage], int]:
+    """移除窗口任意位置中缺少对应 tool_call 的工具结果消息。"""
+
+    if not chat_history:
+        return chat_history, 0
+
+    available_tool_call_ids = {
+        tool_call.call_id
+        for message in chat_history
+        if isinstance(message, AssistantMessage)
+        for tool_call in message.tool_calls
+        if tool_call.call_id
+    }
+
+    filtered_history: list[LLMContextMessage] = []
+    removed_count = 0
+    for message in chat_history:
+        if isinstance(message, ToolResultMessage) and message.tool_call_id not in available_tool_call_ids:
+            removed_count += 1
+            continue
+        filtered_history.append(message)
+
+    return filtered_history, removed_count

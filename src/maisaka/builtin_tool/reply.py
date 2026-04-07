@@ -57,6 +57,15 @@ def get_tool_spec() -> ToolSpec:
     )
 
 
+def _build_monitor_metadata(reply_result: object) -> dict[str, object]:
+    """从 reply 结果中提取统一监控详情。"""
+
+    monitor_detail = getattr(reply_result, "monitor_detail", None)
+    if isinstance(monitor_detail, dict):
+        return {"monitor_detail": monitor_detail}
+    return {}
+
+
 async def handle_tool(
     tool_ctx: BuiltinToolRuntimeContext,
     invocation: ToolInvocation,
@@ -71,7 +80,7 @@ async def handle_tool(
     if not target_message_id:
         return tool_ctx.build_failure_result(
             invocation.tool_name,
-            "回复工具需要提供有效的 `msg_id` 参数。",
+            "reply 工具需要提供有效的 `msg_id` 参数。",
         )
 
     target_message = tool_ctx.runtime._source_messages_by_id.get(target_message_id)
@@ -129,6 +138,7 @@ async def handle_tool(
             "生成可见回复时发生异常。",
         )
 
+    reply_metadata = _build_monitor_metadata(reply_result)
     reply_text = reply_result.completion.response_text.strip() if success else ""
     if not reply_text:
         logger.warning(
@@ -138,6 +148,7 @@ async def handle_tool(
         return tool_ctx.build_failure_result(
             invocation.tool_name,
             "生成可见回复失败。",
+            metadata=reply_metadata,
         )
 
     reply_segments = tool_ctx.post_process_reply_text(reply_text)
@@ -170,6 +181,7 @@ async def handle_tool(
         return tool_ctx.build_failure_result(
             invocation.tool_name,
             "发送可见回复时发生异常。",
+            metadata=reply_metadata,
         )
 
     if not sent:
@@ -181,6 +193,7 @@ async def handle_tool(
                 "set_quote": set_quote,
                 "reply_segments": reply_segments,
             },
+            metadata=reply_metadata,
         )
 
     target_user_info = target_message.message_info.user_info
@@ -202,4 +215,5 @@ async def handle_tool(
             "reply_segments": reply_segments,
             "target_user_name": target_user_name,
         },
+        metadata=reply_metadata,
     )

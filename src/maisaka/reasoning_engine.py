@@ -36,12 +36,10 @@ from .context_messages import (
 )
 from .history_utils import build_prefixed_message_sequence, build_session_message_visible_text, drop_leading_orphan_tool_results
 from .monitor_events import (
-    emit_cycle_end,
     emit_cycle_start,
     emit_message_ingested,
-    emit_planner_response,
+    emit_planner_finalized,
     emit_timing_gate_result,
-    emit_tool_execution,
 )
 from .planner_message_utils import build_planner_user_prefix_from_session_message
 
@@ -279,6 +277,7 @@ class MaisakaReasoningEngine:
             ChatResponse(
                 content=reason,
                 tool_calls=[],
+                request_messages=[],
                 raw_message=AssistantMessage(
                     content="",
                     timestamp=datetime.now(),
@@ -288,6 +287,7 @@ class MaisakaReasoningEngine:
                     sum(1 for message in self._runtime._chat_history if message.count_in_context),
                     self._runtime._max_context_size,
                 ),
+                tool_count=0,
                 prompt_tokens=0,
                 built_message_count=0,
                 completion_tokens=0,
@@ -346,6 +346,9 @@ class MaisakaReasoningEngine:
                             history_count=len(self._runtime._chat_history),
                         )
                         planner_started_at = 0.0
+                        planner_duration_ms = 0.0
+                        response: Optional[ChatResponse] = None
+                        tool_monitor_results: list[dict[str, Any]] = []
                         try:
                             visual_refresh_started_at = time.time()
                             refreshed_message_count = await self._refresh_chat_history_visual_placeholders()
@@ -403,17 +406,6 @@ class MaisakaReasoningEngine:
                                 f"回合={round_index + 1} "
                                 f"耗时={cycle_detail.time_records['planner']:.3f} 秒"
                             )
-                            await emit_planner_response(
-                                session_id=self._runtime.session_id,
-                                cycle_id=cycle_detail.cycle_id,
-                                content=response.content,
-                                tool_calls=response.tool_calls,
-                                prompt_tokens=response.prompt_tokens,
-                                completion_tokens=response.completion_tokens,
-                                total_tokens=response.total_tokens,
-                                duration_ms=planner_duration_ms,
-                            )
-
                             reasoning_content = response.content or ""
                             if self._should_replace_reasoning(reasoning_content):
                                 response.content = "我应该根据我上面思考的内容进行反思，重新思考我下一步的行动，我需要分析当前场景，对话，以及我可以使用的工具，然后先输出想法再使用工具"
@@ -423,10 +415,11 @@ class MaisakaReasoningEngine:
                             self._last_reasoning_content = reasoning_content
                             self._runtime._chat_history.append(response.raw_message)
                             tool_result_summaries: list[str] = []
+                            tool_monitor_results = []
 
                             if response.tool_calls:
                                 tool_started_at = time.time()
-                                should_pause, tool_result_summaries = await self._handle_tool_calls(
+                                should_pause, tool_result_summaries, tool_monitor_results = await self._handle_tool_calls(
                                     response.tool_calls,
                                     response.content or "",
                                     anchor_message,
@@ -463,13 +456,24 @@ class MaisakaReasoningEngine:
                             )
                             break
                         finally:
-                            self._end_cycle(cycle_detail)
-                            await emit_cycle_end(
-                                session_id=self._runtime.session_id,
-                                cycle_id=cycle_detail.cycle_id,
-                                time_records=dict(cycle_detail.time_records),
-                                agent_state=self._runtime._agent_state,
-                            )
+                            completed_cycle = self._end_cycle(cycle_detail)
+                            if response is not None:
+                                await emit_planner_finalized(
+                                    session_id=self._runtime.session_id,
+                                    cycle_id=cycle_detail.cycle_id,
+                                    request_messages=response.request_messages,
+                                    selected_history_count=response.selected_history_count,
+                                    tool_count=response.tool_count,
+                                    planner_content=response.content,
+                                    planner_tool_calls=response.tool_calls,
+                                    prompt_tokens=response.prompt_tokens,
+                                    completion_tokens=response.completion_tokens,
+                                    total_tokens=response.total_tokens,
+                                    duration_ms=planner_duration_ms,
+                                    tools=tool_monitor_results,
+                                    time_records=dict(completed_cycle.time_records),
+                                    agent_state=self._runtime._agent_state,
+                                )
                 finally:
                     if self._runtime._agent_state == self._runtime._STATE_RUNNING:
                         self._runtime._agent_state = self._runtime._STATE_STOP
@@ -683,7 +687,7 @@ class MaisakaReasoningEngine:
     def _drop_leading_orphan_tool_results(
         chat_history: list[LLMContextMessage],
     ) -> tuple[list[LLMContextMessage], int]:
-        """清理历史前缀中缺少对应 assistant tool_call 的工具结果消息。"""
+        """清理历史窗口中缺少对应 assistant tool_call 的工具结果消息。"""
 
         return drop_leading_orphan_tool_results(chat_history)
 
@@ -1039,12 +1043,38 @@ class MaisakaReasoningEngine:
         normalized_content = self._truncate_tool_record_text(history_content, max_length=200)
         return f"- {tool_call.func_name} {summary_prefix}: {normalized_content}"
 
+    def _build_tool_monitor_result(
+        self,
+        tool_call: ToolCall,
+        invocation: ToolInvocation,
+        result: ToolExecutionResult,
+        duration_ms: float,
+    ) -> dict[str, Any]:
+        """构建 planner.finalized 中单个工具的监控结果。"""
+
+        monitor_detail = result.metadata.get("monitor_detail")
+        normalized_detail = None
+        if monitor_detail is not None:
+            normalized_detail = self._normalize_tool_record_value(monitor_detail)
+
+        return {
+            "tool_call_id": tool_call.call_id,
+            "tool_name": tool_call.func_name,
+            "tool_args": self._normalize_tool_record_value(
+                invocation.arguments if isinstance(invocation.arguments, dict) else {}
+            ),
+            "success": result.success,
+            "duration_ms": round(duration_ms, 2),
+            "summary": self._build_tool_result_summary(tool_call, result),
+            "detail": normalized_detail,
+        }
+
     async def _handle_tool_calls(
         self,
         tool_calls: list[ToolCall],
         latest_thought: str,
         anchor_message: SessionMessage,
-    ) -> tuple[bool, list[str]]:
+    ) -> tuple[bool, list[str], list[dict[str, Any]]]:
         """执行一批统一工具调用。
 
         Args:
@@ -1057,6 +1087,7 @@ class MaisakaReasoningEngine:
         """
 
         tool_result_summaries: list[str] = []
+        tool_monitor_results: list[dict[str, Any]] = []
 
         if self._runtime._tool_registry is None:
             for tool_call in tool_calls:
@@ -1069,7 +1100,10 @@ class MaisakaReasoningEngine:
                 await self._store_tool_execution_record(invocation, result, None)
                 self._append_tool_execution_result(tool_call, result)
                 tool_result_summaries.append(self._build_tool_result_summary(tool_call, result))
-            return False, tool_result_summaries
+                tool_monitor_results.append(
+                    self._build_tool_monitor_result(tool_call, invocation, result, duration_ms=0.0)
+                )
+            return False, tool_result_summaries, tool_monitor_results
 
         execution_context = self._build_tool_execution_context(latest_thought, anchor_message)
         tool_spec_map = {
@@ -1088,24 +1122,17 @@ class MaisakaReasoningEngine:
             )
             self._append_tool_execution_result(tool_call, result)
             tool_result_summaries.append(self._build_tool_result_summary(tool_call, result))
+            tool_monitor_results.append(
+                self._build_tool_monitor_result(tool_call, invocation, result, tool_duration_ms)
+            )
 
             # 向监控前端广播工具执行结果
-            cycle_id = self._runtime._current_cycle_detail.cycle_id if self._runtime._current_cycle_detail else 0
-            await emit_tool_execution(
-                session_id=self._runtime.session_id,
-                cycle_id=cycle_id,
-                tool_name=tool_call.func_name,
-                tool_args=invocation.arguments if isinstance(invocation.arguments, dict) else {},
-                result_summary=result.content[:500] if result.content else (result.error_message or "")[:500],
-                success=result.success,
-                duration_ms=tool_duration_ms,
-            )
 
             if not result.success and tool_call.func_name == "reply":
                 logger.warning(f"{self._runtime.log_prefix} 回复工具未生成可见消息，将继续下一轮循环")
 
             if bool(result.metadata.get("pause_execution", False)):
-                return True, tool_result_summaries
+                return True, tool_result_summaries, tool_monitor_results
 
-        return False, tool_result_summaries
+        return False, tool_result_summaries, tool_monitor_results
 

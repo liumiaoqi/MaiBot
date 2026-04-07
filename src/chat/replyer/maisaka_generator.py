@@ -11,6 +11,7 @@ from src.common.data_models.reply_generation_data_models import (
     GenerationMetrics,
     LLMCompletionResult,
     ReplyGenerationResult,
+    build_reply_monitor_detail,
 )
 from src.common.logger import get_logger
 from src.common.prompt_i18n import load_prompt
@@ -18,9 +19,16 @@ from src.config.config import global_config
 from src.core.types import ActionInfo
 from src.services.llm_service import LLMServiceClient
 
-from src.maisaka.context_messages import AssistantMessage, LLMContextMessage, ReferenceMessage, SessionBackedMessage, ToolResultMessage
-from .maisaka_expression_selector import maisaka_expression_selector
+from src.maisaka.context_messages import (
+    AssistantMessage,
+    LLMContextMessage,
+    ReferenceMessage,
+    SessionBackedMessage,
+    ToolResultMessage,
+)
 from src.maisaka.message_adapter import parse_speaker_content
+
+from .maisaka_expression_selector import maisaka_expression_selector
 
 logger = get_logger("replyer")
 
@@ -50,7 +58,7 @@ class MaisakaReplyGenerator:
         self._personality_prompt = self._build_personality_prompt()
 
     def _build_personality_prompt(self) -> str:
-        """构建 replyer 使用的人设描述。"""
+        """构建 replyer 使用的人设提示。"""
         try:
             bot_name = global_config.bot.nickname
             alias_names = global_config.bot.alias_names
@@ -268,6 +276,11 @@ class MaisakaReplyGenerator:
         sub_agent_runner: Optional[Callable[[str], Awaitable[str]]] = None,
     ) -> Tuple[bool, ReplyGenerationResult]:
         """结合上下文生成 Maisaka 的最终可见回复。"""
+
+        def finalize(success_value: bool) -> Tuple[bool, ReplyGenerationResult]:
+            result.monitor_detail = build_reply_monitor_detail(result)
+            return success_value, result
+
         del available_actions
         del chosen_actions
         del extra_info
@@ -278,14 +291,14 @@ class MaisakaReplyGenerator:
         del unknown_words
 
         result = ReplyGenerationResult()
+        overall_started_at = time.perf_counter()
         if chat_history is None:
             result.error_message = "聊天历史为空"
-            return False, result
+            return finalize(False)
 
         logger.info(
             f"Maisaka 回复器开始生成: 会话流标识={stream_id} 回复原因={reply_reason!r} "
-            f"历史消息数={len(chat_history)} 目标消息编号="
-            f"{reply_message.message_id if reply_message else None}"
+            f"历史消息数={len(chat_history)} 目标消息编号={reply_message.message_id if reply_message else None}"
         )
 
         filtered_history = [
@@ -293,14 +306,12 @@ class MaisakaReplyGenerator:
             for message in chat_history
             if not isinstance(message, (ReferenceMessage, ToolResultMessage))
         ]
-
         logger.debug(f"Maisaka 回复器过滤后历史消息数={len(filtered_history)}")
 
-        # Validate that express_model is properly initialized
         if self.express_model is None:
             logger.error("Maisaka 回复器的回复模型未初始化")
             result.error_message = "回复模型尚未初始化"
-            return False, result
+            return finalize(False)
 
         try:
             reply_context = await self._build_reply_context(
@@ -312,9 +323,13 @@ class MaisakaReplyGenerator:
             )
         except Exception as exc:
             import traceback
+
             logger.error(f"Maisaka 回复器构建回复上下文失败: {exc}\n{traceback.format_exc()}")
             result.error_message = f"构建回复上下文失败: {exc}"
-            return False, result
+            result.metrics = GenerationMetrics(
+                overall_ms=round((time.perf_counter() - overall_started_at) * 1000, 2),
+            )
+            return finalize(False)
 
         merged_expression_habits = expression_habits.strip() or reply_context.expression_habits
         result.selected_expression_ids = (
@@ -328,6 +343,7 @@ class MaisakaReplyGenerator:
             f"已选表达编号={result.selected_expression_ids!r}"
         )
 
+        prompt_started_at = time.perf_counter()
         try:
             prompt = self._build_prompt(
                 chat_history=filtered_history,
@@ -337,26 +353,36 @@ class MaisakaReplyGenerator:
             )
         except Exception as exc:
             import traceback
+
             logger.error(f"Maisaka 回复器构建提示词失败: {exc}\n{traceback.format_exc()}")
             result.error_message = f"构建提示词失败: {exc}"
-            return False, result
+            result.metrics = GenerationMetrics(
+                overall_ms=round((time.perf_counter() - overall_started_at) * 1000, 2),
+            )
+            return finalize(False)
 
+        prompt_ms = round((time.perf_counter() - prompt_started_at) * 1000, 2)
         result.completion.request_prompt = prompt
+        show_replyer_prompt = bool(getattr(global_config.debug, "show_replyer_prompt", False))
+        show_replyer_reasoning = bool(getattr(global_config.debug, "show_replyer_reasoning", False))
 
-        if global_config.debug.show_replyer_prompt:
-            logger.info(f"\nMaisaka 回复器提示词：\n{prompt}\n")
+        if show_replyer_prompt:
+            logger.info(f"\nMaisaka 回复器提示词:\n{prompt}\n")
 
-        started_at = time.perf_counter()
+        llm_started_at = time.perf_counter()
         try:
             generation_result = await self.express_model.generate_response(prompt)
         except Exception as exc:
             logger.exception("Maisaka 回复器调用失败")
             result.error_message = str(exc)
             result.metrics = GenerationMetrics(
-                overall_ms=round((time.perf_counter() - started_at) * 1000, 2),
+                prompt_ms=prompt_ms,
+                llm_ms=round((time.perf_counter() - llm_started_at) * 1000, 2),
+                overall_ms=round((time.perf_counter() - overall_started_at) * 1000, 2),
             )
-            return False, result
+            return finalize(False)
 
+        llm_ms = round((time.perf_counter() - llm_started_at) * 1000, 2)
         response_text = (generation_result.response or "").strip()
         result.success = bool(response_text)
         result.completion = LLMCompletionResult(
@@ -365,18 +391,27 @@ class MaisakaReplyGenerator:
             reasoning_text=generation_result.reasoning or "",
             model_name=generation_result.model_name or "",
             tool_calls=generation_result.tool_calls or [],
+            prompt_tokens=generation_result.prompt_tokens,
+            completion_tokens=generation_result.completion_tokens,
+            total_tokens=generation_result.total_tokens,
         )
         result.metrics = GenerationMetrics(
-            overall_ms=round((time.perf_counter() - started_at) * 1000, 2),
+            prompt_ms=prompt_ms,
+            llm_ms=llm_ms,
+            overall_ms=round((time.perf_counter() - overall_started_at) * 1000, 2),
+            stage_logs=[
+                f"prompt: {prompt_ms} ms",
+                f"llm: {llm_ms} ms",
+            ],
         )
 
-        if global_config.debug.show_replyer_reasoning and result.completion.reasoning_text:
-            logger.info(f"Maisaka 回复器思考内容：\n{result.completion.reasoning_text}")
+        if show_replyer_reasoning and result.completion.reasoning_text:
+            logger.info(f"Maisaka 回复器思考内容:\n{result.completion.reasoning_text}")
 
         if not result.success:
             result.error_message = "回复器返回了空内容"
             logger.warning("Maisaka 回复器返回了空内容")
-            return False, result
+            return finalize(False)
 
         logger.info(
             f"Maisaka 回复器生成成功: 回复文本={response_text!r} "
@@ -384,4 +419,4 @@ class MaisakaReplyGenerator:
             f"已选表达编号={result.selected_expression_ids!r}"
         )
         result.text_fragments = [response_text]
-        return True, result
+        return finalize(True)
