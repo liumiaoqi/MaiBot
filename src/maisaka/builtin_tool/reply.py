@@ -205,7 +205,7 @@ async def handle_tool(
     else:
         for sent_message in sent_messages:
             tool_ctx.append_sent_message_to_chat_history(sent_message)
-    tool_ctx.runtime._clear_force_continue_until_reply()
+    tool_ctx.runtime._record_reply_sent()
     return tool_ctx.build_success_result(
         invocation.tool_name,
         "回复已生成并发送。",

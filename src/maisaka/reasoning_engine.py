@@ -347,6 +347,10 @@ class MaisakaReasoningEngine:
                         )
                         planner_started_at = 0.0
                         planner_duration_ms = 0.0
+                        timing_duration_ms = 0.0
+                        timing_action: Optional[str] = None
+                        timing_response: Optional[ChatResponse] = None
+                        timing_tool_results: Optional[list[str]] = None
                         response: Optional[ChatResponse] = None
                         tool_monitor_results: list[dict[str, Any]] = []
                         try:
@@ -458,23 +462,43 @@ class MaisakaReasoningEngine:
                             break
                         finally:
                             completed_cycle = self._end_cycle(cycle_detail)
-                            if response is not None:
-                                await emit_planner_finalized(
-                                    session_id=self._runtime.session_id,
-                                    cycle_id=cycle_detail.cycle_id,
-                                    request_messages=response.request_messages,
-                                    selected_history_count=response.selected_history_count,
-                                    tool_count=response.tool_count,
-                                    planner_content=response.content,
-                                    planner_tool_calls=response.tool_calls,
-                                    prompt_tokens=response.prompt_tokens,
-                                    completion_tokens=response.completion_tokens,
-                                    total_tokens=response.total_tokens,
-                                    duration_ms=planner_duration_ms,
-                                    tools=tool_monitor_results,
-                                    time_records=dict(completed_cycle.time_records),
-                                    agent_state=self._runtime._agent_state,
-                                )
+                            await emit_planner_finalized(
+                                session_id=self._runtime.session_id,
+                                cycle_id=cycle_detail.cycle_id,
+                                timing_request_messages=(
+                                    timing_response.request_messages if timing_response is not None else None
+                                ),
+                                timing_selected_history_count=(
+                                    timing_response.selected_history_count if timing_response is not None else None
+                                ),
+                                timing_tool_count=timing_response.tool_count if timing_response is not None else None,
+                                timing_action=timing_action,
+                                timing_content=timing_response.content if timing_response is not None else None,
+                                timing_tool_calls=timing_response.tool_calls if timing_response is not None else None,
+                                timing_tool_results=timing_tool_results,
+                                timing_prompt_tokens=timing_response.prompt_tokens if timing_response is not None else None,
+                                timing_completion_tokens=(
+                                    timing_response.completion_tokens if timing_response is not None else None
+                                ),
+                                timing_total_tokens=timing_response.total_tokens if timing_response is not None else None,
+                                timing_duration_ms=timing_duration_ms if timing_response is not None else None,
+                                planner_request_messages=response.request_messages if response is not None else None,
+                                planner_selected_history_count=(
+                                    response.selected_history_count if response is not None else None
+                                ),
+                                planner_tool_count=response.tool_count if response is not None else None,
+                                planner_content=response.content if response is not None else None,
+                                planner_tool_calls=response.tool_calls if response is not None else None,
+                                planner_prompt_tokens=response.prompt_tokens if response is not None else None,
+                                planner_completion_tokens=(
+                                    response.completion_tokens if response is not None else None
+                                ),
+                                planner_total_tokens=response.total_tokens if response is not None else None,
+                                planner_duration_ms=planner_duration_ms if response is not None else None,
+                                tools=tool_monitor_results,
+                                time_records=dict(completed_cycle.time_records),
+                                agent_state=self._runtime._agent_state,
+                            )
                 finally:
                     if self._runtime._agent_state == self._runtime._STATE_RUNNING:
                         self._runtime._agent_state = self._runtime._STATE_STOP

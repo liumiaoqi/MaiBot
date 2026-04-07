@@ -26,8 +26,6 @@ from src.services.message_service import (
     replace_user_references,
     translate_pid_to_description,
 )
-from src.learners.expression_selector import expression_selector
-
 # from src.memory_system.memory_activator import MemoryActivator
 from src.person_info.person_info import Person
 from src.core.types import ActionInfo, EventType
@@ -295,53 +293,19 @@ class DefaultReplyer:
     async def build_expression_habits(
         self, chat_history: str, target: str, reply_reason: str = "", think_level: int = 1
     ) -> Tuple[str, List[int]]:
-        # sourcery skip: for-append-to-extend
-        """构建表达习惯块
+        """构建表达习惯块。"""
+        del chat_history
+        del target
+        del reply_reason
+        del think_level
 
-        Args:
-            chat_history: 聊天历史记录
-            target: 目标消息内容
-            reply_reason: planner给出的回复理由
-            think_level: 思考级别，0/1/2
-
-        Returns:
-            str: 表达习惯信息字符串
-        """
-        # 检查是否允许在此聊天流中使用表达
         use_expression, _, _ = TempMethodsExpression.get_expression_config_for_chat(self.chat_stream.session_id)
         if not use_expression:
             return "", []
-        style_habits = []
-        # 使用从处理器传来的选中表达方式
-        # 使用模型预测选择表达方式
-        selected_expressions, selected_ids = await expression_selector.select_suitable_expressions(
-            self.chat_stream.session_id,
-            chat_history,
-            max_num=8,
-            target_message=target,
-            reply_reason=reply_reason,
-            think_level=think_level,
-        )
 
-        if selected_expressions:
-            logger.debug(f"使用处理器选中的{len(selected_expressions)}个表达方式")
-            for expr in selected_expressions:
-                if isinstance(expr, dict) and "situation" in expr and "style" in expr:
-                    style_habits.append(f"当{expr['situation']}时：{expr['style']}")
-        else:
-            logger.debug("没有从处理器获得表达方式，将使用空的表达方式")
-            # 不再在replyer中进行随机选择，全部交给处理器处理
-
-        style_habits_str = "\n".join(style_habits)
-
-        # 动态构建expression habits块
-        expression_habits_block = ""
-        expression_habits_title = ""
-        if style_habits_str.strip():
-            expression_habits_title = "在回复时,你可以参考以下的语言习惯，不要生硬使用："
-            expression_habits_block += f"{style_habits_str}\n"
-
-        return f"{expression_habits_title}\n{expression_habits_block}", selected_ids
+        # 旧 replyer 的表达方式选择链路已停用，这里不再执行额外的模型筛选。
+        logger.debug("旧 replyer 表达方式选择已停用，跳过 expression habits 构建")
+        return "", []
 
     async def build_tool_info(self, chat_history: str, sender: str, target: str) -> str:
         del chat_history

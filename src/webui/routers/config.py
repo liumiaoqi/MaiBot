@@ -30,7 +30,6 @@ from src.config.official_configs import (
     MemoryConfig,
     MessageReceiveConfig,
     PersonalityConfig,
-    RelationshipConfig,
     ResponsePostProcessConfig,
     ResponseSplitterConfig,
     TelemetryConfig,
@@ -97,7 +96,6 @@ async def get_config_section_schema(section_name: str):
     支持的section_name:
     - bot: BotConfig
     - personality: PersonalityConfig
-    - relationship: RelationshipConfig
     - chat: ChatConfig
     - message_receive: MessageReceiveConfig
     - emoji: EmojiConfig
@@ -119,7 +117,6 @@ async def get_config_section_schema(section_name: str):
     section_map = {
         "bot": BotConfig,
         "personality": PersonalityConfig,
-        "relationship": RelationshipConfig,
         "chat": ChatConfig,
         "message_receive": MessageReceiveConfig,
         "emoji": EmojiConfig,

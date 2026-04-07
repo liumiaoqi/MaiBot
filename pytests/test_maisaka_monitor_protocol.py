@@ -123,6 +123,7 @@ async def test_reply_tool_puts_monitor_detail_into_metadata(monkeypatch: pytest.
         session_id="session-1",
         _chat_history=[],
         _clear_force_continue_until_reply=lambda: None,
+        _record_reply_sent=lambda: None,
         run_sub_agent=None,
     )
     engine = SimpleNamespace(_get_runtime_manager=lambda: None)
@@ -214,15 +215,26 @@ async def test_emit_planner_finalized_broadcasts_new_protocol(monkeypatch: pytes
     await emit_planner_finalized(
         session_id="session-1",
         cycle_id=3,
-        request_messages=[{"role": "user", "content": "你好"}],
-        selected_history_count=5,
-        tool_count=2,
+        timing_request_messages=[{"role": "user", "content": "先看看要不要继续"}],
+        timing_selected_history_count=3,
+        timing_tool_count=1,
+        timing_action="continue",
+        timing_content="继续",
+        timing_tool_calls=[SimpleNamespace(call_id="timing-call-1", func_name="continue", args={})],
+        timing_tool_results=["- continue [成功]: 继续执行"],
+        timing_prompt_tokens=40,
+        timing_completion_tokens=5,
+        timing_total_tokens=45,
+        timing_duration_ms=11.2,
+        planner_request_messages=[{"role": "user", "content": "你好"}],
+        planner_selected_history_count=5,
+        planner_tool_count=2,
         planner_content="先查询再回复",
         planner_tool_calls=[SimpleNamespace(call_id="call-1", func_name="reply", args={"msg_id": "m1"})],
-        prompt_tokens=100,
-        completion_tokens=30,
-        total_tokens=130,
-        duration_ms=88.5,
+        planner_prompt_tokens=100,
+        planner_completion_tokens=30,
+        planner_total_tokens=130,
+        planner_duration_ms=88.5,
         tools=[
             {
                 "tool_call_id": "call-1",
@@ -240,11 +252,58 @@ async def test_emit_planner_finalized_broadcasts_new_protocol(monkeypatch: pytes
 
     assert captured["event"] == "planner.finalized"
     payload = captured["data"]
+    assert payload["timing_gate"]["result"]["action"] == "continue"
+    assert payload["timing_gate"]["result"]["tool_results"] == ["- continue [成功]: 继续执行"]
     assert payload["request"]["messages"][0]["content"] == "你好"
     assert payload["request"]["tool_count"] == 2
     assert payload["planner"]["tool_calls"][0]["id"] == "call-1"
     assert payload["tools"][0]["detail"]["output_text"] == "测试回复"
     assert payload["final_state"]["agent_state"] == "stop"
+
+
+@pytest.mark.asyncio
+async def test_emit_planner_finalized_supports_timing_only_cycle(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+
+    async def _fake_broadcast(event: str, data: dict[str, Any]) -> None:
+        captured["event"] = event
+        captured["data"] = data
+
+    monkeypatch.setattr("src.maisaka.monitor_events._broadcast", _fake_broadcast)
+
+    await emit_planner_finalized(
+        session_id="session-2",
+        cycle_id=7,
+        timing_request_messages=[{"role": "user", "content": "先别回"}],
+        timing_selected_history_count=2,
+        timing_tool_count=1,
+        timing_action="no_reply",
+        timing_content="当前不适合继续",
+        timing_tool_calls=[SimpleNamespace(call_id="timing-call-2", func_name="no_reply", args={})],
+        timing_tool_results=["- no_reply [成功]: 暂停当前对话"],
+        timing_prompt_tokens=18,
+        timing_completion_tokens=4,
+        timing_total_tokens=22,
+        timing_duration_ms=6.5,
+        planner_request_messages=None,
+        planner_selected_history_count=None,
+        planner_tool_count=None,
+        planner_content=None,
+        planner_tool_calls=None,
+        planner_prompt_tokens=None,
+        planner_completion_tokens=None,
+        planner_total_tokens=None,
+        planner_duration_ms=None,
+        tools=[],
+        time_records={"timing_gate": 0.02},
+        agent_state="stop",
+    )
+
+    assert captured["event"] == "planner.finalized"
+    payload = captured["data"]
+    assert payload["timing_gate"]["result"]["action"] == "no_reply"
+    assert payload["planner"] is None
+    assert payload["request"] is None
 
 
 def test_reasoning_engine_build_tool_monitor_result_keeps_non_reply_tool_without_detail() -> None:

@@ -414,6 +414,7 @@ def try_migrate_legacy_bot_config_dict(data: dict[str, Any]) -> MigrationResult:
 
     maisaka = _as_dict(data.get("maisaka"))
     mem = _as_dict(data.get("memory"))
+    debug = _as_dict(data.get("debug"))
     if maisaka is not None:
         moved_memory_keys = ("enable_memory_query_tool", "memory_query_default_limit")
         if any(key in maisaka for key in moved_memory_keys) and mem is None:
@@ -426,10 +427,18 @@ def try_migrate_legacy_bot_config_dict(data: dict[str, Any]) -> MigrationResult:
                     migrated_any = True
                     reasons.append(f"maisaka.{moved_key}_moved_to_memory")
 
+    if mem is not None and "show_memory_prompt" in mem and debug is None:
+        debug = {}
+        data["debug"] = debug
+
     if mem is not None:
         if _migrate_target_item_list(mem, "global_memory_blacklist"):
             migrated_any = True
             reasons.append("memory.global_memory_blacklist")
+
+        if debug is not None and _move_section_key(mem, debug, "show_memory_prompt"):
+            migrated_any = True
+            reasons.append("memory.show_memory_prompt_moved_to_debug")
 
         for removed_key in (
             "agent_timeout_seconds",
@@ -439,6 +448,12 @@ def try_migrate_legacy_bot_config_dict(data: dict[str, Any]) -> MigrationResult:
                 mem.pop(removed_key, None)
                 migrated_any = True
                 reasons.append(f"memory.{removed_key}_removed")
+
+    relationship = _as_dict(data.get("relationship"))
+    if relationship is not None:
+        data.pop("relationship", None)
+        migrated_any = True
+        reasons.append("relationship_removed")
 
     exp = _as_dict(data.get("experimental"))
     if exp is not None:
