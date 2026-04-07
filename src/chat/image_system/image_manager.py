@@ -49,7 +49,11 @@ class ImageManager:
         """根据哈希获取图片记录。"""
         with get_db_session() as session:
             statement = select(Images).filter_by(image_hash=image_hash, image_type=ImageType.IMAGE).limit(1)
-            return session.exec(statement).first()
+            record = session.exec(statement).first()
+            if record is not None:
+                # 返回会话外使用的只读记录，避免在会话关闭后触发属性刷新。
+                session.expunge(record)
+            return record
 
     def _normalize_image_registration_fields(self, record: Images) -> bool:
         """Normalize accidental emoji registration fields on image records."""
