@@ -47,7 +47,7 @@ def get_action_tool_specs() -> List[ToolSpec]:
         get_reply_tool_spec(),
         get_view_complex_message_tool_spec(),
         get_query_jargon_tool_spec(),
-        get_query_memory_tool_spec(enabled=bool(global_config.maisaka.enable_memory_query_tool)),
+        get_query_memory_tool_spec(enabled=bool(global_config.memory.enable_memory_query_tool)),
         get_send_emoji_tool_spec(),
     ]
 

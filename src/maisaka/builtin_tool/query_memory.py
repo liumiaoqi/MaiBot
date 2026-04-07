@@ -161,7 +161,7 @@ async def handle_tool(
             f"不支持的检索模式：{mode}。可选值：search/time/hybrid/episode/aggregate。",
         )
 
-    default_limit = max(1, int(getattr(global_config.maisaka, "memory_query_default_limit", 5) or 5))
+    default_limit = max(1, global_config.memory.memory_query_default_limit)
     try:
         limit = int(invocation.arguments.get("limit", default_limit) or default_limit)
     except (TypeError, ValueError):

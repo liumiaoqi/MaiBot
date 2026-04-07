@@ -369,7 +369,7 @@ class ImageManager:
             logger.info(f"Cleaned mistaken registration state on {fixed_counter} image records")
 
     async def _generate_image_description(self, image_bytes: bytes, image_format: str) -> str:
-        prompt = global_config.personality.visual_style
+        prompt = global_config.visual.visual_style
         image_base64 = base64.b64encode(image_bytes).decode("utf-8")
 
         generation_result = await vlm.generate_response_for_image(

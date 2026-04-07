@@ -37,6 +37,8 @@ from .tool_provider import MaisakaBuiltinToolProvider
 
 logger = get_logger("maisaka_runtime")
 
+MAX_INTERNAL_ROUNDS = 6
+
 
 class MaisakaHeartFlowChatting:
     """会话级别的 Maisaka 运行时。"""
@@ -78,7 +80,7 @@ class MaisakaHeartFlowChatting:
         self._message_debounce_required = False
         self._last_message_received_at = 0.0
         self._wait_timeout_task: Optional[asyncio.Task[None]] = None
-        self._max_internal_rounds = global_config.maisaka.max_internal_rounds
+        self._max_internal_rounds = MAX_INTERNAL_ROUNDS
         self._max_context_size = max(1, int(global_config.chat.max_context_size))
         self._agent_state: Literal["running", "wait", "stop"] = self._STATE_STOP
         self._wait_until: Optional[float] = None

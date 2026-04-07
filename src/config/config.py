@@ -27,14 +27,15 @@ from .official_configs import (
     MaiSakaConfig,
     MaimMessageConfig,
     MCPConfig,
-    PluginRuntimeConfig,
     MemoryConfig,
     MessageReceiveConfig,
     PersonalityConfig,
+    PluginRuntimeConfig,
     RelationshipConfig,
     ResponsePostProcessConfig,
     ResponseSplitterConfig,
     TelemetryConfig,
+    VisualConfig,
     VoiceConfig,
     WebUIConfig,
 )
@@ -55,7 +56,7 @@ CONFIG_DIR: Path = PROJECT_ROOT / "config"
 BOT_CONFIG_PATH: Path = (CONFIG_DIR / "bot_config.toml").resolve().absolute()
 MODEL_CONFIG_PATH: Path = (CONFIG_DIR / "model_config.toml").resolve().absolute()
 MMC_VERSION: str = "1.0.0"
-CONFIG_VERSION: str = "8.3.4"
+CONFIG_VERSION: str = "8.4.1"
 MODEL_CONFIG_VERSION: str = "1.13.1"
 
 logger = get_logger("config")
@@ -72,6 +73,9 @@ class Config(ConfigBase):
 
     personality: PersonalityConfig = Field(default_factory=PersonalityConfig)
     """人格配置类"""
+
+    visual: VisualConfig = Field(default_factory=VisualConfig)
+    """视觉配置类"""
 
     expression: ExpressionConfig = Field(default_factory=ExpressionConfig)
     """表达配置类"""
@@ -474,6 +478,10 @@ def load_config_from_file(
         if env_migration.migrated:
             logger.warning(f"检测到旧版环境变量绑定配置，已迁移到主配置: {env_migration.reason}")
         config_data = env_migration.data
+        legacy_migration = try_migrate_legacy_bot_config_dict(config_data)
+        if legacy_migration.migrated:
+            logger.warning(t("config.legacy_migrated", reason=legacy_migration.reason))
+        config_data = legacy_migration.data
     # 保留一份“干净”的原始数据副本，避免第一次 from_dict 过程中对 dict 的就地修改
     original_data: dict[str, Any] = copy.deepcopy(config_data)
     try:

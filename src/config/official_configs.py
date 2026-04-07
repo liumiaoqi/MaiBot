@@ -113,15 +113,6 @@ class PersonalityConfig(ConfigBase):
     )
     """每次构建回复时，从 multiple_reply_style 中随机替换 reply_style 的概率（0.0-1.0）"""
 
-    visual_style: str = Field(
-        default="请用中文描述这张图片的内容。如果有文字，请把文字描述概括出来，请留意其主题，直观感受，输出为一段平文本，最多30字，请注意不要分点，就输出一段文本",
-        json_schema_extra={
-            "x-widget": "textarea",
-            "x-icon": "image",
-        },
-    )
-    """_wrap_识图提示词，不建议修改"""
-
     states: list[str] = Field(
         default_factory=lambda: [
             "是一个女大学生，喜欢上网聊天，会刷小红书。",
@@ -146,6 +137,40 @@ class PersonalityConfig(ConfigBase):
         },
     )
     """状态概率，每次构建人格时替换personality的概率"""
+
+
+class VisualConfig(ConfigBase):
+    """视觉配置类"""
+
+    __ui_label__ = "视觉"
+    __ui_icon__ = "image"
+
+    multimodal_planner: bool = Field(
+        default=True,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "image",
+        },
+    )
+    """是否直接输入图片"""
+
+    multimodal_replyer: bool = Field(
+        default=False,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "git-branch",
+        },
+    )
+    """是否启用 Maisaka 多模态 replyer 生成器"""
+
+    visual_style: str = Field(
+        default="请用中文描述这张图片的内容。如果有文字，请把文字描述概括出来，请留意其主题，直观感受，输出为一段平文本，最多30字，请注意不要分点，就输出一段文本",
+        json_schema_extra={
+            "x-widget": "textarea",
+            "x-icon": "image",
+        },
+    )
+    """_wrap_识图提示词，不建议修改"""
 
 
 class RelationshipConfig(ConfigBase):
@@ -253,24 +278,6 @@ class ChatConfig(ConfigBase):
         },
     )
 
-    multimodal_planner: bool = Field(
-        default=True,
-        json_schema_extra={
-            "x-widget": "switch",
-            "x-icon": "image",
-        },
-    )
-    """是否直接输入图片"""
-
-    replyer_generator_type: Literal["legacy", "multimodal"] = Field(
-        default="legacy",
-        json_schema_extra={
-            "x-widget": "select",
-            "x-icon": "git-branch",
-        },
-    )
-    """Maisaka replyer 生成器类型：legacy（旧版单 prompt）/ multimodal（多模态版，适合主循环直接展示图片）"""
-
     enable_talk_value_rules: bool = Field(
         default=True,
         json_schema_extra={
@@ -373,24 +380,6 @@ class MemoryConfig(ConfigBase):
 
     __ui_parent__ = "emoji"
 
-    max_agent_iterations: int = Field(
-        default=5,
-        ge=1,
-        json_schema_extra={
-            "x-widget": "input",
-            "x-icon": "layers",
-        },
-    )
-    """记忆思考深度（最低为1）"""
-
-    agent_timeout_seconds: float = Field(
-        default=120.0,
-        json_schema_extra={
-            "x-widget": "input",
-            "x-icon": "clock",
-        },
-    )
-    """最长回忆时间（秒）"""
 
     global_memory: bool = Field(
         default=False,
@@ -409,6 +398,26 @@ class MemoryConfig(ConfigBase):
         },
     )
     """_wrap_全局记忆黑名单，当启用全局记忆时，不将特定聊天流纳入检索"""
+
+    enable_memory_query_tool: bool = Field(
+        default=True,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "database",
+        },
+    )
+    """是否启用 Maisaka 内置长期记忆检索工具 query_memory"""
+
+    memory_query_default_limit: int = Field(
+        default=5,
+        ge=1,
+        le=20,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "hash",
+        },
+    )
+    """Maisaka 内置长期记忆检索工具 query_memory 的默认返回条数"""
 
     long_term_auto_summary_enabled: bool = Field(
         default=True,
@@ -657,16 +666,6 @@ class ExpressionConfig(ConfigBase):
     )
     """是否开启全局黑话模式，注意，此功能关闭后，已经记录的全局黑话不会改变，需要手动删除"""
 
-    enable_jargon_explanation: bool = Field(
-        default=True,
-        json_schema_extra={
-            "x-widget": "switch",
-            "x-icon": "info",
-        },
-    )
-    """是否在回复前尝试对上下文中的黑话进行解释（关闭可减少一次LLM调用，仅影响回复前的黑话匹配与解释，不影响黑话学习）"""
-
-
 class VoiceConfig(ConfigBase):
     """语音识别配置类"""
 
@@ -700,7 +699,7 @@ class EmojiConfig(ConfigBase):
     """一次从多少个表情包中选择发送，最大为 64"""
 
     max_reg_num: int = Field(
-        default=100,
+        default=64,
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "hash",
@@ -988,23 +987,6 @@ class DebugConfig(ConfigBase):
     )
     """是否显示prompt"""
 
-    show_replyer_prompt: bool = Field(
-        default=True,
-        json_schema_extra={
-            "x-widget": "switch",
-            "x-icon": "message-square",
-        },
-    )
-    """是否显示回复器prompt"""
-
-    show_replyer_reasoning: bool = Field(
-        default=True,
-        json_schema_extra={
-            "x-widget": "switch",
-            "x-icon": "brain",
-        },
-    )
-
     show_maisaka_thinking: bool = Field(
         default=True,
         json_schema_extra={
@@ -1040,25 +1022,6 @@ class DebugConfig(ConfigBase):
         },
     )
     """是否显示记忆检索相关prompt"""
-
-    show_planner_prompt: bool = Field(
-        default=False,
-        json_schema_extra={
-            "x-widget": "switch",
-            "x-icon": "map",
-        },
-    )
-    """是否显示planner的prompt和原始返回结果"""
-
-    show_lpmm_paragraph: bool = Field(
-        default=False,
-        json_schema_extra={
-            "x-widget": "switch",
-            "x-icon": "file-text",
-        },
-    )
-    """是否显示lpmm找到的相关文段日志"""
-
 
 class ExtraPromptItem(ConfigBase):
     platform: str = Field(
@@ -1511,16 +1474,6 @@ class MaiSakaConfig(ConfigBase):
     )
     """MaiSaka 使用的用户名称"""
 
-    max_internal_rounds: int = Field(
-        default=6,
-        ge=1,
-        json_schema_extra={
-            "x-widget": "input",
-            "x-icon": "repeat",
-        },
-    )
-    """每个入站消息的最大内部规划轮数"""
-
     planner_interrupt_max_consecutive_count: int = Field(
         default=2,
         ge=0,
@@ -1530,26 +1483,6 @@ class MaiSakaConfig(ConfigBase):
         },
     )
     """Planner 连续被新消息打断的最大次数，0 表示不启用打断"""
-
-    enable_memory_query_tool: bool = Field(
-        default=True,
-        json_schema_extra={
-            "x-widget": "switch",
-            "x-icon": "database",
-        },
-    )
-    """是否启用 Maisaka 内置长期记忆检索工具 query_memory"""
-
-    memory_query_default_limit: int = Field(
-        default=5,
-        ge=1,
-        le=20,
-        json_schema_extra={
-            "x-widget": "input",
-            "x-icon": "hash",
-        },
-    )
-    """Maisaka 内置长期记忆检索工具 query_memory 的默认返回条数"""
 
     tool_filter_task_name: str = Field(
         default="utils",

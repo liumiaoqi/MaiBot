@@ -501,7 +501,7 @@ class EmojiManager:
                 existing_record = session.exec(statement).first()
                 if existing_record:
                     if existing_record.is_registered and _is_available_emoji_record(existing_record):
-                        logger.info(f"[register_emoji] Emoji already registered, skipping: {emoji.file_hash}")
+                        # logger.info(f"[register_emoji] Emoji already registered, skipping: {emoji.file_hash}")
                         return "skipped"
 
                     normalized_description = str(emoji.description or existing_record.description or "").strip()

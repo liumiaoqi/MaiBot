@@ -596,7 +596,7 @@ class MaisakaReasoningEngine:
         planner_prefix: str,
     ) -> MessageSequence:
         message_sequence = build_prefixed_message_sequence(message.raw_message, planner_prefix)
-        if global_config.chat.multimodal_planner:
+        if global_config.visual.multimodal_planner:
             await self._hydrate_visual_components(message_sequence.components)
         return message_sequence
 

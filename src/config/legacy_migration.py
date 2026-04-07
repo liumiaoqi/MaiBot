@@ -75,6 +75,18 @@ def _migrate_env_value(section: dict[str, Any], key: str, parsed_env_value: Any,
     return True
 
 
+def _move_section_key(source: dict[str, Any], target: dict[str, Any], key: str) -> bool:
+    """将配置项从旧分组移动到新分组，若新分组已有值则保留新值。"""
+
+    if key not in source:
+        return False
+
+    if key not in target:
+        target[key] = source[key]
+    source.pop(key, None)
+    return True
+
+
 def _parse_triplet_target(s: str) -> Optional[dict[str, str]]:
     """
     解析 "platform:id:type" -> {platform,item_id,rule_type}
@@ -273,6 +285,21 @@ def _migrate_extra_prompt_list(exp: dict[str, Any], key: str) -> bool:
     return True
 
 
+def _parse_multimodal_replyer(v: Any) -> Optional[bool]:
+    """兼容旧 replyer_generator_type 到布尔开关的迁移。"""
+    if isinstance(v, bool):
+        return v
+    if not isinstance(v, str):
+        return None
+
+    normalized_value = v.strip().lower()
+    if normalized_value == "multimodal":
+        return True
+    if normalized_value == "legacy":
+        return False
+    return None
+
+
 def migrate_legacy_bind_env_to_bot_config_dict(data: dict[str, Any]) -> MigrationResult:
     """将旧版环境变量中的绑定地址迁移到主配置结构。"""
 
@@ -351,12 +378,61 @@ def try_migrate_legacy_bot_config_dict(data: dict[str, Any]) -> MigrationResult:
         migrated_any = True
         reasons.append("chat.private_plan_style_removed")
 
+    personality = _as_dict(data.get("personality"))
+    visual = _as_dict(data.get("visual"))
+    if visual is None and (
+        (personality is not None and "visual_style" in personality)
+        or "multimodal_planner" in chat
+        or "replyer_generator_type" in chat
+    ):
+        visual = {}
+        data["visual"] = visual
+
+    if visual is not None and personality is not None and "visual_style" in personality:
+        if "visual_style" not in visual:
+            visual["visual_style"] = personality["visual_style"]
+        personality.pop("visual_style", None)
+        migrated_any = True
+        reasons.append("personality.visual_style_moved_to_visual.visual_style")
+
+    if visual is not None and "multimodal_planner" in chat:
+        if "multimodal_planner" not in visual and isinstance(chat["multimodal_planner"], bool):
+            visual["multimodal_planner"] = chat["multimodal_planner"]
+        if "multimodal_planner" in visual:
+            chat.pop("multimodal_planner", None)
+            migrated_any = True
+            reasons.append("chat.multimodal_planner_moved_to_visual.multimodal_planner")
+
+    if visual is not None and "replyer_generator_type" in chat:
+        multimodal_replyer = _parse_multimodal_replyer(chat["replyer_generator_type"])
+        if "multimodal_replyer" not in visual and multimodal_replyer is not None:
+            visual["multimodal_replyer"] = multimodal_replyer
+        if "multimodal_replyer" in visual:
+            chat.pop("replyer_generator_type", None)
+            migrated_any = True
+            reasons.append("chat.replyer_generator_type_moved_to_visual.multimodal_replyer")
+
+    maisaka = _as_dict(data.get("maisaka"))
     mem = _as_dict(data.get("memory"))
+    if maisaka is not None:
+        moved_memory_keys = ("enable_memory_query_tool", "memory_query_default_limit")
+        if any(key in maisaka for key in moved_memory_keys) and mem is None:
+            mem = {}
+            data["memory"] = mem
+
+        if mem is not None:
+            for moved_key in moved_memory_keys:
+                if _move_section_key(maisaka, mem, moved_key):
+                    migrated_any = True
+                    reasons.append(f"maisaka.{moved_key}_moved_to_memory")
+
     if mem is not None:
+        if _migrate_target_item_list(mem, "global_memory_blacklist"):
+            migrated_any = True
+            reasons.append("memory.global_memory_blacklist")
+
         for removed_key in (
             "agent_timeout_seconds",
-            "global_memory",
-            "global_memory_blacklist",
             "max_agent_iterations",
         ):
             if removed_key in mem:

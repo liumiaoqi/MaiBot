@@ -18,4 +18,4 @@ def get_maisaka_replyer_class() -> Type[object]:
 
 def get_maisaka_replyer_generator_type() -> str:
     """返回当前配置的 Maisaka replyer 生成器类型。"""
-    return global_config.chat.replyer_generator_type
+    return "multimodal" if global_config.visual.multimodal_replyer else "legacy"
