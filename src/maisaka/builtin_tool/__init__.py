@@ -24,6 +24,8 @@ from .reply import get_tool_spec as get_reply_tool_spec
 from .reply import handle_tool as handle_reply_tool
 from .send_emoji import get_tool_spec as get_send_emoji_tool_spec
 from .send_emoji import handle_tool as handle_send_emoji_tool
+from .tool_search import get_tool_spec as get_tool_search_tool_spec
+from .tool_search import handle_tool as handle_tool_search_tool
 from .view_complex_message import get_tool_spec as get_view_complex_message_tool_spec
 from .view_complex_message import handle_tool as handle_view_complex_message_tool
 from .wait import get_tool_spec as get_wait_tool_spec
@@ -52,6 +54,7 @@ def get_action_tool_specs() -> List[ToolSpec]:
         get_query_jargon_tool_spec(),
         get_query_memory_tool_spec(enabled=bool(global_config.memory.enable_memory_query_tool)),
         get_send_emoji_tool_spec(),
+        get_tool_search_tool_spec(),
     ]
 
 
@@ -73,6 +76,7 @@ def get_all_builtin_tool_specs() -> List[ToolSpec]:
         get_query_memory_tool_spec(enabled=True),
         get_query_person_info_tool_spec(),
         get_send_emoji_tool_spec(),
+        get_tool_search_tool_spec(),
     ]
 
 
@@ -111,6 +115,7 @@ def build_builtin_tool_handlers(tool_ctx: BuiltinToolRuntimeContext) -> Dict[str
         ),
         "wait": lambda invocation, context=None: handle_wait_tool(tool_ctx, invocation, context),
         "send_emoji": lambda invocation, context=None: handle_send_emoji_tool(tool_ctx, invocation, context),
+        "tool_search": lambda invocation, context=None: handle_tool_search_tool(tool_ctx, invocation, context),
         "view_complex_message": lambda invocation, context=None: handle_view_complex_message_tool(
             tool_ctx,
             invocation,

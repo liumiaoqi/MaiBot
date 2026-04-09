@@ -93,6 +93,7 @@ class MaisakaReasoningEngine:
     async def _run_interruptible_planner(
         self,
         *,
+        injected_user_messages: Optional[list[str]] = None,
         tool_definitions: Optional[list[dict[str, Any]]] = None,
     ) -> Any:
         """运行一轮可被新消息打断的主 planner 请求。"""
@@ -104,6 +105,7 @@ class MaisakaReasoningEngine:
         try:
             return await self._runtime._chat_loop_service.chat_loop_step(
                 self._runtime._chat_history,
+                injected_user_messages=injected_user_messages,
                 tool_definitions=tool_definitions,
             )
         except ReqAbortException:
@@ -173,22 +175,34 @@ class MaisakaReasoningEngine:
         except Exception:
             return self._build_timing_gate_fallback_prompt()
 
-    async def _build_action_tool_definitions(self) -> list[dict[str, Any]]:
-        """构造 Action Loop 阶段可见的工具定义。"""
+    async def _build_action_tool_definitions(self) -> tuple[list[dict[str, Any]], str]:
+        """构造 Action Loop 阶段可见的工具定义与 deferred tools 提示。"""
 
         if self._runtime._tool_registry is None:
-            return []
+            self._runtime.update_deferred_tool_specs([])
+            self._runtime.set_current_action_tool_names([])
+            return [], ""
 
         tool_specs = await self._runtime._tool_registry.list_tools()
-        return [
-            tool_spec.to_llm_definition()
-            for tool_spec in tool_specs
-            if tool_spec.name not in ACTION_HIDDEN_TOOL_NAMES
-            and (
-                tool_spec.provider_name != "maisaka_builtin"
-                or tool_spec.name in ACTION_BUILTIN_TOOL_NAMES
-            )
-        ]
+        visible_builtin_tool_specs: list[ToolSpec] = []
+        deferred_tool_specs: list[ToolSpec] = []
+        for tool_spec in tool_specs:
+            if tool_spec.name in ACTION_HIDDEN_TOOL_NAMES:
+                continue
+            if tool_spec.provider_name == "maisaka_builtin":
+                if tool_spec.name in ACTION_BUILTIN_TOOL_NAMES:
+                    visible_builtin_tool_specs.append(tool_spec)
+                continue
+            deferred_tool_specs.append(tool_spec)
+
+        self._runtime.update_deferred_tool_specs(deferred_tool_specs)
+        discovered_deferred_tool_specs = self._runtime.get_discovered_deferred_tool_specs()
+        visible_tool_specs = [*visible_builtin_tool_specs, *discovered_deferred_tool_specs]
+        self._runtime.set_current_action_tool_names([tool_spec.name for tool_spec in visible_tool_specs])
+        return (
+            [tool_spec.to_llm_definition() for tool_spec in visible_tool_specs],
+            self._runtime.build_deferred_tools_reminder(),
+        )
 
     async def _invoke_tool_call(
         self,
@@ -416,7 +430,7 @@ class MaisakaReasoningEngine:
                                 )
 
                             planner_started_at = time.time()
-                            action_tool_definitions = await self._build_action_tool_definitions()
+                            action_tool_definitions, deferred_tools_reminder = await self._build_action_tool_definitions()
                             logger.info(
                                 f"{self._runtime.log_prefix} 规划器开始执行: "
                                 f"回合={round_index + 1} "
@@ -424,6 +438,7 @@ class MaisakaReasoningEngine:
                                 f"开始时间={planner_started_at:.3f}"
                             )
                             response = await self._run_interruptible_planner(
+                                injected_user_messages=[deferred_tools_reminder] if deferred_tools_reminder else None,
                                 tool_definitions=action_tool_definitions,
                             )
                             planner_duration_ms = (time.time() - planner_started_at) * 1000
@@ -1175,7 +1190,17 @@ class MaisakaReasoningEngine:
         for tool_call in tool_calls:
             invocation = self._build_tool_invocation(tool_call, latest_thought)
             tool_started_at = time.time()
-            result = await self._runtime._tool_registry.invoke(invocation, execution_context)
+            if not self._runtime.is_action_tool_currently_available(invocation.tool_name):
+                result = ToolExecutionResult(
+                    tool_name=invocation.tool_name,
+                    success=False,
+                    error_message=(
+                        f"工具 {invocation.tool_name} 当前未直接暴露给 planner。"
+                        "如果它在 deferred tools 提示中，请先调用 tool_search。"
+                    ),
+                )
+            else:
+                result = await self._runtime._tool_registry.invoke(invocation, execution_context)
             tool_duration_ms = (time.time() - tool_started_at) * 1000
             await self._store_tool_execution_record(
                 invocation,

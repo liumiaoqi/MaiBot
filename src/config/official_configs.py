@@ -1460,35 +1460,6 @@ class MaiSakaConfig(ConfigBase):
     )
     """MaiSaka 使用的用户名称"""
 
-    tool_filter_task_name: str = Field(
-        default="utils",
-        json_schema_extra={
-            "x-widget": "input",
-            "x-icon": "sparkles",
-        },
-    )
-    """工具筛选预判使用的模型任务名"""
-
-    tool_filter_threshold: int = Field(
-        default=20,
-        ge=1,
-        json_schema_extra={
-            "x-widget": "input",
-            "x-icon": "filter",
-        },
-    )
-    """当可用工具总数超过该阈值时，先进行一轮工具筛选"""
-
-    tool_filter_max_keep: int = Field(
-        default=5,
-        ge=1,
-        json_schema_extra={
-            "x-widget": "input",
-            "x-icon": "list-filter",
-        },
-    )
-    """工具筛选阶段最多保留的非内置工具数量"""
-
     show_image_path: bool = Field(
         default=True,
         json_schema_extra={
