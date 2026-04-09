@@ -43,3 +43,6 @@
 
 # 关于webui修改
 不要修改dashboard下的内容，因为这部分内容由另一个仓库build
+
+# maibot插件开发文档
+https://github.com/Mai-with-u/maibot-plugin-sdk/blob/main/docs/guide.md
