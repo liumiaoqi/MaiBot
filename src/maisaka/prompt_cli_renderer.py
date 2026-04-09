@@ -243,6 +243,85 @@ class PromptCLIVisualizer:
         return normalize_tool_call_for_display(tool_call)
 
     @classmethod
+    def _build_tool_card_title(cls, tool_call: Any) -> str:
+        """构建 HTML 中工具卡片的折叠标题。"""
+
+        normalized_tool_call = cls.format_tool_call_for_display(tool_call)
+        tool_name = str(normalized_tool_call.get("name") or "").strip()
+        return tool_name or "unknown"
+
+    @classmethod
+    def _build_tool_call_html(cls, tool_call: Any) -> str:
+        """将单个工具调用渲染为默认折叠的 HTML 卡片。"""
+
+        normalized_tool_call = cls.format_tool_call_for_display(tool_call)
+        tool_name = cls._build_tool_card_title(tool_call)
+        tool_call_id = str(normalized_tool_call.get("id") or "").strip()
+        tool_arguments = normalized_tool_call.get("arguments")
+
+        tool_meta_html = ""
+        if tool_call_id:
+            tool_meta_html = (
+                "<div class='tool-card-meta'>"
+                "<span class='tool-card-meta-label'>调用 ID</span>"
+                f"<code>{html.escape(tool_call_id)}</code>"
+                "</div>"
+            )
+
+        return (
+            "<details class='tool-card'>"
+            "<summary class='tool-card-summary'>"
+            f"<span class='tool-card-name'>{html.escape(tool_name)}</span>"
+            "</summary>"
+            "<div class='tool-card-body'>"
+            f"{tool_meta_html}"
+            f"<pre>{html.escape(json.dumps(tool_arguments, ensure_ascii=False, indent=2, default=str))}</pre>"
+            "</div>"
+            "</details>"
+        )
+
+    @classmethod
+    def _extract_tool_definition_fields(cls, tool_definition: dict[str, Any]) -> tuple[str, str, Any]:
+        """提取工具定义中的名称、描述和详情内容。"""
+
+        function_info = tool_definition.get("function")
+        if isinstance(function_info, dict):
+            tool_name = str(function_info.get("name") or "").strip() or "unknown"
+            description = str(function_info.get("description") or "").strip()
+            detail_payload = function_info
+        else:
+            tool_name = str(tool_definition.get("name") or "").strip() or "unknown"
+            description = str(tool_definition.get("description") or "").strip()
+            detail_payload = tool_definition
+        return tool_name, description, detail_payload
+
+    @classmethod
+    def _build_tool_definition_html(cls, tool_definition: dict[str, Any]) -> str:
+        """将单个传入工具定义渲染为默认折叠的 HTML 卡片。"""
+
+        tool_name, description, detail_payload = cls._extract_tool_definition_fields(tool_definition)
+        description_html = ""
+        if description:
+            description_html = (
+                "<div class='tool-card-meta'>"
+                "<span class='tool-card-meta-label'>说明</span>"
+                f"<span>{html.escape(description)}</span>"
+                "</div>"
+            )
+
+        return (
+            "<details class='tool-card tool-definition-card'>"
+            "<summary class='tool-card-summary'>"
+            f"<span class='tool-card-name'>{html.escape(tool_name)}</span>"
+            "</summary>"
+            "<div class='tool-card-body'>"
+            f"{description_html}"
+            f"<pre>{html.escape(json.dumps(detail_payload, ensure_ascii=False, indent=2, default=str))}</pre>"
+            "</div>"
+            "</details>"
+        )
+
+    @classmethod
     def _render_tool_call_panel(cls, tool_call: Any, index: int, parent_index: int) -> Panel:
         title = Text.assemble(
             Text(" 工具调用 ", style="bold white on magenta"),
@@ -290,6 +369,20 @@ class PromptCLIVisualizer:
             sections.append("\n".join(block_lines).strip())
 
         return "\n\n" + ("\n\n" + ("=" * 80) + "\n\n").join(sections) if sections else "[空 Prompt]"
+
+    @classmethod
+    def _build_tool_definition_dump_text(cls, tool_definitions: list[dict[str, Any]] | None) -> str:
+        """构建传入工具定义的文本备份内容。"""
+
+        if not tool_definitions:
+            return ""
+
+        sections: List[str] = ["[tool_definitions]"]
+        for index, tool_definition in enumerate(tool_definitions, start=1):
+            tool_name, _, detail_payload = cls._extract_tool_definition_fields(tool_definition)
+            sections.append(f"[{index}] name={tool_name}")
+            sections.append(json.dumps(detail_payload, ensure_ascii=False, indent=2, default=str))
+        return "\n\n".join(sections).strip()
 
     @classmethod
     def _render_message_content_html(cls, content: Any) -> str:
@@ -356,6 +449,7 @@ class PromptCLIVisualizer:
         *,
         request_kind: str,
         selection_reason: str,
+        tool_definitions: list[dict[str, Any]] | None = None,
     ) -> str:
         panel_title, _ = cls.get_request_panel_style(request_kind)
         message_cards: List[str] = []
@@ -378,16 +472,12 @@ class PromptCLIVisualizer:
             tool_panels = ""
             raw_tool_calls = message.get("tool_calls") or []
             if isinstance(raw_tool_calls, list) and raw_tool_calls:
-                tool_items = []
-                for tool_call_index, tool_call in enumerate(raw_tool_calls, start=1):
-                    normalized_tool_call = cls.format_tool_call_for_display(tool_call)
-                    tool_items.append(
-                        "<div class='tool-panel'>"
-                        f"<div class='tool-panel-title'>工具调用 #{index}.{tool_call_index}</div>"
-                        f"<pre>{html.escape(json.dumps(normalized_tool_call, ensure_ascii=False, indent=2, default=str))}</pre>"
-                        "</div>"
-                    )
-                tool_panels = "".join(tool_items)
+                tool_panels = (
+                    "<div class='tool-list'>"
+                    "<div class='tool-list-title'>工具调用</div>"
+                    f"{''.join(cls._build_tool_call_html(tool_call) for tool_call in raw_tool_calls)}"
+                    "</div>"
+                )
 
             message_cards.append(
                 "<section class='message-card'>"
@@ -404,6 +494,21 @@ class PromptCLIVisualizer:
         subtitle_html = ""
         if selection_reason.strip():
             subtitle_html = f"<div class='subtitle'>{html.escape(selection_reason)}</div>"
+
+        tool_definition_section_html = ""
+        if tool_definitions:
+            tool_definition_section_html = (
+                "<section class='message-card tool-definition-section'>"
+                "<div class='message-head'>"
+                "<span class='role-badge tool'>全部工具</span>"
+                f"<span class='message-index'>{len(tool_definitions)} 个</span>"
+                "</div>"
+                "<div class='tool-list'>"
+                "<div class='tool-list-title'>本次送入模型的工具定义</div>"
+                f"{''.join(cls._build_tool_definition_html(tool_definition) for tool_definition in tool_definitions)}"
+                "</div>"
+                "</section>"
+            )
 
         return f"""<!DOCTYPE html>
 <html lang="zh-CN">
@@ -491,7 +596,7 @@ class PromptCLIVisualizer:
       font-weight: 600;
     }}
     .message-content pre,
-    .tool-panel pre {{
+    .tool-card pre {{
       margin: 0;
       white-space: pre-wrap;
       word-break: break-word;
@@ -517,18 +622,75 @@ class PromptCLIVisualizer:
       border-radius: 8px;
       padding: 3px 8px;
     }}
-    .tool-panel {{
+    .tool-list {{
+      margin-top: 14px;
+    }}
+    .tool-list-title {{
+      color: #86198f;
+      font-size: 13px;
+      font-weight: 800;
+      margin-bottom: 10px;
+    }}
+    .tool-card {{
       margin-top: 12px;
       background: #fcf4ff;
       border: 1px solid #f0d7fb;
       border-radius: 14px;
-      padding: 12px 14px;
+      overflow: hidden;
     }}
-    .tool-panel-title {{
-      color: #a21caf;
+    .tool-card:first-of-type {{
+      margin-top: 0;
+    }}
+    .tool-card-summary {{
+      list-style: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 14px;
+      color: #86198f;
       font-size: 13px;
+      font-weight: 800;
+    }}
+    .tool-card-summary::-webkit-details-marker {{
+      display: none;
+    }}
+    .tool-card-summary::after {{
+      content: "展开";
+      color: #a21caf;
+      font-size: 12px;
       font-weight: 700;
-      margin-bottom: 8px;
+    }}
+    .tool-card[open] .tool-card-summary::after {{
+      content: "收起";
+    }}
+    .tool-card-name {{
+      word-break: break-word;
+    }}
+    .tool-card-body {{
+      border-top: 1px solid #f0d7fb;
+      padding: 12px 14px;
+      background: rgba(255, 255, 255, 0.52);
+    }}
+    .tool-card-meta {{
+      margin-bottom: 10px;
+      color: #a21caf;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }}
+    .tool-card-meta-label {{
+      font-weight: 700;
+    }}
+    .tool-card-meta code {{
+      background: #faf5ff;
+      border: 1px solid #e9d5ff;
+      border-radius: 8px;
+      padding: 3px 8px;
+    }}
+    .tool-card pre {{
+      color: #3b0764;
     }}
     .image-card {{
       background: #f8fafc;
@@ -564,6 +726,7 @@ class PromptCLIVisualizer:
       {subtitle_html}
     </header>
     {''.join(message_cards)}
+    {tool_definition_section_html}
   </main>
 </body>
 </html>"""
@@ -578,6 +741,7 @@ class PromptCLIVisualizer:
         request_kind: str,
         selection_reason: str,
         image_display_mode: Literal["legacy", "path_link"],
+        tool_definitions: list[dict[str, Any]] | None = None,
     ) -> RenderableType:
         """构建用于查看完整 prompt 的折叠入口内容。"""
 
@@ -603,10 +767,14 @@ class PromptCLIVisualizer:
             viewer_messages.append(normalized_message)
 
         prompt_dump_text = cls._build_prompt_dump_text(messages)
+        tool_definition_dump_text = cls._build_tool_definition_dump_text(tool_definitions)
+        if tool_definition_dump_text:
+            prompt_dump_text = f"{prompt_dump_text}\n\n{'=' * 80}\n\n{tool_definition_dump_text}"
         viewer_html_text = cls._build_prompt_viewer_html(
             viewer_messages,
             request_kind=request_kind,
             selection_reason=selection_reason,
+            tool_definitions=tool_definitions,
         )
         saved_paths = PromptPreviewLogger.save_preview_files(
             chat_id,
@@ -623,12 +791,12 @@ class PromptCLIVisualizer:
 
         body = Group(
             Text.from_markup(
-                f"[bold green]富文本预览：{viewer_html_path}[/bold green] "
-                f"[link={viewer_uri}]点击在浏览器打开富文本 Prompt 视图[/link]"
+                f"[bold green]html预览：{viewer_html_path}[/bold green] "
+                f"[link={viewer_uri}]在浏览器打开 Prompt [/link]"
             ),
             Text.from_markup(
-                f"[magenta]原始文本备份：{prompt_dump_path}[/magenta] "
-                f"[cyan][link={dump_uri}]点击直接打开 Prompt 文本[/link][/cyan]"
+                f"[magenta]原始文本：{prompt_dump_path}[/magenta] "
+                f"[cyan][link={dump_uri}]点击打开 Prompt 文本[/link][/cyan]"
             ),
         )
         return body
@@ -644,6 +812,7 @@ class PromptCLIVisualizer:
         selection_reason: str,
         image_display_mode: Literal["legacy", "path_link"],
         folded: bool,
+        tool_definitions: list[dict[str, Any]] | None = None,
     ) -> Panel:
         """构建用于嵌入结果面板中的 Prompt 区块。"""
 
@@ -656,6 +825,7 @@ class PromptCLIVisualizer:
                 request_kind=request_kind,
                 selection_reason=selection_reason,
                 image_display_mode=image_display_mode,
+                tool_definitions=tool_definitions,
             )
         else:
             ordered_panels = cls.build_prompt_panels(

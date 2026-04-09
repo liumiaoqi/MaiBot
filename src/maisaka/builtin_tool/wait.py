@@ -12,8 +12,8 @@ def get_tool_spec() -> ToolSpec:
 
     return ToolSpec(
         name="wait",
-        brief_description="暂停当前对话并等待用户新的输入。",
-        detailed_description="参数说明：\n- seconds：integer，必填。等待的秒数。",
+        brief_description="暂停当前对话并固定等待一段时间，期间不因新消息提前恢复。",
+        detailed_description="参数说明：\n- seconds：integer，必填。等待的秒数。等待期间收到的新消息只会暂存，直到超时后再继续处理。",
         parameters_schema={
             "type": "object",
             "properties": {
@@ -46,6 +46,6 @@ async def handle_tool(
     tool_ctx.runtime._enter_wait_state(seconds=wait_seconds, tool_call_id=invocation.call_id)
     return tool_ctx.build_success_result(
         invocation.tool_name,
-        f"当前对话循环进入等待状态，最长等待 {wait_seconds} 秒。",
+        f"当前对话循环进入等待状态，将固定等待 {wait_seconds} 秒；期间收到的新消息不会提前打断本次等待。",
         metadata={"pause_execution": True},
     )

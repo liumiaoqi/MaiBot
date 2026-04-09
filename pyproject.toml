@@ -21,6 +21,7 @@ dependencies = [
     "maim-message>=0.6.2",
     "maibot-dashboard==1.0.0.dev2026040439",
     "maibot-plugin-sdk>=2.3.0",
+    "matplotlib>=3.10.5",
     "mcp",
     "msgpack>=1.1.2",
     "numpy>=2.2.6",

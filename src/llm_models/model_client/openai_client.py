@@ -346,6 +346,32 @@ def _convert_assistant_tool_calls(tool_calls: List[ToolCall]) -> List[ChatComple
     return converted_tool_calls
 
 
+def _sanitize_messages_for_toolless_request(messages: List[Message]) -> List[Message]:
+    """在无工具请求时清洗历史工具调用链，避免兼容接口拒收消息。"""
+    sanitized_messages: List[Message] = []
+
+    for message in messages:
+        if message.role == RoleType.Tool:
+            continue
+
+        if message.role == RoleType.Assistant and message.tool_calls:
+            if not message.parts:
+                continue
+            assistant_message = Message(
+                role=message.role,
+                parts=list(message.parts),
+                tool_call_id=message.tool_call_id,
+                tool_name=message.tool_name,
+                tool_calls=None,
+            )
+            sanitized_messages.append(assistant_message)
+            continue
+
+        sanitized_messages.append(message)
+
+    return sanitized_messages
+
+
 def _convert_messages(messages: List[Message]) -> List[ChatCompletionMessageParam]:
     """将内部消息列表转换为 OpenAI 兼容消息列表。
 
@@ -965,7 +991,12 @@ class OpenaiClient(AdapterClient[AsyncStream[ChatCompletionChunk], ChatCompletio
         model_info = request.model_info
 
         try:
-            messages_payload: List[ChatCompletionMessageParam] = _convert_messages(request.message_list)
+            request_messages = (
+                list(request.message_list)
+                if request.tool_options
+                else _sanitize_messages_for_toolless_request(request.message_list)
+            )
+            messages_payload: List[ChatCompletionMessageParam] = _convert_messages(request_messages)
             tools_payload: List[ChatCompletionToolParam] | None = (
                 _convert_tool_options(request.tool_options) if request.tool_options else None
             )

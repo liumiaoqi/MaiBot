@@ -397,8 +397,6 @@ class LLMOrchestrator:
         start_time = time.time()
 
         tool_built = self._build_tool_options(tools)
-        if self.request_type.startswith("maisaka_"):
-            logger.info(f"LLMOrchestrator[{self.request_type}] 已构建 {len(tool_built or [])} 个内部工具选项")
 
         execution_result = await self._execute_request(
             request_type=RequestType.RESPONSE,

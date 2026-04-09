@@ -475,6 +475,44 @@ class MaisakaChatLoopService:
             return normalized_text
         return f"{normalized_text[: max_length - 1]}…"
 
+    @staticmethod
+    def _build_tool_names_log_text(tool_definitions: Sequence[ToolDefinitionInput]) -> str:
+        """构造 planner 请求前的工具列表日志文本。
+
+        Args:
+            tool_definitions: 本轮实际传给 planner 的工具定义列表。
+
+        Returns:
+            str: 适合直接写入日志的单行文本。
+        """
+
+        tool_names: List[str] = []
+        for tool_definition in tool_definitions:
+            if not isinstance(tool_definition, dict):
+                continue
+            normalized_name = str(tool_definition.get("name") or "").strip()
+            if not normalized_name:
+                function_definition = tool_definition.get("function")
+                if isinstance(function_definition, dict):
+                    normalized_name = str(function_definition.get("name") or "").strip()
+            if normalized_name:
+                tool_names.append(normalized_name)
+
+        if not tool_names:
+            return "[无工具]"
+
+        return "、".join(tool_names)
+
+    @staticmethod
+    def _build_tool_spec_names_log_text(tool_specs: Sequence[ToolSpec]) -> str:
+        """构造 ToolSpec 列表的工具名日志文本。"""
+
+        tool_names = [tool_spec.name for tool_spec in tool_specs if tool_spec.name]
+        if not tool_names:
+            return "[无工具]"
+
+        return "、".join(tool_names)
+
     def _build_tool_filter_prompt(
         self,
         selected_history: List[LLMContextMessage],
@@ -620,7 +658,8 @@ class MaisakaChatLoopService:
             f"总工具数={len(tool_specs)} "
             f"内置工具数={len(builtin_tool_specs)} "
             f"候选工具数={len(candidate_tool_specs)} "
-            f"最多保留候选数={max_keep}"
+            f"最多保留候选数={max_keep} "
+            f"过滤前全部工具名={self._build_tool_spec_names_log_text(tool_specs)}"
         )
 
         try:
@@ -660,6 +699,7 @@ class MaisakaChatLoopService:
             "工具预筛选完成: "
             f"筛选前总数={len(tool_specs)} "
             f"筛选后总数={len(filtered_tool_specs)} "
+            f"过滤后全部工具名={self._build_tool_spec_names_log_text(filtered_tool_specs)} "
             f"保留候选工具={[tool_spec.name for tool_spec in filtered_candidate_tool_specs]}"
         )
         return filtered_tool_specs
@@ -729,6 +769,11 @@ class MaisakaChatLoopService:
         if isinstance(raw_tool_definitions, list):
             all_tools = [item for item in raw_tool_definitions if isinstance(item, dict)]
 
+        logger.info(
+            f"规划器工具列表(request_kind={request_kind}): "
+            f"共 {len(all_tools)} 个 -> {self._build_tool_names_log_text(all_tools)}"
+        )
+
         prompt_section: RenderableType | None = None
         if global_config.debug.show_maisaka_thinking:
             image_display_mode: str = "path_link" if global_config.maisaka.show_image_path else "legacy"
@@ -740,10 +785,11 @@ class MaisakaChatLoopService:
                 selection_reason=selection_reason,
                 image_display_mode=image_display_mode,
                 folded=global_config.debug.fold_maisaka_thinking,
+                tool_definitions=list(all_tools),
             )
 
         logger.info(
-            "规划器请求开始: "
+            f"规划器请求开始(request_kind={request_kind}): "
             f"已选上下文消息数={len(selected_history)} "
             f"大模型消息数={len(built_messages)} "
             f"工具数={len(all_tools)} "
@@ -759,15 +805,6 @@ class MaisakaChatLoopService:
                 interrupt_flag=self._interrupt_flag,
             ),
         )
-
-        prompt_stats_text = PromptCLIVisualizer.build_prompt_stats_text(
-            selected_history_count=len(selected_history),
-            built_message_count=len(built_messages),
-            prompt_tokens=generation_result.prompt_tokens,
-            completion_tokens=generation_result.completion_tokens,
-            total_tokens=generation_result.total_tokens,
-        )
-        logger.info(f"本轮Prompt统计: {prompt_stats_text}")
 
         final_response = generation_result.response or ""
         final_tool_calls = list(generation_result.tool_calls or [])

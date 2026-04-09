@@ -93,11 +93,10 @@ class MaisakaHeartFlowChatting:
         self._max_internal_rounds = MAX_INTERNAL_ROUNDS
         self._max_context_size = max(1, int(global_config.chat.max_context_size))
         self._agent_state: Literal["running", "wait", "stop"] = self._STATE_STOP
-        self._wait_until: Optional[float] = None
         self._pending_wait_tool_call_id: Optional[str] = None
-        self._force_continue_until_reply = False
-        self._force_continue_trigger_message_id = ""
-        self._force_continue_trigger_reason = ""
+        self._force_next_timing_continue = False
+        self._force_next_timing_message_id = ""
+        self._force_next_timing_reason = ""
         self._planner_interrupt_flag: Optional[asyncio.Event] = None
         self._planner_interrupt_requested = False
         self._planner_interrupt_consecutive_count = 0
@@ -176,9 +175,6 @@ class MaisakaHeartFlowChatting:
         self.message_cache.append(message)
         self._message_received_at_by_id[message.message_id] = received_at
         self._source_messages_by_id[message.message_id] = message
-        if self._agent_state == self._STATE_WAIT:
-            self._cancel_wait_timeout_task()
-            self._wait_until = None
         if self._agent_state == self._STATE_RUNNING:
             self._message_debounce_required = True
         if self._agent_state == self._STATE_RUNNING and self._planner_interrupt_flag is not None:
@@ -249,7 +245,6 @@ class MaisakaHeartFlowChatting:
 
     def _record_reply_sent(self) -> None:
         """在成功发送 reply 后记录本轮消息回复时长。"""
-        self._clear_force_continue_until_reply()
         if self._reply_latency_measurement_started_at is None:
             return
 
@@ -309,26 +304,26 @@ class MaisakaHeartFlowChatting:
         if not message.is_at and not message.is_mentioned:
             return
 
-        self._arm_force_continue_until_reply(
+        self._arm_force_next_timing_continue(
             message,
             is_at=message.is_at,
             is_mentioned=message.is_mentioned,
         )
 
-    def _arm_force_continue_until_reply(
+    def _arm_force_next_timing_continue(
         self,
         message: SessionMessage,
         *,
         is_at: bool,
         is_mentioned: bool,
     ) -> None:
-        """在检测到 @ 或提及时，要求后续轮次跳过 Timing Gate 直到成功 reply。"""
+        """在检测到 @ 或提及时，要求下一次 Timing Gate 直接 continue。"""
 
         trigger_reason = "@消息" if is_at else "提及消息" if is_mentioned else "触发消息"
-        was_armed = self._force_continue_until_reply
-        self._force_continue_until_reply = True
-        self._force_continue_trigger_message_id = message.message_id
-        self._force_continue_trigger_reason = trigger_reason
+        was_armed = self._force_next_timing_continue
+        self._force_next_timing_continue = True
+        self._force_next_timing_message_id = message.message_id
+        self._force_next_timing_reason = trigger_reason
 
         if was_armed:
             logger.info(
@@ -338,34 +333,31 @@ class MaisakaHeartFlowChatting:
             return
 
         logger.info(
-            f"{self.log_prefix} 检测到{trigger_reason}，将跳过 Timing Gate 直到成功发送一条 reply；"
+            f"{self.log_prefix} 检测到{trigger_reason}，下一次 Timing Gate 将直接视作 continue；"
             f"消息编号={message.message_id}"
         )
 
-    def _clear_force_continue_until_reply(self) -> None:
-        """在成功发送 reply 后清理强制 continue 状态。"""
+    def _consume_force_next_timing_continue_reason(self) -> str | None:
+        """消费一次性 Timing Gate continue 状态，并返回原因描述。"""
 
-        if not self._force_continue_until_reply:
-            return
+        if not self._force_next_timing_continue:
+            return None
 
-        logger.info(
-            f"{self.log_prefix} 已成功发送 reply，恢复 Timing Gate；"
-            f"触发原因={self._force_continue_trigger_reason or '未知'} "
-            f"触发消息编号={self._force_continue_trigger_message_id or 'unknown'}"
-        )
-        self._force_continue_until_reply = False
-        self._force_continue_trigger_message_id = ""
-        self._force_continue_trigger_reason = ""
-
-    def _build_force_continue_timing_reason(self) -> str:
-        """返回当前强制跳过 Timing Gate 的原因描述。"""
-
-        trigger_reason = self._force_continue_trigger_reason or "@/提及消息"
-        trigger_message_id = self._force_continue_trigger_message_id or "unknown"
-        return (
+        trigger_reason = self._force_next_timing_reason or "@/提及消息"
+        trigger_message_id = self._force_next_timing_message_id or "unknown"
+        reason = (
             f"检测到新的{trigger_reason}（消息编号={trigger_message_id}），"
-            "本轮直接跳过 Timing Gate 并视作 continue，直到成功发送一条 reply。"
+            "本轮直接跳过 Timing Gate 并视作 continue。"
         )
+        logger.info(
+            f"{self.log_prefix} 已结束本次强制 continue，恢复 Timing Gate；"
+            f"触发原因={trigger_reason} "
+            f"触发消息编号={trigger_message_id}"
+        )
+        self._force_next_timing_continue = False
+        self._force_next_timing_message_id = ""
+        self._force_next_timing_reason = ""
+        return reason
 
     def _bind_planner_interrupt_flag(self, interrupt_flag: asyncio.Event) -> None:
         """绑定当前可打断请求使用的中断标记。"""
@@ -453,6 +445,9 @@ class MaisakaHeartFlowChatting:
 
     def _schedule_message_turn(self) -> None:
         """为当前待处理消息安排一次内部 turn。"""
+        if self._agent_state == self._STATE_WAIT:
+            return
+
         if not self._has_pending_messages() or self._message_turn_scheduled:
             return
 
@@ -532,8 +527,9 @@ class MaisakaHeartFlowChatting:
     def _enter_wait_state(self, seconds: Optional[float] = None, tool_call_id: Optional[str] = None) -> None:
         """切换到等待状态。"""
         self._agent_state = self._STATE_WAIT
-        self._wait_until = None if seconds is None else time.time() + seconds
         self._pending_wait_tool_call_id = tool_call_id
+        self._message_turn_scheduled = False
+        self._cancel_deferred_message_turn_task()
         self._cancel_wait_timeout_task()
         if seconds is not None:
             self._wait_timeout_task = asyncio.create_task(
@@ -543,7 +539,6 @@ class MaisakaHeartFlowChatting:
     def _enter_stop_state(self) -> None:
         """切换到停止状态。"""
         self._agent_state = self._STATE_STOP
-        self._wait_until = None
         self._pending_wait_tool_call_id = None
         self._cancel_wait_timeout_task()
 
@@ -568,7 +563,6 @@ class MaisakaHeartFlowChatting:
 
             logger.info(f"{self.log_prefix} Maisaka 等待已超时")
             self._agent_state = self._STATE_RUNNING
-            self._wait_until = None
             await self._internal_turn_queue.put("timeout")
         except asyncio.CancelledError:
             return

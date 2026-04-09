@@ -24,7 +24,7 @@ from src.common.data_models.llm_service_data_models import LLMGenerationOptions
 from src.services.llm_service import LLMServiceClient
 from src.manager.async_task_manager import AsyncTask
 
-logger = get_logger("expression_auto_check_task")
+logger = get_logger("expressor")
 
 
 def create_evaluation_prompt(situation: str, style: str) -> str:

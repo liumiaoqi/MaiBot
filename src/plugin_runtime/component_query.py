@@ -673,6 +673,32 @@ class ComponentQueryService:
         return collected_specs
 
     @staticmethod
+    def _build_tool_context_payload(context: Optional[ToolExecutionContext]) -> Dict[str, Any]:
+        """提取插件工具可复用的会话上下文字段。"""
+
+        if context is None:
+            return {}
+
+        payload: Dict[str, Any] = {}
+        stream_id = str(context.stream_id or context.session_id or "").strip()
+        if stream_id:
+            payload["stream_id"] = stream_id
+            payload["chat_id"] = stream_id
+
+        anchor_message = context.metadata.get("anchor_message")
+        message_info = getattr(anchor_message, "message_info", None)
+        group_info = getattr(message_info, "group_info", None)
+        user_info = getattr(message_info, "user_info", None)
+
+        group_id = str(getattr(group_info, "group_id", "") or "").strip()
+        user_id = str(getattr(user_info, "user_id", "") or "").strip()
+        if group_id:
+            payload["group_id"] = group_id
+        if user_id:
+            payload["user_id"] = user_id
+        return payload
+
+    @staticmethod
     def _build_tool_invocation_payload(
         entry: "ToolEntry",
         invocation: ToolInvocation,
@@ -690,16 +716,27 @@ class ComponentQueryService:
         """
 
         payload = dict(invocation.arguments)
+        context_payload = ComponentQueryService._build_tool_context_payload(context)
         if entry.invoke_method == "plugin.invoke_action":
-            stream_id = context.stream_id if context is not None else invocation.stream_id
+            stream_id = str(
+                context_payload.get("stream_id")
+                or (context.stream_id if context is not None else invocation.stream_id)
+                or invocation.stream_id
+            ).strip()
             reasoning = context.reasoning if context is not None else invocation.reasoning
             payload = {
                 **payload,
+                **{key: value for key, value in context_payload.items() if key not in payload or not payload.get(key)},
                 "stream_id": stream_id,
                 "chat_id": stream_id,
                 "reasoning": reasoning,
                 "action_data": dict(invocation.arguments),
             }
+            return payload
+
+        for key, value in context_payload.items():
+            if key not in payload or not payload.get(key):
+                payload[key] = value
         return payload
 
     @staticmethod
