@@ -239,16 +239,12 @@ class ChatConfig(ConfigBase):
     )
     """Planner 连续被新消息打断的最大次数，0 表示不启用打断"""
 
-    plan_reply_log_max_per_chat: int = Field(
-        default=1024,
-        json_schema_extra={
-            "x-widget": "input",
-            "x-icon": "file-text",
-        },
-    )
-    """每个聊天流最大保存的Plan/Reply日志数量，超过此数量时会自动删除最老的日志"""
     group_chat_prompt: str = Field(
-        default="你需要控制自己发言的频率，如果是一对一聊天，可以以较均匀的频率发言；如果用户较多，不要每句都回复，控制回复频率，不要回复的太频繁！控制回复的频率，不要每个人的消息都回复。",
+        default="""
+你正在qq群里聊天，下面是群里正在聊的内容，其中包含聊天记录和聊天中的图片。
+回复尽量简短一些。最好一次对一个话题进行回复，免得啰嗦或者回复内容太乱。请注意把握聊天内容。
+不要回复的太频繁！控制回复的频率，不要每个人的消息都回复，只回复你感兴趣的或者主动提及你的。
+""",
         json_schema_extra={
             "x-widget": "textarea",
             "x-icon": "users",
@@ -257,7 +253,11 @@ class ChatConfig(ConfigBase):
     """_wrap_群聊通用注意事项"""
 
     private_chat_prompts: str = Field(
-        default="你需要控制自己发言的频率，可以以较均匀的频率发言。",
+        default="""
+你正在聊天，下面是正在聊的内容，其中包含聊天记录和聊天中的图片。
+回复尽量简短一些。请注意把握聊天内容。
+请考虑对方的发言频率，想法，思考自己何时回复以及回复内容。
+""",
         json_schema_extra={
             "x-widget": "textarea",
             "x-icon": "user",

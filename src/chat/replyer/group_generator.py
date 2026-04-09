@@ -15,6 +15,7 @@ from src.services.llm_service import LLMServiceClient
 from maim_message import BaseMessageInfo, MessageBase, Seg, UserInfo as MaimUserInfo
 
 from src.common.data_models.mai_message_data_model import MaiMessage
+from src.common.utils.utils_session import SessionUtils
 from src.chat.message_receive.message import SessionMessage
 from src.chat.message_receive.chat_manager import BotChatSession
 from src.chat.utils.timer_calculator import Timer  # <--- Import Timer
@@ -566,7 +567,7 @@ class DefaultReplyer:
         prompt_personality = f"{prompt_personality};"
         return f"你的名字是{bot_name}{bot_nickname}，你{prompt_personality}"
 
-    def _parse_chat_prompt_config_to_chat_id(self, chat_prompt_str: str) -> Optional[tuple[str, str]]:
+    def _parse_chat_prompt_config_to_chat_id(self, chat_prompt_str: str) -> Optional[tuple[str, bool, str]]:
         """
         解析聊天prompt配置字符串并生成对应的 chat_id 和 prompt内容
 
@@ -574,7 +575,7 @@ class DefaultReplyer:
             chat_prompt_str: 格式为 "platform:id:type:prompt内容" 的字符串
 
         Returns:
-            tuple: (chat_id, prompt_content)，如果解析失败则返回 None
+            tuple: (chat_id, is_group_chat, prompt_content)，如果解析失败则返回 None
         """
         try:
             # 使用 split 分割，但限制分割次数为3，因为prompt内容可能包含冒号
@@ -590,18 +591,34 @@ class DefaultReplyer:
             # 判断是否为群聊
             is_group = stream_type == "group"
 
-            # 使用 ChatManager 提供的接口生成 chat_id，避免在此重复实现逻辑
-            from src.common.utils.utils_session import SessionUtils
-
             chat_id = SessionUtils.calculate_session_id(
                 platform,
                 group_id=str(id_str) if is_group else None,
                 user_id=str(id_str) if not is_group else None,
             )
-            return chat_id, prompt_content
+            return chat_id, is_group, prompt_content
 
         except (ValueError, IndexError):
             return None
+
+    def _build_chat_attention_block(self, chat_id: str) -> str:
+        """构建当前聊天场景下的额外注意事项块。"""
+        prompt_lines: List[str] = []
+
+        if self.is_group_chat is True:
+            if group_chat_prompt := global_config.chat.group_chat_prompt.strip():
+                prompt_lines.append(f"通用注意事项：\n{group_chat_prompt}")
+        elif self.is_group_chat is False:
+            if private_chat_prompt := global_config.chat.private_chat_prompts.strip():
+                prompt_lines.append(f"通用注意事项：\n{private_chat_prompt}")
+
+        if chat_prompt := self.get_chat_prompt_for_chat(chat_id).strip():
+            prompt_lines.append(f"当前聊天额外注意事项：\n{chat_prompt}")
+
+        if not prompt_lines:
+            return ""
+
+        return "在该聊天中的注意事项：\n" + "\n\n".join(prompt_lines) + "\n"
 
     def get_chat_prompt_for_chat(self, chat_id: str) -> str:
         """根据聊天流 ID 获取匹配的额外 prompt。"""
@@ -610,13 +627,16 @@ class DefaultReplyer:
 
         for chat_prompt_item in global_config.chat.chat_prompts:
             if hasattr(chat_prompt_item, "rule_type") and hasattr(chat_prompt_item, "prompt"):
-                if str(chat_prompt_item.rule_type or "").strip() != "group":
+                rule_type = str(chat_prompt_item.rule_type or "").strip()
+                if self.is_group_chat is True and rule_type != "group":
+                    continue
+                if self.is_group_chat is False and rule_type != "private":
                     continue
 
                 config_chat_id = self._build_chat_uid(
                     str(chat_prompt_item.platform or "").strip(),
                     str(chat_prompt_item.item_id or "").strip(),
-                    True,
+                    rule_type == "group",
                 )
                 prompt_content = str(chat_prompt_item.prompt or "").strip()
                 if config_chat_id == chat_id and prompt_content:
@@ -629,14 +649,18 @@ class DefaultReplyer:
 
             # 兼容旧格式的 platform:id:type:prompt 配置字符串。
             parts = chat_prompt_item.split(":", 3)
-            if len(parts) != 4 or parts[2] != "group":
+            if len(parts) != 4:
                 continue
 
             result = self._parse_chat_prompt_config_to_chat_id(chat_prompt_item)
             if result is None:
                 continue
 
-            config_chat_id, prompt_content = result
+            config_chat_id, config_is_group, prompt_content = result
+            if self.is_group_chat is True and not config_is_group:
+                continue
+            if self.is_group_chat is False and config_is_group:
+                continue
             if config_chat_id == chat_id:
                 logger.debug(f"匹配到群聊 prompt 配置，chat_id: {chat_id}, prompt: {prompt_content[:50]}...")
                 return prompt_content
@@ -844,8 +868,7 @@ class DefaultReplyer:
             )
 
         # 获取匹配的额外prompt
-        chat_prompt_content = self.get_chat_prompt_for_chat(chat_id)
-        chat_prompt_block = f"{chat_prompt_content}\n" if chat_prompt_content else ""
+        chat_prompt_block = self._build_chat_attention_block(chat_id)
 
         # 根据think_level选择不同的回复模板
         # think_level=0: 轻量回复（简短平淡）

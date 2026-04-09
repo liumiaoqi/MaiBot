@@ -8,21 +8,13 @@ from pathlib import Path
 from typing import Dict
 from uuid import uuid4
 
-from src.config.config import global_config
-
-
 class PromptPreviewLogger:
     """负责保存 Maisaka Prompt 预览文件并控制目录容量。"""
 
     _BASE_DIR = Path("logs") / "maisaka_prompt"
+    _MAX_PREVIEW_GROUPS_PER_CHAT = 1024
     _TRIM_COUNT = 100
     _SAFE_NAME_PATTERN = re.compile(r"[^A-Za-z0-9._-]+")
-
-    @classmethod
-    def _get_max_per_chat(cls) -> int:
-        """从配置中获取每个聊天流最大保存的预览数量。"""
-
-        return getattr(global_config.chat, "plan_reply_log_max_per_chat", 1000)
 
     @classmethod
     def _normalize_chat_id(cls, chat_id: str) -> str:
@@ -65,15 +57,14 @@ class PromptPreviewLogger:
                 continue
             grouped_files.setdefault(file_path.stem, []).append(file_path)
 
-        max_per_chat = cls._get_max_per_chat()
-        if len(grouped_files) <= max_per_chat:
+        if len(grouped_files) <= cls._MAX_PREVIEW_GROUPS_PER_CHAT:
             return
 
         sorted_groups = sorted(
             grouped_files.items(),
             key=lambda item: min(path.stat().st_mtime for path in item[1]),
         )
-        overflow_count = len(grouped_files) - max_per_chat
+        overflow_count = len(grouped_files) - cls._MAX_PREVIEW_GROUPS_PER_CHAT
         trim_count = min(len(sorted_groups), max(cls._TRIM_COUNT, overflow_count))
         for _, file_group in sorted_groups[:trim_count]:
             for old_file in file_group:
