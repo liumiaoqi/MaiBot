@@ -981,7 +981,7 @@ class MaisakaHeartFlowChatting:
         if not fallback_lines:
             return []
 
-        fallback_border_style = "blue" if planner_style else "magenta"
+        fallback_border_style = "yellow"
         return [
             Panel(
                 Text("\n".join(fallback_lines)),
@@ -1213,12 +1213,12 @@ class MaisakaHeartFlowChatting:
     ) -> list[RenderableType]:
         """构建工具卡片默认内容块。"""
 
-        argument_border_style = "blue" if planner_style else "cyan"
-        metrics_border_style = "bright_blue" if planner_style else "bright_cyan"
-        prompt_border_style = "bright_blue" if planner_style else "bright_yellow"
-        reasoning_border_style = "blue" if planner_style else "magenta"
-        output_border_style = "bright_blue" if planner_style else "green"
-        extra_info_border_style = "cyan" if planner_style else "white"
+        argument_border_style = "yellow"
+        metrics_border_style = "bright_yellow"
+        prompt_border_style = "bright_yellow"
+        reasoning_border_style = "yellow"
+        output_border_style = "bright_yellow"
+        extra_info_border_style = "yellow"
         detail_labels = self._get_tool_detail_labels(tool_name)
 
         parts: list[RenderableType] = []
@@ -1318,8 +1318,8 @@ class MaisakaHeartFlowChatting:
     ) -> list[RenderableType]:
         """将 tool monitor detail 渲染为与 Planner/Timing 平级的工具卡片。"""
 
-        detail_panel_border_style = "blue" if planner_style else "yellow"
-        sub_card_border_style = "cyan" if planner_style else "white"
+        detail_panel_border_style = "yellow"
+        sub_card_border_style = "bright_yellow"
 
         panels: list[RenderableType] = []
         for tool_result in tool_detail_results:
