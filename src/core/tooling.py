@@ -181,10 +181,7 @@ class ToolSpec:
             str: 合并后的单段工具描述。
         """
 
-        parts = [self.brief_description.strip()]
-        if self.detailed_description.strip():
-            parts.append(self.detailed_description.strip())
-        return "\n\n".join(part for part in parts if part).strip()
+        return self.brief_description.strip()
 
     def to_llm_definition(self) -> ToolDefinitionInput:
         """转换为统一的 LLM 工具定义。

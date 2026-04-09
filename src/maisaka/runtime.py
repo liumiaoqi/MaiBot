@@ -479,15 +479,23 @@ class MaisakaHeartFlowChatting:
     def build_deferred_tools_reminder(self) -> str:
         """构造供 planner 使用的 deferred tools 提示消息。"""
 
-        undiscovered_tool_names = [
-            tool_name
-            for tool_name in self.deferred_tool_specs_by_name
+        undiscovered_tool_specs = [
+            tool_spec
+            for tool_name, tool_spec in self.deferred_tool_specs_by_name.items()
             if tool_name not in self.discovered_tool_names
         ]
-        if not undiscovered_tool_names:
+        if not undiscovered_tool_specs:
             return ""
 
-        tool_lines = [f"{index}. {tool_name}" for index, tool_name in enumerate(undiscovered_tool_names, start=1)]
+        tool_lines: list[str] = []
+        for index, tool_spec in enumerate(undiscovered_tool_specs, start=1):
+            tool_name = tool_spec.name.strip()
+            tool_description = tool_spec.brief_description.strip()
+            if tool_description:
+                tool_lines.append(f"{index}. {tool_name}: {tool_description}")
+            else:
+                tool_lines.append(f"{index}. {tool_name}")
+
         reminder_lines = [
             "<system-reminder>",
             "以下工具当前未直接暴露给你，但可以通过 tool_search 工具发现并在后续轮次中使用：",
@@ -803,6 +811,7 @@ class MaisakaHeartFlowChatting:
         self,
         *,
         cycle_id: Optional[int] = None,
+        time_records: Optional[dict[str, float]] = None,
         timing_selected_history_count: Optional[int] = None,
         timing_prompt_tokens: Optional[int] = None,
         timing_action: str = "",
@@ -818,6 +827,7 @@ class MaisakaHeartFlowChatting:
         planner_tool_results: Optional[list[str]] = None,
         planner_tool_detail_results: Optional[list[dict[str, Any]]] = None,
         planner_prompt_section: Optional[RenderableType] = None,
+        planner_extra_lines: Optional[list[str]] = None,
     ) -> None:
         """在终端展示当前聊天流本轮 cycle 的最终结果。"""
         if not global_config.debug.show_maisaka_thinking:
@@ -830,6 +840,7 @@ class MaisakaHeartFlowChatting:
         if cycle_id is not None:
             body_lines.append(f"循环编号：{cycle_id}")
 
+        panel_subtitle = self._build_cycle_time_records_text(time_records or {})
         renderables: list[RenderableType] = [Text("\n".join(body_lines))]
         timing_panel = self._build_cycle_stage_panel(
             title="Timing Gate",
@@ -837,14 +848,21 @@ class MaisakaHeartFlowChatting:
             selected_history_count=timing_selected_history_count,
             prompt_tokens=timing_prompt_tokens,
             response_text=timing_response,
-            tool_calls=timing_tool_calls,
-            tool_results=timing_tool_results,
-            tool_detail_results=timing_tool_detail_results,
             prompt_section=timing_prompt_section,
             extra_lines=[f"门控动作：{timing_action}"] if timing_action.strip() else None,
         )
         if timing_panel is not None:
             renderables.append(timing_panel)
+
+        timing_tool_cards = self._build_tool_activity_cards(
+            stage_title="Timing Tool",
+            tool_calls=timing_tool_calls,
+            tool_results=timing_tool_results,
+            tool_detail_results=timing_tool_detail_results,
+            planner_style=False,
+        )
+        if timing_tool_cards:
+            renderables.extend(timing_tool_cards)
 
         planner_panel = self._build_cycle_stage_panel(
             title="Planner",
@@ -852,18 +870,27 @@ class MaisakaHeartFlowChatting:
             selected_history_count=planner_selected_history_count,
             prompt_tokens=planner_prompt_tokens,
             response_text=planner_response,
-            tool_calls=planner_tool_calls,
-            tool_results=planner_tool_results,
-            tool_detail_results=planner_tool_detail_results,
             prompt_section=planner_prompt_section,
+            extra_lines=planner_extra_lines,
         )
         if planner_panel is not None:
             renderables.append(planner_panel)
+
+        planner_tool_cards = self._build_tool_activity_cards(
+            stage_title="Planner Tool",
+            tool_calls=planner_tool_calls,
+            tool_results=planner_tool_results,
+            tool_detail_results=planner_tool_detail_results,
+            planner_style=True,
+        )
+        if planner_tool_cards:
+            renderables.extend(planner_tool_cards)
 
         console.print(
             Panel(
                 Group(*renderables),
                 title="MaiSaka 循环",
+                subtitle=panel_subtitle,
                 border_style="bright_blue",
                 padding=(0, 1),
             )
@@ -877,9 +904,6 @@ class MaisakaHeartFlowChatting:
         selected_history_count: Optional[int],
         prompt_tokens: Optional[int],
         response_text: str = "",
-        tool_calls: Optional[list[Any]] = None,
-        tool_results: Optional[list[str]] = None,
-        tool_detail_results: Optional[list[dict[str, Any]]] = None,
         prompt_section: Optional[RenderableType] = None,
         extra_lines: Optional[list[str]] = None,
     ) -> Optional[Panel]:
@@ -889,9 +913,6 @@ class MaisakaHeartFlowChatting:
             selected_history_count is not None,
             prompt_tokens is not None,
             bool(response_text.strip()),
-            bool(tool_calls),
-            bool(tool_results),
-            bool(tool_detail_results),
             prompt_section is not None,
             bool(extra_lines),
         ])
@@ -918,39 +939,10 @@ class MaisakaHeartFlowChatting:
                 Panel(
                     Text(normalized_response),
                     title="Maisaka 返回",
-                    border_style="green",
+                    border_style=border_style,
                     padding=(0, 1),
                 )
             )
-
-        normalized_tool_calls = build_tool_call_summary_lines(tool_calls or [])
-        if normalized_tool_calls:
-            renderables.append(
-                Panel(
-                    Text("\n".join(normalized_tool_calls)),
-                    title="工具调用",
-                    border_style="magenta",
-                    padding=(0, 1),
-                )
-            )
-
-        normalized_tool_results = self._filter_redundant_tool_results(
-            tool_results=tool_results or [],
-            tool_detail_results=tool_detail_results or [],
-        )
-        if normalized_tool_results:
-            renderables.append(
-                Panel(
-                    Text("\n".join(normalized_tool_results)),
-                    title="工具结果",
-                    border_style="yellow",
-                    padding=(0, 1),
-                )
-            )
-
-        detail_panels = self._build_tool_detail_panels(tool_detail_results or [])
-        if detail_panels:
-            renderables.extend(detail_panels)
 
         return Panel(
             Group(*renderables),
@@ -958,6 +950,75 @@ class MaisakaHeartFlowChatting:
             border_style=border_style,
             padding=(0, 1),
         )
+
+    def _build_tool_activity_cards(
+        self,
+        *,
+        stage_title: str,
+        tool_calls: Optional[list[Any]] = None,
+        tool_results: Optional[list[str]] = None,
+        tool_detail_results: Optional[list[dict[str, Any]]] = None,
+        planner_style: bool = False,
+    ) -> list[RenderableType]:
+        """构建与阶段同级的工具执行卡片列表。"""
+
+        detail_results = tool_detail_results or []
+        cards = self._build_tool_detail_cards(
+            detail_results,
+            stage_title=stage_title,
+            planner_style=planner_style,
+        )
+        if cards:
+            return cards
+
+        # 兼容旧数据结构：若尚无 detail，则降级为简单文本卡片。
+        fallback_lines = self._filter_redundant_tool_results(
+            tool_results=tool_results or [],
+            tool_detail_results=detail_results,
+        )
+        if not fallback_lines and tool_calls:
+            fallback_lines = build_tool_call_summary_lines(tool_calls)
+        if not fallback_lines:
+            return []
+
+        fallback_border_style = "blue" if planner_style else "magenta"
+        return [
+            Panel(
+                Text("\n".join(fallback_lines)),
+                title=stage_title,
+                border_style=fallback_border_style,
+                padding=(0, 1),
+            )
+        ]
+
+    @staticmethod
+    def _build_cycle_time_records_text(time_records: dict[str, float]) -> str:
+        """构建循环最外层面板展示的阶段耗时文本。"""
+
+        if not time_records:
+            return "流程耗时：无"
+
+        label_map = {
+            "timing_gate": "Timing Gate",
+            "planner": "Planner",
+            "tool_calls": "工具执行",
+        }
+        ordered_keys = ["timing_gate", "planner", "tool_calls"]
+
+        parts: list[str] = []
+        for key in ordered_keys:
+            duration = time_records.get(key)
+            if isinstance(duration, (int, float)):
+                parts.append(f"{label_map.get(key, key)} {float(duration):.2f} s")
+
+        for key, duration in time_records.items():
+            if key in ordered_keys or not isinstance(duration, (int, float)):
+                continue
+            parts.append(f"{label_map.get(key, key)} {float(duration):.2f} s")
+
+        if not parts:
+            return "流程耗时：无"
+        return "流程耗时：" + " | ".join(parts)
 
     @staticmethod
     def _filter_redundant_tool_results(
@@ -1052,6 +1113,7 @@ class MaisakaHeartFlowChatting:
         prompt_text: str,
         request_messages: Optional[list[Any]] = None,
         tool_call_id: str,
+        border_style: str = "bright_yellow",
     ) -> Panel:
         """将工具 prompt 渲染为可点击查看的预览入口。"""
 
@@ -1076,7 +1138,7 @@ class MaisakaHeartFlowChatting:
                         image_display_mode="path_link" if global_config.maisaka.show_image_path else "legacy",
                     ),
                     title=labels["prompt_title"],
-                    border_style="bright_yellow",
+                    border_style=border_style,
                     padding=(0, 1),
                 )
 
@@ -1089,117 +1151,235 @@ class MaisakaHeartFlowChatting:
                 subtitle=subtitle,
             ),
             title=labels["prompt_title"],
-            border_style="bright_yellow",
+            border_style=border_style,
             padding=(0, 1),
         )
 
-    def _build_tool_detail_panels(self, tool_detail_results: list[dict[str, Any]]) -> list[RenderableType]:
-        """将 tool monitor detail 渲染为 CLI 详情卡片。"""
+    def _normalize_tool_card_body_lines(self, body: Any) -> list[str]:
+        """将工具卡片正文规范化为行列表。"""
+
+        if isinstance(body, str):
+            return [line for line in body.splitlines() if line.strip()]
+        if isinstance(body, list):
+            return [
+                str(item).strip()
+                for item in body
+                if str(item).strip()
+            ]
+        return []
+
+    def _build_custom_tool_sub_cards(
+        self,
+        sub_cards: Any,
+        *,
+        default_border_style: str,
+    ) -> list[RenderableType]:
+        """构建工具自定义子卡片。"""
+
+        if not isinstance(sub_cards, list):
+            return []
+
+        renderables: list[RenderableType] = []
+        for sub_card in sub_cards:
+            if not isinstance(sub_card, dict):
+                continue
+            title = str(sub_card.get("title") or "").strip() or "附加信息"
+            border_style = str(sub_card.get("border_style") or "").strip() or default_border_style
+            body_lines = self._normalize_tool_card_body_lines(
+                sub_card.get("body_lines", sub_card.get("content", ""))
+            )
+            if not body_lines:
+                continue
+            renderables.append(
+                Panel(
+                    Text("\n".join(body_lines)),
+                    title=title,
+                    border_style=border_style,
+                    padding=(0, 1),
+                )
+            )
+        return renderables
+
+    def _build_default_tool_detail_parts(
+        self,
+        *,
+        tool_name: str,
+        tool_call_id: str,
+        tool_args: Any,
+        summary: str,
+        duration_ms: Any,
+        detail: dict[str, Any],
+        planner_style: bool,
+    ) -> list[RenderableType]:
+        """构建工具卡片默认内容块。"""
+
+        argument_border_style = "blue" if planner_style else "cyan"
+        metrics_border_style = "bright_blue" if planner_style else "bright_cyan"
+        prompt_border_style = "bright_blue" if planner_style else "bright_yellow"
+        reasoning_border_style = "blue" if planner_style else "magenta"
+        output_border_style = "bright_blue" if planner_style else "green"
+        extra_info_border_style = "cyan" if planner_style else "white"
+        detail_labels = self._get_tool_detail_labels(tool_name)
+
+        parts: list[RenderableType] = []
+        header_lines: list[str] = []
+        if summary:
+            header_lines.append(summary)
+        if tool_call_id:
+            header_lines.append(f"调用ID：{tool_call_id}")
+        if isinstance(duration_ms, (int, float)):
+            header_lines.append(f"执行耗时：{round(float(duration_ms), 2)} ms")
+        if header_lines:
+            parts.append(Text("\n".join(header_lines)))
+
+        if isinstance(tool_args, dict) and tool_args:
+            parts.append(
+                Panel(
+                    Pretty(tool_args, expand_all=True),
+                    title="工具参数",
+                    border_style=argument_border_style,
+                    padding=(0, 1),
+                )
+            )
+
+        metrics = detail.get("metrics")
+        if isinstance(metrics, dict):
+            metrics_text = self._build_tool_metrics_text(metrics)
+            if metrics_text:
+                parts.append(
+                    Panel(
+                        Text(metrics_text),
+                        title="执行指标",
+                        border_style=metrics_border_style,
+                        padding=(0, 1),
+                    )
+                )
+
+        prompt_text = str(detail.get("prompt_text") or "").strip()
+        if prompt_text:
+            parts.append(
+                self._build_tool_prompt_access_panel(
+                    tool_name=tool_name,
+                    prompt_text=prompt_text,
+                    request_messages=detail.get("request_messages") if isinstance(detail.get("request_messages"), list) else None,
+                    tool_call_id=tool_call_id,
+                    border_style=prompt_border_style,
+                )
+            )
+
+        reasoning_text = str(detail.get("reasoning_text") or "").strip()
+        if reasoning_text:
+            parts.append(
+                Panel(
+                    Text(reasoning_text),
+                    title=detail_labels["reasoning_title"],
+                    border_style=reasoning_border_style,
+                    padding=(0, 1),
+                )
+            )
+
+        output_text = str(detail.get("output_text") or "").strip()
+        if output_text:
+            parts.append(
+                Panel(
+                    Text(output_text),
+                    title=detail_labels["output_title"],
+                    border_style=output_border_style,
+                    padding=(0, 1),
+                )
+            )
+
+        extra_sections = detail.get("extra_sections")
+        if isinstance(extra_sections, list):
+            for section in extra_sections:
+                if not isinstance(section, dict):
+                    continue
+                section_title = str(section.get("title") or "").strip() or "附加信息"
+                section_content = str(section.get("content") or "").strip()
+                if not section_content:
+                    continue
+                parts.append(
+                    Panel(
+                        Text(section_content),
+                        title=section_title,
+                        border_style=extra_info_border_style,
+                        padding=(0, 1),
+                    )
+                )
+
+        return parts
+
+    def _build_tool_detail_cards(
+        self,
+        tool_detail_results: list[dict[str, Any]],
+        *,
+        stage_title: str,
+        planner_style: bool = False,
+    ) -> list[RenderableType]:
+        """将 tool monitor detail 渲染为与 Planner/Timing 平级的工具卡片。"""
+
+        detail_panel_border_style = "blue" if planner_style else "yellow"
+        sub_card_border_style = "cyan" if planner_style else "white"
 
         panels: list[RenderableType] = []
         for tool_result in tool_detail_results:
             detail = tool_result.get("detail")
-            if not isinstance(detail, dict) or not detail:
-                continue
-
+            detail_dict = detail if isinstance(detail, dict) else {}
             tool_name = str(tool_result.get("tool_name") or "unknown").strip() or "unknown"
-            detail_labels = self._get_tool_detail_labels(tool_name)
+            tool_title = str(tool_result.get("tool_title") or "").strip() or tool_name
             tool_call_id = str(tool_result.get("tool_call_id") or "").strip()
             tool_args = tool_result.get("tool_args")
             summary = str(tool_result.get("summary") or "").strip()
             duration_ms = tool_result.get("duration_ms")
+            custom_card = tool_result.get("card")
 
             parts: list[RenderableType] = []
-            header_lines: list[str] = []
-            if summary:
-                header_lines.append(summary)
-            if tool_call_id:
-                header_lines.append(f"调用ID：{tool_call_id}")
-            if isinstance(duration_ms, (int, float)):
-                header_lines.append(f"执行耗时：{round(float(duration_ms), 2)} ms")
-            if header_lines:
-                parts.append(Text("\n".join(header_lines)))
-
-            if isinstance(tool_args, dict) and tool_args:
-                parts.append(
-                    Panel(
-                        Pretty(tool_args, expand_all=True),
-                        title="工具参数",
-                        border_style="cyan",
-                        padding=(0, 1),
-                    )
+            custom_title = ""
+            card_border_style = detail_panel_border_style
+            replace_default_children = False
+            if isinstance(custom_card, dict):
+                custom_title = str(custom_card.get("title") or "").strip()
+                card_border_style = str(custom_card.get("border_style") or "").strip() or detail_panel_border_style
+                replace_default_children = bool(custom_card.get("replace_default_children", False))
+                custom_body_lines = self._normalize_tool_card_body_lines(
+                    custom_card.get("body_lines", custom_card.get("content", ""))
                 )
+                if custom_body_lines:
+                    parts.append(Text("\n".join(custom_body_lines)))
 
-            metrics = detail.get("metrics")
-            if isinstance(metrics, dict):
-                metrics_text = self._build_tool_metrics_text(metrics)
-                if metrics_text:
-                    parts.append(
-                        Panel(
-                            Text(metrics_text),
-                            title="执行指标",
-                            border_style="bright_cyan",
-                            padding=(0, 1),
-                        )
-                    )
-
-            prompt_text = str(detail.get("prompt_text") or "").strip()
-            if prompt_text:
-                parts.append(
-                    self._build_tool_prompt_access_panel(
+            if not replace_default_children:
+                parts.extend(
+                    self._build_default_tool_detail_parts(
                         tool_name=tool_name,
-                        prompt_text=prompt_text,
-                        request_messages=detail.get("request_messages") if isinstance(detail.get("request_messages"), list) else None,
                         tool_call_id=tool_call_id,
+                        tool_args=tool_args,
+                        summary=summary,
+                        duration_ms=duration_ms,
+                        detail=detail_dict,
+                        planner_style=planner_style,
                     )
                 )
 
-            reasoning_text = str(detail.get("reasoning_text") or "").strip()
-            if reasoning_text:
-                parts.append(
-                    Panel(
-                        Text(reasoning_text),
-                        title=detail_labels["reasoning_title"],
-                        border_style="magenta",
-                        padding=(0, 1),
+            if isinstance(custom_card, dict):
+                parts.extend(
+                    self._build_custom_tool_sub_cards(
+                        custom_card.get("sub_cards"),
+                        default_border_style=sub_card_border_style,
                     )
                 )
-
-            output_text = str(detail.get("output_text") or "").strip()
-            if output_text:
-                parts.append(
-                    Panel(
-                        Text(output_text),
-                        title=detail_labels["output_title"],
-                        border_style="green",
-                        padding=(0, 1),
-                    )
+            parts.extend(
+                self._build_custom_tool_sub_cards(
+                    tool_result.get("sub_cards"),
+                    default_border_style=sub_card_border_style,
                 )
-
-            extra_sections = detail.get("extra_sections")
-            if isinstance(extra_sections, list):
-                for section in extra_sections:
-                    if not isinstance(section, dict):
-                        continue
-                    section_title = str(section.get("title") or "").strip() or "附加信息"
-                    section_content = str(section.get("content") or "").strip()
-                    if not section_content:
-                        continue
-                    parts.append(
-                        Panel(
-                            Text(section_content),
-                            title=section_title,
-                            border_style="white",
-                            padding=(0, 1),
-                        )
-                    )
+            )
 
             if parts:
                 panels.append(
                     Panel(
                         Group(*parts),
-                        title=f"{tool_name} 工具详情",
-                        border_style="yellow",
+                        title=custom_title or f"{stage_title} · {tool_title}",
+                        border_style=card_border_style,
                         padding=(0, 1),
                     )
                 )

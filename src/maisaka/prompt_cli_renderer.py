@@ -269,7 +269,7 @@ class PromptCLIVisualizer:
             )
 
         return (
-            "<details class='tool-card'>"
+            "<details class='tool-card tool-call-card'>"
             "<summary class='tool-card-summary'>"
             f"<span class='tool-card-name'>{html.escape(tool_name)}</span>"
             "</summary>"
@@ -638,6 +638,9 @@ class PromptCLIVisualizer:
       border-radius: 14px;
       overflow: hidden;
     }}
+    .tool-call-card {{
+      border-color: #ff8700;
+    }}
     .tool-card:first-of-type {{
       margin-top: 0;
     }}
@@ -671,6 +674,9 @@ class PromptCLIVisualizer:
       border-top: 1px solid #f0d7fb;
       padding: 12px 14px;
       background: rgba(255, 255, 255, 0.52);
+    }}
+    .tool-call-card .tool-card-body {{
+      border-top-color: #ff8700;
     }}
     .tool-card-meta {{
       margin-bottom: 10px;

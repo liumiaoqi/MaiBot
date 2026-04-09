@@ -273,7 +273,7 @@ class MaisakaExpressionSelector:
             logger.exception("表达方式选择子代理执行失败")
             return MaisakaExpressionSelectionResult()
 
-        logger.info(f"表达方式子代理原始结果：session_id={session_id} response={raw_response!r}")
+        # logger.info(f"表达方式子代理原始结果：session_id={session_id} response={raw_response!r}")
         selected_ids = self._parse_selected_ids(raw_response, candidates)
         if not selected_ids:
             logger.info(f"表达方式选择完成但未命中：session_id={session_id}")

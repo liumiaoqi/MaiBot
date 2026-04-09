@@ -118,36 +118,27 @@ class MaisakaReasoningEngine:
             )
             self._runtime._chat_loop_service.set_interrupt_flag(None)
 
-    async def _run_interruptible_sub_agent(
+    async def _run_timing_gate_sub_agent(
         self,
         *,
         context_message_limit: int,
         system_prompt: str,
         tool_definitions: list[dict[str, Any]],
     ) -> Any:
-        """运行一轮可被新消息打断的临时子代理请求。"""
+        """运行一轮 Timing Gate 子代理请求。
 
-        interrupt_flag = asyncio.Event()
-        interrupted = False
-        self._runtime._bind_planner_interrupt_flag(interrupt_flag)
-        try:
-            return await self._runtime.run_sub_agent(
-                context_message_limit=context_message_limit,
-                system_prompt=system_prompt,
-                request_kind="timing_gate",
-                interrupt_flag=interrupt_flag,
-                max_tokens=TIMING_GATE_MAX_TOKENS,
-                temperature=0.1,
-                tool_definitions=tool_definitions,
-            )
-        except ReqAbortException:
-            interrupted = True
-            raise
-        finally:
-            self._runtime._unbind_planner_interrupt_flag(
-                interrupt_flag,
-                interrupted=interrupted,
-            )
+        Timing Gate 阶段不再响应新的 planner 打断，只有主 planner 阶段允许被打断。
+        """
+
+        return await self._runtime.run_sub_agent(
+            context_message_limit=context_message_limit,
+            system_prompt=system_prompt,
+            request_kind="timing_gate",
+            interrupt_flag=None,
+            max_tokens=TIMING_GATE_MAX_TOKENS,
+            temperature=0.1,
+            tool_definitions=tool_definitions,
+        )
 
     @staticmethod
     def _build_timing_gate_fallback_prompt() -> str:
@@ -240,18 +231,19 @@ class MaisakaReasoningEngine:
     async def _run_timing_gate(
         self,
         anchor_message: SessionMessage,
-    ) -> tuple[Literal["continue", "no_reply", "wait"], Any, list[str]]:
+    ) -> tuple[Literal["continue", "no_reply", "wait"], Any, list[str], list[dict[str, Any]]]:
         """运行 Timing Gate 子代理并返回控制决策。"""
 
         if self._runtime._force_next_timing_continue:
             return self._build_forced_continue_timing_result()
 
-        response = await self._run_interruptible_sub_agent(
+        response = await self._run_timing_gate_sub_agent(
             context_message_limit=TIMING_GATE_CONTEXT_LIMIT,
             system_prompt=self._build_timing_gate_system_prompt(),
             tool_definitions=get_timing_tools(),
         )
         tool_result_summaries: list[str] = []
+        tool_monitor_results: list[dict[str, Any]] = []
         selected_tool_call: Optional[ToolCall] = None
         for tool_call in response.tool_calls:
             if tool_call.func_name in TIMING_GATE_TOOL_NAMES:
@@ -260,11 +252,11 @@ class MaisakaReasoningEngine:
 
         if selected_tool_call is None:
             logger.warning(f"{self._runtime.log_prefix} Timing Gate 未返回有效控制工具，默认继续执行 Action Loop")
-            return "continue", response, tool_result_summaries
+            return "continue", response, tool_result_summaries, tool_monitor_results
 
         append_history = selected_tool_call.func_name != "continue"
         store_record = selected_tool_call.func_name != "continue"
-        _, result, _ = await self._invoke_tool_call(
+        invocation, result, tool_spec = await self._invoke_tool_call(
             selected_tool_call,
             response.content or "",
             anchor_message,
@@ -272,16 +264,27 @@ class MaisakaReasoningEngine:
             store_record=store_record,
         )
         tool_result_summaries.append(self._build_tool_result_summary(selected_tool_call, result))
+        tool_monitor_results.append(
+            self._build_tool_monitor_result(
+                selected_tool_call,
+                invocation,
+                result,
+                duration_ms=0.0,
+                tool_spec=tool_spec,
+            )
+        )
 
         timing_action = str(result.metadata.get("timing_action") or selected_tool_call.func_name).strip()
         if timing_action not in TIMING_GATE_TOOL_NAMES:
             logger.warning(
                 f"{self._runtime.log_prefix} Timing Gate 返回未知动作 {timing_action!r}，将按 continue 处理"
             )
-            return "continue", response, tool_result_summaries
-        return timing_action, response, tool_result_summaries
+            return "continue", response, tool_result_summaries, tool_monitor_results
+        return timing_action, response, tool_result_summaries, tool_monitor_results
 
-    def _build_forced_continue_timing_result(self) -> tuple[Literal["continue"], ChatResponse, list[str]]:
+    def _build_forced_continue_timing_result(
+        self,
+    ) -> tuple[Literal["continue"], ChatResponse, list[str], list[dict[str, Any]]]:
         """构造跳过 Timing Gate 时使用的伪 continue 结果。"""
 
         reason = self._runtime._consume_force_next_timing_continue_reason() or "本轮直接跳过 Timing Gate 并视作 continue。"
@@ -309,6 +312,7 @@ class MaisakaReasoningEngine:
                 prompt_section=None,
             ),
             [f"- continue [强制跳过]: {reason}"],
+            [],
         )
 
     @staticmethod
@@ -383,10 +387,14 @@ class MaisakaReasoningEngine:
                         planner_started_at = 0.0
                         planner_duration_ms = 0.0
                         timing_duration_ms = 0.0
+                        current_stage_started_at = 0.0
                         timing_action: Optional[str] = None
                         timing_response: Optional[ChatResponse] = None
                         timing_tool_results: Optional[list[str]] = None
+                        timing_tool_monitor_results: Optional[list[dict[str, Any]]] = None
                         response: Optional[ChatResponse] = None
+                        action_tool_definitions: list[dict[str, Any]] = []
+                        planner_extra_lines: list[str] = []
                         tool_result_summaries: list[str] = []
                         tool_monitor_results: list[dict[str, Any]] = []
                         try:
@@ -399,10 +407,14 @@ class MaisakaReasoningEngine:
                                 )
 
                             if timing_gate_required:
+                                current_stage_started_at = time.time()
                                 timing_started_at = time.time()
-                                timing_action, timing_response, timing_tool_results = await self._run_timing_gate(
-                                    anchor_message
-                                )
+                                (
+                                    timing_action,
+                                    timing_response,
+                                    timing_tool_results,
+                                    timing_tool_monitor_results,
+                                ) = await self._run_timing_gate(anchor_message)
                                 timing_duration_ms = (time.time() - timing_started_at) * 1000
                                 cycle_detail.time_records["timing_gate"] = timing_duration_ms / 1000
                                 await emit_timing_gate_result(
@@ -430,6 +442,7 @@ class MaisakaReasoningEngine:
                                 )
 
                             planner_started_at = time.time()
+                            current_stage_started_at = planner_started_at
                             action_tool_definitions, deferred_tools_reminder = await self._build_action_tool_definitions()
                             logger.info(
                                 f"{self._runtime.log_prefix} 规划器开始执行: "
@@ -472,14 +485,46 @@ class MaisakaReasoningEngine:
 
                             if not response.content:
                                 break
-                        except ReqAbortException:
+                        except ReqAbortException as exc:
                             interrupted_at = time.time()
+                            interrupted_stage_label = "Planner"
+                            interrupted_text = (
+                                "Planner 在流式响应阶段被新消息打断。"
+                                "本轮未完成，因此这里展示的是中断说明而不是完整返回。"
+                            )
+                            interrupted_response = ChatResponse(
+                                content=interrupted_text or None,
+                                tool_calls=[],
+                                request_messages=[],
+                                raw_message=AssistantMessage(
+                                    content=interrupted_text,
+                                    timestamp=datetime.now(),
+                                    tool_calls=[],
+                                    source_kind="perception",
+                                ),
+                                selected_history_count=len(self._runtime._chat_history),
+                                tool_count=len(action_tool_definitions),
+                                prompt_tokens=0,
+                                built_message_count=0,
+                                completion_tokens=0,
+                                total_tokens=0,
+                                prompt_section=None,
+                            )
+                            interrupted_extra_lines = [
+                                "状态：已被新消息打断",
+                                f"打断位置：{interrupted_stage_label} 请求流式响应阶段",
+                                f"打断耗时：{interrupted_at - current_stage_started_at:.3f} 秒",
+                                f"打断原因：{str(exc) or '收到外部中断信号'}",
+                            ]
+                            interrupted_extra_lines.append("展示内容：以下为 Maisaka 侧记录的中断说明")
+                            response = interrupted_response
+                            planner_extra_lines = interrupted_extra_lines
                             logger.info(
-                                f"{self._runtime.log_prefix} 规划器打断成功: "
+                                f"{self._runtime.log_prefix} {interrupted_stage_label} 打断成功: "
                                 f"回合={round_index + 1} "
-                                f"开始时间={planner_started_at:.3f} "
+                                f"开始时间={current_stage_started_at:.3f} "
                                 f"打断时间={interrupted_at:.3f} "
-                                f"耗时={interrupted_at - planner_started_at:.3f} 秒"
+                                f"耗时={interrupted_at - current_stage_started_at:.3f} 秒"
                             )
                             if not self._should_retry_planner_after_interrupt(
                                 round_index=round_index,
@@ -506,6 +551,7 @@ class MaisakaReasoningEngine:
                             completed_cycle = self._end_cycle(cycle_detail)
                             self._runtime._render_context_usage_panel(
                                 cycle_id=cycle_detail.cycle_id,
+                                time_records=dict(completed_cycle.time_records),
                                 timing_selected_history_count=(
                                     timing_response.selected_history_count if timing_response is not None else None
                                 ),
@@ -516,6 +562,7 @@ class MaisakaReasoningEngine:
                                 timing_response=timing_response.content or "" if timing_response is not None else "",
                                 timing_tool_calls=timing_response.tool_calls if timing_response is not None else None,
                                 timing_tool_results=timing_tool_results,
+                                timing_tool_detail_results=timing_tool_monitor_results,
                                 timing_prompt_section=(
                                     timing_response.prompt_section if timing_response is not None else None
                                 ),
@@ -528,6 +575,7 @@ class MaisakaReasoningEngine:
                                 planner_tool_results=tool_result_summaries,
                                 planner_tool_detail_results=tool_monitor_results,
                                 planner_prompt_section=response.prompt_section if response is not None else None,
+                                planner_extra_lines=planner_extra_lines,
                             )
                             await emit_planner_finalized(
                                 session_id=self._runtime.session_id,
@@ -1125,6 +1173,7 @@ class MaisakaReasoningEngine:
         invocation: ToolInvocation,
         result: ToolExecutionResult,
         duration_ms: float,
+        tool_spec: Optional[ToolSpec] = None,
     ) -> dict[str, Any]:
         """构建 planner.finalized 中单个工具的监控结果。"""
 
@@ -1133,9 +1182,20 @@ class MaisakaReasoningEngine:
         if monitor_detail is not None:
             normalized_detail = self._normalize_tool_record_value(monitor_detail)
 
+        monitor_card = result.metadata.get("monitor_card")
+        normalized_card = None
+        if monitor_card is not None:
+            normalized_card = self._normalize_tool_record_value(monitor_card)
+
+        monitor_sub_cards = result.metadata.get("monitor_sub_cards")
+        normalized_sub_cards = None
+        if monitor_sub_cards is not None:
+            normalized_sub_cards = self._normalize_tool_record_value(monitor_sub_cards)
+
         return {
             "tool_call_id": tool_call.call_id,
             "tool_name": tool_call.func_name,
+            "tool_title": tool_spec.title.strip() if tool_spec is not None and tool_spec.title.strip() else "",
             "tool_args": self._normalize_tool_record_value(
                 invocation.arguments if isinstance(invocation.arguments, dict) else {}
             ),
@@ -1143,6 +1203,8 @@ class MaisakaReasoningEngine:
             "duration_ms": round(duration_ms, 2),
             "summary": self._build_tool_result_summary(tool_call, result),
             "detail": normalized_detail,
+            "card": normalized_card,
+            "sub_cards": normalized_sub_cards,
         }
 
     async def _handle_tool_calls(
@@ -1178,7 +1240,7 @@ class MaisakaReasoningEngine:
                 self._append_tool_execution_result(tool_call, result)
                 tool_result_summaries.append(self._build_tool_result_summary(tool_call, result))
                 tool_monitor_results.append(
-                    self._build_tool_monitor_result(tool_call, invocation, result, duration_ms=0.0)
+                    self._build_tool_monitor_result(tool_call, invocation, result, duration_ms=0.0, tool_spec=None)
                 )
             return False, tool_result_summaries, tool_monitor_results
 
@@ -1210,7 +1272,13 @@ class MaisakaReasoningEngine:
             self._append_tool_execution_result(tool_call, result)
             tool_result_summaries.append(self._build_tool_result_summary(tool_call, result))
             tool_monitor_results.append(
-                self._build_tool_monitor_result(tool_call, invocation, result, tool_duration_ms)
+                self._build_tool_monitor_result(
+                    tool_call,
+                    invocation,
+                    result,
+                    tool_duration_ms,
+                    tool_spec=tool_spec_map.get(invocation.tool_name),
+                )
             )
 
             if not result.success and tool_call.func_name == "reply":

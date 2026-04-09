@@ -50,30 +50,13 @@ class ReplyerManager:
         )
 
         try:
-            if replyer_type == "maisaka":
-                logger.info(f"[ReplyerManager] 选择 MaisakaReplyGenerator: generator_type={generator_type}")
-                maisaka_replyer_class = get_maisaka_replyer_class()
+            maisaka_replyer_class = get_maisaka_replyer_class()
 
-                replyer = maisaka_replyer_class(
-                    chat_stream=target_stream,
-                    request_type=request_type,
-                )
-            elif target_stream.is_group_session:
-                logger.info("[ReplyerManager] importing DefaultReplyer")
-                from src.chat.replyer.group_generator import DefaultReplyer
+            replyer = maisaka_replyer_class(
+                chat_stream=target_stream,
+                request_type=request_type,
+            )
 
-                replyer = DefaultReplyer(
-                    chat_stream=target_stream,
-                    request_type=request_type,
-                )
-            else:
-                logger.info("[ReplyerManager] importing PrivateReplyer")
-                from src.chat.replyer.private_generator import PrivateReplyer
-
-                replyer = PrivateReplyer(
-                    chat_stream=target_stream,
-                    request_type=request_type,
-                )
         except Exception:
             logger.exception(f"[ReplyerManager] 创建 replyer 失败: cache_key={cache_key}")
             raise

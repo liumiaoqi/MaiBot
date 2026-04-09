@@ -408,46 +408,43 @@ class MaisakaChatLoopService:
             if llm_message is not None:
                 messages.append(llm_message)
 
+        normalized_injected_messages: List[Message] = []
         for injected_message in injected_user_messages or []:
             normalized_message = str(injected_message or "").strip()
             if not normalized_message:
                 continue
-            messages.append(
+            normalized_injected_messages.append(
                 MessageBuilder()
                 .set_role(RoleType.User)
                 .add_text_content(normalized_message)
                 .build()
             )
 
+        if normalized_injected_messages:
+            insertion_index = self._resolve_injected_user_messages_insertion_index(messages)
+            messages[insertion_index:insertion_index] = normalized_injected_messages
+
         return messages
 
     @staticmethod
-    def _build_tool_names_log_text(tool_definitions: Sequence[ToolDefinitionInput]) -> str:
-        """构造 planner 请求前的工具列表日志文本。
+    def _resolve_injected_user_messages_insertion_index(messages: Sequence[Message]) -> int:
+        """计算 injected meta user messages 在请求中的插入位置。
 
-        Args:
-            tool_definitions: 本轮实际传给 planner 的工具定义列表。
-
-        Returns:
-            str: 适合直接写入日志的单行文本。
+        规则与 deferred attachment 更接近：
+        - 从尾部向前寻找最近的 stopping point；
+        - stopping point 为 assistant 消息或 tool 结果消息；
+        - 找到后插入到其后面；
+        - 若不存在 stopping point，则退回到 system 消息之后。
         """
 
-        tool_names: List[str] = []
-        for tool_definition in tool_definitions:
-            if not isinstance(tool_definition, dict):
-                continue
-            normalized_name = str(tool_definition.get("name") or "").strip()
-            if not normalized_name:
-                function_definition = tool_definition.get("function")
-                if isinstance(function_definition, dict):
-                    normalized_name = str(function_definition.get("name") or "").strip()
-            if normalized_name:
-                tool_names.append(normalized_name)
+        for index in range(len(messages) - 1, -1, -1):
+            message = messages[index]
+            if message.role in {RoleType.Assistant, RoleType.Tool}:
+                return index + 1
 
-        if not tool_names:
-            return "[无工具]"
-
-        return "、".join(tool_names)
+        if messages and messages[0].role == RoleType.System:
+            return 1
+        return 0
 
     async def chat_loop_step(
         self,
@@ -517,11 +514,6 @@ class MaisakaChatLoopService:
         if isinstance(raw_tool_definitions, list):
             all_tools = [item for item in raw_tool_definitions if isinstance(item, dict)]
 
-        logger.info(
-            f"规划器工具列表(request_kind={request_kind}): "
-            f"共 {len(all_tools)} 个 -> {self._build_tool_names_log_text(all_tools)}"
-        )
-
         prompt_section: RenderableType | None = None
         if global_config.debug.show_maisaka_thinking:
             image_display_mode: str = "path_link" if global_config.maisaka.show_image_path else "legacy"
@@ -536,13 +528,6 @@ class MaisakaChatLoopService:
                 tool_definitions=list(all_tools),
             )
 
-        logger.info(
-            f"规划器请求开始(request_kind={request_kind}): "
-            f"已选上下文消息数={len(selected_history)} "
-            f"大模型消息数={len(built_messages)} "
-            f"工具数={len(all_tools)} "
-            f"启用打断={self._interrupt_flag is not None}"
-        )
         generation_result = await self._llm_chat.generate_response_with_messages(
             message_factory=message_factory,
             options=LLMGenerationOptions(
@@ -609,7 +594,7 @@ class MaisakaChatLoopService:
         *,
         max_context_size: Optional[int] = None,
     ) -> tuple[List[LLMContextMessage], str]:
-        """??????? LLM ???????"""
+        """选择LLM上下文消息"""
 
         effective_context_size = max(1, int(max_context_size or global_config.chat.max_context_size))
         selected_indices: List[int] = []
@@ -627,7 +612,7 @@ class MaisakaChatLoopService:
                     break
 
         if not selected_indices:
-            return [], f"???????? {effective_context_size} ? user/assistant??? 0 ??"
+            return [], f"没有选择到上下文消息，实际发送 {effective_context_size} 条 user/assistant 消息"
 
         selected_indices.reverse()
         selected_history = [chat_history[index] for index in selected_indices]
@@ -642,47 +627,6 @@ class MaisakaChatLoopService:
         return (
             selected_history,
             selection_reason,
-        )
-
-    @staticmethod
-    def _select_llm_context_messages(chat_history: List[LLMContextMessage]) -> tuple[List[LLMContextMessage], str]:
-        """选择真正发送给 LLM 的上下文消息。
-
-        Args:
-            chat_history: 当前全部对话历史。
-
-        Returns:
-            tuple[List[LLMContextMessage], str]: `(已选上下文, 选择说明)`。
-        """
-
-        max_context_size = max(1, int(global_config.chat.max_context_size))
-        selected_indices: List[int] = []
-        counted_message_count = 0
-
-        for index in range(len(chat_history) - 1, -1, -1):
-            message = chat_history[index]
-            if message.to_llm_message() is None:
-                continue
-
-            selected_indices.append(index)
-            if message.count_in_context:
-                counted_message_count += 1
-                if counted_message_count >= max_context_size:
-                    break
-
-        if not selected_indices:
-            return [], f"上下文判定：最近 {max_context_size} 条 user/assistant（当前 0 条）"
-
-        selected_indices.reverse()
-        selected_history = [chat_history[index] for index in selected_indices]
-        selected_history, hidden_assistant_count = MaisakaChatLoopService._hide_early_assistant_messages(selected_history)
-        selected_history, _ = drop_orphan_tool_results(selected_history)
-        return (
-            selected_history,
-            (
-                f"上下文判定：最近 {max_context_size} 条 user/assistant；"
-                f"展示并发送窗口内消息 {len(selected_history)} 条"
-            ),
         )
 
     @staticmethod

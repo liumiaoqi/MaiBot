@@ -1,4 +1,4 @@
-"""MutePlugin SDK 迁移回归测试。"""
+"""MutePlugin SDK 回归测试。"""
 
 from __future__ import annotations
 
@@ -71,6 +71,8 @@ async def test_mute_command_calls_napcat_group_ban_api() -> None:
             return {"success": True, "person_id": "person-1"}
         if capability == "person.get_value":
             return {"success": True, "value": "123456"}
+        if capability == "api.call" and payload["args"]["api_name"] == "adapter.napcat.group.get_group_member_info":
+            return {"success": True, "result": {"role": "member"}}
         if capability == "api.call":
             return {"success": True, "result": {"status": "ok", "retcode": 0}}
         if capability == "send.text":
@@ -94,8 +96,12 @@ async def test_mute_command_calls_napcat_group_ban_api() -> None:
     assert message == "成功禁言 张三"
     assert intercept is True
 
-    api_call = next(call for call in capability_calls if call["capability"] == "api.call")
-    assert api_call["args"]["api_name"] == "adapter.napcat.group.set_group_ban"
+    api_call = next(
+        call
+        for call in capability_calls
+        if call["capability"] == "api.call"
+        and call["args"]["api_name"] == "adapter.napcat.group.set_group_ban"
+    )
     assert api_call["args"]["version"] == "1"
     assert api_call["args"]["args"] == {
         "group_id": "10001",
@@ -131,6 +137,179 @@ async def test_mute_tool_requires_target_person_name() -> None:
     assert message == "禁言目标不能为空"
     assert capability_calls[-1]["capability"] == "send.text"
     assert capability_calls[-1]["args"]["text"] == "没有指定禁言对象哦"
+
+
+@pytest.mark.asyncio
+async def test_mute_tool_can_unwrap_nested_person_user_id_response() -> None:
+    """禁言工具应能兼容解包多层 capability 返回结果。"""
+
+    plugin = _build_plugin()
+    capability_calls: List[Dict[str, Any]] = []
+
+    async def fake_rpc_call(method: str, plugin_id: str = "", payload: Dict[str, Any] | None = None) -> Dict[str, Any]:
+        assert method == "cap.call"
+        assert payload is not None
+        capability_calls.append(payload)
+
+        capability = payload["capability"]
+        if capability == "person.get_id_by_name":
+            return {"success": True, "result": {"success": True, "person_id": "person-1"}}
+        if capability == "person.get_value":
+            return {"success": True, "result": {"success": True, "value": "123456"}}
+        if capability == "api.call" and payload["args"]["api_name"] == "adapter.napcat.group.get_group_member_info":
+            return {"success": True, "result": {"role": "member"}}
+        if capability == "api.call":
+            return {"success": True, "result": {"status": "ok"}}
+        if capability == "send.text":
+            return {"success": True}
+        raise AssertionError(f"unexpected capability: {capability}")
+
+    plugin._set_context(PluginContext(plugin_id="mute", rpc_call=fake_rpc_call))
+
+    success, message = await plugin.handle_mute_tool(
+        stream_id="group-10001",
+        group_id="10001",
+        target="张三",
+        duration=60,
+        reason="测试",
+    )
+
+    assert success is True
+    assert message == "成功禁言 张三"
+
+    api_call = next(
+        call
+        for call in capability_calls
+        if call["capability"] == "api.call"
+        and call["args"]["api_name"] == "adapter.napcat.group.set_group_ban"
+    )
+    assert api_call["args"]["args"]["user_id"] == "123456"
+
+
+@pytest.mark.asyncio
+async def test_mute_tool_rejects_owner_before_group_ban_call() -> None:
+    """禁言工具应在检测到群主时提前返回明确提示。"""
+
+    plugin = _build_plugin()
+    capability_calls: List[Dict[str, Any]] = []
+
+    async def fake_rpc_call(method: str, plugin_id: str = "", payload: Dict[str, Any] | None = None) -> Dict[str, Any]:
+        assert method == "cap.call"
+        assert payload is not None
+        capability_calls.append(payload)
+
+        capability = payload["capability"]
+        if capability == "person.get_id_by_name":
+            return {"success": True, "person_id": "person-1"}
+        if capability == "person.get_value":
+            return {"success": True, "value": "123456"}
+        if capability == "api.call" and payload["args"]["api_name"] == "adapter.napcat.group.get_group_member_info":
+            return {"success": True, "result": {"role": "owner"}}
+        if capability == "send.text":
+            return {"success": True}
+        raise AssertionError(f"unexpected capability: {capability}")
+
+    plugin._set_context(PluginContext(plugin_id="mute", rpc_call=fake_rpc_call))
+
+    success, message = await plugin.handle_mute_tool(
+        stream_id="group-10001",
+        group_id="10001",
+        target="张三",
+        duration=60,
+        reason="测试",
+    )
+
+    assert success is False
+    assert message == "张三 是群主，不能被禁言"
+    assert not any(
+        call["capability"] == "api.call" and call["args"]["api_name"] == "adapter.napcat.group.set_group_ban"
+        for call in capability_calls
+    )
+
+
+@pytest.mark.asyncio
+async def test_mute_tool_maps_cannot_ban_owner_error_message() -> None:
+    """NapCat 返回 cannot ban owner 时应转成明确中文提示。"""
+
+    plugin = _build_plugin()
+    capability_calls: List[Dict[str, Any]] = []
+
+    async def fake_rpc_call(method: str, plugin_id: str = "", payload: Dict[str, Any] | None = None) -> Dict[str, Any]:
+        assert method == "cap.call"
+        assert payload is not None
+        capability_calls.append(payload)
+
+        capability = payload["capability"]
+        if capability == "person.get_id_by_name":
+            return {"success": True, "person_id": "person-1"}
+        if capability == "person.get_value":
+            return {"success": True, "value": "123456"}
+        if capability == "api.call" and payload["args"]["api_name"] == "adapter.napcat.group.get_group_member_info":
+            return {"success": True, "result": {"role": "member"}}
+        if capability == "api.call" and payload["args"]["api_name"] == "adapter.napcat.group.set_group_ban":
+            return {"success": False, "error": "NapCat 动作返回失败: action=set_group_ban message=cannot ban owner"}
+        if capability == "send.text":
+            return {"success": True}
+        raise AssertionError(f"unexpected capability: {capability}")
+
+    plugin._set_context(PluginContext(plugin_id="mute", rpc_call=fake_rpc_call))
+
+    success, message = await plugin.handle_mute_tool(
+        stream_id="group-10001",
+        group_id="10001",
+        target="张三",
+        duration=60,
+        reason="测试",
+    )
+
+    assert success is False
+    assert message == "张三 是群主，不能被禁言"
+
+
+@pytest.mark.asyncio
+async def test_mute_tool_accepts_nested_ok_api_result() -> None:
+    """嵌套的 success/result/status=ok 返回值也应判定为成功。"""
+
+    plugin = _build_plugin()
+
+    async def fake_rpc_call(method: str, plugin_id: str = "", payload: Dict[str, Any] | None = None) -> Dict[str, Any]:
+        assert method == "cap.call"
+        assert payload is not None
+
+        capability = payload["capability"]
+        if capability == "person.get_id_by_name":
+            return {"success": True, "person_id": "person-1"}
+        if capability == "person.get_value":
+            return {"success": True, "value": "123456"}
+        if capability == "api.call" and payload["args"]["api_name"] == "adapter.napcat.group.get_group_member_info":
+            return {"success": True, "result": {"role": "member"}}
+        if capability == "api.call" and payload["args"]["api_name"] == "adapter.napcat.group.set_group_ban":
+            return {
+                "success": True,
+                "result": {
+                    "status": "ok",
+                    "retcode": 0,
+                    "data": None,
+                    "message": "",
+                    "wording": "",
+                },
+            }
+        if capability == "send.text":
+            return {"success": True}
+        raise AssertionError(f"unexpected capability: {capability}")
+
+    plugin._set_context(PluginContext(plugin_id="mute", rpc_call=fake_rpc_call))
+
+    success, message = await plugin.handle_mute_tool(
+        stream_id="group-10001",
+        group_id="10001",
+        target="张三",
+        duration=60,
+        reason="测试",
+    )
+
+    assert success is True
+    assert message == "成功禁言 张三"
 
 
 def test_tool_invocation_payload_injects_group_and_user_context() -> None:

@@ -29,6 +29,6 @@ async def handle_tool(
     tool_ctx.runtime._enter_stop_state()
     return tool_ctx.build_success_result(
         invocation.tool_name,
-        "当前对话循环已结束本轮思考，等待新的外部消息到来。",
+        "当前对话循环已结束本轮思考，等待新的消息到来。",
         metadata={"pause_execution": True},
     )
