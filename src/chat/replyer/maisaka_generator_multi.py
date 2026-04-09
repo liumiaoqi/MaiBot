@@ -42,6 +42,7 @@ from src.maisaka.context_messages import (
 )
 from src.maisaka.message_adapter import clone_message_sequence, parse_speaker_content
 from src.maisaka.prompt_cli_renderer import PromptCLIVisualizer
+from src.plugin_runtime.hook_payloads import serialize_prompt_messages
 
 from .maisaka_expression_selector import maisaka_expression_selector
 
@@ -267,21 +268,13 @@ class MaisakaReplyGenerator:
         message: SessionBackedMessage,
         default_user_name: str,
     ) -> Optional[Message]:
-        speaker_name, _ = parse_speaker_content(message.processed_plain_text.strip())
-        visible_speaker = speaker_name or default_user_name
-
         raw_message = clone_message_sequence(message.raw_message)
         if not raw_message.components:
-            raw_message = MessageSequence([TextComponent(f"[{visible_speaker}]")])
-        elif isinstance(raw_message.components[0], TextComponent):
-            first_text = raw_message.components[0].text or ""
-            raw_message.components[0] = TextComponent(f"[{visible_speaker}]{first_text}")
-        else:
-            raw_message.components.insert(0, TextComponent(f"[{visible_speaker}]"))
+            raw_message = MessageSequence([TextComponent(message.processed_plain_text)])
 
         multimodal_message = SessionBackedMessage(
             raw_message=raw_message,
-            visible_text=f"[{visible_speaker}]{message.processed_plain_text}",
+            visible_text=message.processed_plain_text,
             timestamp=message.timestamp,
             message_id=message.message_id,
             original_message=message.original_message,
@@ -520,16 +513,18 @@ class MaisakaReplyGenerator:
             return request_messages
 
         result.completion.request_prompt = prompt_preview
+        result.request_messages = serialize_prompt_messages(request_messages)
         preview_chat_id = self._resolve_session_id(stream_id)
         replyer_prompt_section: RenderableType | None = None
         if show_replyer_prompt:
             replyer_prompt_section = Panel(
-                PromptCLIVisualizer.build_text_access_panel(
-                    prompt_preview,
+                PromptCLIVisualizer.build_prompt_access_panel(
+                    request_messages,
                     category="replyer",
                     chat_id=preview_chat_id,
                     request_kind="replyer",
-                    subtitle=f"流ID: {preview_chat_id}",
+                    selection_reason=f"ID: {preview_chat_id}",
+                    image_display_mode="path_link" if global_config.maisaka.show_image_path else "legacy",
                 ),
                 title="Reply Prompt",
                 border_style="bright_yellow",

@@ -22,6 +22,7 @@ from src.common.prompt_i18n import load_prompt
 from src.common.utils.utils_session import SessionUtils
 from src.config.config import global_config
 from src.core.types import ActionInfo
+from src.llm_models.payload_content.message import Message, MessageBuilder, RoleType
 from src.services.llm_service import LLMServiceClient
 
 from src.maisaka.context_messages import (
@@ -33,6 +34,7 @@ from src.maisaka.context_messages import (
 )
 from src.maisaka.message_adapter import parse_speaker_content
 from src.maisaka.prompt_cli_renderer import PromptCLIVisualizer
+from src.plugin_runtime.hook_payloads import serialize_prompt_messages
 
 from .maisaka_expression_selector import maisaka_expression_selector
 
@@ -255,15 +257,15 @@ class MaisakaReplyGenerator:
 
         return "在该聊天中的注意事项：\n" + "\n\n".join(prompt_lines) + "\n"
 
-    def _build_prompt(
+    def _build_request_messages(
         self,
         chat_history: List[LLMContextMessage],
         reply_message: Optional[SessionMessage],
         reply_reason: str,
         expression_habits: str = "",
         stream_id: Optional[str] = None,
-    ) -> str:
-        """构建 Maisaka replyer 提示词。"""
+    ) -> List[Message]:
+        """构建 Maisaka replyer 请求消息列表。"""
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         formatted_history = self._format_chat_history(chat_history)
         target_message_block = self._build_target_message_block(reply_message)
@@ -297,7 +299,10 @@ class MaisakaReplyGenerator:
         user_sections.append("现在，你说：")
 
         user_prompt = "\n\n".join(user_sections)
-        return f"System: {system_prompt}\n\nUser: {user_prompt}"
+        return [
+            MessageBuilder().set_role(RoleType.System).add_text_content(system_prompt).build(),
+            MessageBuilder().set_role(RoleType.User).add_text_content(user_prompt).build(),
+        ]
 
     def _resolve_session_id(self, stream_id: Optional[str]) -> str:
         """解析当前回复使用的会话 ID。"""
@@ -425,7 +430,7 @@ class MaisakaReplyGenerator:
 
         prompt_started_at = time.perf_counter()
         try:
-            prompt = self._build_prompt(
+            request_messages = self._build_request_messages(
                 chat_history=filtered_history,
                 reply_message=reply_message,
                 reply_reason=reply_reason or "",
@@ -443,7 +448,9 @@ class MaisakaReplyGenerator:
             return finalize(False)
 
         prompt_ms = round((time.perf_counter() - prompt_started_at) * 1000, 2)
-        result.completion.request_prompt = prompt
+        request_prompt = PromptCLIVisualizer._build_prompt_dump_text(request_messages)
+        result.completion.request_prompt = request_prompt
+        result.request_messages = serialize_prompt_messages(request_messages)
         show_replyer_prompt = bool(getattr(global_config.debug, "show_replyer_prompt", False))
         show_replyer_reasoning = bool(getattr(global_config.debug, "show_replyer_reasoning", False))
         preview_chat_id = self._resolve_session_id(stream_id) or "unknown"
@@ -451,22 +458,28 @@ class MaisakaReplyGenerator:
         if show_replyer_prompt:
             console.print(
                 Panel(
-                    PromptCLIVisualizer.build_text_access_panel(
-                        prompt,
+                    PromptCLIVisualizer.build_prompt_access_panel(
+                        request_messages,
                         category="replyer",
                         chat_id=preview_chat_id,
                         request_kind="replyer",
-                        subtitle=f"流ID: {preview_chat_id}",
+                        selection_reason=f"ID: {preview_chat_id}",
+                        image_display_mode="path_link" if global_config.maisaka.show_image_path else "legacy",
                     ),
-                    title="Maisaka 回复器 Prompt",
+                    title="Maisaka Replyer Prompt",
                     border_style="bright_yellow",
                     padding=(0, 1),
                 )
             )
 
+        def message_factory(_client: object) -> List[Message]:
+            return request_messages
+
         llm_started_at = time.perf_counter()
         try:
-            generation_result = await self.express_model.generate_response(prompt)
+            generation_result = await self.express_model.generate_response_with_messages(
+                message_factory=message_factory
+            )
         except Exception as exc:
             logger.exception("Maisaka 回复器调用失败")
             result.error_message = str(exc)
@@ -481,7 +494,7 @@ class MaisakaReplyGenerator:
         response_text = (generation_result.response or "").strip()
         result.success = bool(response_text)
         result.completion = LLMCompletionResult(
-            request_prompt=prompt,
+            request_prompt=request_prompt,
             response_text=response_text,
             reasoning_text=generation_result.reasoning or "",
             model_name=generation_result.model_name or "",

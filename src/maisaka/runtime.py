@@ -30,6 +30,7 @@ from src.mcp_module import MCPManager
 from src.mcp_module.host_llm_bridge import MCPHostLLMBridge
 from src.mcp_module.provider import MCPToolProvider
 from src.plugin_runtime.tool_provider import PluginToolProvider
+from src.plugin_runtime.hook_payloads import deserialize_prompt_messages
 
 from .chat_loop_service import ChatResponse, MaisakaChatLoopService
 from .context_messages import LLMContextMessage
@@ -941,6 +942,7 @@ class MaisakaHeartFlowChatting:
         *,
         tool_name: str,
         prompt_text: str,
+        request_messages: Optional[list[Any]] = None,
         tool_call_id: str,
     ) -> Panel:
         """将工具 prompt 渲染为可点击查看的预览入口。"""
@@ -949,6 +951,26 @@ class MaisakaHeartFlowChatting:
         subtitle = f"会话ID: {self.session_id}"
         if tool_call_id:
             subtitle += f"\n调用ID: {tool_call_id}"
+
+        if isinstance(request_messages, list) and request_messages:
+            try:
+                normalized_messages = deserialize_prompt_messages(request_messages)
+            except Exception as exc:
+                logger.warning(f"工具 {tool_name} 的 request_messages 无法反序列化，已回退为文本预览: {exc}")
+            else:
+                return Panel(
+                    PromptCLIVisualizer.build_prompt_access_panel(
+                        normalized_messages,
+                        category=labels["prompt_category"],
+                        chat_id=self.session_id,
+                        request_kind=labels["request_kind"],
+                        selection_reason=subtitle,
+                        image_display_mode="path_link" if global_config.maisaka.show_image_path else "legacy",
+                    ),
+                    title=labels["prompt_title"],
+                    border_style="bright_yellow",
+                    padding=(0, 1),
+                )
 
         return Panel(
             PromptCLIVisualizer.build_text_access_panel(
@@ -1019,6 +1041,7 @@ class MaisakaHeartFlowChatting:
                     self._build_tool_prompt_access_panel(
                         tool_name=tool_name,
                         prompt_text=prompt_text,
+                        request_messages=detail.get("request_messages") if isinstance(detail.get("request_messages"), list) else None,
                         tool_call_id=tool_call_id,
                     )
                 )
