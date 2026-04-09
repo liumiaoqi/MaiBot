@@ -24,13 +24,7 @@ from src.common.prompt_i18n import load_prompt
 from src.common.utils.utils_session import SessionUtils
 from src.config.config import global_config
 from src.core.types import ActionInfo
-from src.llm_models.payload_content.message import (
-    ImageMessagePart,
-    Message,
-    MessageBuilder,
-    RoleType,
-    TextMessagePart,
-)
+from src.llm_models.payload_content.message import Message, MessageBuilder, RoleType
 from src.services.llm_service import LLMServiceClient
 
 from src.maisaka.context_messages import (
@@ -266,7 +260,6 @@ class MaisakaReplyGenerator:
     def _build_multimodal_user_message(
         self,
         message: SessionBackedMessage,
-        default_user_name: str,
     ) -> Optional[Message]:
         raw_message = clone_message_sequence(message.raw_message)
         if not raw_message.components:
@@ -299,7 +292,7 @@ class MaisakaReplyGenerator:
                     )
                     continue
 
-                multimodal_message = self._build_multimodal_user_message(message, default_user_name)
+                multimodal_message = self._build_multimodal_user_message(message)
                 if multimodal_message is not None:
                     messages.append(multimodal_message)
                     continue
@@ -350,21 +343,6 @@ class MaisakaReplyGenerator:
         messages.extend(self._build_history_messages(chat_history))
         messages.append(MessageBuilder().set_role(RoleType.User).add_text_content(instruction).build())
         return messages
-
-    @staticmethod
-    def _build_request_prompt_preview(messages: List[Message]) -> str:
-        preview_lines: List[str] = []
-        for message in messages:
-            role_name = message.role.value.capitalize()
-            part_previews: List[str] = []
-            for part in message.parts:
-                if isinstance(part, TextMessagePart):
-                    part_previews.append(part.text)
-                    continue
-                if isinstance(part, ImageMessagePart):
-                    part_previews.append(f"[图片:{part.normalized_image_format}]")
-            preview_lines.append(f"{role_name}: {''.join(part_previews)}")
-        return "\n\n".join(preview_lines)
 
     def _resolve_session_id(self, stream_id: Optional[str]) -> str:
         if stream_id:
@@ -505,7 +483,7 @@ class MaisakaReplyGenerator:
             return finalize(False)
 
         prompt_ms = round((time.perf_counter() - prompt_started_at) * 1000, 2)
-        prompt_preview = self._build_request_prompt_preview(request_messages)
+        prompt_preview = PromptCLIVisualizer._build_prompt_dump_text(request_messages)
         show_replyer_prompt = bool(getattr(global_config.debug, "show_replyer_prompt", False))
         show_replyer_reasoning = bool(getattr(global_config.debug, "show_replyer_reasoning", False))
 
