@@ -8,7 +8,7 @@ import re
 from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime
 from src.common.logger import get_logger
-from src.common.data_models.info_data_model import ActionPlannerInfo
+from src.common.data_models.planned_action_data_models import PlannedAction
 from src.common.data_models.llm_data_model import LLMGenerationDataModel
 from src.config.config import global_config
 from src.services.llm_service import LLMServiceClient
@@ -65,7 +65,7 @@ class DefaultReplyer:
         extra_info: str = "",
         reply_reason: str = "",
         available_actions: Optional[Dict[str, ActionInfo]] = None,
-        chosen_actions: Optional[List[ActionPlannerInfo]] = None,
+        chosen_actions: Optional[List[PlannedAction]] = None,
         from_plugin: bool = True,
         stream_id: Optional[str] = None,
         reply_message: Optional[SessionMessage] = None,
@@ -509,7 +509,7 @@ class DefaultReplyer:
             return ""
 
     async def build_actions_prompt(
-        self, available_actions: Dict[str, ActionInfo], chosen_actions_info: Optional[List[ActionPlannerInfo]] = None
+        self, available_actions: Dict[str, ActionInfo], chosen_actions_info: Optional[List[PlannedAction]] = None
     ) -> str:
         """构建动作提示"""
 
@@ -527,14 +527,14 @@ class DefaultReplyer:
         chosen_action_descriptions = ""
         if chosen_actions_info:
             for action_plan_info in chosen_actions_info:
-                action_name = action_plan_info.action_type
+                action_name = action_plan_info.action_name
                 if action_name in skip_names:
                     continue
                 action_description: str = "无描述"
                 reasoning: str = "无原因"
                 if action := available_actions.get(action_name):
                     action_description = action.description or action_description
-                    reasoning = action_plan_info.reasoning or reasoning
+                    reasoning = action_plan_info.decision_reason or reasoning
 
                 chosen_action_descriptions += f"- {action_name}: {action_description}，原因：{reasoning}\n"
 
@@ -673,7 +673,7 @@ class DefaultReplyer:
         extra_info: str = "",
         reply_reason: str = "",
         available_actions: Optional[Dict[str, ActionInfo]] = None,
-        chosen_actions: Optional[List[ActionPlannerInfo]] = None,
+        chosen_actions: Optional[List[PlannedAction]] = None,
         reply_time_point: float = time.time(),
         think_level: int = 1,
         unknown_words: Optional[List[str]] = None,

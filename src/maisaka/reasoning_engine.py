@@ -254,7 +254,7 @@ class MaisakaReasoningEngine:
             logger.warning(f"{self._runtime.log_prefix} Timing Gate 未返回有效控制工具，默认继续执行 Action Loop")
             return "continue", response, tool_result_summaries, tool_monitor_results
 
-        append_history = selected_tool_call.func_name != "continue"
+        append_history = False
         store_record = selected_tool_call.func_name != "continue"
         invocation, result, tool_spec = await self._invoke_tool_call(
             selected_tool_call,
@@ -273,6 +273,7 @@ class MaisakaReasoningEngine:
                 tool_spec=tool_spec,
             )
         )
+        self._append_timing_gate_execution_result(response, selected_tool_call, result)
 
         timing_action = str(result.metadata.get("timing_action") or selected_tool_call.func_name).strip()
         if timing_action not in TIMING_GATE_TOOL_NAMES:
@@ -350,6 +351,10 @@ class MaisakaReasoningEngine:
                     continue
 
                 self._runtime._agent_state = self._runtime._STATE_RUNNING
+                self._runtime._update_stage_status(
+                    "消息整理",
+                    f"待处理消息 {len(cached_messages)} 条" if cached_messages else "准备复用超时锚点",
+                )
                 if cached_messages:
                     asyncio.create_task(self._runtime._trigger_batch_learning(cached_messages))
                     if timeout_triggered:
@@ -376,7 +381,9 @@ class MaisakaReasoningEngine:
                     timing_gate_required = True
                     for round_index in range(self._runtime._max_internal_rounds):
                         cycle_detail = self._start_cycle()
+                        round_text = f"第 {round_index + 1}/{self._runtime._max_internal_rounds} 轮"
                         self._runtime._log_cycle_started(cycle_detail, round_index)
+                        self._runtime._update_stage_status("启动循环", f"循环 {cycle_detail.cycle_id}", round_text=round_text)
                         await emit_cycle_start(
                             session_id=self._runtime.session_id,
                             cycle_id=cycle_detail.cycle_id,
@@ -407,6 +414,7 @@ class MaisakaReasoningEngine:
                                 )
 
                             if timing_gate_required:
+                                self._runtime._update_stage_status("Timing Gate", "等待门控决策", round_text=round_text)
                                 current_stage_started_at = time.time()
                                 timing_started_at = time.time()
                                 (
@@ -443,6 +451,7 @@ class MaisakaReasoningEngine:
 
                             planner_started_at = time.time()
                             current_stage_started_at = planner_started_at
+                            self._runtime._update_stage_status("Planner", "组织上下文并请求模型", round_text=round_text)
                             action_tool_definitions, deferred_tools_reminder = await self._build_action_tool_definitions()
                             logger.info(
                                 f"{self._runtime.log_prefix} 规划器开始执行: "
@@ -486,6 +495,11 @@ class MaisakaReasoningEngine:
                             if not response.content:
                                 break
                         except ReqAbortException as exc:
+                            self._runtime._update_stage_status(
+                                "Planner 已打断",
+                                str(exc) or "收到外部中断信号",
+                                round_text=round_text,
+                            )
                             interrupted_at = time.time()
                             interrupted_stage_label = "Planner"
                             interrupted_text = (
@@ -617,6 +631,8 @@ class MaisakaReasoningEngine:
                 finally:
                     if self._runtime._agent_state == self._runtime._STATE_RUNNING:
                         self._runtime._agent_state = self._runtime._STATE_STOP
+                    if self._runtime._running:
+                        self._runtime._update_stage_status("等待消息", "本轮处理结束")
         except asyncio.CancelledError:
             self._runtime._log_internal_loop_cancelled()
             raise
@@ -1154,6 +1170,24 @@ class MaisakaReasoningEngine:
             )
         )
 
+    def _append_timing_gate_execution_result(
+        self,
+        response: ChatResponse,
+        tool_call: ToolCall,
+        result: ToolExecutionResult,
+    ) -> None:
+        """将 Timing Gate 的决策链写入历史，供后续门控复用。"""
+
+        self._runtime._chat_history.append(
+            AssistantMessage(
+                content=response.content or "",
+                timestamp=response.raw_message.timestamp,
+                tool_calls=[tool_call],
+                source_kind="timing_gate",
+            )
+        )
+        self._append_tool_execution_result(tool_call, result)
+
     def _build_tool_result_summary(self, tool_call: ToolCall, result: ToolExecutionResult) -> str:
         """构建用于终端展示的工具结果摘要。"""
 
@@ -1249,8 +1283,13 @@ class MaisakaReasoningEngine:
             tool_spec.name: tool_spec
             for tool_spec in await self._runtime._tool_registry.list_tools()
         }
-        for tool_call in tool_calls:
+        total_tool_count = len(tool_calls)
+        for tool_index, tool_call in enumerate(tool_calls, start=1):
             invocation = self._build_tool_invocation(tool_call, latest_thought)
+            self._runtime._update_stage_status(
+                f"工具执行 · {invocation.tool_name}",
+                f"第 {tool_index}/{total_tool_count} 个工具",
+            )
             tool_started_at = time.time()
             if not self._runtime.is_action_tool_currently_available(invocation.tool_name):
                 result = ToolExecutionResult(

@@ -18,6 +18,7 @@ from src.common.message_server.server import Server, get_global_server
 from src.common.remote import TelemetryHeartBeatTask
 from src.config.config import config_manager, global_config
 from src.manager.async_task_manager import async_task_manager
+from src.maisaka.stage_status_board import disable_stage_status_board, enable_stage_status_board
 from src.plugin_runtime.integration import get_plugin_runtime_manager
 from src.prompt.prompt_manager import prompt_manager
 from src.services.memory_flow_service import memory_automation_service
@@ -65,6 +66,7 @@ class MainSystem:
 
     async def initialize(self) -> None:
         """初始化系统组件"""
+        enable_stage_status_board()
         logger.info(t("startup.waking_up", nickname=global_config.bot.nickname))
 
         # 其他初始化任务
@@ -169,6 +171,7 @@ async def main() -> None:
             system.schedule_tasks(),
         )
     finally:
+        disable_stage_status_board()
         emoji_manager.shutdown()
         await memory_automation_service.shutdown()
         await a_memorix_host_service.stop()

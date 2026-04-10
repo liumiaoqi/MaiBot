@@ -37,6 +37,7 @@ from .context_messages import LLMContextMessage
 from .display_utils import build_tool_call_summary_lines, format_token_count
 from .prompt_cli_renderer import PromptCLIVisualizer
 from .reasoning_engine import MaisakaReasoningEngine
+from .stage_status_board import remove_stage_status, update_stage_status
 from .tool_provider import MaisakaBuiltinToolProvider
 
 logger = get_logger("maisaka_runtime")
@@ -121,6 +122,18 @@ class MaisakaHeartFlowChatting:
         self._tool_registry = ToolRegistry()
         self._register_tool_providers()
 
+    def _update_stage_status(self, stage: str, detail: str = "", *, round_text: str = "") -> None:
+        """更新当前会话的阶段状态。"""
+
+        update_stage_status(
+            session_id=self.session_id,
+            session_name=self.session_name,
+            stage=stage,
+            detail=detail,
+            round_text=round_text,
+            agent_state=self._agent_state,
+        )
+
     async def start(self) -> None:
         """启动运行时主循环。"""
         if self._running:
@@ -133,6 +146,7 @@ class MaisakaHeartFlowChatting:
         self._running = True
         self._ensure_background_tasks_running()
         self._schedule_message_turn()
+        self._update_stage_status("空闲", "等待消息触发")
         logger.info(f"{self.log_prefix} Maisaka 运行时已启动")
 
     async def stop(self) -> None:
@@ -160,6 +174,7 @@ class MaisakaHeartFlowChatting:
         await self._tool_registry.close()
         self._mcp_manager = None
         self._mcp_host_bridge = None
+        remove_stage_status(self.session_id)
 
         logger.info(f"{self.log_prefix} Maisaka 运行时已停止")
 

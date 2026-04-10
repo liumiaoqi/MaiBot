@@ -30,9 +30,11 @@ from src.plugin_runtime.host.hook_spec_registry import HookSpec, HookSpecRegistr
 from src.services.llm_service import LLMServiceClient
 
 from .builtin_tool import get_builtin_tools
-from .context_messages import AssistantMessage, LLMContextMessage
+from .context_messages import AssistantMessage, LLMContextMessage, ToolResultMessage
 from .history_utils import drop_orphan_tool_results
 from .prompt_cli_renderer import PromptCLIVisualizer
+
+TIMING_GATE_TOOL_NAMES = {"continue", "no_reply", "wait"}
 
 
 @dataclass(slots=True)
@@ -466,7 +468,10 @@ class MaisakaChatLoopService:
 
         if not self._prompts_loaded:
             await self.ensure_chat_prompt_loaded()
-        selected_history, selection_reason = self.select_llm_context_messages(chat_history)
+        selected_history, selection_reason = self.select_llm_context_messages(
+            chat_history,
+            request_kind=request_kind,
+        )
         built_messages = self._build_request_messages(
             selected_history,
             injected_user_messages=injected_user_messages,
@@ -592,16 +597,21 @@ class MaisakaChatLoopService:
     def select_llm_context_messages(
         chat_history: List[LLMContextMessage],
         *,
+        request_kind: str = "planner",
         max_context_size: Optional[int] = None,
     ) -> tuple[List[LLMContextMessage], str]:
         """选择LLM上下文消息"""
 
+        filtered_history = MaisakaChatLoopService._filter_history_for_request_kind(
+            chat_history,
+            request_kind=request_kind,
+        )
         effective_context_size = max(1, int(max_context_size or global_config.chat.max_context_size))
         selected_indices: List[int] = []
         counted_message_count = 0
 
-        for index in range(len(chat_history) - 1, -1, -1):
-            message = chat_history[index]
+        for index in range(len(filtered_history) - 1, -1, -1):
+            message = filtered_history[index]
             if message.to_llm_message() is None:
                 continue
 
@@ -615,7 +625,7 @@ class MaisakaChatLoopService:
             return [], f"没有选择到上下文消息，实际发送 {effective_context_size} 条 user/assistant 消息"
 
         selected_indices.reverse()
-        selected_history = [chat_history[index] for index in selected_indices]
+        selected_history = [filtered_history[index] for index in selected_indices]
         selected_history, hidden_assistant_count = MaisakaChatLoopService._hide_early_assistant_messages(selected_history)
         selected_history, _ = drop_orphan_tool_results(selected_history)
         selection_reason = (
@@ -628,6 +638,45 @@ class MaisakaChatLoopService:
             selected_history,
             selection_reason,
         )
+
+    @staticmethod
+    def _filter_history_for_request_kind(
+        selected_history: List[LLMContextMessage],
+        *,
+        request_kind: str,
+    ) -> List[LLMContextMessage]:
+        """按请求类型过滤不应暴露的历史工具链。"""
+
+        if request_kind != "planner":
+            return selected_history
+
+        filtered_history: List[LLMContextMessage] = []
+        for message in selected_history:
+            if isinstance(message, ToolResultMessage) and message.tool_name in TIMING_GATE_TOOL_NAMES:
+                continue
+
+            if isinstance(message, AssistantMessage) and message.tool_calls:
+                kept_tool_calls = [
+                    tool_call
+                    for tool_call in message.tool_calls
+                    if tool_call.func_name not in TIMING_GATE_TOOL_NAMES
+                ]
+                if not kept_tool_calls:
+                    continue
+                if len(kept_tool_calls) != len(message.tool_calls):
+                    filtered_history.append(
+                        AssistantMessage(
+                            content=message.content,
+                            timestamp=message.timestamp,
+                            tool_calls=kept_tool_calls,
+                            source_kind=message.source_kind,
+                        )
+                    )
+                    continue
+
+            filtered_history.append(message)
+
+        return filtered_history
 
     @staticmethod
     def _hide_early_assistant_messages(

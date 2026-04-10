@@ -20,8 +20,8 @@ from src.common.logger import get_logger
 from src.core.types import ActionInfo
 
 if TYPE_CHECKING:
-    from src.common.data_models.info_data_model import ActionPlannerInfo
     from src.common.data_models.llm_data_model import LLMGenerationDataModel
+    from src.common.data_models.planned_action_data_models import PlannedAction
     from src.chat.message_receive.message import SessionMessage
 
 install(extra_lines=3)
@@ -100,7 +100,7 @@ async def generate_reply(
     extra_info: str = "",
     reply_reason: str = "",
     available_actions: Optional[Dict[str, ActionInfo]] = None,
-    chosen_actions: Optional[List["ActionPlannerInfo"]] = None,
+    chosen_actions: Optional[List["PlannedAction"]] = None,
     unknown_words: Optional[List[str]] = None,
     enable_splitter: bool = True,
     enable_chinese_typo: bool = True,
