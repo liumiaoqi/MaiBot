@@ -10,24 +10,14 @@ logger = get_logger("config_utils")
 
 class ExpressionConfigUtils:
     @staticmethod
-    def get_expression_config_for_chat(session_id: Optional[str] = None) -> tuple[bool, bool, bool]:
-        # sourcery skip: use-next
-        """
-        根据聊天会话ID获取表达配置
-
-        Args:
-            session_id: 聊天会话ID，格式为哈希值
-
-        Returns:
-            tuple: (是否使用表达, 是否学习表达, 是否启用jargon学习)
-        """
+    def _find_expression_config_item(session_id: Optional[str] = None):
         if not global_config.expression.learning_list:
-            return True, True, True
+            return None
 
         if session_id:
             for config_item in global_config.expression.learning_list:
                 if not config_item.platform and not config_item.item_id:
-                    continue  # 这是全局的
+                    continue
                 stream_id = ExpressionConfigUtils._get_stream_id(
                     config_item.platform,
                     str(config_item.item_id),
@@ -35,28 +25,59 @@ class ExpressionConfigUtils:
                 )
                 if stream_id is None:
                     continue
-                if stream_id == session_id:
+                if stream_id != session_id:
                     continue
-                return config_item.use_expression, config_item.enable_learning, config_item.enable_jargon_learning
+                return config_item
+
         for config_item in global_config.expression.learning_list:
             if not config_item.platform and not config_item.item_id:
-                return config_item.use_expression, config_item.enable_learning, config_item.enable_jargon_learning
+                return config_item
 
-        return True, True, True
+        return None
+
+    @staticmethod
+    def get_expression_advanced_chosen_for_chat(session_id: Optional[str] = None) -> bool:
+        """根据聊天会话 ID 获取表达方式是否启用二次选择。"""
+        config_item = ExpressionConfigUtils._find_expression_config_item(session_id)
+        if config_item is None:
+            return False
+        return config_item.advanced_chosen
+
+    @staticmethod
+    def get_expression_config_for_chat(session_id: Optional[str] = None) -> tuple[bool, bool, bool]:
+        # sourcery skip: use-next
+        """
+        根据聊天会话 ID 获取表达配置。
+
+        Args:
+            session_id: 聊天会话 ID，格式为哈希值
+
+        Returns:
+            tuple: (是否使用表达, 是否学习表达, 是否启用 jargon 学习)
+        """
+        config_item = ExpressionConfigUtils._find_expression_config_item(session_id)
+        if config_item is None:
+            return True, True, True
+
+        return (
+            config_item.use_expression,
+            config_item.enable_learning,
+            config_item.enable_jargon_learning,
+        )
 
     @staticmethod
     def _get_stream_id(platform: str, id_str: str, is_group: bool = False) -> Optional[str]:
         # sourcery skip: remove-unnecessary-cast
         """
-        根据平台、ID字符串和是否为群聊生成聊天流ID
+        根据平台、ID 字符串和是否为群聊生成聊天流 ID。
 
         Args:
             platform: 平台名称
-            id_str: 用户或群组的原始ID字符串
+            id_str: 用户或群组的原始 ID 字符串
             is_group: 是否为群聊
 
         Returns:
-            str: 生成的聊天流ID（哈希值）
+            str: 生成的聊天流 ID（哈希值）
         """
         try:
             from src.common.utils.utils_session import SessionUtils
@@ -66,7 +87,7 @@ class ExpressionConfigUtils:
             else:
                 return SessionUtils.calculate_session_id(platform, user_id=str(id_str))
         except Exception as e:
-            logger.error(f"生成聊天流ID失败: {e}")
+            logger.error(f"生成聊天流 ID 失败: {e}")
             return None
 
 
@@ -91,7 +112,7 @@ class ChatConfigUtils:
                 else:
                     rule_session_id = SessionUtils.calculate_session_id(rule.platform, user_id=str(rule.item_id))
                 if rule_session_id != session_id:
-                    continue  # 不匹配的会话ID，跳过
+                    continue  # 不匹配的会话 ID，跳过
                 parsed_range = ChatConfigUtils.parse_range(rule.time)
                 if not parsed_range:
                     continue  # 无法解析的时间范围，跳过
@@ -102,7 +123,7 @@ class ChatConfigUtils:
                 else:  # 跨天的时间范围
                     in_range = now_min >= start_min or now_min <= end_min
                 if in_range:
-                    return rule.value or 0.0  # 如果规则生效但没有设置值，返回0.0
+                    return rule.value or 0.0  # 如果规则生效但没有设置值，返回 0.0
 
         # 没有匹配到会话相关的规则，继续匹配全局规则
         for rule in global_config.chat.talk_value_rules:
@@ -118,7 +139,7 @@ class ChatConfigUtils:
             else:  # 跨天的时间范围
                 in_range = now_min >= start_min or now_min <= end_min
             if in_range:
-                return rule.value or 0.0  # 如果规则生效但没有设置值，返回0.0
+                return rule.value or 0.0  # 如果规则生效但没有设置值，返回 0.0
         return result  # 如果没有任何规则生效，返回默认值
 
     @staticmethod

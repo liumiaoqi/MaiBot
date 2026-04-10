@@ -437,6 +437,7 @@ class MaisakaHeartFlowChatting:
 
         selected_history, _ = MaisakaChatLoopService.select_llm_context_messages(
             self._chat_history,
+            request_kind=request_kind,
             max_context_size=context_message_limit,
         )
         sub_agent_history = list(selected_history)
@@ -748,7 +749,7 @@ class MaisakaHeartFlowChatting:
         return True
 
     async def _trigger_expression_learning(self, messages: list[SessionMessage]) -> None:
-        """?????????????????"""
+        """触发表达方式学习"""
         pending_count = self._expression_learner.get_pending_count(self.message_cache)
         if not self._should_trigger_learning(
             enabled=self._enable_expression_learning,
@@ -761,21 +762,21 @@ class MaisakaHeartFlowChatting:
 
         self._last_expression_extraction_time = time.time()
         logger.info(
-            f"{self.log_prefix} ??????: "
-            f"??????={len(messages)} ??????={pending_count} "
-            f"?????={len(self.message_cache)} "
-            f"??????={self._enable_jargon_learning}"
+            f"{self.log_prefix} 触发表达方式学习: "
+            f"消息数量={len(messages)} 待处理消息数量={pending_count} "
+            f"缓存总量={len(self.message_cache)} "
+            f"是否启用黑话学习={self._enable_jargon_learning}"
         )
 
         try:
             jargon_miner = self._jargon_miner if self._enable_jargon_learning else None
             learnt_style = await self._expression_learner.learn(self.message_cache, jargon_miner)
             if learnt_style:
-                logger.info(f"{self.log_prefix} ???????")
+                logger.info(f"{self.log_prefix} 表达方式学习成功")
             else:
-                logger.debug(f"{self.log_prefix} ???????????????")
+                logger.debug(f"{self.log_prefix} 表达方式学习失败")
         except Exception:
-            logger.exception(f"{self.log_prefix} ??????")
+            logger.exception(f"{self.log_prefix} 表达方式学习异常")
 
     async def _init_mcp(self) -> None:
         """初始化 MCP 工具并注册到统一工具层。"""
@@ -787,12 +788,12 @@ class MaisakaHeartFlowChatting:
             host_callbacks=self._mcp_host_bridge.build_callbacks(),
         )
         if self._mcp_manager is None:
-            logger.info(f"{self.log_prefix} MCP 管理器不可用")
+            logger.info(f"{self.log_prefix} Maisaka MCP 管理器不可用")
             return
 
         mcp_tool_specs = self._mcp_manager.get_tool_specs()
         if not mcp_tool_specs:
-            logger.info(f"{self.log_prefix} 没有可供 Maisaka 使用的 MCP 工具")
+            logger.info(f"{self.log_prefix} Maisaka 没有可供使用的 MCP 工具")
             return
 
         self._tool_registry.register_provider(MCPToolProvider(self._mcp_manager))

@@ -560,6 +560,15 @@ class LearningItem(ConfigBase):
     )
     """是否启用jargon学习"""
 
+    advanced_chosen: bool = Field(
+        default=False,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "sparkles",
+        },
+    )
+    """是否启用基于子代理的二次表达方式选择"""
+
 
 class ExpressionGroup(ConfigBase):
     """表达互通组配置类，若列表为空代表全局共享"""
@@ -589,6 +598,7 @@ class ExpressionConfig(ConfigBase):
                 use_expression=True,
                 enable_learning=True,
                 enable_jargon_learning=True,
+                advanced_chosen=False,
             )
         ],
         json_schema_extra={

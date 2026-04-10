@@ -386,7 +386,24 @@ class ToolRegistry:
         for provider in self._providers:
             provider_specs = await provider.list_tools()
             if any(spec.name == invocation.tool_name and spec.enabled for spec in provider_specs):
-                return await provider.invoke(invocation, context)
+                try:
+                    return await provider.invoke(invocation, context)
+                except Exception as exc:
+                    logger.exception(
+                        "工具调用异常: tool=%s provider=%s",
+                        invocation.tool_name,
+                        getattr(provider, "provider_name", ""),
+                    )
+                    error_message = str(exc).strip()
+                    if error_message:
+                        error_message = f"工具 {invocation.tool_name} 调用失败：{exc.__class__.__name__}: {error_message}"
+                    else:
+                        error_message = f"工具 {invocation.tool_name} 调用失败：{exc.__class__.__name__}"
+                    return ToolExecutionResult(
+                        tool_name=invocation.tool_name,
+                        success=False,
+                        error_message=error_message,
+                    )
 
         return ToolExecutionResult(
             tool_name=invocation.tool_name,

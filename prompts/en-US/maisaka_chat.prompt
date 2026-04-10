@@ -3,6 +3,7 @@ You need to focus on the dialogue between {bot_name} (AI) and different users so
 
 [Reference Information]
 {identity}
+{time_block}
 [End of Reference Information]
 
 You need to analyze based on the provided reference information, the current scenario, and the output rules.

@@ -1,7 +1,8 @@
 from dataclasses import dataclass, field
 from datetime import datetime
-import json
 from typing import Any, Awaitable, Callable, List, Optional
+
+import json
 
 from json_repair import repair_json
 from sqlmodel import select
@@ -30,7 +31,7 @@ class MaisakaExpressionSelectionResult:
 
 
 class MaisakaExpressionSelector:
-    """负责在 replyer 侧完成表达方式筛选与子代理选择。"""
+    """负责在 replyer 侧完成表达方式筛选与子代理二次选择。"""
 
     def _can_use_expressions(self, session_id: str) -> bool:
         try:
@@ -38,6 +39,13 @@ class MaisakaExpressionSelector:
             return use_expression
         except Exception as exc:
             logger.error(f"检查表达方式使用开关失败: {exc}")
+            return False
+
+    def _can_use_advanced_chosen(self, session_id: str) -> bool:
+        try:
+            return ExpressionConfigUtils.get_expression_advanced_chosen_for_chat(session_id)
+        except Exception as exc:
+            logger.error(f"检查表达方式二次选择开关失败: {exc}")
             return False
 
     @staticmethod
@@ -101,7 +109,7 @@ class MaisakaExpressionSelector:
                 "id": expression.id,
                 "situation": expression.situation,
                 "style": expression.style,
-                "count": expression.count if getattr(expression, "count", None) is not None else 1,
+                "count": expression.count if expression.count is not None else 1,
             }
             for expression in expressions
             if expression.id is not None and expression.situation and expression.style
@@ -185,7 +193,7 @@ class MaisakaExpressionSelector:
             "你只负责根据最近聊天上下文，为这一次可见回复挑选最合适的表达方式。\n"
             "请只从下面候选中选择 0 到 3 条最适合当前语境的表达方式。\n"
             "优先考虑自然、贴合上下文、不生硬、不模板化。\n"
-            "如果没有明显合适的，就返回空列表。\n"
+            "如果没有明显合适的，就返回空数组。\n"
             '严格只输出 JSON，对象格式为 {"selected_ids":[123,456]}。\n\n'
             f"最近上下文：\n{history_block}\n\n"
             f"目标消息：{target_text or '无'}\n"
@@ -222,6 +230,32 @@ class MaisakaExpressionSelector:
                 break
         return selected_ids
 
+    def _build_direct_selection_result(
+        self,
+        *,
+        session_id: str,
+        candidates: List[dict[str, Any]],
+    ) -> MaisakaExpressionSelectionResult:
+        selected_ids = [
+            candidate["id"]
+            for candidate in candidates
+            if isinstance(candidate.get("id"), int)
+        ]
+        selected_expressions = [
+            candidate
+            for candidate in candidates
+            if candidate.get("id") in selected_ids
+        ]
+        self._update_last_active_time(selected_ids)
+        logger.info(
+            f"表达方式直接注入：session_id={session_id} 已选数={len(selected_ids)} "
+            f"selected_ids={selected_ids!r} 已选预览={self._format_candidate_preview(selected_expressions)}"
+        )
+        return MaisakaExpressionSelectionResult(
+            expression_habits=self._build_expression_habits_block(selected_expressions),
+            selected_expression_ids=selected_ids,
+        )
+
     def _update_last_active_time(self, selected_ids: List[int]) -> None:
         if not selected_ids:
             return
@@ -247,13 +281,20 @@ class MaisakaExpressionSelector:
         if not self._can_use_expressions(session_id):
             logger.info(f"表达方式选择已跳过：当前会话未启用表达方式，session_id={session_id}")
             return MaisakaExpressionSelectionResult()
-        if sub_agent_runner is None:
-            logger.info(f"表达方式选择已跳过：缺少 sub_agent_runner，session_id={session_id}")
-            return MaisakaExpressionSelectionResult()
 
         candidates = self._load_expression_candidates(session_id)
         if not candidates:
             logger.info(f"表达方式选择已跳过：本地候选不足，session_id={session_id}")
+            return MaisakaExpressionSelectionResult()
+
+        if not self._can_use_advanced_chosen(session_id):
+            return self._build_direct_selection_result(
+                session_id=session_id,
+                candidates=candidates,
+            )
+
+        if sub_agent_runner is None:
+            logger.info(f"表达方式选择已跳过：缺少 sub_agent_runner，session_id={session_id}")
             return MaisakaExpressionSelectionResult()
 
         logger.info(
@@ -273,10 +314,9 @@ class MaisakaExpressionSelector:
             logger.exception("表达方式选择子代理执行失败")
             return MaisakaExpressionSelectionResult()
 
-        # logger.info(f"表达方式子代理原始结果：session_id={session_id} response={raw_response!r}")
         selected_ids = self._parse_selected_ids(raw_response, candidates)
         if not selected_ids:
-            logger.info(f"表达方式选择完成但未命中：session_id={session_id}")
+            logger.info(f"表达方式选择完成但未命中，session_id={session_id}")
             return MaisakaExpressionSelectionResult()
 
         selected_expressions = [candidate for candidate in candidates if candidate.get("id") in selected_ids]

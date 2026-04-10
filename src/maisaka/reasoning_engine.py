@@ -34,7 +34,8 @@ from .context_messages import (
     ToolResultMessage,
     contains_complex_message,
 )
-from .history_utils import build_prefixed_message_sequence, build_session_message_visible_text, drop_leading_orphan_tool_results
+from .history_post_processor import process_chat_history_after_cycle
+from .history_utils import build_prefixed_message_sequence, build_session_message_visible_text
 from .monitor_events import (
     emit_cycle_start,
     emit_message_ingested,
@@ -375,8 +376,6 @@ class MaisakaReasoningEngine:
                         self._runtime._chat_history.append(
                             self._build_wait_completed_message(has_new_messages=False)
                         )
-                    self._trim_chat_history()
-
                 try:
                     timing_gate_required = True
                     for round_index in range(self._runtime._max_internal_rounds):
@@ -472,8 +471,8 @@ class MaisakaReasoningEngine:
                             )
                             reasoning_content = response.content or ""
                             if self._should_replace_reasoning(reasoning_content):
-                                response.content = "我应该根据我上面思考的内容进行反思，重新思考我下一步的行动，我需要分析当前场景，对话，以及我可以使用的工具，然后先输出想法再使用工具"
-                                response.raw_message.content = "我应该根据我上面思考的内容进行反思，重新思考我下一步的行动，我需要分析当前场景，对话，以及我可以使用的工具，然后先输出想法再使用工具"
+                                response.content = "我应该根据我上面思考的内容进行反思，重新思考我下一步的行动，我需要分析当前场景，对话，以及我可以使用的工具，然后直接输出我的想法"
+                                response.raw_message.content = "我应该根据我上面思考的内容进行反思，重新思考我下一步的行动，我需要分析当前场景，对话，以及我可以使用的工具，然后直接输出我的想法"
                                 logger.info(f"{self._runtime.log_prefix} 当前思考与上一轮过于相似，已替换为重新思考提示")
 
                             self._last_reasoning_content = reasoning_content
@@ -502,10 +501,7 @@ class MaisakaReasoningEngine:
                             )
                             interrupted_at = time.time()
                             interrupted_stage_label = "Planner"
-                            interrupted_text = (
-                                "Planner 在流式响应阶段被新消息打断。"
-                                "本轮未完成，因此这里展示的是中断说明而不是完整返回。"
-                            )
+                            interrupted_text = "Planner 收到新消息，开始重新决策"
                             interrupted_response = ChatResponse(
                                 content=interrupted_text or None,
                                 tool_calls=[],
@@ -528,9 +524,7 @@ class MaisakaReasoningEngine:
                                 "状态：已被新消息打断",
                                 f"打断位置：{interrupted_stage_label} 请求流式响应阶段",
                                 f"打断耗时：{interrupted_at - current_stage_started_at:.3f} 秒",
-                                f"打断原因：{str(exc) or '收到外部中断信号'}",
                             ]
-                            interrupted_extra_lines.append("展示内容：以下为 Maisaka 侧记录的中断说明")
                             response = interrupted_response
                             planner_extra_lines = interrupted_extra_lines
                             logger.info(
@@ -695,7 +689,6 @@ class MaisakaReasoningEngine:
                 continue
 
             self._insert_chat_history_message(history_message)
-            self._trim_chat_history()
 
             # 向监控前端广播新消息注入事件
             user_info = message.message_info.user_info
@@ -798,6 +791,7 @@ class MaisakaReasoningEngine:
         """结束并记录一轮 Maisaka 思考循环。"""
         cycle_detail.end_time = time.time()
         self._runtime.history_loop.append(cycle_detail)
+        self._post_process_chat_history_after_cycle()
 
         timer_strings = [
             f"{name}: {duration:.2f}s"
@@ -807,26 +801,20 @@ class MaisakaReasoningEngine:
         self._runtime._log_cycle_completed(cycle_detail, timer_strings)
         return cycle_detail
 
-    def _trim_chat_history(self) -> None:
+    def _post_process_chat_history_after_cycle(self) -> None:
         """裁剪聊天历史，保证用户消息数量不超过配置限制。"""
-        conversation_message_count = sum(1 for message in self._runtime._chat_history if message.count_in_context)
-        if conversation_message_count <= self._runtime._max_context_size:
+        process_result = process_chat_history_after_cycle(
+            self._runtime._chat_history,
+            max_context_size=self._runtime._max_context_size,
+        )
+        if process_result.removed_count <= 0:
             return
 
-        trimmed_history = list(self._runtime._chat_history)
-        removed_count = 0
-
-        while conversation_message_count > self._runtime._max_context_size and trimmed_history:
-            removed_message = trimmed_history.pop(0)
-            removed_count += 1
-            if removed_message.count_in_context:
-                conversation_message_count -= 1
-
-        trimmed_history, pruned_orphan_count = drop_leading_orphan_tool_results(trimmed_history)
-        removed_count += pruned_orphan_count
-
-        self._runtime._chat_history = trimmed_history
-        self._runtime._log_history_trimmed(removed_count, conversation_message_count)
+        self._runtime._chat_history = process_result.history
+        self._runtime._log_history_trimmed(
+            process_result.removed_count,
+            process_result.remaining_context_count,
+        )
 
     @staticmethod
     def _calculate_similarity(text1: str, text2: str) -> float:

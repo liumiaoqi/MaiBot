@@ -292,7 +292,14 @@ class MaisakaChatLoopService:
             "file_tools_section": tools_section,
             "group_chat_attention_block": self._build_group_chat_attention_block(),
             "identity": self._personality_prompt,
+            "time_block": self._build_time_block(),
         }
+
+    @staticmethod
+    def _build_time_block() -> str:
+        """构建当前时间提示块。"""
+
+        return f"当前时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
     def _build_group_chat_attention_block(self) -> str:
         """构建当前聊天场景下的额外注意事项块。"""
