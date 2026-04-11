@@ -8,8 +8,8 @@ from typing import Any
 import json
 import os
 import sys
-import traceback
 import time
+import traceback
 
 
 def _clear_screen() -> None:

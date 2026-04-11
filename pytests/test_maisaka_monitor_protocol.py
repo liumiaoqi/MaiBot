@@ -5,8 +5,7 @@ import pytest
 from rich.panel import Panel
 from rich.text import Text
 
-from src.chat.replyer import maisaka_generator as legacy_replyer_module
-from src.chat.replyer import maisaka_generator_multi as multimodal_replyer_module
+from src.chat.replyer import maisaka_generator as replyer_module
 from src.common.data_models.reply_generation_data_models import (
     GenerationMetrics,
     LLMCompletionResult,
@@ -37,8 +36,8 @@ class _FakeLegacyLLMServiceClient:
         del args
         del kwargs
 
-    async def generate_response(self, prompt: str) -> _FakeLLMResult:
-        assert prompt
+    async def generate_response_with_messages(self, *, message_factory: Callable[[object], list[Any]]) -> _FakeLLMResult:
+        assert message_factory(object())
         return _FakeLLMResult()
 
 
@@ -54,13 +53,21 @@ class _FakeMultimodalLLMServiceClient:
 
 @pytest.mark.asyncio
 async def test_legacy_and_multimodal_replyer_monitor_detail_have_same_shape(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(legacy_replyer_module, "LLMServiceClient", _FakeLegacyLLMServiceClient)
-    monkeypatch.setattr(multimodal_replyer_module, "LLMServiceClient", _FakeMultimodalLLMServiceClient)
-    monkeypatch.setattr(legacy_replyer_module, "load_prompt", lambda *args, **kwargs: "legacy prompt")
-    monkeypatch.setattr(multimodal_replyer_module, "load_prompt", lambda *args, **kwargs: "multi prompt")
+    monkeypatch.setattr(replyer_module, "LLMServiceClient", _FakeLegacyLLMServiceClient)
+    monkeypatch.setattr(replyer_module, "load_prompt", lambda *args, **kwargs: "legacy prompt")
 
-    legacy_generator = legacy_replyer_module.MaisakaReplyGenerator(chat_stream=None, request_type="test_legacy")
-    multimodal_generator = multimodal_replyer_module.MaisakaReplyGenerator(chat_stream=None, request_type="test_multi")
+    legacy_generator = replyer_module.MaisakaReplyGenerator(
+        chat_stream=None,
+        request_type="test_legacy",
+        enable_visual_message=False,
+    )
+    multimodal_generator = replyer_module.MaisakaReplyGenerator(
+        chat_stream=None,
+        request_type="test_multi",
+        llm_client_cls=_FakeMultimodalLLMServiceClient,
+        load_prompt_func=lambda *args, **kwargs: "multi prompt",
+        enable_visual_message=True,
+    )
 
     legacy_success, legacy_result = await legacy_generator.generate_reply_with_context(
         stream_id="session-legacy",
@@ -82,6 +89,40 @@ async def test_legacy_and_multimodal_replyer_monitor_detail_have_same_shape(monk
     assert legacy_result.monitor_detail["metrics"]["prompt_tokens"] == 12
     assert legacy_result.monitor_detail["metrics"]["completion_tokens"] == 7
     assert legacy_result.monitor_detail["metrics"]["total_tokens"] == 19
+
+
+def test_legacy_replyer_builds_message_sequence_like_multimodal() -> None:
+    legacy_generator = replyer_module.MaisakaReplyGenerator(
+        chat_stream=None,
+        request_type="test_legacy",
+        enable_visual_message=False,
+    )
+    legacy_prompt_loader = replyer_module.load_prompt
+    replyer_module.load_prompt = lambda *args, **kwargs: "legacy prompt"
+
+    try:
+        session_message = replyer_module.SessionBackedMessage(
+            raw_message=SimpleNamespace(),
+            visible_text="[Alice]你好\n[Bob]在吗",
+            timestamp=replyer_module.datetime.now(),
+            source_kind="user",
+        )
+        request_messages = legacy_generator._build_request_messages(
+            chat_history=[session_message],
+            reply_message=None,
+            reply_reason="测试原因",
+            stream_id="session-legacy",
+        )
+    finally:
+        replyer_module.load_prompt = legacy_prompt_loader
+
+    assert len(request_messages) == 4
+    assert request_messages[0].role.value == "system"
+    assert request_messages[1].role.value == "user"
+    assert request_messages[1].get_text_content() == "[Alice]你好"
+    assert request_messages[2].role.value == "user"
+    assert request_messages[2].get_text_content() == "[Bob]在吗"
+    assert request_messages[3].role.value == "user"
 
 
 @pytest.mark.asyncio
@@ -324,7 +365,7 @@ def test_reasoning_engine_build_tool_monitor_result_keeps_non_reply_tool_without
 def test_runtime_build_tool_detail_panels_renders_reply_monitor_detail() -> None:
     runtime = object.__new__(MaisakaHeartFlowChatting)
     runtime.session_id = "session-1"
-    panels = runtime._build_tool_detail_panels(
+    panels = runtime._build_tool_detail_cards(
         [
             {
                 "tool_call_id": "call-reply-1",
@@ -348,7 +389,8 @@ def test_runtime_build_tool_detail_panels_renders_reply_monitor_detail() -> None
                     },
                 },
             }
-        ]
+        ],
+        stage_title="工具调用",
     )
 
     assert len(panels) == 1
@@ -387,7 +429,7 @@ def test_runtime_build_tool_detail_panels_uses_prompt_access_panel(monkeypatch: 
         _fake_build_text_access_panel,
     )
 
-    panels = runtime._build_tool_detail_panels(
+    panels = runtime._build_tool_detail_cards(
         [
             {
                 "tool_call_id": "call-reply-2",
@@ -401,7 +443,8 @@ def test_runtime_build_tool_detail_panels_uses_prompt_access_panel(monkeypatch: 
                     "output_text": "reply output",
                 },
             }
-        ]
+        ],
+        stage_title="工具调用",
     )
 
     assert len(panels) == 1
@@ -425,7 +468,7 @@ def test_runtime_build_tool_detail_panels_uses_emotion_prompt_access_panel(monke
         _fake_build_text_access_panel,
     )
 
-    panels = runtime._build_tool_detail_panels(
+    panels = runtime._build_tool_detail_cards(
         [
             {
                 "tool_call_id": "call-emoji-1",
@@ -439,13 +482,71 @@ def test_runtime_build_tool_detail_panels_uses_emotion_prompt_access_panel(monke
                     "output_text": '{"emoji_index": 1}',
                 },
             }
-        ]
+        ],
+        stage_title="工具调用",
     )
 
     assert len(panels) == 1
     assert captured["content"] == "emotion prompt link"
     assert captured["kwargs"]["chat_id"] == "session-emotion"
     assert captured["kwargs"]["request_kind"] == "emotion"
+
+
+def test_runtime_build_tool_detail_cards_uses_structured_prompt_messages_with_images(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime = object.__new__(MaisakaHeartFlowChatting)
+    runtime.session_id = "session-image"
+    captured: dict[str, Any] = {}
+
+    def _fake_build_prompt_access_panel(messages: list[Any], **kwargs: Any) -> str:
+        captured["messages"] = messages
+        captured["kwargs"] = kwargs
+        return "IMAGE_PROMPT_LINK"
+
+    def _fake_build_text_access_panel(content: str, **kwargs: Any) -> str:
+        captured["text_content"] = content
+        captured["text_kwargs"] = kwargs
+        return "TEXT_PROMPT_LINK"
+
+    monkeypatch.setattr(
+        "src.maisaka.runtime.PromptCLIVisualizer.build_prompt_access_panel",
+        _fake_build_prompt_access_panel,
+    )
+    monkeypatch.setattr(
+        "src.maisaka.runtime.PromptCLIVisualizer.build_text_access_panel",
+        _fake_build_text_access_panel,
+    )
+
+    panels = runtime._build_tool_detail_cards(
+        [
+            {
+                "tool_call_id": "call-reply-image-1",
+                "tool_name": "reply",
+                "tool_args": {"msg_id": "m3"},
+                "success": True,
+                "duration_ms": 22.0,
+                "summary": "- reply [成功]: 已回复",
+                "detail": {
+                    "prompt_text": "reply prompt image",
+                    "request_messages": [
+                        {
+                            "role": "user",
+                            "content": ["前缀文本", ["png", "ZmFrZQ=="]],
+                        }
+                    ],
+                    "output_text": "reply output",
+                },
+            }
+        ],
+        stage_title="工具调用",
+    )
+
+    assert len(panels) == 1
+    assert "messages" in captured
+    assert "text_content" not in captured
+    assert captured["kwargs"]["chat_id"] == "session-image"
+    assert captured["kwargs"]["request_kind"] == "replyer"
 
 
 def test_runtime_render_context_usage_panel_merges_timing_and_planner(monkeypatch: pytest.MonkeyPatch) -> None:

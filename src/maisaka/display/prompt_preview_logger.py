@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Dict
 from uuid import uuid4
 
+
 class PromptPreviewLogger:
     """负责保存 Maisaka Prompt 预览文件并控制目录容量。"""
 

@@ -181,6 +181,16 @@ class PromptCLIVisualizer:
             padding=(0, 1),
         )
 
+    @staticmethod
+    def _extract_image_pair(item: Any) -> tuple[str, str] | None:
+        """兼容图片片段被序列化为 tuple 或 list 的两种形式。"""
+
+        if isinstance(item, (tuple, list)) and len(item) == 2:
+            image_format, image_base64 = item
+            if isinstance(image_format, str) and isinstance(image_base64, str):
+                return image_format, image_base64
+        return None
+
     @classmethod
     def _render_message_content(cls, content: Any, settings: PromptImageDisplaySettings) -> RenderableType:
         if isinstance(content, str):
@@ -192,11 +202,11 @@ class PromptCLIVisualizer:
                 if isinstance(item, str):
                     parts.append(Text(item))
                     continue
-                if isinstance(item, tuple) and len(item) == 2:
-                    image_format, image_base64 = item
-                    if isinstance(image_format, str) and isinstance(image_base64, str):
-                        parts.append(cls._render_image_item(image_format, image_base64, settings))
-                        continue
+                image_pair = cls._extract_image_pair(item)
+                if image_pair is not None:
+                    image_format, image_base64 = image_pair
+                    parts.append(cls._render_image_item(image_format, image_base64, settings))
+                    continue
                 if isinstance(item, dict) and item.get("type") == "text" and isinstance(item.get("text"), str):
                     parts.append(Text(item["text"]))
                 else:
@@ -218,8 +228,9 @@ class PromptCLIVisualizer:
                 if isinstance(item, str):
                     parts.append(item)
                     continue
-                if isinstance(item, tuple) and len(item) == 2:
-                    image_format, image_base64 = item
+                image_pair = cls._extract_image_pair(item)
+                if image_pair is not None:
+                    image_format, image_base64 = image_pair
                     approx_size = max(0, len(str(image_base64)) * 3 // 4)
                     parts.append(f"[图片 image/{image_format} {approx_size} B]")
                     continue
@@ -395,8 +406,9 @@ class PromptCLIVisualizer:
                 if isinstance(item, str):
                     parts.append(f"<pre>{html.escape(item)}</pre>")
                     continue
-                if isinstance(item, tuple) and len(item) == 2:
-                    image_format, image_base64 = item
+                image_pair = cls._extract_image_pair(item)
+                if image_pair is not None:
+                    image_format, image_base64 = image_pair
                     image_html = cls._render_image_item_html(str(image_format), str(image_base64))
                     parts.append(image_html)
                     continue

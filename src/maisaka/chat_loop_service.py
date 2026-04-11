@@ -32,7 +32,7 @@ from src.services.llm_service import LLMServiceClient
 from .builtin_tool import get_builtin_tools
 from .context_messages import AssistantMessage, LLMContextMessage, ToolResultMessage
 from .history_utils import drop_orphan_tool_results
-from .prompt_cli_renderer import PromptCLIVisualizer
+from .display.prompt_cli_renderer import PromptCLIVisualizer
 
 TIMING_GATE_TOOL_NAMES = {"continue", "no_reply", "wait"}
 

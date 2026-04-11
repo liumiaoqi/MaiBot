@@ -1,11 +1,10 @@
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from src.chat.message_receive.chat_manager import BotChatSession, chat_manager as _chat_manager
-from src.chat.replyer.maisaka_replyer_factory import (
-    get_maisaka_replyer_class,
-    get_maisaka_replyer_generator_type,
-)
+from src.config.config import global_config
 from src.common.logger import get_logger
+
+from .maisaka_generator import MaisakaReplyGenerator
 
 if TYPE_CHECKING:
     from src.chat.replyer.group_generator import DefaultReplyer
@@ -20,6 +19,11 @@ class ReplyerManager:
     def __init__(self) -> None:
         self._repliers: Dict[str, Any] = {}
 
+    @staticmethod
+    def _get_maisaka_generator_type() -> str:
+        """返回当前配置下 Maisaka replyer 的消息模式。"""
+        return "multimodal" if global_config.visual.multimodal_replyer else "legacy"
+
     def get_replyer(
         self,
         chat_stream: Optional[BotChatSession] = None,
@@ -33,7 +37,7 @@ class ReplyerManager:
             logger.warning("[ReplyerManager] 缺少 stream_id，无法获取 replyer")
             return None
 
-        generator_type = get_maisaka_replyer_generator_type() if replyer_type == "maisaka" else ""
+        generator_type = self._get_maisaka_generator_type() if replyer_type == "maisaka" else ""
         cache_key = f"{replyer_type}:{generator_type}:{stream_id}"
         if cache_key in self._repliers:
             logger.info(f"[ReplyerManager] 命中缓存 replyer: cache_key={cache_key}")
@@ -50,13 +54,14 @@ class ReplyerManager:
         )
 
         try:
-            maisaka_replyer_class = get_maisaka_replyer_class()
-
-            replyer = maisaka_replyer_class(
-                chat_stream=target_stream,
-                request_type=request_type,
-            )
-
+            if replyer_type == "maisaka":
+                replyer = MaisakaReplyGenerator(
+                    chat_stream=target_stream,
+                    request_type=request_type,
+                )
+            else:
+                logger.warning(f"[ReplyerManager] 不支持的 replyer_type={replyer_type}")
+                return None
         except Exception:
             logger.exception(f"[ReplyerManager] 创建 replyer 失败: cache_key={cache_key}")
             raise

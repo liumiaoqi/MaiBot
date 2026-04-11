@@ -1,8 +1,9 @@
-import random
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Awaitable, Callable, Dict, List, Optional, Tuple
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
+
+import random
 
 from rich.console import Group, RenderableType
 from rich.panel import Panel
@@ -20,13 +21,10 @@ from src.common.data_models.reply_generation_data_models import (
     build_reply_monitor_detail,
 )
 from src.common.logger import get_logger
-from src.common.prompt_i18n import load_prompt
 from src.common.utils.utils_session import SessionUtils
 from src.config.config import global_config
 from src.core.types import ActionInfo
 from src.llm_models.payload_content.message import Message, MessageBuilder, RoleType
-from src.services.llm_service import LLMServiceClient
-
 from src.maisaka.context_messages import (
     AssistantMessage,
     LLMContextMessage,
@@ -34,8 +32,8 @@ from src.maisaka.context_messages import (
     SessionBackedMessage,
     ToolResultMessage,
 )
+from src.maisaka.display.prompt_cli_renderer import PromptCLIVisualizer
 from src.maisaka.message_adapter import clone_message_sequence, parse_speaker_content
-from src.maisaka.prompt_cli_renderer import PromptCLIVisualizer
 from src.plugin_runtime.hook_payloads import serialize_prompt_messages
 
 from .maisaka_expression_selector import maisaka_expression_selector
@@ -51,17 +49,24 @@ class MaisakaReplyContext:
     selected_expression_ids: List[int] = field(default_factory=list)
 
 
-class MaisakaReplyGenerator:
-    """生成 Maisaka 的最终可见回复（多模态管线）。"""
+class BaseMaisakaReplyGenerator:
+    """Maisaka replyer 的共享实现。"""
 
     def __init__(
         self,
+        *,
         chat_stream: Optional[BotChatSession] = None,
         request_type: str = "maisaka_replyer",
+        llm_client_cls: Any,
+        load_prompt_func: Callable[..., str],
+        enable_visual_message: bool,
     ) -> None:
         self.chat_stream = chat_stream
         self.request_type = request_type
-        self.express_model = LLMServiceClient(
+        self._llm_client_cls = llm_client_cls
+        self._load_prompt = load_prompt_func
+        self._enable_visual_message = enable_visual_message
+        self.express_model = llm_client_cls(
             task_name="replyer",
             request_type=request_type,
         )
@@ -232,7 +237,7 @@ class MaisakaReplyGenerator:
         session_id = self._resolve_session_id(stream_id)
 
         try:
-            system_prompt = load_prompt(
+            system_prompt = self._load_prompt(
                 "maisaka_replyer",
                 bot_name=global_config.bot.nickname,
                 group_chat_attention_block=self._build_group_chat_attention_block(session_id),
@@ -255,17 +260,20 @@ class MaisakaReplyGenerator:
         return f"{system_prompt}\n\n" + "\n\n".join(sections)
 
     def _build_reply_instruction(self) -> str:
-        return "请自然地回复。不要输出多余说明、括号、at 或额外标记，只输出实际要发送的内容。"
+        return "请自然地回复。不要输出多余说明、括号、@ 或额外标记，只输出实际要发送的内容。"
 
-    def _build_multimodal_user_message(
+    def _build_visual_user_message(
         self,
         message: SessionBackedMessage,
     ) -> Optional[Message]:
+        if not self._enable_visual_message:
+            return None
+
         raw_message = clone_message_sequence(message.raw_message)
         if not raw_message.components:
             raw_message = MessageSequence([TextComponent(message.processed_plain_text)])
 
-        multimodal_message = SessionBackedMessage(
+        visual_message = SessionBackedMessage(
             raw_message=raw_message,
             visible_text=message.processed_plain_text,
             timestamp=message.timestamp,
@@ -273,7 +281,7 @@ class MaisakaReplyGenerator:
             original_message=message.original_message,
             source_kind=message.source_kind,
         )
-        return multimodal_message.to_llm_message()
+        return visual_message.to_llm_message()
 
     def _build_history_messages(self, chat_history: List[LLMContextMessage]) -> List[Message]:
         bot_nickname = global_config.bot.nickname.strip() or "Bot"
@@ -292,9 +300,9 @@ class MaisakaReplyGenerator:
                     )
                     continue
 
-                multimodal_message = self._build_multimodal_user_message(message)
-                if multimodal_message is not None:
-                    messages.append(multimodal_message)
+                visual_message = self._build_visual_user_message(message)
+                if visual_message is not None:
+                    messages.append(visual_message)
                     continue
 
                 for speaker_name, content_body in self._split_user_message_segments(message.processed_plain_text):
@@ -398,7 +406,6 @@ class MaisakaReplyGenerator:
         selected_expression_ids: Optional[List[int]] = None,
         sub_agent_runner: Optional[Callable[[str], Awaitable[str]]] = None,
     ) -> Tuple[bool, ReplyGenerationResult]:
-
         def finalize(success_value: bool) -> Tuple[bool, ReplyGenerationResult]:
             result.monitor_detail = build_reply_monitor_detail(result)
             return success_value, result
@@ -460,7 +467,7 @@ class MaisakaReplyGenerator:
         )
 
         logger.info(
-            f"回复上下文完成: 流={stream_id} 已选表达={result.selected_expression_ids!r}"
+            f"回复上下文完成 流={stream_id} 已选表达={result.selected_expression_ids!r}"
         )
 
         prompt_started_at = time.perf_counter()
@@ -556,7 +563,7 @@ class MaisakaReplyGenerator:
             return finalize(False)
 
         logger.info(
-            f"Maisaka 回复器生成成功: 文本={response_text!r} "
+            f"Maisaka 回复器生成成功 文本={response_text!r} "
             f"总耗时ms={result.metrics.overall_ms} 已选表达={result.selected_expression_ids!r}"
         )
         if show_replyer_prompt or show_replyer_reasoning:
