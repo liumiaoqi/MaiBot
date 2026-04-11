@@ -116,28 +116,6 @@ class BaseMaisakaReplyGenerator:
             return self._normalize_content(body.strip())
         return ""
 
-    @staticmethod
-    def _split_user_message_segments(raw_content: str) -> List[tuple[Optional[str], str]]:
-        segments: List[tuple[Optional[str], str]] = []
-        current_speaker: Optional[str] = None
-        current_lines: List[str] = []
-
-        for raw_line in raw_content.splitlines():
-            speaker_name, content_body = parse_speaker_content(raw_line)
-            if speaker_name is not None:
-                if current_lines:
-                    segments.append((current_speaker, "\n".join(current_lines)))
-                current_speaker = speaker_name
-                current_lines = [content_body]
-                continue
-
-            current_lines.append(raw_line)
-
-        if current_lines:
-            segments.append((current_speaker, "\n".join(current_lines)))
-
-        return segments
-
     def _build_target_message_block(self, reply_message: Optional[SessionMessage]) -> str:
         if reply_message is None:
             return ""
@@ -292,8 +270,6 @@ class BaseMaisakaReplyGenerator:
         chat_history: List[LLMContextMessage],
         enable_visual_message: bool,
     ) -> List[Message]:
-        bot_nickname = global_config.bot.nickname.strip() or "Bot"
-        default_user_name = global_config.maisaka.cli_user_name.strip() or "User"
         messages: List[Message] = []
 
         for message in chat_history:
@@ -313,20 +289,9 @@ class BaseMaisakaReplyGenerator:
                     messages.append(visual_message)
                     continue
 
-                for speaker_name, content_body in self._split_user_message_segments(message.processed_plain_text):
-                    content = self._normalize_content(content_body)
-                    if not content:
-                        continue
-
-                    visible_speaker = speaker_name or default_user_name
-                    if visible_speaker == bot_nickname:
-                        messages.append(
-                            MessageBuilder().set_role(RoleType.Assistant).add_text_content(content).build()
-                        )
-                        continue
-
-                    user_content = f"[{visible_speaker}]{content}"
-                    messages.append(MessageBuilder().set_role(RoleType.User).add_text_content(user_content).build())
+                llm_message = message.to_llm_message()
+                if llm_message is not None:
+                    messages.append(llm_message)
                 continue
 
             if isinstance(message, AssistantMessage):
@@ -529,8 +494,6 @@ class BaseMaisakaReplyGenerator:
             prompt_preview = PromptCLIVisualizer._build_prompt_dump_text(request_messages)
             return request_messages
 
-        result.completion.request_prompt = prompt_preview
-        result.request_messages = serialize_prompt_messages(request_messages)
         preview_chat_id = self._resolve_session_id(stream_id)
         replyer_prompt_section: RenderableType | None = None
         if show_replyer_prompt:

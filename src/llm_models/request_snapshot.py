@@ -58,6 +58,42 @@ def _json_friendly(value: Any) -> Any:
     return str(value)
 
 
+def extract_error_response_body(error: Exception) -> Any | None:
+    """尽量从异常对象中提取上游返回体，便于排查模型请求失败。"""
+    candidate_errors = [error, getattr(error, "__cause__", None)]
+
+    for candidate in candidate_errors:
+        if candidate is None:
+            continue
+
+        response = getattr(candidate, "response", None)
+        if response is not None:
+            response_json = getattr(response, "json", None)
+            if callable(response_json):
+                try:
+                    return _json_friendly(response_json())
+                except Exception:
+                    pass
+
+            response_text = getattr(response, "text", None)
+            if response_text not in (None, ""):
+                return str(response_text)
+
+            response_content = getattr(response, "content", None)
+            if response_content not in (None, b"", ""):
+                return _json_friendly(response_content)
+
+        response_body = getattr(candidate, "body", None)
+        if response_body not in (None, "", b""):
+            return _json_friendly(response_body)
+
+        ext_info = getattr(candidate, "ext_info", None)
+        if ext_info is not None:
+            return _json_friendly(ext_info)
+
+    return None
+
+
 def _sanitize_filename_component(value: str) -> str:
     """将任意字符串转换为适合文件名使用的片段。"""
     normalized_value = FILENAME_SAFE_PATTERN.sub("-", value.strip())
@@ -387,6 +423,10 @@ def save_failed_request_snapshot(
             "provider_request": _json_friendly(provider_request),
             "snapshot_version": SNAPSHOT_VERSION,
         }
+
+        response_body = extract_error_response_body(error)
+        if response_body is not None:
+            snapshot_payload["error"]["response_body"] = response_body
 
         snapshot_payload["replay"] = {
             "command": build_replay_command(snapshot_path),

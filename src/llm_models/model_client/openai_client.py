@@ -587,7 +587,7 @@ def _build_api_status_message(error: APIStatusError) -> str:
         message_parts.append(str(error.message))
     response_text = getattr(getattr(error, "response", None), "text", None)
     if response_text:
-        message_parts.append(str(response_text)[:300])
+        message_parts.append(str(response_text))
     if message_parts:
         return " | ".join(message_parts)
     return f"上游接口返回状态码 {error.status_code}"
@@ -750,7 +750,7 @@ class _OpenAIStreamAccumulator:
         response.raw_data = {"model": self.model_name} if self.model_name else None
 
         if not response.content and not response.tool_calls:
-            raise EmptyResponseException()
+            raise EmptyResponseException(response.raw_data)
 
         return response
 
@@ -834,7 +834,7 @@ def _default_normal_response_parser(
     """
     choices = getattr(resp, "choices", None)
     if not choices:
-        raise EmptyResponseException("响应解析失败，choices 为空或缺失")
+        raise EmptyResponseException(resp, "响应解析失败，choices 为空或缺失")
 
     api_response = APIResponse()
     message_part = choices[0].message
@@ -875,7 +875,7 @@ def _default_normal_response_parser(
     _log_length_truncation(finish_reason, getattr(resp, "model", None))
 
     if not api_response.content and not api_response.tool_calls:
-        raise EmptyResponseException()
+        raise EmptyResponseException(resp)
 
     return api_response, usage_record
 
