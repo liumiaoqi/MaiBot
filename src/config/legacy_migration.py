@@ -253,6 +253,8 @@ def _migrate_target_item_list(parent: dict[str, Any], key: str) -> bool:
     raw = _as_list(parent.get(key))
     if raw is None:
         return False
+    if not raw:
+        return False
     if raw and all(isinstance(i, dict) for i in raw):
         return False
     targets: list[dict[str, str]] = []
@@ -285,18 +287,18 @@ def _migrate_extra_prompt_list(exp: dict[str, Any], key: str) -> bool:
     return True
 
 
-def _parse_multimodal_replyer(v: Any) -> Optional[bool]:
+def _parse_replyer_mode(v: Any) -> Optional[str]:
     """兼容旧 replyer_generator_type 到布尔开关的迁移。"""
     if isinstance(v, bool):
-        return v
+        return "multimodal" if v else "text"
     if not isinstance(v, str):
         return None
 
     normalized_value = v.strip().lower()
-    if normalized_value == "multimodal":
-        return True
+    if normalized_value in {"text", "multimodal", "auto"}:
+        return normalized_value
     if normalized_value == "legacy":
-        return False
+        return "text"
     return None
 
 
@@ -403,14 +405,23 @@ def try_migrate_legacy_bot_config_dict(data: dict[str, Any]) -> MigrationResult:
             migrated_any = True
             reasons.append("chat.multimodal_planner_moved_to_visual.multimodal_planner")
 
+    if visual is not None and "multimodal_replyer" in visual:
+        replyer_mode = _parse_replyer_mode(visual.get("multimodal_replyer"))
+        if "replyer_mode" not in visual and replyer_mode is not None:
+            visual["replyer_mode"] = replyer_mode
+        if "replyer_mode" in visual:
+            visual.pop("multimodal_replyer", None)
+            migrated_any = True
+            reasons.append("visual.multimodal_replyer_moved_to_visual.replyer_mode")
+
     if visual is not None and "replyer_generator_type" in chat:
-        multimodal_replyer = _parse_multimodal_replyer(chat["replyer_generator_type"])
-        if "multimodal_replyer" not in visual and multimodal_replyer is not None:
-            visual["multimodal_replyer"] = multimodal_replyer
-        if "multimodal_replyer" in visual:
+        replyer_mode = _parse_replyer_mode(chat["replyer_generator_type"])
+        if "replyer_mode" not in visual and replyer_mode is not None:
+            visual["replyer_mode"] = replyer_mode
+        if "replyer_mode" in visual:
             chat.pop("replyer_generator_type", None)
             migrated_any = True
-            reasons.append("chat.replyer_generator_type_moved_to_visual.multimodal_replyer")
+            reasons.append("chat.replyer_generator_type_moved_to_visual.replyer_mode")
 
     maisaka = _as_dict(data.get("maisaka"))
     mem = _as_dict(data.get("memory"))

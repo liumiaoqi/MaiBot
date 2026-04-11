@@ -440,6 +440,9 @@ class PromptCLIVisualizer:
         return (
             "<div class='image-card'>"
             f"<div class='image-meta'>图片 image/{html.escape(normalized_format)} {html.escape(size_text)}</div>"
+            f"<a class='image-preview-link' href='{html.escape(file_uri, quote=True)}'>"
+            f"<img class='image-preview' src='{html.escape(file_uri, quote=True)}' alt='图片预览' />"
+            "</a>"
             f"<div class='image-path'>{html.escape(str(file_path))}</div>"
             f"<a class='image-link' href='{html.escape(file_uri, quote=True)}'>打开图片</a>"
             "</div>"
@@ -726,6 +729,22 @@ class PromptCLIVisualizer:
       color: var(--muted);
       font-family: "Cascadia Mono", "JetBrains Mono", "Consolas", monospace;
       word-break: break-all;
+    }}
+    .image-preview-link {{
+      display: block;
+      margin-top: 10px;
+    }}
+    .image-preview {{
+      display: block;
+      max-width: min(100%, 560px);
+      max-height: 420px;
+      width: auto;
+      height: auto;
+      border-radius: 12px;
+      border: 1px solid #dbe4f0;
+      background: #fff;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+      object-fit: contain;
     }}
     .image-link {{
       display: inline-block;

@@ -1,14 +1,10 @@
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import Any, Dict, Optional
 
 from src.chat.message_receive.chat_manager import BotChatSession, chat_manager as _chat_manager
 from src.config.config import global_config
 from src.common.logger import get_logger
 
 from .maisaka_generator import MaisakaReplyGenerator
-
-if TYPE_CHECKING:
-    from src.chat.replyer.group_generator import DefaultReplyer
-    from src.chat.replyer.private_generator import PrivateReplyer
 
 logger = get_logger("ReplyerManager")
 
@@ -22,7 +18,7 @@ class ReplyerManager:
     @staticmethod
     def _get_maisaka_generator_type() -> str:
         """返回当前配置下 Maisaka replyer 的消息模式。"""
-        return "multimodal" if global_config.visual.multimodal_replyer else "legacy"
+        return global_config.visual.replyer_mode
 
     def get_replyer(
         self,
@@ -30,7 +26,7 @@ class ReplyerManager:
         chat_id: Optional[str] = None,
         request_type: str = "replyer",
         replyer_type: str = "default",
-    ) -> Optional["DefaultReplyer | PrivateReplyer | Any"]:
+    ) -> Optional[MaisakaReplyGenerator]:
         """按会话和 replyer 类型获取实例。"""
         stream_id = chat_stream.session_id if chat_stream else chat_id
         if not stream_id:

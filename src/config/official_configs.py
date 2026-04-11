@@ -152,16 +152,16 @@ class VisualConfig(ConfigBase):
             "x-icon": "image",
         },
     )
-    """是否直接输入图片"""
+    """是否启用多模态planner"""
 
-    multimodal_replyer: bool = Field(
-        default=False,
+    replyer_mode: Literal["text", "multimodal", "auto"] = Field(
+        default="auto",
         json_schema_extra={
-            "x-widget": "switch",
+            "x-widget": "select",
             "x-icon": "git-branch",
         },
     )
-    """是否启用 Maisaka 多模态 replyer 生成器"""
+    """回复器模式，auto根据模型信息自动选择，text为纯文本模式，multimodal为多模态模式"""
 
     visual_style: str = Field(
         default="请用中文描述这张图片的内容。如果有文字，请把文字描述概括出来，请留意其主题，直观感受，输出为一段平文本，最多30字，请注意不要分点，就输出一段文本",

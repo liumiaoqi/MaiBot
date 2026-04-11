@@ -11,8 +11,7 @@ from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 from rich.traceback import install
 
 from src.chat.message_receive.chat_manager import BotChatSession
-from src.chat.replyer.group_generator import DefaultReplyer
-from src.chat.replyer.private_generator import PrivateReplyer
+from src.chat.replyer.maisaka_generator import MaisakaReplyGenerator
 from src.chat.replyer.replyer_manager import replyer_manager
 from src.chat.utils.utils import process_llm_response
 from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
@@ -38,7 +37,7 @@ def _get_replyer(
     chat_stream: Optional[BotChatSession] = None,
     chat_id: Optional[str] = None,
     request_type: str = "replyer",
-) -> Optional[DefaultReplyer | PrivateReplyer]:
+) -> Optional[MaisakaReplyGenerator]:
     """获取回复器对象"""
     if not chat_id and not chat_stream:
         raise ValueError("chat_stream 和 chat_id 不可均为空")
