@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Literal
-from urllib.parse import quote
 
 import hashlib
 import html
@@ -27,10 +26,10 @@ from .display_utils import (
     get_role_badge_label as get_shared_role_badge_label,
     get_role_badge_style as get_shared_role_badge_style,
 )
+from .preview_path_utils import build_display_path, build_file_uri, REPO_ROOT
 from .prompt_preview_logger import PromptPreviewLogger
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent.absolute().resolve()
-DATA_IMAGE_DIR = PROJECT_ROOT / "data" / "images"
+DATA_IMAGE_DIR = REPO_ROOT / "data" / "images"
 
 
 class PromptImageDisplayMode(str, Enum):
@@ -116,11 +115,6 @@ class PromptCLIVisualizer:
         return root / f"{digest}.{image_format}"
 
     @staticmethod
-    def _build_file_uri(file_path: Path) -> str:
-        normalized = file_path.resolve().as_posix()
-        return f"file:///{quote(normalized, safe='/:')}"
-
-    @staticmethod
     def _build_official_image_path(image_format: str, image_base64: str) -> Path | None:
         normalized_format = PromptCLIVisualizer._normalize_image_format(image_format)
         try:
@@ -140,7 +134,7 @@ class PromptCLIVisualizer:
         normalized_format = PromptCLIVisualizer._normalize_image_format(image_format) or "bin"
         official_path = PromptCLIVisualizer._build_official_image_path(image_format, image_base64)
         if official_path is not None:
-            return PromptCLIVisualizer._build_file_uri(official_path), official_path
+            return build_file_uri(official_path), official_path
 
         try:
             image_bytes = b64decode(image_base64)
@@ -153,7 +147,7 @@ class PromptCLIVisualizer:
                 path.write_bytes(image_bytes)
             except Exception:
                 return None
-        return PromptCLIVisualizer._build_file_uri(path), path
+        return build_file_uri(path), path
 
     @classmethod
     def _render_image_item(cls, image_format: str, image_base64: str, settings: PromptImageDisplaySettings) -> Panel:
@@ -169,8 +163,9 @@ class PromptCLIVisualizer:
             path_result = cls._build_image_file_link(image_format, image_base64)
             if path_result is not None:
                 file_uri, file_path = path_result
+                display_path = build_display_path(file_path)
                 preview_parts: List[RenderableType] = [
-                    Text(f"图片格式 image/{normalized_format}  {size_text} 路径：{file_path}", style="magenta")
+                    Text(f"图片格式 image/{normalized_format}  {size_text} 路径：{display_path}", style="magenta")
                 ]
                 
                 preview_parts.append(Text.from_markup(f"[link={file_uri}]点击打开图片[/link]", style="cyan"))
@@ -437,15 +432,42 @@ class PromptCLIVisualizer:
             )
 
         file_uri, file_path = path_result
+        display_path = build_display_path(file_path)
         return (
             "<div class='image-card'>"
             f"<div class='image-meta'>图片 image/{html.escape(normalized_format)} {html.escape(size_text)}</div>"
             f"<a class='image-preview-link' href='{html.escape(file_uri, quote=True)}'>"
             f"<img class='image-preview' src='{html.escape(file_uri, quote=True)}' alt='图片预览' />"
             "</a>"
-            f"<div class='image-path'>{html.escape(str(file_path))}</div>"
+            f"<div class='image-path'>{html.escape(display_path)}</div>"
             f"<a class='image-link' href='{html.escape(file_uri, quote=True)}'>打开图片</a>"
             "</div>"
+        )
+
+    @staticmethod
+    def _build_preview_access_body(
+        *,
+        viewer_label: str,
+        viewer_path: Path,
+        viewer_link_text: str,
+        dump_label: str,
+        dump_path: Path,
+        dump_link_text: str,
+    ) -> RenderableType:
+        viewer_uri = build_file_uri(viewer_path)
+        dump_uri = build_file_uri(dump_path)
+        viewer_display_path = build_display_path(viewer_path)
+        dump_display_path = build_display_path(dump_path)
+
+        return Group(
+            Text.from_markup(
+                f"[bold green]{viewer_label}：{viewer_display_path}[/bold green] "
+                f"[link={viewer_uri}]{viewer_link_text}[/link]"
+            ),
+            Text.from_markup(
+                f"[magenta]{dump_label}：{dump_display_path}[/magenta] "
+                f"[cyan][link={dump_uri}]{dump_link_text}[/link][/cyan]"
+            ),
         )
 
     @classmethod
@@ -823,18 +845,13 @@ class PromptCLIVisualizer:
         )
         viewer_html_path = saved_paths[".html"]
         prompt_dump_path = saved_paths[".txt"]
-        viewer_uri = cls._build_file_uri(viewer_html_path)
-        dump_uri = cls._build_file_uri(prompt_dump_path)
-
-        body = Group(
-            Text.from_markup(
-                f"[bold green]html预览：{viewer_html_path}[/bold green] "
-                f"[link={viewer_uri}]在浏览器打开 Prompt [/link]"
-            ),
-            Text.from_markup(
-                f"[magenta]原始文本：{prompt_dump_path}[/magenta] "
-                f"[cyan][link={dump_uri}]点击打开 Prompt 文本[/link][/cyan]"
-            ),
+        body = cls._build_preview_access_body(
+            viewer_label="html预览",
+            viewer_path=viewer_html_path,
+            viewer_link_text="在浏览器打开 Prompt",
+            dump_label="原始文本",
+            dump_path=prompt_dump_path,
+            dump_link_text="点击打开 Prompt 文本",
         )
         return body
 
@@ -989,18 +1006,13 @@ class PromptCLIVisualizer:
         )
         viewer_html_path = saved_paths[".html"]
         text_dump_path = saved_paths[".txt"]
-        viewer_uri = cls._build_file_uri(viewer_html_path)
-        dump_uri = cls._build_file_uri(text_dump_path)
-
-        body = Group(
-            Text.from_markup(
-                f"[bold green]富文本预览：{viewer_html_path}[/bold green] "
-                f"[link={viewer_uri}]点击在浏览器打开富文本 Prompt 视图[/link]"
-            ),
-            Text.from_markup(
-                f"[magenta]原始文本备份：{text_dump_path}[/magenta] "
-                f"[cyan][link={dump_uri}]点击直接打开 Prompt 文本[/link][/cyan]"
-            ),
+        body = cls._build_preview_access_body(
+            viewer_label="富文本预览",
+            viewer_path=viewer_html_path,
+            viewer_link_text="点击在浏览器打开富文本 Prompt 视图",
+            dump_label="原始文本备份",
+            dump_path=text_dump_path,
+            dump_link_text="点击直接打开 Prompt 文本",
         )
         return body
 
