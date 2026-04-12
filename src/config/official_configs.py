@@ -145,14 +145,14 @@ class VisualConfig(ConfigBase):
     __ui_label__ = "视觉"
     __ui_icon__ = "image"
 
-    multimodal_planner: bool = Field(
-        default=True,
+    planner_mode: Literal["text", "multimodal", "auto"] = Field(
+        default="auto",
         json_schema_extra={
-            "x-widget": "switch",
-            "x-icon": "image",
+            "x-widget": "select",
+            "x-icon": "git-branch",
         },
     )
-    """是否启用多模态planner"""
+    """规划器模式，auto根据模型信息自动选择，text为纯文本模式，multimodal为多模态模式"""
 
     replyer_mode: Literal["text", "multimodal", "auto"] = Field(
         default="auto",

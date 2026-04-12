@@ -53,8 +53,9 @@ PROJECT_ROOT: Path = Path(__file__).parent.parent.parent.absolute().resolve()
 CONFIG_DIR: Path = PROJECT_ROOT / "config"
 BOT_CONFIG_PATH: Path = (CONFIG_DIR / "bot_config.toml").resolve().absolute()
 MODEL_CONFIG_PATH: Path = (CONFIG_DIR / "model_config.toml").resolve().absolute()
+LEGACY_ENV_PATH: Path = (PROJECT_ROOT / ".env").resolve().absolute()
 MMC_VERSION: str = "1.0.0"
-CONFIG_VERSION: str = "8.6.0"
+CONFIG_VERSION: str = "8.7.1"
 MODEL_CONFIG_VERSION: str = "1.14.0"
 
 logger = get_logger("config")
@@ -453,6 +454,20 @@ def generate_new_config_file(config_class: type[T], config_path: Path, inner_con
     write_config_to_file(config, config_path, inner_config_version)
 
 
+def remove_legacy_env_file(env_path: Path) -> None:
+    """删除已完成迁移的旧版 `.env` 文件。"""
+
+    if not env_path.exists():
+        return
+
+    try:
+        env_path.unlink()
+    except OSError as exc:
+        logger.warning(f"旧版 .env 配置文件删除失败，请手动删除: {env_path}，原因: {exc}")
+    else:
+        logger.warning(f"检测到旧版环境变量绑定配置迁移成功，已删除旧版 .env 文件: {env_path}")
+
+
 def load_config_from_file(
     config_class: type[T], config_path: Path, new_ver: str, override_repr: bool = False
 ) -> tuple[T, bool]:
@@ -466,10 +481,12 @@ def load_config_from_file(
     if not isinstance(inner_version, str):
         raise TypeError(t("config.invalid_inner_version"))
     old_ver: str = inner_version
+    env_migration_applied: bool = False
     config_data.remove("inner")  # 移除 inner 部分，避免干扰后续处理
     config_data = config_data.unwrap()  # 转换为普通字典，方便后续处理
     if config_path.name == "bot_config.toml" and config_class.__name__ == "Config":
         env_migration = migrate_legacy_bind_env_to_bot_config_dict(config_data)
+        env_migration_applied = env_migration.migrated
         if env_migration.migrated:
             logger.warning(f"检测到旧版环境变量绑定配置，已迁移到主配置: {env_migration.reason}")
         config_data = env_migration.data
@@ -496,9 +513,11 @@ def load_config_from_file(
                     raise e
             else:
                 raise e
-        if compare_versions(old_ver, new_ver):
+        if compare_versions(old_ver, new_ver) or env_migration_applied:
             output_config_changes(attribute_data, logger, old_ver, new_ver, config_path.name)
             write_config_to_file(target_config, config_path, new_ver, override_repr)
+            if env_migration_applied:
+                remove_legacy_env_file(LEGACY_ENV_PATH)
             updated = True
         return target_config, updated
     except Exception as e:

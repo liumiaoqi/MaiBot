@@ -1,7 +1,6 @@
 # raise RuntimeError("System Not Ready")
 from pathlib import Path
 
-from dotenv import load_dotenv
 from rich.traceback import install
 
 import asyncio
@@ -21,28 +20,6 @@ from src.common.logger import get_logger, initialize_logging, shutdown_logging
 # 设置工作目录为脚本所在目录
 script_dir = os.path.dirname(os.path.abspath(__file__))
 os.chdir(script_dir)
-set_locale(os.getenv("MAIBOT_LOCALE", "zh-CN"))
-
-env_path = Path(__file__).parent / ".env"
-template_env_path = Path(__file__).parent / "template" / "template.env"
-
-if env_path.exists():
-    load_dotenv(str(env_path), override=True)
-else:
-    print("[WIP] no .env file found, and templates is not ready yet.")
-    print("[WIP] continue startup, use environment and existing config values.")
-    # try:
-    #     if template_env_path.exists():
-    #         shutil.copyfile(template_env_path, env_path)
-    #         print(t("startup.env_created"))
-    #         load_dotenv(str(env_path), override=True)
-    #     else:
-    #         print(t("startup.env_template_missing"))
-    #         raise FileNotFoundError(t("startup.env_file_missing"))
-    # except Exception as e:
-    #     print(t("startup.env_auto_create_failed", error=e))
-    #     raise
-
 set_locale(os.getenv("MAIBOT_LOCALE", "zh-CN"))
 
 # 检查是否是 Worker 进程，只在 Worker 进程中输出详细的初始化信息
