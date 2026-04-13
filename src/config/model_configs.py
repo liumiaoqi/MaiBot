@@ -307,6 +307,15 @@ class ModelInfo(ConfigBase):
     )
     """强制流式输出模式 (若模型不支持非流式输出, 请设置为true启用强制流式输出, 默认值为false)"""
 
+    visual: bool = Field(
+        default=False,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "image",
+        },
+    )
+    """是否为多模态模型。开启后表示该模型支持视觉输入。"""
+
     extra_params: dict[str, Any] = Field(
         default_factory=dict,
         json_schema_extra={

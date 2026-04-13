@@ -3,6 +3,7 @@ from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 import asyncio
+import inspect
 import random
 import re
 import time
@@ -397,8 +398,6 @@ class LLMOrchestrator:
         start_time = time.time()
 
         tool_built = self._build_tool_options(tools)
-        if self.request_type.startswith("maisaka_"):
-            logger.info(f"LLMOrchestrator[{self.request_type}] 已构建 {len(tool_built or [])} 个内部工具选项")
 
         execution_result = await self._execute_request(
             request_type=RequestType.RESPONSE,
@@ -912,7 +911,11 @@ class LLMOrchestrator:
             model_info, api_provider, client = self._select_model(exclude_models=failed_models_this_request)
             message_list = []
             if message_factory:
-                message_list = message_factory(client)
+                parameter_count = len(inspect.signature(message_factory).parameters)
+                if parameter_count >= 2:
+                    message_list = message_factory(client, model_info)
+                else:
+                    message_list = message_factory(client)
             try:
                 request = self._build_client_request(
                     request_type=request_type,

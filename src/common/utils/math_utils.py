@@ -84,9 +84,9 @@ def translate_timestamp_to_human_readable(timestamp: float, mode: TimestampMode 
 
 def calculate_typing_time(
     input_string: str,
-    chinese_time: float = 0.3,
-    english_time: float = 0.15,
-    line_break_time: float = 0.1,
+    chinese_time: float = 0.2,
+    english_time: float = 0.1,
+    line_break_time: float = 0.05,
     is_emoji: bool = False,
 ) -> float:
     """

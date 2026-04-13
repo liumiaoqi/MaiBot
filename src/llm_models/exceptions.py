@@ -54,27 +54,30 @@ class RespNotOkException(Exception):
             return f"未知的异常响应代码：{self.status_code}"
 
 
-class RespParseException(Exception):
-    """响应解析错误，常见于响应格式不正确或解析方法不匹配"""
+class ResponseContextException(Exception):
+    """携带原始响应上下文的异常基类。"""
 
-    def __init__(self, ext_info: Any, message: str | None = None):
+    default_message: str = "请求失败"
+
+    def __init__(self, ext_info: Any = None, message: str | None = None):
         super().__init__(message)
         self.ext_info = ext_info
         self.message = message
 
     def __str__(self):
-        return self.message or "解析响应内容时发生未知错误，请检查是否配置了正确的解析方法"
+        return self.message or self.default_message
 
 
-class EmptyResponseException(Exception):
+class RespParseException(ResponseContextException):
+    """响应解析错误，常见于响应格式不正确或解析方法不匹配"""
+
+    default_message = "解析响应内容时发生未知错误，请检查是否配置了正确的解析方法"
+
+
+class EmptyResponseException(ResponseContextException):
     """响应内容为空"""
 
-    def __init__(self, message: str = "响应内容为空，这可能是一个临时性问题"):
-        super().__init__(message)
-        self.message = message
-
-    def __str__(self):
-        return self.message
+    default_message = "响应内容为空，这可能是一个临时性问题"
 
 
 class ModelAttemptFailed(Exception):

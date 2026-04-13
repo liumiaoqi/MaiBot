@@ -21,7 +21,7 @@ from src.common.data_models.mai_message_data_model import GroupInfo, UserInfo
 from src.common.logger import get_logger
 from src.common.utils.utils_config import ChatConfigUtils, ExpressionConfigUtils
 from src.config.config import global_config
-from src.core.tooling import ToolRegistry
+from src.core.tooling import ToolRegistry, ToolSpec
 from src.learners.expression_learner import ExpressionLearner
 from src.learners.jargon_miner import JargonMiner
 from src.llm_models.payload_content.resp_format import RespFormat
@@ -30,11 +30,13 @@ from src.mcp_module import MCPManager
 from src.mcp_module.host_llm_bridge import MCPHostLLMBridge
 from src.mcp_module.provider import MCPToolProvider
 from src.plugin_runtime.tool_provider import PluginToolProvider
+from src.plugin_runtime.hook_payloads import deserialize_prompt_messages
 
 from .chat_loop_service import ChatResponse, MaisakaChatLoopService
 from .context_messages import LLMContextMessage
-from .display_utils import build_tool_call_summary_lines, format_token_count
-from .prompt_cli_renderer import PromptCLIVisualizer
+from .display.display_utils import build_tool_call_summary_lines, format_token_count
+from .display.prompt_cli_renderer import PromptCLIVisualizer
+from .display.stage_status_board import remove_stage_status, update_stage_status
 from .reasoning_engine import MaisakaReasoningEngine
 from .tool_provider import MaisakaBuiltinToolProvider
 
@@ -92,14 +94,16 @@ class MaisakaHeartFlowChatting:
         self._max_internal_rounds = MAX_INTERNAL_ROUNDS
         self._max_context_size = max(1, int(global_config.chat.max_context_size))
         self._agent_state: Literal["running", "wait", "stop"] = self._STATE_STOP
-        self._wait_until: Optional[float] = None
         self._pending_wait_tool_call_id: Optional[str] = None
-        self._force_continue_until_reply = False
-        self._force_continue_trigger_message_id = ""
-        self._force_continue_trigger_reason = ""
+        self._force_next_timing_continue = False
+        self._force_next_timing_message_id = ""
+        self._force_next_timing_reason = ""
         self._planner_interrupt_flag: Optional[asyncio.Event] = None
         self._planner_interrupt_requested = False
         self._planner_interrupt_consecutive_count = 0
+        self._current_action_tool_names: set[str] = set()
+        self.discovered_tool_names: set[str] = set()
+        self.deferred_tool_specs_by_name: dict[str, ToolSpec] = {}
         self._planner_interrupt_max_consecutive_count = max(
             0,
             int(global_config.chat.planner_interrupt_max_consecutive_count),
@@ -118,6 +122,18 @@ class MaisakaHeartFlowChatting:
         self._tool_registry = ToolRegistry()
         self._register_tool_providers()
 
+    def _update_stage_status(self, stage: str, detail: str = "", *, round_text: str = "") -> None:
+        """更新当前会话的阶段状态。"""
+
+        update_stage_status(
+            session_id=self.session_id,
+            session_name=self.session_name,
+            stage=stage,
+            detail=detail,
+            round_text=round_text,
+            agent_state=self._agent_state,
+        )
+
     async def start(self) -> None:
         """启动运行时主循环。"""
         if self._running:
@@ -130,6 +146,7 @@ class MaisakaHeartFlowChatting:
         self._running = True
         self._ensure_background_tasks_running()
         self._schedule_message_turn()
+        self._update_stage_status("空闲", "等待消息触发")
         logger.info(f"{self.log_prefix} Maisaka 运行时已启动")
 
     async def stop(self) -> None:
@@ -157,6 +174,7 @@ class MaisakaHeartFlowChatting:
         await self._tool_registry.close()
         self._mcp_manager = None
         self._mcp_host_bridge = None
+        remove_stage_status(self.session_id)
 
         logger.info(f"{self.log_prefix} Maisaka 运行时已停止")
 
@@ -175,9 +193,6 @@ class MaisakaHeartFlowChatting:
         self.message_cache.append(message)
         self._message_received_at_by_id[message.message_id] = received_at
         self._source_messages_by_id[message.message_id] = message
-        if self._agent_state == self._STATE_WAIT:
-            self._cancel_wait_timeout_task()
-            self._wait_until = None
         if self._agent_state == self._STATE_RUNNING:
             self._message_debounce_required = True
         if self._agent_state == self._STATE_RUNNING and self._planner_interrupt_flag is not None:
@@ -248,7 +263,6 @@ class MaisakaHeartFlowChatting:
 
     def _record_reply_sent(self) -> None:
         """在成功发送 reply 后记录本轮消息回复时长。"""
-        self._clear_force_continue_until_reply()
         if self._reply_latency_measurement_started_at is None:
             return
 
@@ -308,26 +322,26 @@ class MaisakaHeartFlowChatting:
         if not message.is_at and not message.is_mentioned:
             return
 
-        self._arm_force_continue_until_reply(
+        self._arm_force_next_timing_continue(
             message,
             is_at=message.is_at,
             is_mentioned=message.is_mentioned,
         )
 
-    def _arm_force_continue_until_reply(
+    def _arm_force_next_timing_continue(
         self,
         message: SessionMessage,
         *,
         is_at: bool,
         is_mentioned: bool,
     ) -> None:
-        """在检测到 @ 或提及时，要求后续轮次跳过 Timing Gate 直到成功 reply。"""
+        """在检测到 @ 或提及时，要求下一次 Timing Gate 直接 continue。"""
 
         trigger_reason = "@消息" if is_at else "提及消息" if is_mentioned else "触发消息"
-        was_armed = self._force_continue_until_reply
-        self._force_continue_until_reply = True
-        self._force_continue_trigger_message_id = message.message_id
-        self._force_continue_trigger_reason = trigger_reason
+        was_armed = self._force_next_timing_continue
+        self._force_next_timing_continue = True
+        self._force_next_timing_message_id = message.message_id
+        self._force_next_timing_reason = trigger_reason
 
         if was_armed:
             logger.info(
@@ -337,34 +351,31 @@ class MaisakaHeartFlowChatting:
             return
 
         logger.info(
-            f"{self.log_prefix} 检测到{trigger_reason}，将跳过 Timing Gate 直到成功发送一条 reply；"
+            f"{self.log_prefix} 检测到{trigger_reason}，下一次 Timing Gate 将直接视作 continue；"
             f"消息编号={message.message_id}"
         )
 
-    def _clear_force_continue_until_reply(self) -> None:
-        """在成功发送 reply 后清理强制 continue 状态。"""
+    def _consume_force_next_timing_continue_reason(self) -> str | None:
+        """消费一次性 Timing Gate continue 状态，并返回原因描述。"""
 
-        if not self._force_continue_until_reply:
-            return
+        if not self._force_next_timing_continue:
+            return None
 
-        logger.info(
-            f"{self.log_prefix} 已成功发送 reply，恢复 Timing Gate；"
-            f"触发原因={self._force_continue_trigger_reason or '未知'} "
-            f"触发消息编号={self._force_continue_trigger_message_id or 'unknown'}"
-        )
-        self._force_continue_until_reply = False
-        self._force_continue_trigger_message_id = ""
-        self._force_continue_trigger_reason = ""
-
-    def _build_force_continue_timing_reason(self) -> str:
-        """返回当前强制跳过 Timing Gate 的原因描述。"""
-
-        trigger_reason = self._force_continue_trigger_reason or "@/提及消息"
-        trigger_message_id = self._force_continue_trigger_message_id or "unknown"
-        return (
+        trigger_reason = self._force_next_timing_reason or "@/提及消息"
+        trigger_message_id = self._force_next_timing_message_id or "unknown"
+        reason = (
             f"检测到新的{trigger_reason}（消息编号={trigger_message_id}），"
-            "本轮直接跳过 Timing Gate 并视作 continue，直到成功发送一条 reply。"
+            "本轮直接跳过 Timing Gate 并视作 continue。"
         )
+        logger.info(
+            f"{self.log_prefix} 已结束本次强制 continue，恢复 Timing Gate；"
+            f"触发原因={trigger_reason} "
+            f"触发消息编号={trigger_message_id}"
+        )
+        self._force_next_timing_continue = False
+        self._force_next_timing_message_id = ""
+        self._force_next_timing_reason = ""
+        return reason
 
     def _bind_planner_interrupt_flag(self, interrupt_flag: asyncio.Event) -> None:
         """绑定当前可打断请求使用的中断标记。"""
@@ -426,6 +437,7 @@ class MaisakaHeartFlowChatting:
 
         selected_history, _ = MaisakaChatLoopService.select_llm_context_messages(
             self._chat_history,
+            request_kind=request_kind,
             max_context_size=context_message_limit,
         )
         sub_agent_history = list(selected_history)
@@ -447,11 +459,133 @@ class MaisakaHeartFlowChatting:
             tool_definitions=[] if tool_definitions is None else tool_definitions,
         )
 
+    def set_current_action_tool_names(self, tool_names: Sequence[str]) -> None:
+        """记录当前 Action Loop 已实际暴露给 planner 的工具名集合。"""
+
+        self._current_action_tool_names = {tool_name for tool_name in tool_names if str(tool_name).strip()}
+
+    def is_action_tool_currently_available(self, tool_name: str) -> bool:
+        """判断指定工具在当前 Action Loop 轮次中是否真实可用。"""
+
+        normalized_name = str(tool_name).strip()
+        return bool(normalized_name) and normalized_name in self._current_action_tool_names
+
+    def update_deferred_tool_specs(self, deferred_tool_specs: Sequence[ToolSpec]) -> None:
+        """刷新当前会话的 deferred tools 池，并清理失效的已发现工具。"""
+
+        next_specs_by_name: dict[str, ToolSpec] = {}
+        for tool_spec in deferred_tool_specs:
+            normalized_name = tool_spec.name.strip()
+            if not normalized_name:
+                continue
+            next_specs_by_name[normalized_name] = tool_spec
+
+        self.deferred_tool_specs_by_name = next_specs_by_name
+        self.discovered_tool_names.intersection_update(next_specs_by_name.keys())
+
+    def get_discovered_deferred_tool_specs(self) -> list[ToolSpec]:
+        """返回当前会话中已发现、且仍然有效的 deferred tools。"""
+
+        return [
+            tool_spec
+            for tool_name, tool_spec in self.deferred_tool_specs_by_name.items()
+            if tool_name in self.discovered_tool_names
+        ]
+
+    def build_deferred_tools_reminder(self) -> str:
+        """构造供 planner 使用的 deferred tools 提示消息。"""
+
+        undiscovered_tool_specs = [
+            tool_spec
+            for tool_name, tool_spec in self.deferred_tool_specs_by_name.items()
+            if tool_name not in self.discovered_tool_names
+        ]
+        if not undiscovered_tool_specs:
+            return ""
+
+        tool_lines: list[str] = []
+        for index, tool_spec in enumerate(undiscovered_tool_specs, start=1):
+            tool_name = tool_spec.name.strip()
+            tool_description = tool_spec.brief_description.strip()
+            if tool_description:
+                tool_lines.append(f"{index}. {tool_name}: {tool_description}")
+            else:
+                tool_lines.append(f"{index}. {tool_name}")
+
+        reminder_lines = [
+            "<system-reminder>",
+            "以下工具当前未直接暴露给你，但可以通过 tool_search 工具发现并在后续轮次中使用：",
+            *tool_lines,
+            "",
+            "如需其中某个工具，请先调用 tool_search。tool_search 只负责发现工具，不直接执行业务。",
+            "</system-reminder>",
+        ]
+        return "\n".join(reminder_lines)
+
+    def search_deferred_tool_specs(
+        self,
+        query: str,
+        *,
+        limit: int,
+    ) -> list[ToolSpec]:
+        """按名称或简要描述搜索 deferred tools。"""
+
+        normalized_query = " ".join(query.lower().split()).strip()
+        if not normalized_query:
+            return []
+
+        scored_matches: list[tuple[int, str, ToolSpec]] = []
+        query_terms = [term for term in normalized_query.replace("_", " ").replace("-", " ").split() if term]
+        for tool_name, tool_spec in self.deferred_tool_specs_by_name.items():
+            lower_name = tool_name.lower()
+            lower_description = tool_spec.brief_description.lower()
+            score = 0
+
+            if normalized_query == lower_name:
+                score += 1000
+            if lower_name.startswith(normalized_query):
+                score += 300
+            if normalized_query in lower_name:
+                score += 200
+            if normalized_query in lower_description:
+                score += 100
+
+            for query_term in query_terms:
+                if query_term in lower_name:
+                    score += 25
+                if query_term in lower_description:
+                    score += 10
+
+            if score <= 0:
+                continue
+
+            scored_matches.append((score, tool_name, tool_spec))
+
+        scored_matches.sort(key=lambda item: (-item[0], item[1]))
+        return [tool_spec for _, _, tool_spec in scored_matches[: max(1, limit)]]
+
+    def discover_deferred_tools(self, tool_names: Sequence[str]) -> list[str]:
+        """将指定 deferred tools 标记为已发现，并返回本次新发现的工具名。"""
+
+        newly_discovered_tool_names: list[str] = []
+        for raw_tool_name in tool_names:
+            normalized_name = str(raw_tool_name).strip()
+            if not normalized_name or normalized_name not in self.deferred_tool_specs_by_name:
+                continue
+            if normalized_name in self.discovered_tool_names:
+                continue
+            self.discovered_tool_names.add(normalized_name)
+            newly_discovered_tool_names.append(normalized_name)
+        return newly_discovered_tool_names
+
     def _has_pending_messages(self) -> bool:
         return self._last_processed_index < len(self.message_cache)
 
     def _schedule_message_turn(self) -> None:
         """为当前待处理消息安排一次内部 turn。"""
+        if self._agent_state == self._STATE_WAIT:
+            return
+
         if not self._has_pending_messages() or self._message_turn_scheduled:
             return
 
@@ -531,8 +665,9 @@ class MaisakaHeartFlowChatting:
     def _enter_wait_state(self, seconds: Optional[float] = None, tool_call_id: Optional[str] = None) -> None:
         """切换到等待状态。"""
         self._agent_state = self._STATE_WAIT
-        self._wait_until = None if seconds is None else time.time() + seconds
         self._pending_wait_tool_call_id = tool_call_id
+        self._message_turn_scheduled = False
+        self._cancel_deferred_message_turn_task()
         self._cancel_wait_timeout_task()
         if seconds is not None:
             self._wait_timeout_task = asyncio.create_task(
@@ -542,7 +677,6 @@ class MaisakaHeartFlowChatting:
     def _enter_stop_state(self) -> None:
         """切换到停止状态。"""
         self._agent_state = self._STATE_STOP
-        self._wait_until = None
         self._pending_wait_tool_call_id = None
         self._cancel_wait_timeout_task()
 
@@ -567,7 +701,6 @@ class MaisakaHeartFlowChatting:
 
             logger.info(f"{self.log_prefix} Maisaka 等待已超时")
             self._agent_state = self._STATE_RUNNING
-            self._wait_until = None
             await self._internal_turn_queue.put("timeout")
         except asyncio.CancelledError:
             return
@@ -616,7 +749,7 @@ class MaisakaHeartFlowChatting:
         return True
 
     async def _trigger_expression_learning(self, messages: list[SessionMessage]) -> None:
-        """?????????????????"""
+        """触发表达方式学习"""
         pending_count = self._expression_learner.get_pending_count(self.message_cache)
         if not self._should_trigger_learning(
             enabled=self._enable_expression_learning,
@@ -629,21 +762,21 @@ class MaisakaHeartFlowChatting:
 
         self._last_expression_extraction_time = time.time()
         logger.info(
-            f"{self.log_prefix} ??????: "
-            f"??????={len(messages)} ??????={pending_count} "
-            f"?????={len(self.message_cache)} "
-            f"??????={self._enable_jargon_learning}"
+            f"{self.log_prefix} 触发表达方式学习: "
+            f"消息数量={len(messages)} 待处理消息数量={pending_count} "
+            f"缓存总量={len(self.message_cache)} "
+            f"是否启用黑话学习={self._enable_jargon_learning}"
         )
 
         try:
             jargon_miner = self._jargon_miner if self._enable_jargon_learning else None
             learnt_style = await self._expression_learner.learn(self.message_cache, jargon_miner)
             if learnt_style:
-                logger.info(f"{self.log_prefix} ???????")
+                logger.info(f"{self.log_prefix} 表达方式学习成功")
             else:
-                logger.debug(f"{self.log_prefix} ???????????????")
+                logger.debug(f"{self.log_prefix} 表达方式学习失败")
         except Exception:
-            logger.exception(f"{self.log_prefix} ??????")
+            logger.exception(f"{self.log_prefix} 表达方式学习异常")
 
     async def _init_mcp(self) -> None:
         """初始化 MCP 工具并注册到统一工具层。"""
@@ -655,12 +788,12 @@ class MaisakaHeartFlowChatting:
             host_callbacks=self._mcp_host_bridge.build_callbacks(),
         )
         if self._mcp_manager is None:
-            logger.info(f"{self.log_prefix} MCP 管理器不可用")
+            logger.info(f"{self.log_prefix} Maisaka MCP 管理器不可用")
             return
 
         mcp_tool_specs = self._mcp_manager.get_tool_specs()
         if not mcp_tool_specs:
-            logger.info(f"{self.log_prefix} 没有可供 Maisaka 使用的 MCP 工具")
+            logger.info(f"{self.log_prefix} Maisaka 没有可供使用的 MCP 工具")
             return
 
         self._tool_registry.register_provider(MCPToolProvider(self._mcp_manager))
@@ -694,6 +827,7 @@ class MaisakaHeartFlowChatting:
         self,
         *,
         cycle_id: Optional[int] = None,
+        time_records: Optional[dict[str, float]] = None,
         timing_selected_history_count: Optional[int] = None,
         timing_prompt_tokens: Optional[int] = None,
         timing_action: str = "",
@@ -709,6 +843,7 @@ class MaisakaHeartFlowChatting:
         planner_tool_results: Optional[list[str]] = None,
         planner_tool_detail_results: Optional[list[dict[str, Any]]] = None,
         planner_prompt_section: Optional[RenderableType] = None,
+        planner_extra_lines: Optional[list[str]] = None,
     ) -> None:
         """在终端展示当前聊天流本轮 cycle 的最终结果。"""
         if not global_config.debug.show_maisaka_thinking:
@@ -721,6 +856,7 @@ class MaisakaHeartFlowChatting:
         if cycle_id is not None:
             body_lines.append(f"循环编号：{cycle_id}")
 
+        panel_subtitle = self._build_cycle_time_records_text(time_records or {})
         renderables: list[RenderableType] = [Text("\n".join(body_lines))]
         timing_panel = self._build_cycle_stage_panel(
             title="Timing Gate",
@@ -728,14 +864,21 @@ class MaisakaHeartFlowChatting:
             selected_history_count=timing_selected_history_count,
             prompt_tokens=timing_prompt_tokens,
             response_text=timing_response,
-            tool_calls=timing_tool_calls,
-            tool_results=timing_tool_results,
-            tool_detail_results=timing_tool_detail_results,
             prompt_section=timing_prompt_section,
             extra_lines=[f"门控动作：{timing_action}"] if timing_action.strip() else None,
         )
         if timing_panel is not None:
             renderables.append(timing_panel)
+
+        timing_tool_cards = self._build_tool_activity_cards(
+            stage_title="Timing Tool",
+            tool_calls=timing_tool_calls,
+            tool_results=timing_tool_results,
+            tool_detail_results=timing_tool_detail_results,
+            planner_style=False,
+        )
+        if timing_tool_cards:
+            renderables.extend(timing_tool_cards)
 
         planner_panel = self._build_cycle_stage_panel(
             title="Planner",
@@ -743,18 +886,27 @@ class MaisakaHeartFlowChatting:
             selected_history_count=planner_selected_history_count,
             prompt_tokens=planner_prompt_tokens,
             response_text=planner_response,
-            tool_calls=planner_tool_calls,
-            tool_results=planner_tool_results,
-            tool_detail_results=planner_tool_detail_results,
             prompt_section=planner_prompt_section,
+            extra_lines=planner_extra_lines,
         )
         if planner_panel is not None:
             renderables.append(planner_panel)
+
+        planner_tool_cards = self._build_tool_activity_cards(
+            stage_title="Planner Tool",
+            tool_calls=planner_tool_calls,
+            tool_results=planner_tool_results,
+            tool_detail_results=planner_tool_detail_results,
+            planner_style=True,
+        )
+        if planner_tool_cards:
+            renderables.extend(planner_tool_cards)
 
         console.print(
             Panel(
                 Group(*renderables),
                 title="MaiSaka 循环",
+                subtitle=panel_subtitle,
                 border_style="bright_blue",
                 padding=(0, 1),
             )
@@ -768,9 +920,6 @@ class MaisakaHeartFlowChatting:
         selected_history_count: Optional[int],
         prompt_tokens: Optional[int],
         response_text: str = "",
-        tool_calls: Optional[list[Any]] = None,
-        tool_results: Optional[list[str]] = None,
-        tool_detail_results: Optional[list[dict[str, Any]]] = None,
         prompt_section: Optional[RenderableType] = None,
         extra_lines: Optional[list[str]] = None,
     ) -> Optional[Panel]:
@@ -780,9 +929,6 @@ class MaisakaHeartFlowChatting:
             selected_history_count is not None,
             prompt_tokens is not None,
             bool(response_text.strip()),
-            bool(tool_calls),
-            bool(tool_results),
-            bool(tool_detail_results),
             prompt_section is not None,
             bool(extra_lines),
         ])
@@ -809,39 +955,10 @@ class MaisakaHeartFlowChatting:
                 Panel(
                     Text(normalized_response),
                     title="Maisaka 返回",
-                    border_style="green",
+                    border_style=border_style,
                     padding=(0, 1),
                 )
             )
-
-        normalized_tool_calls = build_tool_call_summary_lines(tool_calls or [])
-        if normalized_tool_calls:
-            renderables.append(
-                Panel(
-                    Text("\n".join(normalized_tool_calls)),
-                    title="工具调用",
-                    border_style="magenta",
-                    padding=(0, 1),
-                )
-            )
-
-        normalized_tool_results = self._filter_redundant_tool_results(
-            tool_results=tool_results or [],
-            tool_detail_results=tool_detail_results or [],
-        )
-        if normalized_tool_results:
-            renderables.append(
-                Panel(
-                    Text("\n".join(normalized_tool_results)),
-                    title="工具结果",
-                    border_style="yellow",
-                    padding=(0, 1),
-                )
-            )
-
-        detail_panels = self._build_tool_detail_panels(tool_detail_results or [])
-        if detail_panels:
-            renderables.extend(detail_panels)
 
         return Panel(
             Group(*renderables),
@@ -849,6 +966,75 @@ class MaisakaHeartFlowChatting:
             border_style=border_style,
             padding=(0, 1),
         )
+
+    def _build_tool_activity_cards(
+        self,
+        *,
+        stage_title: str,
+        tool_calls: Optional[list[Any]] = None,
+        tool_results: Optional[list[str]] = None,
+        tool_detail_results: Optional[list[dict[str, Any]]] = None,
+        planner_style: bool = False,
+    ) -> list[RenderableType]:
+        """构建与阶段同级的工具执行卡片列表。"""
+
+        detail_results = tool_detail_results or []
+        cards = self._build_tool_detail_cards(
+            detail_results,
+            stage_title=stage_title,
+            planner_style=planner_style,
+        )
+        if cards:
+            return cards
+
+        # 兼容旧数据结构：若尚无 detail，则降级为简单文本卡片。
+        fallback_lines = self._filter_redundant_tool_results(
+            tool_results=tool_results or [],
+            tool_detail_results=detail_results,
+        )
+        if not fallback_lines and tool_calls:
+            fallback_lines = build_tool_call_summary_lines(tool_calls)
+        if not fallback_lines:
+            return []
+
+        fallback_border_style = "yellow"
+        return [
+            Panel(
+                Text("\n".join(fallback_lines)),
+                title=stage_title,
+                border_style=fallback_border_style,
+                padding=(0, 1),
+            )
+        ]
+
+    @staticmethod
+    def _build_cycle_time_records_text(time_records: dict[str, float]) -> str:
+        """构建循环最外层面板展示的阶段耗时文本。"""
+
+        if not time_records:
+            return "流程耗时：无"
+
+        label_map = {
+            "timing_gate": "Timing Gate",
+            "planner": "Planner",
+            "tool_calls": "工具执行",
+        }
+        ordered_keys = ["timing_gate", "planner", "tool_calls"]
+
+        parts: list[str] = []
+        for key in ordered_keys:
+            duration = time_records.get(key)
+            if isinstance(duration, (int, float)):
+                parts.append(f"{label_map.get(key, key)} {float(duration):.2f} s")
+
+        for key, duration in time_records.items():
+            if key in ordered_keys or not isinstance(duration, (int, float)):
+                continue
+            parts.append(f"{label_map.get(key, key)} {float(duration):.2f} s")
+
+        if not parts:
+            return "流程耗时：无"
+        return "流程耗时：" + " | ".join(parts)
 
     @staticmethod
     def _filter_redundant_tool_results(
@@ -941,7 +1127,9 @@ class MaisakaHeartFlowChatting:
         *,
         tool_name: str,
         prompt_text: str,
+        request_messages: Optional[list[Any]] = None,
         tool_call_id: str,
+        border_style: str = "bright_yellow",
     ) -> Panel:
         """将工具 prompt 渲染为可点击查看的预览入口。"""
 
@@ -949,6 +1137,26 @@ class MaisakaHeartFlowChatting:
         subtitle = f"会话ID: {self.session_id}"
         if tool_call_id:
             subtitle += f"\n调用ID: {tool_call_id}"
+
+        if isinstance(request_messages, list) and request_messages:
+            try:
+                normalized_messages = deserialize_prompt_messages(request_messages)
+            except Exception as exc:
+                logger.warning(f"工具 {tool_name} 的 request_messages 无法反序列化，已回退为文本预览: {exc}")
+            else:
+                return Panel(
+                    PromptCLIVisualizer.build_prompt_access_panel(
+                        normalized_messages,
+                        category=labels["prompt_category"],
+                        chat_id=self.session_id,
+                        request_kind=labels["request_kind"],
+                        selection_reason=subtitle,
+                        image_display_mode="path_link" if global_config.maisaka.show_image_path else "legacy",
+                    ),
+                    title=labels["prompt_title"],
+                    border_style=border_style,
+                    padding=(0, 1),
+                )
 
         return Panel(
             PromptCLIVisualizer.build_text_access_panel(
@@ -959,116 +1167,235 @@ class MaisakaHeartFlowChatting:
                 subtitle=subtitle,
             ),
             title=labels["prompt_title"],
-            border_style="bright_yellow",
+            border_style=border_style,
             padding=(0, 1),
         )
 
-    def _build_tool_detail_panels(self, tool_detail_results: list[dict[str, Any]]) -> list[RenderableType]:
-        """将 tool monitor detail 渲染为 CLI 详情卡片。"""
+    def _normalize_tool_card_body_lines(self, body: Any) -> list[str]:
+        """将工具卡片正文规范化为行列表。"""
+
+        if isinstance(body, str):
+            return [line for line in body.splitlines() if line.strip()]
+        if isinstance(body, list):
+            return [
+                str(item).strip()
+                for item in body
+                if str(item).strip()
+            ]
+        return []
+
+    def _build_custom_tool_sub_cards(
+        self,
+        sub_cards: Any,
+        *,
+        default_border_style: str,
+    ) -> list[RenderableType]:
+        """构建工具自定义子卡片。"""
+
+        if not isinstance(sub_cards, list):
+            return []
+
+        renderables: list[RenderableType] = []
+        for sub_card in sub_cards:
+            if not isinstance(sub_card, dict):
+                continue
+            title = str(sub_card.get("title") or "").strip() or "附加信息"
+            border_style = str(sub_card.get("border_style") or "").strip() or default_border_style
+            body_lines = self._normalize_tool_card_body_lines(
+                sub_card.get("body_lines", sub_card.get("content", ""))
+            )
+            if not body_lines:
+                continue
+            renderables.append(
+                Panel(
+                    Text("\n".join(body_lines)),
+                    title=title,
+                    border_style=border_style,
+                    padding=(0, 1),
+                )
+            )
+        return renderables
+
+    def _build_default_tool_detail_parts(
+        self,
+        *,
+        tool_name: str,
+        tool_call_id: str,
+        tool_args: Any,
+        summary: str,
+        duration_ms: Any,
+        detail: dict[str, Any],
+        planner_style: bool,
+    ) -> list[RenderableType]:
+        """构建工具卡片默认内容块。"""
+
+        argument_border_style = "yellow"
+        metrics_border_style = "bright_yellow"
+        prompt_border_style = "bright_yellow"
+        reasoning_border_style = "yellow"
+        output_border_style = "bright_yellow"
+        extra_info_border_style = "yellow"
+        detail_labels = self._get_tool_detail_labels(tool_name)
+
+        parts: list[RenderableType] = []
+        header_lines: list[str] = []
+        if summary:
+            header_lines.append(summary)
+        if tool_call_id:
+            header_lines.append(f"调用ID：{tool_call_id}")
+        if isinstance(duration_ms, (int, float)):
+            header_lines.append(f"执行耗时：{round(float(duration_ms), 2)} ms")
+        if header_lines:
+            parts.append(Text("\n".join(header_lines)))
+
+        if isinstance(tool_args, dict) and tool_args:
+            parts.append(
+                Panel(
+                    Pretty(tool_args, expand_all=True),
+                    title="工具参数",
+                    border_style=argument_border_style,
+                    padding=(0, 1),
+                )
+            )
+
+        metrics = detail.get("metrics")
+        if isinstance(metrics, dict):
+            metrics_text = self._build_tool_metrics_text(metrics)
+            if metrics_text:
+                parts.append(
+                    Panel(
+                        Text(metrics_text),
+                        title="执行指标",
+                        border_style=metrics_border_style,
+                        padding=(0, 1),
+                    )
+                )
+
+        prompt_text = str(detail.get("prompt_text") or "").strip()
+        if prompt_text:
+            parts.append(
+                self._build_tool_prompt_access_panel(
+                    tool_name=tool_name,
+                    prompt_text=prompt_text,
+                    request_messages=detail.get("request_messages") if isinstance(detail.get("request_messages"), list) else None,
+                    tool_call_id=tool_call_id,
+                    border_style=prompt_border_style,
+                )
+            )
+
+        reasoning_text = str(detail.get("reasoning_text") or "").strip()
+        if reasoning_text:
+            parts.append(
+                Panel(
+                    Text(reasoning_text),
+                    title=detail_labels["reasoning_title"],
+                    border_style=reasoning_border_style,
+                    padding=(0, 1),
+                )
+            )
+
+        output_text = str(detail.get("output_text") or "").strip()
+        if output_text:
+            parts.append(
+                Panel(
+                    Text(output_text),
+                    title=detail_labels["output_title"],
+                    border_style=output_border_style,
+                    padding=(0, 1),
+                )
+            )
+
+        extra_sections = detail.get("extra_sections")
+        if isinstance(extra_sections, list):
+            for section in extra_sections:
+                if not isinstance(section, dict):
+                    continue
+                section_title = str(section.get("title") or "").strip() or "附加信息"
+                section_content = str(section.get("content") or "").strip()
+                if not section_content:
+                    continue
+                parts.append(
+                    Panel(
+                        Text(section_content),
+                        title=section_title,
+                        border_style=extra_info_border_style,
+                        padding=(0, 1),
+                    )
+                )
+
+        return parts
+
+    def _build_tool_detail_cards(
+        self,
+        tool_detail_results: list[dict[str, Any]],
+        *,
+        stage_title: str,
+        planner_style: bool = False,
+    ) -> list[RenderableType]:
+        """将 tool monitor detail 渲染为与 Planner/Timing 平级的工具卡片。"""
+
+        detail_panel_border_style = "yellow"
+        sub_card_border_style = "bright_yellow"
 
         panels: list[RenderableType] = []
         for tool_result in tool_detail_results:
             detail = tool_result.get("detail")
-            if not isinstance(detail, dict) or not detail:
-                continue
-
+            detail_dict = detail if isinstance(detail, dict) else {}
             tool_name = str(tool_result.get("tool_name") or "unknown").strip() or "unknown"
-            detail_labels = self._get_tool_detail_labels(tool_name)
+            tool_title = str(tool_result.get("tool_title") or "").strip() or tool_name
             tool_call_id = str(tool_result.get("tool_call_id") or "").strip()
             tool_args = tool_result.get("tool_args")
             summary = str(tool_result.get("summary") or "").strip()
             duration_ms = tool_result.get("duration_ms")
+            custom_card = tool_result.get("card")
 
             parts: list[RenderableType] = []
-            header_lines: list[str] = []
-            if summary:
-                header_lines.append(summary)
-            if tool_call_id:
-                header_lines.append(f"调用ID：{tool_call_id}")
-            if isinstance(duration_ms, (int, float)):
-                header_lines.append(f"执行耗时：{round(float(duration_ms), 2)} ms")
-            if header_lines:
-                parts.append(Text("\n".join(header_lines)))
-
-            if isinstance(tool_args, dict) and tool_args:
-                parts.append(
-                    Panel(
-                        Pretty(tool_args, expand_all=True),
-                        title="工具参数",
-                        border_style="cyan",
-                        padding=(0, 1),
-                    )
+            custom_title = ""
+            card_border_style = detail_panel_border_style
+            replace_default_children = False
+            if isinstance(custom_card, dict):
+                custom_title = str(custom_card.get("title") or "").strip()
+                card_border_style = str(custom_card.get("border_style") or "").strip() or detail_panel_border_style
+                replace_default_children = bool(custom_card.get("replace_default_children", False))
+                custom_body_lines = self._normalize_tool_card_body_lines(
+                    custom_card.get("body_lines", custom_card.get("content", ""))
                 )
+                if custom_body_lines:
+                    parts.append(Text("\n".join(custom_body_lines)))
 
-            metrics = detail.get("metrics")
-            if isinstance(metrics, dict):
-                metrics_text = self._build_tool_metrics_text(metrics)
-                if metrics_text:
-                    parts.append(
-                        Panel(
-                            Text(metrics_text),
-                            title="执行指标",
-                            border_style="bright_cyan",
-                            padding=(0, 1),
-                        )
-                    )
-
-            prompt_text = str(detail.get("prompt_text") or "").strip()
-            if prompt_text:
-                parts.append(
-                    self._build_tool_prompt_access_panel(
+            if not replace_default_children:
+                parts.extend(
+                    self._build_default_tool_detail_parts(
                         tool_name=tool_name,
-                        prompt_text=prompt_text,
                         tool_call_id=tool_call_id,
+                        tool_args=tool_args,
+                        summary=summary,
+                        duration_ms=duration_ms,
+                        detail=detail_dict,
+                        planner_style=planner_style,
                     )
                 )
 
-            reasoning_text = str(detail.get("reasoning_text") or "").strip()
-            if reasoning_text:
-                parts.append(
-                    Panel(
-                        Text(reasoning_text),
-                        title=detail_labels["reasoning_title"],
-                        border_style="magenta",
-                        padding=(0, 1),
+            if isinstance(custom_card, dict):
+                parts.extend(
+                    self._build_custom_tool_sub_cards(
+                        custom_card.get("sub_cards"),
+                        default_border_style=sub_card_border_style,
                     )
                 )
-
-            output_text = str(detail.get("output_text") or "").strip()
-            if output_text:
-                parts.append(
-                    Panel(
-                        Text(output_text),
-                        title=detail_labels["output_title"],
-                        border_style="green",
-                        padding=(0, 1),
-                    )
+            parts.extend(
+                self._build_custom_tool_sub_cards(
+                    tool_result.get("sub_cards"),
+                    default_border_style=sub_card_border_style,
                 )
-
-            extra_sections = detail.get("extra_sections")
-            if isinstance(extra_sections, list):
-                for section in extra_sections:
-                    if not isinstance(section, dict):
-                        continue
-                    section_title = str(section.get("title") or "").strip() or "附加信息"
-                    section_content = str(section.get("content") or "").strip()
-                    if not section_content:
-                        continue
-                    parts.append(
-                        Panel(
-                            Text(section_content),
-                            title=section_title,
-                            border_style="white",
-                            padding=(0, 1),
-                        )
-                    )
+            )
 
             if parts:
                 panels.append(
                     Panel(
                         Group(*parts),
-                        title=f"{tool_name} 工具详情",
-                        border_style="yellow",
+                        title=custom_title or f"{stage_title} · {tool_title}",
+                        border_style=card_border_style,
                         padding=(0, 1),
                     )
                 )

@@ -14,7 +14,6 @@ from src.llm_models.payload_content.resp_format import RespFormat
 from src.llm_models.payload_content.tool_option import ToolCall, ToolDefinitionInput
 
 if TYPE_CHECKING:
-    from src.llm_models.model_client.base_client import BaseClient
     from src.llm_models.payload_content.message import Message
 
 
@@ -24,7 +23,7 @@ PromptMessage: TypeAlias = Dict[str, Any]
 PromptInput: TypeAlias = str | List[PromptMessage]
 """统一的提示输入类型。"""
 
-MessageFactory: TypeAlias = Callable[["BaseClient"], List["Message"]]
+MessageFactory: TypeAlias = Callable[..., List["Message"]]
 """统一的消息工厂类型。"""
 
 

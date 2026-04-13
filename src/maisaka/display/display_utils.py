@@ -4,14 +4,15 @@ from typing import Any
 
 
 _REQUEST_PANEL_STYLE_MAP: dict[str, tuple[str, str]] = {
-    "timing_gate": ("\u004d\u0061\u0069\u0053\u0061\u006b\u0061 \u5927\u6a21\u578b\u8bf7\u6c42 - Timing Gate \u5b50\u4ee3\u7406", "bright_magenta"),
-    "replyer": ("\u004d\u0061\u0069\u0053\u0061\u006b\u0061 \u56de\u590d\u5668 Prompt", "bright_yellow"),
+    "planner": ("MaiSaka 大模型请求 - 对话单步", "green"),
+    "timing_gate": ("MaiSaka 大模型请求 - Timing Gate 子代理", "bright_magenta"),
+    "replyer": ("MaiSaka 回复器 Prompt", "bright_yellow"),
     "emotion": ("MaiSaka Emotion Tool Prompt", "bright_cyan"),
-    "sub_agent": ("\u004d\u0061\u0069\u0053\u0061\u006b\u0061 \u5927\u6a21\u578b\u8bf7\u6c42 - \u5b50\u4ee3\u7406", "bright_blue"),
+    "sub_agent": ("MaiSaka 大模型请求 - 子代理", "bright_blue"),
 }
 
 _DEFAULT_REQUEST_PANEL_STYLE: tuple[str, str] = (
-    "\u004d\u0061\u0069\u0053\u0061\u006b\u0061 \u5927\u6a21\u578b\u8bf7\u6c42 - \u5bf9\u8bdd\u5355\u6b65",
+    "MaiSaka 大模型请求 - 对话单步",
     "cyan",
 )
 
@@ -23,10 +24,10 @@ _ROLE_BADGE_STYLE_MAP: dict[str, str] = {
 }
 
 _ROLE_BADGE_LABEL_MAP: dict[str, str] = {
-    "system": "\u7cfb\u7edf",
-    "user": "\u7528\u6237",
-    "assistant": "\u52a9\u624b",
-    "tool": "\u5de5\u5177",
+    "system": "系统",
+    "user": "用户",
+    "assistant": "助手",
+    "tool": "工具",
 }
 
 
@@ -54,7 +55,7 @@ def get_role_badge_style(role: str) -> str:
 def get_role_badge_label(role: str) -> str:
     """返回角色标签对应的展示文案。"""
 
-    return _ROLE_BADGE_LABEL_MAP.get(role, "\u672a\u77e5")
+    return _ROLE_BADGE_LABEL_MAP.get(role, "未知")
 
 
 def format_tool_call_for_display(tool_call: Any) -> dict[str, Any]:

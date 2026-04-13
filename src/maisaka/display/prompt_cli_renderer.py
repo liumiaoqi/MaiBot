@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Literal
-from urllib.parse import quote
 
 import hashlib
 import html
@@ -27,10 +26,10 @@ from .display_utils import (
     get_role_badge_label as get_shared_role_badge_label,
     get_role_badge_style as get_shared_role_badge_style,
 )
+from .preview_path_utils import build_display_path, build_file_uri, REPO_ROOT
 from .prompt_preview_logger import PromptPreviewLogger
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent.absolute().resolve()
-DATA_IMAGE_DIR = PROJECT_ROOT / "data" / "images"
+DATA_IMAGE_DIR = REPO_ROOT / "data" / "images"
 
 
 class PromptImageDisplayMode(str, Enum):
@@ -116,11 +115,6 @@ class PromptCLIVisualizer:
         return root / f"{digest}.{image_format}"
 
     @staticmethod
-    def _build_file_uri(file_path: Path) -> str:
-        normalized = file_path.resolve().as_posix()
-        return f"file:///{quote(normalized, safe='/:')}"
-
-    @staticmethod
     def _build_official_image_path(image_format: str, image_base64: str) -> Path | None:
         normalized_format = PromptCLIVisualizer._normalize_image_format(image_format)
         try:
@@ -140,7 +134,7 @@ class PromptCLIVisualizer:
         normalized_format = PromptCLIVisualizer._normalize_image_format(image_format) or "bin"
         official_path = PromptCLIVisualizer._build_official_image_path(image_format, image_base64)
         if official_path is not None:
-            return PromptCLIVisualizer._build_file_uri(official_path), official_path
+            return build_file_uri(official_path), official_path
 
         try:
             image_bytes = b64decode(image_base64)
@@ -153,7 +147,7 @@ class PromptCLIVisualizer:
                 path.write_bytes(image_bytes)
             except Exception:
                 return None
-        return PromptCLIVisualizer._build_file_uri(path), path
+        return build_file_uri(path), path
 
     @classmethod
     def _render_image_item(cls, image_format: str, image_base64: str, settings: PromptImageDisplaySettings) -> Panel:
@@ -169,8 +163,9 @@ class PromptCLIVisualizer:
             path_result = cls._build_image_file_link(image_format, image_base64)
             if path_result is not None:
                 file_uri, file_path = path_result
+                display_path = build_display_path(file_path)
                 preview_parts: List[RenderableType] = [
-                    Text(f"图片格式 image/{normalized_format}  {size_text} 路径：{file_path}", style="magenta")
+                    Text(f"图片格式 image/{normalized_format}  {size_text} 路径：{display_path}", style="magenta")
                 ]
                 
                 preview_parts.append(Text.from_markup(f"[link={file_uri}]点击打开图片[/link]", style="cyan"))
@@ -180,6 +175,16 @@ class PromptCLIVisualizer:
             border_style="magenta",
             padding=(0, 1),
         )
+
+    @staticmethod
+    def _extract_image_pair(item: Any) -> tuple[str, str] | None:
+        """兼容图片片段被序列化为 tuple 或 list 的两种形式。"""
+
+        if isinstance(item, (tuple, list)) and len(item) == 2:
+            image_format, image_base64 = item
+            if isinstance(image_format, str) and isinstance(image_base64, str):
+                return image_format, image_base64
+        return None
 
     @classmethod
     def _render_message_content(cls, content: Any, settings: PromptImageDisplaySettings) -> RenderableType:
@@ -192,11 +197,11 @@ class PromptCLIVisualizer:
                 if isinstance(item, str):
                     parts.append(Text(item))
                     continue
-                if isinstance(item, tuple) and len(item) == 2:
-                    image_format, image_base64 = item
-                    if isinstance(image_format, str) and isinstance(image_base64, str):
-                        parts.append(cls._render_image_item(image_format, image_base64, settings))
-                        continue
+                image_pair = cls._extract_image_pair(item)
+                if image_pair is not None:
+                    image_format, image_base64 = image_pair
+                    parts.append(cls._render_image_item(image_format, image_base64, settings))
+                    continue
                 if isinstance(item, dict) and item.get("type") == "text" and isinstance(item.get("text"), str):
                     parts.append(Text(item["text"]))
                 else:
@@ -218,8 +223,9 @@ class PromptCLIVisualizer:
                 if isinstance(item, str):
                     parts.append(item)
                     continue
-                if isinstance(item, tuple) and len(item) == 2:
-                    image_format, image_base64 = item
+                image_pair = cls._extract_image_pair(item)
+                if image_pair is not None:
+                    image_format, image_base64 = image_pair
                     approx_size = max(0, len(str(image_base64)) * 3 // 4)
                     parts.append(f"[图片 image/{image_format} {approx_size} B]")
                     continue
@@ -241,6 +247,85 @@ class PromptCLIVisualizer:
     @classmethod
     def format_tool_call_for_display(cls, tool_call: Any) -> Dict[str, Any]:
         return normalize_tool_call_for_display(tool_call)
+
+    @classmethod
+    def _build_tool_card_title(cls, tool_call: Any) -> str:
+        """构建 HTML 中工具卡片的折叠标题。"""
+
+        normalized_tool_call = cls.format_tool_call_for_display(tool_call)
+        tool_name = str(normalized_tool_call.get("name") or "").strip()
+        return tool_name or "unknown"
+
+    @classmethod
+    def _build_tool_call_html(cls, tool_call: Any) -> str:
+        """将单个工具调用渲染为默认折叠的 HTML 卡片。"""
+
+        normalized_tool_call = cls.format_tool_call_for_display(tool_call)
+        tool_name = cls._build_tool_card_title(tool_call)
+        tool_call_id = str(normalized_tool_call.get("id") or "").strip()
+        tool_arguments = normalized_tool_call.get("arguments")
+
+        tool_meta_html = ""
+        if tool_call_id:
+            tool_meta_html = (
+                "<div class='tool-card-meta'>"
+                "<span class='tool-card-meta-label'>调用 ID</span>"
+                f"<code>{html.escape(tool_call_id)}</code>"
+                "</div>"
+            )
+
+        return (
+            "<details class='tool-card tool-call-card'>"
+            "<summary class='tool-card-summary'>"
+            f"<span class='tool-card-name'>{html.escape(tool_name)}</span>"
+            "</summary>"
+            "<div class='tool-card-body'>"
+            f"{tool_meta_html}"
+            f"<pre>{html.escape(json.dumps(tool_arguments, ensure_ascii=False, indent=2, default=str))}</pre>"
+            "</div>"
+            "</details>"
+        )
+
+    @classmethod
+    def _extract_tool_definition_fields(cls, tool_definition: dict[str, Any]) -> tuple[str, str, Any]:
+        """提取工具定义中的名称、描述和详情内容。"""
+
+        function_info = tool_definition.get("function")
+        if isinstance(function_info, dict):
+            tool_name = str(function_info.get("name") or "").strip() or "unknown"
+            description = str(function_info.get("description") or "").strip()
+            detail_payload = function_info
+        else:
+            tool_name = str(tool_definition.get("name") or "").strip() or "unknown"
+            description = str(tool_definition.get("description") or "").strip()
+            detail_payload = tool_definition
+        return tool_name, description, detail_payload
+
+    @classmethod
+    def _build_tool_definition_html(cls, tool_definition: dict[str, Any]) -> str:
+        """将单个传入工具定义渲染为默认折叠的 HTML 卡片。"""
+
+        tool_name, description, detail_payload = cls._extract_tool_definition_fields(tool_definition)
+        description_html = ""
+        if description:
+            description_html = (
+                "<div class='tool-card-meta'>"
+                "<span class='tool-card-meta-label'>说明</span>"
+                f"<span>{html.escape(description)}</span>"
+                "</div>"
+            )
+
+        return (
+            "<details class='tool-card tool-definition-card'>"
+            "<summary class='tool-card-summary'>"
+            f"<span class='tool-card-name'>{html.escape(tool_name)}</span>"
+            "</summary>"
+            "<div class='tool-card-body'>"
+            f"{description_html}"
+            f"<pre>{html.escape(json.dumps(detail_payload, ensure_ascii=False, indent=2, default=str))}</pre>"
+            "</div>"
+            "</details>"
+        )
 
     @classmethod
     def _render_tool_call_panel(cls, tool_call: Any, index: int, parent_index: int) -> Panel:
@@ -292,6 +377,20 @@ class PromptCLIVisualizer:
         return "\n\n" + ("\n\n" + ("=" * 80) + "\n\n").join(sections) if sections else "[空 Prompt]"
 
     @classmethod
+    def _build_tool_definition_dump_text(cls, tool_definitions: list[dict[str, Any]] | None) -> str:
+        """构建传入工具定义的文本备份内容。"""
+
+        if not tool_definitions:
+            return ""
+
+        sections: List[str] = ["[tool_definitions]"]
+        for index, tool_definition in enumerate(tool_definitions, start=1):
+            tool_name, _, detail_payload = cls._extract_tool_definition_fields(tool_definition)
+            sections.append(f"[{index}] name={tool_name}")
+            sections.append(json.dumps(detail_payload, ensure_ascii=False, indent=2, default=str))
+        return "\n\n".join(sections).strip()
+
+    @classmethod
     def _render_message_content_html(cls, content: Any) -> str:
         if isinstance(content, str):
             return f"<pre>{html.escape(content)}</pre>"
@@ -302,8 +401,9 @@ class PromptCLIVisualizer:
                 if isinstance(item, str):
                     parts.append(f"<pre>{html.escape(item)}</pre>")
                     continue
-                if isinstance(item, tuple) and len(item) == 2:
-                    image_format, image_base64 = item
+                image_pair = cls._extract_image_pair(item)
+                if image_pair is not None:
+                    image_format, image_base64 = image_pair
                     image_html = cls._render_image_item_html(str(image_format), str(image_base64))
                     parts.append(image_html)
                     continue
@@ -332,12 +432,42 @@ class PromptCLIVisualizer:
             )
 
         file_uri, file_path = path_result
+        display_path = build_display_path(file_path)
         return (
             "<div class='image-card'>"
             f"<div class='image-meta'>图片 image/{html.escape(normalized_format)} {html.escape(size_text)}</div>"
-            f"<div class='image-path'>{html.escape(str(file_path))}</div>"
+            f"<a class='image-preview-link' href='{html.escape(file_uri, quote=True)}'>"
+            f"<img class='image-preview' src='{html.escape(file_uri, quote=True)}' alt='图片预览' />"
+            "</a>"
+            f"<div class='image-path'>{html.escape(display_path)}</div>"
             f"<a class='image-link' href='{html.escape(file_uri, quote=True)}'>打开图片</a>"
             "</div>"
+        )
+
+    @staticmethod
+    def _build_preview_access_body(
+        *,
+        viewer_label: str,
+        viewer_path: Path,
+        viewer_link_text: str,
+        dump_label: str,
+        dump_path: Path,
+        dump_link_text: str,
+    ) -> RenderableType:
+        viewer_uri = build_file_uri(viewer_path)
+        dump_uri = build_file_uri(dump_path)
+        viewer_display_path = build_display_path(viewer_path)
+        dump_display_path = build_display_path(dump_path)
+
+        return Group(
+            Text.from_markup(
+                f"[bold green]{viewer_label}：{viewer_display_path}[/bold green] "
+                f"[link={viewer_uri}]{viewer_link_text}[/link]"
+            ),
+            Text.from_markup(
+                f"[magenta]{dump_label}：{dump_display_path}[/magenta] "
+                f"[cyan][link={dump_uri}]{dump_link_text}[/link][/cyan]"
+            ),
         )
 
     @classmethod
@@ -356,6 +486,7 @@ class PromptCLIVisualizer:
         *,
         request_kind: str,
         selection_reason: str,
+        tool_definitions: list[dict[str, Any]] | None = None,
     ) -> str:
         panel_title, _ = cls.get_request_panel_style(request_kind)
         message_cards: List[str] = []
@@ -378,16 +509,12 @@ class PromptCLIVisualizer:
             tool_panels = ""
             raw_tool_calls = message.get("tool_calls") or []
             if isinstance(raw_tool_calls, list) and raw_tool_calls:
-                tool_items = []
-                for tool_call_index, tool_call in enumerate(raw_tool_calls, start=1):
-                    normalized_tool_call = cls.format_tool_call_for_display(tool_call)
-                    tool_items.append(
-                        "<div class='tool-panel'>"
-                        f"<div class='tool-panel-title'>工具调用 #{index}.{tool_call_index}</div>"
-                        f"<pre>{html.escape(json.dumps(normalized_tool_call, ensure_ascii=False, indent=2, default=str))}</pre>"
-                        "</div>"
-                    )
-                tool_panels = "".join(tool_items)
+                tool_panels = (
+                    "<div class='tool-list'>"
+                    "<div class='tool-list-title'>工具调用</div>"
+                    f"{''.join(cls._build_tool_call_html(tool_call) for tool_call in raw_tool_calls)}"
+                    "</div>"
+                )
 
             message_cards.append(
                 "<section class='message-card'>"
@@ -404,6 +531,21 @@ class PromptCLIVisualizer:
         subtitle_html = ""
         if selection_reason.strip():
             subtitle_html = f"<div class='subtitle'>{html.escape(selection_reason)}</div>"
+
+        tool_definition_section_html = ""
+        if tool_definitions:
+            tool_definition_section_html = (
+                "<section class='message-card tool-definition-section'>"
+                "<div class='message-head'>"
+                "<span class='role-badge tool'>全部工具</span>"
+                f"<span class='message-index'>{len(tool_definitions)} 个</span>"
+                "</div>"
+                "<div class='tool-list'>"
+                "<div class='tool-list-title'>本次送入模型的工具定义</div>"
+                f"{''.join(cls._build_tool_definition_html(tool_definition) for tool_definition in tool_definitions)}"
+                "</div>"
+                "</section>"
+            )
 
         return f"""<!DOCTYPE html>
 <html lang="zh-CN">
@@ -491,7 +633,7 @@ class PromptCLIVisualizer:
       font-weight: 600;
     }}
     .message-content pre,
-    .tool-panel pre {{
+    .tool-card pre {{
       margin: 0;
       white-space: pre-wrap;
       word-break: break-word;
@@ -517,18 +659,81 @@ class PromptCLIVisualizer:
       border-radius: 8px;
       padding: 3px 8px;
     }}
-    .tool-panel {{
+    .tool-list {{
+      margin-top: 14px;
+    }}
+    .tool-list-title {{
+      color: #86198f;
+      font-size: 13px;
+      font-weight: 800;
+      margin-bottom: 10px;
+    }}
+    .tool-card {{
       margin-top: 12px;
       background: #fcf4ff;
       border: 1px solid #f0d7fb;
       border-radius: 14px;
-      padding: 12px 14px;
+      overflow: hidden;
     }}
-    .tool-panel-title {{
-      color: #a21caf;
+    .tool-call-card {{
+      border-color: #ff8700;
+    }}
+    .tool-card:first-of-type {{
+      margin-top: 0;
+    }}
+    .tool-card-summary {{
+      list-style: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 14px;
+      color: #86198f;
       font-size: 13px;
+      font-weight: 800;
+    }}
+    .tool-card-summary::-webkit-details-marker {{
+      display: none;
+    }}
+    .tool-card-summary::after {{
+      content: "展开";
+      color: #a21caf;
+      font-size: 12px;
       font-weight: 700;
-      margin-bottom: 8px;
+    }}
+    .tool-card[open] .tool-card-summary::after {{
+      content: "收起";
+    }}
+    .tool-card-name {{
+      word-break: break-word;
+    }}
+    .tool-card-body {{
+      border-top: 1px solid #f0d7fb;
+      padding: 12px 14px;
+      background: rgba(255, 255, 255, 0.52);
+    }}
+    .tool-call-card .tool-card-body {{
+      border-top-color: #ff8700;
+    }}
+    .tool-card-meta {{
+      margin-bottom: 10px;
+      color: #a21caf;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }}
+    .tool-card-meta-label {{
+      font-weight: 700;
+    }}
+    .tool-card-meta code {{
+      background: #faf5ff;
+      border: 1px solid #e9d5ff;
+      border-radius: 8px;
+      padding: 3px 8px;
+    }}
+    .tool-card pre {{
+      color: #3b0764;
     }}
     .image-card {{
       background: #f8fafc;
@@ -547,6 +752,22 @@ class PromptCLIVisualizer:
       font-family: "Cascadia Mono", "JetBrains Mono", "Consolas", monospace;
       word-break: break-all;
     }}
+    .image-preview-link {{
+      display: block;
+      margin-top: 10px;
+    }}
+    .image-preview {{
+      display: block;
+      max-width: min(100%, 560px);
+      max-height: 420px;
+      width: auto;
+      height: auto;
+      border-radius: 12px;
+      border: 1px solid #dbe4f0;
+      background: #fff;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+      object-fit: contain;
+    }}
     .image-link {{
       display: inline-block;
       margin-top: 8px;
@@ -564,6 +785,7 @@ class PromptCLIVisualizer:
       {subtitle_html}
     </header>
     {''.join(message_cards)}
+    {tool_definition_section_html}
   </main>
 </body>
 </html>"""
@@ -578,6 +800,7 @@ class PromptCLIVisualizer:
         request_kind: str,
         selection_reason: str,
         image_display_mode: Literal["legacy", "path_link"],
+        tool_definitions: list[dict[str, Any]] | None = None,
     ) -> RenderableType:
         """构建用于查看完整 prompt 的折叠入口内容。"""
 
@@ -603,10 +826,14 @@ class PromptCLIVisualizer:
             viewer_messages.append(normalized_message)
 
         prompt_dump_text = cls._build_prompt_dump_text(messages)
+        tool_definition_dump_text = cls._build_tool_definition_dump_text(tool_definitions)
+        if tool_definition_dump_text:
+            prompt_dump_text = f"{prompt_dump_text}\n\n{'=' * 80}\n\n{tool_definition_dump_text}"
         viewer_html_text = cls._build_prompt_viewer_html(
             viewer_messages,
             request_kind=request_kind,
             selection_reason=selection_reason,
+            tool_definitions=tool_definitions,
         )
         saved_paths = PromptPreviewLogger.save_preview_files(
             chat_id,
@@ -618,18 +845,13 @@ class PromptCLIVisualizer:
         )
         viewer_html_path = saved_paths[".html"]
         prompt_dump_path = saved_paths[".txt"]
-        viewer_uri = cls._build_file_uri(viewer_html_path)
-        dump_uri = cls._build_file_uri(prompt_dump_path)
-
-        body = Group(
-            Text.from_markup(
-                f"[bold green]富文本预览：{viewer_html_path}[/bold green] "
-                f"[link={viewer_uri}]点击在浏览器打开富文本 Prompt 视图[/link]"
-            ),
-            Text.from_markup(
-                f"[magenta]原始文本备份：{prompt_dump_path}[/magenta] "
-                f"[cyan][link={dump_uri}]点击直接打开 Prompt 文本[/link][/cyan]"
-            ),
+        body = cls._build_preview_access_body(
+            viewer_label="html预览",
+            viewer_path=viewer_html_path,
+            viewer_link_text="在浏览器打开 Prompt",
+            dump_label="原始文本",
+            dump_path=prompt_dump_path,
+            dump_link_text="点击打开 Prompt 文本",
         )
         return body
 
@@ -644,6 +866,7 @@ class PromptCLIVisualizer:
         selection_reason: str,
         image_display_mode: Literal["legacy", "path_link"],
         folded: bool,
+        tool_definitions: list[dict[str, Any]] | None = None,
     ) -> Panel:
         """构建用于嵌入结果面板中的 Prompt 区块。"""
 
@@ -656,6 +879,7 @@ class PromptCLIVisualizer:
                 request_kind=request_kind,
                 selection_reason=selection_reason,
                 image_display_mode=image_display_mode,
+                tool_definitions=tool_definitions,
             )
         else:
             ordered_panels = cls.build_prompt_panels(
@@ -782,18 +1006,13 @@ class PromptCLIVisualizer:
         )
         viewer_html_path = saved_paths[".html"]
         text_dump_path = saved_paths[".txt"]
-        viewer_uri = cls._build_file_uri(viewer_html_path)
-        dump_uri = cls._build_file_uri(text_dump_path)
-
-        body = Group(
-            Text.from_markup(
-                f"[bold green]富文本预览：{viewer_html_path}[/bold green] "
-                f"[link={viewer_uri}]点击在浏览器打开富文本 Prompt 视图[/link]"
-            ),
-            Text.from_markup(
-                f"[magenta]原始文本备份：{text_dump_path}[/magenta] "
-                f"[cyan][link={dump_uri}]点击直接打开 Prompt 文本[/link][/cyan]"
-            ),
+        body = cls._build_preview_access_body(
+            viewer_label="富文本预览",
+            viewer_path=viewer_html_path,
+            viewer_link_text="点击在浏览器打开富文本 Prompt 视图",
+            dump_label="原始文本备份",
+            dump_path=text_dump_path,
+            dump_link_text="点击直接打开 Prompt 文本",
         )
         return body
 

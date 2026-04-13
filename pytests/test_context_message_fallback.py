@@ -1,0 +1,22 @@
+from src.common.data_models.message_component_data_model import ImageComponent, MessageSequence, TextComponent
+from src.llm_models.payload_content.message import RoleType
+from src.maisaka.context_messages import _build_message_from_sequence
+
+
+def test_image_only_message_keeps_placeholder_in_text_fallback() -> None:
+    message_sequence = MessageSequence(
+        [
+            TextComponent("[时间]19:21:20\n[用户名]William730\n[用户群昵称]\n[msg_id]1385025976\n[发言内容]"),
+            ImageComponent(binary_hash="hash", content=None, binary_data=None),
+        ]
+    )
+
+    message = _build_message_from_sequence(
+        RoleType.User,
+        message_sequence,
+        "[时间]19:21:20\n[用户名]William730\n[用户群昵称]\n[msg_id]1385025976\n[发言内容][图片]",
+    )
+
+    assert message is not None
+    assert "[发言内容]" in message.get_text_content()
+    assert "[图片]" in message.get_text_content()

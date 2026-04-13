@@ -91,10 +91,6 @@ async def handle_tool(
             f"未找到要回复的目标消息，msg_id={target_message_id}",
         )
 
-    logger.info(
-        f"{tool_ctx.runtime.log_prefix} 已触发回复工具，"
-        f"目标消息编号={target_message_id} 引用回复={set_quote} 最新思考={latest_thought!r}"
-    )
     try:
         replyer = replyer_manager.get_replyer(
             chat_stream=tool_ctx.runtime.chat_stream,

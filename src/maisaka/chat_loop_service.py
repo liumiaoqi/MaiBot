@@ -5,20 +5,18 @@ from datetime import datetime
 from typing import Any, List, Optional, Sequence
 
 import asyncio
-import json
 import random
 
-from pydantic import BaseModel, Field as PydanticField
 from rich.console import RenderableType
 from src.common.data_models.llm_service_data_models import LLMGenerationOptions
 from src.common.logger import get_logger
 from src.common.prompt_i18n import load_prompt
 from src.common.utils.utils_session import SessionUtils
 from src.config.config import global_config
-from src.core.tooling import ToolRegistry, ToolSpec
+from src.core.tooling import ToolRegistry
 from src.llm_models.model_client.base_client import BaseClient
 from src.llm_models.payload_content.message import Message, MessageBuilder, RoleType
-from src.llm_models.payload_content.resp_format import RespFormat, RespFormatType
+from src.llm_models.payload_content.resp_format import RespFormat
 from src.llm_models.payload_content.tool_option import ToolCall, ToolDefinitionInput, ToolOption, normalize_tool_options
 from src.plugin_runtime.hook_payloads import (
     deserialize_prompt_messages,
@@ -32,9 +30,11 @@ from src.plugin_runtime.host.hook_spec_registry import HookSpec, HookSpecRegistr
 from src.services.llm_service import LLMServiceClient
 
 from .builtin_tool import get_builtin_tools
-from .context_messages import AssistantMessage, LLMContextMessage
+from .context_messages import AssistantMessage, LLMContextMessage, ToolResultMessage
 from .history_utils import drop_orphan_tool_results
-from .prompt_cli_renderer import PromptCLIVisualizer
+from .display.prompt_cli_renderer import PromptCLIVisualizer
+
+TIMING_GATE_TOOL_NAMES = {"continue", "no_reply", "wait"}
 
 
 @dataclass(slots=True)
@@ -52,13 +52,6 @@ class ChatResponse:
     completion_tokens: int
     total_tokens: int
     prompt_section: Optional[RenderableType] = None
-
-
-class ToolFilterSelection(BaseModel):
-    """工具筛选响应。"""
-
-    selected_tool_names: list[str] = PydanticField(default_factory=list)
-    """经过预筛后保留的候选工具名称列表。"""
 
 
 logger = get_logger("maisaka_chat_loop")
@@ -217,10 +210,6 @@ class MaisakaChatLoopService:
         else:
             self._chat_system_prompt = chat_system_prompt
         self._llm_chat = LLMServiceClient(task_name="planner", request_type="maisaka_planner")
-        self._tool_filter_llm = LLMServiceClient(
-            task_name=global_config.maisaka.tool_filter_task_name,
-            request_type="maisaka_tool_filter",
-        )
 
     @property
     def personality_prompt(self) -> str:
@@ -303,7 +292,14 @@ class MaisakaChatLoopService:
             "file_tools_section": tools_section,
             "group_chat_attention_block": self._build_group_chat_attention_block(),
             "identity": self._personality_prompt,
+            "time_block": self._build_time_block(),
         }
+
+    @staticmethod
+    def _build_time_block() -> str:
+        """构建当前时间提示块。"""
+
+        return f"当前时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
     def _build_group_chat_attention_block(self) -> str:
         """构建当前聊天场景下的额外注意事项块。"""
@@ -399,6 +395,7 @@ class MaisakaChatLoopService:
         self,
         selected_history: List[LLMContextMessage],
         *,
+        injected_user_messages: Sequence[str] | None = None,
         system_prompt: Optional[str] = None,
     ) -> List[Message]:
         """构造发给大模型的消息列表。
@@ -420,254 +417,49 @@ class MaisakaChatLoopService:
             if llm_message is not None:
                 messages.append(llm_message)
 
+        normalized_injected_messages: List[Message] = []
+        for injected_message in injected_user_messages or []:
+            normalized_message = str(injected_message or "").strip()
+            if not normalized_message:
+                continue
+            normalized_injected_messages.append(
+                MessageBuilder()
+                .set_role(RoleType.User)
+                .add_text_content(normalized_message)
+                .build()
+            )
+
+        if normalized_injected_messages:
+            insertion_index = self._resolve_injected_user_messages_insertion_index(messages)
+            messages[insertion_index:insertion_index] = normalized_injected_messages
+
         return messages
 
     @staticmethod
-    def _is_builtin_tool_spec(tool_spec: ToolSpec) -> bool:
-        """判断一个工具是否属于默认内置工具。
+    def _resolve_injected_user_messages_insertion_index(messages: Sequence[Message]) -> int:
+        """计算 injected meta user messages 在请求中的插入位置。
 
-        Args:
-            tool_spec: 待判断的工具声明。
-
-        Returns:
-            bool: 是否为默认内置工具。
+        规则与 deferred attachment 更接近：
+        - 从尾部向前寻找最近的 stopping point；
+        - stopping point 为 assistant 消息或 tool 结果消息；
+        - 找到后插入到其后面；
+        - 若不存在 stopping point，则退回到 system 消息之后。
         """
 
-        return tool_spec.provider_type == "builtin" or tool_spec.provider_name == "maisaka_builtin"
+        for index in range(len(messages) - 1, -1, -1):
+            message = messages[index]
+            if message.role in {RoleType.Assistant, RoleType.Tool}:
+                return index + 1
 
-    @classmethod
-    def _split_builtin_and_candidate_tools(
-        cls,
-        tool_specs: List[ToolSpec],
-    ) -> tuple[List[ToolSpec], List[ToolSpec]]:
-        """拆分内置工具与可筛选工具列表。
-
-        Args:
-            tool_specs: 当前全部工具声明。
-
-        Returns:
-            tuple[List[ToolSpec], List[ToolSpec]]: `(内置工具, 可筛选工具)`。
-        """
-
-        builtin_tool_specs: List[ToolSpec] = []
-        candidate_tool_specs: List[ToolSpec] = []
-        for tool_spec in tool_specs:
-            if cls._is_builtin_tool_spec(tool_spec):
-                builtin_tool_specs.append(tool_spec)
-            else:
-                candidate_tool_specs.append(tool_spec)
-        return builtin_tool_specs, candidate_tool_specs
-
-    @staticmethod
-    def _truncate_tool_filter_text(text: str, max_length: int = 180) -> str:
-        """截断工具筛选阶段展示的文本。
-
-        Args:
-            text: 原始文本。
-            max_length: 最长保留字符数。
-
-        Returns:
-            str: 截断后的文本。
-        """
-
-        normalized_text = text.strip()
-        if len(normalized_text) <= max_length:
-            return normalized_text
-        return f"{normalized_text[: max_length - 1]}…"
-
-    def _build_tool_filter_prompt(
-        self,
-        selected_history: List[LLMContextMessage],
-        candidate_tool_specs: List[ToolSpec],
-        max_keep: int,
-    ) -> str:
-        """构造小模型工具预筛选提示词。
-
-        Args:
-            selected_history: 已选中的对话上下文。
-            candidate_tool_specs: 非内置候选工具列表。
-            max_keep: 最多保留的候选工具数量。
-
-        Returns:
-            str: 用于工具预筛的小模型提示词。
-        """
-
-        history_lines: List[str] = []
-        for message in selected_history[-10:]:
-            plain_text = message.processed_plain_text.strip()
-            if not plain_text:
-                continue
-            history_lines.append(
-                f"- {message.role}: {self._truncate_tool_filter_text(plain_text, max_length=200)}"
-            )
-
-        if history_lines:
-            history_section = "\n".join(history_lines)
-        else:
-            history_section = "- 当前没有可用的对话上下文。"
-
-        tool_lines = [
-            f"- {tool_spec.name}: {tool_spec.brief_description.strip() or '无简要描述'}"
-            for tool_spec in candidate_tool_specs
-        ]
-        tool_section = "\n".join(tool_lines) if tool_lines else "- 当前没有候选工具。"
-
-        return (
-            "你是 Maisaka 的工具预筛选器。\n"
-            "你的任务是在正式进入 planner 前，根据当前情景从候选工具中挑出最可能马上会用到的工具。\n"
-            "默认内置工具已经自动保留，不在候选列表中，你不需要再次选择它们。\n"
-            "你只能参考工具的简要描述，不要假设未描述的隐藏能力。\n"
-            f"最多保留 {max_keep} 个候选工具；如果都不合适，可以返回空数组。\n"
-            "请严格返回 JSON 对象，格式为："
-            '{"selected_tool_names":["工具名1","工具名2"]}\n\n'
-            f"【最近对话】\n{history_section}\n\n"
-            f"【候选工具（仅简要描述）】\n{tool_section}"
-        )
-
-    @staticmethod
-    def _parse_tool_filter_response(
-        response_text: str,
-        candidate_tool_specs: List[ToolSpec],
-        max_keep: int,
-    ) -> List[ToolSpec] | None:
-        """解析工具预筛选响应。
-
-        Args:
-            response_text: 小模型返回的原始文本。
-            candidate_tool_specs: 非内置候选工具列表。
-            max_keep: 最多保留的候选工具数量。
-
-        Returns:
-            List[ToolSpec] | None: 成功解析时返回筛选后的工具列表；解析失败时返回 ``None``。
-        """
-
-        normalized_response = response_text.strip()
-        if not normalized_response:
-            return None
-
-        selected_tool_names: List[str]
-        try:
-            selected_tool_names = ToolFilterSelection.model_validate_json(normalized_response).selected_tool_names
-        except Exception:
-            try:
-                parsed_payload = json.loads(normalized_response)
-            except json.JSONDecodeError:
-                return None
-
-            if isinstance(parsed_payload, dict):
-                raw_tool_names = parsed_payload.get("selected_tool_names", [])
-            elif isinstance(parsed_payload, list):
-                raw_tool_names = parsed_payload
-            else:
-                return None
-
-            if not isinstance(raw_tool_names, list):
-                return None
-
-            selected_tool_names = []
-            for item in raw_tool_names:
-                normalized_name = str(item).strip()
-                if normalized_name:
-                    selected_tool_names.append(normalized_name)
-
-        candidate_map = {tool_spec.name: tool_spec for tool_spec in candidate_tool_specs}
-        filtered_tool_specs: List[ToolSpec] = []
-        seen_names: set[str] = set()
-        for tool_name in selected_tool_names:
-            normalized_name = tool_name.strip()
-            if not normalized_name or normalized_name in seen_names:
-                continue
-            tool_spec = candidate_map.get(normalized_name)
-            if tool_spec is None:
-                continue
-
-            seen_names.add(normalized_name)
-            filtered_tool_specs.append(tool_spec)
-            if len(filtered_tool_specs) >= max_keep:
-                break
-
-        return filtered_tool_specs
-
-    async def _filter_tool_specs_for_planner(
-        self,
-        selected_history: List[LLMContextMessage],
-        tool_specs: List[ToolSpec],
-    ) -> List[ToolSpec]:
-        """在将工具交给 planner 前进行快速预筛选。
-
-        Args:
-            selected_history: 已选中的对话上下文。
-            tool_specs: 当前全部可用工具声明。
-
-        Returns:
-            List[ToolSpec]: 最终交给 planner 的工具声明列表。
-        """
-
-        threshold = max(1, int(global_config.maisaka.tool_filter_threshold))
-        max_keep = max(1, int(global_config.maisaka.tool_filter_max_keep))
-        if len(tool_specs) <= threshold:
-            return tool_specs
-
-        builtin_tool_specs, candidate_tool_specs = self._split_builtin_and_candidate_tools(tool_specs)
-        if not candidate_tool_specs:
-            return tool_specs
-        if len(candidate_tool_specs) <= max_keep:
-            return [*builtin_tool_specs, *candidate_tool_specs]
-
-        filter_prompt = self._build_tool_filter_prompt(selected_history, candidate_tool_specs, max_keep)
-        logger.info(
-            "工具预筛选开始: "
-            f"总工具数={len(tool_specs)} "
-            f"内置工具数={len(builtin_tool_specs)} "
-            f"候选工具数={len(candidate_tool_specs)} "
-            f"最多保留候选数={max_keep}"
-        )
-
-        try:
-            generation_result = await self._tool_filter_llm.generate_response(
-                prompt=filter_prompt,
-                options=LLMGenerationOptions(
-                    temperature=0.0,
-                    max_tokens=256,
-                    response_format=RespFormat(
-                        format_type=RespFormatType.JSON_SCHEMA,
-                        schema=ToolFilterSelection,
-                    ),
-                ),
-            )
-        except Exception as exc:
-            logger.warning(f"工具预筛选失败，保留全部工具。错误={exc}")
-            return tool_specs
-
-        filtered_candidate_tool_specs = self._parse_tool_filter_response(
-            generation_result.response or "",
-            candidate_tool_specs,
-            max_keep,
-        )
-        if filtered_candidate_tool_specs is None:
-            logger.warning(
-                "工具预筛选返回结果无法解析，保留全部工具。"
-                f" 原始返回={generation_result.response or ''!r}"
-            )
-            return tool_specs
-
-        filtered_tool_specs = [*builtin_tool_specs, *filtered_candidate_tool_specs]
-        if not filtered_tool_specs:
-            logger.warning("工具预筛选得到空结果，保留全部工具以避免主流程失去工具能力。")
-            return tool_specs
-
-        logger.info(
-            "工具预筛选完成: "
-            f"筛选前总数={len(tool_specs)} "
-            f"筛选后总数={len(filtered_tool_specs)} "
-            f"保留候选工具={[tool_spec.name for tool_spec in filtered_candidate_tool_specs]}"
-        )
-        return filtered_tool_specs
+        if messages and messages[0].role == RoleType.System:
+            return 1
+        return 0
 
     async def chat_loop_step(
         self,
         chat_history: List[LLMContextMessage],
         *,
+        injected_user_messages: Sequence[str] | None = None,
         request_kind: str = "planner",
         response_format: RespFormat | None = None,
         tool_definitions: Sequence[ToolDefinitionInput] | None = None,
@@ -683,8 +475,14 @@ class MaisakaChatLoopService:
 
         if not self._prompts_loaded:
             await self.ensure_chat_prompt_loaded()
-        selected_history, selection_reason = self.select_llm_context_messages(chat_history)
-        built_messages = self._build_request_messages(selected_history)
+        selected_history, selection_reason = self.select_llm_context_messages(
+            chat_history,
+            request_kind=request_kind,
+        )
+        built_messages = self._build_request_messages(
+            selected_history,
+            injected_user_messages=injected_user_messages,
+        )
 
         def message_factory(_client: BaseClient) -> List[Message]:
             """返回当前轮次已经构建好的请求消息。
@@ -704,8 +502,7 @@ class MaisakaChatLoopService:
             all_tools = list(tool_definitions)
         elif self._tool_registry is not None:
             tool_specs = await self._tool_registry.list_tools()
-            filtered_tool_specs = await self._filter_tool_specs_for_planner(selected_history, tool_specs)
-            all_tools = [tool_spec.to_llm_definition() for tool_spec in filtered_tool_specs]
+            all_tools = [tool_spec.to_llm_definition() for tool_spec in tool_specs]
         else:
             all_tools = [*get_builtin_tools(), *self._extra_tools]
 
@@ -740,15 +537,9 @@ class MaisakaChatLoopService:
                 selection_reason=selection_reason,
                 image_display_mode=image_display_mode,
                 folded=global_config.debug.fold_maisaka_thinking,
+                tool_definitions=list(all_tools),
             )
 
-        logger.info(
-            "规划器请求开始: "
-            f"已选上下文消息数={len(selected_history)} "
-            f"大模型消息数={len(built_messages)} "
-            f"工具数={len(all_tools)} "
-            f"启用打断={self._interrupt_flag is not None}"
-        )
         generation_result = await self._llm_chat.generate_response_with_messages(
             message_factory=message_factory,
             options=LLMGenerationOptions(
@@ -759,15 +550,6 @@ class MaisakaChatLoopService:
                 interrupt_flag=self._interrupt_flag,
             ),
         )
-
-        prompt_stats_text = PromptCLIVisualizer.build_prompt_stats_text(
-            selected_history_count=len(selected_history),
-            built_message_count=len(built_messages),
-            prompt_tokens=generation_result.prompt_tokens,
-            completion_tokens=generation_result.completion_tokens,
-            total_tokens=generation_result.total_tokens,
-        )
-        logger.info(f"本轮Prompt统计: {prompt_stats_text}")
 
         final_response = generation_result.response or ""
         final_tool_calls = list(generation_result.tool_calls or [])
@@ -822,16 +604,21 @@ class MaisakaChatLoopService:
     def select_llm_context_messages(
         chat_history: List[LLMContextMessage],
         *,
+        request_kind: str = "planner",
         max_context_size: Optional[int] = None,
     ) -> tuple[List[LLMContextMessage], str]:
-        """??????? LLM ???????"""
+        """选择LLM上下文消息"""
 
+        filtered_history = MaisakaChatLoopService._filter_history_for_request_kind(
+            chat_history,
+            request_kind=request_kind,
+        )
         effective_context_size = max(1, int(max_context_size or global_config.chat.max_context_size))
         selected_indices: List[int] = []
         counted_message_count = 0
 
-        for index in range(len(chat_history) - 1, -1, -1):
-            message = chat_history[index]
+        for index in range(len(filtered_history) - 1, -1, -1):
+            message = filtered_history[index]
             if message.to_llm_message() is None:
                 continue
 
@@ -842,10 +629,10 @@ class MaisakaChatLoopService:
                     break
 
         if not selected_indices:
-            return [], f"???????? {effective_context_size} ? user/assistant??? 0 ??"
+            return [], f"没有选择到上下文消息，实际发送 {effective_context_size} 条 user/assistant 消息"
 
         selected_indices.reverse()
-        selected_history = [chat_history[index] for index in selected_indices]
+        selected_history = [filtered_history[index] for index in selected_indices]
         selected_history, hidden_assistant_count = MaisakaChatLoopService._hide_early_assistant_messages(selected_history)
         selected_history, _ = drop_orphan_tool_results(selected_history)
         selection_reason = (
@@ -860,45 +647,43 @@ class MaisakaChatLoopService:
         )
 
     @staticmethod
-    def _select_llm_context_messages(chat_history: List[LLMContextMessage]) -> tuple[List[LLMContextMessage], str]:
-        """选择真正发送给 LLM 的上下文消息。
+    def _filter_history_for_request_kind(
+        selected_history: List[LLMContextMessage],
+        *,
+        request_kind: str,
+    ) -> List[LLMContextMessage]:
+        """按请求类型过滤不应暴露的历史工具链。"""
 
-        Args:
-            chat_history: 当前全部对话历史。
+        if request_kind != "planner":
+            return selected_history
 
-        Returns:
-            tuple[List[LLMContextMessage], str]: `(已选上下文, 选择说明)`。
-        """
-
-        max_context_size = max(1, int(global_config.chat.max_context_size))
-        selected_indices: List[int] = []
-        counted_message_count = 0
-
-        for index in range(len(chat_history) - 1, -1, -1):
-            message = chat_history[index]
-            if message.to_llm_message() is None:
+        filtered_history: List[LLMContextMessage] = []
+        for message in selected_history:
+            if isinstance(message, ToolResultMessage) and message.tool_name in TIMING_GATE_TOOL_NAMES:
                 continue
 
-            selected_indices.append(index)
-            if message.count_in_context:
-                counted_message_count += 1
-                if counted_message_count >= max_context_size:
-                    break
+            if isinstance(message, AssistantMessage) and message.tool_calls:
+                kept_tool_calls = [
+                    tool_call
+                    for tool_call in message.tool_calls
+                    if tool_call.func_name not in TIMING_GATE_TOOL_NAMES
+                ]
+                if not kept_tool_calls:
+                    continue
+                if len(kept_tool_calls) != len(message.tool_calls):
+                    filtered_history.append(
+                        AssistantMessage(
+                            content=message.content,
+                            timestamp=message.timestamp,
+                            tool_calls=kept_tool_calls,
+                            source_kind=message.source_kind,
+                        )
+                    )
+                    continue
 
-        if not selected_indices:
-            return [], f"上下文判定：最近 {max_context_size} 条 user/assistant（当前 0 条）"
+            filtered_history.append(message)
 
-        selected_indices.reverse()
-        selected_history = [chat_history[index] for index in selected_indices]
-        selected_history, hidden_assistant_count = MaisakaChatLoopService._hide_early_assistant_messages(selected_history)
-        selected_history, _ = drop_orphan_tool_results(selected_history)
-        return (
-            selected_history,
-            (
-                f"上下文判定：最近 {max_context_size} 条 user/assistant；"
-                f"展示并发送窗口内消息 {len(selected_history)} 条"
-            ),
-        )
+        return filtered_history
 
     @staticmethod
     def _hide_early_assistant_messages(

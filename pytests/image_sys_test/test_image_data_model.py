@@ -31,6 +31,23 @@ async def test_calculate_hash_format_updates_runtime_path_metadata(tmp_path: Pat
     assert emoji.dir_path == tmp_path.resolve()
 
 
+@pytest.mark.asyncio
+async def test_calculate_hash_format_reuses_existing_target_file(tmp_path: Path) -> None:
+    image_bytes = _build_test_image_bytes("JPEG")
+    tmp_file_path = tmp_path / "emoji.tmp"
+    target_file_path = tmp_path / "emoji.jpeg"
+    tmp_file_path.write_bytes(image_bytes)
+    target_file_path.write_bytes(image_bytes)
+
+    emoji = MaiEmoji(full_path=tmp_file_path, image_bytes=image_bytes)
+
+    assert await emoji.calculate_hash_format() is True
+    assert emoji.full_path == target_file_path.resolve()
+    assert emoji.file_name == target_file_path.name
+    assert not tmp_file_path.exists()
+    assert target_file_path.exists()
+
+
 @pytest.mark.parametrize(
     ("model_cls", "extra_fields"),
     [

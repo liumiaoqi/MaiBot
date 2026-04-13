@@ -51,7 +51,9 @@ def _append_emoji_component(builder: MessageBuilder, component: EmojiComponent) 
     if component.content:
         builder.add_text_content(component.content)
         return True
-    return False
+
+    builder.add_text_content("[表情包]")
+    return True
 
 
 def _append_image_component(builder: MessageBuilder, component: ImageComponent) -> bool:
@@ -65,7 +67,9 @@ def _append_image_component(builder: MessageBuilder, component: ImageComponent) 
     if component.content:
         builder.add_text_content(component.content)
         return True
-    return False
+
+    builder.add_text_content("[图片]")
+    return True
 
 
 def _append_reply_component(builder: MessageBuilder, component: ReplyComponent) -> bool:

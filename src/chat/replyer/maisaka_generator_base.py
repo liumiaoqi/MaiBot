@@ -1,8 +1,9 @@
-import random
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Awaitable, Callable, Dict, List, Optional, Tuple
+from typing import Any, Awaitable, Callable, Dict, List, Literal, Optional, Tuple
+
+import random
 
 from rich.console import Group, RenderableType
 from rich.panel import Panel
@@ -10,6 +11,7 @@ from rich.text import Text
 
 from src.chat.message_receive.chat_manager import BotChatSession
 from src.chat.message_receive.message import SessionMessage
+from src.chat.utils.utils import get_chat_type_and_target_info
 from src.cli.console import console
 from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
 from src.common.data_models.reply_generation_data_models import (
@@ -19,18 +21,11 @@ from src.common.data_models.reply_generation_data_models import (
     build_reply_monitor_detail,
 )
 from src.common.logger import get_logger
-from src.common.prompt_i18n import load_prompt
+from src.common.utils.utils_session import SessionUtils
 from src.config.config import global_config
+from src.config.model_configs import ModelInfo
 from src.core.types import ActionInfo
-from src.llm_models.payload_content.message import (
-    ImageMessagePart,
-    Message,
-    MessageBuilder,
-    RoleType,
-    TextMessagePart,
-)
-from src.services.llm_service import LLMServiceClient
-
+from src.llm_models.payload_content.message import Message, MessageBuilder, RoleType
 from src.maisaka.context_messages import (
     AssistantMessage,
     LLMContextMessage,
@@ -38,8 +33,9 @@ from src.maisaka.context_messages import (
     SessionBackedMessage,
     ToolResultMessage,
 )
+from src.maisaka.display.prompt_cli_renderer import PromptCLIVisualizer
 from src.maisaka.message_adapter import clone_message_sequence, parse_speaker_content
-from src.maisaka.prompt_cli_renderer import PromptCLIVisualizer
+from src.plugin_runtime.hook_payloads import serialize_prompt_messages
 
 from .maisaka_expression_selector import maisaka_expression_selector
 
@@ -54,17 +50,26 @@ class MaisakaReplyContext:
     selected_expression_ids: List[int] = field(default_factory=list)
 
 
-class MaisakaReplyGenerator:
-    """生成 Maisaka 的最终可见回复（多模态管线）。"""
+class BaseMaisakaReplyGenerator:
+    """Maisaka replyer 的共享实现。"""
 
     def __init__(
         self,
+        *,
         chat_stream: Optional[BotChatSession] = None,
         request_type: str = "maisaka_replyer",
+        llm_client_cls: Any,
+        load_prompt_func: Callable[..., str],
+        enable_visual_message: Optional[bool],
+        replyer_mode: Literal["text", "multimodal", "auto"],
     ) -> None:
         self.chat_stream = chat_stream
         self.request_type = request_type
-        self.express_model = LLMServiceClient(
+        self._llm_client_cls = llm_client_cls
+        self._load_prompt = load_prompt_func
+        self._enable_visual_message = enable_visual_message
+        self._replyer_mode = replyer_mode
+        self.express_model = llm_client_cls(
             task_name="replyer",
             request_type=request_type,
         )
@@ -111,28 +116,6 @@ class MaisakaReplyGenerator:
             return self._normalize_content(body.strip())
         return ""
 
-    @staticmethod
-    def _split_user_message_segments(raw_content: str) -> List[tuple[Optional[str], str]]:
-        segments: List[tuple[Optional[str], str]] = []
-        current_speaker: Optional[str] = None
-        current_lines: List[str] = []
-
-        for raw_line in raw_content.splitlines():
-            speaker_name, content_body = parse_speaker_content(raw_line)
-            if speaker_name is not None:
-                if current_lines:
-                    segments.append((current_speaker, "\n".join(current_lines)))
-                current_speaker = speaker_name
-                current_lines = [content_body]
-                continue
-
-            current_lines.append(raw_line)
-
-        if current_lines:
-            segments.append((current_speaker, "\n".join(current_lines)))
-
-        return segments
-
     def _build_target_message_block(self, reply_message: Optional[SessionMessage]) -> str:
         if reply_message is None:
             return ""
@@ -152,19 +135,93 @@ class MaisakaReplyGenerator:
             "- 你这次要回复的就是这条目标消息，请结合整段上下文理解，但不要把其他历史消息当成当前回复对象。"
         )
 
+    @staticmethod
+    def _get_chat_prompt_for_chat(chat_id: str, is_group_chat: Optional[bool]) -> str:
+        """根据聊天流 ID 获取匹配的额外 prompt。"""
+        if not global_config.chat.chat_prompts:
+            return ""
+
+        for chat_prompt_item in global_config.chat.chat_prompts:
+            if hasattr(chat_prompt_item, "platform"):
+                platform = str(chat_prompt_item.platform or "").strip()
+                item_id = str(chat_prompt_item.item_id or "").strip()
+                rule_type = str(chat_prompt_item.rule_type or "").strip()
+                prompt_content = str(chat_prompt_item.prompt or "").strip()
+            elif isinstance(chat_prompt_item, str):
+                parts = chat_prompt_item.split(":", 3)
+                if len(parts) != 4:
+                    continue
+
+                platform, item_id, rule_type, prompt_content = parts
+                platform = platform.strip()
+                item_id = item_id.strip()
+                rule_type = rule_type.strip()
+                prompt_content = prompt_content.strip()
+            else:
+                continue
+
+            if not platform or not item_id or not prompt_content:
+                continue
+
+            if rule_type == "group":
+                config_is_group = True
+                config_chat_id = SessionUtils.calculate_session_id(platform, group_id=item_id)
+            elif rule_type == "private":
+                config_is_group = False
+                config_chat_id = SessionUtils.calculate_session_id(platform, user_id=item_id)
+            else:
+                continue
+
+            if config_is_group != is_group_chat:
+                continue
+            if config_chat_id == chat_id:
+                return prompt_content
+
+        return ""
+
+    def _build_group_chat_attention_block(self, session_id: str) -> str:
+        """构建当前聊天场景下的额外注意事项块。"""
+        if not session_id:
+            return ""
+
+        try:
+            is_group_chat, _ = get_chat_type_and_target_info(session_id)
+        except Exception:
+            is_group_chat = None
+
+        prompt_lines: List[str] = []
+
+        if is_group_chat is True:
+            if group_chat_prompt := global_config.chat.group_chat_prompt.strip():
+                prompt_lines.append(f"通用注意事项：\n{group_chat_prompt}")
+        elif is_group_chat is False:
+            if private_chat_prompt := global_config.chat.private_chat_prompts.strip():
+                prompt_lines.append(f"通用注意事项：\n{private_chat_prompt}")
+
+        if chat_prompt := self._get_chat_prompt_for_chat(session_id, is_group_chat).strip():
+            prompt_lines.append(f"当前聊天额外注意事项：\n{chat_prompt}")
+
+        if not prompt_lines:
+            return ""
+
+        return "在该聊天中的注意事项：\n" + "\n\n".join(prompt_lines) + "\n"
+
     def _build_system_prompt(
         self,
         reply_message: Optional[SessionMessage],
         reply_reason: str,
         expression_habits: str = "",
+        stream_id: Optional[str] = None,
     ) -> str:
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         target_message_block = self._build_target_message_block(reply_message)
+        session_id = self._resolve_session_id(stream_id)
 
         try:
-            system_prompt = load_prompt(
+            system_prompt = self._load_prompt(
                 "maisaka_replyer",
                 bot_name=global_config.bot.nickname,
+                group_chat_attention_block=self._build_group_chat_attention_block(session_id),
                 time_block=f"当前时间：{current_time}",
                 identity=self._personality_prompt,
                 reply_style=global_config.personality.reply_style,
@@ -184,38 +241,35 @@ class MaisakaReplyGenerator:
         return f"{system_prompt}\n\n" + "\n\n".join(sections)
 
     def _build_reply_instruction(self) -> str:
-        return "请自然地回复。不要输出多余说明、括号、at 或额外标记，只输出实际要发送的内容。"
+        return "请自然地回复。不要输出多余说明、括号、@ 或额外标记，只输出实际要发送的内容。"
 
-    def _build_multimodal_user_message(
+    def _build_visual_user_message(
         self,
         message: SessionBackedMessage,
-        default_user_name: str,
+        enable_visual_message: bool,
     ) -> Optional[Message]:
-        speaker_name, _ = parse_speaker_content(message.processed_plain_text.strip())
-        visible_speaker = speaker_name or default_user_name
+        if not enable_visual_message:
+            return None
 
         raw_message = clone_message_sequence(message.raw_message)
         if not raw_message.components:
-            raw_message = MessageSequence([TextComponent(f"[{visible_speaker}]")])
-        elif isinstance(raw_message.components[0], TextComponent):
-            first_text = raw_message.components[0].text or ""
-            raw_message.components[0] = TextComponent(f"[{visible_speaker}]{first_text}")
-        else:
-            raw_message.components.insert(0, TextComponent(f"[{visible_speaker}]"))
+            raw_message = MessageSequence([TextComponent(message.processed_plain_text)])
 
-        multimodal_message = SessionBackedMessage(
+        visual_message = SessionBackedMessage(
             raw_message=raw_message,
-            visible_text=f"[{visible_speaker}]{message.processed_plain_text}",
+            visible_text=message.processed_plain_text,
             timestamp=message.timestamp,
             message_id=message.message_id,
             original_message=message.original_message,
             source_kind=message.source_kind,
         )
-        return multimodal_message.to_llm_message()
+        return visual_message.to_llm_message()
 
-    def _build_history_messages(self, chat_history: List[LLMContextMessage]) -> List[Message]:
-        bot_nickname = global_config.bot.nickname.strip() or "Bot"
-        default_user_name = global_config.maisaka.cli_user_name.strip() or "User"
+    def _build_history_messages(
+        self,
+        chat_history: List[LLMContextMessage],
+        enable_visual_message: bool,
+    ) -> List[Message]:
         messages: List[Message] = []
 
         for message in chat_history:
@@ -230,25 +284,14 @@ class MaisakaReplyGenerator:
                     )
                     continue
 
-                multimodal_message = self._build_multimodal_user_message(message, default_user_name)
-                if multimodal_message is not None:
-                    messages.append(multimodal_message)
+                visual_message = self._build_visual_user_message(message, enable_visual_message)
+                if visual_message is not None:
+                    messages.append(visual_message)
                     continue
 
-                for speaker_name, content_body in self._split_user_message_segments(message.processed_plain_text):
-                    content = self._normalize_content(content_body)
-                    if not content:
-                        continue
-
-                    visible_speaker = speaker_name or default_user_name
-                    if visible_speaker == bot_nickname:
-                        messages.append(
-                            MessageBuilder().set_role(RoleType.Assistant).add_text_content(content).build()
-                        )
-                        continue
-
-                    user_content = f"[{visible_speaker}]{content}"
-                    messages.append(MessageBuilder().set_role(RoleType.User).add_text_content(user_content).build())
+                llm_message = message.to_llm_message()
+                if llm_message is not None:
+                    messages.append(llm_message)
                 continue
 
             if isinstance(message, AssistantMessage):
@@ -266,34 +309,33 @@ class MaisakaReplyGenerator:
         reply_message: Optional[SessionMessage],
         reply_reason: str,
         expression_habits: str = "",
+        stream_id: Optional[str] = None,
+        enable_visual_message: bool = False,
     ) -> List[Message]:
         messages: List[Message] = []
         system_prompt = self._build_system_prompt(
             reply_message=reply_message,
             reply_reason=reply_reason,
             expression_habits=expression_habits,
+            stream_id=stream_id,
         )
         instruction = self._build_reply_instruction()
 
         messages.append(MessageBuilder().set_role(RoleType.System).add_text_content(system_prompt).build())
-        messages.extend(self._build_history_messages(chat_history))
+        messages.extend(self._build_history_messages(chat_history, enable_visual_message))
         messages.append(MessageBuilder().set_role(RoleType.User).add_text_content(instruction).build())
         return messages
 
-    @staticmethod
-    def _build_request_prompt_preview(messages: List[Message]) -> str:
-        preview_lines: List[str] = []
-        for message in messages:
-            role_name = message.role.value.capitalize()
-            part_previews: List[str] = []
-            for part in message.parts:
-                if isinstance(part, TextMessagePart):
-                    part_previews.append(part.text)
-                    continue
-                if isinstance(part, ImageMessagePart):
-                    part_previews.append(f"[图片:{part.normalized_image_format}]")
-            preview_lines.append(f"{role_name}: {''.join(part_previews)}")
-        return "\n\n".join(preview_lines)
+    def _resolve_enable_visual_message(self, model_info: Optional[ModelInfo] = None) -> bool:
+        if self._enable_visual_message is not None:
+            return self._enable_visual_message
+        if self._replyer_mode == "multimodal":
+            if model_info is not None and not model_info.visual:
+                raise ValueError(f"replyer_mode=multimodal，但模型 '{model_info.name}' 未开启 visual，无法使用多模态 replyer")
+            return True
+        if self._replyer_mode == "text":
+            return False
+        return bool(model_info.visual) if model_info is not None else False
 
     def _resolve_session_id(self, stream_id: Optional[str]) -> str:
         if stream_id:
@@ -349,7 +391,6 @@ class MaisakaReplyGenerator:
         selected_expression_ids: Optional[List[int]] = None,
         sub_agent_runner: Optional[Callable[[str], Awaitable[str]]] = None,
     ) -> Tuple[bool, ReplyGenerationResult]:
-
         def finalize(success_value: bool) -> Tuple[bool, ReplyGenerationResult]:
             result.monitor_detail = build_reply_monitor_detail(result)
             return success_value, result
@@ -411,7 +452,7 @@ class MaisakaReplyGenerator:
         )
 
         logger.info(
-            f"回复上下文完成: 流={stream_id} 已选表达={result.selected_expression_ids!r}"
+            f"回复上下文完成 流={stream_id} 已选表达={result.selected_expression_ids!r}"
         )
 
         prompt_started_at = time.perf_counter()
@@ -421,6 +462,7 @@ class MaisakaReplyGenerator:
                 reply_message=reply_message,
                 reply_reason=reply_reason or "",
                 expression_habits=merged_expression_habits,
+                stream_id=stream_id,
             )
         except Exception as exc:
             import traceback
@@ -433,24 +475,36 @@ class MaisakaReplyGenerator:
             return finalize(False)
 
         prompt_ms = round((time.perf_counter() - prompt_started_at) * 1000, 2)
-        prompt_preview = self._build_request_prompt_preview(request_messages)
+        prompt_preview = PromptCLIVisualizer._build_prompt_dump_text(request_messages)
         show_replyer_prompt = bool(getattr(global_config.debug, "show_replyer_prompt", False))
         show_replyer_reasoning = bool(getattr(global_config.debug, "show_replyer_reasoning", False))
 
-        def message_factory(_client: object) -> List[Message]:
+        def message_factory(_client: object, model_info: Optional[ModelInfo] = None) -> List[Message]:
+            nonlocal prompt_ms, prompt_preview, request_messages
+            prompt_started_at = time.perf_counter()
+            request_messages = self._build_request_messages(
+                chat_history=filtered_history,
+                reply_message=reply_message,
+                reply_reason=reply_reason or "",
+                expression_habits=merged_expression_habits,
+                stream_id=stream_id,
+                enable_visual_message=self._resolve_enable_visual_message(model_info),
+            )
+            prompt_ms = round((time.perf_counter() - prompt_started_at) * 1000, 2)
+            prompt_preview = PromptCLIVisualizer._build_prompt_dump_text(request_messages)
             return request_messages
 
-        result.completion.request_prompt = prompt_preview
         preview_chat_id = self._resolve_session_id(stream_id)
         replyer_prompt_section: RenderableType | None = None
         if show_replyer_prompt:
             replyer_prompt_section = Panel(
-                PromptCLIVisualizer.build_text_access_panel(
-                    prompt_preview,
+                PromptCLIVisualizer.build_prompt_access_panel(
+                    request_messages,
                     category="replyer",
                     chat_id=preview_chat_id,
                     request_kind="replyer",
-                    subtitle=f"流ID: {preview_chat_id}",
+                    selection_reason=f"ID: {preview_chat_id}",
+                    image_display_mode="path_link" if global_config.maisaka.show_image_path else "legacy",
                 ),
                 title="Reply Prompt",
                 border_style="bright_yellow",
@@ -472,6 +526,8 @@ class MaisakaReplyGenerator:
             )
             return finalize(False)
 
+        result.completion.request_prompt = prompt_preview
+        result.request_messages = serialize_prompt_messages(request_messages)
         llm_ms = round((time.perf_counter() - llm_started_at) * 1000, 2)
         response_text = (generation_result.response or "").strip()
         result.success = bool(response_text)
@@ -504,7 +560,7 @@ class MaisakaReplyGenerator:
             return finalize(False)
 
         logger.info(
-            f"Maisaka 回复器生成成功: 文本={response_text!r} "
+            f"Maisaka 回复器生成成功 文本={response_text!r} "
             f"总耗时ms={result.metrics.overall_ms} 已选表达={result.selected_expression_ids!r}"
         )
         if show_replyer_prompt or show_replyer_reasoning:

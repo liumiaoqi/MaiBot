@@ -11,8 +11,7 @@ from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 from rich.traceback import install
 
 from src.chat.message_receive.chat_manager import BotChatSession
-from src.chat.replyer.group_generator import DefaultReplyer
-from src.chat.replyer.private_generator import PrivateReplyer
+from src.chat.replyer.maisaka_generator import MaisakaReplyGenerator
 from src.chat.replyer.replyer_manager import replyer_manager
 from src.chat.utils.utils import process_llm_response
 from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
@@ -20,8 +19,8 @@ from src.common.logger import get_logger
 from src.core.types import ActionInfo
 
 if TYPE_CHECKING:
-    from src.common.data_models.info_data_model import ActionPlannerInfo
     from src.common.data_models.llm_data_model import LLMGenerationDataModel
+    from src.common.data_models.planned_action_data_models import PlannedAction
     from src.chat.message_receive.message import SessionMessage
 
 install(extra_lines=3)
@@ -38,7 +37,7 @@ def _get_replyer(
     chat_stream: Optional[BotChatSession] = None,
     chat_id: Optional[str] = None,
     request_type: str = "replyer",
-) -> Optional[DefaultReplyer | PrivateReplyer]:
+) -> Optional[MaisakaReplyGenerator]:
     """获取回复器对象"""
     if not chat_id and not chat_stream:
         raise ValueError("chat_stream 和 chat_id 不可均为空")
@@ -100,7 +99,7 @@ async def generate_reply(
     extra_info: str = "",
     reply_reason: str = "",
     available_actions: Optional[Dict[str, ActionInfo]] = None,
-    chosen_actions: Optional[List["ActionPlannerInfo"]] = None,
+    chosen_actions: Optional[List["PlannedAction"]] = None,
     unknown_words: Optional[List[str]] = None,
     enable_splitter: bool = True,
     enable_chinese_typo: bool = True,

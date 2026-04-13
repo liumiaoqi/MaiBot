@@ -326,7 +326,7 @@ async def register_emoji(emoji_id: int, maibot_session: Optional[str] = Cookie(N
             if not emoji:
                 raise HTTPException(status_code=404, detail=f"未找到 ID 为 {emoji_id} 的表情包")
             if emoji.is_registered:
-                return EmojiUpdateResponse(success=True, message="??????????", data=emoji_to_response(emoji))
+                return EmojiUpdateResponse(success=True, message="表情包已注册", data=emoji_to_response(emoji))
 
             emoji.is_registered = True
             emoji.is_banned = False

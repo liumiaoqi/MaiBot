@@ -2,11 +2,11 @@
 
 from datetime import datetime
 from io import BytesIO
-import math
 from random import sample
 from typing import Any, Dict, Optional
 
 import asyncio
+import math
 
 from PIL import Image as PILImage
 from PIL import ImageDraw, ImageFont
@@ -20,12 +20,14 @@ from src.common.logger import get_logger
 from src.config.config import global_config
 from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
 from src.llm_models.payload_content.resp_format import RespFormat, RespFormatType
+from src.llm_models.payload_content.message import MessageBuilder, RoleType
 from src.maisaka.context_messages import (
     LLMContextMessage,
     ReferenceMessage,
     ReferenceMessageType,
     SessionBackedMessage,
 )
+from src.plugin_runtime.hook_payloads import serialize_prompt_messages
 
 from .context import BuiltinToolRuntimeContext
 
@@ -242,34 +244,9 @@ def _build_emoji_candidate_summary(emojis: list[MaiEmoji]) -> str:
     return "\n".join(summary_lines).strip()
 
 
-def _build_send_emoji_prompt_preview(
-    *,
-    system_prompt: str,
-    requested_emotion: str,
-    grid_rows: int,
-    grid_columns: int,
-    sampled_emojis: list[MaiEmoji],
-) -> str:
-    """构建表情选择子代理的文本预览。"""
-
-    task_text = (
-        "[选择任务]\n"
-        f"requested_emotion: {requested_emotion or '未指定'}\n"
-        f"候选总数: {len(sampled_emojis)}\n"
-        f"拼图布局: {grid_rows}x{grid_columns}\n"
-        "请只输出 JSON。"
-    )
-    candidate_summary = _build_emoji_candidate_summary(sampled_emojis)
-    return (
-        f"[System Prompt]\n{system_prompt}\n\n"
-        f"{task_text}\n\n"
-        f"[候选表情摘要]\n{candidate_summary or '无候选表情'}"
-    ).strip()
-
-
 def _build_send_emoji_monitor_detail(
     *,
-    prompt_text: str = "",
+    request_messages: Optional[list[dict[str, Any]]] = None,
     reasoning_text: str = "",
     output_text: str = "",
     metrics: Optional[Dict[str, Any]] = None,
@@ -278,8 +255,8 @@ def _build_send_emoji_monitor_detail(
     """构建 emotion tool 统一监控详情。"""
 
     detail: Dict[str, Any] = {}
-    if prompt_text.strip():
-        detail["prompt_text"] = prompt_text.strip()
+    if isinstance(request_messages, list) and request_messages:
+        detail["request_messages"] = request_messages
     if reasoning_text.strip():
         detail["reasoning_text"] = reasoning_text.strip()
     if output_text.strip():
@@ -387,13 +364,16 @@ async def _select_emoji_with_sub_agent(
         remaining_uses_value=1,
         display_prefix="[表情包选择任务]",
     )
-    prompt_preview = _build_send_emoji_prompt_preview(
-        system_prompt=system_prompt,
-        requested_emotion=requested_emotion,
-        grid_rows=grid_rows,
-        grid_columns=grid_columns,
-        sampled_emojis=sampled_emojis,
-    )
+    request_messages = [
+        MessageBuilder().set_role(RoleType.System).add_text_content(system_prompt).build(),
+    ]
+    prompt_llm_message = prompt_message.to_llm_message()
+    if prompt_llm_message is not None:
+        request_messages.append(prompt_llm_message)
+    candidate_llm_message = candidate_message.to_llm_message()
+    if candidate_llm_message is not None:
+        request_messages.append(candidate_llm_message)
+    serialized_request_messages = serialize_prompt_messages(request_messages)
 
     selection_started_at = datetime.now()
     response = await tool_ctx.runtime.run_sub_agent(
@@ -421,7 +401,7 @@ async def _select_emoji_with_sub_agent(
         logger.warning(f"{tool_ctx.runtime.log_prefix} 表情包子代理结果解析失败，将回退到候选首项: {exc}")
         if selection_metadata is not None:
             selection_metadata["monitor_detail"] = _build_send_emoji_monitor_detail(
-                prompt_text=prompt_preview,
+                request_messages=serialized_request_messages,
                 output_text=response.content or "",
                 metrics=selection_metrics,
                 extra_sections=[{
@@ -435,7 +415,7 @@ async def _select_emoji_with_sub_agent(
     if selection_metadata is not None:
         selection_metadata["reason"] = selection.reason.strip()
         selection_metadata["monitor_detail"] = _build_send_emoji_monitor_detail(
-            prompt_text=prompt_preview,
+            request_messages=serialized_request_messages,
             reasoning_text=selection.reason,
             output_text=response.content or "",
             metrics=selection_metrics,

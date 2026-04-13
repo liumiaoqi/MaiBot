@@ -10,6 +10,8 @@ from src.llm_models.payload_content.tool_option import ToolDefinitionInput
 from .context import BuiltinToolRuntimeContext
 from .continue_tool import get_tool_spec as get_continue_tool_spec
 from .continue_tool import handle_tool as handle_continue_tool
+from .finish import get_tool_spec as get_finish_tool_spec
+from .finish import handle_tool as handle_finish_tool
 from .no_reply import get_tool_spec as get_no_reply_tool_spec
 from .no_reply import handle_tool as handle_no_reply_tool
 from .query_jargon import get_tool_spec as get_query_jargon_tool_spec
@@ -22,6 +24,8 @@ from .reply import get_tool_spec as get_reply_tool_spec
 from .reply import handle_tool as handle_reply_tool
 from .send_emoji import get_tool_spec as get_send_emoji_tool_spec
 from .send_emoji import handle_tool as handle_send_emoji_tool
+from .tool_search import get_tool_spec as get_tool_search_tool_spec
+from .tool_search import handle_tool as handle_tool_search_tool
 from .view_complex_message import get_tool_spec as get_view_complex_message_tool_spec
 from .view_complex_message import handle_tool as handle_view_complex_message_tool
 from .wait import get_tool_spec as get_wait_tool_spec
@@ -44,11 +48,13 @@ def get_action_tool_specs() -> List[ToolSpec]:
     """获取 Action Loop 阶段可用的内置工具声明。"""
 
     return [
+        get_finish_tool_spec(),
         get_reply_tool_spec(),
         get_view_complex_message_tool_spec(),
         get_query_jargon_tool_spec(),
         get_query_memory_tool_spec(enabled=bool(global_config.memory.enable_memory_query_tool)),
         get_send_emoji_tool_spec(),
+        get_tool_search_tool_spec(),
     ]
 
 
@@ -63,12 +69,14 @@ def get_all_builtin_tool_specs() -> List[ToolSpec]:
 
     return [
         *get_timing_tool_specs(),
+        get_finish_tool_spec(),
         get_reply_tool_spec(),
         get_view_complex_message_tool_spec(),
         get_query_jargon_tool_spec(),
         get_query_memory_tool_spec(enabled=True),
         get_query_person_info_tool_spec(),
         get_send_emoji_tool_spec(),
+        get_tool_search_tool_spec(),
     ]
 
 
@@ -95,6 +103,7 @@ def build_builtin_tool_handlers(tool_ctx: BuiltinToolRuntimeContext) -> Dict[str
 
     return {
         "continue": lambda invocation, context=None: handle_continue_tool(tool_ctx, invocation, context),
+        "finish": lambda invocation, context=None: handle_finish_tool(tool_ctx, invocation, context),
         "reply": lambda invocation, context=None: handle_reply_tool(tool_ctx, invocation, context),
         "no_reply": lambda invocation, context=None: handle_no_reply_tool(tool_ctx, invocation, context),
         "query_jargon": lambda invocation, context=None: handle_query_jargon_tool(tool_ctx, invocation, context),
@@ -106,6 +115,7 @@ def build_builtin_tool_handlers(tool_ctx: BuiltinToolRuntimeContext) -> Dict[str
         ),
         "wait": lambda invocation, context=None: handle_wait_tool(tool_ctx, invocation, context),
         "send_emoji": lambda invocation, context=None: handle_send_emoji_tool(tool_ctx, invocation, context),
+        "tool_search": lambda invocation, context=None: handle_tool_search_tool(tool_ctx, invocation, context),
         "view_complex_message": lambda invocation, context=None: handle_view_complex_message_tool(
             tool_ctx,
             invocation,

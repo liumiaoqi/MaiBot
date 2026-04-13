@@ -1,5 +1,5 @@
 """
-表达方式自动检查定时任务
+表达方式自动检查定时任务。
 
 功能：
 1. 定期随机选取指定数量的表达方式
@@ -9,52 +9,48 @@
 """
 
 import asyncio
-import json
 import random
 from typing import List
 
 from sqlmodel import select
 
-from src.learners.expression_review_store import get_review_state, set_review_state
+from src.common.data_models.llm_service_data_models import LLMGenerationOptions
 from src.common.database.database import get_db_session
 from src.common.database.database_model import Expression
 from src.common.logger import get_logger
 from src.config.config import global_config
-from src.common.data_models.llm_service_data_models import LLMGenerationOptions
-from src.services.llm_service import LLMServiceClient
+from src.learners.expression_review_store import get_review_state, set_review_state
+from src.learners.expression_utils import parse_evaluation_response
 from src.manager.async_task_manager import AsyncTask
+from src.services.llm_service import LLMServiceClient
 
-logger = get_logger("expression_auto_check_task")
+logger = get_logger("expressor")
 
 
 def create_evaluation_prompt(situation: str, style: str) -> str:
     """
-    创建评估提示词
+    创建评估提示词。
 
     Args:
-        situation: 情境
+        situation: 情景
         style: 风格
 
     Returns:
         评估提示词
     """
-    # 基础评估标准
     base_criteria = [
-        "表达方式或言语风格 是否与使用条件或使用情景 匹配",
-        "允许部分语法错误或口头化或缺省出现",
+        "表达方式或言语风格是否与使用条件或使用情景匹配",
+        "允许部分语法错误或口语化或缺省出现",
         "表达方式不能太过特指，需要具有泛用性",
         "一般不涉及具体的人名或名称",
     ]
 
-    # 从配置中获取额外的自定义标准
     custom_criteria = global_config.expression.expression_auto_check_custom_criteria
 
-    # 合并所有评估标准
     all_criteria = base_criteria.copy()
     if custom_criteria:
         all_criteria.extend(custom_criteria)
 
-    # 构建评估标准列表字符串
     criteria_list = "\n".join([f"{i + 1}. {criterion}" for i, criterion in enumerate(all_criteria)])
 
     prompt = f"""请评估以下表达方式或语言风格以及使用条件或使用情景是否合适：
@@ -64,14 +60,13 @@ def create_evaluation_prompt(situation: str, style: str) -> str:
 请从以下方面进行评估：
 {criteria_list}
 
-请以JSON格式输出评估结果：
+请以 JSON 格式输出评估结果：
 {{
     "suitable": true/false,
     "reason": "评估理由（如果不合适，请说明原因）"
-
 }}
-如果合适，suitable设为true；如果不合适，suitable设为false，并在reason中说明原因。
-请严格按照JSON格式输出，不要包含其他内容。"""
+如果合适，suitable 设为 true；如果不合适，suitable 设为 false，并在 reason 中说明原因。
+请严格按照 JSON 格式输出，不要包含其他内容。"""
 
     return prompt
 
@@ -81,10 +76,10 @@ judge_llm = LLMServiceClient(task_name="utils", request_type="expression_check")
 
 async def single_expression_check(situation: str, style: str) -> tuple[bool, str, str | None]:
     """
-    执行单次LLM评估
+    执行单次 LLM 评估。
 
     Args:
-        situation: 情境
+        situation: 情景
         style: 风格
 
     Returns:
@@ -101,20 +96,10 @@ async def single_expression_check(situation: str, style: str) -> tuple[bool, str
         response = generation_result.response
         logger.debug(f"LLM响应: {response}")
 
-        # 解析JSON响应
-        try:
-            evaluation = json.loads(response)
-        except json.JSONDecodeError as e:
-            import re
+        evaluation = parse_evaluation_response(response)
 
-            json_match = re.search(r'\{[^{}]*"suitable"[^{}]*\}', response, re.DOTALL)
-            if json_match:
-                evaluation = json.loads(json_match.group())
-            else:
-                raise ValueError("无法从响应中提取JSON格式的评估结果") from e
-
-        suitable = evaluation.get("suitable", False)
-        reason = evaluation.get("reason", "未提供理由")
+        suitable = bool(evaluation.get("suitable", False))
+        reason = str(evaluation.get("reason", "未提供理由"))
 
         logger.debug(f"评估结果: {'通过' if suitable else '不通过'}")
         return suitable, reason, None
@@ -125,20 +110,19 @@ async def single_expression_check(situation: str, style: str) -> tuple[bool, str
 
 
 class ExpressionAutoCheckTask(AsyncTask):
-    """表达方式自动检查定时任务"""
+    """表达方式自动检查定时任务。"""
 
     def __init__(self):
-        # 从配置中获取检查间隔和一次检查数量
         check_interval = global_config.expression.expression_auto_check_interval
         super().__init__(
             task_name="Expression Auto Check Task",
-            wait_before_start=60,  # 启动后等待60秒再开始第一次检查
+            wait_before_start=60,
             run_interval=check_interval,
         )
 
     async def _select_expressions(self, count: int) -> List[Expression]:
         """
-        随机选择指定数量的未检查表达方式
+        随机选择指定数量的未检查表达方式。
 
         Args:
             count: 需要选择的数量
@@ -158,11 +142,12 @@ class ExpressionAutoCheckTask(AsyncTask):
                 logger.info("没有未检查的表达方式")
                 return []
 
-            # 随机选择指定数量
             selected_count = min(count, len(unevaluated_expressions))
             selected = random.sample(unevaluated_expressions, selected_count)
 
-            logger.info(f"从 {len(unevaluated_expressions)} 条未检查表达方式中随机选择了 {selected_count} 条")
+            logger.info(
+                f"从 {len(unevaluated_expressions)} 条未检查表达方式中随机选择了 {selected_count} 条"
+            )
             return selected
 
         except Exception as e:
@@ -171,35 +156,35 @@ class ExpressionAutoCheckTask(AsyncTask):
 
     async def _evaluate_expression(self, expression: Expression) -> bool:
         """
-        评估单个表达方式
+        评估单个表达方式。
 
         Args:
             expression: 要评估的表达方式
 
         Returns:
-            True表示通过，False表示不通过
+            True 表示通过，False 表示不通过
         """
-
         suitable, reason, error = await single_expression_check(
             expression.situation,
             expression.style,
         )
 
-        # 更新数据库
         try:
             set_review_state(expression.id, True, not suitable, "ai")
 
             status = "通过" if suitable else "不通过"
+            # 保留这段注释，方便后续需要时恢复更详细的审核日志。
             # logger.info(
-                # f"表达方式评估完成 [ID: {expression.id}] - {status} | "
-                # f"Situation: {expression.situation}... | "
-                # f"Style: {expression.style}... | "
-                # f"Reason: {reason[:50]}..."
+            #     f"表达方式评估完成 [ID: {expression.id}] - {status} | "
+            #     f"Situation: {expression.situation}... | "
+            #     f"Style: {expression.style}... | "
+            #     f"Reason: {reason[:50]}..."
             # )
 
             if error:
                 logger.warning(f"表达方式评估时出现错误 [ID: {expression.id}]: {error}")
 
+            logger.debug(f"表达方式 [ID: {expression.id}] 评估完成: {status}, reason={reason}")
             return suitable
 
         except Exception as e:
@@ -207,9 +192,8 @@ class ExpressionAutoCheckTask(AsyncTask):
             return False
 
     async def run(self):
-        """执行检查任务"""
+        """执行检查任务。"""
         try:
-            # 检查是否启用自动检查
             if not global_config.expression.expression_self_reflect:
                 logger.debug("表达方式自动检查未启用，跳过本次执行")
                 return
@@ -221,26 +205,22 @@ class ExpressionAutoCheckTask(AsyncTask):
 
             logger.info(f"开始执行表达方式自动检查，本次将检查 {check_count} 条")
 
-            # 选择要检查的表达方式
             expressions = await self._select_expressions(check_count)
-
             if not expressions:
                 logger.info("没有需要检查的表达方式")
                 return
 
-            # 逐个评估
             passed_count = 0
             failed_count = 0
 
-            for i, expression in enumerate(expressions, 1):
-                logger.info(f"正在评估 [{i}/{len(expressions)}]: ID={expression.id}")
+            for index, expression in enumerate(expressions, 1):
+                logger.debug(f"正在评估 [{index}/{len(expressions)}]: ID={expression.id}")
 
                 if await self._evaluate_expression(expression):
                     passed_count += 1
                 else:
                     failed_count += 1
 
-                # 避免请求过快
                 await asyncio.sleep(0.3)
 
             logger.info(

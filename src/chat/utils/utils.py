@@ -20,7 +20,7 @@ from src.services.embedding_service import EmbeddingServiceClient
 from .typo_generator import ChineseTypoGenerator
 
 if TYPE_CHECKING:
-    from src.common.data_models.info_data_model import TargetPersonInfo
+    from src.common.data_models.chat_target_info_data_model import ChatTargetInfo
 
 logger = get_logger("chat_utils")
 _warned_unconfigured_platforms: set[str] = set()
@@ -699,7 +699,7 @@ def translate_timestamp_to_human_readable(timestamp: float, mode: str = "normal"
         return time.strftime("%H:%M:%S", time.localtime(timestamp))
 
 
-def get_chat_type_and_target_info(chat_id: str) -> Tuple[bool, Optional["TargetPersonInfo"]]:
+def get_chat_type_and_target_info(chat_id: str) -> Tuple[bool, Optional["ChatTargetInfo"]]:
     """
     获取聊天类型（是否群聊）和私聊对象信息。
 
@@ -734,13 +734,13 @@ def get_chat_type_and_target_info(chat_id: str) -> Tuple[bool, Optional["TargetP
                 ):
                     user_nickname = chat_stream.context.message.message_info.user_info.user_nickname
 
-                from src.common.data_models.info_data_model import TargetPersonInfo  # 解决循环导入问题
+                from src.common.data_models.chat_target_info_data_model import ChatTargetInfo  # 解决循环导入问题
 
                 # Initialize target_info with basic info
-                target_info = TargetPersonInfo(
+                target_info = ChatTargetInfo(
                     platform=platform,
                     user_id=user_id,
-                    user_nickname=user_nickname,  # type: ignore
+                    session_nickname=user_nickname or "",
                     person_id=None,
                     person_name=None,
                 )
@@ -752,6 +752,7 @@ def get_chat_type_and_target_info(chat_id: str) -> Tuple[bool, Optional["TargetP
                         logger.warning(f"用户 {user_nickname} 尚未认识")
                         # 如果用户尚未认识，则返回False和None
                         return False, None
+                    target_info.is_known = True
                     if person.person_id:
                         target_info.person_id = person.person_id
                         target_info.person_name = person.person_name

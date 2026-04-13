@@ -1,15 +1,10 @@
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import Any, Dict, Optional
 
 from src.chat.message_receive.chat_manager import BotChatSession, chat_manager as _chat_manager
-from src.chat.replyer.maisaka_replyer_factory import (
-    get_maisaka_replyer_class,
-    get_maisaka_replyer_generator_type,
-)
+from src.config.config import global_config
 from src.common.logger import get_logger
 
-if TYPE_CHECKING:
-    from src.chat.replyer.group_generator import DefaultReplyer
-    from src.chat.replyer.private_generator import PrivateReplyer
+from .maisaka_generator import MaisakaReplyGenerator
 
 logger = get_logger("ReplyerManager")
 
@@ -20,20 +15,25 @@ class ReplyerManager:
     def __init__(self) -> None:
         self._repliers: Dict[str, Any] = {}
 
+    @staticmethod
+    def _get_maisaka_generator_type() -> str:
+        """返回当前配置下 Maisaka replyer 的消息模式。"""
+        return global_config.visual.replyer_mode
+
     def get_replyer(
         self,
         chat_stream: Optional[BotChatSession] = None,
         chat_id: Optional[str] = None,
         request_type: str = "replyer",
         replyer_type: str = "default",
-    ) -> Optional["DefaultReplyer | PrivateReplyer | Any"]:
+    ) -> Optional[MaisakaReplyGenerator]:
         """按会话和 replyer 类型获取实例。"""
         stream_id = chat_stream.session_id if chat_stream else chat_id
         if not stream_id:
             logger.warning("[ReplyerManager] 缺少 stream_id，无法获取 replyer")
             return None
 
-        generator_type = get_maisaka_replyer_generator_type() if replyer_type == "maisaka" else ""
+        generator_type = self._get_maisaka_generator_type() if replyer_type == "maisaka" else ""
         cache_key = f"{replyer_type}:{generator_type}:{stream_id}"
         if cache_key in self._repliers:
             logger.info(f"[ReplyerManager] 命中缓存 replyer: cache_key={cache_key}")
@@ -51,29 +51,13 @@ class ReplyerManager:
 
         try:
             if replyer_type == "maisaka":
-                logger.info(f"[ReplyerManager] 选择 MaisakaReplyGenerator: generator_type={generator_type}")
-                maisaka_replyer_class = get_maisaka_replyer_class()
-
-                replyer = maisaka_replyer_class(
-                    chat_stream=target_stream,
-                    request_type=request_type,
-                )
-            elif target_stream.is_group_session:
-                logger.info("[ReplyerManager] importing DefaultReplyer")
-                from src.chat.replyer.group_generator import DefaultReplyer
-
-                replyer = DefaultReplyer(
+                replyer = MaisakaReplyGenerator(
                     chat_stream=target_stream,
                     request_type=request_type,
                 )
             else:
-                logger.info("[ReplyerManager] importing PrivateReplyer")
-                from src.chat.replyer.private_generator import PrivateReplyer
-
-                replyer = PrivateReplyer(
-                    chat_stream=target_stream,
-                    request_type=request_type,
-                )
+                logger.warning(f"[ReplyerManager] 不支持的 replyer_type={replyer_type}")
+                return None
         except Exception:
             logger.exception(f"[ReplyerManager] 创建 replyer 失败: cache_key={cache_key}")
             raise

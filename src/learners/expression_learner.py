@@ -267,7 +267,7 @@ class ExpressionLearner:
         return normalized_entries
 
     def get_pending_count(self, message_cache: List["SessionMessage"]) -> int:
-        """??????????????"""
+        """获取待处理消息数量"""
         return max(0, len(message_cache) - self._last_processed_index)
 
     async def learn(
@@ -275,10 +275,10 @@ class ExpressionLearner:
         message_cache: List["SessionMessage"],
         jargon_miner: Optional["JargonMiner"] = None,
     ) -> bool:
-        """?????????????????????"""
+        """学习表达方式"""
         pending_messages = message_cache[self._last_processed_index :]
         if not pending_messages:
-            logger.debug("??????????????????")
+            logger.debug("没有待处理消息")
             return False
         if len(pending_messages) < self.min_messages_for_extraction:
             return False
@@ -304,7 +304,7 @@ class ExpressionLearner:
             )
             response = generation_result.response
         except Exception as e:
-            logger.error(f"????????????????{e}")
+            logger.error(f"学习表达方式失败: {e}")
             return False
 
         expressions: List[Tuple[str, str, str]]
@@ -319,14 +319,14 @@ class ExpressionLearner:
                     continue
                 jargon_entries.append((content, source_id))
                 existing_contents.add(content)
-                logger.info(f"??????????{content}")
+                logger.info(f"从缓存中找到黑话: {content}")
 
         if len(expressions) > 20:
-            logger.info(f"?????????? 20 ???????????{len(expressions)}")
+            logger.info(f"表达方式数量超过20: {len(expressions)}")
             expressions = []
 
         if len(jargon_entries) > 30:
-            logger.info(f"???????? 30 ???????????{len(jargon_entries)}")
+            logger.info(f"黑话数量超过30: {len(jargon_entries)}")
             jargon_entries = []
 
         after_extract_result = await self._get_runtime_manager().invoke_hook(
@@ -337,7 +337,7 @@ class ExpressionLearner:
             jargon_entries=self._serialize_jargon_entries(jargon_entries),
         )
         if after_extract_result.aborted:
-            logger.info(f"{self.session_id} ?????????? Hook ??")
+            logger.info(f"{self.session_id} 表达方式选择 Hook 中止")
             self._last_processed_index = len(message_cache)
             return False
 
@@ -353,21 +353,21 @@ class ExpressionLearner:
             await self._process_jargon_entries(jargon_entries, pending_messages, jargon_miner)
 
         if not expressions:
-            logger.info("????????????")
+            logger.info("没有可学习的表达方式")
             self._last_processed_index = len(message_cache)
             return False
 
-        logger.info(f"???? expressions: {expressions}")
-        logger.info(f"???? jargon_entries: {jargon_entries}")
+        logger.info(f"可学习的表达方式: {expressions}")
+        logger.info(f"可学习的黑话: {jargon_entries}")
 
         learnt_expressions = self._filter_expressions(expressions, pending_messages)
         if not learnt_expressions:
-            logger.info("????????????")
+            logger.info("没有可学习的表达方式通过过滤")
             self._last_processed_index = len(message_cache)
             return False
 
         learnt_expressions_str = "\n".join(f"{situation}->{style}" for situation, style in learnt_expressions)
-        logger.info(f"? {self.session_id} ????????\n{learnt_expressions_str}")
+        logger.info(f"{self.session_id} 可学习的表达方式: \n{learnt_expressions_str}")
 
         for situation, style in learnt_expressions:
             before_upsert_result = await self._get_runtime_manager().invoke_hook(
@@ -377,14 +377,14 @@ class ExpressionLearner:
                 style=style,
             )
             if before_upsert_result.aborted:
-                logger.info(f"{self.session_id} ???????? Hook ??: situation={situation!r}")
+                logger.info(f"{self.session_id} 表达方式写入 Hook 中止: situation={situation!r}")
                 continue
 
             upsert_kwargs = before_upsert_result.kwargs
             situation = str(upsert_kwargs.get("situation", situation) or "").strip()
             style = str(upsert_kwargs.get("style", style) or "").strip()
             if not situation or not style:
-                logger.info(f"{self.session_id} ???????? Hook ??????")
+                logger.info(f"{self.session_id} 表达方式写入 Hook 中止: situation={situation!r}")
                 continue
             await self._upsert_expression_to_db(situation, style)
 

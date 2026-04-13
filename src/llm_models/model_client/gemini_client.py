@@ -552,7 +552,7 @@ def _build_stream_api_response(
 
     _warn_if_max_tokens_truncated(last_response, response.content, response.tool_calls)
     if not response.content and not response.tool_calls and not response.reasoning_content:
-        raise EmptyResponseException()
+        raise EmptyResponseException(last_response)
     return response
 
 
@@ -627,7 +627,7 @@ def _default_normal_response_parser(
     usage_record = _extract_usage_record(response)
     _warn_if_max_tokens_truncated(response, api_response.content, api_response.tool_calls)
     if not api_response.content and not api_response.tool_calls and not api_response.reasoning_content:
-        raise EmptyResponseException("响应中既无文本内容也无工具调用")
+        raise EmptyResponseException(response, "响应中既无文本内容也无工具调用")
     return api_response, usage_record
 
 

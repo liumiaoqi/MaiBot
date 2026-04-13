@@ -267,6 +267,46 @@ def _parse_data_url_image(image_url: str) -> Tuple[str, str]:
     return image_format, image_base64
 
 
+def _append_image_content(message_builder: MessageBuilder, content_item: Any) -> bool:
+    """向消息构建器追加图片片段。
+
+    兼容两种输入格式：
+    1. 旧序列化格式中的 `(image_format, image_base64)` 元组。
+    2. 标准字典片段中的 Data URL 或 `image_format`/`image_base64` 字段。
+    """
+
+    if isinstance(content_item, (tuple, list)) and len(content_item) == 2:
+        image_format, image_base64 = content_item
+        if not isinstance(image_format, str) or not isinstance(image_base64, str):
+            raise ValueError("图片元组片段必须包含字符串类型的 image_format 和 image_base64")
+
+        message_builder.add_image_content(image_format=image_format, image_base64=image_base64)
+        return True
+
+    if not isinstance(content_item, dict):
+        return False
+
+    part_type = str(content_item.get("type", "text")).strip().lower()
+    if part_type not in {"image", "image_url", "input_image"}:
+        return False
+
+    image_url = content_item.get("image_url")
+    if isinstance(image_url, dict):
+        image_url = image_url.get("url")
+    if isinstance(image_url, str):
+        image_format, image_base64 = _parse_data_url_image(image_url)
+        message_builder.add_image_content(image_format=image_format, image_base64=image_base64)
+        return True
+
+    image_format = content_item.get("image_format")
+    image_base64 = content_item.get("image_base64")
+    if isinstance(image_format, str) and isinstance(image_base64, str):
+        message_builder.add_image_content(image_format=image_format, image_base64=image_base64)
+        return True
+
+    raise ValueError("图片片段缺少可识别的图片数据")
+
+
 def _append_content_parts(message_builder: MessageBuilder, content: Any) -> None:
     """将原始消息内容追加到内部消息构建器。
 
@@ -293,8 +333,10 @@ def _append_content_parts(message_builder: MessageBuilder, content: Any) -> None
         if isinstance(content_item, str):
             message_builder.add_text_content(content_item)
             continue
+        if _append_image_content(message_builder, content_item):
+            continue
         if not isinstance(content_item, dict):
-            raise ValueError("消息内容列表中仅支持字符串或字典片段")
+            raise ValueError("消息内容列表中仅支持字符串、图片元组或字典片段")
 
         part_type = str(content_item.get("type", "text")).strip().lower()
         if part_type == "text":
@@ -303,22 +345,6 @@ def _append_content_parts(message_builder: MessageBuilder, content: Any) -> None
                 raise ValueError("文本片段缺少 `text` 字段")
             message_builder.add_text_content(text_content)
             continue
-
-        if part_type in {"image", "image_url", "input_image"}:
-            image_url = content_item.get("image_url")
-            if isinstance(image_url, dict):
-                image_url = image_url.get("url")
-            if isinstance(image_url, str):
-                image_format, image_base64 = _parse_data_url_image(image_url)
-                message_builder.add_image_content(image_format=image_format, image_base64=image_base64)
-                continue
-
-            image_format = content_item.get("image_format")
-            image_base64 = content_item.get("image_base64")
-            if isinstance(image_format, str) and isinstance(image_base64, str):
-                message_builder.add_image_content(image_format=image_format, image_base64=image_base64)
-                continue
-            raise ValueError("图片片段缺少可识别的图片数据")
 
         raise ValueError(f"不支持的消息片段类型: {part_type}")
 

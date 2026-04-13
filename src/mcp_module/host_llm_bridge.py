@@ -521,9 +521,7 @@ class MCPHostLLMBridge:
             tool_definitions.append(
                 {
                     "name": tool_name,
-                    "description": "\n\n".join(
-                        part for part in [brief_description, detailed_description] if part.strip()
-                    ).strip(),
+                    "description": brief_description,
                     "parameters_schema": parameters_schema or {"type": "object", "properties": {}},
                 }
             )
