@@ -431,6 +431,153 @@ class MemoryConfig(ConfigBase):
         },
     )
     """是否在发送回复后自动提取并写回人物事实到长期记忆"""
+
+    feedback_correction_enabled: bool = Field(
+        default=False,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "message-circle-warning",
+        },
+    )
+    """是否启用反馈驱动的延迟记忆纠错任务"""
+
+    feedback_correction_window_hours: float = Field(
+        default=12.0,
+        ge=0.1,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "clock-4",
+        },
+    )
+    """反馈窗口时长（小时），以 query_memory 执行时间为起点"""
+
+    feedback_correction_check_interval_minutes: int = Field(
+        default=30,
+        ge=1,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "timer",
+        },
+    )
+    """反馈纠错定时任务轮询间隔（分钟）"""
+
+    feedback_correction_batch_size: int = Field(
+        default=20,
+        ge=1,
+        le=200,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "list-ordered",
+        },
+    )
+    """反馈纠错每轮最大处理任务数"""
+
+    feedback_correction_auto_apply_threshold: float = Field(
+        default=0.85,
+        ge=0.0,
+        le=1.0,
+        json_schema_extra={
+            "x-widget": "slider",
+            "x-icon": "gauge",
+            "step": 0.01,
+        },
+    )
+    """自动应用纠错动作的最低置信度阈值"""
+
+    feedback_correction_max_feedback_messages: int = Field(
+        default=30,
+        ge=1,
+        le=200,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "messages-square",
+        },
+    )
+    """每个纠错任务最多使用的窗口内用户反馈消息数"""
+
+    feedback_correction_prefilter_enabled: bool = Field(
+        default=True,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "filter",
+        },
+    )
+    """是否启用纠错前置预筛（用于减少不必要的模型调用）"""
+
+    feedback_correction_paragraph_mark_enabled: bool = Field(
+        default=True,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "sticky-note",
+        },
+    )
+    """是否为受影响 paragraph 写入已纠正旧事实标记"""
+
+    feedback_correction_paragraph_hard_filter_enabled: bool = Field(
+        default=True,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "eye-off",
+        },
+    )
+    """是否在用户侧查询中硬过滤带有 stale 标记的 paragraph"""
+
+    feedback_correction_profile_refresh_enabled: bool = Field(
+        default=True,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "user-round-search",
+        },
+    )
+    """是否在反馈纠错后将受影响人物画像加入刷新队列"""
+
+    feedback_correction_profile_force_refresh_on_read: bool = Field(
+        default=True,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "refresh-ccw",
+        },
+    )
+    """人物画像处于脏队列时，读取是否强制刷新而不直接复用旧快照"""
+
+    feedback_correction_episode_rebuild_enabled: bool = Field(
+        default=True,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "clapperboard",
+        },
+    )
+    """是否在反馈纠错后将受影响 source 加入 episode 重建队列"""
+
+    feedback_correction_episode_query_block_enabled: bool = Field(
+        default=True,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "ban",
+        },
+    )
+    """episode source 处于重建队列时，是否对用户侧查询做屏蔽"""
+
+    feedback_correction_reconcile_interval_minutes: int = Field(
+        default=5,
+        ge=1,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "repeat",
+        },
+    )
+    """反馈纠错二阶段一致性后台协调任务轮询间隔（分钟）"""
+
+    feedback_correction_reconcile_batch_size: int = Field(
+        default=20,
+        ge=1,
+        le=200,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "list-restart",
+        },
+    )
+    """反馈纠错二阶段一致性每轮处理 profile/episode 队列的批大小"""
     chat_history_topic_check_message_threshold: int = Field(
         default=80,
         ge=1,
@@ -501,6 +648,39 @@ class MemoryConfig(ConfigBase):
         if self.chat_history_finalize_message_count < 1:
             raise ValueError(
                 f"chat_history_finalize_message_count 必须至少为1，当前值: {self.chat_history_finalize_message_count}"
+            )
+        if self.feedback_correction_window_hours <= 0:
+            raise ValueError(
+                f"feedback_correction_window_hours 必须大于0，当前值: {self.feedback_correction_window_hours}"
+            )
+        if self.feedback_correction_check_interval_minutes < 1:
+            raise ValueError(
+                "feedback_correction_check_interval_minutes 必须至少为1，"
+                f"当前值: {self.feedback_correction_check_interval_minutes}"
+            )
+        if self.feedback_correction_batch_size < 1:
+            raise ValueError(
+                f"feedback_correction_batch_size 必须至少为1，当前值: {self.feedback_correction_batch_size}"
+            )
+        if not 0 <= self.feedback_correction_auto_apply_threshold <= 1:
+            raise ValueError(
+                "feedback_correction_auto_apply_threshold 必须在 [0, 1] 之间，"
+                f"当前值: {self.feedback_correction_auto_apply_threshold}"
+            )
+        if self.feedback_correction_max_feedback_messages < 1:
+            raise ValueError(
+                "feedback_correction_max_feedback_messages 必须至少为1，"
+                f"当前值: {self.feedback_correction_max_feedback_messages}"
+            )
+        if self.feedback_correction_reconcile_interval_minutes < 1:
+            raise ValueError(
+                "feedback_correction_reconcile_interval_minutes 必须至少为1，"
+                f"当前值: {self.feedback_correction_reconcile_interval_minutes}"
+            )
+        if self.feedback_correction_reconcile_batch_size < 1:
+            raise ValueError(
+                "feedback_correction_reconcile_batch_size 必须至少为1，"
+                f"当前值: {self.feedback_correction_reconcile_batch_size}"
             )
         return super().model_post_init(context)
 

@@ -19,6 +19,7 @@ from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvo
 from src.llm_models.exceptions import ReqAbortException
 from src.llm_models.payload_content.tool_option import ToolCall
 from src.services import database_service as database_api
+from src.services.memory_service import memory_service
 
 from .builtin_tool import get_action_tool_specs
 from .builtin_tool import build_builtin_tool_handlers as build_split_builtin_tool_handlers
@@ -1013,15 +1014,30 @@ class MaisakaReasoningEngine:
             builtin_prompt = tool_spec.build_llm_description()
 
         try:
-            await database_api.store_tool_info(
+            tool_record_payload = self._build_tool_record_payload(invocation, result, tool_spec)
+            saved_record = await database_api.store_tool_info(
                 chat_stream=self._runtime.chat_stream,
                 builtin_prompt=builtin_prompt,
                 display_prompt=self._build_tool_display_prompt(invocation, result, tool_spec),
                 tool_id=invocation.call_id,
-                tool_data=self._build_tool_record_payload(invocation, result, tool_spec),
+                tool_data=tool_record_payload,
                 tool_name=invocation.tool_name,
                 tool_reasoning=invocation.reasoning,
             )
+            if invocation.tool_name == "query_memory" and isinstance(saved_record, dict):
+                enqueue_payload = await memory_service.enqueue_feedback_task(
+                    query_tool_id=str(saved_record.get("tool_id") or invocation.call_id or "").strip(),
+                    session_id=str(saved_record.get("session_id") or self._runtime.chat_stream.session_id or "").strip(),
+                    query_timestamp=saved_record.get("timestamp"),
+                    structured_content=tool_record_payload.get("structured_content")
+                    if isinstance(tool_record_payload.get("structured_content"), dict)
+                    else {},
+                )
+                if not bool(enqueue_payload.get("success")):
+                    logger.debug(
+                        f"{self._runtime.log_prefix} 反馈纠错任务未入队: "
+                        f"tool_call_id={invocation.call_id} reason={enqueue_payload.get('reason', '')}"
+                    )
         except Exception:
             logger.exception(
                 f"{self._runtime.log_prefix} 写入工具记录失败: 工具={invocation.tool_name} 调用编号={invocation.call_id}"
@@ -1153,4 +1169,3 @@ class MaisakaReasoningEngine:
                 return True, tool_result_summaries, tool_monitor_results
 
         return False, tool_result_summaries, tool_monitor_results
-

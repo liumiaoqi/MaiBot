@@ -205,6 +205,12 @@ def _setup_static_files(app: FastAPI):
 
 
 def _resolve_static_path() -> Path | None:
+    # 开发环境优先允许复用仓库里的现成 dist
+    base_dir = _get_project_root()
+    static_path = base_dir / "dashboard" / "dist"
+    if static_path.exists():
+        return static_path
+
     try:
         module = import_module("maibot_dashboard")
         get_dist_path = getattr(module, "get_dist_path", None)
@@ -215,11 +221,6 @@ def _resolve_static_path() -> Path | None:
     except Exception:
         pass
 
-    # 开发环境允许复用仓库里的现成 dist，但不再在用户机器上触发任何前端自愈构建。
-    base_dir = _get_project_root()
-    static_path = base_dir / "dashboard" / "dist"
-    if static_path.exists():
-        return static_path
     return None
 
 
