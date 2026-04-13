@@ -2,52 +2,18 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 from json_repair import repair_json
 
 from src.chat.utils.utils import is_bot_self
-from src.common.message_repository import find_messages
 from src.common.logger import get_logger
+from src.common.message_repository import find_messages
 from src.config.config import global_config
-from src.memory_system.chat_history_summarizer import ChatHistorySummarizer
 from src.person_info.person_info import Person, get_person_id, store_person_memory_from_answer
 from src.services.llm_service import LLMServiceClient
 
 logger = get_logger("memory_flow_service")
-
-
-class LongTermMemorySessionManager:
-    def __init__(self) -> None:
-        self._lock = asyncio.Lock()
-        self._summarizers: Dict[str, ChatHistorySummarizer] = {}
-
-    async def on_message(self, message: Any) -> None:
-        if not bool(getattr(global_config.memory, "long_term_auto_summary_enabled", True)):
-            return
-        session_id = str(getattr(message, "session_id", "") or "").strip()
-        if not session_id:
-            return
-
-        created = False
-        async with self._lock:
-            summarizer = self._summarizers.get(session_id)
-            if summarizer is None:
-                summarizer = ChatHistorySummarizer(session_id=session_id)
-                self._summarizers[session_id] = summarizer
-                created = True
-        if created:
-            await summarizer.start()
-
-    async def shutdown(self) -> None:
-        async with self._lock:
-            items = list(self._summarizers.items())
-            self._summarizers.clear()
-        for session_id, summarizer in items:
-            try:
-                await summarizer.stop()
-            except Exception as exc:
-                logger.warning("停止聊天总结器失败: session=%s err=%s", session_id, exc)
 
 
 class PersonFactWritebackService:
@@ -123,7 +89,11 @@ class PersonFactWritebackService:
         if not session_id:
             return
 
-        person_name = str(getattr(target_person, "person_name", "") or getattr(target_person, "nickname", "") or "").strip()
+        person_name = str(
+            getattr(target_person, "person_name", "")
+            or getattr(target_person, "nickname", "")
+            or ""
+        ).strip()
         if not person_name:
             return
 
@@ -242,7 +212,6 @@ class PersonFactWritebackService:
 
 class MemoryAutomationService:
     def __init__(self) -> None:
-        self.session_manager = LongTermMemorySessionManager()
         self.fact_writeback = PersonFactWritebackService()
         self._started = False
 
@@ -255,14 +224,13 @@ class MemoryAutomationService:
     async def shutdown(self) -> None:
         if not self._started:
             return
-        await self.session_manager.shutdown()
         await self.fact_writeback.shutdown()
         self._started = False
 
     async def on_incoming_message(self, message: Any) -> None:
+        del message
         if not self._started:
             await self.start()
-        await self.session_manager.on_message(message)
 
     async def on_message_sent(self, message: Any) -> None:
         if not self._started:

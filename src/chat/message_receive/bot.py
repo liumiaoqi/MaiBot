@@ -612,13 +612,6 @@ class ChatBot:
                 scope=scope,
             )  # 确保会话存在
 
-            try:
-                from src.services.memory_flow_service import memory_automation_service
-
-                await memory_automation_service.on_incoming_message(message)
-            except Exception as exc:
-                logger.warning(f"[{session_id}] 长期记忆自动摘要注册失败: {exc}")
-
             # message.update_chat_stream(chat)
 
             # 命令处理 - 使用新插件系统检查并处理命令。

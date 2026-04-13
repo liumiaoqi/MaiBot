@@ -1151,7 +1151,6 @@ class MaisakaHeartFlowChatting:
                         chat_id=self.session_id,
                         request_kind=labels["request_kind"],
                         selection_reason=subtitle,
-                        image_display_mode="path_link" if global_config.maisaka.show_image_path else "legacy",
                     ),
                     title=labels["prompt_title"],
                     border_style=border_style,

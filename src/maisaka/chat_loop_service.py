@@ -528,14 +528,12 @@ class MaisakaChatLoopService:
 
         prompt_section: RenderableType | None = None
         if global_config.debug.show_maisaka_thinking:
-            image_display_mode: str = "path_link" if global_config.maisaka.show_image_path else "legacy"
             prompt_section = PromptCLIVisualizer.build_prompt_section(
                 built_messages,
                 category="planner" if request_kind != "timing_gate" else "timing_gate",
                 chat_id=self._session_id,
                 request_kind=request_kind,
                 selection_reason=selection_reason,
-                image_display_mode=image_display_mode,
                 folded=global_config.debug.fold_maisaka_thinking,
                 tool_definitions=list(all_tools),
             )
