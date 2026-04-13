@@ -36,7 +36,8 @@ def get_tool_spec() -> ToolSpec:
         detailed_description=(
             "参数说明：\n"
             "- msg_id：string，必填。要回复的目标用户消息编号。\n"
-            "- set_quote：boolean，可选。以引用回复的方式发送，默认 true。"
+            "- set_quote：boolean，可选。以引用回复的方式发送，默认 true。\n"
+            "- reference_info：string，可选。上文中有助于回复的所有参考信息，使用平文本格式。"
         ),
         parameters_schema={
             "type": "object",
@@ -48,6 +49,11 @@ def get_tool_spec() -> ToolSpec:
                 "set_quote": {
                     "type": "boolean",
                     "description": "以引用回复的方式发送这条回复，不用每句都引用。",
+                    "default": True,
+                },
+                "reference_info": {
+                    "type": "string",
+                    "description": "有助于回复的信息，之前搜集得到的事实性信息，记忆等，使用平文本格式。",
                     "default": True,
                 },
             },
@@ -75,6 +81,7 @@ async def handle_tool(
     """执行 reply 内置工具。"""
 
     latest_thought = context.reasoning if context is not None else invocation.reasoning
+    reference_info = str(invocation.arguments.get("reference_info") or "").strip()
     target_message_id = str(invocation.arguments.get("msg_id") or "").strip()
     set_quote = bool(invocation.arguments.get("set_quote", True))
 
@@ -117,6 +124,7 @@ async def handle_tool(
     try:
         success, reply_result = await replyer.generate_reply_with_context(
             reply_reason=latest_thought,
+            reference_info=reference_info,
             stream_id=tool_ctx.runtime.session_id,
             reply_message=target_message,
             chat_history=tool_ctx.runtime._chat_history,
