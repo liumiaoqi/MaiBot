@@ -4,15 +4,17 @@ import json
 import time
 import traceback
 from datetime import datetime
-from typing import Any, Optional, cast
+from typing import TYPE_CHECKING, Any, Optional, cast
 
-from sqlalchemy import delete, func, select
-from sqlmodel import SQLModel
+from sqlalchemy import delete, func
+from sqlmodel import SQLModel, select
 
-from src.chat.message_receive.chat_manager import BotChatSession
 from src.common.database.database import get_db_session
 from src.common.database.database_model import ToolRecord
 from src.common.logger import get_logger
+
+if TYPE_CHECKING:
+    from src.chat.message_receive.chat_manager import BotChatSession
 
 logger = get_logger("database_service")
 
@@ -158,7 +160,7 @@ async def db_count(model_class: type[SQLModel], filters: Optional[dict[str, Any]
 
 
 async def store_tool_info(
-    chat_stream: BotChatSession,
+    chat_stream: "BotChatSession",
     builtin_prompt: Optional[str] = None,
     display_prompt: str = "",
     tool_id: str = "",
@@ -191,7 +193,7 @@ async def store_tool_info(
 
 
 async def store_action_info(
-    chat_stream: BotChatSession,
+    chat_stream: "BotChatSession",
     builtin_prompt: Optional[str] = None,
     display_prompt: str = "",
     thinking_id: str = "",

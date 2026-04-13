@@ -227,11 +227,6 @@ class MemoryAutomationService:
         await self.fact_writeback.shutdown()
         self._started = False
 
-    async def on_incoming_message(self, message: Any) -> None:
-        del message
-        if not self._started:
-            await self.start()
-
     async def on_message_sent(self, message: Any) -> None:
         if not self._started:
             await self.start()
