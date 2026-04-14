@@ -627,18 +627,18 @@ class MaisakaChatLoopService:
                     break
 
         if not selected_indices:
-            return [], f"没有选择到上下文消息，实际发送 {effective_context_size} 条 user/assistant 消息"
+            return [], "实际发送 0 条消息（tool 0 条，普通消息 0 条）"
 
         selected_indices.reverse()
         selected_history = [filtered_history[index] for index in selected_indices]
-        selected_history, hidden_assistant_count = MaisakaChatLoopService._hide_early_assistant_messages(selected_history)
+        selected_history, _ = MaisakaChatLoopService._hide_early_assistant_messages(selected_history)
         selected_history, _ = drop_orphan_tool_results(selected_history)
+        tool_message_count = sum(1 for message in selected_history if isinstance(message, ToolResultMessage))
+        normal_message_count = len(selected_history) - tool_message_count
         selection_reason = (
-            f"上下文裁剪：最近 {effective_context_size} 条 user/assistant 消息，"
-            f"实际发送 {len(selected_history)} 条"
+            f"实际发送 {len(selected_history)} 条消息"
+            f"|消息 {normal_message_count} 条|tool {tool_message_count} 条"
         )
-        if hidden_assistant_count > 0:
-            selection_reason += f"，已隐藏最早 {hidden_assistant_count} 条 assistant 消息"
         return (
             selected_history,
             selection_reason,
