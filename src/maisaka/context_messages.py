@@ -40,10 +40,15 @@ def _guess_image_format(image_bytes: bytes) -> Optional[str]:
         return None
 
 
-def _append_emoji_component(builder: MessageBuilder, component: EmojiComponent) -> bool:
+def _append_emoji_component(
+    builder: MessageBuilder,
+    component: EmojiComponent,
+    *,
+    enable_visual_message: bool,
+) -> bool:
     """将表情组件追加到 LLM 消息构建器。"""
     image_format = _guess_image_format(component.binary_data)
-    if image_format and component.binary_data:
+    if enable_visual_message and image_format and component.binary_data:
         builder.add_text_content("[消息类型]表情包")
         builder.add_image_content(image_format, base64.b64encode(component.binary_data).decode("utf-8"))
         return True
@@ -56,10 +61,15 @@ def _append_emoji_component(builder: MessageBuilder, component: EmojiComponent) 
     return True
 
 
-def _append_image_component(builder: MessageBuilder, component: ImageComponent) -> bool:
+def _append_image_component(
+    builder: MessageBuilder,
+    component: ImageComponent,
+    *,
+    enable_visual_message: bool,
+) -> bool:
     """将图片组件追加到 LLM 消息构建器。"""
     image_format = _guess_image_format(component.binary_data)
-    if image_format and component.binary_data:
+    if enable_visual_message and image_format and component.binary_data:
         builder.add_text_content("[消息类型]图片")
         builder.add_image_content(image_format, base64.b64encode(component.binary_data).decode("utf-8"))
         return True
@@ -216,6 +226,7 @@ def _build_message_from_sequence(
     message_sequence: MessageSequence,
     fallback_text: str,
     *,
+    enable_visual_message: bool = True,
     tool_call_id: Optional[str] = None,
     tool_name: Optional[str] = None,
     tool_calls: Optional[list[ToolCall]] = None,
@@ -238,11 +249,25 @@ def _build_message_from_sequence(
             continue
 
         if isinstance(component, EmojiComponent):
-            has_content = _append_emoji_component(builder, component) or has_content
+            has_content = (
+                _append_emoji_component(
+                    builder,
+                    component,
+                    enable_visual_message=enable_visual_message,
+                )
+                or has_content
+            )
             continue
 
         if isinstance(component, ImageComponent):
-            has_content = _append_image_component(builder, component) or has_content
+            has_content = (
+                _append_image_component(
+                    builder,
+                    component,
+                    enable_visual_message=enable_visual_message,
+                )
+                or has_content
+            )
             continue
 
         if isinstance(component, AtComponent):
@@ -297,7 +322,7 @@ class LLMContextMessage(ABC):
         return self.__class__.__name__
 
     @abstractmethod
-    def to_llm_message(self) -> Optional[Message]:
+    def to_llm_message(self, enable_visual_message: bool = True) -> Optional[Message]:
         """转换为统一 LLM 消息。"""
 
     def consume_once(self) -> bool:
@@ -328,11 +353,12 @@ class SessionBackedMessage(LLMContextMessage):
     def source(self) -> str:
         return self.source_kind
 
-    def to_llm_message(self) -> Optional[Message]:
+    def to_llm_message(self, enable_visual_message: bool = True) -> Optional[Message]:
         return _build_message_from_sequence(
             RoleType.User,
             self.raw_message,
             self.processed_plain_text,
+            enable_visual_message=enable_visual_message,
         )
 
     @classmethod
@@ -366,7 +392,8 @@ class ComplexSessionMessage(SessionBackedMessage):
     def source(self) -> str:
         return f"{self.source_kind}:{self.complex_message_type}"
 
-    def to_llm_message(self) -> Optional[Message]:
+    def to_llm_message(self, enable_visual_message: bool = True) -> Optional[Message]:
+        del enable_visual_message
         message_sequence = MessageSequence([TextComponent(self.prompt_text)])
         return _build_message_from_sequence(
             RoleType.User,
@@ -426,7 +453,8 @@ class ReferenceMessage(LLMContextMessage):
     def source(self) -> str:
         return self.reference_type.value
 
-    def to_llm_message(self) -> Optional[Message]:
+    def to_llm_message(self, enable_visual_message: bool = True) -> Optional[Message]:
+        del enable_visual_message
         message_sequence = MessageSequence([TextComponent(self.processed_plain_text)])
         return _build_message_from_sequence(RoleType.User, message_sequence, self.processed_plain_text)
 
@@ -463,7 +491,8 @@ class AssistantMessage(LLMContextMessage):
     def source(self) -> str:
         return self.source_kind
 
-    def to_llm_message(self) -> Optional[Message]:
+    def to_llm_message(self, enable_visual_message: bool = True) -> Optional[Message]:
+        del enable_visual_message
         message_sequence = MessageSequence([])
         if self.content:
             message_sequence.text(self.content)
@@ -501,7 +530,8 @@ class ToolResultMessage(LLMContextMessage):
     def source(self) -> str:
         return self.tool_name or "tool"
 
-    def to_llm_message(self) -> Optional[Message]:
+    def to_llm_message(self, enable_visual_message: bool = True) -> Optional[Message]:
+        del enable_visual_message
         message_sequence = MessageSequence([TextComponent(self.content)])
         return _build_message_from_sequence(
             RoleType.Tool,
@@ -510,3 +540,13 @@ class ToolResultMessage(LLMContextMessage):
             tool_call_id=self.tool_call_id,
             tool_name=self.tool_name,
         )
+
+
+def build_llm_message_from_context(
+    context_message: LLMContextMessage,
+    *,
+    enable_visual_message: bool = True,
+) -> Optional[Message]:
+    """将 Maisaka 内部上下文消息转换为发给 LLM 的统一消息。"""
+
+    return context_message.to_llm_message(enable_visual_message=enable_visual_message)

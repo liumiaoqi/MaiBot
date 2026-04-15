@@ -13,7 +13,6 @@ from src.chat.message_receive.chat_manager import BotChatSession
 from src.chat.message_receive.message import SessionMessage
 from src.chat.utils.utils import get_chat_type_and_target_info
 from src.cli.console import console
-from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
 from src.common.data_models.reply_generation_data_models import (
     GenerationMetrics,
     LLMCompletionResult,
@@ -32,9 +31,10 @@ from src.maisaka.context_messages import (
     ReferenceMessage,
     SessionBackedMessage,
     ToolResultMessage,
+    build_llm_message_from_context,
 )
 from src.maisaka.display.prompt_cli_renderer import PromptCLIVisualizer
-from src.maisaka.message_adapter import clone_message_sequence, parse_speaker_content
+from src.maisaka.message_adapter import parse_speaker_content
 from src.plugin_runtime.hook_payloads import serialize_prompt_messages
 
 from .maisaka_expression_selector import maisaka_expression_selector
@@ -253,28 +253,6 @@ class BaseMaisakaReplyGenerator:
     def _build_reply_instruction(self) -> str:
         return "请自然地回复。不要输出多余说明、括号、@ 或额外标记，只输出实际要发送的内容。"
 
-    def _build_visual_user_message(
-        self,
-        message: SessionBackedMessage,
-        enable_visual_message: bool,
-    ) -> Optional[Message]:
-        if not enable_visual_message:
-            return None
-
-        raw_message = clone_message_sequence(message.raw_message)
-        if not raw_message.components:
-            raw_message = MessageSequence([TextComponent(message.processed_plain_text)])
-
-        visual_message = SessionBackedMessage(
-            raw_message=raw_message,
-            visible_text=message.processed_plain_text,
-            timestamp=message.timestamp,
-            message_id=message.message_id,
-            original_message=message.original_message,
-            source_kind=message.source_kind,
-        )
-        return visual_message.to_llm_message()
-
     def _build_history_messages(
         self,
         chat_history: List[LLMContextMessage],
@@ -294,12 +272,10 @@ class BaseMaisakaReplyGenerator:
                     )
                     continue
 
-                visual_message = self._build_visual_user_message(message, enable_visual_message)
-                if visual_message is not None:
-                    messages.append(visual_message)
-                    continue
-
-                llm_message = message.to_llm_message()
+                llm_message = build_llm_message_from_context(
+                    message,
+                    enable_visual_message=enable_visual_message,
+                )
                 if llm_message is not None:
                     messages.append(llm_message)
                 continue

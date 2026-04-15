@@ -30,9 +30,15 @@ from src.plugin_runtime.host.hook_spec_registry import HookSpec, HookSpecRegistr
 from src.services.llm_service import LLMServiceClient
 
 from .builtin_tool import get_builtin_tools
-from .context_messages import AssistantMessage, LLMContextMessage, ToolResultMessage
+from .context_messages import (
+    AssistantMessage,
+    LLMContextMessage,
+    ToolResultMessage,
+    build_llm_message_from_context,
+)
 from .history_utils import drop_orphan_tool_results
 from .display.prompt_cli_renderer import PromptCLIVisualizer
+from .visual_mode_utils import resolve_enable_visual_planner
 
 TIMING_GATE_TOOL_NAMES = {"continue", "no_reply", "wait"}
 
@@ -395,6 +401,7 @@ class MaisakaChatLoopService:
         self,
         selected_history: List[LLMContextMessage],
         *,
+        enable_visual_message: bool,
         injected_user_messages: Sequence[str] | None = None,
         system_prompt: Optional[str] = None,
     ) -> List[Message]:
@@ -413,7 +420,10 @@ class MaisakaChatLoopService:
         messages.append(system_msg.build())
 
         for msg in selected_history:
-            llm_message = msg.to_llm_message()
+            llm_message = build_llm_message_from_context(
+                msg,
+                enable_visual_message=enable_visual_message,
+            )
             if llm_message is not None:
                 messages.append(llm_message)
 
@@ -475,12 +485,15 @@ class MaisakaChatLoopService:
 
         if not self._prompts_loaded:
             await self.ensure_chat_prompt_loaded()
+        enable_visual_message = self._resolve_enable_visual_message(request_kind)
         selected_history, selection_reason = self.select_llm_context_messages(
             chat_history,
             request_kind=request_kind,
+            enable_visual_message=enable_visual_message,
         )
         built_messages = self._build_request_messages(
             selected_history,
+            enable_visual_message=enable_visual_message,
             injected_user_messages=injected_user_messages,
         )
 
@@ -602,6 +615,7 @@ class MaisakaChatLoopService:
     def select_llm_context_messages(
         chat_history: List[LLMContextMessage],
         *,
+        enable_visual_message: Optional[bool] = None,
         request_kind: str = "planner",
         max_context_size: Optional[int] = None,
     ) -> tuple[List[LLMContextMessage], str]:
@@ -615,9 +629,21 @@ class MaisakaChatLoopService:
         selected_indices: List[int] = []
         counted_message_count = 0
 
+        active_enable_visual_message = (
+            enable_visual_message
+            if enable_visual_message is not None
+            else MaisakaChatLoopService._resolve_enable_visual_message(request_kind)
+        )
+
         for index in range(len(filtered_history) - 1, -1, -1):
             message = filtered_history[index]
-            if message.to_llm_message() is None:
+            if (
+                build_llm_message_from_context(
+                    message,
+                    enable_visual_message=active_enable_visual_message,
+                )
+                is None
+            ):
                 continue
 
             selected_indices.append(index)
@@ -682,6 +708,12 @@ class MaisakaChatLoopService:
             filtered_history.append(message)
 
         return filtered_history
+
+    @staticmethod
+    def _resolve_enable_visual_message(request_kind: str) -> bool:
+        if request_kind in {"planner", "timing_gate"}:
+            return resolve_enable_visual_planner()
+        return True
 
     @staticmethod
     def _hide_early_assistant_messages(
