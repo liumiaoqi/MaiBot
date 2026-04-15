@@ -160,7 +160,6 @@ async def handle_tool(
     combined_reply_text = "".join(reply_segments)
     try:
         sent = False
-        sent_messages = []
         if tool_ctx.runtime.chat_stream.platform == CLI_PLATFORM_NAME:
             for segment in reply_segments:
                 render_cli_message(segment)
@@ -174,11 +173,12 @@ async def handle_tool(
                     reply_message=target_message if set_quote and index == 0 else None,
                     selected_expressions=reply_result.selected_expression_ids or None,
                     typing=index > 0,
+                    sync_to_maisaka_history=True,
+                    maisaka_source_kind="guided_reply",
                 )
                 sent = sent_message is not None
                 if not sent:
                     break
-                sent_messages.append(sent_message)
     except Exception:
         logger.exception(
             f"{tool_ctx.runtime.log_prefix} 发送文字消息时发生异常，目标消息编号={target_message_id}"
@@ -206,9 +206,6 @@ async def handle_tool(
 
     if tool_ctx.runtime.chat_stream.platform == CLI_PLATFORM_NAME:
         tool_ctx.append_guided_reply_to_chat_history(combined_reply_text)
-    else:
-        for sent_message in sent_messages:
-            tool_ctx.append_sent_message_to_chat_history(sent_message)
     tool_ctx.runtime._record_reply_sent()
     return tool_ctx.build_success_result(
         invocation.tool_name,

@@ -446,9 +446,7 @@ async def handle_tool(
             f"描述={send_result.description!r} 情绪标签={send_result.emotions} "
             f"命中情绪={send_result.matched_emotion!r}"
         )
-        if send_result.sent_message is not None:
-            tool_ctx.append_sent_message_to_chat_history(send_result.sent_message)
-        else:
+        if send_result.sent_message is None:
             tool_ctx.append_sent_emoji_to_chat_history(
                 emoji_base64=send_result.emoji_base64,
                 success_message=_EMOJI_SUCCESS_MESSAGE,

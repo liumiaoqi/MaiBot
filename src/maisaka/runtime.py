@@ -183,6 +183,43 @@ class MaisakaHeartFlowChatting:
         self._talk_frequency_adjust = max(0.01, float(frequency))
         self._schedule_message_turn()
 
+    def append_sent_message_to_chat_history(
+        self,
+        message: SessionMessage,
+        *,
+        source_kind: str = "guided_reply",
+    ) -> bool:
+        """将一条已发送成功的消息同步到 Maisaka 内部历史。"""
+
+        try:
+            from .context_messages import SessionBackedMessage
+            from .history_utils import build_prefixed_message_sequence, build_session_message_visible_text
+            from .planner_message_utils import build_planner_prefix
+
+            user_info = message.message_info.user_info
+            speaker_name = user_info.user_cardname or user_info.user_nickname or user_info.user_id
+            planner_prefix = build_planner_prefix(
+                timestamp=message.timestamp,
+                user_name=speaker_name,
+                group_card=user_info.user_cardname or "",
+                message_id=message.message_id,
+                include_message_id=not message.is_notify and bool(message.message_id),
+            )
+            history_message = SessionBackedMessage.from_session_message(
+                message,
+                raw_message=build_prefixed_message_sequence(message.raw_message, planner_prefix),
+                visible_text=build_session_message_visible_text(message),
+                source_kind=source_kind,
+            )
+            self._chat_history.append(history_message)
+            return True
+        except Exception as exc:
+            logger.warning(
+                f"{self.log_prefix} 同步已发送消息到 Maisaka 历史失败: "
+                f"message_id={message.message_id} error={exc}"
+            )
+            return False
+
     async def register_message(self, message: SessionMessage) -> None:
         """缓存一条新消息并唤醒主循环。"""
         if self._running:

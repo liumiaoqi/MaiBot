@@ -707,6 +707,28 @@ async def _notify_memory_automation_on_message_sent(message: SessionMessage) -> 
         logger.warning(f"[{session_id}] 长期记忆人物事实写回注册失败: {exc}")
 
 
+def _sync_sent_message_to_maisaka_history(
+    message: SessionMessage,
+    *,
+    source_kind: str,
+) -> None:
+    """将已发送成功的消息同步到当前会话对应的 Maisaka 历史。"""
+
+    session_id = str(message.session_id or "").strip()
+    if not session_id:
+        return
+
+    try:
+        from src.chat.heart_flow.heartflow_manager import heartflow_manager
+
+        runtime = heartflow_manager.heartflow_chat_list.get(session_id)
+        if runtime is None:
+            return
+        runtime.append_sent_message_to_chat_history(message, source_kind=source_kind)
+    except Exception as exc:
+        logger.warning(f"[SendService] 同步消息到 Maisaka 历史失败: session_id={session_id} error={exc}")
+
+
 def _log_platform_io_failures(delivery_batch: DeliveryBatch) -> None:
     """输出 Platform IO 批量发送失败详情。
 
@@ -837,13 +859,15 @@ async def send_session_message_with_message(
     reply_message_id: Optional[str] = None,
     storage_message: bool = True,
     show_log: bool = True,
+    sync_to_maisaka_history: bool = False,
+    maisaka_source_kind: str = "outbound_send",
 ) -> Optional[SessionMessage]:
     """统一发送一条内部消息，并返回最终发送成功的消息对象。"""
     if not message.message_id:
         logger.error("[SendService] 消息缺少 message_id，无法发送")
         raise ValueError("消息缺少 message_id，无法发送")
 
-    return await _send_via_platform_io(
+    sent_message = await _send_via_platform_io(
         message,
         typing=typing,
         set_reply=set_reply,
@@ -851,6 +875,12 @@ async def send_session_message_with_message(
         storage_message=storage_message,
         show_log=show_log,
     )
+    if sent_message is not None and sync_to_maisaka_history:
+        _sync_sent_message_to_maisaka_history(
+            sent_message,
+            source_kind=str(maisaka_source_kind or "outbound_send"),
+        )
+    return sent_message
 
 
 async def send_session_message(
@@ -861,6 +891,8 @@ async def send_session_message(
     reply_message_id: Optional[str] = None,
     storage_message: bool = True,
     show_log: bool = True,
+    sync_to_maisaka_history: bool = False,
+    maisaka_source_kind: str = "outbound_send",
 ) -> bool:
     """统一发送一条内部消息。
 
@@ -893,6 +925,8 @@ async def send_session_message(
             reply_message_id=reply_message_id,
             storage_message=storage_message,
             show_log=show_log,
+            sync_to_maisaka_history=sync_to_maisaka_history,
+            maisaka_source_kind=maisaka_source_kind,
         )
         is not None
     )
@@ -908,6 +942,8 @@ async def _send_to_target(
     storage_message: bool = True,
     show_log: bool = True,
     selected_expressions: Optional[List[int]] = None,
+    sync_to_maisaka_history: bool = False,
+    maisaka_source_kind: str = "outbound_send",
 ) -> bool:
     """向指定目标构建并发送消息，并返回是否发送成功。"""
     return (
@@ -921,6 +957,8 @@ async def _send_to_target(
             storage_message=storage_message,
             show_log=show_log,
             selected_expressions=selected_expressions,
+            sync_to_maisaka_history=sync_to_maisaka_history,
+            maisaka_source_kind=maisaka_source_kind,
         )
         is not None
     )
@@ -936,6 +974,8 @@ async def _send_to_target_with_message(
     storage_message: bool = True,
     show_log: bool = True,
     selected_expressions: Optional[List[int]] = None,
+    sync_to_maisaka_history: bool = False,
+    maisaka_source_kind: str = "outbound_send",
 ) -> Optional[SessionMessage]:
     """向指定目标构建并发送消息。
 
@@ -998,6 +1038,8 @@ async def _send_to_target_with_message(
             reply_message_id=reply_message.message_id if reply_message is not None else None,
             storage_message=storage_message,
             show_log=show_log,
+            sync_to_maisaka_history=sync_to_maisaka_history,
+            maisaka_source_kind=maisaka_source_kind,
         )
         if sent_message is not None:
             logger.debug(f"[SendService] 成功发送消息到 {stream_id}")
@@ -1019,6 +1061,8 @@ async def text_to_stream_with_message(
     reply_message: Optional[MaiMessage] = None,
     storage_message: bool = True,
     selected_expressions: Optional[List[int]] = None,
+    sync_to_maisaka_history: bool = False,
+    maisaka_source_kind: str = "outbound_send",
 ) -> Optional[SessionMessage]:
     """向指定流发送文本消息，并返回发送成功后的消息对象。"""
     return await _send_to_target_with_message(
@@ -1030,6 +1074,8 @@ async def text_to_stream_with_message(
         reply_message=reply_message,
         storage_message=storage_message,
         selected_expressions=selected_expressions,
+        sync_to_maisaka_history=sync_to_maisaka_history,
+        maisaka_source_kind=maisaka_source_kind,
     )
 
 
@@ -1041,6 +1087,8 @@ async def text_to_stream(
     reply_message: Optional[MaiMessage] = None,
     storage_message: bool = True,
     selected_expressions: Optional[List[int]] = None,
+    sync_to_maisaka_history: bool = False,
+    maisaka_source_kind: str = "outbound_send",
 ) -> bool:
     """向指定流发送文本消息。
 
@@ -1065,6 +1113,8 @@ async def text_to_stream(
             reply_message=reply_message,
             storage_message=storage_message,
             selected_expressions=selected_expressions,
+            sync_to_maisaka_history=sync_to_maisaka_history,
+            maisaka_source_kind=maisaka_source_kind,
         )
         is not None
     )
@@ -1076,6 +1126,8 @@ async def emoji_to_stream_with_message(
     storage_message: bool = True,
     set_reply: bool = False,
     reply_message: Optional[MaiMessage] = None,
+    sync_to_maisaka_history: bool = False,
+    maisaka_source_kind: str = "outbound_send",
 ) -> Optional[SessionMessage]:
     """向指定流发送表情消息，并返回发送成功后的消息对象。"""
     return await _send_to_target_with_message(
@@ -1086,6 +1138,8 @@ async def emoji_to_stream_with_message(
         storage_message=storage_message,
         set_reply=set_reply,
         reply_message=reply_message,
+        sync_to_maisaka_history=sync_to_maisaka_history,
+        maisaka_source_kind=maisaka_source_kind,
     )
 
 
@@ -1095,6 +1149,8 @@ async def emoji_to_stream(
     storage_message: bool = True,
     set_reply: bool = False,
     reply_message: Optional[MaiMessage] = None,
+    sync_to_maisaka_history: bool = False,
+    maisaka_source_kind: str = "outbound_send",
 ) -> bool:
     """向指定流发送表情消息。
 
@@ -1115,6 +1171,8 @@ async def emoji_to_stream(
             storage_message=storage_message,
             set_reply=set_reply,
             reply_message=reply_message,
+            sync_to_maisaka_history=sync_to_maisaka_history,
+            maisaka_source_kind=maisaka_source_kind,
         )
         is not None
     )
@@ -1126,6 +1184,8 @@ async def image_to_stream(
     storage_message: bool = True,
     set_reply: bool = False,
     reply_message: Optional[MaiMessage] = None,
+    sync_to_maisaka_history: bool = False,
+    maisaka_source_kind: str = "outbound_send",
 ) -> bool:
     """向指定流发送图片消息。
 
@@ -1147,6 +1207,8 @@ async def image_to_stream(
         storage_message=storage_message,
         set_reply=set_reply,
         reply_message=reply_message,
+        sync_to_maisaka_history=sync_to_maisaka_history,
+        maisaka_source_kind=maisaka_source_kind,
     )
 
 
@@ -1160,6 +1222,8 @@ async def custom_to_stream(
     set_reply: bool = False,
     storage_message: bool = True,
     show_log: bool = True,
+    sync_to_maisaka_history: bool = False,
+    maisaka_source_kind: str = "outbound_send",
 ) -> bool:
     """向指定流发送自定义类型消息。
 
@@ -1186,6 +1250,8 @@ async def custom_to_stream(
         set_reply=set_reply,
         storage_message=storage_message,
         show_log=show_log,
+        sync_to_maisaka_history=sync_to_maisaka_history,
+        maisaka_source_kind=maisaka_source_kind,
     )
 
 
@@ -1198,6 +1264,8 @@ async def custom_reply_set_to_stream(
     set_reply: bool = False,
     storage_message: bool = True,
     show_log: bool = True,
+    sync_to_maisaka_history: bool = False,
+    maisaka_source_kind: str = "outbound_send",
 ) -> bool:
     """向指定流发送消息组件序列。
 
@@ -1223,4 +1291,6 @@ async def custom_reply_set_to_stream(
         set_reply=set_reply,
         storage_message=storage_message,
         show_log=show_log,
+        sync_to_maisaka_history=sync_to_maisaka_history,
+        maisaka_source_kind=maisaka_source_kind,
     )

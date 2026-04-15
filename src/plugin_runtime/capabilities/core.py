@@ -75,6 +75,8 @@ class RuntimeCoreCapabilityMixin:
 
         text = str(args.get("text", ""))
         stream_id = str(args.get("stream_id", ""))
+        sync_to_maisaka_history = bool(args.get("sync_to_maisaka_history", False))
+        maisaka_source_kind = str(args.get("maisaka_source_kind", "plugin_send") or "plugin_send")
         if not text or not stream_id:
             return {"success": False, "error": "缺少必要参数 text 或 stream_id"}
 
@@ -85,6 +87,8 @@ class RuntimeCoreCapabilityMixin:
                 typing=bool(args.get("typing", False)),
                 set_reply=bool(args.get("set_reply", False)),
                 storage_message=bool(args.get("storage_message", True)),
+                sync_to_maisaka_history=sync_to_maisaka_history,
+                maisaka_source_kind=maisaka_source_kind,
             )
             return {"success": result}
         except Exception as exc:
@@ -107,6 +111,8 @@ class RuntimeCoreCapabilityMixin:
 
         emoji_base64 = str(args.get("emoji_base64", ""))
         stream_id = str(args.get("stream_id", ""))
+        sync_to_maisaka_history = bool(args.get("sync_to_maisaka_history", False))
+        maisaka_source_kind = str(args.get("maisaka_source_kind", "plugin_send") or "plugin_send")
         if not emoji_base64 or not stream_id:
             return {"success": False, "error": "缺少必要参数 emoji_base64 或 stream_id"}
 
@@ -115,6 +121,8 @@ class RuntimeCoreCapabilityMixin:
                 emoji_base64=emoji_base64,
                 stream_id=stream_id,
                 storage_message=bool(args.get("storage_message", True)),
+                sync_to_maisaka_history=sync_to_maisaka_history,
+                maisaka_source_kind=maisaka_source_kind,
             )
             return {"success": result}
         except Exception as exc:
@@ -137,6 +145,8 @@ class RuntimeCoreCapabilityMixin:
 
         image_base64 = str(args.get("image_base64", ""))
         stream_id = str(args.get("stream_id", ""))
+        sync_to_maisaka_history = bool(args.get("sync_to_maisaka_history", False))
+        maisaka_source_kind = str(args.get("maisaka_source_kind", "plugin_send") or "plugin_send")
         if not image_base64 or not stream_id:
             return {"success": False, "error": "缺少必要参数 image_base64 或 stream_id"}
 
@@ -145,6 +155,8 @@ class RuntimeCoreCapabilityMixin:
                 image_base64=image_base64,
                 stream_id=stream_id,
                 storage_message=bool(args.get("storage_message", True)),
+                sync_to_maisaka_history=sync_to_maisaka_history,
+                maisaka_source_kind=maisaka_source_kind,
             )
             return {"success": result}
         except Exception as exc:
@@ -167,6 +179,8 @@ class RuntimeCoreCapabilityMixin:
 
         command = str(args.get("command", ""))
         stream_id = str(args.get("stream_id", ""))
+        sync_to_maisaka_history = bool(args.get("sync_to_maisaka_history", False))
+        maisaka_source_kind = str(args.get("maisaka_source_kind", "plugin_send") or "plugin_send")
         if not command or not stream_id:
             return {"success": False, "error": "缺少必要参数 command 或 stream_id"}
 
@@ -177,6 +191,8 @@ class RuntimeCoreCapabilityMixin:
                 stream_id=stream_id,
                 storage_message=bool(args.get("storage_message", True)),
                 display_message=str(args.get("display_message", "")),
+                sync_to_maisaka_history=sync_to_maisaka_history,
+                maisaka_source_kind=maisaka_source_kind,
             )
             return {"success": result}
         except Exception as exc:
@@ -202,6 +218,8 @@ class RuntimeCoreCapabilityMixin:
         if content is None:
             content = args.get("data", "")
         stream_id = str(args.get("stream_id", ""))
+        sync_to_maisaka_history = bool(args.get("sync_to_maisaka_history", False))
+        maisaka_source_kind = str(args.get("maisaka_source_kind", "plugin_send") or "plugin_send")
         if not message_type or not stream_id:
             return {"success": False, "error": "缺少必要参数 message_type 或 stream_id"}
 
@@ -213,6 +231,8 @@ class RuntimeCoreCapabilityMixin:
                 display_message=str(args.get("display_message", "")),
                 typing=bool(args.get("typing", False)),
                 storage_message=bool(args.get("storage_message", True)),
+                sync_to_maisaka_history=sync_to_maisaka_history,
+                maisaka_source_kind=maisaka_source_kind,
             )
             return {"success": result}
         except Exception as exc:
