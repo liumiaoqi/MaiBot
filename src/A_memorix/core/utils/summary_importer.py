@@ -136,7 +136,9 @@ class SummaryImporter:
         if not available_tasks:
             return None
 
-        raw_cfg = self.plugin_config.get("summarization", {}).get("model_name", "auto")
+        # vNext 要求该字段为 List[str]；当配置缺失时回退到 ["auto"]，
+        # 避免默认值本身触发类型校验异常。
+        raw_cfg = self.plugin_config.get("summarization", {}).get("model_name", ["auto"])
         selectors = self._normalize_summary_model_selectors(raw_cfg)
         default_task_name, default_task_cfg = self._pick_default_summary_task(available_tasks)
 

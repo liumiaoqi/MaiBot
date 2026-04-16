@@ -472,7 +472,11 @@ def _migrate_config(config_doc: Dict[str, Any]) -> Dict[str, Any]:
 
     summary = _ensure_table(config_doc, "summarization")
     summary_model = summary.get("model_name", ["auto"])
-    if isinstance(summary_model, str):
+    if "model_name" not in summary:
+        normalized = ["auto"]
+        summary["model_name"] = normalized
+        changes["summarization.model_name"] = {"old": "<missing>", "new": normalized}
+    elif isinstance(summary_model, str):
         normalized = [summary_model.strip() or "auto"]
         summary["model_name"] = normalized
         changes["summarization.model_name"] = {"old": summary_model, "new": normalized}
