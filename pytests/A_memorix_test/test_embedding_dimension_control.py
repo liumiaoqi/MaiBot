@@ -164,3 +164,28 @@ async def test_runtime_self_check_reports_requested_dimension_without_explicit_o
     assert report["detected_dimension"] == 384
     assert report["encoded_dimension"] == 384
     assert manager.encode_calls == ["A_Memorix runtime self check"]
+
+
+@pytest.mark.asyncio
+async def test_encode_batch_keeps_batch_local_indexes_when_cache_hits_previous_batch(monkeypatch):
+    adapter = EmbeddingAPIAdapter(default_dimension=4, enable_cache=True)
+    adapter._dimension = 4
+    adapter._dimension_detected = True
+
+    async def fake_detect_dimension() -> int:
+        return 4
+
+    async def fake_get_embedding_direct(text: str, dimensions: int | None = None):
+        del dimensions
+        base = float(ord(str(text)[0]))
+        return [base, base + 1.0, base + 2.0, base + 3.0]
+
+    monkeypatch.setattr(adapter, "_detect_dimension", fake_detect_dimension)
+    monkeypatch.setattr(adapter, "_get_embedding_direct", fake_get_embedding_direct)
+
+    embeddings = await adapter.encode(["A", "B", "A", "C"], batch_size=2)
+
+    assert embeddings.shape == (4, 4)
+    assert np.array_equal(embeddings[0], embeddings[2])
+    assert embeddings[1][0] == float(ord("B"))
+    assert embeddings[3][0] == float(ord("C"))

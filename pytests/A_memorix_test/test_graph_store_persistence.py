@@ -62,3 +62,21 @@ def test_graph_store_load_resets_stale_adjacency_when_metadata_is_empty(tmp_path
     assert reloaded.num_nodes == 0
     assert reloaded.num_edges == 0
     assert reloaded.get_nodes() == []
+
+
+def test_graph_store_load_clears_stale_edge_hash_map_when_metadata_is_empty(tmp_path: Path) -> None:
+    data_dir = tmp_path / "graph_data"
+    store = GraphStore(data_dir=data_dir)
+    store.add_edges([("Alice", "Bob")], relation_hashes=["rel-1"])
+    store.save()
+
+    metadata_path = data_dir / "graph_metadata.pkl"
+    empty_metadata = _build_empty_graph_metadata()
+    empty_metadata["edge_hash_map"] = {(0, 1): {"rel-1"}}
+    with metadata_path.open("wb") as handle:
+        pickle.dump(empty_metadata, handle)
+
+    reloaded = GraphStore(data_dir=data_dir)
+    reloaded.load()
+
+    assert reloaded.has_edge_hash_map() is False

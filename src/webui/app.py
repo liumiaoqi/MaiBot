@@ -208,7 +208,7 @@ def _resolve_static_path() -> Path | None:
     # 开发环境优先允许复用仓库里的现成 dist
     base_dir = _get_project_root()
     static_path = base_dir / "dashboard" / "dist"
-    if static_path.exists():
+    if static_path.is_dir() and (static_path / "index.html").exists():
         return static_path
 
     try:

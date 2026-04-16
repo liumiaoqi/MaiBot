@@ -59,7 +59,16 @@ async def test_chat_summary_writeback_service_triggers_when_threshold_reached(mo
         events.append(("ingest_summary", kwargs))
         return SimpleNamespace(success=True, detail="ok")
 
+    async def fake_load_last_trigger_message_count(self, *, session_id: str, total_message_count: int) -> int:
+        del self, session_id, total_message_count
+        return 0
+
     monkeypatch.setattr(memory_flow_module.memory_service, "ingest_summary", fake_ingest_summary)
+    monkeypatch.setattr(
+        memory_flow_module.ChatSummaryWritebackService,
+        "_load_last_trigger_message_count",
+        fake_load_last_trigger_message_count,
+    )
 
     service = memory_flow_module.ChatSummaryWritebackService()
     message = SimpleNamespace(session_id="session-1", session=SimpleNamespace(user_id="user-1", group_id="group-1"))
@@ -100,7 +109,16 @@ async def test_chat_summary_writeback_service_skips_when_threshold_not_reached(m
         called = True
         return SimpleNamespace(success=True, detail="ok")
 
+    async def fake_load_last_trigger_message_count(self, *, session_id: str, total_message_count: int) -> int:
+        del self, session_id, total_message_count
+        return 0
+
     monkeypatch.setattr(memory_flow_module.memory_service, "ingest_summary", fake_ingest_summary)
+    monkeypatch.setattr(
+        memory_flow_module.ChatSummaryWritebackService,
+        "_load_last_trigger_message_count",
+        fake_load_last_trigger_message_count,
+    )
 
     service = memory_flow_module.ChatSummaryWritebackService()
     message = SimpleNamespace(session_id="session-1", session=SimpleNamespace(user_id="user-1", group_id="group-1"))
@@ -108,6 +126,116 @@ async def test_chat_summary_writeback_service_skips_when_threshold_not_reached(m
     await service._handle_message(message)
 
     assert called is False
+
+
+@pytest.mark.asyncio
+async def test_chat_summary_writeback_service_restores_previous_trigger_count(monkeypatch):
+    events: list[tuple[str, object]] = []
+
+    monkeypatch.setattr(
+        memory_flow_module,
+        "global_config",
+        SimpleNamespace(
+            memory=SimpleNamespace(
+                chat_summary_writeback_enabled=True,
+                chat_summary_writeback_message_threshold=3,
+                chat_summary_writeback_context_length=7,
+            )
+        ),
+    )
+    monkeypatch.setattr(memory_flow_module, "count_messages", lambda **kwargs: 8)
+
+    async def fake_ingest_summary(**kwargs):
+        events.append(("ingest_summary", kwargs))
+        return SimpleNamespace(success=True, detail="ok")
+
+    async def fake_load_last_trigger_message_count(self, *, session_id: str, total_message_count: int) -> int:
+        del self, session_id, total_message_count
+        return 5
+
+    monkeypatch.setattr(memory_flow_module.memory_service, "ingest_summary", fake_ingest_summary)
+    monkeypatch.setattr(
+        memory_flow_module.ChatSummaryWritebackService,
+        "_load_last_trigger_message_count",
+        fake_load_last_trigger_message_count,
+    )
+
+    service = memory_flow_module.ChatSummaryWritebackService()
+    message = SimpleNamespace(session_id="session-1", session=SimpleNamespace(user_id="user-1", group_id="group-1"))
+
+    await service._handle_message(message)
+
+    assert len(events) == 1
+    _, payload = events[0]
+    assert payload["external_id"] == "chat_auto_summary:session-1:8"
+    assert service._states["session-1"].last_trigger_message_count == 8
+
+
+@pytest.mark.asyncio
+async def test_chat_summary_writeback_service_falls_back_to_current_count_for_legacy_summary(monkeypatch):
+    called = False
+
+    monkeypatch.setattr(
+        memory_flow_module,
+        "global_config",
+        SimpleNamespace(
+            memory=SimpleNamespace(
+                chat_summary_writeback_enabled=True,
+                chat_summary_writeback_message_threshold=3,
+                chat_summary_writeback_context_length=7,
+            )
+        ),
+    )
+    monkeypatch.setattr(memory_flow_module, "count_messages", lambda **kwargs: 5)
+
+    async def fake_ingest_summary(**kwargs):
+        nonlocal called
+        called = True
+        return SimpleNamespace(success=True, detail="ok")
+
+    async def fake_load_last_trigger_message_count(self, *, session_id: str, total_message_count: int) -> int:
+        del self, session_id, total_message_count
+        return 5
+
+    monkeypatch.setattr(memory_flow_module.memory_service, "ingest_summary", fake_ingest_summary)
+    monkeypatch.setattr(
+        memory_flow_module.ChatSummaryWritebackService,
+        "_load_last_trigger_message_count",
+        fake_load_last_trigger_message_count,
+    )
+
+    service = memory_flow_module.ChatSummaryWritebackService()
+    message = SimpleNamespace(session_id="session-1", session=SimpleNamespace(user_id="user-1", group_id="group-1"))
+
+    await service._handle_message(message)
+
+    assert called is False
+    assert service._states["session-1"].last_trigger_message_count == 5
+
+
+@pytest.mark.asyncio
+async def test_chat_summary_writeback_service_loads_trigger_count_from_summary_metadata(monkeypatch):
+    class FakeMetadataStore:
+        @staticmethod
+        def get_paragraphs_by_source(source: str):
+            assert source == "chat_summary:session-1"
+            return [
+                {"created_at": 1.0, "metadata": {"trigger_message_count": 3}},
+                {"created_at": 2.0, "metadata": {"trigger_message_count": 6}},
+            ]
+
+    class FakeRuntimeManager:
+        @staticmethod
+        async def _ensure_kernel():
+            return SimpleNamespace(metadata_store=FakeMetadataStore())
+
+    monkeypatch.setattr(memory_flow_module.memory_service_module, "a_memorix_host_service", FakeRuntimeManager())
+
+    service = memory_flow_module.ChatSummaryWritebackService()
+
+    restored = await service._load_last_trigger_message_count(session_id="session-1", total_message_count=8)
+
+    assert restored == 6
 
 
 @pytest.mark.asyncio

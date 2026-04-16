@@ -178,6 +178,27 @@ class MetadataStore:
             int(knowledge_type_result.get("normalized", 0) or 0),
         )
 
+    def _ensure_memory_feedback_task_columns(self, cursor: sqlite3.Cursor) -> None:
+        """补齐 memory_feedback_tasks 历史库缺失的 rollback_* 列。"""
+        cursor.execute("PRAGMA table_info(memory_feedback_tasks)")
+        feedback_task_columns = {row[1] for row in cursor.fetchall()}
+        feedback_task_migrations = {
+            "rollback_status": "ALTER TABLE memory_feedback_tasks ADD COLUMN rollback_status TEXT DEFAULT 'none'",
+            "rollback_plan_json": "ALTER TABLE memory_feedback_tasks ADD COLUMN rollback_plan_json TEXT",
+            "rollback_result_json": "ALTER TABLE memory_feedback_tasks ADD COLUMN rollback_result_json TEXT",
+            "rollback_error": "ALTER TABLE memory_feedback_tasks ADD COLUMN rollback_error TEXT",
+            "rollback_requested_by": "ALTER TABLE memory_feedback_tasks ADD COLUMN rollback_requested_by TEXT",
+            "rollback_reason": "ALTER TABLE memory_feedback_tasks ADD COLUMN rollback_reason TEXT",
+            "rollback_requested_at": "ALTER TABLE memory_feedback_tasks ADD COLUMN rollback_requested_at REAL",
+            "rolled_back_at": "ALTER TABLE memory_feedback_tasks ADD COLUMN rolled_back_at REAL",
+        }
+        for col, sql in feedback_task_migrations.items():
+            if col not in feedback_task_columns:
+                try:
+                    cursor.execute(sql)
+                except sqlite3.OperationalError as e:
+                    logger.warning(f"Schema迁移失败 (memory_feedback_tasks.{col}): {e}")
+
     def close(self) -> None:
         """关闭数据库连接"""
         if self._conn:
@@ -641,24 +662,7 @@ class MetadataStore:
             CREATE INDEX IF NOT EXISTS idx_person_profile_refresh_queue_requested
             ON person_profile_refresh_queue(requested_at DESC)
         """)
-        cursor.execute("PRAGMA table_info(memory_feedback_tasks)")
-        feedback_task_columns = {row[1] for row in cursor.fetchall()}
-        feedback_task_migrations = {
-            "rollback_status": "ALTER TABLE memory_feedback_tasks ADD COLUMN rollback_status TEXT DEFAULT 'none'",
-            "rollback_plan_json": "ALTER TABLE memory_feedback_tasks ADD COLUMN rollback_plan_json TEXT",
-            "rollback_result_json": "ALTER TABLE memory_feedback_tasks ADD COLUMN rollback_result_json TEXT",
-            "rollback_error": "ALTER TABLE memory_feedback_tasks ADD COLUMN rollback_error TEXT",
-            "rollback_requested_by": "ALTER TABLE memory_feedback_tasks ADD COLUMN rollback_requested_by TEXT",
-            "rollback_reason": "ALTER TABLE memory_feedback_tasks ADD COLUMN rollback_reason TEXT",
-            "rollback_requested_at": "ALTER TABLE memory_feedback_tasks ADD COLUMN rollback_requested_at REAL",
-            "rolled_back_at": "ALTER TABLE memory_feedback_tasks ADD COLUMN rolled_back_at REAL",
-        }
-        for col, sql in feedback_task_migrations.items():
-            if col not in feedback_task_columns:
-                try:
-                    cursor.execute(sql)
-                except sqlite3.OperationalError as e:
-                    logger.warning(f"Schema迁移失败 (memory_feedback_tasks.{col}): {e}")
+        self._ensure_memory_feedback_task_columns(cursor)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS external_memory_refs (
                 external_id TEXT PRIMARY KEY,
@@ -953,6 +957,7 @@ class MetadataStore:
             CREATE INDEX IF NOT EXISTS idx_person_profile_refresh_queue_requested
             ON person_profile_refresh_queue(requested_at DESC)
         """)
+        self._ensure_memory_feedback_task_columns(cursor)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS external_memory_refs (
                 external_id TEXT PRIMARY KEY,
@@ -3945,6 +3950,8 @@ class MetadataStore:
             "episodes", "episode_paragraphs",
             "episode_rebuild_sources", "episode_pending_paragraphs",
             "paragraph_vector_backfill",
+            "memory_feedback_tasks", "memory_feedback_action_logs",
+            "paragraph_stale_relation_marks", "person_profile_refresh_queue",
         ]
         for table in tables:
             cursor.execute(f"DELETE FROM {table}")

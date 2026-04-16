@@ -225,6 +225,7 @@ class SummaryImporter:
         context_length: Optional[int] = None,
         include_personality: Optional[bool] = None,
         time_end: Optional[float] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> Tuple[bool, str]:
         """
         从指定的聊天流中提取记录并执行总结导入
@@ -327,7 +328,14 @@ class SummaryImporter:
                 }
 
             # 6. 执行导入
-            await self._execute_import(summary_text, entities, relations, stream_id, time_meta=time_meta)
+            await self._execute_import(
+                summary_text,
+                entities,
+                relations,
+                stream_id,
+                time_meta=time_meta,
+                metadata=metadata,
+            )
 
             # 7. 持久化
             self.vector_store.save()
@@ -393,6 +401,7 @@ class SummaryImporter:
         relations: List[Dict[str, str]],
         stream_id: str,
         time_meta: Optional[Dict[str, Any]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         """将数据写入存储"""
         # 获取默认知识类型
@@ -407,6 +416,7 @@ class SummaryImporter:
         hash_value = self.metadata_store.add_paragraph(
             content=summary,
             source=f"chat_summary:{stream_id}",
+            metadata=metadata,
             knowledge_type=knowledge_type.value,
             time_meta=time_meta,
         )

@@ -385,19 +385,19 @@ class EmbeddingAPIAdapter:
 
             semaphore = asyncio.Semaphore(self.max_concurrent)
 
-            async def encode_with_semaphore(text: str, index: int):
+            async def encode_with_semaphore(text: str, batch_index: int, absolute_index: int):
                 async with semaphore:
                     embedding = await self._get_embedding_direct(text, dimensions=dimensions)
                     if embedding is None:
-                        raise RuntimeError(f"文本 {index} 编码失败：embedding 返回为空")
+                        raise RuntimeError(f"文本 {absolute_index} 编码失败：embedding 返回为空")
                     vector = self._validate_embedding_vector(
                         embedding,
-                        source=f"文本 {index}",
+                        source=f"文本 {absolute_index}",
                     )
-                    return index, vector
+                    return batch_index, vector
 
             tasks = [
-                encode_with_semaphore(text, offset + index)
+                encode_with_semaphore(text, index, offset + index)
                 for index, text in uncached_items
             ]
             results = await asyncio.gather(*tasks)

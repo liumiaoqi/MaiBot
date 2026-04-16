@@ -365,11 +365,13 @@ async def _profile_delete_override(person_id: str) -> dict:
 
 
 async def _feedback_list(limit: int, status: str, rollback_status: str, query: str) -> dict:
+    statuses = [item.strip() for item in str(status or "").split(",") if item.strip()]
+    rollback_statuses = [item.strip() for item in str(rollback_status or "").split(",") if item.strip()]
     return await memory_service.feedback_admin(
         action="list",
         limit=limit,
-        status=status,
-        rollback_status=rollback_status,
+        statuses=statuses,
+        rollback_statuses=rollback_statuses,
         query=query,
     )
 

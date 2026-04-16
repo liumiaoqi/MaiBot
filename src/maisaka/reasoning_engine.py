@@ -1134,7 +1134,14 @@ class MaisakaReasoningEngine:
                 tool_name=invocation.tool_name,
                 tool_reasoning=invocation.reasoning,
             )
-            if invocation.tool_name == "query_memory" and isinstance(saved_record, dict):
+        except Exception:
+            logger.exception(
+                f"{self._runtime.log_prefix} 写入工具记录失败: 工具={invocation.tool_name} 调用编号={invocation.call_id}"
+            )
+            return
+
+        if invocation.tool_name == "query_memory" and isinstance(saved_record, dict):
+            try:
                 enqueue_payload = await memory_service.enqueue_feedback_task(
                     query_tool_id=str(saved_record.get("tool_id") or invocation.call_id or "").strip(),
                     session_id=str(saved_record.get("session_id") or self._runtime.chat_stream.session_id or "").strip(),
@@ -1143,15 +1150,16 @@ class MaisakaReasoningEngine:
                     if isinstance(tool_record_payload.get("structured_content"), dict)
                     else {},
                 )
+            except Exception:
+                logger.exception(
+                    f"{self._runtime.log_prefix} 反馈纠错任务入队失败: tool_call_id={invocation.call_id}"
+                )
+            else:
                 if not bool(enqueue_payload.get("success")):
                     logger.debug(
                         f"{self._runtime.log_prefix} 反馈纠错任务未入队: "
                         f"tool_call_id={invocation.call_id} reason={enqueue_payload.get('reason', '')}"
                     )
-        except Exception:
-            logger.exception(
-                f"{self._runtime.log_prefix} 写入工具记录失败: 工具={invocation.tool_name} 调用编号={invocation.call_id}"
-            )
 
     def _append_tool_execution_result(self, tool_call: ToolCall, result: ToolExecutionResult) -> None:
         """将统一工具执行结果写回 Maisaka 历史。

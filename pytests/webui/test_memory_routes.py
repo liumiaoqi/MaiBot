@@ -643,7 +643,12 @@ def test_delete_operation_routes(client: TestClient, monkeypatch):
 def test_feedback_correction_routes(client: TestClient, monkeypatch):
     async def fake_feedback_admin(*, action: str, **kwargs):
         if action == "list":
-            assert kwargs == {"limit": 7, "status": "applied", "rollback_status": "none", "query": "green"}
+            assert kwargs == {
+                "limit": 7,
+                "statuses": ["applied"],
+                "rollback_statuses": ["none"],
+                "query": "green",
+            }
             return {"success": True, "items": [{"task_id": 11, "query_text": "what color"}], "count": 1}
         if action == "get":
             assert kwargs == {"task_id": 11}

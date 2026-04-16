@@ -82,6 +82,7 @@ def test_resolve_static_path_prefers_installed_dashboard_package(monkeypatch, tm
 def test_resolve_static_path_uses_dashboard_dist(monkeypatch, tmp_path) -> None:
     dashboard_dist = tmp_path / "dashboard" / "dist"
     dashboard_dist.mkdir(parents=True)
+    (dashboard_dist / "index.html").write_text("<html></html>", encoding="utf-8")
 
     monkeypatch.setattr(webui_app, "_get_project_root", lambda: tmp_path)
 
@@ -89,6 +90,26 @@ def test_resolve_static_path_uses_dashboard_dist(monkeypatch, tmp_path) -> None:
         resolved_path = webui_app._resolve_static_path()
 
     assert resolved_path == dashboard_dist
+
+
+def test_resolve_static_path_falls_back_to_package_when_dashboard_dist_has_no_index(monkeypatch, tmp_path) -> None:
+    dashboard_dist = tmp_path / "dashboard" / "dist"
+    dashboard_dist.mkdir(parents=True)
+
+    package_dist = tmp_path / "site-packages" / "maibot_dashboard" / "dist"
+    package_dist.mkdir(parents=True)
+
+    class _DashboardModule:
+        @staticmethod
+        def get_dist_path() -> Path:
+            return package_dist
+
+    monkeypatch.setattr(webui_app, "_get_project_root", lambda: tmp_path)
+
+    with patch.object(webui_app, "import_module", return_value=_DashboardModule()):
+        resolved_path = webui_app._resolve_static_path()
+
+    assert resolved_path == package_dist
 
 
 def test_resolve_safe_static_file_path_allows_regular_static_file(tmp_path) -> None:

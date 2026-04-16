@@ -6,10 +6,12 @@ from typing import Any, List, Optional
 
 import asyncio
 import json
+import pickle
 import time
 
 from json_repair import repair_json
 
+from src.services import memory_service as memory_service_module
 from src.chat.utils.utils import is_bot_self
 from src.common.logger import get_logger
 from src.common.message_repository import count_messages, find_messages
@@ -281,7 +283,17 @@ class ChatSummaryWritebackService:
             return
 
         threshold = self._message_threshold()
-        state = self._states.setdefault(session_id, ChatSummaryWritebackState())
+        state = self._states.get(session_id)
+        if state is None:
+            restored_count = await self._load_last_trigger_message_count(
+                session_id=session_id,
+                total_message_count=total_message_count,
+            )
+            state = ChatSummaryWritebackState(
+                last_trigger_message_count=restored_count,
+                last_trigger_time=time.time() if restored_count > 0 else 0.0,
+            )
+            self._states[session_id] = state
         pending_message_count = max(0, total_message_count - state.last_trigger_message_count)
         if pending_message_count < threshold:
             return
@@ -323,6 +335,64 @@ class ChatSummaryWritebackService:
             context_length,
             getattr(result, "detail", ""),
         )
+
+    async def _load_last_trigger_message_count(self, *, session_id: str, total_message_count: int) -> int:
+        """从已落库的聊天摘要恢复触发游标，避免服务重启后重复摘要。"""
+        try:
+            runtime_manager = getattr(memory_service_module, "a_memorix_host_service", None)
+            ensure_kernel = getattr(runtime_manager, "_ensure_kernel", None)
+            if not callable(ensure_kernel):
+                return 0
+
+            kernel = await ensure_kernel()
+            metadata_store = getattr(kernel, "metadata_store", None)
+            if metadata_store is None:
+                return 0
+
+            paragraphs = metadata_store.get_paragraphs_by_source(f"chat_summary:{session_id}")
+            if not paragraphs:
+                return 0
+
+            latest_paragraph = max(paragraphs, key=self._paragraph_created_at)
+            metadata = self._paragraph_metadata(latest_paragraph)
+            trigger_message_count = self._coerce_positive_int(metadata.get("trigger_message_count"))
+            if trigger_message_count > 0:
+                return min(total_message_count, trigger_message_count)
+
+            # 兼容旧摘要数据：没有触发计数时，只能退化为对齐当前计数，
+            # 至少避免重启后立刻重复写入一条相近摘要。
+            return total_message_count
+        except Exception as exc:
+            logger.debug("恢复聊天摘要写回游标失败: session_id=%s error=%s", session_id, exc)
+            return 0
+
+    @staticmethod
+    def _paragraph_created_at(paragraph: dict[str, Any]) -> float:
+        try:
+            return float(paragraph.get("created_at") or 0.0)
+        except Exception:
+            return 0.0
+
+    @staticmethod
+    def _paragraph_metadata(paragraph: dict[str, Any]) -> dict[str, Any]:
+        metadata = paragraph.get("metadata")
+        if isinstance(metadata, dict):
+            return metadata
+        if isinstance(metadata, (bytes, bytearray)):
+            try:
+                parsed = pickle.loads(metadata)
+            except Exception:
+                return {}
+            return parsed if isinstance(parsed, dict) else {}
+        return {}
+
+    @staticmethod
+    def _coerce_positive_int(value: Any) -> int:
+        try:
+            number = int(value or 0)
+        except Exception:
+            return 0
+        return max(0, number)
 
     @staticmethod
     def _resolve_session_id(message: Any) -> str:

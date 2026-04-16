@@ -1294,6 +1294,7 @@ class GraphStore:
              if current_n == 0:
                  logger.warning("检测到空图元数据但邻接矩阵仍然存在，已重置为空图。")
                  self._adjacency = None
+                 self._edge_hash_map = defaultdict(set)
              elif current_n > adj_n:
                  logger.warning(f"检测到图存储维度不匹配: 节点数={current_n}, 矩阵大小={adj_n}. 正在自动修复...")
                  self._expand_adjacency_matrix(current_n - adj_n)
@@ -1305,6 +1306,14 @@ class GraphStore:
                      self._adjacency = csc_matrix((current_n, current_n), dtype=np.float32)
                  else:
                      self._adjacency = csr_matrix((current_n, current_n), dtype=np.float32)
+                 self._edge_hash_map = defaultdict(
+                     set,
+                     {
+                         (src_idx, dst_idx): set(hashes)
+                         for (src_idx, dst_idx), hashes in self._edge_hash_map.items()
+                         if src_idx < current_n and dst_idx < current_n
+                     },
+                 )
 
         self._adjacency_dirty = True
         logger.info(

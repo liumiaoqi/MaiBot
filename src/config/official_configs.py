@@ -146,7 +146,7 @@ class VisualConfig(ConfigBase):
     __ui_icon__ = "image"
 
     planner_mode: Literal["text", "multimodal", "auto"] = Field(
-        default="text",
+        default="auto",
         json_schema_extra={
             "x-widget": "select",
             "x-icon": "image",
@@ -155,7 +155,7 @@ class VisualConfig(ConfigBase):
     """Planner 视觉模式：text 仅文本，multimodal 强制多模态，auto 按模型能力自动选择"""
 
     replyer_mode: Literal["text", "multimodal", "auto"] = Field(
-        default="text",
+        default="auto",
         json_schema_extra={
             "x-widget": "select",
             "x-icon": "git-branch",

@@ -375,30 +375,6 @@ def _preflight_impl(config_path: Path, data_dir: Path) -> Dict[str, Any]:
                             "memory_feedback_tasks rollback columns missing under current schema version",
                         )
                     )
-                elif not has_stale_marks:
-                    checks.append(
-                        CheckItem(
-                            "CP-15",
-                            "error",
-                            "paragraph_stale_relation_marks table missing under current schema version",
-                        )
-                    )
-                elif not has_profile_refresh_queue:
-                    checks.append(
-                        CheckItem(
-                            "CP-16",
-                            "error",
-                            "person_profile_refresh_queue table missing under current schema version",
-                        )
-                    )
-                elif not has_feedback_rollback_status or not has_feedback_rollback_plan:
-                    checks.append(
-                        CheckItem(
-                            "CP-17",
-                            "error",
-                            "memory_feedback_tasks rollback columns missing under current schema version",
-                        )
-                    )
 
             if _sqlite_table_exists(conn, "relations"):
                 row = conn.execute("SELECT COUNT(*) FROM relations").fetchone()
