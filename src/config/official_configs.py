@@ -145,23 +145,23 @@ class VisualConfig(ConfigBase):
     __ui_label__ = "视觉"
     __ui_icon__ = "image"
 
-    multimodal_planner: bool = Field(
-        default=True,
+    planner_mode: Literal["text", "multimodal", "auto"] = Field(
+        default="text",
         json_schema_extra={
-            "x-widget": "switch",
+            "x-widget": "select",
             "x-icon": "image",
         },
     )
-    """是否直接输入图片"""
+    """Planner 视觉模式：text 仅文本，multimodal 强制多模态，auto 按模型能力自动选择"""
 
-    multimodal_replyer: bool = Field(
-        default=False,
+    replyer_mode: Literal["text", "multimodal", "auto"] = Field(
+        default="text",
         json_schema_extra={
-            "x-widget": "switch",
+            "x-widget": "select",
             "x-icon": "git-branch",
         },
     )
-    """是否启用 Maisaka 多模态 replyer 生成器"""
+    """Replyer 视觉模式：text 仅文本，multimodal 强制多模态，auto 按模型能力自动选择"""
 
     visual_style: str = Field(
         default="请用中文描述这张图片的内容。如果有文字，请把文字描述概括出来，请留意其主题，直观感受，输出为一段平文本，最多30字，请注意不要分点，就输出一段文本",
@@ -423,6 +423,36 @@ class MemoryConfig(ConfigBase):
         },
     )
     """是否在发送回复后自动提取并写回人物事实到长期记忆"""
+
+    chat_summary_writeback_enabled: bool = Field(
+        default=True,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "scroll-text",
+        },
+    )
+    """是否在 Maisaka 聊天过程中按消息窗口自动写回聊天摘要到长期记忆"""
+
+    chat_summary_writeback_message_threshold: int = Field(
+        default=12,
+        ge=1,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "messages-square",
+        },
+    )
+    """自动写回聊天摘要的消息窗口阈值"""
+
+    chat_summary_writeback_context_length: int = Field(
+        default=50,
+        ge=1,
+        le=500,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "rows-3",
+        },
+    )
+    """自动写回聊天摘要时，从聊天流中回看的消息条数"""
 
     feedback_correction_enabled: bool = Field(
         default=False,

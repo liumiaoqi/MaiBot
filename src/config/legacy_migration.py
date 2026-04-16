@@ -282,21 +282,16 @@ def try_migrate_legacy_bot_config_dict(data: dict[str, Any]) -> MigrationResult:
 
     personality = _as_dict(data.get("personality"))
     visual = _as_dict(data.get("visual"))
+    if visual is None and personality is not None and "visual_style" in personality:
+        visual = {}
+        data["visual"] = visual
+
     if visual is not None and personality is not None and "visual_style" in personality:
         if "visual_style" not in visual:
             visual["visual_style"] = personality["visual_style"]
         personality.pop("visual_style", None)
         migrated_any = True
         reasons.append("personality.visual_style_moved_to_visual.visual_style")
-
-    if visual is not None and "multimodal_planner" in visual and "planner_mode" not in visual:
-        multimodal_planner = visual.pop("multimodal_planner")
-        if isinstance(multimodal_planner, bool):
-            visual["planner_mode"] = "multimodal" if multimodal_planner else "text"
-            migrated_any = True
-            reasons.append("visual.multimodal_planner_moved_to_visual.planner_mode")
-        else:
-            visual["multimodal_planner"] = multimodal_planner
 
     memory = _as_dict(data.get("memory"))
     if memory is not None and _migrate_target_item_list(memory, "global_memory_blacklist"):

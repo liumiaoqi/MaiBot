@@ -1,5 +1,6 @@
 """发送服务回归测试。"""
 
+import sys
 from types import SimpleNamespace
 from typing import Any, Dict, List
 
@@ -180,6 +181,75 @@ async def test_text_to_stream_with_message_returns_sent_message(monkeypatch: pyt
     assert fake_manager.ensure_calls == 1
     assert len(stored_messages) == 1
     assert stored_messages[0].message_id == "real-message-id"
+
+
+@pytest.mark.asyncio
+async def test_text_to_stream_with_message_triggers_memory_and_syncs_maisaka_history(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_manager = _FakePlatformIOManager(
+        delivery_batch=SimpleNamespace(
+            has_success=True,
+            sent_receipts=[
+                SimpleNamespace(
+                    driver_id="plugin.qq.sender",
+                    external_message_id="real-message-id",
+                    metadata={},
+                )
+            ],
+            failed_receipts=[],
+            route_key=SimpleNamespace(platform="qq"),
+        )
+    )
+    stored_messages: List[Any] = []
+    memory_events: List[str] = []
+    history_events: List[tuple[str, str]] = []
+
+    class FakeMemoryAutomationService:
+        async def on_message_sent(self, message: Any) -> None:
+            memory_events.append(str(message.message_id))
+
+    class FakeRuntime:
+        def append_sent_message_to_chat_history(self, message: Any, *, source_kind: str = "guided_reply") -> None:
+            history_events.append((str(message.message_id), source_kind))
+
+    monkeypatch.setattr(send_service, "get_platform_io_manager", lambda: fake_manager)
+    monkeypatch.setattr(send_service, "get_bot_account", lambda platform: "bot-qq")
+    monkeypatch.setattr(
+        send_service._chat_manager,
+        "get_session_by_session_id",
+        lambda stream_id: _build_private_stream() if stream_id == "test-session" else None,
+    )
+    monkeypatch.setattr(
+        send_service.MessageUtils,
+        "store_message_to_db",
+        lambda message: stored_messages.append(message),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "src.services.memory_flow_service",
+        SimpleNamespace(memory_automation_service=FakeMemoryAutomationService()),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "src.chat.heart_flow.heartflow_manager",
+        SimpleNamespace(heartflow_manager=SimpleNamespace(heartflow_chat_list={"test-session": FakeRuntime()})),
+    )
+
+    sent_message = await send_service.text_to_stream_with_message(
+        text="你好",
+        stream_id="test-session",
+        sync_to_maisaka_history=True,
+        maisaka_source_kind="guided_reply",
+    )
+
+    assert sent_message is not None
+    assert sent_message.message_id == "real-message-id"
+    assert fake_manager.ensure_calls == 1
+    assert len(stored_messages) == 1
+    assert stored_messages[0].message_id == "real-message-id"
+    assert memory_events == ["real-message-id"]
+    assert history_events == [("real-message-id", "guided_reply")]
 
 
 @pytest.mark.asyncio

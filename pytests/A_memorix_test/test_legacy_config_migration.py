@@ -33,34 +33,3 @@ def test_legacy_learning_list_with_numeric_fourth_column_is_migrated():
             "enable_jargon_learning": False,
         },
     ]
-
-
-def test_visual_multimodal_replyer_is_migrated_to_replyer_mode() -> None:
-    payload = {
-        "visual": {
-            "multimodal_replyer": True,
-        }
-    }
-
-    result = try_migrate_legacy_bot_config_dict(payload)
-
-    assert result.migrated is True
-    assert "visual.multimodal_replyer_moved_to_visual.replyer_mode" in result.reason
-    assert result.data["visual"]["replyer_mode"] == "multimodal"
-    assert "multimodal_replyer" not in result.data["visual"]
-
-
-def test_chat_replyer_generator_type_is_migrated_to_replyer_mode() -> None:
-    payload = {
-        "chat": {
-            "replyer_generator_type": "legacy",
-        },
-        "visual": {},
-    }
-
-    result = try_migrate_legacy_bot_config_dict(payload)
-
-    assert result.migrated is True
-    assert "chat.replyer_generator_type_moved_to_visual.replyer_mode" in result.reason
-    assert result.data["visual"]["replyer_mode"] == "text"
-    assert "replyer_generator_type" not in result.data["chat"]

@@ -1190,11 +1190,14 @@ class GraphStore:
         data_dir.mkdir(parents=True, exist_ok=True)
 
         # 保存邻接矩阵
+        matrix_path = data_dir / "graph_adjacency.npz"
         if self._adjacency is not None:
-            matrix_path = data_dir / "graph_adjacency.npz"
             with atomic_write(matrix_path, "wb") as f:
                 save_npz(f, self._adjacency)
             logger.debug(f"保存邻接矩阵: {matrix_path}")
+        elif matrix_path.exists():
+            matrix_path.unlink()
+            logger.debug(f"删除陈旧邻接矩阵: {matrix_path}")
 
         # 保存元数据
         metadata = {
@@ -1288,9 +1291,20 @@ class GraphStore:
         if self._adjacency is not None:
              adj_n = self._adjacency.shape[0]
              current_n = len(self._nodes)
-             if current_n > adj_n:
+             if current_n == 0:
+                 logger.warning("检测到空图元数据但邻接矩阵仍然存在，已重置为空图。")
+                 self._adjacency = None
+             elif current_n > adj_n:
                  logger.warning(f"检测到图存储维度不匹配: 节点数={current_n}, 矩阵大小={adj_n}. 正在自动修复...")
                  self._expand_adjacency_matrix(current_n - adj_n)
+             elif current_n < adj_n:
+                 logger.warning(
+                     f"检测到过期邻接矩阵: 节点数={current_n}, 矩阵大小={adj_n}. 正在重置邻接矩阵..."
+                 )
+                 if self.matrix_format == "csc":
+                     self._adjacency = csc_matrix((current_n, current_n), dtype=np.float32)
+                 else:
+                     self._adjacency = csr_matrix((current_n, current_n), dtype=np.float32)
 
         self._adjacency_dirty = True
         logger.info(
@@ -1445,4 +1459,3 @@ class GraphStore:
         self._adjacency_dirty = True
         logger.info(f"已从 {count} 条哈希重建边哈希映射，覆盖 {len(self._edge_hash_map)} 条边")
         return count
-

@@ -455,10 +455,15 @@ async def chat_feedback_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
 
     async def _fake_timing_gate(self, anchor_message: Any):
         del self, anchor_message
-        return "continue", _build_chat_response("直接进入 planner。", []), []
+        return "continue", _build_chat_response("直接进入 planner。", []), [], []
 
-    async def _fake_planner(self, *, tool_definitions: list[dict[str, Any]] | None = None) -> ChatResponse:
-        del tool_definitions
+    async def _fake_planner(
+        self,
+        *,
+        injected_user_messages: list[str] | None = None,
+        tool_definitions: list[dict[str, Any]] | None = None,
+    ) -> ChatResponse:
+        del injected_user_messages, tool_definitions
         latest_message = self._runtime.message_cache[-1]
         latest_text = str(latest_message.processed_plain_text or "")
         planner_calls.append(latest_text)
