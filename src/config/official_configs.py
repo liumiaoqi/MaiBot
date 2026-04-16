@@ -414,15 +414,6 @@ class MemoryConfig(ConfigBase):
     )
     """Maisaka 内置长期记忆检索工具 query_memory 的默认返回条数"""
 
-    long_term_auto_summary_enabled: bool = Field(
-        default=True,
-        json_schema_extra={
-            "x-widget": "switch",
-            "x-icon": "book-open",
-        },
-    )
-    """是否自动启动聊天总结并导入长期记忆"""
-
     person_fact_writeback_enabled: bool = Field(
         default=True,
         json_schema_extra={
@@ -578,77 +569,9 @@ class MemoryConfig(ConfigBase):
         },
     )
     """反馈纠错二阶段一致性每轮处理 profile/episode 队列的批大小"""
-    chat_history_topic_check_message_threshold: int = Field(
-        default=80,
-        ge=1,
-        json_schema_extra={
-            "x-widget": "input",
-            "x-icon": "hash",
-        },
-    )
-    """聊天历史话题检查的消息数量阈值，当累积消息数达到此值时触发话题检查"""
-
-    chat_history_topic_check_time_hours: float = Field(
-        default=8.0,
-        json_schema_extra={
-            "x-widget": "input",
-            "x-icon": "clock",
-        },
-    )
-    """聊天历史话题检查的时间阈值（小时），当距离上次检查超过此时间且消息数达到最小阈值时触发话题检查"""
-
-    chat_history_topic_check_min_messages: int = Field(
-        default=20,
-        ge=1,
-        json_schema_extra={
-            "x-widget": "input",
-            "x-icon": "hash",
-        },
-    )
-    """聊天历史话题检查的时间触发模式下的最小消息数阈值"""
-
-    chat_history_finalize_no_update_checks: int = Field(
-        default=3,
-        ge=1,
-        json_schema_extra={
-            "x-widget": "input",
-            "x-icon": "check-circle",
-        },
-    )
-    """聊天历史话题打包存储的连续无更新检查次数阈值，当话题连续N次检查无新增内容时触发打包存储"""
-
-    chat_history_finalize_message_count: int = Field(
-        default=5,
-        ge=1,
-        json_schema_extra={
-            "x-widget": "input",
-            "x-icon": "package",
-        },
-    )
-    """聊天历史话题打包存储的消息条数阈值，当话题的消息条数超过此值时触发打包存储"""
 
     def model_post_init(self, context: Optional[dict] = None) -> None:
         """验证配置值"""
-        if self.chat_history_topic_check_message_threshold < 1:
-            raise ValueError(
-                f"chat_history_topic_check_message_threshold 必须至少为1，当前值: {self.chat_history_topic_check_message_threshold}"
-            )
-        if self.chat_history_topic_check_time_hours <= 0:
-            raise ValueError(
-                f"chat_history_topic_check_time_hours 必须大于0，当前值: {self.chat_history_topic_check_time_hours}"
-            )
-        if self.chat_history_topic_check_min_messages < 1:
-            raise ValueError(
-                f"chat_history_topic_check_min_messages 必须至少为1，当前值: {self.chat_history_topic_check_min_messages}"
-            )
-        if self.chat_history_finalize_no_update_checks < 1:
-            raise ValueError(
-                f"chat_history_finalize_no_update_checks 必须至少为1，当前值: {self.chat_history_finalize_no_update_checks}"
-            )
-        if self.chat_history_finalize_message_count < 1:
-            raise ValueError(
-                f"chat_history_finalize_message_count 必须至少为1，当前值: {self.chat_history_finalize_message_count}"
-            )
         if self.feedback_correction_window_hours <= 0:
             raise ValueError(
                 f"feedback_correction_window_hours 必须大于0，当前值: {self.feedback_correction_window_hours}"

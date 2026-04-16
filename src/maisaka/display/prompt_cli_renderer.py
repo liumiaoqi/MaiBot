@@ -799,7 +799,7 @@ class PromptCLIVisualizer:
         chat_id: str,
         request_kind: str,
         selection_reason: str,
-        image_display_mode: Literal["legacy", "path_link"],
+        image_display_mode: Literal["legacy", "path_link"] = "path_link",
         tool_definitions: list[dict[str, Any]] | None = None,
     ) -> RenderableType:
         """构建用于查看完整 prompt 的折叠入口内容。"""
@@ -864,7 +864,7 @@ class PromptCLIVisualizer:
         chat_id: str,
         request_kind: str,
         selection_reason: str,
-        image_display_mode: Literal["legacy", "path_link"],
+        image_display_mode: Literal["legacy", "path_link"] = "path_link",
         folded: bool,
         tool_definitions: list[dict[str, Any]] | None = None,
     ) -> Panel:
@@ -878,14 +878,10 @@ class PromptCLIVisualizer:
                 chat_id=chat_id,
                 request_kind=request_kind,
                 selection_reason=selection_reason,
-                image_display_mode=image_display_mode,
                 tool_definitions=tool_definitions,
             )
         else:
-            ordered_panels = cls.build_prompt_panels(
-                messages,
-                image_display_mode=image_display_mode,
-            )
+            ordered_panels = cls.build_prompt_panels(messages)
             prompt_renderable = Group(*ordered_panels)
 
         return Panel(
@@ -1102,11 +1098,9 @@ class PromptCLIVisualizer:
         cls,
         messages: list[Any],
         *,
-        image_display_mode: Literal["legacy", "path_link"],
+        image_display_mode: Literal["legacy", "path_link"] = "path_link",
     ) -> List[Panel]:
         """构建完整 prompt 可视化面板。"""
-        if image_display_mode not in {mode.value for mode in PromptImageDisplayMode}:
-            image_display_mode = PromptImageDisplayMode.LEGACY
         settings = PromptImageDisplaySettings(
             display_mode=PromptImageDisplayMode(image_display_mode),
         )

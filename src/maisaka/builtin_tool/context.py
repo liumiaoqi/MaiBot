@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from base64 import b64decode
 from datetime import datetime
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from src.chat.utils.utils import process_llm_response
 from src.common.data_models.message_component_data_model import EmojiComponent, MessageSequence, TextComponent
@@ -12,13 +12,10 @@ from src.config.config import global_config
 from src.core.tooling import ToolExecutionResult
 
 from ..context_messages import SessionBackedMessage
-from ..history_utils import build_prefixed_message_sequence, build_session_message_visible_text
 from ..message_adapter import format_speaker_content
 from ..planner_message_utils import build_planner_prefix, build_session_backed_text_message
 
 if TYPE_CHECKING:
-    from src.chat.message_receive.message import SessionMessage
-
     from ..reasoning_engine import MaisakaReasoningEngine
     from ..runtime import MaisakaHeartFlowChatting
 
@@ -138,37 +135,6 @@ class BuiltinToolRuntimeContext:
         """获取插件运行时管理器。"""
 
         return self.engine._get_runtime_manager()
-
-    @staticmethod
-    def _build_visible_text_from_sent_message(message: "SessionMessage") -> str:
-        """将已发送消息转换为 Maisaka 可见文本。"""
-
-        return build_session_message_visible_text(message)
-
-    def append_sent_message_to_chat_history(
-        self,
-        message: "SessionMessage",
-        *,
-        source_kind: str = "guided_reply",
-    ) -> None:
-        """将真实已发送消息同步到 Maisaka 历史。"""
-
-        user_info = message.message_info.user_info
-        speaker_name = user_info.user_cardname or user_info.user_nickname or user_info.user_id
-        planner_prefix = build_planner_prefix(
-            timestamp=message.timestamp,
-            user_name=speaker_name,
-            group_card=user_info.user_cardname or "",
-            message_id=message.message_id,
-            include_message_id=not message.is_notify and bool(message.message_id),
-        )
-        history_message = SessionBackedMessage.from_session_message(
-            message,
-            raw_message=build_prefixed_message_sequence(message.raw_message, planner_prefix),
-            visible_text=self._build_visible_text_from_sent_message(message),
-            source_kind=source_kind,
-        )
-        self.runtime._chat_history.append(history_message)
 
     def append_guided_reply_to_chat_history(self, reply_text: str) -> None:
         """将引导回复写回 Maisaka 历史。"""

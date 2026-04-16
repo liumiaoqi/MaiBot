@@ -36,7 +36,8 @@ def get_tool_spec() -> ToolSpec:
         detailed_description=(
             "参数说明：\n"
             "- msg_id：string，必填。要回复的目标用户消息编号。\n"
-            "- set_quote：boolean，可选。以引用回复的方式发送，默认 true。"
+            "- set_quote：boolean，可选。以引用回复的方式发送，默认 true。\n"
+            "- reference_info：string，可选。上文中有助于回复的所有参考信息，使用平文本格式。"
         ),
         parameters_schema={
             "type": "object",
@@ -48,6 +49,11 @@ def get_tool_spec() -> ToolSpec:
                 "set_quote": {
                     "type": "boolean",
                     "description": "以引用回复的方式发送这条回复，不用每句都引用。",
+                    "default": True,
+                },
+                "reference_info": {
+                    "type": "string",
+                    "description": "有助于回复的信息，之前搜集得到的事实性信息，记忆等，使用平文本格式。",
                     "default": True,
                 },
             },
@@ -75,6 +81,7 @@ async def handle_tool(
     """执行 reply 内置工具。"""
 
     latest_thought = context.reasoning if context is not None else invocation.reasoning
+    reference_info = str(invocation.arguments.get("reference_info") or "").strip()
     target_message_id = str(invocation.arguments.get("msg_id") or "").strip()
     set_quote = bool(invocation.arguments.get("set_quote", True))
 
@@ -117,6 +124,7 @@ async def handle_tool(
     try:
         success, reply_result = await replyer.generate_reply_with_context(
             reply_reason=latest_thought,
+            reference_info=reference_info,
             stream_id=tool_ctx.runtime.session_id,
             reply_message=target_message,
             chat_history=tool_ctx.runtime._chat_history,
@@ -152,7 +160,6 @@ async def handle_tool(
     combined_reply_text = "".join(reply_segments)
     try:
         sent = False
-        sent_messages = []
         if tool_ctx.runtime.chat_stream.platform == CLI_PLATFORM_NAME:
             for segment in reply_segments:
                 render_cli_message(segment)
@@ -166,11 +173,12 @@ async def handle_tool(
                     reply_message=target_message if set_quote and index == 0 else None,
                     selected_expressions=reply_result.selected_expression_ids or None,
                     typing=index > 0,
+                    sync_to_maisaka_history=True,
+                    maisaka_source_kind="guided_reply",
                 )
                 sent = sent_message is not None
                 if not sent:
                     break
-                sent_messages.append(sent_message)
     except Exception:
         logger.exception(
             f"{tool_ctx.runtime.log_prefix} 发送文字消息时发生异常，目标消息编号={target_message_id}"
@@ -198,9 +206,6 @@ async def handle_tool(
 
     if tool_ctx.runtime.chat_stream.platform == CLI_PLATFORM_NAME:
         tool_ctx.append_guided_reply_to_chat_history(combined_reply_text)
-    else:
-        for sent_message in sent_messages:
-            tool_ctx.append_sent_message_to_chat_history(sent_message)
     tool_ctx.runtime._record_reply_sent()
     return tool_ctx.build_success_result(
         invocation.tool_name,

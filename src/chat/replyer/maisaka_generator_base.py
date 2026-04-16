@@ -1,9 +1,9 @@
-import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Awaitable, Callable, Dict, List, Literal, Optional, Tuple
 
 import random
+import time
 
 from rich.console import Group, RenderableType
 from rich.panel import Panel
@@ -13,7 +13,6 @@ from src.chat.message_receive.chat_manager import BotChatSession
 from src.chat.message_receive.message import SessionMessage
 from src.chat.utils.utils import get_chat_type_and_target_info
 from src.cli.console import console
-from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
 from src.common.data_models.reply_generation_data_models import (
     GenerationMetrics,
     LLMCompletionResult,
@@ -32,9 +31,10 @@ from src.maisaka.context_messages import (
     ReferenceMessage,
     SessionBackedMessage,
     ToolResultMessage,
+    build_llm_message_from_context,
 )
 from src.maisaka.display.prompt_cli_renderer import PromptCLIVisualizer
-from src.maisaka.message_adapter import clone_message_sequence, parse_speaker_content
+from src.maisaka.message_adapter import parse_speaker_content
 from src.plugin_runtime.hook_payloads import serialize_prompt_messages
 
 from .maisaka_expression_selector import maisaka_expression_selector
@@ -110,11 +110,15 @@ class BaseMaisakaReplyGenerator:
         return ""
 
     def _extract_guided_bot_reply(self, message: SessionBackedMessage) -> str:
-        speaker_name, body = parse_speaker_content(message.processed_plain_text.strip())
-        bot_nickname = global_config.bot.nickname.strip() or "Bot"
-        if speaker_name == bot_nickname:
-            return self._normalize_content(body.strip())
-        return ""
+        # 只能根据结构化来源字段判断是否为 bot 自身写回的历史消息，
+        # 不能依赖昵称/群名片等可控文本，避免误判和提示注入。
+        if message.source_kind != "guided_reply":
+            return ""
+
+        plain_text = message.processed_plain_text.strip()
+        _, body = parse_speaker_content(plain_text)
+        normalized_body = body.strip() or plain_text
+        return self._normalize_content(normalized_body) if normalized_body else ""
 
     def _build_target_message_block(self, reply_message: Optional[SessionMessage]) -> str:
         if reply_message is None:
@@ -210,6 +214,7 @@ class BaseMaisakaReplyGenerator:
         self,
         reply_message: Optional[SessionMessage],
         reply_reason: str,
+        reference_info: str = "",
         expression_habits: str = "",
         stream_id: Optional[str] = None,
     ) -> str:
@@ -234,36 +239,19 @@ class BaseMaisakaReplyGenerator:
             sections.append(expression_habits.strip())
         if target_message_block:
             sections.append(target_message_block)
+        reply_reference_lines: List[str] = []
         if reply_reason.strip():
-            sections.append(f"【回复信息参考】\n{reply_reason}")
+            reply_reference_lines.append(f"【最新推理】\n{reply_reason.strip()}")
+        if reference_info.strip():
+            reply_reference_lines.append(f"【参考信息】\n{reference_info.strip()}")
+        if reply_reference_lines:
+            sections.append("【回复信息参考】\n" + "\n\n".join(reply_reference_lines))
         if not sections:
             return system_prompt
         return f"{system_prompt}\n\n" + "\n\n".join(sections)
 
     def _build_reply_instruction(self) -> str:
         return "请自然地回复。不要输出多余说明、括号、@ 或额外标记，只输出实际要发送的内容。"
-
-    def _build_visual_user_message(
-        self,
-        message: SessionBackedMessage,
-        enable_visual_message: bool,
-    ) -> Optional[Message]:
-        if not enable_visual_message:
-            return None
-
-        raw_message = clone_message_sequence(message.raw_message)
-        if not raw_message.components:
-            raw_message = MessageSequence([TextComponent(message.processed_plain_text)])
-
-        visual_message = SessionBackedMessage(
-            raw_message=raw_message,
-            visible_text=message.processed_plain_text,
-            timestamp=message.timestamp,
-            message_id=message.message_id,
-            original_message=message.original_message,
-            source_kind=message.source_kind,
-        )
-        return visual_message.to_llm_message()
 
     def _build_history_messages(
         self,
@@ -284,12 +272,10 @@ class BaseMaisakaReplyGenerator:
                     )
                     continue
 
-                visual_message = self._build_visual_user_message(message, enable_visual_message)
-                if visual_message is not None:
-                    messages.append(visual_message)
-                    continue
-
-                llm_message = message.to_llm_message()
+                llm_message = build_llm_message_from_context(
+                    message,
+                    enable_visual_message=enable_visual_message,
+                )
                 if llm_message is not None:
                     messages.append(llm_message)
                 continue
@@ -308,6 +294,7 @@ class BaseMaisakaReplyGenerator:
         chat_history: List[LLMContextMessage],
         reply_message: Optional[SessionMessage],
         reply_reason: str,
+        reference_info: str = "",
         expression_habits: str = "",
         stream_id: Optional[str] = None,
         enable_visual_message: bool = False,
@@ -316,6 +303,7 @@ class BaseMaisakaReplyGenerator:
         system_prompt = self._build_system_prompt(
             reply_message=reply_message,
             reply_reason=reply_reason,
+            reference_info=reference_info,
             expression_habits=expression_habits,
             stream_id=stream_id,
         )
@@ -377,6 +365,7 @@ class BaseMaisakaReplyGenerator:
         self,
         extra_info: str = "",
         reply_reason: str = "",
+        reference_info: str = "",
         available_actions: Optional[Dict[str, ActionInfo]] = None,
         chosen_actions: Optional[List[object]] = None,
         from_plugin: bool = True,
@@ -461,6 +450,7 @@ class BaseMaisakaReplyGenerator:
                 chat_history=filtered_history,
                 reply_message=reply_message,
                 reply_reason=reply_reason or "",
+                reference_info=reference_info or "",
                 expression_habits=merged_expression_habits,
                 stream_id=stream_id,
             )
@@ -486,6 +476,7 @@ class BaseMaisakaReplyGenerator:
                 chat_history=filtered_history,
                 reply_message=reply_message,
                 reply_reason=reply_reason or "",
+                reference_info=reference_info or "",
                 expression_habits=merged_expression_habits,
                 stream_id=stream_id,
                 enable_visual_message=self._resolve_enable_visual_message(model_info),
@@ -504,7 +495,6 @@ class BaseMaisakaReplyGenerator:
                     chat_id=preview_chat_id,
                     request_kind="replyer",
                     selection_reason=f"ID: {preview_chat_id}",
-                    image_display_mode="path_link" if global_config.maisaka.show_image_path else "legacy",
                 ),
                 title="Reply Prompt",
                 border_style="bright_yellow",

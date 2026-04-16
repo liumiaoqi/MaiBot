@@ -159,7 +159,6 @@ MODULE_ALIASES = {
     "planner": "规划器",
     "config": "配置",
     "main": "主程序",
-    "chat_history_summarizer": "聊天概括器",
     "plugin_runtime.integration": "IPC插件系统",
     "plugin_runtime.host.supervisor": "插件监督器",
     "plugin_runtime.host.runner_manager": "插件监督器",

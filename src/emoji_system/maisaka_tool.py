@@ -335,6 +335,8 @@ async def send_emoji_for_maisaka(
                 storage_message=True,
                 set_reply=False,
                 reply_message=None,
+                sync_to_maisaka_history=True,
+                maisaka_source_kind="guided_reply",
             )
             sent = sent_message is not None
     except Exception as exc:

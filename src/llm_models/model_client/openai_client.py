@@ -6,6 +6,7 @@ import json
 import re
 from dataclasses import dataclass, field
 from typing import Any, Callable, Coroutine, Dict, List, Tuple, cast
+from uuid import uuid4
 
 from json_repair import repair_json
 from openai import APIConnectionError, APIStatusError, AsyncOpenAI, AsyncStream
@@ -117,6 +118,13 @@ OpenAIStreamResponseHandler = Callable[
 
 OpenAIResponseParser = Callable[[ChatCompletion], Tuple[APIResponse, UsageTuple | None]]
 """OpenAI 非流式响应解析函数类型。"""
+
+
+def _build_fallback_tool_call_id(prefix: str) -> str:
+    """为缺失原始调用 ID 的工具调用生成唯一兜底标识。"""
+
+    normalized_prefix = str(prefix).strip() or "tool_call"
+    return f"{normalized_prefix}_{uuid4().hex}"
 
 
 def _normalize_reasoning_parse_mode(parse_mode: str | ReasoningParseMode) -> ReasoningParseMode:
@@ -609,7 +617,7 @@ def _extract_xml_tool_calls(
             arguments = _parse_tool_arguments(raw_arguments, parse_mode, response) if raw_arguments else {}
         tool_calls.append(
             ToolCall(
-                call_id=f"xml_tool_call_{len(tool_calls) + 1}",
+                call_id=_build_fallback_tool_call_id("xml_tool_call"),
                 func_name=function_name,
                 args=arguments,
             )
@@ -855,7 +863,7 @@ class _OpenAIStreamAccumulator:
                     if raw_arguments
                     else None
                 )
-                call_id = state.call_id or f"tool_call_{index}"
+                call_id = state.call_id or _build_fallback_tool_call_id(f"tool_call_{index}")
                 response.tool_calls.append(ToolCall(call_id=call_id, func_name=state.function_name, args=arguments))
 
         response.raw_data = {"model": self.model_name} if self.model_name else None
