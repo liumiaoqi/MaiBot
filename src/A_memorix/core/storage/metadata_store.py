@@ -34,7 +34,7 @@ except Exception:
 logger = get_logger("A_Memorix.MetadataStore")
 
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 12
 RUNTIME_AUTO_MIGRATION_MIN_SCHEMA_VERSION = 9
 
 

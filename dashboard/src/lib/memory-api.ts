@@ -496,6 +496,77 @@ export interface MemoryDeleteOperationDetailPayload {
   error?: string
 }
 
+export interface MemoryFeedbackAffectedCountsPayload {
+  relations?: number
+  stale_paragraphs?: number
+  episode_sources?: number
+  profile_person_ids?: number
+  correction_paragraphs?: number
+  corrected_relations?: number
+}
+
+export interface MemoryFeedbackActionLogPayload {
+  id: number
+  task_id: number
+  query_tool_id: string
+  action_type: string
+  target_hash: string
+  reason?: string
+  before_payload?: Record<string, unknown>
+  after_payload?: Record<string, unknown>
+  created_at?: number
+}
+
+export interface MemoryFeedbackCorrectionSummaryPayload {
+  task_id: number
+  query_tool_id: string
+  session_id: string
+  query_text: string
+  query_timestamp?: number
+  task_status: string
+  decision: string
+  decision_confidence: number
+  feedback_message_count: number
+  rollback_status: string
+  affected_counts: MemoryFeedbackAffectedCountsPayload
+  created_at?: number
+  updated_at?: number
+}
+
+export interface MemoryFeedbackCorrectionDetailTaskPayload extends MemoryFeedbackCorrectionSummaryPayload {
+  query_snapshot?: Record<string, unknown>
+  decision_payload?: Record<string, unknown>
+  rollback_plan_summary?: Record<string, unknown>
+  rollback_result?: Record<string, unknown>
+  rollback_error?: string
+  rollback_requested_by?: string
+  rollback_reason?: string
+  rollback_requested_at?: number
+  rolled_back_at?: number
+  action_logs?: MemoryFeedbackActionLogPayload[]
+}
+
+export interface MemoryFeedbackCorrectionListPayload {
+  success: boolean
+  items: MemoryFeedbackCorrectionSummaryPayload[]
+  count?: number
+  error?: string
+}
+
+export interface MemoryFeedbackCorrectionDetailPayload {
+  success: boolean
+  task?: MemoryFeedbackCorrectionDetailTaskPayload | null
+  error?: string
+}
+
+export interface MemoryFeedbackCorrectionRollbackPayload {
+  success: boolean
+  already_rolled_back?: boolean
+  result?: Record<string, unknown>
+  task?: MemoryFeedbackCorrectionDetailTaskPayload | null
+  error?: string
+}
+
 export interface MemorySourceItemPayload {
   source: string
   paragraph_count?: number
@@ -608,6 +679,49 @@ export async function getMemoryDeleteOperation(
   operationId: string,
 ): Promise<MemoryDeleteOperationDetailPayload> {
   return requestJson<MemoryDeleteOperationDetailPayload>(`/delete/operations/${encodeURIComponent(operationId)}`)
+}
+
+export async function getMemoryFeedbackCorrections(
+  options?: {
+    limit?: number
+    status?: string
+    rollbackStatus?: string
+    query?: string
+  },
+): Promise<MemoryFeedbackCorrectionListPayload> {
+  const params = new URLSearchParams({
+    limit: String(options?.limit ?? 50),
+  })
+  if (options?.status?.trim()) {
+    params.set('status', options.status.trim())
+  }
+  if (options?.rollbackStatus?.trim()) {
+    params.set('rollback_status', options.rollbackStatus.trim())
+  }
+  if (options?.query?.trim()) {
+    params.set('query', options.query.trim())
+  }
+  return requestJson<MemoryFeedbackCorrectionListPayload>(`/feedback-corrections?${params.toString()}`)
+}
+
+export async function getMemoryFeedbackCorrection(
+  taskId: number,
+): Promise<MemoryFeedbackCorrectionDetailPayload> {
+  return requestJson<MemoryFeedbackCorrectionDetailPayload>(`/feedback-corrections/${taskId}`)
+}
+
+export async function rollbackMemoryFeedbackCorrection(
+  taskId: number,
+  payload: {
+    requested_by?: string
+    reason?: string
+  },
+): Promise<MemoryFeedbackCorrectionRollbackPayload> {
+  return requestJson<MemoryFeedbackCorrectionRollbackPayload>(`/feedback-corrections/${taskId}/rollback`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
 }
 
 export async function getMemorySources(): Promise<MemorySourceListPayload> {

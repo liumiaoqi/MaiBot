@@ -81,9 +81,12 @@ vi.mock('@/lib/memory-api', () => ({
   getMemorySources: vi.fn(),
   getMemoryDeleteOperations: vi.fn(),
   getMemoryDeleteOperation: vi.fn(),
+  getMemoryFeedbackCorrections: vi.fn(),
+  getMemoryFeedbackCorrection: vi.fn(),
   previewMemoryDelete: vi.fn(),
   executeMemoryDelete: vi.fn(),
   restoreMemoryDelete: vi.fn(),
+  rollbackMemoryFeedbackCorrection: vi.fn(),
 }))
 
 function mockImportTask(taskId: string, status: string = 'running'): memoryApi.MemoryImportTaskPayload {
@@ -357,6 +360,82 @@ describe('KnowledgeBasePage import workflow', () => {
         items: [],
       },
     })
+    vi.mocked(memoryApi.getMemoryFeedbackCorrections).mockResolvedValue({
+      success: true,
+      items: [
+        {
+          task_id: 11,
+          query_tool_id: 'tool-query-11',
+          session_id: 'session-1',
+          query_text: '测试用户最喜欢的颜色是什么',
+          query_timestamp: 1_710_000_010,
+          task_status: 'applied',
+          decision: 'correct',
+          decision_confidence: 0.97,
+          feedback_message_count: 1,
+          rollback_status: 'none',
+          affected_counts: {
+            relations: 1,
+            stale_paragraphs: 1,
+            episode_sources: 2,
+            profile_person_ids: 1,
+            correction_paragraphs: 1,
+            corrected_relations: 1,
+          },
+          created_at: 1_710_000_011,
+          updated_at: 1_710_000_012,
+        },
+      ],
+      count: 1,
+    })
+    vi.mocked(memoryApi.getMemoryFeedbackCorrection).mockResolvedValue({
+      success: true,
+      task: {
+        task_id: 11,
+        query_tool_id: 'tool-query-11',
+        session_id: 'session-1',
+        query_text: '测试用户最喜欢的颜色是什么',
+        query_timestamp: 1_710_000_010,
+        task_status: 'applied',
+        decision: 'correct',
+        decision_confidence: 0.97,
+        feedback_message_count: 1,
+        rollback_status: 'none',
+        affected_counts: {
+          relations: 1,
+          stale_paragraphs: 1,
+          episode_sources: 2,
+          profile_person_ids: 1,
+          correction_paragraphs: 1,
+          corrected_relations: 1,
+        },
+        query_snapshot: { query: '测试用户最喜欢的颜色是什么', hits: [{ hash: 'paragraph-1' }] },
+        decision_payload: { decision: 'correct', confidence: 0.97 },
+        rollback_plan_summary: {
+          forgotten_relations: [{ hash: 'rel-old', subject: '测试用户', predicate: '最喜欢的颜色是', object: '蓝色' }],
+          corrected_write: {
+            paragraph_hashes: ['paragraph-new'],
+            corrected_relations: [{ hash: 'rel-new', subject: '测试用户', predicate: '最喜欢的颜色是', object: '绿色' }],
+          },
+        },
+        rollback_result: {},
+        action_logs: [
+          {
+            id: 1,
+            task_id: 11,
+            query_tool_id: 'tool-query-11',
+            action_type: 'forget_relation',
+            target_hash: 'rel-old',
+            reason: '用户明确纠正为绿色',
+            before_payload: { hash: 'rel-old', subject: '测试用户', predicate: '最喜欢的颜色是', object: '蓝色' },
+            after_payload: { is_inactive: true },
+            created_at: 1_710_000_013,
+          },
+        ],
+        created_at: 1_710_000_011,
+        updated_at: 1_710_000_012,
+      },
+    })
     vi.mocked(memoryApi.previewMemoryDelete).mockResolvedValue({
       success: true,
       mode: 'source',
@@ -380,6 +459,37 @@ describe('KnowledgeBasePage import workflow', () => {
       deleted_source_count: 1,
     } as never)
     vi.mocked(memoryApi.restoreMemoryDelete).mockResolvedValue({ success: true } as never)
+    vi.mocked(memoryApi.rollbackMemoryFeedbackCorrection).mockResolvedValue({
+      success: true,
+      result: { restored_relation_hashes: ['rel-old'] },
+      task: {
+        task_id: 11,
+        query_tool_id: 'tool-query-11',
+        session_id: 'session-1',
+        query_text: '测试用户最喜欢的颜色是什么',
+        query_timestamp: 1_710_000_010,
+        task_status: 'applied',
+        decision: 'correct',
+        decision_confidence: 0.97,
+        feedback_message_count: 1,
+        rollback_status: 'rolled_back',
+        affected_counts: {
+          relations: 1,
+          stale_paragraphs: 1,
+          episode_sources: 2,
+          profile_person_ids: 1,
+          correction_paragraphs: 1,
+          corrected_relations: 1,
+        },
+        query_snapshot: { query: '测试用户最喜欢的颜色是什么', hits: [{ hash: 'paragraph-1' }] },
+        decision_payload: { decision: 'correct', confidence: 0.97 },
+        rollback_plan_summary: {},
+        rollback_result: { restored_relation_hashes: ['rel-old'] },
+        action_logs: [],
+        created_at: 1_710_000_011,
+        updated_at: 1_710_000_012,
+      },
+    })
     vi.mocked(memoryApi.refreshMemoryRuntimeSelfCheck).mockResolvedValue({
       success: true,
       report: { ok: true },
@@ -616,6 +726,29 @@ describe('KnowledgeBasePage import workflow', () => {
       expect(memoryApi.restoreMemoryDelete).toHaveBeenCalledWith({
         operation_id: 'del-2',
         requested_by: 'knowledge_base',
+      }),
+    )
+  }, 20_000)
+
+  it('shows feedback correction history and supports rollback', async () => {
+    const user = userEvent.setup()
+    render(<KnowledgeBasePage />)
+
+    await screen.findByText('长期记忆控制台', undefined, { timeout: 10_000 })
+    await user.click(screen.getByRole('tab', { name: '纠错历史' }))
+    await screen.findByText('反馈纠错历史')
+    await screen.findByText('测试用户最喜欢的颜色是什么')
+    await waitFor(() => expect(memoryApi.getMemoryFeedbackCorrection).toHaveBeenCalledWith(11))
+
+    await user.click(screen.getByRole('button', { name: '回退本次纠错' }))
+    const rollbackReason = await screen.findByLabelText('回退原因')
+    await user.type(rollbackReason, '人工确认回退')
+    await user.click(screen.getByRole('button', { name: '确认回退' }))
+
+    await waitFor(() =>
+      expect(memoryApi.rollbackMemoryFeedbackCorrection).toHaveBeenCalledWith(11, {
+        requested_by: 'knowledge_base',
+        reason: '人工确认回退',
       }),
     )
   }, 20_000)
