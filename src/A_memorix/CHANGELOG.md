@@ -8,7 +8,7 @@
   - 运行时主目录由 `storage.data_dir` 决定（当前模板默认 `data/a-memorix`）；
   - 部分离线脚本仍以 `data/plugins/a-dawn.a-memorix` 作为默认处理目录。
 - 修正文档中的导入示例参数，`memory_import_admin.create_paste` 的 `input_mode` 示例统一为 `text`/`json`。
-- 更新 `README.md` 关于元数据 schema 的描述，和当前代码 `SCHEMA_VERSION = 9` 保持一致。
+- 更新 `README.md` 关于元数据 schema 的描述，和当前代码 `SCHEMA_VERSION = 10` 保持一致。
 
 ## [2.0.0] - 2026-03-18
 

@@ -24,6 +24,14 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
@@ -48,6 +56,8 @@ import {
   createMemoryRawScanImport,
   createMemoryTemporalBackfillImport,
   executeMemoryDelete,
+  getMemoryFeedbackCorrection,
+  getMemoryFeedbackCorrections,
   getMemoryImportPathAliases,
   getMemoryImportSettings,
   getMemoryImportTask,
@@ -74,6 +84,7 @@ import {
   type MemoryImportTaskPayload,
   previewMemoryDelete,
   refreshMemoryRuntimeSelfCheck,
+  rollbackMemoryFeedbackCorrection,
   resolveMemoryImportPath,
   retryMemoryImportTask,
   restoreMemoryDelete,
@@ -82,6 +93,9 @@ import {
   type MemoryConfigSchemaPayload,
   type MemoryDeleteExecutePayload,
   type MemoryDeleteOperationPayload,
+  type MemoryFeedbackActionLogPayload,
+  type MemoryFeedbackCorrectionDetailTaskPayload,
+  type MemoryFeedbackCorrectionSummaryPayload,
   type MemorySourceItemPayload,
   type MemoryRuntimeConfigPayload,
   type MemoryTaskPayload,
@@ -90,6 +104,9 @@ import {
 const DELETE_OPERATION_FETCH_LIMIT = 100
 const DELETE_OPERATION_PAGE_SIZE = 6
 const DELETE_OPERATION_ITEM_PAGE_SIZE = 8
+const FEEDBACK_CORRECTION_FETCH_LIMIT = 100
+const FEEDBACK_CORRECTION_PAGE_SIZE = 6
+const FEEDBACK_ACTION_LOG_PAGE_SIZE = 8
 const IMPORT_CHUNK_PAGE_SIZE = 50
 
 const RUNNING_IMPORT_STATUS = new Set(['preparing', 'running', 'cancel_requested'])
@@ -268,6 +285,90 @@ function formatDeleteOperationTime(timestamp?: number | null): string {
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+function formatFeedbackDecision(decision: string): string {
+  switch (decision) {
+    case 'correct':
+      return '纠正'
+    case 'reject':
+      return '否定'
+    case 'confirm':
+      return '确认'
+    case 'supplement':
+      return '补充'
+    case 'none':
+      return '无动作'
+    default:
+      return decision || '未知'
+  }
+}
+
+function formatFeedbackTaskStatus(status: string): string {
+  switch (status) {
+    case 'pending':
+      return '待处理'
+    case 'running':
+      return '处理中'
+    case 'applied':
+      return '已应用'
+    case 'skipped':
+      return '已跳过'
+    case 'error':
+      return '失败'
+    default:
+      return status || '未知'
+  }
+}
+
+function formatFeedbackRollbackStatus(status: string): string {
+  switch (status) {
+    case 'none':
+      return '未回退'
+    case 'running':
+      return '回退中'
+    case 'rolled_back':
+      return '已回退'
+    case 'error':
+      return '回退失败'
+    default:
+      return status || '未知'
+  }
+}
+
+function getFeedbackStatusVariant(
+  status: string,
+): 'default' | 'secondary' | 'destructive' | 'outline' {
+  if (status === 'applied' || status === 'rolled_back') {
+    return 'default'
+  }
+  if (status === 'error') {
+    return 'destructive'
+  }
+  if (status === 'running' || status === 'pending') {
+    return 'outline'
+  }
+  return 'secondary'
+}
+
+function summarizeFeedbackActionPayload(value: Record<string, unknown> | undefined): string {
+  if (!value) {
+    return ''
+  }
+  const hash = String(value.hash ?? '').trim()
+  const subject = String(value.subject ?? '').trim()
+  const predicate = String(value.predicate ?? '').trim()
+  const object = String(value.object ?? '').trim()
+  if (subject && predicate && object) {
+    return formatDeleteRelationText(subject, predicate, object)
+  }
+  if (hash) {
+    return hash
+  }
+  if (Array.isArray(value.target_hashes) && value.target_hashes.length > 0) {
+    return `targets ${value.target_hashes.length}`
+  }
+  return trimDeleteItemText(JSON.stringify(value, null, 2), 120)
 }
 
 type DeleteOperationItem = NonNullable<MemoryDeleteOperationPayload['items']>[number]
@@ -471,6 +572,20 @@ export function KnowledgeBasePage() {
   const [deleteRestoring, setDeleteRestoring] = useState(false)
   const [deleteResult, setDeleteResult] = useState<MemoryDeleteExecutePayload | null>(null)
   const [pendingDeleteRequest, setPendingDeleteRequest] = useState<MemoryDeleteRequestPayload | null>(null)
+  const [feedbackCorrections, setFeedbackCorrections] = useState<MemoryFeedbackCorrectionSummaryPayload[]>([])
+  const [feedbackSearch, setFeedbackSearch] = useState('')
+  const [feedbackStatusFilter, setFeedbackStatusFilter] = useState('all')
+  const [feedbackRollbackFilter, setFeedbackRollbackFilter] = useState('all')
+  const [feedbackPage, setFeedbackPage] = useState(1)
+  const [selectedFeedbackTaskId, setSelectedFeedbackTaskId] = useState(0)
+  const [selectedFeedbackTaskDetail, setSelectedFeedbackTaskDetail] = useState<MemoryFeedbackCorrectionDetailTaskPayload | null>(null)
+  const [selectedFeedbackTaskLoading, setSelectedFeedbackTaskLoading] = useState(false)
+  const [selectedFeedbackTaskError, setSelectedFeedbackTaskError] = useState('')
+  const [feedbackActionLogSearch, setFeedbackActionLogSearch] = useState('')
+  const [feedbackActionLogPage, setFeedbackActionLogPage] = useState(1)
+  const [feedbackRollbackDialogOpen, setFeedbackRollbackDialogOpen] = useState(false)
+  const [feedbackRollbackReason, setFeedbackRollbackReason] = useState('')
+  const [feedbackRollingBack, setFeedbackRollingBack] = useState(false)
   const [tuningObjective, setTuningObjective] = useState('precision_priority')
   const [tuningIntensity, setTuningIntensity] = useState('standard')
   const [tuningSampleSize, setTuningSampleSize] = useState('24')
@@ -491,6 +606,7 @@ export function KnowledgeBasePage() {
         tuningTaskPayload,
         sourcePayload,
         deleteOperationPayload,
+        feedbackCorrectionPayload,
       ] = await Promise.all([
         getMemoryConfigSchema(),
         getMemoryConfig(),
@@ -503,6 +619,7 @@ export function KnowledgeBasePage() {
         getMemoryTuningTasks(20),
         getMemorySources(),
         getMemoryDeleteOperations(DELETE_OPERATION_FETCH_LIMIT),
+        getMemoryFeedbackCorrections({ limit: FEEDBACK_CORRECTION_FETCH_LIMIT }),
       ])
 
       setSchemaPayload(schema)
@@ -519,6 +636,7 @@ export function KnowledgeBasePage() {
       setTuningTasks(tuningTaskPayload.items ?? [])
       setMemorySources(sourcePayload.items ?? [])
       setDeleteOperations(deleteOperationPayload.items ?? [])
+      setFeedbackCorrections(feedbackCorrectionPayload.items ?? [])
       if (!selectedImportTaskId && (importTaskPayload.items ?? []).length > 0) {
         const initialTaskId = String(importTaskPayload.items?.[0]?.task_id ?? '')
         if (initialTaskId) {
@@ -1494,6 +1612,212 @@ export function KnowledgeBasePage() {
     setDeleteDialogOpen(true)
   }, [])
 
+  const filteredFeedbackCorrections = useMemo(() => {
+    const keyword = feedbackSearch.trim().toLowerCase()
+    return feedbackCorrections.filter((item) => {
+      const taskStatus = String(item.task_status ?? '').trim().toLowerCase()
+      const rollbackStatus = String(item.rollback_status ?? '').trim().toLowerCase()
+      if (feedbackStatusFilter !== 'all' && taskStatus !== feedbackStatusFilter) {
+        return false
+      }
+      if (feedbackRollbackFilter !== 'all' && rollbackStatus !== feedbackRollbackFilter) {
+        return false
+      }
+      if (!keyword) {
+        return true
+      }
+      return [
+        item.query_tool_id,
+        item.session_id,
+        item.query_text,
+        item.decision,
+        item.task_status,
+        item.rollback_status,
+      ]
+        .map((value) => String(value ?? '').toLowerCase())
+        .some((value) => value.includes(keyword))
+    })
+  }, [feedbackCorrections, feedbackRollbackFilter, feedbackSearch, feedbackStatusFilter])
+
+  const feedbackPageCount = Math.max(1, Math.ceil(filteredFeedbackCorrections.length / FEEDBACK_CORRECTION_PAGE_SIZE))
+  const pagedFeedbackCorrections = useMemo(() => {
+    const start = (feedbackPage - 1) * FEEDBACK_CORRECTION_PAGE_SIZE
+    return filteredFeedbackCorrections.slice(start, start + FEEDBACK_CORRECTION_PAGE_SIZE)
+  }, [feedbackPage, filteredFeedbackCorrections])
+
+  const selectedFeedbackCorrection = useMemo(
+    () =>
+      filteredFeedbackCorrections.find((item) => item.task_id === selectedFeedbackTaskId)
+      ?? pagedFeedbackCorrections[0]
+      ?? null,
+    [filteredFeedbackCorrections, pagedFeedbackCorrections, selectedFeedbackTaskId],
+  )
+
+  useEffect(() => {
+    setFeedbackPage(1)
+  }, [feedbackSearch, feedbackStatusFilter, feedbackRollbackFilter])
+
+  useEffect(() => {
+    if (feedbackPage > feedbackPageCount) {
+      setFeedbackPage(feedbackPageCount)
+    }
+  }, [feedbackPage, feedbackPageCount])
+
+  useEffect(() => {
+    if (!selectedFeedbackCorrection) {
+      if (selectedFeedbackTaskId) {
+        setSelectedFeedbackTaskId(0)
+      }
+      setSelectedFeedbackTaskDetail(null)
+      setSelectedFeedbackTaskError('')
+      return
+    }
+    if (selectedFeedbackCorrection.task_id !== selectedFeedbackTaskId) {
+      setSelectedFeedbackTaskId(selectedFeedbackCorrection.task_id)
+    }
+  }, [selectedFeedbackCorrection, selectedFeedbackTaskId])
+
+  useEffect(() => {
+    const taskId = selectedFeedbackCorrection?.task_id
+    if (!taskId) {
+      setSelectedFeedbackTaskDetail(null)
+      setSelectedFeedbackTaskError('')
+      return
+    }
+
+    let cancelled = false
+    setSelectedFeedbackTaskLoading(true)
+    setSelectedFeedbackTaskError('')
+
+    void getMemoryFeedbackCorrection(taskId)
+      .then((payload) => {
+        if (cancelled) {
+          return
+        }
+        if (!payload.success || !payload.task) {
+          setSelectedFeedbackTaskDetail(null)
+          setSelectedFeedbackTaskError(payload.error || '未能加载纠错任务详情')
+          return
+        }
+        setSelectedFeedbackTaskDetail(payload.task)
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return
+        }
+        setSelectedFeedbackTaskDetail(null)
+        setSelectedFeedbackTaskError(error instanceof Error ? error.message : '未能加载纠错任务详情')
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setSelectedFeedbackTaskLoading(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [selectedFeedbackCorrection?.task_id])
+
+  const selectedFeedbackResolved = useMemo(() => {
+    if (!selectedFeedbackCorrection) {
+      return null
+    }
+    if (selectedFeedbackTaskDetail?.task_id === selectedFeedbackCorrection.task_id) {
+      return {
+        ...selectedFeedbackCorrection,
+        ...selectedFeedbackTaskDetail,
+      } satisfies MemoryFeedbackCorrectionDetailTaskPayload
+    }
+    return selectedFeedbackTaskDetail ?? selectedFeedbackCorrection
+  }, [selectedFeedbackCorrection, selectedFeedbackTaskDetail])
+
+  const selectedFeedbackActionLogs = Array.isArray(selectedFeedbackResolved?.action_logs)
+    ? selectedFeedbackResolved.action_logs
+    : []
+  const filteredFeedbackActionLogs = useMemo(() => {
+    const keyword = feedbackActionLogSearch.trim().toLowerCase()
+    if (!keyword) {
+      return selectedFeedbackActionLogs
+    }
+    return selectedFeedbackActionLogs.filter((item) =>
+      [
+        item.action_type,
+        item.target_hash,
+        item.reason,
+        summarizeFeedbackActionPayload(item.before_payload),
+        summarizeFeedbackActionPayload(item.after_payload),
+      ]
+        .map((value) => String(value ?? '').toLowerCase())
+        .some((value) => value.includes(keyword)),
+    )
+  }, [feedbackActionLogSearch, selectedFeedbackActionLogs])
+  const feedbackActionLogPageCount = Math.max(
+    1,
+    Math.ceil(filteredFeedbackActionLogs.length / FEEDBACK_ACTION_LOG_PAGE_SIZE),
+  )
+  const pagedFeedbackActionLogs = useMemo(() => {
+    const start = (feedbackActionLogPage - 1) * FEEDBACK_ACTION_LOG_PAGE_SIZE
+    return filteredFeedbackActionLogs.slice(start, start + FEEDBACK_ACTION_LOG_PAGE_SIZE)
+  }, [feedbackActionLogPage, filteredFeedbackActionLogs])
+
+  useEffect(() => {
+    setFeedbackActionLogPage(1)
+  }, [selectedFeedbackTaskId, feedbackActionLogSearch])
+
+  useEffect(() => {
+    if (feedbackActionLogPage > feedbackActionLogPageCount) {
+      setFeedbackActionLogPage(feedbackActionLogPageCount)
+    }
+  }, [feedbackActionLogPage, feedbackActionLogPageCount])
+
+  const openFeedbackRollbackDialog = useCallback(() => {
+    setFeedbackRollbackReason('')
+    setFeedbackRollbackDialogOpen(true)
+  }, [])
+
+  const executeFeedbackRollback = useCallback(async () => {
+    const taskId = selectedFeedbackResolved?.task_id
+    if (!taskId) {
+      return
+    }
+    try {
+      setFeedbackRollingBack(true)
+      const payload = await rollbackMemoryFeedbackCorrection(taskId, {
+        requested_by: 'knowledge_base',
+        reason: feedbackRollbackReason.trim(),
+      })
+      if (!payload.success) {
+        throw new Error(payload.error || '回退失败')
+      }
+      toast({
+        title: payload.already_rolled_back ? '该纠错已回退' : '纠错回退成功',
+        description: `任务 ${taskId} 的回退结果已写入日志`,
+      })
+      setFeedbackRollbackDialogOpen(false)
+      const [listPayload, detailPayload] = await Promise.all([
+        getMemoryFeedbackCorrections({ limit: FEEDBACK_CORRECTION_FETCH_LIMIT }),
+        getMemoryFeedbackCorrection(taskId),
+      ])
+      setFeedbackCorrections(listPayload.items ?? [])
+      setSelectedFeedbackTaskDetail(detailPayload.task ?? null)
+      const [sourcePayload, runtimePayload] = await Promise.all([
+        getMemorySources(),
+        getMemoryRuntimeConfig(),
+      ])
+      setMemorySources(sourcePayload.items ?? [])
+      setRuntimeConfig(runtimePayload)
+    } catch (error) {
+      toast({
+        title: '纠错回退失败',
+        description: error instanceof Error ? error.message : '未知错误',
+        variant: 'destructive',
+      })
+    } finally {
+      setFeedbackRollingBack(false)
+    }
+  }, [feedbackRollbackReason, selectedFeedbackResolved?.task_id, toast])
+
   const selectedOperationResolved = useMemo(() => {
     if (!selectedDeleteOperation) {
       return null
@@ -1775,6 +2099,9 @@ export function KnowledgeBasePage() {
               </TabsTrigger>
               <TabsTrigger value="delete" className="rounded-lg px-4 py-1.5">
                 删除
+              </TabsTrigger>
+              <TabsTrigger value="feedback" className="rounded-lg px-4 py-1.5">
+                纠错历史
               </TabsTrigger>
             </TabsList>
 
@@ -3314,6 +3641,327 @@ export function KnowledgeBasePage() {
                 </Card>
               </div>
             </TabsContent>
+
+            <TabsContent value="feedback" className="space-y-4">
+              <div className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <RotateCcw className="h-4 w-4" />
+                      反馈纠错历史
+                    </CardTitle>
+                    <CardDescription>
+                      查看 feedback correction 的判定、修改轨迹与回退结果；本期仅覆盖自动纠错任务
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_180px]">
+                      <Input
+                        value={feedbackSearch}
+                        onChange={(event) => setFeedbackSearch(event.target.value)}
+                        placeholder="搜索 query_tool_id / session / query / reason"
+                      />
+                      <Select value={feedbackStatusFilter} onValueChange={setFeedbackStatusFilter}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="按任务状态筛选" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">全部任务状态</SelectItem>
+                          <SelectItem value="applied">已应用</SelectItem>
+                          <SelectItem value="skipped">已跳过</SelectItem>
+                          <SelectItem value="error">失败</SelectItem>
+                          <SelectItem value="running">处理中</SelectItem>
+                          <SelectItem value="pending">待处理</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Select value={feedbackRollbackFilter} onValueChange={setFeedbackRollbackFilter}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="按回退状态筛选" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">全部回退状态</SelectItem>
+                          <SelectItem value="none">未回退</SelectItem>
+                          <SelectItem value="rolled_back">已回退</SelectItem>
+                          <SelectItem value="error">回退失败</SelectItem>
+                          <SelectItem value="running">回退中</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
+                      <span>当前命中 {filteredFeedbackCorrections.length} 条记录，已加载最近 {feedbackCorrections.length} 条</span>
+                      <span>第 {feedbackPage} / {feedbackPageCount} 页，每页显示 {FEEDBACK_CORRECTION_PAGE_SIZE} 条</span>
+                    </div>
+
+                    <div className="grid gap-4 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
+                      <ScrollArea className="h-[720px] rounded-lg border">
+                        <div className="space-y-3 p-3">
+                          {pagedFeedbackCorrections.length > 0 ? pagedFeedbackCorrections.map((item) => {
+                            const isSelected = selectedFeedbackCorrection?.task_id === item.task_id
+                            return (
+                              <button
+                                key={item.task_id}
+                                type="button"
+                                onClick={() => setSelectedFeedbackTaskId(item.task_id)}
+                                className={cn(
+                                  'w-full rounded-xl border p-4 text-left transition-colors',
+                                  isSelected
+                                    ? 'border-primary bg-primary/5 shadow-sm'
+                                    : 'bg-muted/20 hover:border-primary/40 hover:bg-muted/40',
+                                )}
+                              >
+                                <div className="flex flex-col gap-3">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <Badge variant={getFeedbackStatusVariant(item.task_status)}>
+                                      {formatFeedbackTaskStatus(item.task_status)}
+                                    </Badge>
+                                    <Badge variant={getFeedbackStatusVariant(item.rollback_status)}>
+                                      {formatFeedbackRollbackStatus(item.rollback_status)}
+                                    </Badge>
+                                    <Badge variant="outline">
+                                      {formatFeedbackDecision(item.decision)}
+                                    </Badge>
+                                  </div>
+                                  <div className="text-sm font-medium break-words">
+                                    {item.query_text || '无查询文本'}
+                                  </div>
+                                  <div className="font-mono text-[11px] break-all text-muted-foreground">
+                                    {item.query_tool_id}
+                                  </div>
+                                  <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                                    <span>关系 {Number(item.affected_counts?.relations ?? 0)}</span>
+                                    <span>脏段落 {Number(item.affected_counts?.stale_paragraphs ?? 0)}</span>
+                                    <span>Episode {Number(item.affected_counts?.episode_sources ?? 0)}</span>
+                                    <span>Profile {Number(item.affected_counts?.profile_person_ids ?? 0)}</span>
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {formatDeleteOperationTime(item.query_timestamp ?? item.created_at)}
+                                  </div>
+                                </div>
+                              </button>
+                            )
+                          }) : (
+                            <div className="rounded-lg border border-dashed bg-muted/20 p-6 text-center text-sm text-muted-foreground">
+                              当前筛选条件下没有纠错历史
+                            </div>
+                          )}
+                        </div>
+                      </ScrollArea>
+
+                      <div className="rounded-xl border bg-muted/20 p-4">
+                        {selectedFeedbackCorrection ? (
+                          <div className="space-y-4">
+                            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                              <div className="space-y-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Badge variant={getFeedbackStatusVariant(String(selectedFeedbackResolved?.task_status ?? ''))}>
+                                    {formatFeedbackTaskStatus(String(selectedFeedbackResolved?.task_status ?? ''))}
+                                  </Badge>
+                                  <Badge variant={getFeedbackStatusVariant(String(selectedFeedbackResolved?.rollback_status ?? 'none'))}>
+                                    {formatFeedbackRollbackStatus(String(selectedFeedbackResolved?.rollback_status ?? 'none'))}
+                                  </Badge>
+                                  <Badge variant="outline">
+                                    {formatFeedbackDecision(String(selectedFeedbackResolved?.decision ?? ''))}
+                                  </Badge>
+                                </div>
+                                <div className="text-sm font-medium break-words">
+                                  {selectedFeedbackResolved?.query_text || '无查询文本'}
+                                </div>
+                                <div className="font-mono text-xs break-all">
+                                  {selectedFeedbackResolved?.query_tool_id}
+                                </div>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={openFeedbackRollbackDialog}
+                                disabled={
+                                  String(selectedFeedbackResolved?.task_status ?? '') !== 'applied'
+                                  || String(selectedFeedbackResolved?.rollback_status ?? 'none') === 'rolled_back'
+                                  || feedbackRollingBack
+                                }
+                              >
+                                <RotateCcw className="mr-2 h-4 w-4" />
+                                {String(selectedFeedbackResolved?.rollback_status ?? 'none') === 'rolled_back'
+                                  ? '已回退'
+                                  : '回退本次纠错'}
+                              </Button>
+                            </div>
+
+                            <div className="grid gap-3 lg:grid-cols-4">
+                              <div className="rounded-lg border bg-background/60 p-3">
+                                <div className="text-xs text-muted-foreground">会话</div>
+                                <div className="mt-1 text-sm break-all">{selectedFeedbackResolved?.session_id || '-'}</div>
+                              </div>
+                              <div className="rounded-lg border bg-background/60 p-3">
+                                <div className="text-xs text-muted-foreground">反馈消息数</div>
+                                <div className="mt-1 text-sm">{Number(selectedFeedbackResolved?.feedback_message_count ?? 0)}</div>
+                              </div>
+                              <div className="rounded-lg border bg-background/60 p-3">
+                                <div className="text-xs text-muted-foreground">判定置信度</div>
+                                <div className="mt-1 text-sm">{Number(selectedFeedbackResolved?.decision_confidence ?? 0).toFixed(2)}</div>
+                              </div>
+                              <div className="rounded-lg border bg-background/60 p-3">
+                                <div className="text-xs text-muted-foreground">回退时间</div>
+                                <div className="mt-1 text-sm">{formatDeleteOperationTime(selectedFeedbackResolved?.rolled_back_at)}</div>
+                              </div>
+                            </div>
+
+                            {selectedFeedbackTaskLoading ? (
+                              <div className="rounded-lg border bg-background/60 p-4 text-sm text-muted-foreground">
+                                正在加载纠错详情...
+                              </div>
+                            ) : null}
+
+                            {selectedFeedbackTaskError ? (
+                              <Alert variant="destructive">
+                                <AlertDescription>{selectedFeedbackTaskError}</AlertDescription>
+                              </Alert>
+                            ) : null}
+
+                            {selectedFeedbackResolved?.rollback_error ? (
+                              <Alert variant="destructive">
+                                <AlertDescription>{selectedFeedbackResolved.rollback_error}</AlertDescription>
+                              </Alert>
+                            ) : null}
+
+                            <div className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+                              <div className="space-y-2">
+                                <div className="text-sm font-semibold">查询快照</div>
+                                <pre className="max-h-56 overflow-auto rounded-lg border bg-background/70 p-3 text-xs break-words whitespace-pre-wrap">
+                                  {JSON.stringify(selectedFeedbackResolved?.query_snapshot ?? {}, null, 2)}
+                                </pre>
+                              </div>
+                              <div className="space-y-2">
+                                <div className="text-sm font-semibold">判定结果</div>
+                                <pre className="max-h-56 overflow-auto rounded-lg border bg-background/70 p-3 text-xs break-words whitespace-pre-wrap">
+                                  {JSON.stringify(selectedFeedbackResolved?.decision_payload ?? {}, null, 2)}
+                                </pre>
+                              </div>
+                            </div>
+
+                            <div className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+                              <div className="space-y-2">
+                                <div className="text-sm font-semibold">回退计划摘要</div>
+                                <pre className="max-h-64 overflow-auto rounded-lg border bg-background/70 p-3 text-xs break-words whitespace-pre-wrap">
+                                  {JSON.stringify(selectedFeedbackResolved?.rollback_plan_summary ?? {}, null, 2)}
+                                </pre>
+                              </div>
+                              <div className="space-y-2">
+                                <div className="text-sm font-semibold">回退结果</div>
+                                <pre className="max-h-64 overflow-auto rounded-lg border bg-background/70 p-3 text-xs break-words whitespace-pre-wrap">
+                                  {JSON.stringify(selectedFeedbackResolved?.rollback_result ?? {}, null, 2)}
+                                </pre>
+                              </div>
+                            </div>
+
+                            <div className="space-y-2">
+                              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                <div className="text-sm font-semibold">动作时间线</div>
+                                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-end">
+                                  <Input
+                                    value={feedbackActionLogSearch}
+                                    onChange={(event) => setFeedbackActionLogSearch(event.target.value)}
+                                    placeholder="搜索动作 / hash / 预览内容"
+                                    className="lg:w-80"
+                                  />
+                                  <div className="text-xs text-muted-foreground">
+                                    第 {feedbackActionLogPage} / {feedbackActionLogPageCount} 页，每页 {FEEDBACK_ACTION_LOG_PAGE_SIZE} 项
+                                  </div>
+                                </div>
+                              </div>
+                              <ScrollArea className="h-[280px] rounded-lg border bg-background/60">
+                                <div className="space-y-2 p-3">
+                                  {pagedFeedbackActionLogs.length > 0 ? pagedFeedbackActionLogs.map((item: MemoryFeedbackActionLogPayload) => (
+                                    <div key={`${item.id}:${item.action_type}`} className="rounded-lg border bg-muted/20 p-3">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <Badge variant="outline">{item.action_type}</Badge>
+                                        {item.target_hash ? (
+                                          <span className="font-mono text-[11px] break-all text-muted-foreground">{item.target_hash}</span>
+                                        ) : null}
+                                      </div>
+                                      {item.reason ? (
+                                        <div className="mt-2 text-xs text-muted-foreground break-words">
+                                          {item.reason}
+                                        </div>
+                                      ) : null}
+                                      {item.before_payload && Object.keys(item.before_payload).length > 0 ? (
+                                        <div className="mt-2 text-xs break-words">
+                                          <span className="font-medium">Before：</span>
+                                          <span className="text-muted-foreground">{summarizeFeedbackActionPayload(item.before_payload)}</span>
+                                        </div>
+                                      ) : null}
+                                      {item.after_payload && Object.keys(item.after_payload).length > 0 ? (
+                                        <div className="mt-1 text-xs break-words">
+                                          <span className="font-medium">After：</span>
+                                          <span className="text-muted-foreground">{summarizeFeedbackActionPayload(item.after_payload)}</span>
+                                        </div>
+                                      ) : null}
+                                      <div className="mt-2 text-[11px] text-muted-foreground">
+                                        {formatDeleteOperationTime(item.created_at)}
+                                      </div>
+                                    </div>
+                                  )) : (
+                                    <div className="rounded-lg border border-dashed bg-muted/20 p-6 text-center text-sm text-muted-foreground">
+                                      {selectedFeedbackActionLogs.length > 0 ? '当前筛选条件下没有动作日志' : '当前任务没有动作日志'}
+                                    </div>
+                                  )}
+                                </div>
+                              </ScrollArea>
+                              <div className="flex items-center justify-between gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setFeedbackActionLogPage((current) => Math.max(1, current - 1))}
+                                  disabled={feedbackActionLogPage <= 1}
+                                >
+                                  上一页
+                                </Button>
+                                <div className="text-xs text-muted-foreground">支持按动作类型、hash 和摘要检索</div>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setFeedbackActionLogPage((current) => Math.min(feedbackActionLogPageCount, current + 1))}
+                                  disabled={feedbackActionLogPage >= feedbackActionLogPageCount}
+                                >
+                                  下一页
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex min-h-[360px] items-center justify-center rounded-lg border border-dashed bg-background/40 p-6 text-center text-sm text-muted-foreground">
+                            当前没有可查看的纠错详情
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setFeedbackPage((current) => Math.max(1, current - 1))}
+                        disabled={feedbackPage <= 1}
+                      >
+                        上一页
+                      </Button>
+                      <div className="text-xs text-muted-foreground">
+                        支持按 query、任务状态和回退状态检索
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setFeedbackPage((current) => Math.min(feedbackPageCount, current + 1))}
+                        disabled={feedbackPage >= feedbackPageCount}
+                      >
+                        下一页
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
           </Tabs>
         </div>
       </div>
@@ -3332,6 +3980,52 @@ export function KnowledgeBasePage() {
         onExecute={() => void executePendingDelete()}
         onRestore={() => void (deleteResult?.operation_id ? restoreDeleteOperation(deleteResult.operation_id) : Promise.resolve())}
       />
+
+      <Dialog open={feedbackRollbackDialogOpen} onOpenChange={setFeedbackRollbackDialogOpen}>
+        <DialogContent className="max-w-lg" confirmOnEnter>
+          <DialogHeader>
+            <DialogTitle>回退本次纠错</DialogTitle>
+            <DialogDescription>
+              这会恢复旧 relation 状态、隐藏纠错写入段落，并重新触发 episode/profile 的异步修复。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="rounded-lg border bg-muted/20 p-3 text-sm">
+              <div className="font-medium break-words">{selectedFeedbackResolved?.query_text || '无查询文本'}</div>
+              <div className="mt-1 font-mono text-[11px] break-all text-muted-foreground">
+                {selectedFeedbackResolved?.query_tool_id}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="feedback-rollback-reason">回退原因</Label>
+              <Textarea
+                id="feedback-rollback-reason"
+                value={feedbackRollbackReason}
+                onChange={(event) => setFeedbackRollbackReason(event.target.value)}
+                placeholder="可选，建议填写本次人工回退原因"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setFeedbackRollbackDialogOpen(false)} disabled={feedbackRollingBack}>
+              取消
+            </Button>
+            <Button onClick={() => void executeFeedbackRollback()} disabled={feedbackRollingBack}>
+              {feedbackRollingBack ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  回退中
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                  确认回退
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

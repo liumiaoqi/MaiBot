@@ -338,6 +338,7 @@ class SparseBM25Index:
             match_query=match_query,
             limit=max(1, int(k)),
             max_doc_len=self.config.relation_max_doc_len,
+            include_inactive=False,
             conn=self._conn,
         )
         out: List[Dict[str, Any]] = []

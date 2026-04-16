@@ -233,6 +233,30 @@ class MemoryService:
             logger.warning("长期记忆搜索失败: %s", exc)
             return MemorySearchResult(success=False, error=str(exc))
 
+    async def enqueue_feedback_task(
+        self,
+        *,
+        query_tool_id: str,
+        session_id: str,
+        query_timestamp: Any = None,
+        structured_content: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        try:
+            payload = await self._invoke(
+                "enqueue_feedback_task",
+                {
+                    "query_tool_id": str(query_tool_id or "").strip(),
+                    "session_id": str(session_id or "").strip(),
+                    "query_timestamp": query_timestamp,
+                    "structured_content": structured_content if isinstance(structured_content, dict) else {},
+                },
+                timeout_ms=10000,
+            )
+        except Exception as exc:
+            logger.warning("反馈纠错任务入队失败: %s", exc)
+            return {"success": False, "queued": False, "reason": str(exc)}
+        return payload if isinstance(payload, dict) else {"success": False, "queued": False, "reason": "invalid_payload"}
+
     async def ingest_summary(
         self,
         *,
@@ -386,6 +410,13 @@ class MemoryService:
             return await self._invoke_admin("memory_profile_admin", action=action, **kwargs)
         except Exception as exc:
             logger.warning("画像管理调用失败: %s", exc)
+            return {"success": False, "error": str(exc)}
+
+    async def feedback_admin(self, *, action: str, **kwargs) -> Dict[str, Any]:
+        try:
+            return await self._invoke_admin("memory_feedback_admin", action=action, **kwargs)
+        except Exception as exc:
+            logger.warning("反馈纠错管理调用失败: %s", exc)
             return {"success": False, "error": str(exc)}
 
     async def runtime_admin(self, *, action: str, **kwargs) -> Dict[str, Any]:

@@ -124,6 +124,11 @@ class DeletePurgeRequest(BaseModel):
     limit: int = Field(1000, ge=1, le=5000)
 
 
+class FeedbackRollbackRequest(BaseModel):
+    requested_by: str = "webui"
+    reason: str = ""
+
+
 def _build_import_guide_markdown(settings: dict[str, Any]) -> str:
     path_aliases_raw = settings.get("path_aliases")
     path_aliases = path_aliases_raw if isinstance(path_aliases_raw, dict) else {}
@@ -357,6 +362,31 @@ async def _profile_set_override(payload: ProfileOverrideRequest) -> dict:
 
 async def _profile_delete_override(person_id: str) -> dict:
     return await memory_service.profile_admin(action="delete_override", person_id=person_id)
+
+
+async def _feedback_list(limit: int, status: str, rollback_status: str, query: str) -> dict:
+    statuses = [item.strip() for item in str(status or "").split(",") if item.strip()]
+    rollback_statuses = [item.strip() for item in str(rollback_status or "").split(",") if item.strip()]
+    return await memory_service.feedback_admin(
+        action="list",
+        limit=limit,
+        statuses=statuses,
+        rollback_statuses=rollback_statuses,
+        query=query,
+    )
+
+
+async def _feedback_get(task_id: int) -> dict:
+    return await memory_service.feedback_admin(action="get", task_id=task_id)
+
+
+async def _feedback_rollback(task_id: int, payload: FeedbackRollbackRequest) -> dict:
+    return await memory_service.feedback_admin(
+        action="rollback",
+        task_id=task_id,
+        requested_by=payload.requested_by,
+        reason=payload.reason,
+    )
 
 
 async def _runtime_save() -> dict:
@@ -828,6 +858,26 @@ async def set_memory_profile_override(payload: ProfileOverrideRequest):
 @router.delete("/profiles/override/{person_id}")
 async def delete_memory_profile_override(person_id: str):
     return await _profile_delete_override(person_id)
+
+
+@router.get("/feedback-corrections")
+async def list_memory_feedback_corrections(
+    limit: int = Query(50, ge=1, le=200),
+    status: str = Query(""),
+    rollback_status: str = Query(""),
+    query: str = Query(""),
+):
+    return await _feedback_list(limit, status, rollback_status, query)
+
+
+@router.get("/feedback-corrections/{task_id}")
+async def get_memory_feedback_correction(task_id: int):
+    return await _feedback_get(task_id)
+
+
+@router.post("/feedback-corrections/{task_id}/rollback")
+async def rollback_memory_feedback_correction(task_id: int, payload: FeedbackRollbackRequest):
+    return await _feedback_rollback(task_id, payload)
 
 
 @router.post("/runtime/save")

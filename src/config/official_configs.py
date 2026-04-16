@@ -149,10 +149,10 @@ class VisualConfig(ConfigBase):
         default="auto",
         json_schema_extra={
             "x-widget": "select",
-            "x-icon": "git-branch",
+            "x-icon": "image",
         },
     )
-    """规划器模式，auto根据模型信息自动选择，text为纯文本模式，multimodal为多模态模式"""
+    """Planner 视觉模式：text 仅文本，multimodal 强制多模态，auto 按模型能力自动选择"""
 
     replyer_mode: Literal["text", "multimodal", "auto"] = Field(
         default="auto",
@@ -161,7 +161,7 @@ class VisualConfig(ConfigBase):
             "x-icon": "git-branch",
         },
     )
-    """回复器模式，auto根据模型信息自动选择，text为纯文本模式，multimodal为多模态模式"""
+    """Replyer 视觉模式：text 仅文本，multimodal 强制多模态，auto 按模型能力自动选择"""
 
     visual_style: str = Field(
         default="请用中文描述这张图片的内容。如果有文字，请把文字描述概括出来，请留意其主题，直观感受，输出为一段平文本，最多30字，请注意不要分点，就输出一段文本",
@@ -239,12 +239,17 @@ class ChatConfig(ConfigBase):
     )
     """Planner 连续被新消息打断的最大次数，0 表示不启用打断"""
 
+    plan_reply_log_max_per_chat: int = Field(
+        default=1024,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "file-text",
+        },
+    )
+    """每个聊天流最大保存的Plan/Reply日志数量，超过此数量时会自动删除最老的日志"""
+
     group_chat_prompt: str = Field(
-        default="""
-你正在qq群里聊天，下面是群里正在聊的内容，其中包含聊天记录和聊天中的图片。
-回复尽量简短一些。最好一次对一个话题进行回复，免得啰嗦或者回复内容太乱。请注意把握聊天内容。
-不要回复的太频繁！控制回复的频率，不要每个人的消息都回复，只回复你感兴趣的或者主动提及你的。
-""",
+        default="你需要控制自己发言的频率，如果是一对一聊天，可以以较均匀的频率发言；如果用户较多，不要每句都回复，控制回复频率，不要回复的太频繁！控制回复的频率，不要每个人的消息都回复。",
         json_schema_extra={
             "x-widget": "textarea",
             "x-icon": "users",
@@ -253,11 +258,7 @@ class ChatConfig(ConfigBase):
     """_wrap_群聊通用注意事项"""
 
     private_chat_prompts: str = Field(
-        default="""
-你正在聊天，下面是正在聊的内容，其中包含聊天记录和聊天中的图片。
-回复尽量简短一些。请注意把握聊天内容。
-请考虑对方的发言频率，想法，思考自己何时回复以及回复内容。
-""",
+        default="你需要控制自己发言的频率，可以以较均匀的频率发言。",
         json_schema_extra={
             "x-widget": "textarea",
             "x-icon": "user",
@@ -414,6 +415,228 @@ class MemoryConfig(ConfigBase):
     )
     """Maisaka 内置长期记忆检索工具 query_memory 的默认返回条数"""
 
+    person_fact_writeback_enabled: bool = Field(
+        default=True,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "user-round-pen",
+        },
+    )
+    """是否在发送回复后自动提取并写回人物事实到长期记忆"""
+
+    chat_summary_writeback_enabled: bool = Field(
+        default=True,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "scroll-text",
+        },
+    )
+    """是否在 Maisaka 聊天过程中按消息窗口自动写回聊天摘要到长期记忆"""
+
+    chat_summary_writeback_message_threshold: int = Field(
+        default=12,
+        ge=1,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "messages-square",
+        },
+    )
+    """自动写回聊天摘要的消息窗口阈值"""
+
+    chat_summary_writeback_context_length: int = Field(
+        default=50,
+        ge=1,
+        le=500,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "rows-3",
+        },
+    )
+    """自动写回聊天摘要时，从聊天流中回看的消息条数"""
+
+    feedback_correction_enabled: bool = Field(
+        default=False,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "message-circle-warning",
+        },
+    )
+    """是否启用反馈驱动的延迟记忆纠错任务"""
+
+    feedback_correction_window_hours: float = Field(
+        default=12.0,
+        ge=0.1,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "clock-4",
+        },
+    )
+    """反馈窗口时长（小时），以 query_memory 执行时间为起点"""
+
+    feedback_correction_check_interval_minutes: int = Field(
+        default=30,
+        ge=1,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "timer",
+        },
+    )
+    """反馈纠错定时任务轮询间隔（分钟）"""
+
+    feedback_correction_batch_size: int = Field(
+        default=20,
+        ge=1,
+        le=200,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "list-ordered",
+        },
+    )
+    """反馈纠错每轮最大处理任务数"""
+
+    feedback_correction_auto_apply_threshold: float = Field(
+        default=0.85,
+        ge=0.0,
+        le=1.0,
+        json_schema_extra={
+            "x-widget": "slider",
+            "x-icon": "gauge",
+            "step": 0.01,
+        },
+    )
+    """自动应用纠错动作的最低置信度阈值"""
+
+    feedback_correction_max_feedback_messages: int = Field(
+        default=30,
+        ge=1,
+        le=200,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "messages-square",
+        },
+    )
+    """每个纠错任务最多使用的窗口内用户反馈消息数"""
+
+    feedback_correction_prefilter_enabled: bool = Field(
+        default=True,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "filter",
+        },
+    )
+    """是否启用纠错前置预筛（用于减少不必要的模型调用）"""
+
+    feedback_correction_paragraph_mark_enabled: bool = Field(
+        default=True,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "sticky-note",
+        },
+    )
+    """是否为受影响 paragraph 写入已纠正旧事实标记"""
+
+    feedback_correction_paragraph_hard_filter_enabled: bool = Field(
+        default=True,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "eye-off",
+        },
+    )
+    """是否在用户侧查询中硬过滤带有 stale 标记的 paragraph"""
+
+    feedback_correction_profile_refresh_enabled: bool = Field(
+        default=True,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "user-round-search",
+        },
+    )
+    """是否在反馈纠错后将受影响人物画像加入刷新队列"""
+
+    feedback_correction_profile_force_refresh_on_read: bool = Field(
+        default=True,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "refresh-ccw",
+        },
+    )
+    """人物画像处于脏队列时，读取是否强制刷新而不直接复用旧快照"""
+
+    feedback_correction_episode_rebuild_enabled: bool = Field(
+        default=True,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "clapperboard",
+        },
+    )
+    """是否在反馈纠错后将受影响 source 加入 episode 重建队列"""
+
+    feedback_correction_episode_query_block_enabled: bool = Field(
+        default=True,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "ban",
+        },
+    )
+    """episode source 处于重建队列时，是否对用户侧查询做屏蔽"""
+
+    feedback_correction_reconcile_interval_minutes: int = Field(
+        default=5,
+        ge=1,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "repeat",
+        },
+    )
+    """反馈纠错二阶段一致性后台协调任务轮询间隔（分钟）"""
+
+    feedback_correction_reconcile_batch_size: int = Field(
+        default=20,
+        ge=1,
+        le=200,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "list-restart",
+        },
+    )
+    """反馈纠错二阶段一致性每轮处理 profile/episode 队列的批大小"""
+
+    def model_post_init(self, context: Optional[dict] = None) -> None:
+        """验证配置值"""
+        if self.feedback_correction_window_hours <= 0:
+            raise ValueError(
+                f"feedback_correction_window_hours 必须大于0，当前值: {self.feedback_correction_window_hours}"
+            )
+        if self.feedback_correction_check_interval_minutes < 1:
+            raise ValueError(
+                "feedback_correction_check_interval_minutes 必须至少为1，"
+                f"当前值: {self.feedback_correction_check_interval_minutes}"
+            )
+        if self.feedback_correction_batch_size < 1:
+            raise ValueError(
+                f"feedback_correction_batch_size 必须至少为1，当前值: {self.feedback_correction_batch_size}"
+            )
+        if not 0 <= self.feedback_correction_auto_apply_threshold <= 1:
+            raise ValueError(
+                "feedback_correction_auto_apply_threshold 必须在 [0, 1] 之间，"
+                f"当前值: {self.feedback_correction_auto_apply_threshold}"
+            )
+        if self.feedback_correction_max_feedback_messages < 1:
+            raise ValueError(
+                "feedback_correction_max_feedback_messages 必须至少为1，"
+                f"当前值: {self.feedback_correction_max_feedback_messages}"
+            )
+        if self.feedback_correction_reconcile_interval_minutes < 1:
+            raise ValueError(
+                "feedback_correction_reconcile_interval_minutes 必须至少为1，"
+                f"当前值: {self.feedback_correction_reconcile_interval_minutes}"
+            )
+        if self.feedback_correction_reconcile_batch_size < 1:
+            raise ValueError(
+                "feedback_correction_reconcile_batch_size 必须至少为1，"
+                f"当前值: {self.feedback_correction_reconcile_batch_size}"
+            )
+        return super().model_post_init(context)
 
 
 class LearningItem(ConfigBase):
@@ -471,15 +694,6 @@ class LearningItem(ConfigBase):
     )
     """是否启用jargon学习"""
 
-    advanced_chosen: bool = Field(
-        default=False,
-        json_schema_extra={
-            "x-widget": "switch",
-            "x-icon": "sparkles",
-        },
-    )
-    """是否启用基于子代理的二次表达方式选择"""
-
 
 class ExpressionGroup(ConfigBase):
     """表达互通组配置类，若列表为空代表全局共享"""
@@ -509,7 +723,6 @@ class ExpressionConfig(ConfigBase):
                 use_expression=True,
                 enable_learning=True,
                 enable_jargon_learning=True,
-                advanced_chosen=False,
             )
         ],
         json_schema_extra={
@@ -1380,6 +1593,35 @@ class MaiSakaConfig(ConfigBase):
         },
     )
     """MaiSaka 使用的用户名称"""
+
+    tool_filter_task_name: str = Field(
+        default="utils",
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "sparkles",
+        },
+    )
+    """工具筛选预判使用的模型任务名"""
+
+    tool_filter_threshold: int = Field(
+        default=20,
+        ge=1,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "filter",
+        },
+    )
+    """当可用工具总数超过该阈值时，先进行一轮工具筛选"""
+
+    tool_filter_max_keep: int = Field(
+        default=5,
+        ge=1,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "list-filter",
+        },
+    )
+    """工具筛选阶段最多保留的非内置工具数量"""
 
     show_image_path: bool = Field(
         default=True,

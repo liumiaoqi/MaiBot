@@ -5,12 +5,13 @@
 导入到 A_memorix 的存储组件中。
 """
 
-import time
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
 import json
 import re
+import time
 import traceback
-from typing import List, Dict, Any, Tuple, Optional
-from pathlib import Path
 
 from src.common.logger import get_logger
 from src.services import llm_service as llm_api
@@ -222,7 +223,9 @@ class SummaryImporter:
         self,
         stream_id: str,
         context_length: Optional[int] = None,
-        include_personality: Optional[bool] = None
+        include_personality: Optional[bool] = None,
+        time_end: Optional[float] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> Tuple[bool, str]:
         """
         从指定的聊天流中提取记录并执行总结导入
@@ -231,6 +234,7 @@ class SummaryImporter:
             stream_id: 聊天流 ID
             context_length: 总结的历史消息条数
             include_personality: 是否包含人设
+            time_end: 用于截取聊天记录的时间上界（闭区间）
 
         Returns:
             Tuple[bool, str]: (是否成功, 结果消息)
@@ -248,12 +252,13 @@ class SummaryImporter:
                 include_personality = self.plugin_config.get("summarization", {}).get("include_personality", True)
 
             # 2. 获取历史消息
-            # 获取当前时间之前的消息
-            now = time.time()
-            messages = message_api.get_messages_before_time_in_chat(
+            query_time_end = time.time() if time_end is None else float(time_end)
+            messages = message_api.get_messages_by_time_in_chat(
                 chat_id=stream_id,
-                timestamp=now,
-                limit=context_length
+                start_time=0.0,
+                end_time=query_time_end,
+                limit=context_length,
+                limit_mode="latest",
             )
 
             if not messages:
@@ -323,7 +328,14 @@ class SummaryImporter:
                 }
 
             # 6. 执行导入
-            await self._execute_import(summary_text, entities, relations, stream_id, time_meta=time_meta)
+            await self._execute_import(
+                summary_text,
+                entities,
+                relations,
+                stream_id,
+                time_meta=time_meta,
+                metadata=metadata,
+            )
 
             # 7. 持久化
             self.vector_store.save()
@@ -389,6 +401,7 @@ class SummaryImporter:
         relations: List[Dict[str, str]],
         stream_id: str,
         time_meta: Optional[Dict[str, Any]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         """将数据写入存储"""
         # 获取默认知识类型
@@ -403,6 +416,7 @@ class SummaryImporter:
         hash_value = self.metadata_store.add_paragraph(
             content=summary,
             source=f"chat_summary:{stream_id}",
+            metadata=metadata,
             knowledge_type=knowledge_type.value,
             time_meta=time_meta,
         )

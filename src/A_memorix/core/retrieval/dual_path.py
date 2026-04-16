@@ -632,7 +632,7 @@ class DualPathRetriever:
         results: List[RetrievalResult] = []
         for row in rows:
             hash_value = row["hash"]
-            relation = self.metadata_store.get_relation(hash_value)
+            relation = self.metadata_store.get_relation(hash_value, include_inactive=False)
             if relation is None:
                 continue
 
@@ -888,8 +888,8 @@ class DualPathRetriever:
                 entity_name = entity["name"]
 
                 related_rels = []
-                related_rels.extend(self.metadata_store.get_relations(subject=entity_name))
-                related_rels.extend(self.metadata_store.get_relations(object=entity_name))
+                related_rels.extend(self.metadata_store.get_relations(subject=entity_name, include_inactive=False))
+                related_rels.extend(self.metadata_store.get_relations(object=entity_name, include_inactive=False))
 
                 for rel in related_rels:
                     if rel["hash"] in seen_relations:
@@ -1280,7 +1280,7 @@ class DualPathRetriever:
 
         results = []
         for hash_value, score in zip(rel_ids, rel_scores):
-            relation = self.metadata_store.get_relation(hash_value)
+            relation = self.metadata_store.get_relation(hash_value, include_inactive=False)
             if relation is None:
                 continue
 
@@ -1378,7 +1378,7 @@ class DualPathRetriever:
                     deduplicated_results.append(result)
                     continue
                 # 检查关系关联的段落是否已存在
-                relation = self.metadata_store.get_relation(result.hash_value)
+                relation = self.metadata_store.get_relation(result.hash_value, include_inactive=False)
                 if relation:
                     # 获取关联的段落
                     para_rels = self.metadata_store.query("""

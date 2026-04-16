@@ -638,3 +638,41 @@ def test_delete_operation_routes(client: TestClient, monkeypatch):
     assert list_response.json()["count"] == 1
     assert get_response.status_code == 200
     assert get_response.json()["operation"]["operation_id"] == "del-1"
+
+
+def test_feedback_correction_routes(client: TestClient, monkeypatch):
+    async def fake_feedback_admin(*, action: str, **kwargs):
+        if action == "list":
+            assert kwargs == {
+                "limit": 7,
+                "statuses": ["applied"],
+                "rollback_statuses": ["none"],
+                "query": "green",
+            }
+            return {"success": True, "items": [{"task_id": 11, "query_text": "what color"}], "count": 1}
+        if action == "get":
+            assert kwargs == {"task_id": 11}
+            return {"success": True, "task": {"task_id": 11, "query_text": "what color", "action_logs": []}}
+        if action == "rollback":
+            assert kwargs == {"task_id": 11, "requested_by": "tester", "reason": "manual revert"}
+            return {"success": True, "result": {"restored_relation_hashes": ["rel-1"]}}
+        raise AssertionError(action)
+
+    monkeypatch.setattr(memory_router_module.memory_service, "feedback_admin", fake_feedback_admin)
+
+    list_response = client.get(
+        "/api/webui/memory/feedback-corrections",
+        params={"limit": 7, "status": "applied", "rollback_status": "none", "query": "green"},
+    )
+    get_response = client.get("/api/webui/memory/feedback-corrections/11")
+    rollback_response = client.post(
+        "/api/webui/memory/feedback-corrections/11/rollback",
+        json={"requested_by": "tester", "reason": "manual revert"},
+    )
+
+    assert list_response.status_code == 200
+    assert list_response.json()["items"][0]["task_id"] == 11
+    assert get_response.status_code == 200
+    assert get_response.json()["task"]["task_id"] == 11
+    assert rollback_response.status_code == 200
+    assert rollback_response.json()["result"]["restored_relation_hashes"] == ["rel-1"]

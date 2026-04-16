@@ -190,6 +190,16 @@ class AMemorixHostService:
                 )
             )
 
+        if component_name == "enqueue_feedback_task":
+            return await kernel.enqueue_feedback_task(
+                query_tool_id=str(payload.get("query_tool_id", "") or ""),
+                session_id=str(payload.get("session_id", "") or ""),
+                query_timestamp=payload.get("query_timestamp"),
+                structured_content=payload.get("structured_content")
+                if isinstance(payload.get("structured_content"), dict)
+                else {},
+            )
+
         if component_name == "ingest_summary":
             return await kernel.ingest_summary(
                 external_id=str(payload.get("external_id", "") or ""),
@@ -251,6 +261,7 @@ class AMemorixHostService:
             "memory_source_admin": kernel.memory_source_admin,
             "memory_episode_admin": kernel.memory_episode_admin,
             "memory_profile_admin": kernel.memory_profile_admin,
+            "memory_feedback_admin": kernel.memory_feedback_admin,
             "memory_runtime_admin": kernel.memory_runtime_admin,
             "memory_import_admin": kernel.memory_import_admin,
             "memory_tuning_admin": kernel.memory_tuning_admin,
