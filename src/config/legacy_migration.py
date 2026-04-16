@@ -206,6 +206,40 @@ def _migrate_target_item_list(parent: dict[str, Any], key: str) -> bool:
     return True
 
 
+def _parse_planner_mode(value: Any) -> Optional[str]:
+    """
+    兼容旧 planner 配置到当前 visual.planner_mode。
+    """
+    if isinstance(value, bool):
+        return "multimodal" if value else "text"
+
+    if not isinstance(value, str):
+        return None
+
+    normalized_value = value.strip().lower()
+    if normalized_value in {"text", "multimodal", "auto"}:
+        return normalized_value
+    return None
+
+
+def _parse_replyer_mode(value: Any) -> Optional[str]:
+    """
+    兼容旧 replyer 配置到当前 visual.replyer_mode。
+    """
+    if isinstance(value, bool):
+        return "multimodal" if value else "text"
+
+    if not isinstance(value, str):
+        return None
+
+    normalized_value = value.strip().lower()
+    if normalized_value in {"text", "multimodal", "auto"}:
+        return normalized_value
+    if normalized_value == "legacy":
+        return "text"
+    return None
+
+
 def migrate_legacy_bind_env_to_bot_config_dict(data: dict[str, Any]) -> MigrationResult:
     """将旧版 `.env` 中的绑定地址迁移到主配置结构。"""
 
@@ -280,9 +314,13 @@ def try_migrate_legacy_bot_config_dict(data: dict[str, Any]) -> MigrationResult:
             migrated_any = True
             reasons.append("expression.manual_reflect_operator_id_empty")
 
+    chat = _as_dict(data.get("chat"))
     personality = _as_dict(data.get("personality"))
     visual = _as_dict(data.get("visual"))
-    if visual is None and personality is not None and "visual_style" in personality:
+    if visual is None and (
+        (personality is not None and "visual_style" in personality)
+        or (chat is not None and ("multimodal_planner" in chat or "replyer_generator_type" in chat))
+    ):
         visual = {}
         data["visual"] = visual
 
@@ -292,6 +330,42 @@ def try_migrate_legacy_bot_config_dict(data: dict[str, Any]) -> MigrationResult:
         personality.pop("visual_style", None)
         migrated_any = True
         reasons.append("personality.visual_style_moved_to_visual.visual_style")
+
+    if visual is not None and "multimodal_planner" in visual:
+        planner_mode = _parse_planner_mode(visual.get("multimodal_planner"))
+        if "planner_mode" not in visual and planner_mode is not None:
+            visual["planner_mode"] = planner_mode
+        if "planner_mode" in visual:
+            visual.pop("multimodal_planner", None)
+            migrated_any = True
+            reasons.append("visual.multimodal_planner_moved_to_visual.planner_mode")
+
+    if visual is not None and chat is not None and "multimodal_planner" in chat:
+        planner_mode = _parse_planner_mode(chat.get("multimodal_planner"))
+        if "planner_mode" not in visual and planner_mode is not None:
+            visual["planner_mode"] = planner_mode
+        if "planner_mode" in visual:
+            chat.pop("multimodal_planner", None)
+            migrated_any = True
+            reasons.append("chat.multimodal_planner_moved_to_visual.planner_mode")
+
+    if visual is not None and "multimodal_replyer" in visual:
+        replyer_mode = _parse_replyer_mode(visual.get("multimodal_replyer"))
+        if "replyer_mode" not in visual and replyer_mode is not None:
+            visual["replyer_mode"] = replyer_mode
+        if "replyer_mode" in visual:
+            visual.pop("multimodal_replyer", None)
+            migrated_any = True
+            reasons.append("visual.multimodal_replyer_moved_to_visual.replyer_mode")
+
+    if visual is not None and chat is not None and "replyer_generator_type" in chat:
+        replyer_mode = _parse_replyer_mode(chat.get("replyer_generator_type"))
+        if "replyer_mode" not in visual and replyer_mode is not None:
+            visual["replyer_mode"] = replyer_mode
+        if "replyer_mode" in visual:
+            chat.pop("replyer_generator_type", None)
+            migrated_any = True
+            reasons.append("chat.replyer_generator_type_moved_to_visual.replyer_mode")
 
     memory = _as_dict(data.get("memory"))
     if memory is not None and _migrate_target_item_list(memory, "global_memory_blacklist"):
