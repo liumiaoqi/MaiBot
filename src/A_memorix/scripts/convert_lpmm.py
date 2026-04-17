@@ -10,14 +10,12 @@ LPMM 到 A_memorix 存储转换器
 """
 
 import sys
-import os
-import json
 import argparse
 import asyncio
 import pickle
 import logging
 from pathlib import Path
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, Tuple
 import numpy as np
 import tomlkit
 

@@ -23,10 +23,7 @@ from src.common.logger import get_logger
 from .presets import (
     EmbeddingModelConfig,
     get_custom_config,
-    validate_config_compatibility,
-    are_models_compatible,
 )
-from ..utils.quantization import QuantizationType
 
 logger = get_logger("A_Memorix.EmbeddingManager")
 

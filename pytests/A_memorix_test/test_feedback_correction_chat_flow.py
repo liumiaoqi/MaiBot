@@ -470,7 +470,7 @@ async def chat_feedback_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
         handled_message_ids = getattr(self._runtime, "_test_query_message_ids", None)
         if handled_message_ids is None:
             handled_message_ids = set()
-            setattr(self._runtime, "_test_query_message_ids", handled_message_ids)
+            self._runtime._test_query_message_ids = handled_message_ids
 
         if latest_message.message_id not in handled_message_ids and (
             "回忆" in latest_text or "再查" in latest_text
