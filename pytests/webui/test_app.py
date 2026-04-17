@@ -79,7 +79,7 @@ def test_resolve_static_path_prefers_installed_dashboard_package(monkeypatch, tm
     assert resolved_path == package_dist
 
 
-def test_resolve_static_path_uses_dashboard_dist(monkeypatch, tmp_path) -> None:
+def test_resolve_static_path_ignores_dashboard_dist_when_package_is_unavailable(monkeypatch, tmp_path) -> None:
     dashboard_dist = tmp_path / "dashboard" / "dist"
     dashboard_dist.mkdir(parents=True)
     (dashboard_dist / "index.html").write_text("<html></html>", encoding="utf-8")
@@ -89,10 +89,10 @@ def test_resolve_static_path_uses_dashboard_dist(monkeypatch, tmp_path) -> None:
     with patch.object(webui_app, "import_module", side_effect=ImportError):
         resolved_path = webui_app._resolve_static_path()
 
-    assert resolved_path == dashboard_dist
+    assert resolved_path is None
 
 
-def test_resolve_static_path_falls_back_to_package_when_dashboard_dist_has_no_index(monkeypatch, tmp_path) -> None:
+def test_resolve_static_path_uses_package_even_when_dashboard_dist_exists(monkeypatch, tmp_path) -> None:
     dashboard_dist = tmp_path / "dashboard" / "dist"
     dashboard_dist.mkdir(parents=True)
 
