@@ -149,10 +149,10 @@ class VisualConfig(ConfigBase):
         default="auto",
         json_schema_extra={
             "x-widget": "select",
-            "x-icon": "image",
+            "x-icon": "git-branch",
         },
     )
-    """Planner 视觉模式：text 仅文本，multimodal 强制多模态，auto 按模型能力自动选择"""
+    """规划器模式，auto根据模型信息自动选择，text为纯文本模式，multimodal为多模态模式"""
 
     replyer_mode: Literal["text", "multimodal", "auto"] = Field(
         default="auto",
@@ -161,7 +161,7 @@ class VisualConfig(ConfigBase):
             "x-icon": "git-branch",
         },
     )
-    """Replyer 视觉模式：text 仅文本，multimodal 强制多模态，auto 按模型能力自动选择"""
+    """回复器模式，auto根据模型信息自动选择，text为纯文本模式，multimodal为多模态模式"""
 
     visual_style: str = Field(
         default="请用中文描述这张图片的内容。如果有文字，请把文字描述概括出来，请留意其主题，直观感受，输出为一段平文本，最多30字，请注意不要分点，就输出一段文本",
@@ -239,17 +239,12 @@ class ChatConfig(ConfigBase):
     )
     """Planner 连续被新消息打断的最大次数，0 表示不启用打断"""
 
-    plan_reply_log_max_per_chat: int = Field(
-        default=1024,
-        json_schema_extra={
-            "x-widget": "input",
-            "x-icon": "file-text",
-        },
-    )
-    """每个聊天流最大保存的Plan/Reply日志数量，超过此数量时会自动删除最老的日志"""
-
     group_chat_prompt: str = Field(
-        default="你需要控制自己发言的频率，如果是一对一聊天，可以以较均匀的频率发言；如果用户较多，不要每句都回复，控制回复频率，不要回复的太频繁！控制回复的频率，不要每个人的消息都回复。",
+        default="""
+你正在qq群里聊天，下面是群里正在聊的内容，其中包含聊天记录和聊天中的图片。
+回复尽量简短一些。最好一次对一个话题进行回复，免得啰嗦或者回复内容太乱。请注意把握聊天内容。
+不要回复的太频繁！控制回复的频率，不要每个人的消息都回复，只回复你感兴趣的或者主动提及你的。
+""",
         json_schema_extra={
             "x-widget": "textarea",
             "x-icon": "users",
@@ -258,7 +253,11 @@ class ChatConfig(ConfigBase):
     """_wrap_群聊通用注意事项"""
 
     private_chat_prompts: str = Field(
-        default="你需要控制自己发言的频率，可以以较均匀的频率发言。",
+        default="""
+你正在聊天，下面是正在聊的内容，其中包含聊天记录和聊天中的图片。
+回复尽量简短一些。请注意把握聊天内容。
+请考虑对方的发言频率，想法，思考自己何时回复以及回复内容。
+""",
         json_schema_extra={
             "x-widget": "textarea",
             "x-icon": "user",
@@ -694,6 +693,15 @@ class LearningItem(ConfigBase):
     )
     """是否启用jargon学习"""
 
+    advanced_chosen: bool = Field(
+        default=False,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "sparkles",
+        },
+    )
+    """是否启用基于子代理的二次表达方式选择"""
+
 
 class ExpressionGroup(ConfigBase):
     """表达互通组配置类，若列表为空代表全局共享"""
@@ -723,6 +731,7 @@ class ExpressionConfig(ConfigBase):
                 use_expression=True,
                 enable_learning=True,
                 enable_jargon_learning=True,
+                advanced_chosen=False,
             )
         ],
         json_schema_extra={
@@ -1593,35 +1602,6 @@ class MaiSakaConfig(ConfigBase):
         },
     )
     """MaiSaka 使用的用户名称"""
-
-    tool_filter_task_name: str = Field(
-        default="utils",
-        json_schema_extra={
-            "x-widget": "input",
-            "x-icon": "sparkles",
-        },
-    )
-    """工具筛选预判使用的模型任务名"""
-
-    tool_filter_threshold: int = Field(
-        default=20,
-        ge=1,
-        json_schema_extra={
-            "x-widget": "input",
-            "x-icon": "filter",
-        },
-    )
-    """当可用工具总数超过该阈值时，先进行一轮工具筛选"""
-
-    tool_filter_max_keep: int = Field(
-        default=5,
-        ge=1,
-        json_schema_extra={
-            "x-widget": "input",
-            "x-icon": "list-filter",
-        },
-    )
-    """工具筛选阶段最多保留的非内置工具数量"""
 
     show_image_path: bool = Field(
         default=True,
