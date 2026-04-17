@@ -1719,7 +1719,7 @@ export function KnowledgeBasePage() {
     }
   }, [selectedFeedbackCorrection?.task_id])
 
-  const selectedFeedbackResolved = useMemo(() => {
+  const selectedFeedbackResolved = useMemo<MemoryFeedbackCorrectionDetailTaskPayload | null>(() => {
     if (!selectedFeedbackCorrection) {
       return null
     }
@@ -1732,7 +1732,7 @@ export function KnowledgeBasePage() {
     return selectedFeedbackTaskDetail ?? selectedFeedbackCorrection
   }, [selectedFeedbackCorrection, selectedFeedbackTaskDetail])
 
-  const selectedFeedbackActionLogs = Array.isArray(selectedFeedbackResolved?.action_logs)
+  const selectedFeedbackActionLogs: MemoryFeedbackActionLogPayload[] = Array.isArray(selectedFeedbackResolved?.action_logs)
     ? selectedFeedbackResolved.action_logs
     : []
   const filteredFeedbackActionLogs = useMemo(() => {
