@@ -23,7 +23,6 @@ from .official_configs import (
     EmojiConfig,
     ExpressionConfig,
     KeywordReactionConfig,
-    MaiSakaConfig,
     MaimMessageConfig,
     MCPConfig,
     MemoryConfig,
@@ -55,7 +54,7 @@ BOT_CONFIG_PATH: Path = (CONFIG_DIR / "bot_config.toml").resolve().absolute()
 MODEL_CONFIG_PATH: Path = (CONFIG_DIR / "model_config.toml").resolve().absolute()
 LEGACY_ENV_PATH: Path = (PROJECT_ROOT / ".env").resolve().absolute()
 MMC_VERSION: str = "1.0.0"
-CONFIG_VERSION: str = "8.8.0"
+CONFIG_VERSION: str = "8.9.3"
 MODEL_CONFIG_VERSION: str = "1.14.0"
 
 logger = get_logger("config")
@@ -120,9 +119,6 @@ class Config(ConfigBase):
 
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
     """数据库配置类"""
-
-    maisaka: MaiSakaConfig = Field(default_factory=MaiSakaConfig)
-    """MaiSaka对话系统配置类"""
 
     mcp: MCPConfig = Field(default_factory=MCPConfig)
     """MCP 配置类"""

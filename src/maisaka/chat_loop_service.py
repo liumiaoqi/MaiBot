@@ -5,7 +5,6 @@ from datetime import datetime
 from typing import Any, List, Optional, Sequence
 
 import asyncio
-import random
 
 from rich.console import RenderableType
 from src.common.data_models.llm_service_data_models import LLMGenerationOptions
@@ -263,14 +262,6 @@ class MaisakaChatLoopService:
                 bot_nickname = ""
 
             prompt_personality = global_config.personality.personality
-            if (
-                hasattr(global_config.personality, "states")
-                and global_config.personality.states
-                and hasattr(global_config.personality, "state_probability")
-                and global_config.personality.state_probability > 0
-                and random.random() < global_config.personality.state_probability
-            ):
-                prompt_personality = random.choice(global_config.personality.states)
 
             return f"Your name is {bot_name}{bot_nickname}; persona: {prompt_personality};"
         except Exception:

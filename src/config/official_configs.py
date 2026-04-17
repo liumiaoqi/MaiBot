@@ -113,32 +113,6 @@ class PersonalityConfig(ConfigBase):
     )
     """每次构建回复时，从 multiple_reply_style 中随机替换 reply_style 的概率（0.0-1.0）"""
 
-    states: list[str] = Field(
-        default_factory=lambda: [
-            "是一个女大学生，喜欢上网聊天，会刷小红书。",
-            "是一个大二心理学生，会刷贴吧和中国知网。",
-            "是一个赛博网友，最近很想吐槽人。",
-        ],
-        json_schema_extra={
-            "x-widget": "custom",
-            "x-icon": "shuffle",
-        },
-    )
-    """_wrap_状态列表，用于随机替换personality"""
-
-    state_probability: float = Field(
-        default=0.3,
-        ge=0,
-        le=1,
-        json_schema_extra={
-            "x-widget": "slider",
-            "x-icon": "percent",
-            "step": 0.1,
-        },
-    )
-    """状态概率，每次构建人格时替换personality的概率"""
-
-
 class VisualConfig(ConfigBase):
     """视觉配置类"""
 
@@ -1160,6 +1134,16 @@ class DebugConfig(ConfigBase):
         },
     )
     """是否显示记忆检索相关prompt"""
+
+    enable_reply_effect_tracking: bool = Field(
+        default=False,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "activity",
+        },
+    )
+    """是否开启回复效果评分追踪，默认关闭，需要手动打开"""
+
 
 class ExtraPromptItem(ConfigBase):
     platform: str = Field(

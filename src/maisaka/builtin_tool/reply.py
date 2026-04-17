@@ -121,13 +121,15 @@ async def handle_tool(
             "Maisaka 回复生成器当前不可用。",
         )
 
+    replyer_chat_history = list(tool_ctx.runtime._chat_history)
+
     try:
         success, reply_result = await replyer.generate_reply_with_context(
             reply_reason=latest_thought,
             reference_info=reference_info,
             stream_id=tool_ctx.runtime.session_id,
             reply_message=target_message,
-            chat_history=tool_ctx.runtime._chat_history,
+            chat_history=replyer_chat_history,
             sub_agent_runner=lambda system_prompt: _run_expression_selector(
                 tool_ctx,
                 system_prompt,
@@ -207,6 +209,17 @@ async def handle_tool(
     if tool_ctx.runtime.chat_stream.platform == CLI_PLATFORM_NAME:
         tool_ctx.append_guided_reply_to_chat_history(combined_reply_text)
     tool_ctx.runtime._record_reply_sent()
+    await tool_ctx.runtime.track_reply_effect(
+        tool_call_id=invocation.call_id,
+        target_message=target_message,
+        set_quote=set_quote,
+        reply_text=combined_reply_text,
+        reply_segments=reply_segments,
+        planner_reasoning=latest_thought,
+        reference_info=reference_info,
+        reply_metadata=reply_metadata,
+        replyer_context_messages=replyer_chat_history,
+    )
     return tool_ctx.build_success_result(
         invocation.tool_name,
         "回复已生成并发送。",

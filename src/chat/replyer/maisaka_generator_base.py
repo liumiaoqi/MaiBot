@@ -2,7 +2,6 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Awaitable, Callable, Dict, List, Literal, Optional, Tuple
 
-import random
 import time
 
 from rich.console import Group, RenderableType
@@ -83,14 +82,6 @@ class BaseMaisakaReplyGenerator:
             bot_aliases = f"，也有人叫你{','.join(alias_names)}" if alias_names else ""
 
             prompt_personality = global_config.personality.personality
-            if (
-                hasattr(global_config.personality, "states")
-                and global_config.personality.states
-                and hasattr(global_config.personality, "state_probability")
-                and global_config.personality.state_probability > 0
-                and random.random() < global_config.personality.state_probability
-            ):
-                prompt_personality = random.choice(global_config.personality.states)
 
             return f"你的名字是{bot_name}{bot_aliases}，你{prompt_personality};"
         except Exception as exc:
