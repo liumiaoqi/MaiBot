@@ -1,0 +1,528 @@
+@import "tailwindcss";
+@source "./**/*.{js,ts,jsx,tsx}";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --radius-sm: var(--visual-radius-sm);
+  --radius-md: var(--visual-radius-md);
+  --radius-lg: var(--visual-radius-lg);
+  --radius-xl: var(--visual-radius-xl);
+  --font-sans: var(--typography-font-family-base);
+  --font-mono: var(--typography-font-family-code);
+  --shadow-sm: var(--visual-shadow-sm);
+  --shadow-md: var(--visual-shadow-md);
+  --shadow-lg: var(--visual-shadow-lg);
+  --shadow-xl: var(--visual-shadow-xl);
+  --animate-slide-in-from-right: slide-in-from-right 0.3s ease-out;
+  --animate-slide-out-to-right: slide-out-to-right 0.2s ease-in;
+  --animate-slide-in-from-top: slide-in-from-top 0.3s ease-out;
+  --animate-slide-out-to-top: slide-out-to-top 0.2s ease-in;
+  --animate-fade-in: fade-in 0.2s ease-out;
+  --animate-fade-out: fade-out 0.15s ease-in;
+}
+
+@keyframes slide-in-from-right {
+  from {
+    transform: translateX(100%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes slide-out-to-right {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes slide-in-from-top {
+  from {
+    transform: translateY(-100%);
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-out-to-top {
+  from {
+    transform: translateY(0);
+  }
+
+  to {
+    transform: translateY(-100%);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-out {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+/* JetBrains Mono 字体 - 用于代码编辑器 */
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/JetBrainsMono-Medium.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@layer base {
+  :root {
+    /* Color Tokens */
+    --color-primary: 188.5 100% 45.5%;
+    --color-primary-foreground: 210 40% 98%;
+    --color-primary-gradient: none;
+    --color-secondary: 188.5 35% 96%;
+    --color-secondary-foreground: 222.2 47.4% 11.2%;
+    --color-muted: 188.5 12% 96%;
+    --color-muted-foreground: 188.5 20% 46.9%;
+    --color-accent: 223.5 60% 50.4%;
+    --color-accent-foreground: 222.2 47.4% 11.2%;
+    --color-destructive: 0 84.2% 45%;
+    --color-destructive-foreground: 210 40% 98%;
+    --color-background: 0 0% 100%;
+    --color-foreground: 222.2 84% 4.9%;
+    --color-card: 188.5 14% 98.6%;
+    --color-card-foreground: 222.2 84% 4.9%;
+    --color-popover: 188.5 16% 99.3%;
+    --color-popover-foreground: 222.2 84% 4.9%;
+    --color-border: 188.5 20% 91.4%;
+    --color-input: 188.5 20% 91.4%;
+    --color-ring: 188.5 100% 45.5%;
+    --color-chart-1: 188.5 100% 45.5%;
+    --color-chart-2: 160 60% 45%;
+    --color-chart-3: 30 80% 55%;
+    --color-chart-4: 280 65% 60%;
+    --color-chart-5: 340 75% 55%;
+
+    /* Typography Tokens */
+    --typography-font-family-base: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --typography-font-family-code: "JetBrains Mono", "Monaco", "Courier New", monospace;
+    --typography-font-size-xs: 0.75rem;
+    --typography-font-size-sm: 0.875rem;
+    --typography-font-size-base: 1rem;
+    --typography-font-size-lg: 1.125rem;
+    --typography-font-size-xl: 1.25rem;
+    --typography-font-size-2xl: 1.5rem;
+    --typography-font-weight-normal: 400;
+    --typography-font-weight-medium: 500;
+    --typography-font-weight-semibold: 600;
+    --typography-font-weight-bold: 700;
+    --typography-line-height-tight: 1.2;
+    --typography-line-height-normal: 1.5;
+    --typography-line-height-relaxed: 1.75;
+    --typography-letter-spacing-tight: -0.02em;
+    --typography-letter-spacing-normal: 0em;
+    --typography-letter-spacing-wide: 0.02em;
+
+    /* Visual Tokens */
+    --visual-radius-sm: 0.25rem;
+    --visual-radius-md: 0.375rem;
+    --visual-radius-lg: 0.5rem;
+    --visual-radius-xl: 0.75rem;
+    --visual-radius-full: 9999px;
+    --visual-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --visual-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    --visual-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    --visual-shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+    --visual-blur-sm: 4px;
+    --visual-blur-md: 12px;
+    --visual-blur-lg: 24px;
+    --visual-opacity-disabled: 0.5;
+    --visual-opacity-hover: 0.8;
+    --visual-opacity-overlay: 0.75;
+
+    /* Layout Tokens */
+    --layout-space-unit: 0.25rem;
+    --layout-space-xs: 0.5rem;
+    --layout-space-sm: 0.75rem;
+    --layout-space-md: 1rem;
+    --layout-space-lg: 1.5rem;
+    --layout-space-xl: 2rem;
+    --layout-space-2xl: 3rem;
+    --layout-sidebar-width: 16rem;
+    --layout-header-height: 3.5rem;
+    --layout-max-content-width: 1280px;
+
+    /* Animation Tokens */
+    --animation-anim-duration-fast: 150ms;
+    --animation-anim-duration-normal: 300ms;
+    --animation-anim-duration-slow: 500ms;
+    --animation-anim-easing-default: cubic-bezier(0.4, 0, 0.2, 1);
+    --animation-anim-easing-in: cubic-bezier(0.4, 0, 1, 1);
+    --animation-anim-easing-out: cubic-bezier(0, 0, 0.2, 1);
+    --animation-anim-easing-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+    --animation-transition-colors: color 300ms cubic-bezier(0.4, 0, 0.2, 1);
+    --animation-transition-transform: transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
+    --animation-transition-opacity: opacity 300ms cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* Legacy Aliases (backward compatibility) */
+    --background: var(--color-background);
+    --foreground: var(--color-foreground);
+    --card: var(--color-card);
+    --card-foreground: var(--color-card-foreground);
+    --popover: var(--color-popover);
+    --popover-foreground: var(--color-popover-foreground);
+    --primary: var(--color-primary);
+    --primary-foreground: var(--color-primary-foreground);
+    --primary-gradient: var(--color-primary-gradient);
+    --secondary: var(--color-secondary);
+    --secondary-foreground: var(--color-secondary-foreground);
+    --muted: var(--color-muted);
+    --muted-foreground: var(--color-muted-foreground);
+    --accent: var(--color-accent);
+    --accent-foreground: var(--color-accent-foreground);
+    --destructive: var(--color-destructive);
+    --destructive-foreground: var(--color-destructive-foreground);
+    --border: var(--color-border);
+    --input: var(--color-input);
+    --ring: var(--color-ring);
+    --radius: var(--visual-radius-lg);
+    --chart-1: var(--color-chart-1);
+    --chart-2: var(--color-chart-2);
+    --chart-3: var(--color-chart-3);
+    --chart-4: var(--color-chart-4);
+    --chart-5: var(--color-chart-5);
+  }
+
+  .dark {
+    /* Color Tokens */
+    --color-primary: 188.5 100% 45.5%;
+    --color-primary-foreground: 210 40% 98%;
+    --color-primary-gradient: none;
+    --color-secondary: 188.5 35% 17.5%;
+    --color-secondary-foreground: 210 40% 98%;
+    --color-muted: 188.5 12% 17.5%;
+    --color-muted-foreground: 188.5 20% 65.1%;
+    --color-accent: 223.5 60% 35.3%;
+    --color-accent-foreground: 210 40% 98%;
+    --color-destructive: 0 62.8% 30.6%;
+    --color-destructive-foreground: 210 40% 98%;
+    --color-background: 222.2 84% 4.9%;
+    --color-foreground: 210 40% 98%;
+    --color-card: 188.5 18% 8.8%;
+    --color-card-foreground: 210 40% 98%;
+    --color-popover: 188.5 21% 10.5%;
+    --color-popover-foreground: 210 40% 98%;
+    --color-border: 188.5 20% 17.5%;
+    --color-input: 188.5 20% 17.5%;
+    --color-ring: 188.5 100% 45.5%;
+    --color-chart-1: 188.5 100% 45.5%;
+    --color-chart-2: 160 60% 50%;
+    --color-chart-3: 30 80% 60%;
+    --color-chart-4: 280 65% 65%;
+    --color-chart-5: 340 75% 60%;
+
+    /* Visual Tokens (dark mode shadows) */
+    --visual-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.25);
+    --visual-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+    --visual-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+    --visual-shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+
+    /* Legacy Aliases (backward compatibility) */
+    --background: var(--color-background);
+    --foreground: var(--color-foreground);
+    --card: var(--color-card);
+    --card-foreground: var(--color-card-foreground);
+    --popover: var(--color-popover);
+    --popover-foreground: var(--color-popover-foreground);
+    --primary: var(--color-primary);
+    --primary-foreground: var(--color-primary-foreground);
+    --primary-gradient: var(--color-primary-gradient);
+    --secondary: var(--color-secondary);
+    --secondary-foreground: var(--color-secondary-foreground);
+    --muted: var(--color-muted);
+    --muted-foreground: var(--color-muted-foreground);
+    --accent: var(--color-accent);
+    --accent-foreground: var(--color-accent-foreground);
+    --destructive: var(--color-destructive);
+    --destructive-foreground: var(--color-destructive-foreground);
+    --border: var(--color-border);
+    --input: var(--color-input);
+    --ring: var(--color-ring);
+    --chart-1: var(--color-chart-1);
+    --chart-2: var(--color-chart-2);
+    --chart-3: var(--color-chart-3);
+    --chart-4: var(--color-chart-4);
+    --chart-5: var(--color-chart-5);
+  }
+
+
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  
+  /* 隐藏数字输入框的默认上下箭头 */
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+}
+
+@layer utilities {
+  .bg-primary-gradient {
+    background: var(--color-primary-gradient, hsl(var(--color-primary)));
+  }
+  
+  .text-primary-gradient {
+    color: hsl(var(--color-primary));
+  }
+  
+  .has-gradient .text-primary-gradient {
+    background: var(--color-primary-gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+  
+  .border-primary-gradient {
+    border-image: var(--color-primary-gradient, linear-gradient(to right, hsl(var(--color-primary)), hsl(var(--color-primary)))) 1;
+  }
+}
+
+/* 禁用动效时的样式 */
+.no-animations *,
+.no-animations *::before,
+.no-animations *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+/* 保留基本的 hover 反馈 */
+.no-animations *:hover {
+  transition-duration: 0.01ms !important;
+}
+
+/* View Transition API 动画 */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+/* 默认情况下(亮色→暗色),新内容在上层 */
+::view-transition-old(root) {
+  z-index: 1;
+}
+
+::view-transition-new(root) {
+  z-index: 999;
+}
+
+/* React Joyride Tour 样式 - 确保在 Dialog 之上 */
+.__floater {
+  z-index: 99999 !important;
+  pointer-events: auto !important;
+}
+
+.react-joyride__overlay {
+  z-index: 99998 !important;
+}
+
+.react-joyride__spotlight {
+  z-index: 99998 !important;
+}
+
+/* Tour tooltip 内的按钮需要可点击 */
+.react-joyride__tooltip {
+  pointer-events: auto !important;
+}
+
+#tour-portal-container * {
+  pointer-events: auto;
+}
+
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--color-border)) transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: hsl(var(--color-border));
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--color-muted-foreground) / 0.5);
+  background-clip: content-box;
+}
+
+.custom-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+
+
+/* ============================================================
+ * Touch & Pointer 优化 (Task 4)
+ * ============================================================ */
+
+/* 1. 全局 touch-action — 允许浏览器默认滚动/缩放，防止 300ms 延迟 */
+* {
+  touch-action: manipulation;
+}
+
+/* 可滚动容器恢复双向滚动 */
+.overflow-auto,
+.overflow-scroll,
+.overflow-x-auto,
+.overflow-x-scroll,
+.overflow-y-auto,
+.overflow-y-scroll {
+  touch-action: pan-x pan-y;
+}
+
+/* 图表/可视化区域：允许 pinch-zoom（Task 8 的 @use-gesture 也需要此配合）*/
+.recharts-wrapper,
+.react-flow__renderer {
+  touch-action: none;
+}
+
+/* 2. 触控目标最小尺寸 44×44px（WCAG 2.5.8）
+   pointer: coarse = 触控设备（手指精度低）*/
+@media (pointer: coarse) {
+  button,
+  [role="button"],
+  a,
+  input[type="checkbox"],
+  input[type="radio"],
+  select,
+  [role="menuitem"],
+  [role="option"],
+  [role="tab"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* 3. hover-only 反馈降级
+   hover: none = 设备主要输入不支持 hover（触控屏等）*/
+@media (hover: none) {
+  /* 触控设备上隐藏纯 hover 触发的视觉效果（如 tooltip 触发区）*/
+  .hover-only-visible {
+    display: none;
+  }
+}
+
+/* 4. 精细指针设备（鼠标）才启用的 hover 样式钩子 */
+@media (hover: hover) and (pointer: fine) {
+  /* 鼠标设备：保留原有 hover 效果，无需额外处理 */
+  .touch-device-only {
+    display: none;
+  }
+}
+/* ============================================================
+ * Touch 目标尺寸补丁 (Task 10)
+ * 对小型交互元素用 ::before 伪元素扩大触控区，视觉不变。
+ * ============================================================ */
+
+@media (pointer: coarse) {
+  /* Radix Checkbox: h-4 w-4 (16px) → 触控区拖展到 44px */
+  [data-radix-collection-item],
+  button[role='checkbox'],
+  [role='checkbox'] {
+    position: relative;
+  }
+  [data-radix-collection-item]::before,
+  button[role='checkbox']::before,
+  [role='checkbox']::before {
+    content: '';
+    position: absolute;
+    inset: 50% auto auto 50%;
+    transform: translate(-50%, -50%);
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Radix Switch: h-5 w-9 (20px) → 触控区拖展到 44px */
+  [role='switch'] {
+    position: relative;
+  }
+  [role='switch']::before {
+    content: '';
+    position: absolute;
+    inset: 50% auto auto 50%;
+    transform: translate(-50%, -50%);
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Radix Slider 拇指 */
+  [role='slider'] {
+    position: relative;
+  }
+  [role='slider']::before {
+    content: '';
+    position: absolute;
+    inset: 50% auto auto 50%;
+    transform: translate(-50%, -50%);
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

@@ -1,0 +1,38 @@
+name: i18n Validate
+
+on:
+  pull_request:
+    paths:
+      - "locales/**/*.json"
+      - "prompts/**/*.prompt"
+      - "dashboard/src/i18n/index.ts"
+      - "dashboard/src/i18n/locales/*.json"
+      - "scripts/i18n_validate.py"
+      - "src/common/i18n/**/*.py"
+      - "src/common/prompt_i18n.py"
+      - "src/prompt/prompt_manager.py"
+  push:
+    branches:
+      - main
+      - r-dev
+    paths:
+      - "locales/**/*.json"
+      - "prompts/**/*.prompt"
+      - "dashboard/src/i18n/index.ts"
+      - "dashboard/src/i18n/locales/*.json"
+      - "scripts/i18n_validate.py"
+      - "src/common/i18n/**/*.py"
+      - "src/common/prompt_i18n.py"
+      - "src/prompt/prompt_manager.py"
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate locale files
+        run: python scripts/i18n_validate.py

@@ -1,141 +1,83 @@
+from typing import Any, Optional, Tuple
+
 import asyncio
 import traceback
 
 from rich.traceback import install
-from maim_message import Seg
 
-from src.common.message.api import get_global_api
+from src.chat.message_receive.message import SessionMessage
+from src.chat.utils.utils import calculate_typing_time, truncate_message
+from src.common.data_models.message_component_data_model import ReplyComponent
+from src.common.database.database import get_db_session
 from src.common.logger import get_logger
-from src.chat.message_receive.message import MessageSending
-from src.chat.message_receive.storage import MessageStorage
-from src.chat.utils.utils import truncate_message
-from src.chat.utils.utils import calculate_typing_time
+from src.common.message_server.api import get_global_api
+from src.webui.routers.chat.serializers import serialize_message_sequence
 
 install(extra_lines=3)
 
 logger = get_logger("sender")
 
 # WebUI 聊天室的消息广播器（延迟导入避免循环依赖）
-_webui_chat_broadcaster = None
+_webui_chat_broadcaster: Optional[Tuple[Any, Optional[str], Optional[str]]] = None
 
 # 虚拟群 ID 前缀（与 chat_routes.py 保持一致）
 VIRTUAL_GROUP_ID_PREFIX = "webui_virtual_group_"
 
 
-def get_webui_chat_broadcaster():
-    """获取 WebUI 聊天室广播器"""
+# TODO: 重构完成后完成webui相关
+def get_webui_chat_broadcaster() -> Tuple[Any, Optional[str], Optional[str]]:
+    """获取 WebUI 聊天室广播器。
+
+    Returns:
+        Tuple[Any, Optional[str], Optional[str]]: ``(chat_manager, platform_name, default_group_id)`` 三元组；
+        若 WebUI 相关模块不可用，则元素会退化为 ``None``。
+    """
     global _webui_chat_broadcaster
     if _webui_chat_broadcaster is None:
         try:
-            from src.webui.chat_routes import chat_manager, WEBUI_CHAT_PLATFORM
+            from src.webui.routers.chat import WEBUI_CHAT_PLATFORM, chat_manager
+            from src.webui.routers.chat.service import WEBUI_CHAT_GROUP_ID
 
-            _webui_chat_broadcaster = (chat_manager, WEBUI_CHAT_PLATFORM)
+            _webui_chat_broadcaster = (chat_manager, WEBUI_CHAT_PLATFORM, WEBUI_CHAT_GROUP_ID)
         except ImportError:
-            _webui_chat_broadcaster = (None, None)
+            _webui_chat_broadcaster = (None, None, None)
     return _webui_chat_broadcaster
 
 
 def is_webui_virtual_group(group_id: str) -> bool:
-    """检查是否是 WebUI 虚拟群"""
-    return group_id and group_id.startswith(VIRTUAL_GROUP_ID_PREFIX)
-
-
-def parse_message_segments(segment) -> list:
-    """解析消息段，转换为 WebUI 可用的格式
-
-    参考 NapCat 适配器的消息解析逻辑
+    """检查是否是 WebUI 虚拟群。
 
     Args:
-        segment: Seg 消息段对象
+        group_id: 待判断的群 ID。
 
     Returns:
-        list: 消息段列表，每个元素为 {"type": "...", "data": ...}
+        bool: 若群 ID 属于 WebUI 虚拟群则返回 ``True``。
     """
-
-    result = []
-
-    if segment is None:
-        return result
-
-    if segment.type == "seglist":
-        # 处理消息段列表
-        if segment.data:
-            for seg in segment.data:
-                result.extend(parse_message_segments(seg))
-    elif segment.type == "text":
-        # 文本消息
-        if segment.data:
-            result.append({"type": "text", "data": segment.data})
-    elif segment.type == "image":
-        # 图片消息（base64）
-        if segment.data:
-            result.append({"type": "image", "data": f"data:image/png;base64,{segment.data}"})
-    elif segment.type == "emoji":
-        # 表情包消息（base64）
-        if segment.data:
-            result.append({"type": "emoji", "data": f"data:image/gif;base64,{segment.data}"})
-    elif segment.type == "imageurl":
-        # 图片链接消息
-        if segment.data:
-            result.append({"type": "image", "data": segment.data})
-    elif segment.type == "face":
-        # 原生表情
-        result.append({"type": "face", "data": segment.data})
-    elif segment.type == "voice":
-        # 语音消息（base64）
-        if segment.data:
-            result.append({"type": "voice", "data": f"data:audio/wav;base64,{segment.data}"})
-    elif segment.type == "voiceurl":
-        # 语音链接
-        if segment.data:
-            result.append({"type": "voice", "data": segment.data})
-    elif segment.type == "video":
-        # 视频消息（base64）
-        if segment.data:
-            result.append({"type": "video", "data": f"data:video/mp4;base64,{segment.data}"})
-    elif segment.type == "videourl":
-        # 视频链接
-        if segment.data:
-            result.append({"type": "video", "data": segment.data})
-    elif segment.type == "music":
-        # 音乐消息
-        result.append({"type": "music", "data": segment.data})
-    elif segment.type == "file":
-        # 文件消息
-        result.append({"type": "file", "data": segment.data})
-    elif segment.type == "reply":
-        # 回复消息
-        result.append({"type": "reply", "data": segment.data})
-    elif segment.type == "forward":
-        # 转发消息
-        forward_items = []
-        if segment.data:
-            for item in segment.data:
-                forward_items.append(
-                    {
-                        "content": parse_message_segments(item.get("message_segment", {}))
-                        if isinstance(item, dict)
-                        else []
-                    }
-                )
-        result.append({"type": "forward", "data": forward_items})
-    else:
-        # 未知类型，尝试作为文本处理
-        if segment.data:
-            result.append({"type": "unknown", "original_type": segment.type, "data": str(segment.data)})
-
-    return result
+    return bool(group_id) and group_id.startswith(VIRTUAL_GROUP_ID_PREFIX)
 
 
-async def _send_message(message: MessageSending, show_log=True) -> bool:
-    """合并后的消息发送函数，包含WS发送和日志记录"""
+async def _send_message(message: SessionMessage, show_log: bool = True) -> bool:
+    """执行统一的消息发送流程。
+
+    发送顺序为：
+    1. WebUI 特殊链路
+    2. 旧版 ``maim_message`` / API Server 链路
+
+    Args:
+        message: 待发送的内部会话消息。
+        show_log: 是否输出发送成功日志。
+
+    Returns:
+        bool: 是否最终发送成功。
+    """
     message_preview = truncate_message(message.processed_plain_text, max_length=200)
-    platform = message.message_info.platform
-    group_id = message.message_info.group_info.group_id if message.message_info.group_info else None
+    platform = message.platform
+    group_info = message.message_info.group_info
+    group_id = group_info.group_id if group_info is not None else ""
 
     try:
         # 检查是否是 WebUI 平台的消息，或者是 WebUI 虚拟群的消息
-        chat_manager, webui_platform = get_webui_chat_broadcaster()
+        chat_manager, webui_platform, default_group_id = get_webui_chat_broadcaster()
         is_webui_message = (platform == webui_platform) or is_webui_virtual_group(group_id)
 
         if is_webui_message and chat_manager is not None:
@@ -144,7 +86,7 @@ async def _send_message(message: MessageSending, show_log=True) -> bool:
             from src.config.config import global_config
 
             # 解析消息段，获取富文本内容
-            message_segments = parse_message_segments(message.message_segment)
+            message_segments = serialize_message_sequence(message.raw_message)
 
             # 判断消息类型
             # 如果只有一个文本段，使用简单的 text 类型
@@ -156,8 +98,9 @@ async def _send_message(message: MessageSending, show_log=True) -> bool:
                 message_type = "rich"
                 segments = message_segments
 
-            await chat_manager.broadcast(
-                {
+            await chat_manager.broadcast_to_group(
+                group_id=group_id or default_group_id or "",
+                message={
                     "type": "bot_message",
                     "content": message.processed_plain_text,
                     "message_type": message_type,
@@ -169,7 +112,7 @@ async def _send_message(message: MessageSending, show_log=True) -> bool:
                         "avatar": None,
                         "is_bot": True,
                     },
-                }
+                },
             )
 
             # 注意：机器人消息会由 MessageStorage.store_message 自动保存到数据库
@@ -183,12 +126,21 @@ async def _send_message(message: MessageSending, show_log=True) -> bool:
             return True
 
         # Fallback 逻辑: 尝试通过 API Server 发送
-        async def send_with_new_api(legacy_exception=None):
+        async def send_with_new_api(legacy_exception: Optional[Exception] = None) -> bool:
+            """通过 API Server 回退链路发送消息。
+
+            Args:
+                legacy_exception: 旧发送链已经抛出的异常；若回退也失败，则重新抛出。
+
+            Returns:
+                bool: 回退链路是否发送成功。
+            """
             try:
                 from src.config.config import global_config
 
                 # 如果未开启 API Server，直接跳过 Fallback
                 if not global_config.maim_message.enable_api_server:
+                    logger.debug("[API Server Fallback] API Server未开启，跳过fallback")
                     if legacy_exception:
                         raise legacy_exception
                     return False
@@ -196,36 +148,61 @@ async def _send_message(message: MessageSending, show_log=True) -> bool:
                 global_api = get_global_api()
                 extra_server = getattr(global_api, "extra_server", None)
 
-                if extra_server and extra_server.is_running():
-                    # Fallback: 使用极其简单的 Platform -> API Key 映射
-                    # 只有收到过该平台的消息，我们才知道该平台的 API Key，才能回传消息
-                    platform_map = getattr(global_api, "platform_map", {})
-                    target_api_key = platform_map.get(platform)
+                if not extra_server:
+                    logger.warning("[API Server Fallback] extra_server不存在")
+                    if legacy_exception:
+                        raise legacy_exception
+                    return False
 
-                    if target_api_key:
-                        # 构造 APIMessageBase
-                        from maim_message.message import APIMessageBase, MessageDim
+                if not extra_server.is_running():
+                    logger.warning("[API Server Fallback] extra_server未运行")
+                    if legacy_exception:
+                        raise legacy_exception
+                    return False
 
-                        msg_dim = MessageDim(api_key=target_api_key, platform=platform)
+                # Fallback: 使用极其简单的 Platform -> API Key 映射
+                # 只有收到过该平台的消息，我们才知道该平台的 API Key，才能回传消息
+                platform_map = getattr(global_api, "platform_map", {})
+                logger.debug(f"[API Server Fallback] platform_map: {platform_map}, 目标平台: '{platform}'")
+                target_api_key = platform_map.get(platform)
 
-                        api_message = APIMessageBase(
-                            message_info=message.message_info,
-                            message_segment=message.message_segment,
-                            message_dim=msg_dim,
+                if not target_api_key:
+                    logger.warning(f"[API Server Fallback] 未找到平台'{platform}'的API Key映射")
+                    if legacy_exception:
+                        raise legacy_exception
+                    return False
+
+                # 使用 MessageConverter 转换为 API 消息
+                from maim_message import MessageConverter
+
+                # 新架构：通过 to_maim_message() 转换，内部已处理私聊/群聊的 user_info 差异
+                message_base = await message.to_maim_message()
+
+                api_message = MessageConverter.to_api_send(
+                    message=message_base,
+                    api_key=target_api_key,
+                    platform=platform,
+                )
+
+                # 直接调用 Server 的 send_message 接口，它会自动处理路由
+                logger.debug("[API Server Fallback] 正在通过extra_server发送消息...")
+                results = await extra_server.send_message(api_message)
+                logger.debug(f"[API Server Fallback] 发送结果: {results}")
+
+                # 检查是否有任何连接发送成功
+                if any(results.values()):
+                    if show_log:
+                        logger.info(
+                            f"已通过API Server Fallback将消息 '{message_preview}' 发往平台'{platform}' (key: {target_api_key})"
                         )
+                    return True
+                else:
+                    logger.warning(f"[API Server Fallback] 没有连接发送成功, results={results}")
+            except Exception as e:
+                logger.error(f"[API Server Fallback] 发生异常: {e}")
+                import traceback
 
-                        # 直接调用 Server 的 send_message 接口，它会自动处理路由
-                        results = await extra_server.send_message(api_message)
-
-                        # 检查是否有任何连接发送成功
-                        if any(results.values()):
-                            if show_log:
-                                logger.info(
-                                    f"已通过API Server Fallback将消息 '{message_preview}' 发往平台'{platform}' (key: {target_api_key})"
-                                )
-                            return True
-            except Exception:
-                pass
+                logger.debug(traceback.format_exc())
 
             # 如果 Fallback 失败，且存在 legacy 异常，则抛出 legacy 异常
             if legacy_exception:
@@ -233,14 +210,19 @@ async def _send_message(message: MessageSending, show_log=True) -> bool:
             return False
 
         try:
-            send_result = await get_global_api().send_message(message)
-            # if send_result:
-            if show_log:
-                logger.info(f"已将消息  '{message_preview}'  发往平台'{message.message_info.platform}'")
-            return True
-
-            # Legacy API 返回 False (发送失败但未报错)，尝试 Fallback
-            # return await send_with_new_api()
+            message_base = await message.to_maim_message()
+            send_result = await get_global_api().send_message(message_base)
+            if send_result:
+                if show_log:
+                    logger.info(f"已将消息  '{message_preview}'  发往平台'{message.platform}'")
+                return True
+            else:
+                # Legacy API 返回 False (发送失败但未报错)，尝试 Fallback
+                fallback_result = await send_with_new_api()
+                if fallback_result and show_log:
+                    # Fallback成功的日志已在send_with_new_api中打印
+                    pass
+                return fallback_result
 
         except Exception as legacy_e:
             # Legacy API 抛出异常，尝试 Fallback
@@ -248,101 +230,129 @@ async def _send_message(message: MessageSending, show_log=True) -> bool:
             return await send_with_new_api(legacy_exception=legacy_e)
 
     except Exception as e:
-        logger.error(f"发送消息   '{message_preview}'   发往平台'{message.message_info.platform}' 失败: {str(e)}")
+        logger.error(f"发送消息   '{message_preview}'   发往平台'{message.platform}' 失败: {str(e)}")
         traceback.print_exc()
         raise e  # 重新抛出其他异常
 
 
-class UniversalMessageSender:
-    """管理消息的注册、即时处理、发送和存储，并跟踪思考状态。"""
+async def send_prepared_message_to_platform(message: SessionMessage, show_log: bool = True) -> bool:
+    """发送一条已完成预处理的消息到底层平台。
 
-    def __init__(self):
-        self.storage = MessageStorage()
+    Args:
+        message: 已经完成回复组件注入、文本处理等预处理的消息对象。
+        show_log: 是否输出发送成功日志。
+
+    Returns:
+        bool: 发送成功时返回 ``True``。
+    """
+    return await _send_message(message, show_log=show_log)
+
+
+class UniversalMessageSender:
+    """旧链与 WebUI 的底层发送器。"""
+
+    def __init__(self) -> None:
+        """初始化统一消息发送器。"""
+        pass
 
     async def send_message(
-        self, message: MessageSending, typing=False, set_reply=False, storage_message=True, show_log=True
-    ):
-        """
-        处理、发送并存储一条消息。
+        self,
+        message: "SessionMessage",
+        typing: bool = False,
+        set_reply: bool = False,
+        reply_message_id: Optional[str] = None,
+        storage_message: bool = True,
+        show_log: bool = True,
+    ) -> bool:
+        """通过旧链或 WebUI 发送并存储一条消息。
 
-        参数：
-            message: MessageSending 对象，待发送的消息。
+        Args:
+            message: 待发送的内部消息对象。
             typing: 是否模拟打字等待。
+            set_reply: 是否构建引用回复消息。
+            reply_message_id: 被引用消息的 ID。
+            storage_message: 是否在发送成功后写入数据库。
+            show_log: 是否输出发送日志。
 
-        用法：
-            - typing=True 时，发送前会有打字等待。
+        Returns:
+            bool: 发送成功时返回 ``True``。
         """
-        if not message.chat_stream:
-            logger.error("消息缺少 chat_stream，无法发送")
-            raise ValueError("消息缺少 chat_stream，无法发送")
-        if not message.message_info or not message.message_info.message_id:
-            logger.error("消息缺少 message_info 或 message_id，无法发送")
-            raise ValueError("消息缺少 message_info 或 message_id，无法发送")
+        if not message.message_id:
+            logger.error("消息缺少 message_id，无法发送")
+            raise ValueError("消息缺少 message_id，无法发送")
 
-        chat_id = message.chat_stream.stream_id
-        message_id = message.message_info.message_id
+        chat_id = message.session_id
+        message_id = message.message_id
 
         try:
             if set_reply:
-                message.build_reply()
-                logger.debug(f"[{chat_id}] 选择回复引用消息: {message.processed_plain_text[:20]}...")
+                if not reply_message_id:
+                    raise ValueError("set_reply=True 时必须提供 reply_message_id")
+                message.raw_message.components.insert(0, ReplyComponent(reply_message_id))
 
-            from src.plugin_system.core.events_manager import events_manager
-            from src.plugin_system.base.component_types import EventType
+            # TODO: fix
+            # from src.core.event_bus import event_bus
+            # from src.chat.event_helpers import build_event_message
+            # from src.core.types import EventType
 
-            continue_flag, modified_message = await events_manager.handle_mai_events(
-                EventType.POST_SEND_PRE_PROCESS, message=message, stream_id=chat_id
-            )
-            if not continue_flag:
-                logger.info(f"[{chat_id}] 消息发送被插件取消: {str(message.message_segment)[:100]}...")
-                return False
-            if modified_message:
-                if modified_message._modify_flags.modify_message_segments:
-                    message.message_segment = Seg(type="seglist", data=modified_message.message_segments)
-                if modified_message._modify_flags.modify_plain_text:
-                    logger.warning(f"[{chat_id}] 插件修改了消息的纯文本内容，可能导致此内容被覆盖。")
-                    message.processed_plain_text = modified_message.plain_text
+            # _event_msg = build_event_message(EventType.POST_SEND_PRE_PROCESS, message=message, stream_id=chat_id)
+            # continue_flag, modified_message = await event_bus.emit(EventType.POST_SEND_PRE_PROCESS, _event_msg)
+            # if not continue_flag:
+            #     logger.info(f"[{chat_id}] 消息发送被插件取消: {str(message.message_segment)[:100]}...")
+            #     return False
+            # if modified_message:
+            #     if modified_message._modify_flags.modify_message_segments:
+            #         message.message_segment = Seg(type="seglist", data=modified_message.message_segments)
+            #     if modified_message._modify_flags.modify_plain_text:
+            #         logger.warning(f"[{chat_id}] 插件修改了消息的纯文本内容，可能导致此内容被覆盖。")
+            #         message.processed_plain_text = modified_message.plain_text
 
             await message.process()
 
-            continue_flag, modified_message = await events_manager.handle_mai_events(
-                EventType.POST_SEND, message=message, stream_id=chat_id
-            )
-            if not continue_flag:
-                logger.info(f"[{chat_id}] 消息发送被插件取消: {str(message.message_segment)[:100]}...")
-                return False
-            if modified_message:
-                if modified_message._modify_flags.modify_message_segments:
-                    message.message_segment = Seg(type="seglist", data=modified_message.message_segments)
-                if modified_message._modify_flags.modify_plain_text:
-                    message.processed_plain_text = modified_message.plain_text
+            # TODO: fix
+            # _event_msg = build_event_message(EventType.POST_SEND, message=message, stream_id=chat_id)
+            # continue_flag, modified_message = await event_bus.emit(EventType.POST_SEND, _event_msg)
+            # if not continue_flag:
+            #     logger.info(f"[{chat_id}] 消息发送被插件取消: {str(message.message_segment)[:100]}...")
+            #     return False
+            # if modified_message:
+            #     if modified_message._modify_flags.modify_message_segments:
+            #         message.message_segment = Seg(type="seglist", data=modified_message.message_segments)
+            #     if modified_message._modify_flags.modify_plain_text:
+            #         message.processed_plain_text = modified_message.plain_text
 
             if typing:
                 typing_time = calculate_typing_time(
-                    input_string=message.processed_plain_text,
-                    thinking_start_time=message.thinking_start_time,
+                    input_string=message.processed_plain_text,  # type: ignore
                     is_emoji=message.is_emoji,
                 )
                 await asyncio.sleep(typing_time)
 
-            sent_msg = await _send_message(message, show_log=show_log)
+            sent_msg = await send_prepared_message_to_platform(message, show_log=show_log)
             if not sent_msg:
                 return False
 
-            continue_flag, modified_message = await events_manager.handle_mai_events(
-                EventType.AFTER_SEND, message=message, stream_id=chat_id
-            )
-            if not continue_flag:
-                logger.info(f"[{chat_id}] 消息发送后续处理被插件取消: {str(message.message_segment)[:100]}...")
-                return True
-            if modified_message:
-                if modified_message._modify_flags.modify_message_segments:
-                    message.message_segment = Seg(type="seglist", data=modified_message.message_segments)
-                if modified_message._modify_flags.modify_plain_text:
-                    message.processed_plain_text = modified_message.plain_text
+            # _event_msg = build_event_message(EventType.AFTER_SEND, message=message, stream_id=chat_id)
+            # continue_flag, modified_message = await event_bus.emit(EventType.AFTER_SEND, _event_msg)
+            # if not continue_flag:
+            #     logger.info(f"[{chat_id}] 消息发送后续处理被插件取消: {str(message.message_segment)[:100]}...")
+            #     return True
+            # if modified_message:
+            #     if modified_message._modify_flags.modify_message_segments:
+            #         message.message_segment = Seg(type="seglist", data=modified_message.message_segments)
+            #     if modified_message._modify_flags.modify_plain_text:
+            #         message.processed_plain_text = modified_message.plain_text
 
             if storage_message:
-                await self.storage.store_message(message, message.chat_stream)
+                with get_db_session() as db_session:
+                    db_session.add(message.to_db_instance())
+
+            try:
+                from src.services.memory_flow_service import memory_automation_service
+
+                await memory_automation_service.on_message_sent(message)
+            except Exception as exc:
+                logger.warning(f"[{chat_id}] 长期记忆人物事实写回注册失败: {exc}")
 
             return sent_msg
 

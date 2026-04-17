@@ -1,8 +1,18 @@
 name: Ruff PR Check
-on: [ pull_request ]
+on:
+  pull_request:
+    paths:
+      - "*.py"
+      - "**/*.py"
+      - "pyproject.toml"
+      - "ruff.toml"
+      - ".ruff.toml"
+      - "setup.cfg"
+      - "tox.ini"
+      - ".pre-commit-config.yaml"
 jobs:
   ruff:
-    runs-on: [self-hosted, Windows, X64]
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -18,4 +28,3 @@ jobs:
       - name: Run Ruff Format Check
         run: ruff format --check --diff
         shell: pwsh
-

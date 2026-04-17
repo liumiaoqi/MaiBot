@@ -1,0 +1,185 @@
+"""Maisaka 内置工具执行上下文。"""
+
+from __future__ import annotations
+
+from base64 import b64decode
+from datetime import datetime
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+from src.chat.utils.utils import process_llm_response
+from src.common.data_models.message_component_data_model import EmojiComponent, MessageSequence, TextComponent
+from src.config.config import global_config
+from src.core.tooling import ToolExecutionResult
+
+from ..context_messages import SessionBackedMessage
+from ..message_adapter import format_speaker_content
+from ..planner_message_utils import build_planner_prefix, build_session_backed_text_message
+
+if TYPE_CHECKING:
+    from ..reasoning_engine import MaisakaReasoningEngine
+    from ..runtime import MaisakaHeartFlowChatting
+
+
+class BuiltinToolRuntimeContext:
+    """为拆分后的内置工具提供统一运行时能力。"""
+
+    def __init__(
+        self,
+        engine: "MaisakaReasoningEngine",
+        runtime: "MaisakaHeartFlowChatting",
+    ) -> None:
+        self.engine = engine
+        self.runtime = runtime
+
+    @staticmethod
+    def build_success_result(
+        tool_name: str,
+        content: str = "",
+        structured_content: Any = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> ToolExecutionResult:
+        """构造统一工具成功结果。"""
+
+        return ToolExecutionResult(
+            tool_name=tool_name,
+            success=True,
+            content=content,
+            structured_content=structured_content,
+            metadata=dict(metadata or {}),
+        )
+
+    @staticmethod
+    def build_failure_result(
+        tool_name: str,
+        error_message: str,
+        structured_content: Any = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> ToolExecutionResult:
+        """构造统一工具失败结果。"""
+
+        return ToolExecutionResult(
+            tool_name=tool_name,
+            success=False,
+            error_message=error_message,
+            structured_content=structured_content,
+            metadata=dict(metadata or {}),
+        )
+
+    @staticmethod
+    def normalize_words(raw_words: Any) -> List[str]:
+        """清洗黑话查询词条列表。"""
+
+        if not isinstance(raw_words, list):
+            return []
+
+        normalized_words: List[str] = []
+        seen_words: set[str] = set()
+        for item in raw_words:
+            if not isinstance(item, str):
+                continue
+            word = item.strip()
+            if not word or word in seen_words:
+                continue
+            seen_words.add(word)
+            normalized_words.append(word)
+        return normalized_words
+
+    @staticmethod
+    def normalize_jargon_query_results(raw_results: Any) -> List[Dict[str, object]]:
+        """规范化黑话查询结果列表。"""
+
+        if not isinstance(raw_results, list):
+            return []
+
+        normalized_results: List[Dict[str, object]] = []
+        for raw_item in raw_results:
+            if not isinstance(raw_item, dict):
+                continue
+            word = str(raw_item.get("word") or "").strip()
+            matches = raw_item.get("matches")
+            normalized_matches: List[Dict[str, str]] = []
+            if isinstance(matches, list):
+                for match in matches:
+                    if not isinstance(match, dict):
+                        continue
+                    content = str(match.get("content") or "").strip()
+                    meaning = str(match.get("meaning") or "").strip()
+                    if not content or not meaning:
+                        continue
+                    normalized_matches.append({"content": content, "meaning": meaning})
+
+            normalized_results.append(
+                {
+                    "word": word,
+                    "found": bool(raw_item.get("found", bool(normalized_matches))),
+                    "matches": normalized_matches,
+                }
+            )
+        return normalized_results
+
+    @staticmethod
+    def post_process_reply_text(reply_text: str) -> List[str]:
+        """沿用旧回复链的文本后处理，执行分段与错别字注入。"""
+
+        processed_segments: List[str] = []
+        for segment in process_llm_response(reply_text):
+            normalized_segment = segment.strip()
+            if normalized_segment:
+                processed_segments.append(normalized_segment)
+
+        if processed_segments:
+            return processed_segments
+        return [reply_text.strip()]
+
+    def get_runtime_manager(self) -> Any:
+        """获取插件运行时管理器。"""
+
+        return self.engine._get_runtime_manager()
+
+    def append_guided_reply_to_chat_history(self, reply_text: str) -> None:
+        """将引导回复写回 Maisaka 历史。"""
+
+        bot_name = global_config.bot.nickname.strip() or "MaiSaka"
+        reply_timestamp = datetime.now()
+        history_message = build_session_backed_text_message(
+            speaker_name=bot_name,
+            text=reply_text,
+            timestamp=reply_timestamp,
+            source_kind="guided_reply",
+        )
+        self.runtime._chat_history.append(history_message)
+
+    def append_sent_emoji_to_chat_history(
+        self,
+        *,
+        emoji_base64: str,
+        success_message: str,
+    ) -> None:
+        """将 bot 主动发送的表情包同步到 Maisaka 历史。"""
+
+        bot_name = global_config.bot.nickname.strip() or "MaiSaka"
+        reply_timestamp = datetime.now()
+        planner_prefix = build_planner_prefix(
+            timestamp=reply_timestamp,
+            user_name=bot_name,
+        )
+        history_message = SessionBackedMessage(
+            raw_message=MessageSequence(
+                [
+                    TextComponent(planner_prefix),
+                    EmojiComponent(
+                        binary_hash="",
+                        content=success_message,
+                        binary_data=b64decode(emoji_base64),
+                    ),
+                ]
+            ),
+            visible_text=format_speaker_content(
+                bot_name,
+                "[表情包]",
+                reply_timestamp,
+            ),
+            timestamp=reply_timestamp,
+            source_kind="guided_reply",
+        )
+        self.runtime._chat_history.append(history_message)

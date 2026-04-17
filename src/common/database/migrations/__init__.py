@@ -1,0 +1,81 @@
+"""数据库迁移基础设施导出模块。"""
+
+from .bootstrap import DatabaseMigrationBootstrapper, create_database_migration_bootstrapper
+from .builtin import (
+    EMPTY_SCHEMA_VERSION,
+    LATEST_SCHEMA_VERSION,
+    LEGACY_V1_SCHEMA_VERSION,
+    V2_SCHEMA_VERSION,
+    build_default_migration_registry,
+    build_default_schema_version_resolver,
+)
+from .exceptions import (
+    DatabaseMigrationConfigurationError,
+    DatabaseMigrationError,
+    DatabaseMigrationExecutionError,
+    DatabaseMigrationPlanningError,
+    DatabaseMigrationVersionError,
+    MissingMigrationStepError,
+    UnrecognizedDatabaseSchemaError,
+    UnsupportedMigrationDirectionError,
+)
+from .manager import DatabaseMigrationManager
+from .models import (
+    ColumnSchema,
+    DatabaseMigrationState,
+    DatabaseSchemaSnapshot,
+    MigrationExecutionContext,
+    MigrationPlan,
+    MigrationStep,
+    ResolvedSchemaVersion,
+    SchemaVersionSource,
+    TableSchema,
+)
+from .planner import MigrationPlanner
+from .progress import (
+    BaseMigrationProgressReporter,
+    RichMigrationProgressReporter,
+    create_rich_migration_progress_reporter,
+)
+from .registry import MigrationRegistry
+from .resolver import BaseSchemaVersionDetector, SchemaVersionResolver
+from .schema import SQLiteSchemaInspector
+from .version_store import SQLiteUserVersionStore
+
+__all__ = [
+    "BaseSchemaVersionDetector",
+    "BaseMigrationProgressReporter",
+    "build_default_migration_registry",
+    "build_default_schema_version_resolver",
+    "ColumnSchema",
+    "create_database_migration_bootstrapper",
+    "create_rich_migration_progress_reporter",
+    "DatabaseMigrationConfigurationError",
+    "DatabaseMigrationError",
+    "DatabaseMigrationBootstrapper",
+    "DatabaseMigrationExecutionError",
+    "DatabaseMigrationManager",
+    "DatabaseMigrationPlanningError",
+    "DatabaseMigrationState",
+    "DatabaseMigrationVersionError",
+    "DatabaseSchemaSnapshot",
+    "EMPTY_SCHEMA_VERSION",
+    "LATEST_SCHEMA_VERSION",
+    "LEGACY_V1_SCHEMA_VERSION",
+    "V2_SCHEMA_VERSION",
+    "MigrationExecutionContext",
+    "MigrationPlan",
+    "MigrationPlanner",
+    "MigrationRegistry",
+    "MigrationStep",
+    "MissingMigrationStepError",
+    "ResolvedSchemaVersion",
+    "RichMigrationProgressReporter",
+    "SchemaVersionResolver",
+    "SchemaVersionSource",
+    "SQLiteSchemaInspector",
+    "SQLiteUserVersionStore",
+    "TableSchema",
+    "UnrecognizedDatabaseSchemaError",
+    "UnsupportedMigrationDirectionError",
+]

@@ -1,26 +1,58 @@
-import hashlib
+from datetime import datetime
+from typing import Dict, Optional, Union
+
 import asyncio
+import hashlib
 import json
-import time
-import random
 import math
+import random
+import time
 
 from json_repair import repair_json
-from typing import Union, Optional
 
-from src.common.logger import get_logger
-from src.common.database.database import db
+from sqlmodel import col, select
+
+from src.chat.message_receive.chat_manager import chat_manager as _chat_manager
+from src.common.data_models.person_info_data_model import dump_group_cardname_records, parse_group_cardname_json
+from src.common.database.database import get_db_session
 from src.common.database.database_model import PersonInfo
-from src.llm_models.utils_model import LLMRequest
-from src.config.config import global_config, model_config
-from src.chat.message_receive.chat_stream import get_chat_manager
+from src.common.logger import get_logger
+from src.config.config import global_config
+from src.services.memory_service import memory_service
+from src.services.llm_service import LLMServiceClient
 
 
 logger = get_logger("person_info")
 
-relation_selection_model = LLMRequest(
-    model_set=model_config.model_task_config.tool_use, request_type="relation_selection"
+relation_selection_model = LLMServiceClient(
+    task_name="utils", request_type="relation_selection"
 )
+
+
+def _to_group_cardname_records(group_cardname_json: Optional[str]) -> list[dict[str, str]]:
+    """将数据库中的群名片 JSON 转换为 `Person` 内部使用的结构。
+
+    Args:
+        group_cardname_json: 数据库存储的群名片 JSON 字符串。
+
+    Returns:
+        list[dict[str, str]]: 统一使用 `group_cardname` 键名的群名片列表。
+
+    Raises:
+        json.JSONDecodeError: 当 JSON 文本格式非法时抛出。
+        TypeError: 当输入值类型不符合 `json.loads()` 要求时抛出。
+    """
+    group_cardname_list = parse_group_cardname_json(group_cardname_json)
+    if not group_cardname_list:
+        return []
+
+    return [
+        {
+            "group_id": group_cardname.group_id,
+            "group_cardname": group_cardname.group_cardname,
+        }
+        for group_cardname in group_cardname_list
+    ]
 
 
 def get_person_id(platform: str, user_id: Union[int, str]) -> str:
@@ -35,25 +67,68 @@ def get_person_id(platform: str, user_id: Union[int, str]) -> str:
 def get_person_id_by_person_name(person_name: str) -> str:
     """根据用户名获取用户ID"""
     try:
-        record = PersonInfo.get_or_none(PersonInfo.person_name == person_name)
-        return record.person_id if record else ""
+        with get_db_session(auto_commit=False) as session:
+            statement = select(PersonInfo.person_id).where(col(PersonInfo.person_name) == person_name).limit(1)
+            person_id = session.exec(statement).first()
+            return str(person_id) if person_id else ""
     except Exception as e:
-        logger.error(f"根据用户名 {person_name} 获取用户ID时出错 (Peewee): {e}")
+        logger.error(f"根据用户名 {person_name} 获取用户ID时出错: {e}")
         return ""
 
 
-def is_person_known(person_id: str = None, user_id: str = None, platform: str = None, person_name: str = None) -> bool:  # type: ignore
+def resolve_person_id_for_memory(
+    *,
+    person_name: str = "",
+    platform: str = "",
+    user_id: Union[int, str, None] = None,
+    strict_known: bool = False,
+) -> str:
+    """解析长期记忆检索/写入使用的人物 ID。
+
+    解析顺序：
+    1. 优先按 `person_name` 映射数据库中的 `person_id`
+    2. 回退到 `platform + user_id` 生成稳定 `person_id`
+    3. 若 `strict_known=True`，则要求该 `person_id` 已被认识
+    """
+    clean_name = str(person_name or "").strip()
+    if clean_name:
+        if by_name := get_person_id_by_person_name(clean_name):
+            return by_name
+
+    clean_platform = str(platform or "").strip()
+    clean_user_id = str(user_id or "").strip()
+    if clean_platform and clean_user_id:
+        candidate = get_person_id(clean_platform, clean_user_id)
+        if strict_known and not is_person_known(person_id=candidate):
+            return ""
+        return candidate
+
+    return ""
+
+
+def is_person_known(
+    person_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+    platform: Optional[str] = None,
+    person_name: Optional[str] = None,
+) -> bool:  # sourcery skip: extract-duplicate-method
     if person_id:
-        person = PersonInfo.get_or_none(PersonInfo.person_id == person_id)
-        return person.is_known if person else False
+        with get_db_session() as session:
+            statement = select(PersonInfo).where(col(PersonInfo.person_id) == person_id).limit(1)
+            person = session.exec(statement).first()
+            return person.is_known if person else False
     elif user_id and platform:
         person_id = get_person_id(platform, user_id)
-        person = PersonInfo.get_or_none(PersonInfo.person_id == person_id)
-        return person.is_known if person else False
+        with get_db_session() as session:
+            statement = select(PersonInfo).where(col(PersonInfo.person_id) == person_id).limit(1)
+            person = session.exec(statement).first()
+            return person.is_known if person else False
     elif person_name:
         person_id = get_person_id_by_person_name(person_name)
-        person = PersonInfo.get_or_none(PersonInfo.person_id == person_id)
-        return person.is_known if person else False
+        with get_db_session() as session:
+            statement = select(PersonInfo).where(col(PersonInfo.person_id) == person_id).limit(1)
+            person = session.exec(statement).first()
+            return person.is_known if person else False
     else:
         return False
 
@@ -215,7 +290,7 @@ class Person:
         person.know_since = time.time()
         person.last_know = time.time()
         person.memory_points = []
-        person.group_nick_name = []  # 初始化群昵称列表
+        person.group_cardname_list = []  # 初始化群名片列表
 
         # 如果是群聊，添加群昵称
         if group_id and group_nick_name:
@@ -240,43 +315,9 @@ class Person:
         Returns:
             bool: 如果是机器人自己则返回 True，否则返回 False
         """
-        if not platform or not user_id:
-            return False
+        from src.chat.utils.utils import is_bot_self
 
-        # 将 user_id 转为字符串进行比较
-        user_id_str = str(user_id)
-
-        # 获取机器人的 QQ 账号（主账号）
-        qq_account = str(global_config.bot.qq_account or "")
-
-        # QQ 平台：直接比较 QQ 账号
-        if platform == "qq":
-            return user_id_str == qq_account
-
-        # WebUI 平台：机器人回复时使用的是 QQ 账号，所以也比较 QQ 账号
-        if platform == "webui":
-            return user_id_str == qq_account
-
-        # 获取各平台账号映射
-        platforms_list = getattr(global_config.bot, "platforms", []) or []
-        platform_accounts = {}
-        for platform_entry in platforms_list:
-            if ":" in platform_entry:
-                platform_name, account = platform_entry.split(":", 1)
-                platform_accounts[platform_name.strip()] = account.strip()
-
-        # Telegram 平台
-        if platform == "telegram":
-            tg_account = platform_accounts.get("tg", "") or platform_accounts.get("telegram", "")
-            return user_id_str == tg_account if tg_account else False
-
-        # 其他平台：尝试从 platforms 配置中查找
-        platform_account = platform_accounts.get(platform, "")
-        if platform_account:
-            return user_id_str == platform_account
-
-        # 默认情况：与主 QQ 账号比较（兼容性）
-        return user_id_str == qq_account
+        return is_bot_self(platform, user_id)
 
     def __init__(self, platform: str = "", user_id: str = "", person_id: str = "", person_name: str = ""):
         # 使用统一的机器人识别函数（支持多平台，包括 WebUI）
@@ -287,7 +328,7 @@ class Person:
             self.platform = platform
             self.nickname = global_config.bot.nickname
             self.person_name = global_config.bot.nickname
-            self.group_nick_name: list[dict[str, str]] = []
+            self.group_cardname_list: list[dict[str, str]] = []
             return
 
         self.user_id = ""
@@ -326,7 +367,7 @@ class Person:
         self.know_since = None
         self.last_know: Optional[float] = None
         self.memory_points = []
-        self.group_nick_name: list[dict[str, str]] = []  # 群昵称列表，存储 {"group_id": str, "group_nick_name": str}
+        self.group_cardname_list: list[dict[str, str]] = []  # 群名片列表，存储 {"group_id": str, "group_cardname": str}
 
         # 从数据库加载数据
         self.load_from_database()
@@ -426,68 +467,64 @@ class Person:
             return
 
         # 检查是否已存在该群号的记录
-        for item in self.group_nick_name:
+        for item in self.group_cardname_list:
             if item.get("group_id") == group_id:
                 # 更新现有记录
-                item["group_nick_name"] = group_nick_name
+                item["group_cardname"] = group_nick_name
                 self.sync_to_database()
                 logger.debug(f"更新用户 {self.person_id} 在群 {group_id} 的群昵称为 {group_nick_name}")
                 return
 
         # 添加新记录
-        self.group_nick_name.append({"group_id": group_id, "group_nick_name": group_nick_name})
+        self.group_cardname_list.append({"group_id": group_id, "group_cardname": group_nick_name})
         self.sync_to_database()
         logger.debug(f"添加用户 {self.person_id} 在群 {group_id} 的群昵称 {group_nick_name}")
 
     def load_from_database(self):
         """从数据库加载个人信息数据"""
         try:
-            # 查询数据库中的记录
-            record = PersonInfo.get_or_none(PersonInfo.person_id == self.person_id)
+            with get_db_session() as session:
+                statement = select(PersonInfo).where(col(PersonInfo.person_id) == self.person_id).limit(1)
+                record = session.exec(statement).first()
 
-            if record:
-                self.user_id = record.user_id or ""
-                self.platform = record.platform or ""
-                self.is_known = record.is_known or False
-                self.nickname = record.nickname or ""
-                self.person_name = record.person_name or self.nickname
-                self.name_reason = record.name_reason or None
-                self.know_times = record.know_times or 0
+                if record:
+                    self.user_id = record.user_id or ""
+                    self.platform = record.platform or ""
+                    self.is_known = record.is_known or False
+                    self.nickname = record.user_nickname or ""
+                    self.person_name = record.person_name or self.nickname
+                    self.name_reason = record.name_reason or None
+                    self.know_times = record.know_counts or 0
 
-                # 处理points字段（JSON格式的列表）
-                if record.memory_points:
-                    try:
-                        loaded_points = json.loads(record.memory_points)
-                        # 过滤掉None值，确保数据质量
-                        if isinstance(loaded_points, list):
-                            self.memory_points = [point for point in loaded_points if point is not None]
-                        else:
+                    # 处理points字段（JSON格式的列表）
+                    if record.memory_points:
+                        try:
+                            loaded_points = json.loads(record.memory_points)
+                            # 过滤掉None值，确保数据质量
+                            if isinstance(loaded_points, list):
+                                self.memory_points = [point for point in loaded_points if point is not None]
+                            else:
+                                self.memory_points = []
+                        except (json.JSONDecodeError, TypeError):
+                            logger.warning(f"解析用户 {self.person_id} 的points字段失败，使用默认值")
                             self.memory_points = []
-                    except (json.JSONDecodeError, TypeError):
-                        logger.warning(f"解析用户 {self.person_id} 的points字段失败，使用默认值")
+                    else:
                         self.memory_points = []
-                else:
-                    self.memory_points = []
 
-                # 处理group_nick_name字段（JSON格式的列表）
-                if record.group_nick_name:
-                    try:
-                        loaded_group_nick_names = json.loads(record.group_nick_name)
-                        # 确保是列表格式
-                        if isinstance(loaded_group_nick_names, list):
-                            self.group_nick_name = loaded_group_nick_names
-                        else:
-                            self.group_nick_name = []
-                    except (json.JSONDecodeError, TypeError):
-                        logger.warning(f"解析用户 {self.person_id} 的group_nick_name字段失败，使用默认值")
-                        self.group_nick_name = []
-                else:
-                    self.group_nick_name = []
+                    # 处理 group_cardname 字段（JSON 格式的列表）
+                    if record.group_cardname:
+                        try:
+                            self.group_cardname_list = _to_group_cardname_records(record.group_cardname)
+                        except (json.JSONDecodeError, TypeError):
+                            logger.warning(f"解析用户 {self.person_id} 的group_cardname字段失败，使用默认值")
+                            self.group_cardname_list = []
+                    else:
+                        self.group_cardname_list = []
 
-                logger.debug(f"已从数据库加载用户 {self.person_id} 的信息")
-            else:
-                self.sync_to_database()
-                logger.info(f"用户 {self.person_id} 在数据库中不存在，使用默认值并创建")
+                    logger.debug(f"已从数据库加载用户 {self.person_id} 的信息")
+                else:
+                    self.sync_to_database()
+                    logger.info(f"用户 {self.person_id} 在数据库中不存在，使用默认值并创建")
 
         except Exception as e:
             logger.error(f"从数据库加载用户 {self.person_id} 信息时出错: {e}")
@@ -498,42 +535,51 @@ class Person:
         if not self.is_known:
             return
         try:
-            # 准备数据
-            data = {
-                "person_id": self.person_id,
-                "is_known": self.is_known,
-                "platform": self.platform,
-                "user_id": self.user_id,
-                "nickname": self.nickname,
-                "person_name": self.person_name,
-                "name_reason": self.name_reason,
-                "know_times": self.know_times,
-                "know_since": self.know_since,
-                "last_know": self.last_know,
-                "memory_points": json.dumps(
-                    [point for point in self.memory_points if point is not None], ensure_ascii=False
-                )
+            memory_points_value = (
+                json.dumps([point for point in self.memory_points if point is not None], ensure_ascii=False)
                 if self.memory_points
-                else json.dumps([], ensure_ascii=False),
-                "group_nick_name": json.dumps(self.group_nick_name, ensure_ascii=False)
-                if self.group_nick_name
-                else json.dumps([], ensure_ascii=False),
-            }
+                else json.dumps([], ensure_ascii=False)
+            )
+            group_cardname_value = dump_group_cardname_records(self.group_cardname_list)
+            first_known_time = datetime.fromtimestamp(self.know_since) if self.know_since else None
+            last_known_time = datetime.fromtimestamp(self.last_know) if self.last_know else None
 
-            # 检查记录是否存在
-            record = PersonInfo.get_or_none(PersonInfo.person_id == self.person_id)
+            with get_db_session() as session:
+                statement = select(PersonInfo).where(col(PersonInfo.person_id) == self.person_id).limit(1)
+                record = session.exec(statement).first()
 
-            if record:
-                # 更新现有记录
-                for field, value in data.items():
-                    if hasattr(record, field):
-                        setattr(record, field, value)
-                record.save()
-                logger.debug(f"已同步用户 {self.person_id} 的信息到数据库")
-            else:
-                # 创建新记录
-                PersonInfo.create(**data)
-                logger.debug(f"已创建用户 {self.person_id} 的信息到数据库")
+                if record:
+                    record.person_id = self.person_id
+                    record.is_known = self.is_known
+                    record.platform = self.platform
+                    record.user_id = self.user_id
+                    record.user_nickname = self.nickname
+                    record.person_name = self.person_name
+                    record.name_reason = self.name_reason
+                    record.know_counts = self.know_times
+                    record.first_known_time = first_known_time
+                    record.last_known_time = last_known_time
+                    record.memory_points = memory_points_value
+                    record.group_cardname = group_cardname_value
+                    session.add(record)
+                    logger.debug(f"已同步用户 {self.person_id} 的信息到数据库")
+                else:
+                    record = PersonInfo(
+                        person_id=self.person_id,
+                        is_known=self.is_known,
+                        platform=self.platform,
+                        user_id=self.user_id,
+                        user_nickname=self.nickname,
+                        person_name=self.person_name,
+                        name_reason=self.name_reason,
+                        know_counts=self.know_times,
+                        first_known_time=first_known_time,
+                        last_known_time=last_known_time,
+                        memory_points=memory_points_value,
+                        group_cardname=group_cardname_value,
+                    )
+                    session.add(record)
+                    logger.debug(f"已创建用户 {self.person_id} 的信息到数据库")
 
         except Exception as e:
             logger.error(f"同步用户 {self.person_id} 信息到数据库时出错: {e}")
@@ -563,7 +609,8 @@ class Person:
 <分类1><分类2><分类3>......
 如果没有相关的分类，请输出<none>"""
 
-            response, _ = await relation_selection_model.generate_response_async(prompt)
+            generation_result = await relation_selection_model.generate_response(prompt)
+            response = generation_result.response
             # print(prompt)
             # print(response)
             category_list = extract_categories_from_response(response)
@@ -585,7 +632,8 @@ class Person:
 例如:
 <分类1><分类2><分类3>......
 如果没有相关的分类，请输出<none>"""
-            response, _ = await relation_selection_model.generate_response_async(prompt)
+            generation_result = await relation_selection_model.generate_response(prompt)
+            response = generation_result.response
             # print(prompt)
             # print(response)
             category_list = extract_categories_from_response(response)
@@ -619,32 +667,30 @@ class Person:
 class PersonInfoManager:
     def __init__(self):
         self.person_name_list = {}
-        self.qv_name_llm = LLMRequest(model_set=model_config.model_task_config.utils, request_type="relation.qv_name")
+        self.qv_name_llm = LLMServiceClient(
+            task_name="utils", request_type="relation.qv_name"
+        )
         try:
-            db.connect(reuse_if_open=True)
-            # 设置连接池参数
-            if hasattr(db, "execute_sql"):
-                # 设置SQLite优化参数
-                db.execute_sql("PRAGMA cache_size = -64000")  # 64MB缓存
-                db.execute_sql("PRAGMA temp_store = memory")  # 临时存储在内存中
-                db.execute_sql("PRAGMA mmap_size = 268435456")  # 256MB内存映射
-            db.create_tables([PersonInfo], safe=True)
+            with get_db_session() as _:
+                pass
         except Exception as e:
             logger.error(f"数据库连接或 PersonInfo 表创建失败: {e}")
 
         # 初始化时读取所有person_name
         try:
-            for record in PersonInfo.select(PersonInfo.person_id, PersonInfo.person_name).where(
-                PersonInfo.person_name.is_null(False)
-            ):
-                if record.person_name:
-                    self.person_name_list[record.person_id] = record.person_name
-            logger.debug(f"已加载 {len(self.person_name_list)} 个用户名称 (Peewee)")
+            with get_db_session() as session:
+                statement = select(PersonInfo.person_id, PersonInfo.person_name).where(
+                    col(PersonInfo.person_name).is_not(None)
+                )
+                for person_id, person_name in session.exec(statement).all():
+                    if person_name:
+                        self.person_name_list[person_id] = person_name
+            logger.debug(f"已加载 {len(self.person_name_list)} 个用户名称")
         except Exception as e:
-            logger.error(f"从 Peewee 加载 person_name_list 失败: {e}")
+            logger.error(f"加载 person_name_list 失败: {e}")
 
     @staticmethod
-    def _extract_json_from_text(text: str) -> dict:
+    def _extract_json_from_text(text: str) -> Dict[str, str]:
         """从文本中提取JSON数据的高容错方法"""
         try:
             fixed_json = repair_json(text)
@@ -705,15 +751,15 @@ class PersonInfoManager:
             bot_name = global_config.bot.nickname
 
             qv_name_prompt = f"你是{bot_name}，一个伪装成人类的AI，你不能让别人发现这一点，"
-            qv_name_prompt += f"现在你想给一个用户取一个昵称，用户的qq昵称是{user_nickname}，"
-            qv_name_prompt += f"用户的qq群昵称名是{user_cardname}，"
+            qv_name_prompt += f"现在你想给一个用户取一个昵称，用户的昵称是{user_nickname}，"
+            qv_name_prompt += f"用户的群昵称名是{user_cardname}，"
             if user_avatar:
-                qv_name_prompt += f"用户的qq头像是{user_avatar}，"
+                qv_name_prompt += f"用户的头像是{user_avatar}，"
             if old_name:
                 qv_name_prompt += f"你之前叫他{old_name}，是因为{old_reason}，"
 
             qv_name_prompt += f"\n其他取名的要求是：{request}，不要太浮夸，简短，"
-            qv_name_prompt += "\n请根据以上用户信息，想想你叫他什么比较好，不要太浮夸，请最好使用用户的qq昵称或群昵称原文，可以稍作修改，优先使用原文。优先使用用户的qq昵称或者群昵称原文。"
+            qv_name_prompt += "\n请根据以上用户信息，想想你叫他什么比较好，不要太浮夸，请最好使用用户的昵称或群昵称原文，可以稍作修改，优先使用原文。优先使用用户的昵称或者群昵称原文。"
 
             if existing_names_str:
                 qv_name_prompt += f"\n请注意，以下名称已被你尝试过或已知存在，请避免：{existing_names_str}。\n"
@@ -726,7 +772,8 @@ class PersonInfoManager:
                 "nickname": "昵称",
                 "reason": "理由"
             }"""
-            response, _ = await self.qv_name_llm.generate_response_async(qv_name_prompt)
+            generation_result = await self.qv_name_llm.generate_response(qv_name_prompt)
+            response = generation_result.response
             # logger.info(f"取名提示词：{qv_name_prompt}\n取名回复：{response}")
             result = self._extract_json_from_text(response)
 
@@ -744,7 +791,9 @@ class PersonInfoManager:
             else:
 
                 def _db_check_name_exists_sync(name_to_check):
-                    return PersonInfo.select().where(PersonInfo.person_name == name_to_check).exists()
+                    with get_db_session() as session:
+                        statement = select(PersonInfo.person_id).where(col(PersonInfo.person_name) == name_to_check)
+                        return session.exec(statement).first() is not None
 
                 if await asyncio.to_thread(_db_check_name_exists_sync, generated_nickname):
                     is_duplicate = True
@@ -782,75 +831,83 @@ person_info_manager = PersonInfoManager()
 
 
 async def store_person_memory_from_answer(person_name: str, memory_content: str, chat_id: str) -> None:
-    """将人物信息存入person_info的memory_points
+    """将人物事实写入长期记忆系统。
 
     Args:
         person_name: 人物名称
         memory_content: 记忆内容
         chat_id: 聊天ID
     """
+    clean_content = str(memory_content or "").strip()
+    if not clean_content:
+        logger.debug("人物事实写回跳过：memory_content 为空")
+        return
+
+    clean_chat_id = str(chat_id or "").strip()
+    if not clean_chat_id:
+        logger.warning("人物事实写回失败：chat_id 为空")
+        return
+
+    clean_person_name = str(person_name or "").strip()
     try:
-        # 从chat_id获取chat_stream
-        chat_stream = get_chat_manager().get_stream(chat_id)
-        if not chat_stream:
-            logger.warning(f"无法获取chat_stream for chat_id: {chat_id}")
+        # 从 chat_id 获取 session
+        session = _chat_manager.get_session_by_session_id(clean_chat_id)
+        if not session:
+            logger.warning(f"无法获取session for chat_id: {clean_chat_id}")
             return
 
-        platform = chat_stream.platform
+        session_platform = str(getattr(session, "platform", "") or "").strip()
+        session_user_id = str(getattr(session, "user_id", "") or "").strip()
+        session_group_id = str(getattr(session, "group_id", "") or "").strip()
 
-        # 尝试从person_name查找person_id
-        # 首先尝试通过person_name查找
-        person_id = get_person_id_by_person_name(person_name)
-
+        person_id = resolve_person_id_for_memory(
+            person_name=clean_person_name,
+            platform=session_platform,
+            user_id=session_user_id,
+        )
         if not person_id:
-            # 如果通过person_name找不到，尝试从chat_stream获取user_info
-            if chat_stream.user_info:
-                user_id = chat_stream.user_info.user_id
-                person_id = get_person_id(platform, user_id)
-            else:
-                logger.warning(f"无法确定person_id for person_name: {person_name}, chat_id: {chat_id}")
-                return
-
-        # 创建或获取Person对象
-        person = Person(person_id=person_id)
-
-        if not person.is_known:
-            logger.warning(f"用户 {person_name} (person_id: {person_id}) 尚未认识，无法存储记忆")
+            logger.warning(f"无法确定person_id for person_name: {clean_person_name}, chat_id: {clean_chat_id}")
             return
 
-        # 确定记忆分类（可以根据memory_content判断，这里使用通用分类）
-        category = "其他"  # 默认分类，可以根据需要调整
+        person = Person(person_id=person_id)
+        if not person.is_known:
+            logger.warning(f"用户 {clean_person_name or person_id} (person_id: {person_id}) 尚未认识，跳过写回")
+            return
 
-        # 记忆点格式：category:content:weight
-        weight = "1.0"  # 默认权重
-        memory_point = f"{category}:{memory_content}:{weight}"
+        participant_name = str(getattr(person, "person_name", "") or getattr(person, "nickname", "") or "").strip()
+        if not participant_name:
+            participant_name = clean_person_name or person_id
 
-        # 添加到memory_points
-        if not person.memory_points:
-            person.memory_points = []
+        payload_fingerprint = hashlib.md5(f"{person_id}|{clean_chat_id}|{clean_content}".encode()).hexdigest()
+        external_id = f"person_fact:{person_id}:{payload_fingerprint}"
 
-        # 检查是否已存在相似的记忆点（避免重复）
-        is_duplicate = False
-        for existing_point in person.memory_points:
-            if existing_point and isinstance(existing_point, str):
-                parts = existing_point.split(":", 2)
-                if len(parts) >= 2:
-                    existing_content = parts[1].strip()
-                    # 简单相似度检查（如果内容相同或非常相似，则跳过）
-                    if (
-                        existing_content == memory_content
-                        or memory_content in existing_content
-                        or existing_content in memory_content
-                    ):
-                        is_duplicate = True
-                        break
+        result = await memory_service.ingest_text(
+            external_id=external_id,
+            source_type="person_fact",
+            text=clean_content,
+            chat_id=clean_chat_id,
+            person_ids=[person_id],
+            participants=[participant_name],
+            tags=["person_fact"],
+            metadata={
+                "person_id": person_id,
+                "person_name": participant_name,
+                "writeback_source": "memory_flow_service",
+            },
+            respect_filter=True,
+            user_id=session_user_id,
+            group_id=session_group_id,
+        )
 
-        if not is_duplicate:
-            person.memory_points.append(memory_point)
-            person.sync_to_database()
-            logger.info(f"成功添加记忆点到 {person_name} (person_id: {person_id}): {memory_point}")
+        if getattr(result, "success", False):
+            logger.info(
+                f"成功写回人物事实到长期记忆: person={participant_name} person_id={person_id} chat_id={clean_chat_id}"
+            )
         else:
-            logger.debug(f"记忆点已存在，跳过: {memory_point}")
+            logger.warning(
+                f"人物事实写回长期记忆失败: person={participant_name} person_id={person_id} "
+                f"chat_id={clean_chat_id} detail={getattr(result, 'detail', '')}"
+            )
 
     except Exception as e:
         logger.error(f"存储人物记忆失败: {e}")

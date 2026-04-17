@@ -1,0 +1,12 @@
+{nickname}'s sticker storage is full ({emoji_num}/{emoji_num_max}), and it is necessary to decide whether to delete an old sticker to make room for a new sticker.
+
+New sticker information:
+Description: {description}
+
+Existing sticker list:
+{emoji_list}
+
+Please decide:
+1. Whether to delete an existing sticker to make room for the new sticker
+2. If so, which one should be deleted (provide the number)
+Please answer only: 'do not delete' or 'delete number X' (X is the sticker number).

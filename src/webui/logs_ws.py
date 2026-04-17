@@ -1,12 +1,15 @@
 """WebSocket 日志推送模块"""
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
-from typing import Set, Optional
 import json
 from pathlib import Path
+from typing import Dict, List, Optional, Set
+
+from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
+
 from src.common.logger import get_logger
-from src.webui.token_manager import get_token_manager
-from src.webui.ws_auth import verify_ws_token
+from src.webui.core import get_token_manager
+from src.webui.routers.websocket.auth import verify_ws_token
+from src.webui.routers.websocket.manager import websocket_manager
 
 logger = get_logger("webui.logs_ws")
 router = APIRouter()
@@ -15,7 +18,7 @@ router = APIRouter()
 active_connections: Set[WebSocket] = set()
 
 
-def load_recent_logs(limit: int = 100) -> list[dict]:
+def load_recent_logs(limit: int = 100) -> List[Dict]:
     """从日志文件中加载最近的日志
 
     Args:
@@ -82,7 +85,6 @@ async def websocket_logs(websocket: WebSocket, token: Optional[str] = Query(None
     支持三种认证方式（按优先级）：
     1. query 参数 token（推荐，通过 /api/webui/ws-token 获取临时 token）
     2. Cookie 中的 maibot_session
-    3. 直接使用 session token（兼容）
 
     示例：ws://host/ws/logs?token=xxx
     """
@@ -101,13 +103,6 @@ async def websocket_logs(websocket: WebSocket, token: Optional[str] = Query(None
             if token_manager.verify_token(cookie_token):
                 is_authenticated = True
                 logger.debug("WebSocket 使用 Cookie 认证成功")
-
-    # 方式 3: 尝试直接验证 query 参数作为 session token（兼容旧方式）
-    if not is_authenticated and token:
-        token_manager = get_token_manager()
-        if token_manager.verify_token(token):
-            is_authenticated = True
-            logger.debug("WebSocket 使用 session token 认证成功")
 
     if not is_authenticated:
         logger.warning("WebSocket 连接被拒绝：认证失败")
@@ -148,30 +143,15 @@ async def websocket_logs(websocket: WebSocket, token: Optional[str] = Query(None
         active_connections.discard(websocket)
 
 
-async def broadcast_log(log_data: dict):
+async def broadcast_log(log_data: Dict):
     """广播日志到所有连接的 WebSocket 客户端
 
     Args:
         log_data: 日志数据字典
     """
-    if not active_connections:
-        return
-
-    # 格式化为 JSON
-    message = json.dumps(log_data, ensure_ascii=False)
-
-    # 记录需要断开的连接
-    disconnected = set()
-
-    # 广播到所有客户端
-    for connection in active_connections:
-        try:
-            await connection.send_text(message)
-        except Exception:
-            # 发送失败，标记为断开
-            disconnected.add(connection)
-
-    # 清理断开的连接
-    if disconnected:
-        active_connections.difference_update(disconnected)
-        logger.debug(f"清理了 {len(disconnected)} 个断开的 WebSocket 连接")
+    await websocket_manager.broadcast_to_topic(
+        domain="logs",
+        topic="main",
+        event="entry",
+        data={"entry": log_data},
+    )

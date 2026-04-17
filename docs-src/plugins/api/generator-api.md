@@ -54,7 +54,6 @@ async def generate_reply(
     reply_to: str = "",
     extra_info: str = "",
     available_actions: Optional[Dict[str, ActionInfo]] = None,
-    enable_tool: bool = False,
     enable_splitter: bool = True,
     enable_chinese_typo: bool = True,
     return_prompt: bool = False,
@@ -73,7 +72,6 @@ async def generate_reply(
 - `reply_to`: 回复目标，格式为 `{发送者的person_name:消息内容}`
 - `extra_info`: 附加信息
 - `available_actions`: 可用动作字典，格式为 `{"action_name": ActionInfo}`
-- `enable_tool`: 是否启用工具
 - `enable_splitter`: 是否启用分割器
 - `enable_chinese_typo`: 是否启用中文错别字
 - `return_prompt`: 是否返回提示词
@@ -91,7 +89,6 @@ success, reply_set, prompt = await generator_api.generate_reply(
     action_data=action_data,
     reply_to="麦麦:你好",
     available_actions=action_info,
-    enable_tool=True,
     return_prompt=True
 )
 if success:

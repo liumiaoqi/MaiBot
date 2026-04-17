@@ -1,0 +1,11 @@
+Context chat content:
+{chat_context}
+
+Jargon extracted from the context and their meanings:
+{jargon_explanations}
+
+Please summarize and organize the jargon explanations based on the information above.
+- If jargon appears in the context, briefly explain how the jargon is used in the context
+- Organize all jargon explanations into a concise and readable paragraph
+- The output format should be natural and suitable as reference information for replies
+Please output the summarized jargon explanations (directly output one plain-text paragraph, no title, no special formatting or Markdown, and do not use JSON):

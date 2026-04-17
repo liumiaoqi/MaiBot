@@ -1,27 +1,29 @@
+from datetime import datetime
+from typing import TYPE_CHECKING, List, Optional, Tuple
+
+import ast
+import json
+import os
 import random
 import re
 import time
+
 import jieba
-import json
-import ast
-import os
-from datetime import datetime
 
-from typing import Optional, Tuple, List, TYPE_CHECKING
-
+from src.chat.message_receive.chat_manager import chat_manager as _chat_manager
+from src.chat.message_receive.message import SessionMessage
 from src.common.logger import get_logger
-from src.common.data_models.database_data_model import DatabaseMessages
-from src.config.config import global_config, model_config
-from src.chat.message_receive.message import MessageRecv
-from src.chat.message_receive.chat_stream import get_chat_manager
-from src.llm_models.utils_model import LLMRequest
+from src.config.config import global_config
 from src.person_info.person_info import Person
+from src.services.embedding_service import EmbeddingServiceClient
+
 from .typo_generator import ChineseTypoGenerator
 
 if TYPE_CHECKING:
-    from src.common.data_models.info_data_model import TargetPersonInfo
+    from src.common.data_models.chat_target_info_data_model import ChatTargetInfo
 
 logger = get_logger("chat_utils")
+_warned_unconfigured_platforms: set[str] = set()
 
 
 def is_english_letter(char: str) -> bool:
@@ -38,33 +40,64 @@ def parse_platform_accounts(platforms: list[str]) -> dict[str, str]:
     Returns:
         字典，键为平台名，值为账号
     """
-    result = {}
+    result: dict[str, str] = {}
     for platform_entry in platforms:
         if ":" in platform_entry:
             platform_name, account = platform_entry.split(":", 1)
-            result[platform_name.strip()] = account.strip()
+            normalized_platform = platform_name.lower().strip()
+            account_str = account.strip()
+            if normalized_platform and account_str:
+                result[normalized_platform] = account_str
     return result
 
 
-def get_current_platform_account(platform: str, platform_accounts: dict[str, str], qq_account: str) -> str:
-    """根据当前平台获取对应的账号
+def _get_configured_qq_account() -> str:
+    qq_account = str(getattr(global_config.bot, "qq_account", "")).strip()
+    if qq_account in {"", "0"}:
+        return ""
+    return qq_account
 
-    Args:
-        platform: 当前消息的平台
-        platform_accounts: 从 platforms 列表解析的平台账号映射
-        qq_account: QQ 账号（兼容旧配置）
 
-    Returns:
-        当前平台对应的账号
-    """
-    if platform == "qq":
+def get_bot_account(platform: str) -> str:
+    """根据当前平台获取对应的机器人账号。"""
+    normalized_platform = str(platform or "").strip().lower()
+    if not normalized_platform:
+        return ""
+
+    qq_account = _get_configured_qq_account()
+    if normalized_platform in {"qq", "webui"}:
         return qq_account
-    elif platform == "telegram":
-        # 优先使用 tg，其次使用 telegram
+
+    platforms_list = getattr(global_config.bot, "platforms", []) or []
+    platform_accounts = parse_platform_accounts(platforms_list)
+    if normalized_platform in {"tg", "telegram"}:
         return platform_accounts.get("tg", "") or platform_accounts.get("telegram", "")
-    else:
-        # 其他平台直接使用平台名作为键
-        return platform_accounts.get(platform, "")
+
+    return platform_accounts.get(normalized_platform, "")
+
+
+def get_all_bot_accounts() -> dict[str, str]:
+    """获取所有已配置的机器人运行时身份。"""
+    bot_accounts: dict[str, str] = {}
+    qq_account = _get_configured_qq_account()
+    if qq_account:
+        bot_accounts["qq"] = qq_account
+        bot_accounts["webui"] = qq_account
+
+    platforms_list = getattr(global_config.bot, "platforms", []) or []
+    platform_accounts = parse_platform_accounts(platforms_list)
+
+    telegram_account = platform_accounts.get("tg", "") or platform_accounts.get("telegram", "")
+    if telegram_account:
+        bot_accounts["telegram"] = telegram_account
+        bot_accounts["tg"] = telegram_account
+
+    for platform_name, account in platform_accounts.items():
+        if platform_name in {"tg", "telegram", "qq", "webui"}:
+            continue
+        bot_accounts[platform_name] = account
+
+    return bot_accounts
 
 
 def is_bot_self(platform: str, user_id: str) -> bool:
@@ -79,53 +112,32 @@ def is_bot_self(platform: str, user_id: str) -> bool:
     Returns:
         bool: 如果是机器人自己则返回 True，否则返回 False
     """
-    if not platform or not user_id:
+    normalized_platform = str(platform or "").strip().lower()
+    if not normalized_platform or not user_id:
         return False
 
     # 将 user_id 转为字符串进行比较
-    user_id_str = str(user_id)
+    user_id_str = str(user_id).strip()
+    if not user_id_str:
+        return False
 
-    # 获取机器人的 QQ 账号（主账号）
-    qq_account = str(global_config.bot.qq_account or "")
+    bot_account = get_bot_account(normalized_platform)
+    if bot_account:
+        return user_id_str == bot_account
 
-    # QQ 平台：直接比较 QQ 账号
-    if platform == "qq":
-        return user_id_str == qq_account
-
-    # WebUI 平台：机器人回复时使用的是 QQ 账号，所以也比较 QQ 账号
-    if platform == "webui":
-        return user_id_str == qq_account
-
-    # 获取各平台账号映射
-    platforms_list = getattr(global_config.bot, "platforms", []) or []
-    platform_accounts = parse_platform_accounts(platforms_list)
-
-    # Telegram 平台
-    if platform == "telegram":
-        tg_account = platform_accounts.get("tg", "") or platform_accounts.get("telegram", "")
-        return user_id_str == tg_account if tg_account else False
-
-    # 其他平台：尝试从 platforms 配置中查找
-    platform_account = platform_accounts.get(platform, "")
-    if platform_account:
-        return user_id_str == platform_account
-
-    # 默认情况：与主 QQ 账号比较（兼容性）
-    return user_id_str == qq_account
+    if normalized_platform not in _warned_unconfigured_platforms:
+        _warned_unconfigured_platforms.add(normalized_platform)
+        logger.warning(f"平台 {normalized_platform} 未配置机器人账号，无法判断用户 {user_id_str} 是否为机器人自己")
+    return False
 
 
-def is_mentioned_bot_in_message(message: MessageRecv) -> tuple[bool, bool, float]:
+def is_mentioned_bot_in_message(message: SessionMessage) -> tuple[bool, bool, float]:
     """检查消息是否提到了机器人（统一多平台实现）"""
     text = message.processed_plain_text or ""
-    platform = getattr(message.message_info, "platform", "") or ""
-
-    # 获取各平台账号
-    platforms_list = getattr(global_config.bot, "platforms", []) or []
-    platform_accounts = parse_platform_accounts(platforms_list)
-    qq_account = str(getattr(global_config.bot, "qq_account", "") or "")
+    platform = str(message.platform or "").strip().lower()
 
     # 获取当前平台对应的账号
-    current_account = get_current_platform_account(platform, platform_accounts, qq_account)
+    current_account = get_bot_account(platform)
 
     nickname = str(global_config.bot.nickname or "")
     alias_names = list(getattr(global_config.bot, "alias_names", []) or [])
@@ -221,12 +233,20 @@ def is_mentioned_bot_in_message(message: MessageRecv) -> tuple[bool, bool, float
     return is_mentioned, is_at, reply_probability
 
 
-async def get_embedding(text, request_type="embedding") -> Optional[List[float]]:
-    """获取文本的embedding向量"""
-    # 每次都创建新的LLMRequest实例以避免事件循环冲突
-    llm = LLMRequest(model_set=model_config.model_task_config.embedding, request_type=request_type)
+async def get_embedding(text: str, request_type: str = "embedding") -> Optional[List[float]]:
+    """获取文本的嵌入向量。
+
+    Args:
+        text: 待编码的文本内容。
+        request_type: 当前请求的业务类型标识。
+
+    Returns:
+        Optional[List[float]]: 成功时返回嵌入向量，失败时返回 `None`。
+    """
+    embedding_client = EmbeddingServiceClient(task_name="embedding", request_type=request_type)
     try:
-        embedding, _ = await llm.get_embedding(text)
+        embedding_result = await embedding_client.embed_text(text)
+        embedding = embedding_result.embedding
     except Exception as e:
         logger.error(f"获取embedding失败: {str(e)}")
         embedding = None
@@ -523,7 +543,7 @@ def process_llm_response(text: str, enable_splitter: bool = True, enable_chinese
 
 def calculate_typing_time(
     input_string: str,
-    thinking_start_time: float,
+    # thinking_start_time: float,
     chinese_time: float = 0.3,
     english_time: float = 0.15,
     is_emoji: bool = False,
@@ -556,8 +576,8 @@ def calculate_typing_time(
     if is_emoji:
         total_time = 1
 
-    if time.time() - thinking_start_time > 10:
-        total_time = 1
+    # if time.time() - thinking_start_time > 10:
+    #     total_time = 1
 
     # print(f"thinking_start_time:{thinking_start_time}")
     # print(f"nowtime:{time.time()}")
@@ -679,7 +699,7 @@ def translate_timestamp_to_human_readable(timestamp: float, mode: str = "normal"
         return time.strftime("%H:%M:%S", time.localtime(timestamp))
 
 
-def get_chat_type_and_target_info(chat_id: str) -> Tuple[bool, Optional["TargetPersonInfo"]]:
+def get_chat_type_and_target_info(chat_id: str) -> Tuple[bool, Optional["ChatTargetInfo"]]:
     """
     获取聊天类型（是否群聊）和私聊对象信息。
 
@@ -696,23 +716,31 @@ def get_chat_type_and_target_info(chat_id: str) -> Tuple[bool, Optional["TargetP
     chat_target_info = None
 
     try:
-        if chat_stream := get_chat_manager().get_stream(chat_id):
-            if chat_stream.group_info:
+        if chat_stream := _chat_manager.get_session_by_session_id(chat_id):
+            if chat_stream.is_group_session:
                 is_group_chat = True
                 chat_target_info = None  # Explicitly None for group chat
-            elif chat_stream.user_info:  # It's a private chat
+            elif chat_stream.user_id:  # It's a private chat
                 is_group_chat = False
-                user_info = chat_stream.user_info
                 platform: str = chat_stream.platform
-                user_id: str = user_info.user_id  # type: ignore
+                user_id: str = chat_stream.user_id
 
-                from src.common.data_models.info_data_model import TargetPersonInfo  # 解决循环导入问题
+                # Try to get nickname from context
+                user_nickname = None
+                if (
+                    chat_stream.context
+                    and chat_stream.context.message
+                    and chat_stream.context.message.message_info.user_info
+                ):
+                    user_nickname = chat_stream.context.message.message_info.user_info.user_nickname
+
+                from src.common.data_models.chat_target_info_data_model import ChatTargetInfo  # 解决循环导入问题
 
                 # Initialize target_info with basic info
-                target_info = TargetPersonInfo(
+                target_info = ChatTargetInfo(
                     platform=platform,
                     user_id=user_id,
-                    user_nickname=user_info.user_nickname,  # type: ignore
+                    session_nickname=user_nickname or "",
                     person_id=None,
                     person_name=None,
                 )
@@ -721,9 +749,10 @@ def get_chat_type_and_target_info(chat_id: str) -> Tuple[bool, Optional["TargetP
                 try:
                     person = Person(platform=platform, user_id=user_id)
                     if not person.is_known:
-                        logger.warning(f"用户 {user_info.user_nickname} 尚未认识")
+                        logger.warning(f"用户 {user_nickname} 尚未认识")
                         # 如果用户尚未认识，则返回False和None
                         return False, None
+                    target_info.is_known = True
                     if person.person_id:
                         target_info.person_id = person.person_id
                         target_info.person_name = person.person_name
@@ -777,7 +806,7 @@ def record_replyer_action_temp(chat_id: str, reason: str, think_level: int) -> N
         logger.warning(f"记录replyer动作选择失败: {e}")
 
 
-def assign_message_ids(messages: List[DatabaseMessages]) -> List[Tuple[str, DatabaseMessages]]:
+def assign_message_ids(messages: List[SessionMessage]) -> List[Tuple[str, SessionMessage]]:
     """
     为消息列表中的每个消息分配唯一的简短随机ID
 
@@ -785,9 +814,9 @@ def assign_message_ids(messages: List[DatabaseMessages]) -> List[Tuple[str, Data
         messages: 消息列表
 
     Returns:
-        List[DatabaseMessages]: 分配了唯一ID的消息列表(写入message_id属性)
+        List[SessionMessage]: 分配了唯一ID的消息列表
     """
-    result: List[Tuple[str, DatabaseMessages]] = []  # 复制原始消息列表
+    result: List[Tuple[str, SessionMessage]] = []  # 复制原始消息列表
     used_ids = set()
     len_i = len(messages)
     if len_i > 100:
@@ -810,6 +839,12 @@ def assign_message_ids(messages: List[DatabaseMessages]) -> List[Tuple[str, Data
         result.append((message_id, message))
 
     return result
+
+
+#                 break
+#         result.append((message_id, message))
+
+#     return result
 
 
 def parse_keywords_string(keywords_input) -> list[str]:

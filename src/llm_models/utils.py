@@ -1,15 +1,16 @@
+from datetime import datetime
 import base64
 import io
 
 from PIL import Image
-from datetime import datetime
 
+from src.common.database.database import get_db_session
+from src.common.database.database_model import ModelUsage, ModelUser
 from src.common.logger import get_logger
-from src.common.database.database import db  # 确保 db 被导入用于 create_tables
-from src.common.database.database_model import LLMUsage
-from src.config.api_ada_configs import ModelInfo
-from .payload_content.message import Message, MessageBuilder
+from src.config.model_configs import ModelInfo
+
 from .model_client.base_client import UsageRecord
+from .payload_content.message import ImageMessagePart, Message, MessageBuilder, RoleType, TextMessagePart
 
 logger = get_logger("消息压缩工具")
 
@@ -131,25 +132,32 @@ def compress_messages(messages: list[Message], img_target_size: int = 1 * 1024 *
 
         return base64_data
 
-    compressed_messages = []
-    for message in messages:
-        if isinstance(message.content, list):
-            # 检查content，如有图片则压缩
-            message_builder = MessageBuilder()
-            for content_item in message.content:
-                if isinstance(content_item, tuple):
-                    # 图片，进行压缩
-                    message_builder.add_image_content(
-                        content_item[0],
-                        compress_base64_image(content_item[1], target_size=img_target_size),
-                    )
-                else:
-                    message_builder.add_text_content(content_item)
-            compressed_messages.append(message_builder.build())
-        else:
-            compressed_messages.append(message)
+    def rebuild_message_with_compressed_images(message: Message) -> Message:
+        """重建消息并压缩其中的图片，同时保留角色与工具元信息。"""
+        if not any(isinstance(part, ImageMessagePart) for part in message.parts):
+            return message
 
-    return compressed_messages
+        message_builder = MessageBuilder().set_role(message.role)
+        if message.role == RoleType.Assistant and message.tool_calls:
+            message_builder.set_tool_calls(message.tool_calls)
+        if message.role == RoleType.Tool and message.tool_call_id:
+            message_builder.set_tool_call_id(message.tool_call_id)
+        if message.role == RoleType.Tool and message.tool_name:
+            message_builder.set_tool_name(message.tool_name)
+
+        for message_part in message.parts:
+            if isinstance(message_part, ImageMessagePart):
+                message_builder.add_image_content(
+                    message_part.image_format,
+                    compress_base64_image(message_part.image_base64, target_size=img_target_size),
+                )
+                continue
+            if isinstance(message_part, TextMessagePart):
+                message_builder.add_text_content(message_part.text)
+
+        return message_builder.build()
+
+    return [rebuild_message_with_compressed_images(message) for message in messages]
 
 
 class LLMUsageRecorder:
@@ -158,12 +166,7 @@ class LLMUsageRecorder:
     """
 
     def __init__(self):
-        try:
-            # 使用 Peewee 创建表，safe=True 表示如果表已存在则不会抛出错误
-            db.create_tables([LLMUsage], safe=True)
-            # logger.debug("LLMUsage 表已初始化/确保存在。")
-        except Exception as e:
-            logger.error(f"创建 LLMUsage 表失败: {str(e)}")
+        pass
 
     def record_usage_to_database(
         self,
@@ -178,22 +181,22 @@ class LLMUsageRecorder:
         output_cost = (model_usage.completion_tokens / 1000000) * model_info.price_out
         total_cost = round(input_cost + output_cost, 6)
         try:
-            # 使用 Peewee 模型创建记录
-            LLMUsage.create(
-                model_name=model_info.model_identifier,
-                model_assign_name=model_info.name,
-                model_api_provider=model_info.api_provider,
-                user_id=user_id,
-                request_type=request_type,
-                endpoint=endpoint,
-                prompt_tokens=model_usage.prompt_tokens or 0,
-                completion_tokens=model_usage.completion_tokens or 0,
-                total_tokens=model_usage.total_tokens or 0,
-                cost=total_cost or 0.0,
-                time_cost=round(time_cost or 0.0, 3),
-                status="success",
-                timestamp=datetime.now(),  # Peewee 会处理 DateTimeField
-            )
+            with get_db_session() as session:
+                record = ModelUsage(
+                    model_name=model_info.model_identifier,
+                    model_assign_name=model_info.name,
+                    model_api_provider_name=model_info.api_provider,
+                    endpoint=endpoint,
+                    user_type=ModelUser.SYSTEM,
+                    request_type=request_type,
+                    time_cost=round(time_cost or 0.0, 3),
+                    timestamp=datetime.now(),
+                    prompt_tokens=model_usage.prompt_tokens or 0,
+                    completion_tokens=model_usage.completion_tokens or 0,
+                    total_tokens=model_usage.total_tokens or 0,
+                    cost=total_cost or 0.0,
+                )
+                session.add(record)
             logger.debug(
                 f"Token使用情况 - 模型: {model_usage.model_name}, "
                 f"用户: {user_id}, 类型: {request_type}, "

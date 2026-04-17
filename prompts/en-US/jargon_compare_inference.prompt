@@ -1,0 +1,15 @@
+**Inference Result 1 (based on context)**
+{inference1}
+
+**Inference Result 2 (based only on the term itself)**
+{inference2}
+
+Please compare these two inference results and determine whether they are the same or similar.
+- If the "meaning" in the two inference results is the same or similar, it means this term is not jargon (its meaning is clear)
+- If the two inference results differ, it means this term may be jargon (it can only be understood with context)
+
+Output in JSON format:
+{{
+  "is_similar": true/false,
+  "reason": "Reason for the judgment"
+}}

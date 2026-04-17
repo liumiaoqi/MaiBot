@@ -1,24 +1,29 @@
 """WebUI API 路由"""
 
-from fastapi import APIRouter, HTTPException, Header, Response, Request, Cookie, Depends
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
-from typing import Optional
+
 from src.common.logger import get_logger
-from .token_manager import get_token_manager
-from .auth import set_auth_cookie, clear_auth_cookie
-from .rate_limiter import get_rate_limiter, check_auth_rate_limit
-from .config_routes import router as config_router
-from .statistics_routes import router as statistics_router
-from .person_routes import router as person_router
-from .expression_routes import router as expression_router
-from .jargon_routes import router as jargon_router
-from .emoji_routes import router as emoji_router
-from .plugin_routes import router as plugin_router
-from .plugin_progress_ws import get_progress_router
-from .routers.system import router as system_router
-from .model_routes import router as model_router
-from .ws_auth import router as ws_auth_router
-from .annual_report_routes import router as annual_report_router
+from src.webui.core import (
+    check_auth_rate_limit,
+    clear_auth_cookie,
+    get_rate_limiter,
+    get_token_manager,
+    set_auth_cookie,
+)
+from src.webui.dependencies import require_auth, verify_token_optional
+from src.webui.routers.config import router as config_router
+from src.webui.routers.emoji import router as emoji_router
+from src.webui.routers.expression import router as expression_router
+from src.webui.routers.jargon import router as jargon_router
+from src.webui.routers.memory import router as memory_router
+from src.webui.routers.model import router as model_router
+from src.webui.routers.person import router as person_router
+from src.webui.routers.plugin import router as plugin_router
+from src.webui.routers.statistics import router as statistics_router
+from src.webui.routers.system import router as system_router
+from src.webui.routers.websocket.auth import router as ws_auth_router
+from src.webui.routers.websocket.unified import router as unified_ws_router
 
 logger = get_logger("webui.api")
 
@@ -39,16 +44,16 @@ router.include_router(jargon_router)
 router.include_router(emoji_router)
 # 注册插件管理路由
 router.include_router(plugin_router)
-# 注册插件进度 WebSocket 路由
-router.include_router(get_progress_router())
 # 注册系统控制路由
 router.include_router(system_router)
 # 注册模型列表获取路由
 router.include_router(model_router)
+# 注册长期记忆管理路由
+router.include_router(memory_router)
 # 注册 WebSocket 认证路由
 router.include_router(ws_auth_router)
-# 注册年度报告路由
-router.include_router(annual_report_router)
+# 注册统一 WebSocket 路由
+router.include_router(unified_ws_router)
 
 
 class TokenVerifyRequest(BaseModel):
@@ -186,9 +191,7 @@ async def logout(response: Response):
 
 @router.get("/auth/check")
 async def check_auth_status(
-    request: Request,
-    maibot_session: Optional[str] = Cookie(None),
-    authorization: Optional[str] = Header(None),
+    authenticated: bool = Depends(verify_token_optional),
 ):
     """
     检查当前认证状态（用于前端判断是否已登录）
@@ -197,44 +200,17 @@ async def check_auth_status(
         认证状态
     """
     try:
-        token = None
-        
-        # 记录请求信息用于调试
-        logger.debug(f"检查认证状态 - Cookie: {maibot_session[:20] if maibot_session else 'None'}..., Authorization: {'Present' if authorization else 'None'}")
-
-        # 优先从 Cookie 获取
-        if maibot_session:
-            token = maibot_session
-            logger.debug("使用 Cookie 中的 token")
-        # 其次从 Header 获取
-        elif authorization and authorization.startswith("Bearer "):
-            token = authorization.replace("Bearer ", "")
-            logger.debug("使用 Header 中的 token")
-
-        if not token:
-            logger.debug("未找到 token，返回未认证")
-            return {"authenticated": False}
-
-        token_manager = get_token_manager()
-        is_valid = token_manager.verify_token(token)
-        logger.debug(f"Token 验证结果: {is_valid}")
-        
-        if is_valid:
-            return {"authenticated": True}
-        else:
-            return {"authenticated": False}
+        logger.debug(f"检查认证状态，结果: {authenticated}")
+        return {"authenticated": authenticated}
     except Exception as e:
         logger.error(f"认证检查失败: {e}", exc_info=True)
         return {"authenticated": False}
 
 
-@router.post("/auth/update", response_model=TokenUpdateResponse)
+@router.post("/auth/update", response_model=TokenUpdateResponse, dependencies=[Depends(require_auth)])
 async def update_token(
     request: TokenUpdateRequest,
     response: Response,
-    req: Request,
-    maibot_session: Optional[str] = Cookie(None),
-    authorization: Optional[str] = Header(None),
 ):
     """
     更新访问令牌（需要当前有效的 token）
@@ -242,27 +218,12 @@ async def update_token(
     Args:
         request: 包含新 token 的更新请求
         response: FastAPI Response 对象
-        maibot_session: Cookie 中的 token
-        authorization: Authorization header (Bearer token)
 
     Returns:
         更新结果
     """
     try:
-        # 验证当前 token（优先 Cookie，其次 Header）
-        current_token = None
-        if maibot_session:
-            current_token = maibot_session
-        elif authorization and authorization.startswith("Bearer "):
-            current_token = authorization.replace("Bearer ", "")
-
-        if not current_token:
-            raise HTTPException(status_code=401, detail="未提供有效的认证信息")
-
         token_manager = get_token_manager()
-
-        if not token_manager.verify_token(current_token):
-            raise HTTPException(status_code=401, detail="当前 Token 无效")
 
         # 更新 token
         success, message = token_manager.update_token(request.new_token)
@@ -279,39 +240,21 @@ async def update_token(
         raise HTTPException(status_code=500, detail="Token 更新失败") from e
 
 
-@router.post("/auth/regenerate", response_model=TokenRegenerateResponse)
+@router.post("/auth/regenerate", response_model=TokenRegenerateResponse, dependencies=[Depends(require_auth)])
 async def regenerate_token(
     response: Response,
-    request: Request,
-    maibot_session: Optional[str] = Cookie(None),
-    authorization: Optional[str] = Header(None),
 ):
     """
     重新生成访问令牌（需要当前有效的 token）
 
     Args:
         response: FastAPI Response 对象
-        maibot_session: Cookie 中的 token
-        authorization: Authorization header (Bearer token)
 
     Returns:
         新生成的 token
     """
     try:
-        # 验证当前 token（优先 Cookie，其次 Header）
-        current_token = None
-        if maibot_session:
-            current_token = maibot_session
-        elif authorization and authorization.startswith("Bearer "):
-            current_token = authorization.replace("Bearer ", "")
-
-        if not current_token:
-            raise HTTPException(status_code=401, detail="未提供有效的认证信息")
-
         token_manager = get_token_manager()
-
-        if not token_manager.verify_token(current_token):
-            raise HTTPException(status_code=401, detail="当前 Token 无效")
 
         # 重新生成 token
         new_token = token_manager.regenerate_token()
@@ -327,37 +270,16 @@ async def regenerate_token(
         raise HTTPException(status_code=500, detail="Token 重新生成失败") from e
 
 
-@router.get("/setup/status", response_model=FirstSetupStatusResponse)
-async def get_setup_status(
-    request: Request,
-    maibot_session: Optional[str] = Cookie(None),
-    authorization: Optional[str] = Header(None),
-):
+@router.get("/setup/status", response_model=FirstSetupStatusResponse, dependencies=[Depends(require_auth)])
+async def get_setup_status():
     """
     获取首次配置状态
-
-    Args:
-        maibot_session: Cookie 中的 token
-        authorization: Authorization header (Bearer token)
 
     Returns:
         首次配置状态
     """
     try:
-        # 验证 token（优先 Cookie，其次 Header）
-        current_token = None
-        if maibot_session:
-            current_token = maibot_session
-        elif authorization and authorization.startswith("Bearer "):
-            current_token = authorization.replace("Bearer ", "")
-
-        if not current_token:
-            raise HTTPException(status_code=401, detail="未提供有效的认证信息")
-
         token_manager = get_token_manager()
-
-        if not token_manager.verify_token(current_token):
-            raise HTTPException(status_code=401, detail="Token 无效")
 
         # 检查是否为首次配置
         is_first = token_manager.is_first_setup()
@@ -370,37 +292,16 @@ async def get_setup_status(
         raise HTTPException(status_code=500, detail="获取配置状态失败") from e
 
 
-@router.post("/setup/complete", response_model=CompleteSetupResponse)
-async def complete_setup(
-    request: Request,
-    maibot_session: Optional[str] = Cookie(None),
-    authorization: Optional[str] = Header(None),
-):
+@router.post("/setup/complete", response_model=CompleteSetupResponse, dependencies=[Depends(require_auth)])
+async def complete_setup():
     """
     标记首次配置完成
-
-    Args:
-        maibot_session: Cookie 中的 token
-        authorization: Authorization header (Bearer token)
 
     Returns:
         完成结果
     """
     try:
-        # 验证 token（优先 Cookie，其次 Header）
-        current_token = None
-        if maibot_session:
-            current_token = maibot_session
-        elif authorization and authorization.startswith("Bearer "):
-            current_token = authorization.replace("Bearer ", "")
-
-        if not current_token:
-            raise HTTPException(status_code=401, detail="未提供有效的认证信息")
-
         token_manager = get_token_manager()
-
-        if not token_manager.verify_token(current_token):
-            raise HTTPException(status_code=401, detail="Token 无效")
 
         # 标记配置完成
         success = token_manager.mark_setup_completed()
@@ -413,37 +314,16 @@ async def complete_setup(
         raise HTTPException(status_code=500, detail="标记配置完成失败") from e
 
 
-@router.post("/setup/reset", response_model=ResetSetupResponse)
-async def reset_setup(
-    request: Request,
-    maibot_session: Optional[str] = Cookie(None),
-    authorization: Optional[str] = Header(None),
-):
+@router.post("/setup/reset", response_model=ResetSetupResponse, dependencies=[Depends(require_auth)])
+async def reset_setup():
     """
     重置首次配置状态，允许重新进入配置向导
-
-    Args:
-        maibot_session: Cookie 中的 token
-        authorization: Authorization header (Bearer token)
 
     Returns:
         重置结果
     """
     try:
-        # 验证 token（优先 Cookie，其次 Header）
-        current_token = None
-        if maibot_session:
-            current_token = maibot_session
-        elif authorization and authorization.startswith("Bearer "):
-            current_token = authorization.replace("Bearer ", "")
-
-        if not current_token:
-            raise HTTPException(status_code=401, detail="未提供有效的认证信息")
-
         token_manager = get_token_manager()
-
-        if not token_manager.verify_token(current_token):
-            raise HTTPException(status_code=401, detail="Token 无效")
 
         # 重置配置状态
         success = token_manager.reset_setup_status()

@@ -1,4 +1,10 @@
 data/
+!pytests/A_memorix_test/data/
+!pytests/A_memorix_test/data/benchmarks/
+!pytests/A_memorix_test/data/benchmarks/long_novel_memory_benchmark.json
+!pytests/A_memorix_test/data/real_dialogues/
+!pytests/A_memorix_test/data/real_dialogues/private_alice_weekend.json
+pytests/A_memorix_test/data/benchmarks/results/
 data1/
 mongodb/
 NapCat.Framework.Windows.Once/
@@ -35,9 +41,11 @@ message_queue_content.bat
 message_queue_window.bat
 message_queue_window.txt
 queue_update.txt
+start_saka.bat
 .env
 .env.*
 .cursor
+start_all.bat
 config/bot_config_dev.toml
 config/bot_config.toml
 config/bot_config.toml.bak
@@ -45,9 +53,31 @@ config/lpmm_config.toml
 config/lpmm_config.toml.bak
 template/compare/bot_config_template.toml
 template/compare/model_config_template.toml
-CLAUDE.md
-MaiBot-Dashboard/
+# CLAUDE.md
 cloudflare-workers/
+log_viewer/
+dev/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 result.json
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -69,7 +99,6 @@ develop-eggs/
 downloads/
 eggs/
 .eggs/
-lib/
 lib64/
 parts/
 sdist/
@@ -255,6 +284,8 @@ logs
 .vscode
 
 /config/*
+config/mcp_config.json
+!config/mcp_config.json.template
 config/old/bot_config_20250405_212257.toml
 temp/
 
@@ -319,10 +350,6 @@ run_pet.bat
 !/plugins
 !/plugins/hello_world_plugin
 !/plugins/emoji_manage_plugin
-!/plugins/take_picture_plugin
-!/plugins/deep_think
-!/plugins/MaiBot_MCPBridgePlugin
-!/plugins/ChatFrequency/
 !/plugins/__init__.py
 
 config.toml
@@ -331,3 +358,12 @@ interested_rates.txt
 MaiBot.code-workspace
 *.lock
 actionlint
+.sisyphus/
+dist-electron/
+packages/
+
+## Claude Code and OMC data
+.claude/
+.omc/
+/.venv312
+/src/A_memorix/algorithm_redesign

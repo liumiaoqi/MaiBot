@@ -44,6 +44,24 @@ services:
     restart: always
     networks:
       - maim_bot
+
+  # 启用 HTTPS 时，建议注释掉 core 服务中的 "18001:8001" 端口映射，
+  # 然后取消注释此 Caddy 反向代理示例块，并按 dashboard/docs/Caddyfile.docker.example 修改域名。
+  # caddy:
+  #   image: caddy:2
+  #   container_name: maibot-caddy
+  #   restart: always
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./dashboard/docs/Caddyfile.docker.example:/etc/caddy/Caddyfile:ro
+  #     - caddy_data:/data
+  #     - caddy_config:/config
+  #   depends_on:
+  #     - core
+  #   networks:
+  #     - maim_bot
   napcat:
     environment:
       - NAPCAT_UID=1000
@@ -89,6 +107,8 @@ services:
   
 # volumes:         #  若需要持久化Python包时启用
 #   site-packages:
+#   caddy_data:
+#   caddy_config:
 networks:
   maim_bot:
     driver: bridge
