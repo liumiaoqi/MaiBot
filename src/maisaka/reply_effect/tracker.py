@@ -23,6 +23,7 @@ from .models import (
     UserSnapshot,
     now_iso,
 )
+from .quote_utils import extract_quote_target_ids
 from .path_utils import build_reply_effect_chat_dir_name
 from .scoring import (
     has_explicit_negative_feedback,
@@ -190,6 +191,7 @@ class ReplyEffectTracker:
             plain_text=plain_text,
             latency_seconds=round(latency_seconds, 3),
             is_target_user=bool(record.target_user.user_id and user_id == record.target_user.user_id),
+            quote_target_ids=extract_quote_target_ids(message.raw_message),
             attachments=extract_visual_attachments_from_sequence(message.raw_message),
         )
 

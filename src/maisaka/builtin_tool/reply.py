@@ -160,6 +160,7 @@ async def handle_tool(
 
     reply_segments = tool_ctx.post_process_reply_text(reply_text)
     combined_reply_text = "".join(reply_segments)
+    sent_message_ids: list[str] = []
     try:
         sent = False
         if tool_ctx.runtime.chat_stream.platform == CLI_PLATFORM_NAME:
@@ -181,6 +182,9 @@ async def handle_tool(
                 sent = sent_message is not None
                 if not sent:
                     break
+                sent_message_id = str(getattr(sent_message, "message_id", "") or "").strip()
+                if sent_message_id:
+                    sent_message_ids.append(sent_message_id)
     except Exception:
         logger.exception(
             f"{tool_ctx.runtime.log_prefix} 发送文字消息时发生异常，目标消息编号={target_message_id}"
@@ -209,6 +213,7 @@ async def handle_tool(
     if tool_ctx.runtime.chat_stream.platform == CLI_PLATFORM_NAME:
         tool_ctx.append_guided_reply_to_chat_history(combined_reply_text)
     tool_ctx.runtime._record_reply_sent()
+    reply_metadata["sent_message_ids"] = sent_message_ids
     await tool_ctx.runtime.track_reply_effect(
         tool_call_id=invocation.call_id,
         target_message=target_message,

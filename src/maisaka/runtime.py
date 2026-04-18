@@ -41,6 +41,7 @@ from .display.stage_status_board import remove_stage_status, update_stage_status
 from .reasoning_engine import MaisakaReasoningEngine
 from .reply_effect import ReplyEffectTracker
 from .reply_effect.image_utils import extract_visual_attachments_from_sequence
+from .reply_effect.quote_utils import extract_quote_target_ids, message_id_from_context_message
 from .tool_provider import MaisakaBuiltinToolProvider
 
 logger = get_logger("maisaka_runtime")
@@ -349,10 +350,12 @@ class MaisakaHeartFlowChatting:
                 continue
             snapshot.append(
                 {
+                    "message_id": message_id_from_context_message(message),
                     "source": message.source,
                     "role": message.role,
                     "timestamp": message.timestamp.isoformat(timespec="seconds"),
                     "text": text,
+                    "quote_target_ids": extract_quote_target_ids(getattr(message, "raw_message", None)),
                     "attachments": extract_visual_attachments_from_sequence(getattr(message, "raw_message", None)),
                 }
             )
