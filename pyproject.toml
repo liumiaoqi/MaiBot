@@ -35,7 +35,6 @@ dependencies = [
     "python-dotenv>=1.1.1",
     "python-multipart>=0.0.20",
     "python-levenshtein",
-    "quick-algo>=0.1.4",
     "rich>=14.0.0",
     "scipy>=1.7.0",
     "sqlalchemy>=2.0.40",
