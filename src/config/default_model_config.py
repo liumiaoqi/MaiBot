@@ -9,7 +9,8 @@ DEFAULT_PROVIDER_TEMPLATES: list[dict[str, Any]] = [
     {
         "name": "BaiLian",
         "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "auth_type": OpenAICompatibleAuthType.NONE.value,
+        "api_key": "your-api-key",
+        "auth_type": OpenAICompatibleAuthType.BEARER.value,
     }
 ]
 
