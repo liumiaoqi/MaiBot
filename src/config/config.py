@@ -11,6 +11,7 @@ import tomlkit
 
 from .config_base import AttributeData, ConfigBase, Field
 from .config_utils import compare_versions, output_config_changes, recursive_parse_item_to_table
+from .default_model_config import create_default_model_config
 from .file_watcher import FileChange, FileWatcher
 from .legacy_migration import migrate_legacy_bind_env_to_bot_config_dict, try_migrate_legacy_bot_config_dict
 from .model_configs import APIProvider, ModelInfo, ModelTaskConfig
@@ -55,7 +56,7 @@ MODEL_CONFIG_PATH: Path = (CONFIG_DIR / "model_config.toml").resolve().absolute(
 LEGACY_ENV_PATH: Path = (PROJECT_ROOT / ".env").resolve().absolute()
 MMC_VERSION: str = "1.0.0"
 CONFIG_VERSION: str = "8.9.3"
-MODEL_CONFIG_VERSION: str = "1.14.0"
+MODEL_CONFIG_VERSION: str = "1.14.1"
 
 logger = get_logger("config")
 
@@ -439,15 +440,20 @@ class ConfigManager:
             logger.error(t("config.reload_timeout", timeout_seconds=self._hot_reload_timeout_s))
 
 
-def generate_new_config_file(config_class: type[T], config_path: Path, inner_config_version: str) -> None:
+def generate_new_config_file(
+    config_class: type[T], config_path: Path, inner_config_version: str, override_repr: bool = False
+) -> None:
     """生成新的配置文件
 
     :param config_class: 配置类
     :param config_path: 配置文件路径
     :param inner_config_version: 配置文件版本号
     """
-    config = config_class()
-    write_config_to_file(config, config_path, inner_config_version)
+    if config_class is ModelConfig:
+        config = create_default_model_config(config_class)
+    else:
+        config = config_class()
+    write_config_to_file(config, config_path, inner_config_version, override_repr)
 
 
 def remove_legacy_env_file(env_path: Path) -> None:
@@ -468,6 +474,9 @@ def load_config_from_file(
     config_class: type[T], config_path: Path, new_ver: str, override_repr: bool = False
 ) -> tuple[T, bool]:
     attribute_data = AttributeData()
+    if not config_path.exists():
+        logger.warning(f"配置文件缺失，正在生成默认配置: {config_path}")
+        generate_new_config_file(config_class, config_path, new_ver, override_repr)
     with open(config_path, "r", encoding="utf-8") as f:
         config_data = tomlkit.load(f)
     inner_table = config_data.get("inner")
