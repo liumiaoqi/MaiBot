@@ -1090,14 +1090,14 @@ class DebugConfig(ConfigBase):
     __ui_label__ = "其他"
     __ui_icon__ = "more-horizontal"
 
-    show_prompt: bool = Field(
-        default=False,
+    enable_maisaka_stage_board: bool = Field(
+        default=True,
         json_schema_extra={
             "x-widget": "switch",
-            "x-icon": "eye",
+            "x-icon": "layout-dashboard",
         },
     )
-    """是否显示prompt"""
+    """是否启用 Maisaka 阶段看板"""
 
     show_maisaka_thinking: bool = Field(
         default=True,
@@ -1205,7 +1205,7 @@ class MaimMessageConfig(ConfigBase):
     """旧版基于WS的服务器主机地址"""
 
     ws_server_port: int = Field(
-        default=8080,
+        default=8000,
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "hash",

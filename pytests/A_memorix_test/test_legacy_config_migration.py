@@ -1,6 +1,16 @@
 from src.config.legacy_migration import try_migrate_legacy_bot_config_dict
 
 
+def test_legacy_empty_qq_account_is_migrated_to_zero():
+    payload = {"bot": {"qq_account": ""}}
+
+    result = try_migrate_legacy_bot_config_dict(payload)
+
+    assert result.migrated is True
+    assert "bot.qq_account_empty" in result.reason
+    assert result.data["bot"]["qq_account"] == 0
+
+
 def test_legacy_learning_list_with_numeric_fourth_column_is_migrated():
     payload = {
         "expression": {
@@ -33,6 +43,72 @@ def test_legacy_learning_list_with_numeric_fourth_column_is_migrated():
             "enable_jargon_learning": False,
         },
     ]
+
+
+def test_legacy_learning_list_with_string_bool_fourth_column_is_migrated():
+    payload = {"expression": {"learning_list": [["qq::group", "enable", "enable", "true"]]}}
+
+    result = try_migrate_legacy_bot_config_dict(payload)
+
+    assert result.migrated is True
+    assert "expression.learning_list" in result.reason
+    assert result.data["expression"]["learning_list"] == [
+        {
+            "platform": "qq",
+            "item_id": "",
+            "rule_type": "group",
+            "use_expression": True,
+            "enable_learning": True,
+            "enable_jargon_learning": True,
+        }
+    ]
+
+
+def test_legacy_expression_groups_empty_string_is_migrated():
+    payload = {"expression": {"expression_groups": ""}}
+
+    result = try_migrate_legacy_bot_config_dict(payload)
+
+    assert result.migrated is True
+    assert "expression.expression_groups" in result.reason
+    assert result.data["expression"]["expression_groups"] == []
+
+
+def test_legacy_expression_groups_global_marker_is_migrated():
+    payload = {"expression": {"expression_groups": [["*"]]}}
+
+    result = try_migrate_legacy_bot_config_dict(payload)
+
+    assert result.migrated is True
+    assert "expression.expression_groups" in result.reason
+    assert result.data["expression"]["expression_groups"] == [
+        {
+            "expression_groups": [
+                {
+                    "platform": "*",
+                    "item_id": "*",
+                    "rule_type": "group",
+                }
+            ]
+        }
+    ]
+
+
+def test_empty_keyword_rules_are_dropped():
+    payload = {
+        "keyword_reaction": {
+            "keyword_rules": [
+                {"keywords": [], "reaction": ""},
+                {"keywords": ["test"], "reaction": "ok"},
+            ]
+        }
+    }
+
+    result = try_migrate_legacy_bot_config_dict(payload)
+
+    assert result.migrated is True
+    assert "keyword_reaction.keyword_rules_empty" in result.reason
+    assert result.data["keyword_reaction"]["keyword_rules"] == [{"keywords": ["test"], "reaction": "ok"}]
 
 
 def test_visual_multimodal_planner_is_migrated_to_planner_mode():

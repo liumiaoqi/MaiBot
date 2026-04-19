@@ -66,7 +66,8 @@ class MainSystem:
 
     async def initialize(self) -> None:
         """初始化系统组件"""
-        enable_stage_status_board()
+        if global_config.debug.enable_maisaka_stage_board:
+            enable_stage_status_board()
         logger.info(t("startup.waking_up", nickname=global_config.bot.nickname))
 
         # 其他初始化任务

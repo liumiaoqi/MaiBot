@@ -66,6 +66,7 @@ class FollowupMessageSnapshot:
     plain_text: str
     latency_seconds: float
     is_target_user: bool
+    quote_target_ids: List[str] = field(default_factory=list)
     attachments: List[Dict[str, Any]] = field(default_factory=list)
 
 
