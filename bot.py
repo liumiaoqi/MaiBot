@@ -1,13 +1,11 @@
 # raise RuntimeError("System Not Ready")
 from pathlib import Path
-
 from rich.traceback import install
 
 import asyncio
 import hashlib
 import os
 import platform
-
 # import shutil
 import subprocess
 import sys
@@ -16,6 +14,7 @@ import traceback
 
 from src.common.i18n import set_locale, t, tn
 from src.common.logger import get_logger, initialize_logging, shutdown_logging
+from src.config.legacy_upgrade_confirmation import require_legacy_upgrade_confirmation
 
 # 设置工作目录为脚本所在目录
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -91,6 +90,7 @@ def run_runner_process():
 # 此时应该作为 Runner 运行。
 if os.environ.get("MAIBOT_WORKER_PROCESS") != "1":
     if __name__ == "__main__":
+        require_legacy_upgrade_confirmation(Path(script_dir))
         run_runner_process()
     # 如果作为模块导入，不执行 Runner 逻辑，但也不应该执行下面的 Worker 逻辑
     sys.exit(0)
@@ -102,6 +102,8 @@ if os.environ.get("MAIBOT_WORKER_PROCESS") != "1":
 # 由于 Runner 和 Worker 是不同进程，它们有独立的内存空间，所以都会初始化一次
 # 这是正常的，但为了避免重复的初始化日志，我们在 initialize_logging() 中添加了防重复机制
 # 不过由于是不同进程，每个进程仍会初始化一次，这是预期的行为
+
+require_legacy_upgrade_confirmation(Path(script_dir))
 
 from src.main import MainSystem  # noqa
 from src.manager.async_task_manager import async_task_manager  # noqa

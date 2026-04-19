@@ -84,6 +84,20 @@ def _parse_triplet_target(s: str) -> Optional[dict[str, str]]:
     return {"platform": platform, "item_id": item_id, "rule_type": rule_type}
 
 
+def _parse_expression_group_target(s: str) -> Optional[dict[str, str]]:
+    """
+    解析表达互通组目标，兼容旧版 "*" 全局共享标记。
+    """
+    if not isinstance(s, str):
+        return None
+
+    normalized_value = s.strip()
+    if normalized_value == "*":
+        return {"platform": "*", "item_id": "*", "rule_type": "group"}
+
+    return _parse_triplet_target(normalized_value)
+
+
 def _parse_enable_disable(v: Any) -> Optional[bool]:
     """
     兼容旧值 "enable"/"disable" 以及 bool。
@@ -174,7 +188,7 @@ def _migrate_expression_groups(expr: dict[str, Any]) -> bool:
 
         targets: list[dict[str, str]] = []
         for item in group_items:
-            parsed = _parse_triplet_target(str(item))
+            parsed = _parse_expression_group_target(str(item))
             if parsed is None:
                 return False
             targets.append(parsed)

@@ -14,6 +14,7 @@ DEFAULT_LOG_DIR = Path("logs") / "maisaka_reply_effect"
 DEFAULT_MANUAL_DIR = Path("logs") / "maisaka_reply_effect_manual"
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
+DEFAULT_RECORD_LIMIT = 20
 
 
 def normalize_name(value: str) -> str:
@@ -49,21 +50,14 @@ class ReplyEffectRepository:
 
         for chat_dir in sorted(path for path in self.log_dir.iterdir() if path.is_dir()):
             records = list(chat_dir.glob("*.json"))
-            annotated_count = sum(1 for record_file in records if self._annotation_path(chat_dir.name, record_file).exists())
-            finalized_count = 0
-            pending_count = 0
-            for record_file in records:
-                payload = load_json_file(record_file)
-                if payload.get("status") == "finalized":
-                    finalized_count += 1
-                else:
-                    pending_count += 1
+            annotation_dir = self.manual_dir / normalize_name(chat_dir.name)
+            annotated_count = len(list(annotation_dir.glob("*.json"))) if annotation_dir.exists() else 0
             chats.append(
                 {
                     "chat_id": chat_dir.name,
                     "record_count": len(records),
-                    "finalized_count": finalized_count,
-                    "pending_count": pending_count,
+                    "finalized_count": None,
+                    "pending_count": None,
                     "annotated_count": annotated_count,
                 }
             )
@@ -75,9 +69,15 @@ class ReplyEffectRepository:
         chat_id: str | None = None,
         status: str = "",
         annotated: str = "",
-    ) -> list[dict[str, Any]]:
+        limit: int = DEFAULT_RECORD_LIMIT,
+        offset: int = 0,
+    ) -> dict[str, Any]:
         records: list[dict[str, Any]] = []
-        for record_file in self._iter_record_files(chat_id):
+        normalized_limit = max(1, min(1000, int(limit or DEFAULT_RECORD_LIMIT)))
+        normalized_offset = max(0, int(offset or 0))
+        matched_count = 0
+        has_more = False
+        for record_file in self._iter_record_files(chat_id, newest_first=True):
             payload = load_json_file(record_file)
             if not payload:
                 continue
@@ -88,16 +88,30 @@ class ReplyEffectRepository:
                 continue
             if annotated == "no" and summary["manual"] is not None:
                 continue
+            matched_count += 1
+            if matched_count <= normalized_offset:
+                continue
+            if len(records) >= normalized_limit:
+                has_more = True
+                break
             records.append(summary)
-        return sorted(records, key=lambda item: str(item.get("created_at") or ""), reverse=True)
+        return {
+            "records": records,
+            "has_more": has_more,
+            "limit": normalized_limit,
+            "offset": normalized_offset,
+        }
 
-    def get_record(self, chat_id: str, effect_id: str) -> dict[str, Any]:
+    def get_record(self, chat_id: str, effect_id: str, *, compact: bool = False) -> dict[str, Any]:
         record_file = self._find_record_file(chat_id, effect_id)
         if record_file is None:
             return {}
         payload = load_json_file(record_file)
         if not payload:
             return {}
+        self._strip_heavy_reply_metadata(payload)
+        if compact:
+            payload["context_snapshot"] = []
         payload["_manual"] = self.get_annotation(chat_id, effect_id)
         payload["_record_path"] = str(record_file)
         return payload
@@ -114,7 +128,7 @@ class ReplyEffectRepository:
         effect_id = normalize_name(str(payload.get("effect_id") or ""))
         if not chat_id or chat_id == "unknown" or not effect_id or effect_id == "unknown":
             raise ValueError("缺少 chat_id 或 effect_id")
-        if self._find_record_file(chat_id, effect_id) is None:
+        if not self._record_exists(chat_id, effect_id):
             raise ValueError("找不到对应的回复效果记录")
 
         manual_score = payload.get("manual_score")
@@ -151,28 +165,55 @@ class ReplyEffectRepository:
         write_json_file(self._annotation_path(chat_id, effect_id), annotation)
         return annotation
 
-    def _iter_record_files(self, chat_id: str | None = None) -> list[Path]:
+    def _iter_record_files(self, chat_id: str | None = None, *, newest_first: bool = False) -> list[Path]:
         if not self.log_dir.exists():
             return []
         if chat_id:
             chat_dir = self.log_dir / normalize_name(chat_id)
             if not chat_dir.exists() or not chat_dir.is_dir():
                 return []
-            return sorted(chat_dir.glob("*.json"))
+            return self._sort_record_files(chat_dir.glob("*.json"), newest_first=newest_first)
 
         record_files: list[Path] = []
         for chat_dir in self.log_dir.iterdir():
             if chat_dir.is_dir():
                 record_files.extend(chat_dir.glob("*.json"))
-        return record_files
+        return self._sort_record_files(record_files, newest_first=newest_first)
+
+    @staticmethod
+    def _sort_record_files(record_files: Any, *, newest_first: bool) -> list[Path]:
+        return sorted(
+            record_files,
+            key=lambda path: (path.stat().st_mtime, path.name),
+            reverse=newest_first,
+        )
 
     def _find_record_file(self, chat_id: str, effect_id: str) -> Path | None:
         normalized_effect_id = normalize_name(effect_id)
+        direct_match = self._direct_record_file(chat_id, effect_id)
+        if direct_match is not None:
+            return direct_match
         for record_file in self._iter_record_files(chat_id):
             payload = load_json_file(record_file)
             if normalize_name(str(payload.get("effect_id") or "")) == normalized_effect_id:
                 return record_file
         return None
+
+    def _record_exists(self, chat_id: str, effect_id: str) -> bool:
+        if self._direct_record_file(chat_id, effect_id) is not None:
+            return True
+        return self._find_record_file(chat_id, effect_id) is not None
+
+    def _direct_record_file(self, chat_id: str, effect_id: str) -> Path | None:
+        chat_dir = self.log_dir / normalize_name(chat_id)
+        if not chat_dir.exists() or not chat_dir.is_dir():
+            return None
+        normalized_effect_id = normalize_name(effect_id)
+        matches = sorted(chat_dir.glob(f"*_{normalized_effect_id}.json"))
+        if not matches:
+            exact_path = chat_dir / f"{normalized_effect_id}.json"
+            return exact_path if exact_path.exists() else None
+        return matches[-1]
 
     def _annotation_path(self, chat_id: str, record_file_or_effect_id: Path | str) -> Path:
         if isinstance(record_file_or_effect_id, Path):
@@ -214,6 +255,24 @@ class ReplyEffectRepository:
             return normalized_text
         return f"{normalized_text[: limit - 1]}…"
 
+    @staticmethod
+    def _strip_heavy_reply_metadata(payload: dict[str, Any]) -> None:
+        reply = payload.get("reply")
+        if not isinstance(reply, dict):
+            return
+        metadata = reply.get("reply_metadata")
+        if not isinstance(metadata, dict):
+            return
+        monitor_detail = metadata.get("monitor_detail")
+        if not isinstance(monitor_detail, dict):
+            return
+        compact_detail: dict[str, Any] = {}
+        for key in ("metrics", "output_text", "extra_sections"):
+            value = monitor_detail.get(key)
+            if value:
+                compact_detail[key] = value
+        metadata["monitor_detail"] = compact_detail
+
 
 class ReplyEffectPreviewHandler(BaseHTTPRequestHandler):
     repository: ReplyEffectRepository
@@ -232,14 +291,17 @@ class ReplyEffectPreviewHandler(BaseHTTPRequestHandler):
                 chat_id=self._first(query, "chat_id"),
                 status=self._first(query, "status"),
                 annotated=self._first(query, "annotated"),
+                limit=self._int(query, "limit", DEFAULT_RECORD_LIMIT),
+                offset=self._int(query, "offset", 0),
             )
-            self._send_json({"records": records})
+            self._send_json(records)
             return
         if parsed.path == "/api/record":
             query = parse_qs(parsed.query)
             record = self.repository.get_record(
                 normalize_name(self._first(query, "chat_id")),
                 normalize_name(self._first(query, "effect_id")),
+                compact=self._first(query, "compact") in {"1", "true", "yes"},
             )
             if not record:
                 self._send_json({"error": "record not found"}, status=404)
@@ -359,6 +421,13 @@ class ReplyEffectPreviewHandler(BaseHTTPRequestHandler):
     def _first(query: dict[str, list[str]], key: str) -> str:
         values = query.get(key) or [""]
         return values[0]
+
+    @classmethod
+    def _int(cls, query: dict[str, list[str]], key: str, default: int) -> int:
+        try:
+            return int(cls._first(query, key) or default)
+        except ValueError:
+            return default
 
 
 INDEX_HTML = r"""<!doctype html>
@@ -563,7 +632,8 @@ INDEX_HTML = r"""<!doctype html>
       document.getElementById("detailPane").innerHTML = "选择一条记录查看详情";
     }
 
-    async function loadRecords() {
+    async function loadRecords(offset = recordOffset) {
+      recordOffset = Math.max(0, offset);
       const params = new URLSearchParams();
       if (selectedChat) params.set("chat_id", selectedChat);
       const status = document.getElementById("statusFilter").value;
@@ -601,7 +671,7 @@ INDEX_HTML = r"""<!doctype html>
       selectedEffect = effectId;
       renderChats();
       renderRecords();
-      const data = await api(`/api/record?chat_id=${encodeURIComponent(chatId)}&effect_id=${encodeURIComponent(effectId)}`);
+      const data = await api(`/api/record?chat_id=${encodeURIComponent(chatId)}&effect_id=${encodeURIComponent(effectId)}&compact=1`);
       renderDetail(data.record);
     }
 
@@ -891,17 +961,18 @@ INDEX_HTML_V2 = r"""<!doctype html>
     <section class="content">
       <div id="browsePanel">
         <div class="toolbar">
-          <select id="statusFilter" onchange="loadRecords()">
+          <select id="statusFilter" onchange="loadRecords(0)">
             <option value="">全部状态</option>
             <option value="finalized">已完成</option>
             <option value="pending">观察中</option>
           </select>
-          <select id="annotationFilter" onchange="loadRecords()">
+          <select id="annotationFilter" onchange="loadRecords(0)">
             <option value="">全部标注</option>
             <option value="yes">已人工评分</option>
             <option value="no">未人工评分</option>
           </select>
         </div>
+        <div id="recordPager" class="toolbar"></div>
         <div id="recordList"></div>
       </div>
       <div id="ratingPanel" class="hidden">
@@ -911,6 +982,7 @@ INDEX_HTML_V2 = r"""<!doctype html>
           <button class="secondary" onclick="moveRating(1)">下一条</button>
         </div>
         <div id="ratingQueueInfo" class="meta"></div>
+        <div id="ratingPager" class="toolbar"></div>
         <div id="ratingQueueList"></div>
       </div>
     </section>
@@ -1095,6 +1167,7 @@ INDEX_HTML_V2 = r"""<!doctype html>
       if (selectedChat) params.set("chat_id", selectedChat);
       params.set("status", "finalized");
       params.set("annotated", "no");
+      params.set("limit", String(RATING_QUEUE_LIMIT));
       const data = await api(`/api/records?${params.toString()}`);
       ratingQueue = data.records || [];
       ratingIndex = 0;
@@ -1671,6 +1744,12 @@ INDEX_HTML_V3 = r"""<!doctype html>
     let selectedFivePointScore = 0;
     let currentTargetMessageId = "";
     let currentMessageIndex = new Map();
+    let recordOffset = 0;
+    let recordHasMore = false;
+    let ratingOffset = 0;
+    let ratingHasMore = false;
+    const RECORD_LIST_LIMIT = 20;
+    const RATING_QUEUE_LIMIT = 20;
 
     async function api(path, options) {
       const res = await fetch(path, options);
@@ -1686,9 +1765,9 @@ INDEX_HTML_V3 = r"""<!doctype html>
       renderChats();
       renderRateChatSelect();
       if (activeMode === "rate") {
-        await loadRatingQueue();
+        await loadRatingQueue(0);
       } else {
-        await loadRecords();
+        await loadRecords(0);
       }
     }
 
@@ -1700,10 +1779,10 @@ INDEX_HTML_V3 = r"""<!doctype html>
       document.getElementById("browsePanel").classList.toggle("hidden", mode !== "browse");
       document.getElementById("ratingPanel").classList.toggle("hidden", mode !== "rate");
       if (mode === "rate") {
-        loadRatingQueue();
+        loadRatingQueue(0);
       } else {
         document.body.classList.remove("rate-drawer-collapsed");
-        loadRecords();
+        loadRecords(0);
       }
     }
 
@@ -1719,7 +1798,7 @@ INDEX_HTML_V3 = r"""<!doctype html>
         <div class="chat-item ${chat.chat_id === selectedChat ? "active" : ""}"
           onclick="selectChat('${escapeAttr(chat.chat_id)}')">
           <div class="chat-id">${escapeHtml(chat.chat_id)}</div>
-          <div class="meta">记录 ${chat.record_count} | 完成 ${chat.finalized_count} | 人工 ${chat.annotated_count}</div>
+          <div class="meta">记录 ${chat.record_count} | 人工 ${chat.annotated_count}</div>
         </div>
       `).join("") || `<div class="empty">没有聊天流</div>`;
     }
@@ -1741,9 +1820,9 @@ INDEX_HTML_V3 = r"""<!doctype html>
       renderRateChatSelect();
       document.getElementById("detailPane").innerHTML = "选择一条记录查看详情";
       if (activeMode === "rate") {
-        await loadRatingQueue();
+        await loadRatingQueue(0);
       } else {
-        await loadRecords();
+        await loadRecords(0);
       }
     }
 
@@ -1760,9 +1839,13 @@ INDEX_HTML_V3 = r"""<!doctype html>
       const annotated = document.getElementById("annotationFilter").value;
       if (status) params.set("status", status);
       if (annotated) params.set("annotated", annotated);
+      params.set("limit", String(RECORD_LIST_LIMIT));
+      params.set("offset", String(recordOffset));
       const data = await api(`/api/records?${params.toString()}`);
       records = data.records || [];
+      recordHasMore = Boolean(data.has_more);
       renderRecords();
+      renderRecordPager();
     }
 
     function renderRecords() {
@@ -1788,6 +1871,17 @@ INDEX_HTML_V3 = r"""<!doctype html>
       }).join("") || `<div class="empty">没有记录</div>`;
     }
 
+    function renderRecordPager() {
+      const pager = document.getElementById("recordPager");
+      if (!pager) return;
+      const pageNumber = Math.floor(recordOffset / RECORD_LIST_LIMIT) + 1;
+      pager.innerHTML = `
+        <button class="secondary" ${recordOffset <= 0 ? "disabled" : ""} onclick="loadRecords(${Math.max(0, recordOffset - RECORD_LIST_LIMIT)})">上一页</button>
+        <span class="meta">第 ${pageNumber} 页，每页 ${RECORD_LIST_LIMIT} 条</span>
+        <button class="secondary" ${!recordHasMore ? "disabled" : ""} onclick="loadRecords(${recordOffset + RECORD_LIST_LIMIT})">下一页</button>
+      `;
+    }
+
     async function loadDetail(chatId, effectId) {
       selectedChat = chatId;
       selectedEffect = effectId;
@@ -1803,10 +1897,9 @@ INDEX_HTML_V3 = r"""<!doctype html>
       const manual = record._manual || {};
       const followups = record.followup_messages || [];
       currentTargetMessageId = String(reply.target_message_id || "");
-      const context = normalizeContextMessages(record.context_snapshot || []);
       const normalizedFollowups = normalizeFollowupMessages(followups);
       const botReply = normalizeBotReply(reply);
-      buildCurrentMessageIndex(context, botReply, normalizedFollowups);
+      buildCurrentMessageIndex([], botReply, normalizedFollowups);
       selectedFivePointScore = Number(manual.manual_score_5 || score100ToFive(manual.manual_score) || 0);
       document.getElementById("detailPane").innerHTML = `
         <div class="block">
@@ -1842,22 +1935,23 @@ INDEX_HTML_V3 = r"""<!doctype html>
           <h2>后续消息</h2>
           ${renderMessageCards(normalizedFollowups, "暂无")}
         </div>
-        <div class="block">
-          <h2>完整 JSON</h2>
-          <pre>${escapeHtml(JSON.stringify(record, null, 2))}</pre>
-        </div>
       `;
     }
 
-    async function loadRatingQueue() {
+    async function loadRatingQueue(offset = ratingOffset) {
+      ratingOffset = Math.max(0, offset);
       const params = new URLSearchParams();
       if (selectedChat) params.set("chat_id", selectedChat);
       params.set("status", "finalized");
       params.set("annotated", "no");
+      params.set("limit", String(RATING_QUEUE_LIMIT));
+      params.set("offset", String(ratingOffset));
       const data = await api(`/api/records?${params.toString()}`);
       ratingQueue = data.records || [];
+      ratingHasMore = Boolean(data.has_more);
       ratingIndex = 0;
       renderRatingQueue();
+      renderRatingPager();
       if (ratingQueue.length) {
         await loadRatingDetail(0);
       } else {
@@ -1879,6 +1973,17 @@ INDEX_HTML_V3 = r"""<!doctype html>
           <div class="preview">${escapeHtml(record.reply_preview || "")}</div>
         </div>
       `).join("") || `<div class="empty">没有待评分记录</div>`;
+    }
+
+    function renderRatingPager() {
+      const pager = document.getElementById("ratingPager");
+      if (!pager) return;
+      const pageNumber = Math.floor(ratingOffset / RATING_QUEUE_LIMIT) + 1;
+      pager.innerHTML = `
+        <button class="secondary" ${ratingOffset <= 0 ? "disabled" : ""} onclick="loadRatingQueue(${Math.max(0, ratingOffset - RATING_QUEUE_LIMIT)})">上一页</button>
+        <span class="meta">第 ${pageNumber} 页，每页 ${RATING_QUEUE_LIMIT} 条</span>
+        <button class="secondary" ${!ratingHasMore ? "disabled" : ""} onclick="loadRatingQueue(${ratingOffset + RATING_QUEUE_LIMIT})">下一页</button>
+      `;
     }
 
     async function loadRatingDetail(index) {
@@ -1999,13 +2104,58 @@ INDEX_HTML_V3 = r"""<!doctype html>
           body: JSON.stringify(payload),
         });
         if (activeMode === "rate" && moveNext) {
-          await loadRatingQueue();
+          await advanceRatingQueueAfterSave(effectId);
         } else {
-          await reloadAll();
+          markRecordAnnotated(effectId, selectedFivePointScore);
+          renderRecords();
           await loadDetail(chatId, effectId);
         }
       } catch (err) {
         alert(err.message);
+      }
+    }
+
+    async function advanceRatingQueueAfterSave(effectId) {
+      const savedIndex = ratingQueue.findIndex(record => record.effect_id === effectId);
+      if (savedIndex >= 0) {
+        ratingQueue.splice(savedIndex, 1);
+      }
+      if (!ratingQueue.length) {
+        if (ratingHasMore) {
+          await loadRatingQueue(ratingOffset);
+          refreshChatsQuietly();
+          return;
+        }
+        renderRatingQueue();
+        renderRatingPager();
+        renderEmptyRatingDetail();
+        refreshChatsQuietly();
+        return;
+      }
+      ratingIndex = Math.min(savedIndex >= 0 ? savedIndex : ratingIndex, ratingQueue.length - 1);
+      renderRatingQueue();
+      renderRatingPager();
+      await loadRatingDetail(ratingIndex);
+      refreshChatsQuietly();
+    }
+
+    function markRecordAnnotated(effectId, score) {
+      const item = records.find(record => record.effect_id === effectId);
+      if (!item) return;
+      item.manual = {
+        manual_score_5: score,
+        evaluator: currentEvaluator(),
+      };
+    }
+
+    async function refreshChatsQuietly() {
+      try {
+        const data = await api("/api/chats");
+        chats = data.chats || [];
+        renderChats();
+        renderRateChatSelect();
+      } catch (_err) {
+        return;
       }
     }
 
