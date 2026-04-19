@@ -107,9 +107,9 @@ def _parse_enable_disable(v: Any) -> Optional[bool]:
 
     if isinstance(v, str):
         normalized_value = v.strip().lower()
-        if normalized_value == "enable":
+        if normalized_value in {"enable", "true"}:
             return True
-        if normalized_value == "disable":
+        if normalized_value in {"disable", "false"}:
             return False
 
     return None
@@ -174,7 +174,21 @@ def _migrate_expression_groups(expr: dict[str, Any]) -> bool:
     """
     将旧版 expression.expression_groups 转成当前结构。
     """
-    expression_groups = _as_list(expr.get("expression_groups"))
+    raw_expression_groups = expr.get("expression_groups")
+    if isinstance(raw_expression_groups, str):
+        normalized_value = raw_expression_groups.strip()
+        if not normalized_value:
+            expr["expression_groups"] = []
+            return True
+
+        parsed = _parse_expression_group_target(normalized_value)
+        if parsed is None:
+            return False
+
+        expr["expression_groups"] = [{"expression_groups": [parsed]}]
+        return True
+
+    expression_groups = _as_list(raw_expression_groups)
     if expression_groups is None:
         return False
     if expression_groups and all(isinstance(item, dict) for item in expression_groups):
@@ -220,6 +234,35 @@ def _migrate_target_item_list(parent: dict[str, Any], key: str) -> bool:
     return True
 
 
+def _drop_empty_keyword_rules(keyword_reaction: dict[str, Any], key: str) -> bool:
+    raw = _as_list(keyword_reaction.get(key))
+    if raw is None:
+        return False
+
+    cleaned_rules: list[Any] = []
+    dropped_any = False
+    for item in raw:
+        item_dict = _as_dict(item)
+        if item_dict is None:
+            cleaned_rules.append(item)
+            continue
+
+        keywords = _as_list(item_dict.get("keywords")) or []
+        regex = _as_list(item_dict.get("regex")) or []
+        reaction = item_dict.get("reaction")
+        if not keywords and not regex and (reaction is None or str(reaction).strip() == ""):
+            dropped_any = True
+            continue
+
+        cleaned_rules.append(item)
+
+    if not dropped_any:
+        return False
+
+    keyword_reaction[key] = cleaned_rules
+    return True
+
+
 def migrate_legacy_bind_env_to_bot_config_dict(data: dict[str, Any]) -> MigrationResult:
     """将旧版 `.env` 中的绑定地址迁移到主配置结构。"""
 
@@ -236,7 +279,7 @@ def migrate_legacy_bind_env_to_bot_config_dict(data: dict[str, Any]) -> Migratio
     if maim_message is not None and _migrate_env_value(maim_message, "ws_server_host", main_host_env, "127.0.0.1"):
         migrated_any = True
         reasons.append("HOST->maim_message.ws_server_host")
-    if maim_message is not None and _migrate_env_value(maim_message, "ws_server_port", main_port_env, 8080):
+    if maim_message is not None and _migrate_env_value(maim_message, "ws_server_port", main_port_env, 8000):
         migrated_any = True
         reasons.append("PORT->maim_message.ws_server_port")
 
@@ -266,6 +309,12 @@ def try_migrate_legacy_bot_config_dict(data: dict[str, Any]) -> MigrationResult:
 
     migrated_any = False
     reasons: list[str] = []
+
+    bot = _as_dict(data.get("bot"))
+    if bot is not None and isinstance(bot.get("qq_account"), str) and not bot["qq_account"].strip():
+        bot["qq_account"] = 0
+        migrated_any = True
+        reasons.append("bot.qq_account_empty")
 
     expr = _as_dict(data.get("expression"))
     if expr is not None:
@@ -311,6 +360,15 @@ def try_migrate_legacy_bot_config_dict(data: dict[str, Any]) -> MigrationResult:
     if memory is not None and _migrate_target_item_list(memory, "global_memory_blacklist"):
         migrated_any = True
         reasons.append("memory.global_memory_blacklist")
+
+    keyword_reaction = _as_dict(data.get("keyword_reaction"))
+    if keyword_reaction is not None:
+        if _drop_empty_keyword_rules(keyword_reaction, "keyword_rules"):
+            migrated_any = True
+            reasons.append("keyword_reaction.keyword_rules_empty")
+        if _drop_empty_keyword_rules(keyword_reaction, "regex_rules"):
+            migrated_any = True
+            reasons.append("keyword_reaction.regex_rules_empty")
 
     reason = ",".join(reasons)
     return MigrationResult(data=data, migrated=migrated_any, reason=reason)

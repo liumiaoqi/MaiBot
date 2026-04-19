@@ -1205,7 +1205,7 @@ class MaimMessageConfig(ConfigBase):
     """旧版基于WS的服务器主机地址"""
 
     ws_server_port: int = Field(
-        default=8080,
+        default=8000,
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "hash",
