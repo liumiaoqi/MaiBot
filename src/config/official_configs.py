@@ -194,6 +194,15 @@ class ChatConfig(ConfigBase):
     inevitable_at_reply: bool = Field(default=True)
     """是否启用at必回复"""
 
+    enable_reply_quote: bool = Field(
+        default=True,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "quote",
+        },
+    )
+    """是否启用回复时附带引用回复"""
+
     max_context_size: int = Field(
         default=30,
         json_schema_extra={

@@ -1,12 +1,14 @@
 """reply 内置工具。"""
 
-import traceback
 from typing import Optional
+
+import traceback
 
 from src.chat.replyer.replyer_manager import replyer_manager
 from src.cli.maisaka_cli_sender import CLI_PLATFORM_NAME, render_cli_message
 from src.common.data_models.reply_generation_data_models import ReplyGenerationResult
 from src.common.logger import get_logger
+from src.config import config as config_module
 from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
 from src.services import send_service
 
@@ -84,6 +86,8 @@ async def handle_tool(
     reference_info = str(invocation.arguments.get("reference_info") or "").strip()
     target_message_id = str(invocation.arguments.get("msg_id") or "").strip()
     set_quote = bool(invocation.arguments.get("set_quote", True))
+    enable_reply_quote = bool(config_module.global_config.chat.enable_reply_quote)
+    effective_set_quote = set_quote and enable_reply_quote
 
     if not target_message_id:
         return tool_ctx.build_failure_result(
@@ -172,8 +176,8 @@ async def handle_tool(
                 sent_message = await send_service.text_to_stream_with_message(
                     text=segment,
                     stream_id=tool_ctx.runtime.session_id,
-                    set_reply=set_quote if index == 0 else False,
-                    reply_message=target_message if set_quote and index == 0 else None,
+                    set_reply=effective_set_quote if index == 0 else False,
+                    reply_message=target_message if effective_set_quote and index == 0 else None,
                     selected_expressions=reply_result.selected_expression_ids or None,
                     typing=index > 0,
                     sync_to_maisaka_history=True,
@@ -202,6 +206,7 @@ async def handle_tool(
             structured_content={
                 "msg_id": target_message_id,
                 "set_quote": set_quote,
+                "effective_set_quote": effective_set_quote,
                 "reply_segments": reply_segments,
             },
             metadata=reply_metadata,
@@ -217,7 +222,7 @@ async def handle_tool(
     await tool_ctx.runtime.track_reply_effect(
         tool_call_id=invocation.call_id,
         target_message=target_message,
-        set_quote=set_quote,
+        set_quote=effective_set_quote,
         reply_text=combined_reply_text,
         reply_segments=reply_segments,
         planner_reasoning=latest_thought,
@@ -231,6 +236,7 @@ async def handle_tool(
         structured_content={
             "msg_id": target_message_id,
             "set_quote": set_quote,
+            "effective_set_quote": effective_set_quote,
             "reply_text": combined_reply_text,
             "reply_segments": reply_segments,
             "target_user_name": target_user_name,
