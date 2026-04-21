@@ -19,6 +19,7 @@ from ..utils.matcher import AhoCorasick
 from ..utils.time_parser import format_timestamp
 from .graph_relation_recall import GraphRelationRecallConfig, GraphRelationRecallService
 from .pagerank import PersonalizedPageRank, PageRankConfig
+from .posterior_graph import PosteriorGraphConfig, apply_posterior_graph_gate
 from .sparse_bm25 import SparseBM25Config, SparseBM25Index
 
 logger = get_logger("A_Memorix.DualPathRetriever")
@@ -101,6 +102,7 @@ class DualPathRetrieverConfig:
     fusion: "FusionConfig" = field(default_factory=lambda: FusionConfig())
     relation_intent: "RelationIntentConfig" = field(default_factory=lambda: RelationIntentConfig())
     graph_recall: GraphRelationRecallConfig = field(default_factory=GraphRelationRecallConfig)
+    posterior_graph: PosteriorGraphConfig = field(default_factory=PosteriorGraphConfig)
 
     def __post_init__(self):
         """验证配置"""
@@ -112,6 +114,8 @@ class DualPathRetrieverConfig:
             self.relation_intent = RelationIntentConfig(**self.relation_intent)
         if isinstance(self.graph_recall, dict):
             self.graph_recall = GraphRelationRecallConfig(**self.graph_recall)
+        if isinstance(self.posterior_graph, dict):
+            self.posterior_graph = PosteriorGraphConfig(**self.posterior_graph)
 
         if not 0 <= self.alpha <= 1:
             raise ValueError(f"alpha必须在[0, 1]之间: {self.alpha}")
@@ -1073,6 +1077,14 @@ class DualPathRetriever:
                 )
             if temporal:
                 fused_results = self._sort_results_with_temporal(fused_results, temporal)
+            fused_results = apply_posterior_graph_gate(
+                self,
+                query=query,
+                base_results=fused_results,
+                top_k=top_k,
+                temporal=temporal,
+                relation_intent=relation_intent,
+            )
             fused_results = self._apply_relation_intent_pair_rerank(
                 fused_results,
                 enabled=bool(relation_intent.get("enabled", False)),
@@ -1174,6 +1186,15 @@ class DualPathRetriever:
         if temporal:
             fused_results = self._sort_results_with_temporal(fused_results, temporal)
 
+        fused_results = apply_posterior_graph_gate(
+            self,
+            query=query,
+            base_results=fused_results,
+            top_k=top_k,
+            temporal=temporal,
+            relation_intent=relation_intent,
+        )
+
         fused_results = self._apply_relation_intent_pair_rerank(
             fused_results,
             enabled=bool(relation_intent.get("enabled", False)),
@@ -1198,37 +1219,13 @@ class DualPathRetriever:
         Returns:
             (段落结果, 关系结果)
         """
-        # 使用 asyncio.gather 并发执行两个搜索任务
-        # 由于 _search_paragraphs 和 _search_relations 是 CPU 密集型同步函数，
-        # 使用 asyncio.to_thread 在线程池中执行
         try:
-            para_task = asyncio.to_thread(
-                self._search_paragraphs,
+            return await asyncio.to_thread(
+                self._collect_mixed_candidates,
                 query_emb,
-                self.config.top_k_paragraphs,
                 temporal,
+                relation_top_k,
             )
-            rel_task = asyncio.to_thread(
-                self._search_relations,
-                query_emb,
-                relation_top_k if relation_top_k is not None else self.config.top_k_relations,
-                temporal,
-            )
-            
-            para_results, rel_results = await asyncio.gather(
-                para_task, rel_task, return_exceptions=True
-            )
-            
-            # 处理异常
-            if isinstance(para_results, Exception):
-                logger.error(f"段落检索失败: {para_results}")
-                para_results = []
-            if isinstance(rel_results, Exception):
-                logger.error(f"关系检索失败: {rel_results}")
-                rel_results = []
-                
-            return para_results, rel_results
-            
         except Exception as e:
             logger.error(f"并行检索失败: {e}")
             return [], []
@@ -1248,18 +1245,125 @@ class DualPathRetriever:
         Returns:
             (段落结果, 关系结果)
         """
-        para_results = self._search_paragraphs(
+        return self._collect_mixed_candidates(
             query_emb,
-            self.config.top_k_paragraphs,
             temporal,
+            relation_top_k,
         )
 
-        rel_results = self._search_relations(
-            query_emb,
-            relation_top_k if relation_top_k is not None else self.config.top_k_relations,
-            temporal,
-        )
+    def _mixed_candidate_budget(
+        self,
+        para_top_k: int,
+        rel_top_k: int,
+        temporal: Optional[TemporalQueryOptions],
+    ) -> int:
+        multiplier = max(1, temporal.candidate_multiplier) if temporal else 1
+        base = max(para_top_k + rel_top_k, max(para_top_k, rel_top_k) * 2)
+        return max(base * 6 * multiplier, 48)
 
+    def _merge_backfilled_results(
+        self,
+        *,
+        primary_results: List[RetrievalResult],
+        backfill_results: List[RetrievalResult],
+        top_k: int,
+    ) -> List[RetrievalResult]:
+        merged: Dict[str, RetrievalResult] = {}
+        for item in primary_results:
+            merged[item.hash_value] = item
+        for item in backfill_results:
+            existing = merged.get(item.hash_value)
+            if existing is None or float(item.score) > float(existing.score):
+                merged[item.hash_value] = item
+
+        results = list(merged.values())
+        results.sort(key=lambda item: item.score, reverse=True)
+        return results[:top_k]
+
+    def _collect_mixed_candidates(
+        self,
+        query_emb: np.ndarray,
+        temporal: Optional[TemporalQueryOptions] = None,
+        relation_top_k: Optional[int] = None,
+    ) -> Tuple[List[RetrievalResult], List[RetrievalResult]]:
+        para_top_k = self.config.top_k_paragraphs
+        rel_top_k = relation_top_k if relation_top_k is not None else self.config.top_k_relations
+        candidate_k = self._mixed_candidate_budget(para_top_k, rel_top_k, temporal)
+        candidate_k = self._cap_temporal_scan_k(candidate_k, temporal)
+        ids, scores = self.vector_store.search(query_emb, k=candidate_k)
+
+        para_candidates: List[RetrievalResult] = []
+        rel_candidates: List[RetrievalResult] = []
+        seen_para = set()
+        seen_rel = set()
+
+        for hash_value, score in zip(ids, scores):
+            paragraph = self.metadata_store.get_paragraph(hash_value)
+            if paragraph is not None and hash_value not in seen_para:
+                seen_para.add(hash_value)
+                para_candidates.append(
+                    RetrievalResult(
+                        hash_value=hash_value,
+                        content=paragraph["content"],
+                        score=float(score),
+                        result_type="paragraph",
+                        source="paragraph_search",
+                        metadata={
+                            "word_count": paragraph.get("word_count", 0),
+                            "time_meta": self._build_time_meta_from_paragraph(
+                                paragraph,
+                                temporal=temporal,
+                            ),
+                        },
+                    )
+                )
+                continue
+
+            relation = self.metadata_store.get_relation(hash_value, include_inactive=False)
+            if relation is None or hash_value in seen_rel:
+                continue
+
+            relation_time_meta = None
+            if temporal:
+                relation_time_meta = self._best_supporting_time_meta(hash_value, temporal)
+                if relation_time_meta is None:
+                    continue
+
+            seen_rel.add(hash_value)
+            rel_candidates.append(
+                RetrievalResult(
+                    hash_value=hash_value,
+                    content=f"{relation['subject']} {relation['predicate']} {relation['object']}",
+                    score=float(score),
+                    result_type="relation",
+                    source="relation_search",
+                    metadata={
+                        "subject": relation["subject"],
+                        "predicate": relation["predicate"],
+                        "object": relation["object"],
+                        "confidence": relation.get("confidence", 1.0),
+                        "time_meta": relation_time_meta,
+                    },
+                )
+            )
+
+        para_results = self._apply_temporal_filter_to_paragraphs(para_candidates, temporal)
+        rel_results = self._apply_temporal_filter_to_relations(rel_candidates, temporal)
+
+        # 双重方案里，向量主干优先解决“召回不够”，因此主检索走共享候选池，
+        # 但再补一层按类型回填，避免 paragraph / relation 任一侧被饿死。
+        para_backfill = self._search_paragraphs(query_emb, para_top_k, temporal)
+        rel_backfill = self._search_relations(query_emb, rel_top_k, temporal)
+        para_results = self._merge_backfilled_results(
+            primary_results=para_results,
+            backfill_results=para_backfill,
+            top_k=para_top_k,
+        )
+        rel_results = self._merge_backfilled_results(
+            primary_results=rel_results,
+            backfill_results=rel_backfill,
+            top_k=rel_top_k,
+        )
         return para_results, rel_results
 
     def _search_paragraphs(
