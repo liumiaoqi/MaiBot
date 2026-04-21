@@ -14,7 +14,6 @@ from src.common.database.database import get_db_session
 from src.common.database.database_model import Images, ImageType
 from src.common.data_models.image_data_model import MaiImage
 from src.config.config import global_config
-from src.common.data_models.llm_service_data_models import LLMImageOptions
 from src.services.llm_service import LLMServiceClient
 
 install(extra_lines=3)
@@ -382,7 +381,6 @@ class ImageManager:
             prompt,
             image_base64,
             image_format,
-            options=LLMImageOptions(temperature=0.4),
         )
         description = generation_result.response
         if not description:

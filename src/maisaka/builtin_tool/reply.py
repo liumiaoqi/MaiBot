@@ -24,7 +24,6 @@ async def _run_expression_selector(tool_ctx: BuiltinToolRuntimeContext, system_p
         system_prompt=system_prompt,
         request_kind="expression_selector",
         max_tokens=256,
-        temperature=0.1,
     )
     return (response.content or "").strip()
 

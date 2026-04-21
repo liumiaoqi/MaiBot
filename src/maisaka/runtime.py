@@ -566,7 +566,6 @@ class MaisakaHeartFlowChatting:
         interrupt_flag: asyncio.Event | None = None,
         max_tokens: int = 512,
         response_format: RespFormat | None = None,
-        temperature: float = 0.2,
         tool_definitions: Optional[Sequence[ToolDefinitionInput]] = None,
     ) -> ChatResponse:
         """运行一个复制上下文的临时子代理，并在完成后立即销毁。"""
@@ -584,7 +583,6 @@ class MaisakaHeartFlowChatting:
             chat_system_prompt=system_prompt,
             session_id=self.session_id,
             is_group_chat=self.chat_stream.is_group_session,
-            temperature=temperature,
             max_tokens=max_tokens,
         )
         sub_agent.set_interrupt_flag(interrupt_flag)
@@ -611,7 +609,6 @@ class MaisakaHeartFlowChatting:
             request_kind="reply_effect_judge",
             extra_messages=[judge_message],
             max_tokens=900,
-            temperature=0.1,
             tool_definitions=[],
         )
         return (response.content or "").strip()

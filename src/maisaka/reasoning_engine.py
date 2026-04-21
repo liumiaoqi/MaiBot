@@ -138,7 +138,6 @@ class MaisakaReasoningEngine:
             request_kind="timing_gate",
             interrupt_flag=None,
             max_tokens=TIMING_GATE_MAX_TOKENS,
-            temperature=0.1,
             tool_definitions=tool_definitions,
         )
 
