@@ -3,15 +3,69 @@
 你的第一个 MaiCore 插件，包含问候功能、时间查询等基础示例。
 """
 
-from maibot_sdk import Action, Command, EventHandler, MaiBotPlugin, Tool
+from datetime import datetime
+from typing import Any
+
+import random
+
+from maibot_sdk import Action, Command, EventHandler, Field, MaiBotPlugin, PluginConfigBase, Tool
 from maibot_sdk.types import ActivationType, EventType, ToolParameterInfo, ToolParamType
 
-import datetime
-import random
+
+class PluginSectionConfig(PluginConfigBase):
+    """插件基础配置。"""
+
+    __ui_label__ = "插件"
+    __ui_icon__ = "package"
+    __ui_order__ = 0
+
+    enabled: bool = Field(default=False, description="是否启用插件")
+    config_version: str = Field(default="2.0.0", description="配置版本")
+
+
+class GreetingConfig(PluginConfigBase):
+    """问候配置。"""
+
+    __ui_label__ = "问候"
+    __ui_icon__ = "message-circle"
+    __ui_order__ = 1
+
+    message: str = Field(default="嗨！很开心见到你！😊", description="默认问候消息")
+
+
+class TimeConfig(PluginConfigBase):
+    """时间查询配置。"""
+
+    __ui_label__ = "时间"
+    __ui_icon__ = "clock"
+    __ui_order__ = 2
+
+    format: str = Field(default="%Y-%m-%d %H:%M:%S", description="时间显示格式")
+
+
+class PrintMessageConfig(PluginConfigBase):
+    """消息打印配置。"""
+
+    __ui_label__ = "消息打印"
+    __ui_icon__ = "terminal"
+    __ui_order__ = 3
+
+    enabled: bool = Field(default=False, description="是否打印接收到的消息")
+
+
+class HelloWorldPluginConfig(PluginConfigBase):
+    """Hello World 示例插件配置。"""
+
+    plugin: PluginSectionConfig = Field(default_factory=PluginSectionConfig)
+    greeting: GreetingConfig = Field(default_factory=GreetingConfig)
+    time: TimeConfig = Field(default_factory=TimeConfig)
+    print_message: PrintMessageConfig = Field(default_factory=PrintMessageConfig)
 
 
 class HelloWorldPlugin(MaiBotPlugin):
     """Hello World 示例插件"""
+
+    config_model = HelloWorldPluginConfig
 
     async def on_load(self) -> None:
         """处理插件加载。"""
@@ -54,8 +108,9 @@ class HelloWorldPlugin(MaiBotPlugin):
     )
     async def handle_hello(self, stream_id: str = "", greeting_message: str = "", **kwargs):
         """问候动作"""
-        config_result = await self.ctx.config.get("greeting.message")
-        base_message = config_result if isinstance(config_result, str) else "嗨！很开心见到你！😊"
+        del kwargs
+
+        base_message = self.config.greeting.message
         message = base_message + greeting_message
         await self.ctx.send.text(message, stream_id)
         return True, "发送了问候消息"
@@ -71,6 +126,8 @@ class HelloWorldPlugin(MaiBotPlugin):
     )
     async def handle_bye(self, stream_id: str = "", bye_message: str = "", **kwargs):
         """告别动作"""
+        del kwargs
+
         message = f"再见！期待下次聊天！👋{bye_message}"
         await self.ctx.send.text(message, stream_id)
         return True, "发送了告别消息"
@@ -80,9 +137,10 @@ class HelloWorldPlugin(MaiBotPlugin):
     @Command("time", description="查询当前时间", pattern=r"^/time$")
     async def handle_time(self, stream_id: str = "", **kwargs):
         """时间查询命令"""
-        config_result = await self.ctx.config.get("time.format")
-        time_format = config_result if isinstance(config_result, str) else "%Y-%m-%d %H:%M:%S"
-        now = datetime.datetime.now()
+        del kwargs
+
+        time_format = self.config.time.format
+        now = datetime.now()
         time_str = now.strftime(time_format)
         await self.ctx.send.text(f"⏰ 当前时间：{time_str}", stream_id)
         return True, f"显示了当前时间: {time_str}", True
@@ -90,6 +148,8 @@ class HelloWorldPlugin(MaiBotPlugin):
     @Command("random_emojis", description="发送多张随机表情包", pattern=r"^/random_emojis$")
     async def handle_random_emojis(self, stream_id: str = "", **kwargs):
         """发送多张随机表情包"""
+        del kwargs
+
         emojis = await self.ctx.emoji.get_random(5)
         if not emojis:
             return False, "未找到表情包", False
@@ -104,17 +164,19 @@ class HelloWorldPlugin(MaiBotPlugin):
     @Command("test", description="测试命令", pattern=r"^/test$")
     async def handle_test(self, stream_id: str = "", **kwargs):
         """测试命令 — 发送简单测试消息"""
+        del kwargs
+
         await self.ctx.send.text("测试正常！Bot 功能运行中 ✅", stream_id)
         return True, "测试完成", True
 
     # ===== EventHandler 组件 =====
 
     @EventHandler("print_message_handler", description="打印接收到的消息", event_type=EventType.ON_MESSAGE)
-    async def handle_print_message(self, message=None, **kwargs):
+    async def handle_print_message(self, message: Any = None, **kwargs: Any):
         """打印消息事件"""
-        config_result = await self.ctx.config.get("print_message.enabled")
-        enabled = config_result if isinstance(config_result, bool) else False
-        if enabled and message:
+        del kwargs
+
+        if self.config.print_message.enabled and message:
             raw = message.get("raw_message", "") if isinstance(message, dict) else str(message)
             print(f"接收到消息: {raw}")
         return True, True, "消息已打印", None, None
@@ -122,8 +184,10 @@ class HelloWorldPlugin(MaiBotPlugin):
     @EventHandler(
         "forward_messages_handler", description="把接收到的消息转发到指定聊天ID", event_type=EventType.ON_MESSAGE
     )
-    async def handle_forward_messages(self, message=None, stream_id: str = "", **kwargs):
+    async def handle_forward_messages(self, message: Any = None, stream_id: str = "", **kwargs: Any):
         """收集消息并定期转发"""
+        del kwargs
+
         if not message:
             return True, True, None, None, None
         plain_text = message.get("plain_text", "") if isinstance(message, dict) else ""
