@@ -234,7 +234,7 @@ async def ensure_runtime_self_check(
         sample_text=sample_text,
     )
     try:
-        plugin_or_config._runtime_self_check_report = report
+        setattr(plugin_or_config, "_runtime_self_check_report", report)
     except Exception:
         pass
     return report

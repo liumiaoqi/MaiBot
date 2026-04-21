@@ -13,6 +13,7 @@ from ..retrieval import (
     DynamicThresholdFilter,
     FusionConfig,
     GraphRelationRecallConfig,
+    PosteriorGraphConfig,
     RelationIntentConfig,
     RetrievalStrategy,
     SparseBM25Config,
@@ -143,6 +144,9 @@ def build_search_runtime(
     graph_recall_cfg_raw = _safe_dict(
         _get_config_value(plugin_config, "retrieval.search.graph_recall", {}) or {}
     )
+    posterior_graph_cfg_raw = _safe_dict(
+        _get_config_value(plugin_config, "retrieval.search.posterior_graph", {}) or {}
+    )
 
     try:
         sparse_cfg = SparseBM25Config(**sparse_cfg_raw)
@@ -169,6 +173,12 @@ def build_search_runtime(
         graph_recall_cfg = GraphRelationRecallConfig()
 
     try:
+        posterior_graph_cfg = PosteriorGraphConfig(**posterior_graph_cfg_raw)
+    except Exception as e:
+        log.warning(f"{prefix_text}[{owner}] posterior_graph 配置非法，回退默认: {e}")
+        posterior_graph_cfg = PosteriorGraphConfig()
+
+    try:
         config = DualPathRetrieverConfig(
             top_k_paragraphs=_get_config_value(plugin_config, "retrieval.top_k_paragraphs", 20),
             top_k_relations=_get_config_value(plugin_config, "retrieval.top_k_relations", 10),
@@ -189,6 +199,7 @@ def build_search_runtime(
             fusion=fusion_cfg,
             relation_intent=relation_intent_cfg,
             graph_recall=graph_recall_cfg,
+            posterior_graph=posterior_graph_cfg,
         )
 
         runtime.retriever = DualPathRetriever(

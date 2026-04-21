@@ -4,6 +4,7 @@ import asyncio
 import json
 import pickle
 import time
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -18,7 +19,7 @@ from src.services.llm_service import LLMServiceClient
 
 from ...paths import default_data_dir, resolve_repo_path
 from ..embedding import create_embedding_api_adapter
-from ..retrieval import RetrievalResult, SparseBM25Config, SparseBM25Index
+from ..retrieval import RetrievalResult, SparseBM25Config, SparseBM25Index, TemporalQueryOptions
 from ..storage import GraphStore, MetadataStore, QuantizationType, SparseMatrixFormat, VectorStore
 from ..utils.aggregate_query_service import AggregateQueryService
 from ..utils.episode_retrieval_service import EpisodeRetrievalService

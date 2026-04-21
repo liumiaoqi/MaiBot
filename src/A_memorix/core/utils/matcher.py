@@ -4,7 +4,7 @@
 实现 Aho-Corasick 算法用于多模式匹配。
 """
 
-from typing import List, Dict, Tuple, Set
+from typing import List, Dict, Tuple, Set, Any
 from collections import deque
 
 
