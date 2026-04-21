@@ -1582,30 +1582,6 @@ class DatabaseConfig(ConfigBase):
     """
 
 
-class MaiSakaConfig(ConfigBase):
-    """MaiSaka 对话系统配置类"""
-
-    __ui_label__ = "MaiSaka"
-    __ui_icon__ = "message-circle"
-    cli_user_name: str = Field(
-        default="用户",
-        json_schema_extra={
-            "x-widget": "input",
-            "x-icon": "user",
-        },
-    )
-    """MaiSaka 使用的用户名称"""
-
-    show_image_path: bool = Field(
-        default=True,
-        json_schema_extra={
-            "x-widget": "switch",
-            "x-icon": "image",
-        },
-    )
-    """是否显示图片本地路径"""
-
-
 class MCPAuthorizationConfig(ConfigBase):
     """MCP HTTP 认证配置。"""
 

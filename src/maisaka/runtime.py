@@ -296,6 +296,8 @@ class MaisakaHeartFlowChatting:
         reply_segments: list[str],
         planner_reasoning: str,
         reference_info: str,
+        tool_context: Optional[dict[str, Any]] = None,
+        send_results: Optional[list[dict[str, Any]]] = None,
         reply_metadata: Optional[dict[str, Any]] = None,
         replyer_context_messages: Optional[Sequence[LLMContextMessage]] = None,
     ) -> None:
@@ -322,6 +324,8 @@ class MaisakaHeartFlowChatting:
                 reply_segments=reply_segments,
                 planner_reasoning=planner_reasoning,
                 reference_info=reference_info,
+                tool_context=tool_context,
+                send_results=send_results,
                 reply_metadata=enriched_reply_metadata,
                 context_snapshot=context_snapshot,
             )

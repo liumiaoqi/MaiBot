@@ -67,6 +67,8 @@ class ReplyEffectTracker:
         reply_segments: List[str],
         planner_reasoning: str,
         reference_info: str,
+        tool_context: Dict[str, Any] | None = None,
+        send_results: List[Dict[str, Any]] | None = None,
         reply_metadata: Dict[str, Any] | None = None,
         context_snapshot: List[Dict[str, Any]] | None = None,
     ) -> ReplyEffectRecord:
@@ -88,6 +90,8 @@ class ReplyEffectTracker:
                 reply_segments=list(reply_segments),
                 planner_reasoning=planner_reasoning,
                 reference_info=reference_info,
+                tool_context=dict(tool_context or {}),
+                send_results=list(send_results or []),
                 reply_metadata=dict(reply_metadata or {}),
             ),
             target_user=UserSnapshot(

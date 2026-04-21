@@ -8,105 +8,22 @@
 4. 未通过评估的：rejected=1, checked=1
 """
 
+from typing import List
+
 import asyncio
 import random
-from typing import List
 
 from sqlmodel import select
 
-from src.common.data_models.llm_service_data_models import LLMGenerationOptions
 from src.common.database.database import get_db_session
 from src.common.database.database_model import Expression
 from src.common.logger import get_logger
 from src.config.config import global_config
 from src.learners.expression_review_store import get_review_state, set_review_state
-from src.learners.expression_utils import parse_evaluation_response
+from src.learners.expression_utils import check_expression_suitability
 from src.manager.async_task_manager import AsyncTask
-from src.services.llm_service import LLMServiceClient
 
 logger = get_logger("expressor")
-
-
-def create_evaluation_prompt(situation: str, style: str) -> str:
-    """
-    创建评估提示词。
-
-    Args:
-        situation: 情景
-        style: 风格
-
-    Returns:
-        评估提示词
-    """
-    base_criteria = [
-        "表达方式或言语风格是否与使用条件或使用情景匹配",
-        "允许部分语法错误或口语化或缺省出现",
-        "表达方式不能太过特指，需要具有泛用性",
-        "一般不涉及具体的人名或名称",
-    ]
-
-    custom_criteria = global_config.expression.expression_auto_check_custom_criteria
-
-    all_criteria = base_criteria.copy()
-    if custom_criteria:
-        all_criteria.extend(custom_criteria)
-
-    criteria_list = "\n".join([f"{i + 1}. {criterion}" for i, criterion in enumerate(all_criteria)])
-
-    prompt = f"""请评估以下表达方式或语言风格以及使用条件或使用情景是否合适：
-使用条件或使用情景：{situation}
-表达方式或言语风格：{style}
-
-请从以下方面进行评估：
-{criteria_list}
-
-请以 JSON 格式输出评估结果：
-{{
-    "suitable": true/false,
-    "reason": "评估理由（如果不合适，请说明原因）"
-}}
-如果合适，suitable 设为 true；如果不合适，suitable 设为 false，并在 reason 中说明原因。
-请严格按照 JSON 格式输出，不要包含其他内容。"""
-
-    return prompt
-
-
-judge_llm = LLMServiceClient(task_name="utils", request_type="expression_check")
-
-
-async def single_expression_check(situation: str, style: str) -> tuple[bool, str, str | None]:
-    """
-    执行单次 LLM 评估。
-
-    Args:
-        situation: 情景
-        style: 风格
-
-    Returns:
-        (suitable, reason, error) 元组，如果出错则 suitable 为 False，error 包含错误信息
-    """
-    try:
-        prompt = create_evaluation_prompt(situation, style)
-        logger.debug(f"正在评估表达方式: situation={situation}, style={style}")
-
-        generation_result = await judge_llm.generate_response(
-            prompt=prompt,
-            options=LLMGenerationOptions(temperature=0.6, max_tokens=1024),
-        )
-        response = generation_result.response
-        logger.debug(f"LLM响应: {response}")
-
-        evaluation = parse_evaluation_response(response)
-
-        suitable = bool(evaluation.get("suitable", False))
-        reason = str(evaluation.get("reason", "未提供理由"))
-
-        logger.debug(f"评估结果: {'通过' if suitable else '不通过'}")
-        return suitable, reason, None
-
-    except Exception as e:
-        logger.error(f"评估表达方式 (situation={situation}, style={style}) 时出错: {e}")
-        return False, f"评估过程出错: {str(e)}", str(e)
 
 
 class ExpressionAutoCheckTask(AsyncTask):
@@ -164,7 +81,7 @@ class ExpressionAutoCheckTask(AsyncTask):
         Returns:
             True 表示通过，False 表示不通过
         """
-        suitable, reason, error = await single_expression_check(
+        suitable, reason, error = await check_expression_suitability(
             expression.situation,
             expression.style,
         )
