@@ -22,6 +22,8 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 # 工作目录
 WORKDIR /MaiMBot
 
+ENV MAIBOT_LEGACY_0X_UPGRADE_CONFIRMED=1
+
 # 复制依赖列表
 COPY requirements.txt .
 
