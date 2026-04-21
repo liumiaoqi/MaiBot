@@ -10,21 +10,19 @@ MaiSaka - 程序入口
     ENABLE_THINKING  - 是否启用思考模式 (可选, true/false, 不设置则不发送该参数)
 """
 
-import asyncio
-import sys
 from pathlib import Path
 
-# 添加项目根目录和 src/maisaka 到 Python 路径
+import asyncio
+import sys
+
+# 添加项目根目录到 Python 路径
 _root = Path(__file__).parent
-_maisaka_path = _root / "src" / "maisaka"
 if str(_root) not in sys.path:
     sys.path.insert(0, str(_root))
-if str(_maisaka_path) not in sys.path:
-    sys.path.insert(0, str(_maisaka_path))
 
+from src.cli.console import console  # noqa: E402
+from src.cli.maisaka_cli import BufferCLI  # noqa: E402
 from src.prompt.prompt_manager import prompt_manager  # noqa: E402
-from src.maisaka.cli import BufferCLI  # noqa: E402
-from src.maisaka.config import console  # noqa: E402
 
 
 def main():

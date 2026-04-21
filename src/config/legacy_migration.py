@@ -170,6 +170,38 @@ def _migrate_expression_learning_list(expr: dict[str, Any]) -> bool:
     return True
 
 
+def _migrate_chat_talk_value_rules(chat: dict[str, Any]) -> bool:
+    """
+    将旧版 target 字段迁移为当前运行时使用的 platform/item_id/rule_type 结构。
+    """
+    talk_value_rules = _as_list(chat.get("talk_value_rules"))
+    if talk_value_rules is None:
+        return False
+
+    migrated = False
+    for rule in talk_value_rules:
+        rule_item = _as_dict(rule)
+        if rule_item is None or "target" not in rule_item:
+            continue
+
+        target_raw = rule_item.get("target")
+        target = "" if target_raw is None else str(target_raw).strip()
+        if not target:
+            parsed = {"platform": "", "item_id": "", "rule_type": "group"}
+        else:
+            parsed = _parse_triplet_target(target)
+            if parsed is None:
+                continue
+
+        rule_item["platform"] = parsed["platform"]
+        rule_item["item_id"] = parsed["item_id"]
+        rule_item["rule_type"] = parsed["rule_type"]
+        rule_item.pop("target", None)
+        migrated = True
+
+    return migrated
+
+
 def _migrate_expression_groups(expr: dict[str, Any]) -> bool:
     """
     将旧版 expression.expression_groups 转成当前结构。
@@ -315,6 +347,11 @@ def try_migrate_legacy_bot_config_dict(data: dict[str, Any]) -> MigrationResult:
         bot["qq_account"] = 0
         migrated_any = True
         reasons.append("bot.qq_account_empty")
+
+    chat = _as_dict(data.get("chat"))
+    if chat is not None and _migrate_chat_talk_value_rules(chat):
+        migrated_any = True
+        reasons.append("chat.talk_value_rules_target")
 
     expr = _as_dict(data.get("expression"))
     if expr is not None:
