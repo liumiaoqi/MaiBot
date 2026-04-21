@@ -44,5 +44,13 @@
 # 关于webui修改
 不要修改dashboard下的内容，因为这部分内容由另一个仓库build
 
+# 关于 A_memorix 修改
+如果修改涉及 `src/A_memorix`，请先阅读 `src/A_memorix/MODIFICATION_POLICY.md`。
+
+默认原则：
+1. `src/A_memorix` 的实现层改动应优先遵守 `src/A_memorix/MODIFICATION_POLICY.md` 中的归属约束。
+2. 不要提交无边界的 `ruff`、格式化、导入整理或大面积实现整理。
+3. 本地实验目录或依赖其运行的测试，除非明确说明并确认，否则不要进入共享历史。
+
 # maibot插件开发文档
 https://github.com/Mai-with-u/maibot-plugin-sdk/blob/main/docs/guide.md

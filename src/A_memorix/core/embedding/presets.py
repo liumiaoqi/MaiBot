@@ -3,7 +3,7 @@
 """
 
 from dataclasses import dataclass
-from typing import Optional, Union
+from typing import Optional, Dict, Any, Union
 from pathlib import Path
 
 

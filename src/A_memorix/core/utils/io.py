@@ -5,6 +5,7 @@ IO Utilities
 """
 
 import os
+import shutil
 import contextlib
 from pathlib import Path
 from typing import Union
