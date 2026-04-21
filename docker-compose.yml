@@ -33,7 +33,7 @@ services:
       - "18001:8001" # webui端口
 #      - "8000:8000"
     volumes:
-      - ./docker-config/mmc/.env:/MaiMBot/.env # 持久化env配置文件
+      # 监听地址和端口已迁移到 ./docker-config/mmc/bot_config.toml 的 maim_message 与 webui 配置段
       - ./docker-config/mmc:/MaiMBot/config # 持久化bot配置文件
       - ./docker-config/adapters:/MaiMBot/adapters-config # adapter配置文件夹映射
       - ./data/MaiMBot/maibot_statistics.html:/MaiMBot/maibot_statistics.html #统计数据输出
