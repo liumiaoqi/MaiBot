@@ -91,6 +91,8 @@ class ComponentQueryService:
 
         session_id = context.session_id if context is not None else None
         is_group_chat = context.is_group_chat if context is not None else None
+        group_id = context.group_id if context is not None else None
+        platform = context.platform if context is not None else None
         collected_entries: list[tuple["PluginSupervisor", "ComponentEntry"]] = []
         for supervisor in self._iter_supervisors():
             for component in supervisor.component_registry.get_components_by_type(
@@ -98,6 +100,8 @@ class ComponentQueryService:
                 enabled_only=enabled_only,
                 session_id=session_id,
                 is_group_chat=is_group_chat,
+                group_id=group_id,
+                platform=platform,
             ):
                 collected_entries.append((supervisor, component))
         return collected_entries

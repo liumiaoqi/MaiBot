@@ -96,6 +96,7 @@ class ComponentEntry:
         "compiled_pattern",
         "disabled_session",
         "chat_scope",
+        "allowed_session",
     )
 
     def __init__(
@@ -105,6 +106,7 @@ class ComponentEntry:
         plugin_id: str,
         metadata: Dict[str, Any],
         chat_scope: str = "all",
+        allowed_session: Optional[List[str]] = None,
     ) -> None:
         self.name: str = name
         self.full_name: str = f"{plugin_id}.{name}"
@@ -114,7 +116,11 @@ class ComponentEntry:
         self.enabled: bool = metadata.get("enabled", True)
         self.disabled_session: Set[str] = set()
         self.chat_scope: ComponentChatScope = _normalize_chat_scope(chat_scope)
-
+        self.allowed_session: Set[str] = {
+            str(session_id).strip()
+            for session_id in (allowed_session or [])
+            if str(session_id).strip()
+        }
 
 class ActionEntry(ComponentEntry):
     """Action 组件条目"""
@@ -126,8 +132,9 @@ class ActionEntry(ComponentEntry):
         plugin_id: str,
         metadata: Dict[str, Any],
         chat_scope: str = "all",
+        allowed_session: Optional[List[str]] = None,
     ) -> None:
-        super().__init__(name, component_type, plugin_id, metadata, chat_scope)
+        super().__init__(name, component_type, plugin_id, metadata, chat_scope, allowed_session)
 
 
 class CommandEntry(ComponentEntry):
@@ -140,8 +147,9 @@ class CommandEntry(ComponentEntry):
         plugin_id: str,
         metadata: Dict[str, Any],
         chat_scope: str = "all",
+        allowed_session: Optional[List[str]] = None,
     ) -> None:
-        super().__init__(name, component_type, plugin_id, metadata, chat_scope)
+        super().__init__(name, component_type, plugin_id, metadata, chat_scope, allowed_session)
         self.aliases: List[str] = metadata.get("aliases", [])
         self.compiled_pattern: Optional[re.Pattern] = None
         if pattern := metadata.get("command_pattern", ""):
@@ -161,6 +169,7 @@ class ToolEntry(ComponentEntry):
         plugin_id: str,
         metadata: Dict[str, Any],
         chat_scope: str = "all",
+        allowed_session: Optional[List[str]] = None,
     ) -> None:
         self.description: str = str(metadata.get("description", "") or "").strip()
         self.brief_description: str = str(
@@ -172,7 +181,7 @@ class ToolEntry(ComponentEntry):
         self.detailed_description: str = detailed_description
         self.invoke_method: str = str(metadata.get("invoke_method", "plugin.invoke_tool") or "plugin.invoke_tool").strip()
         self.legacy_component_type: str = str(metadata.get("legacy_component_type", "") or "").strip()
-        super().__init__(name, component_type, plugin_id, metadata, chat_scope)
+        super().__init__(name, component_type, plugin_id, metadata, chat_scope, allowed_session)
 
         if not self.detailed_description:
             parameters_schema = self._get_parameters_schema()
@@ -248,11 +257,12 @@ class EventHandlerEntry(ComponentEntry):
         plugin_id: str,
         metadata: Dict[str, Any],
         chat_scope: str = "all",
+        allowed_session: Optional[List[str]] = None,
     ) -> None:
         self.event_type: str = metadata.get("event_type", "")
         self.weight: int = metadata.get("weight", 0)
         self.intercept_message: bool = metadata.get("intercept_message", False)
-        super().__init__(name, component_type, plugin_id, metadata, chat_scope)
+        super().__init__(name, component_type, plugin_id, metadata, chat_scope, allowed_session)
 
 
 class HookHandlerEntry(ComponentEntry):
@@ -265,13 +275,14 @@ class HookHandlerEntry(ComponentEntry):
         plugin_id: str,
         metadata: Dict[str, Any],
         chat_scope: str = "all",
+        allowed_session: Optional[List[str]] = None,
     ) -> None:
         self.hook: str = self._normalize_hook_name(metadata.get("hook", ""))
         self.mode: str = self._normalize_mode(metadata.get("mode", "blocking"))
         self.order: str = self._normalize_order(metadata.get("order", "normal"))
         self.timeout_ms: int = self._normalize_timeout_ms(metadata.get("timeout_ms", 0))
         self.error_policy: str = self._normalize_error_policy(metadata.get("error_policy", "skip"))
-        super().__init__(name, component_type, plugin_id, metadata, chat_scope)
+        super().__init__(name, component_type, plugin_id, metadata, chat_scope, allowed_session)
 
     @staticmethod
     def _normalize_error_policy(raw_value: Any) -> str:
@@ -397,13 +408,14 @@ class MessageGatewayEntry(ComponentEntry):
         plugin_id: str,
         metadata: Dict[str, Any],
         chat_scope: str = "all",
+        allowed_session: Optional[List[str]] = None,
     ) -> None:
         self.route_type: str = self._normalize_route_type(metadata.get("route_type", ""))
         self.platform: str = str(metadata.get("platform", "") or "").strip()
         self.protocol: str = str(metadata.get("protocol", "") or "").strip()
         self.account_id: str = str(metadata.get("account_id", "") or "").strip()
         self.scope: str = str(metadata.get("scope", "") or "").strip()
-        super().__init__(name, component_type, plugin_id, metadata, chat_scope)
+        super().__init__(name, component_type, plugin_id, metadata, chat_scope, allowed_session)
 
     @staticmethod
     def _normalize_route_type(raw_value: Any) -> str:
@@ -644,6 +656,7 @@ class ComponentRegistry:
         plugin_id: str,
         metadata: Dict[str, Any],
         chat_scope: str = "all",
+        allowed_session: Optional[List[str]] = None,
     ) -> ComponentEntry:
         """根据声明构造组件条目。
 
@@ -665,18 +678,60 @@ class ComponentRegistry:
             normalized_metadata = dict(metadata)
             if normalized_type == ComponentTypes.ACTION:
                 normalized_metadata = self._convert_action_metadata_to_tool_metadata(name, normalized_metadata)
-                component = ToolEntry(name, ComponentTypes.TOOL.value, plugin_id, normalized_metadata, chat_scope)
+                component = ToolEntry(
+                    name,
+                    ComponentTypes.TOOL.value,
+                    plugin_id,
+                    normalized_metadata,
+                    chat_scope,
+                    allowed_session,
+                )
             elif normalized_type == ComponentTypes.COMMAND:
-                component = CommandEntry(name, normalized_type.value, plugin_id, normalized_metadata, chat_scope)
+                component = CommandEntry(
+                    name,
+                    normalized_type.value,
+                    plugin_id,
+                    normalized_metadata,
+                    chat_scope,
+                    allowed_session,
+                )
             elif normalized_type == ComponentTypes.TOOL:
-                component = ToolEntry(name, normalized_type.value, plugin_id, normalized_metadata, chat_scope)
+                component = ToolEntry(
+                    name,
+                    normalized_type.value,
+                    plugin_id,
+                    normalized_metadata,
+                    chat_scope,
+                    allowed_session,
+                )
             elif normalized_type == ComponentTypes.EVENT_HANDLER:
-                component = EventHandlerEntry(name, normalized_type.value, plugin_id, normalized_metadata, chat_scope)
+                component = EventHandlerEntry(
+                    name,
+                    normalized_type.value,
+                    plugin_id,
+                    normalized_metadata,
+                    chat_scope,
+                    allowed_session,
+                )
             elif normalized_type == ComponentTypes.HOOK_HANDLER:
-                component = HookHandlerEntry(name, normalized_type.value, plugin_id, normalized_metadata, chat_scope)
+                component = HookHandlerEntry(
+                    name,
+                    normalized_type.value,
+                    plugin_id,
+                    normalized_metadata,
+                    chat_scope,
+                    allowed_session,
+                )
                 self._validate_hook_handler_entry(component)
             elif normalized_type == ComponentTypes.MESSAGE_GATEWAY:
-                component = MessageGatewayEntry(name, normalized_type.value, plugin_id, normalized_metadata, chat_scope)
+                component = MessageGatewayEntry(
+                    name,
+                    normalized_type.value,
+                    plugin_id,
+                    normalized_metadata,
+                    chat_scope,
+                    allowed_session,
+                )
             else:
                 raise ComponentRegistrationError(
                     f"组件类型 {component_type} 不存在",
@@ -735,6 +790,7 @@ class ComponentRegistry:
         plugin_id: str,
         metadata: Dict[str, Any],
         chat_scope: str = "all",
+        allowed_session: Optional[List[str]] = None,
     ) -> bool:
         """注册单个组件。
 
@@ -751,7 +807,14 @@ class ComponentRegistry:
             ComponentRegistrationError: 组件声明不合法时抛出。
         """
 
-        component = self._build_component_entry(name, component_type, plugin_id, metadata, chat_scope)
+        component = self._build_component_entry(
+            name,
+            component_type,
+            plugin_id,
+            metadata,
+            chat_scope,
+            allowed_session,
+        )
         self._add_component_entry(component)
         return True
 
@@ -780,6 +843,12 @@ class ComponentRegistry:
                 else {}
             )
             chat_scope = str(component_data.get("chat_scope", raw_metadata.pop("chat_scope", "all")) or "all")
+            raw_allowed_session = component_data.get("allowed_session", raw_metadata.pop("allowed_session", []))
+            allowed_session = (
+                [str(item).strip() for item in raw_allowed_session if str(item).strip()]
+                if isinstance(raw_allowed_session, list)
+                else []
+            )
             prepared_components.append(
                 self._build_component_entry(
                     name=str(component_data.get("name", "") or ""),
@@ -787,6 +856,7 @@ class ComponentRegistry:
                     plugin_id=plugin_id,
                     metadata=raw_metadata,
                     chat_scope=chat_scope,
+                    allowed_session=allowed_session,
                 )
             )
 
@@ -816,6 +886,8 @@ class ComponentRegistry:
         component: ComponentEntry,
         session_id: Optional[str] = None,
         is_group_chat: Optional[bool] = None,
+        group_id: Optional[str] = None,
+        platform: Optional[str] = None,
     ):
         if session_id and session_id in component.disabled_session:
             return False
@@ -823,6 +895,13 @@ class ComponentRegistry:
             if component.chat_scope == "group" and is_group_chat is not True:
                 return False
             if component.chat_scope == "private" and is_group_chat is not False:
+                return False
+        if component.allowed_session:
+            allowed_candidates = {str(session_id or "").strip(), str(group_id or "").strip()}
+            if platform and group_id:
+                allowed_candidates.add(f"{platform}:{group_id}")
+            allowed_candidates.discard("")
+            if component.allowed_session.isdisjoint(allowed_candidates):
                 return False
         return component.enabled
 
@@ -900,6 +979,8 @@ class ComponentRegistry:
         enabled_only: bool = True,
         session_id: Optional[str] = None,
         is_group_chat: Optional[bool] = None,
+        group_id: Optional[str] = None,
+        platform: Optional[str] = None,
     ) -> List[ComponentEntry]:
         """按类型查询组件
 
@@ -926,13 +1007,17 @@ class ComponentRegistry:
                 return [
                     component
                     for component in action_components
-                    if self.check_component_enabled(component, session_id, is_group_chat)
+                    if self.check_component_enabled(component, session_id, is_group_chat, group_id, platform)
                 ]
             return action_components
 
         type_dict = self._by_type.get(comp_type, {})
         if enabled_only:
-            return [c for c in type_dict.values() if self.check_component_enabled(c, session_id, is_group_chat)]
+            return [
+                c
+                for c in type_dict.values()
+                if self.check_component_enabled(c, session_id, is_group_chat, group_id, platform)
+            ]
         return list(type_dict.values())
 
     def get_components_by_plugin(
