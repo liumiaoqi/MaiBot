@@ -306,15 +306,22 @@ class SparseBM25Index:
             rows = self._fallback_substring_search(tokens=tokens, limit=limit)
 
         results: List[Dict[str, Any]] = []
+        token_count = max(1, len(tokens))
         for rank, row in enumerate(rows, start=1):
             bm25_score = float(row.get("bm25_score", 0.0))
+            content = str(row.get("content", "") or "")
+            content_low = content.lower()
+            matched_tokens = [token for token in tokens if token in content_low]
+            matched_token_count = len(dict.fromkeys(matched_tokens))
             results.append(
                 {
                     "hash": row["hash"],
-                    "content": row["content"],
+                    "content": content,
                     "rank": rank,
                     "bm25_score": bm25_score,
                     "score": -bm25_score,  # bm25 越小越相关，这里取反作为相对分数
+                    "matched_token_count": matched_token_count,
+                    "matched_token_ratio": matched_token_count / float(token_count),
                 }
             )
         return results
