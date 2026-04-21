@@ -12,7 +12,7 @@ from src.common.logger import get_logger
 from src.common.prompt_i18n import load_prompt
 from src.common.utils.utils_session import SessionUtils
 from src.config.config import global_config
-from src.core.tooling import ToolRegistry
+from src.core.tooling import ToolAvailabilityContext, ToolRegistry
 from src.llm_models.model_client.base_client import BaseClient
 from src.llm_models.payload_content.message import Message, MessageBuilder, RoleType
 from src.llm_models.payload_content.resp_format import RespFormat
@@ -502,7 +502,13 @@ class MaisakaChatLoopService:
         if tool_definitions is not None:
             all_tools = list(tool_definitions)
         elif self._tool_registry is not None:
-            tool_specs = await self._tool_registry.list_tools()
+            tool_specs = await self._tool_registry.list_tools(
+                ToolAvailabilityContext(
+                    session_id=self._session_id,
+                    stream_id=self._session_id,
+                    is_group_chat=self._is_group_chat,
+                )
+            )
             all_tools = [tool_spec.to_llm_definition() for tool_spec in tool_specs]
         else:
             all_tools = [*get_builtin_tools(), *self._extra_tools]

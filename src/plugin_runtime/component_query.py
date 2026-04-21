@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, Optional, Tupl
 
 from src.common.logger import get_logger
 from src.core.tooling import (
+    ToolAvailabilityContext,
     ToolExecutionContext,
     ToolExecutionResult,
     ToolInvocation,
@@ -72,6 +73,7 @@ class ComponentQueryService:
         component_type: ComponentType,
         *,
         enabled_only: bool = True,
+        context: Optional[ToolAvailabilityContext] = None,
     ) -> list[tuple["PluginSupervisor", "ComponentEntry"]]:
         """遍历指定类型的全部组件条目。
 
@@ -87,11 +89,15 @@ class ComponentQueryService:
         if host_component_type is None:
             return []
 
+        session_id = context.session_id if context is not None else None
+        is_group_chat = context.is_group_chat if context is not None else None
         collected_entries: list[tuple["PluginSupervisor", "ComponentEntry"]] = []
         for supervisor in self._iter_supervisors():
             for component in supervisor.component_registry.get_components_by_type(
                 host_component_type,
                 enabled_only=enabled_only,
+                session_id=session_id,
+                is_group_chat=is_group_chat,
             ):
                 collected_entries.append((supervisor, component))
         return collected_entries
@@ -657,7 +663,10 @@ class ComponentQueryService:
         tool_entry = cast("ToolEntry", entry)
         return self._build_tool_executor(supervisor, tool_entry.plugin_id, tool_entry.name, tool_entry.invoke_method)
 
-    def get_llm_available_tool_specs(self) -> Dict[str, ToolSpec]:
+    def get_llm_available_tool_specs(
+        self,
+        context: Optional[ToolAvailabilityContext] = None,
+    ) -> Dict[str, ToolSpec]:
         """获取当前可供 LLM 使用的统一工具声明集合。
 
         Returns:
@@ -665,7 +674,7 @@ class ComponentQueryService:
         """
 
         collected_specs: Dict[str, ToolSpec] = {}
-        for _supervisor, entry in self._iter_component_entries(ComponentType.TOOL):
+        for _supervisor, entry in self._iter_component_entries(ComponentType.TOOL, context=context):
             if entry.name in collected_specs:
                 self._log_duplicate_component(ComponentType.TOOL, entry.name)
                 continue

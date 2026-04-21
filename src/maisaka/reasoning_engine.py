@@ -14,14 +14,14 @@ from src.chat.message_receive.message import SessionMessage
 from src.common.data_models.message_component_data_model import EmojiComponent, ImageComponent, MessageSequence
 from src.common.logger import get_logger
 from src.common.prompt_i18n import load_prompt
-from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
+from src.core.tooling import ToolAvailabilityContext, ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
 from src.llm_models.exceptions import ReqAbortException
 from src.llm_models.payload_content.tool_option import ToolCall
 from src.services import database_service as database_api
 from src.services.memory_service import memory_service
 
-from .builtin_tool import get_action_tool_specs
 from .builtin_tool import build_builtin_tool_handlers as build_split_builtin_tool_handlers
+from .builtin_tool import get_builtin_tool_visibility, is_builtin_tool_in_action_stage
 from .builtin_tool import get_timing_tools
 from .chat_loop_service import ChatResponse
 from .chat_history_visual_refresher import refresh_chat_history_visual_placeholders
@@ -54,8 +54,6 @@ logger = get_logger("maisaka_reasoning_engine")
 TIMING_GATE_CONTEXT_LIMIT = 24
 TIMING_GATE_MAX_TOKENS = 384
 TIMING_GATE_TOOL_NAMES = {"continue", "no_reply", "wait"}
-ACTION_HIDDEN_TOOL_NAMES = {"continue", "no_reply"}
-ACTION_BUILTIN_TOOL_NAMES = {tool_spec.name for tool_spec in get_action_tool_specs()}
 
 
 class MaisakaReasoningEngine:
@@ -175,15 +173,19 @@ class MaisakaReasoningEngine:
             self._runtime.set_current_action_tool_names([])
             return [], ""
 
-        tool_specs = await self._runtime._tool_registry.list_tools()
+        availability_context = self._build_tool_availability_context()
+        tool_specs = await self._runtime._tool_registry.list_tools(availability_context)
         visible_builtin_tool_specs: list[ToolSpec] = []
         deferred_tool_specs: list[ToolSpec] = []
         for tool_spec in tool_specs:
-            if tool_spec.name in ACTION_HIDDEN_TOOL_NAMES:
-                continue
             if tool_spec.provider_name == "maisaka_builtin":
-                if tool_spec.name in ACTION_BUILTIN_TOOL_NAMES:
+                if not is_builtin_tool_in_action_stage(tool_spec):
+                    continue
+                visibility = get_builtin_tool_visibility(tool_spec)
+                if visibility == "visible":
                     visible_builtin_tool_specs.append(tool_spec)
+                elif visibility == "deferred":
+                    deferred_tool_specs.append(tool_spec)
                 continue
             deferred_tool_specs.append(tool_spec)
 
@@ -877,6 +879,19 @@ class MaisakaReasoningEngine:
             reasoning=latest_thought,
         )
 
+    def _build_tool_availability_context(self) -> ToolAvailabilityContext:
+        """构造当前聊天的工具暴露上下文。"""
+
+        chat_stream = self._runtime.chat_stream
+        return ToolAvailabilityContext(
+            session_id=self._runtime.session_id,
+            stream_id=self._runtime.session_id,
+            is_group_chat=chat_stream.is_group_session,
+            group_id=str(getattr(chat_stream, "group_id", "") or "").strip(),
+            user_id=str(getattr(chat_stream, "user_id", "") or "").strip(),
+            platform=str(getattr(chat_stream, "platform", "") or "").strip(),
+        )
+
     def _build_tool_execution_context(
         self,
         latest_thought: str,
@@ -1197,6 +1212,8 @@ class MaisakaReasoningEngine:
                 source_kind="timing_gate",
             )
         )
+        if tool_call.func_name == "wait":
+            return
         self._append_tool_execution_result(tool_call, result)
 
     def _build_tool_result_summary(self, tool_call: ToolCall, result: ToolExecutionResult) -> str:
@@ -1290,9 +1307,10 @@ class MaisakaReasoningEngine:
             return False, tool_result_summaries, tool_monitor_results
 
         execution_context = self._build_tool_execution_context(latest_thought, anchor_message)
+        availability_context = self._build_tool_availability_context()
         tool_spec_map = {
             tool_spec.name: tool_spec
-            for tool_spec in await self._runtime._tool_registry.list_tools()
+            for tool_spec in await self._runtime._tool_registry.list_tools(availability_context)
         }
         total_tool_count = len(tool_calls)
         for tool_index, tool_call in enumerate(tool_calls, start=1):
