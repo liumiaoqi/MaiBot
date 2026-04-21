@@ -7,7 +7,7 @@
 import asyncio
 import re
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, List, Dict, Any, Tuple, Union
 from enum import Enum
 
 import numpy as np
@@ -320,7 +320,7 @@ class DualPathRetriever:
 
         # 调试模式：打印结果原文
         if self.config.debug:
-            logger.info("[DEBUG] 检索结果内容原文:")
+            logger.info(f"[DEBUG] 检索结果内容原文:")
             for i, res in enumerate(results):
                 logger.info(f"  {i+1}. [{res.result_type}] (Score: {res.score:.4f}) {res.content}")
 
