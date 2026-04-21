@@ -183,10 +183,16 @@ def patch_external_dependencies(monkeypatch):
     sql_mod = types.SimpleNamespace(select=lambda *a, **k: DummySelect())
     monkeypatch.setitem(sys.modules, "sqlmodel", sql_mod)
 
-    # Patch config values used at import-time
-    cfg = types.SimpleNamespace(visual=types.SimpleNamespace(visual_style="test-style"))
-    config_mod = types.SimpleNamespace(global_config=cfg)
-    monkeypatch.setitem(sys.modules, "src.config.config", config_mod)
+    # Patch prompt manager used to build image description prompt.
+    class _PromptManager:
+        def get_prompt(self, _name):
+            return types.SimpleNamespace()
+
+        async def render_prompt(self, _prompt):
+            return "test-style"
+
+    prompt_manager_mod = types.SimpleNamespace(prompt_manager=_PromptManager())
+    monkeypatch.setitem(sys.modules, "src.prompt.prompt_manager", prompt_manager_mod)
 
     llm_options_mod = types.SimpleNamespace(LLMImageOptions=lambda **kwargs: types.SimpleNamespace(**kwargs))
     monkeypatch.setitem(sys.modules, "src.common.data_models.llm_service_data_models", llm_options_mod)

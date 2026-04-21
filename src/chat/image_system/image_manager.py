@@ -13,7 +13,7 @@ from src.common.logger import get_logger
 from src.common.database.database import get_db_session
 from src.common.database.database_model import Images, ImageType
 from src.common.data_models.image_data_model import MaiImage
-from src.config.config import global_config
+from src.prompt.prompt_manager import prompt_manager
 from src.services.llm_service import LLMServiceClient
 
 install(extra_lines=3)
@@ -374,7 +374,8 @@ class ImageManager:
             logger.info(f"Cleaned mistaken registration state on {fixed_counter} image records")
 
     async def _generate_image_description(self, image_bytes: bytes, image_format: str) -> str:
-        prompt = global_config.visual.visual_style
+        prompt_template = prompt_manager.get_prompt("image_description")
+        prompt = await prompt_manager.render_prompt(prompt_template)
         image_base64 = base64.b64encode(image_bytes).decode("utf-8")
 
         generation_result = await vlm.generate_response_for_image(

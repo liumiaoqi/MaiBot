@@ -75,7 +75,7 @@ class PersonalityConfig(ConfigBase):
     __ui_icon__ = "user-circle"
 
     personality: str = Field(
-        default="是一个大二在读女大学生，现在正在上网和群友聊天，有时有点攻击性，有时比较温柔",
+        default="是一个大二女大学生，现在正在上网和群友聊天。",
         json_schema_extra={
             "x-widget": "textarea",
             "x-icon": "user-circle",
@@ -84,7 +84,7 @@ class PersonalityConfig(ConfigBase):
     """人格，建议100字以内，描述人格特质和身份特征"""
 
     reply_style: str = Field(
-        default="请不要刻意突出自身学科背景。可以参考贴吧，知乎和微博的回复风格。",
+        default="你的风格平淡简短。可以参考贴吧，知乎和微博的回复风格。不浮夸不长篇大论，不要过分修辞和复杂句。尽量回复的简短一些，平淡一些",
         json_schema_extra={
             "x-widget": "textarea",
             "x-icon": "message-square",
@@ -93,7 +93,13 @@ class PersonalityConfig(ConfigBase):
     """默认表达风格，描述麦麦说话的表达风格，表达习惯，如要修改，可以酌情新增内容，建议1-2行"""
 
     multiple_reply_style: list[str] = Field(
-        default_factory=lambda: [],
+        default_factory=lambda: [
+            "你的风格平淡但不失讽刺，很简短,很白话。可以参考贴吧，微博的回复风格。",
+            "用1-2个字进行回复",
+            "用1-2个符号进行回复",
+            "言辭凝練古雅，穿插《論語》經句卻不晦澀，以文言短句為基，輔以淺白語意，持長者溫和風範，全用繁體字表達，具先秦儒者談吐韻致。",
+            "带点翻译腔，但不要太长",
+        ],
         json_schema_extra={
             "x-widget": "custom",
             "x-icon": "list",
@@ -102,7 +108,7 @@ class PersonalityConfig(ConfigBase):
     """可选的多种表达风格列表，当配置不为空时可按概率随机替换 reply_style"""
 
     multiple_probability: float = Field(
-        default=0.3,
+        default=0.2,
         ge=0,
         le=1,
         json_schema_extra={
@@ -136,15 +142,6 @@ class VisualConfig(ConfigBase):
         },
     )
     """回复器模式，auto根据模型信息自动选择，text为纯文本模式，multimodal为多模态模式"""
-
-    visual_style: str = Field(
-        default="请用中文描述这张图片的内容。如果有文字，请把文字描述概括出来，请留意其主题，直观感受，输出为一段平文本，最多30字，请注意不要分点，就输出一段文本",
-        json_schema_extra={
-            "x-widget": "textarea",
-            "x-icon": "image",
-        },
-    )
-    """_wrap_识图提示词，不建议修改"""
 
 
 class TalkRulesItem(ConfigBase):
@@ -204,7 +201,7 @@ class ChatConfig(ConfigBase):
     """是否启用回复时附带引用回复"""
 
     max_context_size: int = Field(
-        default=30,
+        default=40,
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "layers",
@@ -223,11 +220,12 @@ class ChatConfig(ConfigBase):
     """Planner 连续被新消息打断的最大次数，0 表示不启用打断"""
 
     group_chat_prompt: str = Field(
-        default="""
-你正在qq群里聊天，下面是群里正在聊的内容，其中包含聊天记录和聊天中的图片。
-回复尽量简短一些。最好一次对一个话题进行回复，免得啰嗦或者回复内容太乱。请注意把握聊天内容。
-不要回复的太频繁！控制回复的频率，不要每个人的消息都回复，只回复你感兴趣的或者主动提及你的。
-""",
+        default=(
+            "你正在qq群里聊天，下面是群里正在聊的内容，其中包含聊天记录和聊天中的图片和表情包。\n"
+            "回复尽量简短一些。最好一次对一个话题进行回复，但必须考虑不同群友发言之间的交互，免得啰嗦或者回复内容太乱。请注意把握聊天内容。\n"
+            "不要总是提及自己的身份背景，根据聊天内容自由发挥，但是要日常不浮夸，不要太关注具体的聊天内容，不要刻意找话题，。\n"
+            "不要回复的太频繁！不用刻意回复表情包，只要关注表情包表达的含义。控制回复的频率，不要每个人的消息都回复，只回复你感兴趣的或者主动提及你的。\n"
+        ),
         json_schema_extra={
             "x-widget": "textarea",
             "x-icon": "users",
@@ -236,11 +234,11 @@ class ChatConfig(ConfigBase):
     """_wrap_群聊通用注意事项"""
 
     private_chat_prompts: str = Field(
-        default="""
-你正在聊天，下面是正在聊的内容，其中包含聊天记录和聊天中的图片。
-回复尽量简短一些。请注意把握聊天内容。
-请考虑对方的发言频率，想法，思考自己何时回复以及回复内容。
-""",
+        default=(
+            "你正在聊天，下面是正在聊的内容，其中包含聊天记录和聊天中的图片。\n"
+            "回复尽量简短一些。请注意把握聊天内容。\n"
+            "请考虑对方的发言频率，想法，思考自己何时回复以及回复内容。\n"
+        ),
         json_schema_extra={
             "x-widget": "textarea",
             "x-icon": "user",
