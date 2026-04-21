@@ -36,14 +36,6 @@ class ExpressionConfigUtils:
         return None
 
     @staticmethod
-    def get_expression_advanced_chosen_for_chat(session_id: Optional[str] = None) -> bool:
-        """根据聊天会话 ID 获取表达方式是否启用二次选择。"""
-        config_item = ExpressionConfigUtils._find_expression_config_item(session_id)
-        if config_item is None:
-            return False
-        return config_item.advanced_chosen
-
-    @staticmethod
     def get_expression_config_for_chat(session_id: Optional[str] = None) -> tuple[bool, bool, bool]:
         # sourcery skip: use-next
         """

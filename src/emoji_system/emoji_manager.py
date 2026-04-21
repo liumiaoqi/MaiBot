@@ -14,7 +14,7 @@ from sqlmodel import select
 import Levenshtein
 
 from src.common.data_models.image_data_model import MaiEmoji
-from src.common.data_models.llm_service_data_models import LLMGenerationOptions, LLMImageOptions
+from src.common.data_models.llm_service_data_models import LLMGenerationOptions
 from src.common.database.database import get_db_session, get_db_session_manual
 from src.common.database.database_model import Images, ImageType
 from src.common.logger import get_logger
@@ -778,7 +778,7 @@ class EmojiManager:
 
         decision_result = await emoji_manager_emotion_judge_llm.generate_response(
             emoji_replace_prompt,
-            options=LLMGenerationOptions(temperature=0.8, max_tokens=600),
+            options=LLMGenerationOptions(max_tokens=600),
         )
         decision = decision_result.response
         logger.info(f"[决策] 结果: {decision}")
@@ -853,7 +853,6 @@ class EmojiManager:
                     prompt,
                     image_base64,
                     "jpg",
-                    options=LLMImageOptions(temperature=0.5),
                 )
                 description = description_result.response
             else:
@@ -865,7 +864,6 @@ class EmojiManager:
                     prompt,
                     image_base64,
                     image_format,
-                    options=LLMImageOptions(temperature=0.5),
                 )
                 description = description_result.response
         except Exception as e:
@@ -886,7 +884,6 @@ class EmojiManager:
                     filtration_prompt,
                     image_base64,
                     image_format,
-                    options=LLMImageOptions(temperature=0.3),
                 )
                 llm_response = filtration_result.response
             except Exception as e:

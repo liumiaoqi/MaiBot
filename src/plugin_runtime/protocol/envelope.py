@@ -191,6 +191,10 @@ class ComponentDeclaration(BaseModel):
     """组件类型：`action`/`command`/`tool`/`event_handler`/`hook_handler`/`message_gateway`"""
     plugin_id: str = Field(description="所属插件 ID")
     """所属插件 ID"""
+    chat_scope: str = Field(default="all", description="组件适用聊天类型：all/group/private")
+    """组件适用聊天类型。"""
+    allowed_session: List[str] = Field(default_factory=list, description="允许暴露该组件的会话 ID 或平台作用域 ID")
+    """允许暴露该组件的具体会话。空列表表示不限制。"""
     metadata: Dict[str, Any] = Field(default_factory=dict, description="组件元数据")
     """组件元数据"""
 

@@ -176,6 +176,11 @@ MaiSaka 不仅仅是一个机器人，不仅仅是一个可以帮你完成任务
   <img alt="contributors" src="https://contrib.rocks/image?repo=MaiM-with-u/MaiBot" />
 </a>
 
+### 🤝 开源项目友链
+<sub><sup>Open Source Friends</sup></sub>
+
+- **[AstrBot](https://github.com/AstrBotDevs/AstrBot)**: 优秀的LLM Agent项目
+
 ### ❤️ 特别致谢
 <sub><sup>Special Thanks</sup></sub>
 

@@ -5,7 +5,14 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import Dict, Optional
 
-from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolProvider, ToolSpec
+from src.core.tooling import (
+    ToolAvailabilityContext,
+    ToolExecutionContext,
+    ToolExecutionResult,
+    ToolInvocation,
+    ToolProvider,
+    ToolSpec,
+)
 
 from .builtin_tool import get_all_builtin_tool_specs
 
@@ -27,10 +34,13 @@ class MaisakaBuiltinToolProvider(ToolProvider):
 
         self._handlers = dict(handlers or {})
 
-    async def list_tools(self) -> list[ToolSpec]:
+    async def list_tools(
+        self,
+        context: Optional[ToolAvailabilityContext] = None,
+    ) -> list[ToolSpec]:
         """列出全部内置工具。"""
 
-        return list(get_all_builtin_tool_specs())
+        return list(get_all_builtin_tool_specs(context))
 
     async def invoke(
         self,

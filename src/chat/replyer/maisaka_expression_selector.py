@@ -41,13 +41,6 @@ class MaisakaExpressionSelector:
             logger.error(f"检查表达方式使用开关失败: {exc}")
             return False
 
-    def _can_use_advanced_chosen(self, session_id: str) -> bool:
-        try:
-            return ExpressionConfigUtils.get_expression_advanced_chosen_for_chat(session_id)
-        except Exception as exc:
-            logger.error(f"检查表达方式二次选择开关失败: {exc}")
-            return False
-
     @staticmethod
     def _is_global_expression_group_marker(platform: str, item_id: str) -> bool:
         return platform == "*" and item_id == "*"
@@ -287,7 +280,7 @@ class MaisakaExpressionSelector:
             logger.info(f"表达方式选择已跳过：本地候选不足，session_id={session_id}")
             return MaisakaExpressionSelectionResult()
 
-        if not self._can_use_advanced_chosen(session_id):
+        if not global_config.expression.advanced_chosen:
             return self._build_direct_selection_result(
                 session_id=session_id,
                 candidates=candidates,

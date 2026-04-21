@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from typing import Optional
 
-from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolProvider, ToolSpec
+from src.core.tooling import (
+    ToolAvailabilityContext,
+    ToolExecutionContext,
+    ToolExecutionResult,
+    ToolInvocation,
+    ToolProvider,
+    ToolSpec,
+)
 
 from .manager import MCPManager
 
@@ -24,9 +31,13 @@ class MCPToolProvider(ToolProvider):
 
         self._manager = manager
 
-    async def list_tools(self) -> list[ToolSpec]:
+    async def list_tools(
+        self,
+        context: Optional[ToolAvailabilityContext] = None,
+    ) -> list[ToolSpec]:
         """列出全部 MCP 工具。"""
 
+        del context
         return self._manager.get_tool_specs()
 
     async def invoke(

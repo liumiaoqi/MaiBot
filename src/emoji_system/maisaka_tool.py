@@ -9,7 +9,6 @@ import random
 from src.chat.message_receive.chat_manager import chat_manager
 from src.cli.maisaka_cli_sender import CLI_PLATFORM_NAME, render_cli_message
 from src.common.data_models.image_data_model import MaiEmoji
-from src.common.data_models.llm_service_data_models import LLMGenerationOptions
 from src.common.logger import get_logger
 from src.common.utils.utils_image import ImageUtils
 from src.services import send_service
@@ -18,7 +17,6 @@ from .emoji_manager import (
     _normalize_emoji_tag_text,
     _serialize_emoji_for_hook,
     emoji_manager,
-    emoji_manager_emotion_judge_llm,
 )
 
 logger = get_logger("emoji_maisaka_tool")
@@ -123,56 +121,6 @@ def _normalize_emotions(emoji: MaiEmoji) -> list[str]:
     return []
 
 
-def _build_recent_context_text(context_texts: Sequence[str], max_items: int = 5) -> str:
-    """构建供情绪判断使用的最近上下文文本。"""
-
-    normalized_items = [str(item).strip() for item in context_texts if str(item).strip()]
-    if not normalized_items:
-        return ""
-    return "\n".join(normalized_items[-max_items:])
-
-
-async def _select_emoji_with_llm(
-    *,
-    sampled_emojis: Sequence[MaiEmoji],
-    reasoning: str,
-    context_text: str,
-) -> tuple[MaiEmoji, str]:
-    """让模型在采样表情中选择更合适的情绪标签。"""
-
-    emotion_map: dict[str, list[MaiEmoji]] = {}
-    for emoji in sampled_emojis:
-        for emotion in _normalize_emotions(emoji):
-            emotion_map.setdefault(emotion, []).append(emoji)
-
-    available_emotions = list(emotion_map.keys())
-    if not available_emotions:
-        return random.choice(list(sampled_emojis)), ""
-
-    prompt = (
-        "你正在为聊天场景选择一个最合适的表情包情绪标签。\n"
-        f"发送原因：{reasoning or '辅助表达当前语气和情绪'}\n"
-        f"最近聊天记录：\n{context_text or '（暂无额外上下文）'}\n\n"
-        "可选情绪标签如下：\n"
-        f"{chr(10).join(available_emotions)}\n\n"
-        "请只返回一个最匹配的情绪标签，不要解释。"
-    )
-
-    try:
-        llm_result = await emoji_manager_emotion_judge_llm.generate_response(
-            prompt,
-            options=LLMGenerationOptions(temperature=0.3, max_tokens=60),
-        )
-        chosen_emotion = (llm_result.response or "").strip().strip("\"'")
-    except Exception as exc:
-        logger.warning(f"使用 LLM 选择表情情绪失败，将回退为随机选择: {exc}")
-        chosen_emotion = ""
-
-    if chosen_emotion and chosen_emotion in emotion_map:
-        return random.choice(emotion_map[chosen_emotion]), chosen_emotion
-    return random.choice(list(sampled_emojis)), ""
-
-
 async def select_emoji_for_maisaka(
     *,
     requested_emotion: str = "",
@@ -181,6 +129,8 @@ async def select_emoji_for_maisaka(
     sample_size: int = 30,
 ) -> tuple[MaiEmoji | None, str]:
     """为 Maisaka 选择一个合适的表情。"""
+
+    del reasoning, context_texts
 
     available_emojis = list(emoji_manager.emojis)
     if not available_emojis:
@@ -200,12 +150,7 @@ async def select_emoji_for_maisaka(
         available_emojis,
         min(max(sample_size, 1), len(available_emojis)),
     )
-    context_text = _build_recent_context_text(context_texts or [])
-    return await _select_emoji_with_llm(
-        sampled_emojis=sampled_emojis,
-        reasoning=reasoning,
-        context_text=context_text,
-    )
+    return random.choice(sampled_emojis), ""
 
 
 async def send_emoji_for_maisaka(

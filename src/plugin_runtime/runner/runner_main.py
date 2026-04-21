@@ -1003,6 +1003,14 @@ class PluginRunner:
                         name=component_name,
                         component_type=str(comp_info.get("type", "") or "").strip(),
                         plugin_id=meta.plugin_id,
+                        chat_scope=str(comp_info.get("chat_scope", "all") or "all").strip(),
+                        allowed_session=[
+                            str(item).strip()
+                            for item in comp_info.get("allowed_session", [])
+                            if str(item).strip()
+                        ]
+                        if isinstance(comp_info.get("allowed_session"), list)
+                        else [],
                         metadata=component_metadata,
                     )
                 )

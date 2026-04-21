@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from typing import Optional
 
-from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolProvider, ToolSpec
+from src.core.tooling import (
+    ToolAvailabilityContext,
+    ToolExecutionContext,
+    ToolExecutionResult,
+    ToolInvocation,
+    ToolProvider,
+    ToolSpec,
+)
 
 from .component_query import component_query_service
 
@@ -15,10 +22,13 @@ class PluginToolProvider(ToolProvider):
     provider_name = "plugin_runtime"
     provider_type = "plugin"
 
-    async def list_tools(self) -> list[ToolSpec]:
+    async def list_tools(
+        self,
+        context: Optional[ToolAvailabilityContext] = None,
+    ) -> list[ToolSpec]:
         """列出插件运行时当前可用的工具声明。"""
 
-        return list(component_query_service.get_llm_available_tool_specs().values())
+        return list(component_query_service.get_llm_available_tool_specs(context=context).values())
 
     async def invoke(
         self,

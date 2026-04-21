@@ -9,6 +9,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional, Union, Tuple, List, Dict, Set, Any
 from collections import defaultdict
+import threading
 import asyncio
 
 import numpy as np
@@ -41,6 +42,7 @@ except ImportError:
 
 import contextlib
 from src.common.logger import get_logger
+from ..utils.hash import compute_hash
 from ..utils.io import atomic_write
 
 logger = get_logger("A_Memorix.GraphStore")

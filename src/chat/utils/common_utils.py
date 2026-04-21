@@ -36,14 +36,6 @@ class TempMethodsExpression:
         return None
 
     @staticmethod
-    def get_expression_advanced_chosen_for_chat(chat_stream_id: Optional[str] = None) -> bool:
-        """根据聊天流 ID 获取表达方式是否启用二次选择。"""
-        config_item = TempMethodsExpression._find_expression_config_item(chat_stream_id)
-        if config_item is None:
-            return False
-        return config_item.advanced_chosen
-
-    @staticmethod
     def get_expression_config_for_chat(chat_stream_id: Optional[str] = None) -> tuple[bool, bool, bool]:
         """
         根据聊天流 ID 获取表达配置。

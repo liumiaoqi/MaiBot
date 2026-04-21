@@ -296,6 +296,8 @@ class MaisakaHeartFlowChatting:
         reply_segments: list[str],
         planner_reasoning: str,
         reference_info: str,
+        tool_context: Optional[dict[str, Any]] = None,
+        send_results: Optional[list[dict[str, Any]]] = None,
         reply_metadata: Optional[dict[str, Any]] = None,
         replyer_context_messages: Optional[Sequence[LLMContextMessage]] = None,
     ) -> None:
@@ -322,6 +324,8 @@ class MaisakaHeartFlowChatting:
                 reply_segments=reply_segments,
                 planner_reasoning=planner_reasoning,
                 reference_info=reference_info,
+                tool_context=tool_context,
+                send_results=send_results,
                 reply_metadata=enriched_reply_metadata,
                 context_snapshot=context_snapshot,
             )
@@ -562,7 +566,6 @@ class MaisakaHeartFlowChatting:
         interrupt_flag: asyncio.Event | None = None,
         max_tokens: int = 512,
         response_format: RespFormat | None = None,
-        temperature: float = 0.2,
         tool_definitions: Optional[Sequence[ToolDefinitionInput]] = None,
     ) -> ChatResponse:
         """运行一个复制上下文的临时子代理，并在完成后立即销毁。"""
@@ -580,7 +583,6 @@ class MaisakaHeartFlowChatting:
             chat_system_prompt=system_prompt,
             session_id=self.session_id,
             is_group_chat=self.chat_stream.is_group_session,
-            temperature=temperature,
             max_tokens=max_tokens,
         )
         sub_agent.set_interrupt_flag(interrupt_flag)
@@ -607,7 +609,6 @@ class MaisakaHeartFlowChatting:
             request_kind="reply_effect_judge",
             extra_messages=[judge_message],
             max_tokens=900,
-            temperature=0.1,
             tool_definitions=[],
         )
         return (response.content or "").strip()

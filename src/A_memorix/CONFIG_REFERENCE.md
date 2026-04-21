@@ -120,7 +120,7 @@ default_sample_size = 24
 
 - 长期记忆控制台：适合修改高频项，例如 embedding、检索、Episode、人物画像、导入与调优的常用开关。
 - 原始 TOML：适合复制整份配置、批量调整参数，或修改未在可视化表单中展示的高级项。
-- raw-only 高级项仍包括：`retrieval.fusion.*`、`retrieval.search.relation_intent.*`、`retrieval.search.graph_recall.*`、`retrieval.aggregate.*`、`memory.orphan.*`、`advanced.extraction_model`、`web.import.llm_retry.*`、`web.import.path_aliases`、`web.import.convert.*`、`web.tuning.llm_retry.*`、`web.tuning.eval_query_timeout_seconds`。
+- raw-only 高级项仍包括：`retrieval.fusion.*`、`retrieval.search.relation_intent.*`、`retrieval.search.graph_recall.*`、`retrieval.search.posterior_graph.*`、`retrieval.aggregate.*`、`memory.orphan.*`、`advanced.extraction_model`、`web.import.llm_retry.*`、`web.import.path_aliases`、`web.import.convert.*`、`web.tuning.llm_retry.*`、`web.tuning.eval_query_timeout_seconds`。
 
 ## 1. 存储与嵌入
 
@@ -212,6 +212,26 @@ default_sample_size = 24
 - `max_hop` (默认 `1`)
 - `allow_two_hop_pair` (默认 `true`)
 - `max_paths` (默认 `4`)
+
+### `retrieval.search.posterior_graph` (`PosteriorGraphConfig`)
+
+- `enabled` (默认 `true`)
+- `drop_ratio` (默认 `0.15`)
+- `min_core_results` (默认 `2`)
+- `max_graph_slots` (默认 `2`)
+- `gate_scan_top_k` (默认 `5`)
+- `grounded_confidence_threshold` (默认 `0.48`)
+- `incidental_confidence_threshold` (默认 `0.22`)
+- `min_query_token_coverage` (默认 `0.78`)
+- `incidental_query_relevance_threshold` (默认 `0.68`)
+- `incidental_core_overlap_threshold` (默认 `0.34`)
+- `incidental_specificity_threshold` (默认 `0.42`)
+
+说明：
+
+- 这组配置控制“后验图补位”，即先跑正常双路检索，再判断是否需要从图结构补一小批 relation 候选进入尾部竞争。
+- 设计目标以 `recall` 为主，而不是强行把 relation 顶到第一名。
+- 如果你的最终回答仍会经过 LLM 汇总，这组能力更适合用于“保证证据进入前排候选”，而不是做激进排序改写。
 
 ### `retrieval.aggregate`
 

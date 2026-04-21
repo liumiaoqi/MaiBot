@@ -12,7 +12,7 @@ from src.common.logger import get_logger
 from src.common.prompt_i18n import load_prompt
 from src.common.utils.utils_session import SessionUtils
 from src.config.config import global_config
-from src.core.tooling import ToolRegistry
+from src.core.tooling import ToolAvailabilityContext, ToolRegistry
 from src.llm_models.model_client.base_client import BaseClient
 from src.llm_models.payload_content.message import Message, MessageBuilder, RoleType
 from src.llm_models.payload_content.resp_format import RespFormat
@@ -187,7 +187,6 @@ class MaisakaChatLoopService:
         chat_system_prompt: Optional[str] = None,
         session_id: Optional[str] = None,
         is_group_chat: Optional[bool] = None,
-        temperature: float = 0.5,
         max_tokens: int = 2048,
     ) -> None:
         """初始化 Maisaka 对话循环服务。
@@ -196,11 +195,9 @@ class MaisakaChatLoopService:
             chat_system_prompt: 可选的系统提示词。
             session_id: 当前会话 ID，用于匹配会话级额外提示。
             is_group_chat: 当前会话是否为群聊。
-            temperature: 规划器温度参数。
             max_tokens: 规划器最大输出长度。
         """
 
-        self._temperature = temperature
         self._max_tokens = max_tokens
         self._is_group_chat = is_group_chat
         self._session_id = session_id or ""
@@ -505,7 +502,13 @@ class MaisakaChatLoopService:
         if tool_definitions is not None:
             all_tools = list(tool_definitions)
         elif self._tool_registry is not None:
-            tool_specs = await self._tool_registry.list_tools()
+            tool_specs = await self._tool_registry.list_tools(
+                ToolAvailabilityContext(
+                    session_id=self._session_id,
+                    stream_id=self._session_id,
+                    is_group_chat=self._is_group_chat,
+                )
+            )
             all_tools = [tool_spec.to_llm_definition() for tool_spec in tool_specs]
         else:
             all_tools = [*get_builtin_tools(), *self._extra_tools]
@@ -546,7 +549,6 @@ class MaisakaChatLoopService:
             message_factory=message_factory,
             options=LLMGenerationOptions(
                 tool_options=all_tools if all_tools else None,
-                temperature=self._temperature,
                 max_tokens=self._max_tokens,
                 response_format=response_format,
                 interrupt_flag=self._interrupt_flag,

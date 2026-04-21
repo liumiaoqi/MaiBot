@@ -4,6 +4,7 @@
 基于Faiss的高效向量存储与检索，支持SQ8量化、Append-Only磁盘存储和内存映射。
 """
 
+import os
 import pickle
 import hashlib
 import shutil
@@ -190,7 +191,7 @@ class VectorStore:
                 self._update_reservoir(batch_vecs)
                 # 这里的 TRAIN_SIZE 取默认 10k，或者根据当前数据量动态判断
                 if len(self._reservoir_buffer) >= 10000:
-                    logger.info("训练样本达到上限，开始训练...")
+                    logger.info(f"训练样本达到上限，开始训练...")
                     self._train_and_replay_unlocked()
 
             self._total_added += len(batch_ids)
