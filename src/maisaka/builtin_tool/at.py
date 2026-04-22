@@ -19,7 +19,7 @@ def get_tool_spec() -> ToolSpec:
 
     return ToolSpec(
         name="at",
-        brief_description="根据一条已知 msg_id 找到发言用户，并发送一条 @ 该用户的消息。",
+        brief_description="当明确提及某位用户时，发送一条 @ 该用户的消息。",
         detailed_description=(
             "参数说明：\n"
             "- msg_id：string，必填。要 @ 的目标用户发过的消息编号。\n"
