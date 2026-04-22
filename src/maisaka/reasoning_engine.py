@@ -341,6 +341,13 @@ class MaisakaReasoningEngine:
                 queued_trigger = await self._runtime._internal_turn_queue.get()
                 message_triggered, timeout_triggered = self._drain_ready_turn_triggers(queued_trigger)
 
+                if self._runtime._agent_state == self._runtime._STATE_WAIT and not timeout_triggered:
+                    self._runtime._message_turn_scheduled = False
+                    logger.debug(
+                        f"{self._runtime.log_prefix} 当前仍处于 wait 状态，忽略消息触发并继续等待超时"
+                    )
+                    continue
+
                 if message_triggered:
                     await self._runtime._wait_for_message_quiet_period()
                     self._runtime._message_turn_scheduled = False
@@ -809,10 +816,12 @@ class MaisakaReasoningEngine:
             self._runtime._chat_history,
             max_context_size=self._runtime._max_context_size,
         )
-        if process_result.removed_count <= 0:
+        if process_result.changed_count <= 0:
             return
 
         self._runtime._chat_history = process_result.history
+        if process_result.removed_count <= 0:
+            return
         self._runtime._log_history_trimmed(
             process_result.removed_count,
             process_result.remaining_context_count,

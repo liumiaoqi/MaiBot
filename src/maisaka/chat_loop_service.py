@@ -35,7 +35,7 @@ from .context_messages import (
     ToolResultMessage,
     build_llm_message_from_context,
 )
-from .history_utils import drop_orphan_tool_results
+from .history_utils import drop_orphan_tool_results, normalize_tool_result_order
 from .display.prompt_cli_renderer import PromptCLIVisualizer
 from .visual_mode_utils import resolve_enable_visual_planner
 
@@ -652,6 +652,7 @@ class MaisakaChatLoopService:
         selected_history = [filtered_history[index] for index in selected_indices]
         selected_history, _ = MaisakaChatLoopService._hide_early_assistant_messages(selected_history)
         selected_history, _ = drop_orphan_tool_results(selected_history)
+        selected_history, _ = normalize_tool_result_order(selected_history)
         tool_message_count = sum(1 for message in selected_history if isinstance(message, ToolResultMessage))
         normal_message_count = len(selected_history) - tool_message_count
         selection_reason = (

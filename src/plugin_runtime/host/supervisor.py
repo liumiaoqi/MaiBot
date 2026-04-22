@@ -1306,6 +1306,14 @@ class PluginRunnerSupervisor:
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
 
         self._runner_ready_payloads = payload
+        if payload.failed_plugins:
+            logger.error(f"插件注册失败: {', '.join(payload.failed_plugins)}")
+        if payload.inactive_plugins:
+            logger.warning(f"插件未激活: {', '.join(payload.inactive_plugins)}")
+        logger.info(
+            "Runner 插件初始化完成: "
+            f"loaded={len(payload.loaded_plugins)} failed={len(payload.failed_plugins)} inactive={len(payload.inactive_plugins)}"
+        )
         self._runner_ready_events.set()
         return envelope.make_response(payload={"accepted": True})
 

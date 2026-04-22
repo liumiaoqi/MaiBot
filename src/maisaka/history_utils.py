@@ -105,3 +105,70 @@ def drop_orphan_tool_results(
         filtered_history.append(message)
 
     return filtered_history, removed_count
+
+
+def normalize_tool_result_order(
+    chat_history: list[LLMContextMessage],
+) -> tuple[list[LLMContextMessage], int]:
+    """把被其他消息隔开的 tool 结果移动到对应 assistant tool_calls 后面。"""
+
+    if not chat_history:
+        return chat_history, 0
+
+    consumed_indexes: set[int] = set()
+    normalized_history: list[LLMContextMessage] = []
+    moved_count = 0
+
+    for index, message in enumerate(chat_history):
+        if index in consumed_indexes:
+            continue
+
+        normalized_history.append(message)
+        if not isinstance(message, AssistantMessage) or not message.tool_calls:
+            continue
+
+        appended_tool_result_count = 0
+        for tool_call in message.tool_calls:
+            tool_call_id = str(tool_call.call_id or "").strip()
+            if not tool_call_id:
+                continue
+
+            matching_index = _find_tool_result_index(
+                chat_history,
+                tool_call_id=tool_call_id,
+                start_index=index + 1,
+                consumed_indexes=consumed_indexes,
+            )
+            if matching_index is None:
+                continue
+
+            consumed_indexes.add(matching_index)
+            normalized_history.append(chat_history[matching_index])
+            expected_index = index + appended_tool_result_count + 1
+            if matching_index != expected_index:
+                moved_count += 1
+            appended_tool_result_count += 1
+
+    if moved_count <= 0:
+        return chat_history, 0
+    return normalized_history, moved_count
+
+
+def _find_tool_result_index(
+    chat_history: list[LLMContextMessage],
+    *,
+    tool_call_id: str,
+    start_index: int,
+    consumed_indexes: set[int],
+) -> int | None:
+    """查找指定 tool_call_id 对应的 tool 结果消息位置。"""
+
+    for index in range(start_index, len(chat_history)):
+        if index in consumed_indexes:
+            continue
+        message = chat_history[index]
+        if not isinstance(message, ToolResultMessage):
+            continue
+        if message.tool_call_id == tool_call_id:
+            return index
+    return None

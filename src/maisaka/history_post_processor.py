@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 
 from .context_messages import AssistantMessage, LLMContextMessage, ToolResultMessage
-from .history_utils import drop_leading_orphan_tool_results, drop_orphan_tool_results
+from .history_utils import drop_leading_orphan_tool_results, drop_orphan_tool_results, normalize_tool_result_order
 
 TIMING_HISTORY_TOOL_NAMES = {"continue", "finish", "no_reply", "wait"}
 EARLY_TRIM_RATIO = 0.2
@@ -15,6 +15,7 @@ class HistoryPostProcessResult:
 
     history: list[LLMContextMessage]
     removed_count: int
+    changed_count: int
     remaining_context_count: int
 
 
@@ -30,6 +31,7 @@ def process_chat_history_after_cycle(
     removed_assistant_thought_count = _remove_early_assistant_thoughts(processed_history)
 
     processed_history, orphan_removed_count = drop_orphan_tool_results(processed_history)
+    processed_history, moved_tool_result_count = normalize_tool_result_order(processed_history)
     remaining_context_count = sum(1 for message in processed_history if message.count_in_context)
     removed_overflow_count = 0
 
@@ -48,9 +50,11 @@ def process_chat_history_after_cycle(
         + orphan_removed_count
         + removed_overflow_count
     )
+    changed_count = removed_count + moved_tool_result_count
     return HistoryPostProcessResult(
         history=processed_history,
         removed_count=removed_count,
+        changed_count=changed_count,
         remaining_context_count=remaining_context_count,
     )
 

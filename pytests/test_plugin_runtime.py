@@ -11,6 +11,7 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional, Sequence
 
 import asyncio
 import json
+import logging
 import os
 import sys
 
@@ -609,6 +610,33 @@ class TestSDK:
         assert response.payload["acknowledged"] is True
         assert plugin.configs == [{"plugin_enabled": True}]
         assert plugin.updates == [("model", {"models": []}, "", [{"plugin_enabled": True}])]
+
+    @pytest.mark.asyncio
+    async def test_host_logs_runner_ready_plugin_failures(self, caplog):
+        """Host 收到 runner.ready 时应明确记录插件注册失败。"""
+        from src.plugin_runtime.host.supervisor import PluginRunnerSupervisor
+        from src.plugin_runtime.protocol.envelope import Envelope, MessageType
+
+        supervisor = PluginRunnerSupervisor(plugin_dirs=[], runner_spawn_timeout_sec=1)
+        envelope = Envelope(
+            request_id=1,
+            message_type=MessageType.REQUEST,
+            method="runner.ready",
+            plugin_id="",
+            payload={
+                "loaded_plugins": ["ok_plugin"],
+                "failed_plugins": ["bad_plugin"],
+                "inactive_plugins": ["disabled_plugin"],
+            },
+        )
+
+        with caplog.at_level(logging.INFO, logger="plugin_runtime.host.runner_manager"):
+            response = await supervisor._handle_runner_ready(envelope)
+
+        assert response.payload["accepted"] is True
+        assert "插件注册失败: bad_plugin" in caplog.text
+        assert "插件未激活: disabled_plugin" in caplog.text
+        assert "Runner 插件初始化完成: loaded=1 failed=1 inactive=1" in caplog.text
 
     @pytest.mark.asyncio
     async def test_runner_bootstraps_capabilities_before_on_load(self, monkeypatch):
