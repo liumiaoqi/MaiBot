@@ -1,8 +1,9 @@
-import re
 from typing import Annotated, List, Optional
 
 from fastapi import File, Form, UploadFile
 from pydantic import BaseModel
+
+import re
 
 from src.common.database.database_model import Images
 
@@ -125,13 +126,19 @@ class ThumbnailPreheatResponse(BaseModel):
 
 
 def emoji_to_response(image: Images) -> EmojiResponse:
+    """将表情包模型转换为响应对象。
+
+    Args:
+        image: 数据库中的表情包记录。
+
+    Returns:
+        EmojiResponse: WebUI 可直接序列化的表情包数据。
+    """
     emotions: list[str] = []
     if image.description:
         emotions.extend(
             item.strip() for item in re.split(r"[,，、;；\s]+", image.description) if item and item.strip()
         )
-    if not emotions and image.emotion:
-        emotions.extend(item.strip() for item in re.split(r"[,，、;；\s]+", image.emotion) if item and item.strip())
 
     deduped_emotions: list[str] = []
     for item in emotions:
