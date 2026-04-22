@@ -1,7 +1,7 @@
 """表达方式管理 API 路由"""
 
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -91,7 +91,14 @@ class ExpressionCreateResponse(BaseModel):
 
 
 def expression_to_response(expression: Expression) -> ExpressionResponse:
-    """将 Expression 模型转换为响应对象"""
+    """将表达方式模型转换为响应对象。
+
+    Args:
+        expression: 数据库中的表达方式记录。
+
+    Returns:
+        ExpressionResponse: WebUI 可直接序列化的响应对象。
+    """
     last_active_time = expression.last_active_time.timestamp() if expression.last_active_time else 0.0
     create_date = expression.create_time.timestamp() if expression.create_time else None
     return ExpressionResponse(
@@ -108,7 +115,14 @@ def expression_to_response(expression: Expression) -> ExpressionResponse:
 
 
 def get_chat_name(chat_id: str) -> str:
-    """根据 chat_id 获取聊天名称"""
+    """根据聊天 ID 获取聊天名称。
+
+    Args:
+        chat_id: 聊天会话 ID。
+
+    Returns:
+        str: 聊天显示名称，获取失败时返回原始聊天 ID。
+    """
     try:
         session = _chat_manager.get_session_by_session_id(chat_id)
         if not session:
@@ -120,7 +134,14 @@ def get_chat_name(chat_id: str) -> str:
 
 
 def get_chat_names_batch(chat_ids: List[str]) -> Dict[str, str]:
-    """批量获取聊天名称"""
+    """批量获取聊天名称。
+
+    Args:
+        chat_ids: 需要查询的聊天会话 ID 列表。
+
+    Returns:
+        Dict[str, str]: 以聊天 ID 为键、显示名称为值的映射。
+    """
     result = {cid: cid for cid in chat_ids}  # 默认值为原始ID
     try:
         for chat_id in chat_ids:
@@ -148,12 +169,11 @@ class ChatListResponse(BaseModel):
 
 
 @router.get("/chats", response_model=ChatListResponse)
-async def get_chat_list():
-    """
-    获取所有聊天列表（用于下拉选择）
+async def get_chat_list() -> ChatListResponse:
+    """获取所有聊天列表。
 
     Returns:
-        聊天列表
+        ChatListResponse: 可用于下拉选择的聊天列表。
     """
     try:
         chat_list = []
@@ -186,18 +206,17 @@ async def get_expression_list(
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
     search: Optional[str] = Query(None, description="搜索关键词"),
     chat_id: Optional[str] = Query(None, description="聊天ID筛选"),
-):
-    """
-    获取表达方式列表
+) -> ExpressionListResponse:
+    """获取表达方式列表。
 
     Args:
-        page: 页码 (从 1 开始)
-        page_size: 每页数量 (1-100)
-        search: 搜索关键词 (匹配 situation, style)
-        chat_id: 聊天ID筛选
+        page: 页码，从 1 开始。
+        page_size: 每页数量，范围为 1-100。
+        search: 搜索关键词，用于匹配情景和风格。
+        chat_id: 聊天 ID 筛选条件。
 
     Returns:
-        表达方式列表
+        ExpressionListResponse: 分页后的表达方式列表。
     """
     try:
         # 构建查询
@@ -233,8 +252,7 @@ async def get_expression_list(
             if chat_id:
                 count_statement = count_statement.where(col(Expression.session_id) == chat_id)
             total = len(session.exec(count_statement).all())
-
-        data = [expression_to_response(expr) for expr in expressions]
+            data = [expression_to_response(expr) for expr in expressions]
 
         return ExpressionListResponse(success=True, total=total, page=page, page_size=page_size, data=data)
 
@@ -246,25 +264,26 @@ async def get_expression_list(
 
 
 @router.get("/{expression_id}", response_model=ExpressionDetailResponse)
-async def get_expression_detail(expression_id: int):
-    """
-    获取表达方式详细信息
+async def get_expression_detail(expression_id: int) -> ExpressionDetailResponse:
+    """获取表达方式详细信息。
 
     Args:
-        expression_id: 表达方式ID
+        expression_id: 表达方式 ID。
 
     Returns:
-        表达方式详细信息
+        ExpressionDetailResponse: 指定表达方式的详细信息。
     """
     try:
         with get_db_session() as session:
             statement = select(Expression).where(col(Expression.id) == expression_id).limit(1)
             expression = session.exec(statement).first()
 
-        if not expression:
-            raise HTTPException(status_code=404, detail=f"未找到 ID 为 {expression_id} 的表达方式")
+            if not expression:
+                raise HTTPException(status_code=404, detail=f"未找到 ID 为 {expression_id} 的表达方式")
 
-        return ExpressionDetailResponse(success=True, data=expression_to_response(expression))
+            data = expression_to_response(expression)
+
+        return ExpressionDetailResponse(success=True, data=data)
 
     except HTTPException:
         raise
@@ -276,15 +295,14 @@ async def get_expression_detail(expression_id: int):
 @router.post("/", response_model=ExpressionCreateResponse)
 async def create_expression(
     request: ExpressionCreateRequest,
-):
-    """
-    创建新的表达方式
+) -> ExpressionCreateResponse:
+    """创建新的表达方式。
 
     Args:
-        request: 创建请求
+        request: 创建表达方式所需的请求数据。
 
     Returns:
-        创建结果
+        ExpressionCreateResponse: 创建结果和新表达方式数据。
     """
     try:
         current_time = datetime.now()
@@ -294,8 +312,6 @@ async def create_expression(
             expression = Expression(
                 situation=request.situation,
                 style=request.style,
-                context="",
-                up_content="",
                 content_list="[]",
                 count=0,
                 last_active_time=current_time,
@@ -303,12 +319,13 @@ async def create_expression(
                 session_id=request.chat_id,
             )
             session.add(expression)
+            session.flush()
+            expression_id = expression.id
+            data = expression_to_response(expression)
 
-        logger.info(f"表达方式已创建: ID={expression.id}, situation={request.situation}")
+        logger.info(f"表达方式已创建: ID={expression_id}, situation={request.situation}")
 
-        return ExpressionCreateResponse(
-            success=True, message="表达方式创建成功", data=expression_to_response(expression)
-        )
+        return ExpressionCreateResponse(success=True, message="表达方式创建成功", data=data)
 
     except HTTPException:
         raise
@@ -321,25 +338,17 @@ async def create_expression(
 async def update_expression(
     expression_id: int,
     request: ExpressionUpdateRequest,
-):
-    """
-    增量更新表达方式（只更新提供的字段）
+) -> ExpressionUpdateResponse:
+    """增量更新表达方式。
 
     Args:
-        expression_id: 表达方式ID
-        request: 更新请求（只包含需要更新的字段）
+        expression_id: 表达方式 ID。
+        request: 只包含需要更新字段的请求数据。
 
     Returns:
-        更新结果
+        ExpressionUpdateResponse: 更新结果和更新后的表达方式数据。
     """
     try:
-        with get_db_session() as session:
-            statement = select(Expression).where(col(Expression.id) == expression_id).limit(1)
-            expression = session.exec(statement).first()
-
-        if not expression:
-            raise HTTPException(status_code=404, detail=f"未找到 ID 为 {expression_id} 的表达方式")
-
         # 只更新提供的字段
         update_data = request.model_dump(exclude_unset=True)
 
@@ -358,17 +367,19 @@ async def update_expression(
             db_expression = session.exec(select(Expression).where(col(Expression.id) == expression_id).limit(1)).first()
             if not db_expression:
                 raise HTTPException(status_code=404, detail=f"未找到 ID 为 {expression_id} 的表达方式")
-            for field, value in update_data.items():
-                if hasattr(db_expression, field):
-                    setattr(db_expression, field, value)
+            if "situation" in update_data:
+                db_expression.situation = update_data["situation"]
+            if "style" in update_data:
+                db_expression.style = update_data["style"]
+            if "session_id" in update_data:
+                db_expression.session_id = update_data["session_id"]
+            db_expression.last_active_time = update_data["last_active_time"]
             session.add(db_expression)
-            expression = db_expression
+            data = expression_to_response(db_expression)
 
         logger.info(f"表达方式已更新: ID={expression_id}, 字段: {list(update_data.keys())}")
 
-        return ExpressionUpdateResponse(
-            success=True, message=f"成功更新 {len(update_data)} 个字段", data=expression_to_response(expression)
-        )
+        return ExpressionUpdateResponse(success=True, message=f"成功更新 {len(update_data)} 个字段", data=data)
 
     except HTTPException:
         raise
@@ -378,29 +389,26 @@ async def update_expression(
 
 
 @router.delete("/{expression_id}", response_model=ExpressionDeleteResponse)
-async def delete_expression(expression_id: int):
-    """
-    删除表达方式
+async def delete_expression(expression_id: int) -> ExpressionDeleteResponse:
+    """删除表达方式。
 
     Args:
-        expression_id: 表达方式ID
+        expression_id: 表达方式 ID。
 
     Returns:
-        删除结果
+        ExpressionDeleteResponse: 删除结果。
     """
     try:
         with get_db_session() as session:
             statement = select(Expression).where(col(Expression.id) == expression_id).limit(1)
             expression = session.exec(statement).first()
 
-        if not expression:
-            raise HTTPException(status_code=404, detail=f"未找到 ID 为 {expression_id} 的表达方式")
+            if not expression:
+                raise HTTPException(status_code=404, detail=f"未找到 ID 为 {expression_id} 的表达方式")
 
-        # 记录删除信息
-        situation = expression.situation
+            # 记录删除信息
+            situation = expression.situation
 
-        # 执行删除
-        with get_db_session() as session:
             session.exec(delete(Expression).where(col(Expression.id) == expression_id))
 
         logger.info(f"表达方式已删除: ID={expression_id}, situation={situation}")
@@ -423,15 +431,14 @@ class BatchDeleteRequest(BaseModel):
 @router.post("/batch/delete", response_model=ExpressionDeleteResponse)
 async def batch_delete_expressions(
     request: BatchDeleteRequest,
-):
-    """
-    批量删除表达方式
+) -> ExpressionDeleteResponse:
+    """批量删除表达方式。
 
     Args:
-        request: 包含要删除的ID列表的请求
+        request: 包含要删除表达方式 ID 列表的请求。
 
     Returns:
-        删除结果
+        ExpressionDeleteResponse: 批量删除结果。
     """
     try:
         if not request.ids:
@@ -463,12 +470,11 @@ async def batch_delete_expressions(
 
 
 @router.get("/stats/summary")
-async def get_expression_stats():
-    """
-    获取表达方式统计数据
+async def get_expression_stats() -> Dict[str, Any]:
+    """获取表达方式统计数据。
 
     Returns:
-        统计数据
+        Dict[str, Any]: 表达方式数量、近期新增和聊天分布统计。
     """
     try:
         with get_db_session() as session:
@@ -519,12 +525,11 @@ class ReviewStatsResponse(BaseModel):
 
 
 @router.get("/review/stats", response_model=ReviewStatsResponse)
-async def get_review_stats():
-    """
-    获取审核统计数据
+async def get_review_stats() -> ReviewStatsResponse:
+    """获取审核统计数据。
 
     Returns:
-        审核统计数据
+        ReviewStatsResponse: 审核统计数据。
     """
     try:
         with get_db_session() as session:
@@ -568,19 +573,18 @@ async def get_review_list(
     filter_type: str = Query("unchecked", description="筛选类型: unchecked/passed/rejected/all"),
     search: Optional[str] = Query(None, description="搜索关键词"),
     chat_id: Optional[str] = Query(None, description="聊天ID筛选"),
-):
-    """
-    获取待审核/已审核的表达方式列表
+) -> ReviewListResponse:
+    """获取待审核或已审核的表达方式列表。
 
     Args:
-        page: 页码
-        page_size: 每页数量
-        filter_type: 筛选类型 (unchecked/passed/rejected/all)
-        search: 搜索关键词
-        chat_id: 聊天ID筛选
+        page: 页码。
+        page_size: 每页数量。
+        filter_type: 筛选类型，可选 unchecked、passed、rejected 或 all。
+        search: 搜索关键词。
+        chat_id: 聊天 ID 筛选条件。
 
     Returns:
-        表达方式列表
+        ReviewListResponse: 审核列表响应。
     """
     try:
         statement = select(Expression)
@@ -621,13 +625,14 @@ async def get_review_list(
             if chat_id:
                 count_statement = count_statement.where(col(Expression.session_id) == chat_id)
             total = len(session.exec(count_statement).all())
+            data = [expression_to_response(expr) for expr in expressions]
 
         return ReviewListResponse(
             success=True,
             total=total,
             page=page,
             page_size=page_size,
-            data=[expression_to_response(expr) for expr in expressions],
+            data=data,
         )
 
     except HTTPException:
@@ -672,15 +677,14 @@ class BatchReviewResponse(BaseModel):
 @router.post("/review/batch", response_model=BatchReviewResponse)
 async def batch_review_expressions(
     request: BatchReviewRequest,
-):
-    """
-    批量审核表达方式
+) -> BatchReviewResponse:
+    """批量审核表达方式。
 
     Args:
-        request: 批量审核请求
+        request: 批量审核请求。
 
     Returns:
-        批量审核结果
+        BatchReviewResponse: 每条表达方式的审核结果。
     """
     try:
         if not request.items:
