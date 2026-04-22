@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Annotated, List, Optional
 
 from fastapi import File, Form, UploadFile
@@ -19,9 +20,11 @@ class EmojiResponse(BaseModel):
 
     id: int
     full_path: str
+    format: str
     emoji_hash: str
     description: str
     query_count: int
+    usage_count: int
     is_registered: bool
     is_banned: bool
     emotion: Optional[str]
@@ -145,13 +148,16 @@ def emoji_to_response(image: Images) -> EmojiResponse:
         if item not in deduped_emotions:
             deduped_emotions.append(item)
     emotion = ",".join(deduped_emotions) if deduped_emotions else None
+    image_format = Path(image.full_path).suffix.lower().lstrip(".") or "unknown"
 
     return EmojiResponse(
         id=image.id if image.id is not None else 0,
         full_path=image.full_path,
+        format=image_format,
         emoji_hash=image.image_hash,
         description=image.description,
         query_count=image.query_count,
+        usage_count=image.query_count,
         is_registered=image.is_registered,
         is_banned=image.is_banned,
         emotion=emotion,
