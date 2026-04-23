@@ -453,15 +453,15 @@ def _build_processed_plain_text(message: SessionMessage) -> str:
             continue
 
         if isinstance(component, ImageComponent):
-            processed_parts.append(component.content or "[图片]")
+            processed_parts.append(component.content.strip() or "[图片]")
             continue
 
         if isinstance(component, EmojiComponent):
-            processed_parts.append(component.content or "[表情]")
+            processed_parts.append(component.content.strip() or "[表情]")
             continue
 
         if isinstance(component, VoiceComponent):
-            processed_parts.append(component.content or "[语音]")
+            processed_parts.append(component.content.strip() or "[语音]")
             continue
 
         if isinstance(component, AtComponent):

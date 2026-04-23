@@ -230,8 +230,10 @@ class SessionMessage(MaiMessage):
         Returns:
             str: 图片组件对应的文本表示。
         """
-        if component.content:  # 先检查是否处理过
-            return component.content
+        normalized_content = component.content.strip()
+        if normalized_content:  # 先检查是否处理过
+            component.content = normalized_content
+            return normalized_content
         from src.chat.image_system.image_manager import image_manager
 
         # 获取描述
@@ -263,8 +265,10 @@ class SessionMessage(MaiMessage):
         Returns:
             str: 表情包组件对应的文本表示。
         """
-        if component.content:  # 先检查是否处理过
-            return component.content
+        normalized_content = component.content.strip()
+        if normalized_content:  # 先检查是否处理过
+            component.content = normalized_content
+            return normalized_content
         from src.emoji_system.emoji_manager import emoji_manager
 
         # 获取表情包描述
@@ -323,8 +327,10 @@ class SessionMessage(MaiMessage):
         Returns:
             str: 语音组件对应的文本表示。
         """
-        if component.content:  # 先检查是否处理过
-            return component.content
+        normalized_content = component.content.strip()
+        if normalized_content:  # 先检查是否处理过
+            component.content = normalized_content
+            return normalized_content
         if not enable_voice_transcription:
             component.content = "[语音消息]"
             return component.content

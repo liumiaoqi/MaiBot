@@ -79,11 +79,11 @@ def build_visible_text_from_sequence(message_sequence: MessageSequence) -> str:
             continue
 
         if isinstance(component, EmojiComponent):
-            parts.append(component.content or "[表情包]")
+            parts.append(component.content.strip() or "[表情包]")
             continue
 
         if isinstance(component, ImageComponent):
-            parts.append(component.content or "[图片]")
+            parts.append(component.content.strip() or "[图片]")
             continue
 
         if isinstance(component, AtComponent):

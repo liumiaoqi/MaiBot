@@ -191,6 +191,15 @@ class ChatConfig(ConfigBase):
     inevitable_at_reply: bool = Field(default=True)
     """是否启用at必回复"""
 
+    enable_at: bool = Field(
+        default=True,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "at-sign",
+        },
+    )
+    """是否允许 replyer 使用 at[msg_id] 标记来发送真正的 at 消息"""
+
     enable_reply_quote: bool = Field(
         default=True,
         json_schema_extra={

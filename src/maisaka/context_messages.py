@@ -53,8 +53,9 @@ def _append_emoji_component(
         builder.add_image_content(image_format, base64.b64encode(component.binary_data).decode("utf-8"))
         return True
 
-    if component.content:
-        builder.add_text_content(component.content)
+    normalized_content = component.content.strip()
+    if normalized_content:
+        builder.add_text_content(normalized_content)
         return True
 
     builder.add_text_content("[表情包]")
@@ -74,8 +75,9 @@ def _append_image_component(
         builder.add_image_content(image_format, base64.b64encode(component.binary_data).decode("utf-8"))
         return True
 
-    if component.content:
-        builder.add_text_content(component.content)
+    normalized_content = component.content.strip()
+    if normalized_content:
+        builder.add_text_content(normalized_content)
         return True
 
     builder.add_text_content("[图片]")

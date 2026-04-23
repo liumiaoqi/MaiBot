@@ -9,8 +9,6 @@ from src.config.config import global_config
 from src.core.tooling import ToolAvailabilityContext, ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
 from src.llm_models.payload_content.tool_option import ToolDefinitionInput
 
-from .at import get_tool_spec as get_at_tool_spec
-from .at import handle_tool as handle_at_tool
 from .context import BuiltinToolRuntimeContext
 from .continue_tool import get_tool_spec as get_continue_tool_spec
 from .continue_tool import handle_tool as handle_continue_tool
@@ -93,14 +91,6 @@ BUILTIN_TOOL_ENTRIES: List[BuiltinToolEntry] = [
         visibility="hidden",
     ),
     BuiltinToolEntry("send_emoji", get_send_emoji_tool_spec, handle_send_emoji_tool, stage="action"),
-    BuiltinToolEntry(
-        "at",
-        get_at_tool_spec,
-        handle_at_tool,
-        stage="action",
-        visibility="deferred",
-        chat_scope="group",
-    ),
     BuiltinToolEntry("tool_search", get_tool_search_tool_spec, handle_tool_search_tool, stage="action"),
 ]
 

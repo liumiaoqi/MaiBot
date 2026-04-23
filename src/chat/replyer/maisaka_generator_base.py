@@ -201,6 +201,18 @@ class BaseMaisakaReplyGenerator:
 
         return "在该聊天中的注意事项：\n" + "\n\n".join(prompt_lines) + "\n"
 
+    @staticmethod
+    def _build_replyer_at_block() -> str:
+        """构建 replyer 模式下的 at 标记说明。"""
+
+        if not global_config.chat.enable_at:
+            return ""
+        return (
+            "如果需要提及某人、让某人关注你的回复，可以在回复中加入 `at[msg_id]` 标记，"
+            "其中 msg_id 应使用聊天记录中该用户发过的消息编号；"
+            "消息发送时会检查这种标记并转换为真正的 at 消息。\n"
+        )
+
     def _build_system_prompt(
         self,
         reply_message: Optional[SessionMessage],
@@ -218,6 +230,7 @@ class BaseMaisakaReplyGenerator:
                 "maisaka_replyer",
                 bot_name=global_config.bot.nickname,
                 group_chat_attention_block=self._build_group_chat_attention_block(session_id),
+                replyer_at_block=self._build_replyer_at_block(),
                 time_block=f"当前时间：{current_time}",
                 identity=self._personality_prompt,
                 reply_style=global_config.personality.reply_style,

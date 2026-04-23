@@ -12,7 +12,7 @@ from src.plugin_runtime.host.component_registry import ComponentRegistry
 
 
 @pytest.mark.asyncio
-async def test_builtin_at_is_exposed_only_in_group_chats() -> None:
+async def test_builtin_at_tool_is_not_exposed() -> None:
     registry = ToolRegistry()
     registry.register_provider(MaisakaBuiltinToolProvider())
 
@@ -20,9 +20,9 @@ async def test_builtin_at_is_exposed_only_in_group_chats() -> None:
     private_specs = await registry.list_tools(ToolAvailabilityContext(session_id="private-1", is_group_chat=False))
     default_specs = await registry.list_tools()
 
-    assert "at" in {tool_spec.name for tool_spec in group_specs}
+    assert "at" not in {tool_spec.name for tool_spec in group_specs}
     assert "at" not in {tool_spec.name for tool_spec in private_specs}
-    assert "at" in {tool_spec.name for tool_spec in default_specs}
+    assert "at" not in {tool_spec.name for tool_spec in default_specs}
 
 
 def test_plugin_tool_chat_scope_uses_component_field(monkeypatch: pytest.MonkeyPatch) -> None:

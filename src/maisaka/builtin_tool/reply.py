@@ -10,6 +10,7 @@ from src.common.data_models.reply_generation_data_models import ReplyGenerationR
 from src.common.logger import get_logger
 from src.config import config as config_module
 from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
+from src.maisaka.message_adapter import build_visible_text_from_sequence
 from src.services import send_service
 
 from .context import BuiltinToolRuntimeContext
@@ -180,7 +181,8 @@ async def handle_tool(
             metadata=reply_metadata,
         )
 
-    reply_segments = tool_ctx.post_process_reply_text(reply_text)
+    reply_sequences = tool_ctx.post_process_reply_message_sequences(reply_text)
+    reply_segments = [build_visible_text_from_sequence(sequence) for sequence in reply_sequences]
     combined_reply_text = "".join(reply_segments)
     sent_message_ids: list[str] = []
     send_results: list[dict[str, Any]] = []
@@ -199,11 +201,13 @@ async def handle_tool(
                 )
             sent = True
         else:
-            for index, segment in enumerate(reply_segments):
+            for index, reply_sequence in enumerate(reply_sequences):
+                segment = reply_segments[index]
                 segment_set_quote = effective_set_quote if index == 0 else False
-                sent_message = await send_service.text_to_stream_with_message(
-                    text=segment,
+                sent_message = await send_service._send_to_target_with_message(
+                    message_sequence=reply_sequence,
                     stream_id=tool_ctx.runtime.session_id,
+                    display_message=segment,
                     set_reply=segment_set_quote,
                     reply_message=target_message if segment_set_quote else None,
                     selected_expressions=reply_result.selected_expression_ids or None,
