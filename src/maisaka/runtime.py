@@ -6,6 +6,7 @@ from math import ceil
 from typing import Any, Literal, Optional, Sequence
 
 import asyncio
+import json
 import time
 
 from rich.console import Group, RenderableType
@@ -34,7 +35,13 @@ from src.plugin_runtime.tool_provider import PluginToolProvider
 from src.plugin_runtime.hook_payloads import deserialize_prompt_messages
 
 from .chat_loop_service import ChatResponse, MaisakaChatLoopService
-from .context_messages import LLMContextMessage, ReferenceMessage, ReferenceMessageType
+from .context_messages import (
+    AssistantMessage,
+    LLMContextMessage,
+    ReferenceMessage,
+    ReferenceMessageType,
+    ToolResultMessage,
+)
 from .display.display_utils import build_tool_call_summary_lines, format_token_count
 from .display.prompt_cli_renderer import PromptCLIVisualizer
 from .display.stage_status_board import remove_stage_status, update_stage_status
@@ -637,6 +644,73 @@ class MaisakaHeartFlowChatting:
         self.deferred_tool_specs_by_name = next_specs_by_name
         self.discovered_tool_names.intersection_update(next_specs_by_name.keys())
 
+    def sync_discovered_deferred_tools_with_context(
+        self,
+        selected_history: Sequence[LLMContextMessage],
+    ) -> None:
+        """根据当前实际上下文中的 tool_search 调用链同步已发现 deferred tools。
+
+        已激活 deferred tool 必须能在本轮上下文中找到对应的 tool_search call 与 result。
+        当这条调用链被上下文窗口裁掉后，工具会重新折回 deferred tools 提示中。
+        """
+
+        visible_tool_names = self._extract_visible_tool_search_discoveries(selected_history)
+        self.discovered_tool_names = visible_tool_names.intersection(self.deferred_tool_specs_by_name.keys())
+
+    def _extract_visible_tool_search_discoveries(
+        self,
+        selected_history: Sequence[LLMContextMessage],
+    ) -> set[str]:
+        """提取当前上下文中仍有完整 tool_search call/result 支撑的工具名。"""
+
+        tool_search_call_ids = {
+            tool_call.call_id
+            for message in selected_history
+            if isinstance(message, AssistantMessage)
+            for tool_call in message.tool_calls
+            if tool_call.func_name == "tool_search" and tool_call.call_id
+        }
+        if not tool_search_call_ids:
+            return set()
+
+        discovered_tool_names: set[str] = set()
+        for message in selected_history:
+            if not isinstance(message, ToolResultMessage):
+                continue
+            if message.tool_name != "tool_search" or message.tool_call_id not in tool_search_call_ids:
+                continue
+            if not message.success:
+                continue
+            discovered_tool_names.update(self._parse_tool_search_result_tool_names(message.content))
+        return discovered_tool_names
+
+    def _parse_tool_search_result_tool_names(self, content: str) -> set[str]:
+        """从 tool_search 的历史结果文本中解析有效 deferred tool 名称。"""
+
+        discovered_tool_names: set[str] = set()
+        try:
+            structured_content = json.loads(content)
+        except (TypeError, ValueError):
+            structured_content = None
+
+        if isinstance(structured_content, dict):
+            raw_tool_names = structured_content.get("matched_tool_names")
+            if isinstance(raw_tool_names, list):
+                for raw_tool_name in raw_tool_names:
+                    normalized_name = str(raw_tool_name).strip()
+                    if normalized_name in self.deferred_tool_specs_by_name:
+                        discovered_tool_names.add(normalized_name)
+
+        for raw_line in content.splitlines():
+            normalized_line = raw_line.strip()
+            if not normalized_line.startswith("- "):
+                continue
+            normalized_name = normalized_line[2:].strip()
+            if normalized_name in self.deferred_tool_specs_by_name:
+                discovered_tool_names.add(normalized_name)
+
+        return discovered_tool_names
+
     def get_discovered_deferred_tool_specs(self) -> list[ToolSpec]:
         """返回当前会话中已发现、且仍然有效的 deferred tools。"""
 
@@ -1007,9 +1081,10 @@ class MaisakaHeartFlowChatting:
             f"聊天流名称：{getattr(self, 'session_name', self.session_id)}",
             f"聊天流ID：{self.session_id}",
         ]
-        if cycle_id is not None:
-            body_lines.append(f"循环编号：{cycle_id}")
 
+        panel_title = "MaiSaka 循环"
+        if cycle_id is not None:
+            panel_title = f"{panel_title} [{cycle_id}]"
         panel_subtitle = self._build_cycle_time_records_text(time_records or {})
         renderables: list[RenderableType] = [Text("\n".join(body_lines))]
         timing_panel = self._build_cycle_stage_panel(
@@ -1019,7 +1094,7 @@ class MaisakaHeartFlowChatting:
             prompt_tokens=timing_prompt_tokens,
             response_text=timing_response,
             prompt_section=timing_prompt_section,
-            extra_lines=[f"门控动作：{timing_action}"] if timing_action.strip() else None,
+            extra_lines=None,
         )
         if timing_panel is not None:
             renderables.append(timing_panel)
@@ -1059,7 +1134,7 @@ class MaisakaHeartFlowChatting:
         console.print(
             Panel(
                 Group(*renderables),
-                title="MaiSaka 循环",
+                title=panel_title,
                 subtitle=panel_subtitle,
                 border_style="bright_blue",
                 padding=(0, 1),
@@ -1090,8 +1165,6 @@ class MaisakaHeartFlowChatting:
             return None
 
         body_lines: list[str] = []
-        if selected_history_count is not None:
-            body_lines.append(f"上下文占用：{selected_history_count}/{self._max_context_size} 条")
         if prompt_tokens is not None:
             body_lines.append(f"本次请求token消耗：{format_token_count(prompt_tokens)}")
         if extra_lines:

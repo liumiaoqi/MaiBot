@@ -93,6 +93,6 @@ def build_visible_text_from_sequence(message_sequence: MessageSequence) -> str:
         if isinstance(component, ReplyComponent):
             target_message_id = component.target_message_id.strip()
             if target_message_id:
-                parts.append(f"[引用回复]({target_message_id})")
+                parts.append(f"[引用]quote_id={target_message_id}")
 
     return "".join(parts)

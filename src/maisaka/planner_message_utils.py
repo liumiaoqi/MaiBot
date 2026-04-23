@@ -31,13 +31,18 @@ def build_planner_prefix(
         str: 拼接完成的规划器前缀。
     """
 
-    prefix_parts = [
-        f"[时间]{timestamp.strftime('%H:%M:%S')}\n",
-        f"[用户名]{user_name}\n",
-        f"[用户群昵称]{group_card}\n",
-    ]
+    prefix_parts = []
     if include_message_id:
         prefix_parts.append(f"[msg_id]{message_id or ''}\n")
+    prefix_parts.extend(
+        [
+            f"[时间]{timestamp.strftime('%H:%M:%S')}\n",
+            f"[用户名]{user_name}\n",
+        ]
+    )
+    normalized_group_card = group_card.strip()
+    if normalized_group_card:
+        prefix_parts.append(f"[用户群昵称]{normalized_group_card}\n")
     prefix_parts.append("[发言内容]")
     return "".join(prefix_parts)
 
