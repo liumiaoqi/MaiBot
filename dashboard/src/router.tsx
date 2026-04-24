@@ -1,31 +1,13 @@
-import { createRootRoute, createRoute, createRouter, Outlet, redirect } from '@tanstack/react-router'
+import {
+  createRootRoute,
+  createRoute,
+  createRouter,
+  lazyRouteComponent,
+  Outlet,
+  redirect,
+} from '@tanstack/react-router'
 import { TanStackRouterDevtools } from '@tanstack/router-devtools'
-import { IndexPage } from './routes/index'
-import { SettingsPage } from './routes/settings'
-import { AuthPage } from './routes/auth'
-import { SetupPage } from './routes/setup'
 import { NotFoundPage } from './routes/404'
-import { BotConfigPage } from './routes/config/bot'
-import { ModelProviderConfigPage } from './routes/config/modelProvider'
-import { ModelConfigPage } from './routes/config/model'
-import { AdapterConfigPage } from './routes/config/adapter'
-import { EmojiManagementPage } from './routes/resource/emoji'
-import { ExpressionManagementPage } from './routes/resource/expression'
-import { JargonManagementPage } from './routes/resource/jargon'
-import { PersonManagementPage } from './routes/person'
-import { KnowledgeGraphPage } from './routes/resource/knowledge-graph'
-import { KnowledgeBasePage } from './routes/resource/knowledge-base'
-import { LogViewerPage } from './routes/logs'
-import { PlannerMonitorPage } from './routes/monitor'
-import { PluginsPage } from './routes/plugins'
-import { ModelPresetsPage } from './routes/model-presets'
-import { PluginConfigPage } from './routes/plugin-config'
-import { PluginMirrorsPage } from './routes/plugin-mirrors'
-import { PluginDetailPage } from './routes/plugin-detail'
-import { ChatPage } from './routes/chat/index'
-import { WebUIFeedbackSurveyPage, MaiBotFeedbackSurveyPage } from './routes/survey'
-import PackMarketPage from './routes/config/pack-market'
-import PackDetailPage from './routes/config/pack-detail'
 import { Layout } from './components/layout'
 import { checkAuth } from './hooks/use-auth'
 import { RouteErrorBoundary } from './components/error-boundary'
@@ -50,14 +32,14 @@ const rootRoute = createRootRoute({
 const authRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/auth',
-  component: AuthPage,
+  component: lazyRouteComponent(() => import('./routes/auth'), 'AuthPage'),
 })
 
 // 首次配置路由（无 Layout）
 const setupRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/setup',
-  component: SetupPage,
+  component: lazyRouteComponent(() => import('./routes/setup/index.tsx'), 'SetupPage'),
 })
 
 // 受保护的路由 Root（带 Layout）
@@ -76,168 +58,192 @@ const protectedRoute = createRoute({
 const indexRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/',
-  component: IndexPage,
+  component: lazyRouteComponent(() => import('./routes/index'), 'IndexPage'),
 })
 
 // 配置路由 - 麦麦主程序配置
 const botConfigRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/config/bot',
-  component: BotConfigPage,
+  component: lazyRouteComponent(() => import('./routes/config/bot'), 'BotConfigPage'),
 })
 
 // 配置路由 - 麦麦模型提供商配置
 const modelProviderConfigRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/config/modelProvider',
-  component: ModelProviderConfigPage,
+  component: lazyRouteComponent(
+    () => import('./routes/config/modelProvider/index.tsx'),
+    'ModelProviderConfigPage'
+  ),
 })
 
 // 配置路由 - 麦麦模型配置
 const modelConfigRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/config/model',
-  component: ModelConfigPage,
+  component: lazyRouteComponent(() => import('./routes/config/model'), 'ModelConfigPage'),
 })
 
 // 配置路由 - 麦麦适配器配置
 const adapterConfigRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/config/adapter',
-  component: AdapterConfigPage,
+  component: lazyRouteComponent(() => import('./routes/config/adapter'), 'AdapterConfigPage'),
 })
 
 // 资源管理路由 - 表情包管理
 const emojiManagementRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/resource/emoji',
-  component: EmojiManagementPage,
+  component: lazyRouteComponent(
+    () => import('./routes/resource/emoji/index.tsx'),
+    'EmojiManagementPage'
+  ),
 })
 
 // 资源管理路由 - 表达方式管理
 const expressionManagementRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/resource/expression',
-  component: ExpressionManagementPage,
+  component: lazyRouteComponent(
+    () => import('./routes/resource/expression/index.tsx'),
+    'ExpressionManagementPage'
+  ),
 })
 
 // 资源管理路由 - 人物信息管理
 const personManagementRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/resource/person',
-  component: PersonManagementPage,
+  component: lazyRouteComponent(() => import('./routes/person'), 'PersonManagementPage'),
 })
 
 // 资源管理路由 - 黑话管理
 const jargonManagementRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/resource/jargon',
-  component: JargonManagementPage,
+  component: lazyRouteComponent(
+    () => import('./routes/resource/jargon/index.tsx'),
+    'JargonManagementPage'
+  ),
 })
 
 // 资源管理路由 - 知识库图谱可视化
 const knowledgeGraphRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/resource/knowledge-graph',
-  component: KnowledgeGraphPage,
+  component: lazyRouteComponent(
+    () => import('./routes/resource/knowledge-graph/index.tsx'),
+    'KnowledgeGraphPage'
+  ),
 })
 
 // 资源管理路由 - 麦麦知识库管理
 const knowledgeBaseRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/resource/knowledge-base',
-  component: KnowledgeBasePage,
+  component: lazyRouteComponent(
+    () => import('./routes/resource/knowledge-base'),
+    'KnowledgeBasePage'
+  ),
 })
 
 // 日志查看器路由
 const logsRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/logs',
-  component: LogViewerPage,
+  component: lazyRouteComponent(() => import('./routes/logs'), 'LogViewerPage'),
 })
 
 // MaiSaka 聊天流监控路由
 const plannerMonitorRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/planner-monitor',
-  component: PlannerMonitorPage,
+  component: lazyRouteComponent(() => import('./routes/monitor/index.tsx'), 'PlannerMonitorPage'),
 })
 
 // 本地聊天室路由
 const chatRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/chat',
-  component: ChatPage,
+  component: lazyRouteComponent(() => import('./routes/chat/index'), 'ChatPage'),
 })
 
 // 插件市场路由
 const pluginsRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/plugins',
-  component: PluginsPage,
+  component: lazyRouteComponent(() => import('./routes/plugins/index'), 'PluginsPage'),
 })
 
 // 插件详情路由
 const pluginDetailRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/plugin-detail',
-  component: PluginDetailPage,
+  component: lazyRouteComponent(() => import('./routes/plugin-detail'), 'PluginDetailPage'),
 })
 
 // 模型分配预设市场路由
 const modelPresetsRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/model-presets',
-  component: ModelPresetsPage,
+  component: lazyRouteComponent(() => import('./routes/model-presets'), 'ModelPresetsPage'),
 })
 
 // 插件配置路由
 const pluginConfigRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/plugin-config',
-  component: PluginConfigPage,
+  component: lazyRouteComponent(() => import('./routes/plugin-config'), 'PluginConfigPage'),
 })
 
 // 插件镜像源配置路由
 const pluginMirrorsRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/plugin-mirrors',
-  component: PluginMirrorsPage,
+  component: lazyRouteComponent(() => import('./routes/plugin-mirrors'), 'PluginMirrorsPage'),
 })
 
 // 设置页路由
 const settingsRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/settings',
-  component: SettingsPage,
+  component: lazyRouteComponent(() => import('./routes/settings/index.tsx'), 'SettingsPage'),
 })
 
 // 配置模板市场路由
 const packMarketRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/config/pack-market',
-  component: PackMarketPage,
+  component: lazyRouteComponent(() => import('./routes/config/pack-market')),
 })
 
 // 配置模板详情路由
 export const packDetailRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/config/pack-market/$packId',
-  component: PackDetailPage,
+  component: lazyRouteComponent(() => import('./routes/config/pack-detail')),
 })
 
 // 问卷调查路由 - WebUI 反馈
 const webuiFeedbackSurveyRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/survey/webui-feedback',
-  component: WebUIFeedbackSurveyPage,
+  component: lazyRouteComponent(
+    () => import('./routes/survey/webui-feedback'),
+    'WebUIFeedbackSurveyPage'
+  ),
 })
 
 // 问卷调查路由 - 麦麦体验反馈
 const maibotFeedbackSurveyRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/survey/maibot-feedback',
-  component: MaiBotFeedbackSurveyPage,
+  component: lazyRouteComponent(
+    () => import('./routes/survey/maibot-feedback'),
+    'MaiBotFeedbackSurveyPage'
+  ),
 })
 
 // 404 路由
@@ -294,7 +300,7 @@ function collectRoutePaths(node: RouteNode): string[] {
 export const registeredRoutePaths = new Set(collectRoutePaths(routeTree as RouteNode))
 
 // 创建路由器
-export const router = createRouter({ 
+export const router = createRouter({
   routeTree,
   defaultNotFoundComponent: NotFoundPage,
   defaultErrorComponent: ({ error }) => <RouteErrorBoundary error={error} />,

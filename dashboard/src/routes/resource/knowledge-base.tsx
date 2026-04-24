@@ -16,7 +16,7 @@ import {
   Upload,
 } from 'lucide-react'
 
-import { CodeEditor } from '@/components'
+import { CodeEditor } from '@/components/CodeEditor'
 import { MemoryDeleteDialog } from '@/components/memory/MemoryDeleteDialog'
 import { MemoryConfigEditor } from '@/components/memory/MemoryConfigEditor'
 import { Alert, AlertDescription } from '@/components/ui/alert'

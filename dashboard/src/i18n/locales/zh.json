@@ -43,10 +43,121 @@
       "settings": "系统设置"
     }
   },
+  "workspace": {
+    "switcherLabel": "切换麦麦工作区",
+    "settings": "麦麦设置",
+    "chat": "麦麦聊天"
+  },
+  "chat": {
+    "defaultTab": "WebUI",
+    "botNameFallback": "麦麦",
+    "userFallback": "用户",
+    "userNameFallback": "WebUI用户",
+    "virtualGroupFallback": "WebUI虚拟群聊",
+    "status": {
+      "connected": "已连接",
+      "connecting": "连接中...",
+      "disconnected": "未连接"
+    },
+    "actions": {
+      "cancel": "取消",
+      "reconnect": "重新连接",
+      "save": "保存",
+      "send": "发送消息"
+    },
+    "identity": {
+      "current": "当前身份：",
+      "editName": "修改昵称",
+      "group": "群：{{group}}",
+      "namePlaceholder": "输入昵称",
+      "virtual": "虚拟身份："
+    },
+    "input": {
+      "placeholder": "输入消息...",
+      "waiting": "等待连接..."
+    },
+    "message": {
+      "empty": "开始与 {{bot}} 对话吧！",
+      "emptyHint": "在下方输入框输入消息，按 Enter 发送",
+      "errorFallback": "发生错误",
+      "thinking": "思考中..."
+    },
+    "composer": {
+      "hint": "Enter 发送 · Shift + Enter 换行"
+    },
+    "sidebar": {
+      "closeConversation": "关闭 {{label}}",
+      "conversations": "聊天会话",
+      "emptyPreview": "暂无消息",
+      "identityHint": "本地聊天室身份",
+      "newVirtual": "新建虚拟身份对话",
+      "online": "在线",
+      "offline": "离线",
+      "subtitle": "{{count}} 个会话",
+      "title": "聊天",
+      "webuiBadge": "WebUI",
+      "virtualBadge": "虚拟",
+      "profileTitle": "我的身份",
+      "editName": "编辑昵称",
+      "saveName": "保存"
+    },
+    "dialog": {
+      "create": "创建对话",
+      "description": "选择一个麦麦已认识的用户，以该用户的身份与麦麦对话。麦麦将使用她对该用户的记忆和认知来回应。",
+      "groupName": "虚拟群名（可选）",
+      "groupNameHint": "麦麦会认为这是一个名为此名称的群聊",
+      "knownUserSuffix": " · 已认识",
+      "loading": "加载中...",
+      "noUsers": "没有找到用户",
+      "personCount": "({{count}} 人)",
+      "platform": "选择平台",
+      "platformPlaceholder": "选择平台",
+      "searchUser": "搜索用户名...",
+      "title": "新建虚拟身份对话",
+      "user": "选择用户"
+    },
+    "media": {
+      "audioUnsupported": "您的浏览器不支持音频播放",
+      "emoji": "表情包",
+      "face": "[表情:{{data}}]",
+      "file": "[文件: {{data}}]",
+      "forward": "[转发消息]",
+      "image": "图片",
+      "loadFailed": "[{{type}}加载失败]",
+      "music": "[音乐分享]",
+      "noCaptions": "无字幕",
+      "reply": "[回复消息]",
+      "unknown": "[{{type}}]",
+      "unknownMessage": "未知消息",
+      "videoUnsupported": "您的浏览器不支持视频播放"
+    },
+    "toast": {
+      "backendUnavailable": "无法连接到后端服务，请确保 MaiBot 已启动",
+      "backendUnavailableShort": "无法连接到后端服务",
+      "connectionFailed": "连接失败",
+      "currentSessionUnavailable": "当前聊天会话不可用，请稍后重试",
+      "error": "错误",
+      "incompleteConfig": "配置不完整",
+      "networkError": "网络错误",
+      "platformFailed": "获取平台失败",
+      "selectPlatformAndUser": "请选择平台和用户",
+      "sendFailed": "发送失败",
+      "serverError": "服务器返回错误: {{status}}",
+      "sessionUnavailable": "无法建立聊天会话，请稍后重试",
+      "virtualTabCreated": "虚拟身份标签页",
+      "virtualTabCreatedDesc": "已创建 {{label}} 的对话"
+    }
+  },
   "layout": {
     "verifyingLogin": "正在验证登录状态...",
     "logoTitle": "MaiBot WebUI",
     "logoTitleShort": "M"
+  },
+  "httpWarning": {
+    "title": "安全提示：",
+    "message": "当前正在通过 HTTP 访问 WebUI。",
+    "description": "非本地 HTTP 连接可能暴露访问令牌和配置内容，建议改用 HTTPS 或受信任的内网连接。",
+    "dismiss": "关闭 HTTP 安全提示"
   },
   "settings": {
     "title": "系统设置",
@@ -395,7 +506,7 @@
       },
       "other": {
         "title": "其他设置",
-        "description": "工具、情绪系统等配置"
+        "description": "配置全局黑话等基础选项"
       },
       "siliconFlow": {
         "title": "API配置",
@@ -450,9 +561,12 @@
       "personality": {
         "personality": "是一个女大学生，现在在读大二，会刷贴吧。",
         "replyStyle": "请回复得平淡一些，简短一些，说中文，不要刻意突出自身学科背景。可以参考贴吧、知乎和微博的回复风格。",
-        "interest": "对技术相关话题、游戏和动漫相关话题感兴趣，也对日常话题感兴趣，不喜欢太过沉重严肃的话题。",
-        "planStyle": "1.思考**所有**的可用的 action 中的**每个动作**是否符合当下条件，如果动作使用条件符合聊天内容就使用\n2.如果相同的内容已经被执行，请不要重复执行\n3.请控制你的发言频率，不要太过频繁地发言\n4.如果有人对你感到厌烦，请减少回复\n5.如果有人对你进行攻击，或者情绪激动，请你以合适的方法应对",
-        "privatePlanStyle": "1.思考**所有**的可用的 action 中的**每个动作**是否符合当下条件，如果动作使用条件符合聊天内容就使用\n2.如果相同的内容已经被执行，请不要重复执行\n3.某句话如果已经被回复过，不要重复回复"
+        "multipleReplyStyles": {
+          "plain": "你的风格平淡但不失讽刺，很简短，很白话。可以参考贴吧、微博的回复风格。",
+          "shortText": "用1-2个字进行回复",
+          "shortSymbol": "用1-2个符号进行回复",
+          "translation": "带点翻译腔，但不要太长"
+        }
       },
       "emoji": {
         "filtrationPrompt": "符合公序良俗"
@@ -506,26 +620,20 @@
           "placeholder": "描述机器人说话的表达风格、表达习惯",
           "description": "例如：回复平淡一些，简短一些，说中文，参考贴吧、知乎和微博的回复风格"
         },
-        "interest": {
-          "label": "兴趣 *",
-          "placeholder": "描述机器人感兴趣的话题",
-          "description": "会影响机器人对什么话题进行回复"
+        "multipleReplyStyle": {
+          "label": "备用表达风格",
+          "placeholder": "每行输入一种备用表达风格",
+          "description": "当列表不为空时，麦麦会按概率从这些风格中随机替换默认表达风格"
         },
-        "planStyle": {
-          "label": "群聊说话规则 *",
-          "placeholder": "机器人在群聊中的行为风格和规则",
-          "description": "定义机器人在群聊中如何行动，例如回复频率、条件等"
-        },
-        "privatePlanStyle": {
-          "label": "私聊说话规则 *",
-          "placeholder": "机器人在私聊中的行为风格和规则",
-          "description": "定义机器人在私聊中的行为方式"
+        "multipleProbability": {
+          "label": "备用风格触发概率",
+          "description": "每次构建回复时，从备用表达风格中随机替换默认表达风格的概率"
         }
       },
       "emoji": {
-        "emojiChance": {
-          "label": "表情包激活概率",
-          "description": "机器人发送表情包的概率"
+        "emojiSendNum": {
+          "label": "表情包候选数量",
+          "description": "每次发送前从多少个表情包中选择，最大为 64"
         },
         "maxRegNum": {
           "label": "最大表情包数量",
@@ -554,10 +662,6 @@
         }
       },
       "other": {
-        "enableTool": {
-          "label": "启用工具系统",
-          "description": "允许机器人使用各种工具增强功能"
-        },
         "allGlobal": {
           "label": "启用全局黑话模式",
           "description": "允许机器人学习和使用群组黑话"

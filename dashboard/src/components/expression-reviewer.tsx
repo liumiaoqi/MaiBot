@@ -1443,6 +1443,7 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
                   <div
                     className="relative w-full max-w-md h-[400px] flex items-center justify-center"
                     role="listbox"
+                    tabIndex={0}
                     aria-label="待审核的表达方式"
                     aria-activedescendant={quickExpressions[quickCurrentIndex] ? `quick-expr-${quickExpressions[quickCurrentIndex].id}` : undefined}
                   >
@@ -1561,14 +1562,14 @@ if (isCurrent) {
                               </div>
                               {/* 情景 */}
                               <div className="space-y-1.5">
-                                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">情景</label>
+                                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">情景</div>
                                 <div className="p-3 bg-muted/30 rounded-lg border border-border/50">
                                   <p className="text-lg font-medium leading-relaxed">{expr.situation}</p>
                                 </div>
                               </div>
                               {/* 风格 */}
                               <div className="space-y-1.5">
-                                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">风格</label>
+                                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">风格</div>
                                 <div className="flex flex-wrap gap-2">
                                   {expr.style.split(/[,，]/).map((s, i) => (
                                     <Badge key={i} variant="secondary" className="font-normal">
@@ -1614,14 +1615,14 @@ if (isCurrent) {
                               </div>
                               {/* 情景 */}
                               <div className="space-y-1.5">
-                                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">情景</label>
+                                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">情景</div>
                                 <div className="p-3 bg-muted/30 rounded-lg border border-border/50">
                                   <p className="text-lg font-medium leading-relaxed">{expr.situation}</p>
                                 </div>
                               </div>
                               {/* 风格 */}
                               <div className="space-y-1.5">
-                                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">风格</label>
+                                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">风格</div>
                                 <div className="flex flex-wrap gap-2">
                                   {expr.style.split(/[,，]/).map((s, i) => (
                                     <Badge key={i} variant="secondary" className="font-normal">

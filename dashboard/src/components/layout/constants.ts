@@ -37,7 +37,6 @@ export const menuSections: MenuSection[] = [
       { icon: Sliders, label: 'sidebar.menu.pluginConfig', path: '/plugin-config' },
       { icon: FileSearch, label: 'sidebar.menu.logViewer', path: '/logs', searchDescription: 'search.items.logsDesc' },
       { icon: Activity, label: 'sidebar.menu.maisakaMonitor', path: '/planner-monitor' },
-      { icon: MessageSquare, label: 'sidebar.menu.localChat', path: '/chat' },
     ],
   },
   {

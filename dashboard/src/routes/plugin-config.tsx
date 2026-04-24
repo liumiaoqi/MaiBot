@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { ListFieldEditor } from '@/components/ListFieldEditor'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { CodeEditor } from '@/components'
+import { CodeEditor } from '@/components/CodeEditor'
 import { parse as parseToml } from 'smol-toml'
 import {
   Select,

@@ -43,10 +43,121 @@
       "settings": "설정"
     }
   },
+  "workspace": {
+    "switcherLabel": "MaiBot 작업 공간 전환",
+    "settings": "麦麦 설정",
+    "chat": "麦麦 채팅"
+  },
+  "chat": {
+    "defaultTab": "WebUI",
+    "botNameFallback": "麦麦",
+    "userFallback": "사용자",
+    "userNameFallback": "WebUI 사용자",
+    "virtualGroupFallback": "WebUI 가상 그룹 채팅",
+    "status": {
+      "connected": "연결됨",
+      "connecting": "연결 중...",
+      "disconnected": "연결 안됨"
+    },
+    "actions": {
+      "cancel": "취소",
+      "reconnect": "다시 연결",
+      "save": "저장",
+      "send": "메시지 보내기"
+    },
+    "identity": {
+      "current": "현재 신분:",
+      "editName": "닉네임 수정",
+      "group": "그룹: {{group}}",
+      "namePlaceholder": "닉네임 입력",
+      "virtual": "가상 신분:"
+    },
+    "input": {
+      "placeholder": "메시지 입력...",
+      "waiting": "연결 대기 중..."
+    },
+    "message": {
+      "empty": "{{bot}}와 대화를 시작해 보세요!",
+      "emptyHint": "아래 입력란에 메시지를 입력하고 Enter 키를 눌러 보내세요",
+      "errorFallback": "오류가 발생했습니다",
+      "thinking": "생각 중..."
+    },
+    "composer": {
+      "hint": "Enter 전송 · Shift + Enter 줄바꿈"
+    },
+    "sidebar": {
+      "closeConversation": "{{label}} 닫기",
+      "conversations": "채팅 대화",
+      "emptyPreview": "아직 메시지가 없습니다",
+      "identityHint": "로컬 채팅 신분",
+      "newVirtual": "새 가상 신분 대화",
+      "online": "온라인",
+      "offline": "오프라인",
+      "subtitle": "대화 {{count}}개",
+      "title": "채팅",
+      "webuiBadge": "WebUI",
+      "virtualBadge": "가상",
+      "profileTitle": "내 신분",
+      "editName": "닉네임 편집",
+      "saveName": "저장"
+    },
+    "dialog": {
+      "create": "대화 만들기",
+      "description": "麦麦가 이미 알고 있는 사용자를 선택해 그 사용자 신분으로 대화합니다. 麦麦는 해당 사용자에 대한 기억과 이해를 사용해 응답합니다.",
+      "groupName": "가상 그룹 이름(선택)",
+      "groupNameHint": "麦麦는 이 이름의 그룹 채팅으로 인식합니다",
+      "knownUserSuffix": " · 알고 있음",
+      "loading": "불러오는 중...",
+      "noUsers": "사용자를 찾을 수 없습니다",
+      "personCount": "({{count}}명)",
+      "platform": "플랫폼 선택",
+      "platformPlaceholder": "플랫폼 선택",
+      "searchUser": "사용자 이름 검색...",
+      "title": "새 가상 신분 대화",
+      "user": "사용자 선택"
+    },
+    "media": {
+      "audioUnsupported": "브라우저가 오디오 재생을 지원하지 않습니다",
+      "emoji": "이모티콘",
+      "face": "[표정:{{data}}]",
+      "file": "[파일: {{data}}]",
+      "forward": "[전달 메시지]",
+      "image": "이미지",
+      "loadFailed": "[{{type}} 로드 실패]",
+      "music": "[음악 공유]",
+      "noCaptions": "자막 없음",
+      "reply": "[답장]",
+      "unknown": "[{{type}}]",
+      "unknownMessage": "알 수 없는 메시지",
+      "videoUnsupported": "브라우저가 비디오 재생을 지원하지 않습니다"
+    },
+    "toast": {
+      "backendUnavailable": "백엔드 서비스에 연결할 수 없습니다. MaiBot이 실행 중인지 확인하세요.",
+      "backendUnavailableShort": "백엔드 서비스에 연결할 수 없습니다",
+      "connectionFailed": "연결 실패",
+      "currentSessionUnavailable": "현재 채팅 세션을 사용할 수 없습니다. 잠시 후 다시 시도하세요.",
+      "error": "오류",
+      "incompleteConfig": "설정이 완전하지 않습니다",
+      "networkError": "네트워크 오류",
+      "platformFailed": "플랫폼을 불러오지 못했습니다",
+      "selectPlatformAndUser": "플랫폼과 사용자를 선택하세요",
+      "sendFailed": "전송 실패",
+      "serverError": "서버 오류: {{status}}",
+      "sessionUnavailable": "채팅 세션을 열 수 없습니다. 잠시 후 다시 시도하세요.",
+      "virtualTabCreated": "가상 신분 탭",
+      "virtualTabCreatedDesc": "{{label}} 대화를 만들었습니다"
+    }
+  },
   "layout": {
     "verifyingLogin": "로그인 상태 확인 중...",
     "logoTitle": "MaiBot WebUI",
     "logoTitleShort": "M"
+  },
+  "httpWarning": {
+    "title": "보안 알림: ",
+    "message": "현재 HTTP로 WebUI에 접속하고 있습니다.",
+    "description": "로컬이 아닌 HTTP 연결에서는 액세스 토큰과 설정 내용이 노출될 수 있습니다. 가능하면 HTTPS 또는 신뢰할 수 있는 내부망 연결을 사용하세요.",
+    "dismiss": "HTTP 보안 알림 닫기"
   },
   "settings": {
     "title": "설정",
@@ -395,7 +506,7 @@
       },
       "other": {
         "title": "기타 설정",
-        "description": "도구, 감정 시스템 등의 설정을 구성합니다"
+        "description": "전역 슬랭 등 기본 옵션을 설정합니다"
       },
       "siliconFlow": {
         "title": "API 설정",
@@ -450,9 +561,12 @@
       "personality": {
         "personality": "여자 대학생이며 현재 2학년이고, Tieba 같은 커뮤니티를 자주 봅니다.",
         "replyStyle": "답변은 담백하고 짧게 하며 중국어로 말하세요. 자신의 학과 배경을 일부러 강조하지 마세요. Tieba, Zhihu, Weibo의 답변 스타일을 참고할 수 있습니다.",
-        "interest": "기술, 게임, 애니메이션, 일상적인 주제에 관심이 있고, 너무 무겁거나 엄숙한 주제는 좋아하지 않습니다.",
-        "planStyle": "1. 사용 가능한 **모든** action 의 **각 동작** 이 현재 조건에 맞는지 검토하고, 대화 내용에 맞으면 사용하세요\n2. 같은 내용이 이미 실행되었다면 반복하지 마세요\n3. 발화 빈도를 조절하고 너무 자주 말하지 마세요\n4. 누군가 당신을 귀찮아하는 것 같다면 답장을 줄이세요\n5. 누군가 당신을 공격하거나 감정적으로 반응하면 적절하게 대응하세요",
-        "privatePlanStyle": "1. 사용 가능한 **모든** action 의 **각 동작** 이 현재 조건에 맞는지 검토하고, 대화 내용에 맞으면 사용하세요\n2. 같은 내용이 이미 실행되었다면 반복하지 마세요\n3. 이미 답한 문장에는 다시 답하지 마세요"
+        "multipleReplyStyles": {
+          "plain": "말투는 담백하지만 약간 냉소적이고, 매우 짧고 구어체입니다. Tieba 와 Weibo 답변 스타일을 참고할 수 있습니다.",
+          "shortText": "1-2글자로 답장하기",
+          "shortSymbol": "1-2개의 기호로 답장하기",
+          "translation": "살짝 번역체로 말하되 길게 쓰지 않기"
+        }
       },
       "emoji": {
         "filtrationPrompt": "공공질서와 미풍양속에 어긋나지 않음"
@@ -506,26 +620,20 @@
           "placeholder": "봇이 말하는 방식과 표현 습관을 설명해 주세요",
           "description": "예: 답변은 담백하고 짧게, 중국어로 말하며 Tieba, Zhihu, Weibo 스타일을 참고한다"
         },
-        "interest": {
-          "label": "관심사 *",
-          "placeholder": "봇이 관심을 가지는 주제를 설명해 주세요",
-          "description": "어떤 주제에 더 잘 반응할지에 영향을 줍니다"
+        "multipleReplyStyle": {
+          "label": "대체 답변 스타일",
+          "placeholder": "한 줄에 하나씩 대체 답변 스타일을 입력하세요",
+          "description": "목록이 비어 있지 않으면 MaiBot 이 아래 확률에 따라 기본 답변 스타일을 무작위로 대체합니다"
         },
-        "planStyle": {
-          "label": "그룹 채팅 규칙 *",
-          "placeholder": "그룹 채팅에서의 행동 스타일과 규칙",
-          "description": "답장 빈도와 조건 등 그룹 채팅에서의 행동 방식을 정의합니다"
-        },
-        "privatePlanStyle": {
-          "label": "개인 채팅 규칙 *",
-          "placeholder": "개인 채팅에서의 행동 스타일과 규칙",
-          "description": "개인 채팅에서의 행동 방식을 정의합니다"
+        "multipleProbability": {
+          "label": "대체 스타일 적용 확률",
+          "description": "답변을 만들 때마다 기본 답변 스타일을 대체 스타일로 무작위 교체할 확률입니다"
         }
       },
       "emoji": {
-        "emojiChance": {
-          "label": "이모지 활성화 확률",
-          "description": "봇이 이모지를 보낼 확률입니다"
+        "emojiSendNum": {
+          "label": "이모지 후보 수",
+          "description": "전송 전에 몇 개의 이모지 중에서 고를지 정합니다. 최대 64개입니다"
         },
         "maxRegNum": {
           "label": "최대 이모지 수",
@@ -554,10 +662,6 @@
         }
       },
       "other": {
-        "enableTool": {
-          "label": "도구 시스템 사용",
-          "description": "봇이 다양한 도구를 사용해 기능을 확장할 수 있게 합니다"
-        },
         "allGlobal": {
           "label": "전역 슬랭 모드 사용",
           "description": "봇이 그룹 슬랭을 학습하고 사용할 수 있게 합니다"
