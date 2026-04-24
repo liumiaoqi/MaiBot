@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING
 
-from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
+from src.common.data_models.message_component_data_model import MessageSequence, ReplyComponent, TextComponent
 
 from .context_messages import AssistantMessage, LLMContextMessage, ToolResultMessage
 from .message_adapter import build_visible_text_from_sequence, clone_message_sequence, format_speaker_content
@@ -28,6 +28,8 @@ def build_prefixed_message_sequence(
 def build_session_message_visible_text(
     message: "SessionMessage",
     source_sequence: MessageSequence | None = None,
+    *,
+    include_reply_components: bool = True,
 ) -> str:
     """将真实会话消息转换为 Maisaka 可见文本。"""
 
@@ -46,6 +48,8 @@ def build_session_message_visible_text(
         )
     )
     for component in clone_message_sequence(normalized_sequence).components:
+        if not include_reply_components and isinstance(component, ReplyComponent):
+            continue
         visible_sequence.components.append(component)
     return build_visible_text_from_sequence(visible_sequence).strip()
 

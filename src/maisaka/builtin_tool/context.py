@@ -244,7 +244,10 @@ class BuiltinToolRuntimeContext:
         history_message = SessionBackedMessage.from_session_message(
             message,
             raw_message=build_prefixed_message_sequence(message.raw_message, planner_prefix),
-            visible_text=build_session_message_visible_text(message),
+            visible_text=build_session_message_visible_text(
+                message,
+                include_reply_components=source_kind != "guided_reply",
+            ),
             source_kind=source_kind,
         )
         self.runtime._chat_history.append(history_message)

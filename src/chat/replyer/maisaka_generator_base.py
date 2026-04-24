@@ -108,30 +108,6 @@ class BaseMaisakaReplyGenerator:
         del message
         return ""
 
-    @staticmethod
-    def _strip_guided_reply_formatting(content: str) -> str:
-        """移除 guided_reply 可见文本中的引用包装，仅保留真正回复正文。"""
-
-        normalized_content = content.strip()
-        if not normalized_content:
-            return ""
-
-        reply_body_marker = "[发言内容]"
-        if normalized_content.startswith("[引用]quote_id=") or normalized_content.startswith("[引用消息]"):
-            marker_index = normalized_content.find(reply_body_marker)
-            if marker_index >= 0:
-                return normalized_content[marker_index + len(reply_body_marker) :].strip()
-
-            newline_index = normalized_content.find("\n")
-            if newline_index < 0:
-                return ""
-            normalized_content = normalized_content[newline_index + 1 :].lstrip()
-
-        if normalized_content.startswith(reply_body_marker):
-            normalized_content = normalized_content[len(reply_body_marker) :].lstrip()
-
-        return normalized_content.strip()
-
     def _extract_guided_bot_reply(self, message: SessionBackedMessage) -> str:
         # 只能根据结构化来源字段判断是否为 bot 自身写回的历史消息，
         # 不能依赖昵称/群名片等可控文本，避免误判和提示注入。
@@ -140,9 +116,7 @@ class BaseMaisakaReplyGenerator:
 
         plain_text = message.processed_plain_text.strip()
         _, body = parse_speaker_content(plain_text)
-        normalized_body = self._strip_guided_reply_formatting(body) or self._strip_guided_reply_formatting(
-            plain_text
-        )
+        normalized_body = body.strip()
         return self._normalize_content(normalized_body) if normalized_body else ""
 
     def _build_target_message_block(self, reply_message: Optional[SessionMessage]) -> str:
