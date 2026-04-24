@@ -720,15 +720,6 @@ class ExpressionConfig(ConfigBase):
     )
     """_wrap_表达学习配置列表，支持按聊天流配置"""
 
-    advanced_chosen: bool = Field(
-        default=False,
-        json_schema_extra={
-            "x-widget": "switch",
-            "x-icon": "sparkles",
-        },
-    )
-    """是否启用基于子代理的二次表达方式选择"""
-
     expression_groups: list[ExpressionGroup] = Field(
         default_factory=list,
         json_schema_extra={

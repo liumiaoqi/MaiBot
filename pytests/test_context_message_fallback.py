@@ -1,4 +1,9 @@
-from src.common.data_models.message_component_data_model import ImageComponent, MessageSequence, TextComponent
+from src.common.data_models.message_component_data_model import (
+    ImageComponent,
+    MessageSequence,
+    ReplyComponent,
+    TextComponent,
+)
 from src.llm_models.payload_content.message import RoleType
 from src.maisaka.context_messages import _build_message_from_sequence
 from src.maisaka.message_adapter import build_visible_text_from_sequence
@@ -53,3 +58,16 @@ def test_visible_text_uses_image_placeholder_for_whitespace_content() -> None:
     )
 
     assert visible_text == "看这个[图片]"
+
+
+def test_visible_text_adds_body_marker_after_reply_component() -> None:
+    visible_text = build_visible_text_from_sequence(
+        MessageSequence(
+            [
+                ReplyComponent(target_message_id="75625487"),
+                TextComponent("你说是那就是"),
+            ]
+        )
+    )
+
+    assert visible_text == "[引用]quote_id=75625487\n[发言内容]你说是那就是"

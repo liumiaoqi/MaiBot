@@ -478,11 +478,11 @@ class MaisakaReasoningEngine:
                             )
                             planner_duration_ms = (time.time() - planner_started_at) * 1000
                             cycle_detail.time_records["planner"] = planner_duration_ms / 1000
-                            logger.info(
-                                f"{self._runtime.log_prefix} 规划器执行完成: "
-                                f"回合={round_index + 1} "
-                                f"耗时={cycle_detail.time_records['planner']:.3f} 秒"
-                            )
+                            # logger.info(
+                            #     f"{self._runtime.log_prefix} 规划器执行完成: "
+                            #     f"回合={round_index + 1} "
+                            #     f"耗时={cycle_detail.time_records['planner']:.3f} 秒"
+                            # )
                             reasoning_content = response.content or ""
                             if self._should_replace_reasoning(reasoning_content):
                                 response.content = "我应该根据我上面思考的内容进行反思，重新思考我下一步的行动，我需要分析当前场景，对话，以及我可以使用的工具，然后直接输出我的想法"
@@ -865,7 +865,7 @@ class MaisakaReasoningEngine:
             return False
 
         similarity = self._calculate_similarity(current_content, self._last_reasoning_content)
-        logger.info(f"{self._runtime.log_prefix} 思考内容相似度: {similarity:.2f}")
+        logger.debug(f"{self._runtime.log_prefix} 思考内容相似度: {similarity:.2f}")
         return similarity > 0.9
 
     @staticmethod

@@ -90,7 +90,7 @@ def _append_reply_component(builder: MessageBuilder, component: ReplyComponent) 
     if not target_message_id:
         return False
 
-    builder.add_text_content(f"[引用]quote_id={target_message_id}")
+    builder.add_text_content(f"[引用消息]{target_message_id}")
     return True
 
 
@@ -167,7 +167,7 @@ def _render_component_for_prompt(component: StandardMessageComponents) -> str:
         if target_content:
             return f"[回复消息: {target_content}]"
         target_message_id = component.target_message_id.strip()
-        return f"[引用]quote_id={target_message_id}" if target_message_id else "[回复消息]"
+        return f"[引用消息]{target_message_id}" if target_message_id else "[回复消息]"
 
     if isinstance(component, ForwardNodeComponent):
         return _build_forward_preview_block(component)

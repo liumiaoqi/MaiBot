@@ -268,6 +268,11 @@ class MaisakaExpressionSelector:
         reply_reason: str,
         sub_agent_runner: Optional[SubAgentRunner],
     ) -> MaisakaExpressionSelectionResult:
+        del chat_history
+        del reply_message
+        del reply_reason
+        del sub_agent_runner
+
         if not session_id:
             logger.info("表达方式选择已跳过：缺少 session_id")
             return MaisakaExpressionSelectionResult()
@@ -280,47 +285,9 @@ class MaisakaExpressionSelector:
             logger.info(f"表达方式选择已跳过：本地候选不足，session_id={session_id}")
             return MaisakaExpressionSelectionResult()
 
-        if not global_config.expression.advanced_chosen:
-            return self._build_direct_selection_result(
-                session_id=session_id,
-                candidates=candidates,
-            )
-
-        if sub_agent_runner is None:
-            logger.info(f"表达方式选择已跳过：缺少 sub_agent_runner，session_id={session_id}")
-            return MaisakaExpressionSelectionResult()
-
-        logger.info(
-            f"表达方式选择开始：session_id={session_id} 候选数={len(candidates)} "
-            f"候选预览={self._format_candidate_preview(candidates)}"
-        )
-
-        selector_prompt = self._build_selector_prompt(
-            chat_history=chat_history,
-            reply_message=reply_message,
-            reply_reason=reply_reason,
+        return self._build_direct_selection_result(
+            session_id=session_id,
             candidates=candidates,
-        )
-        try:
-            raw_response = await sub_agent_runner(selector_prompt)
-        except Exception:
-            logger.exception("表达方式选择子代理执行失败")
-            return MaisakaExpressionSelectionResult()
-
-        selected_ids = self._parse_selected_ids(raw_response, candidates)
-        if not selected_ids:
-            logger.info(f"表达方式选择完成但未命中，session_id={session_id}")
-            return MaisakaExpressionSelectionResult()
-
-        selected_expressions = [candidate for candidate in candidates if candidate.get("id") in selected_ids]
-        self._update_last_active_time(selected_ids)
-        logger.info(
-            f"表达方式选择完成：session_id={session_id} 已选数={len(selected_ids)} "
-            f"selected_ids={selected_ids!r} 已选预览={self._format_candidate_preview(selected_expressions)}"
-        )
-        return MaisakaExpressionSelectionResult(
-            expression_habits=self._build_expression_habits_block(selected_expressions),
-            selected_expression_ids=selected_ids,
         )
 
 
