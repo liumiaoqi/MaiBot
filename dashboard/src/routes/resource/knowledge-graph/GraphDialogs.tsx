@@ -171,10 +171,14 @@ export function NodeDetailDialog({
                   </Button>
                   {onDeleteEntity ? (
                     <div className="flex flex-col items-end gap-2 rounded-lg border bg-background p-3">
-                      <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Checkbox checked={includeParagraphs} onCheckedChange={(checked) => setIncludeParagraphs(Boolean(checked))} />
-                        删除该实体相关证据段落
-                      </label>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Checkbox
+                          checked={includeParagraphs}
+                          onCheckedChange={(checked) => setIncludeParagraphs(Boolean(checked))}
+                          aria-label="删除该实体相关证据段落"
+                        />
+                        <span>删除该实体相关证据段落</span>
+                      </div>
                       <Button variant="outline" onClick={() => onDeleteEntity({ includeParagraphs })}>
                         <Trash2 className="mr-2 h-4 w-4" />
                         删除实体
@@ -280,10 +284,14 @@ export function EdgeDetailDialog({
                     </Button>
                     {onDeleteEdgeGroup ? (
                       <div className="flex flex-col items-end gap-2 rounded-lg border bg-background p-3">
-                        <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <Checkbox checked={includeParagraphs} onCheckedChange={(checked) => setIncludeParagraphs(Boolean(checked))} />
-                          同时删除支撑段落
-                        </label>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Checkbox
+                            checked={includeParagraphs}
+                            onCheckedChange={(checked) => setIncludeParagraphs(Boolean(checked))}
+                            aria-label="同时删除支撑段落"
+                          />
+                          <span>同时删除支撑段落</span>
+                        </div>
                         <Button variant="outline" onClick={() => onDeleteEdgeGroup({ includeParagraphs })}>
                           <Trash2 className="mr-2 h-4 w-4" />
                           删除此关系组
@@ -371,10 +379,14 @@ export function RelationDetailDialog({
 
           {onDeleteRelation ? (
             <div className="rounded-lg border bg-background p-3">
-              <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Checkbox checked={includeParagraphs} onCheckedChange={(checked) => setIncludeParagraphs(Boolean(checked))} />
-                同时删除支撑该关系的段落
-              </label>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Checkbox
+                  checked={includeParagraphs}
+                  onCheckedChange={(checked) => setIncludeParagraphs(Boolean(checked))}
+                  aria-label="同时删除支撑该关系的段落"
+                />
+                <span>同时删除支撑该关系的段落</span>
+              </div>
               <Button className="mt-3" variant="outline" onClick={() => onDeleteRelation(relation, includeParagraphs)}>
                 <Trash2 className="mr-2 h-4 w-4" />
                 删除这条关系

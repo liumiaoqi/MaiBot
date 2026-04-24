@@ -6,7 +6,7 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
-  { ignores: ['dist'] },
+  { ignores: ['dist', 'out'] },
   jsxA11y.flatConfigs.recommended,
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
@@ -25,10 +25,7 @@ export default tseslint.config(
         acc[key] = 'warn'
         return acc
       }, {}),
-      'react-refresh/only-export-components': [
-        'warn',
-        { allowConstantExport: true },
-      ],
+      'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
       // 关闭或降级其他规则
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-unused-vars': 'warn',
@@ -37,4 +34,11 @@ export default tseslint.config(
       'jsx-a11y/no-autofocus': 'warn',
     },
   },
+  {
+    files: ['**/*.d.ts'],
+    rules: {
+      // Ambient global declarations use `var` in TypeScript declaration files.
+      'no-var': 'off',
+    },
+  }
 )

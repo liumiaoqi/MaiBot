@@ -16,7 +16,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { CodeEditor } from '@/components'
+import { CodeEditor } from '@/components/CodeEditor'
 import { DynamicConfigForm } from '@/components/dynamic-form'
 import { RestartOverlay } from '@/components/restart-overlay'
 import { useToast } from '@/hooks/use-toast'
