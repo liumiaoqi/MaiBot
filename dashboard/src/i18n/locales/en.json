@@ -43,10 +43,121 @@
       "settings": "Settings"
     }
   },
+  "workspace": {
+    "switcherLabel": "Switch MaiBot workspace",
+    "settings": "Mai Settings",
+    "chat": "Mai Chat"
+  },
+  "chat": {
+    "defaultTab": "WebUI",
+    "botNameFallback": "Mai",
+    "userFallback": "User",
+    "userNameFallback": "WebUI User",
+    "virtualGroupFallback": "WebUI Virtual Group",
+    "status": {
+      "connected": "Connected",
+      "connecting": "Connecting...",
+      "disconnected": "Disconnected"
+    },
+    "actions": {
+      "cancel": "Cancel",
+      "reconnect": "Reconnect",
+      "save": "Save",
+      "send": "Send message"
+    },
+    "identity": {
+      "current": "Current identity:",
+      "editName": "Edit nickname",
+      "group": "Group: {{group}}",
+      "namePlaceholder": "Enter nickname",
+      "virtual": "Virtual identity:"
+    },
+    "input": {
+      "placeholder": "Type a message...",
+      "waiting": "Waiting for connection..."
+    },
+    "message": {
+      "empty": "Start chatting with {{bot}}!",
+      "emptyHint": "Type a message below and press Enter to send",
+      "errorFallback": "An error occurred",
+      "thinking": "Thinking..."
+    },
+    "composer": {
+      "hint": "Enter to send · Shift + Enter for newline"
+    },
+    "sidebar": {
+      "closeConversation": "Close {{label}}",
+      "conversations": "Chat conversations",
+      "emptyPreview": "No messages yet",
+      "identityHint": "Local chat identity",
+      "newVirtual": "New virtual identity chat",
+      "online": "Online",
+      "offline": "Offline",
+      "subtitle": "{{count}} conversations",
+      "title": "Chats",
+      "webuiBadge": "WebUI",
+      "virtualBadge": "Virtual",
+      "profileTitle": "My identity",
+      "editName": "Edit nickname",
+      "saveName": "Save"
+    },
+    "dialog": {
+      "create": "Create chat",
+      "description": "Choose a user MaiBot already knows and chat as that user. MaiBot will respond using her memory and understanding of that user.",
+      "groupName": "Virtual group name (optional)",
+      "groupNameHint": "MaiBot will treat this as a group chat with this name",
+      "knownUserSuffix": " · Known",
+      "loading": "Loading...",
+      "noUsers": "No users found",
+      "personCount": "({{count}} people)",
+      "platform": "Select platform",
+      "platformPlaceholder": "Select platform",
+      "searchUser": "Search user...",
+      "title": "New virtual identity chat",
+      "user": "Select user"
+    },
+    "media": {
+      "audioUnsupported": "Your browser does not support audio playback",
+      "emoji": "Emoji",
+      "face": "[Face: {{data}}]",
+      "file": "[File: {{data}}]",
+      "forward": "[Forwarded message]",
+      "image": "Image",
+      "loadFailed": "[{{type}} failed to load]",
+      "music": "[Music share]",
+      "noCaptions": "No captions",
+      "reply": "[Reply]",
+      "unknown": "[{{type}}]",
+      "unknownMessage": "Unknown message",
+      "videoUnsupported": "Your browser does not support video playback"
+    },
+    "toast": {
+      "backendUnavailable": "Cannot connect to the backend. Make sure MaiBot is running.",
+      "backendUnavailableShort": "Cannot connect to the backend",
+      "connectionFailed": "Connection failed",
+      "currentSessionUnavailable": "The current chat session is unavailable. Please try again later.",
+      "error": "Error",
+      "incompleteConfig": "Incomplete configuration",
+      "networkError": "Network error",
+      "platformFailed": "Failed to load platforms",
+      "selectPlatformAndUser": "Please select a platform and user",
+      "sendFailed": "Send failed",
+      "serverError": "Server returned error: {{status}}",
+      "sessionUnavailable": "Cannot open the chat session. Please try again later.",
+      "virtualTabCreated": "Virtual identity tab",
+      "virtualTabCreatedDesc": "Created a chat for {{label}}"
+    }
+  },
   "layout": {
     "verifyingLogin": "Verifying login status...",
     "logoTitle": "MaiBot WebUI",
     "logoTitleShort": "M"
+  },
+  "httpWarning": {
+    "title": "Security notice: ",
+    "message": "You are accessing WebUI over HTTP.",
+    "description": "Non-local HTTP connections may expose access tokens and configuration data. Use HTTPS or a trusted private network when possible.",
+    "dismiss": "Dismiss HTTP security notice"
   },
   "settings": {
     "title": "Settings",
@@ -395,7 +506,7 @@
       },
       "other": {
         "title": "Other Settings",
-        "description": "Configure tools, emotion system, and more"
+        "description": "Configure global slang and other basic options"
       },
       "siliconFlow": {
         "title": "API Setup",
@@ -450,9 +561,12 @@
       "personality": {
         "personality": "She is a sophomore college student who spends time on Tieba.",
         "replyStyle": "Keep replies plain and concise, speak Chinese, and avoid deliberately emphasizing any academic background. You can refer to the reply styles commonly seen on Tieba, Zhihu, and Weibo.",
-        "interest": "Interested in technology, games, anime, and everyday topics, and dislikes topics that are overly heavy or serious.",
-        "planStyle": "1. Consider **every action** in **all** available actions and use it if its conditions match the current conversation.\n2. Do not repeat content that has already been executed.\n3. Control how often you speak and avoid replying too frequently.\n4. If someone seems annoyed with you, reduce your replies.\n5. If someone attacks you or becomes emotional, respond appropriately.",
-        "privatePlanStyle": "1. Consider **every action** in **all** available actions and use it if its conditions match the current conversation.\n2. Do not repeat content that has already been executed.\n3. If a sentence has already been replied to, do not reply to it again."
+        "multipleReplyStyles": {
+          "plain": "Your style is plain, lightly sarcastic, very short, and colloquial. You can reference Tieba and Weibo reply styles.",
+          "shortText": "Reply with 1-2 words",
+          "shortSymbol": "Reply with 1-2 symbols",
+          "translation": "Use a slightly translated tone, but keep it short"
+        }
       },
       "emoji": {
         "filtrationPrompt": "Appropriate and safe for general audiences"
@@ -506,26 +620,20 @@
           "placeholder": "Describe how the bot speaks and expresses itself",
           "description": "Example: keep replies plain and concise, speak Chinese, and refer to styles seen on Tieba, Zhihu, and Weibo"
         },
-        "interest": {
-          "label": "Interests *",
-          "placeholder": "Describe the topics the bot is interested in",
-          "description": "This affects which topics the bot is more likely to respond to"
+        "multipleReplyStyle": {
+          "label": "Alternate Reply Styles",
+          "placeholder": "Enter one alternate reply style per line",
+          "description": "When this list is not empty, MaiBot may randomly replace the default reply style using the probability below"
         },
-        "planStyle": {
-          "label": "Group Chat Rules *",
-          "placeholder": "The bot's behavior style and rules in group chats",
-          "description": "Defines how the bot acts in group chats, such as reply frequency and conditions"
-        },
-        "privatePlanStyle": {
-          "label": "Private Chat Rules *",
-          "placeholder": "The bot's behavior style and rules in private chats",
-          "description": "Defines how the bot behaves in private chats"
+        "multipleProbability": {
+          "label": "Alternate Style Probability",
+          "description": "The chance of randomly replacing the default reply style each time a reply is built"
         }
       },
       "emoji": {
-        "emojiChance": {
-          "label": "Emoji Activation Chance",
-          "description": "How likely the bot is to send an emoji"
+        "emojiSendNum": {
+          "label": "Emoji Candidate Count",
+          "description": "How many emojis to choose from before sending. Maximum is 64"
         },
         "maxRegNum": {
           "label": "Maximum Emoji Count",
@@ -554,10 +662,6 @@
         }
       },
       "other": {
-        "enableTool": {
-          "label": "Enable Tool System",
-          "description": "Allow the bot to use tools to enhance its capabilities"
-        },
         "allGlobal": {
           "label": "Enable Global Slang Mode",
           "description": "Allow the bot to learn and use group-specific slang"

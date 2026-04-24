@@ -95,13 +95,17 @@ function SetupPageContent() {
   const createDefaultPersonalityConfig = (): PersonalityConfig => ({
     personality: t('setupPage.defaults.personality.personality'),
     reply_style: t('setupPage.defaults.personality.replyStyle'),
-    interest: t('setupPage.defaults.personality.interest'),
-    plan_style: t('setupPage.defaults.personality.planStyle'),
-    private_plan_style: t('setupPage.defaults.personality.privatePlanStyle'),
+    multiple_reply_style: [
+      t('setupPage.defaults.personality.multipleReplyStyles.plain'),
+      t('setupPage.defaults.personality.multipleReplyStyles.shortText'),
+      t('setupPage.defaults.personality.multipleReplyStyles.shortSymbol'),
+      t('setupPage.defaults.personality.multipleReplyStyles.translation'),
+    ],
+    multiple_probability: 0.2,
   })
   const createDefaultEmojiConfig = (): EmojiConfig => ({
-    emoji_chance: 0.4,
-    max_reg_num: 40,
+    emoji_send_num: 25,
+    max_reg_num: 64,
     do_replace: true,
     check_interval: 10,
     steal_emoji: true,
@@ -132,7 +136,6 @@ function SetupPageContent() {
 
   // 步骤4：其他基础配置
   const [otherBasic, setOtherBasic] = useState<OtherBasicConfig>({
-    enable_tool: true,
     all_global: true,
   })
 

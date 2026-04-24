@@ -20,14 +20,13 @@ export interface BotBasicConfig {
 export interface PersonalityConfig {
   personality: string
   reply_style: string
-  interest: string
-  plan_style: string
-  private_plan_style: string
+  multiple_reply_style: string[]
+  multiple_probability: number
 }
 
 // 步骤3：表情包配置
 export interface EmojiConfig {
-  emoji_chance: number
+  emoji_send_num: number
   max_reg_num: number
   do_replace: boolean
   check_interval: number
@@ -38,7 +37,6 @@ export interface EmojiConfig {
 
 // 步骤4：其他基础配置
 export interface OtherBasicConfig {
-  enable_tool: boolean
   all_global: boolean // 全局黑话模式（expression.all_global_jargon）
 }
 

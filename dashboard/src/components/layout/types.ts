@@ -5,6 +5,8 @@ export interface LayoutProps {
   children: ReactNode
 }
 
+export type WorkspaceMode = 'settings' | 'chat'
+
 export interface MenuItem {
   icon: ComponentType<LucideProps>
   label: string

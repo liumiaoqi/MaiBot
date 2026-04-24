@@ -313,6 +313,7 @@ interface PersonalityFormProps {
 
 export function PersonalityForm({ config, onChange }: PersonalityFormProps) {
   const { t } = useTranslation()
+  const multipleReplyStyleText = config.multiple_reply_style.join('\n')
 
   return (
     <div className="space-y-6">
@@ -345,48 +346,49 @@ export function PersonalityForm({ config, onChange }: PersonalityFormProps) {
       </div>
 
       <div className="space-y-3">
-        <Label htmlFor="interest">{t('setupPage.forms.personality.interest.label')}</Label>
-        <Textarea
-          id="interest"
-          placeholder={t('setupPage.forms.personality.interest.placeholder')}
-          value={config.interest}
-          onChange={(e) => onChange({ ...config, interest: e.target.value })}
-          rows={2}
-        />
-        <p className="text-muted-foreground text-xs">
-          {t('setupPage.forms.personality.interest.description')}
-        </p>
-      </div>
-
-      <Separator />
-
-      <div className="space-y-3">
-        <Label htmlFor="plan_style">{t('setupPage.forms.personality.planStyle.label')}</Label>
-        <Textarea
-          id="plan_style"
-          placeholder={t('setupPage.forms.personality.planStyle.placeholder')}
-          value={config.plan_style}
-          onChange={(e) => onChange({ ...config, plan_style: e.target.value })}
-          rows={4}
-        />
-        <p className="text-muted-foreground text-xs">
-          {t('setupPage.forms.personality.planStyle.description')}
-        </p>
-      </div>
-
-      <div className="space-y-3">
-        <Label htmlFor="private_plan_style">
-          {t('setupPage.forms.personality.privatePlanStyle.label')}
+        <Label htmlFor="multiple_reply_style">
+          {t('setupPage.forms.personality.multipleReplyStyle.label')}
         </Label>
         <Textarea
-          id="private_plan_style"
-          placeholder={t('setupPage.forms.personality.privatePlanStyle.placeholder')}
-          value={config.private_plan_style}
-          onChange={(e) => onChange({ ...config, private_plan_style: e.target.value })}
-          rows={3}
+          id="multiple_reply_style"
+          placeholder={t('setupPage.forms.personality.multipleReplyStyle.placeholder')}
+          value={multipleReplyStyleText}
+          onChange={(e) =>
+            onChange({
+              ...config,
+              multiple_reply_style: e.target.value
+                .split('\n')
+                .map((style) => style.trim())
+                .filter(Boolean),
+            })
+          }
+          rows={5}
         />
         <p className="text-muted-foreground text-xs">
-          {t('setupPage.forms.personality.privatePlanStyle.description')}
+          {t('setupPage.forms.personality.multipleReplyStyle.description')}
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <Label htmlFor="multiple_probability">
+            {t('setupPage.forms.personality.multipleProbability.label')}
+          </Label>
+          <span className="text-muted-foreground text-sm">
+            {(config.multiple_probability * 100).toFixed(0)}%
+          </span>
+        </div>
+        <Input
+          id="multiple_probability"
+          type="range"
+          min="0"
+          max="1"
+          step="0.1"
+          value={config.multiple_probability}
+          onChange={(e) => onChange({ ...config, multiple_probability: Number(e.target.value) })}
+        />
+        <p className="text-muted-foreground text-xs">
+          {t('setupPage.forms.personality.multipleProbability.description')}
         </p>
       </div>
     </div>
@@ -405,23 +407,17 @@ export function EmojiForm({ config, onChange }: EmojiFormProps) {
   return (
     <div className="space-y-6">
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <Label htmlFor="emoji_chance">{t('setupPage.forms.emoji.emojiChance.label')}</Label>
-          <span className="text-muted-foreground text-sm">
-            {(config.emoji_chance * 100).toFixed(0)}%
-          </span>
-        </div>
+        <Label htmlFor="emoji_send_num">{t('setupPage.forms.emoji.emojiSendNum.label')}</Label>
         <Input
-          id="emoji_chance"
-          type="range"
-          min="0"
-          max="1"
-          step="0.1"
-          value={config.emoji_chance}
-          onChange={(e) => onChange({ ...config, emoji_chance: Number(e.target.value) })}
+          id="emoji_send_num"
+          type="number"
+          min="1"
+          max="64"
+          value={config.emoji_send_num}
+          onChange={(e) => onChange({ ...config, emoji_send_num: Number(e.target.value) })}
         />
         <p className="text-muted-foreground text-xs">
-          {t('setupPage.forms.emoji.emojiChance.description')}
+          {t('setupPage.forms.emoji.emojiSendNum.description')}
         </p>
       </div>
 
@@ -532,22 +528,6 @@ export function OtherBasicForm({ config, onChange }: OtherBasicFormProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="space-y-1">
-          <Label htmlFor="enable_tool">{t('setupPage.forms.other.enableTool.label')}</Label>
-          <p className="text-muted-foreground text-xs">
-            {t('setupPage.forms.other.enableTool.description')}
-          </p>
-        </div>
-        <Switch
-          id="enable_tool"
-          checked={config.enable_tool}
-          onCheckedChange={(checked) => onChange({ ...config, enable_tool: checked })}
-        />
-      </div>
-
-      <Separator />
-
       <div className="flex items-center justify-between">
         <div className="space-y-1">
           <Label htmlFor="all_global">{t('setupPage.forms.other.allGlobal.label')}</Label>

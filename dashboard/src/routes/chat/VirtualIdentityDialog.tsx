@@ -8,9 +8,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Label } from "@/components/ui/label"
+import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Select,
@@ -18,9 +18,10 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
+} from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import { Globe, Loader2, Search, UserCircle2, Users } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import type { PersonInfo, PlatformInfo, VirtualIdentityConfig } from './types'
 
@@ -53,30 +54,33 @@ export function VirtualIdentityDialog({
   onSelectPerson,
   onCreateVirtualTab,
 }: VirtualIdentityDialogProps) {
+  const { t } = useTranslation()
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-125 max-h-[85vh] overflow-hidden flex flex-col" confirmOnEnter>
+      <DialogContent
+        className="flex max-h-[85vh] flex-col overflow-hidden sm:max-w-125"
+        confirmOnEnter
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <UserCircle2 className="h-5 w-5" />
-            新建虚拟身份对话
+            {t('chat.dialog.title')}
           </DialogTitle>
-          <DialogDescription>
-            选择一个麦麦已认识的用户,以该用户的身份与麦麦对话。麦麦将使用她对该用户的记忆和认知来回应。
-          </DialogDescription>
+          <DialogDescription>{t('chat.dialog.description')}</DialogDescription>
         </DialogHeader>
-        
-        <DialogBody className="space-y-4 flex-1" viewportClassName="pr-0">
+
+        <DialogBody className="flex-1 space-y-4" viewportClassName="pr-0">
           {/* 平台选择 */}
           <div className="space-y-2">
             <Label className="flex items-center gap-2">
               <Globe className="h-4 w-4" />
-              选择平台
+              {t('chat.dialog.platform')}
             </Label>
             <Select
               value={tempVirtualConfig.platform}
               onValueChange={(value) => {
-                setTempVirtualConfig(prev => ({
+                setTempVirtualConfig((prev) => ({
                   ...prev,
                   platform: value,
                   personId: '',
@@ -86,12 +90,18 @@ export function VirtualIdentityDialog({
               }}
             >
               <SelectTrigger disabled={isLoadingPlatforms}>
-                <SelectValue placeholder={isLoadingPlatforms ? "加载中..." : "选择平台"} />
+                <SelectValue
+                  placeholder={
+                    isLoadingPlatforms
+                      ? t('chat.dialog.loading')
+                      : t('chat.dialog.platformPlaceholder')
+                  }
+                />
               </SelectTrigger>
               <SelectContent>
                 {platforms.map((p) => (
                   <SelectItem key={p.platform} value={p.platform}>
-                    {p.platform} ({p.count} 人)
+                    {p.platform} {t('chat.dialog.personCount', { count: p.count })}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -100,70 +110,76 @@ export function VirtualIdentityDialog({
 
           {/* 用户搜索和选择 */}
           {tempVirtualConfig.platform && (
-            <div className="space-y-2 flex-1 overflow-hidden flex flex-col">
+            <div className="flex flex-1 flex-col space-y-2 overflow-hidden">
               <Label className="flex items-center gap-2">
                 <Users className="h-4 w-4" />
-                选择用户
+                {t('chat.dialog.user')}
               </Label>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
                 <Input
-                  placeholder="搜索用户名..."
+                  placeholder={t('chat.dialog.searchUser')}
                   value={personSearchQuery}
                   onChange={(e) => setPersonSearchQuery(e.target.value)}
                   className="pl-9"
                 />
               </div>
-              <ScrollArea className="h-62.5 border rounded-md">
-                <div className="p-2">
+              <ScrollArea className="bg-background/40 h-62.5 rounded-lg border">
+                <div className="p-1.5">
                   {isLoadingPersons ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    <div className="flex items-center justify-center py-10">
+                      <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
                     </div>
                   ) : persons.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                      <Users className="h-8 w-8 mb-2 opacity-50" />
-                      <p className="text-sm">没有找到用户</p>
+                    <div className="text-muted-foreground flex flex-col items-center justify-center py-10">
+                      <Users className="mb-2 h-8 w-8 opacity-50" />
+                      <p className="text-sm">{t('chat.dialog.noUsers')}</p>
                     </div>
                   ) : (
-                    <div className="space-y-1">
-                      {persons.map((person) => (
-                        <button
-                          key={person.person_id}
-                          onClick={() => onSelectPerson(person)}
-                          className={cn(
-                            "w-full flex items-center gap-3 p-2 rounded-md text-left transition-colors",
-                            tempVirtualConfig.personId === person.person_id
-                              ? "bg-primary text-primary-foreground"
-                              : "hover:bg-muted"
-                          )}
-                        >
-                          <Avatar className="h-8 w-8 shrink-0">
-                            <AvatarFallback className={cn(
-                              "text-xs",
-                              tempVirtualConfig.personId === person.person_id
-                                ? "bg-primary-foreground/20"
-                                : "bg-muted"
-                            )}>
-                              {(person.nickname || person.person_name || '?').charAt(0)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="min-w-0 flex-1">
-                            <div className="font-medium truncate">
-                              {person.nickname || person.person_name}
+                    <div className="space-y-0.5">
+                      {persons.map((person) => {
+                        const selected = tempVirtualConfig.personId === person.person_id
+                        const display = person.nickname || person.person_name
+                        return (
+                          <button
+                            key={person.person_id}
+                            type="button"
+                            onClick={() => onSelectPerson(person)}
+                            className={cn(
+                              'flex w-full items-center gap-3 rounded-md p-2 text-left transition-colors',
+                              selected
+                                ? 'bg-primary/12 text-foreground'
+                                : 'hover:bg-muted/70'
+                            )}
+                          >
+                            <Avatar className="h-9 w-9 shrink-0 ring-1 ring-border/60">
+                              <AvatarFallback
+                                className={cn(
+                                  'text-xs font-semibold',
+                                  selected
+                                    ? 'bg-primary-gradient text-primary-foreground'
+                                    : 'bg-muted text-foreground'
+                                )}
+                              >
+                                {(display || '?').charAt(0).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className="truncate text-sm font-medium">{display}</span>
+                                {person.is_known && (
+                                  <span className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 rounded-full px-1.5 py-0.5 text-[10px] font-medium">
+                                    {t('chat.dialog.knownUserSuffix').replace(/^\s*·\s*/, '')}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-muted-foreground truncate font-mono text-[11px]">
+                                {person.user_id}
+                              </div>
                             </div>
-                            <div className={cn(
-                              "text-xs truncate",
-                              tempVirtualConfig.personId === person.person_id
-                                ? "text-primary-foreground/70"
-                                : "text-muted-foreground"
-                            )}>
-                              ID: {person.user_id}
-                              {person.is_known && " · 已认识"}
-                            </div>
-                          </div>
-                        </button>
-                      ))}
+                          </button>
+                        )
+                      })}
                     </div>
                   )}
                 </div>
@@ -174,32 +190,32 @@ export function VirtualIdentityDialog({
           {/* 虚拟群名配置 */}
           {tempVirtualConfig.personId && (
             <div className="space-y-2">
-              <Label>虚拟群名（可选）</Label>
+              <Label>{t('chat.dialog.groupName')}</Label>
               <Input
-                placeholder="WebUI虚拟群聊"
+                placeholder={t('chat.virtualGroupFallback')}
                 value={tempVirtualConfig.groupName}
-                onChange={(e) => setTempVirtualConfig(prev => ({
-                  ...prev,
-                  groupName: e.target.value
-                }))}
+                onChange={(e) =>
+                  setTempVirtualConfig((prev) => ({
+                    ...prev,
+                    groupName: e.target.value,
+                  }))
+                }
               />
-              <p className="text-xs text-muted-foreground">
-                麦麦会认为这是一个名为此名称的群聊
-              </p>
+              <p className="text-muted-foreground text-xs">{t('chat.dialog.groupNameHint')}</p>
             </div>
           )}
         </DialogBody>
 
         <DialogFooter className="gap-2 sm:gap-0">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            取消
+            {t('chat.actions.cancel')}
           </Button>
           <Button
             data-dialog-action="confirm"
             onClick={onCreateVirtualTab}
             disabled={!tempVirtualConfig.platform || !tempVirtualConfig.personId}
           >
-            创建对话
+            {t('chat.dialog.create')}
           </Button>
         </DialogFooter>
       </DialogContent>
