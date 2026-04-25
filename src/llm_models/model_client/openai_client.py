@@ -134,6 +134,11 @@ def _save_debug_provider_request_payload(model_name: str, request_payload: Dict[
     if model_name != "deepseek-v4p":
         return
 
+    from src.config.config import global_config
+
+    if not global_config.debug.record_reply_request:
+        return
+
     try:
         DEBUG_REPLY_CACHE_DIR.mkdir(parents=True, exist_ok=True)
         file_path = DEBUG_REPLY_CACHE_DIR / _build_debug_provider_request_filename(model_name)

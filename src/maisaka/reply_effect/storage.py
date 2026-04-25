@@ -13,7 +13,7 @@ from .path_utils import BASE_DIR, build_reply_effect_chat_dir, normalize_preview
 class ReplyEffectStorage:
     """负责回复效果记录的独立 JSON 文件存储。"""
 
-    _MAX_RECORDS_PER_CHAT = 1024
+    _DEFAULT_MAX_RECORDS_PER_CHAT = 256
     _TRIM_COUNT = 100
 
     def __init__(self, base_dir: Path | None = None) -> None:
@@ -61,15 +61,26 @@ class ReplyEffectStorage:
     def _trim_overflow(self, chat_dir: Path) -> None:
         """超过容量时删除最旧的回复效果记录。"""
 
+        max_records = self._get_max_records_per_chat()
         files = [file_path for file_path in chat_dir.glob("*.json") if file_path.is_file()]
-        if len(files) <= self._MAX_RECORDS_PER_CHAT:
+        if len(files) <= max_records:
             return
 
         sorted_files = sorted(files, key=lambda file_path: file_path.stat().st_mtime)
-        overflow_count = len(files) - self._MAX_RECORDS_PER_CHAT
+        overflow_count = len(files) - max_records
         trim_count = min(len(sorted_files), max(self._TRIM_COUNT, overflow_count))
         for old_file in sorted_files[:trim_count]:
             try:
                 old_file.unlink()
             except FileNotFoundError:
                 continue
+
+    @classmethod
+    def _get_max_records_per_chat(cls) -> int:
+        try:
+            from src.config.config import global_config
+
+            configured_limit = global_config.log.maisaka_reply_effect_limit
+            return max(1, int(configured_limit or cls._DEFAULT_MAX_RECORDS_PER_CHAT))
+        except Exception:
+            return cls._DEFAULT_MAX_RECORDS_PER_CHAT

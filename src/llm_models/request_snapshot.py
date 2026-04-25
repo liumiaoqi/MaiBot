@@ -20,6 +20,7 @@ REPLAY_SCRIPT_RELATIVE_PATH = Path("scripts") / "replay_llm_request.py"
 REPLAY_SCRIPT_PATH = PROJECT_ROOT / REPLAY_SCRIPT_RELATIVE_PATH
 FILENAME_SAFE_PATTERN = re.compile(r"[^A-Za-z0-9._-]+")
 SNAPSHOT_VERSION = 1
+DEFAULT_LLM_REQUEST_SNAPSHOT_LIMIT = 128
 
 logger = get_logger("llm_request_snapshot")
 
@@ -385,6 +386,29 @@ def build_replay_command(snapshot_path: Path) -> str:
     return f'uv run python {REPLAY_SCRIPT_RELATIVE_PATH.as_posix()} "{snapshot_path.resolve()}"'
 
 
+def _get_llm_request_snapshot_limit() -> int:
+    try:
+        from src.config.config import global_config
+
+        return max(1, int(global_config.log.llm_request_snapshot_limit or DEFAULT_LLM_REQUEST_SNAPSHOT_LIMIT))
+    except Exception:
+        return DEFAULT_LLM_REQUEST_SNAPSHOT_LIMIT
+
+
+def _trim_llm_request_snapshots() -> None:
+    limit = _get_llm_request_snapshot_limit()
+    snapshot_files = [file_path for file_path in LLM_REQUEST_LOG_DIR.glob("*.json") if file_path.is_file()]
+    if len(snapshot_files) <= limit:
+        return
+
+    sorted_files = sorted(snapshot_files, key=lambda file_path: file_path.stat().st_mtime)
+    for old_file in sorted_files[: len(snapshot_files) - limit]:
+        try:
+            old_file.unlink()
+        except FileNotFoundError:
+            continue
+
+
 def save_failed_request_snapshot(
     *,
     api_provider: APIProvider,
@@ -438,6 +462,7 @@ def save_failed_request_snapshot(
             json.dumps(snapshot_payload, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
+        _trim_llm_request_snapshots()
         return snapshot_path
     except Exception:
         logger.exception("淇濆瓨 LLM 澶辫触璇锋眰蹇収鏃跺彂鐢熷紓甯?")

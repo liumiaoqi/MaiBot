@@ -421,6 +421,9 @@ class BaseMaisakaReplyGenerator:
         model_name: str,
         messages: List[Message],
     ) -> None:
+        if not global_config.debug.record_reply_request:
+            return
+
         try:
             DEBUG_REPLY_CACHE_DIR.mkdir(parents=True, exist_ok=True)
             request_body = {
