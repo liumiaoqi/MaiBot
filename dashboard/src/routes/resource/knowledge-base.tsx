@@ -14,6 +14,10 @@ import {
   Sparkles,
   Trash2,
   Upload,
+  CheckCircle2,
+  CircleAlert,
+  FolderOpen,
+  HardDrive,
 } from 'lucide-react'
 
 import { CodeEditor } from '@/components/CodeEditor'
@@ -143,13 +147,13 @@ const IMPORT_STEP_TEXT: Record<string, string> = {
 }
 
 const IMPORT_KIND_OPTIONS: Array<{ value: MemoryImportTaskKind; label: string; description: string }> = [
-  { value: 'upload', label: '上传文件', description: '从本地批量上传文本文件' },
+  { value: 'upload', label: '上传文件', description: '从本地批量上传资料文件' },
   { value: 'paste', label: '粘贴导入', description: '直接粘贴文本或 JSON 内容创建任务' },
   { value: 'raw_scan', label: '本地扫描', description: '按路径别名和匹配规则批量扫描导入' },
   { value: 'lpmm_openie', label: 'LPMM OpenIE', description: '读取 LPMM 数据并抽取关系' },
   { value: 'lpmm_convert', label: 'LPMM 转换', description: '将 LPMM 数据转换到目标目录' },
-  { value: 'temporal_backfill', label: '时序回填', description: '对既有数据执行时间字段回填' },
-  { value: 'maibot_migration', label: 'MaiBot 迁移', description: '从 MaiBot 历史库迁移长期记忆数据' },
+  { value: 'temporal_backfill', label: '时序回填', description: '为已有数据补充时间字段' },
+  { value: 'maibot_migration', label: 'MaiBot 迁移', description: '从 MaiBot 历史数据迁移长期记忆' },
 ]
 
 function normalizeProgress(value: number | string | null | undefined): number {
@@ -369,6 +373,185 @@ function summarizeFeedbackActionPayload(value: Record<string, unknown> | undefin
     return `targets ${value.target_hashes.length}`
   }
   return trimDeleteItemText(JSON.stringify(value, null, 2), 120)
+}
+
+function pickFeedbackRelationTriplet(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object') {
+    return null
+  }
+  const record = value as Record<string, unknown>
+  const subject = String(record.subject ?? '').trim()
+  const predicate = String(record.predicate ?? '').trim()
+  const object = String(record.object ?? '').trim()
+  if (!subject || !predicate || !object) {
+    return null
+  }
+  return record
+}
+
+function formatFeedbackRelationTriplet(value: unknown): string {
+  const triplet = pickFeedbackRelationTriplet(value)
+  if (!triplet) {
+    return ''
+  }
+  return formatDeleteRelationText(
+    String(triplet.subject ?? ''),
+    String(triplet.predicate ?? ''),
+    String(triplet.object ?? ''),
+  )
+}
+
+function getFeedbackCorrectionPreview(task: MemoryFeedbackCorrectionDetailTaskPayload | MemoryFeedbackCorrectionSummaryPayload | null): {
+  headline: string
+  oldRelation: string
+  newRelation: string
+} {
+  if (!task) {
+    return {
+      headline: '当前没有纠错摘要',
+      oldRelation: '',
+      newRelation: '',
+    }
+  }
+
+  const detailTask = task as MemoryFeedbackCorrectionDetailTaskPayload
+  const rollbackPlanSummary = detailTask.rollback_plan_summary ?? {}
+  const forgottenRelations = Array.isArray(rollbackPlanSummary.forgotten_relations)
+    ? rollbackPlanSummary.forgotten_relations
+    : []
+  const correctedWrite = rollbackPlanSummary.corrected_write && typeof rollbackPlanSummary.corrected_write === 'object'
+    ? rollbackPlanSummary.corrected_write
+    : {}
+  const correctedRelations = Array.isArray((correctedWrite as Record<string, unknown>).corrected_relations)
+    ? ((correctedWrite as Record<string, unknown>).corrected_relations as unknown[])
+    : []
+
+  const oldRelation = formatFeedbackRelationTriplet(forgottenRelations[0])
+  const newRelation = formatFeedbackRelationTriplet(correctedRelations[0])
+
+  if (oldRelation && newRelation) {
+    return {
+      headline: `将“${oldRelation}”纠正为“${newRelation}”`,
+      oldRelation,
+      newRelation,
+    }
+  }
+  if (newRelation) {
+    return {
+      headline: `补充了新的纠错结论：“${newRelation}”`,
+      oldRelation: '',
+      newRelation,
+    }
+  }
+  if (oldRelation) {
+    return {
+      headline: `撤销了旧记忆关系：“${oldRelation}”`,
+      oldRelation,
+      newRelation: '',
+    }
+  }
+  return {
+    headline: task.query_text || '当前纠错没有可读摘要',
+    oldRelation: '',
+    newRelation: '',
+  }
+}
+
+function buildFeedbackImpactSummary(task: MemoryFeedbackCorrectionDetailTaskPayload | MemoryFeedbackCorrectionSummaryPayload | null): string[] {
+  if (!task) {
+    return []
+  }
+
+  const counts = task.affected_counts ?? {}
+  const items: string[] = []
+  if (Number(counts.relations ?? 0) > 0) {
+    items.push(`影响关系 ${Number(counts.relations ?? 0)} 条`)
+  }
+  if (Number(counts.corrected_relations ?? 0) > 0) {
+    items.push(`新增纠正关系 ${Number(counts.corrected_relations ?? 0)} 条`)
+  }
+  if (Number(counts.correction_paragraphs ?? 0) > 0) {
+    items.push(`写入纠错段落 ${Number(counts.correction_paragraphs ?? 0)} 条`)
+  }
+  if (Number(counts.stale_paragraphs ?? 0) > 0) {
+    items.push(`标记旧段落 ${Number(counts.stale_paragraphs ?? 0)} 条`)
+  }
+  if (Number(counts.episode_sources ?? 0) > 0) {
+    items.push(`触发 Episode 修复 ${Number(counts.episode_sources ?? 0)} 个来源`)
+  }
+  if (Number(counts.profile_person_ids ?? 0) > 0) {
+    items.push(`触发 Profile 刷新 ${Number(counts.profile_person_ids ?? 0)} 个对象`)
+  }
+  return items
+}
+
+function formatFeedbackActionType(actionType: string): string {
+  switch (actionType) {
+    case 'classification':
+      return '判定纠错'
+    case 'forget_relation':
+      return '撤销旧关系'
+    case 'mark_stale_paragraph':
+      return '标记旧段落'
+    case 'write_correction':
+      return '写入纠错'
+    case 'rollback_restore_relation':
+      return '恢复旧关系'
+    case 'rollback_delete_correction_paragraph':
+      return '隐藏纠错段落'
+    case 'rollback_revert_corrected_relation':
+      return '撤销纠正关系'
+    case 'rollback_clear_stale_mark':
+      return '清除脏段落标记'
+    case 'rollback_enqueue_episode_rebuild':
+      return '加入 Episode 修复队列'
+    case 'rollback_enqueue_profile_refresh':
+      return '加入 Profile 刷新队列'
+    case 'rollback_error':
+      return '回退失败'
+    case 'error':
+      return '处理失败'
+    case 'skip':
+      return '跳过处理'
+    default:
+      return actionType || '未知动作'
+  }
+}
+
+function describeFeedbackActionLog(item: MemoryFeedbackActionLogPayload): string {
+  const beforeSummary = summarizeFeedbackActionPayload(item.before_payload)
+  const afterSummary = summarizeFeedbackActionPayload(item.after_payload)
+
+  switch (item.action_type) {
+    case 'classification':
+      return afterSummary ? `系统完成判定：${afterSummary}` : '系统完成纠错判定'
+    case 'forget_relation':
+      return beforeSummary ? `旧关系已失效：${beforeSummary}` : '旧关系已被标记为失效'
+    case 'mark_stale_paragraph':
+      return '旧段落已标记为待复核，后续检索会更谨慎地使用它'
+    case 'write_correction':
+      return afterSummary ? `已写入新的纠错结果：${afterSummary}` : '已写入新的纠错段落和关系'
+    case 'rollback_restore_relation':
+      return afterSummary ? `已恢复旧关系状态：${afterSummary}` : '已恢复旧关系状态'
+    case 'rollback_delete_correction_paragraph':
+      return '已隐藏这次纠错写入的段落'
+    case 'rollback_revert_corrected_relation':
+      return '已撤销纠错阶段新增的关系'
+    case 'rollback_clear_stale_mark':
+      return '已清除旧段落的待复核标记'
+    case 'rollback_enqueue_episode_rebuild':
+      return '已重新加入 Episode 修复队列'
+    case 'rollback_enqueue_profile_refresh':
+      return '已重新加入 Profile 刷新队列'
+    case 'rollback_error':
+      return item.reason || '这次回退执行失败'
+    case 'error':
+      return item.reason || '这次纠错处理失败'
+    case 'skip':
+      return item.reason || '这次纠错被跳过'
+    default:
+      return afterSummary || beforeSummary || item.reason || '记录了一条动作日志'
+  }
 }
 
 type DeleteOperationItem = NonNullable<MemoryDeleteOperationPayload['items']>[number]
@@ -675,10 +858,38 @@ export function KnowledgeBasePage() {
       return []
     }
     return [
-      { label: '运行状态', value: runtimeConfig.runtime_ready ? '就绪' : '未就绪' },
-      { label: 'Embedding 维度', value: String(runtimeConfig.embedding_dimension) },
-      { label: '自动保存', value: runtimeConfig.auto_save ? '开启' : '关闭' },
-      { label: '数据目录', value: runtimeConfig.data_dir },
+      {
+        label: '运行状态',
+        value: runtimeConfig.runtime_ready ? '就绪' : '未就绪',
+        description: runtimeConfig.embedding_degraded ? 'Embedding 降级运行' : '运行时检查通过',
+        icon: runtimeConfig.runtime_ready ? CheckCircle2 : CircleAlert,
+        className: runtimeConfig.runtime_ready ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-amber-500/20 bg-amber-500/5',
+        iconClassName: runtimeConfig.runtime_ready ? 'text-emerald-500' : 'text-amber-500',
+      },
+      {
+        label: 'Embedding 维度',
+        value: String(runtimeConfig.embedding_dimension),
+        description: runtimeConfig.relation_vectors_enabled ? '关系向量已启用' : '关系向量未启用',
+        icon: HardDrive,
+        className: 'border-sky-500/20 bg-sky-500/5',
+        iconClassName: 'text-sky-500',
+      },
+      {
+        label: '自动保存',
+        value: runtimeConfig.auto_save ? '开启' : '关闭',
+        description: runtimeConfig.auto_save ? '运行数据会自动落盘' : '请留意手动保存',
+        icon: runtimeConfig.auto_save ? CheckCircle2 : CircleAlert,
+        className: runtimeConfig.auto_save ? 'border-primary/20 bg-primary/5' : 'border-muted-foreground/20 bg-muted/30',
+        iconClassName: runtimeConfig.auto_save ? 'text-primary' : 'text-muted-foreground',
+      },
+      {
+        label: '数据目录',
+        value: runtimeConfig.data_dir,
+        description: '长期记忆存储位置',
+        icon: FolderOpen,
+        className: 'border-violet-500/20 bg-violet-500/5',
+        iconClassName: 'text-violet-500',
+      },
     ]
   }, [runtimeConfig])
 
@@ -1731,6 +1942,14 @@ export function KnowledgeBasePage() {
     }
     return selectedFeedbackTaskDetail ?? selectedFeedbackCorrection
   }, [selectedFeedbackCorrection, selectedFeedbackTaskDetail])
+  const selectedFeedbackPreview = useMemo(
+    () => getFeedbackCorrectionPreview(selectedFeedbackResolved),
+    [selectedFeedbackResolved],
+  )
+  const selectedFeedbackImpactSummary = useMemo(
+    () => buildFeedbackImpactSummary(selectedFeedbackResolved),
+    [selectedFeedbackResolved],
+  )
 
   const selectedFeedbackActionLogs: MemoryFeedbackActionLogPayload[] = Array.isArray(selectedFeedbackResolved?.action_logs)
     ? selectedFeedbackResolved.action_logs
@@ -2074,10 +2293,18 @@ export function KnowledgeBasePage() {
         <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-6">
           <div className="grid gap-4 xl:grid-cols-4">
             {runtimeBadges.map((item) => (
-              <Card key={item.label}>
-                <CardHeader className="pb-2">
-                  <CardDescription>{item.label}</CardDescription>
-                  <CardTitle className="break-all text-base">{item.value}</CardTitle>
+              <Card key={item.label} className={cn('overflow-hidden transition-colors', item.className)}>
+                <CardHeader className="space-y-3 pb-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <CardDescription>{item.label}</CardDescription>
+                      <CardTitle className="break-all text-base leading-relaxed">{item.value}</CardTitle>
+                    </div>
+                    <div className="rounded-lg border bg-background/70 p-2 shadow-sm">
+                      <item.icon className={cn('h-4 w-4', item.iconClassName)} />
+                    </div>
+                  </div>
+                  <div className="text-xs text-muted-foreground">{item.description}</div>
                 </CardHeader>
               </Card>
             ))}
@@ -2183,7 +2410,7 @@ export function KnowledgeBasePage() {
                       长期记忆配置
                     </CardTitle>
                     <CardDescription>
-                      常用字段可视化编辑，长尾高级项继续通过原始 TOML 维护
+                      常用字段可在这里可视化编辑；高级配置仍可通过原始 TOML 维护。
                     </CardDescription>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -2209,7 +2436,7 @@ export function KnowledgeBasePage() {
                   {!rawConfigExists || rawConfigUsingDefault ? (
                     <Alert>
                       <AlertDescription>
-                        检测到配置文件尚未保存，当前展示的是默认模板内容点击“保存”后相关配置文件会自动创建
+                        检测到配置文件尚未保存。当前展示的是默认模板内容，点击“保存”后会自动创建配置文件：
                         {' '}
                         <code>{configPath}</code>
                         
@@ -2252,7 +2479,7 @@ export function KnowledgeBasePage() {
                         <Upload className="h-4 w-4" />
                         创建导入任务
                       </CardTitle>
-                      <CardDescription>同页完成模式选择、参数设置与任务创建，不再切换到旧导入页</CardDescription>
+                      <CardDescription>按“选择导入方式 → 检查公共参数 → 创建任务”的顺序完成导入。</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
                       <Tabs
@@ -2261,7 +2488,7 @@ export function KnowledgeBasePage() {
                         className="space-y-4"
                       >
                         <div className="space-y-2">
-                          <Label>导入子功能</Label>
+                          <Label>选择导入方式</Label>
                           <TabsList className="h-auto w-full flex-wrap justify-start gap-1 rounded-xl border bg-muted/20 p-1">
                             {IMPORT_KIND_OPTIONS.map((item) => (
                               <TabsTrigger
@@ -2275,15 +2502,15 @@ export function KnowledgeBasePage() {
                           </TabsList>
                         </div>
 
-                        <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
+                        <div className="space-y-4 rounded-lg border bg-muted/30 p-4">
                         <div className="space-y-1">
                           <div className="text-sm font-medium">公共参数</div>
-                          <div className="text-xs text-muted-foreground">所有导入模式共用，创建任务时会自动并入请求参数</div>
+                          <div className="text-xs text-muted-foreground">这些设置会应用到当前导入任务。一般保持默认即可，只在批量导入或排查问题时调整。</div>
                         </div>
-                        <div className="grid gap-3">
+                        <div className="grid gap-3 md:grid-cols-2">
                           <div className="space-y-1">
                             <Label>文件并发数</Label>
-                            <div className="text-xs text-muted-foreground">同时处理的文件数量</div>
+                            <div className="text-xs text-muted-foreground">同时处理多少个文件；文件很多时再适当调高。</div>
                             <Input
                               type="number"
                               min={1}
@@ -2294,7 +2521,7 @@ export function KnowledgeBasePage() {
                           </div>
                           <div className="space-y-1">
                             <Label>分块并发数</Label>
-                            <div className="text-xs text-muted-foreground">单文件内并行分块数量</div>
+                            <div className="text-xs text-muted-foreground">单个文件内并行处理多少个分块；过高会增加资源占用。</div>
                             <Input
                               type="number"
                               min={1}
@@ -2303,29 +2530,35 @@ export function KnowledgeBasePage() {
                               onChange={(event) => setImportCommonChunkConcurrency(event.target.value)}
                             />
                           </div>
-                          <div className="flex items-center gap-2 text-sm">
-                            <Checkbox
-                              checked={importCommonLlmEnabled}
-                              onCheckedChange={(value) => setImportCommonLlmEnabled(Boolean(value))}
-                            />
-                            启用 LLM 抽取
+                          <div className="rounded-md border bg-background/70 p-3">
+                            <div className="flex items-center gap-2 text-sm">
+                              <Checkbox
+                                checked={importCommonLlmEnabled}
+                                onCheckedChange={(value) => setImportCommonLlmEnabled(Boolean(value))}
+                              />
+                              启用 LLM 抽取
+                            </div>
+                            <div className="mt-1 text-xs text-muted-foreground">需要模型参与抽取，质量更高但耗时更长。</div>
                           </div>
-                          <div className="flex items-center gap-2 text-sm">
-                            <Checkbox
-                              checked={importCommonChatLog}
-                              onCheckedChange={(value) => setImportCommonChatLog(Boolean(value))}
-                            />
-                            按聊天日志解析
+                          <div className="rounded-md border bg-background/70 p-3">
+                            <div className="flex items-center gap-2 text-sm">
+                              <Checkbox
+                                checked={importCommonChatLog}
+                                onCheckedChange={(value) => setImportCommonChatLog(Boolean(value))}
+                              />
+                              按聊天日志解析
+                            </div>
+                            <div className="mt-1 text-xs text-muted-foreground">适合导入聊天记录，会尽量保留时间和对话上下文。</div>
                           </div>
                         </div>
 
                         <details className="rounded-md border bg-background/70 p-3 text-sm">
                           <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
-                            高级参数
+                            高级参数（通常不用修改）
                           </summary>
                           <div className="mt-3 grid gap-3">
                             <div className="space-y-1">
-                              <Label>抽取策略覆盖</Label>
+                              <Label>指定抽取策略</Label>
                               <Input
                                 value={importCommonStrategyOverride}
                                 onChange={(event) => setImportCommonStrategyOverride(event.target.value)}
@@ -2357,7 +2590,7 @@ export function KnowledgeBasePage() {
                                 checked={importCommonClearManifest}
                                 onCheckedChange={(value) => setImportCommonClearManifest(Boolean(value))}
                               />
-                              清空任务清单
+                              清空导入清单
                             </div>
                           </div>
                         </details>
@@ -2365,7 +2598,7 @@ export function KnowledgeBasePage() {
 
                       <TabsContent value="upload" className="mt-0">
                         <div className="space-y-3 rounded-xl border bg-background/70 p-4">
-                          <div className="text-xs text-muted-foreground">上传本地文件，适合批量导入</div>
+                          <div className="text-xs text-muted-foreground">选择一个或多个本地文件创建导入任务，适合批量导入资料或聊天记录。</div>
                           <div className="grid gap-3">
                             <div className="space-y-1">
                               <Label>输入模式</Label>
@@ -2398,7 +2631,7 @@ export function KnowledgeBasePage() {
 
                       <TabsContent value="paste" className="mt-0">
                         <div className="space-y-3 rounded-xl border bg-background/70 p-4">
-                          <div className="text-xs text-muted-foreground">粘贴少量文本，适合临时导入</div>
+                          <div className="text-xs text-muted-foreground">直接粘贴少量文本或 JSON，适合临时补充一段资料。</div>
                           <div className="grid gap-3">
                             <div className="space-y-1">
                               <Label>内容名称</Label>
@@ -2558,7 +2791,7 @@ export function KnowledgeBasePage() {
                           <div className="grid gap-2">
                             <div className="flex items-center gap-2 text-sm">
                               <Checkbox checked={backfillDryRun} onCheckedChange={(value) => setBackfillDryRun(Boolean(value))} />
-                              仅演练（不落盘）
+                              只预演，不写入数据
                             </div>
                             <div className="flex items-center gap-2 text-sm">
                               <Checkbox
@@ -2638,7 +2871,7 @@ export function KnowledgeBasePage() {
                           <div className="grid gap-2">
                             <div className="flex items-center gap-2 text-sm">
                               <Checkbox checked={maibotNoResume} onCheckedChange={(value) => setMaibotNoResume(Boolean(value))} />
-                              不续跑
+                              从头开始，不继续上次进度
                             </div>
                             <div className="flex items-center gap-2 text-sm">
                               <Checkbox checked={maibotResetState} onCheckedChange={(value) => setMaibotResetState(Boolean(value))} />
@@ -2646,7 +2879,7 @@ export function KnowledgeBasePage() {
                             </div>
                             <div className="flex items-center gap-2 text-sm">
                               <Checkbox checked={maibotDryRun} onCheckedChange={(value) => setMaibotDryRun(Boolean(value))} />
-                              仅演练（不落盘）
+                              只预演，不写入数据
                             </div>
                             <div className="flex items-center gap-2 text-sm">
                               <Checkbox checked={maibotVerifyOnly} onCheckedChange={(value) => setMaibotVerifyOnly(Boolean(value))} />
@@ -2668,13 +2901,13 @@ export function KnowledgeBasePage() {
                   <Card className="rounded-2xl border-border/70 bg-card/85 shadow-sm">
                     <CardHeader>
                       <CardTitle>路径预检</CardTitle>
-                      <CardDescription>基于路径别名解析目标路径，提前发现路径越界或不存在问题</CardDescription>
+                      <CardDescription>在创建本地扫描、转换或迁移任务前，先确认路径会被解析到哪里。</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div className="grid gap-3">
                         <div className="space-y-1">
                           <Label>路径别名</Label>
-                          <div className="text-xs text-muted-foreground">选择预设的数据根目录</div>
+                          <div className="text-xs text-muted-foreground">选择后端允许访问的数据根目录。</div>
                           <Select value={pathResolveAlias} onValueChange={setPathResolveAlias}>
                             <SelectTrigger aria-label="import-path-alias">
                               <SelectValue />
@@ -2690,7 +2923,7 @@ export function KnowledgeBasePage() {
                         </div>
                         <div className="space-y-1">
                           <Label>相对路径</Label>
-                          <div className="text-xs text-muted-foreground">填写要拼接的子路径</div>
+                          <div className="text-xs text-muted-foreground">填写相对于路径别名的子路径，不需要填写完整磁盘路径。</div>
                           <Input
                             value={pathResolveRelativePath}
                             onChange={(event) => setPathResolveRelativePath(event.target.value)}
@@ -2727,8 +2960,13 @@ export function KnowledgeBasePage() {
                       </div>
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <CardDescription className="text-sm">
-                          运行中 {runningImportTasks.length}，排队中 {queuedImportTasks.length}，最近完成 {recentImportTasks.length}
+                          查看任务是否正在运行、排队等待或已经结束。点击任务卡片可查看详情。
                         </CardDescription>
+                        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                          <Badge variant="outline" className="bg-background/70">运行中 {runningImportTasks.length}</Badge>
+                          <Badge variant="outline" className="bg-background/70">排队中 {queuedImportTasks.length}</Badge>
+                          <Badge variant="outline" className="bg-background/70">最近完成 {recentImportTasks.length}</Badge>
+                        </div>
                         <label className="flex items-center gap-2 text-xs text-muted-foreground">
                           <Checkbox checked={importAutoPolling} onCheckedChange={(value) => setImportAutoPolling(Boolean(value))} />
                           自动轮询 {importPollInterval}ms
@@ -3123,7 +3361,21 @@ export function KnowledgeBasePage() {
                                       <TableCell>{getImportStepLabel(String(chunk.step ?? ''))}</TableCell>
                                       <TableCell>{Number(chunk.progress ?? 0).toFixed(1)}%</TableCell>
                                       <TableCell className="max-w-[360px]">
-                                      <div className="truncate text-sm">{String(chunk.error ?? '') || String(chunk.content_preview ?? '-')}</div>
+                                        <div className="space-y-2">
+                                          {String(chunk.error ?? '').trim() ? (
+                                            <div className="rounded-md border border-destructive/30 bg-destructive/5 px-2.5 py-2 text-sm leading-relaxed text-destructive">
+                                              {String(chunk.error)}
+                                            </div>
+                                          ) : null}
+                                          <details className="rounded-md border bg-muted/20 px-2.5 py-2 text-xs text-muted-foreground">
+                                            <summary className="cursor-pointer font-medium text-foreground">
+                                              {String(chunk.error ?? '').trim() ? '查看分块预览' : '查看内容详情'}
+                                            </summary>
+                                            <div className="mt-2 whitespace-pre-wrap break-words leading-relaxed">
+                                              {String(chunk.content_preview ?? '-') || '-'}
+                                            </div>
+                                          </details>
+                                        </div>
                                       </TableCell>
                                     </TableRow>
                                   ))
@@ -3153,41 +3405,57 @@ export function KnowledgeBasePage() {
                       <Sparkles className="h-4 w-4" />
                       调优任务
                     </CardTitle>
-                    <CardDescription>先把创建、查看、应用最佳结果这条调优闭环接到主线控制台</CardDescription>
+                    <CardDescription>创建一次检索参数评估任务，完成后可在右侧列表中查看并应用最佳结果。</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label>目标函数</Label>
-                        <Select value={tuningObjective} onValueChange={setTuningObjective}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="precision_priority">precision_priority</SelectItem>
-                            <SelectItem value="balanced">balanced</SelectItem>
-                            <SelectItem value="recall_priority">recall_priority</SelectItem>
-                          </SelectContent>
-                        </Select>
+                    <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
+                      <div className="space-y-1">
+                        <div className="text-sm font-medium">调优策略</div>
+                        <div className="text-xs text-muted-foreground">先选择优化方向和搜索强度。默认的 balanced / standard 适合大多数情况。</div>
                       </div>
-                      <div className="space-y-2">
-                        <Label>强度</Label>
-                        <Select value={tuningIntensity} onValueChange={setTuningIntensity}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="quick">quick</SelectItem>
-                            <SelectItem value="standard">standard</SelectItem>
-                            <SelectItem value="deep">deep</SelectItem>
-                          </SelectContent>
-                        </Select>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>优化目标</Label>
+                          <div className="text-xs text-muted-foreground">决定本次调优更偏向准确率、召回率，还是两者平衡。</div>
+                          <Select value={tuningObjective} onValueChange={setTuningObjective}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="precision_priority">precision_priority</SelectItem>
+                              <SelectItem value="balanced">balanced</SelectItem>
+                              <SelectItem value="recall_priority">recall_priority</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>评估强度</Label>
+                          <div className="text-xs text-muted-foreground">强度越高，评估更充分，但任务耗时也更长。</div>
+                          <Select value={tuningIntensity} onValueChange={setTuningIntensity}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="quick">quick</SelectItem>
+                              <SelectItem value="standard">standard</SelectItem>
+                              <SelectItem value="deep">deep</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
                     </div>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label>样本量</Label>
-                        <Input type="number" value={tuningSampleSize} onChange={(event) => setTuningSampleSize(event.target.value)} />
+                    <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
+                      <div className="space-y-1">
+                        <div className="text-sm font-medium">评估范围</div>
+                        <div className="text-xs text-muted-foreground">控制本次任务使用多少样本，以及每次检索评估多少候选结果。</div>
                       </div>
-                      <div className="space-y-2">
-                        <Label>评估 Top-K</Label>
-                        <Input type="number" value={tuningTopKEval} onChange={(event) => setTuningTopKEval(event.target.value)} />
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>样本量</Label>
+                          <div className="text-xs text-muted-foreground">用于评估的样本数量。数量越大，结果越稳定。</div>
+                          <Input type="number" value={tuningSampleSize} onChange={(event) => setTuningSampleSize(event.target.value)} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>评估 Top-K</Label>
+                          <div className="text-xs text-muted-foreground">每次检索时用于评估的候选结果数量。</div>
+                          <Input type="number" value={tuningTopKEval} onChange={(event) => setTuningTopKEval(event.target.value)} />
+                        </div>
                       </div>
                     </div>
                     <Button onClick={() => void submitTuningTask()} disabled={creatingTuning}>
@@ -3201,6 +3469,7 @@ export function KnowledgeBasePage() {
                   <Card>
                     <CardHeader>
                       <CardTitle>当前调优配置快照</CardTitle>
+                      <CardDescription>展示当前生效的检索调优参数，便于在应用新结果前做对照。</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3">
                       <CodeEditor
@@ -3221,6 +3490,7 @@ export function KnowledgeBasePage() {
                   <Card>
                     <CardHeader>
                       <CardTitle>最近调优任务</CardTitle>
+                      <CardDescription>任务完成后，可以把最佳结果应用到当前调优配置。</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3">
                       <Table>
@@ -3235,7 +3505,11 @@ export function KnowledgeBasePage() {
                           {tuningTasks.length > 0 ? tuningTasks.map((task) => (
                             <TableRow key={String(task.task_id ?? Math.random())}>
                               <TableCell className="font-mono text-xs">{String(task.task_id ?? '-')}</TableCell>
-                              <TableCell>{String(task.status ?? '-')}</TableCell>
+                              <TableCell>
+                                <Badge variant={getImportStatusVariant(String(task.status ?? ''))}>
+                                  {String(task.status ?? '-')}
+                                </Badge>
+                              </TableCell>
                               <TableCell>
                                 <Button
                                   size="sm"
@@ -3250,7 +3524,7 @@ export function KnowledgeBasePage() {
                           )) : (
                             <TableRow>
                               <TableCell colSpan={3} className="text-center text-muted-foreground">
-                                还没有调优任务
+                                还没有调优任务。可以先使用默认参数创建一次评估任务。
                               </TableCell>
                             </TableRow>
                           )}
@@ -3272,17 +3546,18 @@ export function KnowledgeBasePage() {
                         来源批量删除
                       </CardTitle>
                       <CardDescription>
-                        用于按来源批量清理测试数据或指定导入批次不会自动删除实体，只会删除来源段落和失去全部证据的关系
+                        用于按来源清理测试数据或指定导入批次。该操作不会直接删除实体，只会删除来源段落和失去全部证据的关系。
                       </CardDescription>
                     </div>
-                    <Alert>
+                    <Alert className="border-amber-500/30 bg-amber-500/5 text-amber-950 dark:text-amber-200">
+                      <CircleAlert className="h-4 w-4 text-amber-500" />
                       <AlertDescription>
-                        建议先在图谱里确认影响范围，再在这里做批量来源删除所有删除都会先经过预览，并支持按 operation 恢复
+                        建议先在图谱里确认影响范围，再在这里执行批量来源删除。所有删除都会先经过预览，并支持按删除记录恢复。
                       </AlertDescription>
                     </Alert>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+                    <div className="grid gap-3 rounded-xl border bg-muted/20 p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
                       <div className="space-y-2">
                         <Label>来源检索</Label>
                         <Input
@@ -3306,8 +3581,10 @@ export function KnowledgeBasePage() {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                      <Badge variant="outline">当前命中 {filteredSources.length} 个来源</Badge>
-                      <Badge variant="secondary">已选择 {selectedSources.length} 个来源</Badge>
+                      <Badge variant="outline" className="bg-background/70">当前命中 {filteredSources.length} 个来源</Badge>
+                      <Badge variant={selectedSources.length > 0 ? 'secondary' : 'outline'} className="bg-background/70">
+                        已选择 {selectedSources.length} 个来源
+                      </Badge>
                     </div>
 
                     <ScrollArea className="h-[320px] rounded-lg border">
@@ -3356,7 +3633,7 @@ export function KnowledgeBasePage() {
                     <CardDescription>按列表浏览最近的删除操作，先选中记录，再在下方确认影响范围并执行恢复</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_180px]">
+                    <div className="grid gap-3 rounded-xl border bg-muted/20 p-4 lg:grid-cols-[minmax(0,1fr)_180px_180px]">
                       <Input
                         value={operationSearch}
                         onChange={(event) => setOperationSearch(event.target.value)}
@@ -3455,7 +3732,7 @@ export function KnowledgeBasePage() {
                         上一页
                       </Button>
                       <div className="text-xs text-muted-foreground">
-                        支持按 operation、模式、状态、发起人和 source 检索
+                        支持按删除记录、模式、状态、发起人和来源检索
                       </div>
                       <Button
                         variant="outline"
@@ -3564,7 +3841,7 @@ export function KnowledgeBasePage() {
                                 <Input
                                   value={selectedOperationItemSearch}
                                   onChange={(event) => setSelectedOperationItemSearch(event.target.value)}
-                                  placeholder="搜索类型 / hash / item_key / source"
+                                  placeholder="搜索对象类型 / 哈希 / 对象键 / 来源"
                                   className="lg:max-w-sm"
                                 />
                                 <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground lg:min-w-[180px] lg:justify-end">
@@ -3617,7 +3894,7 @@ export function KnowledgeBasePage() {
                                   上一页
                                 </Button>
                                 <div className="text-xs text-muted-foreground">
-                                  支持按对象类型、hash、item_key、source 检索
+                                  支持按对象类型、哈希、对象键和来源检索
                                 </div>
                                 <Button
                                   variant="outline"
@@ -3659,7 +3936,7 @@ export function KnowledgeBasePage() {
                       <Input
                         value={feedbackSearch}
                         onChange={(event) => setFeedbackSearch(event.target.value)}
-                        placeholder="搜索 query_tool_id / session / query / reason"
+                        placeholder="搜索查询编号 / 会话 / 查询内容 / 原因"
                       />
                       <Select value={feedbackStatusFilter} onValueChange={setFeedbackStatusFilter}>
                         <SelectTrigger>
@@ -3688,16 +3965,18 @@ export function KnowledgeBasePage() {
                       </Select>
                     </div>
 
-                    <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-background/70 px-3 py-2 text-sm text-muted-foreground">
                       <span>当前命中 {filteredFeedbackCorrections.length} 条记录，已加载最近 {feedbackCorrections.length} 条</span>
                       <span>第 {feedbackPage} / {feedbackPageCount} 页，每页显示 {FEEDBACK_CORRECTION_PAGE_SIZE} 条</span>
                     </div>
 
-                    <div className="grid gap-4 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
+                    <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
                       <ScrollArea className="h-[720px] rounded-lg border">
                         <div className="space-y-3 p-3">
                           {pagedFeedbackCorrections.length > 0 ? pagedFeedbackCorrections.map((item) => {
                             const isSelected = selectedFeedbackCorrection?.task_id === item.task_id
+                            const preview = getFeedbackCorrectionPreview(item)
+                            const impactSummary = buildFeedbackImpactSummary(item)
                             return (
                               <button
                                 key={item.task_id}
@@ -3711,31 +3990,58 @@ export function KnowledgeBasePage() {
                                 )}
                               >
                                 <div className="flex flex-col gap-3">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <Badge variant={getFeedbackStatusVariant(item.task_status)}>
-                                      {formatFeedbackTaskStatus(item.task_status)}
-                                    </Badge>
-                                    <Badge variant={getFeedbackStatusVariant(item.rollback_status)}>
-                                      {formatFeedbackRollbackStatus(item.rollback_status)}
-                                    </Badge>
-                                    <Badge variant="outline">
-                                      {formatFeedbackDecision(item.decision)}
-                                    </Badge>
+                                  <div className="flex flex-wrap items-start justify-between gap-2">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <Badge variant={getFeedbackStatusVariant(item.task_status)}>
+                                        {formatFeedbackTaskStatus(item.task_status)}
+                                      </Badge>
+                                      <Badge variant={getFeedbackStatusVariant(item.rollback_status)}>
+                                        {formatFeedbackRollbackStatus(item.rollback_status)}
+                                      </Badge>
+                                      <Badge variant="outline">
+                                        {formatFeedbackDecision(item.decision)}
+                                      </Badge>
+                                    </div>
+                                    <div className="text-[11px] text-muted-foreground">
+                                      {formatDeleteOperationTime(item.query_timestamp ?? item.created_at)}
+                                    </div>
                                   </div>
-                                  <div className="text-sm font-medium break-words">
-                                    {item.query_text || '无查询文本'}
+                                  <div className="space-y-1">
+                                    <div className="text-sm font-semibold break-words">
+                                      {preview.headline}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground break-words">
+                                      查询：{item.query_text || '无查询文本'}
+                                    </div>
+                                  </div>
+                                  {(preview.oldRelation || preview.newRelation) ? (
+                                    <div className="grid gap-2 rounded-lg border bg-background/70 p-3 text-xs shadow-sm">
+                                      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-stretch">
+                                        <div className="rounded-md border border-amber-500/20 bg-amber-500/5 p-2">
+                                          <div className="text-[11px] font-medium text-amber-700 dark:text-amber-300">纠错前</div>
+                                          <div className="mt-1 break-words">{preview.oldRelation || '无'}</div>
+                                        </div>
+                                        <div className="hidden items-center text-muted-foreground sm:flex">→</div>
+                                        <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 p-2">
+                                          <div className="text-[11px] font-medium text-emerald-700 dark:text-emerald-300">纠错后</div>
+                                          <div className="mt-1 break-words">{preview.newRelation || '无'}</div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : null}
+                                  <div className="flex flex-wrap gap-2">
+                                    {impactSummary.length > 0 ? impactSummary.slice(0, 3).map((summary) => (
+                                      <Badge key={`${item.task_id}:${summary}`} variant="secondary" className="font-normal">
+                                        {summary}
+                                      </Badge>
+                                    )) : (
+                                      <Badge variant="secondary" className="font-normal">
+                                        暂无影响摘要
+                                      </Badge>
+                                    )}
                                   </div>
                                   <div className="font-mono text-[11px] break-all text-muted-foreground">
                                     {item.query_tool_id}
-                                  </div>
-                                  <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                                    <span>关系 {Number(item.affected_counts?.relations ?? 0)}</span>
-                                    <span>脏段落 {Number(item.affected_counts?.stale_paragraphs ?? 0)}</span>
-                                    <span>Episode {Number(item.affected_counts?.episode_sources ?? 0)}</span>
-                                    <span>Profile {Number(item.affected_counts?.profile_person_ids ?? 0)}</span>
-                                  </div>
-                                  <div className="text-xs text-muted-foreground">
-                                    {formatDeleteOperationTime(item.query_timestamp ?? item.created_at)}
                                   </div>
                                 </div>
                               </button>
@@ -3748,7 +4054,7 @@ export function KnowledgeBasePage() {
                         </div>
                       </ScrollArea>
 
-                      <div className="rounded-xl border bg-muted/20 p-4">
+                      <div className="self-start rounded-xl border bg-muted/20 p-4">
                         {selectedFeedbackCorrection ? (
                           <div className="space-y-4">
                             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -3764,10 +4070,13 @@ export function KnowledgeBasePage() {
                                     {formatFeedbackDecision(String(selectedFeedbackResolved?.decision ?? ''))}
                                   </Badge>
                                 </div>
-                                <div className="text-sm font-medium break-words">
-                                  {selectedFeedbackResolved?.query_text || '无查询文本'}
+                                <div className="text-base font-semibold break-words">
+                                  {selectedFeedbackPreview.headline}
                                 </div>
-                                <div className="font-mono text-xs break-all">
+                                <div className="text-sm text-muted-foreground break-words">
+                                  查询：{selectedFeedbackResolved?.query_text || '无查询文本'}
+                                </div>
+                                <div className="font-mono text-xs break-all text-muted-foreground">
                                   {selectedFeedbackResolved?.query_tool_id}
                                 </div>
                               </div>
@@ -3786,6 +4095,40 @@ export function KnowledgeBasePage() {
                                   ? '已回退'
                                   : '回退本次纠错'}
                               </Button>
+                            </div>
+
+                            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+                              <div className="rounded-xl border bg-background/70 p-4 shadow-sm">
+                                <div className="text-sm font-semibold">本次纠错结论</div>
+                                <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-stretch">
+                                  <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
+                                    <div className="text-xs font-medium text-amber-700 dark:text-amber-300">纠错前</div>
+                                    <div className="mt-2 text-sm break-words">
+                                      {selectedFeedbackPreview.oldRelation || '当前详情没有记录旧结论'}
+                                    </div>
+                                  </div>
+                                  <div className="hidden items-center justify-center text-muted-foreground md:flex">→</div>
+                                  <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
+                                    <div className="text-xs font-medium text-emerald-700 dark:text-emerald-300">纠错后</div>
+                                    <div className="mt-2 text-sm break-words">
+                                      {selectedFeedbackPreview.newRelation || '当前详情没有记录新结论'}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="rounded-xl border bg-background/70 p-4 shadow-sm">
+                                <div className="text-sm font-semibold">影响范围摘要</div>
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  {selectedFeedbackImpactSummary.length > 0 ? selectedFeedbackImpactSummary.map((summary) => (
+                                    <Badge key={summary} variant="secondary" className="bg-primary/10 font-normal text-primary hover:bg-primary/15">
+                                      {summary}
+                                    </Badge>
+                                  )) : (
+                                    <div className="text-sm text-muted-foreground">当前没有可展示的影响范围摘要</div>
+                                  )}
+                                </div>
+                              </div>
                             </div>
 
                             <div className="grid gap-3 lg:grid-cols-4">
@@ -3825,109 +4168,136 @@ export function KnowledgeBasePage() {
                               </Alert>
                             ) : null}
 
-                            <div className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-                              <div className="space-y-2">
-                                <div className="text-sm font-semibold">查询快照</div>
-                                <pre className="max-h-56 overflow-auto rounded-lg border bg-background/70 p-3 text-xs break-words whitespace-pre-wrap">
-                                  {JSON.stringify(selectedFeedbackResolved?.query_snapshot ?? {}, null, 2)}
-                                </pre>
+                            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+                              <div className="rounded-xl border bg-background/70 p-4">
+                                <div className="text-sm font-semibold">回退后会发生什么</div>
+                                <div className="mt-3 space-y-2 text-sm text-muted-foreground">
+                                  <div>会恢复旧关系状态，并撤销本次纠错写入的段落与关系。</div>
+                                  <div>会清理旧段落的待复核标记，并重新触发相关 Episode / Profile 修复。</div>
+                                  <div>如果你当前只是核对结果，可以先查看下面的详细数据，不必立刻执行回退。</div>
+                                </div>
                               </div>
-                              <div className="space-y-2">
-                                <div className="text-sm font-semibold">判定结果</div>
-                                <pre className="max-h-56 overflow-auto rounded-lg border bg-background/70 p-3 text-xs break-words whitespace-pre-wrap">
-                                  {JSON.stringify(selectedFeedbackResolved?.decision_payload ?? {}, null, 2)}
-                                </pre>
-                              </div>
-                            </div>
-
-                            <div className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-                              <div className="space-y-2">
-                                <div className="text-sm font-semibold">回退计划摘要</div>
-                                <pre className="max-h-64 overflow-auto rounded-lg border bg-background/70 p-3 text-xs break-words whitespace-pre-wrap">
-                                  {JSON.stringify(selectedFeedbackResolved?.rollback_plan_summary ?? {}, null, 2)}
-                                </pre>
-                              </div>
-                              <div className="space-y-2">
-                                <div className="text-sm font-semibold">回退结果</div>
-                                <pre className="max-h-64 overflow-auto rounded-lg border bg-background/70 p-3 text-xs break-words whitespace-pre-wrap">
-                                  {JSON.stringify(selectedFeedbackResolved?.rollback_result ?? {}, null, 2)}
-                                </pre>
+                              <div className="rounded-xl border bg-background/70 p-4">
+                                <div className="text-sm font-semibold">处理摘要</div>
+                                <div className="mt-3 grid gap-2 text-sm text-muted-foreground">
+                                  <div>判定：{formatFeedbackDecision(String(selectedFeedbackResolved?.decision ?? ''))}</div>
+                                  <div>任务状态：{formatFeedbackTaskStatus(String(selectedFeedbackResolved?.task_status ?? ''))}</div>
+                                  <div>回退状态：{formatFeedbackRollbackStatus(String(selectedFeedbackResolved?.rollback_status ?? 'none'))}</div>
+                                  <div>反馈消息数：{Number(selectedFeedbackResolved?.feedback_message_count ?? 0)}</div>
+                                </div>
                               </div>
                             </div>
 
-                            <div className="space-y-2">
-                              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                                <div className="text-sm font-semibold">动作时间线</div>
-                                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-end">
-                                  <Input
-                                    value={feedbackActionLogSearch}
-                                    onChange={(event) => setFeedbackActionLogSearch(event.target.value)}
-                                    placeholder="搜索动作 / hash / 预览内容"
-                                    className="lg:w-80"
-                                  />
+                            <div className="space-y-3">
+                              <div className="text-sm font-semibold">详细数据</div>
+                              <div className="grid gap-3 xl:grid-cols-2">
+                                <details className="rounded-lg border bg-background/70 p-3">
+                                  <summary className="cursor-pointer text-sm font-medium">查询快照 JSON</summary>
+                                  <pre className="mt-3 max-h-56 overflow-auto text-xs break-words whitespace-pre-wrap">
+                                    {JSON.stringify(selectedFeedbackResolved?.query_snapshot ?? {}, null, 2)}
+                                  </pre>
+                                </details>
+                                <details className="rounded-lg border bg-background/70 p-3">
+                                  <summary className="cursor-pointer text-sm font-medium">判定结果 JSON</summary>
+                                  <pre className="mt-3 max-h-56 overflow-auto text-xs break-words whitespace-pre-wrap">
+                                    {JSON.stringify(selectedFeedbackResolved?.decision_payload ?? {}, null, 2)}
+                                  </pre>
+                                </details>
+                                <details className="rounded-lg border bg-background/70 p-3">
+                                  <summary className="cursor-pointer text-sm font-medium">回退计划摘要 JSON</summary>
+                                  <pre className="mt-3 max-h-64 overflow-auto text-xs break-words whitespace-pre-wrap">
+                                    {JSON.stringify(selectedFeedbackResolved?.rollback_plan_summary ?? {}, null, 2)}
+                                  </pre>
+                                </details>
+                                <details className="rounded-lg border bg-background/70 p-3">
+                                  <summary className="cursor-pointer text-sm font-medium">回退结果 JSON</summary>
+                                  <pre className="mt-3 max-h-64 overflow-auto text-xs break-words whitespace-pre-wrap">
+                                    {JSON.stringify(selectedFeedbackResolved?.rollback_result ?? {}, null, 2)}
+                                  </pre>
+                                </details>
+                              </div>
+                            </div>
+
+                            <details className="rounded-xl border bg-background/70 p-4">
+                              <summary className="cursor-pointer text-sm font-semibold">
+                                动作时间线
+                              </summary>
+                              <div className="mt-4 space-y-2">
+                                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                                   <div className="text-xs text-muted-foreground">
                                     第 {feedbackActionLogPage} / {feedbackActionLogPageCount} 页，每页 {FEEDBACK_ACTION_LOG_PAGE_SIZE} 项
                                   </div>
+                                  <Input
+                                    value={feedbackActionLogSearch}
+                                    onChange={(event) => setFeedbackActionLogSearch(event.target.value)}
+                                    placeholder="搜索动作 / 目标哈希 / 预览内容"
+                                    className="lg:w-80"
+                                  />
                                 </div>
-                              </div>
-                              <ScrollArea className="h-[280px] rounded-lg border bg-background/60">
-                                <div className="space-y-2 p-3">
-                                  {pagedFeedbackActionLogs.length > 0 ? pagedFeedbackActionLogs.map((item: MemoryFeedbackActionLogPayload) => (
-                                    <div key={`${item.id}:${item.action_type}`} className="rounded-lg border bg-muted/20 p-3">
-                                      <div className="flex flex-wrap items-center gap-2">
-                                        <Badge variant="outline">{item.action_type}</Badge>
-                                        {item.target_hash ? (
-                                          <span className="font-mono text-[11px] break-all text-muted-foreground">{item.target_hash}</span>
+                                <ScrollArea className="h-[240px] rounded-lg border bg-background/60">
+                                  <div className="space-y-2 p-3">
+                                    {pagedFeedbackActionLogs.length > 0 ? pagedFeedbackActionLogs.map((item: MemoryFeedbackActionLogPayload) => (
+                                      <div key={`${item.id}:${item.action_type}`} className="rounded-lg border bg-muted/20 p-3">
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                          <div className="flex flex-wrap items-center gap-2">
+                                            <Badge variant="outline">{formatFeedbackActionType(item.action_type)}</Badge>
+                                            {item.target_hash ? (
+                                              <span className="font-mono text-[11px] break-all text-muted-foreground">{item.target_hash}</span>
+                                            ) : null}
+                                          </div>
+                                          <div className="text-[11px] text-muted-foreground">
+                                            {formatDeleteOperationTime(item.created_at)}
+                                          </div>
+                                        </div>
+                                        <div className="mt-2 text-sm break-words">
+                                          {describeFeedbackActionLog(item)}
+                                        </div>
+                                        {item.reason ? (
+                                          <div className="mt-2 text-xs text-muted-foreground break-words">
+                                            原因：{item.reason}
+                                          </div>
+                                        ) : null}
+                                        {item.before_payload && Object.keys(item.before_payload).length > 0 ? (
+                                          <div className="mt-3 rounded-md border bg-background/70 p-2 text-xs break-words">
+                                            <span className="font-medium">处理前：</span>
+                                            <span className="text-muted-foreground">{summarizeFeedbackActionPayload(item.before_payload)}</span>
+                                          </div>
+                                        ) : null}
+                                        {item.after_payload && Object.keys(item.after_payload).length > 0 ? (
+                                          <div className="mt-2 rounded-md border bg-background/70 p-2 text-xs break-words">
+                                            <span className="font-medium">处理后：</span>
+                                            <span className="text-muted-foreground">{summarizeFeedbackActionPayload(item.after_payload)}</span>
+                                          </div>
                                         ) : null}
                                       </div>
-                                      {item.reason ? (
-                                        <div className="mt-2 text-xs text-muted-foreground break-words">
-                                          {item.reason}
-                                        </div>
-                                      ) : null}
-                                      {item.before_payload && Object.keys(item.before_payload).length > 0 ? (
-                                        <div className="mt-2 text-xs break-words">
-                                          <span className="font-medium">Before：</span>
-                                          <span className="text-muted-foreground">{summarizeFeedbackActionPayload(item.before_payload)}</span>
-                                        </div>
-                                      ) : null}
-                                      {item.after_payload && Object.keys(item.after_payload).length > 0 ? (
-                                        <div className="mt-1 text-xs break-words">
-                                          <span className="font-medium">After：</span>
-                                          <span className="text-muted-foreground">{summarizeFeedbackActionPayload(item.after_payload)}</span>
-                                        </div>
-                                      ) : null}
-                                      <div className="mt-2 text-[11px] text-muted-foreground">
-                                        {formatDeleteOperationTime(item.created_at)}
+                                    )) : (
+                                      <div className="rounded-lg border border-dashed bg-muted/20 p-6 text-center text-sm text-muted-foreground">
+                                        {selectedFeedbackActionLogs.length > 0 ? '当前筛选条件下没有动作日志' : '当前任务没有动作日志'}
                                       </div>
-                                    </div>
-                                  )) : (
-                                    <div className="rounded-lg border border-dashed bg-muted/20 p-6 text-center text-sm text-muted-foreground">
-                                      {selectedFeedbackActionLogs.length > 0 ? '当前筛选条件下没有动作日志' : '当前任务没有动作日志'}
-                                    </div>
-                                  )}
+                                    )}
+                                  </div>
+                                </ScrollArea>
+                                <div className="flex items-center justify-between gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setFeedbackActionLogPage((current) => Math.max(1, current - 1))}
+                                    disabled={feedbackActionLogPage <= 1}
+                                  >
+                                    上一页
+                                  </Button>
+                                  <div className="text-xs text-muted-foreground">支持按动作类型、目标哈希和摘要检索</div>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setFeedbackActionLogPage((current) => Math.min(feedbackActionLogPageCount, current + 1))}
+                                    disabled={feedbackActionLogPage >= feedbackActionLogPageCount}
+                                  >
+                                    下一页
+                                  </Button>
                                 </div>
-                              </ScrollArea>
-                              <div className="flex items-center justify-between gap-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => setFeedbackActionLogPage((current) => Math.max(1, current - 1))}
-                                  disabled={feedbackActionLogPage <= 1}
-                                >
-                                  上一页
-                                </Button>
-                                <div className="text-xs text-muted-foreground">支持按动作类型、hash 和摘要检索</div>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => setFeedbackActionLogPage((current) => Math.min(feedbackActionLogPageCount, current + 1))}
-                                  disabled={feedbackActionLogPage >= feedbackActionLogPageCount}
-                                >
-                                  下一页
-                                </Button>
                               </div>
-                            </div>
+                            </details>
                           </div>
                         ) : (
                           <div className="flex min-h-[360px] items-center justify-center rounded-lg border border-dashed bg-background/40 p-6 text-center text-sm text-muted-foreground">
@@ -3947,7 +4317,7 @@ export function KnowledgeBasePage() {
                         上一页
                       </Button>
                       <div className="text-xs text-muted-foreground">
-                        支持按 query、任务状态和回退状态检索
+                        支持按查询内容、任务状态和回退状态检索
                       </div>
                       <Button
                         variant="outline"
@@ -3986,7 +4356,7 @@ export function KnowledgeBasePage() {
           <DialogHeader>
             <DialogTitle>回退本次纠错</DialogTitle>
             <DialogDescription>
-              这会恢复旧 relation 状态、隐藏纠错写入段落，并重新触发 episode/profile 的异步修复。
+              这会恢复旧关系状态、隐藏本次纠错写入的段落，并重新触发 Episode / Profile 的异步修复。
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
