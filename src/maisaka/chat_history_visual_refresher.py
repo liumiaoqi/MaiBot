@@ -15,7 +15,7 @@ from .context_messages import LLMContextMessage, SessionBackedMessage
 logger = get_logger("maisaka_chat_history_visual_refresher")
 
 BuildHistoryMessage = Callable[[SessionMessage, str], Awaitable[Optional[LLMContextMessage]]]
-BuildVisibleText = Callable[[SessionMessage], str]
+BuildVisibleText = Callable[[SessionMessage, str], str]
 
 
 async def refresh_chat_history_visual_placeholders(
@@ -42,7 +42,7 @@ async def refresh_chat_history_visual_placeholders(
                 enable_voice_transcription=False,
             )
 
-        refreshed_visible_text = build_visible_text(original_message)
+        refreshed_visible_text = build_visible_text(original_message, history_message.source_kind)
         if not visual_components_updated and refreshed_visible_text == history_message.visible_text:
             continue
 

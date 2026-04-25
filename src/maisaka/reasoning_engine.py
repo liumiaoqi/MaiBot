@@ -724,7 +724,7 @@ class MaisakaReasoningEngine:
         """根据真实消息构造对应的上下文消息。"""
 
         source_sequence = message.raw_message
-        visible_text = self._build_legacy_visible_text(message, source_sequence)
+        visible_text = self._build_legacy_visible_text(message, source_sequence, source_kind=source_kind)
         planner_prefix = build_planner_user_prefix_from_session_message(message)
         if contains_complex_message(source_sequence):
             return ComplexSessionMessage.from_session_message(
@@ -783,11 +783,25 @@ class MaisakaReasoningEngine:
                 message,
                 source_kind=source_kind,
             ),
-            build_visible_text=lambda message: self._build_legacy_visible_text(message, message.raw_message),
+            build_visible_text=lambda message, source_kind: self._build_legacy_visible_text(
+                message,
+                message.raw_message,
+                source_kind=source_kind,
+            ),
         )
 
-    def _build_legacy_visible_text(self, message: SessionMessage, source_sequence: MessageSequence) -> str:
-        return build_session_message_visible_text(message, source_sequence)
+    def _build_legacy_visible_text(
+        self,
+        message: SessionMessage,
+        source_sequence: MessageSequence,
+        *,
+        source_kind: str = "user",
+    ) -> str:
+        return build_session_message_visible_text(
+            message,
+            source_sequence,
+            include_reply_components=source_kind != "guided_reply",
+        )
 
     def _insert_chat_history_message(self, message: LLMContextMessage) -> int:
         """将消息按处理顺序追加到聊天历史末尾。"""
