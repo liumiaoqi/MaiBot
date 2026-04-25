@@ -1,7 +1,9 @@
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Literal, Optional, Tuple
 
+import json
 import time
 
 from rich.console import Group, RenderableType
@@ -47,6 +49,8 @@ from src.plugin_runtime.hook_payloads import serialize_prompt_messages
 from .maisaka_expression_selector import maisaka_expression_selector
 
 logger = get_logger("replyer")
+
+DEBUG_REPLY_CACHE_DIR = Path("logs/debug_reply_cache")
 
 
 @dataclass
@@ -404,6 +408,35 @@ class BaseMaisakaReplyGenerator:
             return self.chat_stream.session_id
         return ""
 
+    @staticmethod
+    def _build_debug_request_filename(stream_id: str, model_name: str) -> str:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        raw_name = f"{timestamp}_{stream_id or 'unknown'}_{model_name or 'unknown'}.json"
+        return "".join(char if char.isalnum() or char in ("-", "_", ".") else "_" for char in raw_name)
+
+    def _save_debug_reply_request_body(
+        self,
+        *,
+        stream_id: str,
+        model_name: str,
+        messages: List[Message],
+    ) -> None:
+        try:
+            DEBUG_REPLY_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+            request_body = {
+                "model": model_name,
+                "request_type": self.request_type,
+                "stream_id": stream_id,
+                "created_at": datetime.now().isoformat(timespec="seconds"),
+                "messages": serialize_prompt_messages(messages),
+            }
+            file_path = DEBUG_REPLY_CACHE_DIR / self._build_debug_request_filename(stream_id, model_name)
+            with file_path.open("w", encoding="utf-8") as file:
+                json.dump(request_body, file, ensure_ascii=False, indent=2)
+            logger.info(f"Replyer 请求体已保存: {file_path.resolve()}")
+        except Exception as exc:
+            logger.warning(f"保存 Replyer 请求体失败: {exc}")
+
     async def _build_reply_context(
         self,
         chat_history: List[LLMContextMessage],
@@ -590,6 +623,11 @@ class BaseMaisakaReplyGenerator:
 
         result.completion.request_prompt = prompt_preview
         result.request_messages = serialize_prompt_messages(request_messages)
+        self._save_debug_reply_request_body(
+            stream_id=preview_chat_id,
+            model_name=generation_result.model_name or "",
+            messages=request_messages,
+        )
         llm_ms = round((time.perf_counter() - llm_started_at) * 1000, 2)
         response_text = (generation_result.response or "").strip()
         result.success = bool(response_text)
@@ -611,6 +649,26 @@ class BaseMaisakaReplyGenerator:
                 f"prompt: {prompt_ms} ms",
                 f"llm: {llm_ms} ms",
             ],
+        )
+        prompt_cache_hit_tokens = getattr(generation_result, "prompt_cache_hit_tokens", 0) or 0
+        prompt_cache_miss_tokens = getattr(generation_result, "prompt_cache_miss_tokens", 0) or 0
+        if prompt_cache_miss_tokens == 0 and prompt_cache_hit_tokens > 0:
+            prompt_cache_miss_tokens = max(generation_result.prompt_tokens - prompt_cache_hit_tokens, 0)
+        prompt_cache_total_tokens = prompt_cache_hit_tokens + prompt_cache_miss_tokens
+        prompt_cache_hit_rate = (
+            prompt_cache_hit_tokens / prompt_cache_total_tokens * 100
+            if prompt_cache_total_tokens > 0
+            else 0
+        )
+        result.metrics.extra["prompt_cache_hit_tokens"] = prompt_cache_hit_tokens
+        result.metrics.extra["prompt_cache_miss_tokens"] = prompt_cache_miss_tokens
+        result.metrics.extra["prompt_cache_hit_rate"] = round(prompt_cache_hit_rate, 2)
+        logger.info(
+            "Replyer KV cache usage - "
+            f"hit_tokens={prompt_cache_hit_tokens}, "
+            f"miss_tokens={prompt_cache_miss_tokens}, "
+            f"hit_rate={prompt_cache_hit_rate:.2f}%, "
+            f"prompt_tokens={generation_result.prompt_tokens}"
         )
 
         if show_replyer_reasoning and result.completion.reasoning_text:

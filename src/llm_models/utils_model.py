@@ -211,6 +211,8 @@ class LLMOrchestrator:
             prompt_tokens=usage.prompt_tokens if usage is not None else 0,
             completion_tokens=usage.completion_tokens if usage is not None else 0,
             total_tokens=usage.total_tokens if usage is not None else 0,
+            prompt_cache_hit_tokens=usage.prompt_cache_hit_tokens if usage is not None else 0,
+            prompt_cache_miss_tokens=usage.prompt_cache_miss_tokens if usage is not None else 0,
         )
 
     async def generate_response_for_image(

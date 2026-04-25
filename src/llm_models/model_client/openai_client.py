@@ -5,6 +5,8 @@ import io
 import json
 import re
 from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
 from typing import Any, Callable, Coroutine, Dict, List, Tuple, cast
 from uuid import uuid4
 
@@ -71,6 +73,8 @@ from ..request_snapshot import (
 
 logger = get_logger("llm_models")
 
+DEBUG_REPLY_CACHE_DIR = Path("logs/debug_reply_cache")
+
 SUPPORTED_OPENAI_IMAGE_FORMATS = {"jpeg", "png", "webp"}
 """OpenAI 兼容图片输入稳定支持的格式集合。"""
 
@@ -118,6 +122,26 @@ OpenAIStreamResponseHandler = Callable[
 
 OpenAIResponseParser = Callable[[ChatCompletion], Tuple[APIResponse, UsageTuple | None]]
 """OpenAI 非流式响应解析函数类型。"""
+
+
+def _build_debug_provider_request_filename(model_name: str) -> str:
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    raw_name = f"provider_{timestamp}_{model_name or 'unknown'}.json"
+    return "".join(char if char.isalnum() or char in ("-", "_", ".") else "_" for char in raw_name)
+
+
+def _save_debug_provider_request_payload(model_name: str, request_payload: Dict[str, Any]) -> None:
+    if model_name != "deepseek-v4p":
+        return
+
+    try:
+        DEBUG_REPLY_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        file_path = DEBUG_REPLY_CACHE_DIR / _build_debug_provider_request_filename(model_name)
+        with file_path.open("w", encoding="utf-8") as file:
+            json.dump(request_payload, file, ensure_ascii=False, indent=2)
+        logger.info(f"DeepSeek provider 请求体已保存: {file_path.resolve()}")
+    except Exception as exc:
+        logger.warning(f"保存 DeepSeek provider 请求体失败: {exc}")
 
 
 def _build_fallback_tool_call_id(prefix: str) -> str:
@@ -492,10 +516,20 @@ def _extract_usage_record(usage: Any) -> UsageTuple | None:
     """
     if usage is None:
         return None
+    prompt_tokens = getattr(usage, "prompt_tokens", 0) or 0
+    prompt_cache_hit_tokens = getattr(usage, "prompt_cache_hit_tokens", 0) or 0
+    prompt_cache_miss_tokens = getattr(usage, "prompt_cache_miss_tokens", 0) or 0
+    prompt_tokens_details = getattr(usage, "prompt_tokens_details", None)
+    if prompt_cache_hit_tokens == 0 and prompt_tokens_details is not None:
+        prompt_cache_hit_tokens = getattr(prompt_tokens_details, "cached_tokens", 0) or 0
+    if prompt_cache_miss_tokens == 0 and prompt_cache_hit_tokens > 0:
+        prompt_cache_miss_tokens = max(prompt_tokens - prompt_cache_hit_tokens, 0)
     return (
-        getattr(usage, "prompt_tokens", 0) or 0,
+        prompt_tokens,
         getattr(usage, "completion_tokens", 0) or 0,
         getattr(usage, "total_tokens", 0) or 0,
+        prompt_cache_hit_tokens,
+        prompt_cache_miss_tokens,
     )
 
 
@@ -1147,6 +1181,17 @@ class OpenaiClient(AdapterClient[AsyncStream[ChatCompletionChunk], ChatCompletio
                 "temperature": _snapshot_openai_argument(temperature_argument),
                 "tools": tools_payload,
             }
+            _save_debug_provider_request_payload(
+                model_info.name,
+                {
+                    "base_url": self.api_provider.base_url,
+                    "endpoint": "/chat/completions",
+                    "model_name": model_info.name,
+                    "model_identifier": model_info.model_identifier,
+                    "created_at": datetime.now().isoformat(timespec="seconds"),
+                    "request_kwargs": snapshot_provider_request["request_kwargs"],
+                },
+            )
 
             if model_info.force_stream_mode:
                 stream_task: asyncio.Task[AsyncStream[ChatCompletionChunk]] = asyncio.create_task(

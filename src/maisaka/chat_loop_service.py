@@ -248,6 +248,33 @@ class MaisakaChatLoopService:
         except (TypeError, ValueError):
             return default
 
+    @staticmethod
+    def _log_prompt_cache_usage(
+        *,
+        request_kind: str,
+        prompt_tokens: int,
+        prompt_cache_hit_tokens: int,
+        prompt_cache_miss_tokens: int,
+    ) -> None:
+        """记录模型 KV cache 命中情况。"""
+
+        if prompt_cache_miss_tokens == 0 and prompt_cache_hit_tokens > 0:
+            prompt_cache_miss_tokens = max(prompt_tokens - prompt_cache_hit_tokens, 0)
+        prompt_cache_total_tokens = prompt_cache_hit_tokens + prompt_cache_miss_tokens
+        prompt_cache_hit_rate = (
+            prompt_cache_hit_tokens / prompt_cache_total_tokens * 100
+            if prompt_cache_total_tokens > 0
+            else 0
+        )
+        logger.info(
+            "Maisaka KV cache usage - "
+            f"request_kind={request_kind}, "
+            f"hit_tokens={prompt_cache_hit_tokens}, "
+            f"miss_tokens={prompt_cache_miss_tokens}, "
+            f"hit_rate={prompt_cache_hit_rate:.2f}%, "
+            f"prompt_tokens={prompt_tokens}"
+        )
+
     def _build_personality_prompt(self) -> str:
         """构造人格提示词。"""
 
@@ -553,6 +580,12 @@ class MaisakaChatLoopService:
                 response_format=response_format,
                 interrupt_flag=self._interrupt_flag,
             ),
+        )
+        self._log_prompt_cache_usage(
+            request_kind=request_kind,
+            prompt_tokens=generation_result.prompt_tokens,
+            prompt_cache_hit_tokens=getattr(generation_result, "prompt_cache_hit_tokens", 0) or 0,
+            prompt_cache_miss_tokens=getattr(generation_result, "prompt_cache_miss_tokens", 0) or 0,
         )
 
         final_response = generation_result.response or ""

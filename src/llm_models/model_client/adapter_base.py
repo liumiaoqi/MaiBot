@@ -163,6 +163,8 @@ class AdapterClient(BaseClient, ABC, Generic[RawStreamT, RawResponseT]):
             prompt_tokens=usage_record[0],
             completion_tokens=usage_record[1],
             total_tokens=usage_record[2],
+            prompt_cache_hit_tokens=usage_record[3] if len(usage_record) > 3 else 0,
+            prompt_cache_miss_tokens=usage_record[4] if len(usage_record) > 4 else 0,
         )
 
     def _attach_usage_record(

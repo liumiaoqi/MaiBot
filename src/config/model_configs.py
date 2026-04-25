@@ -269,6 +269,26 @@ class ModelInfo(ConfigBase):
     )
     """输入价格 (用于API调用统计, 单位：元/ M token) (可选, 若无该字段, 默认值为0)"""
 
+    cache: bool = Field(
+        default=False,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "database",
+        },
+    )
+    """是否启用模型输入缓存计费。开启后命中缓存的输入 token 使用 cache_price_in 计费。"""
+
+    cache_price_in: float = Field(
+        default=0.0,
+        ge=0,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "database-zap",
+            "step": 0.001,
+        },
+    )
+    """缓存命中输入价格 (用于API调用统计, 单位：元/ M token)。仅当 cache=true 时使用。"""
+
     price_out: float = Field(
         default=0.0,
         ge=0,

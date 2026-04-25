@@ -68,6 +68,8 @@ class LLMResponseResult(BaseDataModel):
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0
+    prompt_cache_hit_tokens: int = 0
+    prompt_cache_miss_tokens: int = 0
 
 
 @dataclass(slots=True)
@@ -125,6 +127,8 @@ class LLMServiceResult(BaseDataModel):
             "prompt_tokens": self.completion.prompt_tokens,
             "completion_tokens": self.completion.completion_tokens,
             "total_tokens": self.completion.total_tokens,
+            "prompt_cache_hit_tokens": self.completion.prompt_cache_hit_tokens,
+            "prompt_cache_miss_tokens": self.completion.prompt_cache_miss_tokens,
         }
         if self.completion.tool_calls is not None:
             payload["tool_calls"] = [

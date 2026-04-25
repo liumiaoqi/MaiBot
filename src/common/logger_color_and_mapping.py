@@ -32,6 +32,7 @@ MODULE_COLORS: Dict[str, Tuple[str, Optional[str], bool]] = {
     "remote": ("#6c6c6c", None, False),  # 深灰色，更不显眼
     "planner": ("#008080", None, False),
     "maisaka_reasoning_engine": ("#008080", None, False),
+    "maisaka_chat_loop": ("#0087ff", None, False),
     "maisaka_runtime": ("#ff5fff", None, False),
     "relation": ("#af87af", None, False),  # 柔和的紫色，不刺眼
     # 聊天相关模块

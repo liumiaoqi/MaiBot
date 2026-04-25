@@ -168,6 +168,25 @@ class LLMUsageRecorder:
     def __init__(self):
         pass
 
+    @staticmethod
+    def _calculate_input_cost(model_info: ModelInfo, model_usage: UsageRecord) -> float:
+        """根据模型缓存配置计算输入 token 费用。"""
+
+        prompt_tokens = model_usage.prompt_tokens or 0
+        if not model_info.cache:
+            return (prompt_tokens / 1000000) * model_info.price_in
+
+        cache_hit_tokens = model_usage.prompt_cache_hit_tokens or 0
+        cache_miss_tokens = model_usage.prompt_cache_miss_tokens or 0
+        if cache_miss_tokens == 0 and cache_hit_tokens > 0:
+            cache_miss_tokens = max(prompt_tokens - cache_hit_tokens, 0)
+        if cache_hit_tokens + cache_miss_tokens == 0:
+            cache_miss_tokens = prompt_tokens
+
+        cached_cost = (cache_hit_tokens / 1000000) * model_info.cache_price_in
+        uncached_cost = (cache_miss_tokens / 1000000) * model_info.price_in
+        return cached_cost + uncached_cost
+
     def record_usage_to_database(
         self,
         model_info: ModelInfo,
@@ -177,7 +196,7 @@ class LLMUsageRecorder:
         endpoint: str,
         time_cost: float = 0.0,
     ):
-        input_cost = (model_usage.prompt_tokens / 1000000) * model_info.price_in
+        input_cost = self._calculate_input_cost(model_info, model_usage)
         output_cost = (model_usage.completion_tokens / 1000000) * model_info.price_out
         total_cost = round(input_cost + output_cost, 6)
         try:
