@@ -4,7 +4,6 @@ import asyncio
 import json
 import pickle
 import time
-import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -19,7 +18,7 @@ from src.services.llm_service import LLMServiceClient
 
 from ...paths import default_data_dir, resolve_repo_path
 from ..embedding import create_embedding_api_adapter
-from ..retrieval import RetrievalResult, SparseBM25Config, SparseBM25Index, TemporalQueryOptions
+from ..retrieval import RetrievalResult, SparseBM25Config, SparseBM25Index
 from ..storage import GraphStore, MetadataStore, QuantizationType, SparseMatrixFormat, VectorStore
 from ..utils.aggregate_query_service import AggregateQueryService
 from ..utils.episode_retrieval_service import EpisodeRetrievalService
@@ -634,23 +633,18 @@ class SDKMemoryKernel:
             model_name=str(self._cfg("embedding.model_name", "auto") or "auto"),
             retry_config=self._cfg("embedding.retry", {}) or {},
         )
-        detected_dimension = int(await self.embedding_manager._detect_dimension())
-        self.embedding_dimension = detected_dimension
-
+        dimension_detection_task = asyncio.create_task(
+            asyncio.to_thread(lambda: asyncio.run(self.embedding_manager._detect_dimension()))
+        )
+        await asyncio.sleep(0)
         stored_dimension = self._stored_vector_dimension()
-        if stored_dimension is not None and stored_dimension != detected_dimension:
-            raise RuntimeError(
-                self._vector_mismatch_error(
-                    stored_dimension=stored_dimension,
-                    detected_dimension=detected_dimension,
-                )
-            )
+        provisional_dimension = stored_dimension or self.embedding_dimension
 
         matrix_format = str(self._cfg("graph.sparse_matrix_format", "csr") or "csr").strip().lower()
         graph_format = SparseMatrixFormat.CSC if matrix_format == "csc" else SparseMatrixFormat.CSR
 
         self.vector_store = VectorStore(
-            dimension=detected_dimension,
+            dimension=provisional_dimension,
             quantization_type=QuantizationType.INT8,
             data_dir=self.data_dir / "vectors",
         )
@@ -658,9 +652,11 @@ class SDKMemoryKernel:
         self.metadata_store = MetadataStore(data_dir=self.data_dir / "metadata")
         self.metadata_store.connect()
 
-        if self.vector_store.has_data():
+        vector_store_loaded = False
+        if stored_dimension is not None and self.vector_store.has_data():
             self.vector_store.load()
             self.vector_store.warmup_index(force_train=True)
+            vector_store_loaded = True
         if self.graph_store.has_data():
             self.graph_store.load()
 
@@ -673,6 +669,33 @@ class SDKMemoryKernel:
         self.sparse_index = SparseBM25Index(metadata_store=self.metadata_store, config=sparse_cfg)
         if getattr(self.sparse_index.config, "enabled", False):
             self.sparse_index.ensure_loaded()
+
+        try:
+            detected_dimension = int(await dimension_detection_task)
+        except Exception:
+            if not dimension_detection_task.done():
+                dimension_detection_task.cancel()
+            raise
+        self.embedding_dimension = detected_dimension
+
+        if stored_dimension is not None and stored_dimension != detected_dimension:
+            raise RuntimeError(
+                self._vector_mismatch_error(
+                    stored_dimension=stored_dimension,
+                    detected_dimension=detected_dimension,
+                )
+            )
+
+        if self.vector_store.dimension != detected_dimension:
+            self.vector_store = VectorStore(
+                dimension=detected_dimension,
+                quantization_type=QuantizationType.INT8,
+                data_dir=self.data_dir / "vectors",
+            )
+
+        if not vector_store_loaded and self.vector_store.has_data():
+            self.vector_store.load()
+            self.vector_store.warmup_index(force_train=True)
 
         self.relation_write_service = RelationWriteService(
             metadata_store=self.metadata_store,

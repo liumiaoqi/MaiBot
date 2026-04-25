@@ -1,8 +1,8 @@
+from typing import Any
+
 import aiohttp
 import asyncio
-import certifi
 import platform
-import ssl
 
 from src.common.logger import get_logger
 from src.config.config import global_config, MMC_VERSION
@@ -13,11 +13,19 @@ logger = get_logger("remote")
 
 TELEMETRY_SERVER_URL = "http://hyybuth.xyz:10058"
 """遥测服务地址"""
-ssl_context = ssl.create_default_context(cafile=certifi.where())
+_ssl_context: Any = None
 
 
 async def get_tcp_connector():
-    return aiohttp.TCPConnector(ssl=ssl_context)
+    global _ssl_context
+
+    if _ssl_context is None:
+        import certifi
+        import ssl
+
+        _ssl_context = ssl.create_default_context(cafile=certifi.where())
+
+    return aiohttp.TCPConnector(ssl=_ssl_context)
 
 
 class TelemetryHeartBeatTask(AsyncTask):
