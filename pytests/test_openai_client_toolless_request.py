@@ -1,4 +1,12 @@
-from src.llm_models.model_client.openai_client import _sanitize_messages_for_toolless_request
+from types import SimpleNamespace
+
+from src.config.model_configs import APIProvider, ReasoningParseMode, ToolArgumentParseMode
+from src.llm_models.model_client.openai_client import (
+    _OpenAIStreamAccumulator,
+    _build_reasoning_key,
+    _default_normal_response_parser,
+    _sanitize_messages_for_toolless_request,
+)
 from src.llm_models.payload_content.message import Message, RoleType, TextMessagePart
 from src.llm_models.payload_content.tool_option import ToolCall
 
@@ -25,3 +33,89 @@ def test_sanitize_messages_for_toolless_request_drops_assistant_tool_call_withou
 
     assert len(sanitized_messages) == 1
     assert sanitized_messages[0].role == RoleType.User
+
+
+def test_normal_response_parser_ignores_reasoning_field_for_non_openrouter_provider() -> None:
+    response = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                finish_reason="stop",
+                message=SimpleNamespace(
+                    content="正式回复",
+                    reasoning="推理内容",
+                    tool_calls=None,
+                ),
+            )
+        ],
+        usage=None,
+        model="openrouter/test-model",
+    )
+
+    api_response, usage_record = _default_normal_response_parser(
+        response,
+        reasoning_parse_mode=ReasoningParseMode.AUTO,
+        tool_argument_parse_mode=ToolArgumentParseMode.AUTO,
+        reasoning_key=_build_reasoning_key(
+            APIProvider(name="test", base_url="https://openrouter.ai.example.com/api/v1", api_key="test")
+        ),
+    )
+
+    assert api_response.content == "正式回复"
+    assert api_response.reasoning_content is None
+    assert usage_record is None
+
+
+def test_normal_response_parser_reads_provider_reasoning_field_for_reasoning_domains() -> None:
+    provider_urls = [
+        "https://openrouter.ai/compatible-api",
+        "https://api.groq.com/openai/v1",
+    ]
+
+    for provider_url in provider_urls:
+        response = SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    finish_reason="stop",
+                    message=SimpleNamespace(
+                        content="正式回复",
+                        reasoning="推理内容",
+                        tool_calls=None,
+                    ),
+                )
+            ],
+            usage=None,
+            model="test-model",
+        )
+
+        api_response, usage_record = _default_normal_response_parser(
+            response,
+            reasoning_parse_mode=ReasoningParseMode.AUTO,
+            tool_argument_parse_mode=ToolArgumentParseMode.AUTO,
+            reasoning_key=_build_reasoning_key(
+                APIProvider(name="reasoning-provider", base_url=provider_url, api_key="test")
+            ),
+        )
+
+        assert api_response.content == "正式回复"
+        assert api_response.reasoning_content == "推理内容"
+        assert usage_record is None
+
+
+def test_stream_accumulator_reads_openrouter_reasoning_delta_field() -> None:
+    accumulator = _OpenAIStreamAccumulator(
+        reasoning_parse_mode=ReasoningParseMode.AUTO,
+        tool_argument_parse_mode=ToolArgumentParseMode.AUTO,
+        reasoning_key=_build_reasoning_key(
+            APIProvider(name="openrouter", base_url="https://openrouter.ai/compatible-api", api_key="test")
+        ),
+    )
+    try:
+        accumulator.process_delta(SimpleNamespace(reasoning="流式推理", content=None, tool_calls=None))
+        accumulator.process_delta(SimpleNamespace(content="正式回复", tool_calls=None))
+
+        api_response = accumulator.build_response()
+    finally:
+        accumulator.close()
+
+    assert api_response.content == "正式回复"
+    assert api_response.reasoning_content == "流式推理"
