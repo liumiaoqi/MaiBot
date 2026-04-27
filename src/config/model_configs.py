@@ -406,9 +406,10 @@ class TaskConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "select",
             "x-icon": "shuffle",
+            "options": ["balance", "random", "sequential"],
         },
     )
-    """模型选择策略：balance（负载均衡）或 random（随机选择）"""
+    """模型选择策略：balance（负载均衡）、random（随机选择）或 sequential（按配置顺序优先选择）"""
 
 
 class ModelTaskConfig(ConfigBase):

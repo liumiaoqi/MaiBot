@@ -32,6 +32,7 @@ from .builtin_tool import get_builtin_tools
 from .context_messages import (
     AssistantMessage,
     LLMContextMessage,
+    TIMING_GATE_INVALID_TOOL_HINT_SOURCE,
     ToolResultMessage,
     build_llm_message_from_context,
 )
@@ -703,6 +704,15 @@ class MaisakaChatLoopService:
         request_kind: str,
     ) -> List[LLMContextMessage]:
         """按请求类型过滤不应暴露的历史工具链。"""
+
+        if request_kind == "timing_gate":
+            return selected_history
+
+        selected_history = [
+            message
+            for message in selected_history
+            if message.source != TIMING_GATE_INVALID_TOOL_HINT_SOURCE
+        ]
 
         if request_kind != "planner":
             return selected_history

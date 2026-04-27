@@ -29,6 +29,7 @@ from src.llm_models.payload_content.tool_option import ToolCall
 from .message_adapter import parse_speaker_content
 
 FORWARD_PREVIEW_LIMIT = 4
+TIMING_GATE_INVALID_TOOL_HINT_SOURCE = "timing_gate_invalid_tool_hint"
 
 
 def _guess_image_format(image_bytes: bytes) -> Optional[str]:
