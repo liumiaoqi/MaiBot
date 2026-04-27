@@ -103,7 +103,12 @@ class MaisakaHeartFlowChatting:
         self._recent_reply_latencies: deque[tuple[float, float]] = deque()
         self._wait_timeout_task: Optional[asyncio.Task[None]] = None
         self._max_internal_rounds = MAX_INTERNAL_ROUNDS
-        self._max_context_size = max(1, int(global_config.chat.max_context_size))
+        configured_context_size = (
+            global_config.chat.max_context_size
+            if self.chat_stream.is_group_session
+            else global_config.chat.max_private_context_size
+        )
+        self._max_context_size = max(1, int(configured_context_size))
         self._agent_state: Literal["running", "wait", "stop"] = self._STATE_STOP
         self._pending_wait_tool_call_id: Optional[str] = None
         self._force_next_timing_continue = False
@@ -293,7 +298,15 @@ class MaisakaHeartFlowChatting:
 
     def _get_effective_reply_frequency(self) -> float:
         """返回当前会话生效的回复频率。"""
-        talk_value = max(0.01, float(ChatConfigUtils.get_talk_value(self.session_id)))
+        talk_value = max(
+            0.01,
+            float(
+                ChatConfigUtils.get_talk_value(
+                    self.session_id,
+                    is_group_chat=self.chat_stream.is_group_session,
+                )
+            ),
+        )
         return max(0.01, talk_value * self._talk_frequency_adjust)
 
     async def track_reply_effect(

@@ -179,6 +179,18 @@ class ChatConfig(ConfigBase):
     )
     """聊天频率，越小越沉默，范围0-1"""
 
+    private_talk_value: float = Field(
+        default=1,
+        ge=0,
+        le=1,
+        json_schema_extra={
+            "x-widget": "slider",
+            "x-icon": "message-circle",
+            "step": 0.1,
+        },
+    )
+    """私聊聊天频率，越小越沉默，范围0-1"""
+
     mentioned_bot_reply: bool = Field(
         default=False,
         json_schema_extra={
@@ -218,6 +230,15 @@ class ChatConfig(ConfigBase):
     )
     """上下文长度"""
     
+    max_private_context_size: int = Field(
+        default=40,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "layers",
+        },
+    )
+    """私聊上下文长度"""
+
     planner_interrupt_max_consecutive_count: int = Field(
         default=2,
         ge=0,
