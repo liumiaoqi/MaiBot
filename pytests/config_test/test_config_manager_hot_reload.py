@@ -16,7 +16,7 @@ async def test_handle_file_changes_throttles_reload():
 
     called = 0
 
-    async def reload_stub() -> bool:
+    async def reload_stub(changed_scopes=None) -> bool:
         nonlocal called
         called += 1
         return True
@@ -36,7 +36,7 @@ async def test_handle_file_changes_timeout_logged(caplog):
     manager._hot_reload_min_interval_s = 0.0
     manager._hot_reload_timeout_s = 0.01
 
-    async def reload_stub() -> bool:
+    async def reload_stub(changed_scopes=None) -> bool:
         await asyncio.sleep(0.05)
         return True
 
@@ -55,7 +55,7 @@ async def test_handle_file_changes_empty_skips_reload():
 
     called = 0
 
-    async def reload_stub() -> bool:
+    async def reload_stub(changed_scopes=None) -> bool:
         nonlocal called
         called += 1
         return True
