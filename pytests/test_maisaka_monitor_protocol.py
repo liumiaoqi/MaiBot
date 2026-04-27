@@ -118,11 +118,16 @@ def test_legacy_replyer_builds_message_sequence_like_multimodal() -> None:
 
     assert len(request_messages) == 4
     assert request_messages[0].role.value == "system"
+    assert request_messages[0].get_text_content() == "legacy prompt"
     assert request_messages[1].role.value == "user"
     assert request_messages[1].get_text_content() == "[Alice]你好"
     assert request_messages[2].role.value == "user"
     assert request_messages[2].get_text_content() == "[Bob]在吗"
     assert request_messages[3].role.value == "user"
+    assert "当前时间：" in request_messages[3].get_text_content()
+    assert "【回复信息参考】" in request_messages[3].get_text_content()
+    assert "【最新推理】\n测试原因" in request_messages[3].get_text_content()
+    assert "请自然地回复。" in request_messages[3].get_text_content()
 
 
 @pytest.mark.asyncio

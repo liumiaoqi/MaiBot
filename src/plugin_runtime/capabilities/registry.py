@@ -51,6 +51,7 @@ def register_capability_impls(manager: "PluginRuntimeManager", supervisor: Plugi
 
     _register("message.get_by_time", manager._cap_message_get_by_time)
     _register("message.get_by_time_in_chat", manager._cap_message_get_by_time_in_chat)
+    _register("message.get_by_id", manager._cap_message_get_by_id)
     _register("message.get_recent", manager._cap_message_get_recent)
     _register("message.count_new", manager._cap_message_count_new)
     _register("message.build_readable", manager._cap_message_build_readable)

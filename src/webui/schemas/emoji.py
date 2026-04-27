@@ -8,9 +8,11 @@ class EmojiResponse(BaseModel):
 
     id: int
     full_path: str
+    format: str
     emoji_hash: str
     description: str
     query_count: int
+    usage_count: int
     is_registered: bool
     is_banned: bool
     emotion: Optional[str]

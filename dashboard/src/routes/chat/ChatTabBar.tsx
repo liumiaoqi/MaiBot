@@ -1,5 +1,7 @@
+import { Bot, Plus, UserCircle2, X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+
 import { cn } from '@/lib/utils'
-import { MessageSquare, Plus, UserCircle2, X } from 'lucide-react'
 
 import type { ChatTab } from './types'
 
@@ -11,69 +13,74 @@ interface ChatTabBarProps {
   onAddVirtual: () => void
 }
 
-export function ChatTabBar({
-  tabs,
-  activeTabId,
-  onSwitch,
-  onClose,
-  onAddVirtual,
-}: ChatTabBarProps) {
+/**
+ * 移动端横向会话切换条：在窄屏隐藏侧边栏时使用，保持与桌面端一致的视觉语言。
+ */
+export function ChatTabBar({ tabs, activeTabId, onSwitch, onClose, onAddVirtual }: ChatTabBarProps) {
+  const { t } = useTranslation()
+
   return (
-    <div className="shrink-0 border-b bg-muted/30">
-      <div className="max-w-4xl mx-auto px-2 sm:px-4">
-        <div className="flex items-center gap-1 overflow-x-auto py-1.5 scrollbar-thin">
-          {tabs.map((tab) => (
-            <button
+    <div className="bg-card/85 supports-backdrop-filter:bg-card/65 shrink-0 border-b backdrop-blur">
+      <div className="scrollbar-thin flex items-center gap-1 overflow-x-auto px-3 py-2">
+        {tabs.map((tab) => {
+          const active = activeTabId === tab.id
+          const Icon = tab.type === 'virtual' ? UserCircle2 : Bot
+          return (
+            <div
               key={tab.id}
               className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm whitespace-nowrap transition-colors cursor-pointer",
-                "hover:bg-muted",
-                activeTabId === tab.id
-                  ? "bg-background shadow-sm border"
-                  : "text-muted-foreground"
+                'group flex shrink-0 items-center rounded-full border text-xs transition',
+                active
+                  ? 'bg-primary text-primary-foreground border-transparent shadow-sm'
+                  : 'bg-background/60 text-muted-foreground hover:text-foreground hover:bg-background border-transparent'
               )}
-              type="button"
-              onClick={() => onSwitch(tab.id)}
             >
-              {tab.type === 'webui' ? (
-                <MessageSquare className="h-3.5 w-3.5" />
-              ) : (
-                <UserCircle2 className="h-3.5 w-3.5" />
-              )}
-              <span className="max-w-[100px] truncate">{tab.label}</span>
-              {/* 连接状态指示器 */}
-              <span className={cn(
-                "w-1.5 h-1.5 rounded-full",
-                tab.isConnected ? "bg-green-500" : "bg-muted-foreground/50"
-              )} />
-              {/* 关闭按钮（非默认标签页） */}
-              {tab.id !== 'webui-default' && (
+              <button
+                type="button"
+                className="flex items-center gap-1.5 rounded-full px-3 py-1.5"
+                onClick={() => onSwitch(tab.id)}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                <span className="max-w-32 truncate font-medium">{tab.label}</span>
                 <span
+                  aria-hidden
+                  className={cn(
+                    'h-1.5 w-1.5 rounded-full transition-colors',
+                    active
+                      ? tab.isConnected
+                        ? 'bg-primary-foreground'
+                        : 'bg-primary-foreground/50'
+                      : tab.isConnected
+                        ? 'bg-emerald-500'
+                        : 'bg-muted-foreground/40'
+                  )}
+                />
+              </button>
+              {tab.id !== 'webui-default' && (
+                <button
+                  type="button"
+                  aria-label={t('chat.sidebar.closeConversation', { label: tab.label })}
+                  className={cn(
+                    'mr-1 rounded-full p-0.5 transition',
+                    active ? 'hover:bg-primary-foreground/20' : 'hover:bg-muted'
+                  )}
                   onClick={(e) => onClose(tab.id, e)}
-                  className="ml-0.5 p-0.5 rounded hover:bg-muted-foreground/20 cursor-pointer"
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault()
-                      onClose(tab.id, e)
-                    }
-                  }}
                 >
                   <X className="h-3 w-3" />
-                </span>
+                </button>
               )}
-            </button>
-          ))}
-          {/* 新建虚拟身份标签页按钮 */}
-          <button
-            onClick={onAddVirtual}
-            className="flex items-center gap-1 px-2 py-1.5 rounded-md text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-            title="新建虚拟身份对话"
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </button>
-        </div>
+            </div>
+          )
+        })}
+        <button
+          type="button"
+          aria-label={t('chat.sidebar.newVirtual')}
+          title={t('chat.sidebar.newVirtual')}
+          className="text-muted-foreground hover:bg-muted hover:text-foreground flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-dashed transition"
+          onClick={onAddVirtual}
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
       </div>
     </div>
   )

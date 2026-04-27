@@ -26,7 +26,10 @@ from src.common.data_models.message_component_data_model import (
 from src.llm_models.payload_content.message import Message, MessageBuilder, RoleType
 from src.llm_models.payload_content.tool_option import ToolCall
 
+from .message_adapter import parse_speaker_content
+
 FORWARD_PREVIEW_LIMIT = 4
+TIMING_GATE_INVALID_TOOL_HINT_SOURCE = "timing_gate_invalid_tool_hint"
 
 
 def _guess_image_format(image_bytes: bytes) -> Optional[str]:
@@ -53,8 +56,9 @@ def _append_emoji_component(
         builder.add_image_content(image_format, base64.b64encode(component.binary_data).decode("utf-8"))
         return True
 
-    if component.content:
-        builder.add_text_content(component.content)
+    normalized_content = component.content.strip()
+    if normalized_content:
+        builder.add_text_content(normalized_content)
         return True
 
     builder.add_text_content("[表情包]")
@@ -74,8 +78,9 @@ def _append_image_component(
         builder.add_image_content(image_format, base64.b64encode(component.binary_data).decode("utf-8"))
         return True
 
-    if component.content:
-        builder.add_text_content(component.content)
+    normalized_content = component.content.strip()
+    if normalized_content:
+        builder.add_text_content(normalized_content)
         return True
 
     builder.add_text_content("[图片]")
@@ -88,7 +93,7 @@ def _append_reply_component(builder: MessageBuilder, component: ReplyComponent) 
     if not target_message_id:
         return False
 
-    builder.add_text_content(f"[引用回复]({target_message_id})")
+    builder.add_text_content(f"[引用消息]{target_message_id}")
     return True
 
 
@@ -165,7 +170,7 @@ def _render_component_for_prompt(component: StandardMessageComponents) -> str:
         if target_content:
             return f"[回复消息: {target_content}]"
         target_message_id = component.target_message_id.strip()
-        return f"[引用回复]({target_message_id})" if target_message_id else "[回复消息]"
+        return f"[引用消息]{target_message_id}" if target_message_id else "[回复消息]"
 
     if isinstance(component, ForwardNodeComponent):
         return _build_forward_preview_block(component)
@@ -354,6 +359,13 @@ class SessionBackedMessage(LLMContextMessage):
         return self.source_kind
 
     def to_llm_message(self, enable_visual_message: bool = True) -> Optional[Message]:
+        if self.source_kind == "guided_reply":
+            _, reply_body = parse_speaker_content(self.processed_plain_text)
+            normalized_reply_body = reply_body.strip()
+            if not normalized_reply_body:
+                return None
+            return MessageBuilder().set_role(RoleType.Assistant).add_text_content(normalized_reply_body).build()
+
         return _build_message_from_sequence(
             RoleType.User,
             self.raw_message,

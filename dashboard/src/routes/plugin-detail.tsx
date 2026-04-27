@@ -37,8 +37,8 @@ import {
   type GitStatus,
   type MaimaiVersion,
 } from '@/lib/plugin-api'
+import { MarkdownRenderer } from '@/components/markdown-renderer'
 import { PluginStats } from '@/components/plugin-stats'
-import { MarkdownRenderer } from '@/components'
 import { recordPluginDownload } from '@/lib/plugin-stats'
 
 // 分类名称映射

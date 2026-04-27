@@ -24,6 +24,7 @@ from .official_configs import (
     EmojiConfig,
     ExpressionConfig,
     KeywordReactionConfig,
+    LogConfig,
     MaimMessageConfig,
     MCPConfig,
     MemoryConfig,
@@ -55,8 +56,8 @@ BOT_CONFIG_PATH: Path = (CONFIG_DIR / "bot_config.toml").resolve().absolute()
 MODEL_CONFIG_PATH: Path = (CONFIG_DIR / "model_config.toml").resolve().absolute()
 LEGACY_ENV_PATH: Path = (PROJECT_ROOT / ".env").resolve().absolute()
 MMC_VERSION: str = "1.0.0"
-CONFIG_VERSION: str = "8.9.8"
-MODEL_CONFIG_VERSION: str = "1.14.1"
+CONFIG_VERSION: str = "8.9.17"
+MODEL_CONFIG_VERSION: str = "1.14.3"
 
 logger = get_logger("config")
 
@@ -108,6 +109,9 @@ class Config(ConfigBase):
 
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig)
     """遥测配置类"""
+
+    log: LogConfig = Field(default_factory=LogConfig)
+    """日志配置类"""
 
     debug: DebugConfig = Field(default_factory=DebugConfig)
     """调试配置类"""

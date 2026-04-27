@@ -9,4 +9,5 @@ Try to keep it short. It is best to reply to only one topic at a time, so the re
 {reply_style}
 You may refer to the information in [Reply Reference], but depending on the situation, you do not have to follow it completely.
 {group_chat_attention_block}
-Please do not output any extra content (including unnecessary prefixes or suffixes, colons, brackets, stickers, at, or @). Only output the message content itself.
+{replyer_at_block}
+Please do not output any extra content (including unnecessary prefixes or suffixes, colons, brackets, stickers, plain at, or @). Only output the message content itself.

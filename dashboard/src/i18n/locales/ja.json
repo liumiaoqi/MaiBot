@@ -43,10 +43,121 @@
       "settings": "設定"
     }
   },
+  "workspace": {
+    "switcherLabel": "麦麦ワークスペースを切り替え",
+    "settings": "麦麦設定",
+    "chat": "麦麦チャット"
+  },
+  "chat": {
+    "defaultTab": "WebUI",
+    "botNameFallback": "麦麦",
+    "userFallback": "ユーザー",
+    "userNameFallback": "WebUIユーザー",
+    "virtualGroupFallback": "WebUI仮想グループチャット",
+    "status": {
+      "connected": "接続済み",
+      "connecting": "接続中...",
+      "disconnected": "未接続"
+    },
+    "actions": {
+      "cancel": "キャンセル",
+      "reconnect": "再接続",
+      "save": "保存",
+      "send": "メッセージを送信"
+    },
+    "identity": {
+      "current": "現在の身份：",
+      "editName": "ニックネームを変更",
+      "group": "グループ：{{group}}",
+      "namePlaceholder": "ニックネームを入力",
+      "virtual": "仮想身份："
+    },
+    "input": {
+      "placeholder": "メッセージを入力...",
+      "waiting": "接続待ち..."
+    },
+    "message": {
+      "empty": "{{bot}} と会話を始めましょう！",
+      "emptyHint": "下の入力欄にメッセージを入力し、Enter キーで送信",
+      "errorFallback": "エラーが発生しました",
+      "thinking": "考え中..."
+    },
+    "composer": {
+      "hint": "Enter で送信・Shift + Enter で改行"
+    },
+    "sidebar": {
+      "closeConversation": "{{label}} を閉じる",
+      "conversations": "チャット会話",
+      "emptyPreview": "まだメッセージはありません",
+      "identityHint": "ローカルチャット身份",
+      "newVirtual": "仮想身份チャットを作成",
+      "online": "オンライン",
+      "offline": "オフライン",
+      "subtitle": "{{count}} 件の会話",
+      "title": "チャット",
+      "webuiBadge": "WebUI",
+      "virtualBadge": "仮想",
+      "profileTitle": "自分の身份",
+      "editName": "ニックネームを編集",
+      "saveName": "保存"
+    },
+    "dialog": {
+      "create": "会話を作成",
+      "description": "麦麦がすでに知っているユーザーを選び、そのユーザーとして麦麦と会話します。麦麦はそのユーザーへの記憶と理解を使って返信します。",
+      "groupName": "仮想グループ名（任意）",
+      "groupNameHint": "麦麦はこれをこの名前のグループチャットとして認識します",
+      "knownUserSuffix": " · 既知",
+      "loading": "読み込み中...",
+      "noUsers": "ユーザーが見つかりません",
+      "personCount": "({{count}} 人)",
+      "platform": "プラットフォームを選択",
+      "platformPlaceholder": "プラットフォームを選択",
+      "searchUser": "ユーザー名を検索...",
+      "title": "仮想身份チャットを作成",
+      "user": "ユーザーを選択"
+    },
+    "media": {
+      "audioUnsupported": "お使いのブラウザは音声再生に対応していません",
+      "emoji": "絵文字",
+      "face": "[表情:{{data}}]",
+      "file": "[ファイル: {{data}}]",
+      "forward": "[転送メッセージ]",
+      "image": "画像",
+      "loadFailed": "[{{type}}の読み込みに失敗]",
+      "music": "[音楽共有]",
+      "noCaptions": "字幕なし",
+      "reply": "[返信メッセージ]",
+      "unknown": "[{{type}}]",
+      "unknownMessage": "不明なメッセージ",
+      "videoUnsupported": "お使いのブラウザは動画再生に対応していません"
+    },
+    "toast": {
+      "backendUnavailable": "バックエンドサービスに接続できません。MaiBot が起動しているか確認してください",
+      "backendUnavailableShort": "バックエンドサービスに接続できません",
+      "connectionFailed": "接続に失敗しました",
+      "currentSessionUnavailable": "現在のチャットセッションは利用できません。しばらくしてから再試行してください",
+      "error": "エラー",
+      "incompleteConfig": "設定が未完了です",
+      "networkError": "ネットワークエラー",
+      "platformFailed": "プラットフォームの取得に失敗しました",
+      "selectPlatformAndUser": "プラットフォームとユーザーを選択してください",
+      "sendFailed": "送信に失敗しました",
+      "serverError": "サーバーエラー: {{status}}",
+      "sessionUnavailable": "チャットセッションを開始できません。しばらくしてから再試行してください",
+      "virtualTabCreated": "仮想身份タブ",
+      "virtualTabCreatedDesc": "{{label}} の会話を作成しました"
+    }
+  },
   "layout": {
     "verifyingLogin": "ログイン状態を確認中...",
     "logoTitle": "MaiBot WebUI",
     "logoTitleShort": "M"
+  },
+  "httpWarning": {
+    "title": "セキュリティ通知：",
+    "message": "WebUI に HTTP でアクセスしています。",
+    "description": "ローカル以外の HTTP 接続では、アクセストークンや設定内容が漏えいする可能性があります。可能であれば HTTPS または信頼できる内網接続を使用してください。",
+    "dismiss": "HTTP セキュリティ通知を閉じる"
   },
   "settings": {
     "title": "設定",
@@ -395,7 +506,7 @@
       },
       "other": {
         "title": "その他の設定",
-        "description": "ツールや感情システムなどを設定します"
+        "description": "グローバルスラングなどの基本オプションを設定します"
       },
       "siliconFlow": {
         "title": "API設定",
@@ -450,9 +561,12 @@
       "personality": {
         "personality": "女子大生で、現在大学2年生。掲示板を見るのが好き。",
         "replyStyle": "返信は淡々と、短めにし、中国語で話してください。自分の学科背景をわざと強調しないでください。Tieba、Zhihu、Weibo の返信スタイルを参考にできます。",
-        "interest": "技術、ゲーム、アニメ、日常の話題に興味があり、重すぎたり厳粛すぎたりする話題は好みません。",
-        "planStyle": "1. 利用可能な **すべて** の action の **各アクション** が現在の条件に合うか考え、会話内容に合えば使用してください\n2. 同じ内容がすでに実行されている場合は繰り返さないでください\n3. 発言頻度を調整し、発言しすぎないでください\n4. 誰かがあなたにうんざりしている場合は、返信を減らしてください\n5. 誰かがあなたを攻撃したり感情的になったりした場合は、適切に対応してください",
-        "privatePlanStyle": "1. 利用可能な **すべて** の action の **各アクション** が現在の条件に合うか考え、会話内容に合えば使用してください\n2. 同じ内容がすでに実行されている場合は繰り返さないでください\n3. すでに返信した文には再度返信しないでください"
+        "multipleReplyStyles": {
+          "plain": "淡々として少し皮肉っぽく、とても短く口語的に返信します。Tieba や Weibo の返信スタイルを参考にできます。",
+          "shortText": "1〜2文字で返信する",
+          "shortSymbol": "1〜2個の記号で返信する",
+          "translation": "少し翻訳調にするが、長くしない"
+        }
       },
       "emoji": {
         "filtrationPrompt": "公序良俗に反しないこと"
@@ -506,26 +620,20 @@
           "placeholder": "ボットの話し方や表現の癖を説明してください",
           "description": "例：返信は淡々と短めにし、中国語で話し、Tieba・Zhihu・Weibo の雰囲気を参考にする"
         },
-        "interest": {
-          "label": "興味 *",
-          "placeholder": "ボットが興味を持つ話題を説明してください",
-          "description": "どの話題に返信しやすくなるかに影響します"
+        "multipleReplyStyle": {
+          "label": "代替返信スタイル",
+          "placeholder": "1行につき1つの代替返信スタイルを入力",
+          "description": "リストが空でない場合、MaiBot は下の確率でデフォルトの返信スタイルをランダムに置き換えます"
         },
-        "planStyle": {
-          "label": "グループチャットのルール *",
-          "placeholder": "グループチャットでの行動方針やルール",
-          "description": "返信頻度や条件など、グループチャットでの振る舞いを定義します"
-        },
-        "privatePlanStyle": {
-          "label": "個別チャットのルール *",
-          "placeholder": "個別チャットでの行動方針やルール",
-          "description": "個別チャットでの振る舞いを定義します"
+        "multipleProbability": {
+          "label": "代替スタイルの発動確率",
+          "description": "返信を構築するたびに、代替返信スタイルでデフォルトを置き換える確率です"
         }
       },
       "emoji": {
-        "emojiChance": {
-          "label": "絵文字パック発動確率",
-          "description": "ボットが絵文字を送る確率です"
+        "emojiSendNum": {
+          "label": "絵文字候補数",
+          "description": "送信前にいくつの絵文字から選ぶかを指定します。最大 64 です"
         },
         "maxRegNum": {
           "label": "最大絵文字数",
@@ -554,10 +662,6 @@
         }
       },
       "other": {
-        "enableTool": {
-          "label": "ツールシステムを有効にする",
-          "description": "ボットが各種ツールを使って機能を拡張できるようにします"
-        },
         "allGlobal": {
           "label": "グローバルスラングモードを有効にする",
           "description": "グループ内のスラングを学習して使えるようにします"

@@ -273,10 +273,14 @@ async def _broadcast(event: str, data: Dict[str, Any]) -> None:
             for connection in websocket_manager.connections.values()
             if subscription_key in connection.subscriptions
         )
-        logger.info(
-            f"[诊断] _broadcast: manager_id={id(websocket_manager)} "
-            f"总连接={total_connections} 订阅者={subscriber_count} event={event}"
-        )
+# The above code is using the Python logging module to log a diagnostic message. It is logging
+# information about the `_broadcast` function, including the `manager_id`, `total_connections`,
+# `subscriber_count`, and `event` variables. The `logger.info()` function is used to log the message
+# at the INFO level.
+        # logger.info(
+        #     f"[诊断] _broadcast: manager_id={id(websocket_manager)} "
+        #     f"总连接={total_connections} 订阅者={subscriber_count} event={event}"
+        # )
         await websocket_manager.broadcast_to_topic(
             domain=MONITOR_DOMAIN,
             topic=MONITOR_TOPIC,

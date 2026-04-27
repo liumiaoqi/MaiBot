@@ -33,7 +33,7 @@ logger = get_logger("expressor")
 express_learn_model = LLMServiceClient(
     task_name="replyer", request_type="expression.learner"
 )
-summary_model = LLMServiceClient(task_name="replyer", request_type="expression.summary")
+summary_model = LLMServiceClient(task_name="utils", request_type="expression.summary")
 
 def register_expression_hook_specs(registry: HookSpecRegistry) -> List[HookSpec]:
     """注册表达方式系统内置 Hook 规格。

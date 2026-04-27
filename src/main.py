@@ -1,4 +1,3 @@
-from maim_message import MessageServer
 from rich.traceback import install
 from typing import TYPE_CHECKING
 
@@ -13,9 +12,7 @@ from src.chat.message_receive.chat_manager import chat_manager
 from src.chat.utils.statistic import OnlineTimeRecordTask, StatisticOutputTask
 from src.common.i18n import t
 from src.common.logger import get_logger
-from src.common.message_server import get_global_api
 from src.common.message_server.server import Server, get_global_server
-from src.common.remote import TelemetryHeartBeatTask
 from src.config.config import config_manager, global_config
 from src.manager.async_task_manager import async_task_manager
 from src.maisaka.display.stage_status_board import disable_stage_status_board, enable_stage_status_board
@@ -35,12 +32,15 @@ logger = get_logger("main")
 
 
 if TYPE_CHECKING:
+    from maim_message import MessageServer
     from src.webui.webui_server import WebUIServer
 
 
 class MainSystem:
     def __init__(self) -> None:
         # 使用消息API替代直接的FastAPI实例
+        from src.common.message_server import get_global_api
+
         self.app: MessageServer = get_global_api()
         self.server: Server = get_global_server()
         self.webui_server: WebUIServer | None = None  # 独立的 WebUI 服务器
@@ -88,6 +88,8 @@ class MainSystem:
         await async_task_manager.add_task(StatisticOutputTask())
 
         # 添加遥测心跳任务
+        from src.common.remote import TelemetryHeartBeatTask
+
         await async_task_manager.add_task(TelemetryHeartBeatTask())
 
         # 添加表达方式自动检查任务

@@ -191,6 +191,15 @@ class ChatConfig(ConfigBase):
     inevitable_at_reply: bool = Field(default=True)
     """是否启用at必回复"""
 
+    enable_at: bool = Field(
+        default=True,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "at-sign",
+        },
+    )
+    """是否允许 replyer 使用 at[msg_id] 标记来发送真正的 at 消息"""
+
     enable_reply_quote: bool = Field(
         default=True,
         json_schema_extra={
@@ -711,15 +720,6 @@ class ExpressionConfig(ConfigBase):
     )
     """_wrap_表达学习配置列表，支持按聊天流配置"""
 
-    advanced_chosen: bool = Field(
-        default=False,
-        json_schema_extra={
-            "x-widget": "switch",
-            "x-icon": "sparkles",
-        },
-    )
-    """是否启用基于子代理的二次表达方式选择"""
-
     expression_groups: list[ExpressionGroup] = Field(
         default_factory=list,
         json_schema_extra={
@@ -1074,6 +1074,151 @@ class ResponseSplitterConfig(ConfigBase):
     """是否在句子数量超出回复允许的最大句子数时一次性返回全部内容"""
 
 
+class LogConfig(ConfigBase):
+    """日志配置类"""
+
+    __ui_label__ = "日志"
+    __ui_icon__ = "file-text"
+
+    date_style: str = Field(
+        default="m-d H:i:s",
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "clock",
+        },
+    )
+    """日期格式"""
+
+    log_level_style: Literal["lite", "compact", "full"] = Field(
+        default="lite",
+        json_schema_extra={
+            "x-widget": "select",
+            "x-icon": "list",
+        },
+    )
+    """日志等级显示样式"""
+
+    color_text: Literal["none", "title", "full"] = Field(
+        default="full",
+        json_schema_extra={
+            "x-widget": "select",
+            "x-icon": "palette",
+        },
+    )
+    """控制台日志颜色模式"""
+
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
+        default="INFO",
+        json_schema_extra={
+            "x-widget": "select",
+            "x-icon": "list-filter",
+        },
+    )
+    """全局日志级别"""
+
+    console_log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
+        default="INFO",
+        json_schema_extra={
+            "x-widget": "select",
+            "x-icon": "terminal",
+        },
+    )
+    """控制台日志级别"""
+
+    file_log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
+        default="DEBUG",
+        json_schema_extra={
+            "x-widget": "select",
+            "x-icon": "file-json",
+        },
+    )
+    """文件日志级别"""
+
+    log_file_max_bytes: int = Field(
+        default=5 * 1024 * 1024,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "hard-drive",
+        },
+    )
+    """单个日志文件最大字节数"""
+
+    max_log_files: int = Field(
+        default=30,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "files",
+        },
+    )
+    """最多保留的主日志文件数量"""
+
+    log_cleanup_days: int = Field(
+        default=30,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "calendar-days",
+        },
+    )
+    """主日志文件保留天数"""
+
+    llm_request_snapshot_limit: int = Field(
+        default=128,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "archive",
+        },
+    )
+    """失败请求快照最多保留数量"""
+
+    maisaka_prompt_preview_limit: int = Field(
+        default=256,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "panel-top",
+        },
+    )
+    """每个会话最多保留的 Maisaka Prompt 预览组数"""
+
+    maisaka_reply_effect_limit: int = Field(
+        default=256,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "clipboard-check",
+        },
+    )
+    """每个会话最多保留的 Maisaka 回复效果记录数"""
+
+    suppress_libraries: list[str] = Field(
+        default_factory=lambda: [
+            "faiss",
+            "httpx",
+            "urllib3",
+            "asyncio",
+            "websockets",
+            "httpcore",
+            "requests",
+            "sqlalchemy",
+            "openai",
+            "uvicorn",
+            "jieba",
+        ],
+        json_schema_extra={
+            "x-widget": "custom",
+            "x-icon": "volume-x",
+        },
+    )
+    """完全屏蔽日志的第三方库列表"""
+
+    library_log_levels: dict[str, str] = Field(
+        default_factory=lambda: {"aiohttp": "WARNING"},
+        json_schema_extra={
+            "x-widget": "custom",
+            "x-icon": "sliders-horizontal",
+        },
+    )
+    """特定第三方库的日志级别"""
+
+
 class TelemetryConfig(ConfigBase):
     """遥测配置类"""
 
@@ -1148,6 +1293,15 @@ class DebugConfig(ConfigBase):
         },
     )
     """是否开启回复效果评分追踪，默认关闭，需要手动打开"""
+
+    record_reply_request: bool = Field(
+        default=False,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "file-json",
+        },
+    )
+    """是否记录 Replyer 请求体，默认关闭"""
 
 
 class ExtraPromptItem(ConfigBase):

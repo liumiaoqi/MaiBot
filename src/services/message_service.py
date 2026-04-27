@@ -97,6 +97,24 @@ def get_messages_by_time_in_chat(
     return _normalize_messages(messages)
 
 
+def get_message_by_id(message_id: str, chat_id: Optional[str] = None) -> Optional[SessionMessage]:
+    """按消息 ID 查询单条消息，可选限定会话。"""
+
+    normalized_message_id = str(message_id or "").strip()
+    if not normalized_message_id:
+        raise ValueError("message_id 不能为空")
+
+    normalized_chat_id = str(chat_id or "").strip()
+    messages = find_messages(
+        session_id=normalized_chat_id or None,
+        message_id=normalized_message_id,
+        limit=1,
+        limit_mode="latest",
+    )
+    normalized_messages = _normalize_messages(messages)
+    return normalized_messages[0] if normalized_messages else None
+
+
 def get_messages_before_time(timestamp: float, limit: int = 0, filter_mai: bool = False) -> List[SessionMessage]:
     if not isinstance(timestamp, (int, float)):
         raise ValueError("timestamp 必须是数字类型")

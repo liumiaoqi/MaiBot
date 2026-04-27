@@ -8,6 +8,7 @@ from src.chat.message_receive.chat_manager import BotChatSession, chat_manager
 from src.common.data_models.image_data_model import MaiEmoji
 from src.common.logger import get_logger
 from src.common.utils.utils_image import ImageUtils
+from src.plugin_runtime.host.message_utils import PluginMessageUtils
 
 logger = get_logger("plugin_runtime.integration")
 
@@ -298,13 +299,33 @@ class RuntimeDataCapabilityMixin:
     def _serialize_messages(messages: list) -> List[Any]:
         result: List[Any] = []
         for msg in messages:
-            if hasattr(msg, "model_dump"):
+            if all(hasattr(msg, attr) for attr in ("message_id", "timestamp", "platform", "message_info", "raw_message")):
+                result.append(dict(PluginMessageUtils._session_message_to_dict(msg)))
+            elif hasattr(msg, "model_dump"):
                 result.append(msg.model_dump())
             elif hasattr(msg, "__dict__"):
                 result.append(dict(msg.__dict__))
             else:
                 result.append(str(msg))
         return result
+
+    async def _cap_message_get_by_id(self, plugin_id: str, capability: str, args: Dict[str, Any]) -> Any:
+        from src.services import message_service
+
+        message_id = str(args.get("message_id") or args.get("msg_id") or "").strip()
+        if not message_id:
+            return {"success": False, "error": "缺少必要参数 message_id"}
+
+        try:
+            message = message_service.get_message_by_id(
+                message_id=message_id,
+                chat_id=str(args.get("chat_id") or args.get("stream_id") or "").strip() or None,
+            )
+            serialized_message = self._serialize_messages([message])[0] if message is not None else None
+            return {"success": True, "message": serialized_message}
+        except Exception as e:
+            logger.error(f"[cap.message.get_by_id] 执行失败: {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
 
     async def _cap_message_get_by_time(self, plugin_id: str, capability: str, args: Dict[str, Any]) -> Any:
         from src.services import message_service 

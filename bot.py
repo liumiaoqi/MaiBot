@@ -105,6 +105,8 @@ if os.environ.get("MAIBOT_WORKER_PROCESS") != "1":
 
 require_legacy_upgrade_confirmation(Path(script_dir))
 
+logger.info(t("startup.worker_dir_set", script_dir=script_dir))
+
 from src.main import MainSystem  # noqa
 from src.manager.async_task_manager import async_task_manager  # noqa
 
@@ -117,9 +119,6 @@ from src.manager.async_task_manager import async_task_manager  # noqa
 # 设置工作目录为脚本所在目录
 # script_dir = os.path.dirname(os.path.abspath(__file__))
 # os.chdir(script_dir)
-logger.info(t("startup.worker_dir_set", script_dir=script_dir))
-
-
 confirm_logger = get_logger("confirm")
 # 获取没有加载env时的环境变量
 env_mask = {key: os.getenv(key) for key in os.environ}

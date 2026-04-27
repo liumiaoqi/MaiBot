@@ -11,7 +11,7 @@ import traceback
 
 from src.chat.heart_flow.heartFC_utils import CycleDetail
 from src.chat.message_receive.message import SessionMessage
-from src.common.data_models.message_component_data_model import EmojiComponent, ImageComponent, MessageSequence
+from src.common.data_models.message_component_data_model import EmojiComponent, ImageComponent, MessageSequence, TextComponent
 from src.common.logger import get_logger
 from src.common.prompt_i18n import load_prompt
 from src.core.tooling import ToolAvailabilityContext, ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
@@ -31,6 +31,7 @@ from .context_messages import (
     ComplexSessionMessage,
     LLMContextMessage,
     SessionBackedMessage,
+    TIMING_GATE_INVALID_TOOL_HINT_SOURCE,
     ToolResultMessage,
     contains_complex_message,
 )
@@ -54,6 +55,7 @@ logger = get_logger("maisaka_reasoning_engine")
 TIMING_GATE_CONTEXT_LIMIT = 24
 TIMING_GATE_MAX_TOKENS = 384
 TIMING_GATE_TOOL_NAMES = {"continue", "no_reply", "wait"}
+HISTORY_SILENT_TOOL_NAMES = {"finish"}
 
 
 class MaisakaReasoningEngine:
@@ -190,6 +192,11 @@ class MaisakaReasoningEngine:
             deferred_tool_specs.append(tool_spec)
 
         self._runtime.update_deferred_tool_specs(deferred_tool_specs)
+        selected_history, _ = self._runtime._chat_loop_service.select_llm_context_messages(
+            self._runtime._chat_history,
+            request_kind="planner",
+        )
+        self._runtime.sync_discovered_deferred_tools_with_context(selected_history)
         discovered_deferred_tool_specs = self._runtime.get_discovered_deferred_tool_specs()
         visible_tool_specs = [*visible_builtin_tool_specs, *discovered_deferred_tool_specs]
         self._runtime.set_current_action_tool_names([tool_spec.name for tool_spec in visible_tool_specs])
@@ -254,8 +261,21 @@ class MaisakaReasoningEngine:
                 break
 
         if selected_tool_call is None:
-            logger.warning(f"{self._runtime.log_prefix} Timing Gate 未返回有效控制工具，默认继续执行 Action Loop")
-            return "continue", response, tool_result_summaries, tool_monitor_results
+            invalid_tool_names = [
+                str(tool_call.func_name).strip()
+                for tool_call in response.tool_calls
+                if str(tool_call.func_name).strip()
+            ]
+            invalid_tool_text = "、".join(invalid_tool_names) if invalid_tool_names else "无工具"
+            logger.warning(
+                f"{self._runtime.log_prefix} Timing Gate 未返回有效控制工具：{invalid_tool_text}，将按 no_reply 处理"
+            )
+            self._append_timing_gate_invalid_tool_hint(invalid_tool_text)
+            self._runtime._enter_stop_state()
+            tool_result_summaries.append(
+                f"- no_reply [非法 Timing 工具]: 返回了 {invalid_tool_text}，已停止本轮并等待新消息"
+            )
+            return "no_reply", response, tool_result_summaries, tool_monitor_results
 
         append_history = False
         store_record = selected_tool_call.func_name != "continue"
@@ -281,9 +301,13 @@ class MaisakaReasoningEngine:
         timing_action = str(result.metadata.get("timing_action") or selected_tool_call.func_name).strip()
         if timing_action not in TIMING_GATE_TOOL_NAMES:
             logger.warning(
-                f"{self._runtime.log_prefix} Timing Gate 返回未知动作 {timing_action!r}，将按 continue 处理"
+                f"{self._runtime.log_prefix} Timing Gate 返回未知动作 {timing_action!r}，将按 no_reply 处理"
             )
-            return "continue", response, tool_result_summaries, tool_monitor_results
+            self._runtime._enter_stop_state()
+            tool_result_summaries.append(
+                f"- no_reply [未知 Timing 动作]: 返回了 {timing_action!r}，已停止本轮并等待新消息"
+            )
+            return "no_reply", response, tool_result_summaries, tool_monitor_results
         return timing_action, response, tool_result_summaries, tool_monitor_results
 
     def _build_forced_continue_timing_result(
@@ -319,6 +343,29 @@ class MaisakaReasoningEngine:
             [],
         )
 
+    def _append_timing_gate_invalid_tool_hint(self, invalid_tool_text: str) -> None:
+        """写入一条仅 Timing Gate 可见的非法工具提示，并保证最多保留最新一条。"""
+
+        self._runtime._chat_history = [
+            message
+            for message in self._runtime._chat_history
+            if message.source != TIMING_GATE_INVALID_TOOL_HINT_SOURCE
+        ]
+        normalized_tool_text = invalid_tool_text.strip() or "无工具"
+        hint_content = (
+            "Timing Gate 上一轮选择了非法工具："
+            f"{normalized_tool_text}。\n"
+            "Timing Gate 只能调用 continue、wait 或 no_reply 中的一个工具。"
+        )
+        self._runtime._chat_history.append(
+            SessionBackedMessage(
+                raw_message=MessageSequence([TextComponent(hint_content)]),
+                visible_text=hint_content,
+                timestamp=datetime.now(),
+                source_kind=TIMING_GATE_INVALID_TOOL_HINT_SOURCE,
+            )
+        )
+
     @staticmethod
     def _mark_timing_gate_completed(timing_action: str) -> bool:
         """根据门控动作决定下一轮是否还需要重新执行 timing。"""
@@ -340,6 +387,13 @@ class MaisakaReasoningEngine:
             while self._runtime._running:
                 queued_trigger = await self._runtime._internal_turn_queue.get()
                 message_triggered, timeout_triggered = self._drain_ready_turn_triggers(queued_trigger)
+
+                if self._runtime._agent_state == self._runtime._STATE_WAIT and not timeout_triggered:
+                    self._runtime._message_turn_scheduled = False
+                    logger.debug(
+                        f"{self._runtime.log_prefix} 当前仍处于 wait 状态，忽略消息触发并继续等待超时"
+                    )
+                    continue
 
                 if message_triggered:
                     await self._runtime._wait_for_message_quiet_period()
@@ -466,11 +520,11 @@ class MaisakaReasoningEngine:
                             )
                             planner_duration_ms = (time.time() - planner_started_at) * 1000
                             cycle_detail.time_records["planner"] = planner_duration_ms / 1000
-                            logger.info(
-                                f"{self._runtime.log_prefix} 规划器执行完成: "
-                                f"回合={round_index + 1} "
-                                f"耗时={cycle_detail.time_records['planner']:.3f} 秒"
-                            )
+                            # logger.info(
+                            #     f"{self._runtime.log_prefix} 规划器执行完成: "
+                            #     f"回合={round_index + 1} "
+                            #     f"耗时={cycle_detail.time_records['planner']:.3f} 秒"
+                            # )
                             reasoning_content = response.content or ""
                             if self._should_replace_reasoning(reasoning_content):
                                 response.content = "我应该根据我上面思考的内容进行反思，重新思考我下一步的行动，我需要分析当前场景，对话，以及我可以使用的工具，然后直接输出我的想法"
@@ -712,7 +766,7 @@ class MaisakaReasoningEngine:
         """根据真实消息构造对应的上下文消息。"""
 
         source_sequence = message.raw_message
-        visible_text = self._build_legacy_visible_text(message, source_sequence)
+        visible_text = self._build_legacy_visible_text(message, source_sequence, source_kind=source_kind)
         planner_prefix = build_planner_user_prefix_from_session_message(message)
         if contains_complex_message(source_sequence):
             return ComplexSessionMessage.from_session_message(
@@ -771,11 +825,25 @@ class MaisakaReasoningEngine:
                 message,
                 source_kind=source_kind,
             ),
-            build_visible_text=lambda message: self._build_legacy_visible_text(message, message.raw_message),
+            build_visible_text=lambda message, source_kind: self._build_legacy_visible_text(
+                message,
+                message.raw_message,
+                source_kind=source_kind,
+            ),
         )
 
-    def _build_legacy_visible_text(self, message: SessionMessage, source_sequence: MessageSequence) -> str:
-        return build_session_message_visible_text(message, source_sequence)
+    def _build_legacy_visible_text(
+        self,
+        message: SessionMessage,
+        source_sequence: MessageSequence,
+        *,
+        source_kind: str = "user",
+    ) -> str:
+        return build_session_message_visible_text(
+            message,
+            source_sequence,
+            include_reply_components=source_kind != "guided_reply",
+        )
 
     def _insert_chat_history_message(self, message: LLMContextMessage) -> int:
         """将消息按处理顺序追加到聊天历史末尾。"""
@@ -809,10 +877,12 @@ class MaisakaReasoningEngine:
             self._runtime._chat_history,
             max_context_size=self._runtime._max_context_size,
         )
-        if process_result.removed_count <= 0:
+        if process_result.changed_count <= 0:
             return
 
         self._runtime._chat_history = process_result.history
+        if process_result.removed_count <= 0:
+            return
         self._runtime._log_history_trimmed(
             process_result.removed_count,
             process_result.remaining_context_count,
@@ -851,7 +921,7 @@ class MaisakaReasoningEngine:
             return False
 
         similarity = self._calculate_similarity(current_content, self._last_reasoning_content)
-        logger.info(f"{self._runtime.log_prefix} 思考内容相似度: {similarity:.2f}")
+        logger.debug(f"{self._runtime.log_prefix} 思考内容相似度: {similarity:.2f}")
         return similarity > 0.9
 
     @staticmethod
@@ -1182,6 +1252,10 @@ class MaisakaReasoningEngine:
             result: 统一工具执行结果。
         """
 
+        if tool_call.func_name in HISTORY_SILENT_TOOL_NAMES:
+            self._remove_tool_call_from_history(tool_call)
+            return
+
         history_content = result.get_history_content()
         if not history_content:
             history_content = "工具执行成功。" if result.success else f"工具 {tool_call.func_name} 执行失败。"
@@ -1195,6 +1269,34 @@ class MaisakaReasoningEngine:
                 success=result.success,
             )
         )
+
+    def _remove_tool_call_from_history(self, tool_call: ToolCall) -> None:
+        """从历史里的 assistant 消息中移除控制类工具调用。"""
+
+        tool_call_id = str(tool_call.call_id or "").strip()
+        if not tool_call_id:
+            return
+
+        for index in range(len(self._runtime._chat_history) - 1, -1, -1):
+            message = self._runtime._chat_history[index]
+            if not isinstance(message, AssistantMessage) or not message.tool_calls:
+                continue
+
+            remaining_tool_calls = [
+                existing_tool_call
+                for existing_tool_call in message.tool_calls
+                if str(existing_tool_call.call_id or "").strip() != tool_call_id
+            ]
+            if len(remaining_tool_calls) == len(message.tool_calls):
+                continue
+
+            if remaining_tool_calls:
+                message.tool_calls = remaining_tool_calls
+            elif message.content.strip():
+                message.tool_calls = []
+            else:
+                del self._runtime._chat_history[index]
+            return
 
     def _append_timing_gate_execution_result(
         self,

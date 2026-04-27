@@ -46,8 +46,8 @@ def get_file_handler():
         # 使用基于时间戳的handler，简单的轮转份数限制
         _file_handler = TimestampedFileHandler(
             log_dir=LOG_DIR,
-            max_bytes=5 * 1024 * 1024,  # 5MB
-            backup_count=30,
+            max_bytes=max(1024, int(LOG_CONFIG.get("log_file_max_bytes", 5 * 1024 * 1024) or 5 * 1024 * 1024)),
+            backup_count=max(1, int(LOG_CONFIG.get("max_log_files", 30) or 30)),
             encoding="utf-8",
         )
         # 设置文件handler的日志级别
@@ -305,6 +305,9 @@ def load_log_config():  # sourcery skip: use-contextlib-suppress
         "log_level": "INFO",  # 全局日志级别（向下兼容）
         "console_log_level": "INFO",  # 控制台日志级别
         "file_log_level": "DEBUG",  # 文件日志级别
+        "log_file_max_bytes": 5 * 1024 * 1024,  # 单个日志文件最大大小
+        "max_log_files": 30,  # 最多保留的日志文件数量
+        "log_cleanup_days": 30,  # 日志保留天数
         "suppress_libraries": [
             "faiss",
             "httpx",
@@ -837,13 +840,15 @@ def initialize_logging(verbose: bool = True):
         logger.info("日志系统已初始化:")
         logger.info(f"  - 控制台级别: {console_level}")
         logger.info(f"  - 文件级别: {file_level}")
-        logger.info("  - 轮转份数: 30个文件|自动清理: 30天前的日志")
+        max_log_files = max(1, int(LOG_CONFIG.get("max_log_files", 30) or 30))
+        log_cleanup_days = max(1, int(LOG_CONFIG.get("log_cleanup_days", 30) or 30))
+        logger.info(f"  - 轮转份数: {max_log_files}个文件|自动清理: {log_cleanup_days}天前的日志")
 
 
 def cleanup_old_logs():
     """清理过期的日志文件"""
     try:
-        cleanup_days = 30  # 硬编码30天
+        cleanup_days = max(1, int(LOG_CONFIG.get("log_cleanup_days", 30) or 30))
         cutoff_date = datetime.now() - timedelta(days=cleanup_days)
         deleted_count = 0
         deleted_size = 0
@@ -894,7 +899,9 @@ def start_log_cleanup_task(verbose: bool = True):
 
     if verbose:
         logger = get_logger("logger")
-        logger.info("已启动日志清理任务，将自动清理30天前的日志文件（轮转份数限制: 30个文件）")
+        max_log_files = max(1, int(LOG_CONFIG.get("max_log_files", 30) or 30))
+        log_cleanup_days = max(1, int(LOG_CONFIG.get("log_cleanup_days", 30) or 30))
+        logger.info(f"已启动日志清理任务，将自动清理{log_cleanup_days}天前的日志文件（轮转份数限制: {max_log_files}个文件）")
 
 
 def shutdown_logging():

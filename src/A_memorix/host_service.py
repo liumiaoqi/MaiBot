@@ -279,9 +279,14 @@ class AMemorixHostService:
         async with self._lock:
             if self._kernel is None:
                 config = self._read_config()
-                self._kernel = SDKMemoryKernel(plugin_root=repo_root(), config=config)
-                await self._kernel.initialize()
-                set_runtime_kernel(self._kernel)
+                kernel = SDKMemoryKernel(plugin_root=repo_root(), config=config)
+                try:
+                    await kernel.initialize()
+                except Exception:
+                    kernel.close()
+                    raise
+                self._kernel = kernel
+                set_runtime_kernel(kernel)
             return self._kernel
 
     def _read_config(self) -> Dict[str, Any]:

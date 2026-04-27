@@ -385,7 +385,9 @@ class MessageSequence:
     @staticmethod
     def _ensure_binary_component_content(item: ByteComponent, fallback_text: str) -> str:
         """确保二进制组件在序列化时带有稳定的文本占位。"""
-        if item.content:
+        normalized_content = item.content.strip()
+        if normalized_content:
+            item.content = normalized_content
             return item.content
         item.content = fallback_text
         return item.content

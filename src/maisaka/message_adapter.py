@@ -60,11 +60,23 @@ def build_visible_text_from_sequence(message_sequence: MessageSequence) -> str:
     """从消息片段序列提取可见文本。"""
 
     parts: list[str] = []
+    pending_reply_body_prefix = False
+
+    def append_visible_part(text: str) -> None:
+        nonlocal pending_reply_body_prefix
+        if not text:
+            return
+        if pending_reply_body_prefix:
+            parts.append(f"\n[发言内容]{text}")
+            pending_reply_body_prefix = False
+            return
+        parts.append(text)
+
     for component in message_sequence.components:
         if isinstance(component, TextComponent):
             match = SPEAKER_PREFIX_PATTERN.match(component.text or "")
             if not match:
-                parts.append(component.text)
+                append_visible_part(component.text)
                 continue
 
             normalized_parts: list[str] = []
@@ -75,24 +87,25 @@ def build_visible_text_from_sequence(message_sequence: MessageSequence) -> str:
                 normalized_parts.append(f"[msg_id:{message_id}]")
             normalized_parts.append(f"[{match.group('speaker')}]")
             normalized_parts.append(match.group("content"))
-            parts.append("".join(normalized_parts))
+            append_visible_part("".join(normalized_parts))
             continue
 
         if isinstance(component, EmojiComponent):
-            parts.append(component.content or "[表情包]")
+            append_visible_part(component.content.strip() or "[表情包]")
             continue
 
         if isinstance(component, ImageComponent):
-            parts.append(component.content or "[图片]")
+            append_visible_part(component.content.strip() or "[图片]")
             continue
 
         if isinstance(component, AtComponent):
-            parts.append(_render_at_component_text(component))
+            append_visible_part(_render_at_component_text(component))
             continue
 
         if isinstance(component, ReplyComponent):
             target_message_id = component.target_message_id.strip()
             if target_message_id:
-                parts.append(f"[引用回复]({target_message_id})")
+                parts.append(f"[引用消息]{target_message_id}")
+                pending_reply_body_prefix = True
 
     return "".join(parts)

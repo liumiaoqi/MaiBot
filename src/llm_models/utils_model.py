@@ -211,6 +211,8 @@ class LLMOrchestrator:
             prompt_tokens=usage.prompt_tokens if usage is not None else 0,
             completion_tokens=usage.completion_tokens if usage is not None else 0,
             total_tokens=usage.total_tokens if usage is not None else 0,
+            prompt_cache_hit_tokens=usage.prompt_cache_hit_tokens if usage is not None else 0,
+            prompt_cache_miss_tokens=usage.prompt_cache_miss_tokens if usage is not None else 0,
         )
 
     async def generate_response_for_image(
@@ -681,11 +683,16 @@ class LLMOrchestrator:
 
         ensure_configured_clients_loaded()
 
-        strategy = self.model_for_task.selection_strategy.lower()
+        strategy = self.model_for_task.selection_strategy.strip().lower()
 
         if strategy == "random":
             # 随机选择策略
             selected_model_name = random.choice(list(available_models.keys()))
+        elif strategy == "sequential":
+            # 顺序优先策略：按照配置顺序选择第一个尚未失败的模型。
+            selected_model_name = next(
+                model_name for model_name in self.model_for_task.model_list if model_name in available_models
+            )
         elif strategy == "balance":
             # 负载均衡策略：根据总tokens和惩罚值选择
             selected_model_name = min(

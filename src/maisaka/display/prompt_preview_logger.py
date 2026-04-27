@@ -13,7 +13,7 @@ class PromptPreviewLogger:
     """负责保存 Maisaka Prompt 预览文件并控制目录容量。"""
 
     _BASE_DIR = Path("logs") / "maisaka_prompt"
-    _MAX_PREVIEW_GROUPS_PER_CHAT = 1024
+    _DEFAULT_MAX_PREVIEW_GROUPS_PER_CHAT = 256
     _TRIM_COUNT = 100
 
     @classmethod
@@ -54,20 +54,21 @@ class PromptPreviewLogger:
     def _trim_overflow(cls, chat_dir: Path) -> None:
         """超过阈值时按批次删除最老的若干组预览文件。"""
 
+        max_preview_groups = cls._get_max_preview_groups_per_chat()
         grouped_files: dict[str, list[Path]] = {}
         for file_path in chat_dir.iterdir():
             if not file_path.is_file():
                 continue
             grouped_files.setdefault(file_path.stem, []).append(file_path)
 
-        if len(grouped_files) <= cls._MAX_PREVIEW_GROUPS_PER_CHAT:
+        if len(grouped_files) <= max_preview_groups:
             return
 
         sorted_groups = sorted(
             grouped_files.items(),
             key=lambda item: min(path.stat().st_mtime for path in item[1]),
         )
-        overflow_count = len(grouped_files) - cls._MAX_PREVIEW_GROUPS_PER_CHAT
+        overflow_count = len(grouped_files) - max_preview_groups
         trim_count = min(len(sorted_groups), max(cls._TRIM_COUNT, overflow_count))
         for _, file_group in sorted_groups[:trim_count]:
             for old_file in file_group:
@@ -75,3 +76,13 @@ class PromptPreviewLogger:
                     old_file.unlink()
                 except FileNotFoundError:
                     continue
+
+    @classmethod
+    def _get_max_preview_groups_per_chat(cls) -> int:
+        try:
+            from src.config.config import global_config
+
+            configured_limit = global_config.log.maisaka_prompt_preview_limit
+            return max(1, int(configured_limit or cls._DEFAULT_MAX_PREVIEW_GROUPS_PER_CHAT))
+        except Exception:
+            return cls._DEFAULT_MAX_PREVIEW_GROUPS_PER_CHAT

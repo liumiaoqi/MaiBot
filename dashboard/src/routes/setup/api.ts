@@ -51,9 +51,8 @@ export async function loadPersonalityConfig(): Promise<PersonalityConfig> {
   return {
     personality: personalityConfig.personality || '',
     reply_style: personalityConfig.reply_style || '',
-    interest: personalityConfig.interest || '',
-    plan_style: personalityConfig.plan_style || '',
-    private_plan_style: personalityConfig.private_plan_style || '',
+    multiple_reply_style: personalityConfig.multiple_reply_style || [],
+    multiple_probability: personalityConfig.multiple_probability ?? 0.2,
   }
 }
 
@@ -71,8 +70,8 @@ export async function loadEmojiConfig(): Promise<EmojiConfig> {
   const emojiConfig = (data.config.emoji || {}) as Partial<EmojiConfig>
 
   return {
-    emoji_chance: emojiConfig.emoji_chance ?? 0.4,
-    max_reg_num: emojiConfig.max_reg_num ?? 40,
+    emoji_send_num: emojiConfig.emoji_send_num ?? 25,
+    max_reg_num: emojiConfig.max_reg_num ?? 64,
     do_replace: emojiConfig.do_replace ?? true,
     check_interval: emojiConfig.check_interval ?? 10,
     steal_emoji: emojiConfig.steal_emoji ?? true,
@@ -90,18 +89,15 @@ export async function loadOtherBasicConfig(): Promise<OtherBasicConfig> {
 
   const result = await parseResponse<{
     config: {
-      tool?: { enable_tool?: boolean }
       expression?: { all_global_jargon?: boolean }
     }
   }>(response)
   const data = throwIfError(result)
   const config = data.config
 
-  const toolConfig = config.tool || {}
   const expressionConfig = config.expression || {}
 
   return {
-    enable_tool: toolConfig.enable_tool ?? true,
     all_global: expressionConfig.all_global_jargon ?? true,
   }
 }
@@ -169,38 +165,16 @@ export async function saveEmojiConfig(config: EmojiConfig) {
   return throwIfError(result)
 }
 
-// 保存其他基础配置（工具、情绪、黑话）
+// 保存其他基础配置（黑话）
 export async function saveOtherBasicConfig(config: OtherBasicConfig) {
-  // 需要分别保存到不同的section
-  const promises = []
+  const response = await fetchWithAuth('/api/webui/config/bot/section/expression', {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ all_global_jargon: config.all_global }),
+  })
 
-  // 保存tool配置
-  promises.push(
-    fetchWithAuth('/api/webui/config/bot/section/tool', {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ enable_tool: config.enable_tool }),
-    })
-  )
-
-  // 保存expression配置中的all_global_jargon
-  promises.push(
-    fetchWithAuth('/api/webui/config/bot/section/expression', {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ all_global_jargon: config.all_global }),
-    })
-  )
-
-  const results = await Promise.all(promises)
-
-  // 检查所有请求是否成功
-  for (const response of results) {
-    const result = await parseResponse(response)
-    throwIfError(result)
-  }
-
-  return { success: true }
+  const result = await parseResponse(response)
+  return throwIfError(result)
 }
 
 // 保存硅基流动API配置

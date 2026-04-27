@@ -15,7 +15,7 @@ from .context_messages import LLMContextMessage, SessionBackedMessage
 logger = get_logger("maisaka_chat_history_visual_refresher")
 
 BuildHistoryMessage = Callable[[SessionMessage, str], Awaitable[Optional[LLMContextMessage]]]
-BuildVisibleText = Callable[[SessionMessage], str]
+BuildVisibleText = Callable[[SessionMessage, str], str]
 
 
 async def refresh_chat_history_visual_placeholders(
@@ -42,7 +42,7 @@ async def refresh_chat_history_visual_placeholders(
                 enable_voice_transcription=False,
             )
 
-        refreshed_visible_text = build_visible_text(original_message)
+        refreshed_visible_text = build_visible_text(original_message, history_message.source_kind)
         if not visual_components_updated and refreshed_visible_text == history_message.visible_text:
             continue
 
@@ -90,13 +90,15 @@ def _refresh_pending_visual_components(components: list[object]) -> bool:
 def _should_refresh_image_component(component: ImageComponent) -> bool:
     """判断图片组件当前是否仍处于待补全文本的占位状态。"""
 
-    return not component.content or component.content == "[图片]"
+    normalized_content = component.content.strip()
+    return not normalized_content or normalized_content == "[图片]"
 
 
 def _should_refresh_emoji_component(component: EmojiComponent) -> bool:
     """判断表情组件当前是否仍处于待补全文本的占位状态。"""
 
-    return not component.content or component.content == "[表情包]"
+    normalized_content = component.content.strip()
+    return not normalized_content or normalized_content == "[表情包]"
 
 
 def _lookup_cached_image_description(image_hash: str) -> str:

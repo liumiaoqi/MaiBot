@@ -35,6 +35,12 @@ class UsageRecord:
     total_tokens: int
     """总token数"""
 
+    prompt_cache_hit_tokens: int = 0
+    """输入中缓存命中的 token 数"""
+
+    prompt_cache_miss_tokens: int = 0
+    """输入中缓存未命中的 token 数"""
+
 
 @dataclass
 class APIResponse:
@@ -61,8 +67,8 @@ class APIResponse:
     """响应原始数据"""
 
 
-UsageTuple = Tuple[int, int, int]
-"""统一的使用量三元组类型，顺序为 `(prompt_tokens, completion_tokens, total_tokens)`。"""
+UsageTuple = Tuple[int, ...]
+"""统一的使用量元组，顺序为 `(prompt_tokens, completion_tokens, total_tokens, prompt_cache_hit_tokens, prompt_cache_miss_tokens)`。"""
 
 StreamResponseHandler = Callable[
     [Any, asyncio.Event | None],
