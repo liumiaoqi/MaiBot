@@ -1072,3 +1072,65 @@ class TempMethodsLLMUtils:
             if provider.name == provider_name:
                 return provider
         raise ValueError(f"未找到名为 '{provider_name}' 的API提供商")
+
+
+class LLMRequest(LLMOrchestrator):
+    """兼容旧调用方的 LLM 请求入口。
+
+    新代码应优先使用 ``LLMOrchestrator`` 或服务层 ``LLMServiceClient``；
+    该类保留旧版 ``model_set=TaskConfig`` 的构造方式，并在运行时解析
+    对应的最新任务配置名称。
+    """
+
+    def __init__(self, model_set: TaskConfig, request_type: str = "") -> None:
+        """初始化旧版 LLM 请求对象。
+
+        Args:
+            model_set: 旧调用方传入的任务配置对象。
+            request_type: 当前请求的业务类型标识。
+        """
+        self._task_config_name = self._resolve_task_config_name(model_set)
+        super().__init__(task_name=self._task_config_name, request_type=request_type)
+
+    @staticmethod
+    def _build_task_config_signature(task_config: TaskConfig) -> Tuple[Any, ...]:
+        """构造任务配置签名。
+
+        Args:
+            task_config: 任务配置对象。
+
+        Returns:
+            Tuple[Any, ...]: 可用于匹配热重载前后任务配置的签名。
+        """
+        return (
+            tuple(task_config.model_list),
+            task_config.max_tokens,
+            task_config.temperature,
+            task_config.slow_threshold,
+            task_config.selection_strategy,
+        )
+
+    @classmethod
+    def _resolve_task_config_name(cls, model_set: TaskConfig) -> str:
+        """根据旧版 TaskConfig 对象解析任务配置名称。
+
+        Args:
+            model_set: 旧调用方传入的任务配置对象。
+
+        Returns:
+            str: 对应 ``model_task_config`` 下的字段名。
+
+        Raises:
+            ValueError: 未能找到匹配任务配置时抛出。
+        """
+        target_signature = cls._build_task_config_signature(model_set)
+        model_task_config = config_manager.get_model_config().model_task_config
+        for attr_name in dir(model_task_config):
+            if attr_name.startswith("_"):
+                continue
+            attr_value = getattr(model_task_config, attr_name)
+            if not isinstance(attr_value, TaskConfig):
+                continue
+            if attr_value is model_set or cls._build_task_config_signature(attr_value) == target_signature:
+                return attr_name
+        raise ValueError("无法根据旧版 model_set 解析任务配置名称")

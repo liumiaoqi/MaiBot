@@ -10,6 +10,8 @@ import sys
 
 from src.common.logger import get_logger
 from src.config.config import config_manager, global_config
+from src.llm_models.model_client.base_client import ClientProviderRegistration, client_registry
+from src.llm_models.model_client.plugin_client import PluginLLMClient
 from src.platform_io import DriverKind, InboundMessageEnvelope, RouteBinding, RouteKey, get_platform_io_manager
 from src.platform_io.drivers import PluginPlatformDriver
 from src.platform_io.route_key_factory import RouteKeyFactory
@@ -30,6 +32,7 @@ from src.plugin_runtime.protocol.envelope import (
     HealthPayload,
     InspectPluginConfigPayload,
     InspectPluginConfigResultPayload,
+    LLMProviderInvokePayload,
     MessageGatewayStateUpdatePayload,
     MessageGatewayStateUpdateResultPayload,
     PROTOCOL_VERSION,
@@ -417,6 +420,38 @@ class PluginRunnerSupervisor:
             timeout_ms=timeout_ms,
         )
 
+    async def invoke_llm_provider(
+        self,
+        plugin_id: str,
+        client_type: str,
+        operation: str,
+        request: Optional[Dict[str, Any]] = None,
+        timeout_ms: int = 30000,
+    ) -> Envelope:
+        """调用插件声明的 LLM Provider。
+
+        Args:
+            plugin_id: 目标插件 ID。
+            client_type: 目标客户端类型。
+            operation: 请求操作类型。
+            request: 已序列化的 LLM 请求。
+            timeout_ms: RPC 超时时间，单位毫秒。
+
+        Returns:
+            Envelope: Runner 返回的响应信封。
+        """
+        payload = LLMProviderInvokePayload(
+            client_type=client_type,
+            operation=operation,
+            request=request or {},
+        )
+        return await self._rpc_server.send_request(
+            "plugin.invoke_llm_provider",
+            plugin_id=plugin_id,
+            payload=payload.model_dump(),
+            timeout_ms=timeout_ms,
+        )
+
     async def invoke_api(
         self,
         plugin_id: str,
@@ -780,6 +815,22 @@ class PluginRunnerSupervisor:
         component_declarations = [component.model_dump() for component in payload.components]
         runtime_components, api_components = self._split_component_declarations(component_declarations)
         try:
+            client_registry.validate_plugin_provider_replacement(
+                payload.plugin_id,
+                [provider.client_type for provider in payload.llm_providers],
+            )
+        except Exception as exc:
+            logger.error(f"插件 {payload.plugin_id} LLM Provider 注册校验失败: {exc}")
+            return envelope.make_error_response(
+                ErrorCode.E_BAD_PAYLOAD.value,
+                str(exc),
+                details={
+                    "plugin_id": payload.plugin_id,
+                    "llm_provider_count": len(payload.llm_providers),
+                },
+            )
+
+        try:
             registered_count = self._component_registry.register_plugin_components(
                 payload.plugin_id,
                 runtime_components,
@@ -798,6 +849,24 @@ class PluginRunnerSupervisor:
         self._api_registry.remove_apis_by_plugin(payload.plugin_id)
         registered_api_count = self._api_registry.register_plugin_apis(payload.plugin_id, api_components)
         await self._unregister_all_message_gateway_drivers_for_plugin(payload.plugin_id)
+        client_registry.replace_plugin_providers(
+            payload.plugin_id,
+            [
+                ClientProviderRegistration(
+                    client_type=provider.client_type,
+                    factory=lambda api_provider, provider_client_type=provider.client_type: PluginLLMClient(
+                        api_provider=api_provider,
+                        supervisor=self,
+                        plugin_id=payload.plugin_id,
+                        client_type=provider_client_type,
+                    ),
+                    owner_plugin_id=payload.plugin_id,
+                    version=provider.version,
+                    description=provider.description or provider.name,
+                )
+                for provider in payload.llm_providers
+            ],
+        )
         self._registered_plugins[payload.plugin_id] = payload
         self._message_gateway_states[payload.plugin_id] = {}
 
@@ -810,6 +879,7 @@ class PluginRunnerSupervisor:
                 "message_gateways": len(
                     self._component_registry.get_message_gateways(plugin_id=payload.plugin_id, enabled_only=False)
                 ),
+                "llm_providers": len(payload.llm_providers),
             }
         )
 
@@ -829,6 +899,7 @@ class PluginRunnerSupervisor:
 
         removed_components = self._component_registry.remove_components_by_plugin(payload.plugin_id)
         removed_apis = self._api_registry.remove_apis_by_plugin(payload.plugin_id)
+        removed_llm_providers = client_registry.unregister_plugin_providers(payload.plugin_id)
         self._authorization.revoke_permission_token(payload.plugin_id)
         removed_registration = self._registered_plugins.pop(payload.plugin_id, None) is not None
         await self._unregister_all_message_gateway_drivers_for_plugin(payload.plugin_id)
@@ -841,6 +912,7 @@ class PluginRunnerSupervisor:
                 "reason": payload.reason,
                 "removed_components": removed_components,
                 "removed_apis": removed_apis,
+                "removed_llm_providers": removed_llm_providers,
                 "removed_registration": removed_registration,
             }
         )
@@ -1505,6 +1577,8 @@ class PluginRunnerSupervisor:
 
     def _clear_runner_state(self) -> None:
         """清理当前 Runner 对应的 Host 侧注册状态。"""
+        for plugin_id in list(self._registered_plugins):
+            client_registry.unregister_plugin_providers(plugin_id)
         self._authorization.clear()
         self._api_registry.clear()
         self._component_registry.clear()

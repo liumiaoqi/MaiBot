@@ -7,7 +7,7 @@
 from functools import lru_cache
 from importlib import metadata as importlib_metadata
 from pathlib import Path
-from typing import Annotated, Any, Dict, Iterable, List, Literal, Optional, Tuple, Union
+from typing import Annotated, Any, Dict, Iterable, List, Literal, Optional, Set, Tuple, Union
 
 import json
 import re
@@ -453,6 +453,38 @@ class PythonPackageDependencyDefinition(_StrictManifestModel):
         return value
 
 
+class LLMProviderManifestDeclaration(_StrictManifestModel):
+    """插件 Manifest 中声明的 LLM Provider。"""
+
+    client_type: str = Field(description="客户端类型标识，对应模型配置中的 api_providers[].client_type")
+    """客户端类型标识。"""
+    name: str = Field(default="", description="Provider 展示名称")
+    """Provider 展示名称。"""
+    description: str = Field(default="", description="Provider 描述")
+    """Provider 描述。"""
+    version: str = Field(default="1.0.0", description="Provider 实现版本")
+    """Provider 实现版本。"""
+
+    @field_validator("client_type")
+    @classmethod
+    def _validate_client_type(cls, value: str) -> str:
+        """校验客户端类型标识。
+
+        Args:
+            value: 原始客户端类型标识。
+
+        Returns:
+            str: 合法的客户端类型标识。
+
+        Raises:
+            ValueError: 当客户端类型为空时抛出。
+        """
+        normalized_value = str(value or "").strip()
+        if not normalized_value:
+            raise ValueError("client_type 不能为空")
+        return normalized_value
+
+
 ManifestDependencyDefinition = Annotated[
     Union[PluginDependencyDefinition, PythonPackageDependencyDefinition],
     Field(discriminator="type"),
@@ -472,6 +504,10 @@ class PluginManifest(_StrictManifestModel):
     host_application: ManifestVersionRange = Field(description="Host 兼容区间")
     sdk: ManifestVersionRange = Field(description="SDK 兼容区间")
     dependencies: List[ManifestDependencyDefinition] = Field(default_factory=list, description="依赖声明")
+    llm_providers: List[LLMProviderManifestDeclaration] = Field(
+        default_factory=list,
+        description="插件静态声明的 LLM Provider 列表",
+    )
     capabilities: List[str] = Field(description="插件声明的能力请求")
     i18n: ManifestI18n = Field(description="国际化配置")
     id: str = Field(description="稳定插件 ID")
@@ -567,6 +603,23 @@ class PluginManifest(_StrictManifestModel):
 
         return self
 
+    @model_validator(mode="after")
+    def _validate_llm_providers(self) -> "PluginManifest":
+        """校验 LLM Provider 静态声明集合。
+
+        Returns:
+            PluginManifest: 当前对象本身。
+
+        Raises:
+            ValueError: 当同一 Manifest 内重复声明 client_type 时抛出。
+        """
+        client_types: Set[str] = set()
+        for provider in self.llm_providers:
+            if provider.client_type in client_types:
+                raise ValueError(f"存在重复的 LLM Provider 声明: {provider.client_type}")
+            client_types.add(provider.client_type)
+        return self
+
     @property
     def plugin_dependencies(self) -> List[PluginDependencyDefinition]:
         """返回插件级依赖列表。
@@ -597,6 +650,15 @@ class PluginManifest(_StrictManifestModel):
             List[str]: 所有插件级依赖的插件 ID。
         """
         return [dependency.id for dependency in self.plugin_dependencies]
+
+    @property
+    def llm_provider_client_types(self) -> List[str]:
+        """返回 Manifest 静态声明的 LLM Provider client_type 列表。
+
+        Returns:
+            List[str]: 当前插件声明的 LLM Provider client_type。
+        """
+        return [provider.client_type for provider in self.llm_providers]
 
 
 class ManifestValidator:
