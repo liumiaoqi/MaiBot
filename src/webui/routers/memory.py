@@ -810,6 +810,11 @@ async def list_memory_episodes(
     )
 
 
+@router.get("/episodes/status")
+async def get_memory_episode_status(limit: int = Query(20, ge=1, le=200)):
+    return await _episode_status(limit)
+
+
 @router.get("/episodes/{episode_id}")
 async def get_memory_episode(episode_id: str):
     return await _episode_get(episode_id)
@@ -818,11 +823,6 @@ async def get_memory_episode(episode_id: str):
 @router.post("/episodes/rebuild")
 async def rebuild_memory_episodes(payload: EpisodeRebuildRequest):
     return await _episode_rebuild(payload)
-
-
-@router.get("/episodes/status")
-async def get_memory_episode_status(limit: int = Query(20, ge=1, le=200)):
-    return await _episode_status(limit)
 
 
 @router.post("/episodes/process-pending")
@@ -1282,6 +1282,11 @@ async def compat_list_episodes(
     )
 
 
+@compat_router.get("/episodes/status")
+async def compat_episode_status(limit: int = Query(20, ge=1, le=200)):
+    return await _episode_status(limit)
+
+
 @compat_router.get("/episodes/{episode_id}")
 async def compat_get_episode(episode_id: str):
     return await _episode_get(episode_id)
@@ -1290,11 +1295,6 @@ async def compat_get_episode(episode_id: str):
 @compat_router.post("/episodes/rebuild")
 async def compat_rebuild_episodes(payload: EpisodeRebuildRequest):
     return await _episode_rebuild(payload)
-
-
-@compat_router.get("/episodes/status")
-async def compat_episode_status(limit: int = Query(20, ge=1, le=200)):
-    return await _episode_status(limit)
 
 
 @compat_router.post("/episodes/process_pending")

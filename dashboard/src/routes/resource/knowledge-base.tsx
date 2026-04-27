@@ -23,6 +23,9 @@ import {
 import { CodeEditor } from '@/components/CodeEditor'
 import { MemoryDeleteDialog } from '@/components/memory/MemoryDeleteDialog'
 import { MemoryConfigEditor } from '@/components/memory/MemoryConfigEditor'
+import { MemoryEpisodeManager } from '@/components/memory/MemoryEpisodeManager'
+import { MemoryMaintenanceManager } from '@/components/memory/MemoryMaintenanceManager'
+import { MemoryProfileManager } from '@/components/memory/MemoryProfileManager'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -645,6 +648,8 @@ export function KnowledgeBasePage() {
   const [creatingImport, setCreatingImport] = useState(false)
   const [creatingTuning, setCreatingTuning] = useState(false)
   const [rawMode, setRawMode] = useState(false)
+  const [activeTab, setActiveTab] = useState('overview')
+  const [visitedMemoryTabs, setVisitedMemoryTabs] = useState<Set<string>>(() => new Set())
 
   const [schemaPayload, setSchemaPayload] = useState<MemoryConfigSchemaPayload | null>(null)
   const [visualConfig, setVisualConfig] = useState<Record<string, unknown>>({})
@@ -849,6 +854,19 @@ export function KnowledgeBasePage() {
   useEffect(() => {
     void loadPage()
   }, [loadPage])
+
+  useEffect(() => {
+    if (['episodes', 'profiles', 'maintenance'].includes(activeTab)) {
+      setVisitedMemoryTabs((current) => {
+        if (current.has(activeTab)) {
+          return current
+        }
+        const next = new Set(current)
+        next.add(activeTab)
+        return next
+      })
+    }
+  }, [activeTab])
 
   const configPath = schemaPayload?.path ?? 'config/a_memorix.toml'
   const schema = schemaPayload?.schema
@@ -2310,7 +2328,7 @@ export function KnowledgeBasePage() {
             ))}
           </div>
 
-          <Tabs defaultValue="overview" className="space-y-5">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-5">
             <TabsList className="h-auto flex-wrap justify-start gap-1 rounded-xl border bg-muted/30 p-1">
               <TabsTrigger value="overview" className="rounded-lg px-4 py-1.5">
                 概览
@@ -2323,6 +2341,15 @@ export function KnowledgeBasePage() {
               </TabsTrigger>
               <TabsTrigger value="tuning" className="rounded-lg px-4 py-1.5">
                 调优
+              </TabsTrigger>
+              <TabsTrigger value="episodes" className="rounded-lg px-4 py-1.5">
+                情节记忆
+              </TabsTrigger>
+              <TabsTrigger value="profiles" className="rounded-lg px-4 py-1.5">
+                人物画像
+              </TabsTrigger>
+              <TabsTrigger value="maintenance" className="rounded-lg px-4 py-1.5">
+                记忆维护
               </TabsTrigger>
               <TabsTrigger value="delete" className="rounded-lg px-4 py-1.5">
                 删除
@@ -3534,6 +3561,18 @@ export function KnowledgeBasePage() {
                   </Card>
                 </div>
               </div>
+            </TabsContent>
+
+            <TabsContent value="episodes" className="space-y-4">
+              {visitedMemoryTabs.has('episodes') ? <MemoryEpisodeManager /> : null}
+            </TabsContent>
+
+            <TabsContent value="profiles" className="space-y-4">
+              {visitedMemoryTabs.has('profiles') ? <MemoryProfileManager /> : null}
+            </TabsContent>
+
+            <TabsContent value="maintenance" className="space-y-4">
+              {visitedMemoryTabs.has('maintenance') ? <MemoryMaintenanceManager /> : null}
             </TabsContent>
 
             <TabsContent value="delete" className="space-y-4">
