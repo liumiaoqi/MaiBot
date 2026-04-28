@@ -30,6 +30,7 @@ def build_test_manifest(
     name: str = "测试插件",
     description: str = "测试插件描述",
     dependencies: list[dict[str, str]] | None = None,
+    llm_providers: list[dict[str, str]] | None = None,
     capabilities: list[str] | None = None,
     host_min_version: str = "0.12.0",
     host_max_version: str = "1.0.0",
@@ -44,6 +45,7 @@ def build_test_manifest(
         name: 展示名称。
         description: 插件描述。
         dependencies: 依赖声明列表。
+        llm_providers: LLM Provider 静态声明列表。
         capabilities: 能力声明列表。
         host_min_version: Host 最低支持版本。
         host_max_version: Host 最高支持版本。
@@ -75,6 +77,7 @@ def build_test_manifest(
             "max_version": sdk_max_version,
         },
         "dependencies": dependencies or [],
+        "llm_providers": llm_providers or [],
         "capabilities": capabilities or [],
         "i18n": {
             "default_locale": "zh-CN",
@@ -89,6 +92,7 @@ def build_test_manifest_model(
     *,
     version: str = "1.0.0",
     dependencies: list[dict[str, str]] | None = None,
+    llm_providers: list[dict[str, str]] | None = None,
     capabilities: list[str] | None = None,
     host_version: str = "1.0.0",
     sdk_version: str = "2.0.1",
@@ -99,6 +103,7 @@ def build_test_manifest_model(
         plugin_id: 插件 ID。
         version: 插件版本。
         dependencies: 依赖声明列表。
+        llm_providers: LLM Provider 静态声明列表。
         capabilities: 能力声明列表。
         host_version: 当前测试使用的 Host 版本。
         sdk_version: 当前测试使用的 SDK 版本。
@@ -114,6 +119,7 @@ def build_test_manifest_model(
             plugin_id,
             version=version,
             dependencies=dependencies,
+            llm_providers=llm_providers,
             capabilities=capabilities,
         )
     )
@@ -1054,6 +1060,63 @@ class TestManifestValidator:
 
         assert validator.validate(manifest) is False
         assert any("Python 包依赖冲突" in error for error in validator.errors)
+
+    def test_llm_provider_manifest_declaration(self):
+        from src.plugin_runtime.runner.manifest_validator import ManifestValidator
+
+        validator = ManifestValidator(host_version="1.0.0", sdk_version="2.0.1")
+        manifest = build_test_manifest(
+            "test.llm-provider",
+            llm_providers=[
+                {
+                    "client_type": "example.provider",
+                    "name": "Example Provider",
+                    "description": "测试 Provider",
+                    "version": "1.0.0",
+                }
+            ],
+        )
+
+        parsed_manifest = validator.parse_manifest(manifest)
+
+        assert parsed_manifest is not None
+        assert parsed_manifest.llm_provider_client_types == ["example.provider"]
+
+    def test_duplicate_llm_provider_manifest_declaration_is_rejected(self):
+        from src.plugin_runtime.runner.manifest_validator import ManifestValidator
+
+        validator = ManifestValidator(host_version="1.0.0", sdk_version="2.0.1")
+        manifest = build_test_manifest(
+            "test.llm-provider-duplicate",
+            llm_providers=[
+                {"client_type": "example.provider"},
+                {"client_type": "example.provider"},
+            ],
+        )
+
+        assert validator.validate(manifest) is False
+        assert any("重复的 LLM Provider" in error for error in validator.errors)
+
+
+def test_llm_provider_conflict_blocks_all_conflicting_plugins(tmp_path: Path):
+    from src.plugin_runtime.integration import PluginRuntimeManager
+
+    plugin_root = tmp_path / "plugins"
+    plugin_root.mkdir()
+    for plugin_id in ["test.provider-alpha", "test.provider-beta"]:
+        plugin_dir = plugin_root / plugin_id
+        plugin_dir.mkdir()
+        manifest = build_test_manifest(
+            plugin_id,
+            llm_providers=[{"client_type": "example.provider"}],
+        )
+        (plugin_dir / "_manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+        (plugin_dir / "plugin.py").write_text("def create_plugin():\n    return None\n", encoding="utf-8")
+
+    blocked_reasons = PluginRuntimeManager._discover_llm_provider_conflicts([plugin_root])
+
+    assert set(blocked_reasons) == {"test.provider-alpha", "test.provider-beta"}
+    assert all("example.provider" in reason for reason in blocked_reasons.values())
 
 
 class TestVersionComparator:

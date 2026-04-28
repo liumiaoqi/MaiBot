@@ -54,6 +54,7 @@ class PluginMeta:
         self.capabilities_required = list(manifest.capabilities)
         self.dependencies: List[str] = list(manifest.plugin_dependency_ids)
         self.component_handlers: Dict[str, str] = {}
+        self.llm_provider_handlers: Dict[str, str] = {}
 
 
 class PluginLoader:

@@ -48,6 +48,8 @@ from src.plugin_runtime.protocol.envelope import (
     InspectPluginConfigResultPayload,
     InvokePayload,
     InvokeResultPayload,
+    LLMProviderDeclaration,
+    LLMProviderInvokePayload,
     RegisterPluginPayload,
     ReloadPluginPayload,
     ReloadPluginResultPayload,
@@ -891,6 +893,7 @@ class PluginRunner:
         self._rpc_client.register_method("plugin.invoke_api", self._handle_invoke)
         self._rpc_client.register_method("plugin.invoke_tool", self._handle_invoke)
         self._rpc_client.register_method("plugin.invoke_message_gateway", self._handle_invoke)
+        self._rpc_client.register_method("plugin.invoke_llm_provider", self._handle_llm_provider_invoke)
         self._rpc_client.register_method("plugin.emit_event", self._handle_event_invoke)
         self._rpc_client.register_method("plugin.invoke_hook", self._handle_hook_invoke)
         self._rpc_client.register_method("plugin.health", self._handle_health)
@@ -980,6 +983,7 @@ class PluginRunner:
         """
         # 收集插件组件声明
         components: List[ComponentDeclaration] = []
+        llm_providers: List[LLMProviderDeclaration] = []
         config_reload_subscriptions: List[str] = []
         instance = meta.instance
 
@@ -1016,11 +1020,43 @@ class PluginRunner:
                 )
         if hasattr(instance, "get_config_reload_subscriptions"):
             config_reload_subscriptions = list(instance.get_config_reload_subscriptions())
+        if hasattr(instance, "get_llm_providers"):
+            meta.llm_provider_handlers.clear()
+            for provider_info in instance.get_llm_providers():
+                if not isinstance(provider_info, dict):
+                    continue
+
+                client_type = str(provider_info.get("client_type", "") or "").strip()
+                raw_metadata = provider_info.get("metadata", {})
+                provider_metadata = raw_metadata if isinstance(raw_metadata, dict) else {}
+                if client_type:
+                    handler_name = str(provider_metadata.get("handler_name", client_type) or client_type).strip()
+                    meta.llm_provider_handlers[client_type] = handler_name or client_type
+
+                llm_providers.append(
+                    LLMProviderDeclaration(
+                        client_type=client_type,
+                        name=str(provider_info.get("name", "") or "").strip(),
+                        description=str(provider_info.get("description", "") or "").strip(),
+                        version=str(provider_info.get("version", "1.0.0") or "1.0.0").strip() or "1.0.0",
+                        metadata=provider_metadata,
+                    )
+                )
+
+        declared_client_types = sorted(meta.manifest.llm_provider_client_types)
+        registered_client_types = sorted(provider.client_type for provider in llm_providers)
+        if declared_client_types != registered_client_types:
+            logger.error(
+                f"插件 {meta.plugin_id} LLM Provider 声明不一致: "
+                f"manifest={declared_client_types}, code={registered_client_types}"
+            )
+            return False
 
         reg_payload = RegisterPluginPayload(
             plugin_id=meta.plugin_id,
             plugin_version=meta.version,
             components=components,
+            llm_providers=llm_providers,
             capabilities_required=meta.capabilities_required,
             dependencies=meta.dependencies,
             config_reload_subscriptions=config_reload_subscriptions,
@@ -1627,6 +1663,50 @@ class PluginRunner:
         except Exception as e:
             logger.error(f"插件 {plugin_id} 组件 {component_name} 执行异常: {e}", exc_info=True)
             resp_payload = InvokeResultPayload(success=False, result=str(e))
+            return envelope.make_response(payload=resp_payload.model_dump())
+
+    async def _handle_llm_provider_invoke(self, envelope: Envelope) -> Envelope:
+        """处理 LLM Provider 调用请求。
+
+        Args:
+            envelope: RPC 请求信封。
+
+        Returns:
+            Envelope: 标准化后的 Provider 调用结果。
+        """
+        try:
+            invoke = LLMProviderInvokePayload.model_validate(envelope.payload)
+        except Exception as exc:
+            return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
+
+        plugin_id = envelope.plugin_id
+        meta = self._loader.get_plugin(plugin_id)
+        if meta is None:
+            return envelope.make_error_response(
+                ErrorCode.E_PLUGIN_NOT_FOUND.value,
+                f"插件 {plugin_id} 未加载",
+            )
+
+        handler_name = meta.llm_provider_handlers.get(invoke.client_type, "")
+        handler_method = getattr(meta.instance, handler_name, None) if handler_name else None
+        if handler_method is None or not callable(handler_method):
+            return envelope.make_error_response(
+                ErrorCode.E_METHOD_NOT_ALLOWED.value,
+                f"插件 {plugin_id} 未注册 LLM Provider: {invoke.client_type}",
+            )
+
+        try:
+            result = handler_method(operation=invoke.operation, request=invoke.request)
+            if inspect.isawaitable(result):
+                result = await result
+            resp_payload = InvokeResultPayload(success=True, result=result)
+            return envelope.make_response(payload=resp_payload.model_dump())
+        except Exception as exc:
+            logger.error(
+                f"插件 {plugin_id} LLM Provider {invoke.client_type} 执行异常: {exc}",
+                exc_info=True,
+            )
+            resp_payload = InvokeResultPayload(success=False, result=str(exc))
             return envelope.make_response(payload=resp_payload.model_dump())
 
     async def _handle_event_invoke(self, envelope: Envelope) -> Envelope:
