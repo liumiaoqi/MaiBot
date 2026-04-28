@@ -282,15 +282,17 @@ class MaisakaChatLoopService:
         try:
             bot_name = global_config.bot.nickname
             if global_config.bot.alias_names:
-                bot_nickname = f", also known as {','.join(global_config.bot.alias_names)}"
+                bot_nickname = f"，也有人叫你{','.join(global_config.bot.alias_names)}"
             else:
                 bot_nickname = ""
 
-            prompt_personality = global_config.personality.personality
+            prompt_personality = global_config.personality.personality.strip()
+            if not prompt_personality:
+                prompt_personality = "是人类。"
 
-            return f"Your name is {bot_name}{bot_nickname}; persona: {prompt_personality};"
+            return f"你的名字是{bot_name}{bot_nickname}。\n{prompt_personality}"
         except Exception:
-            return "Your name is MaiMai; persona: lively and cute AI assistant."
+            return "你的名字是麦麦。\n是人类。"
 
     async def ensure_chat_prompt_loaded(self, tools_section: str = "") -> None:
         """确保主聊天提示词已经加载完成。
