@@ -1262,7 +1262,7 @@ class DebugConfig(ConfigBase):
     __ui_icon__ = "more-horizontal"
 
     enable_maisaka_stage_board: bool = Field(
-        default=True,
+        default=False,
         json_schema_extra={
             "x-widget": "switch",
             "x-icon": "layout-dashboard",
