@@ -54,6 +54,7 @@ logger = get_logger("maisaka_reasoning_engine")
 
 TIMING_GATE_CONTEXT_LIMIT = 24
 TIMING_GATE_MAX_TOKENS = 384
+TIMING_GATE_MAX_ATTEMPTS = 3
 TIMING_GATE_TOOL_NAMES = {"continue", "no_reply", "wait"}
 HISTORY_SILENT_TOOL_NAMES = {"finish"}
 
@@ -247,35 +248,68 @@ class MaisakaReasoningEngine:
         if self._runtime._force_next_timing_continue:
             return self._build_forced_continue_timing_result()
 
-        response = await self._run_timing_gate_sub_agent(
-            context_message_limit=TIMING_GATE_CONTEXT_LIMIT,
-            system_prompt=self._build_timing_gate_system_prompt(),
-            tool_definitions=get_timing_tools(),
-        )
         tool_result_summaries: list[str] = []
         tool_monitor_results: list[dict[str, Any]] = []
+        response: Any = None
         selected_tool_call: Optional[ToolCall] = None
-        for tool_call in response.tool_calls:
-            if tool_call.func_name in TIMING_GATE_TOOL_NAMES:
-                selected_tool_call = tool_call
+        invalid_tool_text = ""
+        for attempt_index in range(TIMING_GATE_MAX_ATTEMPTS):
+            response = await self._run_timing_gate_sub_agent(
+                context_message_limit=TIMING_GATE_CONTEXT_LIMIT,
+                system_prompt=self._build_timing_gate_system_prompt(),
+                tool_definitions=get_timing_tools(),
+            )
+            selected_tool_call = None
+            for tool_call in response.tool_calls:
+                if tool_call.func_name in TIMING_GATE_TOOL_NAMES:
+                    selected_tool_call = tool_call
+                    break
+
+            if selected_tool_call is not None:
                 break
 
-        if selected_tool_call is None:
             invalid_tool_names = [
                 str(tool_call.func_name).strip()
                 for tool_call in response.tool_calls
                 if str(tool_call.func_name).strip()
             ]
             invalid_tool_text = "、".join(invalid_tool_names) if invalid_tool_names else "无工具"
-            logger.warning(
-                f"{self._runtime.log_prefix} Timing Gate 未返回有效控制工具：{invalid_tool_text}，将按 no_reply 处理"
-            )
             self._append_timing_gate_invalid_tool_hint(invalid_tool_text)
+            remaining_attempts = TIMING_GATE_MAX_ATTEMPTS - attempt_index - 1
+            if remaining_attempts > 0:
+                logger.warning(
+                    f"{self._runtime.log_prefix} Timing Gate 未返回有效控制工具：{invalid_tool_text}，"
+                    f"将重试 ({attempt_index + 1}/{TIMING_GATE_MAX_ATTEMPTS})"
+                )
+                tool_result_summaries.append(
+                    f"- retry [非法 Timing 工具]: 返回了 {invalid_tool_text}，将重试 "
+                    f"({attempt_index + 1}/{TIMING_GATE_MAX_ATTEMPTS})"
+                )
+                continue
+
+            logger.warning(
+                f"{self._runtime.log_prefix} Timing Gate 连续 {TIMING_GATE_MAX_ATTEMPTS} 次未返回有效控制工具："
+                f"{invalid_tool_text}，将按 no_reply 处理"
+            )
             self._runtime._enter_stop_state()
             tool_result_summaries.append(
                 f"- no_reply [非法 Timing 工具]: 返回了 {invalid_tool_text}，已停止本轮并等待新消息"
             )
             return "no_reply", response, tool_result_summaries, tool_monitor_results
+
+        if selected_tool_call is None:
+            self._runtime._enter_stop_state()
+            tool_result_summaries.append(
+                "- no_reply [非法 Timing 工具]: 已停止本轮并等待新消息"
+            )
+            return "no_reply", response, tool_result_summaries, tool_monitor_results
+
+        if invalid_tool_text:
+            self._runtime._chat_history = [
+                message
+                for message in self._runtime._chat_history
+                if message.source != TIMING_GATE_INVALID_TOOL_HINT_SOURCE
+            ]
 
         append_history = False
         store_record = selected_tool_call.func_name != "continue"

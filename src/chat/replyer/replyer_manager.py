@@ -36,7 +36,6 @@ class ReplyerManager:
         generator_type = self._get_maisaka_generator_type() if replyer_type == "maisaka" else ""
         cache_key = f"{replyer_type}:{generator_type}:{stream_id}"
         if cache_key in self._repliers:
-            logger.info(f"[ReplyerManager] 命中缓存 replyer: cache_key={cache_key}")
             return self._repliers[cache_key]
 
         target_stream = chat_stream or _chat_manager.get_session_by_session_id(stream_id)
