@@ -240,7 +240,7 @@ class MaisakaExpressionSelector:
             if candidate.get("id") in selected_ids
         ]
         self._update_last_active_time(selected_ids)
-        logger.info(
+        logger.debug(
             f"表达方式直接注入：session_id={session_id} 已选数={len(selected_ids)} "
             f"selected_ids={selected_ids!r} 已选预览={self._format_candidate_preview(selected_expressions)}"
         )

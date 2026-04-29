@@ -429,7 +429,7 @@ class MaisakaHeartFlowChatting:
         self._reply_latency_measurement_started_at = None
         self._recent_reply_latencies.append((time.time(), reply_duration))
         self._prune_recent_reply_latencies()
-        logger.info(
+        logger.debug(
             f"{self.log_prefix} 已记录消息回复时长: {reply_duration:.2f} 秒 "
             f"最近10分钟样本数={len(self._recent_reply_latencies)}"
         )
@@ -943,7 +943,7 @@ class MaisakaHeartFlowChatting:
             if self._pending_wait_tool_call_id != tool_call_id:
                 return
 
-            logger.info(f"{self.log_prefix} Maisaka 等待已超时")
+            logger.debug(f"{self.log_prefix} Maisaka 等待已超时")
             self._agent_state = self._STATE_RUNNING
             await self._internal_turn_queue.put("timeout")
         except asyncio.CancelledError:
@@ -1645,7 +1645,7 @@ class MaisakaHeartFlowChatting:
         return panels
 
     def _log_cycle_started(self, cycle_detail: CycleDetail, round_index: int) -> None:
-        logger.info(
+        logger.debug(
             f"{self.log_prefix} MaiSaka 轮次开始: 循环编号={cycle_detail.cycle_id} "
             f"回合={round_index + 1}/{self._max_internal_rounds} "
             f"上下文消息数={len(self._chat_history)}"
@@ -1653,14 +1653,14 @@ class MaisakaHeartFlowChatting:
 
     def _log_cycle_completed(self, cycle_detail: CycleDetail, timer_strings: list[str]) -> None:
         end_time = cycle_detail.end_time if cycle_detail.end_time is not None else cycle_detail.start_time
-        logger.info(
+        logger.debug(
             f"{self.log_prefix} MaiSaka 轮次结束: 循环编号={cycle_detail.cycle_id} "
             f"总耗时={end_time - cycle_detail.start_time:.2f} 秒; "
             f"阶段耗时={', '.join(timer_strings) if timer_strings else '无'}"
         )
 
     def _log_history_trimmed(self, removed_count: int, user_message_count: int) -> None:
-        logger.info(
+        logger.debug(
             f"{self.log_prefix} 已裁剪 {removed_count} 条历史消息; "
             # f"剩余计入上下文的消息数={user_message_count}"
         )
