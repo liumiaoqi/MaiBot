@@ -939,7 +939,7 @@ class LLMOrchestrator:
                     audio_base64=audio_base64,
                 )
                 if self.request_type.startswith("maisaka_"):
-                    logger.info(
+                    logger.debug(
                         f"LLMOrchestrator[{self.request_type}] 正在向模型 model={model_info.name} 发送请求 "
                         f"(tool_options={len(tool_options or [])})"
                     )
@@ -949,7 +949,7 @@ class LLMOrchestrator:
                     request=request,
                 )
                 if self.request_type.startswith("maisaka_"):
-                    logger.info(
+                    logger.debug(
                         f"LLMOrchestrator[{self.request_type}] 模型 model={model_info.name} 已返回 API 响应"
                     )
                 total_tokens, penalty, usage_penalty = self.model_usage[model_info.name]
@@ -962,7 +962,7 @@ class LLMOrchestrator:
                 total_tokens, penalty, usage_penalty = self.model_usage[model_info.name]
                 self.model_usage[model_info.name] = (total_tokens, penalty, usage_penalty - 1)
                 if self.request_type.startswith("maisaka_"):
-                    logger.info(
+                    logger.debug(
                         f"LLMOrchestrator[{self.request_type}] 模型 model={model_info.name} 的请求已被外部信号中断"
                     )
                 raise e

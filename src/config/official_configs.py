@@ -75,13 +75,13 @@ class PersonalityConfig(ConfigBase):
     __ui_icon__ = "user-circle"
 
     personality: str = Field(
-        default="是一个大二女大学生，现在正在上网和群友聊天。",
+        default="你是一个大二女大学生，现在正在上网和群友聊天。",
         json_schema_extra={
             "x-widget": "textarea",
             "x-icon": "user-circle",
         },
     )
-    """人格，建议100字以内，描述人格特质和身份特征"""
+    """人格，建议200字以内，描述人格特质和身份特征；可以写完整设定。要求第二人称"""
 
     reply_style: str = Field(
         default="你的风格平淡简短。可以参考贴吧，知乎和微博的回复风格。不浮夸不长篇大论，不要过分修辞和复杂句。尽量回复的简短一些，平淡一些",
@@ -1262,7 +1262,7 @@ class DebugConfig(ConfigBase):
     __ui_icon__ = "more-horizontal"
 
     enable_maisaka_stage_board: bool = Field(
-        default=True,
+        default=False,
         json_schema_extra={
             "x-widget": "switch",
             "x-icon": "layout-dashboard",
