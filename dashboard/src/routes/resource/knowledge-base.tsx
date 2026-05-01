@@ -1,9 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 
 import {
-  ChevronLeft,
-  ChevronRight,
   Database,
   Gauge,
   Loader2,
@@ -12,7 +10,6 @@ import {
   Save,
   SlidersHorizontal,
   Sparkles,
-  Trash2,
   Upload,
   CheckCircle2,
   CircleAlert,
@@ -23,11 +20,10 @@ import {
 import { CodeEditor } from '@/components/CodeEditor'
 import { MemoryDeleteDialog } from '@/components/memory/MemoryDeleteDialog'
 import { MemoryConfigEditor } from '@/components/memory/MemoryConfigEditor'
+import { MemoryMiniTabs } from '@/components/memory/MemoryMiniTabs'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -36,21 +32,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Progress } from '@/components/ui/progress'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
+import { memoryProgressClient, type MemoryProgressEvent } from '@/lib/memory-progress-client'
 import { cn } from '@/lib/utils'
 import {
   cancelMemoryImportTask,
@@ -105,536 +91,28 @@ import {
   type MemoryTaskPayload,
 } from '@/lib/memory-api'
 
-const DELETE_OPERATION_FETCH_LIMIT = 100
-const DELETE_OPERATION_PAGE_SIZE = 6
-const DELETE_OPERATION_ITEM_PAGE_SIZE = 8
-const FEEDBACK_CORRECTION_FETCH_LIMIT = 100
-const FEEDBACK_CORRECTION_PAGE_SIZE = 6
-const FEEDBACK_ACTION_LOG_PAGE_SIZE = 8
-const IMPORT_CHUNK_PAGE_SIZE = 50
-
-const RUNNING_IMPORT_STATUS = new Set(['preparing', 'running', 'cancel_requested'])
-const QUEUED_IMPORT_STATUS = new Set(['queued'])
-
-const IMPORT_STATUS_TEXT: Record<string, string> = {
-  queued: '排队中',
-  preparing: '准备中',
-  running: '运行中',
-  cancel_requested: '取消中',
-  cancelled: '已取消',
-  completed: '已完成',
-  completed_with_errors: '完成（有错误）',
-  failed: '失败',
-}
-
-const IMPORT_STEP_TEXT: Record<string, string> = {
-  queued: '排队中',
-  preparing: '准备中',
-  running: '运行中',
-  splitting: '分块中',
-  extracting: '抽取中',
-  writing: '写入中',
-  saving: '保存中',
-  backfilling: '回填中',
-  converting: '转换中',
-  verifying: '校验中',
-  switching: '切换中',
-  cancel_requested: '取消中',
-  cancelled: '已取消',
-  completed: '已完成',
-  completed_with_errors: '完成（有错误）',
-  failed: '失败',
-}
-
-const IMPORT_KIND_OPTIONS: Array<{ value: MemoryImportTaskKind; label: string; description: string }> = [
-  { value: 'upload', label: '上传文件', description: '从本地批量上传资料文件' },
-  { value: 'paste', label: '粘贴导入', description: '直接粘贴文本或 JSON 内容创建任务' },
-  { value: 'raw_scan', label: '本地扫描', description: '按路径别名和匹配规则批量扫描导入' },
-  { value: 'lpmm_openie', label: 'LPMM OpenIE', description: '读取 LPMM 数据并抽取关系' },
-  { value: 'lpmm_convert', label: 'LPMM 转换', description: '将 LPMM 数据转换到目标目录' },
-  { value: 'temporal_backfill', label: '时序回填', description: '为已有数据补充时间字段' },
-  { value: 'maibot_migration', label: 'MaiBot 迁移', description: '从 MaiBot 历史数据迁移长期记忆' },
-]
-
-function normalizeProgress(value: number | string | null | undefined): number {
-  const numeric = Number(value ?? 0)
-  if (!Number.isFinite(numeric)) {
-    return 0
-  }
-  if (numeric < 0) {
-    return 0
-  }
-  if (numeric > 100) {
-    return 100
-  }
-  return numeric
-}
-
-function parseOptionalPositiveInt(input: string): number | undefined {
-  const value = input.trim()
-  if (!value) {
-    return undefined
-  }
-  const parsed = Number(value)
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    return undefined
-  }
-  return parsed
-}
-
-function parseCommaSeparatedList(input: string): string[] {
-  return input
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean)
-}
-
-function normalizeImportInputMode(value: string): MemoryImportInputMode {
-  return value === 'json' ? 'json' : 'text'
-}
-
-function getImportStatusLabel(status: string): string {
-  const normalized = String(status ?? '').trim()
-  if (!normalized) {
-    return '-'
-  }
-  return IMPORT_STATUS_TEXT[normalized] ?? normalized
-}
-
-function getImportStepLabel(step: string): string {
-  const normalized = String(step ?? '').trim()
-  if (!normalized) {
-    return '-'
-  }
-  return IMPORT_STEP_TEXT[normalized] ?? normalized
-}
-
-function getImportStatusVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
-  if (status === 'failed') {
-    return 'destructive'
-  }
-  if (status === 'completed') {
-    return 'default'
-  }
-  if (status === 'completed_with_errors' || status === 'cancelled') {
-    return 'secondary'
-  }
-  if (RUNNING_IMPORT_STATUS.has(status) || QUEUED_IMPORT_STATUS.has(status)) {
-    return 'outline'
-  }
-  return 'secondary'
-}
-
-function formatImportTime(timestamp?: number | null): string {
-  if (!timestamp) {
-    return '-'
-  }
-  const normalized = timestamp > 1_000_000_000_000 ? timestamp : timestamp * 1000
-  const value = new Date(normalized)
-  if (Number.isNaN(value.getTime())) {
-    return '-'
-  }
-  return value.toLocaleString('zh-CN', {
-    hour12: false,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-function formatDeleteOperationMode(mode: string): string {
-  switch (mode) {
-    case 'entity':
-      return '实体'
-    case 'relation':
-      return '关系'
-    case 'paragraph':
-      return '段落'
-    case 'source':
-      return '来源'
-    case 'mixed':
-      return '混合'
-    default:
-      return mode || '未知'
-  }
-}
-
-function formatDeleteOperationStatus(status: string): string {
-  switch (status) {
-    case 'executed':
-      return '已执行'
-    case 'restored':
-      return '已恢复'
-    default:
-      return status || '未知'
-  }
-}
-
-function formatDeleteOperationTime(timestamp?: number | null): string {
-  if (!timestamp) {
-    return '未知时间'
-  }
-  const normalized = timestamp > 1_000_000_000_000 ? timestamp : timestamp * 1000
-  const value = new Date(normalized)
-  if (Number.isNaN(value.getTime())) {
-    return '未知时间'
-  }
-  return value.toLocaleString('zh-CN', {
-    hour12: false,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-function formatFeedbackDecision(decision: string): string {
-  switch (decision) {
-    case 'correct':
-      return '纠正'
-    case 'reject':
-      return '否定'
-    case 'confirm':
-      return '确认'
-    case 'supplement':
-      return '补充'
-    case 'none':
-      return '无动作'
-    default:
-      return decision || '未知'
-  }
-}
-
-function formatFeedbackTaskStatus(status: string): string {
-  switch (status) {
-    case 'pending':
-      return '待处理'
-    case 'running':
-      return '处理中'
-    case 'applied':
-      return '已应用'
-    case 'skipped':
-      return '已跳过'
-    case 'error':
-      return '失败'
-    default:
-      return status || '未知'
-  }
-}
-
-function formatFeedbackRollbackStatus(status: string): string {
-  switch (status) {
-    case 'none':
-      return '未回退'
-    case 'running':
-      return '回退中'
-    case 'rolled_back':
-      return '已回退'
-    case 'error':
-      return '回退失败'
-    default:
-      return status || '未知'
-  }
-}
-
-function getFeedbackStatusVariant(
-  status: string,
-): 'default' | 'secondary' | 'destructive' | 'outline' {
-  if (status === 'applied' || status === 'rolled_back') {
-    return 'default'
-  }
-  if (status === 'error') {
-    return 'destructive'
-  }
-  if (status === 'running' || status === 'pending') {
-    return 'outline'
-  }
-  return 'secondary'
-}
-
-function summarizeFeedbackActionPayload(value: Record<string, unknown> | undefined): string {
-  if (!value) {
-    return ''
-  }
-  const hash = String(value.hash ?? '').trim()
-  const subject = String(value.subject ?? '').trim()
-  const predicate = String(value.predicate ?? '').trim()
-  const object = String(value.object ?? '').trim()
-  if (subject && predicate && object) {
-    return formatDeleteRelationText(subject, predicate, object)
-  }
-  if (hash) {
-    return hash
-  }
-  if (Array.isArray(value.target_hashes) && value.target_hashes.length > 0) {
-    return `targets ${value.target_hashes.length}`
-  }
-  return trimDeleteItemText(JSON.stringify(value, null, 2), 120)
-}
-
-function pickFeedbackRelationTriplet(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== 'object') {
-    return null
-  }
-  const record = value as Record<string, unknown>
-  const subject = String(record.subject ?? '').trim()
-  const predicate = String(record.predicate ?? '').trim()
-  const object = String(record.object ?? '').trim()
-  if (!subject || !predicate || !object) {
-    return null
-  }
-  return record
-}
-
-function formatFeedbackRelationTriplet(value: unknown): string {
-  const triplet = pickFeedbackRelationTriplet(value)
-  if (!triplet) {
-    return ''
-  }
-  return formatDeleteRelationText(
-    String(triplet.subject ?? ''),
-    String(triplet.predicate ?? ''),
-    String(triplet.object ?? ''),
-  )
-}
-
-function getFeedbackCorrectionPreview(task: MemoryFeedbackCorrectionDetailTaskPayload | MemoryFeedbackCorrectionSummaryPayload | null): {
-  headline: string
-  oldRelation: string
-  newRelation: string
-} {
-  if (!task) {
-    return {
-      headline: '当前没有纠错摘要',
-      oldRelation: '',
-      newRelation: '',
-    }
-  }
-
-  const detailTask = task as MemoryFeedbackCorrectionDetailTaskPayload
-  const rollbackPlanSummary = detailTask.rollback_plan_summary ?? {}
-  const forgottenRelations = Array.isArray(rollbackPlanSummary.forgotten_relations)
-    ? rollbackPlanSummary.forgotten_relations
-    : []
-  const correctedWrite = rollbackPlanSummary.corrected_write && typeof rollbackPlanSummary.corrected_write === 'object'
-    ? rollbackPlanSummary.corrected_write
-    : {}
-  const correctedRelations = Array.isArray((correctedWrite as Record<string, unknown>).corrected_relations)
-    ? ((correctedWrite as Record<string, unknown>).corrected_relations as unknown[])
-    : []
-
-  const oldRelation = formatFeedbackRelationTriplet(forgottenRelations[0])
-  const newRelation = formatFeedbackRelationTriplet(correctedRelations[0])
-
-  if (oldRelation && newRelation) {
-    return {
-      headline: `将“${oldRelation}”纠正为“${newRelation}”`,
-      oldRelation,
-      newRelation,
-    }
-  }
-  if (newRelation) {
-    return {
-      headline: `补充了新的纠错结论：“${newRelation}”`,
-      oldRelation: '',
-      newRelation,
-    }
-  }
-  if (oldRelation) {
-    return {
-      headline: `撤销了旧记忆关系：“${oldRelation}”`,
-      oldRelation,
-      newRelation: '',
-    }
-  }
-  return {
-    headline: task.query_text || '当前纠错没有可读摘要',
-    oldRelation: '',
-    newRelation: '',
-  }
-}
-
-function buildFeedbackImpactSummary(task: MemoryFeedbackCorrectionDetailTaskPayload | MemoryFeedbackCorrectionSummaryPayload | null): string[] {
-  if (!task) {
-    return []
-  }
-
-  const counts = task.affected_counts ?? {}
-  const items: string[] = []
-  if (Number(counts.relations ?? 0) > 0) {
-    items.push(`影响关系 ${Number(counts.relations ?? 0)} 条`)
-  }
-  if (Number(counts.corrected_relations ?? 0) > 0) {
-    items.push(`新增纠正关系 ${Number(counts.corrected_relations ?? 0)} 条`)
-  }
-  if (Number(counts.correction_paragraphs ?? 0) > 0) {
-    items.push(`写入纠错段落 ${Number(counts.correction_paragraphs ?? 0)} 条`)
-  }
-  if (Number(counts.stale_paragraphs ?? 0) > 0) {
-    items.push(`标记旧段落 ${Number(counts.stale_paragraphs ?? 0)} 条`)
-  }
-  if (Number(counts.episode_sources ?? 0) > 0) {
-    items.push(`触发 Episode 修复 ${Number(counts.episode_sources ?? 0)} 个来源`)
-  }
-  if (Number(counts.profile_person_ids ?? 0) > 0) {
-    items.push(`触发 Profile 刷新 ${Number(counts.profile_person_ids ?? 0)} 个对象`)
-  }
-  return items
-}
-
-function formatFeedbackActionType(actionType: string): string {
-  switch (actionType) {
-    case 'classification':
-      return '判定纠错'
-    case 'forget_relation':
-      return '撤销旧关系'
-    case 'mark_stale_paragraph':
-      return '标记旧段落'
-    case 'write_correction':
-      return '写入纠错'
-    case 'rollback_restore_relation':
-      return '恢复旧关系'
-    case 'rollback_delete_correction_paragraph':
-      return '隐藏纠错段落'
-    case 'rollback_revert_corrected_relation':
-      return '撤销纠正关系'
-    case 'rollback_clear_stale_mark':
-      return '清除脏段落标记'
-    case 'rollback_enqueue_episode_rebuild':
-      return '加入 Episode 修复队列'
-    case 'rollback_enqueue_profile_refresh':
-      return '加入 Profile 刷新队列'
-    case 'rollback_error':
-      return '回退失败'
-    case 'error':
-      return '处理失败'
-    case 'skip':
-      return '跳过处理'
-    default:
-      return actionType || '未知动作'
-  }
-}
-
-function describeFeedbackActionLog(item: MemoryFeedbackActionLogPayload): string {
-  const beforeSummary = summarizeFeedbackActionPayload(item.before_payload)
-  const afterSummary = summarizeFeedbackActionPayload(item.after_payload)
-
-  switch (item.action_type) {
-    case 'classification':
-      return afterSummary ? `系统完成判定：${afterSummary}` : '系统完成纠错判定'
-    case 'forget_relation':
-      return beforeSummary ? `旧关系已失效：${beforeSummary}` : '旧关系已被标记为失效'
-    case 'mark_stale_paragraph':
-      return '旧段落已标记为待复核，后续检索会更谨慎地使用它'
-    case 'write_correction':
-      return afterSummary ? `已写入新的纠错结果：${afterSummary}` : '已写入新的纠错段落和关系'
-    case 'rollback_restore_relation':
-      return afterSummary ? `已恢复旧关系状态：${afterSummary}` : '已恢复旧关系状态'
-    case 'rollback_delete_correction_paragraph':
-      return '已隐藏这次纠错写入的段落'
-    case 'rollback_revert_corrected_relation':
-      return '已撤销纠错阶段新增的关系'
-    case 'rollback_clear_stale_mark':
-      return '已清除旧段落的待复核标记'
-    case 'rollback_enqueue_episode_rebuild':
-      return '已重新加入 Episode 修复队列'
-    case 'rollback_enqueue_profile_refresh':
-      return '已重新加入 Profile 刷新队列'
-    case 'rollback_error':
-      return item.reason || '这次回退执行失败'
-    case 'error':
-      return item.reason || '这次纠错处理失败'
-    case 'skip':
-      return item.reason || '这次纠错被跳过'
-    default:
-      return afterSummary || beforeSummary || item.reason || '记录了一条动作日志'
-  }
-}
-
-type DeleteOperationItem = NonNullable<MemoryDeleteOperationPayload['items']>[number]
-
-function trimDeleteItemText(value: string, maxLength: number = 140): string {
-  const normalized = String(value ?? '').trim().replace(/\s+/g, ' ')
-  if (!normalized) {
-    return ''
-  }
-  if (normalized.length <= maxLength) {
-    return normalized
-  }
-  return `${normalized.slice(0, maxLength)}...`
-}
-
-function formatDeleteRelationText(subject: string, predicate: string, object: string): string {
-  const left = String(subject ?? '').trim()
-  const middle = String(predicate ?? '').trim()
-  const right = String(object ?? '').trim()
-  return [left, middle, right].filter(Boolean).join(' -> ')
-}
-
-function getDeleteOperationItemLabel(item: DeleteOperationItem): string {
-  const payload = item.payload ?? {}
-  if (item.item_type === 'entity') {
-    const entity = (payload.entity ?? {}) as Record<string, unknown>
-    return String(entity.name ?? item.item_key ?? item.item_hash ?? '未命名实体')
-  }
-  if (item.item_type === 'relation') {
-    const relation = (payload.relation ?? {}) as Record<string, unknown>
-    return (
-      formatDeleteRelationText(
-        String(relation.subject ?? ''),
-        String(relation.predicate ?? ''),
-        String(relation.object ?? ''),
-      ) || String(item.item_key ?? item.item_hash ?? '未命名关系')
-    )
-  }
-  if (item.item_type === 'paragraph') {
-    const paragraph = (payload.paragraph ?? {}) as Record<string, unknown>
-    const source = String(paragraph.source ?? '').trim()
-    return source || String(item.item_key ?? item.item_hash ?? '未命名段落')
-  }
-  return String(item.item_key ?? item.item_hash ?? '未命名对象')
-}
-
-function getDeleteOperationItemPreview(item: DeleteOperationItem): string {
-  const payload = item.payload ?? {}
-  if (item.item_type === 'entity') {
-    const paragraphLinks = Array.isArray(payload.paragraph_links) ? payload.paragraph_links : []
-    if (paragraphLinks.length > 0) {
-      return `关联段落 ${paragraphLinks.length} 个`
-    }
-    return '实体快照'
-  }
-  if (item.item_type === 'relation') {
-    const relation = (payload.relation ?? {}) as Record<string, unknown>
-    const paragraphHashes = Array.isArray(payload.paragraph_hashes) ? payload.paragraph_hashes : []
-    const confidence = relation.confidence
-    const parts = []
-    if (paragraphHashes.length > 0) {
-      parts.push(`证据段落 ${paragraphHashes.length} 个`)
-    }
-    if (typeof confidence === 'number') {
-      parts.push(`置信度 ${confidence.toFixed(2)}`)
-    }
-    return parts.join('，') || '关系快照'
-  }
-  if (item.item_type === 'paragraph') {
-    const paragraph = (payload.paragraph ?? {}) as Record<string, unknown>
-    return trimDeleteItemText(String(paragraph.content ?? ''))
-  }
-  return ''
-}
-
-function getDeleteOperationItemSource(item: DeleteOperationItem): string {
-  const payload = item.payload ?? {}
-  if (item.item_type === 'paragraph') {
-    const paragraph = (payload.paragraph ?? {}) as Record<string, unknown>
-    return String(paragraph.source ?? '').trim()
-  }
-  return String(payload.source ?? '').trim()
-}
+import {
+  DELETE_OPERATION_FETCH_LIMIT,
+  DELETE_OPERATION_ITEM_PAGE_SIZE,
+  DELETE_OPERATION_PAGE_SIZE,
+  FEEDBACK_ACTION_LOG_PAGE_SIZE,
+  FEEDBACK_CORRECTION_FETCH_LIMIT,
+  FEEDBACK_CORRECTION_PAGE_SIZE,
+  IMPORT_CHUNK_PAGE_SIZE,
+  QUEUED_IMPORT_STATUS,
+  RUNNING_IMPORT_STATUS,
+} from './knowledge-base/constants'
+import {
+  buildFeedbackImpactSummary,
+  getFeedbackCorrectionPreview,
+  parseCommaSeparatedList,
+  parseOptionalPositiveInt,
+  summarizeFeedbackActionPayload,
+} from './knowledge-base/utils'
+import { DeleteTab } from './knowledge-base/tabs/DeleteTab'
+import { FeedbackTab } from './knowledge-base/tabs/FeedbackTab'
+import { ImportTab } from './knowledge-base/tabs/ImportTab'
+import { TuningTab } from './knowledge-base/tabs/TuningTab'
 
 export function KnowledgeBasePage() {
   const navigate = useNavigate()
@@ -645,6 +123,9 @@ export function KnowledgeBasePage() {
   const [creatingImport, setCreatingImport] = useState(false)
   const [creatingTuning, setCreatingTuning] = useState(false)
   const [rawMode, setRawMode] = useState(false)
+  const [activeTab, setActiveTab] = useState<
+    'overview' | 'config' | 'import' | 'tuning' | 'delete' | 'feedback'
+  >('overview')
 
   const [schemaPayload, setSchemaPayload] = useState<MemoryConfigSchemaPayload | null>(null)
   const [visualConfig, setVisualConfig] = useState<Record<string, unknown>>({})
@@ -1593,6 +1074,44 @@ export function KnowledgeBasePage() {
     }
   }, [importAutoPolling, importPollInterval, loadImportTaskDetail, refreshImportQueue, selectedImportTaskId])
 
+  // 统一 WebSocket 推送：作为轮询的实时增强；后端未广播时由轮询兜底
+  const selectedImportTaskIdRef = useRef<string>('')
+  useEffect(() => {
+    selectedImportTaskIdRef.current = selectedImportTaskId
+  }, [selectedImportTaskId])
+
+  useEffect(() => {
+    let cancelled = false
+    let unsubscribe: (() => Promise<void>) | undefined
+    const handleEvent = (event: MemoryProgressEvent) => {
+      if (event.topic === 'import_progress') {
+        void refreshImportQueue(true)
+        if (selectedImportTaskIdRef.current) {
+          void loadImportTaskDetail(selectedImportTaskIdRef.current, true)
+        }
+      }
+    }
+    void memoryProgressClient
+      .subscribe(handleEvent, ['import_progress'])
+      .then((cleanup) => {
+        if (cancelled) {
+          void cleanup()
+          return
+        }
+        unsubscribe = cleanup
+      })
+      .catch((error) => {
+        // 订阅失败不影响轮询兜底
+        console.warn('订阅长期记忆 WebSocket 失败，已退化到轮询兜底', error)
+      })
+    return () => {
+      cancelled = true
+      if (unsubscribe) {
+        void unsubscribe()
+      }
+    }
+  }, [loadImportTaskDetail, refreshImportQueue])
+
   const filteredSources = useMemo(() => {
     const keyword = sourceSearch.trim().toLowerCase()
     if (!keyword) {
@@ -2266,22 +1785,25 @@ export function KnowledgeBasePage() {
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex-none border-b bg-card/60 px-6 py-4 backdrop-blur">
+    <div className="flex h-full flex-col bg-gradient-to-b from-background via-background to-muted/15">
+      <div className="flex-none border-b bg-card/70 px-6 py-4 backdrop-blur">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h1 className="text-2xl font-bold">长期记忆控制台</h1>
+            <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-primary/80">
+              A_Memorix
+            </div>
+            <h1 className="mt-1 text-2xl font-bold leading-tight">长期记忆控制台</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              A_Memorix 的配置、自检、导入和检索调优，都在这里！
+              在这里完成配置、自检、导入资料和检索调优——一站式管理记忆库
             </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => navigate({ to: '/resource/knowledge-graph' })}>
+            <Button variant="outline" size="sm" onClick={() => navigate({ to: '/resource/knowledge-graph' })}>
               <Database className="mr-2 h-4 w-4" />
               打开图谱
             </Button>
-            <Button variant="outline" onClick={() => void loadPage()}>
+            <Button variant="outline" size="sm" onClick={() => void loadPage()}>
               <RefreshCw className="mr-2 h-4 w-4" />
               刷新数据
             </Button>
@@ -2289,48 +1811,134 @@ export function KnowledgeBasePage() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto p-6">
-        <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-6">
-          <div className="grid gap-4 xl:grid-cols-4">
-            {runtimeBadges.map((item) => (
-              <Card key={item.label} className={cn('overflow-hidden transition-colors', item.className)}>
-                <CardHeader className="space-y-3 pb-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <CardDescription>{item.label}</CardDescription>
-                      <CardTitle className="break-all text-base leading-relaxed">{item.value}</CardTitle>
-                    </div>
-                    <div className="rounded-lg border bg-background/70 p-2 shadow-sm">
+      <div className="flex-1 overflow-auto">
+        <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-6 px-6 py-6">
+          {/* 运行时状态条 —— 紧凑、常驻、一眼看完 */}
+          {runtimeBadges.length > 0 ? (
+            <div className="rounded-2xl border border-border/60 bg-card/60 p-4 shadow-sm backdrop-blur">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  <Gauge className="h-3.5 w-3.5" />
+                  运行时状态
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => void refreshSelfCheck()}
+                  disabled={refreshingCheck}
+                >
+                  <RefreshCw className={cn('mr-1.5 h-3 w-3', refreshingCheck && 'animate-spin')} />
+                  自检
+                </Button>
+              </div>
+              <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+                {runtimeBadges.map((item) => (
+                  <div
+                    key={item.label}
+                    className={cn(
+                      'flex items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors',
+                      item.className,
+                    )}
+                  >
+                    <div className="flex-none rounded-lg border bg-background/70 p-1.5 shadow-sm">
                       <item.icon className={cn('h-4 w-4', item.iconClassName)} />
                     </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[11px] font-medium text-muted-foreground">{item.label}</div>
+                      <div className="truncate text-sm font-semibold leading-snug" title={item.value}>
+                        {item.value}
+                      </div>
+                      <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                        {item.description}
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-xs text-muted-foreground">{item.description}</div>
-                </CardHeader>
-              </Card>
-            ))}
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {/* 快速开始 Hero —— 给新用户明确的"先做什么" */}
+          <div className="overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-5 shadow-sm">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="space-y-1.5 lg:max-w-sm">
+                <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-primary">
+                  快速开始
+                </div>
+                <h2 className="text-lg font-semibold leading-tight">先从这三件事入手</h2>
+                <p className="text-sm text-muted-foreground">
+                  不知道该做什么？挑一个最常用的入口，下面的标签页里有更详细的设置。
+                </p>
+              </div>
+              <div className="grid w-full gap-2.5 sm:grid-cols-3 lg:max-w-3xl">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('import')}
+                  className="group flex items-start gap-3 rounded-xl border border-border/70 bg-background/80 p-3.5 text-left transition hover:border-primary/50 hover:bg-background hover:shadow-md"
+                >
+                  <div className="flex-none rounded-lg bg-primary/10 p-2 text-primary transition-transform group-hover:scale-105">
+                    <Upload className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold">导入资料</div>
+                    <div className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                      把文件、聊天记录写进记忆库
+                    </div>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('tuning')}
+                  className="group flex items-start gap-3 rounded-xl border border-border/70 bg-background/80 p-3.5 text-left transition hover:border-primary/50 hover:bg-background hover:shadow-md"
+                >
+                  <div className="flex-none rounded-lg bg-amber-500/10 p-2 text-amber-500 transition-transform group-hover:scale-105">
+                    <SlidersHorizontal className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold">检索调优</div>
+                    <div className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                      让回忆变得更准、更聪明
+                    </div>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate({ to: '/resource/knowledge-graph' })}
+                  className="group flex items-start gap-3 rounded-xl border border-border/70 bg-background/80 p-3.5 text-left transition hover:border-primary/50 hover:bg-background hover:shadow-md"
+                >
+                  <div className="flex-none rounded-lg bg-violet-500/10 p-2 text-violet-500 transition-transform group-hover:scale-105">
+                    <Database className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold">打开图谱</div>
+                    <div className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                      可视化已存的实体和关系
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
           </div>
 
-          <Tabs defaultValue="overview" className="space-y-5">
-            <TabsList className="h-auto flex-wrap justify-start gap-1 rounded-xl border bg-muted/30 p-1">
-              <TabsTrigger value="overview" className="rounded-lg px-4 py-1.5">
-                概览
-              </TabsTrigger>
-              <TabsTrigger value="config" className="rounded-lg px-4 py-1.5">
-                配置
-              </TabsTrigger>
-              <TabsTrigger value="import" className="rounded-lg px-4 py-1.5">
-                导入
-              </TabsTrigger>
-              <TabsTrigger value="tuning" className="rounded-lg px-4 py-1.5">
-                调优
-              </TabsTrigger>
-              <TabsTrigger value="delete" className="rounded-lg px-4 py-1.5">
-                删除
-              </TabsTrigger>
-              <TabsTrigger value="feedback" className="rounded-lg px-4 py-1.5">
-                纠错历史
-              </TabsTrigger>
-            </TabsList>
+          <Tabs
+            value={activeTab}
+            onValueChange={(value) => setActiveTab(value as typeof activeTab)}
+            className="space-y-5"
+          >
+            <div className="sticky top-0 z-10 -mx-6 border-b border-border/40 bg-background/85 px-6 pb-2 pt-1 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+              <MemoryMiniTabs
+                items={[
+                  { value: 'overview', label: '概览', description: '运行状态与配置摘要' },
+                  { value: 'config', label: '配置', description: '可视化或 TOML 编辑配置' },
+                  { value: 'import', label: '导入', description: '创建并管理导入任务' },
+                  { value: 'tuning', label: '调优', description: '检索策略调优' },
+                  { value: 'delete', label: '删除', description: '批量删除与历史回溯' },
+                  { value: 'feedback', label: '纠错历史', description: '查看反馈与回滚' },
+                ]}
+                triggerClassName="px-4"
+              />
+            </div>
 
             <TabsContent value="overview" className="space-y-4">
               <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
@@ -2367,19 +1975,11 @@ export function KnowledgeBasePage() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Sparkles className="h-4 w-4" />
-                      当前运行态摘要
+                      关键指标
                     </CardTitle>
-                    <CardDescription>这里展示运行态重点指标，方便先判断是否需要导入或调优</CardDescription>
+                    <CardDescription>用于快速判断是否需要补回向量或重新调优</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4 text-sm">
-                    <div className="flex flex-wrap gap-2">
-                      <Badge variant={runtimeConfig?.runtime_ready ? 'default' : 'destructive'}>
-                        {runtimeConfig?.runtime_ready ? '运行就绪' : '运行未就绪'}
-                      </Badge>
-                      <Badge variant={runtimeConfig?.embedding_degraded ? 'destructive' : 'secondary'}>
-                        {runtimeConfig?.embedding_degraded ? 'Embedding 已退化' : 'Embedding 正常'}
-                      </Badge>
-                    </div>
                     <div className="grid gap-3 md:grid-cols-2">
                       <div className="rounded-lg border bg-muted/30 p-3">
                         <div className="text-xs text-muted-foreground">待补回段落向量</div>
@@ -2390,12 +1990,12 @@ export function KnowledgeBasePage() {
                         <div className="mt-1 text-2xl font-semibold">{runtimeConfig?.paragraph_vector_backfill_failed ?? 0}</div>
                       </div>
                     </div>
-                    <div className="rounded-lg border bg-muted/30 p-3">
-                      <div className="text-xs text-muted-foreground">当前调优配置</div>
-                      <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words text-xs">
+                    <details className="rounded-lg border bg-muted/30 p-3" open>
+                      <summary className="cursor-pointer text-xs font-medium text-muted-foreground">当前调优配置</summary>
+                      <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words text-xs">
                         {JSON.stringify(tuningProfile, null, 2)}
                       </pre>
-                    </div>
+                    </details>
                   </CardContent>
                 </Card>
               </div>
@@ -2467,1871 +2067,231 @@ export function KnowledgeBasePage() {
               </Card>
             </TabsContent>
 
-            <TabsContent
-              value="import"
-              className="space-y-7 [&_input]:h-10 [&_[role=combobox]]:h-10 [&_textarea]:min-h-[96px]"
-            >
-              <div className="mx-auto w-full max-w-5xl space-y-6">
-                <div className="space-y-6">
-                  <Card className="rounded-2xl border-border/70 shadow-sm">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Upload className="h-4 w-4" />
-                        创建导入任务
-                      </CardTitle>
-                      <CardDescription>按“选择导入方式 → 检查公共参数 → 创建任务”的顺序完成导入。</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                      <Tabs
-                        value={importCreateMode}
-                        onValueChange={(value) => setImportCreateMode(value as MemoryImportTaskKind)}
-                        className="space-y-4"
-                      >
-                        <div className="space-y-2">
-                          <Label>选择导入方式</Label>
-                          <TabsList className="h-auto w-full flex-wrap justify-start gap-1 rounded-xl border bg-muted/20 p-1">
-                            {IMPORT_KIND_OPTIONS.map((item) => (
-                              <TabsTrigger
-                                key={item.value}
-                                value={item.value}
-                                className="rounded-lg px-3 py-1.5 text-xs"
-                              >
-                                {item.label}
-                              </TabsTrigger>
-                            ))}
-                          </TabsList>
-                        </div>
+            <ImportTab
+              importCreateMode={importCreateMode}
+              setImportCreateMode={setImportCreateMode}
+              importSettings={importSettings}
+              importCommonFileConcurrency={importCommonFileConcurrency}
+              setImportCommonFileConcurrency={setImportCommonFileConcurrency}
+              importCommonChunkConcurrency={importCommonChunkConcurrency}
+              setImportCommonChunkConcurrency={setImportCommonChunkConcurrency}
+              importCommonLlmEnabled={importCommonLlmEnabled}
+              setImportCommonLlmEnabled={setImportCommonLlmEnabled}
+              importCommonChatLog={importCommonChatLog}
+              setImportCommonChatLog={setImportCommonChatLog}
+              importCommonStrategyOverride={importCommonStrategyOverride}
+              setImportCommonStrategyOverride={setImportCommonStrategyOverride}
+              importCommonDedupePolicy={importCommonDedupePolicy}
+              setImportCommonDedupePolicy={setImportCommonDedupePolicy}
+              importCommonChatReferenceTime={importCommonChatReferenceTime}
+              setImportCommonChatReferenceTime={setImportCommonChatReferenceTime}
+              importCommonForce={importCommonForce}
+              setImportCommonForce={setImportCommonForce}
+              importCommonClearManifest={importCommonClearManifest}
+              setImportCommonClearManifest={setImportCommonClearManifest}
+              uploadInputMode={uploadInputMode}
+              setUploadInputMode={setUploadInputMode}
+              uploadFiles={uploadFiles}
+              setUploadFiles={setUploadFiles}
+              pasteName={pasteName}
+              setPasteName={setPasteName}
+              pasteMode={pasteMode}
+              setPasteMode={setPasteMode}
+              pasteContent={pasteContent}
+              setPasteContent={setPasteContent}
+              rawAlias={rawAlias}
+              setRawAlias={setRawAlias}
+              rawInputMode={rawInputMode}
+              setRawInputMode={setRawInputMode}
+              rawRelativePath={rawRelativePath}
+              setRawRelativePath={setRawRelativePath}
+              rawGlob={rawGlob}
+              setRawGlob={setRawGlob}
+              rawRecursive={rawRecursive}
+              setRawRecursive={setRawRecursive}
+              openieAlias={openieAlias}
+              setOpenieAlias={setOpenieAlias}
+              openieRelativePath={openieRelativePath}
+              setOpenieRelativePath={setOpenieRelativePath}
+              openieIncludeAllJson={openieIncludeAllJson}
+              setOpenieIncludeAllJson={setOpenieIncludeAllJson}
+              convertAlias={convertAlias}
+              setConvertAlias={setConvertAlias}
+              convertTargetAlias={convertTargetAlias}
+              setConvertTargetAlias={setConvertTargetAlias}
+              convertRelativePath={convertRelativePath}
+              setConvertRelativePath={setConvertRelativePath}
+              convertTargetRelativePath={convertTargetRelativePath}
+              setConvertTargetRelativePath={setConvertTargetRelativePath}
+              convertDimension={convertDimension}
+              setConvertDimension={setConvertDimension}
+              convertBatchSize={convertBatchSize}
+              setConvertBatchSize={setConvertBatchSize}
+              backfillAlias={backfillAlias}
+              setBackfillAlias={setBackfillAlias}
+              backfillLimit={backfillLimit}
+              setBackfillLimit={setBackfillLimit}
+              backfillRelativePath={backfillRelativePath}
+              setBackfillRelativePath={setBackfillRelativePath}
+              backfillDryRun={backfillDryRun}
+              setBackfillDryRun={setBackfillDryRun}
+              backfillNoCreatedFallback={backfillNoCreatedFallback}
+              setBackfillNoCreatedFallback={setBackfillNoCreatedFallback}
+              maibotSourceDb={maibotSourceDb}
+              setMaibotSourceDb={setMaibotSourceDb}
+              maibotTimeFrom={maibotTimeFrom}
+              setMaibotTimeFrom={setMaibotTimeFrom}
+              maibotTimeTo={maibotTimeTo}
+              setMaibotTimeTo={setMaibotTimeTo}
+              maibotStartId={maibotStartId}
+              setMaibotStartId={setMaibotStartId}
+              maibotEndId={maibotEndId}
+              setMaibotEndId={setMaibotEndId}
+              maibotStreamIds={maibotStreamIds}
+              setMaibotStreamIds={setMaibotStreamIds}
+              maibotGroupIds={maibotGroupIds}
+              setMaibotGroupIds={setMaibotGroupIds}
+              maibotUserIds={maibotUserIds}
+              setMaibotUserIds={setMaibotUserIds}
+              maibotReadBatchSize={maibotReadBatchSize}
+              setMaibotReadBatchSize={setMaibotReadBatchSize}
+              maibotCommitWindowRows={maibotCommitWindowRows}
+              setMaibotCommitWindowRows={setMaibotCommitWindowRows}
+              maibotEmbedWorkers={maibotEmbedWorkers}
+              setMaibotEmbedWorkers={setMaibotEmbedWorkers}
+              maibotNoResume={maibotNoResume}
+              setMaibotNoResume={setMaibotNoResume}
+              maibotResetState={maibotResetState}
+              setMaibotResetState={setMaibotResetState}
+              maibotDryRun={maibotDryRun}
+              setMaibotDryRun={setMaibotDryRun}
+              maibotVerifyOnly={maibotVerifyOnly}
+              setMaibotVerifyOnly={setMaibotVerifyOnly}
+              submitImportByMode={submitImportByMode}
+              creatingImport={creatingImport}
+              pathResolveAlias={pathResolveAlias}
+              setPathResolveAlias={setPathResolveAlias}
+              importAliasKeys={importAliasKeys}
+              pathResolveRelativePath={pathResolveRelativePath}
+              setPathResolveRelativePath={setPathResolveRelativePath}
+              pathResolveMustExist={pathResolveMustExist}
+              setPathResolveMustExist={setPathResolveMustExist}
+              resolveImportPath={resolveImportPath}
+              resolvingPath={resolvingPath}
+              pathResolveOutput={pathResolveOutput}
+              refreshImportQueue={refreshImportQueue}
+              runningImportTasks={runningImportTasks}
+              queuedImportTasks={queuedImportTasks}
+              recentImportTasks={recentImportTasks}
+              selectedImportTaskId={selectedImportTaskId}
+              selectImportTask={selectImportTask}
+              importAutoPolling={importAutoPolling}
+              setImportAutoPolling={setImportAutoPolling}
+              importPollInterval={importPollInterval}
+              importErrorText={importErrorText}
+              cancelSelectedImportTask={cancelSelectedImportTask}
+              retrySelectedImportTask={retrySelectedImportTask}
+              selectedImportTaskLoading={selectedImportTaskLoading}
+              selectedImportTaskResolved={selectedImportTaskResolved}
+              selectedImportRetrySummary={selectedImportRetrySummary}
+              selectedImportTaskErrorText={selectedImportTaskErrorText}
+              selectedImportFiles={selectedImportFiles}
+              selectedImportFileId={selectedImportFileId}
+              selectImportFile={selectImportFile}
+              importChunkTotal={importChunkTotal}
+              importChunkOffset={importChunkOffset}
+              moveImportChunkPage={moveImportChunkPage}
+              canImportChunkPrev={canImportChunkPrev}
+              canImportChunkNext={canImportChunkNext}
+              importChunksLoading={importChunksLoading}
+              selectedImportChunks={selectedImportChunks}
+            />
 
-                        <div className="space-y-4 rounded-lg border bg-muted/30 p-4">
-                        <div className="space-y-1">
-                          <div className="text-sm font-medium">公共参数</div>
-                          <div className="text-xs text-muted-foreground">这些设置会应用到当前导入任务。一般保持默认即可，只在批量导入或排查问题时调整。</div>
-                        </div>
-                        <div className="grid gap-3 md:grid-cols-2">
-                          <div className="space-y-1">
-                            <Label>文件并发数</Label>
-                            <div className="text-xs text-muted-foreground">同时处理多少个文件；文件很多时再适当调高。</div>
-                            <Input
-                              type="number"
-                              min={1}
-                              max={Number(importSettings.max_file_concurrency ?? 128)}
-                              value={importCommonFileConcurrency}
-                              onChange={(event) => setImportCommonFileConcurrency(event.target.value)}
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label>分块并发数</Label>
-                            <div className="text-xs text-muted-foreground">单个文件内并行处理多少个分块；过高会增加资源占用。</div>
-                            <Input
-                              type="number"
-                              min={1}
-                              max={Number(importSettings.max_chunk_concurrency ?? 256)}
-                              value={importCommonChunkConcurrency}
-                              onChange={(event) => setImportCommonChunkConcurrency(event.target.value)}
-                            />
-                          </div>
-                          <div className="rounded-md border bg-background/70 p-3">
-                            <div className="flex items-center gap-2 text-sm">
-                              <Checkbox
-                                checked={importCommonLlmEnabled}
-                                onCheckedChange={(value) => setImportCommonLlmEnabled(Boolean(value))}
-                              />
-                              启用 LLM 抽取
-                            </div>
-                            <div className="mt-1 text-xs text-muted-foreground">需要模型参与抽取，质量更高但耗时更长。</div>
-                          </div>
-                          <div className="rounded-md border bg-background/70 p-3">
-                            <div className="flex items-center gap-2 text-sm">
-                              <Checkbox
-                                checked={importCommonChatLog}
-                                onCheckedChange={(value) => setImportCommonChatLog(Boolean(value))}
-                              />
-                              按聊天日志解析
-                            </div>
-                            <div className="mt-1 text-xs text-muted-foreground">适合导入聊天记录，会尽量保留时间和对话上下文。</div>
-                          </div>
-                        </div>
+            <TuningTab
+              tuningObjective={tuningObjective}
+              setTuningObjective={setTuningObjective}
+              tuningIntensity={tuningIntensity}
+              setTuningIntensity={setTuningIntensity}
+              tuningSampleSize={tuningSampleSize}
+              setTuningSampleSize={setTuningSampleSize}
+              tuningTopKEval={tuningTopKEval}
+              setTuningTopKEval={setTuningTopKEval}
+              submitTuningTask={submitTuningTask}
+              creatingTuning={creatingTuning}
+              tuningProfile={tuningProfile}
+              tuningProfileToml={tuningProfileToml}
+              tuningTasks={tuningTasks}
+              applyBestTask={applyBestTask}
+            />
 
-                        <details className="rounded-md border bg-background/70 p-3 text-sm">
-                          <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
-                            高级参数（通常不用修改）
-                          </summary>
-                          <div className="mt-3 grid gap-3">
-                            <div className="space-y-1">
-                              <Label>指定抽取策略</Label>
-                              <Input
-                                value={importCommonStrategyOverride}
-                                onChange={(event) => setImportCommonStrategyOverride(event.target.value)}
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label>去重策略</Label>
-                              <Input
-                                value={importCommonDedupePolicy}
-                                onChange={(event) => setImportCommonDedupePolicy(event.target.value)}
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label>聊天参考时间</Label>
-                              <Input
-                                value={importCommonChatReferenceTime}
-                                onChange={(event) => setImportCommonChatReferenceTime(event.target.value)}
-                              />
-                            </div>
-                            <div className="flex items-center gap-2 text-sm">
-                              <Checkbox
-                                checked={importCommonForce}
-                                onCheckedChange={(value) => setImportCommonForce(Boolean(value))}
-                              />
-                              强制导入
-                            </div>
-                            <div className="flex items-center gap-2 text-sm">
-                              <Checkbox
-                                checked={importCommonClearManifest}
-                                onCheckedChange={(value) => setImportCommonClearManifest(Boolean(value))}
-                              />
-                              清空导入清单
-                            </div>
-                          </div>
-                        </details>
-                      </div>
+            <DeleteTab
+              sourceSearch={sourceSearch}
+              setSourceSearch={setSourceSearch}
+              selectedSources={selectedSources}
+              setSelectedSources={setSelectedSources}
+              filteredSources={filteredSources}
+              openSourceDeletePreview={openSourceDeletePreview}
+              toggleSourceSelection={toggleSourceSelection}
+              operationSearch={operationSearch}
+              setOperationSearch={setOperationSearch}
+              operationModeFilter={operationModeFilter}
+              setOperationModeFilter={setOperationModeFilter}
+              operationStatusFilter={operationStatusFilter}
+              setOperationStatusFilter={setOperationStatusFilter}
+              filteredDeleteOperations={filteredDeleteOperations}
+              deleteOperations={deleteOperations}
+              operationPage={operationPage}
+              setOperationPage={setOperationPage}
+              deleteOperationPageCount={deleteOperationPageCount}
+              pagedDeleteOperations={pagedDeleteOperations}
+              selectedDeleteOperation={selectedDeleteOperation}
+              setSelectedOperationId={setSelectedOperationId}
+              restoreDeleteOperation={restoreDeleteOperation}
+              deleteRestoring={deleteRestoring}
+              selectedOperationCounts={selectedOperationCounts}
+              selectedOperationDetailLoading={selectedOperationDetailLoading}
+              selectedOperationDetailError={selectedOperationDetailError}
+              selectedOperationSources={selectedOperationSources}
+              selectedOperationItems={selectedOperationItems}
+              filteredSelectedOperationItems={filteredSelectedOperationItems}
+              selectedOperationItemSearch={selectedOperationItemSearch}
+              setSelectedOperationItemSearch={setSelectedOperationItemSearch}
+              selectedOperationItemPage={selectedOperationItemPage}
+              setSelectedOperationItemPage={setSelectedOperationItemPage}
+              selectedOperationItemPageCount={selectedOperationItemPageCount}
+              pagedSelectedOperationItems={pagedSelectedOperationItems}
+            />
 
-                      <TabsContent value="upload" className="mt-0">
-                        <div className="space-y-3 rounded-xl border bg-background/70 p-4">
-                          <div className="text-xs text-muted-foreground">选择一个或多个本地文件创建导入任务，适合批量导入资料或聊天记录。</div>
-                          <div className="grid gap-3">
-                            <div className="space-y-1">
-                              <Label>输入模式</Label>
-                              <Select
-                                value={uploadInputMode}
-                                onValueChange={(value) => setUploadInputMode(normalizeImportInputMode(value))}
-                              >
-                                <SelectTrigger aria-label="upload-input-mode">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="text">文本</SelectItem>
-                                  <SelectItem value="json">结构化 JSON</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div className="space-y-1">
-                              <Label>文件选择</Label>
-                              <Input
-                                type="file"
-                                multiple
-                                accept=".txt,.md,.json,.jsonl,.csv,.log,.html,.htm,.xml"
-                                onChange={(event) => setUploadFiles(Array.from(event.target.files ?? []))}
-                              />
-                            </div>
-                          </div>
-                          <div className="text-xs text-muted-foreground">已选择 {uploadFiles.length} 个文件</div>
-                        </div>
-                      </TabsContent>
-
-                      <TabsContent value="paste" className="mt-0">
-                        <div className="space-y-3 rounded-xl border bg-background/70 p-4">
-                          <div className="text-xs text-muted-foreground">直接粘贴少量文本或 JSON，适合临时补充一段资料。</div>
-                          <div className="grid gap-3">
-                            <div className="space-y-1">
-                              <Label>内容名称</Label>
-                              <Input value={pasteName} onChange={(event) => setPasteName(event.target.value)} />
-                            </div>
-                            <div className="space-y-1">
-                              <Label>输入模式</Label>
-                              <Select
-                                value={pasteMode}
-                                onValueChange={(value) => setPasteMode(normalizeImportInputMode(value))}
-                              >
-                                <SelectTrigger aria-label="paste-input-mode">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="text">文本</SelectItem>
-                                  <SelectItem value="json">结构化 JSON</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div className="space-y-1">
-                              <Label>粘贴内容</Label>
-                              <Textarea
-                                value={pasteContent}
-                                onChange={(event) => setPasteContent(event.target.value)}
-                                rows={8}
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      </TabsContent>
-
-                      <TabsContent value="raw_scan" className="mt-0">
-                        <div className="space-y-3 rounded-xl border bg-background/70 p-4">
-                          <div className="text-xs text-muted-foreground">扫描目录文件，适合本地批处理</div>
-                          <div className="grid gap-3">
-                            <div className="space-y-1">
-                              <Label>路径别名</Label>
-                              <Input value={rawAlias} onChange={(event) => setRawAlias(event.target.value)} />
-                            </div>
-                            <div className="space-y-1">
-                              <Label>输入模式</Label>
-                              <Select
-                                value={rawInputMode}
-                                onValueChange={(value) => setRawInputMode(normalizeImportInputMode(value))}
-                              >
-                                <SelectTrigger aria-label="raw-input-mode">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="text">文本</SelectItem>
-                                  <SelectItem value="json">结构化 JSON</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div className="space-y-1">
-                              <Label>相对路径</Label>
-                              <Input value={rawRelativePath} onChange={(event) => setRawRelativePath(event.target.value)} />
-                            </div>
-                            <div className="space-y-1">
-                              <Label>匹配规则（Glob）</Label>
-                              <Input value={rawGlob} onChange={(event) => setRawGlob(event.target.value)} />
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm">
-                            <Checkbox checked={rawRecursive} onCheckedChange={(value) => setRawRecursive(Boolean(value))} />
-                            递归扫描
-                          </div>
-                        </div>
-                      </TabsContent>
-
-                      <TabsContent value="lpmm_openie" className="mt-0">
-                        <div className="space-y-3 rounded-xl border bg-background/70 p-4">
-                          <div className="text-xs text-muted-foreground">读取 LPMM 内容并抽取关系</div>
-                          <div className="grid gap-3">
-                            <div className="space-y-1">
-                              <Label>路径别名</Label>
-                              <Input value={openieAlias} onChange={(event) => setOpenieAlias(event.target.value)} />
-                            </div>
-                            <div className="space-y-1">
-                              <Label>相对路径</Label>
-                              <Input value={openieRelativePath} onChange={(event) => setOpenieRelativePath(event.target.value)} />
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm">
-                            <Checkbox
-                              checked={openieIncludeAllJson}
-                              onCheckedChange={(value) => setOpenieIncludeAllJson(Boolean(value))}
-                            />
-                            包含全部 JSON 文件
-                          </div>
-                        </div>
-                      </TabsContent>
-
-                      <TabsContent value="lpmm_convert" className="mt-0">
-                        <div className="space-y-3 rounded-xl border bg-background/70 p-4">
-                          <div className="text-xs text-muted-foreground">将 LPMM 数据转换到目标目录</div>
-                          <div className="grid gap-3">
-                            <div className="space-y-1">
-                              <Label>源路径别名</Label>
-                              <Input value={convertAlias} onChange={(event) => setConvertAlias(event.target.value)} />
-                            </div>
-                            <div className="space-y-1">
-                              <Label>目标路径别名</Label>
-                              <Input value={convertTargetAlias} onChange={(event) => setConvertTargetAlias(event.target.value)} />
-                            </div>
-                            <div className="space-y-1">
-                              <Label>源相对路径</Label>
-                              <Input value={convertRelativePath} onChange={(event) => setConvertRelativePath(event.target.value)} />
-                            </div>
-                            <div className="space-y-1">
-                              <Label>目标相对路径</Label>
-                              <Input
-                                value={convertTargetRelativePath}
-                                onChange={(event) => setConvertTargetRelativePath(event.target.value)}
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label>向量维度</Label>
-                              <Input
-                                type="number"
-                                min={1}
-                                value={convertDimension}
-                                onChange={(event) => setConvertDimension(event.target.value)}
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label>批处理大小</Label>
-                              <Input
-                                type="number"
-                                min={1}
-                                value={convertBatchSize}
-                                onChange={(event) => setConvertBatchSize(event.target.value)}
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      </TabsContent>
-
-                      <TabsContent value="temporal_backfill" className="mt-0">
-                        <div className="space-y-3 rounded-xl border bg-background/70 p-4">
-                          <div className="text-xs text-muted-foreground">为已有数据补齐时间字段</div>
-                          <div className="grid gap-3">
-                            <div className="space-y-1">
-                              <Label>路径别名</Label>
-                              <Input value={backfillAlias} onChange={(event) => setBackfillAlias(event.target.value)} />
-                            </div>
-                            <div className="space-y-1">
-                              <Label>处理上限</Label>
-                              <Input type="number" min={1} value={backfillLimit} onChange={(event) => setBackfillLimit(event.target.value)} />
-                            </div>
-                            <div className="space-y-1">
-                              <Label>相对路径</Label>
-                              <Input value={backfillRelativePath} onChange={(event) => setBackfillRelativePath(event.target.value)} />
-                            </div>
-                          </div>
-                          <div className="grid gap-2">
-                            <div className="flex items-center gap-2 text-sm">
-                              <Checkbox checked={backfillDryRun} onCheckedChange={(value) => setBackfillDryRun(Boolean(value))} />
-                              只预演，不写入数据
-                            </div>
-                            <div className="flex items-center gap-2 text-sm">
-                              <Checkbox
-                                checked={backfillNoCreatedFallback}
-                                onCheckedChange={(value) => setBackfillNoCreatedFallback(Boolean(value))}
-                              />
-                              禁用创建时间回退
-                            </div>
-                          </div>
-                        </div>
-                      </TabsContent>
-
-                      <TabsContent value="maibot_migration" className="mt-0">
-                        <div className="space-y-3 rounded-xl border bg-background/70 p-4">
-                          <div className="text-xs text-muted-foreground">迁移 MaiBot 历史长期记忆</div>
-                          <div className="grid gap-3">
-                            <div className="space-y-1">
-                              <Label>源数据库路径</Label>
-                              <Input value={maibotSourceDb} onChange={(event) => setMaibotSourceDb(event.target.value)} />
-                            </div>
-                            <div className="space-y-1">
-                              <Label>起始时间</Label>
-                              <Input value={maibotTimeFrom} onChange={(event) => setMaibotTimeFrom(event.target.value)} />
-                            </div>
-                            <div className="space-y-1">
-                              <Label>结束时间</Label>
-                              <Input value={maibotTimeTo} onChange={(event) => setMaibotTimeTo(event.target.value)} />
-                            </div>
-                            <div className="space-y-1">
-                              <Label>起始 ID</Label>
-                              <Input type="number" min={1} value={maibotStartId} onChange={(event) => setMaibotStartId(event.target.value)} />
-                            </div>
-                            <div className="space-y-1">
-                              <Label>结束 ID</Label>
-                              <Input type="number" min={1} value={maibotEndId} onChange={(event) => setMaibotEndId(event.target.value)} />
-                            </div>
-                            <div className="space-y-1">
-                              <Label>会话 ID 列表</Label>
-                              <Input value={maibotStreamIds} onChange={(event) => setMaibotStreamIds(event.target.value)} />
-                            </div>
-                            <div className="space-y-1">
-                              <Label>群组 ID 列表</Label>
-                              <Input value={maibotGroupIds} onChange={(event) => setMaibotGroupIds(event.target.value)} />
-                            </div>
-                            <div className="space-y-1">
-                              <Label>用户 ID 列表</Label>
-                              <Input value={maibotUserIds} onChange={(event) => setMaibotUserIds(event.target.value)} />
-                            </div>
-                            <div className="space-y-1">
-                              <Label>读取批大小</Label>
-                              <Input
-                                type="number"
-                                min={1}
-                                value={maibotReadBatchSize}
-                                onChange={(event) => setMaibotReadBatchSize(event.target.value)}
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label>提交窗口行数</Label>
-                              <Input
-                                type="number"
-                                min={1}
-                                value={maibotCommitWindowRows}
-                                onChange={(event) => setMaibotCommitWindowRows(event.target.value)}
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label>向量线程数</Label>
-                              <Input
-                                type="number"
-                                min={1}
-                                value={maibotEmbedWorkers}
-                                onChange={(event) => setMaibotEmbedWorkers(event.target.value)}
-                              />
-                            </div>
-                          </div>
-                          <div className="grid gap-2">
-                            <div className="flex items-center gap-2 text-sm">
-                              <Checkbox checked={maibotNoResume} onCheckedChange={(value) => setMaibotNoResume(Boolean(value))} />
-                              从头开始，不继续上次进度
-                            </div>
-                            <div className="flex items-center gap-2 text-sm">
-                              <Checkbox checked={maibotResetState} onCheckedChange={(value) => setMaibotResetState(Boolean(value))} />
-                              重置迁移状态
-                            </div>
-                            <div className="flex items-center gap-2 text-sm">
-                              <Checkbox checked={maibotDryRun} onCheckedChange={(value) => setMaibotDryRun(Boolean(value))} />
-                              只预演，不写入数据
-                            </div>
-                            <div className="flex items-center gap-2 text-sm">
-                              <Checkbox checked={maibotVerifyOnly} onCheckedChange={(value) => setMaibotVerifyOnly(Boolean(value))} />
-                              仅校验
-                            </div>
-                          </div>
-                        </div>
-                      </TabsContent>
-
-                      </Tabs>
-
-                      <Button onClick={() => void submitImportByMode()} disabled={creatingImport}>
-                        {creatingImport ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-                        创建导入任务
-                      </Button>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="rounded-2xl border-border/70 bg-card/85 shadow-sm">
-                    <CardHeader>
-                      <CardTitle>路径预检</CardTitle>
-                      <CardDescription>在创建本地扫描、转换或迁移任务前，先确认路径会被解析到哪里。</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid gap-3">
-                        <div className="space-y-1">
-                          <Label>路径别名</Label>
-                          <div className="text-xs text-muted-foreground">选择后端允许访问的数据根目录。</div>
-                          <Select value={pathResolveAlias} onValueChange={setPathResolveAlias}>
-                            <SelectTrigger aria-label="import-path-alias">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {importAliasKeys.length > 0 ? importAliasKeys.map((alias) => (
-                                <SelectItem key={alias} value={alias}>{alias}</SelectItem>
-                              )) : (
-                                <SelectItem value="raw">raw</SelectItem>
-                              )}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-1">
-                          <Label>相对路径</Label>
-                          <div className="text-xs text-muted-foreground">填写相对于路径别名的子路径，不需要填写完整磁盘路径。</div>
-                          <Input
-                            value={pathResolveRelativePath}
-                            onChange={(event) => setPathResolveRelativePath(event.target.value)}
-                            placeholder="例如 exports/weekly"
-                          />
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <Checkbox checked={pathResolveMustExist} onCheckedChange={(value) => setPathResolveMustExist(Boolean(value))} />
-                        要求路径已存在
-                      </div>
-                      <Button
-                        variant="outline"
-                        onClick={() => void resolveImportPath()}
-                        disabled={resolvingPath || !pathResolveAlias.trim()}
-                      >
-                        {resolvingPath ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                        解析路径
-                      </Button>
-                      <Textarea value={pathResolveOutput} readOnly rows={6} placeholder="解析结果会显示在这里" />
-                    </CardContent>
-                  </Card>
-                </div>
-
-                <div className="space-y-6">
-                  <Card className="rounded-2xl border-border/70 bg-card/90 shadow-sm">
-                    <CardHeader className="space-y-4 pb-4">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <CardTitle>导入队列</CardTitle>
-                        <Button variant="outline" size="sm" onClick={() => void refreshImportQueue()}>
-                          <RefreshCw className="mr-2 h-4 w-4" />
-                          刷新
-                        </Button>
-                      </div>
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <CardDescription className="text-sm">
-                          查看任务是否正在运行、排队等待或已经结束。点击任务卡片可查看详情。
-                        </CardDescription>
-                        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                          <Badge variant="outline" className="bg-background/70">运行中 {runningImportTasks.length}</Badge>
-                          <Badge variant="outline" className="bg-background/70">排队中 {queuedImportTasks.length}</Badge>
-                          <Badge variant="outline" className="bg-background/70">最近完成 {recentImportTasks.length}</Badge>
-                        </div>
-                        <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <Checkbox checked={importAutoPolling} onCheckedChange={(value) => setImportAutoPolling(Boolean(value))} />
-                          自动轮询 {importPollInterval}ms
-                        </label>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                      {importErrorText ? (
-                        <Alert variant="destructive">
-                          <AlertDescription>{importErrorText}</AlertDescription>
-                        </Alert>
-                      ) : null}
-
-                      <div className="space-y-2.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="text-sm font-medium">运行中</div>
-                          <Badge variant="outline">{runningImportTasks.length}</Badge>
-                        </div>
-                        {runningImportTasks.length > 0 ? (
-                          <ScrollArea className="h-[208px] rounded-xl border bg-muted/10">
-                            <div className="space-y-2.5 p-2.5">
-                              {runningImportTasks.map((task) => {
-                                const isSelected = task.task_id === selectedImportTaskId
-                                return (
-                                  <button
-                                    key={task.task_id}
-                                    type="button"
-                                    onClick={() => void selectImportTask(task.task_id)}
-                                    className={cn(
-                                      'w-full rounded-xl border p-4 text-left transition-all',
-                                      isSelected
-                                        ? 'border-primary/70 bg-primary/5 shadow-sm'
-                                        : 'bg-background/80 hover:border-muted-foreground/40 hover:bg-muted/20',
-                                    )}
-                                  >
-                                    <div className="flex flex-wrap items-start justify-between gap-2">
-                                      <div className="min-w-0 space-y-1">
-                                        <div className="break-all font-mono text-[11px] leading-relaxed text-muted-foreground">
-                                          {task.task_id}
-                                        </div>
-                                        <div className="text-sm font-medium">{String(task.task_kind ?? task.mode ?? '-')}</div>
-                                      </div>
-                                      <Badge variant={getImportStatusVariant(String(task.status ?? ''))}>
-                                        {getImportStatusLabel(String(task.status ?? ''))}
-                                      </Badge>
-                                    </div>
-                                    <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                                      <span>{getImportStepLabel(String(task.current_step ?? 'running'))}</span>
-                                      <span>{Number(task.progress ?? 0).toFixed(1)}%</span>
-                                    </div>
-                                    <Progress value={normalizeProgress(task.progress)} className="mt-2 h-1.5" />
-                                  </button>
-                                )
-                              })}
-                            </div>
-                          </ScrollArea>
-                        ) : (
-                          <div className="rounded-xl border bg-muted/20 p-4 text-sm text-muted-foreground">当前没有运行中任务</div>
-                        )}
-                      </div>
-
-                      <div className="space-y-2.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="text-sm font-medium">排队中</div>
-                          <Badge variant="outline">{queuedImportTasks.length}</Badge>
-                        </div>
-                        {queuedImportTasks.length > 0 ? (
-                          <ScrollArea className="h-[188px] rounded-xl border bg-muted/10">
-                            <div className="space-y-2.5 p-2.5">
-                              {queuedImportTasks.map((task) => {
-                                const isSelected = task.task_id === selectedImportTaskId
-                                return (
-                                  <button
-                                    key={task.task_id}
-                                    type="button"
-                                    onClick={() => void selectImportTask(task.task_id)}
-                                    className={cn(
-                                      'w-full rounded-xl border p-4 text-left transition-all',
-                                      isSelected
-                                        ? 'border-primary/70 bg-primary/5 shadow-sm'
-                                        : 'bg-background/80 hover:border-muted-foreground/40 hover:bg-muted/20',
-                                    )}
-                                  >
-                                    <div className="flex flex-wrap items-start justify-between gap-2">
-                                      <div className="min-w-0 space-y-1">
-                                        <div className="break-all font-mono text-[11px] leading-relaxed text-muted-foreground">
-                                          {task.task_id}
-                                        </div>
-                                        <div className="text-sm font-medium">{String(task.task_kind ?? task.mode ?? '-')}</div>
-                                      </div>
-                                      <Badge variant={getImportStatusVariant(String(task.status ?? ''))}>
-                                        {getImportStatusLabel(String(task.status ?? ''))}
-                                      </Badge>
-                                    </div>
-                                    <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                                      <span>创建时间</span>
-                                      <span>{formatImportTime(task.created_at)}</span>
-                                    </div>
-                                  </button>
-                                )
-                              })}
-                            </div>
-                          </ScrollArea>
-                        ) : (
-                          <div className="rounded-xl border bg-muted/20 p-4 text-sm text-muted-foreground">当前没有排队任务</div>
-                        )}
-                      </div>
-
-                      <div className="space-y-2.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="text-sm font-medium">最近完成</div>
-                          <Badge variant="secondary">{recentImportTasks.length}</Badge>
-                        </div>
-                        {recentImportTasks.length > 0 ? (
-                          <ScrollArea className="h-[260px] rounded-xl border bg-muted/10">
-                            <div className="space-y-2.5 p-2.5">
-                              {recentImportTasks.map((task) => {
-                                const isSelected = task.task_id === selectedImportTaskId
-                                return (
-                                  <button
-                                    key={task.task_id}
-                                    type="button"
-                                    onClick={() => void selectImportTask(task.task_id)}
-                                    className={cn(
-                                      'w-full rounded-xl border p-4 text-left transition-all',
-                                      isSelected
-                                        ? 'border-primary/70 bg-primary/5 shadow-sm'
-                                        : 'bg-background/80 hover:border-muted-foreground/40 hover:bg-muted/20',
-                                    )}
-                                  >
-                                    <div className="flex flex-wrap items-start justify-between gap-2">
-                                      <div className="min-w-0 space-y-1">
-                                        <div className="break-all font-mono text-[11px] leading-relaxed text-muted-foreground">
-                                          {task.task_id}
-                                        </div>
-                                        <div className="text-sm font-medium">{String(task.task_kind ?? task.mode ?? '-')}</div>
-                                      </div>
-                                      <Badge variant={getImportStatusVariant(String(task.status ?? ''))}>
-                                        {getImportStatusLabel(String(task.status ?? ''))}
-                                      </Badge>
-                                    </div>
-                                    <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                                      <span>完成进度</span>
-                                      <span>{Number(task.progress ?? 0).toFixed(1)}%</span>
-                                    </div>
-                                    <Progress value={normalizeProgress(task.progress)} className="mt-2 h-1.5" />
-                                  </button>
-                                )
-                              })}
-                            </div>
-                          </ScrollArea>
-                        ) : (
-                          <div className="rounded-xl border bg-muted/20 p-4 text-sm text-muted-foreground">暂时没有历史任务</div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                </div>
-
-                <Card className="rounded-2xl border-border/70 bg-card/90 shadow-sm">
-                  <CardHeader className="space-y-4">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <CardTitle>任务详情</CardTitle>
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          aria-label="取消选中导入任务"
-                          onClick={() => void cancelSelectedImportTask()}
-                          disabled={!selectedImportTaskId}
-                        >
-                          取消任务
-                        </Button>
-                        <Button
-                          size="sm"
-                          aria-label="重试选中导入任务"
-                          onClick={() => void retrySelectedImportTask()}
-                          disabled={!selectedImportTaskId}
-                        >
-                          重试失败项
-                        </Button>
-                      </div>
-                    </div>
-                    <CardDescription>支持文件级和分块级状态观察，可直接在当前页面定位失败原因</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    {selectedImportTaskLoading ? (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        正在加载任务详情...
-                      </div>
-                    ) : null}
-
-                    {!selectedImportTaskResolved ? (
-                      <div className="rounded-xl border bg-muted/20 p-4 text-sm text-muted-foreground">
-                        请选择一个导入任务查看详情
-                      </div>
-                    ) : (
-                      <>
-                        <div className="space-y-2">
-                          <div className="text-sm font-medium">任务摘要</div>
-                          <div className="overflow-auto rounded-xl border bg-muted/10">
-                            <Table className="min-w-[680px]">
-                              <TableBody>
-                                <TableRow>
-                                  <TableCell className="w-[140px] text-muted-foreground">任务 ID</TableCell>
-                                  <TableCell className="break-all font-mono text-xs leading-relaxed">
-                                    {selectedImportTaskResolved.task_id}
-                                  </TableCell>
-                                </TableRow>
-                                <TableRow>
-                                  <TableCell className="text-muted-foreground">任务类型</TableCell>
-                                  <TableCell>{String(selectedImportTaskResolved.task_kind ?? selectedImportTaskResolved.mode ?? '-')}</TableCell>
-                                </TableRow>
-                                <TableRow>
-                                  <TableCell className="text-muted-foreground">状态 / 步骤</TableCell>
-                                  <TableCell>
-                                    <div className="flex flex-wrap items-center gap-2">
-                                      <Badge variant={getImportStatusVariant(String(selectedImportTaskResolved.status ?? ''))}>
-                                        {getImportStatusLabel(String(selectedImportTaskResolved.status ?? ''))}
-                                      </Badge>
-                                      <span className="text-xs text-muted-foreground">
-                                        {getImportStepLabel(String(selectedImportTaskResolved.current_step ?? ''))}
-                                      </span>
-                                    </div>
-                                  </TableCell>
-                                </TableRow>
-                                <TableRow>
-                                  <TableCell className="text-muted-foreground">进度</TableCell>
-                                  <TableCell>
-                                    <div className="space-y-2">
-                                      <div className="text-sm">
-                                        {Number(selectedImportTaskResolved.progress ?? 0).toFixed(1)}% · 块
-                                        {' '}
-                                        {Number(selectedImportTaskResolved.done_chunks ?? 0)}
-                                        {' / '}
-                                        {Number(selectedImportTaskResolved.total_chunks ?? 0)}
-                                      </div>
-                                      <Progress value={normalizeProgress(selectedImportTaskResolved.progress)} className="h-1.5" />
-                                    </div>
-                                  </TableCell>
-                                </TableRow>
-                                <TableRow>
-                                  <TableCell className="text-muted-foreground">创建时间</TableCell>
-                                  <TableCell>{formatImportTime(selectedImportTaskResolved.created_at)}</TableCell>
-                                </TableRow>
-                                <TableRow>
-                                  <TableCell className="text-muted-foreground">更新时间</TableCell>
-                                  <TableCell>{formatImportTime(selectedImportTaskResolved.updated_at)}</TableCell>
-                                </TableRow>
-                              </TableBody>
-                            </Table>
-                          </div>
-                        </div>
-
-                        {selectedImportRetrySummary ? (
-                          <div className="space-y-2">
-                            <div className="text-sm font-medium">重试摘要</div>
-                            <div className="overflow-auto rounded-xl border bg-muted/10">
-                              <Table>
-                                <TableBody>
-                                  <TableRow>
-                                    <TableCell className="w-[220px] text-muted-foreground">按分块重试的文件数</TableCell>
-                                    <TableCell>{Number(selectedImportRetrySummary.chunk_retry_files ?? 0)}</TableCell>
-                                  </TableRow>
-                                  <TableRow>
-                                    <TableCell className="text-muted-foreground">按分块重试的分块数</TableCell>
-                                    <TableCell>{Number(selectedImportRetrySummary.chunk_retry_chunks ?? 0)}</TableCell>
-                                  </TableRow>
-                                  <TableRow>
-                                    <TableCell className="text-muted-foreground">回退整文件重试数</TableCell>
-                                    <TableCell>{Number(selectedImportRetrySummary.file_fallback_files ?? 0)}</TableCell>
-                                  </TableRow>
-                                  <TableRow>
-                                    <TableCell className="text-muted-foreground">跳过文件数</TableCell>
-                                    <TableCell>{Number(selectedImportRetrySummary.skipped_files ?? 0)}</TableCell>
-                                  </TableRow>
-                                </TableBody>
-                              </Table>
-                            </div>
-                          </div>
-                        ) : null}
-
-                        {selectedImportTaskErrorText ? (
-                          <Alert variant="destructive">
-                            <AlertDescription>{selectedImportTaskErrorText}</AlertDescription>
-                          </Alert>
-                        ) : null}
-
-                        <div className="space-y-2.5">
-                          <div className="text-sm font-medium">文件状态</div>
-                          {selectedImportFiles.length > 0 ? (
-                            <ScrollArea className="h-[260px] rounded-xl border bg-muted/10">
-                              <div className="space-y-2.5 p-2.5">
-                                {selectedImportFiles.map((file) => {
-                                  const isSelected = file.file_id === selectedImportFileId
-                                  return (
-                                    <button
-                                      key={file.file_id}
-                                      type="button"
-                                      onClick={() => void selectImportFile(file.file_id)}
-                                      className={cn(
-                                        'w-full rounded-xl border p-4 text-left transition-all',
-                                        isSelected
-                                          ? 'border-primary/70 bg-primary/5 shadow-sm'
-                                          : 'bg-background/80 hover:border-muted-foreground/40 hover:bg-muted/20',
-                                      )}
-                                    >
-                                      <div className="flex flex-wrap items-center justify-between gap-2">
-                                        <span className="truncate text-sm font-medium">{file.name || file.file_id}</span>
-                                        <Badge variant={getImportStatusVariant(String(file.status ?? ''))}>
-                                          {getImportStatusLabel(String(file.status ?? ''))}
-                                        </Badge>
-                                      </div>
-                                      <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                                        <span>{getImportStepLabel(String(file.current_step ?? ''))}</span>
-                                        <span>{Number(file.progress ?? 0).toFixed(1)}%</span>
-                                      </div>
-                                      <Progress value={normalizeProgress(file.progress)} className="mt-2 h-1.5" />
-                                      <div className="mt-2 text-xs text-muted-foreground">
-                                        {Number(file.progress ?? 0).toFixed(1)}% · {Number(file.done_chunks ?? 0)} / {Number(file.total_chunks ?? 0)}
-                                      </div>
-                                      {file.error ? (
-                                        <div className="mt-2 truncate text-xs text-destructive">{file.error}</div>
-                                      ) : null}
-                                    </button>
-                                  )
-                                })}
-                              </div>
-                            </ScrollArea>
-                          ) : (
-                            <div className="rounded-xl border bg-muted/20 p-4 text-sm text-muted-foreground">当前任务没有文件明细</div>
-                          )}
-                        </div>
-
-                        <div className="space-y-2.5">
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="text-sm font-medium">分块状态</div>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                              <Button
-                                size="icon"
-                                variant="outline"
-                                aria-label="上一页分块"
-                                onClick={() => void moveImportChunkPage(-1)}
-                                disabled={!canImportChunkPrev}
-                              >
-                                <ChevronLeft className="h-4 w-4" />
-                              </Button>
-                              <span>
-                                {importChunkTotal > 0
-                                  ? `${importChunkOffset + 1}-${Math.min(importChunkOffset + IMPORT_CHUNK_PAGE_SIZE, importChunkTotal)}`
-                                  : '0-0'}
-                                {' / '}
-                                {importChunkTotal}
-                              </span>
-                              <Button
-                                size="icon"
-                                variant="outline"
-                                aria-label="下一页分块"
-                                onClick={() => void moveImportChunkPage(1)}
-                                disabled={!canImportChunkNext}
-                              >
-                                <ChevronRight className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-
-                          <div className="overflow-auto rounded-xl border bg-background/80">
-                            <Table className="min-w-[700px]">
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead className="w-[72px]">序号</TableHead>
-                                  <TableHead className="w-[108px]">状态</TableHead>
-                                  <TableHead className="w-[108px]">步骤</TableHead>
-                                  <TableHead className="w-[84px]">进度</TableHead>
-                                  <TableHead>错误 / 预览</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {importChunksLoading ? (
-                                  <TableRow>
-                                    <TableCell colSpan={5} className="text-center text-muted-foreground">
-                                      正在加载分块详情...
-                                    </TableCell>
-                                  </TableRow>
-                                ) : selectedImportChunks.length > 0 ? (
-                                  selectedImportChunks.map((chunk) => (
-                                    <TableRow key={chunk.chunk_id}>
-                                      <TableCell>{chunk.index}</TableCell>
-                                      <TableCell>{getImportStatusLabel(String(chunk.status ?? ''))}</TableCell>
-                                      <TableCell>{getImportStepLabel(String(chunk.step ?? ''))}</TableCell>
-                                      <TableCell>{Number(chunk.progress ?? 0).toFixed(1)}%</TableCell>
-                                      <TableCell className="max-w-[360px]">
-                                        <div className="space-y-2">
-                                          {String(chunk.error ?? '').trim() ? (
-                                            <div className="rounded-md border border-destructive/30 bg-destructive/5 px-2.5 py-2 text-sm leading-relaxed text-destructive">
-                                              {String(chunk.error)}
-                                            </div>
-                                          ) : null}
-                                          <details className="rounded-md border bg-muted/20 px-2.5 py-2 text-xs text-muted-foreground">
-                                            <summary className="cursor-pointer font-medium text-foreground">
-                                              {String(chunk.error ?? '').trim() ? '查看分块预览' : '查看内容详情'}
-                                            </summary>
-                                            <div className="mt-2 whitespace-pre-wrap break-words leading-relaxed">
-                                              {String(chunk.content_preview ?? '-') || '-'}
-                                            </div>
-                                          </details>
-                                        </div>
-                                      </TableCell>
-                                    </TableRow>
-                                  ))
-                                ) : (
-                                  <TableRow>
-                                    <TableCell colSpan={5} className="text-center text-muted-foreground">
-                                      当前页没有分块数据
-                                    </TableCell>
-                                  </TableRow>
-                                )}
-                              </TableBody>
-                            </Table>
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="tuning" className="space-y-4">
-              <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Sparkles className="h-4 w-4" />
-                      调优任务
-                    </CardTitle>
-                    <CardDescription>创建一次检索参数评估任务，完成后可在右侧列表中查看并应用最佳结果。</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
-                      <div className="space-y-1">
-                        <div className="text-sm font-medium">调优策略</div>
-                        <div className="text-xs text-muted-foreground">先选择优化方向和搜索强度。默认的 balanced / standard 适合大多数情况。</div>
-                      </div>
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label>优化目标</Label>
-                          <div className="text-xs text-muted-foreground">决定本次调优更偏向准确率、召回率，还是两者平衡。</div>
-                          <Select value={tuningObjective} onValueChange={setTuningObjective}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="precision_priority">precision_priority</SelectItem>
-                              <SelectItem value="balanced">balanced</SelectItem>
-                              <SelectItem value="recall_priority">recall_priority</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>评估强度</Label>
-                          <div className="text-xs text-muted-foreground">强度越高，评估更充分，但任务耗时也更长。</div>
-                          <Select value={tuningIntensity} onValueChange={setTuningIntensity}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="quick">quick</SelectItem>
-                              <SelectItem value="standard">standard</SelectItem>
-                              <SelectItem value="deep">deep</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
-                      <div className="space-y-1">
-                        <div className="text-sm font-medium">评估范围</div>
-                        <div className="text-xs text-muted-foreground">控制本次任务使用多少样本，以及每次检索评估多少候选结果。</div>
-                      </div>
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label>样本量</Label>
-                          <div className="text-xs text-muted-foreground">用于评估的样本数量。数量越大，结果越稳定。</div>
-                          <Input type="number" value={tuningSampleSize} onChange={(event) => setTuningSampleSize(event.target.value)} />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>评估 Top-K</Label>
-                          <div className="text-xs text-muted-foreground">每次检索时用于评估的候选结果数量。</div>
-                          <Input type="number" value={tuningTopKEval} onChange={(event) => setTuningTopKEval(event.target.value)} />
-                        </div>
-                      </div>
-                    </div>
-                    <Button onClick={() => void submitTuningTask()} disabled={creatingTuning}>
-                      <Sparkles className="mr-2 h-4 w-4" />
-                      创建调优任务
-                    </Button>
-                  </CardContent>
-                </Card>
-
-                <div className="space-y-4">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>当前调优配置快照</CardTitle>
-                      <CardDescription>展示当前生效的检索调优参数，便于在应用新结果前做对照。</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <CodeEditor
-                        value={JSON.stringify(tuningProfile, null, 2)}
-                        language="json"
-                        readOnly
-                        height="220px"
-                      />
-                      <CodeEditor
-                        value={tuningProfileToml}
-                        language="toml"
-                        readOnly
-                        height="180px"
-                      />
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>最近调优任务</CardTitle>
-                      <CardDescription>任务完成后，可以把最佳结果应用到当前调优配置。</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>任务</TableHead>
-                            <TableHead>状态</TableHead>
-                            <TableHead>动作</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {tuningTasks.length > 0 ? tuningTasks.map((task) => (
-                            <TableRow key={String(task.task_id ?? Math.random())}>
-                              <TableCell className="font-mono text-xs">{String(task.task_id ?? '-')}</TableCell>
-                              <TableCell>
-                                <Badge variant={getImportStatusVariant(String(task.status ?? ''))}>
-                                  {String(task.status ?? '-')}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => void applyBestTask(String(task.task_id ?? ''))}
-                                  disabled={!task.task_id}
-                                >
-                                  应用最佳
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          )) : (
-                            <TableRow>
-                              <TableCell colSpan={3} className="text-center text-muted-foreground">
-                                还没有调优任务。可以先使用默认参数创建一次评估任务。
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </TableBody>
-                      </Table>
-                    </CardContent>
-                  </Card>
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="delete" className="space-y-4">
-              <div className="space-y-4">
-                <Card>
-                  <CardHeader className="space-y-3">
-                    <div>
-                      <CardTitle className="flex items-center gap-2">
-                        <Trash2 className="h-4 w-4" />
-                        来源批量删除
-                      </CardTitle>
-                      <CardDescription>
-                        用于按来源清理测试数据或指定导入批次。该操作不会直接删除实体，只会删除来源段落和失去全部证据的关系。
-                      </CardDescription>
-                    </div>
-                    <Alert className="border-amber-500/30 bg-amber-500/5 text-amber-950 dark:text-amber-200">
-                      <CircleAlert className="h-4 w-4 text-amber-500" />
-                      <AlertDescription>
-                        建议先在图谱里确认影响范围，再在这里执行批量来源删除。所有删除都会先经过预览，并支持按删除记录恢复。
-                      </AlertDescription>
-                    </Alert>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid gap-3 rounded-xl border bg-muted/20 p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-                      <div className="space-y-2">
-                        <Label>来源检索</Label>
-                        <Input
-                          value={sourceSearch}
-                          onChange={(event) => setSourceSearch(event.target.value)}
-                          placeholder="搜索 source 名称"
-                        />
-                      </div>
-                      <div className="flex flex-wrap gap-2 lg:justify-end">
-                        <Button
-                          variant="outline"
-                          onClick={() => setSelectedSources(filteredSources.map((item) => String(item.source ?? '')).filter(Boolean))}
-                        >
-                          全选当前结果
-                        </Button>
-                        <Button onClick={() => void openSourceDeletePreview()} disabled={selectedSources.length <= 0}>
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          预览删除
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                      <Badge variant="outline" className="bg-background/70">当前命中 {filteredSources.length} 个来源</Badge>
-                      <Badge variant={selectedSources.length > 0 ? 'secondary' : 'outline'} className="bg-background/70">
-                        已选择 {selectedSources.length} 个来源
-                      </Badge>
-                    </div>
-
-                    <ScrollArea className="h-[320px] rounded-lg border">
-                      <Table>
-                        <TableHeader className="sticky top-0 bg-background">
-                          <TableRow>
-                            <TableHead className="w-12">选中</TableHead>
-                            <TableHead>来源</TableHead>
-                            <TableHead>段落数</TableHead>
-                            <TableHead>关系数</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {filteredSources.length > 0 ? filteredSources.map((item) => {
-                            const source = String(item.source ?? '')
-                            const checked = selectedSources.includes(source)
-                            return (
-                              <TableRow key={source}>
-                                <TableCell>
-                                  <Checkbox checked={checked} onCheckedChange={(value) => toggleSourceSelection(source, Boolean(value))} />
-                                </TableCell>
-                                <TableCell className="font-mono text-xs break-all">{source}</TableCell>
-                                <TableCell>{Number(item.paragraph_count ?? 0)}</TableCell>
-                                <TableCell>{Number(item.relation_count ?? 0)}</TableCell>
-                              </TableRow>
-                            )
-                          }) : (
-                            <TableRow>
-                              <TableCell colSpan={4} className="text-center text-muted-foreground">
-                                当前没有可删除的来源
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </TableBody>
-                      </Table>
-                    </ScrollArea>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <RotateCcw className="h-4 w-4" />
-                      删除操作恢复
-                    </CardTitle>
-                    <CardDescription>按列表浏览最近的删除操作，先选中记录，再在下方确认影响范围并执行恢复</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid gap-3 rounded-xl border bg-muted/20 p-4 lg:grid-cols-[minmax(0,1fr)_180px_180px]">
-                      <Input
-                        value={operationSearch}
-                        onChange={(event) => setOperationSearch(event.target.value)}
-                        placeholder="搜索 operation / reason / requested_by / source"
-                      />
-                      <Select value={operationModeFilter} onValueChange={setOperationModeFilter}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="按模式筛选" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">全部模式</SelectItem>
-                          <SelectItem value="source">来源删除</SelectItem>
-                          <SelectItem value="mixed">混合删除</SelectItem>
-                          <SelectItem value="entity">实体删除</SelectItem>
-                          <SelectItem value="relation">关系删除</SelectItem>
-                          <SelectItem value="paragraph">段落删除</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Select value={operationStatusFilter} onValueChange={setOperationStatusFilter}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="按状态筛选" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">全部状态</SelectItem>
-                          <SelectItem value="executed">已执行</SelectItem>
-                          <SelectItem value="restored">已恢复</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
-                      <span>当前命中 {filteredDeleteOperations.length} 条记录，已加载最近 {deleteOperations.length} 条</span>
-                      <span>第 {operationPage} / {deleteOperationPageCount} 页，每页显示 {DELETE_OPERATION_PAGE_SIZE} 条</span>
-                    </div>
-
-                    <ScrollArea className="h-[320px] rounded-lg border">
-                      <div className="space-y-3 p-3">
-                        {pagedDeleteOperations.length > 0 ? pagedDeleteOperations.map((operation) => {
-                          const summary = (operation.summary ?? {}) as Record<string, unknown>
-                          const counts = ((summary.counts as Record<string, number> | undefined) ?? {})
-                          const isSelected = selectedDeleteOperation?.operation_id === operation.operation_id
-                          return (
-                            <button
-                              key={operation.operation_id}
-                              type="button"
-                              onClick={() => setSelectedOperationId(operation.operation_id)}
-                              className={cn(
-                                'w-full rounded-xl border p-4 text-left transition-colors',
-                                isSelected
-                                  ? 'border-primary bg-primary/5 shadow-sm'
-                                  : 'bg-muted/20 hover:border-primary/40 hover:bg-muted/40',
-                              )}
-                            >
-                              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                                <div className="min-w-0 space-y-2">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <Badge variant={operation.status === 'restored' ? 'secondary' : 'default'}>
-                                      {formatDeleteOperationStatus(String(operation.status ?? ''))}
-                                    </Badge>
-                                    <Badge variant="outline">
-                                      {formatDeleteOperationMode(String(operation.mode ?? ''))}
-                                    </Badge>
-                                  </div>
-                                  <div className="font-mono text-xs break-all">{operation.operation_id}</div>
-                                  <div className="text-sm text-muted-foreground">
-                                    {operation.reason || '未填写原因'}
-                                  </div>
-                                </div>
-                                <div className="flex flex-wrap gap-2 text-xs text-muted-foreground lg:max-w-[280px] lg:justify-end">
-                                  <span>实体 {Number(counts.entities ?? 0)}</span>
-                                  <span>关系 {Number(counts.relations ?? 0)}</span>
-                                  <span>段落 {Number(counts.paragraphs ?? 0)}</span>
-                                  <span>来源 {Number(counts.sources ?? 0)}</span>
-                                </div>
-                              </div>
-                              <div className="mt-3 text-xs text-muted-foreground">
-                                {formatDeleteOperationTime(operation.created_at)}
-                              </div>
-                            </button>
-                          )
-                        }) : (
-                          <div className="rounded-lg border border-dashed bg-muted/20 p-6 text-center text-sm text-muted-foreground">
-                            当前筛选条件下没有删除操作
-                          </div>
-                        )}
-                      </div>
-                    </ScrollArea>
-
-                    <div className="flex items-center justify-between gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setOperationPage((current) => Math.max(1, current - 1))}
-                        disabled={operationPage <= 1}
-                      >
-                        上一页
-                      </Button>
-                      <div className="text-xs text-muted-foreground">
-                        支持按删除记录、模式、状态、发起人和来源检索
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setOperationPage((current) => Math.min(deleteOperationPageCount, current + 1))}
-                        disabled={operationPage >= deleteOperationPageCount}
-                      >
-                        下一页
-                      </Button>
-                    </div>
-
-                    <div className="rounded-xl border bg-muted/20 p-4">
-                      {selectedDeleteOperation ? (
-                        <div className="space-y-4">
-                          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                            <div className="space-y-2">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <Badge variant={selectedDeleteOperation.status === 'restored' ? 'secondary' : 'default'}>
-                                  {formatDeleteOperationStatus(String(selectedDeleteOperation.status ?? ''))}
-                                </Badge>
-                                <Badge variant="outline">
-                                  {formatDeleteOperationMode(String(selectedDeleteOperation.mode ?? ''))}
-                                </Badge>
-                              </div>
-                              <div className="font-mono text-xs break-all">{selectedDeleteOperation.operation_id}</div>
-                              <div className="text-sm text-muted-foreground">
-                                {selectedDeleteOperation.reason || '未填写删除原因'}
-                              </div>
-                            </div>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => void restoreDeleteOperation(selectedDeleteOperation.operation_id)}
-                              disabled={selectedDeleteOperation.status === 'restored' || deleteRestoring}
-                            >
-                              <RotateCcw className="mr-2 h-4 w-4" />
-                              {selectedDeleteOperation.status === 'restored' ? '已恢复' : '恢复这次删除'}
-                            </Button>
-                          </div>
-
-                          <div className="grid gap-3 lg:grid-cols-4">
-                            <div className="rounded-lg border bg-background/60 p-3">
-                              <div className="text-xs text-muted-foreground">发起人</div>
-                              <div className="mt-1 text-sm">{selectedDeleteOperation.requested_by || '-'}</div>
-                            </div>
-                            <div className="rounded-lg border bg-background/60 p-3">
-                              <div className="text-xs text-muted-foreground">创建时间</div>
-                              <div className="mt-1 text-sm">{formatDeleteOperationTime(selectedDeleteOperation.created_at)}</div>
-                            </div>
-                            <div className="rounded-lg border bg-background/60 p-3">
-                              <div className="text-xs text-muted-foreground">恢复时间</div>
-                              <div className="mt-1 text-sm">{formatDeleteOperationTime(selectedDeleteOperation.restored_at)}</div>
-                            </div>
-                            <div className="rounded-lg border bg-background/60 p-3">
-                              <div className="text-xs text-muted-foreground">删除摘要</div>
-                              <div className="mt-1 flex flex-wrap gap-2">
-                                <Badge variant="outline">实体 {Number(selectedOperationCounts.entities ?? 0)}</Badge>
-                                <Badge variant="outline">关系 {Number(selectedOperationCounts.relations ?? 0)}</Badge>
-                                <Badge variant="outline">段落 {Number(selectedOperationCounts.paragraphs ?? 0)}</Badge>
-                                <Badge variant="outline">来源 {Number(selectedOperationCounts.sources ?? 0)}</Badge>
-                              </div>
-                            </div>
-                          </div>
-
-                          {selectedOperationDetailLoading ? (
-                            <div className="rounded-lg border bg-background/60 p-4 text-sm text-muted-foreground">
-                              正在加载影响对象详情...
-                            </div>
-                          ) : null}
-
-                          {selectedOperationDetailError ? (
-                            <Alert variant="destructive">
-                              <AlertDescription>{selectedOperationDetailError}</AlertDescription>
-                            </Alert>
-                          ) : null}
-
-                          {selectedOperationSources.length > 0 ? (
-                            <div className="space-y-2">
-                              <div className="text-sm font-semibold">关联来源</div>
-                              <div className="flex flex-wrap gap-2">
-                                {selectedOperationSources.map((source) => (
-                                  <Badge key={source} variant="secondary" className="max-w-full break-all">
-                                    {source}
-                                  </Badge>
-                                ))}
-                              </div>
-                            </div>
-                          ) : null}
-
-                          <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-                            <div className="space-y-2">
-                              <div className="text-sm font-semibold">选择器</div>
-                              <pre className="max-h-56 overflow-auto rounded-lg border bg-background/70 p-3 text-xs break-words whitespace-pre-wrap">
-                                {JSON.stringify(selectedDeleteOperation.selector ?? {}, null, 2)}
-                              </pre>
-                            </div>
-
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <div className="text-sm font-semibold">影响对象</div>
-                                <div className="text-xs text-muted-foreground">
-                                  命中 {filteredSelectedOperationItems.length} / {selectedOperationItems.length} 项
-                                </div>
-                              </div>
-                              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                                <Input
-                                  value={selectedOperationItemSearch}
-                                  onChange={(event) => setSelectedOperationItemSearch(event.target.value)}
-                                  placeholder="搜索对象类型 / 哈希 / 对象键 / 来源"
-                                  className="lg:max-w-sm"
-                                />
-                                <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground lg:min-w-[180px] lg:justify-end">
-                                  <span>第 {selectedOperationItemPage} / {selectedOperationItemPageCount} 页</span>
-                                  <span>每页 {DELETE_OPERATION_ITEM_PAGE_SIZE} 项</span>
-                                </div>
-                              </div>
-                              <ScrollArea className="h-[280px] rounded-lg border bg-background/60">
-                                <div className="space-y-2 p-3">
-                                  {pagedSelectedOperationItems.length > 0 ? pagedSelectedOperationItems.map((item) => {
-                                    const source = getDeleteOperationItemSource(item)
-                                    const label = getDeleteOperationItemLabel(item)
-                                    const preview = getDeleteOperationItemPreview(item)
-                                    return (
-                                      <div key={`${item.item_type}:${item.item_hash}:${item.item_key ?? ''}`} className="rounded-lg border bg-muted/20 p-3">
-                                        <div className="flex flex-wrap items-center gap-2">
-                                          <Badge variant="outline">{item.item_type}</Badge>
-                                          {source ? <Badge variant="secondary">{source}</Badge> : null}
-                                          {item.item_key && item.item_key !== item.item_hash ? (
-                                            <span className="text-xs text-muted-foreground break-all">{item.item_key}</span>
-                                          ) : null}
-                                        </div>
-                                        <div className="mt-2 text-sm font-medium break-words">
-                                          {label}
-                                        </div>
-                                        {preview ? (
-                                          <div className="mt-1 text-xs text-muted-foreground break-words">
-                                            {preview}
-                                          </div>
-                                        ) : null}
-                                        <div className="mt-2 font-mono text-[11px] break-all text-muted-foreground">
-                                          {item.item_hash}
-                                        </div>
-                                      </div>
-                                    )
-                                  }) : (
-                                    <div className="rounded-lg border border-dashed bg-muted/20 p-6 text-center text-sm text-muted-foreground">
-                                      {selectedOperationItems.length > 0 ? '当前筛选条件下没有明细项' : '当前操作没有记录明细项'}
-                                    </div>
-                                  )}
-                                </div>
-                              </ScrollArea>
-                              <div className="flex items-center justify-between gap-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => setSelectedOperationItemPage((current) => Math.max(1, current - 1))}
-                                  disabled={selectedOperationItemPage <= 1}
-                                >
-                                  上一页
-                                </Button>
-                                <div className="text-xs text-muted-foreground">
-                                  支持按对象类型、哈希、对象键和来源检索
-                                </div>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => setSelectedOperationItemPage((current) => Math.min(selectedOperationItemPageCount, current + 1))}
-                                  disabled={selectedOperationItemPage >= selectedOperationItemPageCount}
-                                >
-                                  下一页
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex min-h-[320px] items-center justify-center rounded-lg border border-dashed bg-background/40 p-6 text-center text-sm text-muted-foreground">
-                          当前没有可查看的删除操作详情
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="feedback" className="space-y-4">
-              <div className="space-y-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <RotateCcw className="h-4 w-4" />
-                      反馈纠错历史
-                    </CardTitle>
-                    <CardDescription>
-                      查看 feedback correction 的判定、修改轨迹与回退结果；本期仅覆盖自动纠错任务
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_180px]">
-                      <Input
-                        value={feedbackSearch}
-                        onChange={(event) => setFeedbackSearch(event.target.value)}
-                        placeholder="搜索查询编号 / 会话 / 查询内容 / 原因"
-                      />
-                      <Select value={feedbackStatusFilter} onValueChange={setFeedbackStatusFilter}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="按任务状态筛选" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">全部任务状态</SelectItem>
-                          <SelectItem value="applied">已应用</SelectItem>
-                          <SelectItem value="skipped">已跳过</SelectItem>
-                          <SelectItem value="error">失败</SelectItem>
-                          <SelectItem value="running">处理中</SelectItem>
-                          <SelectItem value="pending">待处理</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Select value={feedbackRollbackFilter} onValueChange={setFeedbackRollbackFilter}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="按回退状态筛选" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">全部回退状态</SelectItem>
-                          <SelectItem value="none">未回退</SelectItem>
-                          <SelectItem value="rolled_back">已回退</SelectItem>
-                          <SelectItem value="error">回退失败</SelectItem>
-                          <SelectItem value="running">回退中</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-background/70 px-3 py-2 text-sm text-muted-foreground">
-                      <span>当前命中 {filteredFeedbackCorrections.length} 条记录，已加载最近 {feedbackCorrections.length} 条</span>
-                      <span>第 {feedbackPage} / {feedbackPageCount} 页，每页显示 {FEEDBACK_CORRECTION_PAGE_SIZE} 条</span>
-                    </div>
-
-                    <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
-                      <ScrollArea className="h-[720px] rounded-lg border">
-                        <div className="space-y-3 p-3">
-                          {pagedFeedbackCorrections.length > 0 ? pagedFeedbackCorrections.map((item) => {
-                            const isSelected = selectedFeedbackCorrection?.task_id === item.task_id
-                            const preview = getFeedbackCorrectionPreview(item)
-                            const impactSummary = buildFeedbackImpactSummary(item)
-                            return (
-                              <button
-                                key={item.task_id}
-                                type="button"
-                                onClick={() => setSelectedFeedbackTaskId(item.task_id)}
-                                className={cn(
-                                  'w-full rounded-xl border p-4 text-left transition-colors',
-                                  isSelected
-                                    ? 'border-primary bg-primary/5 shadow-sm'
-                                    : 'bg-muted/20 hover:border-primary/40 hover:bg-muted/40',
-                                )}
-                              >
-                                <div className="flex flex-col gap-3">
-                                  <div className="flex flex-wrap items-start justify-between gap-2">
-                                    <div className="flex flex-wrap items-center gap-2">
-                                      <Badge variant={getFeedbackStatusVariant(item.task_status)}>
-                                        {formatFeedbackTaskStatus(item.task_status)}
-                                      </Badge>
-                                      <Badge variant={getFeedbackStatusVariant(item.rollback_status)}>
-                                        {formatFeedbackRollbackStatus(item.rollback_status)}
-                                      </Badge>
-                                      <Badge variant="outline">
-                                        {formatFeedbackDecision(item.decision)}
-                                      </Badge>
-                                    </div>
-                                    <div className="text-[11px] text-muted-foreground">
-                                      {formatDeleteOperationTime(item.query_timestamp ?? item.created_at)}
-                                    </div>
-                                  </div>
-                                  <div className="space-y-1">
-                                    <div className="text-sm font-semibold break-words">
-                                      {preview.headline}
-                                    </div>
-                                    <div className="text-xs text-muted-foreground break-words">
-                                      查询：{item.query_text || '无查询文本'}
-                                    </div>
-                                  </div>
-                                  {(preview.oldRelation || preview.newRelation) ? (
-                                    <div className="grid gap-2 rounded-lg border bg-background/70 p-3 text-xs shadow-sm">
-                                      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-stretch">
-                                        <div className="rounded-md border border-amber-500/20 bg-amber-500/5 p-2">
-                                          <div className="text-[11px] font-medium text-amber-700 dark:text-amber-300">纠错前</div>
-                                          <div className="mt-1 break-words">{preview.oldRelation || '无'}</div>
-                                        </div>
-                                        <div className="hidden items-center text-muted-foreground sm:flex">→</div>
-                                        <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 p-2">
-                                          <div className="text-[11px] font-medium text-emerald-700 dark:text-emerald-300">纠错后</div>
-                                          <div className="mt-1 break-words">{preview.newRelation || '无'}</div>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  ) : null}
-                                  <div className="flex flex-wrap gap-2">
-                                    {impactSummary.length > 0 ? impactSummary.slice(0, 3).map((summary) => (
-                                      <Badge key={`${item.task_id}:${summary}`} variant="secondary" className="font-normal">
-                                        {summary}
-                                      </Badge>
-                                    )) : (
-                                      <Badge variant="secondary" className="font-normal">
-                                        暂无影响摘要
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  <div className="font-mono text-[11px] break-all text-muted-foreground">
-                                    {item.query_tool_id}
-                                  </div>
-                                </div>
-                              </button>
-                            )
-                          }) : (
-                            <div className="rounded-lg border border-dashed bg-muted/20 p-6 text-center text-sm text-muted-foreground">
-                              当前筛选条件下没有纠错历史
-                            </div>
-                          )}
-                        </div>
-                      </ScrollArea>
-
-                      <div className="self-start rounded-xl border bg-muted/20 p-4">
-                        {selectedFeedbackCorrection ? (
-                          <div className="space-y-4">
-                            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                              <div className="space-y-2">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <Badge variant={getFeedbackStatusVariant(String(selectedFeedbackResolved?.task_status ?? ''))}>
-                                    {formatFeedbackTaskStatus(String(selectedFeedbackResolved?.task_status ?? ''))}
-                                  </Badge>
-                                  <Badge variant={getFeedbackStatusVariant(String(selectedFeedbackResolved?.rollback_status ?? 'none'))}>
-                                    {formatFeedbackRollbackStatus(String(selectedFeedbackResolved?.rollback_status ?? 'none'))}
-                                  </Badge>
-                                  <Badge variant="outline">
-                                    {formatFeedbackDecision(String(selectedFeedbackResolved?.decision ?? ''))}
-                                  </Badge>
-                                </div>
-                                <div className="text-base font-semibold break-words">
-                                  {selectedFeedbackPreview.headline}
-                                </div>
-                                <div className="text-sm text-muted-foreground break-words">
-                                  查询：{selectedFeedbackResolved?.query_text || '无查询文本'}
-                                </div>
-                                <div className="font-mono text-xs break-all text-muted-foreground">
-                                  {selectedFeedbackResolved?.query_tool_id}
-                                </div>
-                              </div>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={openFeedbackRollbackDialog}
-                                disabled={
-                                  String(selectedFeedbackResolved?.task_status ?? '') !== 'applied'
-                                  || String(selectedFeedbackResolved?.rollback_status ?? 'none') === 'rolled_back'
-                                  || feedbackRollingBack
-                                }
-                              >
-                                <RotateCcw className="mr-2 h-4 w-4" />
-                                {String(selectedFeedbackResolved?.rollback_status ?? 'none') === 'rolled_back'
-                                  ? '已回退'
-                                  : '回退本次纠错'}
-                              </Button>
-                            </div>
-
-                            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
-                              <div className="rounded-xl border bg-background/70 p-4 shadow-sm">
-                                <div className="text-sm font-semibold">本次纠错结论</div>
-                                <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-stretch">
-                                  <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
-                                    <div className="text-xs font-medium text-amber-700 dark:text-amber-300">纠错前</div>
-                                    <div className="mt-2 text-sm break-words">
-                                      {selectedFeedbackPreview.oldRelation || '当前详情没有记录旧结论'}
-                                    </div>
-                                  </div>
-                                  <div className="hidden items-center justify-center text-muted-foreground md:flex">→</div>
-                                  <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
-                                    <div className="text-xs font-medium text-emerald-700 dark:text-emerald-300">纠错后</div>
-                                    <div className="mt-2 text-sm break-words">
-                                      {selectedFeedbackPreview.newRelation || '当前详情没有记录新结论'}
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="rounded-xl border bg-background/70 p-4 shadow-sm">
-                                <div className="text-sm font-semibold">影响范围摘要</div>
-                                <div className="mt-3 flex flex-wrap gap-2">
-                                  {selectedFeedbackImpactSummary.length > 0 ? selectedFeedbackImpactSummary.map((summary) => (
-                                    <Badge key={summary} variant="secondary" className="bg-primary/10 font-normal text-primary hover:bg-primary/15">
-                                      {summary}
-                                    </Badge>
-                                  )) : (
-                                    <div className="text-sm text-muted-foreground">当前没有可展示的影响范围摘要</div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="grid gap-3 lg:grid-cols-4">
-                              <div className="rounded-lg border bg-background/60 p-3">
-                                <div className="text-xs text-muted-foreground">会话</div>
-                                <div className="mt-1 text-sm break-all">{selectedFeedbackResolved?.session_id || '-'}</div>
-                              </div>
-                              <div className="rounded-lg border bg-background/60 p-3">
-                                <div className="text-xs text-muted-foreground">反馈消息数</div>
-                                <div className="mt-1 text-sm">{Number(selectedFeedbackResolved?.feedback_message_count ?? 0)}</div>
-                              </div>
-                              <div className="rounded-lg border bg-background/60 p-3">
-                                <div className="text-xs text-muted-foreground">判定置信度</div>
-                                <div className="mt-1 text-sm">{Number(selectedFeedbackResolved?.decision_confidence ?? 0).toFixed(2)}</div>
-                              </div>
-                              <div className="rounded-lg border bg-background/60 p-3">
-                                <div className="text-xs text-muted-foreground">回退时间</div>
-                                <div className="mt-1 text-sm">{formatDeleteOperationTime(selectedFeedbackResolved?.rolled_back_at)}</div>
-                              </div>
-                            </div>
-
-                            {selectedFeedbackTaskLoading ? (
-                              <div className="rounded-lg border bg-background/60 p-4 text-sm text-muted-foreground">
-                                正在加载纠错详情...
-                              </div>
-                            ) : null}
-
-                            {selectedFeedbackTaskError ? (
-                              <Alert variant="destructive">
-                                <AlertDescription>{selectedFeedbackTaskError}</AlertDescription>
-                              </Alert>
-                            ) : null}
-
-                            {selectedFeedbackResolved?.rollback_error ? (
-                              <Alert variant="destructive">
-                                <AlertDescription>{selectedFeedbackResolved.rollback_error}</AlertDescription>
-                              </Alert>
-                            ) : null}
-
-                            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
-                              <div className="rounded-xl border bg-background/70 p-4">
-                                <div className="text-sm font-semibold">回退后会发生什么</div>
-                                <div className="mt-3 space-y-2 text-sm text-muted-foreground">
-                                  <div>会恢复旧关系状态，并撤销本次纠错写入的段落与关系。</div>
-                                  <div>会清理旧段落的待复核标记，并重新触发相关 Episode / Profile 修复。</div>
-                                  <div>如果你当前只是核对结果，可以先查看下面的详细数据，不必立刻执行回退。</div>
-                                </div>
-                              </div>
-                              <div className="rounded-xl border bg-background/70 p-4">
-                                <div className="text-sm font-semibold">处理摘要</div>
-                                <div className="mt-3 grid gap-2 text-sm text-muted-foreground">
-                                  <div>判定：{formatFeedbackDecision(String(selectedFeedbackResolved?.decision ?? ''))}</div>
-                                  <div>任务状态：{formatFeedbackTaskStatus(String(selectedFeedbackResolved?.task_status ?? ''))}</div>
-                                  <div>回退状态：{formatFeedbackRollbackStatus(String(selectedFeedbackResolved?.rollback_status ?? 'none'))}</div>
-                                  <div>反馈消息数：{Number(selectedFeedbackResolved?.feedback_message_count ?? 0)}</div>
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="space-y-3">
-                              <div className="text-sm font-semibold">详细数据</div>
-                              <div className="grid gap-3 xl:grid-cols-2">
-                                <details className="rounded-lg border bg-background/70 p-3">
-                                  <summary className="cursor-pointer text-sm font-medium">查询快照 JSON</summary>
-                                  <pre className="mt-3 max-h-56 overflow-auto text-xs break-words whitespace-pre-wrap">
-                                    {JSON.stringify(selectedFeedbackResolved?.query_snapshot ?? {}, null, 2)}
-                                  </pre>
-                                </details>
-                                <details className="rounded-lg border bg-background/70 p-3">
-                                  <summary className="cursor-pointer text-sm font-medium">判定结果 JSON</summary>
-                                  <pre className="mt-3 max-h-56 overflow-auto text-xs break-words whitespace-pre-wrap">
-                                    {JSON.stringify(selectedFeedbackResolved?.decision_payload ?? {}, null, 2)}
-                                  </pre>
-                                </details>
-                                <details className="rounded-lg border bg-background/70 p-3">
-                                  <summary className="cursor-pointer text-sm font-medium">回退计划摘要 JSON</summary>
-                                  <pre className="mt-3 max-h-64 overflow-auto text-xs break-words whitespace-pre-wrap">
-                                    {JSON.stringify(selectedFeedbackResolved?.rollback_plan_summary ?? {}, null, 2)}
-                                  </pre>
-                                </details>
-                                <details className="rounded-lg border bg-background/70 p-3">
-                                  <summary className="cursor-pointer text-sm font-medium">回退结果 JSON</summary>
-                                  <pre className="mt-3 max-h-64 overflow-auto text-xs break-words whitespace-pre-wrap">
-                                    {JSON.stringify(selectedFeedbackResolved?.rollback_result ?? {}, null, 2)}
-                                  </pre>
-                                </details>
-                              </div>
-                            </div>
-
-                            <details className="rounded-xl border bg-background/70 p-4">
-                              <summary className="cursor-pointer text-sm font-semibold">
-                                动作时间线
-                              </summary>
-                              <div className="mt-4 space-y-2">
-                                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                                  <div className="text-xs text-muted-foreground">
-                                    第 {feedbackActionLogPage} / {feedbackActionLogPageCount} 页，每页 {FEEDBACK_ACTION_LOG_PAGE_SIZE} 项
-                                  </div>
-                                  <Input
-                                    value={feedbackActionLogSearch}
-                                    onChange={(event) => setFeedbackActionLogSearch(event.target.value)}
-                                    placeholder="搜索动作 / 目标哈希 / 预览内容"
-                                    className="lg:w-80"
-                                  />
-                                </div>
-                                <ScrollArea className="h-[240px] rounded-lg border bg-background/60">
-                                  <div className="space-y-2 p-3">
-                                    {pagedFeedbackActionLogs.length > 0 ? pagedFeedbackActionLogs.map((item: MemoryFeedbackActionLogPayload) => (
-                                      <div key={`${item.id}:${item.action_type}`} className="rounded-lg border bg-muted/20 p-3">
-                                        <div className="flex flex-wrap items-center justify-between gap-2">
-                                          <div className="flex flex-wrap items-center gap-2">
-                                            <Badge variant="outline">{formatFeedbackActionType(item.action_type)}</Badge>
-                                            {item.target_hash ? (
-                                              <span className="font-mono text-[11px] break-all text-muted-foreground">{item.target_hash}</span>
-                                            ) : null}
-                                          </div>
-                                          <div className="text-[11px] text-muted-foreground">
-                                            {formatDeleteOperationTime(item.created_at)}
-                                          </div>
-                                        </div>
-                                        <div className="mt-2 text-sm break-words">
-                                          {describeFeedbackActionLog(item)}
-                                        </div>
-                                        {item.reason ? (
-                                          <div className="mt-2 text-xs text-muted-foreground break-words">
-                                            原因：{item.reason}
-                                          </div>
-                                        ) : null}
-                                        {item.before_payload && Object.keys(item.before_payload).length > 0 ? (
-                                          <div className="mt-3 rounded-md border bg-background/70 p-2 text-xs break-words">
-                                            <span className="font-medium">处理前：</span>
-                                            <span className="text-muted-foreground">{summarizeFeedbackActionPayload(item.before_payload)}</span>
-                                          </div>
-                                        ) : null}
-                                        {item.after_payload && Object.keys(item.after_payload).length > 0 ? (
-                                          <div className="mt-2 rounded-md border bg-background/70 p-2 text-xs break-words">
-                                            <span className="font-medium">处理后：</span>
-                                            <span className="text-muted-foreground">{summarizeFeedbackActionPayload(item.after_payload)}</span>
-                                          </div>
-                                        ) : null}
-                                      </div>
-                                    )) : (
-                                      <div className="rounded-lg border border-dashed bg-muted/20 p-6 text-center text-sm text-muted-foreground">
-                                        {selectedFeedbackActionLogs.length > 0 ? '当前筛选条件下没有动作日志' : '当前任务没有动作日志'}
-                                      </div>
-                                    )}
-                                  </div>
-                                </ScrollArea>
-                                <div className="flex items-center justify-between gap-2">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setFeedbackActionLogPage((current) => Math.max(1, current - 1))}
-                                    disabled={feedbackActionLogPage <= 1}
-                                  >
-                                    上一页
-                                  </Button>
-                                  <div className="text-xs text-muted-foreground">支持按动作类型、目标哈希和摘要检索</div>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setFeedbackActionLogPage((current) => Math.min(feedbackActionLogPageCount, current + 1))}
-                                    disabled={feedbackActionLogPage >= feedbackActionLogPageCount}
-                                  >
-                                    下一页
-                                  </Button>
-                                </div>
-                              </div>
-                            </details>
-                          </div>
-                        ) : (
-                          <div className="flex min-h-[360px] items-center justify-center rounded-lg border border-dashed bg-background/40 p-6 text-center text-sm text-muted-foreground">
-                            当前没有可查看的纠错详情
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setFeedbackPage((current) => Math.max(1, current - 1))}
-                        disabled={feedbackPage <= 1}
-                      >
-                        上一页
-                      </Button>
-                      <div className="text-xs text-muted-foreground">
-                        支持按查询内容、任务状态和回退状态检索
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setFeedbackPage((current) => Math.min(feedbackPageCount, current + 1))}
-                        disabled={feedbackPage >= feedbackPageCount}
-                      >
-                        下一页
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
+            <FeedbackTab
+              feedbackSearch={feedbackSearch}
+              setFeedbackSearch={setFeedbackSearch}
+              feedbackStatusFilter={feedbackStatusFilter}
+              setFeedbackStatusFilter={setFeedbackStatusFilter}
+              feedbackRollbackFilter={feedbackRollbackFilter}
+              setFeedbackRollbackFilter={setFeedbackRollbackFilter}
+              filteredFeedbackCorrections={filteredFeedbackCorrections}
+              feedbackCorrections={feedbackCorrections}
+              pagedFeedbackCorrections={pagedFeedbackCorrections}
+              feedbackPage={feedbackPage}
+              setFeedbackPage={setFeedbackPage}
+              feedbackPageCount={feedbackPageCount}
+              selectedFeedbackCorrection={selectedFeedbackCorrection}
+              setSelectedFeedbackTaskId={setSelectedFeedbackTaskId}
+              selectedFeedbackResolved={selectedFeedbackResolved}
+              selectedFeedbackPreview={selectedFeedbackPreview}
+              selectedFeedbackImpactSummary={selectedFeedbackImpactSummary}
+              openFeedbackRollbackDialog={openFeedbackRollbackDialog}
+              feedbackRollingBack={feedbackRollingBack}
+              selectedFeedbackTaskLoading={selectedFeedbackTaskLoading}
+              selectedFeedbackTaskError={selectedFeedbackTaskError}
+              feedbackActionLogPage={feedbackActionLogPage}
+              setFeedbackActionLogPage={setFeedbackActionLogPage}
+              feedbackActionLogPageCount={feedbackActionLogPageCount}
+              feedbackActionLogSearch={feedbackActionLogSearch}
+              setFeedbackActionLogSearch={setFeedbackActionLogSearch}
+              pagedFeedbackActionLogs={pagedFeedbackActionLogs}
+              selectedFeedbackActionLogs={selectedFeedbackActionLogs}
+            />
           </Tabs>
         </div>
       </div>

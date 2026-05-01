@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
@@ -63,23 +63,58 @@ export function AuthPage() {
   const { t } = useTranslation()
   const { enableWavesBackground, setEnableWavesBackground } = useAnimation()
   const { theme, setTheme } = useTheme()
+  // 避免 React StrictMode 下重复触发 URL token 自动登录。
+  const urlTokenHandledRef = useRef(false)
 
-  // 如果已经认证，直接跳转到首页
-  useEffect(() => {
-    const verifyAuth = async () => {
-      try {
-        const isAuth = await checkAuthStatus()
-        if (isAuth) {
-          navigate({ to: '/' })
-        }
-      } catch {
-        // 忽略错误，保持在登录页
-      } finally {
-        setCheckingAuth(false)
+  // 从 URL 中提取 token（支持 query 与 hash 两种位置）。
+  // 允许 ?token=xxx 、&token=xxx（query）以及 #/foo?token=xxx、#token=xxx（hash）。
+  const extractUrlToken = useCallback((): string => {
+    if (typeof window === 'undefined') return ''
+    const fromQuery = new URLSearchParams(window.location.search).get('token')
+    if (fromQuery && fromQuery.trim()) return fromQuery.trim()
+    // hash 中可能形如 "#token=xxx" 或 "#/path?token=xxx"
+    const rawHash = window.location.hash.replace(/^#/, '')
+    if (!rawHash) return ''
+    const queryIdx = rawHash.indexOf('?')
+    const hashQuery = queryIdx >= 0 ? rawHash.slice(queryIdx + 1) : rawHash
+    const fromHash = new URLSearchParams(hashQuery).get('token')
+    return fromHash && fromHash.trim() ? fromHash.trim() : ''
+  }, [])
+
+  // 从当前 URL 中移除 token 参数，避免令牌被书签/Referer/浏览器历史泄露。
+  const stripTokenFromUrl = useCallback(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const url = new URL(window.location.href)
+      let changed = false
+      if (url.searchParams.has('token')) {
+        url.searchParams.delete('token')
+        changed = true
       }
+      const rawHash = url.hash.replace(/^#/, '')
+      if (rawHash) {
+        const queryIdx = rawHash.indexOf('?')
+        if (queryIdx >= 0) {
+          const path = rawHash.slice(0, queryIdx)
+          const hashParams = new URLSearchParams(rawHash.slice(queryIdx + 1))
+          if (hashParams.has('token')) {
+            hashParams.delete('token')
+            const next = hashParams.toString()
+            url.hash = next ? `#${path}?${next}` : `#${path}`
+            changed = true
+          }
+        } else if (/^token=/.test(rawHash)) {
+          url.hash = ''
+          changed = true
+        }
+      }
+      if (changed) {
+        window.history.replaceState(null, '', url.toString())
+      }
+    } catch {
+      // 忽略 URL 解析异常
     }
-    verifyAuth()
-  }, [navigate])
+  }, [])
 
   // 获取实际应用的主题（处理 system 情况）
   const getActualTheme = () => {
@@ -97,82 +132,119 @@ export function AuthPage() {
     setTheme(newTheme)
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
+  const verifyToken = useCallback(
+    async (rawToken: string): Promise<boolean> => {
+      const trimmed = rawToken.trim()
+      setError('')
 
-    if (!token.trim()) {
-      setError(t('auth.tokenRequired'))
-      return
-    }
-
-    setIsValidating(true)
-
-    console.log('开始验证 token...')
-
-    try {
-      // 向后端发送请求验证 token（后端会设置 HttpOnly Cookie）
-      const response = await fetch('/api/webui/auth/verify', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include', // 确保接收并存储 Cookie
-        body: JSON.stringify({ token: token.trim() }),
-      })
-
-      console.log('Token 验证响应状态:', response.status)
-
-      const result = await parseResponse<{
-        valid: boolean
-        is_first_setup?: boolean
-        message?: string
-      }>(response)
-
-      if (!result.success) {
-        console.error('Token 验证失败:', result.error)
-        setError(result.error)
-        return
+      if (!trimmed) {
+        setError(t('auth.tokenRequired'))
+        return false
       }
 
-      const data = result.data
-      console.log('Token 验证响应数据:', data)
+      setIsValidating(true)
+      console.log('开始验证 token...')
 
-      if (data.valid) {
-        console.log('Token 验证成功，准备跳转...')
-        console.log('is_first_setup:', data.is_first_setup)
+      try {
+        // 向后端发送请求验证 token（后端会设置 HttpOnly Cookie）
+        const response = await fetch('/api/webui/auth/verify', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include', // 确保接收并存储 Cookie
+          body: JSON.stringify({ token: trimmed }),
+        })
 
-        // Token 验证成功，Cookie 已由后端设置
-        // 等待一小段时间确保 Cookie 已设置
-        await new Promise((resolve) => setTimeout(resolve, 100))
+        console.log('Token 验证响应状态:', response.status)
 
-        // 再次检查认证状态
-        const authCheck = await checkAuthStatus()
-        console.log('跳转前认证状态检查:', authCheck)
+        const result = await parseResponse<{
+          valid: boolean
+          is_first_setup?: boolean
+          message?: string
+        }>(response)
 
-        // 直接使用验证响应中的 is_first_setup 字段，避免额外请求
-        if (data.is_first_setup) {
-          console.log('跳转到首次配置页面')
-          // 需要首次配置，跳转到配置向导
-          navigate({ to: '/setup' })
-        } else {
-          console.log('跳转到首页')
-          // 不需要配置或配置已完成，跳转到首页
-          navigate({ to: '/' })
+        if (!result.success) {
+          console.error('Token 验证失败:', result.error)
+          setError(result.error)
+          return false
         }
-      } else {
+
+        const data = result.data
+        console.log('Token 验证响应数据:', data)
+
+        if (data.valid) {
+          console.log('Token 验证成功，准备跳转...')
+          console.log('is_first_setup:', data.is_first_setup)
+
+          // Token 验证成功，Cookie 已由后端设置
+          // 等待一小段时间确保 Cookie 已设置
+          await new Promise((resolve) => setTimeout(resolve, 100))
+
+          // 再次检查认证状态
+          const authCheck = await checkAuthStatus()
+          console.log('跳转前认证状态检查:', authCheck)
+
+          // 直接使用验证响应中的 is_first_setup 字段，避免额外请求
+          if (data.is_first_setup) {
+            console.log('跳转到首次配置页面')
+            navigate({ to: '/setup' })
+          } else {
+            console.log('跳转到首页')
+            navigate({ to: '/' })
+          }
+          return true
+        }
+
         console.error('Token 验证失败:', data.message)
         setError(data.message || t('auth.verifyFailed'))
+        return false
+      } catch (err) {
+        console.error('Token 验证错误:', err)
+        setError(err instanceof Error ? err.message : t('auth.connFailed'))
+        return false
+      } finally {
+        setIsValidating(false)
       }
-    } catch (err) {
-      console.error('Token 验证错误:', err)
-      setError(
-        err instanceof Error ? err.message : t('auth.connFailed')
-      )
-    } finally {
-      setIsValidating(false)
-    }
+    },
+    [navigate, t]
+  )
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    await verifyToken(token)
   }
+
+  // 如果已经认证，直接跳转到首页；否则尝试用 URL 中的 token 自动登录。
+  useEffect(() => {
+    const verifyAuth = async () => {
+      try {
+        const isAuth = await checkAuthStatus()
+        if (isAuth) {
+          // 已登录场景下，URL 中残留的 token 也清掉，避免外泄。
+          stripTokenFromUrl()
+          navigate({ to: '/' })
+          return
+        }
+
+        // 未登录：检查 URL 是否带 token，带了就自动尝试登录。
+        const urlToken = extractUrlToken()
+        if (urlToken && !urlTokenHandledRef.current) {
+          urlTokenHandledRef.current = true
+          // 立即从 URL 中剥离 token，防止刷新/复制链接时再次暴露。
+          stripTokenFromUrl()
+          setToken(urlToken)
+          // 异步触发验证；失败时错误信息会显示在表单上，token 也会保留在输入框中以便用户修正。
+          void verifyToken(urlToken)
+        }
+      } catch {
+        // 忽略错误，保持在登录页
+      } finally {
+        setCheckingAuth(false)
+      }
+    }
+    verifyAuth()
+  }, [navigate, extractUrlToken, stripTokenFromUrl, verifyToken])
 
   // 正在检查认证状态时显示加载
   if (checkingAuth) {
