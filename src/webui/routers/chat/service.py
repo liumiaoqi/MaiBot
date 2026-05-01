@@ -18,6 +18,8 @@ from src.common.message_repository import find_messages
 from src.common.utils.utils_session import SessionUtils
 from src.config.config import global_config
 
+from .serializers import serialize_message_sequence
+
 logger = get_logger("webui.chat")
 
 WEBUI_CHAT_GROUP_ID = "webui_local_chat"
@@ -61,7 +63,7 @@ class ChatSessionConnection:
     client_session_id: str
     user_id: str
     user_name: str
-    active_group_id: str
+    channel_key: str
     virtual_config: Optional[VirtualIdentityConfig]
     sender: AsyncMessageSender
 
@@ -92,6 +94,21 @@ class ChatHistoryManager:
         user_id = user_info.user_id or ""
         is_bot = is_bot_self(msg.platform, user_id)
 
+        # 将存库中的 raw_message 序列化为前端可识别的富文本消息段，
+        # 避免“刚刚收到的机器人回复是富文本，刷新后变成纯文本”的体验不一致。
+        segments: List[Dict[str, Any]] = []
+        try:
+            raw_message = getattr(msg, "raw_message", None)
+            if raw_message is not None and getattr(raw_message, "components", None):
+                segments = serialize_message_sequence(raw_message)
+        except Exception as exc:  # 仅记录警告，退化为纯文本
+            logger.debug(f"序列化历史消息段失败，退化为纯文本: {exc}")
+            segments = []
+
+        is_rich = bool(segments) and not (
+            len(segments) == 1 and segments[0].get("type") == "text"
+        )
+
         return {
             "id": msg.message_id,
             "type": "bot" if is_bot else "user",
@@ -100,32 +117,119 @@ class ChatHistoryManager:
             "sender_name": user_info.user_nickname or (global_config.bot.nickname if is_bot else "未知用户"),
             "sender_id": "bot" if is_bot else user_id,
             "is_bot": is_bot,
+            "message_type": "rich" if is_rich else "text",
+            "segments": segments if is_rich else None,
         }
 
-    def _resolve_session_id(self, group_id: Optional[str]) -> str:
-        """根据群组标识解析聊天会话 ID。
+    def _enrich_reply_segments(
+        self,
+        segments: List[Dict[str, Any]],
+        message_index: Dict[str, SessionMessage],
+        session_id: Optional[str],
+    ) -> None:
+        """回填历史消息中 reply 段缺失的发送者/原内容字段。
+
+        DB 中持久化的 ReplyComponent 通常只保留了 ``target_message_id``，
+        ``target_message_content`` / ``target_message_sender_*`` 字段为空。
+        这里基于当前会话已加载的消息列表（必要时回查数据库）进行补全。
 
         Args:
-            group_id: 群组标识。
+            segments: 单条历史消息的消息段列表，原地修改。
+            message_index: 当前会话已加载消息的 ``message_id -> SessionMessage`` 索引。
+            session_id: 当前会话 ID，用于按 ID 单查时缩小范围。
+        """
+        for segment in segments:
+            if not isinstance(segment, dict) or segment.get("type") != "reply":
+                continue
+            data = segment.get("data")
+            if not isinstance(data, dict):
+                continue
+            target_message_id = data.get("target_message_id")
+            if not target_message_id:
+                continue
+
+            has_content = bool(str(data.get("target_message_content") or "").strip())
+            has_sender = any(
+                str(data.get(key) or "").strip()
+                for key in (
+                    "target_message_sender_id",
+                    "target_message_sender_nickname",
+                    "target_message_sender_cardname",
+                )
+            )
+            if has_content and has_sender:
+                continue
+
+            target_msg = message_index.get(str(target_message_id))
+            if target_msg is None:
+                # 退化为按 ID 单查（仅当不在当前窗口内时才付出 DB 代价）
+                try:
+                    from src.services.message_service import get_message_by_id
+
+                    target_msg = get_message_by_id(str(target_message_id), session_id or None)
+                except Exception as exc:
+                    logger.debug(f"按 ID 回查 reply 目标消息失败: {exc}")
+                    target_msg = None
+            if target_msg is None:
+                continue
+
+            user_info = target_msg.message_info.user_info
+            if not has_content:
+                content_text = (
+                    target_msg.processed_plain_text
+                    or target_msg.display_message
+                    or ""
+                )
+                data["target_message_content"] = content_text
+            if not has_sender:
+                data["target_message_sender_id"] = user_info.user_id or ""
+                data["target_message_sender_nickname"] = user_info.user_nickname or ""
+                data["target_message_sender_cardname"] = (
+                    getattr(user_info, "user_cardname", "") or ""
+                )
+
+    def _resolve_session_id(
+        self,
+        group_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+    ) -> Optional[str]:
+        """根据会话标识解析内部聊天会话 ID。
+
+        优先按虚拟群聊解析；否则按 WebUI 私聊解析。
+
+        Args:
+            group_id: 群组标识（虚拟群聊模式）。
+            user_id: 用户标识（私聊模式）。
 
         Returns:
-            str: 内部聊天会话 ID。
+            Optional[str]: 内部聊天会话 ID；当 group_id 与 user_id 均未提供时返回 ``None``。
         """
-        target_group_id = group_id or WEBUI_CHAT_GROUP_ID
-        return SessionUtils.calculate_session_id(WEBUI_CHAT_PLATFORM, group_id=target_group_id)
+        if group_id:
+            return SessionUtils.calculate_session_id(WEBUI_CHAT_PLATFORM, group_id=group_id)
+        if user_id:
+            return SessionUtils.calculate_session_id(WEBUI_CHAT_PLATFORM, user_id=user_id)
+        return None
 
-    def get_history(self, limit: int = 50, group_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_history(
+        self,
+        limit: int = 50,
+        group_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
         """获取指定会话的历史消息。
 
         Args:
             limit: 最大返回条数。
-            group_id: 群组标识。
+            group_id: 群组标识（虚拟群聊模式）。
+            user_id: 用户标识（私聊模式）。
 
         Returns:
             List[Dict[str, Any]]: 历史消息列表。
         """
-        target_group_id = group_id or WEBUI_CHAT_GROUP_ID
-        session_id = self._resolve_session_id(target_group_id)
+        session_id = self._resolve_session_id(group_id=group_id, user_id=user_id)
+        if session_id is None:
+            logger.debug("获取聊天历史时缺少 group_id 与 user_id，返回空列表")
+            return []
         try:
             messages = find_messages(
                 session_id=session_id,
@@ -133,30 +237,54 @@ class ChatHistoryManager:
                 limit_mode="latest",
                 filter_command=False,
             )
-            result = [self._message_to_dict(msg, target_group_id) for msg in messages]
-            logger.debug(f"从数据库加载了 {len(result)} 条聊天记录 (group_id={target_group_id})")
+            # 构建 message_id -> SessionMessage 索引，用于回填历史中 reply 段的发送者/内容
+            # （DB 中通常只存了 target_message_id，target_message_content/sender_* 缺失）。
+            message_index: Dict[str, SessionMessage] = {}
+            for m in messages:
+                mid = getattr(m, "message_id", None)
+                if mid:
+                    message_index[str(mid)] = m
+
+            result: List[Dict[str, Any]] = []
+            for msg in messages:
+                item = self._message_to_dict(msg, group_id)
+                segments = item.get("segments")
+                if segments:
+                    self._enrich_reply_segments(segments, message_index, session_id)
+                result.append(item)
+            logger.debug(
+                f"从数据库加载了 {len(result)} 条聊天记录 (group_id={group_id}, user_id={user_id})"
+            )
             return result
         except Exception as exc:
             logger.error(f"从数据库加载聊天记录失败: {exc}")
             return []
 
-    def clear_history(self, group_id: Optional[str] = None) -> int:
+    def clear_history(
+        self,
+        group_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+    ) -> int:
         """清空指定会话的历史消息。
 
         Args:
-            group_id: 群组标识。
+            group_id: 群组标识（虚拟群聊模式）。
+            user_id: 用户标识（私聊模式）。
 
         Returns:
             int: 被删除的消息数量。
         """
-        target_group_id = group_id or WEBUI_CHAT_GROUP_ID
-        session_id = self._resolve_session_id(target_group_id)
+        session_id = self._resolve_session_id(group_id=group_id, user_id=user_id)
+        if session_id is None:
+            return 0
         try:
             with get_db_session() as session:
                 statement = delete(Messages).where(col(Messages.session_id) == session_id)
                 result = session.exec(statement)
                 deleted = result.rowcount or 0
-            logger.info(f"已清空 {deleted} 条聊天记录 (group_id={target_group_id})")
+            logger.info(
+                f"已清空 {deleted} 条聊天记录 (group_id={group_id}, user_id={user_id})"
+            )
             return deleted
         except Exception as exc:
             logger.error(f"清空聊天记录失败: {exc}")
@@ -174,30 +302,30 @@ class ChatConnectionManager:
         self.group_sessions: Dict[str, Set[str]] = {}
         self.user_sessions: Dict[str, Set[str]] = {}
 
-    def _bind_group(self, session_id: str, group_id: str) -> None:
-        """为会话绑定群组索引。
+    def _bind_channel(self, session_id: str, channel_key: str) -> None:
+        """为会话绑定逻辑频道索引。
 
         Args:
             session_id: 内部会话 ID。
-            group_id: 群组标识。
+            channel_key: 频道键（``group:<gid>`` 或 ``private:<uid>``）。
         """
-        group_session_ids = self.group_sessions.setdefault(group_id, set())
-        group_session_ids.add(session_id)
+        channel_session_ids = self.group_sessions.setdefault(channel_key, set())
+        channel_session_ids.add(session_id)
 
-    def _unbind_group(self, session_id: str, group_id: str) -> None:
-        """移除会话与群组的索引关系。
+    def _unbind_channel(self, session_id: str, channel_key: str) -> None:
+        """移除会话与逻辑频道的索引关系。
 
         Args:
             session_id: 内部会话 ID。
-            group_id: 群组标识。
+            channel_key: 频道键。
         """
-        group_session_ids = self.group_sessions.get(group_id)
-        if group_session_ids is None:
+        channel_session_ids = self.group_sessions.get(channel_key)
+        if channel_session_ids is None:
             return
 
-        group_session_ids.discard(session_id)
-        if not group_session_ids:
-            del self.group_sessions[group_id]
+        channel_session_ids.discard(session_id)
+        if not channel_session_ids:
+            del self.group_sessions[channel_key]
 
     async def connect(
         self,
@@ -220,18 +348,39 @@ class ChatConnectionManager:
             virtual_config: 当前虚拟身份配置。
             sender: 发送消息到前端的异步回调。
         """
+        channel_key = compute_channel_key(virtual_config, user_id)
         existing_session_id = self.client_sessions.get((connection_id, client_session_id))
+        if existing_session_id is not None and existing_session_id == session_id:
+            # 同一物理连接 + 前端会话重复打开（常见于 React StrictMode 双挂载或客户端去抖失败），
+            # 直接复用现有会话并仅刷新可变字段，避免反复断开/重连产生噪声日志。
+            existing = self.active_connections.get(existing_session_id)
+            if existing is not None:
+                if existing.channel_key != channel_key:
+                    self._unbind_channel(existing_session_id, existing.channel_key)
+                    self._bind_channel(existing_session_id, channel_key)
+                    existing.channel_key = channel_key
+                existing.user_id = user_id
+                existing.user_name = user_name
+                existing.virtual_config = virtual_config
+                existing.sender = sender
+                logger.debug(
+                    "WebUI 聊天会话复用: session=%s, connection=%s, client_session=%s, channel=%s",
+                    session_id,
+                    connection_id,
+                    client_session_id,
+                    channel_key,
+                )
+                return
         if existing_session_id is not None:
             self.disconnect(existing_session_id)
 
-        active_group_id = get_current_group_id(virtual_config)
         session_connection = ChatSessionConnection(
             session_id=session_id,
             connection_id=connection_id,
             client_session_id=client_session_id,
             user_id=user_id,
             user_name=user_name,
-            active_group_id=active_group_id,
+            channel_key=channel_key,
             virtual_config=virtual_config,
             sender=sender,
         )
@@ -240,14 +389,14 @@ class ChatConnectionManager:
         self.client_sessions[(connection_id, client_session_id)] = session_id
         self.connection_sessions.setdefault(connection_id, set()).add(session_id)
         self.user_sessions.setdefault(user_id, set()).add(session_id)
-        self._bind_group(session_id, active_group_id)
+        self._bind_channel(session_id, channel_key)
         logger.info(
-            "WebUI 聊天会话已连接: session=%s, connection=%s, client_session=%s, user=%s, group=%s",
+            "WebUI 聊天会话已连接: session=%s, connection=%s, client_session=%s, user=%s, channel=%s",
             session_id,
             connection_id,
             client_session_id,
             user_id,
-            active_group_id,
+            channel_key,
         )
 
     def disconnect(self, session_id: str) -> None:
@@ -261,7 +410,7 @@ class ChatConnectionManager:
             return
 
         self.client_sessions.pop((session_connection.connection_id, session_connection.client_session_id), None)
-        self._unbind_group(session_id, session_connection.active_group_id)
+        self._unbind_channel(session_id, session_connection.channel_key)
 
         connection_session_ids = self.connection_sessions.get(session_connection.connection_id)
         if connection_session_ids is not None:
@@ -327,11 +476,11 @@ class ChatConnectionManager:
         if session_connection is None:
             return
 
-        next_group_id = get_current_group_id(virtual_config)
-        if next_group_id != session_connection.active_group_id:
-            self._unbind_group(session_id, session_connection.active_group_id)
-            self._bind_group(session_id, next_group_id)
-            session_connection.active_group_id = next_group_id
+        next_channel_key = compute_channel_key(virtual_config, session_connection.user_id)
+        if next_channel_key != session_connection.channel_key:
+            self._unbind_channel(session_id, session_connection.channel_key)
+            self._bind_channel(session_id, next_channel_key)
+            session_connection.channel_key = next_channel_key
 
         session_connection.user_name = user_name
         session_connection.virtual_config = virtual_config
@@ -361,15 +510,39 @@ class ChatConnectionManager:
         for session_id in list(self.active_connections.keys()):
             await self.send_message(session_id, message)
 
-    async def broadcast_to_group(self, group_id: str, message: Dict[str, Any]) -> None:
-        """向指定群组下的全部逻辑会话广播消息。
+    async def broadcast_to_channel(self, channel_key: str, message: Dict[str, Any]) -> None:
+        """向指定逻辑频道下的全部会话广播消息。
 
         Args:
-            group_id: 群组标识。
+            channel_key: 频道键（``group:<gid>`` 或 ``private:<uid>``）。
             message: 待广播的消息内容。
         """
-        for session_id in list(self.group_sessions.get(group_id, set())):
+        for session_id in list(self.group_sessions.get(channel_key, set())):
             await self.send_message(session_id, message)
+
+    async def broadcast_to_group(
+        self,
+        group_id: Optional[str],
+        message: Dict[str, Any],
+        *,
+        user_id: Optional[str] = None,
+    ) -> None:
+        """向指定群组或私聊会话广播消息。
+
+        当 ``group_id`` 非空时按群聊广播；否则按 ``user_id`` 私聊广播。
+
+        Args:
+            group_id: 群组标识；为空时使用 ``user_id``。
+            message: 待广播的消息内容。
+            user_id: 私聊接收方用户 ID。
+        """
+        if group_id:
+            channel_key = f"group:{group_id}"
+        elif user_id:
+            channel_key = f"private:{user_id}"
+        else:
+            return
+        await self.broadcast_to_channel(channel_key, message)
 
 
 chat_history = ChatHistoryManager()
@@ -386,6 +559,24 @@ def is_virtual_mode_enabled(virtual_config: Optional[VirtualIdentityConfig]) -> 
         bool: 已启用时返回 ``True``。
     """
     return bool(virtual_config and virtual_config.enabled)
+
+
+def compute_channel_key(virtual_config: Optional[VirtualIdentityConfig], user_id: str) -> str:
+    """计算当前会话的逻辑频道键。
+
+    虚拟身份启用时使用虚拟群聊 ID，否则使用当前 WebUI 用户 ID 作为私聊频道。
+
+    Args:
+        virtual_config: 虚拟身份配置。
+        user_id: 当前 WebUI 用户 ID。
+
+    Returns:
+        str: 频道键，格式为 ``group:<gid>`` 或 ``private:<uid>``。
+    """
+    if is_virtual_mode_enabled(virtual_config):
+        assert virtual_config is not None
+        return f"group:{virtual_config.group_id}"
+    return f"private:{user_id}"
 
 
 def normalize_webui_user_id(user_id: Optional[str]) -> str:
@@ -500,6 +691,8 @@ def build_session_info_message(
     Returns:
         Dict[str, Any]: 会话信息消息。
     """
+    # bot_qq 用于前端从 QQ 头像公开接口拉取机器人头像（qq_account == 0 表示未配置，不推送）。
+    bot_qq_account = int(getattr(global_config.bot, "qq_account", 0) or 0)
     session_info_data: Dict[str, Any] = {
         "type": "session_info",
         "session_id": session_id,
@@ -507,6 +700,8 @@ def build_session_info_message(
         "user_name": user_name,
         "bot_name": global_config.bot.nickname,
     }
+    if bot_qq_account > 0:
+        session_info_data["bot_qq"] = str(bot_qq_account)
 
     if is_virtual_mode_enabled(virtual_config):
         assert virtual_config is not None
@@ -529,7 +724,7 @@ def get_active_history_group_id(virtual_config: Optional[VirtualIdentityConfig])
         virtual_config: 虚拟身份配置。
 
     Returns:
-        Optional[str]: 虚拟身份启用时返回对应群组 ID。
+        Optional[str]: 虚拟身份启用时返回对应群组 ID；否则返回 ``None`` 表示使用私聊。
     """
     if is_virtual_mode_enabled(virtual_config):
         assert virtual_config is not None
@@ -537,16 +732,16 @@ def get_active_history_group_id(virtual_config: Optional[VirtualIdentityConfig])
     return None
 
 
-def get_current_group_id(virtual_config: Optional[VirtualIdentityConfig]) -> str:
+def get_current_group_id(virtual_config: Optional[VirtualIdentityConfig]) -> Optional[str]:
     """获取当前会话的有效群组 ID。
 
     Args:
         virtual_config: 虚拟身份配置。
 
     Returns:
-        str: 当前会话应使用的群组 ID。
+        Optional[str]: 虚拟身份启用时返回对应群组 ID；否则返回 ``None``（默认私聊模式）。
     """
-    return get_active_history_group_id(virtual_config) or WEBUI_CHAT_GROUP_ID
+    return get_active_history_group_id(virtual_config)
 
 
 def build_welcome_message(virtual_config: Optional[VirtualIdentityConfig]) -> str:
@@ -611,7 +806,12 @@ async def send_initial_chat_state(
     )
 
     history_group_id = get_active_history_group_id(virtual_config)
-    history = chat_history.get_history(50, history_group_id)
+    history_user_id = None if history_group_id else user_id
+    history = chat_history.get_history(
+        50,
+        group_id=history_group_id,
+        user_id=history_user_id,
+    )
     await chat_manager.send_message(
         session_id,
         {
@@ -679,47 +879,48 @@ def create_message_data(
 
     if virtual_config and virtual_config.enabled:
         platform = virtual_config.platform or WEBUI_CHAT_PLATFORM
-        group_id = virtual_config.group_id or f"{VIRTUAL_GROUP_ID_PREFIX}{uuid.uuid4().hex[:8]}"
-        group_name = virtual_config.group_name or "WebUI虚拟群聊"
+        group_id: Optional[str] = (
+            virtual_config.group_id or f"{VIRTUAL_GROUP_ID_PREFIX}{uuid.uuid4().hex[:8]}"
+        )
+        group_name: Optional[str] = virtual_config.group_name or "WebUI虚拟群聊"
         actual_user_id = virtual_config.user_id or user_id
-        actual_user_name = virtual_config.user_nickname or user_name
+        actual_user_nickname = virtual_config.user_nickname or user_name
     else:
         platform = WEBUI_CHAT_PLATFORM
-        group_id = WEBUI_CHAT_GROUP_ID
-        group_name = "WebUI本地聊天室"
+        group_id = None
+        group_name = None
         actual_user_id = user_id
-        actual_user_name = user_name
+        actual_user_nickname = user_name
+
+    message_info: Dict[str, Any] = {
+        "platform": platform,
+        "message_id": message_id,
+        "time": time.time(),
+        "user_info": {
+            "user_id": actual_user_id,
+            "user_nickname": actual_user_nickname,
+            "user_cardname": actual_user_nickname,
+            "platform": platform,
+        },
+        "additional_config": {
+            "at_bot": is_at_bot,
+        },
+    }
+    if group_id is not None:
+        message_info["group_info"] = {
+            "group_id": group_id,
+            "group_name": group_name,
+            "platform": platform,
+        }
 
     return {
-        "message_info": {
-            "platform": platform,
-            "message_id": message_id,
-            "time": time.time(),
-            "group_info": {
-                "group_id": group_id,
-                "group_name": group_name,
-                "platform": platform,
-            },
-            "user_info": {
-                "user_id": actual_user_id,
-                "user_nickname": actual_user_name,
-                "user_cardname": actual_user_name,
-                "platform": platform,
-            },
-            "additional_config": {
-                "at_bot": is_at_bot,
-            },
-        },
+        "message_info": message_info,
         "message_segment": {
             "type": "seglist",
             "data": [
                 {
                     "type": "text",
                     "data": content,
-                },
-                {
-                    "type": "mention_bot",
-                    "data": "1.0",
                 },
             ],
         },
@@ -776,6 +977,7 @@ async def handle_chat_message(
             },
             "virtual_mode": is_virtual_mode_enabled(current_virtual_config),
         },
+        user_id=normalized_user_id,
     )
 
     message_data = create_message_data(
@@ -788,13 +990,21 @@ async def handle_chat_message(
     )
 
     try:
-        await chat_manager.broadcast_to_group(target_group_id, {"type": "typing", "is_typing": True})
+        await chat_manager.broadcast_to_group(
+            target_group_id,
+            {"type": "typing", "is_typing": True},
+            user_id=normalized_user_id,
+        )
         await chat_bot.message_process(message_data)
     except Exception as exc:
         logger.error(f"处理消息时出错: {exc}")
         await send_chat_error(session_id, f"处理消息时出错: {str(exc)}")
     finally:
-        await chat_manager.broadcast_to_group(target_group_id, {"type": "typing", "is_typing": False})
+        await chat_manager.broadcast_to_group(
+            target_group_id,
+            {"type": "typing", "is_typing": False},
+            user_id=normalized_user_id,
+        )
 
     return next_user_name
 
@@ -915,11 +1125,12 @@ async def enable_virtual_identity(
         return None
 
 
-async def disable_virtual_identity(session_id: str) -> None:
+async def disable_virtual_identity(session_id: str, normalized_user_id: str) -> None:
     """关闭虚拟身份模式。
 
     Args:
         session_id: 内部逻辑会话 ID。
+        normalized_user_id: 规范化后的 WebUI 用户 ID，用于加载私聊历史。
     """
     await chat_manager.send_message(
         session_id,
@@ -933,8 +1144,8 @@ async def disable_virtual_identity(session_id: str) -> None:
         session_id,
         {
             "type": "history",
-            "messages": chat_history.get_history(50, WEBUI_CHAT_GROUP_ID),
-            "group_id": WEBUI_CHAT_GROUP_ID,
+            "messages": chat_history.get_history(50, user_id=normalized_user_id),
+            "group_id": None,
         },
     )
     await chat_manager.send_message(
@@ -952,6 +1163,7 @@ async def handle_virtual_identity_update(
     session_id_prefix: str,
     data: Dict[str, Any],
     current_virtual_config: Optional[VirtualIdentityConfig],
+    normalized_user_id: str,
 ) -> Optional[VirtualIdentityConfig]:
     """处理虚拟身份切换请求。
 
@@ -960,6 +1172,7 @@ async def handle_virtual_identity_update(
         session_id_prefix: 会话前缀。
         data: 前端提交的数据。
         current_virtual_config: 当前虚拟身份配置。
+        normalized_user_id: 规范化后的 WebUI 用户 ID。
 
     Returns:
         Optional[VirtualIdentityConfig]: 更新后的虚拟身份配置。
@@ -969,7 +1182,7 @@ async def handle_virtual_identity_update(
         next_config = await enable_virtual_identity(session_id, session_id_prefix, virtual_data)
         return next_config if next_config is not None else current_virtual_config
 
-    await disable_virtual_identity(session_id)
+    await disable_virtual_identity(session_id, normalized_user_id)
     return None
 
 
@@ -1019,6 +1232,7 @@ async def dispatch_chat_event(
             session_id_prefix=session_id_prefix,
             data=data,
             current_virtual_config=current_virtual_config,
+            normalized_user_id=normalized_user_id,
         )
         return current_user_name, next_virtual_config
 

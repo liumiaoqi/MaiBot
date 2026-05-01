@@ -183,7 +183,7 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
             {schema.required && <span className="text-destructive">*</span>}
           </Label>
           {schema.description && (
-            <p className="text-[13px] text-muted-foreground">{schema.description}</p>
+            <p className="text-[13px] text-muted-foreground whitespace-pre-line">{schema.description}</p>
           )}
         </div>
         <Switch
@@ -325,7 +325,7 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
 
       {/* Description */}
       {schema.description && (
-        <p className="text-[13px] text-muted-foreground">{schema.description}</p>
+        <p className="text-[13px] text-muted-foreground whitespace-pre-line">{schema.description}</p>
       )}
     </div>
   )

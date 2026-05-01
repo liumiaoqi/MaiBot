@@ -83,6 +83,7 @@ class BaseMaisakaReplyGenerator:
         self.express_model = llm_client_cls(
             task_name="replyer",
             request_type=request_type,
+            session_id=getattr(chat_stream, "session_id", "") if chat_stream is not None else "",
         )
         self._personality_prompt = self._build_personality_prompt()
 

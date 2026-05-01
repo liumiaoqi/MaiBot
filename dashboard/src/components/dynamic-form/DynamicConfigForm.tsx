@@ -157,6 +157,7 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
                     value={values[key]}
                     onChange={(v) => onChange(key, v)}
                     schema={nestedField ?? nestedSchema}
+                    nestedSchema={nestedSchema}
                   />
                 </div>
               )
@@ -169,6 +170,7 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
                   value={values[key]}
                   onChange={(v) => onChange(key, v)}
                   schema={nestedField ?? nestedSchema}
+                  nestedSchema={nestedSchema}
                 >
                   <DynamicConfigForm
                     schema={nestedSchema}
