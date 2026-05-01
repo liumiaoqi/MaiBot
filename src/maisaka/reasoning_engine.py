@@ -52,7 +52,7 @@ if TYPE_CHECKING:
 
 logger = get_logger("maisaka_reasoning_engine")
 
-TIMING_GATE_CONTEXT_LIMIT = 24
+TIMING_GATE_CONTEXT_DROP_HEAD_RATIO = 0.7
 TIMING_GATE_MAX_TOKENS = 384
 TIMING_GATE_MAX_ATTEMPTS = 3
 TIMING_GATE_TOOL_NAMES = {"continue", "no_reply", "wait"}
@@ -124,7 +124,6 @@ class MaisakaReasoningEngine:
     async def _run_timing_gate_sub_agent(
         self,
         *,
-        context_message_limit: int,
         system_prompt: str,
         tool_definitions: list[dict[str, Any]],
     ) -> Any:
@@ -134,7 +133,10 @@ class MaisakaReasoningEngine:
         """
 
         return await self._runtime.run_sub_agent(
-            context_message_limit=context_message_limit,
+            context_message_limit=self._runtime._max_context_size,
+            drop_head_context_count=int(
+                self._runtime._max_context_size * TIMING_GATE_CONTEXT_DROP_HEAD_RATIO,
+            ),
             system_prompt=system_prompt,
             request_kind="timing_gate",
             interrupt_flag=None,
@@ -255,7 +257,6 @@ class MaisakaReasoningEngine:
         invalid_tool_text = ""
         for attempt_index in range(TIMING_GATE_MAX_ATTEMPTS):
             response = await self._run_timing_gate_sub_agent(
-                context_message_limit=TIMING_GATE_CONTEXT_LIMIT,
                 system_prompt=self._build_timing_gate_system_prompt(),
                 tool_definitions=get_timing_tools(),
             )

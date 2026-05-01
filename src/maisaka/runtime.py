@@ -45,6 +45,7 @@ from .context_messages import (
 from .display.display_utils import build_tool_call_summary_lines, format_token_count
 from .display.prompt_cli_renderer import PromptCLIVisualizer
 from .display.stage_status_board import remove_stage_status, update_stage_status
+from .history_utils import drop_leading_orphan_tool_results
 from .reasoning_engine import MaisakaReasoningEngine
 from .reply_effect import ReplyEffectTracker
 from .reply_effect.image_utils import extract_visual_attachments_from_sequence
@@ -583,6 +584,7 @@ class MaisakaHeartFlowChatting:
         self,
         *,
         context_message_limit: int,
+        drop_head_context_count: int = 0,
         system_prompt: str,
         request_kind: str = "sub_agent",
         extra_messages: Optional[Sequence[LLMContextMessage]] = None,
@@ -598,7 +600,10 @@ class MaisakaHeartFlowChatting:
             request_kind=request_kind,
             max_context_size=context_message_limit,
         )
-        sub_agent_history = list(selected_history)
+        sub_agent_history = self._drop_head_context_messages(
+            selected_history,
+            drop_head_context_count,
+        )
         if extra_messages:
             sub_agent_history.extend(list(extra_messages))
 
@@ -615,6 +620,31 @@ class MaisakaHeartFlowChatting:
             response_format=response_format,
             tool_definitions=[] if tool_definitions is None else tool_definitions,
         )
+
+    @staticmethod
+    def _drop_head_context_messages(
+        chat_history: Sequence[LLMContextMessage],
+        drop_context_count: int,
+    ) -> list[LLMContextMessage]:
+        """从已选上下文头部丢弃指定数量的普通上下文消息。"""
+
+        if drop_context_count <= 0:
+            return list(chat_history)
+
+        first_kept_index = 0
+        dropped_context_count = 0
+        while (
+            first_kept_index < len(chat_history)
+            and dropped_context_count < drop_context_count
+        ):
+            message = chat_history[first_kept_index]
+            if message.count_in_context:
+                dropped_context_count += 1
+            first_kept_index += 1
+
+        trimmed_history = list(chat_history[first_kept_index:])
+        trimmed_history, _ = drop_leading_orphan_tool_results(trimmed_history)
+        return trimmed_history
 
     async def _run_reply_effect_judge(self, prompt: str) -> str:
         """运行回复效果观察器使用的临时 LLM 评审。"""
