@@ -331,6 +331,23 @@
   .border-primary-gradient {
     border-image: var(--color-primary-gradient, linear-gradient(to right, hsl(var(--color-primary)), hsl(var(--color-primary)))) 1;
   }
+
+  /* 聊天消息行被回复点击命中时的高亮闪烁。 */
+  .chat-message-flash {
+    animation: chat-message-flash 1.6s ease-out;
+    border-radius: 0.75rem;
+  }
+}
+
+@keyframes chat-message-flash {
+  0% {
+    background-color: hsl(var(--color-primary) / 0.18);
+    box-shadow: 0 0 0 4px hsl(var(--color-primary) / 0.18);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: 0 0 0 0 transparent;
+  }
 }
 
 /* 禁用动效时的样式 */

@@ -49,20 +49,49 @@ export interface ChatTab {
     user_id?: string
     user_name?: string
     bot_name?: string
+    bot_qq?: string
   }
 }
 
 // 消息段类型
 export interface MessageSegment {
-  type: 'text' | 'image' | 'emoji' | 'face' | 'voice' | 'video' | 'music' | 'file' | 'reply' | 'forward' | 'unknown'
+  type:
+    | 'text'
+    | 'image'
+    | 'emoji'
+    | 'face'
+    | 'voice'
+    | 'video'
+    | 'music'
+    | 'file'
+    | 'reply'
+    | 'at'
+    | 'forward'
+    | 'unknown'
   data: string | number | object
   original_type?: string
+}
+
+// @某人 消息段的负载
+export interface AtSegmentData {
+  target_user_id?: string | null
+  target_user_nickname?: string | null
+  target_user_cardname?: string | null
+}
+
+// 回复消息段的负载
+export interface ReplySegmentData {
+  target_message_id?: string | null
+  target_message_content?: string | null
+  target_message_sender_id?: string | null
+  target_message_sender_nickname?: string | null
+  target_message_sender_cardname?: string | null
 }
 
 // 消息类型
 export interface ChatMessage {
   id: string
-  type: 'user' | 'bot' | 'system' | 'error' | 'thinking'
+  type: 'user' | 'bot' | 'system' | 'error'
   content: string
   timestamp: number
   message_type?: 'text' | 'rich'  // 消息格式类型
@@ -85,6 +114,7 @@ export interface WsMessage {
   user_id?: string
   user_name?: string
   bot_name?: string
+  bot_qq?: string
   sender?: {
     name: string
     user_id?: string
@@ -98,6 +128,8 @@ export interface WsMessage {
     sender_name?: string
     sender_id?: string
     is_bot?: boolean
+    message_type?: string
+    segments?: MessageSegment[] | null
   }>
   group_id?: string
   // 富文本消息

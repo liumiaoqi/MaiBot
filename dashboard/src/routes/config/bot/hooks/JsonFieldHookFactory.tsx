@@ -67,7 +67,7 @@ export function createJsonFieldHook(options: JsonFieldHookOptions): FieldHookCom
         <div className="space-y-1">
           <h3 className="text-base font-semibold">{label}</h3>
           {description && (
-            <p className="text-sm text-muted-foreground">{description}</p>
+            <p className="text-sm text-muted-foreground whitespace-pre-line">{description}</p>
           )}
           <p className="text-xs text-muted-foreground">{options.helperText}</p>
         </div>

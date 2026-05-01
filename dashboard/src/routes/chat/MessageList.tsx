@@ -1,11 +1,12 @@
 import { Bot, Sparkles, User } from 'lucide-react'
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 
+import { ChatScrollContext, type ChatScrollContextValue } from './ChatScrollContext'
 import { RenderMessageContent } from './MessageRenderer'
 import type { ChatMessage } from './types'
 
@@ -13,20 +14,27 @@ interface MessageListProps {
   messages: ChatMessage[]
   isLoadingHistory: boolean
   botDisplayName: string
+  /** 机器人 QQ 号；存在时会从 QQ 头像公开接口拉取头像作为 bot 头像。 */
+  botQq?: string
   userName: string
   language: string
 }
 
 interface BubbleAvatarProps {
-  type: 'user' | 'bot' | 'thinking'
+  type: 'user' | 'bot'
   visible: boolean
+  /** bot 头像 URL（可选）；加载失败时自动 fallback 到默认 SVG 图标。 */
+  imageUrl?: string
 }
 
-function BubbleAvatar({ type, visible }: BubbleAvatarProps) {
+function BubbleAvatar({ type, visible, imageUrl }: BubbleAvatarProps) {
   return (
     <div className="h-8 w-8 shrink-0 sm:h-9 sm:w-9">
       {visible && (
         <Avatar className="h-full w-full ring-1 ring-border/60">
+          {type === 'bot' && imageUrl ? (
+            <AvatarImage src={imageUrl} alt="" className="object-cover" />
+          ) : null}
           <AvatarFallback
             className={cn(
               'text-xs',
@@ -43,20 +51,6 @@ function BubbleAvatar({ type, visible }: BubbleAvatarProps) {
           </AvatarFallback>
         </Avatar>
       )}
-    </div>
-  )
-}
-
-function ThinkingBubble() {
-  const { t } = useTranslation()
-  return (
-    <div className="bg-muted/80 text-muted-foreground inline-flex items-center gap-2 rounded-2xl rounded-bl-sm px-3.5 py-2.5">
-      <span className="flex gap-1">
-        <span className="bg-primary/60 h-1.5 w-1.5 animate-bounce rounded-full [animation-delay:0ms]" />
-        <span className="bg-primary/60 h-1.5 w-1.5 animate-bounce rounded-full [animation-delay:150ms]" />
-        <span className="bg-primary/60 h-1.5 w-1.5 animate-bounce rounded-full [animation-delay:300ms]" />
-      </span>
-      <span className="text-xs">{t('chat.message.thinking')}</span>
     </div>
   )
 }
@@ -80,21 +74,41 @@ function EmptyState({ botName }: { botName: string }) {
 }
 
 /**
- * 聊天消息列表：支持连续同发送者消息分组、思考占位、富文本与系统/错误信息样式。
+ * 聊天消息列表：支持连续同发送者消息分组、富文本与系统/错误信息样式。
  */
 export function MessageList({
   messages,
   isLoadingHistory,
   botDisplayName,
+  botQq,
   userName,
   language,
 }: MessageListProps) {
   const { t } = useTranslation()
   const endRef = useRef<HTMLDivElement>(null)
+  const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  const scrollToMessage = useCallback((messageId: string) => {
+    const target = messageRefs.current.get(messageId)
+    if (!target) {
+      return false
+    }
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    target.classList.add('chat-message-flash')
+    window.setTimeout(() => {
+      target.classList.remove('chat-message-flash')
+    }, 1600)
+    return true
+  }, [])
+
+  const scrollContextValue = useMemo<ChatScrollContextValue>(
+    () => ({ scrollToMessage }),
+    [scrollToMessage]
+  )
 
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp * 1000)
@@ -103,6 +117,11 @@ export function MessageList({
       minute: '2-digit',
     })
   }
+
+  // 优先使用 q1.qlogo.cn s=640（高清），QQ 公开头像接口。
+  const botAvatarUrl = botQq && /^\d+$/.test(botQq)
+    ? `https://q1.qlogo.cn/g?b=qq&nk=${botQq}&s=640`
+    : undefined
 
   if (messages.length === 0 && !isLoadingHistory) {
     return (
@@ -127,7 +146,8 @@ export function MessageList({
         scrollbars="vertical"
         viewportClassName="[&>div]:!block [&>div]:!min-w-0 [&>div]:w-full"
       >
-        <div className="mx-auto flex w-full max-w-4xl min-w-0 flex-col gap-1 px-3 py-5 sm:px-6 sm:py-6">
+        <ChatScrollContext.Provider value={scrollContextValue}>
+          <div className="mx-auto flex w-full max-w-4xl min-w-0 flex-col gap-1 px-3 py-5 sm:px-6 sm:py-6">
           {messages.map((message, index) => {
             // 系统消息：作为分隔条
             if (message.type === 'system') {
@@ -154,8 +174,7 @@ export function MessageList({
             }
 
             const isUser = message.type === 'user'
-            const isThinking = message.type === 'thinking'
-            const bubbleType: 'user' | 'bot' | 'thinking' = isUser ? 'user' : isThinking ? 'thinking' : 'bot'
+            const bubbleType: 'user' | 'bot' = isUser ? 'user' : 'bot'
 
             // 是否与上一条消息属于同一发送者（用于分组：仅首条显示头像 + 名字）
             const previous = messages[index - 1]
@@ -171,13 +190,25 @@ export function MessageList({
             return (
               <div
                 key={message.id}
+                ref={(node) => {
+                  if (node) {
+                    messageRefs.current.set(message.id, node)
+                  } else {
+                    messageRefs.current.delete(message.id)
+                  }
+                }}
+                data-message-id={message.id}
                 className={cn(
-                  'flex w-full min-w-0 items-end gap-2 sm:gap-3',
+                  'chat-message-row flex w-full min-w-0 items-end gap-2 sm:gap-3',
                   isUser ? 'flex-row-reverse' : 'flex-row',
                   sameGroup ? 'mt-0.5' : 'mt-3 first:mt-0'
                 )}
               >
-                <BubbleAvatar type={bubbleType === 'thinking' ? 'bot' : bubbleType} visible={!sameGroup} />
+                <BubbleAvatar
+                  type={bubbleType}
+                  visible={!sameGroup}
+                  imageUrl={bubbleType === 'bot' ? botAvatarUrl : undefined}
+                />
 
                 <div
                   className={cn(
@@ -197,20 +228,16 @@ export function MessageList({
                     </div>
                   )}
 
-                  {isThinking ? (
-                    <ThinkingBubble />
-                  ) : (
-                    <div
-                      className={cn(
-                        'shadow-sm/30 wrap-break-word min-w-0 max-w-full overflow-hidden px-3.5 py-2 text-sm leading-relaxed',
-                        isUser
-                          ? 'bg-primary text-primary-foreground rounded-2xl rounded-br-md'
-                          : 'bg-muted text-foreground rounded-2xl rounded-bl-md'
-                      )}
-                    >
-                      <RenderMessageContent message={message} isBot={!isUser} />
-                    </div>
-                  )}
+                  <div
+                    className={cn(
+                      'shadow-sm/30 wrap-break-word min-w-0 max-w-full overflow-hidden px-3.5 py-2 text-sm leading-relaxed',
+                      isUser
+                        ? 'bg-primary text-primary-foreground rounded-2xl rounded-br-md'
+                        : 'bg-muted text-foreground rounded-2xl rounded-bl-md'
+                    )}
+                  >
+                    <RenderMessageContent message={message} isBot={!isUser} />
+                  </div>
                 </div>
               </div>
             )
@@ -220,7 +247,8 @@ export function MessageList({
           <span className="sr-only" aria-live="polite">
             {messages.length > 0 ? t('chat.sidebar.subtitle', { count: messages.length }) : ''}
           </span>
-        </div>
+          </div>
+        </ChatScrollContext.Provider>
       </ScrollArea>
     </div>
   )
