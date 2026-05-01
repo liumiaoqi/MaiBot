@@ -85,8 +85,31 @@ class ExpressionConfigUtils:
 
 class ChatConfigUtils:
     @staticmethod
-    def get_talk_value(session_id: Optional[str]) -> float:
-        result = global_config.chat.talk_value or 0.0
+    def _resolve_is_group_chat(session_id: Optional[str]) -> Optional[bool]:
+        if not session_id:
+            return None
+
+        try:
+            from src.chat.message_receive.chat_manager import chat_manager
+
+            chat_stream = chat_manager.get_session_by_session_id(session_id)
+        except Exception as e:
+            logger.debug(f"解析聊天流类型失败: session_id={session_id} error={e}")
+            return None
+        if chat_stream is None:
+            return None
+        return bool(chat_stream.is_group_session)
+
+    @staticmethod
+    def get_talk_value(session_id: Optional[str], is_group_chat: Optional[bool] = None) -> float:
+        if is_group_chat is None:
+            is_group_chat = ChatConfigUtils._resolve_is_group_chat(session_id)
+
+        result = (
+            global_config.chat.talk_value
+            if is_group_chat is not False
+            else global_config.chat.private_talk_value
+        ) or 0.0
         if not global_config.chat.enable_talk_value_rules or not global_config.chat.talk_value_rules:
             return result
         local_time = time.localtime()
@@ -121,6 +144,8 @@ class ChatConfigUtils:
         for rule in global_config.chat.talk_value_rules:
             if rule.platform or rule.item_id:
                 continue  # 只匹配全局规则
+            if is_group_chat is not None and (rule.rule_type == "group") != is_group_chat:
+                continue
             parsed_range = ChatConfigUtils.parse_range(rule.time)
             if not parsed_range:
                 continue  # 无法解析的时间范围，跳过

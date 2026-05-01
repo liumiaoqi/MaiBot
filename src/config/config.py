@@ -56,7 +56,7 @@ BOT_CONFIG_PATH: Path = (CONFIG_DIR / "bot_config.toml").resolve().absolute()
 MODEL_CONFIG_PATH: Path = (CONFIG_DIR / "model_config.toml").resolve().absolute()
 LEGACY_ENV_PATH: Path = (PROJECT_ROOT / ".env").resolve().absolute()
 MMC_VERSION: str = "1.0.0"
-CONFIG_VERSION: str = "8.9.17"
+CONFIG_VERSION: str = "8.9.20"
 MODEL_CONFIG_VERSION: str = "1.14.3"
 
 logger = get_logger("config")
@@ -196,8 +196,15 @@ class ConfigManager:
     def initialize(self):
         logger.info(t("config.current_version", version=MMC_VERSION))
         logger.info(t("config.loading"))
-        self.global_config = self.load_global_config()
-        self.model_config = self.load_model_config()
+        self.global_config, global_updated = load_config_from_file(Config, self.bot_config_path, CONFIG_VERSION)
+        self.model_config, model_updated = load_config_from_file(
+            ModelConfig,
+            self.model_config_path,
+            MODEL_CONFIG_VERSION,
+            True,
+        )
+        if global_updated or model_updated:
+            sys.exit(0)  # 配置已自动升级，退出一次让用户确认新配置后再启动
         logger.info(t("config.loaded"))
 
     def load_global_config(self) -> Config:

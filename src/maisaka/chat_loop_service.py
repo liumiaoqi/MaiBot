@@ -41,6 +41,11 @@ from .display.prompt_cli_renderer import PromptCLIVisualizer
 from .visual_mode_utils import resolve_enable_visual_planner
 
 TIMING_GATE_TOOL_NAMES = {"continue", "no_reply", "wait"}
+REQUEST_TYPE_BY_REQUEST_KIND = {
+    "planner": "maisaka_planner",
+    "timing_gate": "maisaka_timing_gate",
+}
+CONTEXT_SELECTION_CACHE_STABILITY_RATIO = 2.0
 
 
 @dataclass(slots=True)
@@ -212,13 +217,37 @@ class MaisakaChatLoopService:
             self._chat_system_prompt = f"{self._personality_prompt}\n\nYou are a helpful AI assistant."
         else:
             self._chat_system_prompt = chat_system_prompt
-        self._llm_chat = LLMServiceClient(task_name="planner", request_type="maisaka_planner")
+        self._llm_chat_clients: dict[str, LLMServiceClient] = {}
 
     @property
     def personality_prompt(self) -> str:
         """返回当前人格提示词。"""
 
         return self._personality_prompt
+
+    @staticmethod
+    def _resolve_llm_request_type(request_kind: str) -> str:
+        """根据 Maisaka 请求类型解析 LLM 统计口径。"""
+
+        normalized_request_kind = str(request_kind or "").strip()
+        return REQUEST_TYPE_BY_REQUEST_KIND.get(
+            normalized_request_kind,
+            f"maisaka_{normalized_request_kind}" if normalized_request_kind else "maisaka_planner",
+        )
+
+    def _get_llm_chat_client(self, request_kind: str) -> LLMServiceClient:
+        """获取当前请求类型对应的 planner LLM 客户端。"""
+
+        request_type = self._resolve_llm_request_type(request_kind)
+        llm_client = self._llm_chat_clients.get(request_type)
+        if llm_client is None:
+            llm_client = LLMServiceClient(
+                task_name="planner",
+                request_type=request_type,
+                session_id=self._session_id,
+            )
+            self._llm_chat_clients[request_type] = llm_client
+        return llm_client
 
     @staticmethod
     def _get_runtime_manager() -> Any:
@@ -282,15 +311,17 @@ class MaisakaChatLoopService:
         try:
             bot_name = global_config.bot.nickname
             if global_config.bot.alias_names:
-                bot_nickname = f", also known as {','.join(global_config.bot.alias_names)}"
+                bot_nickname = f"，也有人叫你{','.join(global_config.bot.alias_names)}"
             else:
                 bot_nickname = ""
 
-            prompt_personality = global_config.personality.personality
+            prompt_personality = global_config.personality.personality.strip()
+            if not prompt_personality:
+                prompt_personality = "是人类。"
 
-            return f"Your name is {bot_name}{bot_nickname}; persona: {prompt_personality};"
+            return f"你的名字是{bot_name}{bot_nickname}。\n{prompt_personality}"
         except Exception:
-            return "Your name is MaiMai; persona: lively and cute AI assistant."
+            return "你的名字是麦麦。\n是人类。"
 
     async def ensure_chat_prompt_loaded(self, tools_section: str = "") -> None:
         """确保主聊天提示词已经加载完成。
@@ -319,7 +350,13 @@ class MaisakaChatLoopService:
 
     @staticmethod
     def _build_time_block() -> str:
-        """构建当前时间提示块。"""
+        """构建静态时间提示块。"""
+
+        return "当前时间会在每次请求末尾以用户消息形式提供。"
+
+    @staticmethod
+    def _build_current_time_user_message() -> str:
+        """构建追加到请求末尾的当前时间消息。"""
 
         return f"当前时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
@@ -444,7 +481,11 @@ class MaisakaChatLoopService:
                 messages.append(llm_message)
 
         normalized_injected_messages: List[Message] = []
-        for injected_message in injected_user_messages or []:
+        final_user_messages = [
+            *(injected_user_messages or []),
+            self._build_current_time_user_message(),
+        ]
+        for injected_message in final_user_messages:
             normalized_message = str(injected_message or "").strip()
             if not normalized_message:
                 continue
@@ -456,30 +497,9 @@ class MaisakaChatLoopService:
             )
 
         if normalized_injected_messages:
-            insertion_index = self._resolve_injected_user_messages_insertion_index(messages)
-            messages[insertion_index:insertion_index] = normalized_injected_messages
+            messages.extend(normalized_injected_messages)
 
         return messages
-
-    @staticmethod
-    def _resolve_injected_user_messages_insertion_index(messages: Sequence[Message]) -> int:
-        """计算 injected meta user messages 在请求中的插入位置。
-
-        规则与 deferred attachment 更接近：
-        - 从尾部向前寻找最近的 stopping point；
-        - stopping point 为 assistant 消息或 tool 结果消息；
-        - 找到后插入到其后面；
-        - 若不存在 stopping point，则退回到 system 消息之后。
-        """
-
-        for index in range(len(messages) - 1, -1, -1):
-            message = messages[index]
-            if message.role in {RoleType.Assistant, RoleType.Tool}:
-                return index + 1
-
-        if messages and messages[0].role == RoleType.System:
-            return 1
-        return 0
 
     async def chat_loop_step(
         self,
@@ -573,7 +593,8 @@ class MaisakaChatLoopService:
                 tool_definitions=list(all_tools),
             )
 
-        generation_result = await self._llm_chat.generate_response_with_messages(
+        llm_chat = self._get_llm_chat_client(request_kind)
+        generation_result = await llm_chat.generate_response_with_messages(
             message_factory=message_factory,
             options=LLMGenerationOptions(
                 tool_options=all_tools if all_tools else None,
@@ -652,7 +673,11 @@ class MaisakaChatLoopService:
             chat_history,
             request_kind=request_kind,
         )
-        effective_context_size = max(1, int(max_context_size or global_config.chat.max_context_size))
+        base_context_size = max(1, int(max_context_size or global_config.chat.max_context_size))
+        effective_context_size = max(
+            base_context_size,
+            int(base_context_size * CONTEXT_SELECTION_CACHE_STABILITY_RATIO),
+        )
         selected_indices: List[int] = []
         counted_message_count = 0
 
@@ -688,9 +713,11 @@ class MaisakaChatLoopService:
         selected_history, _ = normalize_tool_result_order(selected_history)
         tool_message_count = sum(1 for message in selected_history if isinstance(message, ToolResultMessage))
         normal_message_count = len(selected_history) - tool_message_count
+        stability_text = f"|cache_window {base_context_size}->{effective_context_size}"
         selection_reason = (
             f"实际发送 {len(selected_history)} 条消息"
             f"|消息 {normal_message_count} 条|tool {tool_message_count} 条"
+            f"{stability_text}"
         )
         return (
             selected_history,

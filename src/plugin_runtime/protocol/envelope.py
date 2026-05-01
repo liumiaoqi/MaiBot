@@ -199,6 +199,21 @@ class ComponentDeclaration(BaseModel):
     """组件元数据"""
 
 
+class LLMProviderDeclaration(BaseModel):
+    """单个 LLM Provider 声明。"""
+
+    client_type: str = Field(description="客户端类型标识，对应模型配置中的 api_providers[].client_type")
+    """客户端类型标识。"""
+    name: str = Field(default="", description="Provider 展示名称")
+    """Provider 展示名称。"""
+    description: str = Field(default="", description="Provider 描述")
+    """Provider 描述。"""
+    version: str = Field(default="1.0.0", description="Provider 实现版本")
+    """Provider 实现版本。"""
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Provider 元数据")
+    """Provider 元数据。"""
+
+
 class RegisterPluginPayload(BaseModel):
     """插件组件注册请求载荷。
 
@@ -212,6 +227,8 @@ class RegisterPluginPayload(BaseModel):
     """插件版本"""
     components: List[ComponentDeclaration] = Field(default_factory=list, description="组件列表")
     """组件列表"""
+    llm_providers: List[LLMProviderDeclaration] = Field(default_factory=list, description="LLM Provider 声明列表")
+    """LLM Provider 声明列表。"""
     capabilities_required: List[str] = Field(default_factory=list, description="所需能力列表")
     """所需能力列表"""
     dependencies: List[str] = Field(default_factory=list, description="插件级依赖插件 ID 列表")
@@ -252,6 +269,17 @@ class InvokeResultPayload(BaseModel):
     """是否成功"""
     result: Any = Field(default=None, description="返回值")
     """返回值"""
+
+
+class LLMProviderInvokePayload(BaseModel):
+    """plugin.invoke_llm_provider 请求 payload。"""
+
+    client_type: str = Field(description="目标 LLM Provider 客户端类型")
+    """目标 LLM Provider 客户端类型。"""
+    operation: str = Field(description="请求操作类型")
+    """请求操作类型，如 response、embedding、audio_transcription。"""
+    request: Dict[str, Any] = Field(default_factory=dict, description="已序列化的 LLM 请求")
+    """已序列化的 LLM 请求。"""
 
 
 # ====== 能力调用消息 ======

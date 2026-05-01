@@ -23,7 +23,7 @@ from .expression_utils import is_single_char_jargon
 
 logger = get_logger("jargon")
 
-llm_inference = LLMServiceClient(task_name="replyer", request_type="jargon.inference")
+llm_inference = LLMServiceClient(task_name="utils", request_type="jargon.inference")
 
 
 class JargonEntry(TypedDict):

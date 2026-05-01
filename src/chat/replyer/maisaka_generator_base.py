@@ -83,6 +83,7 @@ class BaseMaisakaReplyGenerator:
         self.express_model = llm_client_cls(
             task_name="replyer",
             request_type=request_type,
+            session_id=getattr(chat_stream, "session_id", "") if chat_stream is not None else "",
         )
         self._personality_prompt = self._build_personality_prompt()
 
@@ -93,12 +94,14 @@ class BaseMaisakaReplyGenerator:
             alias_names = global_config.bot.alias_names
             bot_aliases = f"，也有人叫你{','.join(alias_names)}" if alias_names else ""
 
-            prompt_personality = global_config.personality.personality
+            prompt_personality = global_config.personality.personality.strip()
+            if not prompt_personality:
+                prompt_personality = "是人类。"
 
-            return f"你的名字是{bot_name}{bot_aliases}，你{prompt_personality};"
+            return f"你的名字是{bot_name}{bot_aliases}。\n{prompt_personality}"
         except Exception as exc:
             logger.warning(f"构建 Maisaka 人设提示词失败: {exc}")
-            return "你的名字是麦麦，你是一个活泼可爱的 AI 助手。"
+            return "你的名字是麦麦。\n是人类。"
 
     @staticmethod
     def _normalize_content(content: str, limit: int = 500) -> str:

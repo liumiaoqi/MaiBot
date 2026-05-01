@@ -45,6 +45,7 @@ from .context_messages import (
 from .display.display_utils import build_tool_call_summary_lines, format_token_count
 from .display.prompt_cli_renderer import PromptCLIVisualizer
 from .display.stage_status_board import remove_stage_status, update_stage_status
+from .history_utils import drop_leading_orphan_tool_results
 from .reasoning_engine import MaisakaReasoningEngine
 from .reply_effect import ReplyEffectTracker
 from .reply_effect.image_utils import extract_visual_attachments_from_sequence
@@ -103,7 +104,12 @@ class MaisakaHeartFlowChatting:
         self._recent_reply_latencies: deque[tuple[float, float]] = deque()
         self._wait_timeout_task: Optional[asyncio.Task[None]] = None
         self._max_internal_rounds = MAX_INTERNAL_ROUNDS
-        self._max_context_size = max(1, int(global_config.chat.max_context_size))
+        configured_context_size = (
+            global_config.chat.max_context_size
+            if self.chat_stream.is_group_session
+            else global_config.chat.max_private_context_size
+        )
+        self._max_context_size = max(1, int(configured_context_size))
         self._agent_state: Literal["running", "wait", "stop"] = self._STATE_STOP
         self._pending_wait_tool_call_id: Optional[str] = None
         self._force_next_timing_continue = False
@@ -293,7 +299,15 @@ class MaisakaHeartFlowChatting:
 
     def _get_effective_reply_frequency(self) -> float:
         """返回当前会话生效的回复频率。"""
-        talk_value = max(0.01, float(ChatConfigUtils.get_talk_value(self.session_id)))
+        talk_value = max(
+            0.01,
+            float(
+                ChatConfigUtils.get_talk_value(
+                    self.session_id,
+                    is_group_chat=self.chat_stream.is_group_session,
+                )
+            ),
+        )
         return max(0.01, talk_value * self._talk_frequency_adjust)
 
     async def track_reply_effect(
@@ -416,7 +430,7 @@ class MaisakaHeartFlowChatting:
         self._reply_latency_measurement_started_at = None
         self._recent_reply_latencies.append((time.time(), reply_duration))
         self._prune_recent_reply_latencies()
-        logger.info(
+        logger.debug(
             f"{self.log_prefix} 已记录消息回复时长: {reply_duration:.2f} 秒 "
             f"最近10分钟样本数={len(self._recent_reply_latencies)}"
         )
@@ -570,6 +584,7 @@ class MaisakaHeartFlowChatting:
         self,
         *,
         context_message_limit: int,
+        drop_head_context_count: int = 0,
         system_prompt: str,
         request_kind: str = "sub_agent",
         extra_messages: Optional[Sequence[LLMContextMessage]] = None,
@@ -585,7 +600,10 @@ class MaisakaHeartFlowChatting:
             request_kind=request_kind,
             max_context_size=context_message_limit,
         )
-        sub_agent_history = list(selected_history)
+        sub_agent_history = self._drop_head_context_messages(
+            selected_history,
+            drop_head_context_count,
+        )
         if extra_messages:
             sub_agent_history.extend(list(extra_messages))
 
@@ -602,6 +620,31 @@ class MaisakaHeartFlowChatting:
             response_format=response_format,
             tool_definitions=[] if tool_definitions is None else tool_definitions,
         )
+
+    @staticmethod
+    def _drop_head_context_messages(
+        chat_history: Sequence[LLMContextMessage],
+        drop_context_count: int,
+    ) -> list[LLMContextMessage]:
+        """从已选上下文头部丢弃指定数量的普通上下文消息。"""
+
+        if drop_context_count <= 0:
+            return list(chat_history)
+
+        first_kept_index = 0
+        dropped_context_count = 0
+        while (
+            first_kept_index < len(chat_history)
+            and dropped_context_count < drop_context_count
+        ):
+            message = chat_history[first_kept_index]
+            if message.count_in_context:
+                dropped_context_count += 1
+            first_kept_index += 1
+
+        trimmed_history = list(chat_history[first_kept_index:])
+        trimmed_history, _ = drop_leading_orphan_tool_results(trimmed_history)
+        return trimmed_history
 
     async def _run_reply_effect_judge(self, prompt: str) -> str:
         """运行回复效果观察器使用的临时 LLM 评审。"""
@@ -930,7 +973,7 @@ class MaisakaHeartFlowChatting:
             if self._pending_wait_tool_call_id != tool_call_id:
                 return
 
-            logger.info(f"{self.log_prefix} Maisaka 等待已超时")
+            logger.debug(f"{self.log_prefix} Maisaka 等待已超时")
             self._agent_state = self._STATE_RUNNING
             await self._internal_turn_queue.put("timeout")
         except asyncio.CancelledError:
@@ -1632,7 +1675,7 @@ class MaisakaHeartFlowChatting:
         return panels
 
     def _log_cycle_started(self, cycle_detail: CycleDetail, round_index: int) -> None:
-        logger.info(
+        logger.debug(
             f"{self.log_prefix} MaiSaka 轮次开始: 循环编号={cycle_detail.cycle_id} "
             f"回合={round_index + 1}/{self._max_internal_rounds} "
             f"上下文消息数={len(self._chat_history)}"
@@ -1640,14 +1683,14 @@ class MaisakaHeartFlowChatting:
 
     def _log_cycle_completed(self, cycle_detail: CycleDetail, timer_strings: list[str]) -> None:
         end_time = cycle_detail.end_time if cycle_detail.end_time is not None else cycle_detail.start_time
-        logger.info(
+        logger.debug(
             f"{self.log_prefix} MaiSaka 轮次结束: 循环编号={cycle_detail.cycle_id} "
             f"总耗时={end_time - cycle_detail.start_time:.2f} 秒; "
             f"阶段耗时={', '.join(timer_strings) if timer_strings else '无'}"
         )
 
     def _log_history_trimmed(self, removed_count: int, user_message_count: int) -> None:
-        logger.info(
+        logger.debug(
             f"{self.log_prefix} 已裁剪 {removed_count} 条历史消息; "
             # f"剩余计入上下文的消息数={user_message_count}"
         )

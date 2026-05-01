@@ -75,13 +75,13 @@ class PersonalityConfig(ConfigBase):
     __ui_icon__ = "user-circle"
 
     personality: str = Field(
-        default="是一个大二女大学生，现在正在上网和群友聊天。",
+        default="你是一个大二女大学生，现在正在上网和群友聊天。",
         json_schema_extra={
             "x-widget": "textarea",
             "x-icon": "user-circle",
         },
     )
-    """人格，建议100字以内，描述人格特质和身份特征"""
+    """人格，建议200字以内，描述人格特质和身份特征；可以写完整设定。要求第二人称"""
 
     reply_style: str = Field(
         default="你的风格平淡简短。可以参考贴吧，知乎和微博的回复风格。不浮夸不长篇大论，不要过分修辞和复杂句。尽量回复的简短一些，平淡一些",
@@ -179,6 +179,18 @@ class ChatConfig(ConfigBase):
     )
     """聊天频率，越小越沉默，范围0-1"""
 
+    private_talk_value: float = Field(
+        default=1,
+        ge=0,
+        le=1,
+        json_schema_extra={
+            "x-widget": "slider",
+            "x-icon": "message-circle",
+            "step": 0.1,
+        },
+    )
+    """私聊聊天频率，越小越沉默，范围0-1"""
+
     mentioned_bot_reply: bool = Field(
         default=False,
         json_schema_extra={
@@ -218,6 +230,15 @@ class ChatConfig(ConfigBase):
     )
     """上下文长度"""
     
+    max_private_context_size: int = Field(
+        default=40,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "layers",
+        },
+    )
+    """私聊上下文长度"""
+
     planner_interrupt_max_consecutive_count: int = Field(
         default=2,
         ge=0,
@@ -1241,7 +1262,7 @@ class DebugConfig(ConfigBase):
     __ui_icon__ = "more-horizontal"
 
     enable_maisaka_stage_board: bool = Field(
-        default=True,
+        default=False,
         json_schema_extra={
             "x-widget": "switch",
             "x-icon": "layout-dashboard",
@@ -1302,6 +1323,15 @@ class DebugConfig(ConfigBase):
         },
     )
     """是否记录 Replyer 请求体，默认关闭"""
+
+    enable_llm_cache_stats: bool = Field(
+        default=False,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "chart-no-axes-column",
+        },
+    )
+    """是否记录 LLM prompt cache 调试统计，默认关闭"""
 
 
 class ExtraPromptItem(ConfigBase):

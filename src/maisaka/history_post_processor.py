@@ -3,11 +3,11 @@
 from dataclasses import dataclass
 from math import ceil
 
-from .context_messages import AssistantMessage, LLMContextMessage
+from .context_messages import LLMContextMessage
 from .history_utils import drop_leading_orphan_tool_results, drop_orphan_tool_results, normalize_tool_result_order
 
-EARLY_TRIM_RATIO = 0.3
-TRIM_THRESHOLD_RATIO = 1.2
+TRIM_TARGET_RATIO = 1.0
+TRIM_THRESHOLD_RATIO = 2.0
 
 
 @dataclass(slots=True)
@@ -36,21 +36,16 @@ def process_chat_history_after_cycle(
     compact_removed_count = 0
     trim_threshold = ceil(max_context_size * TRIM_THRESHOLD_RATIO)
     if remaining_context_count > trim_threshold:
-        removed_early_message_count = _remove_early_history_messages(processed_history)
-        processed_history, removed_after_message_trim_count, moved_after_message_trim_count = (
-            _normalize_history_structure(processed_history)
+        target_context_count = max(1, int(max_context_size * TRIM_TARGET_RATIO))
+        removed_early_message_count = _trim_history_to_context_target(
+            processed_history,
+            target_context_count=target_context_count,
         )
-        removed_assistant_thought_count = _remove_early_assistant_thoughts(processed_history)
-        processed_history, removed_after_thought_trim_count, moved_after_thought_trim_count = (
-            _normalize_history_structure(processed_history)
+        processed_history, removed_after_trim_count, moved_after_trim_count = _normalize_history_structure(
+            processed_history
         )
-        compact_removed_count = (
-            removed_early_message_count
-            + removed_after_message_trim_count
-            + removed_assistant_thought_count
-            + removed_after_thought_trim_count
-        )
-        moved_tool_result_count += moved_after_message_trim_count + moved_after_thought_trim_count
+        compact_removed_count = removed_early_message_count + removed_after_trim_count
+        moved_tool_result_count += moved_after_trim_count
 
     remaining_context_count = sum(1 for message in processed_history if message.count_in_context)
     removed_count = normalized_removed_count + compact_removed_count
@@ -78,42 +73,27 @@ def _normalize_history_structure(
     )
 
 
-def _remove_early_history_messages(chat_history: list[LLMContextMessage]) -> int:
-    """移除最早 30% 的全部历史消息。"""
+def _trim_history_to_context_target(
+    chat_history: list[LLMContextMessage],
+    *,
+    target_context_count: int,
+) -> int:
+    """移除最早的一段历史，直到普通上下文消息数量降到目标值以内。"""
 
-    remove_count = int(len(chat_history) * EARLY_TRIM_RATIO)
+    remaining_context_count = sum(1 for message in chat_history if message.count_in_context)
+    if remaining_context_count <= target_context_count:
+        return 0
+
+    remove_count = 0
+    for message in chat_history:
+        remove_count += 1
+        if message.count_in_context:
+            remaining_context_count -= 1
+            if remaining_context_count <= target_context_count:
+                break
+
     if remove_count <= 0:
         return 0
 
     del chat_history[:remove_count]
     return remove_count
-
-
-def _remove_early_assistant_thoughts(chat_history: list[LLMContextMessage]) -> int:
-    """移除最早 30% 的非工具 assistant 思考内容。"""
-
-    candidate_indexes = [
-        index
-        for index, message in enumerate(chat_history)
-        if isinstance(message, AssistantMessage)
-        and not message.tool_calls
-        and message.source_kind != "perception"
-        and bool(message.content.strip())
-    ]
-    remove_count = int(len(candidate_indexes) * EARLY_TRIM_RATIO)
-    if remove_count <= 0:
-        return 0
-
-    removed_indexes = set(candidate_indexes[:remove_count])
-    filtered_history: list[LLMContextMessage] = []
-    removed_total = 0
-    for index, message in enumerate(chat_history):
-        if index in removed_indexes:
-            removed_total += 1
-            continue
-        filtered_history.append(message)
-
-    chat_history[:] = filtered_history
-    return removed_total
-
-
