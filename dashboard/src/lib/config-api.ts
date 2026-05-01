@@ -158,7 +158,14 @@ export async function fetchProviderModels(
     endpoint,
   })
   const response = await fetchWithAuth(`/api/webui/models/list?${params}`)
-  return parseResponse<ModelListItem[]>(response)
+  // 后端返回 { success, models, provider, count }，需要展开取出 models 数组
+  const parsed = await parseResponse<{ models?: ModelListItem[] } | ModelListItem[]>(response)
+  if (!parsed.success) {
+    return parsed
+  }
+  const body = parsed.data
+  const models = Array.isArray(body) ? body : Array.isArray(body?.models) ? body.models : []
+  return { success: true, data: models }
 }
 
 /**
