@@ -1324,6 +1324,15 @@ class DebugConfig(ConfigBase):
     )
     """是否记录 Replyer 请求体，默认关闭"""
 
+    enable_llm_cache_stats: bool = Field(
+        default=False,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "chart-no-axes-column",
+        },
+    )
+    """是否记录 LLM prompt cache 调试统计，默认关闭"""
+
 
 class ExtraPromptItem(ConfigBase):
     platform: str = Field(

@@ -182,6 +182,16 @@ class _LLMCacheStatsStore:
 _store = _LLMCacheStatsStore()
 
 
+def _is_llm_cache_stats_enabled() -> bool:
+    """读取调试配置，默认关闭 LLM prompt cache 统计。"""
+
+    try:
+        from src.config.config import global_config
+        return bool(global_config.debug.enable_llm_cache_stats)
+    except Exception:
+        return False
+
+
 def _normalize_request_type(request_type: str) -> str:
     normalized = str(request_type or "").strip()
     return normalized or "unknown"
@@ -1312,6 +1322,9 @@ def record_llm_cache_usage(
     prompt_text: str | None = None,
 ) -> None:
     """Record one LLM prompt cache usage event."""
+
+    if not _is_llm_cache_stats_enabled():
+        return
 
     normalized_task_name = str(task_name or "").strip()
     if normalized_task_name not in FOCUSED_TASK_NAMES:
