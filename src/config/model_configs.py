@@ -172,7 +172,7 @@ class APIProvider(ConfigBase):
     """工具参数解析模式。可选值：`auto`、`strict`、`repair`、`double_decode`。"""
 
     max_retry: int = Field(
-        default=2,
+        default=3,
         ge=0,
         json_schema_extra={
             "x-widget": "input",
@@ -182,7 +182,7 @@ class APIProvider(ConfigBase):
     """最大重试次数 (单个模型API调用失败, 最多重试的次数)"""
 
     timeout: int = Field(
-        default=10,
+        default=60,
         ge=1,
         json_schema_extra={
             "x-widget": "input",
@@ -193,7 +193,7 @@ class APIProvider(ConfigBase):
     """API调用的超时时长 (超过这个时长, 本次请求将被视为"请求超时", 单位: 秒)"""
 
     retry_interval: int = Field(
-        default=10,
+        default=5,
         ge=1,
         json_schema_extra={
             "x-widget": "input",
