@@ -16,6 +16,7 @@ interface InstalledTabProps {
   checkPluginCompatibility: (plugin: PluginInfo) => boolean
   needsUpdate: (plugin: PluginInfo) => boolean
   getStatusBadge: (plugin: PluginInfo) => React.JSX.Element | null
+  getIncompatibleReason: (plugin: PluginInfo) => string | null
 }
 
 export function InstalledTab({
@@ -33,6 +34,7 @@ export function InstalledTab({
   checkPluginCompatibility,
   needsUpdate,
   getStatusBadge,
+  getIncompatibleReason,
 }: InstalledTabProps) {
   // 过滤已安装插件
   const filteredPlugins = plugins.filter(plugin => {
@@ -80,6 +82,7 @@ export function InstalledTab({
           checkPluginCompatibility={checkPluginCompatibility}
           needsUpdate={needsUpdate}
           getStatusBadge={getStatusBadge}
+          getIncompatibleReason={getIncompatibleReason}
         />
       ))}
     </div>

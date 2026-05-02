@@ -9,7 +9,7 @@ httpx
 jieba>=0.42.1
 json-repair>=0.47.6
 maim-message>=0.6.2
-maibot-plugin-sdk>=1.2.3,<2.0.0
+maibot-plugin-sdk>=2.4.0
 mcp
 msgpack>=1.1.2
 numpy>=2.2.6

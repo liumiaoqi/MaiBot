@@ -223,7 +223,7 @@ def is_mentioned_bot_in_message(message: SessionMessage) -> tuple[bool, bool, fl
                 break
 
     # 7) 概率设置
-    if is_at and getattr(global_config.chat, "at_bot_inevitable_reply", 1):
+    if is_at and getattr(global_config.chat, "inevitable_at_reply", 1):
         reply_probability = 1.0
         logger.debug("被@，回复概率设置为100%")
     elif is_mentioned and getattr(global_config.chat, "mentioned_bot_reply", 1):

@@ -481,7 +481,7 @@ class MaisakaHeartFlowChatting:
 
         should_force_reply = (
             reply_probability_boost >= 1.0
-            or (message.is_at and global_config.chat.at_bot_inevitable_reply)
+            or (message.is_at and global_config.chat.inevitable_at_reply)
             or (message.is_mentioned and global_config.chat.mentioned_bot_reply)
         )
         if not should_force_reply or (not message.is_at and not message.is_mentioned):

@@ -85,11 +85,11 @@ const modelConfigRoute = createRoute({
   component: lazyRouteComponent(() => import('./routes/config/model'), 'ModelConfigPage'),
 })
 
-// 配置路由 - 麦麦适配器配置
+// 配置路由 - 麦麦适配器配置（已停用，引导跳转到插件配置；旧实现保留在 ./routes/config/adapter）
 const adapterConfigRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/config/adapter',
-  component: lazyRouteComponent(() => import('./routes/config/adapter'), 'AdapterConfigPage'),
+  component: lazyRouteComponent(() => import('./routes/config/adapter-disabled'), 'AdapterConfigPage'),
 })
 
 // 资源管理路由 - 表情包管理
