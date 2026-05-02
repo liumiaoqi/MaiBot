@@ -473,13 +473,18 @@ class MaisakaHeartFlowChatting:
     def _update_message_trigger_state(self, message: SessionMessage) -> None:
         """补齐消息中的 @/提及 标记，并在命中时启用强制 continue。"""
 
-        detected_mentioned, detected_at, _ = is_mentioned_bot_in_message(message)
+        detected_mentioned, detected_at, reply_probability_boost = is_mentioned_bot_in_message(message)
         if detected_at:
             message.is_at = True
         if detected_mentioned:
             message.is_mentioned = True
 
-        if not message.is_at and not message.is_mentioned:
+        should_force_reply = (
+            reply_probability_boost >= 1.0
+            or (message.is_at and global_config.chat.at_bot_inevitable_reply)
+            or (message.is_mentioned and global_config.chat.mentioned_bot_reply)
+        )
+        if not should_force_reply or (not message.is_at and not message.is_mentioned):
             return
 
         self._arm_force_next_timing_continue(
@@ -536,6 +541,11 @@ class MaisakaHeartFlowChatting:
         self._force_next_timing_message_id = ""
         self._force_next_timing_reason = ""
         return reason
+
+    def _has_forced_timing_trigger(self) -> bool:
+        """判断是否已有 @/提及必回触发，需绕过普通频率阈值。"""
+
+        return self._force_next_timing_continue
 
     def _bind_planner_interrupt_flag(self, interrupt_flag: asyncio.Event) -> None:
         """绑定当前可打断请求使用的中断标记。"""
@@ -865,6 +875,12 @@ class MaisakaHeartFlowChatting:
 
         pending_count = self._get_pending_message_count()
         if pending_count <= 0:
+            return
+
+        if self._has_forced_timing_trigger():
+            self._cancel_deferred_message_turn_task()
+            self._message_turn_scheduled = True
+            self._internal_turn_queue.put_nowait("message")
             return
 
         trigger_threshold = self._get_message_trigger_threshold()
