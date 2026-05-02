@@ -6,7 +6,9 @@ import { useTour } from './use-tour'
 // Joyride 主题配置
 const joyrideStyles = {
   options: {
-    zIndex: 10000,
+    // 提到 portal 容器（99999）之上，确保 overlay/spotlight/tooltip 都在最上层；
+    // overlay 的 z-index 由 react-joyride 内部基于 options.zIndex 推算，必须大于 floater 才能让 tooltip 按钮可点击。
+    zIndex: 100000,
     primaryColor: 'hsl(var(--color-primary))',
     textColor: 'hsl(var(--color-foreground))',
     backgroundColor: 'hsl(var(--color-background))',
@@ -197,13 +199,6 @@ export function TourRenderer() {
       locale={locale}
       scrollOffset={80}
       scrollToFirstStep
-      floaterProps={{
-        styles: {
-          floater: {
-            zIndex: 99999,
-          },
-        },
-      }}
     />
   )
 

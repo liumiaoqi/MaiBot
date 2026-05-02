@@ -20,6 +20,7 @@ interface PluginCardProps {
   checkPluginCompatibility: (plugin: PluginInfo) => boolean
   needsUpdate: (plugin: PluginInfo) => boolean
   getStatusBadge: (plugin: PluginInfo) => React.JSX.Element | null
+  getIncompatibleReason: (plugin: PluginInfo) => string | null
 }
 
 export function PluginCard({
@@ -34,6 +35,7 @@ export function PluginCard({
   checkPluginCompatibility,
   needsUpdate,
   getStatusBadge,
+  getIncompatibleReason,
 }: PluginCardProps) {
   const navigate = useNavigate()
 
@@ -114,8 +116,14 @@ export function PluginCard({
             needsUpdate(plugin) ? (
               <Button 
                 size="sm"
-                disabled={!gitStatus?.installed}
-                title={!gitStatus?.installed ? 'Git 未安装' : undefined}
+                disabled={!gitStatus?.installed || (maimaiVersion !== null && !checkPluginCompatibility(plugin))}
+                title={
+                  !gitStatus?.installed
+                    ? 'Git 未安装'
+                    : (maimaiVersion !== null && !checkPluginCompatibility(plugin))
+                      ? (getIncompatibleReason(plugin) ?? '插件与当前麦麦版本不兼容')
+                      : undefined
+                }
                 onClick={() => onUpdate(plugin)}
               >
                 <RefreshCw className="h-4 w-4 mr-1" />
@@ -145,7 +153,7 @@ export function PluginCard({
                 !gitStatus?.installed 
                   ? 'Git 未安装' 
                   : (maimaiVersion !== null && !checkPluginCompatibility(plugin))
-                    ? `不兼容当前版本 (需要 ${plugin.manifest?.host_application?.min_version || '未知'}${plugin.manifest?.host_application?.max_version ? ` - ${plugin.manifest.host_application.max_version}` : '+'}，当前 ${maimaiVersion?.version})`
+                    ? (getIncompatibleReason(plugin) ?? '插件与当前麦麦版本不兼容')
                     : undefined
               }
               onClick={() => onInstall(plugin)}

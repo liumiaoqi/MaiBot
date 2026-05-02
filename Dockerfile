@@ -1,44 +1,27 @@
-# 编译 LPMM
-FROM python:3.13-slim AS lpmm-builder
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
-
-WORKDIR /MaiMBot-LPMM
-
-# 同级目录下需要有 MaiMBot-LPMM
-COPY MaiMBot-LPMM /MaiMBot-LPMM
-
-# 安装编译器和编译依赖
-RUN apt-get update && apt-get install -y build-essential
-RUN uv pip install --system --upgrade pip
-RUN cd /MaiMBot-LPMM && uv pip install --system -r requirements.txt
-
-# 编译 LPMM
-RUN cd /MaiMBot-LPMM/lib/quick_algo && python build_lib.py --cleanup --cythonize --install
-
-# 运行环境
+# Runtime image
 FROM python:3.13-slim
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-# 工作目录
+# Working directory
 WORKDIR /MaiMBot
 
 ENV MAIBOT_LEGACY_0X_UPGRADE_CONFIRMED=1
 
-# 复制依赖列表
+# Copy dependency list
 COPY requirements.txt .
 
 RUN apt-get update && apt-get install -y git
 
-# 从编译阶段复制 LPMM 编译结果
-COPY --from=lpmm-builder /usr/local/lib/python3.13/site-packages/ /usr/local/lib/python3.13/site-packages/
-
-# 安装运行时依赖
+# Install runtime dependencies
 RUN uv pip install --system --upgrade pip
 RUN uv pip install --system -r requirements.txt
 
-# 复制项目代码
+# Copy project source
 COPY . .
+
+RUN git clone --depth 1 --branch plugin https://github.com/Mai-with-u/MaiBot-Napcat-Adapter.git plugin-templates/MaiBot-Napcat-Adapter
+RUN chmod +x docker-entrypoint.sh
 
 EXPOSE 8000
 
-ENTRYPOINT [ "python","bot.py" ]
+ENTRYPOINT [ "./docker-entrypoint.sh" ]

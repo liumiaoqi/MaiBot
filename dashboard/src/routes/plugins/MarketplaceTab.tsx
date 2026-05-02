@@ -16,6 +16,7 @@ interface MarketplaceTabProps {
   checkPluginCompatibility: (plugin: PluginInfo) => boolean
   needsUpdate: (plugin: PluginInfo) => boolean
   getStatusBadge: (plugin: PluginInfo) => React.JSX.Element | null
+  getIncompatibleReason: (plugin: PluginInfo) => string | null
 }
 
 export function MarketplaceTab({
@@ -33,6 +34,7 @@ export function MarketplaceTab({
   checkPluginCompatibility,
   needsUpdate,
   getStatusBadge,
+  getIncompatibleReason,
 }: MarketplaceTabProps) {
   // 过滤插件
   const filteredPlugins = plugins.filter(plugin => {
@@ -76,6 +78,7 @@ export function MarketplaceTab({
           checkPluginCompatibility={checkPluginCompatibility}
           needsUpdate={needsUpdate}
           getStatusBadge={getStatusBadge}
+          getIncompatibleReason={getIncompatibleReason}
         />
       ))}
     </div>
