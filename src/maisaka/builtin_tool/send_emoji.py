@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from io import BytesIO
+from json import dumps
 from random import sample
 from typing import Any, Dict, Optional
 
@@ -17,9 +18,8 @@ from src.emoji_system.maisaka_tool import send_emoji_for_maisaka
 from src.common.data_models.image_data_model import MaiEmoji
 from src.common.data_models.message_component_data_model import ImageComponent, MessageSequence, TextComponent
 from src.common.logger import get_logger
-from src.config.config import global_config
+from src.config.config import config_manager, global_config
 from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
-from src.llm_models.payload_content.resp_format import RespFormat, RespFormatType
 from src.llm_models.payload_content.message import MessageBuilder, RoleType
 from src.maisaka.context_messages import (
     LLMContextMessage,
@@ -221,6 +221,7 @@ def _build_send_emoji_monitor_detail(
     detail: Dict[str, Any] = {}
     if isinstance(request_messages, list) and request_messages:
         detail["request_messages"] = request_messages
+        detail["prompt_text"] = dumps(request_messages, ensure_ascii=False, indent=2)
     if reasoning_text.strip():
         detail["reasoning_text"] = reasoning_text.strip()
     if output_text.strip():
@@ -279,6 +280,24 @@ def _build_send_emoji_monitor_metadata(
     return {}
 
 
+def _resolve_emoji_selector_model_task_name() -> str:
+    """根据 planner 模型视觉能力选择表情选择子代理的模型任务。"""
+
+    model_config = config_manager.get_model_config()
+    planner_models = [
+        model_name
+        for model_name in model_config.model_task_config.planner.model_list
+        if str(model_name).strip()
+    ]
+    models_by_name = {model.name: model for model in model_config.models}
+    if planner_models and all(
+        model_name in models_by_name and models_by_name[model_name].visual
+        for model_name in planner_models
+    ):
+        return "planner"
+    return "vlm"
+
+
 async def _select_emoji_with_sub_agent(
     tool_ctx: BuiltinToolRuntimeContext,
     reasoning: str,
@@ -326,7 +345,8 @@ async def _select_emoji_with_sub_agent(
     prompt_llm_message = prompt_message.to_llm_message()
     if prompt_llm_message is not None:
         request_messages.append(prompt_llm_message)
-    candidate_llm_message = candidate_message.to_llm_message()
+    candidate_to_llm_message = getattr(candidate_message, "to_llm_message", None)
+    candidate_llm_message = candidate_to_llm_message() if callable(candidate_to_llm_message) else None
     if candidate_llm_message is not None:
         request_messages.append(candidate_llm_message)
     serialized_request_messages = serialize_prompt_messages(request_messages)
@@ -337,10 +357,7 @@ async def _select_emoji_with_sub_agent(
         system_prompt=system_prompt,
         extra_messages=[prompt_message, candidate_message],
         max_tokens=_EMOJI_SUB_AGENT_MAX_TOKENS,
-        response_format=RespFormat(
-            format_type=RespFormatType.JSON_SCHEMA,
-            schema=EmojiSelectionResult,
-        ),
+        model_task_name=_resolve_emoji_selector_model_task_name(),
     )
     selection_duration_ms = round((datetime.now() - selection_started_at).total_seconds() * 1000, 2)
 
@@ -409,12 +426,16 @@ async def handle_tool(
         "reason": "",
     }
     selection_metadata: Dict[str, Any] = {"reason": "", "monitor_detail": {}}
+    requested_emotion = ""
+    if isinstance(invocation.arguments, dict):
+        requested_emotion = str(invocation.arguments.get("emotion") or "").strip()
 
     logger.info(f"{tool_ctx.runtime.log_prefix} 触发表情包发送工具")
 
     try:
         send_result = await send_emoji_for_maisaka(
             stream_id=tool_ctx.runtime.session_id,
+            requested_emotion=requested_emotion,
             reasoning=tool_ctx.engine.last_reasoning_content,
             context_texts=context_texts,
             emoji_selector=lambda _requested_emotion, reasoning, context_texts, sample_size: _select_emoji_with_sub_agent(

@@ -4,8 +4,6 @@ from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Optional, TYPE_CHECKING
 
-import random
-
 from src.chat.message_receive.chat_manager import chat_manager
 from src.cli.maisaka_cli_sender import CLI_PLATFORM_NAME, render_cli_message
 from src.common.data_models.image_data_model import MaiEmoji
@@ -121,45 +119,13 @@ def _normalize_emotions(emoji: MaiEmoji) -> list[str]:
     return []
 
 
-async def select_emoji_for_maisaka(
-    *,
-    requested_emotion: str = "",
-    reasoning: str = "",
-    context_texts: Sequence[str] | None = None,
-    sample_size: int = 30,
-) -> tuple[MaiEmoji | None, str]:
-    """为 Maisaka 选择一个合适的表情。"""
-
-    del reasoning, context_texts
-
-    available_emojis = list(emoji_manager.emojis)
-    if not available_emojis:
-        return None, ""
-
-    normalized_requested_emotion = requested_emotion.strip()
-    if normalized_requested_emotion:
-        matched_emojis = [
-            emoji
-            for emoji in available_emojis
-            if normalized_requested_emotion.lower() in (emotion.lower() for emotion in _normalize_emotions(emoji))
-        ]
-        if matched_emojis:
-            return random.choice(matched_emojis), normalized_requested_emotion
-
-    sampled_emojis = random.sample(
-        available_emojis,
-        min(max(sample_size, 1), len(available_emojis)),
-    )
-    return random.choice(sampled_emojis), ""
-
-
 async def send_emoji_for_maisaka(
     *,
     stream_id: str,
+    emoji_selector: EmojiSelector,
     requested_emotion: str = "",
     reasoning: str = "",
     context_texts: Sequence[str] | None = None,
-    emoji_selector: EmojiSelector | None = None,
 ) -> MaisakaEmojiSendResult:
     """为 Maisaka 选择并发送一个表情。"""
 
@@ -194,20 +160,12 @@ async def send_emoji_for_maisaka(
         normalized_context_texts = _normalize_context_texts(before_select_kwargs.get("context_texts"))
     sample_size = _coerce_positive_int(before_select_kwargs.get("sample_size"), sample_size)
 
-    if emoji_selector is None:
-        selected_emoji, matched_emotion = await select_emoji_for_maisaka(
-            requested_emotion=normalized_requested_emotion,
-            reasoning=normalized_reasoning,
-            context_texts=normalized_context_texts,
-            sample_size=sample_size,
-        )
-    else:
-        selected_emoji, matched_emotion = await emoji_selector(
-            normalized_requested_emotion,
-            normalized_reasoning,
-            normalized_context_texts,
-            sample_size,
-        )
+    selected_emoji, matched_emotion = await emoji_selector(
+        normalized_requested_emotion,
+        normalized_reasoning,
+        normalized_context_texts,
+        sample_size,
+    )
     after_select_result = await _get_runtime_manager().invoke_hook(
         "emoji.maisaka.after_select",
         stream_id=stream_id,

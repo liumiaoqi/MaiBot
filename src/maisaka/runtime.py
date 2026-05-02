@@ -600,6 +600,7 @@ class MaisakaHeartFlowChatting:
         extra_messages: Optional[Sequence[LLMContextMessage]] = None,
         interrupt_flag: asyncio.Event | None = None,
         max_tokens: int = 512,
+        model_task_name: str = "planner",
         response_format: RespFormat | None = None,
         tool_definitions: Optional[Sequence[ToolDefinitionInput]] = None,
     ) -> ChatResponse:
@@ -622,6 +623,7 @@ class MaisakaHeartFlowChatting:
             session_id=self.session_id,
             is_group_chat=self.chat_stream.is_group_session,
             max_tokens=max_tokens,
+            model_task_name=model_task_name,
         )
         sub_agent.set_interrupt_flag(interrupt_flag)
         return await sub_agent.chat_loop_step(
