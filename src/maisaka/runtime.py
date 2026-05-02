@@ -473,13 +473,18 @@ class MaisakaHeartFlowChatting:
     def _update_message_trigger_state(self, message: SessionMessage) -> None:
         """补齐消息中的 @/提及 标记，并在命中时启用强制 continue。"""
 
-        detected_mentioned, detected_at, _ = is_mentioned_bot_in_message(message)
+        detected_mentioned, detected_at, reply_probability_boost = is_mentioned_bot_in_message(message)
         if detected_at:
             message.is_at = True
         if detected_mentioned:
             message.is_mentioned = True
 
-        if not message.is_at and not message.is_mentioned:
+        should_force_reply = (
+            reply_probability_boost >= 1.0
+            or (message.is_at and global_config.chat.at_bot_inevitable_reply)
+            or (message.is_mentioned and global_config.chat.mentioned_bot_reply)
+        )
+        if not should_force_reply or (not message.is_at and not message.is_mentioned):
             return
 
         self._arm_force_next_timing_continue(
@@ -537,6 +542,11 @@ class MaisakaHeartFlowChatting:
         self._force_next_timing_reason = ""
         return reason
 
+    def _has_forced_timing_trigger(self) -> bool:
+        """判断是否已有 @/提及必回触发，需绕过普通频率阈值。"""
+
+        return self._force_next_timing_continue
+
     def _bind_planner_interrupt_flag(self, interrupt_flag: asyncio.Event) -> None:
         """绑定当前可打断请求使用的中断标记。"""
         self._planner_interrupt_flag = interrupt_flag
@@ -590,6 +600,7 @@ class MaisakaHeartFlowChatting:
         extra_messages: Optional[Sequence[LLMContextMessage]] = None,
         interrupt_flag: asyncio.Event | None = None,
         max_tokens: int = 512,
+        model_task_name: str = "planner",
         response_format: RespFormat | None = None,
         tool_definitions: Optional[Sequence[ToolDefinitionInput]] = None,
     ) -> ChatResponse:
@@ -603,6 +614,7 @@ class MaisakaHeartFlowChatting:
         sub_agent_history = self._drop_head_context_messages(
             selected_history,
             drop_head_context_count,
+            trim_threshold_context_count=context_message_limit,
         )
         if extra_messages:
             sub_agent_history.extend(list(extra_messages))
@@ -612,6 +624,7 @@ class MaisakaHeartFlowChatting:
             session_id=self.session_id,
             is_group_chat=self.chat_stream.is_group_session,
             max_tokens=max_tokens,
+            model_task_name=model_task_name,
         )
         sub_agent.set_interrupt_flag(interrupt_flag)
         return await sub_agent.chat_loop_step(
@@ -625,10 +638,19 @@ class MaisakaHeartFlowChatting:
     def _drop_head_context_messages(
         chat_history: Sequence[LLMContextMessage],
         drop_context_count: int,
+        *,
+        trim_threshold_context_count: int | None = None,
     ) -> list[LLMContextMessage]:
         """从已选上下文头部丢弃指定数量的普通上下文消息。"""
 
         if drop_context_count <= 0:
+            return list(chat_history)
+
+        context_message_count = sum(1 for message in chat_history if message.count_in_context)
+        if trim_threshold_context_count is not None and context_message_count <= trim_threshold_context_count:
+            return list(chat_history)
+
+        if context_message_count <= drop_context_count:
             return list(chat_history)
 
         first_kept_index = 0
@@ -865,6 +887,12 @@ class MaisakaHeartFlowChatting:
 
         pending_count = self._get_pending_message_count()
         if pending_count <= 0:
+            return
+
+        if self._has_forced_timing_trigger():
+            self._cancel_deferred_message_turn_task()
+            self._message_turn_scheduled = True
+            self._internal_turn_queue.put_nowait("message")
             return
 
         trigger_threshold = self._get_message_trigger_threshold()

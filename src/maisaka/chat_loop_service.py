@@ -194,6 +194,7 @@ class MaisakaChatLoopService:
         session_id: Optional[str] = None,
         is_group_chat: Optional[bool] = None,
         max_tokens: int = 2048,
+        model_task_name: str = "planner",
     ) -> None:
         """初始化 Maisaka 对话循环服务。
 
@@ -205,6 +206,7 @@ class MaisakaChatLoopService:
         """
 
         self._max_tokens = max_tokens
+        self._model_task_name = model_task_name.strip() or "planner"
         self._is_group_chat = is_group_chat
         self._session_id = session_id or ""
         self._extra_tools: List[ToolOption] = []
@@ -236,17 +238,18 @@ class MaisakaChatLoopService:
         )
 
     def _get_llm_chat_client(self, request_kind: str) -> LLMServiceClient:
-        """获取当前请求类型对应的 planner LLM 客户端。"""
+        """获取当前请求类型对应的 LLM 客户端。"""
 
         request_type = self._resolve_llm_request_type(request_kind)
-        llm_client = self._llm_chat_clients.get(request_type)
+        client_key = f"{self._model_task_name}:{request_type}"
+        llm_client = self._llm_chat_clients.get(client_key)
         if llm_client is None:
             llm_client = LLMServiceClient(
-                task_name="planner",
+                task_name=self._model_task_name,
                 request_type=request_type,
                 session_id=self._session_id,
             )
-            self._llm_chat_clients[request_type] = llm_client
+            self._llm_chat_clients[client_key] = llm_client
         return llm_client
 
     @staticmethod

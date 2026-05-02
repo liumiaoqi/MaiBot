@@ -1,6 +1,7 @@
 from datetime import datetime
 from types import SimpleNamespace
 
+import asyncio
 import pytest
 
 from src.core.tooling import ToolExecutionResult, ToolInvocation
@@ -8,6 +9,7 @@ from src.llm_models.payload_content.tool_option import ToolCall
 from src.maisaka.chat_loop_service import ChatResponse, MaisakaChatLoopService
 from src.maisaka.context_messages import AssistantMessage, TIMING_GATE_INVALID_TOOL_HINT_SOURCE
 from src.maisaka.reasoning_engine import MaisakaReasoningEngine
+from src.maisaka.runtime import MaisakaHeartFlowChatting
 
 
 def _build_chat_response(tool_calls: list[ToolCall]) -> ChatResponse:
@@ -173,6 +175,29 @@ def test_timing_gate_invalid_tool_hint_only_visible_to_timing_gate() -> None:
     assert planner_history == []
 
 
+def test_forced_timing_trigger_bypasses_message_frequency_threshold() -> None:
+    runtime = SimpleNamespace(
+        _STATE_WAIT="wait",
+        _agent_state="stop",
+        _message_turn_scheduled=False,
+        _internal_turn_queue=asyncio.Queue(),
+        _has_pending_messages=lambda: True,
+        _get_pending_message_count=lambda: 1,
+        _has_forced_timing_trigger=lambda: True,
+        _cancel_deferred_message_turn_task=lambda: None,
+    )
+
+    def _fail_get_message_trigger_threshold() -> int:
+        raise AssertionError("@/提及必回不应被普通聊天频率阈值拦住")
+
+    runtime._get_message_trigger_threshold = _fail_get_message_trigger_threshold
+
+    MaisakaHeartFlowChatting._schedule_message_turn(runtime)  # type: ignore[arg-type]
+
+    assert runtime._message_turn_scheduled is True
+    assert runtime._internal_turn_queue.get_nowait() == "message"
+
+
 def test_finish_tool_is_not_written_back_to_history() -> None:
     finish_call = ToolCall(call_id="finish-call", func_name="finish", args={})
     reply_call = ToolCall(call_id="reply-call", func_name="reply", args={})
@@ -213,3 +238,47 @@ def test_finish_tool_removes_empty_assistant_history_message() -> None:
     )
 
     assert runtime._chat_history == []
+
+
+def test_timing_gate_head_trim_keeps_short_history() -> None:
+    messages = [
+        AssistantMessage(content="第一条消息", timestamp=datetime.now()),
+        AssistantMessage(content="第二条消息", timestamp=datetime.now()),
+    ]
+
+    trimmed_messages = MaisakaHeartFlowChatting._drop_head_context_messages(
+        messages,
+        drop_context_count=3,
+    )
+
+    assert trimmed_messages == messages
+
+
+def test_timing_gate_head_trim_keeps_history_within_config_limit() -> None:
+    messages = [
+        AssistantMessage(content=f"消息 {index}", timestamp=datetime.now())
+        for index in range(10)
+    ]
+
+    trimmed_messages = MaisakaHeartFlowChatting._drop_head_context_messages(
+        messages,
+        drop_context_count=7,
+        trim_threshold_context_count=10,
+    )
+
+    assert trimmed_messages == messages
+
+
+def test_timing_gate_head_trim_applies_after_config_limit_exceeded() -> None:
+    messages = [
+        AssistantMessage(content=f"消息 {index}", timestamp=datetime.now())
+        for index in range(11)
+    ]
+
+    trimmed_messages = MaisakaHeartFlowChatting._drop_head_context_messages(
+        messages,
+        drop_context_count=7,
+        trim_threshold_context_count=10,
+    )
+
+    assert trimmed_messages == messages[7:]
