@@ -1,22 +1,4 @@
 services:
-  adapters:
-    container_name: maim-bot-adapters
-    #### prod ####
-    image: unclas/maimbot-adapter:latest
-    # image: infinitycat/maimbot-adapter:latest
-    #### dev ####
-    # image: unclas/maimbot-adapter:dev
-    # image: infinitycat/maimbot-adapter:dev
-    environment:
-      - TZ=Asia/Shanghai
-#    ports:
-#      - "8095:8095"
-    volumes:
-      - ./docker-config/adapters/config.toml:/adapters/config.toml # 持久化adapters配置文件
-      - ./data/adapters:/adapters/data # adapters 数据持久化
-    restart: always
-    networks:
-      - maim_bot
   core:
     container_name: maim-bot-core
     #### prod ####
@@ -36,7 +18,6 @@ services:
     volumes:
       # 监听地址和端口已迁移到 ./docker-config/mmc/bot_config.toml 的 maim_message 与 webui 配置段
       - ./docker-config/mmc:/MaiMBot/config # 持久化bot配置文件
-      - ./docker-config/adapters:/MaiMBot/adapters-config # adapter配置文件夹映射
       - ./data/MaiMBot/maibot_statistics.html:/MaiMBot/maibot_statistics.html #统计数据输出
       - ./data/MaiMBot:/MaiMBot/data # 共享目录
       - ./data/MaiMBot/plugins:/MaiMBot/plugins # 插件目录
