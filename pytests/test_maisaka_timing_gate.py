@@ -238,3 +238,47 @@ def test_finish_tool_removes_empty_assistant_history_message() -> None:
     )
 
     assert runtime._chat_history == []
+
+
+def test_timing_gate_head_trim_keeps_short_history() -> None:
+    messages = [
+        AssistantMessage(content="第一条消息", timestamp=datetime.now()),
+        AssistantMessage(content="第二条消息", timestamp=datetime.now()),
+    ]
+
+    trimmed_messages = MaisakaHeartFlowChatting._drop_head_context_messages(
+        messages,
+        drop_context_count=3,
+    )
+
+    assert trimmed_messages == messages
+
+
+def test_timing_gate_head_trim_keeps_history_within_config_limit() -> None:
+    messages = [
+        AssistantMessage(content=f"消息 {index}", timestamp=datetime.now())
+        for index in range(10)
+    ]
+
+    trimmed_messages = MaisakaHeartFlowChatting._drop_head_context_messages(
+        messages,
+        drop_context_count=7,
+        trim_threshold_context_count=10,
+    )
+
+    assert trimmed_messages == messages
+
+
+def test_timing_gate_head_trim_applies_after_config_limit_exceeded() -> None:
+    messages = [
+        AssistantMessage(content=f"消息 {index}", timestamp=datetime.now())
+        for index in range(11)
+    ]
+
+    trimmed_messages = MaisakaHeartFlowChatting._drop_head_context_messages(
+        messages,
+        drop_context_count=7,
+        trim_threshold_context_count=10,
+    )
+
+    assert trimmed_messages == messages[7:]

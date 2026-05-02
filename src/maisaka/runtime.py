@@ -614,6 +614,7 @@ class MaisakaHeartFlowChatting:
         sub_agent_history = self._drop_head_context_messages(
             selected_history,
             drop_head_context_count,
+            trim_threshold_context_count=context_message_limit,
         )
         if extra_messages:
             sub_agent_history.extend(list(extra_messages))
@@ -637,10 +638,19 @@ class MaisakaHeartFlowChatting:
     def _drop_head_context_messages(
         chat_history: Sequence[LLMContextMessage],
         drop_context_count: int,
+        *,
+        trim_threshold_context_count: int | None = None,
     ) -> list[LLMContextMessage]:
         """从已选上下文头部丢弃指定数量的普通上下文消息。"""
 
         if drop_context_count <= 0:
+            return list(chat_history)
+
+        context_message_count = sum(1 for message in chat_history if message.count_in_context)
+        if trim_threshold_context_count is not None and context_message_count <= trim_threshold_context_count:
+            return list(chat_history)
+
+        if context_message_count <= drop_context_count:
             return list(chat_history)
 
         first_kept_index = 0
