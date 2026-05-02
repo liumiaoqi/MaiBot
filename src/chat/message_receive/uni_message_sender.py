@@ -36,9 +36,9 @@ def get_webui_chat_broadcaster() -> Tuple[Any, Optional[str], Optional[str]]:
     if _webui_chat_broadcaster is None:
         try:
             from src.webui.routers.chat import WEBUI_CHAT_PLATFORM, chat_manager
-            from src.webui.routers.chat.service import WEBUI_CHAT_GROUP_ID
 
-            _webui_chat_broadcaster = (chat_manager, WEBUI_CHAT_PLATFORM, WEBUI_CHAT_GROUP_ID)
+            # 默认不再强制虚拟群聊；WebUI 默认走私聊频道，需要的话由调用者传入虚拟群 ID。
+            _webui_chat_broadcaster = (chat_manager, WEBUI_CHAT_PLATFORM, None)
         except ImportError:
             _webui_chat_broadcaster = (None, None, None)
     return _webui_chat_broadcaster
@@ -98,6 +98,14 @@ async def _send_message(message: SessionMessage, show_log: bool = True) -> bool:
                 message_type = "rich"
                 segments = message_segments
 
+            # 私聊场景下出站消息的 user_info 是机器人自己的身份，
+            # 真正的接收者用户 ID 由 send_service 写入 ``platform_io_target_user_id``。
+            target_user_id = ""
+            additional_config = message.message_info.additional_config or {}
+            raw_target_user_id = additional_config.get("platform_io_target_user_id")
+            if raw_target_user_id:
+                target_user_id = str(raw_target_user_id).strip()
+
             await chat_manager.broadcast_to_group(
                 group_id=group_id or default_group_id or "",
                 message={
@@ -113,6 +121,7 @@ async def _send_message(message: SessionMessage, show_log: bool = True) -> bool:
                         "is_bot": True,
                     },
                 },
+                user_id=target_user_id,
             )
 
             # 注意：机器人消息会由 MessageStorage.store_message 自动保存到数据库

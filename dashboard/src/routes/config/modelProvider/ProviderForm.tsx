@@ -138,7 +138,11 @@ export function ProviderForm({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={(e) => { e.preventDefault(); handleSaveEdit(); }} autoComplete="off">
+        <form
+          onSubmit={(e) => { e.preventDefault(); handleSaveEdit(); }}
+          autoComplete="off"
+          className="contents"
+        >
           <DialogBody>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2" data-tour="provider-template-select">

@@ -54,7 +54,7 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed left-[50%] top-[50%] z-50 grid w-[min(calc(100vw-2rem),var(--dialog-width,32rem))] max-h-[calc(100vh-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 overflow-hidden border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg",
+        "fixed left-[50%] top-[50%] z-50 flex w-[min(calc(100vw-2rem),var(--dialog-width,32rem))] max-h-[calc(100vh-2rem)] translate-x-[-50%] translate-y-[-50%] flex-col gap-4 overflow-hidden border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg",
         className
       )}
       onPointerDownOutside={preventOutsideClose ? (e) => e.preventDefault() : undefined}
@@ -94,13 +94,17 @@ const DialogContent = React.forwardRef<
 DialogContent.displayName = DialogPrimitive.Content.displayName
 
 const DialogBody = React.forwardRef<HTMLDivElement, DialogBodyProps>(
-  ({ className, children, allowHorizontalScroll = false, contentClassName, scrollbars, viewportClassName, ...props }, ref) => (
+  ({ className, children, allowHorizontalScroll = false, contentClassName, scrollbars, viewportClassName, type, ...props }, ref) => (
+    // 关键：在 flex-col 的 DialogContent 中，DialogBody 既要在内容多时撑到 max-h 上限并滚动，
+    // 又要在内容少时让 dialog 自然收缩。直接在 ScrollArea Root 上 flex-1 + min-h-0 即可：
+    // Radix Viewport 内部 wrapper 默认 display:table 会撑开自然高度，所以需要强制 block。
     <ScrollArea
       ref={ref as never}
-      className={cn("min-h-0 flex-1", className)}
+      className={cn("min-h-0 flex-1 flex flex-col", className)}
       contentClassName={cn(allowHorizontalScroll && "min-w-full w-max", contentClassName)}
       scrollbars={scrollbars ?? (allowHorizontalScroll ? "both" : "vertical")}
-      viewportClassName={cn("pr-4", viewportClassName)}
+      viewportClassName={cn("min-h-0 flex-1 pr-4 [&>div]:!block", viewportClassName)}
+      type={type ?? "always"}
       {...props}
     >
       {children}

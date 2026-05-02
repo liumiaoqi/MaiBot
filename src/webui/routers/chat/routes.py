@@ -13,10 +13,10 @@ from src.config.config import global_config
 from src.webui.dependencies import require_auth
 
 from .service import (
-    WEBUI_CHAT_GROUP_ID,
     WEBUI_CHAT_PLATFORM,
     chat_history,
     chat_manager,
+    normalize_webui_user_id,
 )
 
 logger = get_logger("webui.chat")
@@ -30,10 +30,15 @@ async def get_chat_history(
     user_id: Optional[str] = Query(default=None),
     group_id: Optional[str] = Query(default=None),
 ) -> Dict[str, object]:
-    """获取聊天历史记录。"""
-    del user_id
-    target_group_id = group_id or WEBUI_CHAT_GROUP_ID
-    history = chat_history.get_history(limit, target_group_id)
+    """获取聊天历史记录。
+
+    优先按 ``group_id`` 加载虚拟群聊历史；未提供时使用规范化后的 ``user_id`` 加载 WebUI 私聊历史。
+    """
+    if group_id:
+        history = chat_history.get_history(limit, group_id=group_id)
+    else:
+        normalized_user_id = normalize_webui_user_id(user_id)
+        history = chat_history.get_history(limit, user_id=normalized_user_id)
     return {"success": True, "messages": history, "total": len(history)}
 
 
@@ -100,10 +105,18 @@ async def get_persons_by_platform(
 
 @router.delete("/history")
 async def clear_chat_history(
+    user_id: Optional[str] = Query(default=None),
     group_id: Optional[str] = Query(default=None),
 ) -> Dict[str, object]:
-    """清空聊天历史记录。"""
-    deleted = chat_history.clear_history(group_id)
+    """清空聊天历史记录。
+
+    优先按 ``group_id`` 清理虚拟群聊历史；未提供时使用规范化后的 ``user_id`` 清理 WebUI 私聊历史。
+    """
+    if group_id:
+        deleted = chat_history.clear_history(group_id=group_id)
+    else:
+        normalized_user_id = normalize_webui_user_id(user_id)
+        deleted = chat_history.clear_history(user_id=normalized_user_id)
     return {"success": True, "message": f"已清空 {deleted} 条聊天记录"}
 
 
@@ -113,6 +126,5 @@ async def get_chat_info() -> Dict[str, object]:
     return {
         "bot_name": global_config.bot.nickname,
         "platform": WEBUI_CHAT_PLATFORM,
-        "group_id": WEBUI_CHAT_GROUP_ID,
         "active_sessions": len(chat_manager.active_connections),
     }

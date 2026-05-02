@@ -22,9 +22,8 @@ interface ChatWorkspaceSidebarProps {
   onUpdateUserName: (name: string) => void
 }
 
-function getMessagePreview(message: ChatMessage | undefined, fallback: string, thinking: string) {
+function getMessagePreview(message: ChatMessage | undefined, fallback: string) {
   if (!message) return fallback
-  if (message.type === 'thinking') return thinking
   if (message.type === 'system' || message.type === 'error') return message.content || fallback
   return message.content || fallback
 }
@@ -45,8 +44,7 @@ function ConversationItem({
   const lastMessage = tab.messages[tab.messages.length - 1]
   const preview = getMessagePreview(
     lastMessage,
-    t('chat.sidebar.emptyPreview'),
-    t('chat.message.thinking')
+    t('chat.sidebar.emptyPreview')
   )
   const Icon = isVirtual ? UserCircle2 : Bot
 

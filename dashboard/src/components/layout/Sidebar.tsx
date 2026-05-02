@@ -29,7 +29,7 @@ export function Sidebar({
   return (
     <aside
       className={cn(
-        'fixed inset-y-0 left-0 z-50 isolate flex flex-col border-r transition-all duration-300 lg:relative lg:z-0',
+        'fixed inset-y-0 left-0 z-50 isolate flex flex-col border-r transition-all duration-300 lg:relative lg:z-0 lg:h-full',
         inheritsPageBackground ? 'bg-transparent' : 'bg-card',
         // 移动端始终显示完整宽度，桌面端根据 sidebarOpen 切换
         'w-64 lg:w-auto',
@@ -46,9 +46,11 @@ export function Sidebar({
 
       <ScrollArea className={cn(
         'relative z-10',
-        "flex-1 overflow-x-hidden",
+        "min-h-0 flex-1 overflow-x-hidden",
         !sidebarOpen && "lg:w-16"
-      )}>
+      )}
+      viewportClassName="[&>div]:!block"
+      >
         <nav
           aria-label={t('a11y.sidebarNav')}
           className={cn(

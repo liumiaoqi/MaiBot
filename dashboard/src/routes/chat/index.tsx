@@ -214,6 +214,7 @@ export function ChatPage() {
               user_id: data.user_id,
               user_name: data.user_name,
               bot_name: data.bot_name,
+              bot_qq: data.bot_qq,
             },
           })
           break
@@ -278,7 +279,6 @@ export function ChatPage() {
           setTabs((prev) =>
             prev.map((tab) => {
               if (tab.id !== tabId) return tab
-              const filteredMessages = tab.messages.filter((msg) => msg.type !== 'thinking')
               const newMessage: ChatMessage = {
                 id: generateMessageId('bot'),
                 type: 'bot',
@@ -290,7 +290,7 @@ export function ChatPage() {
               }
               return {
                 ...tab,
-                messages: [...filteredMessages, newMessage],
+                messages: [...tab.messages, newMessage],
               }
             })
           )
@@ -305,11 +305,10 @@ export function ChatPage() {
           setTabs((prev) =>
             prev.map((tab) => {
               if (tab.id !== tabId) return tab
-              const filteredMessages = tab.messages.filter((msg) => msg.type !== 'thinking')
               return {
                 ...tab,
                 messages: [
-                  ...filteredMessages,
+                  ...tab.messages,
                   {
                     id: generateMessageId('error'),
                     type: 'error' as const,
@@ -330,33 +329,27 @@ export function ChatPage() {
         case 'history': {
           const historyMessages = data.messages || []
           const processedSet = new Set<string>()
-          const formattedMessages: ChatMessage[] = historyMessages.map(
-            (msg: {
-              id?: string
-              content: string
-              timestamp: number
-              sender_name?: string
-              sender_id?: string
-              is_bot?: boolean
-            }) => {
-              const isBot = msg.is_bot || false
-              const msgId = msg.id || generateMessageId(isBot ? 'bot' : 'user')
-              const contentHash = `${isBot ? 'bot' : 'user'}-${msg.content}-${Math.floor(msg.timestamp * 1000)}`
-              processedSet.add(contentHash)
-              return {
-                id: msgId,
-                type: isBot ? 'bot' : ('user' as const),
-                content: msg.content,
-                timestamp: msg.timestamp,
-                sender: {
-                  name:
-                    msg.sender_name || (isBot ? t('chat.botNameFallback') : t('chat.userFallback')),
-                  user_id: msg.sender_id,
-                  is_bot: isBot,
-                },
-              }
+          const formattedMessages: ChatMessage[] = historyMessages.map((msg) => {
+            const isBot = msg.is_bot || false
+            const msgId = msg.id || generateMessageId(isBot ? 'bot' : 'user')
+            const contentHash = `${isBot ? 'bot' : 'user'}-${msg.content}-${Math.floor(msg.timestamp * 1000)}`
+            processedSet.add(contentHash)
+            const isRich = msg.message_type === 'rich' && Array.isArray(msg.segments) && msg.segments.length > 0
+            return {
+              id: msgId,
+              type: isBot ? 'bot' : ('user' as const),
+              content: msg.content,
+              timestamp: msg.timestamp,
+              message_type: isRich ? 'rich' : 'text',
+              segments: isRich ? (msg.segments ?? undefined) : undefined,
+              sender: {
+                name:
+                  msg.sender_name || (isBot ? t('chat.botNameFallback') : t('chat.userFallback')),
+                user_id: msg.sender_id,
+                is_bot: isBot,
+              },
             }
-          )
+          })
 
           processedMessagesMapRef.current.set(tabId, processedSet)
           updateTab(tabId, { messages: formattedMessages })
@@ -509,19 +502,6 @@ export function ChatPage() {
     }
     addMessageToTab(activeTabId, userMessage)
 
-    // 再添加"思考中"占位消息
-    const thinkingMessage: ChatMessage = {
-      id: generateMessageId('thinking'),
-      type: 'thinking',
-      content: '',
-      timestamp: currentTimestamp + 0.001, // 稍微晚一点确保顺序
-      sender: {
-        name: activeTab?.sessionInfo.bot_name || t('chat.botNameFallback'),
-        is_bot: true,
-      },
-    }
-    addMessageToTab(activeTabId, thinkingMessage)
-
     setInputValue('')
 
     try {
@@ -534,7 +514,6 @@ export function ChatPage() {
           return {
             ...tab,
             isTyping: false,
-            messages: tab.messages.filter((msg) => msg.type !== 'thinking'),
           }
         })
       )
@@ -759,6 +738,7 @@ export function ChatPage() {
           messages={activeTab?.messages ?? []}
           isLoadingHistory={isLoadingHistory}
           botDisplayName={botDisplayName}
+          botQq={activeTab?.sessionInfo.bot_qq}
           userName={userName}
           language={i18n.language}
         />

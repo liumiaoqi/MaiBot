@@ -70,11 +70,15 @@ class ConfigSchemaGenerator:
     ) -> Dict[str, Any]:
         field_docs = config_class.get_class_field_docs()
         field_type = cls._map_field_type(annotation)
+        raw_description = field_docs.get(field_name, field_info.description or "")
+        # `_wrap_` 标记在配置类 docstring 中表示该说明应作为块级注释（独立成行）
+        # 在前端展示时把它转为换行符，使描述以新行起始或在中间换行
+        description = raw_description.replace("_wrap_", "\n").strip("\n")
         schema: Dict[str, Any] = {
             "name": field_name,
             "type": field_type,
             "label": field_name,
-            "description": field_docs.get(field_name, field_info.description or ""),
+            "description": description,
             "required": field_info.is_required(),
         }
 
