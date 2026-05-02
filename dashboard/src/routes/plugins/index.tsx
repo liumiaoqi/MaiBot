@@ -268,8 +268,8 @@ function PluginsPageContent() {
 
   // 获取插件状态徽章
   const getStatusBadge = (plugin: PluginInfo) => {
-    // 优先显示兼容性状态
-    if (!plugin.installed && maimaiVersion && !checkPluginCompatibility(plugin)) {
+    // 优先显示兼容性状态（已安装但不兼容也需要提示，避免用户误以为可继续更新）
+    if (maimaiVersion && !checkPluginCompatibility(plugin)) {
       return (
         <Badge variant="destructive" className="gap-1">
           <AlertCircle className="h-3 w-3" />
@@ -317,9 +317,20 @@ function PluginsPageContent() {
   }
 
   // 检查插件兼容性
+  // 规则：
+  // 1. manifest_version === 1 的插件在麦麦 >= 1.0.0 时一律视为不兼容（旧 manifest 已不再被宿主接受）；
+  // 2. 否则若声明了 host_application 范围，则按版本范围判定。
   const checkPluginCompatibility = (plugin: PluginInfo): boolean => {
-    if (!maimaiVersion || !plugin.manifest?.host_application) return true
-    
+    if (!maimaiVersion) return true
+
+    // manifest v1 在 1.0.0+ 麦麦上不再兼容
+    const manifestVersion = plugin.manifest?.manifest_version ?? 1
+    if (manifestVersion <= 1 && maimaiVersion.version_major >= 1) {
+      return false
+    }
+
+    if (!plugin.manifest?.host_application) return true
+
     return isPluginCompatible(
       plugin.manifest.host_application.min_version,
       plugin.manifest.host_application.max_version,
@@ -327,9 +338,33 @@ function PluginsPageContent() {
     )
   }
 
+  // 不兼容原因（用于 UI 提示）
+  const getIncompatibleReason = (plugin: PluginInfo): string | null => {
+    if (!maimaiVersion) return null
+    const manifestVersion = plugin.manifest?.manifest_version ?? 1
+    if (manifestVersion <= 1 && maimaiVersion.version_major >= 1) {
+      return `该插件使用旧版 manifest (v${manifestVersion})，已不被麦麦 ${maimaiVersion.version} 支持`
+    }
+    if (plugin.manifest?.host_application && !isPluginCompatible(
+      plugin.manifest.host_application.min_version,
+      plugin.manifest.host_application.max_version,
+      maimaiVersion
+    )) {
+      const min = plugin.manifest.host_application.min_version || '未知'
+      const max = plugin.manifest.host_application.max_version
+      const range = max ? `${min} - ${max}` : `${min}+`
+      return `不兼容当前版本 (需要 ${range}，当前 ${maimaiVersion.version})`
+    }
+    return null
+  }
+
   // 检查是否需要更新（市场版本比已安装版本新）
   const needsUpdate = (plugin: PluginInfo): boolean => {
     if (!plugin.installed || !plugin.installed_version || !plugin.manifest?.version) {
+      return false
+    }
+    // 不兼容的插件不允许更新
+    if (!checkPluginCompatibility(plugin)) {
       return false
     }
     
@@ -368,7 +403,7 @@ function PluginsPageContent() {
     if (maimaiVersion && !checkPluginCompatibility(plugin)) {
       toast({
         title: '无法安装',
-        description: '插件与当前麦麦版本不兼容',
+        description: getIncompatibleReason(plugin) ?? '插件与当前麦麦版本不兼容',
         variant: 'destructive',
       })
       return
@@ -521,6 +556,16 @@ function PluginsPageContent() {
       toast({
         title: '无法更新',
         description: 'Git 未安装',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // 不兼容的插件不允许更新
+    if (maimaiVersion && !checkPluginCompatibility(plugin)) {
+      toast({
+        title: '无法更新',
+        description: getIncompatibleReason(plugin) ?? '插件与当前麦麦版本不兼容',
         variant: 'destructive',
       })
       return
@@ -833,6 +878,7 @@ function PluginsPageContent() {
             checkPluginCompatibility={checkPluginCompatibility}
             needsUpdate={needsUpdate}
             getStatusBadge={getStatusBadge}
+            getIncompatibleReason={getIncompatibleReason}
           />
         ) : activeTab === 'installed' ? (
           <InstalledTab
@@ -850,6 +896,7 @@ function PluginsPageContent() {
             checkPluginCompatibility={checkPluginCompatibility}
             needsUpdate={needsUpdate}
             getStatusBadge={getStatusBadge}
+            getIncompatibleReason={getIncompatibleReason}
           />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
