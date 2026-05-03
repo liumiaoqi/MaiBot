@@ -38,6 +38,7 @@ export interface FieldSchema {
   properties?: ConfigSchema
   'x-widget'?: XWidgetType
   'x-icon'?: string
+  advanced?: boolean
   step?: number
 }
 

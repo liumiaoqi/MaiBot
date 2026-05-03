@@ -1,6 +1,5 @@
-from typing import Any, Dict, List, get_args, get_origin
-
 import inspect
+from typing import Any, Dict, List, get_args, get_origin
 
 from pydantic_core import PydanticUndefined
 
@@ -19,6 +18,8 @@ class ConfigSchemaGenerator:
 
         for field_name, field_info in config_class.model_fields.items():
             if field_name in {"field_docs", "_validate_any", "suppress_any_warning"}:
+                continue
+            if cls._is_advanced_field(field_info):
                 continue
 
             field_schema = cls._build_field_schema(config_class, field_name, field_info.annotation, field_info)
@@ -48,6 +49,13 @@ class ConfigSchemaGenerator:
             schema["uiIcon"] = ui_icon
 
         return schema
+
+    @staticmethod
+    def _is_advanced_field(field_info: Any) -> bool:
+        extra = getattr(field_info, "json_schema_extra", None)
+        if not isinstance(extra, dict):
+            return False
+        return extra.get("advanced", False) is True
 
     @classmethod
     def _build_nested_schema(cls, annotation: Any) -> Dict[str, Any] | None:

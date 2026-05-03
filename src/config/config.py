@@ -179,6 +179,8 @@ class ModelConfig(ConfigBase):
 class ConfigManager:
     """总配置管理类"""
 
+    VLM_NOT_CONFIGURED_WARNING: str = "未配置视觉识图模型，部分图片理解可能受限，请在webui或model_config中配置"
+
     def __init__(self):
         self.bot_config_path: Path = BOT_CONFIG_PATH
         self.model_config_path: Path = MODEL_CONFIG_PATH
@@ -205,7 +207,14 @@ class ConfigManager:
         )
         if global_updated or model_updated:
             sys.exit(0)  # 配置已自动升级，退出一次让用户确认新配置后再启动
+        self._warn_if_vlm_not_configured(self.model_config)
         logger.info(t("config.loaded"))
+
+    @classmethod
+    def _warn_if_vlm_not_configured(cls, model_config: ModelConfig) -> None:
+        if any(model_name.strip() for model_name in model_config.model_task_config.vlm.model_list):
+            return
+        logger.warning(cls.VLM_NOT_CONFIGURED_WARNING)
 
     def load_global_config(self) -> Config:
         config, updated = load_config_from_file(Config, self.bot_config_path, CONFIG_VERSION)

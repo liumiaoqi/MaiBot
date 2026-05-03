@@ -101,6 +101,7 @@ class PersonalityConfig(ConfigBase):
             "带点翻译腔，但不要太长",
         ],
         json_schema_extra={
+            "advanced": True,
             "x-widget": "custom",
             "x-icon": "list",
         },
@@ -112,6 +113,7 @@ class PersonalityConfig(ConfigBase):
         ge=0,
         le=1,
         json_schema_extra={
+            "advanced": True,
             "x-widget": "slider",
             "x-icon": "percent",
             "step": 0.1,
@@ -876,6 +878,7 @@ class EmojiConfig(ConfigBase):
     content_filtration: bool = Field(
         default=False,
         json_schema_extra={
+            "advanced": True,
             "x-widget": "switch",
             "x-icon": "filter",
         },
@@ -885,6 +888,7 @@ class EmojiConfig(ConfigBase):
     filtration_prompt: str = Field(
         default="符合公序良俗",
         json_schema_extra={
+            "advanced": True,
             "x-widget": "input",
             "x-icon": "shield",
         },
