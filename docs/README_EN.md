@@ -122,7 +122,7 @@ We welcome everyone interested in MaiBot to join us.
 
 ## 🙋 Contributing and Acknowledgments
 
-Contributions are welcome. Please read the [Contribution Guide](../docs-src/CONTRIBUTE.md) first.
+Contributions are welcome. Please read the [Contribution Guide](CONTRIBUTE.md) first.
 
 ### 🌟 Contributors
 
