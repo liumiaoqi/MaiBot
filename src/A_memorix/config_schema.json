@@ -74,7 +74,7 @@
         "enabled": {
           "name": "enabled",
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "是否启用 A_Memorix",
           "label": "启用 A_Memorix",
           "ui_type": "switch",
@@ -82,7 +82,7 @@
           "hidden": false,
           "disabled": false,
           "order": 1,
-          "hint": "关闭后 A_Memorix 不会参与长期记忆写入、检索与运维。",
+          "hint": "默认关闭以简化首次配置；开启前请先配置可用的 embedding 模型。关闭后 A_Memorix 不会参与长期记忆写入、检索与运维。",
           "choices": null
         }
       }

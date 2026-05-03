@@ -48,6 +48,9 @@ class AMemorixHostService:
         self._config_cache: Dict[str, Any] | None = None
 
     async def start(self) -> None:
+        if not self.is_enabled():
+            logger.info("A_Memorix 未启用，跳过长期记忆运行时初始化")
+            return
         await self._ensure_kernel()
 
     async def stop(self) -> None:
@@ -57,9 +60,13 @@ class AMemorixHostService:
     async def reload(self) -> None:
         async with self._lock:
             await self._shutdown_locked()
-            self._config_cache = self._read_config()
+            self._config_cache = None
+            config = self._read_config()
 
-        await self._ensure_kernel()
+        if self._is_enabled_config(config):
+            await self._ensure_kernel()
+        else:
+            logger.info("A_Memorix 配置为未启用，运行时保持关闭")
 
     def get_config_path(self) -> Path:
         return config_path()
@@ -87,6 +94,16 @@ class AMemorixHostService:
 
     def get_config(self) -> Dict[str, Any]:
         return dict(self._read_config())
+
+    def is_enabled(self) -> bool:
+        return self._is_enabled_config(self._read_config())
+
+    @staticmethod
+    def _is_enabled_config(config: Dict[str, Any]) -> bool:
+        plugin_config = config.get("plugin") if isinstance(config, dict) else None
+        if not isinstance(plugin_config, dict):
+            return True
+        return bool(plugin_config.get("enabled", True))
 
     def _build_default_config(self) -> Dict[str, Any]:
         schema = self.get_config_schema()
@@ -172,6 +189,8 @@ class AMemorixHostService:
     async def invoke(self, component_name: str, args: Dict[str, Any] | None = None, *, timeout_ms: int = 30000) -> Any:
         del timeout_ms
         payload = args or {}
+        if not self.is_enabled():
+            return self._disabled_response(component_name)
         kernel = await self._ensure_kernel()
 
         if component_name == "search_memory":
@@ -279,6 +298,8 @@ class AMemorixHostService:
         async with self._lock:
             if self._kernel is None:
                 config = self._read_config()
+                if not self._is_enabled_config(config):
+                    raise RuntimeError("A_Memorix 未启用")
                 kernel = SDKMemoryKernel(plugin_root=repo_root(), config=config)
                 try:
                     await kernel.initialize()
@@ -310,6 +331,83 @@ class AMemorixHostService:
 
         self._config_cache = _to_builtin_data(loaded) if isinstance(loaded, dict) else {}
         return dict(self._config_cache)
+
+    @staticmethod
+    def _disabled_response(component_name: str) -> Dict[str, Any]:
+        reason = "a_memorix_disabled"
+        message = "A_Memorix 未启用，请在长期记忆配置中开启后再使用。"
+
+        if component_name == "search_memory":
+            return {
+                "success": True,
+                "disabled": True,
+                "reason": reason,
+                "summary": "",
+                "hits": [],
+                "filtered": False,
+            }
+
+        if component_name in {"ingest_summary", "ingest_text"}:
+            return {
+                "success": True,
+                "disabled": True,
+                "reason": reason,
+                "stored_ids": [],
+                "skipped_ids": [reason],
+                "detail": reason,
+            }
+
+        if component_name == "get_person_profile":
+            return {
+                "success": True,
+                "disabled": True,
+                "reason": reason,
+                "summary": "",
+                "traits": [],
+                "evidence": [],
+            }
+
+        if component_name == "memory_stats":
+            return {
+                "success": True,
+                "enabled": False,
+                "disabled": True,
+                "reason": reason,
+                "message": message,
+                "paragraph_count": 0,
+                "relation_count": 0,
+                "episode_count": 0,
+            }
+
+        if component_name == "memory_runtime_admin":
+            return {
+                "success": True,
+                "enabled": False,
+                "disabled": True,
+                "reason": reason,
+                "message": message,
+                "runtime_ready": False,
+                "embedding_degraded": False,
+                "embedding_dimension": 0,
+                "auto_save": False,
+                "data_dir": "",
+            }
+
+        if component_name == "enqueue_feedback_task":
+            return {
+                "success": True,
+                "queued": False,
+                "disabled": True,
+                "reason": reason,
+            }
+
+        return {
+            "success": False,
+            "enabled": False,
+            "disabled": True,
+            "reason": reason,
+            "error": message,
+        }
 
     async def _shutdown_locked(self) -> None:
         if self._kernel is None:
