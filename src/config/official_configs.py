@@ -108,7 +108,7 @@ class PersonalityConfig(ConfigBase):
     """可选的多种表达风格列表，当配置不为空时可按概率随机替换 reply_style"""
 
     multiple_probability: float = Field(
-        default=0.2,
+        default=0,
         ge=0,
         le=1,
         json_schema_extra={
@@ -404,6 +404,7 @@ class MemoryConfig(ConfigBase):
         },
     )
     """_wrap_全局记忆黑名单，当启用全局记忆时，不将特定聊天流纳入检索"""
+
 
     enable_memory_query_tool: bool = Field(
         default=True,

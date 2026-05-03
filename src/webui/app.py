@@ -1,6 +1,7 @@
 """FastAPI 应用工厂 - 创建和配置 WebUI 应用实例"""
 
 from importlib import import_module
+from os import getenv
 from pathlib import Path
 from typing import Any, Dict, Tuple
 
@@ -16,6 +17,7 @@ from src.common.logger import get_logger
 logger = get_logger("webui.app")
 
 _DASHBOARD_PACKAGE_NAME = "maibot-dashboard"
+_LOCAL_DASHBOARD_ENV = "MAIBOT_WEBUI_USE_LOCAL_DASHBOARD"
 _MANUAL_INSTALL_COMMAND = f"pip install {_DASHBOARD_PACKAGE_NAME}"
 
 
@@ -34,6 +36,10 @@ def _resolve_safe_static_file_path(static_path: Path, full_path: str) -> Path | 
 
 def _get_project_root() -> Path:
     return Path(__file__).resolve().parents[2]
+
+
+def _is_local_dashboard_enabled() -> bool:
+    return getenv(_LOCAL_DASHBOARD_ENV, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _validate_static_path(static_path: Path | None) -> Tuple[str, Dict[str, Any]] | None:
@@ -205,12 +211,10 @@ def _setup_static_files(app: FastAPI):
 
 
 def _resolve_static_path() -> Path | None:
-    # 临时仅允许使用已安装的 maibot-dashboard 包，不使用仓库本地 dashboard/dist。
-    # 如需恢复本地回退逻辑，可取消下方注释。
-    # base_dir = _get_project_root()
-    # static_path = base_dir / "dashboard" / "dist"
-    # if static_path.is_dir() and (static_path / "index.html").exists():
-    #     return static_path
+    if _is_local_dashboard_enabled():
+        static_path = _get_project_root() / "dashboard" / "dist"
+        if static_path.is_dir() and (static_path / "index.html").exists():
+            return static_path
 
     try:
         module = import_module("maibot_dashboard")
