@@ -4,18 +4,33 @@ import asyncio
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence
 
 import tomlkit
 
 from src.common.logger import get_logger
-from src.webui.utils.toml_utils import save_toml_with_format
+from src.config.official_configs import AMemorixConfig
+from src.webui.utils.toml_utils import _update_toml_doc
 
-from .core.runtime.sdk_memory_kernel import KernelSearchRequest, SDKMemoryKernel
-from .paths import config_path, repo_root, schema_path
+from .paths import repo_root, schema_path
 from .runtime_registry import set_runtime_kernel
 
+if TYPE_CHECKING:
+    from .core.runtime.sdk_memory_kernel import SDKMemoryKernel
+
 logger = get_logger("a_memorix.host_service")
+
+
+def _get_config_manager():
+    from src.config.config import config_manager
+
+    return config_manager
+
+
+def _get_bot_config_path() -> Path:
+    from src.config.config import BOT_CONFIG_PATH
+
+    return BOT_CONFIG_PATH
 
 
 def _to_builtin_data(obj: Any) -> Any:
@@ -46,6 +61,7 @@ class AMemorixHostService:
         self._lock = asyncio.Lock()
         self._kernel: Optional[SDKMemoryKernel] = None
         self._config_cache: Dict[str, Any] | None = None
+        self._reload_callback_registered = False
 
     async def start(self) -> None:
         if not self.is_enabled():
@@ -69,7 +85,7 @@ class AMemorixHostService:
             logger.info("A_Memorix 配置为未启用，运行时保持关闭")
 
     def get_config_path(self) -> Path:
-        return config_path()
+        return _get_bot_config_path()
 
     def get_schema_path(self) -> Path:
         return schema_path()
@@ -106,53 +122,17 @@ class AMemorixHostService:
         return bool(plugin_config.get("enabled", True))
 
     def _build_default_config(self) -> Dict[str, Any]:
-        schema = self.get_config_schema()
-        sections = schema.get("sections") if isinstance(schema, dict) else None
-        if not isinstance(sections, dict):
-            return {}
-
-        defaults: Dict[str, Any] = {}
-        for section_name, section_payload in sections.items():
-            if not isinstance(section_payload, dict):
-                continue
-            fields = section_payload.get("fields")
-            if not isinstance(fields, dict):
-                continue
-
-            section_parts = [part for part in str(section_name or "").split(".") if part]
-            if not section_parts:
-                continue
-
-            section_target: Dict[str, Any] = defaults
-            for part in section_parts:
-                nested = section_target.get(part)
-                if not isinstance(nested, dict):
-                    nested = {}
-                    section_target[part] = nested
-                section_target = nested
-
-            for field_name, field_payload in fields.items():
-                if not isinstance(field_payload, dict) or "default" not in field_payload:
-                    continue
-                section_target[str(field_name)] = _to_builtin_data(field_payload.get("default"))
-
-        return defaults
+        return self._config_model_to_runtime_dict(AMemorixConfig())
 
     def get_raw_config_with_meta(self) -> Dict[str, Any]:
-        path = self.get_config_path()
-        if path.exists():
-            return {
-                "config": path.read_text(encoding="utf-8"),
-                "exists": True,
-                "using_default": False,
-            }
-
+        config = self.get_config()
         default_config = self._build_default_config()
-        default_raw = tomlkit.dumps(default_config) if default_config else ""
+        raw_doc = tomlkit.document()
+        raw_doc.add("a_memorix", config)
         return {
-            "config": default_raw,
-            "exists": False,
-            "using_default": True,
+            "config": tomlkit.dumps(raw_doc),
+            "exists": self.get_config_path().exists(),
+            "using_default": config == default_config,
         }
 
     def get_raw_config(self) -> str:
@@ -160,12 +140,10 @@ class AMemorixHostService:
         return str(payload.get("config", "") or "")
 
     async def update_raw_config(self, raw_config: str) -> Dict[str, Any]:
-        tomlkit.loads(raw_config)
-        path = self.get_config_path()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        backup_path = _backup_config_file(path)
-        path.write_text(raw_config, encoding="utf-8")
-        await self.reload()
+        loaded = tomlkit.loads(raw_config)
+        raw_payload = _to_builtin_data(loaded) if isinstance(loaded, dict) else {}
+        config_payload = raw_payload.get("a_memorix") if isinstance(raw_payload.get("a_memorix"), dict) else raw_payload
+        path, backup_path = await self._write_config_to_bot_config(config_payload)
         return {
             "success": True,
             "message": "配置已保存",
@@ -174,11 +152,7 @@ class AMemorixHostService:
         }
 
     async def update_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        path = self.get_config_path()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        backup_path = _backup_config_file(path)
-        save_toml_with_format(config, str(path), preserve_comments=True)
-        await self.reload()
+        path, backup_path = await self._write_config_to_bot_config(config)
         return {
             "success": True,
             "message": "配置已保存",
@@ -194,6 +168,8 @@ class AMemorixHostService:
         kernel = await self._ensure_kernel()
 
         if component_name == "search_memory":
+            from .core.runtime.sdk_memory_kernel import KernelSearchRequest
+
             return await kernel.search_memory(
                 KernelSearchRequest(
                     query=str(payload.get("query", "") or ""),
@@ -297,6 +273,8 @@ class AMemorixHostService:
     async def _ensure_kernel(self) -> SDKMemoryKernel:
         async with self._lock:
             if self._kernel is None:
+                from .core.runtime.sdk_memory_kernel import SDKMemoryKernel
+
                 config = self._read_config()
                 if not self._is_enabled_config(config):
                     raise RuntimeError("A_Memorix 未启用")
@@ -314,23 +292,71 @@ class AMemorixHostService:
         if self._config_cache is not None:
             return dict(self._config_cache)
 
-        path = self.get_config_path()
-        if not path.exists():
-            defaults = self._build_default_config()
-            self._config_cache = defaults
-            return dict(defaults)
-
         try:
-            with path.open("r", encoding="utf-8") as handle:
-                loaded = tomlkit.load(handle)
+            config_model = _get_config_manager().get_global_config().a_memorix
         except Exception as exc:
-            logger.warning("读取 A_Memorix 配置失败 %s: %s", path, exc)
+            logger.warning("读取 A_Memorix 主配置失败，使用默认值: %s", exc)
             defaults = self._build_default_config()
             self._config_cache = defaults
             return dict(defaults)
 
-        self._config_cache = _to_builtin_data(loaded) if isinstance(loaded, dict) else {}
+        self._config_cache = self._config_model_to_runtime_dict(config_model)
         return dict(self._config_cache)
+
+    @staticmethod
+    def _config_model_to_runtime_dict(config_model: AMemorixConfig) -> Dict[str, Any]:
+        payload = config_model.model_dump(mode="json")
+        web_config = payload.get("web")
+        if isinstance(web_config, dict) and "import_config" in web_config:
+            web_config["import"] = web_config.pop("import_config")
+        return _to_builtin_data(payload) if isinstance(payload, dict) else {}
+
+    @staticmethod
+    def _runtime_dict_to_bot_config_dict(config: Dict[str, Any]) -> Dict[str, Any]:
+        payload = _to_builtin_data(config)
+        if not isinstance(payload, dict):
+            return {}
+        web_config = payload.get("web")
+        if isinstance(web_config, dict) and "import_config" in web_config and "import" not in web_config:
+            web_config["import"] = web_config.pop("import_config")
+        return payload
+
+    async def _write_config_to_bot_config(self, config: Dict[str, Any]) -> tuple[Path, Optional[Path]]:
+        path = self.get_config_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        backup_path = _backup_config_file(path)
+        if path.exists():
+            with path.open("r", encoding="utf-8") as handle:
+                doc = tomlkit.load(handle)
+        else:
+            doc = tomlkit.document()
+
+        bot_config_payload = self._runtime_dict_to_bot_config_dict(config)
+        current = doc.get("a_memorix")
+        if isinstance(current, dict):
+            _update_toml_doc(current, bot_config_payload)
+        else:
+            doc["a_memorix"] = bot_config_payload
+
+        with path.open("w", encoding="utf-8") as handle:
+            tomlkit.dump(doc, handle)
+
+        await _get_config_manager().reload_config(changed_scopes=("bot",))
+        if not self._reload_callback_registered:
+            await self.reload()
+        return path, backup_path
+
+    def register_config_reload_callback(self) -> None:
+        if self._reload_callback_registered:
+            return
+        _get_config_manager().register_reload_callback(self.on_config_reload)
+        self._reload_callback_registered = True
+
+    async def on_config_reload(self, changed_scopes: Sequence[str] | None = None) -> None:
+        normalized = {str(scope or "").strip().lower() for scope in (changed_scopes or [])}
+        if normalized and "bot" not in normalized:
+            return
+        await self.reload()
 
     @staticmethod
     def _disabled_response(component_name: str) -> Dict[str, Any]:
