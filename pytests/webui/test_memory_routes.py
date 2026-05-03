@@ -236,7 +236,7 @@ def test_memory_config_routes(client: TestClient, monkeypatch):
     monkeypatch.setattr(
         memory_router_module.a_memorix_host_service,
         "get_config_path",
-        lambda: memory_router_module.Path("/tmp/config/a_memorix.toml"),
+        lambda: memory_router_module.Path("/tmp/config/bot_config.toml"),
     )
     monkeypatch.setattr(
         memory_router_module.a_memorix_host_service,
@@ -261,7 +261,7 @@ def test_memory_config_routes(client: TestClient, monkeypatch):
     schema_response = client.get("/api/webui/memory/config/schema")
     config_response = client.get("/api/webui/memory/config")
     raw_response = client.get("/api/webui/memory/config/raw")
-    expected_path = memory_router_module.Path("/tmp/config/a_memorix.toml").as_posix()
+    expected_path = memory_router_module.Path("/tmp/config/bot_config.toml").as_posix()
 
     assert schema_response.status_code == 200
     assert memory_router_module.Path(schema_response.json()["path"]).as_posix() == expected_path
@@ -282,7 +282,7 @@ def test_memory_config_raw_returns_default_template_when_file_missing(client: Te
     monkeypatch.setattr(
         memory_router_module.a_memorix_host_service,
         "get_config_path",
-        lambda: memory_router_module.Path("/tmp/config/a_memorix.toml"),
+        lambda: memory_router_module.Path("/tmp/config/bot_config.toml"),
     )
     monkeypatch.setattr(
         memory_router_module.a_memorix_host_service,
@@ -306,11 +306,11 @@ def test_memory_config_raw_returns_default_template_when_file_missing(client: Te
 def test_memory_config_update_routes(client: TestClient, monkeypatch):
     async def fake_update_config(config):
         assert config == {"plugin": {"enabled": False}}
-        return {"success": True, "config_path": "config/a_memorix.toml"}
+        return {"success": True, "config_path": "config/bot_config.toml"}
 
     async def fake_update_raw(raw_config):
         assert raw_config == "[plugin]\nenabled = false\n"
-        return {"success": True, "config_path": "config/a_memorix.toml"}
+        return {"success": True, "config_path": "config/bot_config.toml"}
 
     monkeypatch.setattr(memory_router_module.a_memorix_host_service, "update_config", fake_update_config)
     monkeypatch.setattr(memory_router_module.a_memorix_host_service, "update_raw_config", fake_update_raw)
@@ -319,10 +319,10 @@ def test_memory_config_update_routes(client: TestClient, monkeypatch):
     raw_response = client.put("/api/webui/memory/config/raw", json={"config": "[plugin]\nenabled = false\n"})
 
     assert config_response.status_code == 200
-    assert config_response.json() == {"success": True, "config_path": "config/a_memorix.toml"}
+    assert config_response.json() == {"success": True, "config_path": "config/bot_config.toml"}
 
     assert raw_response.status_code == 200
-    assert raw_response.json() == {"success": True, "config_path": "config/a_memorix.toml"}
+    assert raw_response.json() == {"success": True, "config_path": "config/bot_config.toml"}
 
 
 def test_memory_config_raw_rejects_invalid_toml(client: TestClient):
