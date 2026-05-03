@@ -14,6 +14,7 @@ import pytest
 import tomlkit
 
 from src.A_memorix import host_service as host_service_module
+from src.A_memorix.core.runtime import sdk_memory_kernel as kernel_module
 from src.A_memorix.core.utils import retrieval_tuning_manager as tuning_manager_module
 from src.webui.dependencies import require_auth
 from src.webui.routers import memory as memory_router_module
@@ -25,6 +26,35 @@ TUNING_TIMEOUT_SECONDS = 420
 
 IMPORT_TERMINAL_STATUSES = {"completed", "completed_with_errors", "failed", "cancelled"}
 TUNING_TERMINAL_STATUSES = {"completed", "failed", "cancelled"}
+
+
+class _FakeEmbeddingManager:
+    def __init__(self, dimension: int = 64) -> None:
+        self.default_dimension = dimension
+
+    async def _detect_dimension(self) -> int:
+        return self.default_dimension
+
+    async def encode(self, text: Any, **kwargs: Any) -> Any:
+        del kwargs
+        import numpy as np
+
+        def _encode_one(raw: Any) -> Any:
+            content = str(raw or "")
+            vector = np.zeros(self.default_dimension, dtype=np.float32)
+            for index, byte in enumerate(content.encode("utf-8")):
+                vector[index % self.default_dimension] += float((byte % 17) + 1)
+            norm = float(np.linalg.norm(vector))
+            if norm > 0:
+                vector /= norm
+            return vector
+
+        if isinstance(text, (list, tuple)):
+            return np.stack([_encode_one(item) for item in text]).astype(np.float32)
+        return _encode_one(text).astype(np.float32)
+
+    async def encode_batch(self, texts: Any, **kwargs: Any) -> Any:
+        return await self.encode(texts, **kwargs)
 
 
 def _build_test_config(data_dir: Path) -> Dict[str, Any]:
@@ -305,13 +335,17 @@ def integration_state(tmp_path_factory: pytest.TempPathFactory) -> Generator[Dic
     data_dir = (tmp_root / "data").resolve()
     staging_dir = (tmp_root / "upload_staging").resolve()
     artifacts_dir = (tmp_root / "artifacts").resolve()
-    config_file = (tmp_root / "config" / "a_memorix.toml").resolve()
-
-    config_file.parent.mkdir(parents=True, exist_ok=True)
-    config_file.write_text(tomlkit.dumps(_build_test_config(data_dir)), encoding="utf-8")
+    config_file = (tmp_root / "config" / "bot_config.toml").resolve()
+    runtime_config = _build_test_config(data_dir)
 
     patches = pytest.MonkeyPatch()
-    patches.setattr(host_service_module, "config_path", lambda: config_file)
+    patches.setattr(host_service_module.a_memorix_host_service, "_read_config", lambda: dict(runtime_config))
+    patches.setattr(host_service_module.a_memorix_host_service, "get_config_path", lambda: config_file)
+    patches.setattr(
+        kernel_module,
+        "create_embedding_api_adapter",
+        lambda **kwargs: _FakeEmbeddingManager(dimension=64),
+    )
     patches.setattr(memory_router_module, "STAGING_ROOT", staging_dir)
     patches.setattr(tuning_manager_module, "artifacts_root", lambda: artifacts_dir)
 

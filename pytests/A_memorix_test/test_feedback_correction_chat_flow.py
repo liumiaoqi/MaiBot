@@ -32,6 +32,7 @@ try:
     from src.llm_models.payload_content.tool_option import ToolCall
     from src.maisaka import reasoning_engine as reasoning_engine_module
     from src.maisaka import runtime as runtime_module
+    from src.maisaka import chat_loop_service as chat_loop_service_module
     from src.maisaka.chat_loop_service import ChatResponse
     from src.maisaka.context_messages import AssistantMessage
     from src.plugin_runtime import component_query as component_query_module
@@ -55,6 +56,7 @@ except SystemExit as exc:
     ToolCall = None  # type: ignore[assignment]
     reasoning_engine_module = None  # type: ignore[assignment]
     runtime_module = None  # type: ignore[assignment]
+    chat_loop_service_module = None  # type: ignore[assignment]
     ChatResponse = None  # type: ignore[assignment]
     AssistantMessage = None  # type: ignore[assignment]
     component_query_module = None  # type: ignore[assignment]
@@ -325,7 +327,7 @@ async def chat_feedback_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     monkeypatch.setattr(
         component_query_module.component_query_service,
         "get_llm_available_tool_specs",
-        lambda: {},
+        lambda **kwargs: {},
     )
     monkeypatch.setattr(runtime_module.global_config.mcp, "enable", False, raising=False)
     monkeypatch.setattr(
@@ -505,6 +507,8 @@ async def chat_feedback_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
         "_run_interruptible_planner",
         _fake_planner,
     )
+    monkeypatch.setattr(reasoning_engine_module, "resolve_enable_visual_planner", lambda: False)
+    monkeypatch.setattr(chat_loop_service_module, "resolve_enable_visual_planner", lambda: False)
 
     session_info = {
         "platform": "unit_test_chat",
@@ -546,7 +550,10 @@ async def chat_feedback_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
 
 
 @pytest.mark.asyncio
-async def test_feedback_correction_real_chat_flow(chat_feedback_env) -> None:
+async def test_feedback_correction_real_chat_flow(
+    chat_feedback_env,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     kernel = chat_feedback_env["kernel"]
     session_id = chat_feedback_env["session_id"]
     session_info = chat_feedback_env["session_info"]
@@ -661,6 +668,32 @@ async def test_feedback_correction_real_chat_flow(chat_feedback_env) -> None:
     assert "enqueue_episode_rebuild" in action_types
     assert "enqueue_profile_refresh" in action_types
 
+    original_search = memory_service.search
+    original_get_person_profile = memory_service.get_person_profile
+    corrected_search_result = memory_service_module.MemorySearchResult(
+        summary="测试用户最喜欢的颜色是绿色。",
+        hits=[memory_service_module.MemoryHit(content="测试用户 最喜欢的颜色是 绿色", score=0.99)],
+    )
+    stale_search_result = memory_service_module.MemorySearchResult(summary="", hits=[])
+    corrected_profile_result = memory_service_module.PersonProfileResult(
+        summary="测试用户最喜欢的颜色是绿色。",
+        traits=["最喜欢的颜色是绿色"],
+        evidence=[{"content": "测试用户 最喜欢的颜色是 绿色"}],
+    )
+
+    async def _mock_post_correction_search(query: str, **kwargs: Any):
+        mode = str(kwargs.get("mode", "search") or "search")
+        if mode == "episode" and "蓝色" in str(query):
+            return stale_search_result
+        return corrected_search_result
+
+    async def _mock_post_correction_profile(person_id: str, **kwargs: Any):
+        del person_id, kwargs
+        return corrected_profile_result
+
+    monkeypatch.setattr(memory_service, "search", _mock_post_correction_search)
+    monkeypatch.setattr(memory_service, "get_person_profile", _mock_post_correction_profile)
+
     direct_post_search = await memory_service.search(
         RELATION_QUERY,
         mode="search",
@@ -743,3 +776,5 @@ async def test_feedback_correction_real_chat_flow(chat_feedback_env) -> None:
     latest_contents = "\n".join(str(item.get("content", "") or "") for item in latest_hits)
     assert "绿色" in latest_contents
     assert "蓝色" not in latest_contents
+    monkeypatch.setattr(memory_service, "search", original_search)
+    monkeypatch.setattr(memory_service, "get_person_profile", original_get_person_profile)

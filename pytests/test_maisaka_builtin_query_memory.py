@@ -41,7 +41,7 @@ def _patch_maisaka_config(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         query_memory_tool,
         "global_config",
-        SimpleNamespace(maisaka=SimpleNamespace(memory_query_default_limit=5)),
+        SimpleNamespace(memory=SimpleNamespace(memory_query_default_limit=5)),
     )
 
 
