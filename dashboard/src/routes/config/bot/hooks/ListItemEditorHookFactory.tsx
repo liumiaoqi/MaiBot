@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, type CSSProperties } from 'react'
 import * as LucideIcons from 'lucide-react'
 import { Plus, Trash2 } from 'lucide-react'
 
@@ -31,6 +31,12 @@ export interface ListItemEditorOptions {
   emptyText?: string
   /** 顶部图标（覆盖 schema 自带的 x-icon） */
   iconName?: string
+  /** 紧凑布局：把指定字段放在同一行展示 */
+  fieldRows?: string[][]
+  /** Hook-local field UI metadata overrides */
+  fieldSchemaOverrides?: Record<string, Partial<FieldSchema>>
+  /** 添加按钮位置 */
+  addButtonPlacement?: 'top' | 'bottom'
 }
 
 function resolveLabel(schema?: ConfigSchema | FieldSchema, fieldPath?: string): string {
@@ -190,9 +196,105 @@ export function createListItemEditorHook(
       [items, onChange],
     )
 
+    const renderItemEditor = (item: Record<string, unknown>, index: number) => {
+      if (!nestedSchema) {
+        return null
+      }
+
+      if (!options.fieldRows?.length) {
+        return (
+          <DynamicConfigForm
+            schema={nestedSchema}
+            values={item}
+            onChange={(field, fieldValue) =>
+              handleItemFieldChange(index, field, fieldValue)
+            }
+            basePath=""
+            level={1}
+          />
+        )
+      }
+
+      const applyFieldOverride = (field: FieldSchema): FieldSchema => ({
+        ...field,
+        ...(options.fieldSchemaOverrides?.[field.name] ?? {}),
+      })
+      const fieldMap = new Map(
+        nestedSchema.fields.map((field) => [field.name, applyFieldOverride(field)]),
+      )
+      const rowFieldNames = new Set(options.fieldRows.flat())
+      const remainingFields = nestedSchema.fields
+        .filter((field) => !rowFieldNames.has(field.name))
+        .map(applyFieldOverride)
+      const buildRowSchema = (fields: FieldSchema[]): ConfigSchema => ({
+        ...nestedSchema,
+        fields,
+        nested: undefined,
+      })
+
+      return (
+        <div className="space-y-3">
+          {options.fieldRows.map((row, rowIndex) => {
+            const fields = row
+              .map((fieldName) => fieldMap.get(fieldName))
+              .filter((field): field is FieldSchema => Boolean(field))
+
+            if (fields.length === 0) {
+              return null
+            }
+
+            return (
+              <div
+                key={rowIndex}
+                className="grid gap-3 md:grid-cols-[repeat(var(--field-count),minmax(0,1fr))]"
+                style={{ '--field-count': fields.length } as CSSProperties}
+              >
+                {fields.map((field) => (
+                  <DynamicConfigForm
+                    key={field.name}
+                    schema={buildRowSchema([field])}
+                    values={item}
+                    onChange={(fieldName, fieldValue) =>
+                      handleItemFieldChange(index, fieldName, fieldValue)
+                    }
+                    basePath=""
+                    level={1}
+                  />
+                ))}
+              </div>
+            )
+          })}
+          {remainingFields.length > 0 && (
+            <DynamicConfigForm
+              schema={buildRowSchema(remainingFields)}
+              values={item}
+              onChange={(field, fieldValue) =>
+                handleItemFieldChange(index, field, fieldValue)
+              }
+              basePath=""
+              level={1}
+            />
+          )}
+        </div>
+      )
+    }
+
     const label = resolveLabel(schema, fieldPath)
     const description = resolveDescription(schema)
     const iconName = resolveIconName(options.iconName, schema, nestedSchema)
+    const addButtonPlacement = options.addButtonPlacement ?? 'bottom'
+    const addButton = (
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={handleAdd}
+        className="w-full"
+      >
+        <Plus className="mr-1 h-4 w-4" />
+        {options.addLabel ?? '添加一项'}
+      </Button>
+    )
 
     if (!nestedSchema) {
       return (
@@ -220,6 +322,7 @@ export function createListItemEditorHook(
           )}
         </CardHeader>
         <CardContent className="space-y-3">
+          {addButtonPlacement === 'top' && addButton}
           {items.length === 0 ? (
             <div className="rounded-md border border-dashed border-muted-foreground/25 bg-muted/10 p-6 text-center text-sm text-muted-foreground">
               {options.emptyText ?? '尚未添加任何条目，点击下方按钮新增。'}
@@ -251,29 +354,12 @@ export function createListItemEditorHook(
                       删除
                     </Button>
                   </div>
-                  <DynamicConfigForm
-                    schema={nestedSchema}
-                    values={item}
-                    onChange={(field, fieldValue) =>
-                      handleItemFieldChange(index, field, fieldValue)
-                    }
-                    basePath=""
-                    level={1}
-                  />
+                  {renderItemEditor(item, index)}
                 </div>
               )
             })
           )}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleAdd}
-            className="w-full"
-          >
-            <Plus className="mr-1 h-4 w-4" />
-            {options.addLabel ?? '添加一项'}
-          </Button>
+          {addButtonPlacement === 'bottom' && addButton}
         </CardContent>
       </Card>
     )

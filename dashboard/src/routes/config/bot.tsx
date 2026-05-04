@@ -24,10 +24,11 @@ import { getBotConfig, getBotConfigRaw, getBotConfigSchema, updateBotConfig, upd
 import { fieldHooks } from '@/lib/field-hooks'
 import { RestartProvider, useRestart } from '@/lib/restart-context'
 
-import { Code2, Info, Layout, Power, Save } from 'lucide-react'
+import { ChevronDown, ChevronUp, Code2, Info, Layout, Power, RefreshCw, Save } from 'lucide-react'
 
 import type { ConfigSchema } from '@/types/config-schema'
 import {
+  ChatPromptsHook,
   ChatTalkValueRulesHook,
   ExpressionGroupsHook,
   ExpressionLearningListHook,
@@ -50,12 +51,26 @@ const TAB_ORDER = [
   'personality',
   'chat',
   'expression',
+  'visual',
+  'a_memorix',
+  'message_receive',
   'emoji',
+  'voice',
   'response_post_process',
   'webui',
   'plugin_runtime',
   'log',
 ]
+
+/** 默认展示的主配置栏目 */
+const DEFAULT_VISIBLE_TAB_IDS = new Set([
+  'bot',
+  'personality',
+  'chat',
+  'expression',
+  'visual',
+  'a_memorix',
+])
 
 // ==================== Tab 分组类型与构建 ====================
 interface TabGroup {
@@ -143,6 +158,9 @@ function BotConfigPageContent() {
   const [sourceCode, setSourceCode] = useState<string>('')
   const [hasTomlError, setHasTomlError] = useState(false)
   const [tomlErrorMessage, setTomlErrorMessage] = useState<string>('')
+  const [restartNoticeVisible, setRestartNoticeVisible] = useState(
+    () => localStorage.getItem('bot-config-restart-notice-dismissed') !== 'true'
+  )
   const { toast } = useToast()
   const { triggerRestart, isRestarting } = useRestart()
 
@@ -160,6 +178,7 @@ function BotConfigPageContent() {
   const [responsePostProcessConfig, setResponsePostProcessConfig] = useState<ConfigSectionData | null>(null)
   const [chineseTypoConfig, setChineseTypoConfig] = useState<ConfigSectionData | null>(null)
   const [responseSplitterConfig, setResponseSplitterConfig] = useState<ConfigSectionData | null>(null)
+  const [logConfig, setLogConfig] = useState<ConfigSectionData | null>(null)
   const [debugConfig, setDebugConfig] = useState<ConfigSectionData | null>(null)
   const [maimMessageConfig, setMaimMessageConfig] = useState<ConfigSectionData | null>(null)
   const [telemetryConfig, setTelemetryConfig] = useState<ConfigSectionData | null>(null)
@@ -174,6 +193,7 @@ function BotConfigPageContent() {
 
   // 用于标记初始加载和配置缓存
   const initialLoadRef = useRef(true)
+  const suppressAutoSaveRef = useRef(false)
   const configRef = useRef<Record<string, unknown>>({})
 
   // ==================== 辅助函数 ====================
@@ -240,6 +260,7 @@ function BotConfigPageContent() {
    * 抽取自 loadConfig 和 handleModeChange 中的重复逻辑
    */
   const parseAndSetConfig = useCallback((config: Record<string, unknown>) => {
+    suppressAutoSaveRef.current = true
     configRef.current = config
 
     setBotConfig((config.bot ?? {}) as ConfigSectionData)
@@ -255,6 +276,7 @@ function BotConfigPageContent() {
     setResponsePostProcessConfig((config.response_post_process ?? {}) as ConfigSectionData)
     setChineseTypoConfig((config.chinese_typo ?? {}) as ConfigSectionData)
     setResponseSplitterConfig((config.response_splitter ?? {}) as ConfigSectionData)
+    setLogConfig((config.log ?? {}) as ConfigSectionData)
     setDebugConfig((config.debug ?? {}) as ConfigSectionData)
     setMaimMessageConfig((config.maim_message ?? {}) as ConfigSectionData)
     setTelemetryConfig((config.telemetry ?? {}) as ConfigSectionData)
@@ -263,6 +285,10 @@ function BotConfigPageContent() {
     setMcpConfig((config.mcp ?? {}) as ConfigSectionData)
     setPluginRuntimeConfig((config.plugin_runtime ?? {}) as ConfigSectionData)
     setAMemorixConfig((config.a_memorix ?? {}) as ConfigSectionData)
+
+    window.setTimeout(() => {
+      suppressAutoSaveRef.current = false
+    }, 0)
   }, [])
 
   /**
@@ -285,6 +311,7 @@ function BotConfigPageContent() {
       response_post_process: responsePostProcessConfig,
       chinese_typo: chineseTypoConfig,
       response_splitter: responseSplitterConfig,
+      log: logConfig,
       debug: debugConfig,
       maim_message: maimMessageConfig,
       telemetry: telemetryConfig,
@@ -308,6 +335,7 @@ function BotConfigPageContent() {
     responsePostProcessConfig,
     chineseTypoConfig,
     responseSplitterConfig,
+    logConfig,
     debugConfig,
     maimMessageConfig,
     telemetryConfig,
@@ -394,6 +422,7 @@ function BotConfigPageContent() {
 
   useEffect(() => {
     const hookEntries = [
+      ['chat.chat_prompts', ChatPromptsHook],
       ['chat.talk_value_rules', ChatTalkValueRulesHook],
       ['expression.expression_groups', ExpressionGroupsHook],
       ['expression.learning_list', ExpressionLearningListHook],
@@ -421,30 +450,41 @@ function BotConfigPageContent() {
     setHasUnsavedChanges
   )
 
+  const triggerConfigAutoSave = useCallback(
+    (sectionName: Parameters<typeof triggerAutoSave>[0], data: unknown) => {
+      if (suppressAutoSaveRef.current) {
+        return
+      }
+      triggerAutoSave(sectionName, data)
+    },
+    [triggerAutoSave]
+  )
+
   // 使用 useConfigAutoSave hook 简化配置变化监听
   // 注意: useConfigAutoSave 是一个 hook，不能在条件语句或循环中调用
   // 因此我们仍然需要逐个调用，但代码更简洁
-  useConfigAutoSave(botConfig, 'bot', initialLoadRef.current, triggerAutoSave)
-  useConfigAutoSave(personalityConfig, 'personality', initialLoadRef.current, triggerAutoSave)
-  useConfigAutoSave(chatConfig, 'chat', initialLoadRef.current, triggerAutoSave)
-  useConfigAutoSave(expressionConfig, 'expression', initialLoadRef.current, triggerAutoSave)
-  useConfigAutoSave(emojiConfig, 'emoji', initialLoadRef.current, triggerAutoSave)
-  useConfigAutoSave(memoryConfig, 'memory', initialLoadRef.current, triggerAutoSave)
-  useConfigAutoSave(visualConfig, 'visual', initialLoadRef.current, triggerAutoSave)
-  useConfigAutoSave(voiceConfig, 'voice', initialLoadRef.current, triggerAutoSave)
-  useConfigAutoSave(messageReceiveConfig, 'message_receive', initialLoadRef.current, triggerAutoSave)
-  useConfigAutoSave(keywordReactionConfig, 'keyword_reaction', initialLoadRef.current, triggerAutoSave)
-  useConfigAutoSave(responsePostProcessConfig, 'response_post_process', initialLoadRef.current, triggerAutoSave)
-  useConfigAutoSave(chineseTypoConfig, 'chinese_typo', initialLoadRef.current, triggerAutoSave)
-  useConfigAutoSave(responseSplitterConfig, 'response_splitter', initialLoadRef.current, triggerAutoSave)
-  useConfigAutoSave(debugConfig, 'debug', initialLoadRef.current, triggerAutoSave)
-  useConfigAutoSave(maimMessageConfig, 'maim_message', initialLoadRef.current, triggerAutoSave)
-  useConfigAutoSave(telemetryConfig, 'telemetry', initialLoadRef.current, triggerAutoSave)
-  useConfigAutoSave(webuiConfig, 'webui', initialLoadRef.current, triggerAutoSave)
-  useConfigAutoSave(databaseConfig, 'database', initialLoadRef.current, triggerAutoSave)
-  useConfigAutoSave(mcpConfig, 'mcp', initialLoadRef.current, triggerAutoSave)
-  useConfigAutoSave(pluginRuntimeConfig, 'plugin_runtime', initialLoadRef.current, triggerAutoSave)
-  useConfigAutoSave(aMemorixConfig, 'a_memorix', initialLoadRef.current, triggerAutoSave)
+  useConfigAutoSave(botConfig, 'bot', initialLoadRef.current, triggerConfigAutoSave)
+  useConfigAutoSave(personalityConfig, 'personality', initialLoadRef.current, triggerConfigAutoSave)
+  useConfigAutoSave(chatConfig, 'chat', initialLoadRef.current, triggerConfigAutoSave)
+  useConfigAutoSave(expressionConfig, 'expression', initialLoadRef.current, triggerConfigAutoSave)
+  useConfigAutoSave(emojiConfig, 'emoji', initialLoadRef.current, triggerConfigAutoSave)
+  useConfigAutoSave(memoryConfig, 'memory', initialLoadRef.current, triggerConfigAutoSave)
+  useConfigAutoSave(visualConfig, 'visual', initialLoadRef.current, triggerConfigAutoSave)
+  useConfigAutoSave(voiceConfig, 'voice', initialLoadRef.current, triggerConfigAutoSave)
+  useConfigAutoSave(messageReceiveConfig, 'message_receive', initialLoadRef.current, triggerConfigAutoSave)
+  useConfigAutoSave(keywordReactionConfig, 'keyword_reaction', initialLoadRef.current, triggerConfigAutoSave)
+  useConfigAutoSave(responsePostProcessConfig, 'response_post_process', initialLoadRef.current, triggerConfigAutoSave)
+  useConfigAutoSave(chineseTypoConfig, 'chinese_typo', initialLoadRef.current, triggerConfigAutoSave)
+  useConfigAutoSave(responseSplitterConfig, 'response_splitter', initialLoadRef.current, triggerConfigAutoSave)
+  useConfigAutoSave(logConfig, 'log', initialLoadRef.current, triggerConfigAutoSave)
+  useConfigAutoSave(debugConfig, 'debug', initialLoadRef.current, triggerConfigAutoSave)
+  useConfigAutoSave(maimMessageConfig, 'maim_message', initialLoadRef.current, triggerConfigAutoSave)
+  useConfigAutoSave(telemetryConfig, 'telemetry', initialLoadRef.current, triggerConfigAutoSave)
+  useConfigAutoSave(webuiConfig, 'webui', initialLoadRef.current, triggerConfigAutoSave)
+  useConfigAutoSave(databaseConfig, 'database', initialLoadRef.current, triggerConfigAutoSave)
+  useConfigAutoSave(mcpConfig, 'mcp', initialLoadRef.current, triggerConfigAutoSave)
+  useConfigAutoSave(pluginRuntimeConfig, 'plugin_runtime', initialLoadRef.current, triggerConfigAutoSave)
+  useConfigAutoSave(aMemorixConfig, 'a_memorix', initialLoadRef.current, triggerConfigAutoSave)
 
   // 保存源代码
   const saveSourceCode = async () => {
@@ -592,6 +632,21 @@ function BotConfigPageContent() {
     await triggerRestart()
   }
 
+  const dismissRestartNotice = () => {
+    localStorage.setItem('bot-config-restart-notice-dismissed', 'true')
+    setRestartNoticeVisible(false)
+  }
+
+  const handleReloadFromFile = async () => {
+    cancelPendingAutoSave()
+    await loadConfig()
+    setHasUnsavedChanges(false)
+    toast({
+      title: '已刷新',
+      description: '已从 bot_config.toml 重新读取配置',
+    })
+  }
+
   // 保存并重启
   const handleSaveAndRestart = async () => {
     try {
@@ -650,6 +705,7 @@ function BotConfigPageContent() {
       response_post_process: responsePostProcessConfig,
       chinese_typo: chineseTypoConfig,
       response_splitter: responseSplitterConfig,
+      log: logConfig,
       debug: debugConfig,
       maim_message: maimMessageConfig,
       telemetry: telemetryConfig,
@@ -673,6 +729,7 @@ function BotConfigPageContent() {
       responsePostProcessConfig,
       chineseTypoConfig,
       responseSplitterConfig,
+      logConfig,
       debugConfig,
       maimMessageConfig,
       telemetryConfig,
@@ -699,6 +756,7 @@ function BotConfigPageContent() {
       response_post_process: setResponsePostProcessConfig,
       chinese_typo: setChineseTypoConfig,
       response_splitter: setResponseSplitterConfig,
+      log: setLogConfig,
       debug: setDebugConfig,
       maim_message: setMaimMessageConfig,
       telemetry: setTelemetryConfig,
@@ -736,6 +794,16 @@ function BotConfigPageContent() {
             </div>
             {/* 按钮组 - 桌面端靠右 */}
             <div className="flex gap-2 flex-shrink-0">
+              <Button
+                onClick={handleReloadFromFile}
+                disabled={saving || autoSaving || isRestarting}
+                size="sm"
+                variant="outline"
+                className="w-20 sm:w-24"
+              >
+                <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                刷新
+              </Button>
               <Button
                 onClick={editMode === 'visual' ? saveConfig : saveSourceCode}
                 disabled={saving || autoSaving || !hasUnsavedChanges || isRestarting}
@@ -804,12 +872,19 @@ function BotConfigPageContent() {
         </div>
 
         {/* 重启提示 */}
-        <Alert>
-          <Info className="h-4 w-4" />
-          <AlertDescription>
-            配置更新后需要<strong>重启麦麦</strong>才能生效。你可以点击右上角的"保存并重启"按钮一键完成保存和重启。
-          </AlertDescription>
-        </Alert>
+        {restartNoticeVisible && (
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <span>
+                配置更新后需要<strong>重启麦麦</strong>才能生效。你可以点击右上角的"保存并重启"按钮一键完成保存和重启。
+              </span>
+              <Button type="button" variant="outline" size="sm" onClick={dismissRestartNotice}>
+                我知道了
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* 源代码模式 */}
         {editMode === 'source' && (
@@ -903,9 +978,32 @@ interface DynamicConfigTabsProps {
 
 function DynamicConfigTabs(props: DynamicConfigTabsProps) {
   const { configSchema, sectionValues, setHasUnsavedChanges, setSectionValue, tabGroups } = props
+  const [expanded, setExpanded] = useState(false)
+  const [activeTab, setActiveTab] = useState(tabGroups[0]?.id ?? '')
+
+  useEffect(() => {
+    if (!tabGroups.some((tab) => tab.id === activeTab)) {
+      setActiveTab(tabGroups[0]?.id ?? '')
+    }
+  }, [activeTab, tabGroups])
 
   if (tabGroups.length === 0 || !configSchema?.nested) {
     return null
+  }
+
+  const visibleTabGroups = expanded
+    ? tabGroups
+    : tabGroups.filter((tab) => DEFAULT_VISIBLE_TAB_IDS.has(tab.id))
+  const hasCollapsibleTabs = tabGroups.some((tab) => !DEFAULT_VISIBLE_TAB_IDS.has(tab.id))
+
+  const toggleExpanded = () => {
+    setExpanded((current) => {
+      if (current && !DEFAULT_VISIBLE_TAB_IDS.has(activeTab)) {
+        const firstDefaultTab = tabGroups.find((tab) => DEFAULT_VISIBLE_TAB_IDS.has(tab.id))
+        setActiveTab(firstDefaultTab?.id ?? tabGroups[0]?.id ?? '')
+      }
+      return !current
+    })
   }
 
   const renderTabContent = (tab: TabGroup) => {
@@ -953,9 +1051,9 @@ function DynamicConfigTabs(props: DynamicConfigTabsProps) {
   }
 
   return (
-    <Tabs defaultValue={tabGroups[0].id} className="w-full">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
       <TabsList className="flex flex-wrap h-auto gap-1 p-1">
-        {tabGroups.map((tab) => (
+        {visibleTabGroups.map((tab) => (
           <TabsTrigger
             key={tab.id}
             value={tab.id}
@@ -964,6 +1062,22 @@ function DynamicConfigTabs(props: DynamicConfigTabsProps) {
             {tab.label}
           </TabsTrigger>
         ))}
+        {hasCollapsibleTabs && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-xs sm:h-9 sm:px-3"
+            onClick={toggleExpanded}
+          >
+            {expanded ? (
+              <ChevronUp className="mr-1 h-3.5 w-3.5" />
+            ) : (
+              <ChevronDown className="mr-1 h-3.5 w-3.5" />
+            )}
+            {expanded ? '收起' : '更多'}
+          </Button>
+        )}
       </TabsList>
       {tabGroups.map((tab) => (
         <TabsContent key={tab.id} value={tab.id} className="space-y-4">

@@ -84,6 +84,8 @@ class PersonalityConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "textarea",
             "x-icon": "user-circle",
+            "x-textarea-min-height": 40,
+            "x-textarea-rows": 1,
         },
     )
     """人格，建议200字以内，描述人格特质和身份特征；可以写完整设定。要求第二人称"""
@@ -93,6 +95,8 @@ class PersonalityConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "textarea",
             "x-icon": "message-square",
+            "x-textarea-min-height": 40,
+            "x-textarea-rows": 1,
         },
     )
     """默认表达风格，描述麦麦说话的表达风格，表达习惯，如要修改，可以酌情新增内容，建议1-2行"""
@@ -321,7 +325,8 @@ class ChatConfig(ConfigBase):
 class MessageReceiveConfig(ConfigBase):
     """消息接收配置类"""
 
-    __ui_parent__ = "response_post_process"
+    __ui_label__ = "消息接收"
+    __ui_icon__ = "message-square-text"
 
     image_parse_threshold: int = Field(
         default=5,
@@ -394,7 +399,7 @@ class TargetItem(ConfigBase):
 class MemoryConfig(ConfigBase):
     """记忆配置类"""
 
-    __ui_parent__ = "emoji"
+    __ui_parent__ = "a_memorix"
 
 
     global_memory: bool = Field(
@@ -1051,7 +1056,7 @@ class LearningItem(ConfigBase):
             "x-icon": "message-square",
         },
     )
-    """是否启用表达学习"""
+    """是否使用表达"""
 
     enable_learning: bool = Field(
         default=True,
@@ -1060,7 +1065,7 @@ class LearningItem(ConfigBase):
             "x-icon": "graduation-cap",
         },
     )
-    """是否启用表达优化学习"""
+    """是否学习表达"""
 
     enable_jargon_learning: bool = Field(
         default=False,
@@ -1069,7 +1074,7 @@ class LearningItem(ConfigBase):
             "x-icon": "book",
         },
     )
-    """是否启用jargon学习"""
+    """是否学习黑话"""
 
 class ExpressionGroup(ConfigBase):
     """表达互通组配置类，若列表为空代表全局共享"""
@@ -1177,7 +1182,8 @@ class ExpressionConfig(ConfigBase):
 class VoiceConfig(ConfigBase):
     """语音识别配置类"""
 
-    __ui_parent__ = "emoji"
+    __ui_label__ = "语音"
+    __ui_icon__ = "mic"
 
     enable_asr: bool = Field(
         default=False,
@@ -1192,8 +1198,8 @@ class VoiceConfig(ConfigBase):
 class EmojiConfig(ConfigBase):
     """表情包配置类"""
 
-    __ui_label__ = "功能"
-    __ui_icon__ = "puzzle"
+    __ui_label__ = "表情包"
+    __ui_icon__ = "smile"
 
     emoji_send_num: int = Field(
         default=25,
@@ -1314,7 +1320,7 @@ class KeywordRuleConfig(ConfigBase):
 class KeywordReactionConfig(ConfigBase):
     """关键词配置类"""
 
-    __ui_parent__ = "response_post_process"
+    __ui_parent__ = "message_receive"
 
     keyword_rules: list[KeywordRuleConfig] = Field(
         default_factory=lambda: [],
@@ -1345,9 +1351,8 @@ class KeywordReactionConfig(ConfigBase):
 class ResponsePostProcessConfig(ConfigBase):
     """回复后处理配置类"""
 
-    __ui_label__ = "处理"
+    __ui_label__ = "后处理"
     __ui_icon__ = "settings"
-    __ui_merge_children__ = ["chinese_typo", "response_splitter"]
 
     enable_response_post_process: bool = Field(
         default=True,

@@ -30,8 +30,13 @@ const collectStringList = (value: unknown): string[] => {
 
 export const ChatTalkValueRulesHook = createListItemEditorHook({
   addLabel: '添加发言频率规则',
+  addButtonPlacement: 'top',
   helperText: '可按平台/聊天流/时段分别配置发言频率，留空表示全局。',
   emptyText: '尚未配置任何规则，将使用全局默认频率。',
+  fieldRows: [
+    ['platform', 'item_id', 'rule_type'],
+    ['time', 'value'],
+  ],
   itemTitle: (item) => {
     const time =
       typeof item.time === 'string' && item.time.trim()
@@ -43,10 +48,45 @@ export const ChatTalkValueRulesHook = createListItemEditorHook({
   },
 })
 
+export const ChatPromptsHook = createListItemEditorHook({
+  addLabel: '添加额外 Prompt',
+  helperText: '为指定平台和聊天流添加额外提示。platform、item_id 和 prompt 同时留空时表示空条目；填写任意一项后这三项都需要填写。',
+  emptyText: '尚未配置任何聊天额外 Prompt。',
+  addButtonPlacement: 'top',
+  fieldRows: [['platform', 'item_id', 'rule_type']],
+  fieldSchemaOverrides: {
+    item_id: {
+      'x-input-width': '8rem',
+      'x-layout': 'inline-right',
+    },
+    platform: {
+      'x-input-width': '8rem',
+      'x-layout': 'inline-right',
+    },
+    prompt: {
+      'x-textarea-min-height': 38,
+      'x-textarea-rows': 1,
+    },
+    rule_type: {
+      'x-input-width': '8rem',
+      'x-layout': 'inline-right',
+    },
+  },
+  iconName: 'file-text',
+  itemTitle: (item) => {
+    const prompt = typeof item.prompt === 'string' ? item.prompt.trim() : ''
+    return `${platformLabel(item)} · ${ruleTypeLabel(item.rule_type)} · ${prompt ? truncate(prompt) : '未填写 Prompt'}`
+  },
+})
+
 export const ExpressionLearningListHook = createListItemEditorHook({
   addLabel: '添加表达学习规则',
   helperText: '为不同聊天流单独配置是否启用表达/jargon 学习。',
   emptyText: '尚未配置任何学习规则。',
+  fieldRows: [
+    ['platform', 'item_id', 'rule_type'],
+    ['use_expression', 'enable_learning', 'enable_jargon_learning'],
+  ],
   itemTitle: (item) => {
     const flags: string[] = []
     if (item.use_expression) flags.push('表达')

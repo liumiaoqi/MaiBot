@@ -67,6 +67,9 @@ function ModelProviderConfigPageContent() {
   })
   const [testingProviders, setTestingProviders] = useState<Set<string>>(new Set())
   const [testResults, setTestResults] = useState<Map<string, TestConnectionResult>>(new Map())
+  const [restartNoticeVisible, setRestartNoticeVisible] = useState(
+    () => localStorage.getItem('model-provider-restart-notice-dismissed') !== 'true'
+  )
 
   const { toast } = useToast()
   const navigate = useNavigate()
@@ -170,6 +173,11 @@ function ModelProviderConfigPageContent() {
 
   const handleRestart = async () => {
     await triggerRestart()
+  }
+
+  const dismissRestartNotice = () => {
+    localStorage.setItem('model-provider-restart-notice-dismissed', 'true')
+    setRestartNoticeVisible(false)
   }
 
   const handleSaveAndRestart = async () => {
@@ -796,12 +804,19 @@ function ModelProviderConfigPageContent() {
       </div>
 
       {/* 重启提示 */}
-      <Alert>
-        <Info className="h-4 w-4" />
-        <AlertDescription>
-          配置更新后需要<strong>重启麦麦</strong>才能生效。你可以点击右上角的"保存并重启"按钮一键完成保存和重启。
-        </AlertDescription>
-      </Alert>
+      {restartNoticeVisible && (
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              配置更新后需要<strong>重启麦麦</strong>才能生效。你可以点击右上角的"保存并重启"按钮一键完成保存和重启。
+            </span>
+            <Button type="button" variant="outline" size="sm" onClick={dismissRestartNotice}>
+              我知道了
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <ScrollArea className="h-[calc(100vh-260px)]">
         <ProviderList

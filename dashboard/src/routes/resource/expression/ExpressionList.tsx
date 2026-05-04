@@ -51,8 +51,8 @@ export function ExpressionList({
 }) {
   const { toast } = useToast()
 
-  const getChatName = (chatId: string): string => {
-    return chatNameMap.get(chatId) || chatId
+  const getChatName = (expression: Expression): string => {
+    return expression.chat_name || chatNameMap.get(expression.chat_id) || expression.chat_id
   }
 
   const totalPages = Math.ceil(total / pageSize)
@@ -117,11 +117,11 @@ export function ExpressionList({
                   <TableCell className="max-w-xs truncate">{expression.style}</TableCell>
                   <TableCell 
                     className="max-w-[200px] truncate" 
-                    title={getChatName(expression.chat_id)}
+                    title={getChatName(expression)}
                     style={{ wordBreak: 'keep-all' }}
                   >
                     <span className="whitespace-nowrap overflow-hidden text-ellipsis block">
-                      {getChatName(expression.chat_id)}
+                      {getChatName(expression)}
                     </span>
                   </TableCell>
                   <TableCell className="text-right">
@@ -201,10 +201,10 @@ export function ExpressionList({
                 <div className="text-xs text-muted-foreground mb-1">聊天</div>
                 <p 
                   className="text-sm truncate" 
-                  title={getChatName(expression.chat_id)}
+                  title={getChatName(expression)}
                   style={{ wordBreak: 'keep-all' }}
                 >
-                  {getChatName(expression.chat_id)}
+                  {getChatName(expression)}
                 </p>
               </div>
 

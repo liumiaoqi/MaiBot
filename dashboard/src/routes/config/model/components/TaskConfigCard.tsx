@@ -13,6 +13,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import type { TaskConfig } from '../types'
 
@@ -25,8 +31,27 @@ interface TaskConfigCardProps {
   hideTemperature?: boolean
   hideMaxTokens?: boolean
   advanced?: boolean
+  showAdvancedSettings?: boolean
   dataTour?: string
 }
+
+const selectionStrategyOptions = [
+  {
+    value: 'balance',
+    label: '负载均衡（balance）',
+    description: '优先选择当前使用次数较少的模型，适合多个同类模型共同承担请求。',
+  },
+  {
+    value: 'random',
+    label: '随机选择（random）',
+    description: '每次请求从模型列表中随机选择一个模型，适合简单分散请求。',
+  },
+  {
+    value: 'sequential',
+    label: '按顺序优先（sequential）',
+    description: '优先使用模型列表中靠前的模型，前面的模型不可用时再尝试后面的模型。',
+  },
+]
 
 export const TaskConfigCard = React.memo(function TaskConfigCard({
   title,
@@ -37,6 +62,7 @@ export const TaskConfigCard = React.memo(function TaskConfigCard({
   hideTemperature = false,
   hideMaxTokens = false,
   advanced = false,
+  showAdvancedSettings = false,
   dataTour,
 }: TaskConfigCardProps) {
   const handleModelChange = (values: string[]) => {
@@ -68,8 +94,8 @@ export const TaskConfigCard = React.memo(function TaskConfigCard({
           />
         </div>
 
-        {/* 温度和最大 Token */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* 推理参数 */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           {!hideTemperature && (
             <div className="grid gap-3">
               <div className="flex items-center justify-between">
@@ -112,51 +138,66 @@ export const TaskConfigCard = React.memo(function TaskConfigCard({
               />
             </div>
           )}
-        </div>
 
-        {/* 慢请求阈值 */}
-        <div className="grid gap-2">
-          <div className="flex items-center justify-between">
-            <Label>慢请求阈值 (秒)</Label>
-            <span className="text-xs text-muted-foreground">超时警告</span>
+          {/* 模型选择策略 */}
+          <div className="grid gap-2">
+            <Label>模型选择策略</Label>
+            <Select
+              value={taskConfig.selection_strategy ?? 'balance'}
+              onValueChange={(value) => onChange('selection_strategy', value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="选择模型选择策略" />
+              </SelectTrigger>
+              <SelectContent>
+                <TooltipProvider delayDuration={150}>
+                  {selectionStrategyOptions.map((option) => (
+                    <Tooltip key={option.value}>
+                      <TooltipTrigger asChild>
+                        <SelectItem value={option.value} title={option.description}>
+                          {option.label}
+                        </SelectItem>
+                      </TooltipTrigger>
+                      <TooltipContent
+                        side="right"
+                        align="center"
+                        className="max-w-72 bg-background text-foreground border shadow-lg"
+                      >
+                        {option.description}
+                      </TooltipContent>
+                    </Tooltip>
+                  ))}
+                </TooltipProvider>
+              </SelectContent>
+            </Select>
           </div>
-          <Input
-            type="number"
-            step="1"
-            min="1"
-            value={taskConfig.slow_threshold ?? 15}
-            onChange={(e) => {
-              const value = parseInt(e.target.value)
-              if (!isNaN(value) && value >= 1) {
-                onChange('slow_threshold', value)
-              }
-            }}
-            placeholder="15"
-          />
-          <p className="text-xs text-muted-foreground">
-            模型响应时间超过此阈值将输出警告日志
-          </p>
         </div>
 
-        {/* 模型选择策略 */}
-        <div className="grid gap-2">
-          <Label>模型选择策略</Label>
-          <Select
-            value={taskConfig.selection_strategy ?? 'balance'}
-            onValueChange={(value) => onChange('selection_strategy', value)}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="选择模型选择策略" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="balance">负载均衡（balance）</SelectItem>
-              <SelectItem value="random">随机选择（random）</SelectItem>
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground">
-            负载均衡：优先选择使用次数少的模型。随机选择：完全随机从模型列表中选择
-          </p>
-        </div>
+        {showAdvancedSettings && (
+          <div className="grid gap-2 rounded-md border border-amber-200 bg-amber-50/50 p-3 dark:border-amber-500/40 dark:bg-amber-500/10">
+            <div className="flex items-center justify-between">
+              <Label>慢请求阈值 (秒)</Label>
+              <span className="text-xs text-muted-foreground">高级配置</span>
+            </div>
+            <Input
+              type="number"
+              step="1"
+              min="1"
+              value={taskConfig.slow_threshold ?? 15}
+              onChange={(e) => {
+                const value = parseInt(e.target.value)
+                if (!isNaN(value) && value >= 1) {
+                  onChange('slow_threshold', value)
+                }
+              }}
+              placeholder="15"
+            />
+            <p className="text-xs text-muted-foreground">
+              模型响应时间超过此阈值将输出警告日志
+            </p>
+          </div>
+        )}
+
       </div>
     </div>
   )

@@ -11,6 +11,7 @@ export type {
   UseAutoSaveReturnGeneric,
 } from './useAutoSave'
 export {
+  ChatPromptsHook,
   ChatTalkValueRulesHook,
   ExpressionGroupsHook,
   ExpressionLearningListHook,

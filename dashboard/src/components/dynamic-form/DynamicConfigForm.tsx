@@ -76,7 +76,6 @@ function DynamicConfigSection({
   basePath,
   hooks,
   level,
-  mergedChildren = [],
   nestedSchema,
   onChange,
   sectionDescription,
@@ -87,11 +86,6 @@ function DynamicConfigSection({
   basePath: string
   hooks: FieldHookRegistry
   level: number
-  mergedChildren?: Array<{
-    key: string
-    schema: ConfigSchema
-    values: Record<string, unknown>
-  }>
   nestedSchema: ConfigSchema
   onChange: (field: string, value: unknown) => void
   sectionDescription?: string
@@ -100,9 +94,7 @@ function DynamicConfigSection({
   values: Record<string, unknown>
 }) {
   const [advancedVisible, setAdvancedVisible] = React.useState(false)
-  const hasAdvanced =
-    hasTopLevelAdvancedFields(nestedSchema) ||
-    mergedChildren.some((child) => hasTopLevelAdvancedFields(child.schema))
+  const hasAdvanced = hasTopLevelAdvancedFields(nestedSchema)
 
   return (
     <Card>
@@ -135,37 +127,6 @@ function DynamicConfigSection({
           level={level}
           advancedVisible={hasAdvanced ? advancedVisible : undefined}
         />
-        {mergedChildren.map((child) => {
-          const childTitle = resolveSectionTitle(child.schema)
-          const childDescription = resolveSectionDescription(child.schema, childTitle)
-          const parentPath = basePath.includes('.')
-            ? basePath.replace(/\.[^.]+$/, '')
-            : ''
-          const childPath = buildFieldPath(parentPath, child.key)
-
-          return (
-            <div key={child.key} className="mt-5 border-t border-border/50 pt-4">
-              <div className="mb-3 space-y-1">
-                <div className="flex items-center gap-2">
-                  <SectionIcon iconName={child.schema.uiIcon} />
-                  <h3 className="text-sm font-medium">{childTitle}</h3>
-                </div>
-                {childDescription && (
-                  <p className="text-xs text-muted-foreground">{childDescription}</p>
-                )}
-              </div>
-              <DynamicConfigForm
-                schema={child.schema}
-                values={child.values}
-                onChange={(field, value) => onChange(`${child.key}.${field}`, value)}
-                basePath={childPath}
-                hooks={hooks}
-                level={level}
-                advancedVisible={hasAdvanced ? advancedVisible : undefined}
-              />
-            </div>
-          )
-        })}
       </CardContent>
     </Card>
   )
@@ -197,17 +158,6 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
     () => new Map(schema.fields.map((field) => [field.name, field])),
     [schema.fields],
   )
-  const mergedChildKeys = React.useMemo(() => {
-    const keys = new Set<string>()
-    for (const nestedSchema of Object.values(schema.nested ?? {})) {
-      for (const childKey of nestedSchema.uiMergeChildren ?? []) {
-        if (schema.nested?.[childKey]) {
-          keys.add(childKey)
-        }
-      }
-    }
-    return keys
-  }, [schema.nested])
 
   const renderField = (field: FieldSchema) => {
     const fieldPath = buildFieldPath(basePath, field.name)
@@ -294,7 +244,6 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
 
       {schema.nested &&
         Object.entries(schema.nested)
-          .filter(([key]) => !mergedChildKeys.has(key))
           .map(([key, nestedSchema]) => {
           const nestedField = fieldMap.get(key)
           const nestedFieldPath = buildFieldPath(basePath, key)
@@ -342,34 +291,11 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
 
           const sectionTitle = resolveSectionTitle(nestedSchema)
           const sectionDescription = resolveSectionDescription(nestedSchema, sectionTitle)
-          const mergedChildren = (nestedSchema.uiMergeChildren ?? [])
-            .map((childKey) => {
-              const childSchema = schema.nested?.[childKey]
-              if (!childSchema) {
-                return null
-              }
-
-              return {
-                key: childKey,
-                schema: childSchema,
-                values: (values[childKey] as Record<string, unknown>) || {},
-              }
-            })
-            .filter(
-              (
-                child,
-              ): child is {
-                key: string
-                schema: ConfigSchema
-                values: Record<string, unknown>
-              } => Boolean(child),
-            )
 
           if (level === 0) {
             return (
               <DynamicConfigSection
                 key={key}
-                mergedChildren={mergedChildren}
                 nestedSchema={nestedSchema}
                 values={(values[key] as Record<string, unknown>) || {}}
                 onChange={onChange}

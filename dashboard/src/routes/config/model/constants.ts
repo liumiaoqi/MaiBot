@@ -19,6 +19,16 @@ export const modelListCache = new Map<string, { models: ModelListItem[], timesta
  */
 export const TASK_CONFIGS = [
   {
+    key: 'replyer' as const,
+    title: '回复模型 (replyer)',
+    description: '用于表达器和表达方式学习',
+  },
+  {
+    key: 'planner' as const,
+    title: '规划模型 (planner)',
+    description: '负责决定麦麦该什么时候回复',
+  },
+  {
     key: 'utils' as const,
     title: '组件模型 (utils)',
     description: '用于表情包、取名、关系、情绪变化等组件',
@@ -34,16 +44,6 @@ export const TASK_CONFIGS = [
     description: '需要使用支持工具调用的模型',
   },
   {
-    key: 'replyer' as const,
-    title: '首要回复模型 (replyer)',
-    description: '用于表达器和表达方式学习',
-  },
-  {
-    key: 'planner' as const,
-    title: '决策模型 (planner)',
-    description: '负责决定麦麦该什么时候回复',
-  },
-  {
     key: 'vlm' as const,
     title: '图像识别模型 (vlm)',
     description: '视觉语言模型',
@@ -55,6 +55,7 @@ export const TASK_CONFIGS = [
     description: '语音转文字',
     hideTemperature: true,
     hideMaxTokens: true,
+    advanced: true,
   },
   {
     key: 'embedding' as const,
@@ -95,8 +96,11 @@ export const DEFAULT_MODEL_INFO = {
   api_provider: '',
   price_in: 0,
   price_out: 0,
+  cache: false,
+  cache_price_in: 0,
   temperature: null,
   max_tokens: null,
+  visual: false,
   force_stream_mode: false,
   extra_params: {},
 } as const

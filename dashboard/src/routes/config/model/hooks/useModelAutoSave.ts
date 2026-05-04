@@ -66,6 +66,9 @@ export function useModelAutoSave(
       api_provider: model.api_provider,
       price_in: model.price_in ?? 0,
       price_out: model.price_out ?? 0,
+      cache: model.cache ?? false,
+      cache_price_in: model.cache_price_in ?? 0,
+      visual: model.visual ?? false,
       force_stream_mode: model.force_stream_mode ?? false,
       extra_params: model.extra_params ?? {},
     }

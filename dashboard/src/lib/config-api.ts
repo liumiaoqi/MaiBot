@@ -13,7 +13,7 @@ const API_BASE = '/api/webui/config'
  * 获取麦麦主程序配置架构
  */
 export async function getBotConfigSchema(): Promise<ApiResponse<ConfigSchema>> {
-  const response = await fetchWithAuth(`${API_BASE}/schema/bot`)
+  const response = await fetchWithAuth(`${API_BASE}/schema/bot`, { cache: 'no-store' })
   return parseResponse<ConfigSchema>(response)
 }
 
@@ -21,7 +21,7 @@ export async function getBotConfigSchema(): Promise<ApiResponse<ConfigSchema>> {
  * 获取模型配置架构
  */
 export async function getModelConfigSchema(): Promise<ApiResponse<ConfigSchema>> {
-  const response = await fetchWithAuth(`${API_BASE}/schema/model`)
+  const response = await fetchWithAuth(`${API_BASE}/schema/model`, { cache: 'no-store' })
   return parseResponse<ConfigSchema>(response)
 }
 
@@ -29,7 +29,7 @@ export async function getModelConfigSchema(): Promise<ApiResponse<ConfigSchema>>
  * 获取指定配置节的架构
  */
 export async function getConfigSectionSchema(sectionName: string): Promise<ApiResponse<ConfigSchema>> {
-  const response = await fetchWithAuth(`${API_BASE}/schema/section/${sectionName}`)
+  const response = await fetchWithAuth(`${API_BASE}/schema/section/${sectionName}`, { cache: 'no-store' })
   return parseResponse<ConfigSchema>(response)
 }
 
@@ -37,7 +37,7 @@ export async function getConfigSectionSchema(sectionName: string): Promise<ApiRe
  * 获取麦麦主程序配置数据
  */
 export async function getBotConfig(): Promise<ApiResponse<Record<string, unknown>>> {
-  const response = await fetchWithAuth(`${API_BASE}/bot`)
+  const response = await fetchWithAuth(`${API_BASE}/bot`, { cache: 'no-store' })
   return parseResponse<Record<string, unknown>>(response)
 }
 
@@ -45,7 +45,7 @@ export async function getBotConfig(): Promise<ApiResponse<Record<string, unknown
  * 获取模型配置数据
  */
 export async function getModelConfig(): Promise<ApiResponse<Record<string, unknown>>> {
-  const response = await fetchWithAuth(`${API_BASE}/model`)
+  const response = await fetchWithAuth(`${API_BASE}/model`, { cache: 'no-store' })
   return parseResponse<Record<string, unknown>>(response)
 }
 
@@ -66,7 +66,7 @@ export async function updateBotConfig(
  * 获取麦麦主程序配置的原始 TOML 内容
  */
 export async function getBotConfigRaw(): Promise<ApiResponse<string>> {
-  const response = await fetchWithAuth(`${API_BASE}/bot/raw`)
+  const response = await fetchWithAuth(`${API_BASE}/bot/raw`, { cache: 'no-store' })
   return parseResponse<string>(response)
 }
 

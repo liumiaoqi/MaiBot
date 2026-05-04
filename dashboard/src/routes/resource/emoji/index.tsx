@@ -280,7 +280,7 @@ export function EmojiManagementPage() {
       {/* 页面标题 */}
       <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">表情包管理</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">表情包</h1>
           <p className="text-sm text-muted-foreground mt-1">
             管理麦麦的表情包资源
           </p>

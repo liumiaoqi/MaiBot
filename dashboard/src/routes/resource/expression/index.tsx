@@ -267,7 +267,7 @@ export function ExpressionManagementPage() {
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
               <MessageSquare className="h-8 w-8" strokeWidth={2} />
-              表达方式管理
+              表达方式
             </h1>
             <p className="text-muted-foreground mt-1 text-sm sm:text-base">
               管理麦麦的表达方式和话术模板
@@ -316,28 +316,21 @@ export function ExpressionManagementPage() {
 
       {/* 搜索和批量操作 */}
       <div className="rounded-lg border bg-card p-4">
-        <Label htmlFor="search">搜索</Label>
-        <div className="flex flex-col sm:flex-row gap-2 mt-1.5">
-          <div className="flex-1 relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              id="search"
-              placeholder="搜索情境、风格或上下文..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-            />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="flex-1">
+            <Label htmlFor="search">搜索</Label>
+            <div className="relative mt-1.5">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="search"
+                placeholder="搜索情境、风格或上下文..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
           </div>
-        </div>
-
-        {/* 批量操作工具栏 */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mt-4 pt-4 border-t">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            {selectedIds.size > 0 && (
-              <span>已选择 {selectedIds.size} 个表达方式</span>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 sm:pb-0.5">
             <Label htmlFor="page-size" className="text-sm whitespace-nowrap">每页显示</Label>
             <Select
               value={pageSize.toString()}
@@ -357,6 +350,17 @@ export function ExpressionManagementPage() {
                 <SelectItem value="100">100</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+        </div>
+
+        {/* 批量操作工具栏 */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mt-4 pt-4 border-t">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            {selectedIds.size > 0 && (
+              <span>已选择 {selectedIds.size} 个表达方式</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
             {selectedIds.size > 0 && (
               <>
                 <Button
