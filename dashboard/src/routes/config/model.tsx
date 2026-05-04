@@ -889,7 +889,7 @@ function ModelConfigPageContent() {
               开始引导
             </Button>
             <Button type="button" variant="ghost" size="sm" onClick={dismissTourEntry}>
-              鍏抽棴
+              关闭
             </Button>
             </div>
           </AlertDescription>

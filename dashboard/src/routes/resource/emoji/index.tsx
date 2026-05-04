@@ -63,7 +63,7 @@ export function EmojiManagementPage() {
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [pageSize, setPageSize] = useState(20)
-  const [registeredFilter, setRegisteredFilter] = useState<string>('all')
+  const [registeredFilter, setRegisteredFilter] = useState<string>('registered')
   const [bannedFilter, setBannedFilter] = useState<string>('all')
   const [formatFilter, setFormatFilter] = useState<string>('all')
   const [sortBy, setSortBy] = useState<string>('usage_count')

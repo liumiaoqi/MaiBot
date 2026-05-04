@@ -132,6 +132,11 @@ def _toml_to_plain_dict(obj: Any) -> Any:
 
 def _coerce_numeric_value(value: Any, target_type: Any) -> Any:
     """根据配置字段类型，把旧 WebUI 可能写入的数字字符串还原为数字。"""
+    if target_type is str:
+        if isinstance(value, (int, float)):
+            return str(value)
+        return value
+
     if target_type is int:
         if isinstance(value, str):
             try:

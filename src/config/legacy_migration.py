@@ -343,10 +343,10 @@ def try_migrate_legacy_bot_config_dict(data: dict[str, Any]) -> MigrationResult:
     reasons: list[str] = []
 
     bot = _as_dict(data.get("bot"))
-    if bot is not None and isinstance(bot.get("qq_account"), str) and not bot["qq_account"].strip():
-        bot["qq_account"] = 0
+    if bot is not None and isinstance(bot.get("qq_account"), int):
+        bot["qq_account"] = str(bot["qq_account"]) if bot["qq_account"] > 0 else ""
         migrated_any = True
-        reasons.append("bot.qq_account_empty")
+        reasons.append("bot.qq_account_int_to_string")
 
     chat = _as_dict(data.get("chat"))
     if chat is not None and _migrate_chat_talk_value_rules(chat):

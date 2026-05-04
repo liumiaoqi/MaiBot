@@ -215,12 +215,50 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
     ? [...normalFields, ...advancedFields]
     : normalFields
 
+  const groupFieldsByRow = (fields: FieldSchema[]) => {
+    const rows: FieldSchema[][] = []
+    let currentRow: FieldSchema[] = []
+    let currentRowKey: string | undefined
+
+    for (const field of fields) {
+      const rowKey = field['x-row']
+      if (rowKey && rowKey === currentRowKey) {
+        currentRow.push(field)
+        continue
+      }
+
+      if (currentRow.length > 0) {
+        rows.push(currentRow)
+      }
+
+      currentRow = [field]
+      currentRowKey = rowKey
+    }
+
+    if (currentRow.length > 0) {
+      rows.push(currentRow)
+    }
+
+    return rows
+  }
+
   const renderFieldList = (fields: FieldSchema[]) => (
     <>
-      {fields.map((field, index) => (
-        <React.Fragment key={field.name}>
+      {groupFieldsByRow(fields).map((row, index) => (
+        <React.Fragment key={row.map((field) => field.name).join('|')}>
           {index > 0 && <Separator className="my-2 bg-border/50" />}
-          <div className="py-1">{renderField(field)}</div>
+          {row.length > 1 ? (
+            <div
+              className="grid gap-4 py-1 md:grid-cols-[repeat(var(--field-row-count),minmax(0,1fr))]"
+              style={{ '--field-row-count': row.length } as React.CSSProperties}
+            >
+              {row.map((field) => (
+                <div key={field.name}>{renderField(field)}</div>
+              ))}
+            </div>
+          ) : (
+            <div className="py-1">{renderField(row[0])}</div>
+          )}
         </React.Fragment>
       ))}
     </>

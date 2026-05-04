@@ -490,10 +490,20 @@ function BotConfigPageContent() {
   const saveSourceCode = async () => {
     try {
       setSaving(true)
+      // 编辑器展示时会把 basic string 内的 \n 展开成真实换行；保存前先转回 TOML 转义序列。
+      const escapedSourceCode = sourceCode.replace(/"([^"]*)"/g, (_match, content) => {
+        const encoded = content
+          .replace(/\\/g, '\\\\') // 反斜杠必须先转义，避免 \s 等序列被 TOML 当作非法转义
+          .replace(/"/g, '\\"')
+          .replace(/\n/g, '\\n')
+          .replace(/\t/g, '\\t')
+          .replace(/\r/g, '\\r')
+        return `"${encoded}"`
+      })
       
       // 前端验证 TOML 格式
       try {
-        parseToml(sourceCode)
+        parseToml(escapedSourceCode)
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : 'TOML 格式错误'
         const translatedMsg = translateTomlError(errorMsg)
@@ -508,18 +518,7 @@ function BotConfigPageContent() {
         return
       }
       
-      // 将双引号字符串中的实际字符转换回 TOML 转义序列
-      // 使用正则表达式只处理双引号字符串内的内容，不影响单引号字符串
-      const escaped = sourceCode.replace(/"([^"]*)"/g, (_match, content) => {
-        const encoded = content
-          .replace(/\\/g, '\\\\') // 反斜杠（必须放在最前）
-          .replace(/"/g, '\\"')   // 双引号
-          .replace(/\n/g, '\\n')  // 换行符
-          .replace(/\t/g, '\\t')  // 制表符
-          .replace(/\r/g, '\\r')  // 回车符
-        return `"${encoded}"`
-      })
-      const result = await updateBotConfigRaw(escaped)
+      const result = await updateBotConfigRaw(escapedSourceCode)
       if (!result.success) {
         setHasTomlError(true)
         const errorMsg = result.error

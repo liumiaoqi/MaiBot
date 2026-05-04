@@ -32,8 +32,7 @@
 
 # 运行/调试/构建/测试/依赖
 优先使用uv
-依赖项以 pyproject.toml 为准
-
+依赖项以 pyproject.toml 为准，要同步更新requirements.txt
 
 # 语言规范
 项目的首选语言为简体中文，无论是注释语言，日志展示语言，还是 WebUI 展示语言都首要以简体中文为首要实现目标
@@ -52,3 +51,6 @@
 
 # maibot插件开发文档
 https://github.com/Mai-with-u/maibot-plugin-sdk/blob/main/docs/guide.md
+
+# 如何提交maibot插件
+https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md

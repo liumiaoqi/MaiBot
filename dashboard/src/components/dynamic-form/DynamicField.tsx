@@ -8,6 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import type { FieldSchema } from "@/types/config-schema"
 
@@ -115,11 +121,9 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
     return <IconComponent className="h-4 w-4" />
   }
 
-  const isRuleTypeSelect =
-    schema.name === 'rule_type' &&
-    (schema.type === 'select' || schema['x-widget'] === 'select')
-  const inlineDescription = isRuleTypeSelect ? '' : schema.description
-  const selectHoverDescription = isRuleTypeSelect ? schema.description : undefined
+  const optionDescriptions = schema['x-option-descriptions'] ?? {}
+  const hasOptionDescriptions = Object.keys(optionDescriptions).length > 0
+  const inlineDescription = hasOptionDescriptions ? '' : schema.description
 
   const renderFieldHeader = () => (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -352,15 +356,43 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
 
     return (
       <Select value={strValue} onValueChange={(val) => onChange(val)}>
-        <SelectTrigger title={selectHoverDescription}>
+        <SelectTrigger>
           <SelectValue placeholder={`Select ${schema.label}`} />
         </SelectTrigger>
         <SelectContent>
-          {options.map((option) => (
-            <SelectItem key={option} value={option}>
-              {option}
-            </SelectItem>
-          ))}
+          {hasOptionDescriptions ? (
+            <TooltipProvider delayDuration={150}>
+              {options.map((option) => {
+                const description = optionDescriptions[option]
+                return description ? (
+                  <Tooltip key={option}>
+                    <TooltipTrigger asChild>
+                      <SelectItem value={option} title={description}>
+                        {option}
+                      </SelectItem>
+                    </TooltipTrigger>
+                    <TooltipContent
+                      side="right"
+                      align="center"
+                      className="max-w-72 bg-background text-foreground border shadow-lg"
+                    >
+                      {description}
+                    </TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <SelectItem key={option} value={option}>
+                    {option}
+                  </SelectItem>
+                )
+              })}
+            </TooltipProvider>
+          ) : (
+            options.map((option) => (
+              <SelectItem key={option} value={option}>
+                {option}
+              </SelectItem>
+            ))
+          )}
         </SelectContent>
       </Select>
     )

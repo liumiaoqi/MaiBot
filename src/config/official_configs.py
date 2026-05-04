@@ -4,6 +4,17 @@ import re
 
 from .config_base import ConfigBase, Field
 
+RULE_TYPE_OPTION_DESCRIPTIONS = {
+    "group": "群聊聊天流，item_id 填群号或群聊 ID",
+    "private": "私聊聊天流，item_id 填用户 ID",
+}
+
+VISUAL_MODE_OPTION_DESCRIPTIONS = {
+    "auto": "根据模型信息自动选择文本或多模态模式",
+    "text": "纯文本模式，不向模型发送视觉输入",
+    "multimodal": "多模态模式，会向模型发送视觉输入",
+}
+
 """
 须知：
 1. 本文件中记录了所有的配置项
@@ -33,8 +44,8 @@ class BotConfig(ConfigBase):
     )
     """平台"""
 
-    qq_account: int = Field(
-        default=0,
+    qq_account: str = Field(
+        default="",
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "user",
@@ -141,6 +152,8 @@ class VisualConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "select",
             "x-icon": "git-branch",
+            "x-option-descriptions": VISUAL_MODE_OPTION_DESCRIPTIONS,
+            "x-row": "visual-modes",
         },
     )
     """规划器模式，auto根据模型信息自动选择，text为纯文本模式，multimodal为多模态模式"""
@@ -150,6 +163,8 @@ class VisualConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "select",
             "x-icon": "git-branch",
+            "x-option-descriptions": VISUAL_MODE_OPTION_DESCRIPTIONS,
+            "x-row": "visual-modes",
         },
     )
     """回复器模式，auto根据模型信息自动选择，text为纯文本模式，multimodal为多模态模式"""
@@ -162,7 +177,13 @@ class TalkRulesItem(ConfigBase):
     item_id: str = ""
     """用户ID，与平台一起留空表示全局"""
 
-    rule_type: Literal["group", "private"] = "group"
+    rule_type: Literal["group", "private"] = Field(
+        default="group",
+        json_schema_extra={
+            "x-widget": "select",
+            "x-option-descriptions": RULE_TYPE_OPTION_DESCRIPTIONS,
+        },
+    )
     """聊天流类型，group（群聊）或private（私聊）"""
 
     time: str = ""
@@ -185,6 +206,7 @@ class ChatConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "slider",
             "x-icon": "message-circle",
+            "x-row": "talk-values",
             "step": 0.1,
         },
     )
@@ -197,6 +219,7 @@ class ChatConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "slider",
             "x-icon": "message-circle",
+            "x-row": "talk-values",
             "step": 0.1,
         },
     )
@@ -207,11 +230,19 @@ class ChatConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "switch",
             "x-icon": "at-sign",
+            "x-row": "reply-switches",
         },
     )
     """是否启用提及必回复"""
 
-    inevitable_at_reply: bool = Field(default=True)
+    inevitable_at_reply: bool = Field(
+        default=True,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "at-sign",
+            "x-row": "reply-switches",
+        },
+    )
     """是否启用at必回复"""
 
     enable_at: bool = Field(
@@ -241,6 +272,7 @@ class ChatConfig(ConfigBase):
             "x-icon": "layers",
             "x-layout": "inline-right",
             "x-input-width": "12rem",
+            "x-row": "context-sizes",
         },
     )
     """上下文长度"""
@@ -252,6 +284,7 @@ class ChatConfig(ConfigBase):
             "x-icon": "layers",
             "x-layout": "inline-right",
             "x-input-width": "12rem",
+            "x-row": "context-sizes",
         },
     )
     """私聊上下文长度"""
@@ -395,6 +428,7 @@ class TargetItem(ConfigBase):
         json_schema_extra={
             "x-widget": "select",
             "x-icon": "users",
+            "x-option-descriptions": RULE_TYPE_OPTION_DESCRIPTIONS,
         },
     )
     """聊天流类型，group（群聊）或private（私聊）"""
@@ -1049,6 +1083,7 @@ class LearningItem(ConfigBase):
         json_schema_extra={
             "x-widget": "select",
             "x-icon": "users",
+            "x-option-descriptions": RULE_TYPE_OPTION_DESCRIPTIONS,
         },
     )
     """聊天流类型，group（群聊）或private（私聊）"""
@@ -1751,6 +1786,7 @@ class ExtraPromptItem(ConfigBase):
         json_schema_extra={
             "x-widget": "select",
             "x-icon": "users",
+            "x-option-descriptions": RULE_TYPE_OPTION_DESCRIPTIONS,
         },
     )
     """聊天流类型，group（群聊）或private（私聊）"""
