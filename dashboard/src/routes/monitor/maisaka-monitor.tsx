@@ -19,6 +19,7 @@ import {
   Gauge,
   MessageSquare,
   PauseCircle,
+  Radio,
   Timer,
   Wrench,
   XCircle,
@@ -585,6 +586,8 @@ export function MaisakaMonitor() {
     selectedSession,
     setSelectedSession,
     connected,
+    backgroundCollection,
+    setBackgroundCollectionEnabled,
     clearTimeline,
   } = useMaisakaMonitor()
 
@@ -698,6 +701,16 @@ export function MaisakaMonitor() {
           </div>
           <div className="ml-auto flex items-center gap-2">
             <Button
+              variant={backgroundCollection ? 'secondary' : 'ghost'}
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => setBackgroundCollectionEnabled(!backgroundCollection)}
+              title={backgroundCollection ? '关闭离开页面后的持续获取' : '开启离开页面后的持续获取'}
+            >
+              <Radio className={cn('h-3.5 w-3.5 mr-1', backgroundCollection && 'text-primary')} />
+              持续获取
+            </Button>
+            <Button
               variant={showCycleMarkers ? 'secondary' : 'ghost'}
               size="sm"
               className="h-7 text-xs"
@@ -746,17 +759,19 @@ export function MaisakaMonitor() {
                 </div>
               ) : (
                 (() => {
-                  const displayedTimingGateCycles = new Set<string>()
+                  const continuedTimingGateCycles = new Set<string>()
 
                   return timeline.map((entry) => {
                     if (entry.type === 'timing_gate.result') {
                       const data = entry.data as TimingGateResultEvent
-                      displayedTimingGateCycles.add(buildCycleKey(data.session_id, data.cycle_id))
+                      if (data.action === 'continue') {
+                        continuedTimingGateCycles.add(buildCycleKey(data.session_id, data.cycle_id))
+                      }
                     }
 
                     if (entry.type === 'planner.response' || entry.type === 'planner.finalized') {
                       const data = entry.data as PlannerResponseEvent | PlannerFinalizedEvent
-                      if (!displayedTimingGateCycles.has(buildCycleKey(data.session_id, data.cycle_id))) {
+                      if (!continuedTimingGateCycles.has(buildCycleKey(data.session_id, data.cycle_id))) {
                         return null
                       }
                     }

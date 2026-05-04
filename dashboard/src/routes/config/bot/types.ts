@@ -189,12 +189,6 @@ export interface DebugConfig {
   show_lpmm_paragraph: boolean
 }
 
-export interface ExperimentalConfig {
-  private_plan_style: string
-  chat_prompts: string[]
-  lpmm_memory: boolean
-}
-
 export interface MaimMessageConfig {
   auth_token: string[]
   enable_api_server: boolean
@@ -239,14 +233,12 @@ export interface AllBotConfigs {
   voiceConfig: VoiceConfig | null
   messageReceiveConfig: MessageReceiveConfig | null
   dreamConfig: DreamConfig | null
-  lpmmConfig: LPMMKnowledgeConfig | null
   keywordReactionConfig: KeywordReactionConfig | null
   responsePostProcessConfig: ResponsePostProcessConfig | null
   chineseTypoConfig: ChineseTypoConfig | null
   responseSplitterConfig: ResponseSplitterConfig | null
   logConfig: LogConfig | null
   debugConfig: DebugConfig | null
-  experimentalConfig: ExperimentalConfig | null
   maimMessageConfig: MaimMessageConfig | null
   telemetryConfig: TelemetryConfig | null
 }
@@ -261,25 +253,21 @@ export type ConfigSectionName =
   | 'expression'
   | 'emoji'
   | 'memory'
-  | 'relationship'
   | 'visual'
   | 'tool'
   | 'voice'
   | 'message_receive'
   | 'dream'
-  | 'lpmm_knowledge'
   | 'keyword_reaction'
   | 'response_post_process'
   | 'chinese_typo'
   | 'response_splitter'
   | 'log'
   | 'debug'
-  | 'experimental'
   | 'maim_message'
   | 'telemetry'
   | 'webui'
   | 'database'
-  | 'maisaka'
   | 'mcp'
   | 'plugin_runtime'
   | 'a_memorix'

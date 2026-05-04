@@ -127,7 +127,7 @@ class MaisakaHeartFlowChatting:
             int(global_config.chat.planner_interrupt_max_consecutive_count),
         )
 
-        expr_use, jargon_learn, expr_learn = ExpressionConfigUtils.get_expression_config_for_chat(session_id)
+        expr_use, expr_learn, jargon_learn = ExpressionConfigUtils.get_expression_config_for_chat(session_id)
         self._enable_expression_use = expr_use
         self._enable_expression_learning = expr_learn
         self._enable_jargon_learning = jargon_learn

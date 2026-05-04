@@ -29,7 +29,6 @@ import { Code2, Info, Layout, Power, Save } from 'lucide-react'
 import type { ConfigSchema } from '@/types/config-schema'
 import {
   ChatTalkValueRulesHook,
-  ExperimentalChatPromptsHook,
   ExpressionGroupsHook,
   ExpressionLearningListHook,
   KeywordRulesHook,
@@ -53,9 +52,7 @@ const TAB_ORDER = [
   'expression',
   'emoji',
   'response_post_process',
-  'lpmm_knowledge',
   'webui',
-  'maisaka',
   'plugin_runtime',
   'log',
 ]
@@ -156,22 +153,18 @@ function BotConfigPageContent() {
   const [expressionConfig, setExpressionConfig] = useState<ConfigSectionData | null>(null)
   const [emojiConfig, setEmojiConfig] = useState<ConfigSectionData | null>(null)
   const [memoryConfig, setMemoryConfig] = useState<ConfigSectionData | null>(null)
-  const [relationshipConfig, setRelationshipConfig] = useState<ConfigSectionData | null>(null)
   const [visualConfig, setVisualConfig] = useState<ConfigSectionData | null>(null)
   const [voiceConfig, setVoiceConfig] = useState<ConfigSectionData | null>(null)
   const [messageReceiveConfig, setMessageReceiveConfig] = useState<ConfigSectionData | null>(null)
-  const [lpmmConfig, setLpmmConfig] = useState<ConfigSectionData | null>(null)
   const [keywordReactionConfig, setKeywordReactionConfig] = useState<ConfigSectionData | null>(null)
   const [responsePostProcessConfig, setResponsePostProcessConfig] = useState<ConfigSectionData | null>(null)
   const [chineseTypoConfig, setChineseTypoConfig] = useState<ConfigSectionData | null>(null)
   const [responseSplitterConfig, setResponseSplitterConfig] = useState<ConfigSectionData | null>(null)
   const [debugConfig, setDebugConfig] = useState<ConfigSectionData | null>(null)
-  const [experimentalConfig, setExperimentalConfig] = useState<ConfigSectionData | null>(null)
   const [maimMessageConfig, setMaimMessageConfig] = useState<ConfigSectionData | null>(null)
   const [telemetryConfig, setTelemetryConfig] = useState<ConfigSectionData | null>(null)
   const [webuiConfig, setWebuiConfig] = useState<ConfigSectionData | null>(null)
   const [databaseConfig, setDatabaseConfig] = useState<ConfigSectionData | null>(null)
-  const [maisakaConfig, setMaisakaConfig] = useState<ConfigSectionData | null>(null)
   const [mcpConfig, setMcpConfig] = useState<ConfigSectionData | null>(null)
   const [pluginRuntimeConfig, setPluginRuntimeConfig] = useState<ConfigSectionData | null>(null)
   const [aMemorixConfig, setAMemorixConfig] = useState<ConfigSectionData | null>(null)
@@ -255,22 +248,18 @@ function BotConfigPageContent() {
     setExpressionConfig((config.expression ?? {}) as ConfigSectionData)
     setEmojiConfig((config.emoji ?? {}) as ConfigSectionData)
     setMemoryConfig((config.memory ?? {}) as ConfigSectionData)
-    setRelationshipConfig((config.relationship ?? {}) as ConfigSectionData)
     setVisualConfig((config.visual ?? {}) as ConfigSectionData)
     setVoiceConfig((config.voice ?? {}) as ConfigSectionData)
     setMessageReceiveConfig((config.message_receive ?? {}) as ConfigSectionData)
-    setLpmmConfig((config.lpmm_knowledge ?? {}) as ConfigSectionData)
     setKeywordReactionConfig((config.keyword_reaction ?? {}) as ConfigSectionData)
     setResponsePostProcessConfig((config.response_post_process ?? {}) as ConfigSectionData)
     setChineseTypoConfig((config.chinese_typo ?? {}) as ConfigSectionData)
     setResponseSplitterConfig((config.response_splitter ?? {}) as ConfigSectionData)
     setDebugConfig((config.debug ?? {}) as ConfigSectionData)
-    setExperimentalConfig((config.experimental ?? {}) as ConfigSectionData)
     setMaimMessageConfig((config.maim_message ?? {}) as ConfigSectionData)
     setTelemetryConfig((config.telemetry ?? {}) as ConfigSectionData)
     setWebuiConfig((config.webui ?? {}) as ConfigSectionData)
     setDatabaseConfig((config.database ?? {}) as ConfigSectionData)
-    setMaisakaConfig((config.maisaka ?? {}) as ConfigSectionData)
     setMcpConfig((config.mcp ?? {}) as ConfigSectionData)
     setPluginRuntimeConfig((config.plugin_runtime ?? {}) as ConfigSectionData)
     setAMemorixConfig((config.a_memorix ?? {}) as ConfigSectionData)
@@ -289,22 +278,18 @@ function BotConfigPageContent() {
       expression: expressionConfig,
       emoji: emojiConfig,
       memory: memoryConfig,
-      relationship: relationshipConfig,
       visual: visualConfig,
       voice: voiceConfig,
       message_receive: messageReceiveConfig,
-      lpmm_knowledge: lpmmConfig,
       keyword_reaction: keywordReactionConfig,
       response_post_process: responsePostProcessConfig,
       chinese_typo: chineseTypoConfig,
       response_splitter: responseSplitterConfig,
       debug: debugConfig,
-      experimental: experimentalConfig,
       maim_message: maimMessageConfig,
       telemetry: telemetryConfig,
       webui: webuiConfig,
       database: databaseConfig,
-      maisaka: maisakaConfig,
       mcp: mcpConfig,
       plugin_runtime: pluginRuntimeConfig,
       a_memorix: aMemorixConfig,
@@ -316,22 +301,18 @@ function BotConfigPageContent() {
     expressionConfig,
     emojiConfig,
     memoryConfig,
-    relationshipConfig,
     visualConfig,
     voiceConfig,
     messageReceiveConfig,
-    lpmmConfig,
     keywordReactionConfig,
     responsePostProcessConfig,
     chineseTypoConfig,
     responseSplitterConfig,
     debugConfig,
-    experimentalConfig,
     maimMessageConfig,
     telemetryConfig,
     webuiConfig,
     databaseConfig,
-    maisakaConfig,
     mcpConfig,
     pluginRuntimeConfig,
     aMemorixConfig,
@@ -414,7 +395,6 @@ function BotConfigPageContent() {
   useEffect(() => {
     const hookEntries = [
       ['chat.talk_value_rules', ChatTalkValueRulesHook],
-      ['experimental.chat_prompts', ExperimentalChatPromptsHook],
       ['expression.expression_groups', ExpressionGroupsHook],
       ['expression.learning_list', ExpressionLearningListHook],
       ['keyword_reaction.keyword_rules', KeywordRulesHook],
@@ -450,22 +430,18 @@ function BotConfigPageContent() {
   useConfigAutoSave(expressionConfig, 'expression', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(emojiConfig, 'emoji', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(memoryConfig, 'memory', initialLoadRef.current, triggerAutoSave)
-  useConfigAutoSave(relationshipConfig, 'relationship', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(visualConfig, 'visual', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(voiceConfig, 'voice', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(messageReceiveConfig, 'message_receive', initialLoadRef.current, triggerAutoSave)
-  useConfigAutoSave(lpmmConfig, 'lpmm_knowledge', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(keywordReactionConfig, 'keyword_reaction', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(responsePostProcessConfig, 'response_post_process', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(chineseTypoConfig, 'chinese_typo', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(responseSplitterConfig, 'response_splitter', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(debugConfig, 'debug', initialLoadRef.current, triggerAutoSave)
-  useConfigAutoSave(experimentalConfig, 'experimental', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(maimMessageConfig, 'maim_message', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(telemetryConfig, 'telemetry', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(webuiConfig, 'webui', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(databaseConfig, 'database', initialLoadRef.current, triggerAutoSave)
-  useConfigAutoSave(maisakaConfig, 'maisaka', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(mcpConfig, 'mcp', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(pluginRuntimeConfig, 'plugin_runtime', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(aMemorixConfig, 'a_memorix', initialLoadRef.current, triggerAutoSave)
@@ -667,22 +643,18 @@ function BotConfigPageContent() {
       expression: expressionConfig,
       emoji: emojiConfig,
       memory: memoryConfig,
-      relationship: relationshipConfig,
       visual: visualConfig,
       voice: voiceConfig,
       message_receive: messageReceiveConfig,
-      lpmm_knowledge: lpmmConfig,
       keyword_reaction: keywordReactionConfig,
       response_post_process: responsePostProcessConfig,
       chinese_typo: chineseTypoConfig,
       response_splitter: responseSplitterConfig,
       debug: debugConfig,
-      experimental: experimentalConfig,
       maim_message: maimMessageConfig,
       telemetry: telemetryConfig,
       webui: webuiConfig,
       database: databaseConfig,
-      maisaka: maisakaConfig,
       mcp: mcpConfig,
       plugin_runtime: pluginRuntimeConfig,
       a_memorix: aMemorixConfig,
@@ -694,22 +666,18 @@ function BotConfigPageContent() {
       expressionConfig,
       emojiConfig,
       memoryConfig,
-      relationshipConfig,
       visualConfig,
       voiceConfig,
       messageReceiveConfig,
-      lpmmConfig,
       keywordReactionConfig,
       responsePostProcessConfig,
       chineseTypoConfig,
       responseSplitterConfig,
       debugConfig,
-      experimentalConfig,
       maimMessageConfig,
       telemetryConfig,
       webuiConfig,
       databaseConfig,
-      maisakaConfig,
       mcpConfig,
       pluginRuntimeConfig,
       aMemorixConfig,
@@ -724,22 +692,18 @@ function BotConfigPageContent() {
       expression: setExpressionConfig,
       emoji: setEmojiConfig,
       memory: setMemoryConfig,
-      relationship: setRelationshipConfig,
       visual: setVisualConfig,
       voice: setVoiceConfig,
       message_receive: setMessageReceiveConfig,
-      lpmm_knowledge: setLpmmConfig,
       keyword_reaction: setKeywordReactionConfig,
       response_post_process: setResponsePostProcessConfig,
       chinese_typo: setChineseTypoConfig,
       response_splitter: setResponseSplitterConfig,
       debug: setDebugConfig,
-      experimental: setExperimentalConfig,
       maim_message: setMaimMessageConfig,
       telemetry: setTelemetryConfig,
       webui: setWebuiConfig,
       database: setDatabaseConfig,
-      maisaka: setMaisakaConfig,
       mcp: setMcpConfig,
       plugin_runtime: setPluginRuntimeConfig,
       a_memorix: setAMemorixConfig,

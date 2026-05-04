@@ -101,12 +101,6 @@ export const ExpressionGroupsHook = createJsonFieldHook({
   placeholder: '[\n  {\n    "expression_groups": [\n      {\n        "platform": "qq",\n        "item_id": "123456",\n        "rule_type": "group"\n      }\n    ]\n  }\n]',
 })
 
-export const ExperimentalChatPromptsHook = createJsonFieldHook({
-  emptyValue: [],
-  helperText: '实验配置中的定向 Prompt 列表使用 JSON 编辑。每一项应包含 platform、item_id、rule_type、prompt。',
-  placeholder: '[\n  {\n    "platform": "qq",\n    "item_id": "123456",\n    "rule_type": "group",\n    "prompt": "这里填写额外提示词"\n  }\n]',
-})
-
 export const MCPRootItemsHook = createJsonFieldHook({
   emptyValue: [],
   helperText: 'MCP Roots 条目为对象数组，使用 JSON 编辑。',
