@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 logger = get_logger("expressor")
 
 express_learn_model = LLMServiceClient(
-    task_name="replyer", request_type="expression.learner"
+    task_name="learner", request_type="expression.learner"
 )
 summary_model = LLMServiceClient(task_name="utils", request_type="expression.summary")
 

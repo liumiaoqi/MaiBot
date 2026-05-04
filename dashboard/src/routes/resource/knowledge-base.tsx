@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from '@tanstack/react-router'
 
 import {
   Database,
@@ -7,7 +6,6 @@ import {
   Loader2,
   RefreshCw,
   RotateCcw,
-  Save,
   SlidersHorizontal,
   Sparkles,
   Upload,
@@ -19,7 +17,6 @@ import {
 
 import { CodeEditor } from '@/components/CodeEditor'
 import { MemoryDeleteDialog } from '@/components/memory/MemoryDeleteDialog'
-import { MemoryConfigEditor } from '@/components/memory/MemoryConfigEditor'
 import { MemoryMiniTabs } from '@/components/memory/MemoryMiniTabs'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -56,9 +53,6 @@ import {
   createMemoryPasteImport,
   createMemoryTuningTask,
   createMemoryUploadImport,
-  getMemoryConfig,
-  getMemoryConfigRaw,
-  getMemoryConfigSchema,
   getMemoryDeleteOperation,
   getMemoryDeleteOperations,
   getMemoryImportTasks,
@@ -78,9 +72,6 @@ import {
   resolveMemoryImportPath,
   retryMemoryImportTask,
   restoreMemoryDelete,
-  updateMemoryConfig,
-  updateMemoryConfigRaw,
-  type MemoryConfigSchemaPayload,
   type MemoryDeleteExecutePayload,
   type MemoryDeleteOperationPayload,
   type MemoryFeedbackActionLogPayload,
@@ -113,25 +104,18 @@ import { DeleteTab } from './knowledge-base/tabs/DeleteTab'
 import { FeedbackTab } from './knowledge-base/tabs/FeedbackTab'
 import { ImportTab } from './knowledge-base/tabs/ImportTab'
 import { TuningTab } from './knowledge-base/tabs/TuningTab'
+import { KnowledgeGraphPage } from './knowledge-graph'
 
 export function KnowledgeBasePage() {
-  const navigate = useNavigate()
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
   const [refreshingCheck, setRefreshingCheck] = useState(false)
   const [creatingImport, setCreatingImport] = useState(false)
   const [creatingTuning, setCreatingTuning] = useState(false)
-  const [rawMode, setRawMode] = useState(false)
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'config' | 'import' | 'tuning' | 'delete' | 'feedback'
+    'overview' | 'graph' | 'import' | 'tuning' | 'delete' | 'feedback'
   >('overview')
 
-  const [schemaPayload, setSchemaPayload] = useState<MemoryConfigSchemaPayload | null>(null)
-  const [visualConfig, setVisualConfig] = useState<Record<string, unknown>>({})
-  const [rawConfig, setRawConfig] = useState('')
-  const [rawConfigExists, setRawConfigExists] = useState(true)
-  const [rawConfigUsingDefault, setRawConfigUsingDefault] = useState(false)
   const [runtimeConfig, setRuntimeConfig] = useState<MemoryRuntimeConfigPayload | null>(null)
   const [selfCheckReport, setSelfCheckReport] = useState<Record<string, unknown> | null>(null)
   const [importSettings, setImportSettings] = useState<MemoryImportSettings>({})
@@ -259,9 +243,6 @@ export function KnowledgeBasePage() {
     try {
       setLoading(true)
       const [
-        schema,
-        configPayload,
-        rawPayload,
         runtimePayload,
         importSettingsPayload,
         pathAliasPayload,
@@ -272,9 +253,6 @@ export function KnowledgeBasePage() {
         deleteOperationPayload,
         feedbackCorrectionPayload,
       ] = await Promise.all([
-        getMemoryConfigSchema(),
-        getMemoryConfig(),
-        getMemoryConfigRaw(),
         getMemoryRuntimeConfig(),
         getMemoryImportSettings(),
         getMemoryImportPathAliases(),
@@ -286,11 +264,6 @@ export function KnowledgeBasePage() {
         getMemoryFeedbackCorrections({ limit: FEEDBACK_CORRECTION_FETCH_LIMIT }),
       ])
 
-      setSchemaPayload(schema)
-      setVisualConfig(configPayload.config ?? {})
-      setRawConfig(rawPayload.config ?? '')
-      setRawConfigExists(rawPayload.exists ?? true)
-      setRawConfigUsingDefault(rawPayload.using_default ?? false)
       setRuntimeConfig(runtimePayload)
       setImportSettings(importSettingsPayload.settings ?? {})
       setImportPathAliases(pathAliasPayload.path_aliases ?? {})
@@ -330,9 +303,6 @@ export function KnowledgeBasePage() {
   useEffect(() => {
     void loadPage()
   }, [loadPage])
-
-  const configPath = schemaPayload?.path ?? 'config/a_memorix.toml'
-  const schema = schemaPayload?.schema
 
   const runtimeBadges = useMemo(() => {
     if (!runtimeConfig) {
@@ -1613,58 +1583,6 @@ export function KnowledgeBasePage() {
     }
   }, [selectedOperationItemPage, selectedOperationItemPageCount])
 
-  const saveVisualConfig = useCallback(async () => {
-    try {
-      setSaving(true)
-      await updateMemoryConfig(visualConfig)
-      const [nextConfig, nextRaw, nextRuntime] = await Promise.all([
-        getMemoryConfig(),
-        getMemoryConfigRaw(),
-        getMemoryRuntimeConfig(),
-      ])
-      setVisualConfig(nextConfig.config)
-      setRawConfig(nextRaw.config)
-      setRawConfigExists(nextRaw.exists ?? true)
-      setRawConfigUsingDefault(nextRaw.using_default ?? false)
-      setRuntimeConfig(nextRuntime)
-      toast({ title: '配置已保存', description: '长期记忆配置已经应用到运行时' })
-    } catch (error) {
-      toast({
-        title: '保存配置失败',
-        description: error instanceof Error ? error.message : '未知错误',
-        variant: 'destructive',
-      })
-    } finally {
-      setSaving(false)
-    }
-  }, [toast, visualConfig])
-
-  const saveRaw = useCallback(async () => {
-    try {
-      setSaving(true)
-      await updateMemoryConfigRaw(rawConfig)
-      const [nextConfig, nextRaw, nextRuntime] = await Promise.all([
-        getMemoryConfig(),
-        getMemoryConfigRaw(),
-        getMemoryRuntimeConfig(),
-      ])
-      setVisualConfig(nextConfig.config)
-      setRawConfig(nextRaw.config ?? '')
-      setRawConfigExists(nextRaw.exists ?? true)
-      setRawConfigUsingDefault(nextRaw.using_default ?? false)
-      setRuntimeConfig(nextRuntime)
-      toast({ title: '原始 TOML 已保存', description: '长期记忆配置已经重新加载' })
-    } catch (error) {
-      toast({
-        title: '保存原始配置失败',
-        description: error instanceof Error ? error.message : '未知错误',
-        variant: 'destructive',
-      })
-    } finally {
-      setSaving(false)
-    }
-  }, [rawConfig, toast])
-
   const refreshSelfCheck = useCallback(async () => {
     try {
       setRefreshingCheck(true)
@@ -1794,12 +1712,12 @@ export function KnowledgeBasePage() {
             </div>
             <h1 className="mt-1 text-2xl font-bold leading-tight">长期记忆控制台</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              在这里完成配置、自检、导入资料和检索调优——一站式管理记忆库
+                      在这里完成自检、导入资料和检索调优——一站式管理记忆库
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => navigate({ to: '/resource/knowledge-graph' })}>
+          <div className="hidden">
+            <Button variant="outline" size="sm" onClick={() => setActiveTab('graph')}>
               <Database className="mr-2 h-4 w-4" />
               打开图谱
             </Button>
@@ -1813,14 +1731,29 @@ export function KnowledgeBasePage() {
 
       <div className="flex-1 overflow-auto">
         <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-6 px-6 py-6">
+          <div className="hidden">
+            <Button variant="outline" size="sm" onClick={() => void loadPage()}>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              刷新数据
+            </Button>
+          </div>
           {/* 运行时状态条 —— 紧凑、常驻、一眼看完 */}
           {runtimeBadges.length > 0 ? (
             <div className="rounded-2xl border border-border/60 bg-card/60 p-4 shadow-sm backdrop-blur">
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              <div className="mb-3 flex items-center gap-2">
+                <div className="mr-auto flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
                   <Gauge className="h-3.5 w-3.5" />
                   运行时状态
                 </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => void loadPage()}
+                >
+                  <RefreshCw className="mr-1.5 h-3 w-3" />
+                  刷新数据
+                </Button>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -1904,7 +1837,7 @@ export function KnowledgeBasePage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => navigate({ to: '/resource/knowledge-graph' })}
+                  onClick={() => setActiveTab('graph')}
                   className="group flex items-start gap-3 rounded-xl border border-border/70 bg-background/80 p-3.5 text-left transition hover:border-primary/50 hover:bg-background hover:shadow-md"
                 >
                   <div className="flex-none rounded-lg bg-violet-500/10 p-2 text-violet-500 transition-transform group-hover:scale-105">
@@ -1929,8 +1862,8 @@ export function KnowledgeBasePage() {
             <div className="sticky top-0 z-10 -mx-6 border-b border-border/40 bg-background/85 px-6 pb-2 pt-1 backdrop-blur supports-[backdrop-filter]:bg-background/70">
               <MemoryMiniTabs
                 items={[
-                  { value: 'overview', label: '概览', description: '运行状态与配置摘要' },
-                  { value: 'config', label: '配置', description: '可视化或 TOML 编辑配置' },
+                  { value: 'overview', label: '概览', description: '运行状态与运行时摘要' },
+                  { value: 'graph', label: '图谱', description: '实体关系图与证据视图' },
                   { value: 'import', label: '导入', description: '创建并管理导入任务' },
                   { value: 'tuning', label: '调优', description: '检索策略调优' },
                   { value: 'delete', label: '删除', description: '批量删除与历史回溯' },
@@ -1939,6 +1872,10 @@ export function KnowledgeBasePage() {
                 triggerClassName="px-4"
               />
             </div>
+
+            <TabsContent value="graph" className="h-[calc(100vh-220px)] min-h-[720px] overflow-hidden rounded-2xl border border-border/60 bg-background shadow-sm">
+              <KnowledgeGraphPage embedded onOpenConsole={() => setActiveTab('overview')} />
+            </TabsContent>
 
             <TabsContent value="overview" className="space-y-4">
               <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
@@ -1959,7 +1896,7 @@ export function KnowledgeBasePage() {
                   <CardContent className="space-y-3">
                     <Alert>
                       <AlertDescription>
-                        当前配置文件路径：<code>{configPath}</code>
+                        长期记忆配置已移动到主程序配置，请在“主程序配置 / 长期记忆”中调整。
                       </AlertDescription>
                     </Alert>
                     <CodeEditor
@@ -1999,72 +1936,6 @@ export function KnowledgeBasePage() {
                   </CardContent>
                 </Card>
               </div>
-            </TabsContent>
-
-            <TabsContent value="config" className="space-y-4">
-              <Card>
-                <CardHeader className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <SlidersHorizontal className="h-4 w-4" />
-                      长期记忆配置
-                    </CardTitle>
-                    <CardDescription>
-                      常用字段可在这里可视化编辑；高级配置仍可通过原始 TOML 维护。
-                    </CardDescription>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button variant={rawMode ? 'outline' : 'default'} onClick={() => setRawMode(false)}>
-                      可视化配置
-                    </Button>
-                    <Button variant={rawMode ? 'default' : 'outline'} onClick={() => setRawMode(true)}>
-                      原始 TOML
-                    </Button>
-                    <Button onClick={() => void (rawMode ? saveRaw() : saveVisualConfig())} disabled={saving}>
-                      <Save className="mr-2 h-4 w-4" />
-                      保存
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <Alert>
-                    <AlertDescription>
-                      当前配置文件：<code>{configPath}</code>
-                      {schema?._note ? `；${schema._note}` : ''}
-                    </AlertDescription>
-                  </Alert>
-                  {!rawConfigExists || rawConfigUsingDefault ? (
-                    <Alert>
-                      <AlertDescription>
-                        检测到配置文件尚未保存。当前展示的是默认模板内容，点击“保存”后会自动创建配置文件：
-                        {' '}
-                        <code>{configPath}</code>
-                        
-                      </AlertDescription>
-                    </Alert>
-                  ) : null}
-
-                  {rawMode ? (
-                    <CodeEditor
-                      value={rawConfig}
-                      onChange={setRawConfig}
-                      language="toml"
-                      height="620px"
-                    />
-                  ) : schema ? (
-                    <MemoryConfigEditor
-                      schema={schema}
-                      config={visualConfig}
-                      onChange={setVisualConfig}
-                      disabled={saving}
-                    />
-                  ) : (
-                    <div className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
-                      当前未能加载配置 schema，请先刷新页面或检查后端日志
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
             </TabsContent>
 
             <ImportTab

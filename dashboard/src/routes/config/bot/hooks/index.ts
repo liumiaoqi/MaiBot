@@ -12,7 +12,6 @@ export type {
 } from './useAutoSave'
 export {
   ChatTalkValueRulesHook,
-  ExperimentalChatPromptsHook,
   ExpressionGroupsHook,
   ExpressionLearningListHook,
   KeywordRulesHook,

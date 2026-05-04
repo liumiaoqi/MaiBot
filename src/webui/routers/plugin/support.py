@@ -106,7 +106,7 @@ def validate_plugin_id(plugin_id: str) -> str:
 
 
 def parse_version(version_str: str) -> Tuple[int, int, int]:
-    base_version = re.split(r"[-.](?:snapshot|dev|alpha|beta|rc)", version_str, flags=re.IGNORECASE)[0]
+    base_version = re.split(r"[-.](?:snapshot|dev|pre|alpha|beta|rc)", version_str, flags=re.IGNORECASE)[0]
     parts = base_version.split(".")
     if len(parts) < 3:
         parts.extend(["0"] * (3 - len(parts)))

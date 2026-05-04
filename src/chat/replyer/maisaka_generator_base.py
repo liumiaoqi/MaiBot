@@ -174,7 +174,7 @@ class BaseMaisakaReplyGenerator:
                 continue
 
             if isinstance(component, ImageComponent):
-                rendered_parts.append(component.content.strip() or "[图片]")
+                rendered_parts.append(component.content.strip() or "[图片，识别中.....]")
                 continue
 
             if isinstance(component, EmojiComponent):

@@ -206,7 +206,12 @@ function buildParagraphFromMetadata(
   }
 }
 
-export function KnowledgeGraphPage() {
+interface KnowledgeGraphPageProps {
+  embedded?: boolean
+  onOpenConsole?: () => void
+}
+
+export function KnowledgeGraphPage({ embedded = false, onOpenConsole }: KnowledgeGraphPageProps = {}) {
   const navigate = useNavigate()
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
@@ -731,17 +736,26 @@ export function KnowledgeGraphPage() {
 
   const activeGraph = viewMode === 'entity' ? graphData : evidenceGraph
   const canShowEvidence = Boolean(selectedNodeData || selectedEdgeData || nodeDetail || edgeDetail)
+  const openConsole = useCallback(() => {
+    if (onOpenConsole) {
+      onOpenConsole()
+      return
+    }
+    void navigate({ to: '/resource/knowledge-base' })
+  }, [navigate, onOpenConsole])
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex-none border-b bg-card/60 px-6 py-4 backdrop-blur">
+      <div className={embedded ? 'flex-none border-b bg-card/60 px-4 py-4 backdrop-blur' : 'flex-none border-b bg-card/60 px-6 py-4 backdrop-blur'}>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">长期记忆图谱</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              基于 A_Memorix 的实体关系图与证据视图
-            </p>
-          </div>
+          {!embedded && (
+            <div>
+              <h1 className="text-2xl font-bold">长期记忆图谱</h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                基于 A_Memorix 的实体关系图与证据视图
+              </p>
+            </div>
+          )}
 
           <div className="flex flex-wrap gap-2">
             <Badge variant="outline" className="gap-1">
@@ -791,7 +805,7 @@ export function KnowledgeGraphPage() {
                 <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                 刷新图谱
               </Button>
-              <Button variant="outline" onClick={() => navigate({ to: '/resource/knowledge-base' })}>
+              <Button variant="outline" onClick={openConsole} className={embedded ? 'hidden' : undefined}>
                 <SlidersHorizontal className="mr-2 h-4 w-4" />
                 打开控制台
               </Button>
@@ -873,7 +887,7 @@ export function KnowledgeGraphPage() {
                   <p className="mt-2 text-sm text-muted-foreground">
                     先在长期记忆控制台里完成导入或记忆生成，再回来查看关系网络。
                   </p>
-                  <Button className="mt-4" onClick={() => navigate({ to: '/resource/knowledge-base' })}>
+                  <Button className="mt-4" onClick={openConsole}>
                     前往长期记忆控制台
                   </Button>
                 </>

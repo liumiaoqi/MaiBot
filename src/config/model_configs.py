@@ -436,8 +436,18 @@ class ModelTaskConfig(ConfigBase):
             "x-icon": "message-square",
         },
     )
-    """首要回复模型配置, 还用于表达器和表达方式学习"""
+    """首要回复模型配置"""
     
+    learner: TaskConfig = Field(
+        default_factory=TaskConfig,
+        json_schema_extra={
+            "x-widget": "custom",
+            "x-icon": "graduation-cap",
+            "advanced": True,
+        },
+    )
+    """学习模型配置，用于表达方式学习和黑话学习；留空时自动继用 utils 模型"""
+
     planner: TaskConfig = Field(
         default_factory=TaskConfig,
         json_schema_extra={

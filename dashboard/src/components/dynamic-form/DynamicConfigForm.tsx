@@ -34,6 +34,16 @@ function hasTopLevelAdvancedFields(schema: ConfigSchema) {
   return schema.fields.some((field) => field.advanced && !schema.nested?.[field.name])
 }
 
+function resolveSectionTitle(schema: ConfigSchema) {
+  return schema.uiLabel || schema.classDoc || schema.className
+}
+
+function resolveSectionDescription(schema: ConfigSchema, sectionTitle: string) {
+  return schema.classDoc && schema.classDoc !== sectionTitle
+    ? schema.classDoc
+    : undefined
+}
+
 function SectionIcon({ iconName }: { iconName?: string }) {
   if (!iconName) return null
   const IconComponent = LucideIcons[iconName as keyof typeof LucideIcons] as
@@ -53,7 +63,7 @@ function AdvancedSettingsButton({
   return (
     <Button
       type="button"
-      variant={active ? 'secondary' : 'outline'}
+      variant={active ? 'default' : 'outline'}
       size="sm"
       onClick={onClick}
     >
@@ -66,23 +76,33 @@ function DynamicConfigSection({
   basePath,
   hooks,
   level,
+  mergedChildren = [],
   nestedSchema,
   onChange,
   sectionDescription,
+  sectionKey,
   sectionTitle,
   values,
 }: {
   basePath: string
   hooks: FieldHookRegistry
   level: number
+  mergedChildren?: Array<{
+    key: string
+    schema: ConfigSchema
+    values: Record<string, unknown>
+  }>
   nestedSchema: ConfigSchema
   onChange: (field: string, value: unknown) => void
   sectionDescription?: string
+  sectionKey: string
   sectionTitle: string
   values: Record<string, unknown>
 }) {
   const [advancedVisible, setAdvancedVisible] = React.useState(false)
-  const hasAdvanced = hasTopLevelAdvancedFields(nestedSchema)
+  const hasAdvanced =
+    hasTopLevelAdvancedFields(nestedSchema) ||
+    mergedChildren.some((child) => hasTopLevelAdvancedFields(child.schema))
 
   return (
     <Card>
@@ -109,12 +129,43 @@ function DynamicConfigSection({
         <DynamicConfigForm
           schema={nestedSchema}
           values={values}
-          onChange={onChange}
+          onChange={(field, value) => onChange(`${sectionKey}.${field}`, value)}
           basePath={basePath}
           hooks={hooks}
           level={level}
           advancedVisible={hasAdvanced ? advancedVisible : undefined}
         />
+        {mergedChildren.map((child) => {
+          const childTitle = resolveSectionTitle(child.schema)
+          const childDescription = resolveSectionDescription(child.schema, childTitle)
+          const parentPath = basePath.includes('.')
+            ? basePath.replace(/\.[^.]+$/, '')
+            : ''
+          const childPath = buildFieldPath(parentPath, child.key)
+
+          return (
+            <div key={child.key} className="mt-5 border-t border-border/50 pt-4">
+              <div className="mb-3 space-y-1">
+                <div className="flex items-center gap-2">
+                  <SectionIcon iconName={child.schema.uiIcon} />
+                  <h3 className="text-sm font-medium">{childTitle}</h3>
+                </div>
+                {childDescription && (
+                  <p className="text-xs text-muted-foreground">{childDescription}</p>
+                )}
+              </div>
+              <DynamicConfigForm
+                schema={child.schema}
+                values={child.values}
+                onChange={(field, value) => onChange(`${child.key}.${field}`, value)}
+                basePath={childPath}
+                hooks={hooks}
+                level={level}
+                advancedVisible={hasAdvanced ? advancedVisible : undefined}
+              />
+            </div>
+          )
+        })}
       </CardContent>
     </Card>
   )
@@ -146,6 +197,17 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
     () => new Map(schema.fields.map((field) => [field.name, field])),
     [schema.fields],
   )
+  const mergedChildKeys = React.useMemo(() => {
+    const keys = new Set<string>()
+    for (const nestedSchema of Object.values(schema.nested ?? {})) {
+      for (const childKey of nestedSchema.uiMergeChildren ?? []) {
+        if (schema.nested?.[childKey]) {
+          keys.add(childKey)
+        }
+      }
+    }
+    return keys
+  }, [schema.nested])
 
   const renderField = (field: FieldSchema) => {
     const fieldPath = buildFieldPath(basePath, field.name)
@@ -207,10 +269,8 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
     <>
       {fields.map((field, index) => (
         <React.Fragment key={field.name}>
-          {index > 0 && field.type !== 'boolean' && fields[index - 1]?.type !== 'boolean' && (
-            <Separator className="my-1" />
-          )}
-          <div>{renderField(field)}</div>
+          {index > 0 && <Separator className="my-2 bg-border/50" />}
+          <div className="py-1">{renderField(field)}</div>
         </React.Fragment>
       ))}
     </>
@@ -219,7 +279,7 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
   return (
     <div className="space-y-6">
       {topLevelFields.length > 0 && (
-        <div className="space-y-1">
+        <div>
           {advancedVisible === undefined && advancedFields.length > 0 && (
             <div className="flex justify-end pb-2">
               <AdvancedSettingsButton
@@ -233,7 +293,9 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
       )}
 
       {schema.nested &&
-        Object.entries(schema.nested).map(([key, nestedSchema]) => {
+        Object.entries(schema.nested)
+          .filter(([key]) => !mergedChildKeys.has(key))
+          .map(([key, nestedSchema]) => {
           const nestedField = fieldMap.get(key)
           const nestedFieldPath = buildFieldPath(basePath, key)
 
@@ -278,23 +340,43 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
             )
           }
 
-          const sectionTitle =
-            nestedSchema.uiLabel || nestedSchema.classDoc || nestedSchema.className
-          const sectionDescription =
-            nestedSchema.classDoc && nestedSchema.classDoc !== sectionTitle
-              ? nestedSchema.classDoc
-              : undefined
+          const sectionTitle = resolveSectionTitle(nestedSchema)
+          const sectionDescription = resolveSectionDescription(nestedSchema, sectionTitle)
+          const mergedChildren = (nestedSchema.uiMergeChildren ?? [])
+            .map((childKey) => {
+              const childSchema = schema.nested?.[childKey]
+              if (!childSchema) {
+                return null
+              }
+
+              return {
+                key: childKey,
+                schema: childSchema,
+                values: (values[childKey] as Record<string, unknown>) || {},
+              }
+            })
+            .filter(
+              (
+                child,
+              ): child is {
+                key: string
+                schema: ConfigSchema
+                values: Record<string, unknown>
+              } => Boolean(child),
+            )
 
           if (level === 0) {
             return (
               <DynamicConfigSection
                 key={key}
+                mergedChildren={mergedChildren}
                 nestedSchema={nestedSchema}
                 values={(values[key] as Record<string, unknown>) || {}}
-                onChange={(field, value) => onChange(`${key}.${field}`, value)}
+                onChange={onChange}
                 basePath={nestedFieldPath}
                 hooks={hooks}
                 level={level + 1}
+                sectionKey={key}
                 sectionTitle={sectionTitle}
                 sectionDescription={sectionDescription}
               />
@@ -302,33 +384,33 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
           }
 
           return (
-            <div
-              key={key}
-              className="relative space-y-4 rounded-lg border-l-2 border-muted-foreground/20 pl-4 pt-1 pb-1"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <SectionIcon iconName={nestedSchema.uiIcon} />
-                    <h4 className="text-sm font-semibold">{sectionTitle}</h4>
+            <Card key={key} className="border-border/70 bg-muted/20 shadow-none">
+              <CardHeader className="px-4 py-3">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <SectionIcon iconName={nestedSchema.uiIcon} />
+                      <CardTitle className="text-sm">{sectionTitle}</CardTitle>
+                    </div>
+                    {sectionDescription && (
+                      <CardDescription className="text-xs">
+                        {sectionDescription}
+                      </CardDescription>
+                    )}
                   </div>
-                  {sectionDescription && (
-                    <p className="text-xs text-muted-foreground">
-                      {sectionDescription}
-                    </p>
-                  )}
                 </div>
-              </div>
-
-              <DynamicConfigForm
-                schema={nestedSchema}
-                values={(values[key] as Record<string, unknown>) || {}}
-                onChange={(field, value) => onChange(`${key}.${field}`, value)}
-                basePath={nestedFieldPath}
-                hooks={hooks}
-                level={level + 1}
-              />
-            </div>
+              </CardHeader>
+              <CardContent className="px-4 pb-4 pt-0">
+                <DynamicConfigForm
+                  schema={nestedSchema}
+                  values={(values[key] as Record<string, unknown>) || {}}
+                  onChange={(field, value) => onChange(`${key}.${field}`, value)}
+                  basePath={nestedFieldPath}
+                  hooks={hooks}
+                  level={level + 1}
+                />
+              </CardContent>
+            </Card>
           )
         })}
     </div>

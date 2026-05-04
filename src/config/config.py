@@ -5,7 +5,6 @@ from typing import Any, Callable, Mapping, Sequence, TypeVar, cast
 import asyncio
 import copy
 import inspect
-import sys
 
 import tomlkit
 
@@ -57,9 +56,9 @@ BOT_CONFIG_PATH: Path = (CONFIG_DIR / "bot_config.toml").resolve().absolute()
 MODEL_CONFIG_PATH: Path = (CONFIG_DIR / "model_config.toml").resolve().absolute()
 LEGACY_ENV_PATH: Path = (PROJECT_ROOT / ".env").resolve().absolute()
 A_MEMORIX_LEGACY_CONFIG_PATH: Path = (CONFIG_DIR / "a_memorix.toml").resolve().absolute()
-MMC_VERSION: str = "1.0.0"
-CONFIG_VERSION: str = "8.10.1"
-MODEL_CONFIG_VERSION: str = "1.14.6"
+MMC_VERSION: str = "1.0.0-pre.10"
+CONFIG_VERSION: str = "8.10.6"
+MODEL_CONFIG_VERSION: str = "1.14.8"
 
 logger = get_logger("config")
 
@@ -250,7 +249,7 @@ class ConfigManager:
             True,
         )
         if global_updated or model_updated:
-            sys.exit(0)  # 配置已自动升级，退出一次让用户确认新配置后再启动
+            logger.info("配置已自动升级，将继续使用更新后的配置启动")
         self._warn_if_vlm_not_configured(self.model_config)
         logger.info(t("config.loaded"))
 
@@ -263,13 +262,13 @@ class ConfigManager:
     def load_global_config(self) -> Config:
         config, updated = load_config_from_file(Config, self.bot_config_path, CONFIG_VERSION)
         if updated:
-            sys.exit(0)  # 先直接退出
+            logger.info("bot_config.toml 已自动升级，将继续使用更新后的配置")
         return config
 
     def load_model_config(self) -> ModelConfig:
         config, updated = load_config_from_file(ModelConfig, self.model_config_path, MODEL_CONFIG_VERSION, True)
         if updated:
-            sys.exit(0)  # 先直接退出
+            logger.info("model_config.toml 已自动升级，将继续使用更新后的配置")
         return config
 
     def get_global_config(self) -> Config:

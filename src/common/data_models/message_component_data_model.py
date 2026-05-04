@@ -348,7 +348,7 @@ class MessageSequence:
         if isinstance(item, TextComponent):
             return {"type": "text", "data": item.text}
         elif isinstance(item, ImageComponent):
-            return {"type": "image", "data": self._ensure_binary_component_content(item, "[图片]"), "hash": item.binary_hash}
+            return {"type": "image", "data": item.content.strip(), "hash": item.binary_hash}
         elif isinstance(item, EmojiComponent):
             return {"type": "emoji", "data": self._ensure_binary_component_content(item, "[表情包]"), "hash": item.binary_hash}
         elif isinstance(item, VoiceComponent):
@@ -387,10 +387,8 @@ class MessageSequence:
         """确保二进制组件在序列化时带有稳定的文本占位。"""
         normalized_content = item.content.strip()
         if normalized_content:
-            item.content = normalized_content
-            return item.content
-        item.content = fallback_text
-        return item.content
+            return normalized_content
+        return fallback_text
 
     @classmethod
     def _dict_2_item(cls, item: Dict[str, Any]) -> StandardMessageComponents:

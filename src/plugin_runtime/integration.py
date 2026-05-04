@@ -657,6 +657,14 @@ class PluginRuntimeManager(
             plugin_id: supervisor for supervisor in self.supervisors for plugin_id in supervisor.get_loaded_plugin_ids()
         }
 
+    def get_plugin_load_statuses(self) -> Dict[str, str]:
+        """汇总所有 Supervisor 上报的插件加载状态。"""
+
+        statuses: Dict[str, str] = {}
+        for supervisor in self.supervisors:
+            statuses.update(supervisor.get_plugin_load_statuses())
+        return statuses
+
     def _build_external_available_plugins_for_supervisor(self, target_supervisor: "PluginSupervisor") -> Dict[str, str]:
         """收集某个 Supervisor 可用的外部插件版本映射。"""
 

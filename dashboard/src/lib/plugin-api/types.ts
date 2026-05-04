@@ -44,6 +44,10 @@ export interface InstalledPlugin {
     [key: string]: unknown  // 允许其他字段
   }
   path: string
+  enabled?: boolean
+  disabled?: boolean
+  loaded?: boolean
+  load_status?: 'success' | 'failed' | 'inactive' | 'disabled' | 'unknown'
 }
 /**
  * 旧版本插件格式(直接包含 version 字段)

@@ -63,6 +63,7 @@ class ChatResponse:
     completion_tokens: int
     total_tokens: int
     prompt_section: Optional[RenderableType] = None
+    prompt_html_uri: Optional[str] = None
 
 
 logger = get_logger("maisaka_chat_loop")
@@ -585,8 +586,9 @@ class MaisakaChatLoopService:
             all_tools = [item for item in raw_tool_definitions if isinstance(item, dict)]
 
         prompt_section: RenderableType | None = None
+        prompt_html_uri: str | None = None
         if global_config.debug.show_maisaka_thinking:
-            prompt_section = PromptCLIVisualizer.build_prompt_section(
+            prompt_section_result = PromptCLIVisualizer.build_prompt_section_result(
                 built_messages,
                 category="planner" if request_kind != "timing_gate" else "timing_gate",
                 chat_id=self._session_id,
@@ -595,6 +597,9 @@ class MaisakaChatLoopService:
                 folded=global_config.debug.fold_maisaka_thinking,
                 tool_definitions=list(all_tools),
             )
+            prompt_section = prompt_section_result.panel
+            if prompt_section_result.preview_access is not None:
+                prompt_html_uri = prompt_section_result.preview_access.viewer_web_uri
 
         llm_chat = self._get_llm_chat_client(request_kind)
         generation_result = await llm_chat.generate_response_with_messages(
@@ -660,6 +665,7 @@ class MaisakaChatLoopService:
             completion_tokens=completion_tokens,
             total_tokens=total_tokens,
             prompt_section=prompt_section,
+            prompt_html_uri=prompt_html_uri,
         )
 
     @staticmethod

@@ -13,6 +13,7 @@ from src.common.logger import get_logger
 from src.common.database.database import get_db_session
 from src.common.database.database_model import Images, ImageType
 from src.common.data_models.image_data_model import MaiImage
+from src.config.config import config_manager
 from src.prompt.prompt_manager import prompt_manager
 from src.services.llm_service import LLMServiceClient
 
@@ -28,6 +29,17 @@ logger = get_logger("image")
 def _ensure_image_dir_exists() -> None:
     """确保图片缓存目录存在。"""
     IMAGE_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _is_vlm_task_configured() -> bool:
+    """判断是否配置了可用于图片识别的视觉模型任务。"""
+
+    try:
+        vlm_models = config_manager.get_model_config().model_task_config.vlm.model_list
+        return any(str(model_name).strip() for model_name in vlm_models)
+    except Exception as exc:
+        logger.warning(f"读取 VLM 模型配置失败，跳过图片识别: {exc}")
+        return False
 
 
 vlm = LLMServiceClient(task_name="vlm", request_type="image")
@@ -111,6 +123,9 @@ class ImageManager:
         except Exception as e:
             logger.error(f"保存图片文件时发生错误: {e}")
             return ""
+        if not _is_vlm_task_configured():
+            logger.info("未配置 VLM 模型，跳过图片识别")
+            return ""
         if not wait_for_build:
             self._schedule_description_build(hash_str, image_bytes)
             return ""
@@ -129,6 +144,10 @@ class ImageManager:
             image_hash: 图片哈希值。
             image_bytes: 图片字节数据。
         """
+        if not _is_vlm_task_configured():
+            logger.info("未配置 VLM 模型，跳过图片后台识别任务")
+            return
+
         if image_hash in self._pending_description_tasks:
             return
 
@@ -302,6 +321,9 @@ class ImageManager:
         if not mai_image.image_format:
             await mai_image.calculate_hash_format()
         if mai_image.vlm_processed and mai_image.description:
+            return mai_image
+        if not _is_vlm_task_configured():
+            logger.info(f"未配置 VLM 模型，跳过图片识别: {mai_image.file_hash}")
             return mai_image
 
         desc = await self._generate_image_description(image_bytes, mai_image.image_format)

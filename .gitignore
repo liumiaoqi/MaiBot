@@ -356,7 +356,6 @@ config.toml
 
 interested_rates.txt
 MaiBot.code-workspace
-*.lock
 actionlint
 .sisyphus/
 dist-electron/

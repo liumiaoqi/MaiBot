@@ -39,12 +39,15 @@ class ConfigSchemaGenerator:
         ui_parent = getattr(config_class, "__ui_parent__", "")
         ui_label = getattr(config_class, "__ui_label__", "")
         ui_icon = getattr(config_class, "__ui_icon__", "")
+        ui_merge_children = getattr(config_class, "__ui_merge_children__", [])
         if ui_parent:
             schema["uiParent"] = ui_parent
         if ui_label:
             schema["uiLabel"] = ui_label
         if ui_icon:
             schema["uiIcon"] = ui_icon
+        if ui_merge_children:
+            schema["uiMergeChildren"] = list(ui_merge_children)
 
         return schema
 

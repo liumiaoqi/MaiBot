@@ -111,6 +111,10 @@ class LLMOrchestrator:
         task_config = getattr(model_task_config, self.task_name, None)
         if not isinstance(task_config, TaskConfig):
             raise ValueError(f"未找到名为 '{self.task_name}' 的任务配置")
+        if self.task_name == "learner" and not any(str(model_name).strip() for model_name in task_config.model_list):
+            fallback_task_config = getattr(model_task_config, "utils", None)
+            if isinstance(fallback_task_config, TaskConfig):
+                return fallback_task_config
         return task_config
 
     def _refresh_task_config(self) -> TaskConfig:

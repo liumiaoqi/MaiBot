@@ -216,6 +216,20 @@ class PluginRunnerSupervisor:
         """
         return {plugin_id: registration.plugin_version for plugin_id, registration in self._registered_plugins.items()}
 
+    def get_plugin_load_statuses(self) -> Dict[str, str]:
+        """返回 Runner 最近一次上报的插件加载状态。"""
+
+        statuses: Dict[str, str] = {}
+        for plugin_id in self._runner_ready_payloads.loaded_plugins:
+            statuses[plugin_id] = "success"
+        for plugin_id in self._runner_ready_payloads.failed_plugins:
+            statuses[plugin_id] = "failed"
+        for plugin_id in self._runner_ready_payloads.inactive_plugins:
+            statuses.setdefault(plugin_id, "inactive")
+        for plugin_id in self._registered_plugins:
+            statuses[plugin_id] = "success"
+        return statuses
+
     def set_blocked_plugin_reasons(self, blocked_plugin_reasons: Dict[str, str]) -> None:
         """设置当前 Runner 启动时应拒绝加载的插件列表。
 
