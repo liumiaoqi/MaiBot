@@ -53,6 +53,7 @@ export interface PackTaskConfigs {
   utils_small?: PackTaskConfig
   tool_use?: PackTaskConfig
   replyer?: PackTaskConfig
+  learner?: PackTaskConfig
   planner?: PackTaskConfig
   vlm?: PackTaskConfig
   voice?: PackTaskConfig

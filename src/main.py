@@ -80,6 +80,7 @@ class MainSystem:
         init_start_time = time.time()
 
         await config_manager.start_file_watcher()
+        a_memorix_host_service.register_config_reload_callback()
 
         # 添加在线时间统计任务
         await async_task_manager.add_task(OnlineTimeRecordTask())

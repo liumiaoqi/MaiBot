@@ -8,3 +8,16 @@ napcat
 docs/
 .github/
 # test
+.env
+.venv/
+.pytest_cache/
+.ruff_cache/
+.tmp_*/
+node_modules/
+dashboard/node_modules/
+data/
+logs/
+temp/
+tmp/
+mai_knowledge/
+depends-data/

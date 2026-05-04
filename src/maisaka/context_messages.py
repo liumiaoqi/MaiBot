@@ -83,7 +83,7 @@ def _append_image_component(
         builder.add_text_content(normalized_content)
         return True
 
-    builder.add_text_content("[图片]")
+    builder.add_text_content("[图片，识别中.....]")
     return True
 
 
@@ -147,7 +147,7 @@ def _render_component_for_prompt(component: StandardMessageComponents) -> str:
         return (component.text or "").strip()
 
     if isinstance(component, ImageComponent):
-        return component.content.strip() if component.content else "[图片]"
+        return component.content.strip() if component.content else "[图片，识别中.....]"
 
     if isinstance(component, EmojiComponent):
         return component.content.strip() if component.content else "[表情包]"

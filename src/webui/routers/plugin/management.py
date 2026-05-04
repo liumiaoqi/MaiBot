@@ -1,8 +1,9 @@
-import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Cookie, HTTPException
+import json
+import tomlkit
 
 from src.common.logger import get_logger
 from src.webui.services.git_mirror_service import get_git_mirror_service
@@ -12,6 +13,7 @@ from .schemas import InstallPluginRequest, UninstallPluginRequest, UpdatePluginR
 from .support import (
     find_plugin_path_by_id,
     get_plugin_candidate_paths,
+    get_plugin_config_path,
     iter_plugin_directories,
     load_manifest_json,
     parse_repository_url,
@@ -62,6 +64,39 @@ def _infer_plugin_id(folder_name: str, manifest: Dict[str, Any], manifest_path: 
     except Exception as write_error:
         logger.warning(f"无法写入 ID 到 manifest: {write_error}")
     return plugin_id
+
+
+def _coerce_enabled_value(value: Any) -> bool:
+    if isinstance(value, str):
+        return value.strip().lower() not in {"false", "0", "no", "off", "disabled"}
+    return bool(value)
+
+
+def _read_plugin_enabled(plugin_id: str, plugin_path: Path) -> bool:
+    try:
+        config_path = get_plugin_config_path(plugin_id, plugin_path)
+        if not config_path.exists():
+            return True
+        with open(config_path, "r", encoding="utf-8") as file_obj:
+            config = tomlkit.load(file_obj).unwrap()
+    except Exception as exc:
+        logger.warning(f"读取插件 {plugin_id} 启用状态失败，将按启用处理: {exc}")
+        return True
+
+    plugin_config = config.get("plugin") if isinstance(config, dict) else None
+    if not isinstance(plugin_config, dict):
+        return True
+    return _coerce_enabled_value(plugin_config.get("enabled", True))
+
+
+def _get_runtime_plugin_load_statuses() -> Dict[str, str]:
+    try:
+        from src.plugin_runtime.integration import get_plugin_runtime_manager
+
+        return get_plugin_runtime_manager().get_plugin_load_statuses()
+    except Exception as exc:
+        logger.warning(f"获取插件运行时加载状态失败: {exc}")
+        return {}
 
 
 @router.post("/install")
@@ -401,6 +436,7 @@ async def get_installed_plugins(maibot_session: Optional[str] = Cookie(None)) ->
 
     try:
         installed_plugins: List[Dict[str, Any]] = []
+        runtime_statuses = _get_runtime_plugin_load_statuses()
         for plugin_path in iter_plugin_directories():
             folder_name = plugin_path.name
             if folder_name.startswith(".") or folder_name.startswith("__"):
@@ -420,7 +456,19 @@ async def get_installed_plugins(maibot_session: Optional[str] = Cookie(None)) ->
                     logger.warning(f"插件文件夹 {folder_name} 的 _manifest.json 格式无效，跳过")
                     continue
                 plugin_id = _infer_plugin_id(folder_name, manifest, manifest_path)
-                installed_plugins.append({"id": plugin_id, "manifest": manifest, "path": str(plugin_path.absolute())})
+                enabled = _read_plugin_enabled(plugin_id, plugin_path)
+                load_status = runtime_statuses.get(plugin_id, "unknown")
+                installed_plugins.append(
+                    {
+                        "id": plugin_id,
+                        "manifest": manifest,
+                        "path": str(plugin_path.absolute()),
+                        "enabled": enabled,
+                        "disabled": not enabled,
+                        "loaded": load_status == "success",
+                        "load_status": "disabled" if not enabled else load_status,
+                    }
+                )
             except json.JSONDecodeError as e:
                 logger.warning(f"插件 {folder_name} 的 _manifest.json 解析失败: {e}")
             except Exception as e:

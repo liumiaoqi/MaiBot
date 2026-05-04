@@ -901,12 +901,16 @@ export async function getMemoryProfiles(limit: number = 50): Promise<MemoryProfi
 export async function queryMemoryProfile(options: {
   personId?: string
   personKeyword?: string
+  platform?: string
+  userId?: string
   limit?: number
   forceRefresh?: boolean
 }): Promise<MemoryProfileQueryPayload> {
   const params = new URLSearchParams({
     person_id: options.personId ?? '',
     person_keyword: options.personKeyword ?? '',
+    platform: options.platform ?? '',
+    user_id: options.userId ?? '',
     limit: String(options.limit ?? 12),
     force_refresh: options.forceRefresh ? 'true' : 'false',
   })

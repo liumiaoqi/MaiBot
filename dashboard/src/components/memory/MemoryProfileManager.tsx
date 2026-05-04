@@ -80,6 +80,8 @@ export function MemoryProfileManager() {
   const [selectedPersonId, setSelectedPersonId] = useState('')
   const [queryPersonId, setQueryPersonId] = useState('')
   const [queryKeyword, setQueryKeyword] = useState('')
+  const [queryPlatform, setQueryPlatform] = useState('')
+  const [queryUserId, setQueryUserId] = useState('')
   const [queryLimit, setQueryLimit] = useState('12')
   const [forceRefresh, setForceRefresh] = useState(false)
   const [overrideText, setOverrideText] = useState('')
@@ -131,10 +133,11 @@ export function MemoryProfileManager() {
   }, [selectedProfile])
 
   const submitQuery = useCallback(async () => {
-    if (!queryPersonId.trim() && !queryKeyword.trim()) {
+    const hasAccountLocator = queryPlatform.trim() && queryUserId.trim()
+    if (!queryPersonId.trim() && !queryKeyword.trim() && !hasAccountLocator) {
       toast({
         title: '请输入查询条件',
-        description: 'person_id 和关键词至少填写一个。',
+        description: 'person_id、关键词、或平台与账号至少填写一种。',
         variant: 'destructive',
       })
       return
@@ -144,6 +147,8 @@ export function MemoryProfileManager() {
       const payload = await queryMemoryProfile({
         personId: queryPersonId.trim(),
         personKeyword: queryKeyword.trim(),
+        platform: queryPlatform.trim(),
+        userId: queryUserId.trim(),
         limit: parsePositiveInt(queryLimit, 12),
         forceRefresh,
       })
@@ -151,6 +156,7 @@ export function MemoryProfileManager() {
       const nextPersonId = String(payload.person_id ?? payload.profile?.person_id ?? queryPersonId ?? '')
       if (nextPersonId) {
         setSelectedPersonId(nextPersonId)
+        setQueryPersonId(nextPersonId)
       }
       toast({
         title: '人物画像查询完成',
@@ -166,7 +172,7 @@ export function MemoryProfileManager() {
     } finally {
       setQuerying(false)
     }
-  }, [forceRefresh, loadProfiles, queryKeyword, queryLimit, queryPersonId, toast])
+  }, [forceRefresh, loadProfiles, queryKeyword, queryLimit, queryPersonId, queryPlatform, queryUserId, toast])
 
   const saveOverride = useCallback(async () => {
     const personId = selectedPersonId || queryPersonId.trim()
@@ -232,7 +238,7 @@ export function MemoryProfileManager() {
             <Search className="h-4 w-4" />
             人物画像查询
           </CardTitle>
-          <CardDescription>查看最近画像快照，或按 person_id / 关键词触发查询与刷新。</CardDescription>
+          <CardDescription>查看最近画像快照，或按 person_id、关键词、平台账号触发查询与刷新。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3 md:grid-cols-2">
@@ -243,6 +249,24 @@ export function MemoryProfileManager() {
             <div className="space-y-2">
               <Label htmlFor="profile-keyword">人物关键词</Label>
               <Input id="profile-keyword" value={queryKeyword} onChange={(event) => setQueryKeyword(event.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="profile-platform">平台</Label>
+              <Input
+                id="profile-platform"
+                value={queryPlatform}
+                onChange={(event) => setQueryPlatform(event.target.value)}
+                placeholder="例如 qq、telegram、webui"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="profile-user-id">平台账号</Label>
+              <Input
+                id="profile-user-id"
+                value={queryUserId}
+                onChange={(event) => setQueryUserId(event.target.value)}
+                placeholder="输入平台侧 user_id"
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="profile-limit">证据数量</Label>

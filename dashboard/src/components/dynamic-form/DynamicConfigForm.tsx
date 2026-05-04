@@ -1,6 +1,7 @@
 import * as React from 'react'
 import * as LucideIcons from 'lucide-react'
 
+import { Button } from '@/components/ui/button'
 import {
   Card,
   CardContent,
@@ -9,8 +10,8 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
-import type { ConfigSchema, FieldSchema } from '@/types/config-schema'
 import { fieldHooks, type FieldHookRegistry } from '@/lib/field-hooks'
+import type { ConfigSchema, FieldSchema } from '@/types/config-schema'
 
 import { DynamicField } from './DynamicField'
 
@@ -20,53 +21,204 @@ export interface DynamicConfigFormProps {
   onChange: (field: string, value: unknown) => void
   basePath?: string
   hooks?: FieldHookRegistry
-  /** 嵌套层级：0 = tab 内容层, 1 = section 内容层, 2+ = 更深嵌套 */
+  /** 嵌套层级：0 = tab 内容层，1 = section 内容层，2+ = 更深嵌套 */
   level?: number
+  advancedVisible?: boolean
+}
+
+function buildFieldPath(basePath: string, fieldName: string) {
+  return basePath ? `${basePath}.${fieldName}` : fieldName
+}
+
+function hasTopLevelAdvancedFields(schema: ConfigSchema) {
+  return schema.fields.some((field) => field.advanced && !schema.nested?.[field.name])
+}
+
+function resolveSectionTitle(schema: ConfigSchema) {
+  return schema.uiLabel || schema.classDoc || schema.className
+}
+
+function resolveSectionDescription(schema: ConfigSchema, sectionTitle: string) {
+  return schema.classDoc && schema.classDoc !== sectionTitle
+    ? schema.classDoc
+    : undefined
+}
+
+function SectionIcon({ iconName }: { iconName?: string }) {
+  if (!iconName) return null
+  const IconComponent = LucideIcons[iconName as keyof typeof LucideIcons] as
+    | React.ComponentType<{ className?: string }>
+    | undefined
+  if (!IconComponent) return null
+  return <IconComponent className="h-5 w-5 text-muted-foreground" />
+}
+
+function AdvancedSettingsButton({
+  active,
+  onClick,
+}: {
+  active: boolean
+  onClick: () => void
+}) {
+  return (
+    <Button
+      type="button"
+      variant={active ? 'default' : 'outline'}
+      size="sm"
+      onClick={onClick}
+    >
+      高级设置
+    </Button>
+  )
+}
+
+function DynamicConfigSection({
+  basePath,
+  hooks,
+  level,
+  mergedChildren = [],
+  nestedSchema,
+  onChange,
+  sectionDescription,
+  sectionKey,
+  sectionTitle,
+  values,
+}: {
+  basePath: string
+  hooks: FieldHookRegistry
+  level: number
+  mergedChildren?: Array<{
+    key: string
+    schema: ConfigSchema
+    values: Record<string, unknown>
+  }>
+  nestedSchema: ConfigSchema
+  onChange: (field: string, value: unknown) => void
+  sectionDescription?: string
+  sectionKey: string
+  sectionTitle: string
+  values: Record<string, unknown>
+}) {
+  const [advancedVisible, setAdvancedVisible] = React.useState(false)
+  const hasAdvanced =
+    hasTopLevelAdvancedFields(nestedSchema) ||
+    mergedChildren.some((child) => hasTopLevelAdvancedFields(child.schema))
+
+  return (
+    <Card>
+      <CardHeader className="pb-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <SectionIcon iconName={nestedSchema.uiIcon} />
+              <CardTitle className="text-lg">{sectionTitle}</CardTitle>
+            </div>
+            {sectionDescription && (
+              <CardDescription>{sectionDescription}</CardDescription>
+            )}
+          </div>
+          {hasAdvanced && (
+            <AdvancedSettingsButton
+              active={advancedVisible}
+              onClick={() => setAdvancedVisible((current) => !current)}
+            />
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        <DynamicConfigForm
+          schema={nestedSchema}
+          values={values}
+          onChange={(field, value) => onChange(`${sectionKey}.${field}`, value)}
+          basePath={basePath}
+          hooks={hooks}
+          level={level}
+          advancedVisible={hasAdvanced ? advancedVisible : undefined}
+        />
+        {mergedChildren.map((child) => {
+          const childTitle = resolveSectionTitle(child.schema)
+          const childDescription = resolveSectionDescription(child.schema, childTitle)
+          const parentPath = basePath.includes('.')
+            ? basePath.replace(/\.[^.]+$/, '')
+            : ''
+          const childPath = buildFieldPath(parentPath, child.key)
+
+          return (
+            <div key={child.key} className="mt-5 border-t border-border/50 pt-4">
+              <div className="mb-3 space-y-1">
+                <div className="flex items-center gap-2">
+                  <SectionIcon iconName={child.schema.uiIcon} />
+                  <h3 className="text-sm font-medium">{childTitle}</h3>
+                </div>
+                {childDescription && (
+                  <p className="text-xs text-muted-foreground">{childDescription}</p>
+                )}
+              </div>
+              <DynamicConfigForm
+                schema={child.schema}
+                values={child.values}
+                onChange={(field, value) => onChange(`${child.key}.${field}`, value)}
+                basePath={childPath}
+                hooks={hooks}
+                level={level}
+                advancedVisible={hasAdvanced ? advancedVisible : undefined}
+              />
+            </div>
+          )
+        })}
+      </CardContent>
+    </Card>
+  )
 }
 
 /**
  * DynamicConfigForm - 动态配置表单组件
- * 
+ *
  * 根据 ConfigSchema 渲染表单字段，支持：
  * 1. Hook 系统：通过 FieldHookRegistry 自定义字段渲染
  *    - replace 模式：完全替换默认渲染
  *    - wrapper 模式：包装默认渲染（通过 children 传递）
- * 2. 嵌套 schema：递归渲染 schema.nested 中的子配置，使用 Card 容器区分层级
- * 3. 默认渲染：使用 DynamicField 组件
+ * 2. 嵌套 schema：递归渲染 schema.nested 中的子配置
+ * 3. 高级设置：由栏目标题右侧按钮控制显示
  */
 export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
   schema,
   values,
   onChange,
   basePath = '',
-  hooks = fieldHooks, // 默认使用全局单例
+  hooks = fieldHooks,
   level = 0,
+  advancedVisible,
 }) => {
+  const [localAdvancedVisible, setLocalAdvancedVisible] = React.useState(false)
+  const resolvedAdvancedVisible = advancedVisible ?? localAdvancedVisible
+
   const fieldMap = React.useMemo(
     () => new Map(schema.fields.map((field) => [field.name, field])),
-    [schema.fields]
+    [schema.fields],
   )
+  const mergedChildKeys = React.useMemo(() => {
+    const keys = new Set<string>()
+    for (const nestedSchema of Object.values(schema.nested ?? {})) {
+      for (const childKey of nestedSchema.uiMergeChildren ?? []) {
+        if (schema.nested?.[childKey]) {
+          keys.add(childKey)
+        }
+      }
+    }
+    return keys
+  }, [schema.nested])
 
-  const buildFieldPath = (fieldName: string) => {
-    return basePath ? `${basePath}.${fieldName}` : fieldName
-  }
-
-  /**
-   * 渲染单个字段
-   * 检查是否有注册的 Hook，根据 Hook 类型选择渲染方式
-   */
   const renderField = (field: FieldSchema) => {
-    const fieldPath = buildFieldPath(field.name)
+    const fieldPath = buildFieldPath(basePath, field.name)
 
-    // 检查是否有注册的 Hook
     if (hooks.has(fieldPath)) {
       const hookEntry = hooks.get(fieldPath)
-      if (!hookEntry) return null // Type guard（理论上不会发生）
+      if (!hookEntry) return null
 
       const HookComponent = hookEntry.component
 
       if (hookEntry.type === 'replace') {
-        // replace 模式：完全替换默认渲染
         return (
           <HookComponent
             fieldPath={fieldPath}
@@ -75,27 +227,25 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
             schema={field}
           />
         )
-      } else {
-        // wrapper 模式：包装默认渲染
-        return (
-          <HookComponent
-            fieldPath={fieldPath}
+      }
+
+      return (
+        <HookComponent
+          fieldPath={fieldPath}
+          value={values[field.name]}
+          onChange={(v) => onChange(field.name, v)}
+          schema={field}
+        >
+          <DynamicField
+            schema={field}
             value={values[field.name]}
             onChange={(v) => onChange(field.name, v)}
-            schema={field}
-          >
-            <DynamicField
-              schema={field}
-              value={values[field.name]}
-              onChange={(v) => onChange(field.name, v)}
-              fieldPath={fieldPath}
-            />
-          </HookComponent>
-        )
-      }
+            fieldPath={fieldPath}
+          />
+        </HookComponent>
+      )
     }
 
-    // 无 Hook，使用默认渲染
     return (
       <DynamicField
         schema={field}
@@ -106,44 +256,49 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
     )
   }
 
-  /** 渲染 section 图标 */
-  const renderSectionIcon = (iconName?: string) => {
-    if (!iconName) return null
-    const IconComponent = LucideIcons[iconName as keyof typeof LucideIcons] as
-      | React.ComponentType<{ className?: string }>
-      | undefined
-    if (!IconComponent) return null
-    return <IconComponent className="h-5 w-5 text-muted-foreground" />
-  }
-
-  // 过滤出不属于 nested 的顶层字段
   const topLevelFields = schema.fields.filter(
-    (field) => !schema.nested?.[field.name]
+    (field) => !schema.nested?.[field.name],
+  )
+  const normalFields = topLevelFields.filter((field) => !field.advanced)
+  const advancedFields = topLevelFields.filter((field) => field.advanced)
+  const visibleFields = resolvedAdvancedVisible
+    ? [...normalFields, ...advancedFields]
+    : normalFields
+
+  const renderFieldList = (fields: FieldSchema[]) => (
+    <>
+      {fields.map((field, index) => (
+        <React.Fragment key={field.name}>
+          {index > 0 && <Separator className="my-2 bg-border/50" />}
+          <div className="py-1">{renderField(field)}</div>
+        </React.Fragment>
+      ))}
+    </>
   )
 
   return (
     <div className="space-y-6">
-      {/* 渲染顶层字段 */}
       {topLevelFields.length > 0 && (
-        <div className="space-y-1">
-          {topLevelFields.map((field, index) => (
-            <React.Fragment key={field.name}>
-              {index > 0 && field.type !== 'boolean' && topLevelFields[index - 1]?.type !== 'boolean' && (
-                <Separator className="my-1" />
-              )}
-              <div>{renderField(field)}</div>
-            </React.Fragment>
-          ))}
+        <div>
+          {advancedVisible === undefined && advancedFields.length > 0 && (
+            <div className="flex justify-end pb-2">
+              <AdvancedSettingsButton
+                active={localAdvancedVisible}
+                onClick={() => setLocalAdvancedVisible((current) => !current)}
+              />
+            </div>
+          )}
+          {renderFieldList(visibleFields)}
         </div>
       )}
 
-      {/* 渲染嵌套 schema */}
       {schema.nested &&
-        Object.entries(schema.nested).map(([key, nestedSchema]) => {
+        Object.entries(schema.nested)
+          .filter(([key]) => !mergedChildKeys.has(key))
+          .map(([key, nestedSchema]) => {
           const nestedField = fieldMap.get(key)
-          const nestedFieldPath = buildFieldPath(key)
+          const nestedFieldPath = buildFieldPath(basePath, key)
 
-          // Hook 系统处理
           if (hooks.has(nestedFieldPath)) {
             const hookEntry = hooks.get(nestedFieldPath)
             if (!hookEntry) return null
@@ -185,67 +340,77 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
             )
           }
 
-          const sectionTitle =
-            nestedSchema.uiLabel || nestedSchema.classDoc || nestedSchema.className
-          const sectionDescription =
-            nestedSchema.classDoc && nestedSchema.classDoc !== sectionTitle
-              ? nestedSchema.classDoc
-              : undefined
+          const sectionTitle = resolveSectionTitle(nestedSchema)
+          const sectionDescription = resolveSectionDescription(nestedSchema, sectionTitle)
+          const mergedChildren = (nestedSchema.uiMergeChildren ?? [])
+            .map((childKey) => {
+              const childSchema = schema.nested?.[childKey]
+              if (!childSchema) {
+                return null
+              }
 
-          // 一级嵌套：使用 Card 包裹，清晰的 section 边界
+              return {
+                key: childKey,
+                schema: childSchema,
+                values: (values[childKey] as Record<string, unknown>) || {},
+              }
+            })
+            .filter(
+              (
+                child,
+              ): child is {
+                key: string
+                schema: ConfigSchema
+                values: Record<string, unknown>
+              } => Boolean(child),
+            )
+
           if (level === 0) {
             return (
-              <Card key={key}>
-                <CardHeader className="pb-4">
-                  <div className="flex items-center gap-2">
-                    {renderSectionIcon(nestedSchema.uiIcon)}
-                    <CardTitle className="text-lg">{sectionTitle}</CardTitle>
-                  </div>
-                  {sectionDescription && (
-                    <CardDescription>{sectionDescription}</CardDescription>
-                  )}
-                </CardHeader>
-                <CardContent>
-                  <DynamicConfigForm
-                    schema={nestedSchema}
-                    values={(values[key] as Record<string, unknown>) || {}}
-                    onChange={(field, value) => onChange(`${key}.${field}`, value)}
-                    basePath={nestedFieldPath}
-                    hooks={hooks}
-                    level={level + 1}
-                  />
-                </CardContent>
-              </Card>
-            )
-          }
-
-          // 二级及更深嵌套：使用左侧指示条 + 轻量分组
-          return (
-            <div
-              key={key}
-              className="relative space-y-4 rounded-lg border-l-2 border-muted-foreground/20 pl-4 pt-1 pb-1"
-            >
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  {renderSectionIcon(nestedSchema.uiIcon)}
-                  <h4 className="text-sm font-semibold">{sectionTitle}</h4>
-                </div>
-                {sectionDescription && (
-                  <p className="text-xs text-muted-foreground">
-                    {sectionDescription}
-                  </p>
-                )}
-              </div>
-
-              <DynamicConfigForm
-                schema={nestedSchema}
+              <DynamicConfigSection
+                key={key}
+                mergedChildren={mergedChildren}
+                nestedSchema={nestedSchema}
                 values={(values[key] as Record<string, unknown>) || {}}
-                onChange={(field, value) => onChange(`${key}.${field}`, value)}
+                onChange={onChange}
                 basePath={nestedFieldPath}
                 hooks={hooks}
                 level={level + 1}
+                sectionKey={key}
+                sectionTitle={sectionTitle}
+                sectionDescription={sectionDescription}
               />
-            </div>
+            )
+          }
+
+          return (
+            <Card key={key} className="border-border/70 bg-muted/20 shadow-none">
+              <CardHeader className="px-4 py-3">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <SectionIcon iconName={nestedSchema.uiIcon} />
+                      <CardTitle className="text-sm">{sectionTitle}</CardTitle>
+                    </div>
+                    {sectionDescription && (
+                      <CardDescription className="text-xs">
+                        {sectionDescription}
+                      </CardDescription>
+                    )}
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="px-4 pb-4 pt-0">
+                <DynamicConfigForm
+                  schema={nestedSchema}
+                  values={(values[key] as Record<string, unknown>) || {}}
+                  onChange={(field, value) => onChange(`${key}.${field}`, value)}
+                  basePath={nestedFieldPath}
+                  hooks={hooks}
+                  level={level + 1}
+                />
+              </CardContent>
+            </Card>
           )
         })}
     </div>

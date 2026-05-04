@@ -11,6 +11,7 @@ from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, 
 from pydantic import BaseModel, Field
 
 from src.A_memorix.host_service import a_memorix_host_service
+from src.person_info.person_info import resolve_person_id_for_memory
 from src.services.memory_service import MemorySearchResult, memory_service
 from src.webui.dependencies import require_auth
 
@@ -336,10 +337,25 @@ async def _episode_process_pending(payload: EpisodeProcessPendingRequest) -> dic
     )
 
 
-async def _profile_query(*, person_id: str, person_keyword: str, limit: int, force_refresh: bool) -> dict:
+async def _profile_query(
+    *,
+    person_id: str,
+    person_keyword: str,
+    platform: str,
+    user_id: str,
+    limit: int,
+    force_refresh: bool,
+) -> dict:
+    clean_person_id = str(person_id or "").strip()
+    if not clean_person_id and str(platform or "").strip() and str(user_id or "").strip():
+        clean_person_id = resolve_person_id_for_memory(
+            platform=str(platform or "").strip(),
+            user_id=str(user_id or "").strip(),
+            strict_known=False,
+        )
     return await memory_service.profile_admin(
         action="query",
-        person_id=person_id,
+        person_id=clean_person_id,
         person_keyword=person_keyword,
         limit=limit,
         force_refresh=force_refresh,
@@ -834,12 +850,16 @@ async def process_memory_episode_pending(payload: EpisodeProcessPendingRequest):
 async def query_memory_profile(
     person_id: str = Query(""),
     person_keyword: str = Query(""),
+    platform: str = Query(""),
+    user_id: str = Query(""),
     limit: int = Query(12, ge=1, le=100),
     force_refresh: bool = Query(False),
 ):
     return await _profile_query(
         person_id=person_id,
         person_keyword=person_keyword,
+        platform=platform,
+        user_id=user_id,
         limit=limit,
         force_refresh=force_refresh,
     )
@@ -1306,12 +1326,16 @@ async def compat_process_episode_pending(payload: EpisodeProcessPendingRequest):
 async def compat_profile_query(
     person_id: str = Query(""),
     person_keyword: str = Query(""),
+    platform: str = Query(""),
+    user_id: str = Query(""),
     limit: int = Query(12, ge=1, le=100),
     force_refresh: bool = Query(False),
 ):
     return await _profile_query(
         person_id=person_id,
         person_keyword=person_keyword,
+        platform=platform,
+        user_id=user_id,
         limit=limit,
         force_refresh=force_refresh,
     )

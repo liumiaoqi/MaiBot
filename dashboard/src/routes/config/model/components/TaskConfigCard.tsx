@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { cn } from '@/lib/utils'
 import type { TaskConfig } from '../types'
 
 interface TaskConfigCardProps {
@@ -23,6 +24,7 @@ interface TaskConfigCardProps {
   onChange: (field: keyof TaskConfig, value: string[] | number | string) => void
   hideTemperature?: boolean
   hideMaxTokens?: boolean
+  advanced?: boolean
   dataTour?: string
 }
 
@@ -34,6 +36,7 @@ export const TaskConfigCard = React.memo(function TaskConfigCard({
   onChange,
   hideTemperature = false,
   hideMaxTokens = false,
+  advanced = false,
   dataTour,
 }: TaskConfigCardProps) {
   const handleModelChange = (values: string[]) => {
@@ -41,7 +44,12 @@ export const TaskConfigCard = React.memo(function TaskConfigCard({
   }
 
   return (
-    <div className="rounded-lg border bg-card p-4 sm:p-6 space-y-4">
+    <div
+      className={cn(
+        "rounded-lg border bg-card p-4 sm:p-6 space-y-4",
+        advanced && "border-amber-300 bg-amber-50/40 dark:border-amber-500/50 dark:bg-amber-500/10",
+      )}
+    >
       <div>
         <h4 className="font-semibold text-base sm:text-lg">{title}</h4>
         <p className="text-xs sm:text-sm text-muted-foreground mt-1">{description}</p>

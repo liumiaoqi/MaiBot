@@ -1,5 +1,6 @@
 from src.config.official_configs import ChatConfig, MessageReceiveConfig
 from src.config.config import Config
+from src.config.config_base import ConfigBase, Field
 from src.webui.config_schema import ConfigSchemaGenerator
 
 
@@ -127,3 +128,20 @@ def test_set_field_is_mapped_as_array():
 
     assert ban_words["type"] == "array"
     assert ban_words["items"]["type"] == "string"
+
+
+def test_advanced_fields_are_hidden_from_webui_schema():
+    """advanced=True 的字段不应出现在 WebUI 配置 schema 中，未声明时默认展示。"""
+
+    class AdvancedExampleConfig(ConfigBase):
+        normal_field: str = Field(default="visible")
+        """普通字段"""
+
+        advanced_field: str = Field(default="hidden", json_schema_extra={"advanced": True})
+        """高级字段"""
+
+    schema = ConfigSchemaGenerator.generate_schema(AdvancedExampleConfig)
+    field_names = {field["name"] for field in schema["fields"]}
+
+    assert "normal_field" in field_names
+    assert "advanced_field" not in field_names

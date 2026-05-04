@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
+import { cn } from "@/lib/utils"
 import type { FieldSchema } from "@/types/config-schema"
 
 export interface DynamicFieldProps {
@@ -93,6 +94,28 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
     return <IconComponent className="h-4 w-4" />
   }
 
+  const renderFieldHeader = () => (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+      <Label
+        className={cn(
+          "inline-flex min-h-7 items-center gap-1.5 rounded-md border px-2 py-1 text-sm font-medium shadow-sm",
+          schema.advanced
+            ? "border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-500/60 dark:bg-amber-500/15 dark:text-amber-100"
+            : "bg-muted/60 text-foreground",
+        )}
+      >
+        {renderIcon()}
+        <span className="break-all">{schema.label}</span>
+        {schema.required && <span className="text-destructive">*</span>}
+      </Label>
+      {schema.description && (
+        <span className="text-[13px] leading-6 text-muted-foreground whitespace-pre-line">
+          {schema.description}
+        </span>
+      )}
+    </div>
+  )
+
   /**
    * 根据 x-widget 或 type 选择并渲染对应的输入组件
    */
@@ -175,16 +198,9 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
   const renderSwitch = () => {
     const checked = Boolean(value)
     return (
-      <div className="flex items-center justify-between rounded-lg border p-3 sm:p-4">
-        <div className="space-y-0.5 pr-4">
-          <Label className="text-sm font-medium flex items-center gap-2">
-            {renderIcon()}
-            {schema.label}
-            {schema.required && <span className="text-destructive">*</span>}
-          </Label>
-          {schema.description && (
-            <p className="text-[13px] text-muted-foreground whitespace-pre-line">{schema.description}</p>
-          )}
+      <div className="flex items-center justify-between gap-4 py-2">
+        <div className="pr-4">
+          {renderFieldHeader()}
         </div>
         <Switch
           checked={checked}
@@ -305,28 +321,38 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
   const isBoolean =
     schema['x-widget'] === 'switch' ||
     (!schema['x-widget'] && schema.type === 'boolean')
+  const supportsInlineRight =
+    schema['x-layout'] === 'inline-right' &&
+    ['input', 'number', 'password', 'select', undefined].includes(schema['x-widget']) &&
+    ['string', 'number', 'integer', 'select'].includes(schema.type)
 
   // Switch/Boolean 字段自带完整布局，直接返回
   if (isBoolean) {
     return renderInputComponent()
   }
 
+  if (supportsInlineRight) {
+    return (
+      <div
+        className="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between"
+        style={{ '--field-input-width': schema['x-input-width'] ?? '12rem' } as React.CSSProperties}
+      >
+        <div className="min-w-0 flex-1">
+          {renderFieldHeader()}
+        </div>
+        <div className="w-full shrink-0 sm:w-[var(--field-input-width)]">
+          {renderInputComponent()}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-2">
-      {/* Label with icon */}
-      <Label className="text-sm font-medium flex items-center gap-2">
-        {renderIcon()}
-        {schema.label}
-        {schema.required && <span className="text-destructive">*</span>}
-      </Label>
+      {renderFieldHeader()}
 
       {/* Input component */}
       {renderInputComponent()}
-
-      {/* Description */}
-      {schema.description && (
-        <p className="text-[13px] text-muted-foreground whitespace-pre-line">{schema.description}</p>
-      )}
     </div>
   )
 }

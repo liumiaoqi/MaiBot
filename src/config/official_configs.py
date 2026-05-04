@@ -27,6 +27,8 @@ class BotConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "wifi",
+            "x-layout": "inline-right",
+            "x-input-width": "12rem",
         },
     )
     """平台"""
@@ -36,6 +38,8 @@ class BotConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "user",
+            "x-layout": "inline-right",
+            "x-input-width": "12rem",
         },
     )
     """QQ账号"""
@@ -63,6 +67,7 @@ class BotConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "custom",
             "x-icon": "tags",
+            "advanced": True,
         },
     )
     """别名列表"""
@@ -101,6 +106,7 @@ class PersonalityConfig(ConfigBase):
             "带点翻译腔，但不要太长",
         ],
         json_schema_extra={
+            "advanced": True,
             "x-widget": "custom",
             "x-icon": "list",
         },
@@ -108,10 +114,11 @@ class PersonalityConfig(ConfigBase):
     """可选的多种表达风格列表，当配置不为空时可按概率随机替换 reply_style"""
 
     multiple_probability: float = Field(
-        default=0.2,
+        default=0,
         ge=0,
         le=1,
         json_schema_extra={
+            "advanced": True,
             "x-widget": "slider",
             "x-icon": "percent",
             "step": 0.1,
@@ -208,6 +215,7 @@ class ChatConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "switch",
             "x-icon": "at-sign",
+            "advanced": True,
         },
     )
     """是否允许 replyer 使用 at[msg_id] 标记来发送真正的 at 消息"""
@@ -217,6 +225,7 @@ class ChatConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "switch",
             "x-icon": "quote",
+            "advanced": True,
         },
     )
     """是否启用回复时附带引用回复"""
@@ -240,11 +249,12 @@ class ChatConfig(ConfigBase):
     """私聊上下文长度"""
 
     planner_interrupt_max_consecutive_count: int = Field(
-        default=2,
+        default=0,
         ge=0,
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "pause-circle",
+            "advanced": True,
         },
     )
     """Planner 连续被新消息打断的最大次数，0 表示不启用打断"""
@@ -405,6 +415,7 @@ class MemoryConfig(ConfigBase):
     )
     """_wrap_全局记忆黑名单，当启用全局记忆时，不将特定聊天流纳入检索"""
 
+
     enable_memory_query_tool: bool = Field(
         default=True,
         json_schema_extra={
@@ -449,6 +460,7 @@ class MemoryConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "messages-square",
+            "advanced": True,
         },
     )
     """自动写回聊天摘要的消息窗口阈值"""
@@ -460,6 +472,7 @@ class MemoryConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "rows-3",
+            "advanced": True,
         },
     )
     """自动写回聊天摘要时，从聊天流中回看的消息条数"""
@@ -469,6 +482,7 @@ class MemoryConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "switch",
             "x-icon": "message-circle-warning",
+            "advanced": True,
         },
     )
     """是否启用反馈驱动的延迟记忆纠错任务"""
@@ -479,6 +493,7 @@ class MemoryConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "clock-4",
+            "advanced": True,
         },
     )
     """反馈窗口时长（小时），以 query_memory 执行时间为起点"""
@@ -489,6 +504,7 @@ class MemoryConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "timer",
+            "advanced": True,
         },
     )
     """反馈纠错定时任务轮询间隔（分钟）"""
@@ -500,6 +516,7 @@ class MemoryConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "list-ordered",
+            "advanced": True,
         },
     )
     """反馈纠错每轮最大处理任务数"""
@@ -512,6 +529,7 @@ class MemoryConfig(ConfigBase):
             "x-widget": "slider",
             "x-icon": "gauge",
             "step": 0.01,
+            "advanced": True,
         },
     )
     """自动应用纠错动作的最低置信度阈值"""
@@ -523,6 +541,7 @@ class MemoryConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "messages-square",
+            "advanced": True,
         },
     )
     """每个纠错任务最多使用的窗口内用户反馈消息数"""
@@ -532,6 +551,7 @@ class MemoryConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "switch",
             "x-icon": "filter",
+            "advanced": True,
         },
     )
     """是否启用纠错前置预筛（用于减少不必要的模型调用）"""
@@ -541,6 +561,7 @@ class MemoryConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "switch",
             "x-icon": "sticky-note",
+            "advanced": True,
         },
     )
     """是否为受影响 paragraph 写入已纠正旧事实标记"""
@@ -550,6 +571,7 @@ class MemoryConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "switch",
             "x-icon": "eye-off",
+            "advanced": True,
         },
     )
     """是否在用户侧查询中硬过滤带有 stale 标记的 paragraph"""
@@ -559,6 +581,7 @@ class MemoryConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "switch",
             "x-icon": "user-round-search",
+            "advanced": True,
         },
     )
     """是否在反馈纠错后将受影响人物画像加入刷新队列"""
@@ -568,6 +591,7 @@ class MemoryConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "switch",
             "x-icon": "refresh-ccw",
+            "advanced": True,
         },
     )
     """人物画像处于脏队列时，读取是否强制刷新而不直接复用旧快照"""
@@ -577,6 +601,7 @@ class MemoryConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "switch",
             "x-icon": "clapperboard",
+            "advanced": True,
         },
     )
     """是否在反馈纠错后将受影响 source 加入 episode 重建队列"""
@@ -586,6 +611,7 @@ class MemoryConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "switch",
             "x-icon": "ban",
+            "advanced": True,
         },
     )
     """episode source 处于重建队列时，是否对用户侧查询做屏蔽"""
@@ -596,6 +622,7 @@ class MemoryConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "repeat",
+            "advanced": True,
         },
     )
     """反馈纠错二阶段一致性后台协调任务轮询间隔（分钟）"""
@@ -607,6 +634,7 @@ class MemoryConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "list-restart",
+            "advanced": True,
         },
     )
     """反馈纠错二阶段一致性每轮处理 profile/episode 队列的批大小"""
@@ -647,6 +675,345 @@ class MemoryConfig(ConfigBase):
                 f"当前值: {self.feedback_correction_reconcile_batch_size}"
             )
         return super().model_post_init(context)
+
+
+class AMemorixPluginConfig(ConfigBase):
+    """A_Memorix 子系统状态"""
+
+    enabled: bool = Field(default=False)
+    """是否启用 A_Memorix"""
+
+
+class AMemorixStorageConfig(ConfigBase):
+    """A_Memorix 存储位置"""
+
+    data_dir: str = Field(default="data/a-memorix")
+    """数据目录"""
+
+
+class AMemorixEmbeddingFallbackConfig(ConfigBase):
+    """A_Memorix Embedding 回退"""
+
+    enabled: bool = Field(default=True)
+    """是否启用回退机制"""
+
+    probe_interval_seconds: int = Field(default=180, ge=10)
+    """探测间隔秒数"""
+
+    allow_metadata_only_write: bool = Field(default=True)
+    """是否允许仅写入元数据"""
+
+
+class AMemorixParagraphVectorBackfillConfig(ConfigBase):
+    """A_Memorix 段落向量回填"""
+
+    enabled: bool = Field(default=True)
+    """是否启用回填任务"""
+
+    interval_seconds: int = Field(default=60, ge=5)
+    """回填轮询间隔"""
+
+    batch_size: int = Field(default=64, ge=1)
+    """单批回填数量"""
+
+    max_retry: int = Field(default=5, ge=0)
+    """最大重试次数"""
+
+
+class AMemorixEmbeddingConfig(ConfigBase):
+    """A_Memorix Embedding 配置"""
+
+    model_name: str = Field(default="auto")
+    """Embedding 模型选择"""
+
+    dimension: int = Field(default=1024, ge=1)
+    """向量维度"""
+
+    batch_size: int = Field(default=32, ge=1)
+    """单批请求大小"""
+
+    max_concurrent: int = Field(default=5, ge=1)
+    """最大并发数"""
+
+    enable_cache: bool = Field(default=False)
+    """是否启用缓存"""
+
+    quantization_type: Literal["int8"] = Field(default="int8")
+    """量化方式，当前 vNext 仅支持 int8(SQ8)"""
+
+    fallback: AMemorixEmbeddingFallbackConfig = Field(default_factory=AMemorixEmbeddingFallbackConfig)
+    """Embedding 回退配置"""
+
+    paragraph_vector_backfill: AMemorixParagraphVectorBackfillConfig = Field(
+        default_factory=AMemorixParagraphVectorBackfillConfig
+    )
+    """段落向量回填配置"""
+
+
+class AMemorixSparseRetrievalConfig(ConfigBase):
+    """A_Memorix 稀疏检索配置"""
+
+    enabled: bool = Field(default=True)
+    """是否启用稀疏检索"""
+
+    backend: Literal["fts5"] = Field(default="fts5")
+    """稀疏检索后端"""
+
+    mode: Literal["auto", "fallback_only", "hybrid"] = Field(default="auto")
+    """稀疏检索模式"""
+
+    tokenizer_mode: Literal["jieba", "mixed", "char_2gram"] = Field(default="jieba")
+    """分词模式"""
+
+    candidate_k: int = Field(default=80, ge=1)
+    """段落候选数"""
+
+    relation_candidate_k: int = Field(default=60, ge=1)
+    """关系候选数"""
+
+
+class AMemorixRetrievalConfig(ConfigBase):
+    """A_Memorix 检索配置"""
+
+    top_k_paragraphs: int = Field(default=20, ge=1)
+    """段落候选数"""
+
+    top_k_relations: int = Field(default=10, ge=1)
+    """关系候选数"""
+
+    top_k_final: int = Field(default=10, ge=1)
+    """最终返回条数"""
+
+    alpha: float = Field(default=0.5, ge=0.0, le=1.0)
+    """关系融合权重"""
+
+    enable_ppr: bool = Field(default=True)
+    """是否启用 PPR"""
+
+    ppr_alpha: float = Field(default=0.85, ge=0.0, le=1.0)
+    """PPR alpha"""
+
+    ppr_timeout_seconds: float = Field(default=1.5, ge=0.1)
+    """PPR 超时秒数"""
+
+    ppr_concurrency_limit: int = Field(default=4, ge=1)
+    """PPR 并发限制"""
+
+    enable_parallel: bool = Field(default=True)
+    """是否启用并行检索"""
+
+    sparse: AMemorixSparseRetrievalConfig = Field(default_factory=AMemorixSparseRetrievalConfig)
+    """稀疏检索配置"""
+
+
+class AMemorixThresholdConfig(ConfigBase):
+    """A_Memorix 阈值过滤配置"""
+
+    min_threshold: float = Field(default=0.3, ge=0.0, le=1.0)
+    """最小阈值"""
+
+    max_threshold: float = Field(default=0.95, ge=0.0, le=1.0)
+    """最大阈值"""
+
+    percentile: int = Field(default=75, ge=0, le=100)
+    """动态阈值百分位"""
+
+    min_results: int = Field(default=3, ge=1)
+    """最小保留条数"""
+
+    enable_auto_adjust: bool = Field(default=True)
+    """是否启用自动阈值调整"""
+
+
+class AMemorixFilterConfig(ConfigBase):
+    """A_Memorix 聊天过滤配置"""
+
+    enabled: bool = Field(default=True)
+    """是否启用聊天过滤"""
+
+    mode: Literal["blacklist", "whitelist"] = Field(default="blacklist")
+    """过滤模式"""
+
+    chats: list[str] = Field(default_factory=lambda: [])
+    """聊天流列表"""
+
+
+class AMemorixEpisodeConfig(ConfigBase):
+    """A_Memorix Episode 配置"""
+
+    enabled: bool = Field(default=True)
+    """是否启用 Episode"""
+
+    generation_enabled: bool = Field(default=True)
+    """是否启用自动生成"""
+
+    pending_batch_size: int = Field(default=20, ge=1)
+    """待处理批大小"""
+
+    pending_max_retry: int = Field(default=3, ge=0)
+    """待处理最大重试次数"""
+
+    max_paragraphs_per_call: int = Field(default=20, ge=1)
+    """单次最大段落数"""
+
+    max_chars_per_call: int = Field(default=6000, ge=100)
+    """单次最大字符数"""
+
+    source_time_window_hours: float = Field(default=24.0, ge=0.0)
+    """时间窗口小时数"""
+
+    segmentation_model: str = Field(default="auto")
+    """分段模型选择"""
+
+
+class AMemorixPersonProfileConfig(ConfigBase):
+    """A_Memorix 人物画像配置"""
+
+    enabled: bool = Field(default=True)
+    """是否启用画像"""
+
+    refresh_interval_minutes: int = Field(default=30, ge=1)
+    """刷新间隔分钟数"""
+
+    active_window_hours: float = Field(default=72.0, ge=1.0)
+    """活跃窗口小时数"""
+
+    max_refresh_per_cycle: int = Field(default=50, ge=1)
+    """单轮最大刷新数"""
+
+    top_k_evidence: int = Field(default=12, ge=1)
+    """证据条数"""
+
+
+class AMemorixMemoryEvolutionConfig(ConfigBase):
+    """A_Memorix 记忆演化配置"""
+
+    enabled: bool = Field(default=True)
+    """是否启用记忆演化"""
+
+    half_life_hours: float = Field(default=24.0, ge=0.1)
+    """半衰期小时数"""
+
+    prune_threshold: float = Field(default=0.1, ge=0.0, le=1.0)
+    """裁剪阈值"""
+
+    freeze_duration_hours: float = Field(default=24.0, ge=0.0)
+    """冻结时长小时数"""
+
+
+class AMemorixAdvancedConfig(ConfigBase):
+    """A_Memorix 高级运行时配置"""
+
+    enable_auto_save: bool = Field(default=True)
+    """是否启用自动保存"""
+
+    auto_save_interval_minutes: int = Field(default=5, ge=1)
+    """自动保存间隔"""
+
+    debug: bool = Field(default=False)
+    """是否启用调试"""
+
+
+class AMemorixWebImportConfig(ConfigBase):
+    """A_Memorix 导入中心配置"""
+
+    enabled: bool = Field(default=True)
+    """是否启用导入中心"""
+
+    max_queue_size: int = Field(default=20, ge=1)
+    """最大队列长度"""
+
+    max_files_per_task: int = Field(default=200, ge=1)
+    """单任务最大文件数"""
+
+    max_file_size_mb: int = Field(default=20, ge=1)
+    """单文件大小上限 MB"""
+
+    max_paste_chars: int = Field(default=200000, ge=100)
+    """粘贴字符数上限"""
+
+    default_file_concurrency: int = Field(default=2, ge=1)
+    """默认文件并发"""
+
+    default_chunk_concurrency: int = Field(default=4, ge=1)
+    """默认分块并发"""
+
+
+class AMemorixWebTuningConfig(ConfigBase):
+    """A_Memorix 调优中心配置"""
+
+    enabled: bool = Field(default=True)
+    """是否启用调优中心"""
+
+    max_queue_size: int = Field(default=8, ge=1)
+    """最大队列长度"""
+
+    poll_interval_ms: int = Field(default=1200, ge=200)
+    """轮询间隔毫秒数"""
+
+    default_intensity: Literal["quick", "standard", "deep"] = Field(default="standard")
+    """默认调优强度"""
+
+    default_objective: Literal["precision_priority", "balanced", "recall_priority"] = Field(
+        default="precision_priority"
+    )
+    """默认调优目标"""
+
+    default_top_k_eval: int = Field(default=20, ge=1)
+    """默认评估 Top-K"""
+
+    default_sample_size: int = Field(default=24, ge=1)
+    """默认样本数"""
+
+
+class AMemorixWebConfig(ConfigBase):
+    """A_Memorix Web 运维配置"""
+
+    import_config: AMemorixWebImportConfig = Field(default_factory=AMemorixWebImportConfig)
+    """导入中心配置"""
+
+    tuning: AMemorixWebTuningConfig = Field(default_factory=AMemorixWebTuningConfig)
+    """调优中心配置"""
+
+
+class AMemorixConfig(ConfigBase):
+    """A_Memorix 长期记忆子系统配置"""
+
+    __ui_label__ = "长期记忆"
+    __ui_icon__ = "brain"
+
+    plugin: AMemorixPluginConfig = Field(default_factory=AMemorixPluginConfig)
+    """子系统状态"""
+
+    storage: AMemorixStorageConfig = Field(default_factory=AMemorixStorageConfig)
+    """存储位置"""
+
+    embedding: AMemorixEmbeddingConfig = Field(default_factory=AMemorixEmbeddingConfig)
+    """Embedding 配置"""
+
+    retrieval: AMemorixRetrievalConfig = Field(default_factory=AMemorixRetrievalConfig)
+    """检索配置"""
+
+    threshold: AMemorixThresholdConfig = Field(default_factory=AMemorixThresholdConfig)
+    """阈值过滤配置"""
+
+    filter: AMemorixFilterConfig = Field(default_factory=AMemorixFilterConfig)
+    """聊天过滤配置"""
+
+    episode: AMemorixEpisodeConfig = Field(default_factory=AMemorixEpisodeConfig)
+    """Episode 配置"""
+
+    person_profile: AMemorixPersonProfileConfig = Field(default_factory=AMemorixPersonProfileConfig)
+    """人物画像配置"""
+
+    memory: AMemorixMemoryEvolutionConfig = Field(default_factory=AMemorixMemoryEvolutionConfig)
+    """记忆演化配置"""
+
+    advanced: AMemorixAdvancedConfig = Field(default_factory=AMemorixAdvancedConfig)
+    """高级运行时配置"""
+
+    web: AMemorixWebConfig = Field(default_factory=AMemorixWebConfig)
+    """Web 运维配置"""
 
 
 class LearningItem(ConfigBase):
@@ -769,19 +1136,21 @@ class ExpressionConfig(ConfigBase):
     """是否启用自动表达优化"""
 
     expression_auto_check_interval: int = Field(
-        default=600,
+        default=900,
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "clock",
+            "advanced": True,
         },
     )
     """表达方式自动检查的间隔时间（秒）"""
 
     expression_auto_check_count: int = Field(
-        default=20,
+        default=5,
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "hash",
+            "advanced": True,
         },
     )
     """每次自动检查时随机选取的表达方式数量"""
@@ -791,6 +1160,7 @@ class ExpressionConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "custom",
             "x-icon": "file-text",
+            "advanced": True,
         },
     )
     """表达方式自动检查的额外自定义评估标准"""
@@ -832,6 +1202,7 @@ class EmojiConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "grid",
+            "advanced": True,
         },
     )
     """一次从多少个表情包中选择发送，最大为 64"""
@@ -850,6 +1221,7 @@ class EmojiConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "switch",
             "x-icon": "refresh-cw",
+            "advanced": True,
         },
     )
     """达到最大注册数量时替换旧表情包，关闭则达到最大数量时不会继续收集表情包"""
@@ -875,6 +1247,7 @@ class EmojiConfig(ConfigBase):
     content_filtration: bool = Field(
         default=False,
         json_schema_extra={
+            "advanced": True,
             "x-widget": "switch",
             "x-icon": "filter",
         },
@@ -884,6 +1257,7 @@ class EmojiConfig(ConfigBase):
     filtration_prompt: str = Field(
         default="符合公序良俗",
         json_schema_extra={
+            "advanced": True,
             "x-widget": "input",
             "x-icon": "shield",
         },
@@ -973,6 +1347,7 @@ class ResponsePostProcessConfig(ConfigBase):
 
     __ui_label__ = "处理"
     __ui_icon__ = "settings"
+    __ui_merge_children__ = ["chinese_typo", "response_splitter"]
 
     enable_response_post_process: bool = Field(
         default=True,
@@ -1006,6 +1381,7 @@ class ChineseTypoConfig(ConfigBase):
             "x-widget": "slider",
             "x-icon": "percent",
             "step": 0.01,
+            "advanced": True,
         },
     )
     """单字替换概率"""
@@ -1015,6 +1391,7 @@ class ChineseTypoConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "hash",
+            "advanced": True,
         },
     )
     """最小字频阈值"""
@@ -1027,6 +1404,7 @@ class ChineseTypoConfig(ConfigBase):
             "x-widget": "slider",
             "x-icon": "percent",
             "step": 0.1,
+            "advanced": True,
         },
     )
     """声调错误概率"""
@@ -1039,6 +1417,7 @@ class ChineseTypoConfig(ConfigBase):
             "x-widget": "slider",
             "x-icon": "percent",
             "step": 0.001,
+            "advanced": True,
         },
     )
     """整词替换概率"""
@@ -1081,6 +1460,7 @@ class ResponseSplitterConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "switch",
             "x-icon": "smile",
+            "advanced": True,
         },
     )
     """是否启用颜文字保护"""
@@ -1090,6 +1470,7 @@ class ResponseSplitterConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "switch",
             "x-icon": "maximize",
+            "advanced": True,
         },
     )
     """是否在句子数量超出回复允许的最大句子数时一次性返回全部内容"""
@@ -1098,7 +1479,7 @@ class ResponseSplitterConfig(ConfigBase):
 class LogConfig(ConfigBase):
     """日志配置类"""
 
-    __ui_label__ = "日志"
+    __ui_label__ = "调试与日志"
     __ui_icon__ = "file-text"
 
     date_style: str = Field(
@@ -1226,6 +1607,7 @@ class LogConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "custom",
             "x-icon": "volume-x",
+            "advanced": True,
         },
     )
     """完全屏蔽日志的第三方库列表"""
@@ -1235,6 +1617,7 @@ class LogConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "custom",
             "x-icon": "sliders-horizontal",
+            "advanced": True,
         },
     )
     """特定第三方库的日志级别"""
@@ -1258,6 +1641,7 @@ class TelemetryConfig(ConfigBase):
 class DebugConfig(ConfigBase):
     """调试配置类"""
 
+    __ui_parent__ = "log"
     __ui_label__ = "其他"
     __ui_icon__ = "more-horizontal"
 
@@ -1752,6 +2136,7 @@ class DatabaseConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "switch",
             "x-icon": "save",
+            "advanced": True,
         },
     )
     """

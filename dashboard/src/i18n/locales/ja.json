@@ -19,7 +19,7 @@
       "overview": "概要",
       "botConfig": "ボット設定",
       "botResources": "ボットリソース",
-      "extensionsMonitor": "拡張機能 & 監視",
+      "extensionsMonitor": "プラグインと拡張",
       "system": "システム"
     },
     "menu": {
@@ -27,16 +27,18 @@
       "botMainConfig": "ボットメイン設定",
       "aiModelProvider": "AIモデルプロバイダー",
       "modelManagement": "モデル管理",
+      "promptManagement": "Prompt 管理",
       "adapterConfig": "アダプター設定",
       "emojiManagement": "絵文字管理",
       "expressionManagement": "表現管理",
       "slangManagement": "スラング管理",
       "personInfo": "人物情報",
       "knowledgeGraph": "長期記憶グラフ",
-      "knowledgeBase": "長期記憶コンソール",
+      "knowledgeBase": "長期記憶",
       "pluginMarket": "プラグインマーケット",
       "configTemplate": "設定テンプレート",
-      "pluginConfig": "プラグイン設定",
+      "pluginConfig": "プラグイン管理",
+      "mcpSettings": "MCP 設定",
       "logViewer": "ログビューア",
       "maisakaMonitor": "MaiSaka チャット監視",
       "localChat": "ローカルチャット",
@@ -500,17 +502,13 @@
         "title": "人格設定",
         "description": "ボットの性格や話し方を定義します"
       },
-      "emoji": {
-        "title": "絵文字パック",
-        "description": "絵文字パック関連の設定を行います"
-      },
-      "other": {
-        "title": "その他の設定",
-        "description": "グローバルスラングなどの基本オプションを設定します"
-      },
-      "siliconFlow": {
+      "apiProvider": {
         "title": "API設定",
-        "description": "SiliconFlow API キーを設定します"
+        "description": "APIプロバイダーを設定します"
+      },
+      "modelSetup": {
+        "title": "モデル設定",
+        "description": "planner と replyer モデルを設定します"
       }
     },
     "loading": {
@@ -528,7 +526,12 @@
       "selectPlatform": "プラットフォームを選択してください",
       "enterNickname": "ニックネームを入力してください",
       "enterQqAccount": "QQ アカウントを入力してください",
-      "enterAccountId": "アカウント ID を入力してください"
+      "enterAccountId": "アカウント ID を入力してください",
+      "enterProviderName": "APIプロバイダー名を入力してください",
+      "enterBaseUrl": "API Base URL を入力してください",
+      "enterApiKey": "API Key を入力してください",
+      "enterPlannerModelIdentifier": "planner モデル識別子を入力してください",
+      "enterReplyerModelIdentifier": "replyer モデル識別子を入力してください"
     },
     "toast": {
       "loadFailedTitle": "設定の読み込みに失敗しました",
@@ -667,33 +670,43 @@
           "description": "グループ内のスラングを学習して使えるようにします"
         }
       },
-      "siliconFlow": {
-        "about": {
-          "title": "SiliconFlow について",
-          "description": "SiliconFlow は DeepSeek V3、Qwen、ビジョンモデル、音声認識、埋め込みモデルなど幅広いモデルを提供します。API Key が1つあれば MaiBot の全機能を利用できます。",
-          "link": "SiliconFlow で API Key を取得する"
+      "apiProvider": {
+        "providerName": {
+          "label": "APIプロバイダー名 *",
+          "placeholder": "例: OpenAI、DeepSeek、自ホストサービス",
+          "description": "この名前は model_config.toml に保存され、下のモデルから参照されます"
+        },
+        "baseUrl": {
+          "label": "API Base URL *",
+          "description": "OpenAI互換エンドポイントを入力してください。例: https://api.example.com/v1"
         },
         "apiKey": {
-          "label": "SiliconFlow API Key *",
-          "description": "SiliconFlow の API Key を入力してください。入力後、MaiBot が必要なモデルを自動設定します。",
+          "label": "API Key *",
+          "description": "このプロバイダーの API Key を入力してください",
           "show": "API Key を表示",
-          "hide": "API Key を隠す"
-        },
-        "autoConfig": {
-          "title": "以下のモデルが自動設定されます：",
-          "items": {
-            "deepseek": "DeepSeek V3 - メインの会話・ツールモデル",
-            "qwen3": "Qwen3 30B - 頻繁な小タスクとツール呼び出し",
-            "qwen3Vl": "Qwen3 VL 30B - 画像認識",
-            "senseVoice": "SenseVoice - 音声認識",
-            "bgeM3": "BGE-M3 - テキスト埋め込み",
-            "lpmm": "知識ベース関連モデル (LPMM)"
+          "hide": "API Key を非表示"
+        }
+      },
+      "modelSetup": {
+        "planner": {
+          "identifier": {
+            "label": "planner モデル識別子 *",
+            "description": "APIサービスが提供する実際のモデルID。モデル名はこの識別子で初期化されます"
+          },
+          "visual": {
+            "label": "ビジョンを有効化"
           }
         },
-        "hint": {
-          "title": "ヒント：",
-          "description": "ウィザード完了後は、「システム設定 -> モデル設定」でさらに API プロバイダーやモデルを追加できます。"
-        }
+        "replyer": {
+          "identifier": {
+            "label": "replyer モデル識別子 *",
+            "description": "APIサービスが提供する実際のモデルID。モデル名はこの識別子で初期化されます"
+          },
+          "visual": {
+            "label": "ビジョンを有効化"
+          }
+        },
+        "saveHint": "より詳細なタスク割り当ては後で設定できます。"
       }
     }
   },

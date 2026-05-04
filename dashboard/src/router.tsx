@@ -86,6 +86,12 @@ const modelConfigRoute = createRoute({
 })
 
 // 配置路由 - 麦麦适配器配置（已停用，引导跳转到插件配置；旧实现保留在 ./routes/config/adapter）
+const promptManagementRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: '/config/prompts',
+  component: lazyRouteComponent(() => import('./routes/config/prompts'), 'PromptManagementPage'),
+})
+
 const adapterConfigRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/config/adapter',
@@ -206,6 +212,12 @@ const pluginMirrorsRoute = createRoute({
 })
 
 // 设置页路由
+const mcpSettingsRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: '/mcp-settings',
+  component: lazyRouteComponent(() => import('./routes/mcp-settings'), 'MCPSettingsPage'),
+})
+
 const settingsRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/settings',
@@ -262,6 +274,7 @@ const routeTree = rootRoute.addChildren([
     botConfigRoute,
     modelProviderConfigRoute,
     modelConfigRoute,
+    promptManagementRoute,
     adapterConfigRoute,
     emojiManagementRoute,
     expressionManagementRoute,
@@ -274,6 +287,7 @@ const routeTree = rootRoute.addChildren([
     modelPresetsRoute,
     pluginConfigRoute,
     pluginMirrorsRoute,
+    mcpSettingsRoute,
     logsRoute,
     plannerMonitorRoute,
     chatRoute,

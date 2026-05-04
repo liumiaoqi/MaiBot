@@ -17,7 +17,42 @@ from src.maisaka.builtin_tool import reply as reply_tool_module
 from src.maisaka.builtin_tool import send_emoji as send_emoji_tool_module
 from src.maisaka.monitor_events import emit_planner_finalized
 from src.maisaka.reasoning_engine import MaisakaReasoningEngine
+from src.maisaka import runtime as runtime_module
 from src.maisaka.runtime import MaisakaHeartFlowChatting
+
+
+def test_runtime_maps_expression_config_flags_to_correct_fields(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_chat_stream = SimpleNamespace(
+        is_group_session=True,
+        group_id="group-1",
+        user_id="user-1",
+        platform="test",
+    )
+
+    monkeypatch.setattr(
+        runtime_module.chat_manager,
+        "get_session_by_session_id",
+        lambda session_id: fake_chat_stream,
+    )
+    monkeypatch.setattr(runtime_module.chat_manager, "get_session_name", lambda session_id: "测试会话")
+    monkeypatch.setattr(
+        runtime_module.ExpressionConfigUtils,
+        "get_expression_config_for_chat",
+        staticmethod(lambda session_id: (True, False, True)),
+    )
+    monkeypatch.setattr(runtime_module, "ExpressionLearner", lambda session_id: SimpleNamespace())
+    monkeypatch.setattr(runtime_module, "JargonMiner", lambda session_id, session_name: SimpleNamespace())
+    monkeypatch.setattr(runtime_module, "MaisakaReasoningEngine", lambda runtime: SimpleNamespace())
+    monkeypatch.setattr(runtime_module, "ToolRegistry", lambda: SimpleNamespace())
+    monkeypatch.setattr(runtime_module, "ReplyEffectTracker", lambda **kwargs: SimpleNamespace())
+    monkeypatch.setattr(MaisakaHeartFlowChatting, "_register_tool_providers", lambda self: None)
+    monkeypatch.setattr(MaisakaHeartFlowChatting, "_emit_monitor_session_start", lambda self: None)
+
+    runtime = MaisakaHeartFlowChatting("session-1")
+
+    assert runtime._enable_expression_use is True
+    assert runtime._enable_expression_learning is False
+    assert runtime._enable_jargon_learning is True
 
 
 class _FakeLLMResult:

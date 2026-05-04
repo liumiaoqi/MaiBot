@@ -35,6 +35,12 @@ interface PluginApiResponse {
     }
     homepage_url?: string
     repository_url?: string
+    urls?: {
+      repository?: string
+      homepage?: string
+      documentation?: string
+      issues?: string
+    }
     keywords: string[]
     categories?: string[]
     default_locale: string
@@ -42,6 +48,28 @@ interface PluginApiResponse {
   }
   // 可能还有其他字段,但我们不关心
   [key: string]: unknown
+}
+
+function normalizePluginManifest(manifest: PluginApiResponse['manifest']): PluginInfo['manifest'] {
+  const repositoryUrl = manifest.repository_url || manifest.urls?.repository
+  const homepageUrl = manifest.homepage_url || manifest.urls?.homepage
+
+  return {
+    manifest_version: manifest.manifest_version || 1,
+    name: manifest.name,
+    version: manifest.version,
+    description: manifest.description || '',
+    author: manifest.author || { name: 'Unknown' },
+    license: manifest.license || 'Unknown',
+    host_application: manifest.host_application || { min_version: '0.0.0' },
+    homepage_url: homepageUrl,
+    repository_url: repositoryUrl,
+    urls: manifest.urls,
+    keywords: manifest.keywords || [],
+    categories: manifest.categories || [],
+    default_locale: manifest.default_locale || 'zh-CN',
+    locales_path: manifest.locales_path,
+  }
 }
 
 /**
@@ -88,21 +116,7 @@ export async function fetchPluginList(): Promise<ApiResponse<PluginInfo[]>> {
     })
     .map((item) => ({
       id: item.id,
-      manifest: {
-        manifest_version: item.manifest.manifest_version || 1,
-        name: item.manifest.name,
-        version: item.manifest.version,
-        description: item.manifest.description || '',
-        author: item.manifest.author || { name: 'Unknown' },
-        license: item.manifest.license || 'Unknown',
-        host_application: item.manifest.host_application || { min_version: '0.0.0' },
-        homepage_url: item.manifest.homepage_url,
-        repository_url: item.manifest.repository_url,
-        keywords: item.manifest.keywords || [],
-        categories: item.manifest.categories || [],
-        default_locale: item.manifest.default_locale || 'zh-CN',
-        locales_path: item.manifest.locales_path,
-      },
+      manifest: normalizePluginManifest(item.manifest),
       downloads: 0,
       rating: 0,
       review_count: 0,

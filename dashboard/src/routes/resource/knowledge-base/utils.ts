@@ -20,13 +20,18 @@ export function normalizeProgress(value: number | string | null | undefined): nu
   if (!Number.isFinite(numeric)) {
     return 0
   }
-  if (numeric < 0) {
+  const percent = numeric > 0 && numeric <= 1 ? numeric * 100 : numeric
+  if (percent < 0) {
     return 0
   }
-  if (numeric > 100) {
+  if (percent > 100) {
     return 100
   }
-  return numeric
+  return percent
+}
+
+export function formatProgressPercent(value: number | string | null | undefined): string {
+  return `${normalizeProgress(value).toFixed(1)}%`
 }
 
 export function parseOptionalPositiveInt(input: string): number | undefined {

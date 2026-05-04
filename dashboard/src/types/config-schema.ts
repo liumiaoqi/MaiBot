@@ -38,6 +38,9 @@ export interface FieldSchema {
   properties?: ConfigSchema
   'x-widget'?: XWidgetType
   'x-icon'?: string
+  'x-layout'?: 'inline-right'
+  'x-input-width'?: string
+  advanced?: boolean
   step?: number
 }
 
@@ -49,6 +52,7 @@ export interface ConfigSchema {
   uiParent?: string
   uiLabel?: string
   uiIcon?: string
+  uiMergeChildren?: string[]
 }
 
 export interface ConfigSchemaResponse {
