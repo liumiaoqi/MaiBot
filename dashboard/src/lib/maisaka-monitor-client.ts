@@ -26,6 +26,10 @@ export interface MaisakaToolCall {
 export interface SessionStartEvent {
   session_id: string
   session_name: string
+  is_group_chat?: boolean
+  group_id?: string | null
+  user_id?: string | null
+  platform?: string
   timestamp: number
 }
 

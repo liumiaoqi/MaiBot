@@ -1,4 +1,4 @@
-import { Activity, Boxes, Database, FileSearch, FileText, Hash, Home, LayoutGrid, MessageSquare, Network, Package, Server, Settings, Sliders, Smile, UserCircle } from 'lucide-react'
+import { Activity, Boxes, Database, FileSearch, FileText, Hash, Home, MessageSquare, Network, Package, Server, Settings, Sliders, Smile, UserCircle } from 'lucide-react'
 
 import type { MenuSection } from './types'
 
@@ -15,7 +15,6 @@ export const menuSections: MenuSection[] = [
       { icon: FileText, label: 'sidebar.menu.botMainConfig', path: '/config/bot', searchDescription: 'search.items.botConfigDesc' },
       { icon: Server, label: 'sidebar.menu.aiModelProvider', path: '/config/modelProvider', searchDescription: 'search.items.modelProviderDesc', tourId: 'sidebar-model-provider' },
       { icon: Boxes, label: 'sidebar.menu.modelManagement', path: '/config/model', searchDescription: 'search.items.modelDesc', tourId: 'sidebar-model-management' },
-      { icon: Sliders, label: 'sidebar.menu.adapterConfig', path: '/config/adapter' },
     ],
   },
   {
@@ -33,7 +32,6 @@ export const menuSections: MenuSection[] = [
     title: 'sidebar.groups.extensionsMonitor',
     items: [
       { icon: Package, label: 'sidebar.menu.pluginMarket', path: '/plugins', searchDescription: 'search.items.pluginsDesc' },
-      { icon: LayoutGrid, label: 'sidebar.menu.configTemplate', path: '/config/pack-market' },
       { icon: Sliders, label: 'sidebar.menu.pluginConfig', path: '/plugin-config' },
       { icon: FileSearch, label: 'sidebar.menu.logViewer', path: '/logs', searchDescription: 'search.items.logsDesc' },
       { icon: Activity, label: 'sidebar.menu.maisakaMonitor', path: '/planner-monitor' },

@@ -24,7 +24,7 @@ from src.common.logger import get_logger
 logger = get_logger("plugin_runtime.runner.manifest_validator")
 
 _SEMVER_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
-_PLUGIN_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:[.-][a-z0-9]+)+$")
+_PLUGIN_ID_PATTERN = re.compile(r"^[A-Za-z0-9_]+(?:[.-][A-Za-z0-9_]+)+$")
 _PACKAGE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 _HTTP_URL_PATTERN = re.compile(r"^https?://.+$")
 
@@ -379,7 +379,7 @@ class PluginDependencyDefinition(_StrictManifestModel):
             ValueError: 当 ID 不符合规则时抛出。
         """
         if not _PLUGIN_ID_PATTERN.fullmatch(value):
-            raise ValueError("必须使用小写字母/数字，并以点号或横线分隔，例如 github.author.plugin")
+            raise ValueError("必须使用字母/数字/下划线，并以点号或横线分隔，例如 github.author.plugin")
         return value
 
     @field_validator("version_spec")
@@ -548,7 +548,7 @@ class PluginManifest(_StrictManifestModel):
         if not value:
             raise ValueError("不能为空")
         if info.field_name == "id" and not _PLUGIN_ID_PATTERN.fullmatch(value):
-            raise ValueError("必须使用小写字母/数字，并以点号或横线分隔，例如 github.author.plugin")
+            raise ValueError("必须使用字母/数字/下划线，并以点号或横线分隔，例如 github.author.plugin")
         return value
 
     @field_validator("capabilities")

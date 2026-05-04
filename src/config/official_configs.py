@@ -63,6 +63,7 @@ class BotConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "custom",
             "x-icon": "tags",
+            "advanced": True,
         },
     )
     """别名列表"""
@@ -472,6 +473,7 @@ class MemoryConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "switch",
             "x-icon": "message-circle-warning",
+            "advanced": True,
         },
     )
     """是否启用反馈驱动的延迟记忆纠错任务"""
@@ -482,6 +484,7 @@ class MemoryConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "clock-4",
+            "advanced": True,
         },
     )
     """反馈窗口时长（小时），以 query_memory 执行时间为起点"""
@@ -492,6 +495,7 @@ class MemoryConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "timer",
+            "advanced": True,
         },
     )
     """反馈纠错定时任务轮询间隔（分钟）"""
@@ -503,6 +507,7 @@ class MemoryConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "list-ordered",
+            "advanced": True,
         },
     )
     """反馈纠错每轮最大处理任务数"""
@@ -515,6 +520,7 @@ class MemoryConfig(ConfigBase):
             "x-widget": "slider",
             "x-icon": "gauge",
             "step": 0.01,
+            "advanced": True,
         },
     )
     """自动应用纠错动作的最低置信度阈值"""
@@ -526,6 +532,7 @@ class MemoryConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "messages-square",
+            "advanced": True,
         },
     )
     """每个纠错任务最多使用的窗口内用户反馈消息数"""
@@ -535,6 +542,7 @@ class MemoryConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "switch",
             "x-icon": "filter",
+            "advanced": True,
         },
     )
     """是否启用纠错前置预筛（用于减少不必要的模型调用）"""
@@ -544,6 +552,7 @@ class MemoryConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "switch",
             "x-icon": "sticky-note",
+            "advanced": True,
         },
     )
     """是否为受影响 paragraph 写入已纠正旧事实标记"""
@@ -553,6 +562,7 @@ class MemoryConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "switch",
             "x-icon": "eye-off",
+            "advanced": True,
         },
     )
     """是否在用户侧查询中硬过滤带有 stale 标记的 paragraph"""
@@ -562,6 +572,7 @@ class MemoryConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "switch",
             "x-icon": "user-round-search",
+            "advanced": True,
         },
     )
     """是否在反馈纠错后将受影响人物画像加入刷新队列"""
@@ -571,6 +582,7 @@ class MemoryConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "switch",
             "x-icon": "refresh-ccw",
+            "advanced": True,
         },
     )
     """人物画像处于脏队列时，读取是否强制刷新而不直接复用旧快照"""
@@ -580,6 +592,7 @@ class MemoryConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "switch",
             "x-icon": "clapperboard",
+            "advanced": True,
         },
     )
     """是否在反馈纠错后将受影响 source 加入 episode 重建队列"""
@@ -589,6 +602,7 @@ class MemoryConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "switch",
             "x-icon": "ban",
+            "advanced": True,
         },
     )
     """episode source 处于重建队列时，是否对用户侧查询做屏蔽"""
@@ -599,6 +613,7 @@ class MemoryConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "repeat",
+            "advanced": True,
         },
     )
     """反馈纠错二阶段一致性后台协调任务轮询间隔（分钟）"""
@@ -610,6 +625,7 @@ class MemoryConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "list-restart",
+            "advanced": True,
         },
     )
     """反馈纠错二阶段一致性每轮处理 profile/episode 队列的批大小"""
@@ -1350,6 +1366,7 @@ class ChineseTypoConfig(ConfigBase):
             "x-widget": "slider",
             "x-icon": "percent",
             "step": 0.01,
+            "advanced": True,
         },
     )
     """单字替换概率"""
@@ -1359,6 +1376,7 @@ class ChineseTypoConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "hash",
+            "advanced": True,
         },
     )
     """最小字频阈值"""
@@ -1371,6 +1389,7 @@ class ChineseTypoConfig(ConfigBase):
             "x-widget": "slider",
             "x-icon": "percent",
             "step": 0.1,
+            "advanced": True,
         },
     )
     """声调错误概率"""
@@ -1383,6 +1402,7 @@ class ChineseTypoConfig(ConfigBase):
             "x-widget": "slider",
             "x-icon": "percent",
             "step": 0.001,
+            "advanced": True,
         },
     )
     """整词替换概率"""

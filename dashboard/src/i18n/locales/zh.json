@@ -500,17 +500,13 @@
         "title": "人格配置",
         "description": "定义机器人的性格和说话风格"
       },
-      "emoji": {
-        "title": "表情包",
-        "description": "配置表情包相关设置"
-      },
-      "other": {
-        "title": "其他设置",
-        "description": "配置全局黑话等基础选项"
-      },
-      "siliconFlow": {
+      "apiProvider": {
         "title": "API配置",
-        "description": "配置硅基流动 API 密钥"
+        "description": "配置 API 提供商"
+      },
+      "modelSetup": {
+        "title": "模型配置",
+        "description": "配置 planner 和 replyer 模型"
       }
     },
     "loading": {
@@ -528,7 +524,12 @@
       "selectPlatform": "请选择平台",
       "enterNickname": "请输入昵称",
       "enterQqAccount": "请输入 QQ 账号",
-      "enterAccountId": "请输入账号 ID"
+      "enterAccountId": "请输入账号 ID",
+      "enterProviderName": "请输入 API 提供商名称",
+      "enterBaseUrl": "请输入 API Base URL",
+      "enterApiKey": "请输入 API Key",
+      "enterPlannerModelIdentifier": "请输入 planner 模型标识符",
+      "enterReplyerModelIdentifier": "请输入 replyer 模型标识符"
     },
     "toast": {
       "loadFailedTitle": "加载配置失败",
@@ -559,8 +560,8 @@
     "footer": "您可以随时在设置中修改这些配置",
     "defaults": {
       "personality": {
-        "personality": "是一个女大学生，现在在读大二，会刷贴吧。",
-        "replyStyle": "请回复得平淡一些，简短一些，说中文，不要刻意突出自身学科背景。可以参考贴吧、知乎和微博的回复风格。",
+        "personality": "是一个大二女大学生，现在正在上网和群友聊天。有轻微攻击性",
+        "replyStyle": "你的风格平淡简短。可以参考贴吧，知乎和微博的回复风格。不浮夸不长篇大论，不要过分修辞和复杂句。",
         "multipleReplyStyles": {
           "plain": "你的风格平淡但不失讽刺，很简短，很白话。可以参考贴吧、微博的回复风格。",
           "shortText": "用1-2个字进行回复",
@@ -577,7 +578,7 @@
         "platform": {
           "label": "平台 *",
           "placeholder": "请选择平台",
-          "description": "选择机器人运行的平台",
+          "description": "选择麦麦Bot运行的平台",
           "options": {
             "custom": "其他平台"
           }
@@ -589,7 +590,7 @@
         "qqAccount": {
           "label": "QQ账号 *",
           "placeholder": "请输入机器人的 QQ 账号",
-          "description": "机器人登录使用的 QQ 账号"
+          "description": "运行麦麦Bot的 QQ 账号"
         },
         "primaryAccount": {
           "label": "账号 ID *",
@@ -599,7 +600,7 @@
         "nickname": {
           "label": "昵称 *",
           "placeholder": "请输入机器人的昵称",
-          "description": "机器人的主要称呼名称"
+          "description": "麦麦Bot的名称"
         },
         "alias": {
           "label": "别名",
@@ -667,33 +668,43 @@
           "description": "允许机器人学习和使用群组黑话"
         }
       },
-      "siliconFlow": {
-        "about": {
-          "title": "关于硅基流动 (SiliconFlow)",
-          "description": "硅基流动提供了完整的模型覆盖，包括 DeepSeek V3、Qwen、视觉模型、语音识别和嵌入模型。只需一个 API Key 即可使用麦麦的所有功能！",
-          "link": "前往硅基流动获取 API Key"
+      "apiProvider": {
+        "providerName": {
+          "label": "API 提供商名称 *",
+          "placeholder": "例如 OpenAI、DeepSeek、自建服务",
+          "description": "为api提供商命名"
+        },
+        "baseUrl": {
+          "label": "API Base URL *",
+          "description": "请填写 OpenAI 兼容接口地址，例如 https://api.example.com/v1"
         },
         "apiKey": {
-          "label": "SiliconFlow API Key *",
-          "description": "请输入您的硅基流动 API 密钥。获取后，麦麦将自动配置所有必需的模型。",
+          "label": "API Key *",
+          "description": "请填写该提供商的 API Key",
           "show": "显示 API Key",
           "hide": "隐藏 API Key"
-        },
-        "autoConfig": {
-          "title": "将自动配置以下模型：",
-          "items": {
-            "deepseek": "DeepSeek V3 - 主要对话和工具模型",
-            "qwen3": "Qwen3 30B - 高频小任务和工具调用",
-            "qwen3Vl": "Qwen3 VL 30B - 图像识别",
-            "senseVoice": "SenseVoice - 语音识别",
-            "bgeM3": "BGE-M3 - 文本嵌入",
-            "lpmm": "知识库相关模型 (LPMM)"
+        }
+      },
+      "modelSetup": {
+        "planner": {
+          "identifier": {
+            "label": "planner 模型标识符 *",
+            "description": "API 服务商提供的真实模型 ID，模型名称会自动初始化为该标识符"
+          },
+          "visual": {
+            "label": "启用视觉"
           }
         },
-        "hint": {
-          "title": "💡 提示：",
-          "description": "完成向导后，您可以在“系统设置 -> 模型配置”中添加更多 API 提供商和模型。"
-        }
+        "replyer": {
+          "identifier": {
+            "label": "replyer 模型标识符 *",
+            "description": "API 服务商提供的真实模型 ID，模型名称会自动初始化为该标识符"
+          },
+          "visual": {
+            "label": "启用视觉"
+          }
+        },
+        "saveHint": "你可以稍后配置更详细的任务分配。"
       }
     }
   },

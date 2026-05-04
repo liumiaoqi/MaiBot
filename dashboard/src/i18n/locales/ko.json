@@ -500,17 +500,13 @@
         "title": "성격 설정",
         "description": "봇의 성격과 말투를 정의합니다"
       },
-      "emoji": {
-        "title": "이모지 팩",
-        "description": "이모지 관련 설정을 구성합니다"
-      },
-      "other": {
-        "title": "기타 설정",
-        "description": "전역 슬랭 등 기본 옵션을 설정합니다"
-      },
-      "siliconFlow": {
+      "apiProvider": {
         "title": "API 설정",
-        "description": "SiliconFlow API 키를 설정합니다"
+        "description": "API 제공자를 설정합니다"
+      },
+      "modelSetup": {
+        "title": "모델 설정",
+        "description": "planner와 replyer 모델을 설정합니다"
       }
     },
     "loading": {
@@ -528,7 +524,12 @@
       "selectPlatform": "플랫폼을 선택해 주세요",
       "enterNickname": "닉네임을 입력해 주세요",
       "enterQqAccount": "QQ 계정을 입력해 주세요",
-      "enterAccountId": "계정 ID를 입력해 주세요"
+      "enterAccountId": "계정 ID를 입력해 주세요",
+      "enterProviderName": "API 제공자 이름을 입력해 주세요",
+      "enterBaseUrl": "API Base URL을 입력해 주세요",
+      "enterApiKey": "API Key를 입력해 주세요",
+      "enterPlannerModelIdentifier": "planner 모델 식별자를 입력해 주세요",
+      "enterReplyerModelIdentifier": "replyer 모델 식별자를 입력해 주세요"
     },
     "toast": {
       "loadFailedTitle": "설정 불러오기에 실패했습니다",
@@ -667,33 +668,43 @@
           "description": "봇이 그룹 슬랭을 학습하고 사용할 수 있게 합니다"
         }
       },
-      "siliconFlow": {
-        "about": {
-          "title": "SiliconFlow 소개",
-          "description": "SiliconFlow 는 DeepSeek V3, Qwen, 비전 모델, 음성 인식, 임베딩 모델 등 폭넓은 모델을 제공합니다. API Key 하나로 MaiBot 의 모든 기능을 사용할 수 있습니다.",
-          "link": "SiliconFlow 에서 API Key 받기"
+      "apiProvider": {
+        "providerName": {
+          "label": "API 제공자 이름 *",
+          "placeholder": "예: OpenAI, DeepSeek, 자체 호스팅",
+          "description": "이 이름은 model_config.toml에 저장되며 아래 모델에서 참조됩니다"
+        },
+        "baseUrl": {
+          "label": "API Base URL *",
+          "description": "OpenAI 호환 엔드포인트를 입력해 주세요. 예: https://api.example.com/v1"
         },
         "apiKey": {
-          "label": "SiliconFlow API Key *",
-          "description": "SiliconFlow API Key를 입력해 주세요. 입력하면 MaiBot 이 필요한 모델을 자동으로 구성합니다.",
+          "label": "API Key *",
+          "description": "이 제공자의 API Key를 입력해 주세요",
           "show": "API Key 표시",
           "hide": "API Key 숨기기"
-        },
-        "autoConfig": {
-          "title": "다음 모델이 자동으로 구성됩니다:",
-          "items": {
-            "deepseek": "DeepSeek V3 - 주요 대화 및 도구 모델",
-            "qwen3": "Qwen3 30B - 잦은 소규모 작업과 도구 호출",
-            "qwen3Vl": "Qwen3 VL 30B - 이미지 인식",
-            "senseVoice": "SenseVoice - 음성 인식",
-            "bgeM3": "BGE-M3 - 텍스트 임베딩",
-            "lpmm": "지식 베이스 관련 모델 (LPMM)"
+        }
+      },
+      "modelSetup": {
+        "planner": {
+          "identifier": {
+            "label": "planner 모델 식별자 *",
+            "description": "API 서비스가 제공하는 실제 모델 ID입니다. 모델 이름은 이 식별자로 초기화됩니다"
+          },
+          "visual": {
+            "label": "비전 사용"
           }
         },
-        "hint": {
-          "title": "팁: ",
-          "description": "마법사를 마친 뒤에는 \"시스템 설정 -> 모델 설정\"에서 더 많은 API 제공자와 모델을 추가할 수 있습니다."
-        }
+        "replyer": {
+          "identifier": {
+            "label": "replyer 모델 식별자 *",
+            "description": "API 서비스가 제공하는 실제 모델 ID입니다. 모델 이름은 이 식별자로 초기화됩니다"
+          },
+          "visual": {
+            "label": "비전 사용"
+          }
+        },
+        "saveHint": "더 자세한 작업 할당은 나중에 설정할 수 있습니다."
       }
     }
   },

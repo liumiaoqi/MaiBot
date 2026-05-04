@@ -36,6 +36,13 @@ export interface PluginManifest {
   homepage_url?: string
   /** 插件仓库地址（可选） */
   repository_url?: string
+  /** Manifest v2 URL 集合（可选） */
+  urls?: {
+    repository?: string
+    homepage?: string
+    documentation?: string
+    issues?: string
+  }
   /** 插件关键词 */
   keywords: string[]
   /** 插件分类（可选） */

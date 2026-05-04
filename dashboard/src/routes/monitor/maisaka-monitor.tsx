@@ -104,10 +104,17 @@ function SessionSidebar({
           )}
         >
           <div className="flex w-full items-center justify-between">
-            <span className="font-medium truncate max-w-35">
-              {session.sessionName}
-            </span>
-            <Badge variant="secondary" className="text-[10px] h-4 px-1">
+            <div className="flex min-w-0 items-center gap-1.5">
+              {session.isGroupChat !== undefined && (
+                <Badge variant="outline" className="h-4 shrink-0 px-1 text-[10px]">
+                  {session.isGroupChat ? '群' : '私'}
+                </Badge>
+              )}
+              <span className="truncate font-medium" title={session.sessionName}>
+                {session.sessionName}
+              </span>
+            </div>
+            <Badge variant="secondary" className="h-4 shrink-0 px-1 text-[10px]">
               {session.eventCount}
             </Badge>
           </div>

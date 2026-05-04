@@ -185,6 +185,16 @@ def _setup_static_files(app: FastAPI):
         logger.warning(t("startup.webui_dashboard_package_hint", command=_MANUAL_INSTALL_COMMAND))
         return
 
+    @app.get("/maibot_statistics.html", include_in_schema=False)
+    async def serve_statistics_report():
+        report_path = (_get_project_root() / "maibot_statistics.html").resolve()
+        if not report_path.exists() or not report_path.is_file():
+            raise HTTPException(status_code=404, detail=t("core.not_found"))
+
+        response = FileResponse(report_path, media_type="text/html")
+        response.headers["X-Robots-Tag"] = "noindex, nofollow, noarchive"
+        return response
+
     @app.get("/{full_path:path}", include_in_schema=False)
     async def serve_spa(full_path: str):
         if not full_path or full_path == "/":

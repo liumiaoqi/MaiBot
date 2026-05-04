@@ -995,6 +995,14 @@ class TestManifestValidator:
         assert len(validator.errors) == 0
         assert validator.warnings == []
 
+    def test_manifest_id_allows_uppercase_and_underscore(self):
+        from src.plugin_runtime.runner.manifest_validator import ManifestValidator
+
+        validator = ManifestValidator(host_version="1.0.0", sdk_version="2.0.1")
+        manifest = build_test_manifest("XXXxx7258.google_search_plugin", capabilities=["send.text"])
+        assert validator.validate(manifest) is True
+        assert validator.errors == []
+
     def test_missing_required_fields(self):
         from src.plugin_runtime.runner.manifest_validator import ManifestValidator
 
