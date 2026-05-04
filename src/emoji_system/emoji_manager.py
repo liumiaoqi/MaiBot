@@ -805,6 +805,7 @@ class EmojiManager:
         emoji_replace_prompt_template.add_context("emoji_num", str(self._emoji_num))
         emoji_replace_prompt_template.add_context("emoji_num_max", str(global_config.emoji.max_reg_num))
         emoji_replace_prompt_template.add_context("emoji_list", "\n".join(emoji_info_list))
+        emoji_replace_prompt_template.add_context("description", new_emoji.description or "无描述")
         emoji_replace_prompt = await prompt_manager.render_prompt(emoji_replace_prompt_template)
 
         decision_result = await emoji_manager_emotion_judge_llm.generate_response(
