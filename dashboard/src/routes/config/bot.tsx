@@ -193,7 +193,6 @@ function BotConfigPageContent() {
 
   // 用于标记初始加载和配置缓存
   const initialLoadRef = useRef(true)
-  const suppressAutoSaveRef = useRef(false)
   const configRef = useRef<Record<string, unknown>>({})
 
   // ==================== 辅助函数 ====================
@@ -260,7 +259,6 @@ function BotConfigPageContent() {
    * 抽取自 loadConfig 和 handleModeChange 中的重复逻辑
    */
   const parseAndSetConfig = useCallback((config: Record<string, unknown>) => {
-    suppressAutoSaveRef.current = true
     configRef.current = config
 
     setBotConfig((config.bot ?? {}) as ConfigSectionData)
@@ -285,10 +283,6 @@ function BotConfigPageContent() {
     setMcpConfig((config.mcp ?? {}) as ConfigSectionData)
     setPluginRuntimeConfig((config.plugin_runtime ?? {}) as ConfigSectionData)
     setAMemorixConfig((config.a_memorix ?? {}) as ConfigSectionData)
-
-    window.setTimeout(() => {
-      suppressAutoSaveRef.current = false
-    }, 0)
   }, [])
 
   /**
@@ -450,41 +444,31 @@ function BotConfigPageContent() {
     setHasUnsavedChanges
   )
 
-  const triggerConfigAutoSave = useCallback(
-    (sectionName: Parameters<typeof triggerAutoSave>[0], data: unknown) => {
-      if (suppressAutoSaveRef.current) {
-        return
-      }
-      triggerAutoSave(sectionName, data)
-    },
-    [triggerAutoSave]
-  )
-
   // 使用 useConfigAutoSave hook 简化配置变化监听
   // 注意: useConfigAutoSave 是一个 hook，不能在条件语句或循环中调用
   // 因此我们仍然需要逐个调用，但代码更简洁
-  useConfigAutoSave(botConfig, 'bot', initialLoadRef.current, triggerConfigAutoSave)
-  useConfigAutoSave(personalityConfig, 'personality', initialLoadRef.current, triggerConfigAutoSave)
-  useConfigAutoSave(chatConfig, 'chat', initialLoadRef.current, triggerConfigAutoSave)
-  useConfigAutoSave(expressionConfig, 'expression', initialLoadRef.current, triggerConfigAutoSave)
-  useConfigAutoSave(emojiConfig, 'emoji', initialLoadRef.current, triggerConfigAutoSave)
-  useConfigAutoSave(memoryConfig, 'memory', initialLoadRef.current, triggerConfigAutoSave)
-  useConfigAutoSave(visualConfig, 'visual', initialLoadRef.current, triggerConfigAutoSave)
-  useConfigAutoSave(voiceConfig, 'voice', initialLoadRef.current, triggerConfigAutoSave)
-  useConfigAutoSave(messageReceiveConfig, 'message_receive', initialLoadRef.current, triggerConfigAutoSave)
-  useConfigAutoSave(keywordReactionConfig, 'keyword_reaction', initialLoadRef.current, triggerConfigAutoSave)
-  useConfigAutoSave(responsePostProcessConfig, 'response_post_process', initialLoadRef.current, triggerConfigAutoSave)
-  useConfigAutoSave(chineseTypoConfig, 'chinese_typo', initialLoadRef.current, triggerConfigAutoSave)
-  useConfigAutoSave(responseSplitterConfig, 'response_splitter', initialLoadRef.current, triggerConfigAutoSave)
-  useConfigAutoSave(logConfig, 'log', initialLoadRef.current, triggerConfigAutoSave)
-  useConfigAutoSave(debugConfig, 'debug', initialLoadRef.current, triggerConfigAutoSave)
-  useConfigAutoSave(maimMessageConfig, 'maim_message', initialLoadRef.current, triggerConfigAutoSave)
-  useConfigAutoSave(telemetryConfig, 'telemetry', initialLoadRef.current, triggerConfigAutoSave)
-  useConfigAutoSave(webuiConfig, 'webui', initialLoadRef.current, triggerConfigAutoSave)
-  useConfigAutoSave(databaseConfig, 'database', initialLoadRef.current, triggerConfigAutoSave)
-  useConfigAutoSave(mcpConfig, 'mcp', initialLoadRef.current, triggerConfigAutoSave)
-  useConfigAutoSave(pluginRuntimeConfig, 'plugin_runtime', initialLoadRef.current, triggerConfigAutoSave)
-  useConfigAutoSave(aMemorixConfig, 'a_memorix', initialLoadRef.current, triggerConfigAutoSave)
+  useConfigAutoSave(botConfig, 'bot', initialLoadRef.current, triggerAutoSave)
+  useConfigAutoSave(personalityConfig, 'personality', initialLoadRef.current, triggerAutoSave)
+  useConfigAutoSave(chatConfig, 'chat', initialLoadRef.current, triggerAutoSave)
+  useConfigAutoSave(expressionConfig, 'expression', initialLoadRef.current, triggerAutoSave)
+  useConfigAutoSave(emojiConfig, 'emoji', initialLoadRef.current, triggerAutoSave)
+  useConfigAutoSave(memoryConfig, 'memory', initialLoadRef.current, triggerAutoSave)
+  useConfigAutoSave(visualConfig, 'visual', initialLoadRef.current, triggerAutoSave)
+  useConfigAutoSave(voiceConfig, 'voice', initialLoadRef.current, triggerAutoSave)
+  useConfigAutoSave(messageReceiveConfig, 'message_receive', initialLoadRef.current, triggerAutoSave)
+  useConfigAutoSave(keywordReactionConfig, 'keyword_reaction', initialLoadRef.current, triggerAutoSave)
+  useConfigAutoSave(responsePostProcessConfig, 'response_post_process', initialLoadRef.current, triggerAutoSave)
+  useConfigAutoSave(chineseTypoConfig, 'chinese_typo', initialLoadRef.current, triggerAutoSave)
+  useConfigAutoSave(responseSplitterConfig, 'response_splitter', initialLoadRef.current, triggerAutoSave)
+  useConfigAutoSave(logConfig, 'log', initialLoadRef.current, triggerAutoSave)
+  useConfigAutoSave(debugConfig, 'debug', initialLoadRef.current, triggerAutoSave)
+  useConfigAutoSave(maimMessageConfig, 'maim_message', initialLoadRef.current, triggerAutoSave)
+  useConfigAutoSave(telemetryConfig, 'telemetry', initialLoadRef.current, triggerAutoSave)
+  useConfigAutoSave(webuiConfig, 'webui', initialLoadRef.current, triggerAutoSave)
+  useConfigAutoSave(databaseConfig, 'database', initialLoadRef.current, triggerAutoSave)
+  useConfigAutoSave(mcpConfig, 'mcp', initialLoadRef.current, triggerAutoSave)
+  useConfigAutoSave(pluginRuntimeConfig, 'plugin_runtime', initialLoadRef.current, triggerAutoSave)
+  useConfigAutoSave(aMemorixConfig, 'a_memorix', initialLoadRef.current, triggerAutoSave)
 
   // 保存源代码
   const saveSourceCode = async () => {
