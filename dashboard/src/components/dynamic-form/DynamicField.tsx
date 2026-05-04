@@ -31,21 +31,25 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
   value,
   onChange,
 }) => {
-  const parseNumericValue = (rawValue: unknown, fallback: number) => {
+  const isNumericField = schema.type === 'integer' || schema.type === 'number'
+
+  const parseNumericValue = (rawValue: unknown, fallbackValue: unknown = 0) => {
     if (typeof rawValue === 'number' && Number.isFinite(rawValue)) {
       return rawValue
     }
 
     if (typeof rawValue === 'string') {
-      const parsedValue = schema.type === 'integer'
-        ? parseInt(rawValue, 10)
-        : parseFloat(rawValue)
+      const parsedValue = parseFloat(rawValue)
       if (Number.isFinite(parsedValue)) {
-        return parsedValue
+        return schema.type === 'integer' ? Math.trunc(parsedValue) : parsedValue
       }
     }
 
-    return fallback
+    if (fallbackValue !== rawValue) {
+      return parseNumericValue(fallbackValue, 0)
+    }
+
+    return 0
   }
 
   const renderPrimitiveArrayEditor = () => {
@@ -145,16 +149,17 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
   const renderInputComponent = () => {
     const widget = schema['x-widget']
     const type = schema.type
+    const resolvedWidget =
+      isNumericField && (widget === 'input' || widget === 'number' || !widget)
+        ? 'number'
+        : widget
 
     // x-widget 优先
-    if (widget) {
-      switch (widget) {
+    if (resolvedWidget) {
+      switch (resolvedWidget) {
         case 'slider':
           return renderSlider()
         case 'input':
-          if (type === 'integer' || type === 'number') {
-            return renderNumberInput()
-          }
           return renderTextInput()
         case 'number':
           return renderNumberInput()
@@ -240,7 +245,7 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
    * 渲染 Slider 组件（用于 number 类型 + x-widget: slider）
    */
   const renderSlider = () => {
-    const numValue = parseNumericValue(value, schema.default as number ?? 0)
+    const numValue = parseNumericValue(value, schema.default)
     const min = schema.minValue ?? 0
     const max = schema.maxValue ?? 100
     const step = schema.step ?? 1
@@ -267,7 +272,7 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
    * 渲染 Input[type="number"] 组件（用于 number/integer 类型）
    */
   const renderNumberInput = () => {
-    const numValue = parseNumericValue(value, schema.default as number ?? 0)
+    const numValue = parseNumericValue(value, schema.default)
     const min = schema.minValue
     const max = schema.maxValue
     const step = schema.step ?? (schema.type === 'integer' ? 1 : 0.1)

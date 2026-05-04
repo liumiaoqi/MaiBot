@@ -2,19 +2,20 @@
 配置管理API路由
 """
 
+from pathlib import Path
+from typing import Annotated, Any, Dict, List, Tuple, Union, get_args, get_origin
 import copy
 import os
-from pathlib import Path
-from typing import Annotated, Any, Dict, List, Tuple
+import types
 
-import tomlkit
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
+import tomlkit
 
 from src.common.logger import get_logger
 from src.config.config import CONFIG_DIR, PROJECT_ROOT, Config, ModelConfig
-from src.config.config_base import AttributeData
+from src.config.config_base import AttributeData, ConfigBase
 from src.config.model_configs import (
     APIProvider,
     ModelInfo,
@@ -127,6 +128,66 @@ def _toml_to_plain_dict(obj: Any) -> Any:
     if isinstance(obj, list):
         return [_toml_to_plain_dict(v) for v in obj]
     return obj
+
+
+def _coerce_numeric_value(value: Any, target_type: Any) -> Any:
+    """根据配置字段类型，把旧 WebUI 可能写入的数字字符串还原为数字。"""
+    if target_type is int:
+        if isinstance(value, str):
+            try:
+                parsed_value = float(value.strip())
+            except ValueError:
+                return value
+            if parsed_value.is_integer():
+                return int(parsed_value)
+        return value
+
+    if target_type is float:
+        if isinstance(value, str):
+            try:
+                return float(value.strip())
+            except ValueError:
+                return value
+        return value
+
+    return value
+
+
+def _coerce_value_by_annotation(value: Any, annotation: Any) -> Any:
+    """递归按 ConfigBase 字段注解修正数据类型，避免保存时把数字写成字符串。"""
+    value = _coerce_numeric_value(value, annotation)
+    origin = get_origin(annotation)
+    args = get_args(annotation)
+
+    if origin in {Union, types.UnionType}:
+        for candidate_type in args:
+            if candidate_type is type(None):
+                continue
+            coerced_value = _coerce_value_by_annotation(value, candidate_type)
+            if coerced_value != value or type(coerced_value) is not type(value):
+                return coerced_value
+        return value
+
+    if origin in {list, List} and isinstance(value, list) and args:
+        item_type = args[0]
+        return [_coerce_value_by_annotation(item, item_type) for item in value]
+
+    if origin in {dict, Dict} and isinstance(value, dict) and len(args) >= 2:
+        value_type = args[1]
+        return {key: _coerce_value_by_annotation(item, value_type) for key, item in value.items()}
+
+    if isinstance(value, dict) and isinstance(annotation, type) and issubclass(annotation, ConfigBase):
+        return _coerce_config_numeric_values(value, annotation)
+
+    return value
+
+
+def _coerce_config_numeric_values(data: Dict[str, Any], config_type: type[ConfigBase]) -> Dict[str, Any]:
+    """按配置类 schema 统一修正所有数字字段类型。"""
+    for field_name, field_info in config_type.model_fields.items():
+        if field_name in data:
+            data[field_name] = _coerce_value_by_annotation(data[field_name], field_info.annotation)
+    return data
 
 
 # ===== 架构获取接口 =====
@@ -347,6 +408,8 @@ async def get_model_config():
 async def update_bot_config(config_data: ConfigBody):
     """更新麦麦主程序配置"""
     try:
+        config_data = _coerce_config_numeric_values(config_data, Config)
+
         # 验证配置数据
         try:
             Config.from_dict(AttributeData(), copy.deepcopy(config_data))
@@ -370,6 +433,8 @@ async def update_bot_config(config_data: ConfigBody):
 async def update_model_config(config_data: ConfigBody):
     """更新模型配置"""
     try:
+        config_data = _coerce_config_numeric_values(config_data, ModelConfig)
+
         # 验证配置数据
         try:
             ModelConfig.from_dict(AttributeData(), copy.deepcopy(config_data))
@@ -422,9 +487,12 @@ async def update_bot_config_section(section_name: str, section_data: SectionBody
 
         # 验证完整配置
         try:
-            Config.from_dict(AttributeData(), _toml_to_plain_dict(config_data))
+            plain_config_data = _coerce_config_numeric_values(_toml_to_plain_dict(config_data), Config)
+            Config.from_dict(AttributeData(), copy.deepcopy(plain_config_data))
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"配置数据验证失败: {str(e)}") from e
+
+        config_data = plain_config_data
 
         # 保存配置（格式化数组为多行，保留注释）
         save_toml_with_format(config_data, config_path)
@@ -520,13 +588,14 @@ async def update_model_config_section(section_name: str, section_data: SectionBo
 
         # 验证完整配置
         try:
-            ModelConfig.from_dict(AttributeData(), _toml_to_plain_dict(config_data))
+            plain_config_data = _coerce_config_numeric_values(_toml_to_plain_dict(config_data), ModelConfig)
+            ModelConfig.from_dict(AttributeData(), copy.deepcopy(plain_config_data))
         except Exception as e:
             logger.error(f"配置数据验证失败，详细错误: {str(e)}")
             # 特殊处理：如果是更新 api_providers，检查是否有模型引用了已删除的provider
             if section_name == "api_providers" and "api_provider" in str(e):
                 provider_names = {p.get("name") for p in section_data if isinstance(p, dict)}
-                models = config_data.get("models", [])
+                models = plain_config_data.get("models", [])
                 orphaned_models: List[str] = [
                     str(model_name)
                     for m in models
@@ -538,6 +607,8 @@ async def update_model_config_section(section_name: str, section_data: SectionBo
                     error_msg = f"以下模型引用了已删除的提供商: {', '.join(orphaned_models)}。请先在模型管理页面删除这些模型，或重新分配它们的提供商。"
                     raise HTTPException(status_code=400, detail=error_msg) from e
             raise HTTPException(status_code=400, detail=f"配置数据验证失败: {str(e)}") from e
+
+        config_data = plain_config_data
 
         # 保存配置（格式化数组为多行，保留注释）
         save_toml_with_format(config_data, config_path)

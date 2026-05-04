@@ -239,6 +239,8 @@ class ChatConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "layers",
+            "x-layout": "inline-right",
+            "x-input-width": "12rem",
         },
     )
     """上下文长度"""
@@ -248,6 +250,8 @@ class ChatConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "layers",
+            "x-layout": "inline-right",
+            "x-input-width": "12rem",
         },
     )
     """私聊上下文长度"""
