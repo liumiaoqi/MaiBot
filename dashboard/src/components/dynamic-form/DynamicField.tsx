@@ -313,20 +313,22 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
 
   return (
     <div className="space-y-2">
-      {/* Label with icon */}
-      <Label className="text-sm font-medium flex items-center gap-2">
-        {renderIcon()}
-        {schema.label}
-        {schema.required && <span className="text-destructive">*</span>}
-      </Label>
+      <div className="space-y-0.5">
+        {/* Label with icon */}
+        <Label className="text-sm font-medium flex items-center gap-2">
+          {renderIcon()}
+          {schema.label}
+          {schema.required && <span className="text-destructive">*</span>}
+        </Label>
+
+        {/* Description */}
+        {schema.description && (
+          <p className="text-[13px] text-muted-foreground whitespace-pre-line">{schema.description}</p>
+        )}
+      </div>
 
       {/* Input component */}
       {renderInputComponent()}
-
-      {/* Description */}
-      {schema.description && (
-        <p className="text-[13px] text-muted-foreground whitespace-pre-line">{schema.description}</p>
-      )}
     </div>
   )
 }

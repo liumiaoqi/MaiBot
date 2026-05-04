@@ -41,8 +41,6 @@
 # 配置文件修改
 如果你需要改动配置文件，不需要修改实际的bot_config.toml或者model_config.toml，只需要修改配置文件模版，并新增一个版本号即可，也不必要为配置改动创建测试文件。
 
-# 关于webui修改
-不要修改dashboard下的内容，因为这部分内容由另一个仓库build
 
 # 关于 A_memorix 修改
 如果修改涉及 `src/A_memorix`，请先阅读 `src/A_memorix/MODIFICATION_POLICY.md`。

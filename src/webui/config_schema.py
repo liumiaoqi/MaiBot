@@ -1,6 +1,5 @@
-from typing import Any, Dict, List, get_args, get_origin
-
 import inspect
+from typing import Any, Dict, List, get_args, get_origin
 
 from pydantic_core import PydanticUndefined
 

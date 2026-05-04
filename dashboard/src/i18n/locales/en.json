@@ -500,17 +500,13 @@
         "title": "Personality",
         "description": "Define the bot's personality and speaking style"
       },
-      "emoji": {
-        "title": "Emoji",
-        "description": "Configure emoji-related settings"
-      },
-      "other": {
-        "title": "Other Settings",
-        "description": "Configure global slang and other basic options"
-      },
-      "siliconFlow": {
+      "apiProvider": {
         "title": "API Setup",
-        "description": "Configure the SiliconFlow API key"
+        "description": "Configure the API provider"
+      },
+      "modelSetup": {
+        "title": "Model Setup",
+        "description": "Configure planner and replyer models"
       }
     },
     "loading": {
@@ -528,7 +524,12 @@
       "selectPlatform": "Please select a platform",
       "enterNickname": "Please enter a nickname",
       "enterQqAccount": "Please enter a QQ account",
-      "enterAccountId": "Please enter an account ID"
+      "enterAccountId": "Please enter an account ID",
+      "enterProviderName": "Please enter an API provider name",
+      "enterBaseUrl": "Please enter the API base URL",
+      "enterApiKey": "Please enter the API key",
+      "enterPlannerModelIdentifier": "Please enter the planner model identifier",
+      "enterReplyerModelIdentifier": "Please enter the replyer model identifier"
     },
     "toast": {
       "loadFailedTitle": "Failed to load configuration",
@@ -667,33 +668,43 @@
           "description": "Allow the bot to learn and use group-specific slang"
         }
       },
-      "siliconFlow": {
-        "about": {
-          "title": "About SiliconFlow",
-          "description": "SiliconFlow provides broad model coverage, including DeepSeek V3, Qwen, vision models, speech recognition, and embedding models. A single API key unlocks all MaiBot features.",
-          "link": "Get an API key from SiliconFlow"
+      "apiProvider": {
+        "providerName": {
+          "label": "API Provider Name *",
+          "placeholder": "For example OpenAI, DeepSeek, or self-hosted",
+          "description": "This name is written to model_config.toml and referenced by the models below"
+        },
+        "baseUrl": {
+          "label": "API Base URL *",
+          "description": "Enter an OpenAI-compatible endpoint, for example https://api.example.com/v1"
         },
         "apiKey": {
-          "label": "SiliconFlow API Key *",
-          "description": "Enter your SiliconFlow API key. Once provided, MaiBot will automatically configure all required models.",
+          "label": "API Key *",
+          "description": "Enter the API key for this provider",
           "show": "Show API key",
           "hide": "Hide API key"
-        },
-        "autoConfig": {
-          "title": "The following models will be configured automatically:",
-          "items": {
-            "deepseek": "DeepSeek V3 - primary chat and tool model",
-            "qwen3": "Qwen3 30B - frequent small tasks and tool calls",
-            "qwen3Vl": "Qwen3 VL 30B - image recognition",
-            "senseVoice": "SenseVoice - speech recognition",
-            "bgeM3": "BGE-M3 - text embeddings",
-            "lpmm": "Knowledge-base-related models (LPMM)"
+        }
+      },
+      "modelSetup": {
+        "planner": {
+          "identifier": {
+            "label": "planner Model Identifier *",
+            "description": "The real model ID provided by the API service; the model name will be initialized from it"
+          },
+          "visual": {
+            "label": "Enable vision"
           }
         },
-        "hint": {
-          "title": "Tip: ",
-          "description": "After finishing the wizard, you can add more API providers and models in \"System Settings -> Model Config\"."
-        }
+        "replyer": {
+          "identifier": {
+            "label": "replyer Model Identifier *",
+            "description": "The real model ID provided by the API service; the model name will be initialized from it"
+          },
+          "visual": {
+            "label": "Enable vision"
+          }
+        },
+        "saveHint": "You can configure more detailed task assignment later."
       }
     }
   },

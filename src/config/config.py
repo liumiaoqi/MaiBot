@@ -16,6 +16,7 @@ from .file_watcher import FileChange, FileWatcher
 from .legacy_migration import migrate_legacy_bind_env_to_bot_config_dict, try_migrate_legacy_bot_config_dict
 from .model_configs import APIProvider, ModelInfo, ModelTaskConfig
 from .official_configs import (
+    AMemorixConfig,
     BotConfig,
     ChatConfig,
     ChineseTypoConfig,
@@ -55,9 +56,10 @@ CONFIG_DIR: Path = PROJECT_ROOT / "config"
 BOT_CONFIG_PATH: Path = (CONFIG_DIR / "bot_config.toml").resolve().absolute()
 MODEL_CONFIG_PATH: Path = (CONFIG_DIR / "model_config.toml").resolve().absolute()
 LEGACY_ENV_PATH: Path = (PROJECT_ROOT / ".env").resolve().absolute()
+A_MEMORIX_LEGACY_CONFIG_PATH: Path = (CONFIG_DIR / "a_memorix.toml").resolve().absolute()
 MMC_VERSION: str = "1.0.0"
-CONFIG_VERSION: str = "8.9.20"
-MODEL_CONFIG_VERSION: str = "1.14.3"
+CONFIG_VERSION: str = "8.10.1"
+MODEL_CONFIG_VERSION: str = "1.14.6"
 
 logger = get_logger("config")
 
@@ -85,6 +87,9 @@ class Config(ConfigBase):
 
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
     """记忆配置类"""
+
+    a_memorix: AMemorixConfig = Field(default_factory=AMemorixConfig)
+    """A_Memorix 长期记忆子系统配置"""
 
     message_receive: MessageReceiveConfig = Field(default_factory=MessageReceiveConfig)
     """消息接收配置类"""
@@ -176,8 +181,49 @@ class ModelConfig(ConfigBase):
         return super().model_post_init(context)
 
 
+def _normalize_a_memorix_legacy_config(config_data: dict[str, Any]) -> dict[str, Any]:
+    normalized = copy.deepcopy(config_data)
+    web_config = normalized.get("web")
+    if isinstance(web_config, dict) and "import" in web_config and "import_config" not in web_config:
+        web_config["import_config"] = web_config.pop("import")
+    return normalized
+
+
+def _migrate_legacy_a_memorix_config(config_data: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+    if isinstance(config_data.get("a_memorix"), dict):
+        return config_data, False
+    if not A_MEMORIX_LEGACY_CONFIG_PATH.exists():
+        return config_data, False
+
+    try:
+        with A_MEMORIX_LEGACY_CONFIG_PATH.open("r", encoding="utf-8") as handle:
+            legacy_data = tomlkit.load(handle).unwrap()
+    except Exception as exc:
+        logger.warning(f"读取旧版 A_Memorix 配置失败，已使用主配置默认值: {A_MEMORIX_LEGACY_CONFIG_PATH}，原因: {exc}")
+        return config_data, False
+
+    if not isinstance(legacy_data, dict):
+        logger.warning(f"旧版 A_Memorix 配置内容无效，已使用主配置默认值: {A_MEMORIX_LEGACY_CONFIG_PATH}")
+        return config_data, False
+
+    migrated_data = copy.deepcopy(config_data)
+    migrated_data["a_memorix"] = _normalize_a_memorix_legacy_config(legacy_data)
+    logger.warning(f"检测到旧版 A_Memorix 配置，已迁移到 bot_config.toml 的 [a_memorix]: {A_MEMORIX_LEGACY_CONFIG_PATH}")
+    return migrated_data, True
+
+
+def _normalize_loaded_bot_config_dict(config_data: dict[str, Any]) -> dict[str, Any]:
+    normalized = copy.deepcopy(config_data)
+    a_memorix_config = normalized.get("a_memorix")
+    if isinstance(a_memorix_config, dict):
+        normalized["a_memorix"] = _normalize_a_memorix_legacy_config(a_memorix_config)
+    return normalized
+
+
 class ConfigManager:
     """总配置管理类"""
+
+    VLM_NOT_CONFIGURED_WARNING: str = "未配置视觉识图模型，部分图片理解可能受限，请在webui或model_config中配置"
 
     def __init__(self):
         self.bot_config_path: Path = BOT_CONFIG_PATH
@@ -205,7 +251,14 @@ class ConfigManager:
         )
         if global_updated or model_updated:
             sys.exit(0)  # 配置已自动升级，退出一次让用户确认新配置后再启动
+        self._warn_if_vlm_not_configured(self.model_config)
         logger.info(t("config.loaded"))
+
+    @classmethod
+    def _warn_if_vlm_not_configured(cls, model_config: ModelConfig) -> None:
+        if any(model_name.strip() for model_name in model_config.model_task_config.vlm.model_list):
+            return
+        logger.warning(cls.VLM_NOT_CONFIGURED_WARNING)
 
     def load_global_config(self) -> Config:
         config, updated = load_config_from_file(Config, self.bot_config_path, CONFIG_VERSION)
@@ -498,6 +551,7 @@ def load_config_from_file(
         raise TypeError(t("config.invalid_inner_version"))
     old_ver: str = inner_version
     env_migration_applied: bool = False
+    a_memorix_migration_applied: bool = False
     config_data.remove("inner")  # 移除 inner 部分，避免干扰后续处理
     config_data = config_data.unwrap()  # 转换为普通字典，方便后续处理
     if config_path.name == "bot_config.toml" and config_class.__name__ == "Config":
@@ -510,6 +564,8 @@ def load_config_from_file(
         if legacy_migration.migrated:
             logger.warning(t("config.legacy_migrated", reason=legacy_migration.reason))
         config_data = legacy_migration.data
+        config_data, a_memorix_migration_applied = _migrate_legacy_a_memorix_config(config_data)
+        config_data = _normalize_loaded_bot_config_dict(config_data)
     # 保留一份“干净”的原始数据副本，避免第一次 from_dict 过程中对 dict 的就地修改
     original_data: dict[str, Any] = copy.deepcopy(config_data)
     try:
@@ -529,7 +585,7 @@ def load_config_from_file(
                     raise e
             else:
                 raise e
-        if compare_versions(old_ver, new_ver) or env_migration_applied:
+        if compare_versions(old_ver, new_ver) or env_migration_applied or a_memorix_migration_applied:
             output_config_changes(attribute_data, logger, old_ver, new_ver, config_path.name)
             write_config_to_file(target_config, config_path, new_ver, override_repr)
             if env_migration_applied:
@@ -577,6 +633,14 @@ def write_config_to_file(
             full_config_data.add(config_item_name, aot)
         else:
             raise TypeError(t("config.write_unsupported_type"))
+
+    if isinstance(config, Config):
+        try:
+            a_memorix_web = full_config_data["a_memorix"]["web"]
+            if "import_config" in a_memorix_web and "import" not in a_memorix_web:
+                a_memorix_web["import"] = a_memorix_web.pop("import_config")
+        except Exception:
+            logger.debug("A_Memorix 配置写出时转换 web.import_config 失败", exc_info=True)
 
     # 备份旧文件
     if config_path.exists():

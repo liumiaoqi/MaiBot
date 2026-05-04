@@ -1,13 +1,12 @@
 import { useNavigate } from '@tanstack/react-router'
 import {
   ArrowRight,
+  Brain,
   Bot,
   CheckCircle2,
   Globe,
   Key,
-  Settings,
   SkipForward,
-  Smile,
   Sparkles,
   User,
 } from 'lucide-react'
@@ -38,31 +37,27 @@ import { cn } from '@/lib/utils'
 import { APP_NAME } from '@/lib/version'
 import { useToast } from '@/hooks/use-toast'
 import type {
+  ApiProviderSetupConfig,
   SetupStep,
   BotBasicConfig,
+  ModelSetupConfig,
   PersonalityConfig,
-  EmojiConfig,
-  OtherBasicConfig,
-  SiliconFlowConfig,
 } from './types'
 import {
+  ApiProviderSetupForm,
   BotBasicForm,
+  ModelSetupForm,
   PersonalityForm,
-  EmojiForm,
-  OtherBasicForm,
-  SiliconFlowForm,
 } from './StepForms'
 import {
   loadBotBasicConfig,
   loadPersonalityConfig,
-  loadEmojiConfig,
-  loadOtherBasicConfig,
-  loadSiliconFlowConfig,
+  loadApiProviderSetupConfig,
+  loadModelSetupConfig,
   saveBotBasicConfig,
   savePersonalityConfig,
-  saveEmojiConfig,
-  saveOtherBasicConfig,
-  saveSiliconFlowConfig,
+  saveApiProviderSetupConfig,
+  saveModelSetupConfig,
   completeSetup,
 } from './api'
 import { RestartProvider, useRestart } from '@/lib/restart-context'
@@ -103,15 +98,6 @@ function SetupPageContent() {
     ],
     multiple_probability: 0.2,
   })
-  const createDefaultEmojiConfig = (): EmojiConfig => ({
-    emoji_send_num: 25,
-    max_reg_num: 64,
-    do_replace: true,
-    check_interval: 10,
-    steal_emoji: true,
-    content_filtration: false,
-    filtration_prompt: t('setupPage.defaults.emoji.filtrationPrompt'),
-  })
   const [currentStep, setCurrentStep] = useState(0)
   const [isCompleting, setIsCompleting] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -131,17 +117,21 @@ function SetupPageContent() {
     createDefaultPersonalityConfig()
   )
 
-  // 步骤3：表情包配置
-  const [emoji, setEmoji] = useState<EmojiConfig>(() => createDefaultEmojiConfig())
-
-  // 步骤4：其他基础配置
-  const [otherBasic, setOtherBasic] = useState<OtherBasicConfig>({
-    all_global: true,
+  // 步骤3：API 提供商配置
+  const [apiProviderSetup, setApiProviderSetup] = useState<ApiProviderSetupConfig>({
+    provider_name: '',
+    base_url: '',
+    api_key: '',
   })
 
-  // 步骤5：硅基流动API配置
-  const [siliconFlow, setSiliconFlow] = useState<SiliconFlowConfig>({
-    api_key: '',
+  // 步骤4：基础模型配置
+  const [modelSetup, setModelSetup] = useState<ModelSetupConfig>({
+    planner_model_name: '',
+    planner_model_identifier: '',
+    planner_visual: false,
+    replyer_model_name: '',
+    replyer_model_identifier: '',
+    replyer_visual: false,
   })
 
   const steps: SetupStep[] = [
@@ -158,22 +148,16 @@ function SetupPageContent() {
       icon: User,
     },
     {
-      id: 'emoji',
-      title: t('setupPage.steps.emoji.title'),
-      description: t('setupPage.steps.emoji.description'),
-      icon: Smile,
-    },
-    {
-      id: 'other',
-      title: t('setupPage.steps.other.title'),
-      description: t('setupPage.steps.other.description'),
-      icon: Settings,
-    },
-    {
-      id: 'siliconflow',
-      title: t('setupPage.steps.siliconFlow.title'),
-      description: t('setupPage.steps.siliconFlow.description'),
+      id: 'api-provider',
+      title: t('setupPage.steps.apiProvider.title'),
+      description: t('setupPage.steps.apiProvider.description'),
       icon: Key,
+    },
+    {
+      id: 'model-setup',
+      title: t('setupPage.steps.modelSetup.title'),
+      description: t('setupPage.steps.modelSetup.description'),
+      icon: Brain,
     },
   ]
 
@@ -186,19 +170,17 @@ function SetupPageContent() {
         setIsLoading(true)
 
         // 并行加载所有配置
-        const [bot, personality, emoji, other, silicon] = await Promise.all([
+        const [bot, personality, apiProvider, model] = await Promise.all([
           loadBotBasicConfig(),
           loadPersonalityConfig(),
-          loadEmojiConfig(),
-          loadOtherBasicConfig(),
-          loadSiliconFlowConfig(),
+          loadApiProviderSetupConfig(),
+          loadModelSetupConfig(),
         ])
 
         setBotBasic(bot)
         setPersonality(personality)
-        setEmoji(emoji)
-        setOtherBasic(other)
-        setSiliconFlow(silicon)
+        setApiProviderSetup(apiProvider)
+        setModelSetup(model)
       } catch (error) {
         toast({
           title: t('setupPage.toast.loadFailedTitle'),
@@ -225,14 +207,11 @@ function SetupPageContent() {
         case 1: // 人格配置
           await savePersonalityConfig(personality)
           break
-        case 2: // 表情包
-          await saveEmojiConfig(emoji)
+        case 2: // API 提供商
+          await saveApiProviderSetupConfig(apiProviderSetup)
           break
-        case 3: // 其他设置
-          await saveOtherBasicConfig(otherBasic)
-          break
-        case 4: // 硅基流动API
-          await saveSiliconFlowConfig(siliconFlow)
+        case 3: // 基础模型
+          await saveModelSetupConfig(modelSetup, apiProviderSetup.provider_name)
           break
       }
 
@@ -272,10 +251,50 @@ function SetupPageContent() {
     return null
   }
 
+  function validateApiProviderSetup(config: ApiProviderSetupConfig): string | null {
+    if (!config.provider_name.trim()) return t('setupPage.validation.enterProviderName')
+    if (!config.base_url.trim()) return t('setupPage.validation.enterBaseUrl')
+    if (!config.api_key.trim()) return t('setupPage.validation.enterApiKey')
+    return null
+  }
+
+  function validateModelSetup(config: ModelSetupConfig): string | null {
+    if (!config.planner_model_identifier.trim()) {
+      return t('setupPage.validation.enterPlannerModelIdentifier')
+    }
+    if (!config.replyer_model_identifier.trim()) {
+      return t('setupPage.validation.enterReplyerModelIdentifier')
+    }
+    if (!apiProviderSetup.provider_name.trim()) return t('setupPage.validation.enterProviderName')
+    return null
+  }
+
   const handleNext = async () => {
     // Step 1 验证
     if (currentStep === 0) {
       const error = validateBotBasic(botBasic)
+      if (error) {
+        toast({
+          title: t('setupPage.toast.validationFailedTitle'),
+          description: error,
+          variant: 'destructive',
+        })
+        return
+      }
+    }
+    if (currentStep === 2) {
+      const error = validateApiProviderSetup(apiProviderSetup)
+      if (error) {
+        toast({
+          title: t('setupPage.toast.validationFailedTitle'),
+          description: error,
+          variant: 'destructive',
+        })
+        return
+      }
+    }
+    if (currentStep === 3) {
+      const error = validateModelSetup(modelSetup)
       if (error) {
         toast({
           title: t('setupPage.toast.validationFailedTitle'),
@@ -306,7 +325,18 @@ function SetupPageContent() {
     setIsCompleting(true)
 
     try {
-      // 1. 保存最后一步的配置(硅基流动API Key)
+      const error = validateModelSetup(modelSetup)
+      if (error) {
+        toast({
+          title: t('setupPage.toast.validationFailedTitle'),
+          description: error,
+          variant: 'destructive',
+        })
+        setIsCompleting(false)
+        return
+      }
+
+      // 1. 保存最后一步的基础模型配置
       const saved = await saveCurrentStep()
       if (!saved) {
         setIsCompleting(false)
@@ -357,11 +387,9 @@ function SetupPageContent() {
       case 1:
         return <PersonalityForm config={personality} onChange={setPersonality} />
       case 2:
-        return <EmojiForm config={emoji} onChange={setEmoji} />
+        return <ApiProviderSetupForm config={apiProviderSetup} onChange={setApiProviderSetup} />
       case 3:
-        return <OtherBasicForm config={otherBasic} onChange={setOtherBasic} />
-      case 4:
-        return <SiliconFlowForm config={siliconFlow} onChange={setSiliconFlow} />
+        return <ModelSetupForm config={modelSetup} onChange={setModelSetup} />
       default:
         return null
     }

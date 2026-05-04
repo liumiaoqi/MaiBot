@@ -24,23 +24,19 @@ export interface PersonalityConfig {
   multiple_probability: number
 }
 
-// 步骤3：表情包配置
-export interface EmojiConfig {
-  emoji_send_num: number
-  max_reg_num: number
-  do_replace: boolean
-  check_interval: number
-  steal_emoji: boolean
-  content_filtration: boolean
-  filtration_prompt: string
-}
-
-// 步骤4：其他基础配置
-export interface OtherBasicConfig {
-  all_global: boolean // 全局黑话模式（expression.all_global_jargon）
-}
-
-// 步骤5：硅基流动API配置
-export interface SiliconFlowConfig {
+// 步骤3：API 提供商配置
+export interface ApiProviderSetupConfig {
+  provider_name: string
+  base_url: string
   api_key: string
+}
+
+// 步骤4：基础模型配置
+export interface ModelSetupConfig {
+  planner_model_name: string
+  planner_model_identifier: string
+  planner_visual: boolean
+  replyer_model_name: string
+  replyer_model_identifier: string
+  replyer_visual: boolean
 }

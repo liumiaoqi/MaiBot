@@ -143,6 +143,33 @@ def _serialize_messages(messages: List[Any]) -> List[Dict[str, Any]]:
     return [_serialize_message(message) for message in messages]
 
 
+def _enrich_session_identity(data: Dict[str, Any]) -> Dict[str, Any]:
+    """为监控事件补充会话展示所需的群/用户标识。"""
+
+    session_id = data.get("session_id")
+    if not session_id:
+        return data
+
+    try:
+        from src.chat.message_receive.chat_manager import chat_manager
+
+        chat_stream = chat_manager.get_session_by_session_id(str(session_id))
+    except Exception:
+        return data
+
+    if chat_stream is None:
+        return data
+
+    session_name = chat_manager.get_session_name(str(session_id))
+    if session_name:
+        data.setdefault("session_name", session_name)
+    data.setdefault("is_group_chat", chat_stream.is_group_session)
+    data.setdefault("group_id", chat_stream.group_id)
+    data.setdefault("user_id", chat_stream.user_id)
+    data.setdefault("platform", chat_stream.platform)
+    return data
+
+
 def _serialize_tool_results(tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """标准化最终 planner 卡中的工具结果列表。"""
 
@@ -266,6 +293,7 @@ async def _broadcast(event: str, data: Dict[str, Any]) -> None:
     try:
         from src.webui.routers.websocket.manager import websocket_manager
 
+        data = _enrich_session_identity(data)
         subscription_key = f"{MONITOR_DOMAIN}:{MONITOR_TOPIC}"
         total_connections = len(websocket_manager.connections)
         subscriber_count = sum(
@@ -291,12 +319,24 @@ async def _broadcast(event: str, data: Dict[str, Any]) -> None:
         logger.warning(f"MaiSaka 监控事件广播失败: {exc}", exc_info=True)
 
 
-async def emit_session_start(session_id: str, session_name: str) -> None:
+async def emit_session_start(
+    session_id: str,
+    session_name: str,
+    *,
+    is_group_chat: bool,
+    group_id: Optional[str],
+    user_id: Optional[str],
+    platform: str,
+) -> None:
     """广播会话开始事件。"""
 
     await _broadcast("session.start", {
         "session_id": session_id,
         "session_name": session_name,
+        "is_group_chat": is_group_chat,
+        "group_id": group_id,
+        "user_id": user_id,
+        "platform": platform,
         "timestamp": time.time(),
     })
 

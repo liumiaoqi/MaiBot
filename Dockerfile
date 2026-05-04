@@ -7,14 +7,13 @@ WORKDIR /MaiMBot
 
 ENV MAIBOT_LEGACY_0X_UPGRADE_CONFIRMED=1
 
-# Copy dependency list
-COPY requirements.txt .
+# Copy dependency metadata
+COPY pyproject.toml uv.lock ./
 
 RUN apt-get update && apt-get install -y git
 
 # Install runtime dependencies
-RUN uv pip install --system --upgrade pip
-RUN uv pip install --system -r requirements.txt
+RUN uv sync --frozen --no-dev --system --no-install-project
 
 # Copy project source
 COPY . .

@@ -110,10 +110,20 @@ export function PluginDetailPage() {
           throw new Error('未找到该插件')
         }
 
+        const rawManifest = foundPlugin.manifest || {}
+        const repositoryUrl = rawManifest.repository_url || rawManifest.urls?.repository
+        const homepageUrl = rawManifest.homepage_url || rawManifest.urls?.homepage
+
         // 转换为 PluginInfo 格式
         const pluginInfo: PluginInfo = {
           id: foundPlugin.id,
-          manifest: foundPlugin.manifest,
+          manifest: {
+            ...rawManifest,
+            homepage_url: homepageUrl,
+            repository_url: repositoryUrl,
+            default_locale: rawManifest.default_locale || rawManifest.i18n?.default_locale || 'zh-CN',
+            locales_path: rawManifest.locales_path || rawManifest.i18n?.locales_path,
+          },
           downloads: 0,
           rating: 0,
           review_count: 0,
@@ -270,7 +280,8 @@ export function PluginDetailPage() {
     try {
       setOperating(true)
 
-      const installResult = await installPlugin(plugin.id, plugin.manifest.repository_url || '', 'main')
+      const repositoryUrl = plugin.manifest.repository_url || plugin.manifest.urls?.repository || ''
+      const installResult = await installPlugin(plugin.id, repositoryUrl, 'main')
       
       if (!installResult.success) {
         toast({
@@ -367,7 +378,8 @@ export function PluginDetailPage() {
     try {
       setOperating(true)
 
-      const updateResult = await updatePlugin(plugin.id, plugin.manifest.repository_url || '', 'main')
+      const repositoryUrl = plugin.manifest.repository_url || plugin.manifest.urls?.repository || ''
+      const updateResult = await updatePlugin(plugin.id, repositoryUrl, 'main')
       
       if (!updateResult.success) {
         toast({

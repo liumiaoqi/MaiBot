@@ -3259,7 +3259,6 @@ class ImportTaskManager:
         for task_name in [
             "lpmm_entity_extract",
             "lpmm_rdf_build",
-            "embedding",
             "replyer",
             "utils",
             "planner",

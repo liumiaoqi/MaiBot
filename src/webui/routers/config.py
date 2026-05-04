@@ -19,6 +19,7 @@ from src.config.model_configs import (
     ModelTaskConfig,
 )
 from src.config.official_configs import (
+    AMemorixConfig,
     BotConfig,
     ChatConfig,
     ChineseTypoConfig,
@@ -128,6 +129,7 @@ async def get_config_section_schema(section_name: str):
         "telemetry": TelemetryConfig,
         "maim_message": MaimMessageConfig,
         "memory": MemoryConfig,
+        "a_memorix": AMemorixConfig,
         "debug": DebugConfig,
         "voice": VoiceConfig,
         "model_task_config": ModelTaskConfig,

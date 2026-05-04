@@ -46,6 +46,7 @@ from .display.display_utils import build_tool_call_summary_lines, format_token_c
 from .display.prompt_cli_renderer import PromptCLIVisualizer
 from .display.stage_status_board import remove_stage_status, update_stage_status
 from .history_utils import drop_leading_orphan_tool_results
+from .monitor_events import emit_session_start
 from .reasoning_engine import MaisakaReasoningEngine
 from .reply_effect import ReplyEffectTracker
 from .reply_effect.image_utils import extract_visual_attachments_from_sequence
@@ -136,6 +137,7 @@ class MaisakaHeartFlowChatting:
         self._jargon_miner = JargonMiner(session_id, session_name=session_name)
 
         self._reasoning_engine = MaisakaReasoningEngine(self)
+        self._monitor_session_start_task: Optional[asyncio.Task[None]] = None
         self._tool_registry = ToolRegistry()
         self._reply_effect_tracker = ReplyEffectTracker(
             session_id=self.session_id,
@@ -144,6 +146,24 @@ class MaisakaHeartFlowChatting:
             judge_runner=self._run_reply_effect_judge,
         )
         self._register_tool_providers()
+        self._emit_monitor_session_start()
+
+    def _emit_monitor_session_start(self) -> None:
+        """向 WebUI 监控面板同步当前会话的展示标识。"""
+
+        try:
+            self._monitor_session_start_task = asyncio.create_task(
+                emit_session_start(
+                    session_id=self.session_id,
+                    session_name=self.session_name,
+                    is_group_chat=self.chat_stream.is_group_session,
+                    group_id=self.chat_stream.group_id,
+                    user_id=self.chat_stream.user_id,
+                    platform=self.chat_stream.platform,
+                )
+            )
+        except RuntimeError:
+            logger.debug("MaiSaka 监控会话开始事件未发送：当前没有运行中的事件循环")
 
     @staticmethod
     def _is_reply_effect_tracking_enabled() -> bool:

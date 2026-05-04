@@ -29,6 +29,7 @@ import {
 } from 'recharts'
 import {
   Activity,
+  BarChart3,
   TrendingUp,
   DollarSign,
   Clock,
@@ -45,6 +46,7 @@ import {
   AlertCircle,
   ClipboardList,
   ClipboardCheck,
+  ExternalLink,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -565,6 +567,13 @@ function IndexPageContent() {
                   <Settings className="h-4 w-4" />
                   {t('home.quickActions.systemSettings')}
                 </Link>
+              </Button>
+              <Button variant="outline" size="sm" asChild className="gap-2">
+                <a href="/maibot_statistics.html" target="_blank" rel="noopener noreferrer">
+                  <BarChart3 className="h-4 w-4" />
+                  详细统计数据
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
               </Button>
             </div>
           </CardContent>

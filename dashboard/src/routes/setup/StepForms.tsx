@@ -1,10 +1,9 @@
 // 设置向导各步骤表单组件
 
-import { ExternalLink, Eye, EyeOff, X } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -15,16 +14,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 
 import type {
+  ApiProviderSetupConfig,
   BotBasicConfig,
-  EmojiConfig,
-  OtherBasicConfig,
+  ModelSetupConfig,
   PersonalityConfig,
-  SiliconFlowConfig,
 } from './types'
 
 // ====== 步骤1：Bot基础配置 ======
@@ -156,22 +153,6 @@ export function BotBasicForm({ config, onChange }: BotBasicFormProps) {
     }
   }
 
-  const handleAddAlias = (alias: string) => {
-    if (alias.trim() && !config.alias_names.includes(alias.trim())) {
-      onChange({
-        ...config,
-        alias_names: [...config.alias_names, alias.trim()],
-      })
-    }
-  }
-
-  const handleRemoveAlias = (index: number) => {
-    onChange({
-      ...config,
-      alias_names: config.alias_names.filter((_, aliasIndex) => aliasIndex !== index),
-    })
-  }
-
   return (
     <div className="space-y-6">
       <div className="space-y-3">
@@ -254,53 +235,6 @@ export function BotBasicForm({ config, onChange }: BotBasicFormProps) {
           {t('setupPage.forms.botBasic.nickname.description')}
         </p>
       </div>
-
-      <div className="space-y-3">
-        <Label>{t('setupPage.forms.botBasic.alias.label')}</Label>
-        <div className="mb-2 flex flex-wrap gap-2">
-          {config.alias_names.map((alias, index) => (
-            <Badge key={index} variant="secondary" className="gap-1">
-              {alias}
-              <button
-                type="button"
-                onClick={() => handleRemoveAlias(index)}
-                className="hover:text-destructive ml-1"
-                aria-label={t('setupPage.forms.botBasic.alias.remove', { alias })}
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
-          ))}
-        </div>
-        <div className="flex gap-2">
-          <Input
-            id="alias_input"
-            placeholder={t('setupPage.forms.botBasic.alias.placeholder')}
-            onKeyPress={(e) => {
-              if (e.key === 'Enter') {
-                handleAddAlias((e.target as HTMLInputElement).value)
-                ;(e.target as HTMLInputElement).value = ''
-              }
-            }}
-          />
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              const input = document.getElementById('alias_input') as HTMLInputElement
-              if (input) {
-                handleAddAlias(input.value)
-                input.value = ''
-              }
-            }}
-          >
-            {t('setupPage.forms.botBasic.alias.add')}
-          </Button>
-        </div>
-        <p className="text-muted-foreground text-xs">
-          {t('setupPage.forms.botBasic.alias.description')}
-        </p>
-      </div>
     </div>
   )
 }
@@ -313,7 +247,6 @@ interface PersonalityFormProps {
 
 export function PersonalityForm({ config, onChange }: PersonalityFormProps) {
   const { t } = useTranslation()
-  const multipleReplyStyleText = config.multiple_reply_style.join('\n')
 
   return (
     <div className="space-y-6">
@@ -344,276 +277,61 @@ export function PersonalityForm({ config, onChange }: PersonalityFormProps) {
           {t('setupPage.forms.personality.replyStyle.description')}
         </p>
       </div>
-
-      <div className="space-y-3">
-        <Label htmlFor="multiple_reply_style">
-          {t('setupPage.forms.personality.multipleReplyStyle.label')}
-        </Label>
-        <Textarea
-          id="multiple_reply_style"
-          placeholder={t('setupPage.forms.personality.multipleReplyStyle.placeholder')}
-          value={multipleReplyStyleText}
-          onChange={(e) =>
-            onChange({
-              ...config,
-              multiple_reply_style: e.target.value
-                .split('\n')
-                .map((style) => style.trim())
-                .filter(Boolean),
-            })
-          }
-          rows={5}
-        />
-        <p className="text-muted-foreground text-xs">
-          {t('setupPage.forms.personality.multipleReplyStyle.description')}
-        </p>
-      </div>
-
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <Label htmlFor="multiple_probability">
-            {t('setupPage.forms.personality.multipleProbability.label')}
-          </Label>
-          <span className="text-muted-foreground text-sm">
-            {(config.multiple_probability * 100).toFixed(0)}%
-          </span>
-        </div>
-        <Input
-          id="multiple_probability"
-          type="range"
-          min="0"
-          max="1"
-          step="0.1"
-          value={config.multiple_probability}
-          onChange={(e) => onChange({ ...config, multiple_probability: Number(e.target.value) })}
-        />
-        <p className="text-muted-foreground text-xs">
-          {t('setupPage.forms.personality.multipleProbability.description')}
-        </p>
-      </div>
     </div>
   )
 }
 
-// ====== 步骤3：表情包配置 ======
-interface EmojiFormProps {
-  config: EmojiConfig
-  onChange: (config: EmojiConfig) => void
+// ====== 步骤3：API 提供商配置 ======
+interface ApiProviderSetupFormProps {
+  config: ApiProviderSetupConfig
+  onChange: (config: ApiProviderSetupConfig) => void
 }
 
-export function EmojiForm({ config, onChange }: EmojiFormProps) {
-  const { t } = useTranslation()
-
-  return (
-    <div className="space-y-6">
-      <div className="space-y-3">
-        <Label htmlFor="emoji_send_num">{t('setupPage.forms.emoji.emojiSendNum.label')}</Label>
-        <Input
-          id="emoji_send_num"
-          type="number"
-          min="1"
-          max="64"
-          value={config.emoji_send_num}
-          onChange={(e) => onChange({ ...config, emoji_send_num: Number(e.target.value) })}
-        />
-        <p className="text-muted-foreground text-xs">
-          {t('setupPage.forms.emoji.emojiSendNum.description')}
-        </p>
-      </div>
-
-      <div className="space-y-3">
-        <Label htmlFor="max_reg_num">{t('setupPage.forms.emoji.maxRegNum.label')}</Label>
-        <Input
-          id="max_reg_num"
-          type="number"
-          min="1"
-          max="200"
-          value={config.max_reg_num}
-          onChange={(e) => onChange({ ...config, max_reg_num: Number(e.target.value) })}
-        />
-        <p className="text-muted-foreground text-xs">
-          {t('setupPage.forms.emoji.maxRegNum.description')}
-        </p>
-      </div>
-
-      <div className="flex items-center justify-between">
-        <div className="space-y-1">
-          <Label htmlFor="do_replace">{t('setupPage.forms.emoji.doReplace.label')}</Label>
-          <p className="text-muted-foreground text-xs">
-            {t('setupPage.forms.emoji.doReplace.description')}
-          </p>
-        </div>
-        <Switch
-          id="do_replace"
-          checked={config.do_replace}
-          onCheckedChange={(checked) => onChange({ ...config, do_replace: checked })}
-        />
-      </div>
-
-      <div className="space-y-3">
-        <Label htmlFor="check_interval">{t('setupPage.forms.emoji.checkInterval.label')}</Label>
-        <Input
-          id="check_interval"
-          type="number"
-          min="1"
-          max="120"
-          value={config.check_interval}
-          onChange={(e) => onChange({ ...config, check_interval: Number(e.target.value) })}
-        />
-        <p className="text-muted-foreground text-xs">
-          {t('setupPage.forms.emoji.checkInterval.description')}
-        </p>
-      </div>
-
-      <Separator />
-
-      <div className="flex items-center justify-between">
-        <div className="space-y-1">
-          <Label htmlFor="steal_emoji">{t('setupPage.forms.emoji.stealEmoji.label')}</Label>
-          <p className="text-muted-foreground text-xs">
-            {t('setupPage.forms.emoji.stealEmoji.description')}
-          </p>
-        </div>
-        <Switch
-          id="steal_emoji"
-          checked={config.steal_emoji}
-          onCheckedChange={(checked) => onChange({ ...config, steal_emoji: checked })}
-        />
-      </div>
-
-      <div className="flex items-center justify-between">
-        <div className="space-y-1">
-          <Label htmlFor="content_filtration">
-            {t('setupPage.forms.emoji.contentFiltration.label')}
-          </Label>
-          <p className="text-muted-foreground text-xs">
-            {t('setupPage.forms.emoji.contentFiltration.description')}
-          </p>
-        </div>
-        <Switch
-          id="content_filtration"
-          checked={config.content_filtration}
-          onCheckedChange={(checked) => onChange({ ...config, content_filtration: checked })}
-        />
-      </div>
-
-      {config.content_filtration && (
-        <div className="space-y-3">
-          <Label htmlFor="filtration_prompt">
-            {t('setupPage.forms.emoji.filtrationPrompt.label')}
-          </Label>
-          <Input
-            id="filtration_prompt"
-            placeholder={t('setupPage.forms.emoji.filtrationPrompt.placeholder')}
-            value={config.filtration_prompt}
-            onChange={(e) => onChange({ ...config, filtration_prompt: e.target.value })}
-          />
-          <p className="text-muted-foreground text-xs">
-            {t('setupPage.forms.emoji.filtrationPrompt.description')}
-          </p>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ====== 步骤4：其他基础配置 ======
-interface OtherBasicFormProps {
-  config: OtherBasicConfig
-  onChange: (config: OtherBasicConfig) => void
-}
-
-export function OtherBasicForm({ config, onChange }: OtherBasicFormProps) {
-  const { t } = useTranslation()
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="space-y-1">
-          <Label htmlFor="all_global">{t('setupPage.forms.other.allGlobal.label')}</Label>
-          <p className="text-muted-foreground text-xs">
-            {t('setupPage.forms.other.allGlobal.description')}
-          </p>
-        </div>
-        <Switch
-          id="all_global"
-          checked={config.all_global}
-          onCheckedChange={(checked) => onChange({ ...config, all_global: checked })}
-        />
-      </div>
-    </div>
-  )
-}
-
-// ====== 步骤5：硅基流动API配置 ======
-interface SiliconFlowFormProps {
-  config: SiliconFlowConfig
-  onChange: (config: SiliconFlowConfig) => void
-}
-
-export function SiliconFlowForm({ config, onChange }: SiliconFlowFormProps) {
+export function ApiProviderSetupForm({ config, onChange }: ApiProviderSetupFormProps) {
   const { t } = useTranslation()
   const [showApiKey, setShowApiKey] = useState(false)
   const apiKeyToggleLabel = showApiKey
-    ? t('setupPage.forms.siliconFlow.apiKey.hide')
-    : t('setupPage.forms.siliconFlow.apiKey.show')
-  const autoConfigItems = [
-    t('setupPage.forms.siliconFlow.autoConfig.items.deepseek'),
-    t('setupPage.forms.siliconFlow.autoConfig.items.qwen3'),
-    t('setupPage.forms.siliconFlow.autoConfig.items.qwen3Vl'),
-    t('setupPage.forms.siliconFlow.autoConfig.items.senseVoice'),
-    t('setupPage.forms.siliconFlow.autoConfig.items.bgeM3'),
-    t('setupPage.forms.siliconFlow.autoConfig.items.lpmm'),
-  ]
+    ? t('setupPage.forms.apiProvider.apiKey.hide')
+    : t('setupPage.forms.apiProvider.apiKey.show')
 
   return (
     <div className="space-y-6">
-      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950/30">
-        <div className="flex items-start gap-3">
-          <div className="mt-0.5">
-            <svg
-              className="h-5 w-5 text-blue-600 dark:text-blue-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-          </div>
-          <div className="flex-1 text-sm">
-            <p className="mb-1 font-medium text-blue-900 dark:text-blue-100">
-              {t('setupPage.forms.siliconFlow.about.title')}
-            </p>
-            <p className="mb-2 text-blue-700 dark:text-blue-300">
-              {t('setupPage.forms.siliconFlow.about.description')}
-            </p>
-            <a
-              href="https://cloud.siliconflow.cn"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 font-medium text-blue-600 hover:underline dark:text-blue-400"
-            >
-              {t('setupPage.forms.siliconFlow.about.link')}
-              <ExternalLink className="h-3 w-3" />
-            </a>
-          </div>
-        </div>
+      <div className="space-y-3">
+        <Label htmlFor="provider_name">{t('setupPage.forms.apiProvider.providerName.label')}</Label>
+        <Input
+          id="provider_name"
+          placeholder={t('setupPage.forms.apiProvider.providerName.placeholder')}
+          value={config.provider_name}
+          onChange={(e) => onChange({ ...config, provider_name: e.target.value })}
+        />
+        <p className="text-muted-foreground text-xs">
+          {t('setupPage.forms.apiProvider.providerName.description')}
+        </p>
       </div>
 
       <div className="space-y-3">
-        <Label htmlFor="siliconflow_api_key">{t('setupPage.forms.siliconFlow.apiKey.label')}</Label>
+        <Label htmlFor="base_url">{t('setupPage.forms.apiProvider.baseUrl.label')}</Label>
+        <Input
+          id="base_url"
+          placeholder="https://api.example.com/v1"
+          value={config.base_url}
+          onChange={(e) => onChange({ ...config, base_url: e.target.value })}
+          className="font-mono"
+        />
+        <p className="text-muted-foreground text-xs">
+          {t('setupPage.forms.apiProvider.baseUrl.description')}
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        <Label htmlFor="api_key">{t('setupPage.forms.apiProvider.apiKey.label')}</Label>
         <div className="relative">
           <Input
-            id="siliconflow_api_key"
+            id="api_key"
             type={showApiKey ? 'text' : 'password'}
             placeholder="sk-..."
             value={config.api_key}
-            onChange={(e) => onChange({ api_key: e.target.value })}
+            onChange={(e) => onChange({ ...config, api_key: e.target.value })}
             className="pr-10 font-mono"
           />
           <Button
@@ -633,24 +351,102 @@ export function SiliconFlowForm({ config, onChange }: SiliconFlowFormProps) {
           </Button>
         </div>
         <p className="text-muted-foreground text-xs">
-          {t('setupPage.forms.siliconFlow.apiKey.description')}
+          {t('setupPage.forms.apiProvider.apiKey.description')}
         </p>
       </div>
+    </div>
+  )
+}
 
-      <div className="bg-muted/50 space-y-2 rounded-lg p-4 text-sm">
-        <p className="font-medium">{t('setupPage.forms.siliconFlow.autoConfig.title')}</p>
-        <ul className="text-muted-foreground ml-2 list-inside list-disc space-y-1">
-          {autoConfigItems.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
+// ====== 步骤4：基础模型配置 ======
+interface ModelSetupFormProps {
+  config: ModelSetupConfig
+  onChange: (config: ModelSetupConfig) => void
+}
+
+export function ModelSetupForm({ config, onChange }: ModelSetupFormProps) {
+  const { t } = useTranslation()
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-4 rounded-lg border p-4">
+          <div className="space-y-3">
+            <Label htmlFor="planner_model_identifier">
+              {t('setupPage.forms.modelSetup.planner.identifier.label')}
+            </Label>
+            <Input
+              id="planner_model_identifier"
+              placeholder="gpt-4.1-mini"
+              value={config.planner_model_identifier}
+              onChange={(e) =>
+                onChange({
+                  ...config,
+                  planner_model_identifier: e.target.value,
+                  planner_model_name: e.target.value,
+                })
+              }
+              className="font-mono"
+            />
+            <p className="text-muted-foreground text-xs">
+              {t('setupPage.forms.modelSetup.planner.identifier.description')}
+            </p>
+          </div>
+
+          <div className="flex items-center justify-between gap-4 rounded-md bg-muted/40 p-3">
+            <Label htmlFor="planner_visual" className="text-sm font-medium">
+              {t('setupPage.forms.modelSetup.planner.visual.label')}
+            </Label>
+            <Switch
+              id="planner_visual"
+              checked={config.planner_visual}
+              onCheckedChange={(checked) =>
+                onChange({ ...config, planner_visual: checked })
+              }
+            />
+          </div>
+        </div>
+
+        <div className="space-y-4 rounded-lg border p-4">
+          <div className="space-y-3">
+            <Label htmlFor="replyer_model_identifier">
+              {t('setupPage.forms.modelSetup.replyer.identifier.label')}
+            </Label>
+            <Input
+              id="replyer_model_identifier"
+              placeholder="gpt-4.1"
+              value={config.replyer_model_identifier}
+              onChange={(e) =>
+                onChange({
+                  ...config,
+                  replyer_model_identifier: e.target.value,
+                  replyer_model_name: e.target.value,
+                })
+              }
+              className="font-mono"
+            />
+            <p className="text-muted-foreground text-xs">
+              {t('setupPage.forms.modelSetup.replyer.identifier.description')}
+            </p>
+          </div>
+
+          <div className="flex items-center justify-between gap-4 rounded-md bg-muted/40 p-3">
+            <Label htmlFor="replyer_visual" className="text-sm font-medium">
+              {t('setupPage.forms.modelSetup.replyer.visual.label')}
+            </Label>
+            <Switch
+              id="replyer_visual"
+              checked={config.replyer_visual}
+              onCheckedChange={(checked) =>
+                onChange({ ...config, replyer_visual: checked })
+              }
+            />
+          </div>
+        </div>
       </div>
 
-      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/30">
-        <p className="text-sm text-amber-900 dark:text-amber-100">
-          <span className="font-medium">{t('setupPage.forms.siliconFlow.hint.title')}</span>
-          {t('setupPage.forms.siliconFlow.hint.description')}
-        </p>
+      <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground">
+        {t('setupPage.forms.modelSetup.saveHint')}
       </div>
     </div>
   )

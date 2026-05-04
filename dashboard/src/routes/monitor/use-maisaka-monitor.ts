@@ -26,6 +26,10 @@ export interface TimelineEntry {
 export interface SessionInfo {
   sessionId: string
   sessionName: string
+  isGroupChat?: boolean
+  groupId?: string | null
+  userId?: string | null
+  platform?: string
   lastActivity: number
   eventCount: number
 }
@@ -33,18 +37,62 @@ export interface SessionInfo {
 /** 最大保留的时间线条目数 */
 const MAX_TIMELINE_ENTRIES = 500
 
+function resolveSessionDisplayName({
+  fallbackName,
+  groupId,
+  isGroupChat,
+  sessionId,
+  userId,
+}: {
+  fallbackName?: string
+  groupId?: string | null
+  isGroupChat?: boolean
+  sessionId: string
+  userId?: string | null
+}) {
+  const targetId = isGroupChat ? groupId : userId
+  const normalizedName = fallbackName?.trim()
+
+  if (targetId && normalizedName?.endsWith(`(${targetId})`)) {
+    return normalizedName
+  }
+  if (normalizedName && targetId && normalizedName !== targetId && normalizedName !== sessionId) {
+    return `${normalizedName}(${targetId})`
+  }
+  if (isGroupChat && groupId) {
+    return groupId
+  }
+  if (!isGroupChat && userId) {
+    return userId
+  }
+  return fallbackName || sessionId.slice(0, 8)
+}
+
 let entryCounter = 0
+let cachedTimeline: TimelineEntry[] = []
+let cachedSessions: Map<string, SessionInfo> = new Map()
+let cachedSelectedSession: string | null = null
 
 export function useMaisakaMonitor() {
-  const [timeline, setTimeline] = useState<TimelineEntry[]>([])
-  const [sessions, setSessions] = useState<Map<string, SessionInfo>>(new Map())
-  const [selectedSession, setSelectedSession] = useState<string | null>(null)
+  const [timeline, setTimeline] = useState<TimelineEntry[]>(cachedTimeline)
+  const [sessions, setSessions] = useState<Map<string, SessionInfo>>(new Map(cachedSessions))
+  const [selectedSession, setSelectedSessionState] = useState<string | null>(cachedSelectedSession)
   const [connected, setConnected] = useState(false)
   const unsubRef = useRef<(() => Promise<void>) | null>(null)
 
   const handleEvent = useCallback((event: MaisakaMonitorEvent) => {
-    const sessionId = (event.data as unknown as Record<string, unknown>).session_id as string
-    const timestamp = (event.data as unknown as Record<string, unknown>).timestamp as number
+    const dataRecord = event.data as unknown as Record<string, unknown>
+    const sessionId = dataRecord.session_id as string
+    const timestamp = dataRecord.timestamp as number
+    const isGroupChat = typeof dataRecord.is_group_chat === 'boolean'
+      ? dataRecord.is_group_chat
+      : undefined
+    const groupId = typeof dataRecord.group_id === 'string' ? dataRecord.group_id : null
+    const userId = typeof dataRecord.user_id === 'string' ? dataRecord.user_id : null
+    const platform = typeof dataRecord.platform === 'string' ? dataRecord.platform : undefined
+    const sessionName = typeof dataRecord.session_name === 'string'
+      ? dataRecord.session_name
+      : undefined
 
     const entry: TimelineEntry = {
       id: `evt_${++entryCounter}_${Date.now()}`,
@@ -56,22 +104,34 @@ export function useMaisakaMonitor() {
 
     setTimeline((prev) => {
       const next = [...prev, entry]
-      return next.length > MAX_TIMELINE_ENTRIES
+      const trimmed = next.length > MAX_TIMELINE_ENTRIES
         ? next.slice(next.length - MAX_TIMELINE_ENTRIES)
         : next
+      cachedTimeline = trimmed
+      return trimmed
     })
 
     // 更新会话信息
     if (event.type === 'session.start') {
-      const d = event.data
       setSessions((prev) => {
         const next = new Map(prev)
         next.set(sessionId, {
           sessionId,
-          sessionName: d.session_name,
+          sessionName: resolveSessionDisplayName({
+            fallbackName: sessionName,
+            groupId,
+            isGroupChat,
+            sessionId,
+            userId,
+          }),
+          isGroupChat,
+          groupId,
+          userId,
+          platform,
           lastActivity: timestamp,
           eventCount: (prev.get(sessionId)?.eventCount ?? 0) + 1,
         })
+        cachedSessions = next
         return next
       })
     } else {
@@ -81,24 +141,51 @@ export function useMaisakaMonitor() {
           const next = new Map(prev)
           next.set(sessionId, {
             sessionId,
-            sessionName: sessionId.slice(0, 8),
+            sessionName: resolveSessionDisplayName({
+              fallbackName: sessionName,
+              groupId,
+              isGroupChat,
+              sessionId,
+              userId,
+            }),
+            isGroupChat,
+            groupId,
+            userId,
+            platform,
             lastActivity: timestamp,
             eventCount: 1,
           })
+          cachedSessions = next
           return next
         }
         const next = new Map(prev)
         next.set(sessionId, {
           ...existing,
+          sessionName: resolveSessionDisplayName({
+            fallbackName: sessionName ?? existing.sessionName,
+            groupId: groupId ?? existing.groupId,
+            isGroupChat: isGroupChat ?? existing.isGroupChat,
+            sessionId,
+            userId: userId ?? existing.userId,
+          }),
+          isGroupChat: isGroupChat ?? existing.isGroupChat,
+          groupId: groupId ?? existing.groupId,
+          userId: userId ?? existing.userId,
+          platform: platform ?? existing.platform,
           lastActivity: timestamp,
           eventCount: existing.eventCount + 1,
         })
+        cachedSessions = next
         return next
       })
     }
 
     // 自动选中第一个会话
-    setSelectedSession((current) => current ?? sessionId)
+    setSelectedSessionState((current) => {
+      const next = current ?? sessionId
+      cachedSelectedSession = next
+      return next
+    })
   }, [])
 
   useEffect(() => {
@@ -124,7 +211,13 @@ export function useMaisakaMonitor() {
   }, [handleEvent])
 
   const clearTimeline = useCallback(() => {
+    cachedTimeline = []
     setTimeline([])
+  }, [])
+
+  const setSelectedSession = useCallback((sessionId: string | null) => {
+    cachedSelectedSession = sessionId
+    setSelectedSessionState(sessionId)
   }, [])
 
   /** 当前选中会话的时间线 */
