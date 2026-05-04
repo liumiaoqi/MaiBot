@@ -8,7 +8,9 @@ from pathlib import Path
 from typing import Annotated, Any, Dict, List, Tuple
 
 import tomlkit
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
 
 from src.common.logger import get_logger
 from src.config.config import CONFIG_DIR, PROJECT_ROOT, Config, ModelConfig
@@ -47,8 +49,75 @@ ConfigBody = Annotated[Dict[str, Any], Body()]
 SectionBody = Annotated[Any, Body()]
 RawContentBody = Annotated[str, Body(embed=True)]
 PathBody = Annotated[Dict[str, str], Body()]
+PromptContentBody = Annotated[str, Body(embed=True)]
 
 router = APIRouter(prefix="/config", tags=["config"], dependencies=[Depends(require_auth)])
+
+PROMPTS_DIR = PROJECT_ROOT / "prompts"
+MAISAKA_PROMPT_PREVIEW_DIR = (PROJECT_ROOT / "logs" / "maisaka_prompt").resolve()
+
+
+class PromptFileInfo(BaseModel):
+    """Prompt 文件信息。"""
+
+    name: str = Field(..., description="Prompt 文件名")
+    size: int = Field(..., description="文件大小")
+    modified_at: float = Field(..., description="最后修改时间戳")
+
+
+class PromptCatalogResponse(BaseModel):
+    """Prompt 目录响应。"""
+
+    success: bool = True
+    languages: List[str]
+    files: Dict[str, List[PromptFileInfo]]
+
+
+class PromptFileResponse(BaseModel):
+    """Prompt 文件内容响应。"""
+
+    success: bool = True
+    language: str
+    filename: str
+    content: str
+
+
+def _safe_prompt_path(language: str, filename: str) -> Path:
+    """校验并解析 prompts 下的文件路径。"""
+
+    normalized_language = language.strip()
+    normalized_filename = filename.strip()
+
+    if not normalized_language or any(part in normalized_language for part in ("..", "/", "\\")):
+        raise HTTPException(status_code=400, detail="无效的 Prompt 语言目录")
+    if not normalized_filename.endswith(".prompt") or any(part in normalized_filename for part in ("..", "/", "\\")):
+        raise HTTPException(status_code=400, detail="无效的 Prompt 文件名")
+
+    prompt_path = (PROMPTS_DIR / normalized_language / normalized_filename).resolve()
+    prompts_root = PROMPTS_DIR.resolve()
+    try:
+        prompt_path.relative_to(prompts_root)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Prompt 路径越界") from exc
+    return prompt_path
+
+
+def _safe_maisaka_prompt_preview_path(relative_path: str) -> Path:
+    """校验并解析 MaiSaka Prompt HTML 预览路径。"""
+
+    normalized_path = relative_path.strip().replace("\\", "/")
+    if not normalized_path or normalized_path.startswith("/") or ".." in Path(normalized_path).parts:
+        raise HTTPException(status_code=400, detail="无效的 Prompt 预览路径")
+
+    preview_path = (MAISAKA_PROMPT_PREVIEW_DIR / normalized_path).resolve()
+    try:
+        preview_path.relative_to(MAISAKA_PROMPT_PREVIEW_DIR)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Prompt 预览路径越界") from exc
+
+    if preview_path.suffix.lower() != ".html":
+        raise HTTPException(status_code=400, detail="只允许打开 HTML Prompt 预览")
+    return preview_path
 
 
 def _toml_to_plain_dict(obj: Any) -> Any:
@@ -61,6 +130,87 @@ def _toml_to_plain_dict(obj: Any) -> Any:
 
 
 # ===== 架构获取接口 =====
+
+
+@router.get("/prompts", response_model=PromptCatalogResponse)
+async def list_prompt_files():
+    """列出 prompts 目录下的语言和 Prompt 文件。"""
+
+    try:
+        if not PROMPTS_DIR.exists():
+            return PromptCatalogResponse(languages=[], files={})
+
+        languages: List[str] = []
+        files: Dict[str, List[PromptFileInfo]] = {}
+        for language_dir in sorted(PROMPTS_DIR.iterdir(), key=lambda item: item.name):
+            if not language_dir.is_dir():
+                continue
+
+            language = language_dir.name
+            prompt_files: List[PromptFileInfo] = []
+            for prompt_file in sorted(language_dir.glob("*.prompt"), key=lambda item: item.name):
+                stat = prompt_file.stat()
+                prompt_files.append(
+                    PromptFileInfo(
+                        name=prompt_file.name,
+                        size=stat.st_size,
+                        modified_at=stat.st_mtime,
+                    )
+                )
+
+            languages.append(language)
+            files[language] = prompt_files
+
+        return PromptCatalogResponse(languages=languages, files=files)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"列出 Prompt 文件失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"列出 Prompt 文件失败: {str(e)}") from e
+
+
+@router.get("/prompts/{language}/{filename}", response_model=PromptFileResponse)
+async def get_prompt_file(language: str, filename: str):
+    """读取指定语言下的 Prompt 文件内容。"""
+
+    prompt_path = _safe_prompt_path(language, filename)
+    if not prompt_path.exists() or not prompt_path.is_file():
+        raise HTTPException(status_code=404, detail="Prompt 文件不存在")
+
+    try:
+        content = prompt_path.read_text(encoding="utf-8")
+        return PromptFileResponse(language=language, filename=filename, content=content)
+    except Exception as e:
+        logger.error(f"读取 Prompt 文件失败: {prompt_path} {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"读取 Prompt 文件失败: {str(e)}") from e
+
+
+@router.put("/prompts/{language}/{filename}", response_model=PromptFileResponse)
+async def update_prompt_file(language: str, filename: str, content: PromptContentBody):
+    """更新指定语言下的 Prompt 文件内容。"""
+
+    prompt_path = _safe_prompt_path(language, filename)
+    if not prompt_path.parent.exists() or not prompt_path.parent.is_dir():
+        raise HTTPException(status_code=404, detail="Prompt 语言目录不存在")
+    if not prompt_path.exists() or not prompt_path.is_file():
+        raise HTTPException(status_code=404, detail="Prompt 文件不存在")
+
+    try:
+        prompt_path.write_text(content, encoding="utf-8", newline="\n")
+        return PromptFileResponse(language=language, filename=filename, content=content)
+    except Exception as e:
+        logger.error(f"保存 Prompt 文件失败: {prompt_path} {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"保存 Prompt 文件失败: {str(e)}") from e
+
+
+@router.get("/maisaka-prompt-preview", response_class=FileResponse)
+async def get_maisaka_prompt_preview(path: str = Query(..., description="logs/maisaka_prompt 下的相对 HTML 路径")):
+    """打开 MaiSaka 监控中生成的 Prompt HTML 预览。"""
+
+    preview_path = _safe_maisaka_prompt_preview_path(path)
+    if not preview_path.exists() or not preview_path.is_file():
+        raise HTTPException(status_code=404, detail="Prompt 预览文件不存在")
+    return FileResponse(preview_path, media_type="text/html")
 
 
 @router.get("/schema/bot")

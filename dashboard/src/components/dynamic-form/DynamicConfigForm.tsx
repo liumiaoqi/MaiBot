@@ -53,7 +53,7 @@ function AdvancedSettingsButton({
   return (
     <Button
       type="button"
-      variant={active ? 'secondary' : 'outline'}
+      variant={active ? 'default' : 'outline'}
       size="sm"
       onClick={onClick}
     >
@@ -207,10 +207,8 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
     <>
       {fields.map((field, index) => (
         <React.Fragment key={field.name}>
-          {index > 0 && field.type !== 'boolean' && fields[index - 1]?.type !== 'boolean' && (
-            <Separator className="my-1" />
-          )}
-          <div>{renderField(field)}</div>
+          {index > 0 && <Separator className="my-2 bg-border/50" />}
+          <div className="py-1">{renderField(field)}</div>
         </React.Fragment>
       ))}
     </>
@@ -219,7 +217,7 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
   return (
     <div className="space-y-6">
       {topLevelFields.length > 0 && (
-        <div className="space-y-1">
+        <div>
           {advancedVisible === undefined && advancedFields.length > 0 && (
             <div className="flex justify-end pb-2">
               <AdvancedSettingsButton
@@ -302,33 +300,33 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
           }
 
           return (
-            <div
-              key={key}
-              className="relative space-y-4 rounded-lg border-l-2 border-muted-foreground/20 pl-4 pt-1 pb-1"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <SectionIcon iconName={nestedSchema.uiIcon} />
-                    <h4 className="text-sm font-semibold">{sectionTitle}</h4>
+            <Card key={key} className="border-border/70 bg-muted/20 shadow-none">
+              <CardHeader className="px-4 py-3">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <SectionIcon iconName={nestedSchema.uiIcon} />
+                      <CardTitle className="text-sm">{sectionTitle}</CardTitle>
+                    </div>
+                    {sectionDescription && (
+                      <CardDescription className="text-xs">
+                        {sectionDescription}
+                      </CardDescription>
+                    )}
                   </div>
-                  {sectionDescription && (
-                    <p className="text-xs text-muted-foreground">
-                      {sectionDescription}
-                    </p>
-                  )}
                 </div>
-              </div>
-
-              <DynamicConfigForm
-                schema={nestedSchema}
-                values={(values[key] as Record<string, unknown>) || {}}
-                onChange={(field, value) => onChange(`${key}.${field}`, value)}
-                basePath={nestedFieldPath}
-                hooks={hooks}
-                level={level + 1}
-              />
-            </div>
+              </CardHeader>
+              <CardContent className="px-4 pb-4 pt-0">
+                <DynamicConfigForm
+                  schema={nestedSchema}
+                  values={(values[key] as Record<string, unknown>) || {}}
+                  onChange={(field, value) => onChange(`${key}.${field}`, value)}
+                  basePath={nestedFieldPath}
+                  hooks={hooks}
+                  level={level + 1}
+                />
+              </CardContent>
+            </Card>
           )
         })}
     </div>

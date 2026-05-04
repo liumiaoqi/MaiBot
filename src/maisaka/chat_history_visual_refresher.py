@@ -91,7 +91,7 @@ def _should_refresh_image_component(component: ImageComponent) -> bool:
     """判断图片组件当前是否仍处于待补全文本的占位状态。"""
 
     normalized_content = component.content.strip()
-    return not normalized_content or normalized_content == "[图片]"
+    return not normalized_content or normalized_content == "[图片，识别中.....]"
 
 
 def _should_refresh_emoji_component(component: EmojiComponent) -> bool:

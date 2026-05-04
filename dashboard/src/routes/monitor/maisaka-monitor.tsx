@@ -15,6 +15,7 @@ import {
   CircleDot,
   Clock,
   Eraser,
+  ExternalLink,
   Gauge,
   MessageSquare,
   PauseCircle,
@@ -36,6 +37,7 @@ import type {
   CycleStartEvent,
   MaisakaToolCall,
   MessageIngestedEvent,
+  PlannerFinalizedEvent,
   PlannerResponseEvent,
   ReplierResponseEvent,
   TimingGateResultEvent,
@@ -73,18 +75,28 @@ function SessionSidebar({
   sessions,
   selectedSession,
   onSelect,
+  collapsed,
 }: {
   sessions: Map<string, SessionInfo>
   selectedSession: string | null
   onSelect: (id: string) => void
+  collapsed: boolean
 }) {
   const sortedSessions = Array.from(sessions.values()).sort(
     (a, b) => b.lastActivity - a.lastActivity,
   )
+  const getSessionInitial = (session: SessionInfo) => {
+    const name = session.sessionName.trim()
+    if (name) return name.slice(0, 1)
+    return session.isGroupChat ? '群' : '私'
+  }
 
   if (sortedSessions.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2 p-4">
+      <div className={cn(
+        'flex flex-col items-center justify-center h-full text-muted-foreground gap-2',
+        collapsed ? 'p-2' : 'p-4',
+      )}>
         <Bot className="h-8 w-8 opacity-40" />
         <p className="text-sm text-center">等待 MaiSaka 会话…</p>
       </div>
@@ -92,35 +104,42 @@ function SessionSidebar({
   }
 
   return (
-    <div className="flex flex-col gap-1 p-2">
+    <div className={cn('flex flex-col gap-1', collapsed ? 'items-center p-2' : 'p-2')}>
       {sortedSessions.map((session) => (
         <button
           key={session.sessionId}
           onClick={() => onSelect(session.sessionId)}
+          title={session.sessionName}
           className={cn(
-            'flex flex-col items-start gap-0.5 rounded-lg px-3 py-2 text-left text-sm transition-colors',
+            'rounded-lg text-left text-sm transition-colors',
             'hover:bg-accent/50',
+            collapsed
+              ? 'flex h-10 w-10 items-center justify-center p-0'
+              : 'flex w-full flex-col items-start gap-0.5 px-2.5 py-2',
             selectedSession === session.sessionId && 'bg-accent text-accent-foreground',
           )}
         >
-          <div className="flex w-full items-center justify-between">
-            <div className="flex min-w-0 items-center gap-1.5">
-              {session.isGroupChat !== undefined && (
+          <div className={cn('flex w-full items-center', collapsed ? 'justify-center' : 'justify-between gap-2')}>
+            <div className={cn('flex min-w-0 items-center gap-2', !collapsed && 'flex-1')}>
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-xs font-semibold text-primary">
+                {getSessionInitial(session)}
+              </span>
+              {false && session.isGroupChat !== undefined && (
                 <Badge variant="outline" className="h-4 shrink-0 px-1 text-[10px]">
                   {session.isGroupChat ? '群' : '私'}
                 </Badge>
               )}
-              <span className="truncate font-medium" title={session.sessionName}>
+              {!collapsed && <span className="min-w-0 flex-1 truncate font-medium" title={session.sessionName}>
                 {session.sessionName}
-              </span>
+              </span>}
             </div>
-            <Badge variant="secondary" className="h-4 shrink-0 px-1 text-[10px]">
+            {!collapsed && <Badge variant="secondary" className="h-4 shrink-0 px-1 text-[10px]">
               {session.eventCount}
-            </Badge>
+            </Badge>}
           </div>
-          <span className="text-xs text-muted-foreground">
+          {!collapsed && <span className="text-xs text-muted-foreground">
             {formatRelativeTime(session.lastActivity)}
-          </span>
+          </span>}
         </button>
       ))}
     </div>
@@ -183,7 +202,8 @@ function TimingGateCard({ data }: { data: TimingGateResultEvent }) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1 flex-wrap">
-          <span className="text-sm font-medium">Timing Gate</span>
+          <span className="text-sm font-medium">反应</span>
+          <Badge variant="outline" className="text-[10px]">react</Badge>
           <Badge variant={config.variant} className="text-[10px] gap-0.5">
             <Icon className="h-2.5 w-2.5" />
             {config.label}
@@ -196,6 +216,29 @@ function TimingGateCard({ data }: { data: TimingGateResultEvent }) {
       </div>
     </div>
   )
+}
+
+function ToolCallBadges({ toolCalls }: { toolCalls: MaisakaToolCall[] }) {
+  if (toolCalls.length <= 0) {
+    return null
+  }
+
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      {toolCalls.map((tc: MaisakaToolCall, idx: number) => (
+        <Badge key={`${tc.id || tc.name}-${idx}`} variant="secondary" className="text-[10px] gap-1">
+          <Wrench className="h-2.5 w-2.5" />
+          {tc.name}
+        </Badge>
+      ))}
+    </div>
+  )
+}
+
+function openPromptHtml(uri: string) {
+  const normalized = uri.trim()
+  if (!normalized) return
+  window.open(normalized, '_blank', 'noopener,noreferrer')
 }
 
 function PlannerResponseCard({ data }: { data: PlannerResponseEvent }) {
@@ -215,18 +258,117 @@ function PlannerResponseCard({ data }: { data: PlannerResponseEvent }) {
         {data.content && (
           <CollapsibleText text={data.content} maxLines={6} />
         )}
-        {data.tool_calls.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {data.tool_calls.map((tc: MaisakaToolCall, idx: number) => (
-              <Badge key={idx} variant="secondary" className="text-[10px] gap-1">
-                <Wrench className="h-2.5 w-2.5" />
-                {tc.name}
-              </Badge>
-            ))}
-          </div>
-        )}
+        <ToolCallBadges toolCalls={data.tool_calls} />
       </div>
     </div>
+  )
+}
+
+function PlannerFinalizedCard({ data }: { data: PlannerFinalizedEvent }) {
+  const planner = data.planner
+  const promptHtmlUri = planner?.prompt_html_uri?.trim() ?? ''
+
+  return (
+    <Card className="border-l-4 border-l-emerald-500/60">
+      <CardHeader className="py-3 px-4 space-y-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Brain className="h-4 w-4 text-emerald-500" />
+          <CardTitle className="text-sm font-medium">主循环 planner</CardTitle>
+          {promptHtmlUri && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-[10px]"
+              onClick={() => openPromptHtml(promptHtmlUri)}
+              title="打开 planner HTML 记录"
+            >
+              <ExternalLink className="mr-1 h-3 w-3" />
+              HTML
+            </Button>
+          )}
+          <Badge variant="outline" className="text-xs font-normal ml-auto">
+            {formatMs(planner?.duration_ms ?? 0)}
+          </Badge>
+          {data.request && (
+            <Badge variant="secondary" className="text-[10px]">
+              上下文 {data.request.selected_history_count} 条 / 可用工具 {data.request.tool_count}
+            </Badge>
+          )}
+          {planner && (planner.prompt_tokens > 0 || planner.completion_tokens > 0) && (
+            <Badge variant="outline" className="text-[10px]">
+              {planner.prompt_tokens}+{planner.completion_tokens} tokens
+            </Badge>
+          )}
+        </div>
+
+        {planner?.content ? (
+          <CollapsibleText text={planner.content} maxLines={6} className="text-foreground/90" />
+        ) : (
+          <p className="text-sm text-muted-foreground">planner 本轮没有文本内容</p>
+        )}
+
+      </CardHeader>
+    </Card>
+  )
+}
+
+function PlannerToolCallsBlock({ data }: { data: PlannerFinalizedEvent }) {
+  const toolCalls = data.planner?.tool_calls ?? []
+  const tools = data.tools ?? []
+  const displayTools = tools.length > 0
+    ? tools
+    : toolCalls.map((toolCall) => ({
+        tool_call_id: toolCall.id,
+        tool_name: toolCall.name,
+        tool_args: toolCall.arguments ?? {},
+        success: true,
+        duration_ms: 0,
+        summary: '',
+      }))
+
+  if (displayTools.length <= 0) {
+    return null
+  }
+
+  return (
+    <Card className="border-l-4 border-l-teal-500/60">
+      <CardHeader className="py-3 px-4 space-y-2">
+        <div className="flex items-center gap-2">
+          <Wrench className="h-4 w-4 text-teal-500" />
+          <CardTitle className="text-sm font-medium">Planner 工具调用</CardTitle>
+          <Badge variant="secondary" className="ml-auto text-[10px]">
+            {displayTools.length} 个
+          </Badge>
+        </div>
+        <div className="space-y-2">
+          {displayTools.map((tool, idx) => (
+            <div
+              key={`${tool.tool_call_id || tool.tool_name}-${idx}`}
+              className="rounded-md border bg-muted/40 px-2.5 py-2 text-xs"
+            >
+              <div className="flex items-center gap-2">
+                <span className="font-mono font-medium">{tool.tool_name || 'unknown'}</span>
+                {tool.success
+                  ? <CheckCircle2 className="h-3.5 w-3.5 text-teal-500" />
+                  : <XCircle className="h-3.5 w-3.5 text-red-500" />
+                }
+                {tool.duration_ms > 0 && (
+                  <span className="text-muted-foreground">{formatMs(tool.duration_ms)}</span>
+                )}
+              </div>
+              {Object.keys(tool.tool_args ?? {}).length > 0 && (
+                <pre className="mt-1 whitespace-pre-wrap break-all rounded bg-background/70 px-2 py-1 text-[11px] text-muted-foreground">
+                  {JSON.stringify(tool.tool_args, null, 2)}
+                </pre>
+              )}
+              {tool.summary && (
+                <p className="mt-1 text-muted-foreground whitespace-pre-wrap break-words">{tool.summary}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      </CardHeader>
+    </Card>
   )
 }
 
@@ -394,16 +536,30 @@ function ReplierResponseCard({ data }: { data: ReplierResponseEvent }) {
 
 // ─── 时间线入口渲染器 ──────────────────────────────────────────
 
-function TimelineEventRenderer({ entry }: { entry: TimelineEntry }) {
+function TimelineEventRenderer({
+  entry,
+  showCycleMarkers,
+}: {
+  entry: TimelineEntry
+  showCycleMarkers: boolean
+}) {
   switch (entry.type) {
     case 'message.ingested':
       return <MessageIngestedCard data={entry.data as MessageIngestedEvent} />
     case 'cycle.start':
+      if (!showCycleMarkers) return null
       return <CycleStartCard data={entry.data as CycleStartEvent} />
     case 'timing_gate.result':
       return <TimingGateCard data={entry.data as TimingGateResultEvent} />
     case 'planner.response':
       return <PlannerResponseCard data={entry.data as PlannerResponseEvent} />
+    case 'planner.finalized':
+      return (
+        <div className="space-y-2">
+          <PlannerFinalizedCard data={entry.data as PlannerFinalizedEvent} />
+          <PlannerToolCallsBlock data={entry.data as PlannerFinalizedEvent} />
+        </div>
+      )
     case 'tool.execution':
       return <ToolExecutionCard data={entry.data as ToolExecutionEvent} />
     case 'cycle.end':
@@ -430,6 +586,22 @@ export function MaisakaMonitor() {
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const [autoScroll, setAutoScroll] = useState(true)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    const saved = localStorage.getItem('maisaka-monitor-sidebar-collapsed')
+    return saved !== 'false'
+  })
+  const [showCycleMarkers, setShowCycleMarkers] = useState(() => {
+    const saved = localStorage.getItem('maisaka-monitor-show-cycle-markers')
+    return saved === 'true'
+  })
+
+  useEffect(() => {
+    localStorage.setItem('maisaka-monitor-sidebar-collapsed', String(sidebarCollapsed))
+  }, [sidebarCollapsed])
+
+  useEffect(() => {
+    localStorage.setItem('maisaka-monitor-show-cycle-markers', String(showCycleMarkers))
+  }, [showCycleMarkers])
 
   // 自动滚动到底部
   useEffect(() => {
@@ -452,20 +624,43 @@ export function MaisakaMonitor() {
   const stats = {
     messages: timeline.filter((e) => e.type === 'message.ingested').length,
     cycles: timeline.filter((e) => e.type === 'cycle.start').length,
-    toolCalls: timeline.filter((e) => e.type === 'tool.execution').length,
+    toolCalls: timeline.reduce((count, entry) => {
+      if (entry.type === 'tool.execution') {
+        return count + 1
+      }
+      if (entry.type === 'planner.finalized') {
+        return count + ((entry.data as PlannerFinalizedEvent).tools?.length ?? 0)
+      }
+      return count
+    }, 0),
   }
 
   return (
     <div className="flex h-[calc(100vh-180px)] gap-4">
       {/* 会话侧边栏 */}
-      <Card className="w-60 shrink-0 flex flex-col">
-        <CardHeader className="py-3 px-4 space-y-0">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <Activity className="h-4 w-4" />
+      <Card className={cn(
+        'shrink-0 flex flex-col transition-[width] duration-200',
+        sidebarCollapsed ? 'w-16' : 'w-52',
+      )}>
+        <CardHeader className={cn('py-3 space-y-0', sidebarCollapsed ? 'px-2' : 'px-3')}>
+          <CardTitle className={cn(
+            'text-sm font-medium flex items-center gap-2',
+            sidebarCollapsed && 'justify-center text-[0px]',
+          )}>
+            {!sidebarCollapsed && <Activity className="h-4 w-4" />}
             聊天流
             {connected && (
-              <span className="ml-auto flex h-2 w-2 rounded-full bg-emerald-500" />
+              <span className={cn('flex h-2 w-2 rounded-full bg-emerald-500', !sidebarCollapsed && 'ml-auto')} />
             )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 shrink-0"
+              onClick={() => setSidebarCollapsed((value) => !value)}
+              title={sidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'}
+            >
+              {sidebarCollapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            </Button>
           </CardTitle>
         </CardHeader>
         <Separator />
@@ -474,6 +669,7 @@ export function MaisakaMonitor() {
             sessions={sessions}
             selectedSession={selectedSession}
             onSelect={setSelectedSession}
+            collapsed={sidebarCollapsed}
           />
         </ScrollArea>
       </Card>
@@ -497,6 +693,16 @@ export function MaisakaMonitor() {
             </div>
           </div>
           <div className="ml-auto flex items-center gap-2">
+            <Button
+              variant={showCycleMarkers ? 'secondary' : 'ghost'}
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => setShowCycleMarkers((value) => !value)}
+              title={showCycleMarkers ? '隐藏推理循环标记' : '显示推理循环标记'}
+            >
+              <CircleDot className={cn('h-3.5 w-3.5 mr-1', showCycleMarkers && 'text-primary')} />
+              循环标记
+            </Button>
             <Button
               variant="ghost"
               size="sm"
@@ -536,7 +742,7 @@ export function MaisakaMonitor() {
                 </div>
               ) : (
                 timeline.map((entry) => {
-                  const rendered = <TimelineEventRenderer entry={entry} />
+                  const rendered = <TimelineEventRenderer entry={entry} showCycleMarkers={showCycleMarkers} />
                   if (!rendered) return null
                   return (
                     <div

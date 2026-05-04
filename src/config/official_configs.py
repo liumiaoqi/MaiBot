@@ -27,6 +27,8 @@ class BotConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "wifi",
+            "x-layout": "inline-right",
+            "x-input-width": "12rem",
         },
     )
     """平台"""
@@ -36,6 +38,8 @@ class BotConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "user",
+            "x-layout": "inline-right",
+            "x-input-width": "12rem",
         },
     )
     """QQ账号"""
@@ -211,6 +215,7 @@ class ChatConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "switch",
             "x-icon": "at-sign",
+            "advanced": True,
         },
     )
     """是否允许 replyer 使用 at[msg_id] 标记来发送真正的 at 消息"""
@@ -220,6 +225,7 @@ class ChatConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "switch",
             "x-icon": "quote",
+            "advanced": True,
         },
     )
     """是否启用回复时附带引用回复"""
@@ -243,11 +249,12 @@ class ChatConfig(ConfigBase):
     """私聊上下文长度"""
 
     planner_interrupt_max_consecutive_count: int = Field(
-        default=2,
+        default=0,
         ge=0,
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "pause-circle",
+            "advanced": True,
         },
     )
     """Planner 连续被新消息打断的最大次数，0 表示不启用打断"""
@@ -453,6 +460,7 @@ class MemoryConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "messages-square",
+            "advanced": True,
         },
     )
     """自动写回聊天摘要的消息窗口阈值"""
@@ -464,6 +472,7 @@ class MemoryConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "rows-3",
+            "advanced": True,
         },
     )
     """自动写回聊天摘要时，从聊天流中回看的消息条数"""
@@ -1127,19 +1136,21 @@ class ExpressionConfig(ConfigBase):
     """是否启用自动表达优化"""
 
     expression_auto_check_interval: int = Field(
-        default=600,
+        default=900,
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "clock",
+            "advanced": True,
         },
     )
     """表达方式自动检查的间隔时间（秒）"""
 
     expression_auto_check_count: int = Field(
-        default=20,
+        default=5,
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "hash",
+            "advanced": True,
         },
     )
     """每次自动检查时随机选取的表达方式数量"""
@@ -1149,6 +1160,7 @@ class ExpressionConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "custom",
             "x-icon": "file-text",
+            "advanced": True,
         },
     )
     """表达方式自动检查的额外自定义评估标准"""
@@ -1190,6 +1202,7 @@ class EmojiConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "grid",
+            "advanced": True,
         },
     )
     """一次从多少个表情包中选择发送，最大为 64"""
@@ -1208,6 +1221,7 @@ class EmojiConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "switch",
             "x-icon": "refresh-cw",
+            "advanced": True,
         },
     )
     """达到最大注册数量时替换旧表情包，关闭则达到最大数量时不会继续收集表情包"""
@@ -1445,6 +1459,7 @@ class ResponseSplitterConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "switch",
             "x-icon": "smile",
+            "advanced": True,
         },
     )
     """是否启用颜文字保护"""
@@ -1454,6 +1469,7 @@ class ResponseSplitterConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "switch",
             "x-icon": "maximize",
+            "advanced": True,
         },
     )
     """是否在句子数量超出回复允许的最大句子数时一次性返回全部内容"""
@@ -1462,7 +1478,7 @@ class ResponseSplitterConfig(ConfigBase):
 class LogConfig(ConfigBase):
     """日志配置类"""
 
-    __ui_label__ = "日志"
+    __ui_label__ = "调试与日志"
     __ui_icon__ = "file-text"
 
     date_style: str = Field(
@@ -1590,6 +1606,7 @@ class LogConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "custom",
             "x-icon": "volume-x",
+            "advanced": True,
         },
     )
     """完全屏蔽日志的第三方库列表"""
@@ -1599,6 +1616,7 @@ class LogConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "custom",
             "x-icon": "sliders-horizontal",
+            "advanced": True,
         },
     )
     """特定第三方库的日志级别"""
@@ -1622,6 +1640,7 @@ class TelemetryConfig(ConfigBase):
 class DebugConfig(ConfigBase):
     """调试配置类"""
 
+    __ui_parent__ = "log"
     __ui_label__ = "其他"
     __ui_icon__ = "more-horizontal"
 
@@ -2116,6 +2135,7 @@ class DatabaseConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "switch",
             "x-icon": "save",
+            "advanced": True,
         },
     )
     """

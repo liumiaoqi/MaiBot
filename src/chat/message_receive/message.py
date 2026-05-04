@@ -245,7 +245,7 @@ class SessionMessage(MaiMessage):
         except Exception:
             desc = None  # 失败置空
 
-        content = f"[图片：{desc}]" if desc else "[图片]"
+        content = f"[图片：{desc}]" if desc else ""
         component.content = content
         component.binary_data = b""  # 处理完就丢掉二进制数据，节省内存
         return content

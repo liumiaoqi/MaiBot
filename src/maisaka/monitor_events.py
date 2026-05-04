@@ -4,8 +4,9 @@
 """
 
 from datetime import datetime
-import time
 from typing import Any, Dict, List, Optional
+import json
+import time
 
 from src.common.logger import get_logger
 
@@ -57,7 +58,7 @@ def _extract_text_content(content: Any) -> Optional[str]:
                 if block_type == "text":
                     text_parts.append(str(block.get("text", "")))
                 elif block_type == "image_url":
-                    text_parts.append("[图片]")
+                    text_parts.append("[图片，识别中.....]")
                 else:
                     text_parts.append(f"[{block_type}]")
             elif isinstance(block, str):
@@ -66,43 +67,65 @@ def _extract_text_content(content: Any) -> Optional[str]:
     return str(content)
 
 
+def _normalize_tool_call_arguments(arguments: Any) -> tuple[Any, Optional[str]]:
+    """标准化工具调用参数，兼容 JSON 字符串和对象。"""
+
+    if isinstance(arguments, str):
+        raw_arguments = arguments
+        try:
+            parsed_arguments = json.loads(arguments) if arguments.strip() else {}
+        except json.JSONDecodeError:
+            return {}, raw_arguments
+        return _normalize_payload_value(parsed_arguments), raw_arguments
+    return _normalize_payload_value(arguments or {}), None
+
+
+def _serialize_single_tool_call(tool_call: Any) -> Dict[str, Any]:
+    """将不同来源的 tool_call 标准化为前端可直接展示的结构。"""
+
+    if isinstance(tool_call, dict):
+        function_info = tool_call.get("function")
+        if isinstance(function_info, dict):
+            raw_arguments = function_info.get("arguments", tool_call.get("arguments", tool_call.get("args", {})))
+            name = function_info.get("name", tool_call.get("name", tool_call.get("func_name", "unknown")))
+        else:
+            raw_arguments = tool_call.get("arguments", tool_call.get("args", {}))
+            name = tool_call.get("name", tool_call.get("func_name", "unknown"))
+
+        arguments, arguments_raw = _normalize_tool_call_arguments(raw_arguments)
+        serialized: Dict[str, Any] = {
+            "id": str(tool_call.get("id", tool_call.get("call_id", ""))),
+            "name": str(name or "unknown"),
+            "arguments": arguments,
+        }
+        if arguments_raw is not None:
+            serialized["arguments_raw"] = arguments_raw
+        return serialized
+
+    raw_arguments = getattr(tool_call, "args", None)
+    if raw_arguments is None:
+        raw_arguments = getattr(tool_call, "arguments", None)
+    arguments, arguments_raw = _normalize_tool_call_arguments(raw_arguments)
+    serialized = {
+        "id": str(getattr(tool_call, "id", None) or getattr(tool_call, "call_id", "")),
+        "name": str(getattr(tool_call, "func_name", None) or getattr(tool_call, "name", "unknown")),
+        "arguments": arguments,
+    }
+    if arguments_raw is not None:
+        serialized["arguments_raw"] = arguments_raw
+    return serialized
+
+
 def _serialize_tool_calls_from_objects(tool_calls: List[Any]) -> List[Dict[str, Any]]:
     """将工具调用对象列表序列化为字典列表。"""
 
-    result: List[Dict[str, Any]] = []
-    for tool_call in tool_calls:
-        serialized: Dict[str, Any] = {
-            "id": getattr(tool_call, "id", None) or getattr(tool_call, "call_id", ""),
-            "name": getattr(tool_call, "func_name", None) or getattr(tool_call, "name", "unknown"),
-        }
-        args = getattr(tool_call, "args", None) or getattr(tool_call, "arguments", None)
-        if isinstance(args, dict):
-            serialized["arguments"] = _normalize_payload_value(args)
-        elif isinstance(args, str):
-            serialized["arguments_raw"] = args
-        result.append(serialized)
-    return result
+    return [_serialize_single_tool_call(tool_call) for tool_call in tool_calls]
 
 
 def _serialize_tool_calls_from_dicts(tool_calls: List[Any]) -> List[Dict[str, Any]]:
     """将工具调用字典列表标准化为可传输格式。"""
 
-    result: List[Dict[str, Any]] = []
-    for tool_call in tool_calls:
-        if isinstance(tool_call, dict):
-            result.append({
-                "id": str(tool_call.get("id", "")),
-                "name": str(tool_call.get("name", tool_call.get("func_name", "unknown"))),
-                "arguments": _normalize_payload_value(tool_call.get("arguments", tool_call.get("args", {}))),
-            })
-            continue
-
-        result.append({
-            "id": str(getattr(tool_call, "id", getattr(tool_call, "call_id", ""))),
-            "name": str(getattr(tool_call, "func_name", getattr(tool_call, "name", "unknown"))),
-            "arguments": _normalize_payload_value(getattr(tool_call, "args", getattr(tool_call, "arguments", {}))),
-        })
-    return result
+    return [_serialize_single_tool_call(tool_call) for tool_call in tool_calls]
 
 
 def _serialize_message(message: Any) -> Dict[str, Any]:
@@ -214,6 +237,7 @@ def _serialize_planner_block(
     completion_tokens: Optional[int],
     total_tokens: Optional[int],
     duration_ms: Optional[float],
+    prompt_html_uri: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     """标准化 planner 结果区块。"""
 
@@ -224,6 +248,7 @@ def _serialize_planner_block(
         and completion_tokens is None
         and total_tokens is None
         and duration_ms is None
+        and prompt_html_uri is None
     ):
         return None
 
@@ -234,6 +259,7 @@ def _serialize_planner_block(
         "completion_tokens": int(completion_tokens or 0),
         "total_tokens": int(total_tokens or 0),
         "duration_ms": float(duration_ms or 0.0),
+        "prompt_html_uri": str(prompt_html_uri or ""),
     }
 
 
@@ -429,6 +455,7 @@ async def emit_planner_finalized(
     planner_completion_tokens: Optional[int],
     planner_total_tokens: Optional[int],
     planner_duration_ms: Optional[float],
+    planner_prompt_html_uri: Optional[str],
     tools: Optional[List[Dict[str, Any]]],
     time_records: Dict[str, float],
     agent_state: str,
@@ -464,6 +491,7 @@ async def emit_planner_finalized(
             planner_completion_tokens,
             planner_total_tokens,
             planner_duration_ms,
+            planner_prompt_html_uri,
         ),
         "tools": _serialize_tool_results(list(tools or [])),
         "final_state": {

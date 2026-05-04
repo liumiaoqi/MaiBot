@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Literal
+from urllib.parse import quote
 
 import hashlib
 import html
@@ -30,6 +31,36 @@ from .preview_path_utils import build_display_path, build_file_uri, REPO_ROOT
 from .prompt_preview_logger import PromptPreviewLogger
 
 DATA_IMAGE_DIR = REPO_ROOT / "data" / "images"
+
+
+def _build_prompt_preview_web_uri(file_path: Path) -> str:
+    """构建 WebUI 可访问的 Prompt 预览地址。"""
+
+    try:
+        relative_path = file_path.resolve().relative_to(PromptPreviewLogger._BASE_DIR.resolve())
+    except ValueError:
+        return build_file_uri(file_path)
+    return f"/api/webui/config/maisaka-prompt-preview?path={quote(relative_path.as_posix(), safe='')}"
+
+
+@dataclass(frozen=True)
+class PromptPreviewAccess:
+    """Prompt 预览文件的展示入口和可直接打开的路径。"""
+
+    body: RenderableType
+    viewer_path: Path
+    viewer_uri: str
+    viewer_web_uri: str
+    dump_path: Path
+    dump_uri: str
+
+
+@dataclass(frozen=True)
+class PromptSectionResult:
+    """Prompt 面板及其可选 HTML 预览入口。"""
+
+    panel: Panel
+    preview_access: PromptPreviewAccess | None = None
 
 
 class PromptImageDisplayMode(str, Enum):
@@ -471,6 +502,77 @@ class PromptCLIVisualizer:
         )
 
     @classmethod
+    def build_prompt_preview_access(
+        cls,
+        messages: list[Any],
+        *,
+        category: str,
+        chat_id: str,
+        request_kind: str,
+        selection_reason: str,
+        tool_definitions: list[dict[str, Any]] | None = None,
+    ) -> PromptPreviewAccess:
+        """保存 Prompt 预览文件，并返回 CLI 展示入口与浏览器可打开的 URI。"""
+
+        viewer_messages: list[dict[str, Any]] = []
+        for message in messages:
+            if isinstance(message, dict):
+                viewer_messages.append(dict(message))
+                continue
+
+            normalized_message = {
+                "content": getattr(message, "content", None),
+                "role": getattr(getattr(message, "role", "unknown"), "value", getattr(message, "role", "unknown")),
+            }
+            tool_call_id = getattr(message, "tool_call_id", None)
+            if tool_call_id:
+                normalized_message["tool_call_id"] = tool_call_id
+
+            tool_calls = getattr(message, "tool_calls", None)
+            if tool_calls:
+                normalized_message["tool_calls"] = [
+                    cls.format_tool_call_for_display(tool_call) for tool_call in tool_calls
+                ]
+            viewer_messages.append(normalized_message)
+
+        prompt_dump_text = cls._build_prompt_dump_text(messages)
+        tool_definition_dump_text = cls._build_tool_definition_dump_text(tool_definitions)
+        if tool_definition_dump_text:
+            prompt_dump_text = f"{prompt_dump_text}\n\n{'=' * 80}\n\n{tool_definition_dump_text}"
+        viewer_html_text = cls._build_prompt_viewer_html(
+            viewer_messages,
+            request_kind=request_kind,
+            selection_reason=selection_reason,
+            tool_definitions=tool_definitions,
+        )
+        saved_paths = PromptPreviewLogger.save_preview_files(
+            chat_id,
+            category,
+            {
+                ".html": viewer_html_text,
+                ".txt": prompt_dump_text,
+            },
+        )
+        viewer_html_path = saved_paths[".html"]
+        prompt_dump_path = saved_paths[".txt"]
+        body = cls._build_preview_access_body(
+            viewer_label="html预览",
+            viewer_path=viewer_html_path,
+            viewer_link_text="在浏览器打开 Prompt",
+            dump_label="原始文本",
+            dump_path=prompt_dump_path,
+            dump_link_text="点击打开 Prompt 文本",
+        )
+        return PromptPreviewAccess(
+            body=body,
+            viewer_path=viewer_html_path,
+            viewer_uri=build_file_uri(viewer_html_path),
+            viewer_web_uri=_build_prompt_preview_web_uri(viewer_html_path),
+            dump_path=prompt_dump_path,
+            dump_uri=build_file_uri(prompt_dump_path),
+        )
+
+    @classmethod
     def _build_html_role_class(cls, role: str) -> str:
         return {
             "system": "system",
@@ -804,56 +906,14 @@ class PromptCLIVisualizer:
     ) -> RenderableType:
         """构建用于查看完整 prompt 的折叠入口内容。"""
 
-        viewer_messages: list[dict[str, Any]] = []
-        for message in messages:
-            if isinstance(message, dict):
-                viewer_messages.append(dict(message))
-                continue
-
-            normalized_message = {
-                "content": getattr(message, "content", None),
-                "role": getattr(getattr(message, "role", "unknown"), "value", getattr(message, "role", "unknown")),
-            }
-            tool_call_id = getattr(message, "tool_call_id", None)
-            if tool_call_id:
-                normalized_message["tool_call_id"] = tool_call_id
-
-            tool_calls = getattr(message, "tool_calls", None)
-            if tool_calls:
-                normalized_message["tool_calls"] = [
-                    cls.format_tool_call_for_display(tool_call) for tool_call in tool_calls
-                ]
-            viewer_messages.append(normalized_message)
-
-        prompt_dump_text = cls._build_prompt_dump_text(messages)
-        tool_definition_dump_text = cls._build_tool_definition_dump_text(tool_definitions)
-        if tool_definition_dump_text:
-            prompt_dump_text = f"{prompt_dump_text}\n\n{'=' * 80}\n\n{tool_definition_dump_text}"
-        viewer_html_text = cls._build_prompt_viewer_html(
-            viewer_messages,
+        return cls.build_prompt_preview_access(
+            messages,
+            category=category,
+            chat_id=chat_id,
             request_kind=request_kind,
             selection_reason=selection_reason,
             tool_definitions=tool_definitions,
-        )
-        saved_paths = PromptPreviewLogger.save_preview_files(
-            chat_id,
-            category,
-            {
-                ".html": viewer_html_text,
-                ".txt": prompt_dump_text,
-            },
-        )
-        viewer_html_path = saved_paths[".html"]
-        prompt_dump_path = saved_paths[".txt"]
-        body = cls._build_preview_access_body(
-            viewer_label="html预览",
-            viewer_path=viewer_html_path,
-            viewer_link_text="在浏览器打开 Prompt",
-            dump_label="原始文本",
-            dump_path=prompt_dump_path,
-            dump_link_text="点击打开 Prompt 文本",
-        )
-        return body
+        ).body
 
     @classmethod
     def build_prompt_section(
@@ -870,26 +930,56 @@ class PromptCLIVisualizer:
     ) -> Panel:
         """构建用于嵌入结果面板中的 Prompt 区块。"""
 
+        return cls.build_prompt_section_result(
+            messages,
+            category=category,
+            chat_id=chat_id,
+            request_kind=request_kind,
+            selection_reason=selection_reason,
+            image_display_mode=image_display_mode,
+            folded=folded,
+            tool_definitions=tool_definitions,
+        ).panel
+
+    @classmethod
+    def build_prompt_section_result(
+        cls,
+        messages: list[Any],
+        *,
+        category: str,
+        chat_id: str,
+        request_kind: str,
+        selection_reason: str,
+        image_display_mode: Literal["legacy", "path_link"] = "path_link",
+        folded: bool,
+        tool_definitions: list[dict[str, Any]] | None = None,
+    ) -> PromptSectionResult:
+        """构建 Prompt 面板，并在折叠模式下返回对应的 HTML 预览入口。"""
+
         panel_title, panel_border_style = cls.get_request_panel_style(request_kind)
+        preview_access = cls.build_prompt_preview_access(
+            messages,
+            category=category,
+            chat_id=chat_id,
+            request_kind=request_kind,
+            selection_reason=selection_reason,
+            tool_definitions=tool_definitions,
+        )
         if folded:
-            prompt_renderable = cls.build_prompt_access_panel(
-                messages,
-                category=category,
-                chat_id=chat_id,
-                request_kind=request_kind,
-                selection_reason=selection_reason,
-                tool_definitions=tool_definitions,
-            )
+            prompt_renderable = preview_access.body
         else:
             ordered_panels = cls.build_prompt_panels(messages)
             prompt_renderable = Group(*ordered_panels)
 
-        return Panel(
-            prompt_renderable,
-            title=panel_title,
-            subtitle=selection_reason,
-            border_style=panel_border_style,
-            padding=(0, 1),
+        return PromptSectionResult(
+            panel=Panel(
+                prompt_renderable,
+                title=panel_title,
+                subtitle=selection_reason,
+                border_style=panel_border_style,
+                padding=(0, 1),
+            ),
+            preview_access=preview_access,
         )
 
     @classmethod

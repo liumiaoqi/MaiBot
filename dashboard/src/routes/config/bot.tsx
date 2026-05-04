@@ -57,7 +57,7 @@ const TAB_ORDER = [
   'webui',
   'maisaka',
   'plugin_runtime',
-  'debug',
+  'log',
 ]
 
 // ==================== Tab 分组类型与构建 ====================
@@ -157,6 +157,7 @@ function BotConfigPageContent() {
   const [emojiConfig, setEmojiConfig] = useState<ConfigSectionData | null>(null)
   const [memoryConfig, setMemoryConfig] = useState<ConfigSectionData | null>(null)
   const [relationshipConfig, setRelationshipConfig] = useState<ConfigSectionData | null>(null)
+  const [visualConfig, setVisualConfig] = useState<ConfigSectionData | null>(null)
   const [voiceConfig, setVoiceConfig] = useState<ConfigSectionData | null>(null)
   const [messageReceiveConfig, setMessageReceiveConfig] = useState<ConfigSectionData | null>(null)
   const [lpmmConfig, setLpmmConfig] = useState<ConfigSectionData | null>(null)
@@ -173,6 +174,7 @@ function BotConfigPageContent() {
   const [maisakaConfig, setMaisakaConfig] = useState<ConfigSectionData | null>(null)
   const [mcpConfig, setMcpConfig] = useState<ConfigSectionData | null>(null)
   const [pluginRuntimeConfig, setPluginRuntimeConfig] = useState<ConfigSectionData | null>(null)
+  const [aMemorixConfig, setAMemorixConfig] = useState<ConfigSectionData | null>(null)
 
   // Schema 状态（用于动态 tab 分组）
   const [configSchema, setConfigSchema] = useState<ConfigSchema | null>(null)
@@ -254,6 +256,7 @@ function BotConfigPageContent() {
     setEmojiConfig((config.emoji ?? {}) as ConfigSectionData)
     setMemoryConfig((config.memory ?? {}) as ConfigSectionData)
     setRelationshipConfig((config.relationship ?? {}) as ConfigSectionData)
+    setVisualConfig((config.visual ?? {}) as ConfigSectionData)
     setVoiceConfig((config.voice ?? {}) as ConfigSectionData)
     setMessageReceiveConfig((config.message_receive ?? {}) as ConfigSectionData)
     setLpmmConfig((config.lpmm_knowledge ?? {}) as ConfigSectionData)
@@ -270,6 +273,7 @@ function BotConfigPageContent() {
     setMaisakaConfig((config.maisaka ?? {}) as ConfigSectionData)
     setMcpConfig((config.mcp ?? {}) as ConfigSectionData)
     setPluginRuntimeConfig((config.plugin_runtime ?? {}) as ConfigSectionData)
+    setAMemorixConfig((config.a_memorix ?? {}) as ConfigSectionData)
   }, [])
 
   /**
@@ -286,6 +290,7 @@ function BotConfigPageContent() {
       emoji: emojiConfig,
       memory: memoryConfig,
       relationship: relationshipConfig,
+      visual: visualConfig,
       voice: voiceConfig,
       message_receive: messageReceiveConfig,
       lpmm_knowledge: lpmmConfig,
@@ -302,6 +307,7 @@ function BotConfigPageContent() {
       maisaka: maisakaConfig,
       mcp: mcpConfig,
       plugin_runtime: pluginRuntimeConfig,
+      a_memorix: aMemorixConfig,
     }
   }, [
     botConfig,
@@ -311,6 +317,7 @@ function BotConfigPageContent() {
     emojiConfig,
     memoryConfig,
     relationshipConfig,
+    visualConfig,
     voiceConfig,
     messageReceiveConfig,
     lpmmConfig,
@@ -327,6 +334,7 @@ function BotConfigPageContent() {
     maisakaConfig,
     mcpConfig,
     pluginRuntimeConfig,
+    aMemorixConfig,
   ])
 
   // 加载源代码
@@ -443,6 +451,7 @@ function BotConfigPageContent() {
   useConfigAutoSave(emojiConfig, 'emoji', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(memoryConfig, 'memory', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(relationshipConfig, 'relationship', initialLoadRef.current, triggerAutoSave)
+  useConfigAutoSave(visualConfig, 'visual', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(voiceConfig, 'voice', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(messageReceiveConfig, 'message_receive', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(lpmmConfig, 'lpmm_knowledge', initialLoadRef.current, triggerAutoSave)
@@ -459,6 +468,7 @@ function BotConfigPageContent() {
   useConfigAutoSave(maisakaConfig, 'maisaka', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(mcpConfig, 'mcp', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(pluginRuntimeConfig, 'plugin_runtime', initialLoadRef.current, triggerAutoSave)
+  useConfigAutoSave(aMemorixConfig, 'a_memorix', initialLoadRef.current, triggerAutoSave)
 
   // 保存源代码
   const saveSourceCode = async () => {
@@ -658,6 +668,7 @@ function BotConfigPageContent() {
       emoji: emojiConfig,
       memory: memoryConfig,
       relationship: relationshipConfig,
+      visual: visualConfig,
       voice: voiceConfig,
       message_receive: messageReceiveConfig,
       lpmm_knowledge: lpmmConfig,
@@ -674,6 +685,7 @@ function BotConfigPageContent() {
       maisaka: maisakaConfig,
       mcp: mcpConfig,
       plugin_runtime: pluginRuntimeConfig,
+      a_memorix: aMemorixConfig,
     }),
     [
       botConfig,
@@ -683,6 +695,7 @@ function BotConfigPageContent() {
       emojiConfig,
       memoryConfig,
       relationshipConfig,
+      visualConfig,
       voiceConfig,
       messageReceiveConfig,
       lpmmConfig,
@@ -699,6 +712,7 @@ function BotConfigPageContent() {
       maisakaConfig,
       mcpConfig,
       pluginRuntimeConfig,
+      aMemorixConfig,
     ]
   )
 
@@ -711,6 +725,7 @@ function BotConfigPageContent() {
       emoji: setEmojiConfig,
       memory: setMemoryConfig,
       relationship: setRelationshipConfig,
+      visual: setVisualConfig,
       voice: setVoiceConfig,
       message_receive: setMessageReceiveConfig,
       lpmm_knowledge: setLpmmConfig,
@@ -727,6 +742,7 @@ function BotConfigPageContent() {
       maisaka: setMaisakaConfig,
       mcp: setMcpConfig,
       plugin_runtime: setPluginRuntimeConfig,
+      a_memorix: setAMemorixConfig,
     }
 
     sectionSetterMap[sectionName]?.(value)

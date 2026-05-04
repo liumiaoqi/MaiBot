@@ -54,6 +54,7 @@ import { Link } from '@tanstack/react-router'
 import { RestartProvider, useRestart } from '@/lib/restart-context'
 import { RestartOverlay } from '@/components/restart-overlay'
 import { ExpressionReviewer } from '@/components/expression-reviewer'
+import { getBotConfig, getModelConfig } from '@/lib/config-api'
 import { getReviewStats } from '@/lib/expression-api'
 import { ZoomableChart } from '@/components/ui/zoomable-chart'
 
@@ -119,6 +120,11 @@ interface DashboardData {
   recent_activity: RecentActivity[]
 }
 
+interface FeatureStatus {
+  memoryEnabled: boolean
+  visualEnabled: boolean
+}
+
 // 为饼图生成更丰富的颜色方案 (HSL色相均匀分布)
 const generatePieColors = (count: number): string[] => {
   const colors: string[] = []
@@ -131,6 +137,19 @@ const generatePieColors = (count: number): string[] => {
 }
 
 // 内部实现组件
+function FeatureStatusLight({ enabled, label }: { enabled: boolean; label: string }) {
+  return (
+    <div className="inline-flex items-center gap-1.5 rounded-md border bg-background px-2 py-1 text-xs text-muted-foreground">
+      <span
+        className={`h-2.5 w-2.5 rounded-full ${
+          enabled ? 'bg-green-500 shadow-[0_0_0_3px_rgba(34,197,94,0.18)]' : 'bg-muted-foreground/30'
+        }`}
+      />
+      <span>{label}</span>
+    </div>
+  )
+}
+
 function IndexPageContent() {
   const { t } = useTranslation()
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
@@ -141,6 +160,10 @@ function IndexPageContent() {
   const [hitokoto, setHitokoto] = useState<{ hitokoto: string; from: string } | null>(null)
   const [hitokotoLoading, setHitokotoLoading] = useState(true)
   const [botStatus, setBotStatus] = useState<BotStatus | null>(null)
+  const [featureStatus, setFeatureStatus] = useState<FeatureStatus>({
+    memoryEnabled: false,
+    visualEnabled: false,
+  })
   const [isReviewerOpen, setIsReviewerOpen] = useState(false)
   const [uncheckedCount, setUncheckedCount] = useState(0)
   const { triggerRestart, isRestarting } = useRestart()
@@ -221,6 +244,44 @@ function IndexPageContent() {
   }, [])
 
   // 重启机器人
+  const fetchFeatureStatus = useCallback(async () => {
+    try {
+      const [botConfigResult, modelConfigResult] = await Promise.all([
+        getBotConfig(),
+        getModelConfig(),
+      ])
+
+      if (!isMountedRef.current || !botConfigResult.success) return
+
+      const botPayload = botConfigResult.data as { config?: Record<string, unknown> } & Record<string, unknown>
+      const botConfig = (botPayload.config ?? botPayload) as Record<string, unknown>
+      const memorixConfig = (botConfig.a_memorix ?? {}) as Record<string, unknown>
+      const memorixPlugin = (memorixConfig.plugin ?? {}) as Record<string, unknown>
+
+      const modelPayload = modelConfigResult.success
+        ? (modelConfigResult.data as { config?: Record<string, unknown> } & Record<string, unknown>)
+        : {}
+      const modelConfig = (modelPayload.config ?? modelPayload) as Record<string, unknown>
+      const taskConfig = (modelConfig.model_task_config ?? {}) as Record<string, unknown>
+      const vlmTask = (taskConfig.vlm ?? {}) as Record<string, unknown>
+      const vlmModelList = Array.isArray(vlmTask.model_list) ? vlmTask.model_list : []
+      const hasVlmModel = vlmModelList.some((modelName) => String(modelName ?? '').trim().length > 0)
+
+      setFeatureStatus({
+        memoryEnabled: memorixPlugin.enabled === true,
+        visualEnabled: hasVlmModel,
+      })
+    } catch (error) {
+      console.error('获取功能启用状态失败:', error)
+      if (isMountedRef.current) {
+        setFeatureStatus({
+          memoryEnabled: false,
+          visualEnabled: false,
+        })
+      }
+    }
+  }, [])
+
   const handleRestart = async () => {
     await triggerRestart()
   }
@@ -280,8 +341,9 @@ function IndexPageContent() {
     fetchDashboardData()
     fetchHitokoto()
     fetchBotStatus()
+    fetchFeatureStatus()
     fetchReviewStats()
-  }, [fetchDashboardData, fetchHitokoto, fetchBotStatus, fetchReviewStats])
+  }, [fetchDashboardData, fetchHitokoto, fetchBotStatus, fetchFeatureStatus, fetchReviewStats])
 
   // 自动刷新
   useEffect(() => {
@@ -297,6 +359,7 @@ function IndexPageContent() {
       if (isMountedRef.current) {
         fetchDashboardData()
         fetchBotStatus()
+        fetchFeatureStatus()
       }
     }, 30000) // 30秒刷新一次
 
@@ -306,7 +369,7 @@ function IndexPageContent() {
         refreshIntervalRef.current = null
       }
     }
-  }, [autoRefresh, fetchDashboardData, fetchBotStatus])
+  }, [autoRefresh, fetchDashboardData, fetchBotStatus, fetchFeatureStatus])
 
   if (loading || !dashboardData) {
     return (
@@ -485,33 +548,41 @@ function IndexPageContent() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                {botStatus?.running ? (
-                  <>
-                    <div className="h-3 w-3 rounded-full bg-green-500 animate-pulse" />
-                    <Badge variant="outline" className="text-green-600 border-green-300 bg-green-50">
-                      <CheckCircle2 className="h-3 w-3 mr-1" />
-                      {t('home.botStatus.running')}
+            <div className="space-y-3">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  {botStatus?.running ? (
+                    <>
+                      <div className="h-3 w-3 rounded-full bg-green-500 animate-pulse" />
+                      <Badge variant="outline" className="text-green-600 border-green-300 bg-green-50">
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        {t('home.botStatus.running')}
+                      </Badge>
+                    </>
+                  ) : (
+                    <>
+                      <div className="h-3 w-3 rounded-full bg-red-500" />
+                      <Badge variant="outline" className="text-red-600 border-red-300 bg-red-50">
+                        <AlertCircle className="h-3 w-3 mr-1" />
+                        {t('home.botStatus.stopped')}
+                      </Badge>
+                    </>
+                  )}
+                </div>
+                {botStatus && (
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <Badge variant="secondary" className="border border-primary/20 bg-primary/10 px-2 py-0.5 font-semibold text-primary">
+                      v{botStatus.version}
                     </Badge>
-                  </>
-                ) : (
-                  <>
-                    <div className="h-3 w-3 rounded-full bg-red-500" />
-                    <Badge variant="outline" className="text-red-600 border-red-300 bg-red-50">
-                      <AlertCircle className="h-3 w-3 mr-1" />
-                      {t('home.botStatus.stopped')}
-                    </Badge>
-                  </>
+                    <span className="mx-2">|</span>
+                    <span>{t('home.botStatus.uptime', { time: formatTime(botStatus.uptime) })}</span>
+                  </div>
                 )}
               </div>
-              {botStatus && (
-                <div className="text-xs text-muted-foreground">
-                  <span>v{botStatus.version}</span>
-                  <span className="mx-2">|</span>
-                  <span>{t('home.botStatus.uptime', { time: formatTime(botStatus.uptime) })}</span>
-                </div>
-              )}
+              <div className="flex flex-wrap gap-2">
+                <FeatureStatusLight enabled={featureStatus.visualEnabled} label="启用视觉" />
+                <FeatureStatusLight enabled={featureStatus.memoryEnabled} label="启用记忆" />
+              </div>
             </div>
           </CardContent>
         </Card>

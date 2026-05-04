@@ -590,16 +590,16 @@ export const ExpressionSection = React.memo(function ExpressionSection({
                     id="expression_auto_check_interval"
                     type="number"
                     min="60"
-                    value={config.expression_auto_check_interval ?? 3600}
+                    value={config.expression_auto_check_interval ?? 900}
                     onChange={(e) =>
                       onChange({
                         ...config,
-                        expression_auto_check_interval: parseInt(e.target.value) || 3600,
+                        expression_auto_check_interval: parseInt(e.target.value) || 900,
                       })
                     }
                   />
                   <p className="text-xs text-muted-foreground">
-                    表达方式自动检查的间隔时间（单位：秒），默认值：3600秒（1小时）
+                    表达方式自动检查的间隔时间（单位：秒），默认值：900秒（15分钟）
                   </p>
                 </div>
 
@@ -613,16 +613,16 @@ export const ExpressionSection = React.memo(function ExpressionSection({
                     type="number"
                     min="1"
                     max="100"
-                    value={config.expression_auto_check_count ?? 10}
+                    value={config.expression_auto_check_count ?? 5}
                     onChange={(e) =>
                       onChange({
                         ...config,
-                        expression_auto_check_count: parseInt(e.target.value) || 10,
+                        expression_auto_check_count: parseInt(e.target.value) || 5,
                       })
                     }
                   />
                   <p className="text-xs text-muted-foreground">
-                    每次自动检查时随机选取的表达方式数量，默认值：10条
+                    每次自动检查时随机选取的表达方式数量，默认值：5条
                   </p>
                 </div>
 

@@ -215,6 +215,17 @@ def _is_available_emoji_record(record: Images) -> bool:
     return record_path.exists() and record_path.is_file()
 
 
+def _is_vlm_task_configured() -> bool:
+    """判断是否配置了可用于表情包识别和审核的视觉模型任务。"""
+
+    try:
+        vlm_models = config_manager.get_model_config().model_task_config.vlm.model_list
+        return any(str(model_name).strip() for model_name in vlm_models)
+    except Exception as exc:
+        logger.warning(f"读取 VLM 模型配置失败，跳过表情包识别和审核: {exc}")
+        return False
+
+
 # TODO: 修改这个vlm为获取的vlm client，暂时使用这个VLM方法
 emoji_manager_vlm = LLMServiceClient(task_name="vlm", request_type="emoji.see")
 emoji_manager_emotion_judge_llm = LLMServiceClient(
@@ -316,6 +327,10 @@ class EmojiManager:
         # 如果提供了字节数据但数据库中没有找到，尝试构建
         if not emoji_bytes:
             return None
+        if not _is_vlm_task_configured():
+            await self.ensure_emoji_saved(emoji_bytes, emoji_hash=emoji_hash)
+            logger.info("未配置 VLM 模型，跳过表情包识别、打标签和审核")
+            return None
         if not wait_for_build:
             await self.ensure_emoji_saved(emoji_bytes, emoji_hash=emoji_hash)
             self._schedule_description_build(emoji_hash, emoji_bytes)
@@ -386,6 +401,10 @@ class EmojiManager:
             emoji_hash: 表情包哈希值。
             emoji_bytes: 表情包字节数据。
         """
+        if not _is_vlm_task_configured():
+            logger.info("未配置 VLM 模型，跳过表情包后台识别任务")
+            return
+
         if emoji_hash in self._pending_description_tasks:
             return
 
@@ -826,6 +845,12 @@ class EmojiManager:
         Returns:
             return (Tuple[bool, MaiEmoji]): 返回是否成功构建描述，及表情包对象
         """
+        if not _is_vlm_task_configured():
+            logger.info(
+                f"[构建描述] 未配置 VLM 模型，跳过表情包识别、打标签和审核: {target_emoji.file_name}"
+            )
+            return False, target_emoji
+
         if not target_emoji.file_hash or not target_emoji.image_format:
             # Should not happen, but just in case
             await target_emoji.calculate_hash_format()

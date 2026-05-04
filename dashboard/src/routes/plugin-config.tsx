@@ -851,8 +851,25 @@ function PluginConfigPageContent() {
   )
 
   // 统计数据
-  const enabledCount = plugins.length // 暂时假设都启用
-  const disabledCount = 0
+  const isPluginDisabled = (plugin: InstalledPlugin) => plugin.disabled === true || plugin.enabled === false
+  const isPluginLoadSuccess = (plugin: InstalledPlugin) => !isPluginDisabled(plugin) && (
+    plugin.load_status === 'success' || plugin.loaded === true
+  )
+  const isPluginLoadFailed = (plugin: InstalledPlugin) => !isPluginDisabled(plugin) && !isPluginLoadSuccess(plugin)
+  const installedCount = plugins.length
+  const disabledCount = plugins.filter(isPluginDisabled).length
+  const enabledCount = installedCount - disabledCount
+  const loadSuccessCount = plugins.filter(isPluginLoadSuccess).length
+  const loadFailedCount = plugins.filter(isPluginLoadFailed).length
+  const getPluginStatusMeta = (plugin: InstalledPlugin) => {
+    if (isPluginDisabled(plugin)) {
+      return { dotClassName: 'bg-muted-foreground/45', label: '已禁用' }
+    }
+    if (isPluginLoadSuccess(plugin)) {
+      return { dotClassName: 'bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.16)]', label: '加载成功' }
+    }
+    return { dotClassName: 'bg-red-500 shadow-[0_0_0_3px_rgba(239,68,68,0.16)]', label: '加载失败' }
+  }
 
   // 如果选中了插件，显示配置编辑器
   if (selectedPlugin) {
@@ -888,43 +905,29 @@ function PluginConfigPageContent() {
           </Button>
         </div>
 
-        {/* 统计卡片 */}
-        <div className="grid gap-4 grid-cols-1 xs:grid-cols-2 lg:grid-cols-3">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">已安装插件</CardTitle>
-              <Package className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{plugins.length}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {loading ? '正在加载...' : '个插件'}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">已启用</CardTitle>
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{enabledCount}</div>
-              <p className="text-xs text-muted-foreground mt-1">运行中的插件</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">已禁用</CardTitle>
-              <AlertCircle className="h-4 w-4 text-orange-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{disabledCount}</div>
-              <p className="text-xs text-muted-foreground mt-1">未激活的插件</p>
-            </CardContent>
-          </Card>
-        </div>
+        {/* 统计信息 */}
+        <Card>
+          <CardContent className="space-y-3 p-4">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+              <span className="flex items-center gap-2">
+                <Package className="h-4 w-4 text-muted-foreground" />
+                已安装 <strong>{installedCount}</strong> 个插件
+              </span>
+              <span>已启用 <strong className="text-emerald-600">{enabledCount}</strong> 个</span>
+              <span>已禁用 <strong className="text-muted-foreground">{disabledCount}</strong> 个</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t pt-3 text-sm">
+              <span className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                加载成功 <strong className="text-emerald-600">{loadSuccessCount}</strong> 个
+              </span>
+              <span className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-red-600" />
+                加载失败 <strong className="text-red-600">{loadFailedCount}</strong> 个
+              </span>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* 搜索框 */}
         <div className="relative">
@@ -962,16 +965,23 @@ function PluginConfigPageContent() {
               </div>
             ) : (
               <div className="space-y-2">
-                {uniqueFilteredPlugins.map(plugin => (
+                {uniqueFilteredPlugins.map(plugin => {
+                  const statusMeta = getPluginStatusMeta(plugin)
+                  return (
                   <div
                     key={plugin.id}
-                    className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 cursor-pointer transition-colors"
+                    className={`flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 cursor-pointer transition-colors ${isPluginDisabled(plugin) ? 'opacity-70' : ''}`}
                     role="button"
                     tabIndex={0}
                     onClick={() => setSelectedPlugin(plugin)}
                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedPlugin(plugin) } }}
                   >
                     <div className="flex items-center gap-3 min-w-0">
+                      <span
+                        className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${statusMeta.dotClassName}`}
+                        title={statusMeta.label}
+                        aria-label={statusMeta.label}
+                      />
                       <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
                         <Package className="h-5 w-5 text-primary" />
                       </div>
@@ -996,7 +1006,8 @@ function PluginConfigPageContent() {
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </CardContent>

@@ -949,7 +949,7 @@ function ModelConfigPageContent() {
             {taskConfigSchema?.fields.some((field) => field.advanced) && (
               <Button
                 type="button"
-                variant={advancedTaskSettingsVisible ? 'secondary' : 'outline'}
+                variant={advancedTaskSettingsVisible ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => setAdvancedTaskSettingsVisible((current) => !current)}
               >
@@ -975,6 +975,7 @@ function ModelConfigPageContent() {
                       taskConfig={taskConfig[field.name] ?? { model_list: [] }}
                       modelNames={modelNames}
                       onChange={(f, value) => updateTaskConfig(field.name, f, value)}
+                      advanced={field.advanced}
                       {...(index === 0 ? { dataTour: 'task-model-select' } : {})}
                     />
                   )

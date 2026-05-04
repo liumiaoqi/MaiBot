@@ -262,6 +262,7 @@ export type ConfigSectionName =
   | 'emoji'
   | 'memory'
   | 'relationship'
+  | 'visual'
   | 'tool'
   | 'voice'
   | 'message_receive'
@@ -281,3 +282,4 @@ export type ConfigSectionName =
   | 'maisaka'
   | 'mcp'
   | 'plugin_runtime'
+  | 'a_memorix'

@@ -95,6 +95,60 @@ export interface ToolExecutionEvent {
   timestamp: number
 }
 
+export interface MaisakaRequestBlock {
+  messages: MaisakaMessage[]
+  selected_history_count: number
+  tool_count: number
+}
+
+export interface MaisakaPlannerBlock {
+  content: string | null
+  tool_calls: MaisakaToolCall[]
+  prompt_tokens: number
+  completion_tokens: number
+  total_tokens: number
+  duration_ms: number
+  prompt_html_uri?: string
+}
+
+export interface MaisakaTimingGateBlock {
+  request: MaisakaRequestBlock | null
+  result: {
+    action: 'continue' | 'wait' | 'no_reply' | null
+    content: string | null
+    tool_calls: MaisakaToolCall[]
+    tool_results: unknown[]
+    prompt_tokens: number
+    completion_tokens: number
+    total_tokens: number
+    duration_ms: number
+  }
+}
+
+export interface MaisakaFinalizedToolResult {
+  tool_call_id: string
+  tool_name: string
+  tool_args: Record<string, unknown>
+  success: boolean
+  duration_ms: number
+  summary: string
+  detail?: unknown
+}
+
+export interface PlannerFinalizedEvent {
+  session_id: string
+  cycle_id: number
+  timestamp: number
+  timing_gate: MaisakaTimingGateBlock | null
+  request: MaisakaRequestBlock | null
+  planner: MaisakaPlannerBlock | null
+  tools: MaisakaFinalizedToolResult[]
+  final_state: {
+    time_records: Record<string, number>
+    agent_state: string
+  }
+}
+
 export interface CycleEndEvent {
   session_id: string
   cycle_id: number
@@ -132,6 +186,7 @@ export type MaisakaMonitorEvent =
   | { type: 'timing_gate.result'; data: TimingGateResultEvent }
   | { type: 'planner.request'; data: PlannerRequestEvent }
   | { type: 'planner.response'; data: PlannerResponseEvent }
+  | { type: 'planner.finalized'; data: PlannerFinalizedEvent }
   | { type: 'tool.execution'; data: ToolExecutionEvent }
   | { type: 'cycle.end'; data: CycleEndEvent }
   | { type: 'replier.request'; data: ReplierRequestEvent }

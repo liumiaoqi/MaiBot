@@ -31,6 +31,7 @@ import type {
 import { IMPORT_CHUNK_PAGE_SIZE, IMPORT_KIND_OPTIONS, RUNNING_IMPORT_STATUS } from '../constants'
 import {
   formatImportTime,
+  formatProgressPercent,
   getImportStatusLabel,
   getImportStatusVariant,
   getImportStepLabel,
@@ -871,7 +872,7 @@ export function ImportTab(props: ImportTabProps) {
                             </div>
                             <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
                               <span>{getImportStepLabel(String(task.current_step ?? 'running'))}</span>
-                              <span>{Number(task.progress ?? 0).toFixed(1)}%</span>
+                              <span>{formatProgressPercent(task.progress)}</span>
                             </div>
                             <Progress value={normalizeProgress(task.progress)} className="mt-2 h-1.5" />
                           </button>
@@ -966,7 +967,7 @@ export function ImportTab(props: ImportTabProps) {
                             </div>
                             <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
                               <span>完成进度</span>
-                              <span>{Number(task.progress ?? 0).toFixed(1)}%</span>
+                              <span>{formatProgressPercent(task.progress)}</span>
                             </div>
                             <Progress value={normalizeProgress(task.progress)} className="mt-2 h-1.5" />
                           </button>
@@ -1155,11 +1156,11 @@ export function ImportTab(props: ImportTabProps) {
                               </div>
                               <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
                                 <span>{getImportStepLabel(String(file.current_step ?? ''))}</span>
-                                <span>{Number(file.progress ?? 0).toFixed(1)}%</span>
+                                <span>{formatProgressPercent(file.progress)}</span>
                               </div>
                               <Progress value={normalizeProgress(file.progress)} className="mt-2 h-1.5" />
                               <div className="mt-2 text-xs text-muted-foreground">
-                                {Number(file.progress ?? 0).toFixed(1)}% · {Number(file.done_chunks ?? 0)} / {Number(file.total_chunks ?? 0)}
+                                {formatProgressPercent(file.progress)} · {Number(file.done_chunks ?? 0)} / {Number(file.total_chunks ?? 0)}
                               </div>
                               {file.error ? (
                                 <div className="mt-2 truncate text-xs text-destructive">{file.error}</div>
@@ -1230,7 +1231,7 @@ export function ImportTab(props: ImportTabProps) {
                               <TableCell>{chunk.index}</TableCell>
                               <TableCell>{getImportStatusLabel(String(chunk.status ?? ''))}</TableCell>
                               <TableCell>{getImportStepLabel(String(chunk.step ?? ''))}</TableCell>
-                              <TableCell>{Number(chunk.progress ?? 0).toFixed(1)}%</TableCell>
+                              <TableCell>{formatProgressPercent(chunk.progress)}</TableCell>
                               <TableCell className="max-w-[360px]">
                                 <div className="space-y-2">
                                   {String(chunk.error ?? '').trim() ? (
