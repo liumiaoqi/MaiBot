@@ -32,6 +32,13 @@ DEFAULT_TASK_CONFIG_TEMPLATES: dict[str, dict[str, Any]] = {
         "slow_threshold": 120.0,
         "selection_strategy": "random",
     },
+    "learner": {
+        "model_list": [],
+        "max_tokens": 4096,
+        "temperature": 0.5,
+        "slow_threshold": 15.0,
+        "selection_strategy": "random",
+    },
     "planner": {
         "model_list": ["deepseek-v4-flash"],
         "max_tokens": 8000,
@@ -39,25 +46,11 @@ DEFAULT_TASK_CONFIG_TEMPLATES: dict[str, dict[str, Any]] = {
         "slow_threshold": 12.0,
         "selection_strategy": "random",
     },
-    "vlm": {
-        "model_list": ["qwen3.5-flash"],
-        "max_tokens": 512,
-        "temperature": 0.3,
-        "slow_threshold": 15.0,
-        "selection_strategy": "random",
-    },
     "voice": {
         "model_list": [""],
         "max_tokens": 1024,
         "temperature": 0.3,
         "slow_threshold": 12.0,
-        "selection_strategy": "random",
-    },
-    "embedding": {
-        "model_list": ["qwen3-embedding"],
-        "max_tokens": 1024,
-        "temperature": 0.3,
-        "slow_threshold": 5.0,
         "selection_strategy": "random",
     },
 }
@@ -89,24 +82,6 @@ DEFAULT_MODEL_TEMPLATES: list[dict[str, Any]] = [
         "price_out": 2.0,
         "visual": False,
         "extra_params": {"enable_thinking": "false"},
-    },
-    {
-        "model_identifier": "qwen3.5-flash",
-        "name": "qwen3.5-flash",
-        "api_provider": "BaiLian",
-        "price_in": 0.2,
-        "price_out": 2.0,
-        "visual": True,
-        "extra_params": {"enable_thinking": "false"},
-    },
-    {
-        "model_identifier": "text-embedding-v4",
-        "name": "qwen3-embedding",
-        "api_provider": "BaiLian",
-        "price_in": 0.5,
-        "price_out": 0.5,
-        "visual": False,
-        "extra_params": {},
     }
 ]
 

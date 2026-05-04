@@ -106,6 +106,7 @@ function ModelConfigPageContent() {
   const [jumpToPage, setJumpToPage] = useState('')
   
   const [advancedTemperatureMode, setAdvancedTemperatureMode] = useState(false)
+  const [advancedTaskSettingsVisible, setAdvancedTaskSettingsVisible] = useState(false)
   
   // 模型 Combobox 状态
   const [modelComboboxOpen, setModelComboboxOpen] = useState(false)
@@ -155,7 +156,9 @@ function ModelConfigPageContent() {
       
       // 检查是否有模型
       if (!task.model_list || task.model_list.length === 0) {
-        emptyTaskList.push(key)
+        if (key !== 'learner') {
+          emptyTaskList.push(key)
+        }
         continue
       }
       
@@ -939,14 +942,26 @@ function ModelConfigPageContent() {
 
         {/* 模型任务配置标签页 */}
         <TabsContent value="tasks" className="space-y-6 mt-0">
-          <p className="text-sm text-muted-foreground">
-            为不同的任务配置使用的模型和参数
-          </p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground">
+              为不同的任务配置使用的模型和参数
+            </p>
+            {taskConfigSchema?.fields.some((field) => field.advanced) && (
+              <Button
+                type="button"
+                variant={advancedTaskSettingsVisible ? 'secondary' : 'outline'}
+                size="sm"
+                onClick={() => setAdvancedTaskSettingsVisible((current) => !current)}
+              >
+                高级设置
+              </Button>
+            )}
+          </div>
 
           {taskConfig && taskConfigSchema && (
             <div className="grid gap-4 sm:gap-6">
               {taskConfigSchema.fields
-                .filter(f => f.type === 'object')
+                .filter(f => f.type === 'object' && (advancedTaskSettingsVisible || !f.advanced))
                 .map((field, index) => {
                   const desc = field.description || field.name
                   const commaIdx = desc.search(/[,，]/)
