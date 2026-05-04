@@ -19,7 +19,7 @@
       "overview": "概览",
       "botConfig": "麦麦配置编辑",
       "botResources": "麦麦资源管理",
-      "extensionsMonitor": "扩展与监控",
+      "extensionsMonitor": "插件与扩展",
       "system": "系统"
     },
     "menu": {
@@ -34,10 +34,10 @@
       "slangManagement": "黑话管理",
       "personInfo": "人物信息管理",
       "knowledgeGraph": "长期记忆图谱",
-      "knowledgeBase": "长期记忆控制台",
+      "knowledgeBase": "长期记忆",
       "pluginMarket": "插件市场",
       "configTemplate": "配置模板市场",
-      "pluginConfig": "插件配置",
+      "pluginConfig": "插件管理",
       "mcpSettings": "MCP 设置",
       "logViewer": "日志查看器",
       "maisakaMonitor": "MaiSaka 聊天流监控",

@@ -1347,6 +1347,7 @@ class ResponsePostProcessConfig(ConfigBase):
 
     __ui_label__ = "处理"
     __ui_icon__ = "settings"
+    __ui_merge_children__ = ["chinese_typo", "response_splitter"]
 
     enable_response_post_process: bool = Field(
         default=True,

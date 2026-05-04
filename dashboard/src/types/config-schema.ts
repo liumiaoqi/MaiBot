@@ -52,6 +52,7 @@ export interface ConfigSchema {
   uiParent?: string
   uiLabel?: string
   uiIcon?: string
+  uiMergeChildren?: string[]
 }
 
 export interface ConfigSchemaResponse {

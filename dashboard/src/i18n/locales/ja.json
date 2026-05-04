@@ -19,7 +19,7 @@
       "overview": "概要",
       "botConfig": "ボット設定",
       "botResources": "ボットリソース",
-      "extensionsMonitor": "拡張機能 & 監視",
+      "extensionsMonitor": "プラグインと拡張",
       "system": "システム"
     },
     "menu": {
@@ -34,10 +34,10 @@
       "slangManagement": "スラング管理",
       "personInfo": "人物情報",
       "knowledgeGraph": "長期記憶グラフ",
-      "knowledgeBase": "長期記憶コンソール",
+      "knowledgeBase": "長期記憶",
       "pluginMarket": "プラグインマーケット",
       "configTemplate": "設定テンプレート",
-      "pluginConfig": "プラグイン設定",
+      "pluginConfig": "プラグイン管理",
       "mcpSettings": "MCP 設定",
       "logViewer": "ログビューア",
       "maisakaMonitor": "MaiSaka チャット監視",

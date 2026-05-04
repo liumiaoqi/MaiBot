@@ -53,6 +53,10 @@ function formatMs(ms: number): string {
   return `${(ms / 1000).toFixed(2)}s`
 }
 
+function buildCycleKey(sessionId: string, cycleId: number) {
+  return `${sessionId}:${cycleId}`
+}
+
 function formatTimestamp(ts: number): string {
   return new Date(ts * 1000).toLocaleTimeString('zh-CN', {
     hour: '2-digit',
@@ -741,21 +745,37 @@ export function MaisakaMonitor() {
                   </p>
                 </div>
               ) : (
-                timeline.map((entry) => {
-                  const rendered = <TimelineEventRenderer entry={entry} showCycleMarkers={showCycleMarkers} />
-                  if (!rendered) return null
-                  return (
-                    <div
-                      key={entry.id}
-                      className="animate-in fade-in-0 slide-in-from-bottom-2 duration-300"
-                    >
-                      {rendered}
-                      {entry.type === 'cycle.end' && (
-                        <Separator className="mt-3" />
-                      )}
-                    </div>
-                  )
-                })
+                (() => {
+                  const displayedTimingGateCycles = new Set<string>()
+
+                  return timeline.map((entry) => {
+                    if (entry.type === 'timing_gate.result') {
+                      const data = entry.data as TimingGateResultEvent
+                      displayedTimingGateCycles.add(buildCycleKey(data.session_id, data.cycle_id))
+                    }
+
+                    if (entry.type === 'planner.response' || entry.type === 'planner.finalized') {
+                      const data = entry.data as PlannerResponseEvent | PlannerFinalizedEvent
+                      if (!displayedTimingGateCycles.has(buildCycleKey(data.session_id, data.cycle_id))) {
+                        return null
+                      }
+                    }
+
+                    const rendered = <TimelineEventRenderer entry={entry} showCycleMarkers={showCycleMarkers} />
+                    if (!rendered) return null
+                    return (
+                      <div
+                        key={entry.id}
+                        className="animate-in fade-in-0 slide-in-from-bottom-2 duration-300"
+                      >
+                        {rendered}
+                        {entry.type === 'cycle.end' && (
+                          <Separator className="mt-3" />
+                        )}
+                      </div>
+                    )
+                  })
+                })()
               )}
             </div>
           </ScrollArea>
