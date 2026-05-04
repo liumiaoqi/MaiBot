@@ -585,6 +585,9 @@ def _parse_tool_arguments(
     Raises:
         RespParseException: 当参数无法解析为字典时抛出。
     """
+    if not raw_arguments.strip():
+        return {}
+
     try:
         if parse_mode == ToolArgumentParseMode.STRICT:
             arguments: Any = json.loads(raw_arguments)

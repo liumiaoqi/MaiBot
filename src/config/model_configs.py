@@ -351,6 +351,7 @@ class ModelInfo(ConfigBase):
     Gemini 客户端会按自身支持的字段筛选并映射到 GenerateContentConfig、EmbedContentConfig 或音频请求配置中。"""
 
     def model_post_init(self, context: Any = None):
+        self.model_identifier = self.model_identifier.strip()
         if not self.model_identifier:
             raise ValueError(t("config.model_identifier_empty_generic"))
         if not self.name:
