@@ -78,6 +78,7 @@ function ModelProviderConfigPageContent() {
 
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const initialLoadRef = useRef(true)
+  const providersSnapshotRef = useRef<string | null>(null)
   const prevTourStepRef = useRef(tourState.stepIndex)
 
   // 注册 Tour
@@ -161,7 +162,9 @@ function ModelProviderConfigPageContent() {
         return
       }
       const config = unwrapModelConfig(result.data)
-      setProviders(Array.isArray(config.api_providers) ? config.api_providers as APIProvider[] : [])
+      const providerList = Array.isArray(config.api_providers) ? config.api_providers as APIProvider[] : []
+      setProviders(providerList)
+      providersSnapshotRef.current = JSON.stringify(providerList.map(cleanProviderData))
       setHasUnsavedChanges(false)
       initialLoadRef.current = false
     } catch (error) {
@@ -231,6 +234,7 @@ function ModelProviderConfigPageContent() {
         setSaving(false)
         return
       }
+      providersSnapshotRef.current = JSON.stringify(cleanedProviders)
       setHasUnsavedChanges(false)
       toast({
         title: '保存成功',
@@ -356,6 +360,7 @@ function ModelProviderConfigPageContent() {
       }
 
       setProviders(deleteConfirmState.pendingProviders)
+      providersSnapshotRef.current = JSON.stringify(cleanedProviders)
       setHasUnsavedChanges(false)
 
       toast({
@@ -431,6 +436,7 @@ function ModelProviderConfigPageContent() {
         setHasUnsavedChanges(true)
         return
       }
+      providersSnapshotRef.current = JSON.stringify(cleanedProviders)
       setHasUnsavedChanges(false)
     } catch (error) {
       console.error('自动保存失败:', error)
@@ -447,6 +453,13 @@ function ModelProviderConfigPageContent() {
 
   useEffect(() => {
     if (initialLoadRef.current) return
+
+    const snapshot = JSON.stringify(providers.map(cleanProviderData))
+    if (providersSnapshotRef.current === null) {
+      providersSnapshotRef.current = snapshot
+      return
+    }
+    if (snapshot === providersSnapshotRef.current) return
 
     setHasUnsavedChanges(true)
 
@@ -529,6 +542,7 @@ function ModelProviderConfigPageContent() {
         setSaving(false)
         return
       }
+      providersSnapshotRef.current = JSON.stringify(cleanedProviders)
       setHasUnsavedChanges(false)
       toast({
         title: '保存成功',

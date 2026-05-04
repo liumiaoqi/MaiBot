@@ -138,7 +138,7 @@ function ModelConfigPageContent() {
   const { triggerRestart, isRestarting } = useRestart()
   
   // 自动保存 (使用 hook 封装的逻辑)
-  const { clearTimers: clearAutoSaveTimers, initialLoadRef } = useModelAutoSave({
+  const { clearTimers: clearAutoSaveTimers, initialLoadRef, resetSnapshots } = useModelAutoSave({
     models,
     taskConfig,
     onSavingChange: setAutoSaving,
@@ -200,6 +200,7 @@ function ModelConfigPageContent() {
       
       const taskConf = (config.model_task_config as ModelTaskConfig) || null
       setTaskConfig(taskConf)
+      resetSnapshots(modelList, taskConf)
       
       // 解析 model_task_config 的 schema
       if (schemaResult.success && schemaResult.data) {
@@ -220,7 +221,7 @@ function ModelConfigPageContent() {
     } finally {
       setLoading(false)
     }
-  }, [initialLoadRef, checkTaskConfigIssues])
+  }, [initialLoadRef, checkTaskConfigIssues, resetSnapshots])
 
   // 初始加载
   useEffect(() => {
@@ -343,6 +344,7 @@ function ModelConfigPageContent() {
         setSaving(false)
         return
       }
+      resetSnapshots(config.models as ModelInfo[], taskConfig)
       setHasUnsavedChanges(false)
       toast({
         title: '保存成功',
@@ -392,6 +394,7 @@ function ModelConfigPageContent() {
         setSaving(false)
         return
       }
+      resetSnapshots(config.models as ModelInfo[], taskConfig)
       setHasUnsavedChanges(false)
       toast({
         title: '保存成功',
