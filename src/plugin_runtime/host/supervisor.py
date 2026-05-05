@@ -9,7 +9,7 @@ import os
 import sys
 
 from src.common.logger import get_logger
-from src.config.config import config_manager, global_config
+from src.config.config import global_config
 from src.llm_models.model_client.base_client import ClientProviderRegistration, client_registry
 from src.llm_models.model_client.plugin_client import PluginLLMClient
 from src.platform_io import DriverKind, InboundMessageEnvelope, RouteBinding, RouteKey, get_platform_io_manager
@@ -18,7 +18,6 @@ from src.platform_io.route_key_factory import RouteKeyFactory
 from src.plugin_runtime import (
     ENV_BLOCKED_PLUGIN_REASONS,
     ENV_EXTERNAL_PLUGIN_IDS,
-    ENV_GLOBAL_CONFIG_SNAPSHOT,
     ENV_HOST_VERSION,
     ENV_IPC_ADDRESS,
     ENV_PLUGIN_DIRS,
@@ -1409,12 +1408,9 @@ class PluginRunnerSupervisor:
         Returns:
             Dict[str, str]: 传递给 Runner 进程的环境变量映射。
         """
-        global_config_snapshot = config_manager.get_global_config().model_dump(mode="json")
-        global_config_snapshot["model"] = config_manager.get_model_config().model_dump(mode="json")
         return {
             ENV_BLOCKED_PLUGIN_REASONS: json.dumps(self._blocked_plugin_reasons, ensure_ascii=False),
             ENV_EXTERNAL_PLUGIN_IDS: json.dumps(self._external_available_plugins, ensure_ascii=False),
-            ENV_GLOBAL_CONFIG_SNAPSHOT: json.dumps(global_config_snapshot, ensure_ascii=False),
             ENV_HOST_VERSION: PROTOCOL_VERSION,
             ENV_IPC_ADDRESS: self._transport.get_address(),
             ENV_PLUGIN_DIRS: os.pathsep.join(str(path) for path in self._plugin_dirs),
