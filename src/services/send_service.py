@@ -73,9 +73,9 @@ def register_send_service_hook_specs(registry: HookSpecRegistry) -> List[HookSpe
                             "type": "string",
                             "description": "目标会话 ID。",
                         },
-                        "display_message": {
+                        "processed_plain_text": {
                             "type": "string",
-                            "description": "展示层文本。",
+                            "description": "可选的预处理纯文本内容。",
                         },
                         "typing": {
                             "type": "boolean",
@@ -97,7 +97,7 @@ def register_send_service_hook_specs(registry: HookSpecRegistry) -> List[HookSpe
                     required=[
                         "message",
                         "stream_id",
-                        "display_message",
+                        "processed_plain_text",
                         "typing",
                         "set_reply",
                         "storage_message",
@@ -494,7 +494,7 @@ def _build_outbound_log_preview(message: SessionMessage, max_length: int = 160) 
     Returns:
         str: 适用于日志展示的消息摘要。
     """
-    preview_text = (message.processed_plain_text or message.display_message or "").strip()
+    preview_text = (message.processed_plain_text or "").strip()
     if not preview_text:
         preview_text = f"[{_describe_message_sequence(message.raw_message)}]"
 
@@ -507,7 +507,7 @@ def _build_outbound_log_preview(message: SessionMessage, max_length: int = 160) 
 def _build_outbound_session_message(
     message_sequence: MessageSequence,
     stream_id: str,
-    display_message: str = "",
+    processed_plain_text: str = "",
     reply_message: Optional[MaiMessage] = None,
     selected_expressions: Optional[List[int]] = None,
 ) -> Optional[SessionMessage]:
@@ -516,7 +516,7 @@ def _build_outbound_session_message(
     Args:
         message_sequence: 待发送的消息组件序列。
         stream_id: 目标会话 ID。
-        display_message: 用于界面展示的文本内容。
+        processed_plain_text: 可选的预处理纯文本内容。
         reply_message: 被回复的锚点消息。
         selected_expressions: 可选的表情候选索引列表。
 
@@ -571,7 +571,7 @@ def _build_outbound_session_message(
     )
     outbound_message.raw_message = _clone_message_sequence(message_sequence)
     outbound_message.session_id = target_stream.session_id
-    outbound_message.display_message = display_message
+    outbound_message.processed_plain_text = processed_plain_text.strip() or _build_processed_plain_text(outbound_message)
     outbound_message.reply_to = anchor_message.message_id if anchor_message is not None else None
     message_flags = _detect_outbound_message_flags(outbound_message.raw_message)
     outbound_message.is_emoji = message_flags["is_emoji"]
@@ -619,7 +619,8 @@ async def _prepare_message_for_platform_io(
             raise ValueError("set_reply=True 时必须提供 reply_message_id")
         _ensure_reply_component(message, reply_message_id)
 
-    message.processed_plain_text = _build_processed_plain_text(message)
+    if set_reply or not message.processed_plain_text:
+        message.processed_plain_text = _build_processed_plain_text(message)
     if typing:
         typing_time = calculate_typing_time(
             input_string=message.processed_plain_text or "",
@@ -935,7 +936,7 @@ async def send_session_message(
 async def _send_to_target(
     message_sequence: MessageSequence,
     stream_id: str,
-    display_message: str = "",
+    processed_plain_text: str = "",
     typing: bool = False,
     set_reply: bool = False,
     reply_message: Optional[MaiMessage] = None,
@@ -950,7 +951,7 @@ async def _send_to_target(
         await _send_to_target_with_message(
             message_sequence=message_sequence,
             stream_id=stream_id,
-            display_message=display_message,
+            processed_plain_text=processed_plain_text,
             typing=typing,
             set_reply=set_reply,
             reply_message=reply_message,
@@ -967,7 +968,7 @@ async def _send_to_target(
 async def _send_to_target_with_message(
     message_sequence: MessageSequence,
     stream_id: str,
-    display_message: str = "",
+    processed_plain_text: str = "",
     typing: bool = False,
     set_reply: bool = False,
     reply_message: Optional[MaiMessage] = None,
@@ -982,7 +983,7 @@ async def _send_to_target_with_message(
     Args:
         message_sequence: 待发送的消息组件序列。
         stream_id: 目标会话 ID。
-        display_message: 用于界面展示的文本内容。
+        processed_plain_text: 可选的预处理纯文本内容。
         typing: 是否显示输入中状态。
         set_reply: 是否在发送时附带引用回复。
         reply_message: 被回复的消息对象。
@@ -1004,7 +1005,7 @@ async def _send_to_target_with_message(
         outbound_message = _build_outbound_session_message(
             message_sequence=message_sequence,
             stream_id=stream_id,
-            display_message=display_message,
+            processed_plain_text=processed_plain_text,
             reply_message=reply_message,
             selected_expressions=selected_expressions,
         )
@@ -1015,7 +1016,7 @@ async def _send_to_target_with_message(
             "send_service.after_build_message",
             outbound_message,
             stream_id=stream_id,
-            display_message=display_message,
+            processed_plain_text=processed_plain_text,
             typing=typing,
             set_reply=set_reply,
             storage_message=storage_message,
@@ -1068,7 +1069,6 @@ async def text_to_stream_with_message(
     return await _send_to_target_with_message(
         message_sequence=MessageSequence(components=[TextComponent(text=text)]),
         stream_id=stream_id,
-        display_message="",
         typing=typing,
         set_reply=set_reply,
         reply_message=reply_message,
@@ -1133,7 +1133,6 @@ async def emoji_to_stream_with_message(
     return await _send_to_target_with_message(
         message_sequence=_build_message_sequence_from_custom_message("emoji", emoji_base64),
         stream_id=stream_id,
-        display_message="",
         typing=False,
         storage_message=storage_message,
         set_reply=set_reply,
@@ -1202,7 +1201,6 @@ async def image_to_stream(
     return await _send_to_target(
         message_sequence=_build_message_sequence_from_custom_message("image", image_base64),
         stream_id=stream_id,
-        display_message="",
         typing=False,
         storage_message=storage_message,
         set_reply=set_reply,
@@ -1216,7 +1214,7 @@ async def custom_to_stream(
     message_type: str,
     content: str | Dict[str, Any],
     stream_id: str,
-    display_message: str = "",
+    processed_plain_text: str = "",
     typing: bool = False,
     reply_message: Optional[MaiMessage] = None,
     set_reply: bool = False,
@@ -1231,7 +1229,7 @@ async def custom_to_stream(
         message_type: 自定义消息类型。
         content: 自定义消息内容。
         stream_id: 目标会话 ID。
-        display_message: 用于展示的文本内容。
+        processed_plain_text: 可选的预处理纯文本内容。
         typing: 是否显示输入中状态。
         reply_message: 被回复的消息对象。
         set_reply: 是否附带引用回复。
@@ -1244,7 +1242,7 @@ async def custom_to_stream(
     return await _send_to_target(
         message_sequence=_build_message_sequence_from_custom_message(message_type, content),
         stream_id=stream_id,
-        display_message=display_message,
+        processed_plain_text=processed_plain_text,
         typing=typing,
         reply_message=reply_message,
         set_reply=set_reply,
@@ -1258,7 +1256,7 @@ async def custom_to_stream(
 async def custom_reply_set_to_stream(
     reply_set: MessageSequence,
     stream_id: str,
-    display_message: str = "",
+    processed_plain_text: str = "",
     typing: bool = False,
     reply_message: Optional[MaiMessage] = None,
     set_reply: bool = False,
@@ -1272,7 +1270,7 @@ async def custom_reply_set_to_stream(
     Args:
         reply_set: 待发送的消息组件序列。
         stream_id: 目标会话 ID。
-        display_message: 用于展示的文本内容。
+        processed_plain_text: 可选的预处理纯文本内容。
         typing: 是否显示输入中状态。
         reply_message: 被回复的消息对象。
         set_reply: 是否附带引用回复。
@@ -1285,7 +1283,7 @@ async def custom_reply_set_to_stream(
     return await _send_to_target(
         message_sequence=reply_set,
         stream_id=stream_id,
-        display_message=display_message,
+        processed_plain_text=processed_plain_text,
         typing=typing,
         reply_message=reply_message,
         set_reply=set_reply,

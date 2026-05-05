@@ -8,12 +8,14 @@ from .registry import MigrationRegistry
 from .resolver import BaseSchemaVersionDetector, SchemaVersionResolver
 from .schema import SQLiteSchemaInspector
 from .v2_to_v3 import migrate_v2_to_v3
+from .v3_to_v4 import migrate_v3_to_v4
 from .version_store import SQLiteUserVersionStore
 
 EMPTY_SCHEMA_VERSION = 0
 LEGACY_V1_SCHEMA_VERSION = 1
 V2_SCHEMA_VERSION = 2
-LATEST_SCHEMA_VERSION = 3
+V3_SCHEMA_VERSION = 3
+LATEST_SCHEMA_VERSION = 4
 
 _LEGACY_V1_EXCLUSIVE_TABLES = (
     "chat_streams",
@@ -78,7 +80,44 @@ class LatestSchemaVersionDetector(BaseSchemaVersionDetector):
             return None
         if not snapshot.has_column("person_info", "user_nickname"):
             return None
+        if snapshot.has_column("mai_messages", "display_message"):
+            return None
         return LATEST_SCHEMA_VERSION
+
+
+class V3SchemaVersionDetector(BaseSchemaVersionDetector):
+    """v3 schema 结构探测器。"""
+
+    @property
+    def name(self) -> str:
+        return "v3_schema_detector"
+
+    def detect_version(self, snapshot: DatabaseSchemaSnapshot) -> Optional[int]:
+        """检测数据库是否为 v3 结构。"""
+
+        if any(snapshot.has_table(table_name) for table_name in _LEGACY_V1_EXCLUSIVE_TABLES):
+            return None
+        if not all(snapshot.has_table(table_name) for table_name in _COMMON_MARKER_TABLES):
+            return None
+        if snapshot.has_table("action_records"):
+            return None
+        if snapshot.has_table("thinking_questions"):
+            return None
+        if snapshot.has_column("images", "emotion"):
+            return None
+        if not snapshot.has_column("images", "image_hash"):
+            return None
+        if not snapshot.has_column("images", "full_path"):
+            return None
+        if not snapshot.has_column("images", "image_type"):
+            return None
+        if not snapshot.has_column("chat_history", "session_id"):
+            return None
+        if not snapshot.has_column("person_info", "user_nickname"):
+            return None
+        if not snapshot.has_column("mai_messages", "display_message"):
+            return None
+        return V3_SCHEMA_VERSION
 
 
 class V2SchemaVersionDetector(BaseSchemaVersionDetector):
@@ -174,6 +213,7 @@ def build_default_schema_version_detectors() -> List[BaseSchemaVersionDetector]:
 
     return [
         LatestSchemaVersionDetector(),
+        V3SchemaVersionDetector(),
         V2SchemaVersionDetector(),
         LegacyV1SchemaDetector(),
     ]
@@ -211,10 +251,17 @@ def build_default_migration_registry() -> MigrationRegistry:
             ),
             MigrationStep(
                 version_from=V2_SCHEMA_VERSION,
-                version_to=LATEST_SCHEMA_VERSION,
+                version_to=V3_SCHEMA_VERSION,
                 name="v2_to_v3",
                 description="移除废弃表，并将 emoji 标签统一收敛到 description 字段。",
                 handler=migrate_v2_to_v3,
+            ),
+            MigrationStep(
+                version_from=V3_SCHEMA_VERSION,
+                version_to=LATEST_SCHEMA_VERSION,
+                name="v3_to_v4",
+                description="移除 mai_messages.display_message 弃用列。",
+                handler=migrate_v3_to_v4,
             ),
         ]
     )

@@ -296,11 +296,13 @@ class RuntimeDataCapabilityMixin:
             return {"success": False, "error": str(e)}
 
     @staticmethod
-    def _serialize_messages(messages: list) -> List[Any]:
+    def _serialize_messages(messages: list, include_binary_data: bool = True) -> List[Any]:
         result: List[Any] = []
         for msg in messages:
             if all(hasattr(msg, attr) for attr in ("message_id", "timestamp", "platform", "message_info", "raw_message")):
-                result.append(dict(PluginMessageUtils._session_message_to_dict(msg)))
+                result.append(
+                    dict(PluginMessageUtils._session_message_to_dict(msg, include_binary_data=include_binary_data))
+                )
             elif hasattr(msg, "model_dump"):
                 result.append(msg.model_dump())
             elif hasattr(msg, "__dict__"):
@@ -321,7 +323,12 @@ class RuntimeDataCapabilityMixin:
                 message_id=message_id,
                 chat_id=str(args.get("chat_id") or args.get("stream_id") or "").strip() or None,
             )
-            serialized_message = self._serialize_messages([message])[0] if message is not None else None
+            include_binary_data = bool(args.get("include_binary_data", False))
+            serialized_message = (
+                self._serialize_messages([message], include_binary_data=include_binary_data)[0]
+                if message is not None
+                else None
+            )
             return {"success": True, "message": serialized_message}
         except Exception as e:
             logger.error(f"[cap.message.get_by_id] 执行失败: {e}", exc_info=True)
@@ -338,7 +345,13 @@ class RuntimeDataCapabilityMixin:
                 limit_mode=args.get("limit_mode", "latest"),
                 filter_mai=args.get("filter_mai", False),
             )
-            return {"success": True, "messages": self._serialize_messages(messages)}
+            return {
+                "success": True,
+                "messages": self._serialize_messages(
+                    messages,
+                    include_binary_data=bool(args.get("include_binary_data", False)),
+                ),
+            }
         except Exception as e:
             logger.error(f"[cap.message.get_by_time] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
@@ -360,7 +373,13 @@ class RuntimeDataCapabilityMixin:
                 filter_mai=args.get("filter_mai", False),
                 filter_command=args.get("filter_command", False),
             )
-            return {"success": True, "messages": self._serialize_messages(messages)}
+            return {
+                "success": True,
+                "messages": self._serialize_messages(
+                    messages,
+                    include_binary_data=bool(args.get("include_binary_data", False)),
+                ),
+            }
         except Exception as e:
             logger.error(f"[cap.message.get_by_time_in_chat] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
@@ -385,7 +404,13 @@ class RuntimeDataCapabilityMixin:
                 limit_mode=args.get("limit_mode", "latest"),
                 filter_mai=args.get("filter_mai", False),
             )
-            return {"success": True, "messages": self._serialize_messages(messages)}
+            return {
+                "success": True,
+                "messages": self._serialize_messages(
+                    messages,
+                    include_binary_data=bool(args.get("include_binary_data", False)),
+                ),
+            }
         except Exception as e:
             logger.error(f"[cap.message.get_recent] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}

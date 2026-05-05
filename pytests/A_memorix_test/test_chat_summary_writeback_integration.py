@@ -193,7 +193,6 @@ def _build_incoming_message(
     message.is_command = False
     message.is_notify = False
     message.processed_plain_text = text
-    message.display_message = text
     message.initialized = True
     return message
 

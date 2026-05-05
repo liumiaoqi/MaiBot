@@ -53,7 +53,6 @@ if TYPE_CHECKING:
 logger = get_logger("maisaka_reasoning_engine")
 
 TIMING_GATE_CONTEXT_DROP_HEAD_RATIO = 0.7
-TIMING_GATE_MAX_TOKENS = 384
 TIMING_GATE_MAX_ATTEMPTS = 3
 TIMING_GATE_TOOL_NAMES = {"continue", "no_reply", "wait"}
 HISTORY_SILENT_TOOL_NAMES = {"finish"}
@@ -140,7 +139,6 @@ class MaisakaReasoningEngine:
             system_prompt=system_prompt,
             request_kind="timing_gate",
             interrupt_flag=None,
-            max_tokens=TIMING_GATE_MAX_TOKENS,
             tool_definitions=tool_definitions,
         )
 
