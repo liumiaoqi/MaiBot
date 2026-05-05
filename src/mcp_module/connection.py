@@ -208,11 +208,13 @@ class MCPConnection:
         if not self.config.url:
             raise ValueError(f"MCP 服务器 '{self.config.name}' 缺少 SSE url 配置")
 
-        self._http_client = await self._exit_stack.enter_async_context(self._build_http_client())
         read_stream, write_stream = await self._exit_stack.enter_async_context(
             sse_client(
                 url=self.config.url,
-                http_client=self._http_client,
+                headers=self.config.build_http_headers(),
+                timeout=self.config.http_timeout_seconds,
+                sse_read_timeout=self.config.read_timeout_seconds,
+                httpx_client_factory=self._build_http_client,
             )
         )
         return read_stream, write_stream
