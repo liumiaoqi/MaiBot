@@ -309,7 +309,7 @@ class MCPManager:
                         provider_type="mcp",
                         icons=[build_tool_icon(item) for item in getattr(tool, "icons", []) or []],
                         annotation=build_tool_annotation(getattr(tool, "annotations", None)),
-                        metadata={"server_name": server_name} | getattr(tool, "meta", {}),
+                        metadata={"server_name": server_name} | (getattr(tool, "meta", {}) or {}),
                     )
                 )
         return tool_specs
