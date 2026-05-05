@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 import tomlkit
 
 from src.common.logger import get_logger
+from src.common.prompt_i18n import list_prompt_templates
 from src.config.config import CONFIG_DIR, PROJECT_ROOT, Config, ModelConfig
 from src.config.config_base import AttributeData, ConfigBase
 from src.config.model_configs import (
@@ -64,6 +65,9 @@ class PromptFileInfo(BaseModel):
     name: str = Field(..., description="Prompt 文件名")
     size: int = Field(..., description="文件大小")
     modified_at: float = Field(..., description="最后修改时间戳")
+    display_name: str = Field(default="", description="Prompt 展示名称")
+    advanced: bool = Field(default=False, description="是否为高级 Prompt")
+    description: str = Field(default="", description="Prompt 描述")
 
 
 class PromptCatalogResponse(BaseModel):
@@ -213,14 +217,20 @@ async def list_prompt_files():
                 continue
 
             language = language_dir.name
+            prompt_template_infos = list_prompt_templates(locale=language, prompts_root=PROMPTS_DIR)
             prompt_files: List[PromptFileInfo] = []
             for prompt_file in sorted(language_dir.glob("*.prompt"), key=lambda item: item.name):
                 stat = prompt_file.stat()
+                template_info = prompt_template_infos.get(prompt_file.stem)
+                metadata = template_info.metadata if template_info and template_info.path == prompt_file else None
                 prompt_files.append(
                     PromptFileInfo(
                         name=prompt_file.name,
                         size=stat.st_size,
                         modified_at=stat.st_mtime,
+                        display_name=metadata.display_name if metadata else "",
+                        advanced=metadata.advanced if metadata else False,
+                        description=metadata.description if metadata else "",
                     )
                 )
 

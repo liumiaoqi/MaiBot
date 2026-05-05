@@ -87,7 +87,46 @@ def test_list_prompt_templates_prefers_locale_specific_files(tmp_path: Path) -> 
 
     prompt_templates = list_prompt_templates(prompts_root=prompts_root)
 
-    assert prompt_templates["replyer"].read_text(encoding="utf-8") == "English"
+    assert prompt_templates["replyer"].path.read_text(encoding="utf-8") == "English"
+
+
+def test_list_prompt_templates_loads_directory_metadata(tmp_path: Path) -> None:
+    prompts_root = tmp_path / "prompts"
+    write_prompt(prompts_root, "zh-CN", "replyer", "中文")
+    metadata_path = prompts_root / "zh-CN" / ".meta.toml"
+    metadata_path.write_text(
+        """
+[replyer]
+display_name = "回复器"
+advanced = true
+description = "用于生成回复的主模板"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    prompt_templates = list_prompt_templates(prompts_root=prompts_root)
+    metadata = prompt_templates["replyer"].metadata
+
+    assert metadata.display_name == "回复器"
+    assert metadata.advanced is True
+    assert metadata.description == "用于生成回复的主模板"
+
+
+def test_list_prompt_templates_loads_prompt_specific_metadata(tmp_path: Path) -> None:
+    prompts_root = tmp_path / "prompts"
+    write_prompt(prompts_root, "zh-CN", "replyer", "中文")
+    metadata_path = prompts_root / "zh-CN" / "replyer.meta.json"
+    metadata_path.write_text(
+        '{"display_name": "Replyer", "advanced": false, "description": "Prompt specific metadata"}',
+        encoding="utf-8",
+    )
+
+    prompt_templates = list_prompt_templates(prompts_root=prompts_root)
+    metadata = prompt_templates["replyer"].metadata
+
+    assert metadata.display_name == "Replyer"
+    assert metadata.advanced is False
+    assert metadata.description == "Prompt specific metadata"
 
 
 def test_list_prompt_templates_reports_duplicate_name_with_custom_root(tmp_path: Path) -> None:

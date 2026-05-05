@@ -63,27 +63,29 @@ export const BotInfoSection = React.memo(function BotInfoSection({ config, onCha
   return (
     <div className="rounded-lg border bg-card p-4 sm:p-6 space-y-6">
       <div>
-        <h3 className="text-lg font-semibold mb-4">基本信息</h3>
+        <h3 className="text-lg font-semibold mb-4">基础</h3>
 
         <div className="grid gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="platform">平台</Label>
-            <Input
-              id="platform"
-              value={config.platform}
-              onChange={(e) => onChange({ ...config, platform: e.target.value })}
-              placeholder="qq"
-            />
-          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-2">
+              <Label htmlFor="platform">平台</Label>
+              <Input
+                id="platform"
+                value={config.platform}
+                onChange={(e) => onChange({ ...config, platform: e.target.value })}
+                placeholder="qq"
+              />
+            </div>
 
-          <div className="grid gap-2">
-            <Label htmlFor="qq_account">QQ账号</Label>
-            <Input
-              id="qq_account"
-              value={config.qq_account}
-              onChange={(e) => onChange({ ...config, qq_account: e.target.value })}
-              placeholder="123456789"
-            />
+            <div className="grid gap-2">
+              <Label htmlFor="qq_account">QQ账号</Label>
+              <Input
+                id="qq_account"
+                value={config.qq_account}
+                onChange={(e) => onChange({ ...config, qq_account: e.target.value })}
+                placeholder="123456789"
+              />
+            </div>
           </div>
 
           <div className="grid gap-2">

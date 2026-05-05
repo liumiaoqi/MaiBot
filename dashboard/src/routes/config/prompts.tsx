@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { FileText, Loader2, RefreshCw, Save, Search } from 'lucide-react'
+import { FileText, Loader2, RefreshCw, Save, Search, SlidersHorizontal } from 'lucide-react'
 
 import { CodeEditor } from '@/components/CodeEditor'
 import { Badge } from '@/components/ui/badge'
@@ -36,6 +36,7 @@ export function PromptManagementPage() {
   const [loadingFile, setLoadingFile] = useState(false)
   const [saving, setSaving] = useState(false)
   const [query, setQuery] = useState('')
+  const [showAdvancedPrompts, setShowAdvancedPrompts] = useState(false)
 
   const hasUnsavedChanges = content !== savedContent
 
@@ -44,13 +45,30 @@ export function PromptManagementPage() {
     return catalog.files[language] ?? []
   }, [catalog, language])
 
+  const visiblePromptFiles = useMemo<PromptFileInfo[]>(() => {
+    return showAdvancedPrompts ? promptFiles : promptFiles.filter((file) => !file.advanced)
+  }, [promptFiles, showAdvancedPrompts])
+
   const filteredFiles = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
-    if (!normalizedQuery) return promptFiles
-    return promptFiles.filter((file) => file.name.toLowerCase().includes(normalizedQuery))
-  }, [promptFiles, query])
+    if (!normalizedQuery) return visiblePromptFiles
+    return visiblePromptFiles.filter((file) => {
+      const searchableText = [
+        file.name,
+        file.display_name,
+        file.description,
+      ].join(' ').toLowerCase()
+      return searchableText.includes(normalizedQuery)
+    })
+  }, [visiblePromptFiles, query])
 
   const selectedFile = promptFiles.find((file) => file.name === filename)
+  useEffect(() => {
+    if (!filename || showAdvancedPrompts) return
+    const currentFile = promptFiles.find((file) => file.name === filename)
+    if (!currentFile?.advanced) return
+    setFilename(visiblePromptFiles[0]?.name ?? '')
+  }, [filename, promptFiles, showAdvancedPrompts, visiblePromptFiles])
 
   const loadCatalog = useCallback(async () => {
     try {
@@ -70,7 +88,10 @@ export function PromptManagementPage() {
       setLanguage(nextLanguage)
 
       const nextFiles = nextLanguage ? result.data.files[nextLanguage] ?? [] : []
-      setFilename((current) => nextFiles.some((file) => file.name === current) ? current : nextFiles[0]?.name ?? '')
+      const nextBasicFiles = nextFiles.filter((file) => !file.advanced)
+      setFilename((current) =>
+        nextFiles.some((file) => file.name === current) ? current : nextBasicFiles[0]?.name ?? nextFiles[0]?.name ?? ''
+      )
     } catch (error) {
       toast({
         title: '加载 Prompt 目录失败',
@@ -130,7 +151,8 @@ export function PromptManagementPage() {
     setLanguage(nextLanguage)
     setQuery('')
     const nextFiles = catalog?.files[nextLanguage] ?? []
-    setFilename(nextFiles[0]?.name ?? '')
+    const nextVisibleFiles = showAdvancedPrompts ? nextFiles : nextFiles.filter((file) => !file.advanced)
+    setFilename(nextVisibleFiles[0]?.name ?? '')
   }
 
   const handleSave = async () => {
@@ -181,6 +203,14 @@ export function PromptManagementPage() {
             <RefreshCw className={cn('mr-2 h-4 w-4', loadingCatalog && 'animate-spin')} />
             刷新
           </Button>
+          <Button
+            variant={showAdvancedPrompts ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setShowAdvancedPrompts((current) => !current)}
+          >
+            <SlidersHorizontal className="mr-2 h-4 w-4" />
+            {showAdvancedPrompts ? '隐藏高级' : '显示高级'}
+          </Button>
           <Button size="sm" onClick={handleSave} disabled={!hasUnsavedChanges || saving || loadingFile || !filename}>
             <Save className="mr-2 h-4 w-4" />
             {saving ? '保存中' : hasUnsavedChanges ? '保存' : '已保存'}
@@ -194,7 +224,7 @@ export function PromptManagementPage() {
             <CardTitle className="flex items-center gap-2 text-sm">
               <FileText className="h-4 w-4" />
               Prompt 文件
-              <Badge variant="secondary" className="ml-auto">{promptFiles.length}</Badge>
+              <Badge variant="secondary" className="ml-auto">{filteredFiles.length}</Badge>
             </CardTitle>
             <div className="relative">
               <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -226,8 +256,16 @@ export function PromptManagementPage() {
                       filename === file.name ? 'bg-accent text-accent-foreground' : 'text-muted-foreground',
                     )}
                   >
-                    <div className="truncate font-medium" title={file.name}>{file.name}</div>
-                    <div className="mt-0.5 text-xs text-muted-foreground">{formatFileSize(file.size)}</div>
+                    <div className="flex items-center gap-2">
+                      <div className="truncate font-medium" title={file.display_name || file.name}>
+                        {file.display_name || file.name}
+                      </div>
+                      {file.advanced && <Badge variant="outline" className="shrink-0 text-[10px]">高级</Badge>}
+                    </div>
+                    <div className="mt-0.5 truncate text-xs text-muted-foreground">{file.name} · {formatFileSize(file.size)}</div>
+                    {file.description && (
+                      <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{file.description}</div>
+                    )}
                   </button>
                 ))
               ) : (
@@ -240,12 +278,18 @@ export function PromptManagementPage() {
         <Card className="min-h-0 overflow-hidden">
           <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0 pb-3">
             <div className="min-w-0">
-              <CardTitle className="truncate text-sm">{filename || '未选择文件'}</CardTitle>
+              <CardTitle className="flex items-center gap-2 truncate text-sm">
+                <span className="truncate">{selectedFile?.display_name || filename || '未选择文件'}</span>
+                {selectedFile?.advanced && <Badge variant="outline" className="shrink-0">高级</Badge>}
+              </CardTitle>
               <p className="mt-1 text-xs text-muted-foreground">
                 {language}
                 {selectedFile ? ` · ${formatFileSize(selectedFile.size)}` : ''}
                 {hasUnsavedChanges ? ' · 有未保存修改' : ''}
               </p>
+              {selectedFile?.description && (
+                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{selectedFile.description}</p>
+              )}
             </div>
           </CardHeader>
           <CardContent className="min-h-0 p-0">

@@ -178,7 +178,6 @@ def _install_stub_modules(monkeypatch):
     class _EmojiConfig:
         max_reg_num = 20
         content_filtration = False
-        filtration_prompt = ""
         steal_emoji = False
         do_replace = False
         check_interval = 1
@@ -1956,7 +1955,6 @@ async def test_build_emoji_description_content_filtration_reject(monkeypatch):
     logger = emoji_manager_new.logger
 
     emoji_manager_new.global_config.emoji.content_filtration = True
-    emoji_manager_new.global_config.emoji.filtration_prompt = "rule"
 
     def _read_bytes(_path):
         return b""
@@ -1994,13 +1992,15 @@ async def test_build_emoji_description_content_filtration_pass(monkeypatch):
     logger = emoji_manager_new.logger
 
     emoji_manager_new.global_config.emoji.content_filtration = True
-    emoji_manager_new.global_config.emoji.filtration_prompt = "rule"
 
     def _read_bytes(_path):
         return b""
 
-    async def _vlm_response(prompt, *_args, **_kwargs):
-        if "rule" in str(prompt):
+    call_count = {"n": 0}
+
+    async def _vlm_response(*_args, **_kwargs):
+        call_count["n"] += 1
+        if call_count["n"] == 2:
             return "是", None
         return "desc", None
 

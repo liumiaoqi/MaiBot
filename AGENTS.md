@@ -44,6 +44,9 @@
 # 关于 A_memorix 修改
 如果修改涉及 `src/A_memorix`，请先阅读 `src/A_memorix/MODIFICATION_POLICY.md`。
 
+# prompt模板、
+涉及对prompt模板的修改，要同步修改英文和日文的文件，对齐到中文
+
 默认原则：
 1. `src/A_memorix` 的实现层改动应优先遵守 `src/A_memorix/MODIFICATION_POLICY.md` 中的归属约束。
 2. 不要提交无边界的 `ruff`、格式化、导入整理或大面积实现整理。

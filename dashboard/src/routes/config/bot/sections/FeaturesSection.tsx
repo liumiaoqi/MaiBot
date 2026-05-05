@@ -311,23 +311,6 @@ export const FeaturesSection = React.memo(function FeaturesSection({
                 启用表情包过滤
               </Label>
             </div>
-
-            {emojiConfig.content_filtration && (
-              <div className="grid gap-2 pl-6 border-l-2 border-primary/20">
-                <Label htmlFor="filtration_prompt">过滤要求</Label>
-                <Input
-                  id="filtration_prompt"
-                  value={emojiConfig.filtration_prompt}
-                  onChange={(e) =>
-                    onEmojiChange({ ...emojiConfig, filtration_prompt: e.target.value })
-                  }
-                  placeholder="符合公序良俗"
-                />
-                <p className="text-xs text-muted-foreground">
-                  只有符合此要求的表情包才会被保存
-                </p>
-              </div>
-            )}
           </div>
         </div>
       </div>

@@ -48,11 +48,10 @@ const TOAST_DISPLAY_DELAY = 500
 /** Tab 标签页的首选排列顺序 (host field name) */
 const TAB_ORDER = [
   'bot',
-  'personality',
   'chat',
   'expression',
-  'visual',
   'a_memorix',
+  'visual',
   'message_receive',
   'emoji',
   'voice',
@@ -65,10 +64,8 @@ const TAB_ORDER = [
 /** 默认展示的主配置栏目 */
 const DEFAULT_VISIBLE_TAB_IDS = new Set([
   'bot',
-  'personality',
   'chat',
   'expression',
-  'visual',
   'a_memorix',
 ])
 
