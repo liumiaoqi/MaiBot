@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Loader2, Play, RefreshCw, RotateCcw, Search } from 'lucide-react'
+import { ChevronDown, Loader2, Play, RefreshCw, RotateCcw, Search } from 'lucide-react'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -88,7 +89,11 @@ export function MemoryEpisodeManager() {
   const { toast } = useToast()
   const [query, setQuery] = useState('')
   const [source, setSource] = useState('')
+  const [platform, setPlatform] = useState('')
+  const [userId, setUserId] = useState('')
   const [personId, setPersonId] = useState('')
+  const [showAdvancedPersonId, setShowAdvancedPersonId] = useState(false)
+  const [showRawEpisodePayload, setShowRawEpisodePayload] = useState(false)
   const [timeStart, setTimeStart] = useState('')
   const [timeEnd, setTimeEnd] = useState('')
   const [limit, setLimit] = useState('20')
@@ -118,11 +123,14 @@ export function MemoryEpisodeManager() {
   const loadEpisodes = useCallback(async () => {
     setLoading(true)
     try {
+      const directPersonId = showAdvancedPersonId ? personId.trim() : ''
       const [listPayload] = await Promise.all([
         getMemoryEpisodes({
-          query,
-          source,
-          personId,
+          query: query.trim(),
+          source: source.trim(),
+          platform: platform.trim(),
+          userId: userId.trim(),
+          personId: directPersonId,
           limit: parsePositiveInt(limit, 20),
           timeStart: parseOptionalNumber(timeStart),
           timeEnd: parseOptionalNumber(timeEnd),
@@ -143,7 +151,7 @@ export function MemoryEpisodeManager() {
     } finally {
       setLoading(false)
     }
-  }, [limit, loadStatus, personId, query, selectedId, source, timeEnd, timeStart, toast])
+  }, [limit, loadStatus, personId, platform, query, selectedId, showAdvancedPersonId, source, timeEnd, timeStart, toast, userId])
 
   const loadDetail = useCallback(async (episodeId: string) => {
     if (!episodeId) {
@@ -260,10 +268,23 @@ export function MemoryEpisodeManager() {
               <Search className="h-4 w-4" />
               Episode 查询
             </CardTitle>
-            <CardDescription>按来源、人物和时间范围查看情节记忆构建结果。</CardDescription>
+            <CardDescription>按平台账号、来源和时间范围查看情节记忆构建结果；person_id 查询放在高级入口。</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="episode-platform">平台</Label>
+                <Input
+                  id="episode-platform"
+                  value={platform}
+                  onChange={(event) => setPlatform(event.target.value)}
+                  placeholder="例如 qq、telegram、webui"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="episode-user-id">用户账号</Label>
+                <Input id="episode-user-id" value={userId} onChange={(event) => setUserId(event.target.value)} placeholder="输入平台侧 user_id" />
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="episode-query">关键词</Label>
                 <Input id="episode-query" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索摘要或内容" />
@@ -271,10 +292,6 @@ export function MemoryEpisodeManager() {
               <div className="space-y-2">
                 <Label htmlFor="episode-source">来源</Label>
                 <Input id="episode-source" value={source} onChange={(event) => setSource(event.target.value)} placeholder="chat_summary:..." />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="episode-person">人物 ID</Label>
-                <Input id="episode-person" value={personId} onChange={(event) => setPersonId(event.target.value)} placeholder="person_id" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="episode-limit">数量</Label>
@@ -289,6 +306,25 @@ export function MemoryEpisodeManager() {
                 <Input id="episode-time-end" value={timeEnd} onChange={(event) => setTimeEnd(event.target.value)} placeholder="可选" />
               </div>
             </div>
+
+            <Collapsible open={showAdvancedPersonId} onOpenChange={setShowAdvancedPersonId} className="rounded-lg border bg-muted/10">
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" className="flex h-10 w-full justify-between px-3">
+                  <span>高级查询</span>
+                  <ChevronDown className={cn('h-4 w-4 transition-transform', showAdvancedPersonId && 'rotate-180')} />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-2 border-t px-3 py-3">
+                <Label htmlFor="episode-person">person_id</Label>
+                <Input
+                  id="episode-person"
+                  value={personId}
+                  onChange={(event) => setPersonId(event.target.value)}
+                  placeholder="调试或后台管理时直接输入"
+                />
+              </CollapsibleContent>
+            </Collapsible>
+
             <Button onClick={() => void loadEpisodes()} disabled={loading}>
               <RefreshCw className={cn('mr-2 h-4 w-4', loading && 'animate-spin')} />
               刷新 Episode
@@ -314,6 +350,12 @@ export function MemoryEpisodeManager() {
                       >
                         <TableCell>
                           <div className="max-w-[280px] truncate font-medium">{getEpisodeTitle(item)}</div>
+                          {item.person_name || item.person_id ? (
+                            <div className="max-w-[280px] truncate text-xs text-muted-foreground">
+                              {String(item.person_name || item.person_id)}
+                              {item.person_name && item.person_id ? <span className="font-mono"> · {String(item.person_id)}</span> : null}
+                            </div>
+                          ) : null}
                           <div className="font-mono text-[11px] text-muted-foreground break-all">{episodeId || '-'}</div>
                         </TableCell>
                         <TableCell className="max-w-[180px] truncate">{String(item.source ?? '-')}</TableCell>
@@ -350,12 +392,23 @@ export function MemoryEpisodeManager() {
                   <div className="flex flex-wrap gap-2">
                     <Badge variant="outline">{getEpisodeId(selectedEpisode) || '无 ID'}</Badge>
                     {selectedEpisode.source ? <Badge variant="secondary">{String(selectedEpisode.source)}</Badge> : null}
-                    {selectedEpisode.person_id ? <Badge>{String(selectedEpisode.person_id)}</Badge> : null}
+                    {selectedEpisode.person_name ? <Badge>{String(selectedEpisode.person_name)}</Badge> : null}
+                    {selectedEpisode.person_id ? <Badge variant="outline">{String(selectedEpisode.person_id)}</Badge> : null}
                   </div>
                   <Textarea value={String(selectedEpisode.summary ?? selectedEpisode.content ?? '')} readOnly className="min-h-[120px]" />
-                  <pre className="max-h-56 overflow-auto rounded-lg border bg-muted/20 p-3 text-xs break-words whitespace-pre-wrap">
-                    {JSON.stringify(selectedEpisode, null, 2)}
-                  </pre>
+                  <Collapsible open={showRawEpisodePayload} onOpenChange={setShowRawEpisodePayload} className="rounded-lg border bg-muted/10">
+                    <CollapsibleTrigger asChild>
+                      <Button variant="ghost" className="flex h-10 w-full justify-between px-3">
+                        <span>原始响应 JSON</span>
+                        <ChevronDown className={cn('h-4 w-4 transition-transform', showRawEpisodePayload && 'rotate-180')} />
+                      </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="border-t">
+                      <pre className="max-h-56 overflow-auto p-3 text-xs break-words whitespace-pre-wrap">
+                        {JSON.stringify(selectedEpisode, null, 2)}
+                      </pre>
+                    </CollapsibleContent>
+                  </Collapsible>
                   <div className="space-y-2">
                     <div className="text-sm font-medium">关联段落</div>
                     {selectedEpisodeParagraphs.length > 0 ? (
@@ -386,9 +439,9 @@ export function MemoryEpisodeManager() {
                 <RotateCcw className="h-4 w-4" />
                 Episode 运维
               </CardTitle>
-              <CardDescription>重建来源或处理待生成队列。</CardDescription>
+              <CardDescription>重新生成指定来源的情景记忆，或处理后台尚未生成的 Episode 任务。</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-5">
               {failedItems.length > 0 ? (
                 <Alert>
                   <AlertDescription>
@@ -396,37 +449,65 @@ export function MemoryEpisodeManager() {
                   </AlertDescription>
                 </Alert>
               ) : null}
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="episode-rebuild-source">单个来源</Label>
-                  <Input id="episode-rebuild-source" value={rebuildSource} onChange={(event) => setRebuildSource(event.target.value)} />
+
+              <div className="space-y-3 rounded-lg border bg-muted/10 p-3">
+                <div>
+                  <div className="text-sm font-medium">重新生成来源 Episode</div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    适用于导入内容变化、反馈纠错后，需要用来源下的段落替换旧 Episode 的场景。
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="episode-rebuild-sources">多个来源（逗号分隔）</Label>
-                  <Input id="episode-rebuild-sources" value={rebuildSources} onChange={(event) => setRebuildSources(event.target.value)} />
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="episode-rebuild-source">来源 ID</Label>
+                    <Input
+                      id="episode-rebuild-source"
+                      value={rebuildSource}
+                      onChange={(event) => setRebuildSource(event.target.value)}
+                      placeholder="例如 chat_summary:test-webui:coffee"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="episode-rebuild-sources">多个来源 ID</Label>
+                    <Input
+                      id="episode-rebuild-sources"
+                      value={rebuildSources}
+                      onChange={(event) => setRebuildSources(event.target.value)}
+                      placeholder="用英文逗号分隔多个来源"
+                    />
+                  </div>
                 </div>
-              </div>
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={rebuildAll} onChange={(event) => setRebuildAll(event.target.checked)} />
-                重建全部可用来源
-              </label>
-              <Button onClick={() => void submitRebuild()} disabled={actionLoading}>
-                <RotateCcw className="mr-2 h-4 w-4" />
-                重建 Episode
-              </Button>
-              <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
-                <div className="space-y-2">
-                  <Label htmlFor="episode-pending-limit">处理数量</Label>
-                  <Input id="episode-pending-limit" type="number" value={pendingLimit} onChange={(event) => setPendingLimit(event.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="episode-pending-retry">最大重试</Label>
-                  <Input id="episode-pending-retry" type="number" value={pendingMaxRetry} onChange={(event) => setPendingMaxRetry(event.target.value)} />
-                </div>
-                <Button variant="outline" onClick={() => void submitProcessPending()} disabled={actionLoading}>
-                  <Play className="mr-2 h-4 w-4" />
-                  处理 pending
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={rebuildAll} onChange={(event) => setRebuildAll(event.target.checked)} />
+                  重新生成全部可用来源
+                </label>
+                <Button onClick={() => void submitRebuild()} disabled={actionLoading}>
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                  重新生成 Episode
                 </Button>
+              </div>
+
+              <div className="space-y-3 rounded-lg border bg-muted/10 p-3">
+                <div>
+                  <div className="text-sm font-medium">处理待生成任务</div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    适用于后台已有待生成段落时，手动推进这些段落生成 Episode。
+                  </div>
+                </div>
+                <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
+                  <div className="space-y-2">
+                    <Label htmlFor="episode-pending-limit">本次处理上限</Label>
+                    <Input id="episode-pending-limit" type="number" value={pendingLimit} onChange={(event) => setPendingLimit(event.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="episode-pending-retry">失败重试上限</Label>
+                    <Input id="episode-pending-retry" type="number" value={pendingMaxRetry} onChange={(event) => setPendingMaxRetry(event.target.value)} />
+                  </div>
+                  <Button variant="outline" onClick={() => void submitProcessPending()} disabled={actionLoading}>
+                    <Play className="mr-2 h-4 w-4" />
+                    处理待生成任务
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>

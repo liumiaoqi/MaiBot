@@ -6,26 +6,104 @@ import { isElectron } from './runtime'
 async function getMemoryApiBase(): Promise<string> {
   if (isElectron()) {
     const base = await getApiBaseUrl()
-    return base ? `${base}/api/webui/memory` : '/api/webui/memory'
+    return normalizeMemoryApiBase(base)
   }
-  return import.meta.env.VITE_API_BASE_URL
-    ? `${import.meta.env.VITE_API_BASE_URL}/memory`
-    : '/api/webui/memory'
+  return normalizeMemoryApiBase(import.meta.env.VITE_API_BASE_URL)
+}
+
+function normalizeMemoryApiBase(rawBase?: string | null): string {
+  const base = String(rawBase ?? '').replace(/\/+$/, '')
+  if (!base) {
+    return '/api/webui/memory'
+  }
+  if (base.endsWith('/api/webui/memory')) {
+    return base
+  }
+  if (base.endsWith('/api/webui')) {
+    return `${base}/memory`
+  }
+  return `${base}/api/webui/memory`
+}
+
+function withMemoryRequestDefaults(init?: RequestInit): RequestInit {
+  return {
+    ...init,
+    credentials: init?.credentials ?? 'include',
+  }
+}
+
+function isHtmlResponse(rawText: string): boolean {
+  const normalizedText = rawText.trimStart().toLowerCase()
+  return normalizedText.startsWith('<!doctype') || normalizedText.startsWith('<html')
+}
+
+function formatRequestUrl(url: string): string {
+  if (typeof window === 'undefined') {
+    return url
+  }
+  try {
+    return new URL(url, window.location.href).toString()
+  } catch {
+    return url
+  }
+}
+
+function getLocalMemoryApiFallbackBases(primaryBase: string): string[] {
+  const fallbackBases: string[] = []
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      fallbackBases.push(`http://${hostname}:8001/api/webui/memory`)
+    }
+  }
+  fallbackBases.push('http://127.0.0.1:8001/api/webui/memory')
+  fallbackBases.push('http://localhost:8001/api/webui/memory')
+  return Array.from(new Set(fallbackBases)).filter((base) => base !== primaryBase)
 }
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${await getMemoryApiBase()}${path}`, init)
-  if (!response.ok) {
-    let detail = `${response.status}`
-    try {
-      const payload = await response.json()
-      detail = String(payload?.detail ?? payload?.error ?? detail)
-    } catch {
-      // ignore json parsing fallback
+  const primaryBase = await getMemoryApiBase()
+  const urls = [
+    `${primaryBase}${path}`,
+    ...getLocalMemoryApiFallbackBases(primaryBase).map((base) => `${base}${path}`),
+  ]
+  const requestInit = withMemoryRequestDefaults(init)
+
+  for (let index = 0; index < urls.length; index += 1) {
+    const url = urls[index]
+    const response = await fetch(url, requestInit)
+    const rawText = await response.text()
+    const htmlResponse = isHtmlResponse(rawText)
+    const canRetry = index < urls.length - 1
+
+    if ((htmlResponse || response.status === 404) && canRetry) {
+      continue
     }
-    throw new Error(detail)
+
+    if (!response.ok) {
+      let detail = `${response.status}`
+      try {
+        const payload = JSON.parse(rawText)
+        detail = String(payload?.detail ?? payload?.error ?? detail)
+      } catch {
+        if (htmlResponse) {
+          detail = `接口返回了前端页面，未命中后端 API 路由；当前请求：${formatRequestUrl(url)}`
+        }
+      }
+      throw new Error(detail)
+    }
+
+    try {
+      return JSON.parse(rawText) as T
+    } catch {
+      if (htmlResponse) {
+        throw new Error(`接口返回了前端页面，未命中后端 API 路由；当前请求：${formatRequestUrl(url)}`)
+      }
+      throw new Error(rawText ? '接口响应不是合法 JSON' : '接口返回了空响应')
+    }
   }
-  return response.json() as Promise<T>
+
+  throw new Error('接口请求失败')
 }
 
 export interface MemoryGraphNodePayload {
@@ -589,6 +667,7 @@ export interface MemoryEpisodeItemPayload extends Record<string, unknown> {
   content?: string
   source?: string
   person_id?: string
+  person_name?: string
   time_start?: number | null
   time_end?: number | null
   created_at?: number | null
@@ -635,6 +714,7 @@ export interface MemoryEpisodeActionPayload extends Record<string, unknown> {
 
 export interface MemoryProfileItemPayload extends Record<string, unknown> {
   person_id: string
+  person_name?: string
   profile_version?: number
   profile_text?: string
   updated_at?: number | null
@@ -845,6 +925,8 @@ export async function getMemoryEpisodes(options?: {
   limit?: number
   source?: string
   personId?: string
+  platform?: string
+  userId?: string
   timeStart?: number
   timeEnd?: number
 }): Promise<MemoryEpisodeListPayload> {
@@ -853,6 +935,8 @@ export async function getMemoryEpisodes(options?: {
     limit: String(options?.limit ?? 20),
     source: options?.source ?? '',
     person_id: options?.personId ?? '',
+    platform: options?.platform ?? '',
+    user_id: options?.userId ?? '',
   })
   if (options?.timeStart !== undefined) {
     params.set('time_start', String(options.timeStart))
@@ -896,6 +980,23 @@ export async function processMemoryEpisodePending(payload: {
 
 export async function getMemoryProfiles(limit: number = 50): Promise<MemoryProfileListPayload> {
   return requestJson<MemoryProfileListPayload>(`/profiles?limit=${limit}`)
+}
+
+export async function searchMemoryProfiles(options: {
+  personId?: string
+  personKeyword?: string
+  platform?: string
+  userId?: string
+  limit?: number
+}): Promise<MemoryProfileListPayload> {
+  const params = new URLSearchParams({
+    person_id: options.personId ?? '',
+    person_keyword: options.personKeyword ?? '',
+    platform: options.platform ?? '',
+    user_id: options.userId ?? '',
+    limit: String(options.limit ?? 50),
+  })
+  return requestJson<MemoryProfileListPayload>(`/profiles/search?${params.toString()}`)
 }
 
 export async function queryMemoryProfile(options: {

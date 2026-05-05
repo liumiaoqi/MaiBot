@@ -9,8 +9,11 @@ from typing import Any, Optional
 import tomlkit
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
+from sqlmodel import col, select
 
 from src.A_memorix.host_service import a_memorix_host_service
+from src.common.database.database import get_db_session
+from src.common.database.database_model import PersonInfo
 from src.person_info.person_info import resolve_person_id_for_memory
 from src.services.memory_service import MemorySearchResult, memory_service
 from src.webui.dependencies import require_auth
@@ -298,22 +301,49 @@ async def _episode_list(
     limit: int,
     source: str,
     person_id: str,
+    platform: str,
+    user_id: str,
     time_start: float | None,
     time_end: float | None,
 ) -> dict:
-    return await memory_service.episode_admin(
+    clean_person_id = str(person_id or "").strip()
+    if not clean_person_id and str(platform or "").strip() and str(user_id or "").strip():
+        clean_person_id = resolve_person_id_for_memory(
+            platform=str(platform or "").strip(),
+            user_id=str(user_id or "").strip(),
+            strict_known=False,
+        )
+
+    payload = await memory_service.episode_admin(
         action="list",
         query=query,
         limit=limit,
         source=source,
-        person_id=person_id,
+        person_id=clean_person_id,
         time_start=time_start,
         time_end=time_end,
     )
+    if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
+        return payload
+
+    items = []
+    for item in payload["items"]:
+        if not isinstance(item, dict):
+            items.append(item)
+            continue
+        items.append(_enrich_episode_person_name(item))
+
+    payload = dict(payload)
+    payload["items"] = items
+    return payload
 
 
 async def _episode_get(episode_id: str) -> dict:
-    return await memory_service.episode_admin(action="get", episode_id=episode_id)
+    payload = await memory_service.episode_admin(action="get", episode_id=episode_id)
+    if isinstance(payload, dict) and isinstance(payload.get("episode"), dict):
+        payload = dict(payload)
+        payload["episode"] = _enrich_episode_person_name(payload["episode"])
+    return payload
 
 
 async def _episode_rebuild(payload: EpisodeRebuildRequest) -> dict:
@@ -362,8 +392,118 @@ async def _profile_query(
     )
 
 
+def _get_person_name_for_person_id(person_id: str) -> str:
+    clean_person_id = str(person_id or "").strip()
+    if not clean_person_id:
+        return ""
+    try:
+        with get_db_session(auto_commit=False) as session:
+            statement = select(PersonInfo.person_name).where(col(PersonInfo.person_id) == clean_person_id).limit(1)
+            person_name = session.exec(statement).first()
+            return str(person_name or "").strip()
+    except Exception:
+        return ""
+
+
+def _enrich_episode_person_name(item: dict) -> dict:
+    enriched = dict(item)
+    item_person_id = str(enriched.get("person_id", "") or "").strip()
+
+    participants = enriched.get("participants")
+    if not item_person_id and isinstance(participants, list):
+        for participant in participants:
+            if isinstance(participant, dict):
+                candidate = str(participant.get("person_id", "") or participant.get("id", "") or "").strip()
+            else:
+                candidate = str(participant or "").strip()
+            if candidate:
+                item_person_id = candidate
+                break
+
+    enriched["person_id"] = item_person_id
+    enriched["person_name"] = _get_person_name_for_person_id(item_person_id)
+    return enriched
+
+
 async def _profile_list(limit: int) -> dict:
-    return await memory_service.profile_admin(action="list", limit=limit)
+    payload = await memory_service.profile_admin(action="list", limit=limit)
+    if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
+        return payload
+
+    items = []
+    for item in payload["items"]:
+        if not isinstance(item, dict):
+            items.append(item)
+            continue
+        enriched = dict(item)
+        person_id = str(enriched.get("person_id", "") or "").strip()
+        enriched["person_name"] = _get_person_name_for_person_id(person_id)
+        items.append(enriched)
+
+    payload = dict(payload)
+    payload["items"] = items
+    return payload
+
+
+async def _profile_search(
+    *,
+    person_id: str,
+    person_keyword: str,
+    platform: str,
+    user_id: str,
+    limit: int,
+) -> dict:
+    clean_person_id = str(person_id or "").strip()
+    if not clean_person_id and str(platform or "").strip() and str(user_id or "").strip():
+        clean_person_id = resolve_person_id_for_memory(
+            platform=str(platform or "").strip(),
+            user_id=str(user_id or "").strip(),
+            strict_known=False,
+        )
+
+    payload = await _profile_list(max(limit, 200))
+    if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
+        return payload
+
+    keyword = str(person_keyword or "").strip().lower()
+
+    def _matches(item: dict) -> bool:
+        if clean_person_id and str(item.get("person_id", "") or "").strip() != clean_person_id:
+            return False
+        if not keyword:
+            return True
+
+        override = item.get("manual_override")
+        override_text = ""
+        if isinstance(override, dict):
+            override_text = str(override.get("override_text", "") or override.get("text", "") or "")
+        elif isinstance(override, str):
+            override_text = override
+
+        haystack = "\n".join(
+            [
+                str(item.get("person_id", "") or ""),
+                str(item.get("person_name", "") or ""),
+                str(item.get("profile_text", "") or ""),
+                str(item.get("source_note", "") or ""),
+                override_text,
+            ]
+        ).lower()
+        return keyword in haystack
+
+    items = [item for item in payload["items"] if isinstance(item, dict) and _matches(item)]
+    items = items[:limit]
+    return {
+        "success": True,
+        "items": items,
+        "count": len(items),
+        "query": {
+            "person_id": clean_person_id,
+            "person_keyword": person_keyword,
+            "platform": platform,
+            "user_id": user_id,
+        },
+    }
 
 
 async def _profile_set_override(payload: ProfileOverrideRequest) -> dict:
@@ -813,6 +953,8 @@ async def list_memory_episodes(
     limit: int = Query(20, ge=1, le=200),
     source: str = Query(""),
     person_id: str = Query(""),
+    platform: str = Query(""),
+    user_id: str = Query(""),
     time_start: float | None = Query(None),
     time_end: float | None = Query(None),
 ):
@@ -821,6 +963,8 @@ async def list_memory_episodes(
         limit=limit,
         source=source,
         person_id=person_id,
+        platform=platform,
+        user_id=user_id,
         time_start=time_start,
         time_end=time_end,
     )
@@ -868,6 +1012,23 @@ async def query_memory_profile(
 @router.get("/profiles")
 async def list_memory_profiles(limit: int = Query(50, ge=1, le=200)):
     return await _profile_list(limit)
+
+
+@router.get("/profiles/search")
+async def search_memory_profiles(
+    person_id: str = Query(""),
+    person_keyword: str = Query(""),
+    platform: str = Query(""),
+    user_id: str = Query(""),
+    limit: int = Query(50, ge=1, le=200),
+):
+    return await _profile_search(
+        person_id=person_id,
+        person_keyword=person_keyword,
+        platform=platform,
+        user_id=user_id,
+        limit=limit,
+    )
 
 
 @router.post("/profiles/override")
@@ -1289,6 +1450,8 @@ async def compat_list_episodes(
     limit: int = Query(20, ge=1, le=200),
     source: str = Query(""),
     person_id: str = Query(""),
+    platform: str = Query(""),
+    user_id: str = Query(""),
     time_start: float | None = Query(None),
     time_end: float | None = Query(None),
 ):
@@ -1297,6 +1460,8 @@ async def compat_list_episodes(
         limit=limit,
         source=source,
         person_id=person_id,
+        platform=platform,
+        user_id=user_id,
         time_start=time_start,
         time_end=time_end,
     )
@@ -1344,6 +1509,23 @@ async def compat_profile_query(
 @compat_router.get("/person_profile/list")
 async def compat_profile_list(limit: int = Query(50, ge=1, le=200)):
     return await _profile_list(limit)
+
+
+@compat_router.get("/person_profile/search")
+async def compat_profile_search(
+    person_id: str = Query(""),
+    person_keyword: str = Query(""),
+    platform: str = Query(""),
+    user_id: str = Query(""),
+    limit: int = Query(50, ge=1, le=200),
+):
+    return await _profile_search(
+        person_id=person_id,
+        person_keyword=person_keyword,
+        platform=platform,
+        user_id=user_id,
+        limit=limit,
+    )
 
 
 @compat_router.post("/person_profile/override")

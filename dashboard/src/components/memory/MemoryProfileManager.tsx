@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Loader2, RefreshCw, Save, Search, Trash2 } from 'lucide-react'
+import { ChevronDown, Loader2, RefreshCw, Save, Search, Trash2 } from 'lucide-react'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -16,6 +17,7 @@ import {
   deleteMemoryProfileOverride,
   getMemoryProfiles,
   queryMemoryProfile,
+  searchMemoryProfiles,
   setMemoryProfileOverride,
   type MemoryProfileItemPayload,
   type MemoryProfileQueryPayload,
@@ -77,6 +79,7 @@ function resolveProfileText(queryResult: MemoryProfileQueryPayload | null, selec
 export function MemoryProfileManager() {
   const { toast } = useToast()
   const [profiles, setProfiles] = useState<MemoryProfileItemPayload[]>([])
+  const [profileListMode, setProfileListMode] = useState<'library' | 'search'>('library')
   const [selectedPersonId, setSelectedPersonId] = useState('')
   const [queryPersonId, setQueryPersonId] = useState('')
   const [queryKeyword, setQueryKeyword] = useState('')
@@ -84,6 +87,8 @@ export function MemoryProfileManager() {
   const [queryUserId, setQueryUserId] = useState('')
   const [queryLimit, setQueryLimit] = useState('12')
   const [forceRefresh, setForceRefresh] = useState(false)
+  const [showAdvancedPersonId, setShowAdvancedPersonId] = useState(false)
+  const [showRawProfilePayload, setShowRawProfilePayload] = useState(false)
   const [overrideText, setOverrideText] = useState('')
   const [queryResult, setQueryResult] = useState<MemoryProfileQueryPayload | null>(null)
   const [loading, setLoading] = useState(false)
@@ -96,6 +101,7 @@ export function MemoryProfileManager() {
     [profiles, selectedPersonId],
   )
   const profileText = resolveProfileText(queryResult, selectedProfile)
+  const selectedDisplayName = selectedProfile?.person_name || selectedPersonId || String(queryResult?.person_id ?? '未选择')
 
   const loadProfiles = useCallback(async () => {
     setLoading(true)
@@ -103,6 +109,7 @@ export function MemoryProfileManager() {
       const payload = await getMemoryProfiles(80)
       const nextItems = payload.items ?? []
       setProfiles(nextItems)
+      setProfileListMode('library')
       if (!selectedPersonId && nextItems.length > 0) {
         setSelectedPersonId(nextItems[0].person_id)
       }
@@ -127,42 +134,74 @@ export function MemoryProfileManager() {
 
   useEffect(() => {
     setOverrideText(stringifyOverride(selectedProfile?.manual_override))
-    if (selectedProfile?.person_id) {
-      setQueryPersonId(selectedProfile.person_id)
-    }
   }, [selectedProfile])
 
   const submitQuery = useCallback(async () => {
-    const hasAccountLocator = queryPlatform.trim() && queryUserId.trim()
-    if (!queryPersonId.trim() && !queryKeyword.trim() && !hasAccountLocator) {
+    const directPersonId = showAdvancedPersonId ? queryPersonId.trim() : ''
+    const cleanKeyword = queryKeyword.trim()
+    const cleanPlatform = queryPlatform.trim()
+    const cleanUserId = queryUserId.trim()
+    const hasAccountLocator = Boolean(cleanPlatform && cleanUserId)
+    if (!directPersonId && !cleanKeyword && !hasAccountLocator) {
       toast({
         title: '请输入查询条件',
-        description: 'person_id、关键词、或平台与账号至少填写一种。',
+        description: '用户账号、关键词、或高级 person_id 至少填写一种。',
         variant: 'destructive',
       })
       return
     }
     setQuerying(true)
     try {
+      if (!directPersonId && !hasAccountLocator) {
+        const searchPayload = await searchMemoryProfiles({
+          personKeyword: cleanKeyword,
+          limit: 80,
+        })
+        const nextItems = searchPayload.items ?? []
+        setProfiles(nextItems)
+        setProfileListMode('search')
+        setQueryResult(null)
+        setSelectedPersonId(nextItems[0]?.person_id ?? '')
+        toast({
+          title: '人物画像检索完成',
+          description: `命中 ${nextItems.length} 个画像。`,
+        })
+        return
+      }
+
       const payload = await queryMemoryProfile({
-        personId: queryPersonId.trim(),
-        personKeyword: queryKeyword.trim(),
-        platform: queryPlatform.trim(),
-        userId: queryUserId.trim(),
+        personId: directPersonId,
+        personKeyword: cleanKeyword,
+        platform: cleanPlatform,
+        userId: cleanUserId,
         limit: parsePositiveInt(queryLimit, 12),
         forceRefresh,
       })
+      if (payload.success === false) {
+        throw new Error(String(payload.error ?? '人物画像查询失败'))
+      }
       setQueryResult(payload)
-      const nextPersonId = String(payload.person_id ?? payload.profile?.person_id ?? queryPersonId ?? '')
+      const nextPersonId = String(payload.person_id ?? payload.profile?.person_id ?? directPersonId ?? '')
+      const searchPayload = await searchMemoryProfiles({
+        personId: nextPersonId || directPersonId,
+        personKeyword: cleanKeyword,
+        platform: cleanPlatform,
+        userId: cleanUserId,
+        limit: 80,
+      })
+      const nextItems = searchPayload.items ?? []
+      setProfiles(nextItems)
+      setProfileListMode('search')
       if (nextPersonId) {
         setSelectedPersonId(nextPersonId)
         setQueryPersonId(nextPersonId)
+      } else if (nextItems.length > 0) {
+        setSelectedPersonId(nextItems[0].person_id)
       }
       toast({
         title: '人物画像查询完成',
         description: forceRefresh ? '已请求强制刷新画像。' : '已获取画像结果。',
       })
-      await loadProfiles()
     } catch (error) {
       toast({
         title: '人物画像查询失败',
@@ -172,7 +211,7 @@ export function MemoryProfileManager() {
     } finally {
       setQuerying(false)
     }
-  }, [forceRefresh, loadProfiles, queryKeyword, queryLimit, queryPersonId, queryPlatform, queryUserId, toast])
+  }, [forceRefresh, queryKeyword, queryLimit, queryPersonId, queryPlatform, queryUserId, showAdvancedPersonId, toast])
 
   const saveOverride = useCallback(async () => {
     const personId = selectedPersonId || queryPersonId.trim()
@@ -238,18 +277,10 @@ export function MemoryProfileManager() {
             <Search className="h-4 w-4" />
             人物画像查询
           </CardTitle>
-          <CardDescription>查看最近画像快照，或按 person_id、关键词、平台账号触发查询与刷新。</CardDescription>
+          <CardDescription>按平台账号定位人物画像，可用关键词辅助检索；person_id 查询放在高级入口。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="profile-person-id">person_id</Label>
-              <Input id="profile-person-id" value={queryPersonId} onChange={(event) => setQueryPersonId(event.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="profile-keyword">人物关键词</Label>
-              <Input id="profile-keyword" value={queryKeyword} onChange={(event) => setQueryKeyword(event.target.value)} />
-            </div>
             <div className="space-y-2">
               <Label htmlFor="profile-platform">平台</Label>
               <Input
@@ -260,13 +291,17 @@ export function MemoryProfileManager() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="profile-user-id">平台账号</Label>
+              <Label htmlFor="profile-user-id">用户账号</Label>
               <Input
                 id="profile-user-id"
                 value={queryUserId}
                 onChange={(event) => setQueryUserId(event.target.value)}
                 placeholder="输入平台侧 user_id"
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="profile-keyword">人物关键词</Label>
+              <Input id="profile-keyword" value={queryKeyword} onChange={(event) => setQueryKeyword(event.target.value)} placeholder="可选" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="profile-limit">证据数量</Label>
@@ -283,6 +318,32 @@ export function MemoryProfileManager() {
               </Label>
             </div>
           </div>
+
+          <Collapsible open={showAdvancedPersonId} onOpenChange={setShowAdvancedPersonId} className="rounded-lg border bg-muted/10">
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" className="flex h-10 w-full justify-between px-3">
+                <span>高级查询</span>
+                <ChevronDown className={cn('h-4 w-4 transition-transform', showAdvancedPersonId && 'rotate-180')} />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-2 border-t px-3 py-3">
+              <Label htmlFor="profile-person-id">person_id</Label>
+              <Input
+                id="profile-person-id"
+                value={queryPersonId}
+                onChange={(event) => setQueryPersonId(event.target.value)}
+                placeholder="调试或后台管理时直接输入"
+              />
+            </CollapsibleContent>
+          </Collapsible>
+
+          {selectedPersonId || queryPersonId ? (
+            <div className="rounded-lg border bg-muted/20 px-3 py-2 text-sm">
+              <div className="text-muted-foreground">当前定位 person_id</div>
+              <div className="mt-1 break-all font-mono text-xs">{selectedPersonId || queryPersonId}</div>
+            </div>
+          ) : null}
+
           <div className="flex flex-wrap gap-2">
             <Button onClick={() => void submitQuery()} disabled={querying}>
               <Search className="mr-2 h-4 w-4" />
@@ -290,8 +351,17 @@ export function MemoryProfileManager() {
             </Button>
             <Button variant="outline" onClick={() => void loadProfiles()} disabled={loading}>
               <RefreshCw className={cn('mr-2 h-4 w-4', loading && 'animate-spin')} />
-              刷新列表
+              查看画像库
             </Button>
+          </div>
+
+          <div className="rounded-lg border bg-muted/10 px-3 py-2">
+            <div className="text-sm font-medium">{profileListMode === 'search' ? '检索结果' : '画像库'}</div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              {profileListMode === 'search'
+                ? '根据当前平台账号、关键词或 person_id 筛选出的画像候选。'
+                : '系统中已生成的最新人物画像快照，按更新时间排序。'}
+            </div>
           </div>
 
           <ScrollArea className="h-[520px] rounded-lg border">
@@ -311,7 +381,8 @@ export function MemoryProfileManager() {
                     onClick={() => setSelectedPersonId(item.person_id)}
                   >
                     <TableCell>
-                      <div className="font-medium break-all">{item.person_id}</div>
+                      <div className="font-medium break-all">{item.person_name || item.person_id}</div>
+                      {item.person_name ? <div className="mt-0.5 font-mono text-xs text-muted-foreground break-all">{item.person_id}</div> : null}
                       <div className="mt-1 flex flex-wrap gap-1">
                         {item.has_manual_override ? <Badge variant="secondary">手动 override</Badge> : null}
                         {item.source_note ? <Badge variant="outline">{item.source_note}</Badge> : null}
@@ -323,7 +394,7 @@ export function MemoryProfileManager() {
                 )) : (
                   <TableRow>
                     <TableCell colSpan={3} className="text-center text-muted-foreground">
-                      {loading ? '正在加载人物画像...' : '还没有人物画像快照'}
+                      {loading ? '正在加载人物画像...' : profileListMode === 'search' ? '没有匹配的人物画像' : '还没有人物画像快照'}
                     </TableCell>
                   </TableRow>
                 )}
@@ -353,9 +424,19 @@ export function MemoryProfileManager() {
                   {selectedProfile?.expires_at ? <Badge variant="secondary">过期时间 {formatMemoryTime(selectedProfile.expires_at)}</Badge> : null}
                 </div>
                 <Textarea value={profileText} readOnly className="min-h-[180px]" placeholder="当前没有画像文本" />
-                <pre className="max-h-72 overflow-auto rounded-lg border bg-muted/20 p-3 text-xs break-words whitespace-pre-wrap">
-                  {JSON.stringify(queryResult ?? selectedProfile ?? {}, null, 2)}
-                </pre>
+                <Collapsible open={showRawProfilePayload} onOpenChange={setShowRawProfilePayload} className="rounded-lg border bg-muted/10">
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" className="flex h-10 w-full justify-between px-3">
+                      <span>原始响应 JSON</span>
+                      <ChevronDown className={cn('h-4 w-4 transition-transform', showRawProfilePayload && 'rotate-180')} />
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="border-t">
+                    <pre className="max-h-72 overflow-auto p-3 text-xs break-words whitespace-pre-wrap">
+                      {JSON.stringify(queryResult ?? selectedProfile ?? {}, null, 2)}
+                    </pre>
+                  </CollapsibleContent>
+                </Collapsible>
               </>
             ) : (
               <div className="rounded-lg border border-dashed bg-muted/20 p-6 text-center text-sm text-muted-foreground">
@@ -376,6 +457,7 @@ export function MemoryProfileManager() {
                 <AlertDescription>请选择或输入 person_id 后再编辑 override。</AlertDescription>
               </Alert>
             ) : null}
+            {selectedDisplayName ? <div className="text-sm text-muted-foreground">当前编辑对象：{selectedDisplayName}</div> : null}
             <Textarea
               value={overrideText}
               onChange={(event) => setOverrideText(event.target.value)}

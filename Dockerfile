@@ -6,6 +6,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 WORKDIR /MaiMBot
 
 ENV MAIBOT_LEGACY_0X_UPGRADE_CONFIRMED=1
+ENV PATH="/MaiMBot/.venv/bin:${PATH}"
 
 # Copy dependency metadata
 COPY pyproject.toml uv.lock ./
@@ -13,7 +14,7 @@ COPY pyproject.toml uv.lock ./
 RUN apt-get update && apt-get install -y git
 
 # Install runtime dependencies
-RUN uv sync --frozen --no-dev --system --no-install-project
+RUN uv sync --frozen --no-dev --no-install-project
 
 # Copy project source
 COPY . .
