@@ -67,6 +67,9 @@ function ModelProviderConfigPageContent() {
   })
   const [testingProviders, setTestingProviders] = useState<Set<string>>(new Set())
   const [testResults, setTestResults] = useState<Map<string, TestConnectionResult>>(new Map())
+  const [restartNoticeVisible, setRestartNoticeVisible] = useState(
+    () => localStorage.getItem('model-provider-restart-notice-dismissed') !== 'true'
+  )
 
   const { toast } = useToast()
   const navigate = useNavigate()
@@ -75,6 +78,7 @@ function ModelProviderConfigPageContent() {
 
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const initialLoadRef = useRef(true)
+  const providersSnapshotRef = useRef<string | null>(null)
   const prevTourStepRef = useRef(tourState.stepIndex)
 
   // 注册 Tour
@@ -158,7 +162,9 @@ function ModelProviderConfigPageContent() {
         return
       }
       const config = unwrapModelConfig(result.data)
-      setProviders(Array.isArray(config.api_providers) ? config.api_providers as APIProvider[] : [])
+      const providerList = Array.isArray(config.api_providers) ? config.api_providers as APIProvider[] : []
+      setProviders(providerList)
+      providersSnapshotRef.current = JSON.stringify(providerList.map(cleanProviderData))
       setHasUnsavedChanges(false)
       initialLoadRef.current = false
     } catch (error) {
@@ -170,6 +176,11 @@ function ModelProviderConfigPageContent() {
 
   const handleRestart = async () => {
     await triggerRestart()
+  }
+
+  const dismissRestartNotice = () => {
+    localStorage.setItem('model-provider-restart-notice-dismissed', 'true')
+    setRestartNoticeVisible(false)
   }
 
   const handleSaveAndRestart = async () => {
@@ -223,6 +234,7 @@ function ModelProviderConfigPageContent() {
         setSaving(false)
         return
       }
+      providersSnapshotRef.current = JSON.stringify(cleanedProviders)
       setHasUnsavedChanges(false)
       toast({
         title: '保存成功',
@@ -348,6 +360,7 @@ function ModelProviderConfigPageContent() {
       }
 
       setProviders(deleteConfirmState.pendingProviders)
+      providersSnapshotRef.current = JSON.stringify(cleanedProviders)
       setHasUnsavedChanges(false)
 
       toast({
@@ -423,6 +436,7 @@ function ModelProviderConfigPageContent() {
         setHasUnsavedChanges(true)
         return
       }
+      providersSnapshotRef.current = JSON.stringify(cleanedProviders)
       setHasUnsavedChanges(false)
     } catch (error) {
       console.error('自动保存失败:', error)
@@ -439,6 +453,13 @@ function ModelProviderConfigPageContent() {
 
   useEffect(() => {
     if (initialLoadRef.current) return
+
+    const snapshot = JSON.stringify(providers.map(cleanProviderData))
+    if (providersSnapshotRef.current === null) {
+      providersSnapshotRef.current = snapshot
+      return
+    }
+    if (snapshot === providersSnapshotRef.current) return
 
     setHasUnsavedChanges(true)
 
@@ -521,6 +542,7 @@ function ModelProviderConfigPageContent() {
         setSaving(false)
         return
       }
+      providersSnapshotRef.current = JSON.stringify(cleanedProviders)
       setHasUnsavedChanges(false)
       toast({
         title: '保存成功',
@@ -796,12 +818,19 @@ function ModelProviderConfigPageContent() {
       </div>
 
       {/* 重启提示 */}
-      <Alert>
-        <Info className="h-4 w-4" />
-        <AlertDescription>
-          配置更新后需要<strong>重启麦麦</strong>才能生效。你可以点击右上角的"保存并重启"按钮一键完成保存和重启。
-        </AlertDescription>
-      </Alert>
+      {restartNoticeVisible && (
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              配置更新后需要<strong>重启麦麦</strong>才能生效。你可以点击右上角的"保存并重启"按钮一键完成保存和重启。
+            </span>
+            <Button type="button" variant="outline" size="sm" onClick={dismissRestartNotice}>
+              我知道了
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <ScrollArea className="h-[calc(100vh-260px)]">
         <ProviderList

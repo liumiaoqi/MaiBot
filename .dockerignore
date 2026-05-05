@@ -21,3 +21,5 @@ temp/
 tmp/
 mai_knowledge/
 depends-data/
+!depends-data/
+!depends-data/char_frequency.json

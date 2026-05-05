@@ -82,6 +82,8 @@ export interface PluginInfo {
   screenshots?: string[]
   /** 更新日志 */
   changelog?: string
+  /** 插件来源：plugin-repo 市场或本地已安装插件 */
+  source?: 'market' | 'local'
 }
 
 /**

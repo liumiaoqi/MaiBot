@@ -489,9 +489,6 @@ def _build_legacy_message_additional_config(row: Mapping[str, Any]) -> Optional[
 
     legacy_fields = {
         "intercept_message_level": row.get("intercept_message_level"),
-        "interest_value": row.get("interest_value"),
-        "key_words": row.get("key_words"),
-        "key_words_lite": row.get("key_words_lite"),
         "priority_info": row.get("priority_info"),
         "priority_mode": row.get("priority_mode"),
         "selected_expressions": row.get("selected_expressions"),

@@ -43,16 +43,26 @@ try:
     from mcp.client.stdio import stdio_client
     from mcp.client.streamable_http import streamable_http_client
 
+    try:
+        from mcp.client.sse import sse_client
+
+        SSE_AVAILABLE = True
+    except ImportError:
+        SSE_AVAILABLE = False
+        sse_client = None  # type: ignore[assignment]
+
     MCP_AVAILABLE = True
     STREAMABLE_HTTP_AVAILABLE = True
 except ImportError:
     MCP_AVAILABLE = False
     STREAMABLE_HTTP_AVAILABLE = False
+    SSE_AVAILABLE = False
     ClientSession = None  # type: ignore[assignment,misc]
     StdioServerParameters = None  # type: ignore[assignment,misc]
     mcp_types = None  # type: ignore[assignment]
     stdio_client = None  # type: ignore[assignment]
     streamable_http_client = None  # type: ignore[assignment]
+    sse_client = None  # type: ignore[assignment]
 
 
 class MCPConnection:
@@ -139,6 +149,8 @@ class MCPConnection:
             return await self._connect_stdio()
         if self.config.transport_type == "streamable_http":
             return await self._connect_streamable_http()
+        if self.config.transport_type == "sse":
+            return await self._connect_sse()
 
         raise ValueError(f"MCP 服务器 '{self.config.name}' 使用了未知传输类型: {self.config.transport}")
 
@@ -184,16 +196,53 @@ class MCPConnection:
         self._session_id_getter = session_id_getter
         return read_stream, write_stream
 
-    def _build_http_client(self) -> httpx.AsyncClient:
-        """构建 Streamable HTTP 使用的 `httpx` 客户端。
+    async def _connect_sse(self) -> tuple[Any, Any]:
+        """建立 SSE 传输连接。
+
+        Returns:
+            tuple[Any, Any]: 读写流对象。
+        """
+
+        if not SSE_AVAILABLE or sse_client is None:
+            raise ImportError("当前环境未安装可用的 MCP SSE 客户端")
+        if not self.config.url:
+            raise ValueError(f"MCP 服务器 '{self.config.name}' 缺少 SSE url 配置")
+
+        read_stream, write_stream = await self._exit_stack.enter_async_context(
+            sse_client(
+                url=self.config.url,
+                headers=self.config.build_http_headers(),
+                timeout=self.config.http_timeout_seconds,
+                sse_read_timeout=self.config.read_timeout_seconds,
+                httpx_client_factory=self._build_http_client,
+            )
+        )
+        return read_stream, write_stream
+
+    def _build_http_client(
+        self,
+        headers: dict[str, str] | None = None,
+        timeout: httpx.Timeout | None = None,
+        auth: httpx.Auth | None = None,
+    ) -> httpx.AsyncClient:
+        """构建 httpx 客户端。
+
+        Args:
+            headers: 合并到配置请求头的额外请求头。
+            timeout: 覆盖的 httpx 超时配置。
+            auth: 附加认证。
 
         Returns:
             httpx.AsyncClient: 预配置的异步 HTTP 客户端。
         """
 
+        del auth
+        merged_headers = self.config.build_http_headers()
+        if headers:
+            merged_headers.update(headers)
         return httpx.AsyncClient(
-            headers=self.config.build_http_headers(),
-            timeout=httpx.Timeout(self.config.http_timeout_seconds),
+            headers=merged_headers,
+            timeout=timeout or httpx.Timeout(self.config.http_timeout_seconds),
         )
 
     async def _create_client_session(self, read_stream: Any, write_stream: Any) -> Any:

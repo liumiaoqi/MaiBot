@@ -25,6 +25,7 @@ interface UseModelAutoSaveReturn {
   clearTimers: () => void
   /** 初始加载状态标记引用 (用于设置初始加载完成) */
   initialLoadRef: RefObject<boolean>
+  resetSnapshots: (nextModels: ModelInfo[], nextTaskConfig: ModelTaskConfig | null) => void
 }
 
 /**
@@ -45,6 +46,8 @@ export function useModelAutoSave(
   const modelsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const taskConfigTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const initialLoadRef = useRef(true)
+  const modelsSnapshotRef = useRef<string | null>(null)
+  const taskConfigSnapshotRef = useRef<string | null>(null)
 
   // 清除定时器
   const clearTimers = useCallback(() => {
@@ -66,6 +69,9 @@ export function useModelAutoSave(
       api_provider: model.api_provider,
       price_in: model.price_in ?? 0,
       price_out: model.price_out ?? 0,
+      cache: model.cache ?? false,
+      cache_price_in: model.cache_price_in ?? 0,
+      visual: model.visual ?? false,
       force_stream_mode: model.force_stream_mode ?? false,
       extra_params: model.extra_params ?? {},
     }
@@ -80,6 +86,19 @@ export function useModelAutoSave(
   }, [])
 
   // 自动保存模型列表
+  const snapshotModels = useCallback((nextModels: ModelInfo[]): string => {
+    return JSON.stringify(nextModels.map(cleanModelForSave))
+  }, [cleanModelForSave])
+
+  const snapshotTaskConfig = useCallback((nextTaskConfig: ModelTaskConfig | null): string | null => {
+    return nextTaskConfig ? JSON.stringify(nextTaskConfig) : null
+  }, [])
+
+  const resetSnapshots = useCallback((nextModels: ModelInfo[], nextTaskConfig: ModelTaskConfig | null) => {
+    modelsSnapshotRef.current = snapshotModels(nextModels)
+    taskConfigSnapshotRef.current = snapshotTaskConfig(nextTaskConfig)
+  }, [snapshotModels, snapshotTaskConfig])
+
   const autoSaveModels = useCallback(async (newModels: ModelInfo[]) => {
     try {
       onSavingChange?.(true)
@@ -89,6 +108,7 @@ export function useModelAutoSave(
       if (!result.success) {
         throw new Error(result.error)
       }
+      modelsSnapshotRef.current = JSON.stringify(cleanedModels)
       onUnsavedChange?.(false)
     } catch (error) {
       console.error('自动保存模型列表失败:', error)
@@ -106,6 +126,7 @@ export function useModelAutoSave(
       if (!result.success) {
         throw new Error(result.error)
       }
+      taskConfigSnapshotRef.current = JSON.stringify(newTaskConfig)
       onUnsavedChange?.(false)
     } catch (error) {
       console.error('自动保存任务配置失败:', error)
@@ -118,6 +139,13 @@ export function useModelAutoSave(
   // 监听 models 变化
   useEffect(() => {
     if (initialLoadRef.current) return
+
+    const snapshot = snapshotModels(models)
+    if (modelsSnapshotRef.current === null) {
+      modelsSnapshotRef.current = snapshot
+      return
+    }
+    if (snapshot === modelsSnapshotRef.current) return
 
     onUnsavedChange?.(true)
 
@@ -134,11 +162,18 @@ export function useModelAutoSave(
         clearTimeout(modelsTimerRef.current)
       }
     }
-  }, [models, autoSaveModels, debounceMs, onUnsavedChange])
+  }, [models, autoSaveModels, debounceMs, onUnsavedChange, snapshotModels])
 
   // 监听 taskConfig 变化
   useEffect(() => {
     if (initialLoadRef.current || !taskConfig) return
+
+    const snapshot = snapshotTaskConfig(taskConfig)
+    if (taskConfigSnapshotRef.current === null) {
+      taskConfigSnapshotRef.current = snapshot
+      return
+    }
+    if (snapshot === taskConfigSnapshotRef.current) return
 
     onUnsavedChange?.(true)
 
@@ -155,7 +190,7 @@ export function useModelAutoSave(
         clearTimeout(taskConfigTimerRef.current)
       }
     }
-  }, [taskConfig, autoSaveTaskConfig, debounceMs, onUnsavedChange])
+  }, [taskConfig, autoSaveTaskConfig, debounceMs, onUnsavedChange, snapshotTaskConfig])
 
   // 组件卸载时清除定时器
   useEffect(() => {
@@ -167,5 +202,6 @@ export function useModelAutoSave(
   return {
     clearTimers,
     initialLoadRef,
+    resetSnapshots,
   }
 }

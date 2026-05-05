@@ -43,8 +43,6 @@ def _build_readable_line(
 def _normalize_messages(messages: List[SessionMessage]) -> List[SessionMessage]:
     normalized: List[SessionMessage] = []
     for message in messages:
-        if not message.processed_plain_text:
-            message.processed_plain_text = message.display_message or ""
         normalized.append(message)
     return normalized
 

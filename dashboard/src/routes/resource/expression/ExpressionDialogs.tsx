@@ -60,8 +60,8 @@ export function ExpressionDetailDialog({
     return new Date(timestamp * 1000).toLocaleString('zh-CN')
   }
 
-  const getChatName = (chatId: string): string => {
-    return chatNameMap.get(chatId) || chatId
+  const getChatName = (): string => {
+    return expression.chat_name || chatNameMap.get(expression.chat_id) || expression.chat_id
   }
 
   return (
@@ -81,7 +81,7 @@ export function ExpressionDetailDialog({
             <InfoItem label="风格" value={expression.style} />
             <InfoItem 
               label="聊天" 
-              value={getChatName(expression.chat_id)} 
+              value={getChatName()} 
             />
             <InfoItem icon={Hash} label="记录ID" value={expression.id.toString()} mono />
           </div>

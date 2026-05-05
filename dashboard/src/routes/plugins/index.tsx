@@ -239,6 +239,7 @@ function PluginsPageContent() {
                   review_count: 0,
                   installed: true,
                   installed_version: installedPlugin.manifest.version,
+                  source: 'local',
                   published_at: new Date().toISOString(),
                   updated_at: new Date().toISOString(),
                 })
@@ -636,6 +637,7 @@ function PluginsPageContent() {
   const getFilteredPluginCount = (tab: 'all' | 'installed' | 'updates') => {
     return plugins.filter(p => {
       if (!p.manifest) return false
+      if (tab === 'all' && p.source === 'local') return false
       const matchesSearch = searchQuery === '' ||
         p.manifest.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.manifest.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||

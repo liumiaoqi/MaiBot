@@ -41,7 +41,6 @@ def test_build_message_returns_session_message_with_maisaka_metadata() -> None:
     assert message.message_id == "maisaka-msg-1"
     assert message.timestamp == timestamp
     assert message.processed_plain_text == "展示消息内容"
-    assert message.display_message == "展示消息内容"
     assert message.raw_message is raw_message
 
     assert get_message_role(message) == "assistant"

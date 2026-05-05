@@ -288,10 +288,23 @@ export function useConfigAutoSave<T>(
   isInitialLoad: boolean,
   triggerAutoSave: (sectionName: ConfigSectionName, data: unknown) => void
 ): void {
+  const previousSnapshotRef = useRef<string | null>(null)
+
   useEffect(() => {
-    if (config && !isInitialLoad) {
+    if (!config) {
+      return
+    }
+
+    const snapshot = JSON.stringify(config)
+    if (isInitialLoad || previousSnapshotRef.current === null) {
+      previousSnapshotRef.current = snapshot
+      return
+    }
+
+    if (snapshot !== previousSnapshotRef.current) {
+      previousSnapshotRef.current = snapshot
       triggerAutoSave(sectionName, config)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config])
+  }, [config, isInitialLoad])
 }

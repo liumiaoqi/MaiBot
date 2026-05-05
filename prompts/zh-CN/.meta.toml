@@ -1,0 +1,74 @@
+[maisaka_chat]
+display_name = "规划器"
+advanced = false
+description = "Maisaka 主规划模板，负责整合身份、时间、工具说明和聊天上下文，驱动主循环进行思考、决策与工具调用。"
+
+[maisaka_replyer]
+display_name = "回复"
+advanced = false
+description = "Maisaka 回复生成模板，负责根据人格、表达风格、群聊注意事项和待回复上下文生成最终回复。"
+
+[default_expressor]
+display_name = "改写器"
+advanced = true
+description = "表达方式生成与整理相关模板，通常只在调试表达系统时需要修改。"
+
+[emoji_content_analysis]
+display_name = "表情包内容分析"
+advanced = true
+description = "用于分析表情包图片内容的模板。"
+
+[emoji_content_filtration]
+display_name = "表情包内容过滤"
+advanced = true
+description = "用于判断表情包内容是否符合过滤要求的模板。"
+
+[emoji_replace]
+display_name = "表情包替换"
+advanced = true
+description = "用于根据文本语境选择或替换表情包的模板。"
+
+[expression_evaluation]
+display_name = "表达评价"
+advanced = true
+description = "用于评价候选表达方式质量的模板。"
+
+[expression_select]
+display_name = "表达选择"
+advanced = true
+description = "用于从表达库中选择合适表达方式的模板。"
+
+[image_description]
+display_name = "图片描述"
+advanced = true
+description = "用于将图片内容转换为文本描述的模板。"
+
+[jargon_compare_inference]
+display_name = "黑话对比推理"
+advanced = true
+description = "用于比较和推理群内黑话含义的模板。"
+
+[jargon_explainer_summarize]
+display_name = "黑话解释总结"
+advanced = true
+description = "用于总结黑话解释结果的模板。"
+
+[jargon_inference_content_only]
+display_name = "黑话推理"
+advanced = true
+description = "用于仅基于内容推理黑话含义的模板。"
+
+[jargon_inference_with_context]
+display_name = "黑话上下文推理"
+advanced = true
+description = "用于结合上下文推理黑话含义的模板。"
+
+[learn_style]
+display_name = "表达风格学习"
+advanced = true
+description = "用于从聊天内容中学习表达风格的模板。"
+
+[maisaka_timing_gate]
+display_name = "时机"
+advanced = false
+description = "Maisaka 节奏控制模板，负责在每轮主循环前判断当前应该等待、停止，还是继续进入思考与回复流程。"

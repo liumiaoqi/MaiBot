@@ -78,7 +78,6 @@ export interface EmojiConfig {
   check_interval: number
   steal_emoji: boolean
   content_filtration: boolean
-  filtration_prompt: string
 }
 
 export interface MemoryConfig {

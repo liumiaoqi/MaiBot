@@ -61,10 +61,11 @@ export async function loadBotBasicConfig(): Promise<BotBasicConfig> {
   )
   const data = throwIfError(result)
   const botConfig = (data.config.bot || {}) as Partial<BotBasicConfig>
+  const qqAccount = String(botConfig.qq_account ?? '').trim()
 
   return {
-    platform: botConfig.platform || (botConfig.qq_account ? 'qq' : ''),
-    qq_account: botConfig.qq_account || 0,
+    platform: botConfig.platform || (qqAccount ? 'qq' : ''),
+    qq_account: qqAccount,
     platforms: botConfig.platforms || [],
     nickname: botConfig.nickname || '',
     alias_names: botConfig.alias_names || [],

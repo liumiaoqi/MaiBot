@@ -1,16 +1,16 @@
 """Expression routes pytest tests"""
 
 from typing import Generator
-from unittest.mock import MagicMock
 
 import pytest
-from fastapi import FastAPI, APIRouter
+from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy.pool import StaticPool
 from sqlalchemy import text
+from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
-from src.common.database.database_model import Expression
+from src.common.database.database_model import Expression, ModifiedBy
+from src.webui.dependencies import require_auth
 
 
 def create_test_app() -> FastAPI:
@@ -63,6 +63,7 @@ def client_fixture(test_session: Session, monkeypatch) -> Generator[TestClient, 
     @contextmanager
     def get_test_db_session():
         yield test_session
+        test_session.commit()
 
     monkeypatch.setattr("src.webui.routers.expression.get_db_session", get_test_db_session)
 
@@ -71,10 +72,11 @@ def client_fixture(test_session: Session, monkeypatch) -> Generator[TestClient, 
 
 
 @pytest.fixture(name="mock_auth")
-def mock_auth_fixture(monkeypatch):
+def mock_auth_fixture():
     """Mock authentication to always return True"""
-    mock_verify = MagicMock(return_value=True)
-    monkeypatch.setattr("src.webui.routers.expression.verify_auth_token_from_cookie_or_header", mock_verify)
+    app.dependency_overrides[require_auth] = lambda: "test-token"
+    yield
+    app.dependency_overrides.clear()
 
 
 @pytest.fixture(name="sample_expression")
@@ -82,8 +84,8 @@ def sample_expression_fixture(test_session: Session) -> Expression:
     """Insert a sample expression into test database"""
     test_session.execute(
         text(
-            "INSERT INTO expressions (id, situation, style, context, up_content, content_list, count, last_active_time, create_time, session_id) "
-            "VALUES (1, '测试情景', '测试风格', '测试上下文', '测试上文', '[\"测试内容1\", \"测试内容2\"]', 10, '2026-02-17 12:00:00', '2026-02-15 10:00:00', 'test_chat_001')"
+            "INSERT INTO expressions (id, situation, style, content_list, count, last_active_time, create_time, session_id, checked, rejected) "
+            "VALUES (1, '测试情景', '测试风格', '[\"测试内容1\", \"测试内容2\"]', 10, '2026-02-17 12:00:00', '2026-02-15 10:00:00', 'test_chat_001', 0, 0)"
         )
     )
     test_session.commit()
@@ -131,8 +133,8 @@ def test_list_expressions_pagination(client: TestClient, mock_auth, test_session
     for i in range(5):
         test_session.execute(
             text(
-                f"INSERT INTO expressions (id, situation, style, context, up_content, content_list, count, last_active_time, create_time, session_id) "
-                f"VALUES ({i + 1}, '情景{i}', '风格{i}', '', '', '[]', 0, '2026-02-17 12:0{i}:00', '2026-02-15 10:00:00', 'chat_{i}')"
+                f"INSERT INTO expressions (id, situation, style, content_list, count, last_active_time, create_time, session_id, checked, rejected) "
+                f"VALUES ({i + 1}, '情景{i}', '风格{i}', '[]', 0, '2026-02-17 12:0{i}:00', '2026-02-15 10:00:00', 'chat_{i}', 0, 0)"
             )
         )
     test_session.commit()
@@ -158,14 +160,14 @@ def test_list_expressions_search(client: TestClient, mock_auth, test_session: Se
     """Test GET /expression/list with search filter"""
     test_session.execute(
         text(
-            "INSERT INTO expressions (id, situation, style, context, up_content, content_list, count, last_active_time, create_time, session_id) "
-            "VALUES (1, '找人吃饭', '热情', '', '', '[]', 0, datetime('now'), datetime('now'), 'chat_001')"
+            "INSERT INTO expressions (id, situation, style, content_list, count, last_active_time, create_time, session_id, checked, rejected) "
+            "VALUES (1, '找人吃饭', '热情', '[]', 0, datetime('now'), datetime('now'), 'chat_001', 0, 0)"
         )
     )
     test_session.execute(
         text(
-            "INSERT INTO expressions (id, situation, style, context, up_content, content_list, count, last_active_time, create_time, session_id) "
-            "VALUES (2, '拒绝邀请', '礼貌', '', '', '[]', 0, datetime('now'), datetime('now'), 'chat_002')"
+            "INSERT INTO expressions (id, situation, style, content_list, count, last_active_time, create_time, session_id, checked, rejected) "
+            "VALUES (2, '拒绝邀请', '礼貌', '[]', 0, datetime('now'), datetime('now'), 'chat_002', 0, 0)"
         )
     )
     test_session.commit()
@@ -183,14 +185,14 @@ def test_list_expressions_chat_filter(client: TestClient, mock_auth, test_sessio
     """Test GET /expression/list with chat_id filter"""
     test_session.execute(
         text(
-            "INSERT INTO expressions (id, situation, style, context, up_content, content_list, count, last_active_time, create_time, session_id) "
-            "VALUES (1, '情景A', '风格A', '', '', '[]', 0, datetime('now'), datetime('now'), 'chat_A')"
+            "INSERT INTO expressions (id, situation, style, content_list, count, last_active_time, create_time, session_id, checked, rejected) "
+            "VALUES (1, '情景A', '风格A', '[]', 0, datetime('now'), datetime('now'), 'chat_A', 0, 0)"
         )
     )
     test_session.execute(
         text(
-            "INSERT INTO expressions (id, situation, style, context, up_content, content_list, count, last_active_time, create_time, session_id) "
-            "VALUES (2, '情景B', '风格B', '', '', '[]', 0, datetime('now'), datetime('now'), 'chat_B')"
+            "INSERT INTO expressions (id, situation, style, content_list, count, last_active_time, create_time, session_id, checked, rejected) "
+            "VALUES (2, '情景B', '风格B', '[]', 0, datetime('now'), datetime('now'), 'chat_B', 0, 0)"
         )
     )
     test_session.commit()
@@ -378,8 +380,8 @@ def test_batch_delete_expressions_success(client: TestClient, mock_auth, test_se
     for i in range(3):
         test_session.execute(
             text(
-                f"INSERT INTO expressions (id, situation, style, context, up_content, content_list, count, last_active_time, create_time, session_id) "
-                f"VALUES ({i + 1}, '批量删除{i}', '风格{i}', '', '', '[]', 0, datetime('now'), datetime('now'), 'chat_{i}')"
+                f"INSERT INTO expressions (id, situation, style, content_list, count, last_active_time, create_time, session_id, checked, rejected) "
+                f"VALUES ({i + 1}, '批量删除{i}', '风格{i}', '[]', 0, datetime('now'), datetime('now'), 'chat_{i}', 0, 0)"
             )
         )
         expression_ids.append(i + 1)
@@ -416,8 +418,8 @@ def test_get_expression_stats(client: TestClient, mock_auth, test_session: Sessi
     for i in range(3):
         test_session.execute(
             text(
-                f"INSERT INTO expressions (id, situation, style, context, up_content, content_list, count, last_active_time, create_time, session_id) "
-                f"VALUES ({i + 1}, '情景{i}', '风格{i}', '', '', '[]', 0, datetime('now'), datetime('now'), 'chat_{i % 2}')"
+                f"INSERT INTO expressions (id, situation, style, content_list, count, last_active_time, create_time, session_id, checked, rejected) "
+                f"VALUES ({i + 1}, '情景{i}', '风格{i}', '[]', 0, datetime('now'), datetime('now'), 'chat_{i % 2}', 0, 0)"
             )
         )
     test_session.commit()
@@ -432,11 +434,11 @@ def test_get_expression_stats(client: TestClient, mock_auth, test_session: Sessi
 
 
 def test_get_review_stats(client: TestClient, mock_auth, test_session: Session):
-    """Test GET /expression/review/stats returns hardcoded 0 counts"""
+    """Test GET /expression/review/stats returns review status counts"""
     test_session.execute(
         text(
-            "INSERT INTO expressions (id, situation, style, context, up_content, content_list, count, last_active_time, create_time, session_id) "
-            "VALUES (1, '待审核', '风格', '', '', '[]', 0, datetime('now'), datetime('now'), 'chat_001')"
+            "INSERT INTO expressions (id, situation, style, content_list, count, last_active_time, create_time, session_id, checked, rejected) "
+            "VALUES (1, '待审核', '风格', '[]', 0, datetime('now'), datetime('now'), 'chat_001', 0, 0)"
         )
     )
     test_session.commit()
@@ -445,9 +447,8 @@ def test_get_review_stats(client: TestClient, mock_auth, test_session: Session):
     assert response.status_code == 200
 
     data = response.json()
-    # Verify all review counts are 0 (hardcoded in refactored code)
     assert data["total"] == 1  # Total expressions exists
-    assert data["unchecked"] == 0
+    assert data["unchecked"] == 1
     assert data["passed"] == 0
     assert data["rejected"] == 0
     assert data["ai_checked"] == 0
@@ -455,14 +456,14 @@ def test_get_review_stats(client: TestClient, mock_auth, test_session: Session):
 
 
 def test_get_review_list_filter_unchecked(client: TestClient, mock_auth, sample_expression: Expression):
-    """Test GET /expression/review/list with filter_type=unchecked returns empty (legacy behavior)"""
-    # filter_type=unchecked should return no results (legacy removed)
+    """Test GET /expression/review/list with filter_type=unchecked returns unchecked expressions"""
     response = client.get("/api/webui/expression/review/list?filter_type=unchecked")
     assert response.status_code == 200
 
     data = response.json()
     assert data["success"] is True
-    assert data["total"] == 0  # No results (legacy fields removed)
+    assert data["total"] == 1
+    assert len(data["data"]) == 1
 
 
 def test_get_review_list_filter_all(client: TestClient, mock_auth, sample_expression: Expression):
@@ -476,8 +477,8 @@ def test_get_review_list_filter_all(client: TestClient, mock_auth, sample_expres
     assert len(data["data"]) == 1
 
 
-def test_batch_review_expressions_unsupported(client: TestClient, mock_auth, sample_expression: Expression):
-    """Test POST /expression/review/batch returns failure for require_unchecked=True"""
+def test_batch_review_expressions_with_unchecked_marker(client: TestClient, mock_auth, sample_expression: Expression):
+    """Test POST /expression/review/batch succeeds with require_unchecked=True"""
     review_payload = {"items": [{"id": sample_expression.id, "rejected": False, "require_unchecked": True}]}
 
     response = client.post("/api/webui/expression/review/batch", json=review_payload)
@@ -485,8 +486,34 @@ def test_batch_review_expressions_unsupported(client: TestClient, mock_auth, sam
 
     data = response.json()
     assert data["success"] is True
-    assert data["failed"] == 1  # Should fail because require_unchecked=True
-    assert "不支持审核状态过滤" in data["results"][0]["message"]
+    assert data["succeeded"] == 1
+    assert data["results"][0]["success"] is True
+
+
+def test_batch_review_expressions_overwrites_ai_checked(
+    client: TestClient, mock_auth, test_session: Session, sample_expression: Expression
+):
+    """Test POST /expression/review/batch lets manual review override AI checked state"""
+    sample_expression.checked = True
+    sample_expression.rejected = True
+    sample_expression.modified_by = ModifiedBy.AI
+    test_session.add(sample_expression)
+    test_session.commit()
+
+    review_payload = {"items": [{"id": sample_expression.id, "rejected": False, "require_unchecked": True}]}
+
+    response = client.post("/api/webui/expression/review/batch", json=review_payload)
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["success"] is True
+    assert data["succeeded"] == 1
+    test_session.expire_all()
+    reviewed_expression = test_session.exec(select(Expression).where(Expression.id == sample_expression.id)).first()
+    assert reviewed_expression is not None
+    assert reviewed_expression.checked is True
+    assert reviewed_expression.rejected is False
+    assert reviewed_expression.modified_by == ModifiedBy.USER
 
 
 def test_batch_review_expressions_no_unchecked_check(client: TestClient, mock_auth, sample_expression: Expression):

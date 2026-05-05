@@ -22,16 +22,26 @@ import { zhCN } from 'date-fns/locale'
 
 // 字号配置
 type FontSize = 'xs' | 'sm' | 'base'
+type LogLevelFilter = LogEntry['level'] | 'all'
+
 const fontSizeConfig: Record<FontSize, { label: string; rowHeight: number; class: string }> = {
   xs: { label: '小', rowHeight: 28, class: 'text-[10px] sm:text-xs' },
   sm: { label: '中', rowHeight: 36, class: 'text-xs sm:text-sm' },
   base: { label: '大', rowHeight: 44, class: 'text-sm sm:text-base' },
 }
 
+const levelPriority: Record<LogEntry['level'], number> = {
+  DEBUG: 10,
+  INFO: 20,
+  WARNING: 30,
+  ERROR: 40,
+  CRITICAL: 50,
+}
+
 export function LogViewerPage() {
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [searchQuery, setSearchQuery] = useState('')
-  const [levelFilter, setLevelFilter] = useState<string>('all')
+  const [levelFilter, setLevelFilter] = useState<LogLevelFilter>('INFO')
   const [moduleFilter, setModuleFilter] = useState<string>('all')
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined)
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined)
@@ -154,8 +164,10 @@ export function LogViewerPage() {
         log.message.toLowerCase().includes(searchQuery.toLowerCase()) ||
         log.module.toLowerCase().includes(searchQuery.toLowerCase())
       
-      // 级别过滤
-      const matchesLevel = levelFilter === 'all' || log.level === levelFilter
+      // 级别过滤：选择某个级别时显示该级别及以上的日志
+      const matchesLevel =
+        levelFilter === 'all' ||
+        levelPriority[log.level] >= levelPriority[levelFilter]
       
       // 模块过滤
       const matchesModule = moduleFilter === 'all' || log.module === moduleFilter
@@ -355,17 +367,17 @@ export function LogViewerPage() {
               <CollapsibleContent className="space-y-2">
                 {/* 级别和模块筛选 */}
                 <div className="flex flex-col gap-2 sm:flex-row sm:gap-2">
-                  <Select value={levelFilter} onValueChange={setLevelFilter}>
+                  <Select value={levelFilter} onValueChange={(value) => setLevelFilter(value as LogLevelFilter)}>
                     <SelectTrigger className="w-full sm:flex-1 h-8 text-xs">
                       <Filter className="h-3.5 w-3.5 mr-1.5" />
-                      <SelectValue placeholder="级别" />
+                      <SelectValue placeholder="最低级别" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">全部级别</SelectItem>
-                      <SelectItem value="DEBUG">DEBUG</SelectItem>
-                      <SelectItem value="INFO">INFO</SelectItem>
-                      <SelectItem value="WARNING">WARNING</SelectItem>
-                      <SelectItem value="ERROR">ERROR</SelectItem>
+                      <SelectItem value="DEBUG">DEBUG 及以上</SelectItem>
+                      <SelectItem value="INFO">INFO 及以上</SelectItem>
+                      <SelectItem value="WARNING">WARNING 及以上</SelectItem>
+                      <SelectItem value="ERROR">ERROR 及以上</SelectItem>
                       <SelectItem value="CRITICAL">CRITICAL</SelectItem>
                     </SelectContent>
                   </Select>

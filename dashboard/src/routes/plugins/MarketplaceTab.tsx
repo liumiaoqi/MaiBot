@@ -43,6 +43,11 @@ export function MarketplaceTab({
       console.warn('[过滤] 跳过无 manifest 的插件:', plugin.id)
       return false
     }
+
+    // 全部插件只展示 plugin-repo 中存在的市场插件，本地独有插件只在“已安装”显示。
+    if (plugin.source === 'local') {
+      return false
+    }
     
     // 搜索过滤
     const matchesSearch = searchQuery === '' ||
