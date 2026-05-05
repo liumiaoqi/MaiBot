@@ -100,6 +100,42 @@ describe('DynamicField', () => {
 
       expect(screen.getByText('Custom field requires Hook')).toBeInTheDocument()
     })
+
+    it('renders number Input when x-widget is input but type is integer', () => {
+      const schema: FieldSchema = {
+        name: 'test_integer_input_widget',
+        type: 'integer',
+        label: 'Test Integer Input Widget',
+        description: 'A numeric field rendered as input',
+        required: false,
+        'x-widget': 'input',
+        default: 0,
+      }
+      const onChange = vi.fn()
+
+      render(<DynamicField schema={schema} value={2} onChange={onChange} />)
+
+      const input = screen.getByRole('spinbutton')
+      expect(input).toBeInTheDocument()
+      expect(input).toHaveValue(2)
+    })
+
+    it('parses string values for numeric input widgets', () => {
+      const schema: FieldSchema = {
+        name: 'test_string_number_input_widget',
+        type: 'integer',
+        label: 'Test String Number Input Widget',
+        description: 'A numeric field with legacy string value',
+        required: false,
+        'x-widget': 'input',
+        default: 0,
+      }
+      const onChange = vi.fn()
+
+      render(<DynamicField schema={schema} value="2" onChange={onChange} />)
+
+      expect(screen.getByRole('spinbutton')).toHaveValue(2)
+    })
   })
 
   describe('type fallback', () => {
@@ -305,6 +341,27 @@ describe('DynamicField', () => {
       await user.type(input, '123')
       expect(onChange).toHaveBeenCalled()
     })
+
+    it('triggers numeric onChange for input widget with integer type', async () => {
+      const schema: FieldSchema = {
+        name: 'test_integer_input_widget_change',
+        type: 'integer',
+        label: 'Test Integer Input Widget Change',
+        description: 'A numeric field rendered as input',
+        required: false,
+        'x-widget': 'input',
+        default: 0,
+      }
+      const onChange = vi.fn()
+      const user = userEvent.setup()
+
+      render(<DynamicField schema={schema} value={0} onChange={onChange} />)
+
+      const input = screen.getByRole('spinbutton')
+      await user.clear(input)
+      await user.type(input, '5')
+      expect(onChange).toHaveBeenLastCalledWith(5)
+    })
   })
 
   describe('visual features', () => {
@@ -376,6 +433,25 @@ describe('DynamicField', () => {
       expect(screen.getByText('10')).toBeInTheDocument()
       expect(screen.getByText('50')).toBeInTheDocument()
       expect(screen.getByText('25')).toBeInTheDocument()
+    })
+
+    it('parses string values for slider widgets', () => {
+      const schema: FieldSchema = {
+        name: 'test_slider_string_value',
+        type: 'number',
+        label: 'Test Slider String Value',
+        description: 'A slider with legacy string value',
+        required: false,
+        'x-widget': 'slider',
+        minValue: 0,
+        maxValue: 10,
+        default: 0,
+      }
+      const onChange = vi.fn()
+
+      render(<DynamicField schema={schema} value="2.5" onChange={onChange} />)
+
+      expect(screen.getByText('2.5')).toBeInTheDocument()
     })
   })
 

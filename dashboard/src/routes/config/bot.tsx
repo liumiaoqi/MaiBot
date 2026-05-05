@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { parse as parseToml } from 'smol-toml'
 
 import { AlertDescription, Alert } from '@/components/ui/alert'
@@ -23,11 +23,14 @@ import { useToast } from '@/hooks/use-toast'
 import { getBotConfig, getBotConfigRaw, getBotConfigSchema, updateBotConfig, updateBotConfigRaw } from '@/lib/config-api'
 import { fieldHooks } from '@/lib/field-hooks'
 import { RestartProvider, useRestart } from '@/lib/restart-context'
+import { cn } from '@/lib/utils'
 
-import { Code2, Info, Layout, Power, Save } from 'lucide-react'
+import { ChevronDown, ChevronUp, Code2, Info, Layout, Power, RefreshCw, Save } from 'lucide-react'
 
 import type { ConfigSchema } from '@/types/config-schema'
 import {
+  BotPlatformsHook,
+  ChatPromptsHook,
   ChatTalkValueRulesHook,
   ExpressionGroupsHook,
   ExpressionLearningListHook,
@@ -47,15 +50,26 @@ const TOAST_DISPLAY_DELAY = 500
 /** Tab 标签页的首选排列顺序 (host field name) */
 const TAB_ORDER = [
   'bot',
-  'personality',
   'chat',
   'expression',
+  'a_memorix',
+  'visual',
+  'message_receive',
   'emoji',
+  'voice',
   'response_post_process',
   'webui',
   'plugin_runtime',
   'log',
 ]
+
+/** 默认展示的主配置栏目 */
+const DEFAULT_VISIBLE_TAB_IDS = new Set([
+  'bot',
+  'chat',
+  'expression',
+  'a_memorix',
+])
 
 // ==================== Tab 分组类型与构建 ====================
 interface TabGroup {
@@ -143,6 +157,9 @@ function BotConfigPageContent() {
   const [sourceCode, setSourceCode] = useState<string>('')
   const [hasTomlError, setHasTomlError] = useState(false)
   const [tomlErrorMessage, setTomlErrorMessage] = useState<string>('')
+  const [restartNoticeVisible, setRestartNoticeVisible] = useState(
+    () => localStorage.getItem('bot-config-restart-notice-dismissed') !== 'true'
+  )
   const { toast } = useToast()
   const { triggerRestart, isRestarting } = useRestart()
 
@@ -160,6 +177,7 @@ function BotConfigPageContent() {
   const [responsePostProcessConfig, setResponsePostProcessConfig] = useState<ConfigSectionData | null>(null)
   const [chineseTypoConfig, setChineseTypoConfig] = useState<ConfigSectionData | null>(null)
   const [responseSplitterConfig, setResponseSplitterConfig] = useState<ConfigSectionData | null>(null)
+  const [logConfig, setLogConfig] = useState<ConfigSectionData | null>(null)
   const [debugConfig, setDebugConfig] = useState<ConfigSectionData | null>(null)
   const [maimMessageConfig, setMaimMessageConfig] = useState<ConfigSectionData | null>(null)
   const [telemetryConfig, setTelemetryConfig] = useState<ConfigSectionData | null>(null)
@@ -255,6 +273,7 @@ function BotConfigPageContent() {
     setResponsePostProcessConfig((config.response_post_process ?? {}) as ConfigSectionData)
     setChineseTypoConfig((config.chinese_typo ?? {}) as ConfigSectionData)
     setResponseSplitterConfig((config.response_splitter ?? {}) as ConfigSectionData)
+    setLogConfig((config.log ?? {}) as ConfigSectionData)
     setDebugConfig((config.debug ?? {}) as ConfigSectionData)
     setMaimMessageConfig((config.maim_message ?? {}) as ConfigSectionData)
     setTelemetryConfig((config.telemetry ?? {}) as ConfigSectionData)
@@ -285,6 +304,7 @@ function BotConfigPageContent() {
       response_post_process: responsePostProcessConfig,
       chinese_typo: chineseTypoConfig,
       response_splitter: responseSplitterConfig,
+      log: logConfig,
       debug: debugConfig,
       maim_message: maimMessageConfig,
       telemetry: telemetryConfig,
@@ -308,6 +328,7 @@ function BotConfigPageContent() {
     responsePostProcessConfig,
     chineseTypoConfig,
     responseSplitterConfig,
+    logConfig,
     debugConfig,
     maimMessageConfig,
     telemetryConfig,
@@ -394,6 +415,8 @@ function BotConfigPageContent() {
 
   useEffect(() => {
     const hookEntries = [
+      ['bot.platforms', BotPlatformsHook],
+      ['chat.chat_prompts', ChatPromptsHook],
       ['chat.talk_value_rules', ChatTalkValueRulesHook],
       ['expression.expression_groups', ExpressionGroupsHook],
       ['expression.learning_list', ExpressionLearningListHook],
@@ -437,6 +460,7 @@ function BotConfigPageContent() {
   useConfigAutoSave(responsePostProcessConfig, 'response_post_process', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(chineseTypoConfig, 'chinese_typo', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(responseSplitterConfig, 'response_splitter', initialLoadRef.current, triggerAutoSave)
+  useConfigAutoSave(logConfig, 'log', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(debugConfig, 'debug', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(maimMessageConfig, 'maim_message', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(telemetryConfig, 'telemetry', initialLoadRef.current, triggerAutoSave)
@@ -450,10 +474,20 @@ function BotConfigPageContent() {
   const saveSourceCode = async () => {
     try {
       setSaving(true)
+      // 编辑器展示时会把 basic string 内的 \n 展开成真实换行；保存前先转回 TOML 转义序列。
+      const escapedSourceCode = sourceCode.replace(/"([^"]*)"/g, (_match, content) => {
+        const encoded = content
+          .replace(/\\/g, '\\\\') // 反斜杠必须先转义，避免 \s 等序列被 TOML 当作非法转义
+          .replace(/"/g, '\\"')
+          .replace(/\n/g, '\\n')
+          .replace(/\t/g, '\\t')
+          .replace(/\r/g, '\\r')
+        return `"${encoded}"`
+      })
       
       // 前端验证 TOML 格式
       try {
-        parseToml(sourceCode)
+        parseToml(escapedSourceCode)
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : 'TOML 格式错误'
         const translatedMsg = translateTomlError(errorMsg)
@@ -468,18 +502,7 @@ function BotConfigPageContent() {
         return
       }
       
-      // 将双引号字符串中的实际字符转换回 TOML 转义序列
-      // 使用正则表达式只处理双引号字符串内的内容，不影响单引号字符串
-      const escaped = sourceCode.replace(/"([^"]*)"/g, (_match, content) => {
-        const encoded = content
-          .replace(/\\/g, '\\\\') // 反斜杠（必须放在最前）
-          .replace(/"/g, '\\"')   // 双引号
-          .replace(/\n/g, '\\n')  // 换行符
-          .replace(/\t/g, '\\t')  // 制表符
-          .replace(/\r/g, '\\r')  // 回车符
-        return `"${encoded}"`
-      })
-      const result = await updateBotConfigRaw(escaped)
+      const result = await updateBotConfigRaw(escapedSourceCode)
       if (!result.success) {
         setHasTomlError(true)
         const errorMsg = result.error
@@ -592,6 +615,21 @@ function BotConfigPageContent() {
     await triggerRestart()
   }
 
+  const dismissRestartNotice = () => {
+    localStorage.setItem('bot-config-restart-notice-dismissed', 'true')
+    setRestartNoticeVisible(false)
+  }
+
+  const handleReloadFromFile = async () => {
+    cancelPendingAutoSave()
+    await loadConfig()
+    setHasUnsavedChanges(false)
+    toast({
+      title: '已刷新',
+      description: '已从 bot_config.toml 重新读取配置',
+    })
+  }
+
   // 保存并重启
   const handleSaveAndRestart = async () => {
     try {
@@ -650,6 +688,7 @@ function BotConfigPageContent() {
       response_post_process: responsePostProcessConfig,
       chinese_typo: chineseTypoConfig,
       response_splitter: responseSplitterConfig,
+      log: logConfig,
       debug: debugConfig,
       maim_message: maimMessageConfig,
       telemetry: telemetryConfig,
@@ -673,6 +712,7 @@ function BotConfigPageContent() {
       responsePostProcessConfig,
       chineseTypoConfig,
       responseSplitterConfig,
+      logConfig,
       debugConfig,
       maimMessageConfig,
       telemetryConfig,
@@ -699,6 +739,7 @@ function BotConfigPageContent() {
       response_post_process: setResponsePostProcessConfig,
       chinese_typo: setChineseTypoConfig,
       response_splitter: setResponseSplitterConfig,
+      log: setLogConfig,
       debug: setDebugConfig,
       maim_message: setMaimMessageConfig,
       telemetry: setTelemetryConfig,
@@ -735,7 +776,33 @@ function BotConfigPageContent() {
               <p className="text-muted-foreground mt-1 text-xs sm:text-sm">管理麦麦的核心功能和行为设置</p>
             </div>
             {/* 按钮组 - 桌面端靠右 */}
-            <div className="flex gap-2 flex-shrink-0">
+            <div className="flex flex-wrap gap-2 flex-shrink-0 sm:justify-end">
+              <Tabs
+                value={editMode}
+                onValueChange={(v) => handleModeChange(v as 'visual' | 'source')}
+                className="w-full min-w-[13rem] sm:w-[14rem]"
+              >
+                <TabsList className="grid h-8 w-full grid-cols-2 sm:h-9">
+                  <TabsTrigger value="visual" className="px-2 text-xs">
+                    <Layout className="mr-1 h-3 w-3 sm:h-4 sm:w-4" />
+                    可视化
+                  </TabsTrigger>
+                  <TabsTrigger value="source" className="px-2 text-xs">
+                    <Code2 className="mr-1 h-3 w-3 sm:h-4 sm:w-4" />
+                    源代码
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+              <Button
+                onClick={handleReloadFromFile}
+                disabled={saving || autoSaving || isRestarting}
+                size="sm"
+                variant="outline"
+                className="w-20 sm:w-24"
+              >
+                <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                刷新
+              </Button>
               <Button
                 onClick={editMode === 'visual' ? saveConfig : saveSourceCode}
                 disabled={saving || autoSaving || !hasUnsavedChanges || isRestarting}
@@ -785,31 +852,22 @@ function BotConfigPageContent() {
             </AlertDialog>
             </div>
           </div>
-          
-          {/* 模式切换 - 单独一行 */}
-          <div className="flex">
-            <Tabs value={editMode} onValueChange={(v) => handleModeChange(v as 'visual' | 'source')} className="w-full">
-              <TabsList className="h-8 sm:h-9 w-full grid grid-cols-2">
-                <TabsTrigger value="visual" className="text-xs sm:text-sm">
-                  <Layout className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
-                  可视化编辑
-                </TabsTrigger>
-                <TabsTrigger value="source" className="text-xs sm:text-sm">
-                  <Code2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
-                  源代码编辑
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
         </div>
 
         {/* 重启提示 */}
-        <Alert>
-          <Info className="h-4 w-4" />
-          <AlertDescription>
-            配置更新后需要<strong>重启麦麦</strong>才能生效。你可以点击右上角的"保存并重启"按钮一键完成保存和重启。
-          </AlertDescription>
-        </Alert>
+        {restartNoticeVisible && (
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <span>
+                配置更新后需要<strong>重启麦麦</strong>才能生效。你可以点击右上角的"保存并重启"按钮一键完成保存和重启。
+              </span>
+              <Button type="button" variant="outline" size="sm" onClick={dismissRestartNotice}>
+                我知道了
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* 源代码模式 */}
         {editMode === 'source' && (
@@ -903,9 +961,35 @@ interface DynamicConfigTabsProps {
 
 function DynamicConfigTabs(props: DynamicConfigTabsProps) {
   const { configSchema, sectionValues, setHasUnsavedChanges, setSectionValue, tabGroups } = props
+  const [expanded, setExpanded] = useState(false)
+  const [activeTab, setActiveTab] = useState(tabGroups[0]?.id ?? '')
+
+  useEffect(() => {
+    if (!tabGroups.some((tab) => tab.id === activeTab)) {
+      setActiveTab(tabGroups[0]?.id ?? '')
+    }
+  }, [activeTab, tabGroups])
 
   if (tabGroups.length === 0 || !configSchema?.nested) {
     return null
+  }
+
+  const visibleTabGroups = expanded
+    ? tabGroups
+    : tabGroups.filter((tab) => DEFAULT_VISIBLE_TAB_IDS.has(tab.id))
+  const hasCollapsibleTabs = tabGroups.some((tab) => !DEFAULT_VISIBLE_TAB_IDS.has(tab.id))
+  const firstExpandedTabId = visibleTabGroups.find(
+    (tab) => !DEFAULT_VISIBLE_TAB_IDS.has(tab.id)
+  )?.id
+
+  const toggleExpanded = () => {
+    setExpanded((current) => {
+      if (current && !DEFAULT_VISIBLE_TAB_IDS.has(activeTab)) {
+        const firstDefaultTab = tabGroups.find((tab) => DEFAULT_VISIBLE_TAB_IDS.has(tab.id))
+        setActiveTab(firstDefaultTab?.id ?? tabGroups[0]?.id ?? '')
+      }
+      return !current
+    })
   }
 
   const renderTabContent = (tab: TabGroup) => {
@@ -953,17 +1037,44 @@ function DynamicConfigTabs(props: DynamicConfigTabsProps) {
   }
 
   return (
-    <Tabs defaultValue={tabGroups[0].id} className="w-full">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
       <TabsList className="flex flex-wrap h-auto gap-1 p-1">
-        {tabGroups.map((tab) => (
-          <TabsTrigger
-            key={tab.id}
-            value={tab.id}
-            className="text-xs px-2 py-1.5 sm:px-3 sm:py-2 data-[state=active]:shadow-sm"
+        {visibleTabGroups.map((tab) => {
+          const isExpandedOnlyTab = !DEFAULT_VISIBLE_TAB_IDS.has(tab.id)
+          return (
+            <Fragment key={tab.id}>
+              {tab.id === firstExpandedTabId && (
+                <span className="mx-1 hidden h-6 w-px bg-border/80 sm:block" />
+              )}
+              <TabsTrigger
+                value={tab.id}
+                className={cn(
+                  "text-xs px-2 py-1.5 sm:px-3 sm:py-2 data-[state=active]:shadow-sm",
+                  isExpandedOnlyTab &&
+                    "border border-dashed border-border/70 bg-background/45 text-muted-foreground/80 hover:bg-background/70 data-[state=active]:border-primary/45 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none"
+                )}
+              >
+                {tab.label}
+              </TabsTrigger>
+            </Fragment>
+          )
+        })}
+        {hasCollapsibleTabs && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-xs sm:h-9 sm:px-3"
+            onClick={toggleExpanded}
           >
-            {tab.label}
-          </TabsTrigger>
-        ))}
+            {expanded ? (
+              <ChevronUp className="mr-1 h-3.5 w-3.5" />
+            ) : (
+              <ChevronDown className="mr-1 h-3.5 w-3.5" />
+            )}
+            {expanded ? '收起' : '更多'}
+          </Button>
+        )}
       </TabsList>
       {tabGroups.map((tab) => (
         <TabsContent key={tab.id} value={tab.id} className="space-y-4">

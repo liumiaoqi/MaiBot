@@ -250,7 +250,7 @@ export function JargonManagementPage() {
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
               <MessageCircle className="h-8 w-8" strokeWidth={2} />
-              黑话管理
+              黑话
             </h1>
             <p className="text-muted-foreground mt-1 text-sm sm:text-base">
               管理麦麦学习到的黑话和俗语

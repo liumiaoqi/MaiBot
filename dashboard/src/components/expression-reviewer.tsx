@@ -80,6 +80,7 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
   // 快速审核模式状态
   const [quickFilterType, setQuickFilterType] = useState<'unchecked' | 'passed' | 'rejected' | 'all'>('unchecked')
   const [quickExpressions, setQuickExpressions] = useState<Expression[]>([])
+  const quickExpressionsRef = useRef<Expression[]>([])
   const [quickCurrentIndex, setQuickCurrentIndex] = useState(0)
   const [quickLoading, setQuickLoading] = useState(false)
   const [quickTotal, setQuickTotal] = useState(0)
@@ -92,6 +93,10 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
   const cardRef = useRef<HTMLDivElement>(null)
   const dragStartRef = useRef<{ x: number; y: number } | null>(null)
   const isDraggingRef = useRef(false)
+
+  useEffect(() => {
+    quickExpressionsRef.current = quickExpressions
+  }, [quickExpressions])
   const [loading, setLoading] = useState(false)
   const [statsLoading, setStatsLoading] = useState(false)
   const [total, setTotal] = useState(0)
@@ -180,9 +185,13 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
       setQuickLoading(true)
       const pageToLoad = append ? quickPage + 1 : quickPage
       const result = await getReviewList({
-        page: pageToLoad,
+        page: quickFilterType === 'unchecked' ? 1 : pageToLoad,
         page_size: 20,
         filter_type: quickFilterType,
+        order: quickFilterType === 'unchecked' ? 'random' : 'latest',
+        exclude_ids: quickFilterType === 'unchecked' && append
+          ? quickExpressionsRef.current.map((expr) => expr.id)
+          : undefined,
       })
       
       if (result.success) {
@@ -552,8 +561,8 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
   }
 
   // 获取聊天名称
-  const getChatName = (chatId: string): string => {
-    return chatNameMap.get(chatId) || chatId
+  const getChatName = (expression: Expression): string => {
+    return expression.chat_name || chatNameMap.get(expression.chat_id) || expression.chat_id
   }
 
   // 单条审核
@@ -1104,8 +1113,8 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
                       <div className="flex flex-wrap items-center gap-1 sm:gap-2 text-xs text-muted-foreground">
                         <span>#{expr.id}</span>
                         <span>·</span>
-                        <span title={getChatName(expr.chat_id)} className="truncate max-w-24 sm:max-w-32">
-                          {getChatName(expr.chat_id)}
+                        <span title={getChatName(expr)} className="truncate max-w-24 sm:max-w-32">
+                          {getChatName(expr)}
                         </span>
                         <span>·</span>
                         <span>{formatTime(expr.create_date)}</span>
@@ -1585,8 +1594,8 @@ if (isCurrent) {
                                 <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary">
                                   <User className="h-3 w-3" />
                                 </div>
-                                <span title={getChatName(expr.chat_id)} className="truncate max-w-[120px] font-medium">
-                                  {getChatName(expr.chat_id)}
+                                <span title={getChatName(expr)} className="truncate max-w-[120px] font-medium">
+                                  {getChatName(expr)}
                                 </span>
                               </div>
                               <span className="font-mono">{formatTime(expr.create_date)}</span>
@@ -1638,8 +1647,8 @@ if (isCurrent) {
                                 <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary">
                                   <User className="h-3 w-3" />
                                 </div>
-                                <span title={getChatName(expr.chat_id)} className="truncate max-w-[120px] font-medium">
-                                  {getChatName(expr.chat_id)}
+                                <span title={getChatName(expr)} className="truncate max-w-[120px] font-medium">
+                                  {getChatName(expr)}
                                 </span>
                               </div>
                               <span className="font-mono">{formatTime(expr.create_date)}</span>

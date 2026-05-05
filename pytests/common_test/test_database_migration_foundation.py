@@ -754,15 +754,6 @@ def test_default_bootstrapper_can_migrate_legacy_v1_database(tmp_path: Path) -> 
                 """
             )
         ).mappings().one()
-        action_row = connection.execute(
-            text(
-                """
-                SELECT session_id, action_name, action_display_prompt
-                FROM action_records
-                WHERE action_id = 'action-1'
-                """
-            )
-        ).mappings().one()
         tool_row = connection.execute(
             text(
                 """
@@ -796,6 +787,8 @@ def test_default_bootstrapper_can_migrate_legacy_v1_database(tmp_path: Path) -> 
     assert snapshot.has_table("chat_sessions")
     assert snapshot.has_table("mai_messages")
     assert snapshot.has_table("tool_records")
+    assert not snapshot.has_table("action_records")
+    assert not snapshot.has_column("mai_messages", "display_message")
 
     unpacked_raw_content = msgpack.unpackb(message_row["raw_content"], raw=False)
     additional_config = json.loads(message_row["additional_config"])
@@ -807,9 +800,6 @@ def test_default_bootstrapper_can_migrate_legacy_v1_database(tmp_path: Path) -> 
     assert message_row["processed_plain_text"] == "你好"
     assert unpacked_raw_content == [{"type": "text", "data": "你好呀"}]
     assert additional_config == {"priority_mode": "high", "source": "legacy"}
-    assert action_row["session_id"] == "session-1"
-    assert action_row["action_name"] == "search"
-    assert action_row["action_display_prompt"] == "执行搜索"
     assert tool_row["session_id"] == "session-1"
     assert tool_row["tool_name"] == "search"
     assert tool_row["tool_display_prompt"] == "执行搜索"
@@ -848,8 +838,8 @@ def test_legacy_v1_migration_reports_table_progress(tmp_path: Path) -> None:
 
     migration_plan = manager.migrate(target_version=LATEST_SCHEMA_VERSION)
 
-    assert migration_plan.step_count() == 1
-    assert len(reporter_instances) == 1
+    assert migration_plan.step_count() == 3
+    assert len(reporter_instances) == 3
     reporter_events = reporter_instances[0].events
 
     assert reporter_events[0] == ("open", None, None, None)
@@ -894,10 +884,6 @@ def test_initialize_database_calls_bootstrapper_before_create_all(
         del bind
         call_order.append("create_all")
 
-    def _fake_migrate_action_records() -> None:
-        """记录轻量补迁移调用。"""
-        call_order.append("migrate_action_records")
-
     def _fake_finalize_database(migration_state: DatabaseMigrationState) -> None:
         """记录迁移收尾调用。
 
@@ -912,13 +898,11 @@ def test_initialize_database_calls_bootstrapper_before_create_all(
     monkeypatch.setattr(database_module._migration_bootstrapper, "prepare_database", _fake_prepare_database)
     monkeypatch.setattr(database_module._migration_bootstrapper, "finalize_database", _fake_finalize_database)
     monkeypatch.setattr(database_module.SQLModel.metadata, "create_all", _fake_create_all)
-    monkeypatch.setattr(database_module, "_migrate_action_records_to_tool_records", _fake_migrate_action_records)
 
     database_module.initialize_database()
 
     assert call_order == [
         "prepare_database",
         "create_all",
-        "migrate_action_records",
         "finalize_database",
     ]

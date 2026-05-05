@@ -4,6 +4,17 @@ import re
 
 from .config_base import ConfigBase, Field
 
+RULE_TYPE_OPTION_DESCRIPTIONS = {
+    "group": "群聊聊天流，item_id 填群号或群聊 ID",
+    "private": "私聊聊天流，item_id 填用户 ID",
+}
+
+VISUAL_MODE_OPTION_DESCRIPTIONS = {
+    "auto": "根据模型信息自动选择文本或多模态模式",
+    "text": "纯文本模式，不向模型发送视觉输入",
+    "multimodal": "多模态模式，会向模型发送视觉输入",
+}
+
 """
 须知：
 1. 本文件中记录了所有的配置项
@@ -19,7 +30,7 @@ class ExampleConfig(ConfigBase):
 class BotConfig(ConfigBase):
     """机器人配置类"""
 
-    __ui_label__ = "基本信息"
+    __ui_label__ = "基础"
     __ui_icon__ = "bot"
 
     platform: str = Field(
@@ -29,17 +40,19 @@ class BotConfig(ConfigBase):
             "x-icon": "wifi",
             "x-layout": "inline-right",
             "x-input-width": "12rem",
+            "x-row": "bot-platform-account",
         },
     )
     """平台"""
 
-    qq_account: int = Field(
-        default=0,
+    qq_account: str = Field(
+        default="",
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "user",
             "x-layout": "inline-right",
             "x-input-width": "12rem",
+            "x-row": "bot-platform-account",
         },
     )
     """QQ账号"""
@@ -76,6 +89,7 @@ class BotConfig(ConfigBase):
 class PersonalityConfig(ConfigBase):
     """人格配置类"""
 
+    __ui_parent__ = "bot"
     __ui_label__ = "人格"
     __ui_icon__ = "user-circle"
 
@@ -84,6 +98,8 @@ class PersonalityConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "textarea",
             "x-icon": "user-circle",
+            "x-textarea-min-height": 40,
+            "x-textarea-rows": 1,
         },
     )
     """人格，建议200字以内，描述人格特质和身份特征；可以写完整设定。要求第二人称"""
@@ -93,6 +109,8 @@ class PersonalityConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "textarea",
             "x-icon": "message-square",
+            "x-textarea-min-height": 40,
+            "x-textarea-rows": 1,
         },
     )
     """默认表达风格，描述麦麦说话的表达风格，表达习惯，如要修改，可以酌情新增内容，建议1-2行"""
@@ -137,6 +155,8 @@ class VisualConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "select",
             "x-icon": "git-branch",
+            "x-option-descriptions": VISUAL_MODE_OPTION_DESCRIPTIONS,
+            "x-row": "visual-modes",
         },
     )
     """规划器模式，auto根据模型信息自动选择，text为纯文本模式，multimodal为多模态模式"""
@@ -146,6 +166,8 @@ class VisualConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "select",
             "x-icon": "git-branch",
+            "x-option-descriptions": VISUAL_MODE_OPTION_DESCRIPTIONS,
+            "x-row": "visual-modes",
         },
     )
     """回复器模式，auto根据模型信息自动选择，text为纯文本模式，multimodal为多模态模式"""
@@ -158,7 +180,13 @@ class TalkRulesItem(ConfigBase):
     item_id: str = ""
     """用户ID，与平台一起留空表示全局"""
 
-    rule_type: Literal["group", "private"] = "group"
+    rule_type: Literal["group", "private"] = Field(
+        default="group",
+        json_schema_extra={
+            "x-widget": "select",
+            "x-option-descriptions": RULE_TYPE_OPTION_DESCRIPTIONS,
+        },
+    )
     """聊天流类型，group（群聊）或private（私聊）"""
 
     time: str = ""
@@ -181,6 +209,7 @@ class ChatConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "slider",
             "x-icon": "message-circle",
+            "x-row": "talk-values",
             "step": 0.1,
         },
     )
@@ -193,6 +222,7 @@ class ChatConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "slider",
             "x-icon": "message-circle",
+            "x-row": "talk-values",
             "step": 0.1,
         },
     )
@@ -203,11 +233,19 @@ class ChatConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "switch",
             "x-icon": "at-sign",
+            "x-row": "reply-switches",
         },
     )
     """是否启用提及必回复"""
 
-    inevitable_at_reply: bool = Field(default=True)
+    inevitable_at_reply: bool = Field(
+        default=True,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "at-sign",
+            "x-row": "reply-switches",
+        },
+    )
     """是否启用at必回复"""
 
     enable_at: bool = Field(
@@ -235,6 +273,9 @@ class ChatConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "layers",
+            "x-layout": "inline-right",
+            "x-input-width": "12rem",
+            "x-row": "context-sizes",
         },
     )
     """上下文长度"""
@@ -244,6 +285,9 @@ class ChatConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "layers",
+            "x-layout": "inline-right",
+            "x-input-width": "12rem",
+            "x-row": "context-sizes",
         },
     )
     """私聊上下文长度"""
@@ -321,7 +365,8 @@ class ChatConfig(ConfigBase):
 class MessageReceiveConfig(ConfigBase):
     """消息接收配置类"""
 
-    __ui_parent__ = "response_post_process"
+    __ui_label__ = "消息接收"
+    __ui_icon__ = "message-square-text"
 
     image_parse_threshold: int = Field(
         default=5,
@@ -386,6 +431,7 @@ class TargetItem(ConfigBase):
         json_schema_extra={
             "x-widget": "select",
             "x-icon": "users",
+            "x-option-descriptions": RULE_TYPE_OPTION_DESCRIPTIONS,
         },
     )
     """聊天流类型，group（群聊）或private（私聊）"""
@@ -394,7 +440,7 @@ class TargetItem(ConfigBase):
 class MemoryConfig(ConfigBase):
     """记忆配置类"""
 
-    __ui_parent__ = "emoji"
+    __ui_parent__ = "a_memorix"
 
 
     global_memory: bool = Field(
@@ -1040,6 +1086,7 @@ class LearningItem(ConfigBase):
         json_schema_extra={
             "x-widget": "select",
             "x-icon": "users",
+            "x-option-descriptions": RULE_TYPE_OPTION_DESCRIPTIONS,
         },
     )
     """聊天流类型，group（群聊）或private（私聊）"""
@@ -1051,7 +1098,7 @@ class LearningItem(ConfigBase):
             "x-icon": "message-square",
         },
     )
-    """是否启用表达学习"""
+    """是否使用表达"""
 
     enable_learning: bool = Field(
         default=True,
@@ -1060,7 +1107,7 @@ class LearningItem(ConfigBase):
             "x-icon": "graduation-cap",
         },
     )
-    """是否启用表达优化学习"""
+    """是否学习表达"""
 
     enable_jargon_learning: bool = Field(
         default=False,
@@ -1069,7 +1116,7 @@ class LearningItem(ConfigBase):
             "x-icon": "book",
         },
     )
-    """是否启用jargon学习"""
+    """是否学习黑话"""
 
 class ExpressionGroup(ConfigBase):
     """表达互通组配置类，若列表为空代表全局共享"""
@@ -1177,7 +1224,8 @@ class ExpressionConfig(ConfigBase):
 class VoiceConfig(ConfigBase):
     """语音识别配置类"""
 
-    __ui_parent__ = "emoji"
+    __ui_label__ = "语音"
+    __ui_icon__ = "mic"
 
     enable_asr: bool = Field(
         default=False,
@@ -1192,8 +1240,8 @@ class VoiceConfig(ConfigBase):
 class EmojiConfig(ConfigBase):
     """表情包配置类"""
 
-    __ui_label__ = "功能"
-    __ui_icon__ = "puzzle"
+    __ui_label__ = "表情包"
+    __ui_icon__ = "smile"
 
     emoji_send_num: int = Field(
         default=25,
@@ -1254,16 +1302,6 @@ class EmojiConfig(ConfigBase):
     )
     """是否启用表情包过滤，只有符合该要求的表情包才会被保存"""
 
-    filtration_prompt: str = Field(
-        default="符合公序良俗",
-        json_schema_extra={
-            "advanced": True,
-            "x-widget": "input",
-            "x-icon": "shield",
-        },
-    )
-    """表情包过滤要求，只有符合该要求的表情包才会被保存"""
-
 
 class KeywordRuleConfig(ConfigBase):
     """关键词规则配置类"""
@@ -1314,7 +1352,7 @@ class KeywordRuleConfig(ConfigBase):
 class KeywordReactionConfig(ConfigBase):
     """关键词配置类"""
 
-    __ui_parent__ = "response_post_process"
+    __ui_parent__ = "message_receive"
 
     keyword_rules: list[KeywordRuleConfig] = Field(
         default_factory=lambda: [],
@@ -1345,9 +1383,8 @@ class KeywordReactionConfig(ConfigBase):
 class ResponsePostProcessConfig(ConfigBase):
     """回复后处理配置类"""
 
-    __ui_label__ = "处理"
+    __ui_label__ = "后处理"
     __ui_icon__ = "settings"
-    __ui_merge_children__ = ["chinese_typo", "response_splitter"]
 
     enable_response_post_process: bool = Field(
         default=True,
@@ -1742,6 +1779,7 @@ class ExtraPromptItem(ConfigBase):
         json_schema_extra={
             "x-widget": "select",
             "x-icon": "users",
+            "x-option-descriptions": RULE_TYPE_OPTION_DESCRIPTIONS,
         },
     )
     """聊天流类型，group（群聊）或private（私聊）"""

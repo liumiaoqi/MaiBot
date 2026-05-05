@@ -351,6 +351,7 @@ class ModelInfo(ConfigBase):
     Gemini 客户端会按自身支持的字段筛选并映射到 GenerateContentConfig、EmbedContentConfig 或音频请求配置中。"""
 
     def model_post_init(self, context: Any = None):
+        self.model_identifier = self.model_identifier.strip()
         if not self.model_identifier:
             raise ValueError(t("config.model_identifier_empty_generic"))
         if not self.name:
@@ -402,6 +403,7 @@ class TaskConfig(ConfigBase):
             "x-widget": "input",
             "x-icon": "alert-circle",
             "step": 0.1,
+            "advanced": True,
         },
     )
     """慢请求阈值（秒），超过此值会输出警告日志"""
@@ -420,15 +422,6 @@ class TaskConfig(ConfigBase):
 class ModelTaskConfig(ConfigBase):
     """模型配置类"""
 
-    utils: TaskConfig = Field(
-        default_factory=TaskConfig,
-        json_schema_extra={
-            "x-widget": "custom",
-            "x-icon": "wrench",
-        },
-    )
-    """组件使用的模型, 例如表情包模块, 取名模块, 关系模块, 麦麦的情绪变化等，是麦麦必须的模型"""
-
     replyer: TaskConfig = Field(
         default_factory=TaskConfig,
         json_schema_extra={
@@ -436,17 +429,7 @@ class ModelTaskConfig(ConfigBase):
             "x-icon": "message-square",
         },
     )
-    """首要回复模型配置"""
-    
-    learner: TaskConfig = Field(
-        default_factory=TaskConfig,
-        json_schema_extra={
-            "x-widget": "custom",
-            "x-icon": "graduation-cap",
-            "advanced": True,
-        },
-    )
-    """学习模型配置，用于表达方式学习和黑话学习；留空时自动继用 utils 模型"""
+    """回复模型配置"""
 
     planner: TaskConfig = Field(
         default_factory=TaskConfig,
@@ -456,6 +439,25 @@ class ModelTaskConfig(ConfigBase):
         },
     )
     """规划模型配置"""
+
+    utils: TaskConfig = Field(
+        default_factory=TaskConfig,
+        json_schema_extra={
+            "x-widget": "custom",
+            "x-icon": "wrench",
+        },
+    )
+    """组件使用的模型, 例如表情包模块, 取名模块, 关系模块, 麦麦的情绪变化等，是麦麦必须的模型"""
+
+    learner: TaskConfig = Field(
+        default_factory=TaskConfig,
+        json_schema_extra={
+            "x-widget": "custom",
+            "x-icon": "graduation-cap",
+            "advanced": True,
+        },
+    )
+    """学习模型配置，用于表达方式学习和黑话学习；留空时自动继用 utils 模型"""
 
     vlm: TaskConfig = Field(
         default_factory=TaskConfig,
@@ -471,6 +473,7 @@ class ModelTaskConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "custom",
             "x-icon": "volume-2",
+            "advanced": True,
         },
     )
     """语音识别模型配置"""

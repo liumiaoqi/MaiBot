@@ -31,7 +31,6 @@ def test_plugin_message_utils_preserves_binary_components_and_reply_metadata() -
     )
     message.session_id = "qq:20001:10001"
     message.processed_plain_text = "binary payload"
-    message.display_message = "binary payload"
     message.raw_message = MessageSequence(
         components=[
             TextComponent("hello"),

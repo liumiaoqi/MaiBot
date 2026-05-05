@@ -440,6 +440,9 @@ function MCPSettingsPageContent() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [mcpConfig, setMcpConfig] = useState<ConfigSectionData>({})
   const [mcpSchema, setMcpSchema] = useState<ConfigSchema | null>(null)
+  const [restartNoticeVisible, setRestartNoticeVisible] = useState(
+    () => localStorage.getItem('mcp-settings-restart-notice-dismissed') !== 'true',
+  )
   const { toast } = useToast()
   const { triggerRestart, isRestarting } = useRestart()
 
@@ -547,6 +550,11 @@ function MCPSettingsPageContent() {
     await triggerRestart({ delay: 500 })
   }, [saveConfig, triggerRestart])
 
+  const dismissRestartNotice = useCallback(() => {
+    localStorage.setItem('mcp-settings-restart-notice-dismissed', 'true')
+    setRestartNoticeVisible(false)
+  }, [])
+
   const formSchema: ConfigSchema | null = mcpSchema
     ? {
         className: 'MCPSettings',
@@ -600,12 +608,17 @@ function MCPSettingsPageContent() {
           </div>
         </div>
 
-        <Alert>
-          <Info className="h-4 w-4" />
-          <AlertDescription>
-            MCP 设置保存后需要重启麦麦才会生效。这里与主程序配置中的 MCP 栏目使用同一份配置。
-          </AlertDescription>
-        </Alert>
+        {restartNoticeVisible && (
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <span>MCP 设置保存后需要重启麦麦才会生效。这里与主程序配置中的 MCP 栏目使用同一份配置。</span>
+              <Button type="button" variant="outline" size="sm" onClick={dismissRestartNotice}>
+                我知道了
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
 
         {loading && (
           <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">

@@ -79,7 +79,6 @@ class BufferCLI:
         )
         message.raw_message = MessageSequence([TextComponent(text=user_text)])
         message.processed_plain_text = user_text
-        message.display_message = user_text
         message.initialized = True
         return message
 

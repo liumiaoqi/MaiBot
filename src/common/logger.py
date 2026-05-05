@@ -829,20 +829,19 @@ def initialize_logging(verbose: bool = True):
     reconfigure_existing_loggers()
 
     # 启动日志清理任务
-    start_log_cleanup_task(verbose=verbose)
+    start_log_cleanup_task()
 
     # 只在 verbose=True 时输出详细的初始化信息
     if verbose:
         logger = get_logger("logger")
         console_level = LOG_CONFIG.get("console_log_level", LOG_CONFIG.get("log_level", "INFO"))
         file_level = LOG_CONFIG.get("file_log_level", LOG_CONFIG.get("log_level", "INFO"))
-
-        logger.info("日志系统已初始化:")
-        logger.info(f"  - 控制台级别: {console_level}")
-        logger.info(f"  - 文件级别: {file_level}")
         max_log_files = max(1, int(LOG_CONFIG.get("max_log_files", 30) or 30))
         log_cleanup_days = max(1, int(LOG_CONFIG.get("log_cleanup_days", 30) or 30))
-        logger.info(f"  - 轮转份数: {max_log_files}个文件|自动清理: {log_cleanup_days}天前的日志")
+        logger.info(
+            f"日志系统已初始化：控制台={console_level}，文件={file_level}，"
+            f"轮转={max_log_files}个文件，清理={log_cleanup_days}天前"
+        )
 
 
 def cleanup_old_logs():
@@ -875,12 +874,8 @@ def cleanup_old_logs():
         logger.error(f"清理旧日志文件时出错: {e}")
 
 
-def start_log_cleanup_task(verbose: bool = True):
-    """启动日志清理任务
-
-    Args:
-        verbose: 是否输出启动信息。默认为 True。
-    """
+def start_log_cleanup_task():
+    """启动日志清理任务"""
     global _cleanup_task_started
 
     # 防止重复启动清理任务
@@ -896,12 +891,6 @@ def start_log_cleanup_task(verbose: bool = True):
 
     cleanup_thread = threading.Thread(target=cleanup_task, daemon=True)
     cleanup_thread.start()
-
-    if verbose:
-        logger = get_logger("logger")
-        max_log_files = max(1, int(LOG_CONFIG.get("max_log_files", 30) or 30))
-        log_cleanup_days = max(1, int(LOG_CONFIG.get("log_cleanup_days", 30) or 30))
-        logger.info(f"已启动日志清理任务，将自动清理{log_cleanup_days}天前的日志文件（轮转份数限制: {max_log_files}个文件）")
 
 
 def shutdown_logging():

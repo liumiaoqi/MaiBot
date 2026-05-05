@@ -67,6 +67,7 @@ export const ModelTable = React.memo(function ModelTable({
               <TableHead>模型名称</TableHead>
               <TableHead>模型标识符</TableHead>
               <TableHead>提供商</TableHead>
+              <TableHead className="text-center">视觉</TableHead>
               <TableHead className="text-center">温度</TableHead>
               <TableHead className="text-right">输入价格</TableHead>
               <TableHead className="text-right">输出价格</TableHead>
@@ -76,7 +77,7 @@ export const ModelTable = React.memo(function ModelTable({
           <TableBody>
             {paginatedModels.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                   {searchQuery ? '未找到匹配的模型' : '暂无模型配置'}
                 </TableCell>
               </TableRow>
@@ -105,6 +106,15 @@ export const ModelTable = React.memo(function ModelTable({
                       {model.model_identifier}
                     </TableCell>
                     <TableCell>{model.api_provider}</TableCell>
+                    <TableCell className="text-center">
+                      {model.visual ? (
+                        <Badge variant="outline" className="border-blue-500 text-blue-600">
+                          启用
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-center">
                       {model.temperature != null ? model.temperature : <span className="text-muted-foreground">-</span>}
                     </TableCell>

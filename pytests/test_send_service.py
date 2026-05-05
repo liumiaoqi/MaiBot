@@ -298,7 +298,7 @@ async def test_private_outbound_message_preserves_bot_sender_and_receiver_user(
     outbound_message = send_service._build_outbound_session_message(
         message_sequence=MessageSequence(components=[TextComponent(text="你好")]),
         stream_id="test-session",
-        display_message="你好",
+        processed_plain_text="你好",
     )
 
     assert outbound_message is not None
@@ -329,7 +329,7 @@ async def test_group_outbound_message_preserves_bot_sender_and_target_group(
     outbound_message = send_service._build_outbound_session_message(
         message_sequence=MessageSequence(components=[TextComponent(text="大家好")]),
         stream_id="group-session",
-        display_message="大家好",
+        processed_plain_text="大家好",
     )
 
     assert outbound_message is not None

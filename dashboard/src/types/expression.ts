@@ -11,6 +11,7 @@ export interface Expression {
   style: string
   last_active_time: number
   chat_id: string
+  chat_name?: string | null
   create_date: number | null
   checked: boolean
   rejected: boolean

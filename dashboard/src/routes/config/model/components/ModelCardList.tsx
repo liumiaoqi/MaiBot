@@ -55,6 +55,11 @@ export const ModelCardList = React.memo(function ModelCardList({
                   >
                     {used ? '已使用' : '未使用'}
                   </Badge>
+                  {model.visual && (
+                    <Badge variant="outline" className="border-blue-500 text-blue-600">
+                      视觉
+                    </Badge>
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground break-all" title={model.model_identifier}>
                   {model.model_identifier}

@@ -51,7 +51,6 @@ class Messages(SQLModel, table=True):
     # 消息内容
     raw_content: bytes = Field(sa_column=Column(LargeBinary))  # msgpack后的原始消息内容
     processed_plain_text: Optional[str] = Field(default=None)  # 平面化处理后的纯文本消息
-    display_message: Optional[str] = Field(default=None)  # 显示的消息内容（被放入Prompt）
 
     # 其他配置
     additional_config: Optional[str] = Field(default=None)  # 额外配置，JSON格式存储

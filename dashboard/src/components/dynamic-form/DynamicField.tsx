@@ -8,6 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import type { FieldSchema } from "@/types/config-schema"
 
@@ -31,6 +37,27 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
   value,
   onChange,
 }) => {
+  const isNumericField = schema.type === 'integer' || schema.type === 'number'
+
+  const parseNumericValue = (rawValue: unknown, fallbackValue: unknown = 0) => {
+    if (typeof rawValue === 'number' && Number.isFinite(rawValue)) {
+      return rawValue
+    }
+
+    if (typeof rawValue === 'string') {
+      const parsedValue = parseFloat(rawValue)
+      if (Number.isFinite(parsedValue)) {
+        return schema.type === 'integer' ? Math.trunc(parsedValue) : parsedValue
+      }
+    }
+
+    if (fallbackValue !== rawValue) {
+      return parseNumericValue(fallbackValue, 0)
+    }
+
+    return 0
+  }
+
   const renderPrimitiveArrayEditor = () => {
     const itemType = schema.items?.type ?? 'string'
     const arrayValue = Array.isArray(value)
@@ -94,6 +121,10 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
     return <IconComponent className="h-4 w-4" />
   }
 
+  const optionDescriptions = schema['x-option-descriptions'] ?? {}
+  const hasOptionDescriptions = Object.keys(optionDescriptions).length > 0
+  const inlineDescription = hasOptionDescriptions ? '' : schema.description
+
   const renderFieldHeader = () => (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
       <Label
@@ -108,9 +139,9 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
         <span className="break-all">{schema.label}</span>
         {schema.required && <span className="text-destructive">*</span>}
       </Label>
-      {schema.description && (
+      {inlineDescription && (
         <span className="text-[13px] leading-6 text-muted-foreground whitespace-pre-line">
-          {schema.description}
+          {inlineDescription}
         </span>
       )}
     </div>
@@ -122,10 +153,14 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
   const renderInputComponent = () => {
     const widget = schema['x-widget']
     const type = schema.type
+    const resolvedWidget =
+      isNumericField && (widget === 'input' || widget === 'number' || !widget)
+        ? 'number'
+        : widget
 
     // x-widget 优先
-    if (widget) {
-      switch (widget) {
+    if (resolvedWidget) {
+      switch (resolvedWidget) {
         case 'slider':
           return renderSlider()
         case 'input':
@@ -214,7 +249,7 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
    * 渲染 Slider 组件（用于 number 类型 + x-widget: slider）
    */
   const renderSlider = () => {
-    const numValue = typeof value === 'number' ? value : (schema.default as number ?? 0)
+    const numValue = parseNumericValue(value, schema.default)
     const min = schema.minValue ?? 0
     const max = schema.maxValue ?? 100
     const step = schema.step ?? 1
@@ -241,7 +276,7 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
    * 渲染 Input[type="number"] 组件（用于 number/integer 类型）
    */
   const renderNumberInput = () => {
-    const numValue = typeof value === 'number' ? value : (schema.default as number ?? 0)
+    const numValue = parseNumericValue(value, schema.default)
     const min = schema.minValue
     const max = schema.maxValue
     const step = schema.step ?? (schema.type === 'integer' ? 1 : 0.1)
@@ -250,7 +285,12 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
       <Input
         type="number"
         value={numValue}
-        onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+        onChange={(e) => {
+          const nextValue = schema.type === 'integer'
+            ? parseInt(e.target.value, 10)
+            : parseFloat(e.target.value)
+          onChange(Number.isFinite(nextValue) ? nextValue : 0)
+        }}
         min={min}
         max={max}
         step={step}
@@ -262,7 +302,12 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
    * 渲染 Input[type="text"] 组件（用于 string 类型）
    */
   const renderTextInput = (type: 'password' | 'text' = 'text') => {
-    const strValue = typeof value === 'string' ? value : (schema.default as string ?? '')
+    const strValue =
+      typeof value === 'string'
+        ? value
+        : value === null || value === undefined
+          ? String(schema.default ?? '')
+          : String(value)
     return (
       <Input
         type={type}
@@ -277,11 +322,19 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
    */
   const renderTextarea = () => {
     const strValue = typeof value === 'string' ? value : (schema.default as string ?? '')
+    const minHeight = typeof schema['x-textarea-min-height'] === 'number'
+      ? schema['x-textarea-min-height']
+      : undefined
+    const rows = typeof schema['x-textarea-rows'] === 'number'
+      ? schema['x-textarea-rows']
+      : 4
+
     return (
       <Textarea
         value={strValue}
         onChange={(e) => onChange(e.target.value)}
-        rows={4}
+        rows={rows}
+        minHeight={minHeight}
       />
     )
   }
@@ -307,11 +360,39 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
           <SelectValue placeholder={`Select ${schema.label}`} />
         </SelectTrigger>
         <SelectContent>
-          {options.map((option) => (
-            <SelectItem key={option} value={option}>
-              {option}
-            </SelectItem>
-          ))}
+          {hasOptionDescriptions ? (
+            <TooltipProvider delayDuration={150}>
+              {options.map((option) => {
+                const description = optionDescriptions[option]
+                return description ? (
+                  <Tooltip key={option}>
+                    <TooltipTrigger asChild>
+                      <SelectItem value={option} title={description}>
+                        {option}
+                      </SelectItem>
+                    </TooltipTrigger>
+                    <TooltipContent
+                      side="right"
+                      align="center"
+                      className="max-w-72 bg-background text-foreground border shadow-lg"
+                    >
+                      {description}
+                    </TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <SelectItem key={option} value={option}>
+                    {option}
+                  </SelectItem>
+                )
+              })}
+            </TooltipProvider>
+          ) : (
+            options.map((option) => (
+              <SelectItem key={option} value={option}>
+                {option}
+              </SelectItem>
+            ))
+          )}
         </SelectContent>
       </Select>
     )

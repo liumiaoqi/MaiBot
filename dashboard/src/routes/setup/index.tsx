@@ -106,7 +106,7 @@ function SetupPageContent() {
   // 步骤1：Bot基础信息
   const [botBasic, setBotBasic] = useState<BotBasicConfig>({
     platform: '',
-    qq_account: 0,
+    qq_account: '',
     platforms: [],
     nickname: '',
     alias_names: [],
@@ -239,7 +239,7 @@ function SetupPageContent() {
     if (!config.platform) return t('setupPage.validation.selectPlatform')
     if (!config.nickname.trim()) return t('setupPage.validation.enterNickname')
     if (config.platform === 'qq') {
-      if (!config.qq_account || config.qq_account <= 0) {
+      if (!config.qq_account.trim()) {
         return t('setupPage.validation.enterQqAccount')
       }
     } else {

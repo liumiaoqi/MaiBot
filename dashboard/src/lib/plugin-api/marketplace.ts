@@ -121,6 +121,7 @@ export async function fetchPluginList(): Promise<ApiResponse<PluginInfo[]>> {
       rating: 0,
       review_count: 0,
       installed: false,
+      source: 'market' as const,
       published_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }))

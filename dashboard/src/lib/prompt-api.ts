@@ -8,6 +8,9 @@ export interface PromptFileInfo {
   name: string
   size: number
   modified_at: number
+  display_name: string
+  advanced: boolean
+  description: string
 }
 
 export interface PromptCatalog {

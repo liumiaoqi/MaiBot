@@ -13,7 +13,7 @@ from PIL import Image as PILImage
 from PIL import ImageDraw, ImageFont
 from pydantic import BaseModel, Field as PydanticField
 
-from src.emoji_system.emoji_manager import emoji_manager
+from src.emoji_system.emoji_manager import _is_vlm_task_configured, emoji_manager
 from src.emoji_system.maisaka_tool import send_emoji_for_maisaka
 from src.common.data_models.image_data_model import MaiEmoji
 from src.common.data_models.message_component_data_model import ImageComponent, MessageSequence, TextComponent
@@ -38,6 +38,7 @@ _EMOJI_SUB_AGENT_MAX_TOKENS = 240
 _EMOJI_MAX_CANDIDATE_COUNT = 64
 _EMOJI_CANDIDATE_TILE_SIZE = 256
 _EMOJI_SUCCESS_MESSAGE = "表情包发送成功"
+_EMOJI_VLM_NOT_CONFIGURED_MESSAGE = "错误，没有配置视觉模型，无法使用表情包功能"
 
 
 class EmojiSelectionResult(BaseModel):
@@ -298,6 +299,13 @@ def _resolve_emoji_selector_model_task_name() -> str:
     return "vlm"
 
 
+def _is_missing_visual_model_error(exc: Exception) -> bool:
+    """判断是否为未配置视觉模型导致的选择失败。"""
+
+    error_text = str(exc)
+    return _EMOJI_VLM_NOT_CONFIGURED_MESSAGE in error_text or "未找到名为 '' 的模型" in error_text
+
+
 async def _select_emoji_with_sub_agent(
     tool_ctx: BuiltinToolRuntimeContext,
     reasoning: str,
@@ -351,13 +359,17 @@ async def _select_emoji_with_sub_agent(
         request_messages.append(candidate_llm_message)
     serialized_request_messages = serialize_prompt_messages(request_messages)
 
+    model_task_name = _resolve_emoji_selector_model_task_name()
+    if model_task_name == "vlm" and not _is_vlm_task_configured():
+        raise RuntimeError(_EMOJI_VLM_NOT_CONFIGURED_MESSAGE)
+
     selection_started_at = datetime.now()
     response = await tool_ctx.runtime.run_sub_agent(
         context_message_limit=_EMOJI_SUB_AGENT_CONTEXT_LIMIT,
         system_prompt=system_prompt,
         extra_messages=[prompt_message, candidate_message],
         max_tokens=_EMOJI_SUB_AGENT_MAX_TOKENS,
-        model_task_name=_resolve_emoji_selector_model_task_name(),
+        model_task_name=model_task_name,
     )
     selection_duration_ms = round((datetime.now() - selection_started_at).total_seconds() * 1000, 2)
 
@@ -448,7 +460,10 @@ async def handle_tool(
         )
     except Exception as exc:
         logger.exception(f"{tool_ctx.runtime.log_prefix} 发送表情包时发生异常: {exc}")
-        structured_result["message"] = f"发送表情包时发生异常：{exc}"
+        if _is_missing_visual_model_error(exc):
+            structured_result["message"] = _EMOJI_VLM_NOT_CONFIGURED_MESSAGE
+        else:
+            structured_result["message"] = f"发送表情包时发生异常：{exc}"
         return tool_ctx.build_failure_result(
             invocation.tool_name,
             structured_result["message"],

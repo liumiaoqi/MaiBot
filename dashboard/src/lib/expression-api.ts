@@ -442,16 +442,20 @@ export async function getReviewList(params: {
   page?: number
   page_size?: number
   filter_type?: 'unchecked' | 'passed' | 'rejected' | 'all'
+  order?: 'latest' | 'random'
   search?: string
   chat_id?: string
+  exclude_ids?: number[]
 }): Promise<ApiResponse<ReviewListResponse>> {
   const queryParams = new URLSearchParams()
 
   if (params.page) queryParams.append('page', params.page.toString())
   if (params.page_size) queryParams.append('page_size', params.page_size.toString())
   if (params.filter_type) queryParams.append('filter_type', params.filter_type)
+  if (params.order) queryParams.append('order', params.order)
   if (params.search) queryParams.append('search', params.search)
   if (params.chat_id) queryParams.append('chat_id', params.chat_id)
+  params.exclude_ids?.forEach((id) => queryParams.append('exclude_ids', id.toString()))
 
   const response = await fetchWithAuth(`${API_BASE}/review/list?${queryParams}`)
 

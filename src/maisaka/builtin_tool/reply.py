@@ -207,7 +207,7 @@ async def handle_tool(
                 sent_message = await send_service._send_to_target_with_message(
                     message_sequence=reply_sequence,
                     stream_id=tool_ctx.runtime.session_id,
-                    display_message=segment,
+                    processed_plain_text=segment,
                     set_reply=segment_set_quote,
                     reply_message=target_message if segment_set_quote else None,
                     selected_expressions=reply_result.selected_expression_ids or None,

@@ -44,7 +44,7 @@ function normalizePlatform(raw: string): string {
 function deriveSelectedPlatform(config: BotBasicConfig): { selected: string; customName: string } {
   const platform = config.platform
   // Legacy: no platform set but has QQ account
-  if (!platform && config.qq_account > 0) {
+  if (!platform && config.qq_account.trim()) {
     return { selected: 'qq', customName: '' }
   }
   if (!platform) {
@@ -96,9 +96,7 @@ export function BotBasicForm({ config, onChange }: BotBasicFormProps) {
   const customPlatformName = customPlatformNameOverride ?? derived.customName
   const primaryAccount =
     selectedPlatform === 'qq'
-      ? config.qq_account > 0
-        ? String(config.qq_account)
-        : ''
+      ? config.qq_account.trim()
       : config.platform
         ? getPrimaryAccount(config.platforms, config.platform)
         : ''
@@ -141,7 +139,7 @@ export function BotBasicForm({ config, onChange }: BotBasicFormProps) {
     if (normalized === 'qq') {
       onChange({
         ...config,
-        qq_account: Number(accountId) || 0,
+        qq_account: accountId.trim(),
         platform: 'qq',
       })
     } else {

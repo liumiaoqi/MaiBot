@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, type MouseEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -106,7 +106,14 @@ function ModelConfigPageContent() {
   const [jumpToPage, setJumpToPage] = useState('')
   
   const [advancedTemperatureMode, setAdvancedTemperatureMode] = useState(false)
+  const [advancedModelSettingsVisible, setAdvancedModelSettingsVisible] = useState(false)
   const [advancedTaskSettingsVisible, setAdvancedTaskSettingsVisible] = useState(false)
+  const [restartNoticeVisible, setRestartNoticeVisible] = useState(
+    () => localStorage.getItem('model-config-restart-notice-dismissed') !== 'true'
+  )
+  const [tourEntryVisible, setTourEntryVisible] = useState(
+    () => localStorage.getItem('model-assignment-tour-entry-dismissed') !== 'true'
+  )
   
   // 模型 Combobox 状态
   const [modelComboboxOpen, setModelComboboxOpen] = useState(false)
@@ -130,13 +137,8 @@ function ModelConfigPageContent() {
   const { toast } = useToast()
   const { triggerRestart, isRestarting } = useRestart()
   
-  // Tour 引导 (使用 hook 封装的逻辑)
-  const { startTour: handleStartTour, isRunning: tourIsRunning } = useModelTour({
-    onCloseEditDialog: () => setEditDialogOpen(false),
-  })
-
   // 自动保存 (使用 hook 封装的逻辑)
-  const { clearTimers: clearAutoSaveTimers, initialLoadRef } = useModelAutoSave({
+  const { clearTimers: clearAutoSaveTimers, initialLoadRef, resetSnapshots } = useModelAutoSave({
     models,
     taskConfig,
     onSavingChange: setAutoSaving,
@@ -198,6 +200,7 @@ function ModelConfigPageContent() {
       
       const taskConf = (config.model_task_config as ModelTaskConfig) || null
       setTaskConfig(taskConf)
+      resetSnapshots(modelList, taskConf)
       
       // 解析 model_task_config 的 schema
       if (schemaResult.success && schemaResult.data) {
@@ -218,7 +221,7 @@ function ModelConfigPageContent() {
     } finally {
       setLoading(false)
     }
-  }, [initialLoadRef, checkTaskConfigIssues])
+  }, [initialLoadRef, checkTaskConfigIssues, resetSnapshots])
 
   // 初始加载
   useEffect(() => {
@@ -250,6 +253,17 @@ function ModelConfigPageContent() {
   // 重启麦麦
   const handleRestart = async () => {
     await triggerRestart()
+  }
+
+  const dismissRestartNotice = () => {
+    localStorage.setItem('model-config-restart-notice-dismissed', 'true')
+    setRestartNoticeVisible(false)
+  }
+
+  const dismissTourEntry = (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation()
+    localStorage.setItem('model-assignment-tour-entry-dismissed', 'true')
+    setTourEntryVisible(false)
   }
   
   // 一键删除所有无效模型引用
@@ -285,6 +299,9 @@ function ModelConfigPageContent() {
       api_provider: model.api_provider,
       price_in: model.price_in ?? 0,
       price_out: model.price_out ?? 0,
+      cache: model.cache ?? false,
+      cache_price_in: model.cache_price_in ?? 0,
+      visual: model.visual ?? false,
       force_stream_mode: model.force_stream_mode ?? false,
       extra_params: model.extra_params ?? {},
     }
@@ -327,6 +344,7 @@ function ModelConfigPageContent() {
         setSaving(false)
         return
       }
+      resetSnapshots(config.models as ModelInfo[], taskConfig)
       setHasUnsavedChanges(false)
       toast({
         title: '保存成功',
@@ -376,6 +394,7 @@ function ModelConfigPageContent() {
         setSaving(false)
         return
       }
+      resetSnapshots(config.models as ModelInfo[], taskConfig)
       setHasUnsavedChanges(false)
       toast({
         title: '保存成功',
@@ -406,15 +425,25 @@ function ModelConfigPageContent() {
         api_provider: providers[0] || '',
         price_in: 0,
         price_out: 0,
+        cache: false,
+        cache_price_in: 0,
         temperature: null,
         max_tokens: null,
+        visual: false,
         force_stream_mode: false,
         extra_params: {},
       }
     )
+    setAdvancedModelSettingsVisible(false)
     setEditingIndex(index)
     setEditDialogOpen(true)
   }
+
+  // Tour 引导 (使用 hook 封装的逻辑)
+  const { startTour: handleStartTour, isRunning: tourIsRunning } = useModelTour({
+    onOpenEditDialog: () => openEditDialog(null, null),
+    onCloseEditDialog: () => setEditDialogOpen(false),
+  })
 
   // 保存编辑
   const handleSaveEdit = () => {
@@ -459,6 +488,9 @@ function ModelConfigPageContent() {
       api_provider: editingModel.api_provider,
       price_in: editingModel.price_in ?? 0,
       price_out: editingModel.price_out ?? 0,
+      cache: editingModel.cache ?? false,
+      cache_price_in: editingModel.cache_price_in ?? 0,
+      visual: editingModel.visual ?? false,
       force_stream_mode: editingModel.force_stream_mode ?? false,
       extra_params: editingModel.extra_params ?? {},
     }
@@ -792,12 +824,19 @@ function ModelConfigPageContent() {
         </div>
 
         {/* 重启提示 */}
-        <Alert>
-          <Info className="h-4 w-4" />
-          <AlertDescription>
-            配置更新后需要<strong>重启麦麦</strong>才能生效。你可以点击右上角的"保存并重启"按钮一键完成保存和重启。
-          </AlertDescription>
-        </Alert>
+        {restartNoticeVisible && (
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <span>
+                配置更新后需要<strong>重启麦麦</strong>才能生效。你可以点击右上角的"保存并重启"按钮一键完成保存和重启。
+              </span>
+              <Button type="button" variant="outline" size="sm" onClick={dismissRestartNotice}>
+                我知道了
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
         
         {/* 无效模型引用警告 */}
         {invalidModelRefs.length > 0 && (
@@ -841,23 +880,30 @@ function ModelConfigPageContent() {
 
 
         {/* 新手引导入口 - 仅在桌面端显示，移动端隐藏 */}
+        {tourEntryVisible && (
         <Alert className="hidden lg:flex border-primary/30 bg-primary/5 cursor-pointer hover:bg-primary/10 transition-colors" onClick={handleStartTour}>
           <GraduationCap className="h-4 w-4 text-primary" />
           <AlertDescription className="flex items-center justify-between">
             <span>
               <strong className="text-primary">新手引导：</strong>不知道如何配置模型？点击这里开始学习如何为麦麦的组件分配模型。
             </span>
-            <Button variant="outline" size="sm" className="ml-4 shrink-0">
+            <div className="ml-4 flex shrink-0 items-center gap-2">
+            <Button variant="outline" size="sm">
               开始引导
             </Button>
+            <Button type="button" variant="ghost" size="sm" onClick={dismissTourEntry}>
+              关闭
+            </Button>
+            </div>
           </AlertDescription>
         </Alert>
+        )}
 
         {/* 标签页 */}
         <Tabs defaultValue="models" className="w-full">
-          <TabsList className="grid w-full max-w-full sm:max-w-md grid-cols-2">
-            <TabsTrigger value="models">添加模型</TabsTrigger>
-            <TabsTrigger value="tasks" data-tour="tasks-tab-trigger">为模型分配功能</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="models" className="w-full">添加模型</TabsTrigger>
+            <TabsTrigger value="tasks" className="w-full" data-tour="tasks-tab-trigger">为模型分配功能</TabsTrigger>
           </TabsList>
           {/* 模型配置标签页 */}
           <TabsContent value="models" className="space-y-4 mt-0">
@@ -976,6 +1022,7 @@ function ModelConfigPageContent() {
                       modelNames={modelNames}
                       onChange={(f, value) => updateTaskConfig(field.name, f, value)}
                       advanced={field.advanced}
+                      showAdvancedSettings={advancedTaskSettingsVisible}
                       {...(index === 0 ? { dataTour: 'task-model-select' } : {})}
                     />
                   )
@@ -997,64 +1044,89 @@ function ModelConfigPageContent() {
             <DialogTitle>
               {editingIndex !== null ? '编辑模型' : '添加模型'}
             </DialogTitle>
-            <DialogDescription>配置模型的基本信息和参数</DialogDescription>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <DialogDescription>配置模型的基本信息和参数</DialogDescription>
+              <Button
+                type="button"
+                variant={advancedModelSettingsVisible ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setAdvancedModelSettingsVisible((current) => !current)}
+                className="self-start sm:self-auto"
+              >
+                高级设置
+              </Button>
+            </div>
           </DialogHeader>
 
           <DialogBody>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2" data-tour="model-name-input">
-              <Label htmlFor="model_name" className={formErrors.name ? 'text-destructive' : ''}>模型名称 *</Label>
-              <Input
-                id="model_name"
-                value={editingModel?.name || ''}
-                onChange={(e) => {
-                  setEditingModel((prev) =>
-                    prev ? { ...prev, name: e.target.value } : null
-                  )
-                  if (formErrors.name) {
-                    setFormErrors((prev) => ({ ...prev, name: undefined }))
-                  }
-                }}
-                placeholder="例如: qwen3-30b"
-                className={formErrors.name ? 'border-destructive focus-visible:ring-destructive' : ''}
-              />
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Label
+                  htmlFor="model_name"
+                  className={`sm:w-28 sm:flex-shrink-0 ${formErrors.name ? 'text-destructive' : ''}`}
+                >
+                  模型名称 *
+                </Label>
+                <Input
+                  id="model_name"
+                  value={editingModel?.name || ''}
+                  onChange={(e) => {
+                    setEditingModel((prev) =>
+                      prev ? { ...prev, name: e.target.value } : null
+                    )
+                    if (formErrors.name) {
+                      setFormErrors((prev) => ({ ...prev, name: undefined }))
+                    }
+                  }}
+                  placeholder="例如: qwen3-30b"
+                  className={`sm:flex-1 ${formErrors.name ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+                />
+              </div>
               {formErrors.name ? (
-                <p className="text-xs text-destructive">{formErrors.name}</p>
+                <p className="text-xs text-destructive sm:pl-28">{formErrors.name}</p>
               ) : (
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground sm:pl-28">
                   用于在任务配置中引用此模型
                 </p>
               )}
             </div>
 
             <div className="grid gap-2" data-tour="model-provider-select">
-              <Label htmlFor="api_provider" className={formErrors.api_provider ? 'text-destructive' : ''}>API 提供商 *</Label>
-              <Select
-                value={editingModel?.api_provider || ''}
-                onValueChange={(value) => {
-                  setEditingModel((prev) =>
-                    prev ? { ...prev, api_provider: value } : null
-                  )
-                  // 清空模型列表和错误状态，等待 useEffect 重新获取
-                  clearModels()
-                  if (formErrors.api_provider) {
-                    setFormErrors((prev) => ({ ...prev, api_provider: undefined }))
-                  }
-                }}
-              >
-                <SelectTrigger id="api_provider" className={formErrors.api_provider ? 'border-destructive focus-visible:ring-destructive' : ''}>
-                  <SelectValue placeholder="选择提供商" />
-                </SelectTrigger>
-                <SelectContent>
-                  {providers.map((provider) => (
-                    <SelectItem key={provider} value={provider}>
-                      {provider}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Label
+                  htmlFor="api_provider"
+                  className={`sm:w-28 sm:flex-shrink-0 ${formErrors.api_provider ? 'text-destructive' : ''}`}
+                >
+                  API 提供商 *
+                </Label>
+                <Select
+                  value={editingModel?.api_provider || ''}
+                  onValueChange={(value) => {
+                    setEditingModel((prev) =>
+                      prev ? { ...prev, api_provider: value } : null
+                    )
+                    // 清空模型列表和错误状态，等待 useEffect 重新获取
+                    clearModels()
+                    if (formErrors.api_provider) {
+                      setFormErrors((prev) => ({ ...prev, api_provider: undefined }))
+                    }
+                  }}
+                >
+                  <SelectTrigger id="api_provider" className={`sm:flex-1 ${formErrors.api_provider ? 'border-destructive focus-visible:ring-destructive' : ''}`}>
+                    <SelectValue placeholder="选择提供商" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {providers.map((provider) => (
+                      <SelectItem key={provider} value={provider}>
+                        {provider}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               {formErrors.api_provider && (
-                <p className="text-xs text-destructive">{formErrors.api_provider}</p>
+                <p className="text-xs text-destructive sm:pl-28">{formErrors.api_provider}</p>
               )}
             </div>
 
@@ -1277,6 +1349,50 @@ function ModelConfigPageContent() {
               </div>
             </div>
 
+            {advancedModelSettingsVisible && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-4 space-y-4 dark:border-amber-500/40 dark:bg-amber-500/10">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <Label htmlFor="model_cache" className="cursor-pointer">支持缓存计费</Label>
+                    <p className="text-xs text-muted-foreground">
+                      开启后，命中缓存的输入 token 会按缓存输入价格统计
+                    </p>
+                  </div>
+                  <Switch
+                    id="model_cache"
+                    checked={editingModel?.cache || false}
+                    onCheckedChange={(checked) =>
+                      setEditingModel((prev) =>
+                        prev ? { ...prev, cache: checked } : null
+                      )
+                    }
+                  />
+                </div>
+
+                {editingModel?.cache && (
+                  <div className="grid gap-2 border-t pt-4">
+                    <Label htmlFor="cache_price_in">缓存输入价格 (¥/M token)</Label>
+                    <Input
+                      id="cache_price_in"
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      value={editingModel?.cache_price_in ?? ''}
+                      onChange={(e) => {
+                        const val = e.target.value === '' ? null : parseFloat(e.target.value)
+                        setEditingModel((prev) =>
+                          prev
+                            ? { ...prev, cache_price_in: val }
+                            : null
+                        )
+                      }}
+                      placeholder="默认: 0"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* 模型级别温度 */}
             <div className="rounded-lg border p-4 space-y-3">
               <div className="flex items-center justify-between">
@@ -1457,6 +1573,21 @@ function ModelConfigPageContent() {
                   </p>
                 </div>
               )}
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="model_visual"
+                checked={editingModel?.visual || false}
+                onCheckedChange={(checked) =>
+                  setEditingModel((prev) =>
+                    prev ? { ...prev, visual: checked } : null
+                  )
+                }
+              />
+              <Label htmlFor="model_visual" className="cursor-pointer">
+                启用视觉
+              </Label>
             </div>
 
             <div className="flex items-center space-x-2">
