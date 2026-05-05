@@ -2425,14 +2425,14 @@ class MCPServerItemConfig(ConfigBase):
     )
     """是否启用当前 MCP 服务器"""
 
-    transport: Literal["stdio", "streamable_http"] = Field(
+    transport: Literal["stdio", "streamable_http", "sse"] = Field(
         default="stdio",
         json_schema_extra={
             "x-widget": "select",
             "x-icon": "shuffle",
         },
     )
-    """传输方式，可选 `stdio` 或 `streamable_http`"""
+    """传输方式，可选 `stdio`、`streamable_http` 或 `sse`"""
 
     command: str = Field(
         default="",
