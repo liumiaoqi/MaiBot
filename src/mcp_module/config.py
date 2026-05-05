@@ -50,7 +50,7 @@ class MCPServerRuntimeConfig:
     """单个 MCP 服务器的运行时配置。"""
 
     name: str
-    transport: Literal["stdio", "streamable_http"] = "stdio"
+    transport: Literal["stdio", "streamable_http", "sse"] = "stdio"
     command: str = ""
     args: list[str] = field(default_factory=list)
     env: dict[str, str] = field(default_factory=dict)
@@ -65,13 +65,15 @@ class MCPServerRuntimeConfig:
         """返回当前服务器的传输类型。
 
         Returns:
-            str: ``stdio``、``streamable_http`` 或 ``unknown``。
+            str: ``stdio``、``streamable_http``、``sse`` 或 ``unknown``。
         """
 
         if self.transport == "stdio" and self.command:
             return "stdio"
         if self.transport == "streamable_http" and self.url:
             return "streamable_http"
+        if self.transport == "sse" and self.url:
+            return "sse"
         return "unknown"
 
     def build_http_headers(self) -> dict[str, str]:
