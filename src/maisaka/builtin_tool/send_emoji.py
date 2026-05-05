@@ -34,7 +34,6 @@ from .context import BuiltinToolRuntimeContext
 logger = get_logger("maisaka_builtin_send_emoji")
 
 _EMOJI_SUB_AGENT_CONTEXT_LIMIT = 12
-_EMOJI_SUB_AGENT_MAX_TOKENS = 240
 _EMOJI_MAX_CANDIDATE_COUNT = 64
 _EMOJI_CANDIDATE_TILE_SIZE = 256
 _EMOJI_SUCCESS_MESSAGE = "表情包发送成功"
@@ -368,7 +367,6 @@ async def _select_emoji_with_sub_agent(
         context_message_limit=_EMOJI_SUB_AGENT_CONTEXT_LIMIT,
         system_prompt=system_prompt,
         extra_messages=[prompt_message, candidate_message],
-        max_tokens=_EMOJI_SUB_AGENT_MAX_TOKENS,
         model_task_name=model_task_name,
     )
     selection_duration_ms = round((datetime.now() - selection_started_at).total_seconds() * 1000, 2)

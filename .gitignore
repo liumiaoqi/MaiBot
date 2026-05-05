@@ -12,6 +12,7 @@ NapCat.Framework.Windows.OneKey/
 log/
 logs/
 out/
+SnowLuma-v1.6.10-win-x64/
 tool_call_benchmark.py
 run_maibot_core.bat
 run_voice.bat

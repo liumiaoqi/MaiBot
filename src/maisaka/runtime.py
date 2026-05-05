@@ -619,7 +619,6 @@ class MaisakaHeartFlowChatting:
         request_kind: str = "sub_agent",
         extra_messages: Optional[Sequence[LLMContextMessage]] = None,
         interrupt_flag: asyncio.Event | None = None,
-        max_tokens: int = 512,
         model_task_name: str = "planner",
         response_format: RespFormat | None = None,
         tool_definitions: Optional[Sequence[ToolDefinitionInput]] = None,
@@ -643,7 +642,6 @@ class MaisakaHeartFlowChatting:
             chat_system_prompt=system_prompt,
             session_id=self.session_id,
             is_group_chat=self.chat_stream.is_group_session,
-            max_tokens=max_tokens,
             model_task_name=model_task_name,
         )
         sub_agent.set_interrupt_flag(interrupt_flag)
@@ -703,7 +701,6 @@ class MaisakaHeartFlowChatting:
             system_prompt="你是回复效果评分器。请严格按用户给出的 JSON 格式输出，不要输出 JSON 之外的内容。",
             request_kind="reply_effect_judge",
             extra_messages=[judge_message],
-            max_tokens=900,
             tool_definitions=[],
         )
         return (response.content or "").strip()
