@@ -1,14 +1,57 @@
 from types import SimpleNamespace
 
+import pytest
+
 from src.config.model_configs import APIProvider, ReasoningParseMode, ToolArgumentParseMode
 from src.llm_models.model_client.openai_client import (
     _OpenAIStreamAccumulator,
     _build_reasoning_key,
     _default_normal_response_parser,
+    _parse_tool_arguments,
     _sanitize_messages_for_toolless_request,
 )
 from src.llm_models.payload_content.message import Message, RoleType, TextMessagePart
 from src.llm_models.payload_content.tool_option import ToolCall
+
+
+@pytest.mark.parametrize("parse_mode", list(ToolArgumentParseMode))
+def test_parse_tool_arguments_treats_blank_arguments_as_empty_dict(parse_mode: ToolArgumentParseMode) -> None:
+    assert _parse_tool_arguments("", parse_mode, None) == {}
+    assert _parse_tool_arguments("   ", parse_mode, None) == {}
+
+
+def test_normal_response_parser_accepts_empty_string_arguments_for_parameterless_tool() -> None:
+    response = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                finish_reason="tool_calls",
+                message=SimpleNamespace(
+                    content=None,
+                    tool_calls=[
+                        SimpleNamespace(
+                            id="finish-call",
+                            type="function",
+                            function=SimpleNamespace(name="finish", arguments=""),
+                        )
+                    ],
+                ),
+            )
+        ],
+        usage=None,
+        model="glm-5.1",
+    )
+
+    api_response, usage_record = _default_normal_response_parser(
+        response,
+        reasoning_parse_mode=ReasoningParseMode.AUTO,
+        tool_argument_parse_mode=ToolArgumentParseMode.AUTO,
+        reasoning_key=None,
+    )
+
+    assert len(api_response.tool_calls) == 1
+    assert api_response.tool_calls[0].func_name == "finish"
+    assert api_response.tool_calls[0].args == {}
+    assert usage_record is None
 
 
 def test_sanitize_messages_for_toolless_request_drops_assistant_tool_call_without_parts() -> None:
