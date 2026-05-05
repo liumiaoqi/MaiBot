@@ -2521,6 +2521,9 @@ class MCPServerItemConfig(ConfigBase):
         if self.transport == "streamable_http" and not self.url.strip():
             raise ValueError(f"MCP 服务器 {self.name} 使用 streamable_http 时必须填写 url")
 
+        if self.transport == "sse" and not self.url.strip():
+            raise ValueError(f"MCP 服务器 {self.name} 使用 sse 时必须填写 url")
+
         return super().model_post_init(context)
 
 
