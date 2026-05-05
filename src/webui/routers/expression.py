@@ -15,6 +15,7 @@ from src.common.logger import get_logger
 from src.webui.dependencies import require_auth
 
 logger = get_logger("webui.expression")
+EXCLUDE_IDS_QUERY = Query(None, description="需要排除的表达方式 ID")
 
 # 创建路由器
 router = APIRouter(prefix="/expression", tags=["Expression"], dependencies=[Depends(require_auth)])
@@ -660,8 +661,10 @@ async def get_review_list(
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
     filter_type: str = Query("unchecked", description="筛选类型: unchecked/passed/rejected/all"),
+    order: str = Query("latest", description="排序方式: latest/random"),
     search: Optional[str] = Query(None, description="搜索关键词"),
     chat_id: Optional[str] = Query(None, description="聊天ID筛选"),
+    exclude_ids: Optional[List[int]] = EXCLUDE_IDS_QUERY,
 ) -> ReviewListResponse:
     """获取待审核或已审核的表达方式列表。
 
@@ -669,8 +672,10 @@ async def get_review_list(
         page: 页码。
         page_size: 每页数量。
         filter_type: 筛选类型，可选 unchecked、passed、rejected 或 all。
+        order: 排序方式，可选 latest 或 random。
         search: 搜索关键词。
         chat_id: 聊天 ID 筛选条件。
+        exclude_ids: 需要排除的表达方式 ID。
 
     Returns:
         ReviewListResponse: 审核列表响应。
@@ -689,11 +694,17 @@ async def get_review_list(
         if chat_id:
             statement = statement.where(col(Expression.session_id) == chat_id)
 
-        # 排序：创建时间倒序
-        statement = statement.order_by(
-            case((col(Expression.create_time).is_(None), 1), else_=0),
-            col(Expression.create_time).desc(),
-        )
+        if exclude_ids:
+            statement = statement.where(~col(Expression.id).in_(exclude_ids))
+
+        if order == "random":
+            statement = statement.order_by(func.random())
+        else:
+            # 排序：创建时间倒序
+            statement = statement.order_by(
+                case((col(Expression.create_time).is_(None), 1), else_=0),
+                col(Expression.create_time).desc(),
+            )
 
         offset = (page - 1) * page_size
         statement = statement.offset(offset).limit(page_size)
@@ -731,7 +742,7 @@ class BatchReviewItem(BaseModel):
 
     id: int
     rejected: bool
-    require_unchecked: bool = True  # 默认要求未检查状态
+    require_unchecked: bool = True  # 前端保留的来源标记，人工审核提交时不再阻断覆盖
 
 
 class BatchReviewRequest(BaseModel):
@@ -786,14 +797,6 @@ async def batch_review_expressions(
                 if not expression:
                     results.append(
                         BatchReviewResultItem(id=item.id, success=False, message=f"未找到 ID 为 {item.id} 的表达方式")
-                    )
-                    failed += 1
-                    continue
-
-                # 冲突检测：未审核列表发起的操作只允许处理仍处于未审核状态的条目。
-                if item.require_unchecked and expression.checked:
-                    results.append(
-                        BatchReviewResultItem(id=item.id, success=False, message="该表达方式已被审核，请刷新列表后重试")
                     )
                     failed += 1
                     continue

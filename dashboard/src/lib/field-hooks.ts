@@ -15,6 +15,7 @@ export interface FieldHookComponentProps {
   onChange?: (value: unknown) => void
   children?: ReactNode
   schema?: ConfigSchema | FieldSchema
+  parentValues?: Record<string, unknown>
   /**
    * 如果当前字段是 `List[ConfigBase]` 或嵌套 ConfigBase，
    * 这里会传入对应子配置类的 ConfigSchema，便于自定义编辑器

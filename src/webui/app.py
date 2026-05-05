@@ -134,7 +134,7 @@ def _setup_anti_crawler(app: FastAPI):
             "basic": t("startup.webui_anti_crawler_mode_basic"),
         }
         mode_desc = mode_descriptions.get(anti_crawler_mode, t("startup.webui_anti_crawler_mode_basic"))
-        logger.info(t("startup.webui_anti_crawler_configured", mode_desc=mode_desc))
+        logger.debug(t("startup.webui_anti_crawler_configured", mode_desc=mode_desc))
     except Exception as e:
         logger.error(t("startup.webui_anti_crawler_config_failed", error=e), exc_info=True)
 
@@ -159,7 +159,7 @@ def _register_api_routes(app: FastAPI):
         for router in get_all_routers():
             app.include_router(router)
 
-        logger.info(t("startup.webui_api_routes_registered"))
+        logger.debug(t("startup.webui_api_routes_registered"))
     except Exception as e:
         logger.error(t("startup.webui_api_routes_register_failed", error=e), exc_info=True)
 
@@ -217,7 +217,7 @@ def _setup_static_files(app: FastAPI):
         response.headers["X-Robots-Tag"] = "noindex, nofollow, noarchive"
         return response
 
-    logger.info(t("startup.webui_static_files_configured", static_path=static_path))
+    logger.debug(t("startup.webui_static_files_configured", static_path=static_path))
 
 
 def _resolve_static_path() -> Path | None:
@@ -247,6 +247,5 @@ def show_access_token():
         token_manager = get_token_manager()
         current_token = token_manager.get_token()
         logger.info(t("startup.webui_access_token", token=current_token))
-        logger.info(t("startup.webui_access_token_login_hint"))
     except Exception as e:
         logger.error(t("startup.webui_access_token_failed", error=e))

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import * as LucideIcons from 'lucide-react'
 import { Plus, Trash2 } from 'lucide-react'
 
@@ -37,6 +37,11 @@ export interface ListItemEditorOptions {
   fieldSchemaOverrides?: Record<string, Partial<FieldSchema>>
   /** 添加按钮位置 */
   addButtonPlacement?: 'top' | 'bottom'
+  /** 根据同级配置决定是否默认折叠 */
+  collapseWhen?: (context: { parentValues?: Record<string, unknown> }) => boolean
+  collapsedText?: string
+  expandLabel?: string
+  collapseLabel?: string
 }
 
 function resolveLabel(schema?: ConfigSchema | FieldSchema, fieldPath?: string): string {
@@ -159,6 +164,7 @@ export function createListItemEditorHook(
     onChange,
     schema,
     nestedSchema,
+    parentValues,
     value,
   }) => {
     const items = useMemo<Record<string, unknown>[]>(() => {
@@ -283,6 +289,16 @@ export function createListItemEditorHook(
     const description = resolveDescription(schema)
     const iconName = resolveIconName(options.iconName, schema, nestedSchema)
     const addButtonPlacement = options.addButtonPlacement ?? 'bottom'
+    const shouldCollapse = options.collapseWhen?.({ parentValues }) ?? false
+    const [manuallyExpanded, setManuallyExpanded] = useState(false)
+    const collapsed = shouldCollapse && !manuallyExpanded
+
+    useEffect(() => {
+      if (!shouldCollapse) {
+        setManuallyExpanded(false)
+      }
+    }, [shouldCollapse])
+
     const addButton = (
       <Button
         type="button"
@@ -310,9 +326,23 @@ export function createListItemEditorHook(
     return (
       <Card>
         <CardHeader className="space-y-2 pb-4">
-          <div className="flex items-center gap-2">
-            {renderLucideIcon(iconName, 'h-5 w-5 text-muted-foreground')}
-            <CardTitle className="text-base">{label}</CardTitle>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2">
+              {renderLucideIcon(iconName, 'h-5 w-5 flex-shrink-0 text-muted-foreground')}
+              <CardTitle className="truncate text-base">{label}</CardTitle>
+            </div>
+            {shouldCollapse && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setManuallyExpanded((current) => !current)}
+              >
+                {collapsed
+                  ? (options.expandLabel ?? '展开')
+                  : (options.collapseLabel ?? '折叠')}
+              </Button>
+            )}
           </div>
           {description && (
             <CardDescription className="whitespace-pre-line">{description}</CardDescription>
@@ -322,6 +352,12 @@ export function createListItemEditorHook(
           )}
         </CardHeader>
         <CardContent className="space-y-3">
+          {collapsed ? (
+            <div className="rounded-md border border-dashed border-muted-foreground/25 bg-muted/10 p-4 text-sm text-muted-foreground">
+              {options.collapsedText ?? '当前配置已折叠，可手动展开查看或编辑。'}
+            </div>
+          ) : (
+            <>
           {addButtonPlacement === 'top' && addButton}
           {items.length === 0 ? (
             <div className="rounded-md border border-dashed border-muted-foreground/25 bg-muted/10 p-6 text-center text-sm text-muted-foreground">
@@ -360,6 +396,8 @@ export function createListItemEditorHook(
             })
           )}
           {addButtonPlacement === 'bottom' && addButton}
+            </>
+          )}
         </CardContent>
       </Card>
     )

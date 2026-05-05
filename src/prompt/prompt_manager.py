@@ -274,12 +274,12 @@ class PromptManager:
             Exception: 如果在加载过程中出现任何文件操作错误则引发该异常
         """
         prompt_templates = list_prompt_templates(prompts_root=PROMPTS_DIR)
-        for prompt_name, prompt_file in prompt_templates.items():
+        for prompt_name, prompt_template in prompt_templates.items():
             try:
                 template, need_save = self._load_prompt_template(prompt_name)
                 self.add_prompt(Prompt(prompt_name=prompt_name, template=template), need_save=need_save)
             except Exception as exc:
-                logger.error(f"加载 Prompt 文件 '{prompt_file}' 时出错，错误信息: {exc}")
+                logger.error(f"加载 Prompt 文件 '{prompt_template.path}' 时出错，错误信息: {exc}")
                 raise
         for prompt_file in CUSTOM_PROMPTS_DIR.glob(f"*{SUFFIX_PROMPT}"):
             if prompt_file.stem in prompt_templates:

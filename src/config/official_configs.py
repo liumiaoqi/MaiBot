@@ -30,7 +30,7 @@ class ExampleConfig(ConfigBase):
 class BotConfig(ConfigBase):
     """机器人配置类"""
 
-    __ui_label__ = "基本信息"
+    __ui_label__ = "基础"
     __ui_icon__ = "bot"
 
     platform: str = Field(
@@ -40,6 +40,7 @@ class BotConfig(ConfigBase):
             "x-icon": "wifi",
             "x-layout": "inline-right",
             "x-input-width": "12rem",
+            "x-row": "bot-platform-account",
         },
     )
     """平台"""
@@ -51,6 +52,7 @@ class BotConfig(ConfigBase):
             "x-icon": "user",
             "x-layout": "inline-right",
             "x-input-width": "12rem",
+            "x-row": "bot-platform-account",
         },
     )
     """QQ账号"""
@@ -87,6 +89,7 @@ class BotConfig(ConfigBase):
 class PersonalityConfig(ConfigBase):
     """人格配置类"""
 
+    __ui_parent__ = "bot"
     __ui_label__ = "人格"
     __ui_icon__ = "user-circle"
 
@@ -1298,16 +1301,6 @@ class EmojiConfig(ConfigBase):
         },
     )
     """是否启用表情包过滤，只有符合该要求的表情包才会被保存"""
-
-    filtration_prompt: str = Field(
-        default="符合公序良俗",
-        json_schema_extra={
-            "advanced": True,
-            "x-widget": "input",
-            "x-icon": "shield",
-        },
-    )
-    """表情包过滤要求，只有符合该要求的表情包才会被保存"""
 
 
 class KeywordRuleConfig(ConfigBase):

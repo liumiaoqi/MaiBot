@@ -78,7 +78,7 @@ class ChatManager:
         """初始化聊天管理器"""
         try:
             await self.load_all_sessions_from_db()
-            logger.info(f"已加载 {len(self.sessions)} 个会话记录到内存中")
+            logger.debug(f"已加载 {len(self.sessions)} 个会话记录到内存中")
         except Exception as e:
             logger.error(f"初始化聊天管理器出现错误: {e}")
 

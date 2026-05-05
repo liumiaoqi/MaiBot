@@ -915,11 +915,10 @@ class EmojiManager:
         # 表情包审查
         if global_config.emoji.content_filtration:
             try:
-                filtration_prompt_template = prompt_manager.get_prompt("emoji_content_filtration")
-                filtration_prompt_template.add_context("demand", global_config.emoji.filtration_prompt)
-                filtration_prompt = await prompt_manager.render_prompt(filtration_prompt_template)
+                review_prompt_template = prompt_manager.get_prompt("emoji_content_filtration")
+                review_prompt = await prompt_manager.render_prompt(review_prompt_template)
                 filtration_result = await emoji_manager_vlm.generate_response_for_image(
-                    filtration_prompt,
+                    review_prompt,
                     image_base64,
                     image_format,
                 )
