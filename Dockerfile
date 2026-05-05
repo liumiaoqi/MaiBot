@@ -6,6 +6,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 WORKDIR /MaiMBot
 
 ENV MAIBOT_LEGACY_0X_UPGRADE_CONFIRMED=1
+ENV PATH="/MaiMBot/.venv/bin:${PATH}"
 
 # Copy dependency metadata
 COPY pyproject.toml uv.lock ./
