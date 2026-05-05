@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { parse as parseToml } from 'smol-toml'
 
 import { AlertDescription, Alert } from '@/components/ui/alert'
@@ -23,11 +23,13 @@ import { useToast } from '@/hooks/use-toast'
 import { getBotConfig, getBotConfigRaw, getBotConfigSchema, updateBotConfig, updateBotConfigRaw } from '@/lib/config-api'
 import { fieldHooks } from '@/lib/field-hooks'
 import { RestartProvider, useRestart } from '@/lib/restart-context'
+import { cn } from '@/lib/utils'
 
 import { ChevronDown, ChevronUp, Code2, Info, Layout, Power, RefreshCw, Save } from 'lucide-react'
 
 import type { ConfigSchema } from '@/types/config-schema'
 import {
+  BotPlatformsHook,
   ChatPromptsHook,
   ChatTalkValueRulesHook,
   ExpressionGroupsHook,
@@ -413,6 +415,7 @@ function BotConfigPageContent() {
 
   useEffect(() => {
     const hookEntries = [
+      ['bot.platforms', BotPlatformsHook],
       ['chat.chat_prompts', ChatPromptsHook],
       ['chat.talk_value_rules', ChatTalkValueRulesHook],
       ['expression.expression_groups', ExpressionGroupsHook],
@@ -773,7 +776,23 @@ function BotConfigPageContent() {
               <p className="text-muted-foreground mt-1 text-xs sm:text-sm">管理麦麦的核心功能和行为设置</p>
             </div>
             {/* 按钮组 - 桌面端靠右 */}
-            <div className="flex gap-2 flex-shrink-0">
+            <div className="flex flex-wrap gap-2 flex-shrink-0 sm:justify-end">
+              <Tabs
+                value={editMode}
+                onValueChange={(v) => handleModeChange(v as 'visual' | 'source')}
+                className="w-full min-w-[13rem] sm:w-[14rem]"
+              >
+                <TabsList className="grid h-8 w-full grid-cols-2 sm:h-9">
+                  <TabsTrigger value="visual" className="px-2 text-xs">
+                    <Layout className="mr-1 h-3 w-3 sm:h-4 sm:w-4" />
+                    可视化
+                  </TabsTrigger>
+                  <TabsTrigger value="source" className="px-2 text-xs">
+                    <Code2 className="mr-1 h-3 w-3 sm:h-4 sm:w-4" />
+                    源代码
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
               <Button
                 onClick={handleReloadFromFile}
                 disabled={saving || autoSaving || isRestarting}
@@ -832,22 +851,6 @@ function BotConfigPageContent() {
               </AlertDialogContent>
             </AlertDialog>
             </div>
-          </div>
-          
-          {/* 模式切换 - 单独一行 */}
-          <div className="flex">
-            <Tabs value={editMode} onValueChange={(v) => handleModeChange(v as 'visual' | 'source')} className="w-full">
-              <TabsList className="h-8 sm:h-9 w-full grid grid-cols-2">
-                <TabsTrigger value="visual" className="text-xs sm:text-sm">
-                  <Layout className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
-                  可视化编辑
-                </TabsTrigger>
-                <TabsTrigger value="source" className="text-xs sm:text-sm">
-                  <Code2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
-                  源代码编辑
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
           </div>
         </div>
 
@@ -975,6 +978,9 @@ function DynamicConfigTabs(props: DynamicConfigTabsProps) {
     ? tabGroups
     : tabGroups.filter((tab) => DEFAULT_VISIBLE_TAB_IDS.has(tab.id))
   const hasCollapsibleTabs = tabGroups.some((tab) => !DEFAULT_VISIBLE_TAB_IDS.has(tab.id))
+  const firstExpandedTabId = visibleTabGroups.find(
+    (tab) => !DEFAULT_VISIBLE_TAB_IDS.has(tab.id)
+  )?.id
 
   const toggleExpanded = () => {
     setExpanded((current) => {
@@ -1033,15 +1039,26 @@ function DynamicConfigTabs(props: DynamicConfigTabsProps) {
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
       <TabsList className="flex flex-wrap h-auto gap-1 p-1">
-        {visibleTabGroups.map((tab) => (
-          <TabsTrigger
-            key={tab.id}
-            value={tab.id}
-            className="text-xs px-2 py-1.5 sm:px-3 sm:py-2 data-[state=active]:shadow-sm"
-          >
-            {tab.label}
-          </TabsTrigger>
-        ))}
+        {visibleTabGroups.map((tab) => {
+          const isExpandedOnlyTab = !DEFAULT_VISIBLE_TAB_IDS.has(tab.id)
+          return (
+            <Fragment key={tab.id}>
+              {tab.id === firstExpandedTabId && (
+                <span className="mx-1 hidden h-6 w-px bg-border/80 sm:block" />
+              )}
+              <TabsTrigger
+                value={tab.id}
+                className={cn(
+                  "text-xs px-2 py-1.5 sm:px-3 sm:py-2 data-[state=active]:shadow-sm",
+                  isExpandedOnlyTab &&
+                    "border border-dashed border-border/70 bg-background/45 text-muted-foreground/80 hover:bg-background/70 data-[state=active]:border-primary/45 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none"
+                )}
+              >
+                {tab.label}
+              </TabsTrigger>
+            </Fragment>
+          )
+        })}
         {hasCollapsibleTabs && (
           <Button
             type="button"

@@ -28,6 +28,11 @@ interface ExpressionGroupValue {
   expression_groups: ExpressionGroupTarget[]
 }
 
+interface PlatformAccountRow {
+  platform: string
+  account: string
+}
+
 const ruleTypeLabel = (rule: unknown) => {
   if (rule === 'private') return '私聊'
   if (rule === 'group') return '群聊'
@@ -102,6 +107,30 @@ const formatExpressionTarget = (target: ExpressionGroupTarget): string => {
   return `${platform}:${itemId} · ${rule}`
 }
 
+const normalizePlatformAccounts = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return []
+  return value.map((item) => String(item ?? ''))
+}
+
+const parsePlatformAccount = (value: string): PlatformAccountRow => {
+  const separatorIndex = value.indexOf(':')
+  if (separatorIndex < 0) {
+    return { platform: '', account: value }
+  }
+  return {
+    platform: value.slice(0, separatorIndex),
+    account: value.slice(separatorIndex + 1),
+  }
+}
+
+const formatPlatformAccount = (row: PlatformAccountRow): string => {
+  const platform = row.platform.trim()
+  const account = row.account.trim()
+  if (!platform) return account
+  if (!account) return `${platform}:`
+  return `${platform}:${account}`
+}
+
 export const ChatTalkValueRulesHook = createListItemEditorHook({
   addLabel: '添加发言频率规则',
   addButtonPlacement: 'top',
@@ -174,6 +203,96 @@ export const ExpressionLearningListHook = createListItemEditorHook({
     return `${platformLabel(item)} · ${ruleTypeLabel(item.rule_type)} · ${flagText}`
   },
 })
+
+export const BotPlatformsHook: FieldHookComponent = ({ onChange, value }) => {
+  const platforms = normalizePlatformAccounts(value)
+  const rows = platforms.map(parsePlatformAccount)
+
+  const updateRows = (nextRows: PlatformAccountRow[]) => {
+    onChange?.(nextRows.map(formatPlatformAccount))
+  }
+
+  const addRow = () => {
+    updateRows([...rows, { platform: '', account: '' }])
+  }
+
+  const removeRow = (rowIndex: number) => {
+    updateRows(rows.filter((_, index) => index !== rowIndex))
+  }
+
+  const updateRow = (rowIndex: number, patch: Partial<PlatformAccountRow>) => {
+    updateRows(
+      rows.map((row, index) =>
+        index === rowIndex ? { ...row, ...patch } : row
+      )
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <Label className="text-sm font-medium">其他平台</Label>
+          <p className="text-xs text-muted-foreground">
+            每行保存为 platform:account，例如 wx:114514。
+          </p>
+        </div>
+        <Button type="button" size="sm" variant="outline" onClick={addRow}>
+          <Plus className="mr-2 h-4 w-4" />
+          添加平台
+        </Button>
+      </div>
+
+      {rows.length === 0 ? (
+        <div className="rounded-md border border-dashed bg-muted/30 px-4 py-5 text-center text-sm text-muted-foreground">
+          暂无其他平台账号。
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {rows.map((row, rowIndex) => (
+            <div
+              key={rowIndex}
+              className="grid gap-2 rounded-md border bg-muted/20 p-3 sm:grid-cols-[minmax(7rem,0.6fr)_minmax(10rem,1fr)_auto]"
+            >
+              <div className="space-y-1">
+                <Label className="text-xs">平台</Label>
+                <Input
+                  value={row.platform}
+                  placeholder="wx"
+                  onChange={(event) =>
+                    updateRow(rowIndex, { platform: event.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">账号</Label>
+                <Input
+                  className="font-mono"
+                  value={row.account}
+                  placeholder="114514"
+                  onChange={(event) =>
+                    updateRow(rowIndex, { account: event.target.value })
+                  }
+                />
+              </div>
+              <div className="flex items-end justify-end">
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  aria-label={`删除其他平台 ${rowIndex + 1}`}
+                  onClick={() => removeRow(rowIndex)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export const KeywordRulesHook = createListItemEditorHook({
   addLabel: '添加关键词规则',
@@ -279,8 +398,8 @@ export const ExpressionGroupsHook: FieldHookComponent = ({ onChange, value }) =>
   }
 
   return (
-    <div className="space-y-4 rounded-lg border bg-card p-4 sm:p-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div className="space-y-3 rounded-lg border bg-card p-4 sm:p-5">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1">
           <h3 className="text-base font-semibold">表达互通组</h3>
           <p className="text-sm text-muted-foreground">
@@ -299,13 +418,13 @@ export const ExpressionGroupsHook: FieldHookComponent = ({ onChange, value }) =>
           暂无互通组，点击“添加互通组”开始配置。
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {groups.map((group, groupIndex) => (
             <div
               key={groupIndex}
-              className="space-y-3 rounded-md border bg-muted/20 p-3 sm:p-4"
+              className="space-y-2 rounded-md border bg-muted/20 p-2.5 sm:p-3"
             >
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-medium">
                     互通组 {groupIndex + 1}
@@ -341,15 +460,16 @@ export const ExpressionGroupsHook: FieldHookComponent = ({ onChange, value }) =>
                   这个互通组还没有成员。
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   {group.expression_groups.map((member, memberIndex) => (
                     <div
                       key={`${groupIndex}-${memberIndex}`}
-                      className="grid gap-3 rounded-md bg-background/80 p-3 md:grid-cols-[minmax(7rem,0.75fr)_minmax(10rem,1fr)_minmax(8rem,0.8fr)_auto]"
+                      className="grid items-end gap-2 rounded-md bg-background/80 px-2.5 py-2 md:grid-cols-[minmax(6rem,0.65fr)_minmax(9rem,1fr)_minmax(7rem,0.75fr)_2.25rem]"
                     >
-                      <div className="space-y-1">
-                        <Label className="text-xs">平台</Label>
+                      <div className="space-y-0.5">
+                        <Label className="text-[11px] leading-none text-muted-foreground">平台</Label>
                         <Input
+                          className="h-8"
                           value={member.platform}
                           placeholder="qq"
                           onChange={(event) =>
@@ -359,10 +479,10 @@ export const ExpressionGroupsHook: FieldHookComponent = ({ onChange, value }) =>
                           }
                         />
                       </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">账号 / 群号</Label>
+                      <div className="space-y-0.5">
+                        <Label className="text-[11px] leading-none text-muted-foreground">账号 / 群号</Label>
                         <Input
-                          className="font-mono"
+                          className="h-8 font-mono"
                           value={member.item_id}
                           placeholder="123456"
                           onChange={(event) =>
@@ -372,8 +492,8 @@ export const ExpressionGroupsHook: FieldHookComponent = ({ onChange, value }) =>
                           }
                         />
                       </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">类型</Label>
+                      <div className="space-y-0.5">
+                        <Label className="text-[11px] leading-none text-muted-foreground">类型</Label>
                         <Select
                           value={member.rule_type}
                           onValueChange={(nextRuleType) =>
@@ -382,7 +502,7 @@ export const ExpressionGroupsHook: FieldHookComponent = ({ onChange, value }) =>
                             })
                           }
                         >
-                          <SelectTrigger>
+                          <SelectTrigger className="h-8">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -399,6 +519,7 @@ export const ExpressionGroupsHook: FieldHookComponent = ({ onChange, value }) =>
                           type="button"
                           size="icon"
                           variant="ghost"
+                          className="h-8 w-8"
                           aria-label={`删除互通组 ${groupIndex + 1} 的成员 ${memberIndex + 1}`}
                           onClick={() => removeMember(groupIndex, memberIndex)}
                         >
@@ -406,16 +527,6 @@ export const ExpressionGroupsHook: FieldHookComponent = ({ onChange, value }) =>
                         </Button>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-
-              {group.expression_groups.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {group.expression_groups.map((member, memberIndex) => (
-                    <Badge key={memberIndex} variant="outline">
-                      {formatExpressionTarget(member)}
-                    </Badge>
                   ))}
                 </div>
               )}

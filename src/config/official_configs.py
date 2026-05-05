@@ -40,6 +40,7 @@ class BotConfig(ConfigBase):
             "x-icon": "wifi",
             "x-layout": "inline-right",
             "x-input-width": "12rem",
+            "x-row": "bot-platform-account",
         },
     )
     """平台"""
@@ -51,6 +52,7 @@ class BotConfig(ConfigBase):
             "x-icon": "user",
             "x-layout": "inline-right",
             "x-input-width": "12rem",
+            "x-row": "bot-platform-account",
         },
     )
     """QQ账号"""

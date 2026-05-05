@@ -11,6 +11,7 @@ export type {
   UseAutoSaveReturnGeneric,
 } from './useAutoSave'
 export {
+  BotPlatformsHook,
   ChatPromptsHook,
   ChatTalkValueRulesHook,
   ExpressionGroupsHook,

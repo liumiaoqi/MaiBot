@@ -449,8 +449,8 @@ export function EmojiManagementPage() {
                 </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-4 border-t">
-                <div className="flex items-center gap-4">
+              <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap items-center gap-3">
                   {selectedIds.size > 0 && (
                     <span className="text-sm text-muted-foreground">
                       已选择 {selectedIds.size} 个表情包
@@ -477,8 +477,41 @@ export function EmojiManagementPage() {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={loadEmojiList}
+                    disabled={loading}
+                  >
+                    <RefreshCw
+                      className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`}
+                    />
+                    刷新
+                  </Button>
+
+                  {selectedIds.size > 0 && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedIds(new Set())}
+                      >
+                        取消选择
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => setBatchDeleteDialogOpen(true)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        批量删除
+                      </Button>
+                    </>
+                  )}
                 </div>
-                <div className="flex items-center gap-2">
+
+                <div className="flex items-center gap-2 sm:ml-auto">
                   <Label
                     htmlFor="emoji-page-size"
                     className="text-sm whitespace-nowrap"
@@ -503,40 +536,7 @@ export function EmojiManagementPage() {
                       <SelectItem value="100">100</SelectItem>
                     </SelectContent>
                   </Select>
-                  {selectedIds.size > 0 && (
-                    <>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSelectedIds(new Set())}
-                      >
-                        取消选择
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => setBatchDeleteDialogOpen(true)}
-                      >
-                        <Trash2 className="h-4 w-4 mr-1" />
-                        批量删除
-                      </Button>
-                    </>
-                  )}
                 </div>
-              </div>
-
-              <div className="flex justify-end pt-4 border-t">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={loadEmojiList}
-                  disabled={loading}
-                >
-                  <RefreshCw
-                    className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`}
-                  />
-                  刷新
-                </Button>
               </div>
             </CardContent>
           </Card>

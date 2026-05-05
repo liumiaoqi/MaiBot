@@ -80,6 +80,7 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
   // 快速审核模式状态
   const [quickFilterType, setQuickFilterType] = useState<'unchecked' | 'passed' | 'rejected' | 'all'>('unchecked')
   const [quickExpressions, setQuickExpressions] = useState<Expression[]>([])
+  const quickExpressionsRef = useRef<Expression[]>([])
   const [quickCurrentIndex, setQuickCurrentIndex] = useState(0)
   const [quickLoading, setQuickLoading] = useState(false)
   const [quickTotal, setQuickTotal] = useState(0)
@@ -92,6 +93,10 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
   const cardRef = useRef<HTMLDivElement>(null)
   const dragStartRef = useRef<{ x: number; y: number } | null>(null)
   const isDraggingRef = useRef(false)
+
+  useEffect(() => {
+    quickExpressionsRef.current = quickExpressions
+  }, [quickExpressions])
   const [loading, setLoading] = useState(false)
   const [statsLoading, setStatsLoading] = useState(false)
   const [total, setTotal] = useState(0)
@@ -180,9 +185,13 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
       setQuickLoading(true)
       const pageToLoad = append ? quickPage + 1 : quickPage
       const result = await getReviewList({
-        page: pageToLoad,
+        page: quickFilterType === 'unchecked' ? 1 : pageToLoad,
         page_size: 20,
         filter_type: quickFilterType,
+        order: quickFilterType === 'unchecked' ? 'random' : 'latest',
+        exclude_ids: quickFilterType === 'unchecked' && append
+          ? quickExpressionsRef.current.map((expr) => expr.id)
+          : undefined,
       })
       
       if (result.success) {
