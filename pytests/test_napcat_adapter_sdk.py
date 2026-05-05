@@ -554,7 +554,6 @@ async def test_inbound_codec_resolves_at_to_group_cardname() -> None:
     )
 
     assert message_dict["processed_plain_text"] == "@群昵称"
-    assert message_dict["display_message"] == "@群昵称"
     assert message_dict["raw_message"] == [
         {
             "type": "at",
@@ -599,7 +598,6 @@ async def test_inbound_codec_falls_back_to_qq_nickname_when_group_cardname_is_em
     )
 
     assert message_dict["processed_plain_text"] == "@QQ昵称"
-    assert message_dict["display_message"] == "@QQ昵称"
     assert message_dict["raw_message"] == [
         {
             "type": "at",
@@ -640,7 +638,6 @@ async def test_inbound_codec_falls_back_to_stranger_nickname_when_group_profile_
     )
 
     assert message_dict["processed_plain_text"] == "@QQ昵称"
-    assert message_dict["display_message"] == "@QQ昵称"
     assert message_dict["raw_message"] == [
         {
             "type": "at",

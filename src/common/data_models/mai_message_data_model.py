@@ -59,7 +59,6 @@ class MaiMessage(BaseDatabaseDataModel[Messages]):
         self.reply_to: Optional[str] = None
 
         self.processed_plain_text: Optional[str] = None
-        self.display_message: Optional[str] = None
         self.raw_message: MessageSequence
 
     @classmethod
@@ -86,7 +85,6 @@ class MaiMessage(BaseDatabaseDataModel[Messages]):
         obj.reply_to = db_record.reply_to
         obj.session_id = db_record.session_id
         obj.processed_plain_text = db_record.processed_plain_text
-        obj.display_message = db_record.display_message
         obj.raw_message = MessageUtils.from_db_record_msg_to_MaiSeq(db_record.raw_content)
         return obj
 
@@ -113,7 +111,6 @@ class MaiMessage(BaseDatabaseDataModel[Messages]):
             is_notify=self.is_notify,
             raw_content=MessageUtils.from_MaiSeq_to_db_record_msg(self.raw_message),
             processed_plain_text=self.processed_plain_text,
-            display_message=self.display_message,
             additional_config=additional_config,
         )
 

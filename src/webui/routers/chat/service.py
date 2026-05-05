@@ -112,7 +112,7 @@ class ChatHistoryManager:
         return {
             "id": msg.message_id,
             "type": "bot" if is_bot else "user",
-            "content": msg.processed_plain_text or msg.display_message or "",
+            "content": msg.processed_plain_text or "",
             "timestamp": msg.timestamp.timestamp(),
             "sender_name": user_info.user_nickname or (global_config.bot.nickname if is_bot else "未知用户"),
             "sender_id": "bot" if is_bot else user_id,
@@ -175,11 +175,7 @@ class ChatHistoryManager:
 
             user_info = target_msg.message_info.user_info
             if not has_content:
-                content_text = (
-                    target_msg.processed_plain_text
-                    or target_msg.display_message
-                    or ""
-                )
+                content_text = target_msg.processed_plain_text or ""
                 data["target_message_content"] = content_text
             if not has_sender:
                 data["target_message_sender_id"] = user_info.user_id or ""

@@ -56,12 +56,14 @@ class MessageDict(TypedDict, total=False):
     session_id: str
     reply_to: Optional[str]
     processed_plain_text: Optional[str]
-    display_message: Optional[str]
 
 
 class PluginMessageUtils:
     @staticmethod
-    def _message_sequence_to_dict(message_sequence: MessageSequence) -> List[Dict[str, Any]]:
+    def _message_sequence_to_dict(
+        message_sequence: MessageSequence,
+        include_binary_data: bool = True,
+    ) -> List[Dict[str, Any]]:
         """将消息组件序列转换为插件运行时使用的字典结构。
 
         Args:
@@ -70,10 +72,16 @@ class PluginMessageUtils:
         Returns:
             List[Dict[str, Any]]: 供插件运行时协议使用的消息段字典列表。
         """
-        return [PluginMessageUtils._component_to_dict(component) for component in message_sequence.components]
+        return [
+            PluginMessageUtils._component_to_dict(component, include_binary_data=include_binary_data)
+            for component in message_sequence.components
+        ]
 
     @staticmethod
-    def _component_to_dict(component: StandardMessageComponents) -> Dict[str, Any]:
+    def _component_to_dict(
+        component: StandardMessageComponents,
+        include_binary_data: bool = True,
+    ) -> Dict[str, Any]:
         """将单个消息组件转换为插件运行时字典结构。
 
         Args:
@@ -91,8 +99,10 @@ class PluginMessageUtils:
                 "data": component.content,
                 "hash": component.binary_hash,
             }
-            if component.binary_data:
-                serialized["binary_data_base64"] = base64.b64encode(component.binary_data).decode("utf-8")
+            if include_binary_data and (
+                binary_data_base64 := PluginMessageUtils._binary_component_to_base64(component, "image")
+            ):
+                serialized["binary_data_base64"] = binary_data_base64
             return serialized
 
         if isinstance(component, EmojiComponent):
@@ -101,8 +111,10 @@ class PluginMessageUtils:
                 "data": component.content,
                 "hash": component.binary_hash,
             }
-            if component.binary_data:
-                serialized["binary_data_base64"] = base64.b64encode(component.binary_data).decode("utf-8")
+            if include_binary_data and (
+                binary_data_base64 := PluginMessageUtils._binary_component_to_base64(component, "emoji")
+            ):
+                serialized["binary_data_base64"] = binary_data_base64
             return serialized
 
         if isinstance(component, VoiceComponent):
@@ -111,7 +123,7 @@ class PluginMessageUtils:
                 "data": component.content,
                 "hash": component.binary_hash,
             }
-            if component.binary_data:
+            if include_binary_data and component.binary_data:
                 serialized["binary_data_base64"] = base64.b64encode(component.binary_data).decode("utf-8")
             return serialized
 
@@ -140,13 +152,53 @@ class PluginMessageUtils:
         if isinstance(component, ForwardNodeComponent):
             return {
                 "type": "forward",
-                "data": [PluginMessageUtils._forward_component_to_dict(item) for item in component.forward_components],
+                "data": [
+                    PluginMessageUtils._forward_component_to_dict(item, include_binary_data=include_binary_data)
+                    for item in component.forward_components
+                ],
             }
 
         return {"type": "dict", "data": component.data}
 
     @staticmethod
-    def _forward_component_to_dict(component: ForwardComponent) -> Dict[str, Any]:
+    def _binary_component_to_base64(component: Any, image_type: str) -> str:
+        """将图片或表情组件转换为 Base64，必要时通过 hash 从图片库加载文件。"""
+
+        if component.binary_data:
+            return base64.b64encode(component.binary_data).decode("utf-8")
+
+        binary_hash = str(component.binary_hash or "").strip()
+        if not binary_hash:
+            return ""
+
+        try:
+            from pathlib import Path
+
+            from sqlmodel import select
+
+            from src.common.database.database import get_db_session
+            from src.common.database.database_model import Images, ImageType
+
+            target_image_type = ImageType.IMAGE if image_type == "image" else ImageType.EMOJI
+            with get_db_session(auto_commit=False) as db:
+                statement = select(Images).filter_by(image_hash=binary_hash, image_type=target_image_type).limit(1)
+                image_record = db.exec(statement).first()
+            if image_record is None or image_record.no_file_flag:
+                return ""
+
+            image_path = Path(image_record.full_path)
+            if not image_path.is_file():
+                return ""
+            return base64.b64encode(image_path.read_bytes()).decode("utf-8")
+        except Exception as exc:
+            logger.debug("通过 hash 加载历史媒体失败: type=%s hash=%s error=%s", image_type, binary_hash, exc)
+            return ""
+
+    @staticmethod
+    def _forward_component_to_dict(
+        component: ForwardComponent,
+        include_binary_data: bool = True,
+    ) -> Dict[str, Any]:
         """将单个转发节点组件转换为字典结构。
 
         Args:
@@ -160,7 +212,10 @@ class PluginMessageUtils:
             "user_nickname": component.user_nickname,
             "user_cardname": component.user_cardname,
             "message_id": component.message_id,
-            "content": [PluginMessageUtils._component_to_dict(item) for item in component.content],
+            "content": [
+                PluginMessageUtils._component_to_dict(item, include_binary_data=include_binary_data)
+                for item in component.content
+            ],
         }
 
     @staticmethod
@@ -341,7 +396,10 @@ class PluginMessageUtils:
         )
 
     @staticmethod
-    def _session_message_to_dict(session_message: SessionMessage) -> MessageDict:
+    def _session_message_to_dict(
+        session_message: SessionMessage,
+        include_binary_data: bool = True,
+    ) -> MessageDict:
         """
         将 SessionMessage 对象转换为字典格式（复用 MessageSequence.to_dict 方法）
 
@@ -357,7 +415,10 @@ class PluginMessageUtils:
             timestamp=str(session_message.timestamp.timestamp()),  # 转换为时间戳字符串
             platform=session_message.platform,
             message_info=PluginMessageUtils._message_info_to_dict(session_message.message_info),
-            raw_message=PluginMessageUtils._message_sequence_to_dict(session_message.raw_message),
+            raw_message=PluginMessageUtils._message_sequence_to_dict(
+                session_message.raw_message,
+                include_binary_data=include_binary_data,
+            ),
             is_mentioned=session_message.is_mentioned,
             is_at=session_message.is_at,
             is_emoji=session_message.is_emoji,
@@ -372,8 +433,6 @@ class PluginMessageUtils:
             message_dict["reply_to"] = session_message.reply_to
         if session_message.processed_plain_text is not None:
             message_dict["processed_plain_text"] = session_message.processed_plain_text
-        if session_message.display_message is not None:
-            message_dict["display_message"] = session_message.display_message
 
         return message_dict
 
@@ -485,8 +544,5 @@ class PluginMessageUtils:
             session_message.processed_plain_text, str
         ):
             session_message.processed_plain_text = None
-        session_message.display_message = message_dict.get("display_message")
-        if session_message.display_message is not None and not isinstance(session_message.display_message, str):
-            session_message.display_message = None
 
         return session_message

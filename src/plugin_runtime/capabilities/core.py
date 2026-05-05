@@ -190,7 +190,7 @@ class RuntimeCoreCapabilityMixin:
                 content=command,
                 stream_id=stream_id,
                 storage_message=bool(args.get("storage_message", True)),
-                display_message=str(args.get("display_message", "")),
+                processed_plain_text=str(args.get("processed_plain_text", "")),
                 sync_to_maisaka_history=sync_to_maisaka_history,
                 maisaka_source_kind=maisaka_source_kind,
             )
@@ -228,7 +228,7 @@ class RuntimeCoreCapabilityMixin:
                 message_type=message_type,
                 content=content,
                 stream_id=stream_id,
-                display_message=str(args.get("display_message", "")),
+                processed_plain_text=str(args.get("processed_plain_text", "")),
                 typing=bool(args.get("typing", False)),
                 storage_message=bool(args.get("storage_message", True)),
                 sync_to_maisaka_history=sync_to_maisaka_history,
