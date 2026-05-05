@@ -219,16 +219,30 @@ class MCPConnection:
         )
         return read_stream, write_stream
 
-    def _build_http_client(self) -> httpx.AsyncClient:
-        """构建 Streamable HTTP 使用的 `httpx` 客户端。
+    def _build_http_client(
+        self,
+        headers: dict[str, str] | None = None,
+        timeout: httpx.Timeout | None = None,
+        auth: httpx.Auth | None = None,
+    ) -> httpx.AsyncClient:
+        """构建 httpx 客户端。
+
+        Args:
+            headers: 合并到配置请求头的额外请求头。
+            timeout: 覆盖的 httpx 超时配置。
+            auth: 附加认证。
 
         Returns:
             httpx.AsyncClient: 预配置的异步 HTTP 客户端。
         """
 
+        del auth
+        merged_headers = self.config.build_http_headers()
+        if headers:
+            merged_headers.update(headers)
         return httpx.AsyncClient(
-            headers=self.config.build_http_headers(),
-            timeout=httpx.Timeout(self.config.http_timeout_seconds),
+            headers=merged_headers,
+            timeout=timeout or httpx.Timeout(self.config.http_timeout_seconds),
         )
 
     async def _create_client_session(self, read_stream: Any, write_stream: Any) -> Any:
