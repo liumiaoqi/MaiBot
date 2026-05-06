@@ -472,26 +472,6 @@ class MemoryConfig(ConfigBase):
 
     __ui_parent__ = "a_memorix"
 
-
-    global_memory: bool = Field(
-        default=False,
-        json_schema_extra={
-            "x-widget": "switch",
-            "x-icon": "globe",
-        },
-    )
-    """是否允许记忆检索在聊天记录中进行全局查询（忽略当前chat_id，仅对 search_chat_history 等工具生效）"""
-
-    global_memory_blacklist: list[TargetItem] = Field(
-        default_factory=lambda: [],
-        json_schema_extra={
-            "x-widget": "custom",
-            "x-icon": "shield-off",
-        },
-    )
-    """_wrap_全局记忆黑名单，当启用全局记忆时，不将特定聊天流纳入检索"""
-
-
     enable_memory_query_tool: bool = Field(
         default=True,
         json_schema_extra={

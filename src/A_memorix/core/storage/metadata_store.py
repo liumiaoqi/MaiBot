@@ -72,7 +72,7 @@ class MetadataStore:
         self._is_initialized = False
         self._db_path: Optional[Path] = None
 
-        logger.info(f"MetadataStore 初始化: db={db_name}")
+        logger.debug(f"元数据存储初始化: db={db_name}")
 
     def connect(
         self,
@@ -114,7 +114,7 @@ class MetadataStore:
         self._conn.execute("PRAGMA temp_store=MEMORY")
         self._conn.execute("PRAGMA foreign_keys = ON") # 开启外键约束支持级联删除
 
-        logger.info(f"连接到数据库: {db_path}")
+        logger.info(f"数据库已连接: {db_path}")
 
         # 初始化或校验 schema
         if not self._is_initialized:

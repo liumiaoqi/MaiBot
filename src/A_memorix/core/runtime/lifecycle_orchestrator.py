@@ -161,7 +161,7 @@ async def initialize_storage_async(plugin: Any) -> None:
 
     try:
         detected_dimension = await plugin.embedding_manager._detect_dimension()
-        logger.info(f"嵌入维度检测成功: {detected_dimension}")
+        logger.info(f"嵌入维度: {detected_dimension}")
     except Exception as e:
         logger.warning(f"嵌入维度检测失败: {e}，使用默认值")
         detected_dimension = plugin.embedding_manager.default_dimension
@@ -194,11 +194,11 @@ async def initialize_storage_async(plugin: Any) -> None:
         matrix_format=matrix_format,
         data_dir=data_dir / "graph",
     )
-    logger.info("图存储初始化完成")
+    logger.debug("图存储初始化完成")
 
     plugin.metadata_store = MetadataStore(data_dir=data_dir / "metadata")
     plugin.metadata_store.connect()
-    logger.info("元数据存储初始化完成")
+    logger.debug("元数据存储初始化完成")
 
     plugin.relation_write_service = RelationWriteService(
         metadata_store=plugin.metadata_store,
@@ -233,7 +233,7 @@ async def initialize_storage_async(plugin: Any) -> None:
     if plugin.vector_store.has_data():
         try:
             plugin.vector_store.load()
-            logger.info(f"向量数据已加载，共 {plugin.vector_store.num_vectors} 个向量")
+            logger.debug(f"向量数据已加载，共 {plugin.vector_store.num_vectors} 个向量")
         except Exception as e:
             logger.warning(f"加载向量数据失败: {e}")
 
@@ -259,7 +259,7 @@ async def initialize_storage_async(plugin: Any) -> None:
     if plugin.graph_store.has_data():
         try:
             plugin.graph_store.load()
-            logger.info(f"图数据已加载，共 {plugin.graph_store.num_nodes} 个节点")
+            logger.debug(f"图数据已加载，共 {plugin.graph_store.num_nodes} 个节点")
         except Exception as e:
             logger.warning(f"加载图数据失败: {e}")
 

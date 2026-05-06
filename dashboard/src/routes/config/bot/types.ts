@@ -84,7 +84,6 @@ export interface MemoryConfig {
   max_agent_iterations: number
   agent_timeout_seconds: number
   enable_jargon_detection: boolean
-  global_memory: boolean
   chat_history_topic_check_message_threshold: number
   chat_history_topic_check_time_hours: number
   chat_history_topic_check_min_messages: number

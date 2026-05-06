@@ -113,22 +113,6 @@ export const FeaturesSection = React.memo(function FeaturesSection({
               记忆检索过程中是否启用黑话识别
             </p>
 
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="global_memory"
-                checked={memoryConfig.global_memory ?? false}
-                onCheckedChange={(checked) =>
-                  onMemoryChange({ ...memoryConfig, global_memory: checked })
-                }
-              />
-              <Label htmlFor="global_memory" className="cursor-pointer">
-                全局记忆查询
-              </Label>
-            </div>
-            <p className="text-xs text-muted-foreground -mt-2">
-              允许记忆检索在所有聊天记录中进行全局查询（忽略当前聊天流）
-            </p>
-
             {/* 聊天历史总结配置 */}
             <div className="border-t pt-4 mt-4">
               <h4 className="text-sm font-semibold mb-3">聊天历史总结配置</h4>

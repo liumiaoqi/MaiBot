@@ -392,11 +392,6 @@ def try_migrate_legacy_bot_config_dict(data: dict[str, Any]) -> MigrationResult:
         migrated_any = True
         reasons.append("visual.visual_style_removed")
 
-    memory = _as_dict(data.get("memory"))
-    if memory is not None and _migrate_target_item_list(memory, "global_memory_blacklist"):
-        migrated_any = True
-        reasons.append("memory.global_memory_blacklist")
-
     keyword_reaction = _as_dict(data.get("keyword_reaction"))
     if keyword_reaction is not None:
         if _drop_empty_keyword_rules(keyword_reaction, "keyword_rules"):

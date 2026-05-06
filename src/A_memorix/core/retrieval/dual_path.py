@@ -249,7 +249,7 @@ class DualPathRetriever:
             config=self.config.graph_recall,
         )
 
-        logger.info(
+        logger.debug(
             f"DualPathRetriever 初始化: "
             f"strategy={self.config.retrieval_strategy.value}, "
             f"top_k_para={self.config.top_k_paragraphs}, "
