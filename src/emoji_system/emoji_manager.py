@@ -1037,12 +1037,13 @@ class EmojiManager:
                 self._emoji_num < global_config.emoji.max_reg_num
                 or (self._emoji_num > global_config.emoji.max_reg_num and global_config.emoji.do_replace)
             ):
+                registered_paths = {Path(emoji.full_path).resolve() for emoji in self.emojis}
                 logger.info("[emoji_maintenance] Scanning data/emoji for new emojis...")
                 for emoji_file in EMOJI_DIR.iterdir():
                     if not emoji_file.is_file():
                         continue
                     resolved_file = emoji_file.absolute().resolve()
-                    if resolved_file in self._known_emoji_file_paths:
+                    if resolved_file in registered_paths:
                         continue
                     try:
                         register_status = await self.register_emoji_by_filename(emoji_file)
