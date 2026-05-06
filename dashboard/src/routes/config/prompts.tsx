@@ -1,18 +1,27 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { FileText, Loader2, RefreshCw, Save, Search, SlidersHorizontal } from 'lucide-react'
+import { Eye, FileText, Loader2, RefreshCw, RotateCcw, Save, Search, SlidersHorizontal } from 'lucide-react'
 
 import { CodeEditor } from '@/components/CodeEditor'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { useToast } from '@/hooks/use-toast'
 import {
+  getDefaultPromptFile,
   getPromptCatalog,
   getPromptFile,
+  resetPromptFile,
   updatePromptFile,
   type PromptCatalog,
   type PromptFileInfo,
@@ -35,6 +44,10 @@ export function PromptManagementPage() {
   const [loadingCatalog, setLoadingCatalog] = useState(true)
   const [loadingFile, setLoadingFile] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [resetting, setResetting] = useState(false)
+  const [loadingDefaultPrompt, setLoadingDefaultPrompt] = useState(false)
+  const [defaultPromptOpen, setDefaultPromptOpen] = useState(false)
+  const [defaultPromptContent, setDefaultPromptContent] = useState('')
   const [query, setQuery] = useState('')
   const [showAdvancedPrompts, setShowAdvancedPrompts] = useState(false)
 
@@ -63,6 +76,7 @@ export function PromptManagementPage() {
   }, [visiblePromptFiles, query])
 
   const selectedFile = promptFiles.find((file) => file.name === filename)
+  const isCustomized = selectedFile?.customized ?? false
   useEffect(() => {
     if (!filename || showAdvancedPrompts) return
     const currentFile = promptFiles.find((file) => file.name === filename)
@@ -181,6 +195,58 @@ export function PromptManagementPage() {
     }
   }
 
+  const handleShowDefault = async () => {
+    if (!language || !filename) return
+
+    try {
+      setLoadingDefaultPrompt(true)
+      setDefaultPromptOpen(true)
+      const result = await getDefaultPromptFile(language, filename)
+      if (!result.success) {
+        toast({ title: '读取默认 Prompt 失败', description: result.error, variant: 'destructive' })
+        setDefaultPromptOpen(false)
+        return
+      }
+
+      setDefaultPromptContent(result.data.content)
+    } catch (error) {
+      toast({
+        title: '读取默认 Prompt 失败',
+        description: (error as Error).message,
+        variant: 'destructive',
+      })
+      setDefaultPromptOpen(false)
+    } finally {
+      setLoadingDefaultPrompt(false)
+    }
+  }
+
+  const handleReset = async () => {
+    if (!language || !filename || !isCustomized) return
+
+    try {
+      setResetting(true)
+      const result = await resetPromptFile(language, filename)
+      if (!result.success) {
+        toast({ title: '恢复默认 Prompt 失败', description: result.error, variant: 'destructive' })
+        return
+      }
+
+      setContent(result.data.content)
+      setSavedContent(result.data.content)
+      toast({ title: '已恢复默认 Prompt', description: `${language}/${filename}` })
+      void loadCatalog()
+    } catch (error) {
+      toast({
+        title: '恢复默认 Prompt 失败',
+        description: (error as Error).message,
+        variant: 'destructive',
+      })
+    } finally {
+      setResetting(false)
+    }
+  }
+
   return (
     <div className="flex h-[calc(100vh-140px)] flex-col gap-4 p-4 sm:p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -210,6 +276,24 @@ export function PromptManagementPage() {
           >
             <SlidersHorizontal className="mr-2 h-4 w-4" />
             {showAdvancedPrompts ? '隐藏高级' : '显示高级'}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleReset}
+            disabled={!isCustomized || resetting || loadingFile || !filename}
+          >
+            <RotateCcw className={cn('mr-2 h-4 w-4', resetting && 'animate-spin')} />
+            恢复默认
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleShowDefault}
+            disabled={loadingDefaultPrompt || loadingFile || !filename}
+          >
+            <Eye className={cn('mr-2 h-4 w-4', loadingDefaultPrompt && 'animate-pulse')} />
+            查看默认
           </Button>
           <Button size="sm" onClick={handleSave} disabled={!hasUnsavedChanges || saving || loadingFile || !filename}>
             <Save className="mr-2 h-4 w-4" />
@@ -261,6 +345,7 @@ export function PromptManagementPage() {
                         {file.display_name || file.name}
                       </div>
                       {file.advanced && <Badge variant="outline" className="shrink-0 text-[10px]">高级</Badge>}
+                      {file.customized && <Badge variant="secondary" className="shrink-0 text-[10px]">自定义</Badge>}
                     </div>
                     <div className="mt-0.5 truncate text-xs text-muted-foreground">{file.name} · {formatFileSize(file.size)}</div>
                     {file.description && (
@@ -281,6 +366,7 @@ export function PromptManagementPage() {
               <CardTitle className="flex items-center gap-2 truncate text-sm">
                 <span className="truncate">{selectedFile?.display_name || filename || '未选择文件'}</span>
                 {selectedFile?.advanced && <Badge variant="outline" className="shrink-0">高级</Badge>}
+                {isCustomized && <Badge variant="secondary" className="shrink-0">自定义</Badge>}
               </CardTitle>
               <p className="mt-1 text-xs text-muted-foreground">
                 {language}
@@ -311,6 +397,31 @@ export function PromptManagementPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={defaultPromptOpen} onOpenChange={setDefaultPromptOpen}>
+        <DialogContent className="max-w-[min(96vw,1100px)]">
+          <DialogHeader>
+            <DialogTitle>默认 Prompt</DialogTitle>
+            <DialogDescription>
+              {language}/{filename} 的内置模板，只读显示，不会修改或删除自定义内容。
+            </DialogDescription>
+          </DialogHeader>
+          {loadingDefaultPrompt ? (
+            <div className="flex h-[520px] items-center justify-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              读取中
+            </div>
+          ) : (
+            <CodeEditor
+              value={defaultPromptContent}
+              readOnly
+              language="text"
+              height="min(62vh, 620px)"
+              minHeight="420px"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
