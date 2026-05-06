@@ -197,6 +197,9 @@ def _setup_static_files(app: FastAPI):
 
     @app.get("/{full_path:path}", include_in_schema=False)
     async def serve_spa(full_path: str):
+        if full_path == "api" or full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail=t("core.not_found"))
+
         if not full_path or full_path == "/":
             response = FileResponse(static_path / "index.html", media_type="text/html")
             response.headers["X-Robots-Tag"] = "noindex, nofollow, noarchive"

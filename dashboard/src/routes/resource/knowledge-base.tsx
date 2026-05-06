@@ -17,7 +17,10 @@ import {
 
 import { CodeEditor } from '@/components/CodeEditor'
 import { MemoryDeleteDialog } from '@/components/memory/MemoryDeleteDialog'
+import { MemoryEpisodeManager } from '@/components/memory/MemoryEpisodeManager'
+import { MemoryMaintenanceManager } from '@/components/memory/MemoryMaintenanceManager'
 import { MemoryMiniTabs } from '@/components/memory/MemoryMiniTabs'
+import { MemoryProfileManager } from '@/components/memory/MemoryProfileManager'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -113,8 +116,9 @@ export function KnowledgeBasePage() {
   const [creatingImport, setCreatingImport] = useState(false)
   const [creatingTuning, setCreatingTuning] = useState(false)
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'graph' | 'import' | 'tuning' | 'delete' | 'feedback'
+    'overview' | 'graph' | 'import' | 'tuning' | 'episodes' | 'profiles' | 'maintenance' | 'delete' | 'feedback'
   >('overview')
+  const [visitedMemoryTabs, setVisitedMemoryTabs] = useState<Set<string>>(() => new Set())
 
   const [runtimeConfig, setRuntimeConfig] = useState<MemoryRuntimeConfigPayload | null>(null)
   const [selfCheckReport, setSelfCheckReport] = useState<Record<string, unknown> | null>(null)
@@ -303,6 +307,20 @@ export function KnowledgeBasePage() {
   useEffect(() => {
     void loadPage()
   }, [loadPage])
+
+  useEffect(() => {
+    if (!['episodes', 'profiles', 'maintenance'].includes(activeTab)) {
+      return
+    }
+    setVisitedMemoryTabs((current) => {
+      if (current.has(activeTab)) {
+        return current
+      }
+      const next = new Set(current)
+      next.add(activeTab)
+      return next
+    })
+  }, [activeTab])
 
   const runtimeBadges = useMemo(() => {
     if (!runtimeConfig) {
@@ -1866,6 +1884,9 @@ export function KnowledgeBasePage() {
                   { value: 'graph', label: '图谱', description: '实体关系图与证据视图' },
                   { value: 'import', label: '导入', description: '创建并管理导入任务' },
                   { value: 'tuning', label: '调优', description: '检索策略调优' },
+                  { value: 'episodes', label: '情景记忆', description: '查看和重建情景记忆' },
+                  { value: 'profiles', label: '人物画像', description: '查询和维护人物画像' },
+                  { value: 'maintenance', label: '维护', description: '回收站与记忆状态维护' },
                   { value: 'delete', label: '删除', description: '批量删除与历史回溯' },
                   { value: 'feedback', label: '纠错历史', description: '查看反馈与回滚' },
                 ]}
@@ -2094,6 +2115,18 @@ export function KnowledgeBasePage() {
               tuningTasks={tuningTasks}
               applyBestTask={applyBestTask}
             />
+
+            <TabsContent value="episodes" className="space-y-4">
+              {visitedMemoryTabs.has('episodes') ? <MemoryEpisodeManager /> : null}
+            </TabsContent>
+
+            <TabsContent value="profiles" className="space-y-4">
+              {visitedMemoryTabs.has('profiles') ? <MemoryProfileManager /> : null}
+            </TabsContent>
+
+            <TabsContent value="maintenance" className="space-y-4">
+              {visitedMemoryTabs.has('maintenance') ? <MemoryMaintenanceManager /> : null}
+            </TabsContent>
 
             <DeleteTab
               sourceSearch={sourceSearch}

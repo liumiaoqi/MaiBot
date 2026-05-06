@@ -188,6 +188,59 @@ def test_webui_memory_graph_edge_detail_route_returns_404(client: TestClient, mo
     assert response.json()["detail"] == "未找到边: Alice -> Missing"
 
 
+def test_webui_memory_profile_query_resolves_platform_user_id(client: TestClient, monkeypatch):
+    def fake_resolve_person_id_for_memory(**kwargs):
+        assert kwargs == {"platform": "qq", "user_id": "12345", "strict_known": False}
+        return "resolved-person-id"
+
+    async def fake_profile_admin(*, action: str, **kwargs):
+        assert action == "query"
+        assert kwargs["person_id"] == "resolved-person-id"
+        assert kwargs["person_keyword"] == "Alice"
+        assert kwargs["limit"] == 9
+        assert kwargs["force_refresh"] is True
+        return {"success": True, "person_id": kwargs["person_id"], "profile_text": "profile"}
+
+    monkeypatch.setattr(memory_router_module, "resolve_person_id_for_memory", fake_resolve_person_id_for_memory)
+    monkeypatch.setattr(memory_router_module.memory_service, "profile_admin", fake_profile_admin)
+
+    response = client.get(
+        "/api/webui/memory/profiles/query",
+        params={
+            "platform": "qq",
+            "user_id": "12345",
+            "person_keyword": "Alice",
+            "limit": 9,
+            "force_refresh": True,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+    assert response.json()["person_id"] == "resolved-person-id"
+
+
+def test_webui_memory_profile_query_prefers_explicit_person_id(client: TestClient, monkeypatch):
+    def fake_resolve_person_id_for_memory(**kwargs):
+        raise AssertionError(f"不应解析平台账号: {kwargs}")
+
+    async def fake_profile_admin(*, action: str, **kwargs):
+        assert action == "query"
+        assert kwargs["person_id"] == "explicit-person-id"
+        return {"success": True, "person_id": kwargs["person_id"]}
+
+    monkeypatch.setattr(memory_router_module, "resolve_person_id_for_memory", fake_resolve_person_id_for_memory)
+    monkeypatch.setattr(memory_router_module.memory_service, "profile_admin", fake_profile_admin)
+
+    response = client.get(
+        "/api/webui/memory/profiles/query",
+        params={"person_id": "explicit-person-id", "platform": "qq", "user_id": "12345"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["person_id"] == "explicit-person-id"
+
+
 def test_compat_aggregate_route(client: TestClient, monkeypatch):
     async def fake_search(query: str, **kwargs):
         assert kwargs["mode"] == "aggregate"
