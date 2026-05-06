@@ -134,7 +134,7 @@ def _read_metadata_file(metadata_path: Path) -> dict[str, Any]:
         else:
             metadata = parse_toml(metadata_path.read_text(encoding="utf-8"))
     except Exception as exc:
-        logger.warning("读取 Prompt 元信息文件 %s 失败：%s", metadata_path, exc)
+        logger.warning(f"读取 Prompt 元信息文件 {metadata_path} 失败：{exc}")
         return {}
 
     return dict(metadata) if isinstance(metadata, dict) else {}

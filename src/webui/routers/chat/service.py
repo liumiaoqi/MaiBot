@@ -360,11 +360,8 @@ class ChatConnectionManager:
                 existing.virtual_config = virtual_config
                 existing.sender = sender
                 logger.debug(
-                    "WebUI 聊天会话复用: session=%s, connection=%s, client_session=%s, channel=%s",
-                    session_id,
-                    connection_id,
-                    client_session_id,
-                    channel_key,
+                    f"WebUI 聊天会话复用: session={session_id}, connection={connection_id}, "
+                    f"client_session={client_session_id}, channel={channel_key}",
                 )
                 return
         if existing_session_id is not None:
@@ -387,12 +384,8 @@ class ChatConnectionManager:
         self.user_sessions.setdefault(user_id, set()).add(session_id)
         self._bind_channel(session_id, channel_key)
         logger.info(
-            "WebUI 聊天会话已连接: session=%s, connection=%s, client_session=%s, user=%s, channel=%s",
-            session_id,
-            connection_id,
-            client_session_id,
-            user_id,
-            channel_key,
+            f"WebUI 聊天会话已连接: session={session_id}, connection={connection_id}, "
+            f"client_session={client_session_id}, user={user_id}, channel={channel_key}",
         )
 
     def disconnect(self, session_id: str) -> None:
@@ -420,7 +413,7 @@ class ChatConnectionManager:
             if not user_session_ids:
                 del self.user_sessions[session_connection.user_id]
 
-        logger.info("WebUI 聊天会话已断开: session=%s", session_id)
+        logger.info(f"WebUI 聊天会话已断开: session={session_id}")
 
     def disconnect_connection(self, connection_id: str) -> None:
         """断开物理连接下的全部逻辑聊天会话。
@@ -495,7 +488,7 @@ class ChatConnectionManager:
         try:
             await session_connection.sender(message)
         except Exception as exc:
-            logger.error("发送聊天消息失败: session=%s, error=%s", session_id, exc)
+            logger.error(f"发送聊天消息失败: session={session_id}, error={exc}")
 
     async def broadcast(self, message: Dict[str, Any]) -> None:
         """向全部逻辑聊天会话广播消息。
@@ -659,10 +652,8 @@ def resolve_initial_virtual_identity(
             group_name=group_name or "WebUI虚拟群聊",
         )
         logger.info(
-            "虚拟身份模式已通过参数激活: %s @ %s, group_id=%s",
-            virtual_config.user_nickname,
-            virtual_config.platform,
-            virtual_group_id,
+            f"虚拟身份模式已通过参数激活: {virtual_config.user_nickname} @ "
+            f"{virtual_config.platform}, group_id={virtual_group_id}",
         )
         return virtual_config
     except Exception as exc:

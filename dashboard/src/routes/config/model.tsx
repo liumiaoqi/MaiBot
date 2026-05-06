@@ -1312,7 +1312,7 @@ function ModelConfigPageContent() {
               <p className="text-sm text-muted-foreground">
                 管理 AI 模型厂商的 API 配置
               </p>
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="hidden">
                 {selectedProviders.size > 0 && (
                   <Button
                     onClick={openProviderBatchDeleteDialog}
@@ -1346,6 +1346,37 @@ function ModelConfigPageContent() {
               testingProviders={testingProviders}
               testResults={testResults}
               selectedProviders={selectedProviders}
+              toolbarActions={(
+                <>
+                  {selectedProviders.size > 0 && (
+                    <Button
+                      onClick={openProviderBatchDeleteDialog}
+                      size="sm"
+                      variant="destructive"
+                      className="w-full sm:w-auto"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" strokeWidth={2} fill="none" />
+                      <span className="text-sm">批量删除 ({selectedProviders.size})</span>
+                    </Button>
+                  )}
+                  <Button
+                    onClick={handleTestAllProviderConnections}
+                    size="sm"
+                    variant="outline"
+                    className="w-full sm:w-auto"
+                    disabled={apiProviders.length === 0 || testingProviders.size > 0}
+                  >
+                    <Zap className="mr-2 h-4 w-4" />
+                    <span className="text-sm">
+                      {testingProviders.size > 0 ? `测试中 (${testingProviders.size})` : '测试全部连接'}
+                    </span>
+                  </Button>
+                  <Button onClick={() => openProviderDialog(null, null)} size="sm" variant="outline" className="w-full sm:w-auto" data-tour="add-provider-button">
+                    <Plus className="mr-2 h-4 w-4" strokeWidth={2} fill="none" />
+                    <span className="text-sm">添加厂商</span>
+                  </Button>
+                </>
+              )}
               onEdit={openProviderDialog}
               onDelete={openProviderDeleteDialog}
               onTest={handleTestProviderConnection}
@@ -1359,7 +1390,7 @@ function ModelConfigPageContent() {
               <p className="text-sm text-muted-foreground">
                 配置可用的模型列表
               </p>
-              <div className="flex gap-2 w-full sm:w-auto">
+              <div className="hidden">
                 {selectedModels.size > 0 && (
                   <Button 
                     onClick={openBatchDeleteDialog} 
@@ -1379,7 +1410,7 @@ function ModelConfigPageContent() {
             </div>
 
           {/* 搜索框 */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="relative w-full sm:flex-1 sm:max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -1394,9 +1425,27 @@ function ModelConfigPageContent() {
                 找到 {filteredModels.length} 个结果
               </p>
             )}
-          </div>
 
           {/* 模型列表 - 移动端卡片视图 */}
+            <div className="flex w-full flex-col gap-2 sm:ml-auto sm:w-auto sm:flex-row sm:items-center sm:justify-end">
+              {selectedModels.size > 0 && (
+                <Button
+                  onClick={openBatchDeleteDialog}
+                  size="sm"
+                  variant="destructive"
+                  className="w-full sm:w-auto"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" strokeWidth={2} fill="none" />
+                  <span className="text-sm">批量删除 ({selectedModels.size})</span>
+                </Button>
+              )}
+              <Button onClick={() => openEditDialog(null, null)} size="sm" variant="outline" className="w-full sm:w-auto" data-tour="add-model-button">
+                <Plus className="mr-2 h-4 w-4" strokeWidth={2} fill="none" />
+                <span className="text-sm">添加模型</span>
+              </Button>
+            </div>
+          </div>
+
           <ModelCardList
             paginatedModels={paginatedModels}
             allModels={models}
@@ -1834,8 +1883,8 @@ function ModelConfigPageContent() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="price_in">输入价格 (¥/M token)</Label>
+              <div className="flex items-center gap-3">
+                <Label htmlFor="price_in" className="w-36 shrink-0">输入价格 (¥/M token)</Label>
                 <Input
                   id="price_in"
                   type="number"
@@ -1851,11 +1900,12 @@ function ModelConfigPageContent() {
                     )
                   }}
                   placeholder="默认: 0"
+                  className="flex-1"
                 />
               </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="price_out">输出价格 (¥/M token)</Label>
+              <div className="flex items-center gap-3">
+                <Label htmlFor="price_out" className="w-36 shrink-0">输出价格 (¥/M token)</Label>
                 <Input
                   id="price_out"
                   type="number"
@@ -1871,6 +1921,7 @@ function ModelConfigPageContent() {
                     )
                   }}
                   placeholder="默认: 0"
+                  className="flex-1"
                 />
               </div>
             </div>
@@ -1896,8 +1947,8 @@ function ModelConfigPageContent() {
                 </div>
 
                 {editingModel?.cache && (
-                  <div className="grid gap-2 border-t pt-4">
-                    <Label htmlFor="cache_price_in">缓存输入价格 (¥/M token)</Label>
+                  <div className="flex items-center gap-3 border-t pt-4">
+                    <Label htmlFor="cache_price_in" className="w-40 shrink-0">缓存输入价格 (¥/M token)</Label>
                     <Input
                       id="cache_price_in"
                       type="number"
@@ -1913,6 +1964,7 @@ function ModelConfigPageContent() {
                         )
                       }}
                       placeholder="默认: 0"
+                      className="flex-1"
                     />
                   </div>
                 )}

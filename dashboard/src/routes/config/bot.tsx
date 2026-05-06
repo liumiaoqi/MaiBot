@@ -25,10 +25,11 @@ import { fieldHooks } from '@/lib/field-hooks'
 import { RestartProvider, useRestart } from '@/lib/restart-context'
 import { cn } from '@/lib/utils'
 
-import { ChevronDown, ChevronUp, Code2, Info, Layout, Power, RefreshCw, Save } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Code2, Info, Layout, Power, RefreshCw, Save } from 'lucide-react'
 
 import type { ConfigSchema } from '@/types/config-schema'
 import {
+  AliasNamesHook,
   BotPlatformAccountsHook,
   ChatPromptsHook,
   ChatTalkValueRulesHook,
@@ -38,6 +39,7 @@ import {
   HiddenFieldHook,
   MCPRootItemsHook,
   MCPServersHook,
+  MultipleReplyStyleHook,
   RegexRulesHook,
   useAutoSave,
   useConfigAutoSave,
@@ -414,8 +416,10 @@ function BotConfigPageContent() {
   useEffect(() => {
     const hookEntries = [
       ['bot.platform', BotPlatformAccountsHook, 'replace'],
+      ['bot.alias_names', AliasNamesHook],
       ['bot.qq_account', HiddenFieldHook, 'hidden'],
       ['bot.platforms', HiddenFieldHook, 'hidden'],
+      ['personality.multiple_reply_style', MultipleReplyStyleHook],
       ['chat.chat_prompts', ChatPromptsHook],
       ['chat.talk_value_rules', ChatTalkValueRulesHook],
       ['expression.expression_groups', ExpressionGroupsHook],
@@ -959,6 +963,7 @@ function DynamicConfigTabs(props: DynamicConfigTabsProps) {
   const { configSchema, sectionValues, setHasUnsavedChanges, setSectionValue, tabGroups } = props
   const [expanded, setExpanded] = useState(false)
   const [activeTab, setActiveTab] = useState(tabGroups[0]?.id ?? '')
+  const [advancedVisible, setAdvancedVisible] = useState(false)
 
   useEffect(() => {
     if (!tabGroups.some((tab) => tab.id === activeTab)) {
@@ -1028,6 +1033,7 @@ function DynamicConfigTabs(props: DynamicConfigTabsProps) {
           setHasUnsavedChanges(true)
         }}
         hooks={fieldHooks}
+        advancedVisible={advancedVisible}
         sectionColumns={2}
       />
     )
@@ -1035,20 +1041,20 @@ function DynamicConfigTabs(props: DynamicConfigTabsProps) {
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-      <TabsList className="flex flex-wrap h-auto gap-1 p-1">
+      <TabsList className="flex flex-wrap h-auto gap-1 p-1 transition-all duration-300 ease-out">
         {visibleTabGroups.map((tab) => {
           const isExpandedOnlyTab = !DEFAULT_VISIBLE_TAB_IDS.has(tab.id)
           return (
             <Fragment key={tab.id}>
               {tab.id === firstExpandedTabId && (
-                <span className="mx-1 hidden h-6 w-px bg-border/80 sm:block" />
+                <span className="mx-1 hidden h-6 w-px bg-border/80 transition-opacity duration-200 sm:block" />
               )}
               <TabsTrigger
                 value={tab.id}
                 className={cn(
-                  "text-xs px-2 py-1.5 sm:px-3 sm:py-2 data-[state=active]:shadow-sm",
+                  "px-2 py-1.5 text-sm transition-all duration-200 ease-out sm:px-3 sm:py-2 data-[state=active]:shadow-sm",
                   isExpandedOnlyTab &&
-                    "border border-dashed border-border/70 bg-background/45 text-muted-foreground/80 hover:bg-background/70 data-[state=active]:border-primary/45 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none"
+                    "border border-dashed border-border/70 bg-background/45 text-muted-foreground/80 motion-safe:animate-[config-tab-enter_180ms_ease-out_both] hover:bg-background/70 data-[state=active]:border-primary/45 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none"
                 )}
               >
                 {tab.label}
@@ -1061,20 +1067,29 @@ function DynamicConfigTabs(props: DynamicConfigTabsProps) {
             type="button"
             variant="ghost"
             size="sm"
-            className="h-8 px-2 text-xs sm:h-9 sm:px-3"
+            className="group h-8 px-2 text-xs transition-all duration-200 ease-out sm:h-9 sm:px-3"
             onClick={toggleExpanded}
           >
             {expanded ? (
-              <ChevronUp className="mr-1 h-3.5 w-3.5" />
+              <ChevronLeft className="mr-1 h-3.5 w-3.5 transition-transform duration-200 group-hover:-translate-x-0.5" />
             ) : (
-              <ChevronDown className="mr-1 h-3.5 w-3.5" />
+              <ChevronRight className="mr-1 h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
             )}
             {expanded ? '收起' : '更多'}
           </Button>
         )}
+        <Button
+          type="button"
+          variant={advancedVisible ? 'default' : 'outline'}
+          size="sm"
+          className="ml-auto h-8 px-2 text-xs transition-all duration-200 ease-out sm:h-9 sm:px-3"
+          onClick={() => setAdvancedVisible((current) => !current)}
+        >
+          高级设置
+        </Button>
       </TabsList>
       {tabGroups.map((tab) => (
-        <TabsContent key={tab.id} value={tab.id} className="space-y-4">
+        <TabsContent key={tab.id} value={tab.id} className="space-y-4 motion-safe:animate-[config-tab-content-enter_180ms_ease-out_both]">
           {renderTabContent(tab)}
         </TabsContent>
       ))}

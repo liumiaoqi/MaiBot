@@ -162,20 +162,16 @@ class MetadataStore:
     def _run_runtime_auto_migration(self, *, current_version: int) -> None:
         """对 1.0 之后的已版本化库执行轻量自动迁移。"""
         logger.info(
-            "检测到 metadata schema 需要运行时自动迁移: current=%s, target=%s",
-            current_version,
-            SCHEMA_VERSION,
+            f"检测到 metadata schema 需要运行时自动迁移: current={current_version}, target={SCHEMA_VERSION}",
         )
         self._migrate_schema()
         alias_result = self.rebuild_relation_hash_aliases()
         knowledge_type_result = self.normalize_paragraph_knowledge_types()
         self.set_schema_version(SCHEMA_VERSION)
         logger.info(
-            "metadata schema 运行时自动迁移完成: %s -> %s, alias_inserted=%s, knowledge_normalized=%s",
-            current_version,
-            SCHEMA_VERSION,
-            int(alias_result.get("inserted", 0) or 0),
-            int(knowledge_type_result.get("normalized", 0) or 0),
+            f"metadata schema 运行时自动迁移完成: {current_version} -> {SCHEMA_VERSION}, "
+            f"alias_inserted={int(alias_result.get('inserted', 0) or 0)}, "
+            f"knowledge_normalized={int(knowledge_type_result.get('normalized', 0) or 0)}",
         )
 
     def _ensure_memory_feedback_task_columns(self, cursor: sqlite3.Cursor) -> None:

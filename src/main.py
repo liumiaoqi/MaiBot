@@ -81,6 +81,7 @@ class MainSystem:
 
         await config_manager.start_file_watcher()
         a_memorix_host_service.register_config_reload_callback()
+        prompt_manager.load_prompts()
 
         # 添加在线时间统计任务
         await async_task_manager.add_task(OnlineTimeRecordTask())
@@ -121,8 +122,6 @@ class MainSystem:
         self.app.register_message_handler(chat_bot.message_process)
         self.app.register_custom_message_handler("message_id_echo", chat_bot.echo_message_process)
 
-        prompt_manager.load_prompts()
-
         # 触发 ON_START 事件
         from src.core.event_bus import event_bus
         from src.core.types import EventType
@@ -161,10 +160,8 @@ async def main() -> None:
     """主函数"""
     system = MainSystem()
     try:
-        await asyncio.gather(
-            system.initialize(),
-            system.schedule_tasks(),
-        )
+        await system.initialize()
+        await system.schedule_tasks()
     finally:
         disable_stage_status_board()
         emoji_manager.shutdown()

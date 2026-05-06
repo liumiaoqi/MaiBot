@@ -366,8 +366,9 @@ export const ExpressionSection = React.memo(function ExpressionSection({
                       <LearningRulePreview rule={rule} />
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button size="sm" variant="ghost">
+                          <Button size="icon" variant="ghost" aria-label={`删除学习规则 ${index + 1}`}>
                             <Trash2 className="h-4 w-4" />
+                            <span className="sr-only">删除</span>
                           </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>

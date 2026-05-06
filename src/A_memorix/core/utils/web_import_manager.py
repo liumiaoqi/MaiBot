@@ -3126,7 +3126,7 @@ class ImportTaskManager:
     ) -> None:
         content = str(processed.chunk.text or "")
         if is_probable_hash_token(content):
-            logger.warning("跳过疑似哈希段落写入: source=%s preview=%s", self._source_label(file_record), content[:32])
+            logger.warning(f"跳过疑似哈希段落写入: source={self._source_label(file_record)} preview={content[:32]}")
             return
         para_hash = self.plugin.metadata_store.add_paragraph(
             content=content,
@@ -3208,10 +3208,7 @@ class ImportTaskManager:
             return ""
         if any(is_probable_hash_token(token) for token in (subject_token, predicate_token, object_token)):
             logger.warning(
-                "跳过疑似哈希关系写入: %s | %s | %s",
-                subject_token[:24],
-                predicate_token[:24],
-                object_token[:24],
+                f"跳过疑似哈希关系写入: {subject_token[:24]} | {predicate_token[:24]} | {object_token[:24]}",
             )
             return ""
 

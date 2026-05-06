@@ -11,6 +11,7 @@ export type {
   UseAutoSaveReturnGeneric,
 } from './useAutoSave'
 export {
+  AliasNamesHook,
   BotPlatformsHook,
   BotPlatformAccountsHook,
   ChatPromptsHook,
@@ -21,6 +22,7 @@ export {
   HiddenFieldHook,
   MCPRootItemsHook,
   MCPServersHook,
+  MultipleReplyStyleHook,
   RegexRulesHook,
 } from './complexFieldHooks'
 export { ChatSectionHook } from './ChatSectionHook'

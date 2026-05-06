@@ -158,10 +158,10 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
         const label = (
           <Label
             className={cn(
-              "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[15px] font-semibold leading-6",
+              "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[15px] leading-6",
               descriptionDisplay === 'label-hover' && fieldDescription && "cursor-help",
               schema.advanced
-                ? "text-amber-800 dark:text-amber-200"
+                ? "text-sky-700 dark:text-sky-300"
                 : "text-foreground",
             )}
           >

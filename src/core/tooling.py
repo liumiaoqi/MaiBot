@@ -419,9 +419,7 @@ class ToolRegistry:
                     return await provider.invoke(invocation, context)
                 except Exception as exc:
                     logger.exception(
-                        "工具调用异常: tool=%s provider=%s",
-                        invocation.tool_name,
-                        getattr(provider, "provider_name", ""),
+                        f"工具调用异常: tool={invocation.tool_name} provider={getattr(provider, 'provider_name', '')}",
                     )
                     error_message = str(exc).strip()
                     if error_message:
