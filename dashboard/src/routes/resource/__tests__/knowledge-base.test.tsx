@@ -154,6 +154,38 @@ function mockImportDetail(taskId: string): memoryApi.MemoryImportTaskPayload {
   }
 }
 
+function mockImportCompletedWithErrorsDetail(taskId: string): memoryApi.MemoryImportTaskPayload {
+  return {
+    ...mockImportDetail(taskId),
+    status: 'completed_with_errors',
+    current_step: 'completed_with_errors',
+    total_chunks: 12,
+    done_chunks: 9,
+    failed_chunks: 3,
+    cancelled_chunks: 0,
+    progress: 75,
+    files: [
+      {
+        file_id: 'file-error',
+        name: 'error.txt',
+        source_kind: 'paste',
+        input_mode: 'text',
+        status: 'failed',
+        current_step: 'failed',
+        detected_strategy_type: 'auto',
+        total_chunks: 12,
+        done_chunks: 9,
+        failed_chunks: 3,
+        cancelled_chunks: 0,
+        progress: 75,
+        error: 'mock error',
+        created_at: 1_710_000_000,
+        updated_at: 1_710_000_100,
+      },
+    ],
+  }
+}
+
 describe('KnowledgeBasePage import workflow', () => {
   beforeEach(() => {
     navigateMock.mockReset()
@@ -604,6 +636,21 @@ describe('KnowledgeBasePage import workflow', () => {
     await waitFor(() =>
       expect(memoryApi.getMemoryImportTaskChunks).toHaveBeenCalledWith('import-run-1', 'file-beta', 50, 50),
     )
+  }, 20_000)
+
+  it('shows import failures separately from successful chunks', async () => {
+    vi.mocked(memoryApi.getMemoryImportTask).mockResolvedValue({
+      success: true,
+      task: mockImportCompletedWithErrorsDetail('import-run-1'),
+    })
+    const user = userEvent.setup()
+    render(<KnowledgeBasePage />)
+
+    await screen.findByText('长期记忆控制台', undefined, { timeout: 10_000 })
+    await user.click(screen.getByRole('tab', { name: '导入' }))
+
+    expect((await screen.findAllByText('完成（有错误）')).length).toBeGreaterThan(0)
+    expect(await screen.findByText('成功 9 / 12 分块 · 失败 3')).toBeInTheDocument()
   }, 20_000)
 
   it('supports cancel and retry actions for selected task', async () => {

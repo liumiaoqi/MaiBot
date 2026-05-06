@@ -2627,6 +2627,7 @@ class MetadataStore:
             SELECT source, COUNT(*) as count, MAX(created_at) as last_updated 
             FROM paragraphs 
             WHERE source IS NOT NULL AND source != ''
+              AND (is_deleted IS NULL OR is_deleted = 0)
             GROUP BY source
             ORDER BY last_updated DESC
         """)

@@ -39,6 +39,21 @@ import {
   normalizeProgress,
 } from '../utils'
 
+function formatChunkSummary(done: unknown, total: unknown, failed: unknown, cancelled: unknown = 0): string {
+  const doneCount = Number(done ?? 0)
+  const totalCount = Number(total ?? 0)
+  const failedCount = Number(failed ?? 0)
+  const cancelledCount = Number(cancelled ?? 0)
+  const parts = [`成功 ${doneCount} / ${totalCount} 分块`]
+  if (failedCount > 0) {
+    parts.push(`失败 ${failedCount}`)
+  }
+  if (cancelledCount > 0) {
+    parts.push(`取消 ${cancelledCount}`)
+  }
+  return parts.join(' · ')
+}
+
 export interface ImportTabProps {
   importCreateMode: MemoryImportTaskKind
   setImportCreateMode: Dispatch<SetStateAction<MemoryImportTaskKind>>
@@ -1073,12 +1088,19 @@ export function ImportTab(props: ImportTabProps) {
                                   ? 'success'
                                   : String(selectedImportTaskResolved.status ?? '') === 'failed'
                                     ? 'destructive'
-                                    : String(selectedImportTaskResolved.status ?? '') === 'cancelled'
+                                    : String(selectedImportTaskResolved.status ?? '') === 'completed_with_errors'
+                                      ? 'warning'
+                                      : String(selectedImportTaskResolved.status ?? '') === 'cancelled'
                                       ? 'muted'
                                       : 'default'
                               }
                               busy={RUNNING_IMPORT_STATUS.has(String(selectedImportTaskResolved.status ?? ''))}
-                              detail={`已完成 ${Number(selectedImportTaskResolved.done_chunks ?? 0)} / ${Number(selectedImportTaskResolved.total_chunks ?? 0)} 分块`}
+                              detail={formatChunkSummary(
+                                selectedImportTaskResolved.done_chunks,
+                                selectedImportTaskResolved.total_chunks,
+                                selectedImportTaskResolved.failed_chunks,
+                                selectedImportTaskResolved.cancelled_chunks,
+                              )}
                             />
                           </TableCell>
                         </TableRow>
@@ -1160,7 +1182,12 @@ export function ImportTab(props: ImportTabProps) {
                               </div>
                               <Progress value={normalizeProgress(file.progress)} className="mt-2 h-1.5" />
                               <div className="mt-2 text-xs text-muted-foreground">
-                                {formatProgressPercent(file.progress)} · {Number(file.done_chunks ?? 0)} / {Number(file.total_chunks ?? 0)}
+                                {formatProgressPercent(file.progress)} · {formatChunkSummary(
+                                  file.done_chunks,
+                                  file.total_chunks,
+                                  file.failed_chunks,
+                                  file.cancelled_chunks,
+                                )}
                               </div>
                               {file.error ? (
                                 <div className="mt-2 truncate text-xs text-destructive">{file.error}</div>
