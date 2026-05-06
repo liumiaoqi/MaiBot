@@ -32,8 +32,8 @@ export function Sidebar({
         'fixed inset-y-0 left-0 z-50 isolate flex flex-col border-r transition-all duration-300 lg:relative lg:z-0 lg:h-full',
         inheritsPageBackground ? 'bg-transparent' : 'bg-card',
         // 移动端始终显示完整宽度，桌面端根据 sidebarOpen 切换
-        'w-60 lg:w-auto',
-        sidebarOpen ? 'lg:w-60' : 'lg:w-16',
+        'w-56 lg:w-auto',
+        sidebarOpen ? 'lg:w-56' : 'lg:w-16',
         mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
       )}
     >

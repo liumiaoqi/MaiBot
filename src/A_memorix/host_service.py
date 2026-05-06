@@ -20,6 +20,8 @@ if TYPE_CHECKING:
 
 logger = get_logger("a_memorix.host_service")
 
+_INTERNAL_CONFIG_FIELDS = {"field_docs", "_validate_any", "suppress_any_warning"}
+
 
 def _get_config_manager():
     from src.config.config import config_manager
@@ -44,6 +46,18 @@ def _to_builtin_data(obj: Any) -> Any:
         return {str(key): _to_builtin_data(value) for key, value in obj.items()}
     if isinstance(obj, list):
         return [_to_builtin_data(value) for value in obj]
+    return obj
+
+
+def _strip_internal_config_fields(obj: Any) -> Any:
+    if isinstance(obj, dict):
+        return {
+            str(key): _strip_internal_config_fields(value)
+            for key, value in obj.items()
+            if str(key) not in _INTERNAL_CONFIG_FIELDS
+        }
+    if isinstance(obj, list):
+        return [_strip_internal_config_fields(value) for value in obj]
     return obj
 
 
@@ -309,13 +323,15 @@ class AMemorixHostService:
         web_config = payload.get("web")
         if isinstance(web_config, dict) and "import_config" in web_config:
             web_config["import"] = web_config.pop("import_config")
-        return _to_builtin_data(payload) if isinstance(payload, dict) else {}
+        payload = _to_builtin_data(payload) if isinstance(payload, dict) else {}
+        return _strip_internal_config_fields(payload) if isinstance(payload, dict) else {}
 
     @staticmethod
     def _runtime_dict_to_bot_config_dict(config: Dict[str, Any]) -> Dict[str, Any]:
         payload = _to_builtin_data(config)
         if not isinstance(payload, dict):
             return {}
+        payload = _strip_internal_config_fields(payload)
         web_config = payload.get("web")
         if isinstance(web_config, dict) and "import_config" in web_config and "import" not in web_config:
             web_config["import"] = web_config.pop("import_config")
