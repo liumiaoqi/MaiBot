@@ -4,7 +4,12 @@ import numpy as np
 import pytest
 
 from src.A_memorix.core.strategies.base import ChunkContext, KnowledgeType, ProcessedChunk, SourceInfo
-from src.A_memorix.core.utils.web_import_manager import ImportTaskManager
+from src.A_memorix.core.utils.web_import_manager import (
+    ImportChunkRecord,
+    ImportFileRecord,
+    ImportTaskManager,
+    ImportTaskRecord,
+)
 
 
 class _DummyMetadataStore:
@@ -76,6 +81,21 @@ def _build_manager() -> tuple[ImportTaskManager, _DummyMetadataStore]:
     return manager, metadata_store
 
 
+def _build_progress_task(task_id: str, total_chunks: int = 2) -> ImportTaskRecord:
+    file_record = ImportFileRecord(
+        file_id="file-1",
+        name="demo.txt",
+        source_kind="paste",
+        input_mode="text",
+        total_chunks=total_chunks,
+        chunks=[
+            ImportChunkRecord(chunk_id=f"chunk-{index}", index=index, chunk_type="text")
+            for index in range(total_chunks)
+        ],
+    )
+    return ImportTaskRecord(task_id=task_id, source="paste", params={}, files=[file_record])
+
+
 def _build_chunk(data) -> ProcessedChunk:
     return ProcessedChunk(
         type=KnowledgeType.FACTUAL,
@@ -94,6 +114,51 @@ async def test_persist_processed_chunk_rejects_non_object_before_paragraph_write
         await manager._persist_processed_chunk(file_record, _build_chunk(["bad"]))
 
     assert metadata_store.paragraphs == []
+
+
+@pytest.mark.asyncio
+async def test_chunk_terminal_progress_uses_successful_chunks_only() -> None:
+    manager, _ = _build_manager()
+
+    task = _build_progress_task("task-fail-then-complete")
+    manager._tasks[task.task_id] = task
+
+    await manager._set_chunk_failed(task.task_id, "file-1", "chunk-0", "boom")
+    await manager._set_chunk_completed(task.task_id, "file-1", "chunk-1")
+
+    file_record = task.files[0]
+    assert file_record.done_chunks == 1
+    assert file_record.failed_chunks == 1
+    assert file_record.progress == pytest.approx(0.5)
+    assert task.progress == pytest.approx(0.5)
+
+    reverse_task = _build_progress_task("task-complete-then-fail")
+    manager._tasks[reverse_task.task_id] = reverse_task
+
+    await manager._set_chunk_completed(reverse_task.task_id, "file-1", "chunk-0")
+    await manager._set_chunk_failed(reverse_task.task_id, "file-1", "chunk-1", "boom")
+
+    reverse_file = reverse_task.files[0]
+    assert reverse_file.done_chunks == 1
+    assert reverse_file.failed_chunks == 1
+    assert reverse_file.progress == pytest.approx(0.5)
+    assert reverse_task.progress == pytest.approx(0.5)
+
+
+@pytest.mark.asyncio
+async def test_cancelled_chunks_do_not_increase_file_progress() -> None:
+    manager, _ = _build_manager()
+    task = _build_progress_task("task-cancelled-progress", total_chunks=3)
+    manager._tasks[task.task_id] = task
+
+    await manager._set_chunk_completed(task.task_id, "file-1", "chunk-0")
+    await manager._set_chunk_cancelled(task.task_id, "file-1", "chunk-1", "任务已取消")
+
+    file_record = task.files[0]
+    assert file_record.done_chunks == 1
+    assert file_record.cancelled_chunks == 1
+    assert file_record.progress == pytest.approx(1 / 3)
+    assert task.progress == pytest.approx(1 / 3)
 
 
 @pytest.mark.asyncio

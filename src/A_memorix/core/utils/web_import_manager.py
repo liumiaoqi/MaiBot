@@ -2040,7 +2040,7 @@ class ImportTaskManager:
         if total <= 0:
             total = max(1, scanned)
 
-        progress = max(0.0, min(1.0, float(scanned) / float(total))) if total > 0 else 0.0
+        chunk_progress = max(0.0, min(1.0, float(scanned) / float(total))) if total > 0 else 0.0
         preview = f"scanned={scanned}/{total}, migrated={migrated}, bad={bad}, last_id={last_id}"
 
         async with self._lock:
@@ -2055,14 +2055,14 @@ class ImportTaskManager:
                 if c.status not in {"completed", "failed", "cancelled"}:
                     c.status = "writing"
                     c.step = "migrating"
-                c.progress = progress
+                c.progress = chunk_progress
                 c.content_preview = preview
                 c.updated_at = _now()
             f.total_chunks = total
             f.done_chunks = done
             f.failed_chunks = bad
             f.cancelled_chunks = 0
-            f.progress = progress
+            self._recompute_file_progress(f)
             if f.status not in {"failed", "cancelled"}:
                 f.status = "writing"
                 f.current_step = "migrating"
@@ -2209,7 +2209,7 @@ class ImportTaskManager:
                 f.done_chunks = max(0, min(f.done_chunks, f.total_chunks))
                 f.failed_chunks = max(0, min(f.failed_chunks, f.total_chunks))
                 f.cancelled_chunks = 0
-                f.progress = 1.0
+                self._recompute_file_progress(f)
                 f.status = "completed"
                 f.current_step = "completed"
                 if bad_rows > 0 and not f.error:
@@ -3578,9 +3578,7 @@ JSON schema:
                 additional_cancelled += 1
             if additional_cancelled > 0:
                 f.cancelled_chunks += additional_cancelled
-                f.progress = self._compute_ratio(
-                    f.done_chunks + f.failed_chunks + f.cancelled_chunks, f.total_chunks
-                )
+            self._recompute_file_progress(f)
             f.updated_at = _now()
             task.updated_at = _now()
             self._recompute_task_progress(task)
@@ -3638,7 +3636,7 @@ JSON schema:
             c.progress = 1.0
             c.updated_at = _now()
             f.done_chunks += 1
-            f.progress = self._compute_ratio(f.done_chunks + f.failed_chunks + f.cancelled_chunks, f.total_chunks)
+            self._recompute_file_progress(f)
             f.updated_at = _now()
             self._recompute_task_progress(task)
 
@@ -3666,7 +3664,7 @@ JSON schema:
             c.progress = 1.0
             c.updated_at = _now()
             f.failed_chunks += 1
-            f.progress = self._compute_ratio(f.done_chunks, f.total_chunks)
+            self._recompute_file_progress(f)
             if not f.error:
                 f.error = str(error)
             f.updated_at = _now()
@@ -3690,7 +3688,7 @@ JSON schema:
             c.progress = 1.0
             c.updated_at = _now()
             f.cancelled_chunks += 1
-            f.progress = self._compute_ratio(f.done_chunks + f.failed_chunks + f.cancelled_chunks, f.total_chunks)
+            self._recompute_file_progress(f)
             f.updated_at = _now()
             self._recompute_task_progress(task)
 
@@ -3717,6 +3715,9 @@ JSON schema:
         if total <= 0:
             return 1.0
         return max(0.0, min(1.0, float(done) / float(total)))
+
+    def _recompute_file_progress(self, file_record: ImportFileRecord) -> None:
+        file_record.progress = self._compute_ratio(file_record.done_chunks, file_record.total_chunks)
 
     def _recompute_task_progress(self, task: ImportTaskRecord) -> None:
         total = 0
@@ -3765,9 +3766,7 @@ JSON schema:
                 additional_cancelled += 1
             if additional_cancelled > 0:
                 f.cancelled_chunks += additional_cancelled
-            f.progress = self._compute_ratio(
-                f.done_chunks + f.failed_chunks + f.cancelled_chunks, f.total_chunks
-            )
+            self._recompute_file_progress(f)
             f.updated_at = _now()
         task.status = "cancelled"
         task.current_step = "cancelled"
