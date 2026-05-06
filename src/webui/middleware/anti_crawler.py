@@ -683,6 +683,27 @@ class AntiCrawlerMiddleware(BaseHTTPMiddleware):
 
         return False
 
+    def _has_valid_auth(self, request: Request) -> bool:
+        """
+        检查请求是否携带有效的认证 Cookie
+
+        已认证用户跳过防爬虫检查，避免正常登录用户被频率限制误拦截。
+
+        Args:
+            request: 请求对象
+
+        Returns:
+            如果认证 Cookie 有效则返回 True
+        """
+        # 延迟导入避免循环依赖（anti_crawler → auth → security → config）
+        from src.webui.core.auth import COOKIE_NAME, is_token_valid
+
+        cookie_value = request.cookies.get(COOKIE_NAME)
+        if not cookie_value:
+            return False
+
+        return is_token_valid(cookie_value)
+
     async def dispatch(self, request: Request, call_next):
         """
         处理请求
@@ -738,6 +759,10 @@ class AntiCrawlerMiddleware(BaseHTTPMiddleware):
 
         # 检查IP白名单（优先检查，白名单IP直接通过）
         if self._is_ip_allowed(client_ip):
+            return await call_next(request)
+
+        # 检查是否为已认证用户（有有效的 maibot_session Cookie）
+        if self._has_valid_auth(request):
             return await call_next(request)
 
         # 获取 User-Agent
