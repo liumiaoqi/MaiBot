@@ -22,10 +22,12 @@ export type XWidgetType =
   | 'switch'
   | 'textarea'
 
+export type LocalizedText = string | Record<string, string>
+
 export interface FieldSchema {
   name: string
   type: FieldType
-  label: string
+  label: LocalizedText
   description: string
   required: boolean
   default?: unknown

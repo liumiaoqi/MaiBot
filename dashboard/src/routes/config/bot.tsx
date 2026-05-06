@@ -29,12 +29,13 @@ import { ChevronDown, ChevronUp, Code2, Info, Layout, Power, RefreshCw, Save } f
 
 import type { ConfigSchema } from '@/types/config-schema'
 import {
-  BotPlatformsHook,
+  BotPlatformAccountsHook,
   ChatPromptsHook,
   ChatTalkValueRulesHook,
   ExpressionGroupsHook,
   ExpressionLearningListHook,
   KeywordRulesHook,
+  HiddenFieldHook,
   MCPRootItemsHook,
   MCPServersHook,
   RegexRulesHook,
@@ -415,7 +416,9 @@ function BotConfigPageContent() {
 
   useEffect(() => {
     const hookEntries = [
-      ['bot.platforms', BotPlatformsHook],
+      ['bot.platform', BotPlatformAccountsHook, 'replace'],
+      ['bot.qq_account', HiddenFieldHook, 'hidden'],
+      ['bot.platforms', HiddenFieldHook, 'hidden'],
       ['chat.chat_prompts', ChatPromptsHook],
       ['chat.talk_value_rules', ChatTalkValueRulesHook],
       ['expression.expression_groups', ExpressionGroupsHook],
@@ -426,8 +429,8 @@ function BotConfigPageContent() {
       ['mcp.servers', MCPServersHook],
     ] as const
 
-    for (const [fieldPath, hookComponent] of hookEntries) {
-      fieldHooks.register(fieldPath, hookComponent, 'replace')
+    for (const [fieldPath, hookComponent, hookType = 'replace'] of hookEntries) {
+      fieldHooks.register(fieldPath, hookComponent, hookType)
     }
 
     return () => {
@@ -596,7 +599,7 @@ function BotConfigPageContent() {
       setHasUnsavedChanges(false)
       toast({
         title: '保存成功',
-        description: '麦麦主程序配置已保存',
+        description: '麦麦设置已保存',
       })
     } catch (error) {
       console.error('保存配置失败:', error)
@@ -772,7 +775,7 @@ function BotConfigPageContent() {
         <div className="flex flex-col gap-3 sm:gap-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="min-w-0">
-              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">麦麦主程序配置</h1>
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">麦麦设置</h1>
               <p className="text-muted-foreground mt-1 text-xs sm:text-sm">管理麦麦的核心功能和行为设置</p>
             </div>
             {/* 按钮组 - 桌面端靠右 */}
@@ -1032,6 +1035,7 @@ function DynamicConfigTabs(props: DynamicConfigTabsProps) {
           setHasUnsavedChanges(true)
         }}
         hooks={fieldHooks}
+        sectionColumns={2}
       />
     )
   }

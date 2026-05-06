@@ -130,7 +130,7 @@ export function Layout({ children }: LayoutProps) {
                 key="settings-sidebar"
                 className="relative z-40 hidden shrink-0 lg:block"
                 initial={{ width: 0, opacity: 0 }}
-                animate={{ width: sidebarOpen ? 256 : 64, opacity: 1 }}
+                animate={{ width: sidebarOpen ? 240 : 64, opacity: 1 }}
                 exit={{ width: 0, opacity: 0 }}
                 transition={{
                   type: 'spring',

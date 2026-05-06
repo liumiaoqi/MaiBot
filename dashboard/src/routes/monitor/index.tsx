@@ -15,7 +15,7 @@ export function PlannerMonitorPage() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
             <Activity className="h-6 w-6 sm:h-7 sm:w-7" />
-            MaiSaka 聊天流监控
+            麦麦观察
           </h1>
           <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base">
             实时追踪 MaiSaka 推理引擎的完整思考过程

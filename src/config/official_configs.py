@@ -36,6 +36,11 @@ class BotConfig(ConfigBase):
     platform: str = Field(
         default="",
         json_schema_extra={
+            "label": {
+                "zh_CN": "平台",
+                "en_US": "Platform",
+                "ja_JP": "プラットフォーム",
+            },
             "x-widget": "input",
             "x-icon": "wifi",
             "x-layout": "inline-right",
@@ -48,6 +53,11 @@ class BotConfig(ConfigBase):
     qq_account: str = Field(
         default="",
         json_schema_extra={
+            "label": {
+                "zh_CN": "QQ账号",
+                "en_US": "QQ account",
+                "ja_JP": "QQアカウント",
+            },
             "x-widget": "input",
             "x-icon": "user",
             "x-layout": "inline-right",
@@ -69,6 +79,11 @@ class BotConfig(ConfigBase):
     nickname: str = Field(
         default="麦麦",
         json_schema_extra={
+            "label": {
+                "zh_CN": "机器人昵称",
+                "en_US": "Bot nickname",
+                "ja_JP": "ボットのニックネーム",
+            },
             "x-widget": "input",
             "x-icon": "user-circle",
         },
@@ -333,6 +348,11 @@ class ChatConfig(ConfigBase):
     chat_prompts: list["ExtraPromptItem"] = Field(
         default_factory=lambda: [],
         json_schema_extra={
+            "label": {
+                "zh_CN": "额外 Prompt",
+                "en_US": "Extra prompts",
+                "ja_JP": "追加プロンプト",
+            },
             "x-widget": "custom",
             "x-icon": "list",
         },
@@ -341,6 +361,11 @@ class ChatConfig(ConfigBase):
     enable_talk_value_rules: bool = Field(
         default=True,
         json_schema_extra={
+            "label": {
+                "zh_CN": "启用动态发言频率规则",
+                "en_US": "Enable dynamic talk frequency rules",
+                "ja_JP": "動的な発言頻度ルールを有効化",
+            },
             "x-widget": "switch",
             "x-icon": "settings",
         },
@@ -353,6 +378,11 @@ class ChatConfig(ConfigBase):
             TalkRulesItem(platform="", item_id="", rule_type="group", time="09:00-18:59", value=1.0),
         ],
         json_schema_extra={
+            "label": {
+                "zh_CN": "动态发言频率规则",
+                "en_US": "Dynamic talk frequency rules",
+                "ja_JP": "動的な発言頻度ルール",
+            },
             "x-widget": "custom",
             "x-icon": "list",
         },

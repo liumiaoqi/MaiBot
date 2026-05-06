@@ -1,5 +1,6 @@
 import * as React from "react"
 import * as LucideIcons from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import { Input } from "@/components/ui/input"
 import { KeyValueEditor } from "@/components/ui/key-value-editor"
@@ -15,6 +16,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { resolveFieldLabel } from "@/lib/config-label"
 import type { FieldSchema } from "@/types/config-schema"
 
 export interface DynamicFieldProps {
@@ -37,6 +39,8 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
   value,
   onChange,
 }) => {
+  const { i18n } = useTranslation()
+  const fieldLabel = resolveFieldLabel(schema, i18n.language)
   const isNumericField = schema.type === 'integer' || schema.type === 'number'
 
   const parseNumericValue = (rawValue: unknown, fallbackValue: unknown = 0) => {
@@ -126,17 +130,17 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
   const inlineDescription = hasOptionDescriptions ? '' : schema.description
 
   const renderFieldHeader = () => (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+    <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
       <Label
         className={cn(
-          "inline-flex min-h-7 items-center gap-1.5 rounded-md border px-2 py-1 text-sm font-medium shadow-sm",
+          "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[15px] font-semibold leading-6",
           schema.advanced
-            ? "border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-500/60 dark:bg-amber-500/15 dark:text-amber-100"
-            : "bg-muted/60 text-foreground",
+            ? "text-amber-800 dark:text-amber-200"
+            : "text-foreground",
         )}
       >
         {renderIcon()}
-        <span className="break-all">{schema.label}</span>
+        <span>{fieldLabel}</span>
         {schema.required && <span className="text-destructive">*</span>}
       </Label>
       {inlineDescription && (
@@ -357,7 +361,7 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
     return (
       <Select value={strValue} onValueChange={(val) => onChange(val)}>
         <SelectTrigger>
-          <SelectValue placeholder={`Select ${schema.label}`} />
+          <SelectValue placeholder={`Select ${fieldLabel}`} />
         </SelectTrigger>
         <SelectContent>
           {hasOptionDescriptions ? (
@@ -415,13 +419,13 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
   if (supportsInlineRight) {
     return (
       <div
-        className="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between"
+        className="flex flex-col gap-2 py-2 sm:flex-row sm:items-center"
         style={{ '--field-input-width': schema['x-input-width'] ?? '12rem' } as React.CSSProperties}
       >
-        <div className="min-w-0 flex-1">
+        <div className="shrink-0">
           {renderFieldHeader()}
         </div>
-        <div className="w-full shrink-0 sm:w-[var(--field-input-width)]">
+        <div className="min-w-20 flex-1 sm:ml-auto sm:max-w-[var(--field-input-width)]">
           {renderInputComponent()}
         </div>
       </div>

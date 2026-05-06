@@ -24,8 +24,8 @@
     },
     "menu": {
       "home": "首页",
-      "botMainConfig": "麦麦主程序配置",
-      "aiModelProvider": "AI模型厂商配置",
+      "botMainConfig": "麦麦设置",
+      "aiModelProvider": "模型厂商设置",
       "modelManagement": "模型管理与分配",
       "promptManagement": "Prompt 管理",
       "adapterConfig": "麦麦适配器配置",
@@ -40,7 +40,7 @@
       "pluginConfig": "插件管理",
       "mcpSettings": "MCP 设置",
       "logViewer": "日志查看器",
-      "maisakaMonitor": "MaiSaka 聊天流监控",
+      "maisakaMonitor": "麦麦观察",
       "localChat": "本地聊天室",
       "settings": "系统设置"
     }
@@ -773,9 +773,9 @@
     "items": {
       "home": "首页",
       "homeDesc": "查看仪表板概览",
-      "botConfig": "麦麦主程序配置",
+      "botConfig": "麦麦设置",
       "botConfigDesc": "配置麦麦的核心设置",
-      "modelProvider": "麦麦模型提供商配置",
+      "modelProvider": "模型厂商设置",
       "modelProviderDesc": "配置模型提供商",
       "model": "麦麦模型配置",
       "modelDesc": "配置模型参数",

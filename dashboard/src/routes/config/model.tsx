@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, type MouseEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -47,8 +48,9 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Slider } from '@/components/ui/slider'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Pencil, Trash2, Save, Search, Info, Power, Check, ChevronsUpDown, RefreshCw, Loader2, GraduationCap, Share2, AlertTriangle, Settings, Lock, Unlock } from 'lucide-react'
+import { Plus, Pencil, Trash2, Save, Search, Info, Power, Check, ChevronsUpDown, RefreshCw, Loader2, GraduationCap, Share2, AlertTriangle, Settings } from 'lucide-react'
 import { getModelConfig, getModelConfigSchema, updateModelConfig } from '@/lib/config-api'
+import { resolveFieldLabel } from '@/lib/config-label'
 import type { ConfigSchema } from '@/types/config-schema'
 import { useToast } from '@/hooks/use-toast'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -82,6 +84,7 @@ export function ModelConfigPage() {
 
 // 内部实现组件
 function ModelConfigPageContent() {
+  const { i18n } = useTranslation()
   const [models, setModels] = useState<ModelInfo[]>([])
   const [providers, setProviders] = useState<string[]>([])
   const [providerConfigs, setProviderConfigs] = useState<ProviderConfig[]>([])
@@ -105,7 +108,6 @@ function ModelConfigPageContent() {
   const [pageSize, setPageSize] = useState(20)
   const [jumpToPage, setJumpToPage] = useState('')
   
-  const [advancedTemperatureMode, setAdvancedTemperatureMode] = useState(false)
   const [advancedModelSettingsVisible, setAdvancedModelSettingsVisible] = useState(false)
   const [advancedTaskSettingsVisible, setAdvancedTaskSettingsVisible] = useState(false)
   const [restartNoticeVisible, setRestartNoticeVisible] = useState(
@@ -1009,15 +1011,11 @@ function ModelConfigPageContent() {
               {taskConfigSchema.fields
                 .filter(f => f.type === 'object' && (advancedTaskSettingsVisible || !f.advanced))
                 .map((field, index) => {
-                  const desc = field.description || field.name
-                  const commaIdx = desc.search(/[,，]/)
-                  const title = commaIdx > 0 ? desc.slice(0, commaIdx).trim() : desc
-                  const subtitle = commaIdx > 0 ? desc.slice(commaIdx + 1).trim() : ''
                   return (
                     <TaskConfigCard
                       key={field.name}
-                      title={`${title} (${field.name})`}
-                      description={subtitle}
+                      title={resolveFieldLabel(field, i18n.language)}
+                      description={field.description}
                       taskConfig={taskConfig[field.name] ?? { model_list: [] }}
                       modelNames={modelNames}
                       onChange={(f, value) => updateTaskConfig(field.name, f, value)}
@@ -1425,7 +1423,7 @@ function ModelConfigPageContent() {
                   checked={editingModel?.temperature != null}
                   onCheckedChange={(checked) => {
                     if (checked) {
-                      setEditingModel((prev) => prev ? { ...prev, temperature: 0.5 } : null)
+                      setEditingModel((prev) => prev ? { ...prev, temperature: 0.7 } : null)
                     } else {
                       setEditingModel((prev) => prev ? { ...prev, temperature: null } : null)
                     }
@@ -1437,43 +1435,28 @@ function ModelConfigPageContent() {
                 <div className="space-y-3 pt-2 border-t">
                   <div className="flex items-center justify-between gap-3">
                     <Label className="text-sm">温度值</Label>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        value={editingModel.temperature}
-                        onChange={(e) => {
-                          const value = parseFloat(e.target.value)
-                          if (!isNaN(value) && value >= 0 && value <= 2) {
-                            setEditingModel((prev) => prev ? { ...prev, temperature: value } : null)
-                          }
-                        }}
-                        onBlur={(e) => {
-                          const value = parseFloat(e.target.value)
-                          if (isNaN(value) || value < 0) {
-                            setEditingModel((prev) => prev ? { ...prev, temperature: 0 } : null)
-                          } else if (value > 2) {
-                            setEditingModel((prev) => prev ? { ...prev, temperature: 2 } : null)
-                          }
-                        }}
-                        step={0.01}
-                        min={0}
-                        max={2}
-                        className="w-20 h-8 text-sm text-right tabular-nums"
-                      />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setAdvancedTemperatureMode(!advancedTemperatureMode)}
-                        className="h-8 px-2"
-                        title={advancedTemperatureMode ? "切换到基础模式 (0-1)" : "解锁高级范围 (0-2)"}
-                      >
-                        {advancedTemperatureMode ? (
-                          <Unlock className="h-4 w-4" />
-                        ) : (
-                          <Lock className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </div>
+                    <Input
+                      type="number"
+                      value={editingModel.temperature}
+                      onChange={(e) => {
+                        const value = parseFloat(e.target.value)
+                        if (!isNaN(value) && value >= 0 && value <= 2) {
+                          setEditingModel((prev) => prev ? { ...prev, temperature: value } : null)
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const value = parseFloat(e.target.value)
+                        if (isNaN(value) || value < 0) {
+                          setEditingModel((prev) => prev ? { ...prev, temperature: 0 } : null)
+                        } else if (value > 2) {
+                          setEditingModel((prev) => prev ? { ...prev, temperature: 2 } : null)
+                        }
+                      }}
+                      step={0.01}
+                      min={0}
+                      max={2}
+                      className="w-20 h-8 text-sm text-right tabular-nums"
+                    />
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-muted-foreground tabular-nums">0</span>
@@ -1485,25 +1468,22 @@ function ModelConfigPageContent() {
                         )
                       }
                       min={0}
-                      max={advancedTemperatureMode ? 2 : 1}
-                      step={advancedTemperatureMode ? 0.05 : 0.1}
+                      max={2}
+                      step={0.05}
                       className="flex-1"
                     />
-                    <span className="text-xs text-muted-foreground tabular-nums">{advancedTemperatureMode ? '2' : '1'}</span>
+                    <span className="text-xs text-muted-foreground tabular-nums">2</span>
                   </div>
-                  {advancedTemperatureMode && (
+                  {editingModel.temperature > 1 && (
                     <Alert className="bg-amber-500/10 border-amber-500/20 [&>svg+div]:translate-y-0">
                       <AlertTriangle className="h-4 w-4 text-amber-500" />
                       <AlertDescription className="text-xs text-amber-600 dark:text-amber-400">
-                        高级模式：温度 &gt; 1 会产生更随机、更不可预测的输出，请谨慎使用
+                        温度 &gt; 1 会产生更随机、更不可预测的输出，请谨慎使用
                       </AlertDescription>
                     </Alert>
                   )}
                   <p className="text-xs text-muted-foreground">
-                    {advancedTemperatureMode 
-                      ? "较低（0.1-0.5）产生确定输出，中等（0.5-1.0）平衡创造性，较高（1.0-2.0）产生极度随机输出"
-                      : "较低的温度（0.1-0.3）产生更确定的输出，较高的温度（0.7-1.0）产生更多样化的输出"
-                    }
+                    较低（0.1-0.5）产生确定输出，中等（0.5-1.0）平衡创造性，较高（1.0-2.0）产生极度随机输出
                   </p>
                 </div>
               )}
