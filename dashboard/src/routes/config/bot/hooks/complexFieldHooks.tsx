@@ -332,9 +332,6 @@ export const BotPlatformAccountsHook: FieldHookComponent = ({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
           <Label className="text-[15px] font-semibold leading-6">平台账号</Label>
-          <p className="text-xs text-muted-foreground">
-            第一行为主平台，固定保存到 platform 与 qq_account；其他行保存到 platforms。
-          </p>
         </div>
         <Button type="button" size="sm" variant="outline" onClick={addRow}>
           <Plus className="mr-2 h-4 w-4" />

@@ -23,6 +23,7 @@ export type XWidgetType =
   | 'textarea'
 
 export type LocalizedText = string | Record<string, string>
+export type DescriptionDisplayMode = 'inline' | 'icon' | 'label-hover'
 
 export interface FieldSchema {
   name: string
@@ -42,6 +43,7 @@ export interface FieldSchema {
   'x-icon'?: string
   'x-layout'?: 'inline-right'
   'x-input-width'?: string
+  'x-description-display'?: DescriptionDisplayMode
   'x-option-descriptions'?: Record<string, string>
   'x-row'?: string
   'x-textarea-min-height'?: number

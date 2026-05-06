@@ -127,22 +127,66 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
 
   const optionDescriptions = schema['x-option-descriptions'] ?? {}
   const hasOptionDescriptions = Object.keys(optionDescriptions).length > 0
-  const inlineDescription = hasOptionDescriptions ? '' : schema.description
+  const descriptionDisplay = schema['x-description-display'] ?? 'label-hover'
+  const fieldDescription = schema.description
+  const inlineDescription = descriptionDisplay === 'inline' && !hasOptionDescriptions ? fieldDescription : ''
+
+  const renderDescriptionTooltip = (trigger: React.ReactElement, side: 'top' | 'right' = 'top') => {
+    if (!fieldDescription) return trigger
+
+    return (
+      <TooltipProvider delayDuration={150}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            {trigger}
+          </TooltipTrigger>
+          <TooltipContent
+            side={side}
+            align="start"
+            className="max-w-80 whitespace-pre-line bg-background text-foreground border shadow-lg"
+          >
+            {fieldDescription}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    )
+  }
 
   const renderFieldHeader = () => (
     <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-      <Label
-        className={cn(
-          "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[15px] font-semibold leading-6",
-          schema.advanced
-            ? "text-amber-800 dark:text-amber-200"
-            : "text-foreground",
-        )}
-      >
-        {renderIcon()}
-        <span>{fieldLabel}</span>
-        {schema.required && <span className="text-destructive">*</span>}
-      </Label>
+      {(() => {
+        const label = (
+          <Label
+            className={cn(
+              "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[15px] font-semibold leading-6",
+              descriptionDisplay === 'label-hover' && fieldDescription && "cursor-help",
+              schema.advanced
+                ? "text-amber-800 dark:text-amber-200"
+                : "text-foreground",
+            )}
+          >
+            {renderIcon()}
+            <span>{fieldLabel}</span>
+            {schema.required && <span className="text-destructive">*</span>}
+          </Label>
+        )
+
+        return descriptionDisplay === 'label-hover'
+          ? renderDescriptionTooltip(label)
+          : label
+      })()}
+      {descriptionDisplay === 'icon' && fieldDescription && (
+        renderDescriptionTooltip(
+          <button
+            type="button"
+            aria-label={`${fieldLabel} 说明`}
+            className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <LucideIcons.CircleAlert className="h-4 w-4" />
+          </button>,
+          'right',
+        )
+      )}
       {inlineDescription && (
         <span className="text-[13px] leading-6 text-muted-foreground whitespace-pre-line">
           {inlineDescription}
