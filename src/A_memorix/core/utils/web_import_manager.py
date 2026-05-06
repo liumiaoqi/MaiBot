@@ -6,6 +6,11 @@ Web Import Task Manager
 
 from __future__ import annotations
 
+from collections import deque
+from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Tuple
 import asyncio
 import hashlib
 import json
@@ -15,24 +20,24 @@ import sys
 import time
 import traceback
 import uuid
-from collections import deque
-from dataclasses import dataclass, field
-from datetime import datetime
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from src.common.logger import get_logger
 from src.services import llm_service as llm_api
 
 from ...paths import default_data_dir, repo_root, resolve_repo_path, scripts_root
 from ..storage import (
+    KnowledgeType,
+    MetadataStore,
     parse_import_strategy,
     resolve_stored_knowledge_type,
     select_import_strategy,
-    KnowledgeType,
-    MetadataStore,
 )
+from ..storage.knowledge_types import ImportStrategy
 from ..storage.type_detection import looks_like_quote_text
+from ..strategies.base import KnowledgeType as StrategyKnowledgeType, ProcessedChunk
+from ..strategies.factual import FactualStrategy
+from ..strategies.narrative import NarrativeStrategy
+from ..strategies.quote import QuoteStrategy
 from ..utils.import_payloads import (
     ImportPayloadValidationError,
     is_probable_hash_token,
@@ -42,11 +47,6 @@ from ..utils.import_payloads import (
 )
 from ..utils.runtime_self_check import ensure_runtime_self_check
 from ..utils.time_parser import normalize_time_meta
-from ..storage.knowledge_types import ImportStrategy
-from ..strategies.base import ProcessedChunk, KnowledgeType as StrategyKnowledgeType
-from ..strategies.narrative import NarrativeStrategy
-from ..strategies.factual import FactualStrategy
-from ..strategies.quote import QuoteStrategy
 
 logger = get_logger("A_Memorix.WebImportManager")
 
@@ -139,6 +139,44 @@ def _coerce_list(value: Any) -> List[str]:
         seen.add(key)
         out.append(v)
     return out
+
+
+def _coerce_import_data_dict(value: Any, *, context: str) -> Dict[str, Any]:
+    """确保 LLM 抽取结果是对象，避免写入阶段出现部分提交。"""
+
+    if value is None:
+        return {}
+    if isinstance(value, dict):
+        return value
+    raise ValueError(f"{context} 必须返回 JSON 对象，当前类型: {type(value).__name__}")
+
+
+def _normalize_import_relation_list(value: Any) -> List[Dict[str, str]]:
+    if not isinstance(value, list):
+        return []
+    relations: List[Dict[str, str]] = []
+    for item in value:
+        relation = normalize_relation_import_item(item)
+        if relation is not None:
+            relations.append(relation)
+    return relations
+
+
+def _normalize_import_entity_list(value: Any) -> List[str]:
+    if not isinstance(value, list):
+        return []
+    entities: List[str] = []
+    seen = set()
+    for item in value:
+        name = normalize_entity_import_item(item)
+        if not name:
+            continue
+        key = name.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        entities.append(name)
+    return entities
 
 
 def _parse_optional_positive_int(value: Any, field_name: str) -> Optional[int]:
@@ -2002,7 +2040,7 @@ class ImportTaskManager:
         if total <= 0:
             total = max(1, scanned)
 
-        progress = max(0.0, min(1.0, float(scanned) / float(total))) if total > 0 else 0.0
+        chunk_progress = max(0.0, min(1.0, float(scanned) / float(total))) if total > 0 else 0.0
         preview = f"scanned={scanned}/{total}, migrated={migrated}, bad={bad}, last_id={last_id}"
 
         async with self._lock:
@@ -2017,14 +2055,14 @@ class ImportTaskManager:
                 if c.status not in {"completed", "failed", "cancelled"}:
                     c.status = "writing"
                     c.step = "migrating"
-                c.progress = progress
+                c.progress = chunk_progress
                 c.content_preview = preview
                 c.updated_at = _now()
             f.total_chunks = total
             f.done_chunks = done
             f.failed_chunks = bad
             f.cancelled_chunks = 0
-            f.progress = progress
+            self._recompute_file_progress(f)
             if f.status not in {"failed", "cancelled"}:
                 f.status = "writing"
                 f.current_step = "migrating"
@@ -2171,7 +2209,7 @@ class ImportTaskManager:
                 f.done_chunks = max(0, min(f.done_chunks, f.total_chunks))
                 f.failed_chunks = max(0, min(f.failed_chunks, f.total_chunks))
                 f.cancelled_chunks = 0
-                f.progress = 1.0
+                self._recompute_file_progress(f)
                 f.status = "completed"
                 f.current_step = "completed"
                 if bad_rows > 0 and not f.error:
@@ -3128,6 +3166,7 @@ class ImportTaskManager:
         if is_probable_hash_token(content):
             logger.warning("跳过疑似哈希段落写入: source=%s preview=%s", self._source_label(file_record), content[:32])
             return
+        data = _coerce_import_data_dict(processed.data, context="分块抽取结果")
         para_hash = self.plugin.metadata_store.add_paragraph(
             content=content,
             source=self._source_label(file_record),
@@ -3145,31 +3184,25 @@ class ImportTaskManager:
                 f"web_import text paragraph 向量写入降级: hash={para_hash[:8]} detail={vector_result.get('detail')}"
             )
 
-        data = processed.data or {}
         entities: List[str] = []
         relations: List[Tuple[str, str, str]] = []
 
-        for triple in data.get("triples", []):
-            s = str(triple.get("subject", "")).strip()
-            p = str(triple.get("predicate", "")).strip()
-            o = str(triple.get("object", "")).strip()
-            if s and p and o:
-                relations.append((s, p, o))
-                entities.extend([s, o])
+        for triple in _normalize_import_relation_list(data.get("triples")):
+            s = triple["subject"]
+            p = triple["predicate"]
+            o = triple["object"]
+            relations.append((s, p, o))
+            entities.extend([s, o])
 
-        for rel in data.get("relations", []):
-            s = str(rel.get("subject", "")).strip()
-            p = str(rel.get("predicate", "")).strip()
-            o = str(rel.get("object", "")).strip()
-            if s and p and o:
-                relations.append((s, p, o))
-                entities.extend([s, o])
+        for rel in _normalize_import_relation_list(data.get("relations")):
+            s = rel["subject"]
+            p = rel["predicate"]
+            o = rel["object"]
+            relations.append((s, p, o))
+            entities.extend([s, o])
 
         for k in ("entities", "events", "verbatim_entities"):
-            for e in data.get(k, []):
-                name = str(e or "").strip()
-                if name and not is_probable_hash_token(name):
-                    entities.append(name)
+            entities.extend(_normalize_import_entity_list(data.get(k)))
 
         uniq_entities = list({x.strip().lower(): x.strip() for x in entities if str(x).strip()}.values())
         for name in uniq_entities:
@@ -3297,12 +3330,12 @@ class ImportTaskManager:
                         txt = txt[4:].strip()
 
                 try:
-                    return json.loads(txt)
+                    return _coerce_import_data_dict(json.loads(txt), context="LLM 抽取结果")
                 except Exception:
                     s = txt.find("{")
                     e = txt.rfind("}")
                     if s >= 0 and e > s:
-                        return json.loads(txt[s : e + 1])
+                        return _coerce_import_data_dict(json.loads(txt[s : e + 1]), context="LLM 抽取结果")
                     raise
             except Exception as err:
                 last_error = err
@@ -3373,6 +3406,7 @@ JSON schema:
             logger.warning(f"chat_log 时间语义抽取失败: {e}")
             return None
 
+        result = _coerce_import_data_dict(result, context="chat_log 时间抽取结果")
         raw_time_meta = {
             "event_time": result.get("event_time"),
             "event_time_start": result.get("event_time_start"),
@@ -3544,9 +3578,7 @@ JSON schema:
                 additional_cancelled += 1
             if additional_cancelled > 0:
                 f.cancelled_chunks += additional_cancelled
-                f.progress = self._compute_ratio(
-                    f.done_chunks + f.failed_chunks + f.cancelled_chunks, f.total_chunks
-                )
+            self._recompute_file_progress(f)
             f.updated_at = _now()
             task.updated_at = _now()
             self._recompute_task_progress(task)
@@ -3604,7 +3636,7 @@ JSON schema:
             c.progress = 1.0
             c.updated_at = _now()
             f.done_chunks += 1
-            f.progress = self._compute_ratio(f.done_chunks + f.failed_chunks + f.cancelled_chunks, f.total_chunks)
+            self._recompute_file_progress(f)
             f.updated_at = _now()
             self._recompute_task_progress(task)
 
@@ -3632,7 +3664,7 @@ JSON schema:
             c.progress = 1.0
             c.updated_at = _now()
             f.failed_chunks += 1
-            f.progress = self._compute_ratio(f.done_chunks + f.failed_chunks + f.cancelled_chunks, f.total_chunks)
+            self._recompute_file_progress(f)
             if not f.error:
                 f.error = str(error)
             f.updated_at = _now()
@@ -3656,7 +3688,7 @@ JSON schema:
             c.progress = 1.0
             c.updated_at = _now()
             f.cancelled_chunks += 1
-            f.progress = self._compute_ratio(f.done_chunks + f.failed_chunks + f.cancelled_chunks, f.total_chunks)
+            self._recompute_file_progress(f)
             f.updated_at = _now()
             self._recompute_task_progress(task)
 
@@ -3684,6 +3716,9 @@ JSON schema:
             return 1.0
         return max(0.0, min(1.0, float(done) / float(total)))
 
+    def _recompute_file_progress(self, file_record: ImportFileRecord) -> None:
+        file_record.progress = self._compute_ratio(file_record.done_chunks, file_record.total_chunks)
+
     def _recompute_task_progress(self, task: ImportTaskRecord) -> None:
         total = 0
         done = 0
@@ -3698,7 +3733,7 @@ JSON schema:
         task.done_chunks = done
         task.failed_chunks = failed
         task.cancelled_chunks = cancelled
-        task.progress = self._compute_ratio(done + failed + cancelled, total)
+        task.progress = self._compute_ratio(done, total)
         task.updated_at = _now()
 
     async def _should_cleanup_task_temp(self, task_id: str) -> bool:
@@ -3731,9 +3766,7 @@ JSON schema:
                 additional_cancelled += 1
             if additional_cancelled > 0:
                 f.cancelled_chunks += additional_cancelled
-            f.progress = self._compute_ratio(
-                f.done_chunks + f.failed_chunks + f.cancelled_chunks, f.total_chunks
-            )
+            self._recompute_file_progress(f)
             f.updated_at = _now()
         task.status = "cancelled"
         task.current_step = "cancelled"
