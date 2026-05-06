@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { DynamicConfigForm } from '@/components/dynamic-form/DynamicConfigForm'
+import { resolveLocalizedText } from '@/lib/config-label'
 import type { FieldHookComponent } from '@/lib/field-hooks'
 import type { ConfigSchema, FieldSchema } from '@/types/config-schema'
 
@@ -49,7 +50,7 @@ function resolveLabel(schema?: ConfigSchema | FieldSchema, fieldPath?: string): 
     return fieldPath?.split('.').at(-1) ?? '列表配置'
   }
   if ('label' in schema && schema.label) {
-    return schema.label
+    return resolveLocalizedText(schema.label, undefined, fieldPath?.split('.').at(-1) ?? '列表配置')
   }
   if ('uiLabel' in schema && schema.uiLabel) {
     return schema.uiLabel

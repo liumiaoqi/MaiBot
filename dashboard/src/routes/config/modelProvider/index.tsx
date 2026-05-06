@@ -742,7 +742,7 @@ function ModelProviderConfigPageContent() {
       {/* 页面标题 */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">AI模型厂商配置</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">模型厂商设置</h1>
           <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base">管理 AI 模型厂商的 API 配置</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2">

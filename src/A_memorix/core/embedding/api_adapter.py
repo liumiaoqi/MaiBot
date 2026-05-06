@@ -60,10 +60,10 @@ class EmbeddingAPIAdapter:
         self._total_time = 0.0
 
         logger.info(
-            "EmbeddingAPIAdapter 初始化: "
-            f"batch_size={self.batch_size}, "
-            f"max_concurrent={self.max_concurrent}, "
-            f"configured_dim={self.default_dimension}, "
+            "Embedding 初始化: "
+            f"batch={self.batch_size}, "
+            f"concurrent={self.max_concurrent}, "
+            f"dim={self.default_dimension}, "
             f"model={self.model_name}"
         )
 
@@ -258,10 +258,10 @@ class EmbeddingAPIAdapter:
         if cached_dimension is not None:
             self._dimension = int(cached_dimension)
             self._dimension_detected = True
-            logger.info(f"嵌入维度命中进程缓存: {self._dimension}")
+            logger.debug(f"嵌入维度命中进程缓存: {self._dimension}")
             return self._dimension
 
-        logger.info("正在检测嵌入模型维度...")
+        logger.info("检测嵌入维度...")
         try:
             target_dim = self.default_dimension
             logger.debug(f"尝试请求指定维度: {target_dim}")
@@ -269,7 +269,7 @@ class EmbeddingAPIAdapter:
             if test_embedding and isinstance(test_embedding, list):
                 detected_dim = len(test_embedding)
                 if detected_dim == target_dim:
-                    logger.info(f"嵌入维度检测成功 (匹配 configured/requested): {detected_dim}")
+                    logger.info(f"嵌入维度: {detected_dim}")
                 else:
                     logger.warning(
                         f"requested_dimension={target_dim} 但模型返回 detected_dimension={detected_dim}，将使用真实输出维度"
@@ -288,7 +288,7 @@ class EmbeddingAPIAdapter:
                 self._dimension = detected_dim
                 self._dimension_detected = True
                 self._GLOBAL_DIMENSION_CACHE[cache_key] = int(detected_dim)
-                logger.info(f"嵌入维度检测成功 (自然维度): {detected_dim}")
+                logger.info(f"嵌入维度: {detected_dim} (自然输出)")
                 return detected_dim
             logger.warning(f"嵌入维度检测失败，使用 configured_dimension: {self.default_dimension}")
         except Exception as exc:

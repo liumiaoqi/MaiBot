@@ -51,7 +51,7 @@ class PersonFactWritebackService:
             logger.warning("关闭人物事实写回 worker 失败: %s", exc)
 
     async def enqueue(self, message: Any) -> None:
-        if not bool(getattr(global_config.memory, "person_fact_writeback_enabled", True)):
+        if not bool(global_config.a_memorix.integration.person_fact_writeback_enabled):
             return
         if self._stopping:
             return
@@ -251,7 +251,7 @@ class ChatSummaryWritebackService:
             logger.warning("关闭聊天摘要写回 worker 失败: %s", exc)
 
     async def enqueue(self, message: Any) -> None:
-        if not bool(getattr(global_config.memory, "chat_summary_writeback_enabled", True)):
+        if not bool(global_config.a_memorix.integration.chat_summary_writeback_enabled):
             return
         if self._stopping:
             return
@@ -434,11 +434,11 @@ class ChatSummaryWritebackService:
 
     @staticmethod
     def _message_threshold() -> int:
-        return max(1, int(getattr(global_config.memory, "chat_summary_writeback_message_threshold", 12) or 12))
+        return max(1, int(global_config.a_memorix.integration.chat_summary_writeback_message_threshold))
 
     @staticmethod
     def _context_length() -> int:
-        return max(1, int(getattr(global_config.memory, "chat_summary_writeback_context_length", 50) or 50))
+        return max(1, int(global_config.a_memorix.integration.chat_summary_writeback_context_length))
 
 
 class MemoryAutomationService:

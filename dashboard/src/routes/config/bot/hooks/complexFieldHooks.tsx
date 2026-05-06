@@ -294,6 +294,117 @@ export const BotPlatformsHook: FieldHookComponent = ({ onChange, value }) => {
   )
 }
 
+export const HiddenFieldHook: FieldHookComponent = () => null
+
+export const BotPlatformAccountsHook: FieldHookComponent = ({
+  onChange,
+  onParentChange,
+  parentValues,
+  value,
+}) => {
+  const primaryPlatform = typeof value === 'string' ? value : ''
+  const qqAccountValue = parentValues?.qq_account
+  const qqAccount =
+    typeof qqAccountValue === 'string' || typeof qqAccountValue === 'number'
+      ? String(qqAccountValue)
+      : ''
+  const platforms = normalizePlatformAccounts(parentValues?.platforms)
+  const rows = platforms.map(parsePlatformAccount)
+
+  const updateRows = (nextRows: PlatformAccountRow[]) => {
+    onParentChange?.('platforms', nextRows.map(formatPlatformAccount))
+  }
+
+  const addRow = () => {
+    updateRows([...rows, { platform: '', account: '' }])
+  }
+
+  const removeRow = (rowIndex: number) => {
+    updateRows(rows.filter((_, index) => index !== rowIndex))
+  }
+
+  const updateRow = (rowIndex: number, patch: Partial<PlatformAccountRow>) => {
+    updateRows(rows.map((row, index) => (index === rowIndex ? { ...row, ...patch } : row)))
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <Label className="text-[15px] font-semibold leading-6">平台账号</Label>
+        </div>
+        <Button type="button" size="sm" variant="outline" onClick={addRow}>
+          <Plus className="mr-2 h-4 w-4" />
+          添加平台
+        </Button>
+      </div>
+
+      <div className="space-y-2">
+        <div className="grid gap-2 rounded-md border bg-muted/20 p-3 sm:grid-cols-[minmax(7rem,0.6fr)_minmax(10rem,1fr)_2.5rem]">
+          <div className="space-y-1">
+            <Label className="text-xs">平台</Label>
+            <Input
+              value={primaryPlatform}
+              placeholder="qq"
+              onChange={(event) => onChange?.(event.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">账号</Label>
+            <Input
+              className="font-mono"
+              value={qqAccount}
+              placeholder="2814567326"
+              onChange={(event) => onParentChange?.('qq_account', event.target.value)}
+            />
+          </div>
+          <div className="flex items-end justify-end">
+            <span className="rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
+              主
+            </span>
+          </div>
+        </div>
+
+        {rows.map((row, rowIndex) => (
+          <div
+            key={rowIndex}
+            className="grid gap-2 rounded-md border bg-muted/20 p-3 sm:grid-cols-[minmax(7rem,0.6fr)_minmax(10rem,1fr)_2.5rem]"
+          >
+            <div className="space-y-1">
+              <Label className="text-xs">平台</Label>
+              <Input
+                value={row.platform}
+                placeholder="wx"
+                onChange={(event) => updateRow(rowIndex, { platform: event.target.value })}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">账号</Label>
+              <Input
+                className="font-mono"
+                value={row.account}
+                placeholder="114514"
+                onChange={(event) => updateRow(rowIndex, { account: event.target.value })}
+              />
+            </div>
+            <div className="flex items-end justify-end">
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                aria-label={`删除其他平台 ${rowIndex + 1}`}
+                onClick={() => removeRow(rowIndex)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export const KeywordRulesHook = createListItemEditorHook({
   addLabel: '添加关键词规则',
   helperText: '匹配命中后会用 reaction 内容作为额外上下文。keywords 至少填一条，或使用正则模式。',

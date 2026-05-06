@@ -24,6 +24,7 @@ export interface DynamicConfigFormProps {
   /** 嵌套层级：0 = tab 内容层，1 = section 内容层，2+ = 更深嵌套 */
   level?: number
   advancedVisible?: boolean
+  sectionColumns?: 1 | 2
 }
 
 function buildFieldPath(basePath: string, fieldName: string) {
@@ -126,6 +127,7 @@ function DynamicConfigSection({
           hooks={hooks}
           level={level}
           advancedVisible={hasAdvanced ? advancedVisible : undefined}
+          sectionColumns={1}
         />
       </CardContent>
     </Card>
@@ -150,6 +152,7 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
   hooks = fieldHooks,
   level = 0,
   advancedVisible,
+  sectionColumns = 1,
 }) => {
   const [localAdvancedVisible, setLocalAdvancedVisible] = React.useState(false)
   const resolvedAdvancedVisible = advancedVisible ?? localAdvancedVisible
@@ -161,10 +164,12 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
 
   const renderField = (field: FieldSchema) => {
     const fieldPath = buildFieldPath(basePath, field.name)
+    const nestedSchema = schema.nested?.[field.name]
 
     if (hooks.has(fieldPath)) {
       const hookEntry = hooks.get(fieldPath)
       if (!hookEntry) return null
+      if (hookEntry.type === 'hidden') return null
 
       const HookComponent = hookEntry.component
 
@@ -174,7 +179,9 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
             fieldPath={fieldPath}
             value={values[field.name]}
             onChange={(v) => onChange(field.name, v)}
+            onParentChange={onChange}
             schema={field}
+            nestedSchema={nestedSchema}
             parentValues={values}
           />
         )
@@ -185,7 +192,9 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
           fieldPath={fieldPath}
           value={values[field.name]}
           onChange={(v) => onChange(field.name, v)}
+          onParentChange={onChange}
           schema={field}
+          nestedSchema={nestedSchema}
           parentValues={values}
         >
           <DynamicField
@@ -208,11 +217,27 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
     )
   }
 
-  const topLevelFields = schema.fields.filter(
-    (field) => !schema.nested?.[field.name],
+  const shouldRenderFieldInline = (field: FieldSchema) => {
+    const fieldPath = buildFieldPath(basePath, field.name)
+    if (hooks.get(fieldPath)?.type === 'hidden') {
+      return false
+    }
+
+    if (!schema.nested?.[field.name]) {
+      return true
+    }
+
+    return hooks.get(fieldPath)?.type === 'replace'
+  }
+
+  const inlineFields = schema.fields.filter(shouldRenderFieldInline)
+  const inlineNestedFieldNames = new Set(
+    inlineFields
+      .filter((field) => Boolean(schema.nested?.[field.name]))
+      .map((field) => field.name),
   )
-  const normalFields = topLevelFields.filter((field) => !field.advanced)
-  const advancedFields = topLevelFields.filter((field) => field.advanced)
+  const normalFields = inlineFields.filter((field) => !field.advanced)
+  const advancedFields = inlineFields.filter((field) => field.advanced)
   const visibleFields = resolvedAdvancedVisible
     ? [...normalFields, ...advancedFields]
     : normalFields
@@ -244,23 +269,32 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
     return rows
   }
 
+  const renderRows = (rows: FieldSchema[][]) => (
+    <>
+      {rows.map((row) => (
+        row.length > 1 ? (
+          <div
+            key={row.map((field) => field.name).join('|')}
+            className="grid gap-4 py-1 md:grid-cols-[repeat(var(--field-row-count),minmax(0,1fr))]"
+            style={{ '--field-row-count': row.length } as React.CSSProperties}
+          >
+            {row.map((field) => (
+              <div key={field.name}>{renderField(field)}</div>
+            ))}
+          </div>
+        ) : (
+          <div key={row[0].name} className="py-1">{renderField(row[0])}</div>
+        )
+      ))}
+    </>
+  )
+
   const renderFieldList = (fields: FieldSchema[]) => (
     <>
       {groupFieldsByRow(fields).map((row, index) => (
         <React.Fragment key={row.map((field) => field.name).join('|')}>
           {index > 0 && <Separator className="my-2 bg-border/50" />}
-          {row.length > 1 ? (
-            <div
-              className="grid gap-4 py-1 md:grid-cols-[repeat(var(--field-row-count),minmax(0,1fr))]"
-              style={{ '--field-row-count': row.length } as React.CSSProperties}
-            >
-              {row.map((field) => (
-                <div key={field.name}>{renderField(field)}</div>
-              ))}
-            </div>
-          ) : (
-            <div className="py-1">{renderField(row[0])}</div>
-          )}
+          {renderRows([row])}
         </React.Fragment>
       ))}
     </>
@@ -268,7 +302,7 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
 
   return (
     <div className="space-y-6">
-      {topLevelFields.length > 0 && (
+      {inlineFields.length > 0 && (
         <div>
           {advancedVisible === undefined && advancedFields.length > 0 && (
             <div className="flex justify-end pb-2">
@@ -283,7 +317,9 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
       )}
 
       {schema.nested &&
-        Object.entries(schema.nested)
+        (() => {
+          const nestedSections = Object.entries(schema.nested)
+          .filter(([key]) => !inlineNestedFieldNames.has(key))
           .map(([key, nestedSchema]) => {
           const nestedField = fieldMap.get(key)
           const nestedFieldPath = buildFieldPath(basePath, key)
@@ -299,8 +335,9 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
                   <HookComponent
                     fieldPath={nestedFieldPath}
                     value={values[key]}
-                    onChange={(v) => onChange(key, v)}
-                    schema={nestedField ?? nestedSchema}
+                      onChange={(v) => onChange(key, v)}
+                      onParentChange={onChange}
+                      schema={nestedField ?? nestedSchema}
                     nestedSchema={nestedSchema}
                     parentValues={values}
                   />
@@ -314,6 +351,7 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
                   fieldPath={nestedFieldPath}
                   value={values[key]}
                   onChange={(v) => onChange(key, v)}
+                  onParentChange={onChange}
                   schema={nestedField ?? nestedSchema}
                   nestedSchema={nestedSchema}
                   parentValues={values}
@@ -325,6 +363,7 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
                     basePath={nestedFieldPath}
                     hooks={hooks}
                     level={level + 1}
+                    sectionColumns={1}
                   />
                 </HookComponent>
               </div>
@@ -376,11 +415,27 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
                   basePath={nestedFieldPath}
                   hooks={hooks}
                   level={level + 1}
+                  sectionColumns={1}
                 />
               </CardContent>
             </Card>
           )
-        })}
+        })
+
+          const visibleNestedSections = nestedSections.filter(
+            (section): section is React.ReactElement => Boolean(section),
+          )
+
+          if (level === 0 && sectionColumns === 2 && visibleNestedSections.length > 1) {
+            return (
+              <div className="grid gap-4 md:grid-cols-2">
+                {visibleNestedSections}
+              </div>
+            )
+          }
+
+          return visibleNestedSections
+        })()}
     </div>
   )
 }

@@ -29,12 +29,13 @@ import { ChevronDown, ChevronUp, Code2, Info, Layout, Power, RefreshCw, Save } f
 
 import type { ConfigSchema } from '@/types/config-schema'
 import {
-  BotPlatformsHook,
+  BotPlatformAccountsHook,
   ChatPromptsHook,
   ChatTalkValueRulesHook,
   ExpressionGroupsHook,
   ExpressionLearningListHook,
   KeywordRulesHook,
+  HiddenFieldHook,
   MCPRootItemsHook,
   MCPServersHook,
   RegexRulesHook,
@@ -169,7 +170,6 @@ function BotConfigPageContent() {
   const [chatConfig, setChatConfig] = useState<ConfigSectionData | null>(null)
   const [expressionConfig, setExpressionConfig] = useState<ConfigSectionData | null>(null)
   const [emojiConfig, setEmojiConfig] = useState<ConfigSectionData | null>(null)
-  const [memoryConfig, setMemoryConfig] = useState<ConfigSectionData | null>(null)
   const [visualConfig, setVisualConfig] = useState<ConfigSectionData | null>(null)
   const [voiceConfig, setVoiceConfig] = useState<ConfigSectionData | null>(null)
   const [messageReceiveConfig, setMessageReceiveConfig] = useState<ConfigSectionData | null>(null)
@@ -258,14 +258,14 @@ function BotConfigPageContent() {
    * 抽取自 loadConfig 和 handleModeChange 中的重复逻辑
    */
   const parseAndSetConfig = useCallback((config: Record<string, unknown>) => {
-    configRef.current = config
+    const { memory: _legacyMemory, ...configWithoutLegacyMemory } = config
+    configRef.current = configWithoutLegacyMemory
 
     setBotConfig((config.bot ?? {}) as ConfigSectionData)
     setPersonalityConfig((config.personality ?? {}) as ConfigSectionData)
     setChatConfig((config.chat ?? {}) as ConfigSectionData)
     setExpressionConfig((config.expression ?? {}) as ConfigSectionData)
     setEmojiConfig((config.emoji ?? {}) as ConfigSectionData)
-    setMemoryConfig((config.memory ?? {}) as ConfigSectionData)
     setVisualConfig((config.visual ?? {}) as ConfigSectionData)
     setVoiceConfig((config.voice ?? {}) as ConfigSectionData)
     setMessageReceiveConfig((config.message_receive ?? {}) as ConfigSectionData)
@@ -296,7 +296,6 @@ function BotConfigPageContent() {
       chat: chatConfig,
       expression: expressionConfig,
       emoji: emojiConfig,
-      memory: memoryConfig,
       visual: visualConfig,
       voice: voiceConfig,
       message_receive: messageReceiveConfig,
@@ -320,7 +319,6 @@ function BotConfigPageContent() {
     chatConfig,
     expressionConfig,
     emojiConfig,
-    memoryConfig,
     visualConfig,
     voiceConfig,
     messageReceiveConfig,
@@ -415,7 +413,9 @@ function BotConfigPageContent() {
 
   useEffect(() => {
     const hookEntries = [
-      ['bot.platforms', BotPlatformsHook],
+      ['bot.platform', BotPlatformAccountsHook, 'replace'],
+      ['bot.qq_account', HiddenFieldHook, 'hidden'],
+      ['bot.platforms', HiddenFieldHook, 'hidden'],
       ['chat.chat_prompts', ChatPromptsHook],
       ['chat.talk_value_rules', ChatTalkValueRulesHook],
       ['expression.expression_groups', ExpressionGroupsHook],
@@ -426,8 +426,8 @@ function BotConfigPageContent() {
       ['mcp.servers', MCPServersHook],
     ] as const
 
-    for (const [fieldPath, hookComponent] of hookEntries) {
-      fieldHooks.register(fieldPath, hookComponent, 'replace')
+    for (const [fieldPath, hookComponent, hookType = 'replace'] of hookEntries) {
+      fieldHooks.register(fieldPath, hookComponent, hookType)
     }
 
     return () => {
@@ -452,7 +452,6 @@ function BotConfigPageContent() {
   useConfigAutoSave(chatConfig, 'chat', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(expressionConfig, 'expression', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(emojiConfig, 'emoji', initialLoadRef.current, triggerAutoSave)
-  useConfigAutoSave(memoryConfig, 'memory', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(visualConfig, 'visual', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(voiceConfig, 'voice', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(messageReceiveConfig, 'message_receive', initialLoadRef.current, triggerAutoSave)
@@ -596,7 +595,7 @@ function BotConfigPageContent() {
       setHasUnsavedChanges(false)
       toast({
         title: '保存成功',
-        description: '麦麦主程序配置已保存',
+        description: '麦麦设置已保存',
       })
     } catch (error) {
       console.error('保存配置失败:', error)
@@ -680,7 +679,6 @@ function BotConfigPageContent() {
       chat: chatConfig,
       expression: expressionConfig,
       emoji: emojiConfig,
-      memory: memoryConfig,
       visual: visualConfig,
       voice: voiceConfig,
       message_receive: messageReceiveConfig,
@@ -704,7 +702,6 @@ function BotConfigPageContent() {
       chatConfig,
       expressionConfig,
       emojiConfig,
-      memoryConfig,
       visualConfig,
       voiceConfig,
       messageReceiveConfig,
@@ -731,7 +728,6 @@ function BotConfigPageContent() {
       chat: setChatConfig,
       expression: setExpressionConfig,
       emoji: setEmojiConfig,
-      memory: setMemoryConfig,
       visual: setVisualConfig,
       voice: setVoiceConfig,
       message_receive: setMessageReceiveConfig,
@@ -772,7 +768,7 @@ function BotConfigPageContent() {
         <div className="flex flex-col gap-3 sm:gap-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="min-w-0">
-              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">麦麦主程序配置</h1>
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">麦麦设置</h1>
               <p className="text-muted-foreground mt-1 text-xs sm:text-sm">管理麦麦的核心功能和行为设置</p>
             </div>
             {/* 按钮组 - 桌面端靠右 */}
@@ -1032,6 +1028,7 @@ function DynamicConfigTabs(props: DynamicConfigTabsProps) {
           setHasUnsavedChanges(true)
         }}
         hooks={fieldHooks}
+        sectionColumns={2}
       />
     )
   }

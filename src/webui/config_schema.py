@@ -1,12 +1,17 @@
-import inspect
 from typing import Any, Dict, List, get_args, get_origin
 
 from pydantic_core import PydanticUndefined
+
+import inspect
 
 from src.config.config_base import ConfigBase
 
 
 class ConfigSchemaGenerator:
+    @staticmethod
+    def _build_label(label: str) -> Dict[str, str]:
+        return {"zh_CN": label}
+
     @classmethod
     def generate_schema(cls, config_class: type[ConfigBase], include_nested: bool = True) -> Dict[str, Any]:
         return cls.generate_config_schema(config_class, include_nested=include_nested)
@@ -76,7 +81,7 @@ class ConfigSchemaGenerator:
         schema: Dict[str, Any] = {
             "name": field_name,
             "type": field_type,
-            "label": field_name,
+            "label": cls._build_label(field_name),
             "description": description,
             "required": field_info.is_required(),
         }

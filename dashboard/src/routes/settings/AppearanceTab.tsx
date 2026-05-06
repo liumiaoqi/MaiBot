@@ -605,12 +605,12 @@ export function AppearanceTab() {
                   <div className="flex justify-between">
                     <Label>{t('settings.appearance.sidebarWidthLabel')}</Label>
                     <span className="text-sm text-muted-foreground">
-                      {getTokenValue(themeConfig.tokenOverrides, 'layout', 'sidebar-width', '16rem')}
+                      {getTokenValue(themeConfig.tokenOverrides, 'layout', 'sidebar-width', '13rem')}
                     </span>
                   </div>
                   <Slider
                     defaultValue={[16]}
-                    value={[parseFloat(getTokenValue(themeConfig.tokenOverrides, 'layout', 'sidebar-width', '16'))]}
+                    value={[parseFloat(getTokenValue(themeConfig.tokenOverrides, 'layout', 'sidebar-width', '13'))]}
                     min={12}
                     max={24}
                     step={0.5}

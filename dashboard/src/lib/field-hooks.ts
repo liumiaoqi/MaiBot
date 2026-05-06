@@ -4,7 +4,7 @@ import type { ConfigSchema, FieldSchema } from '@/types/config-schema'
 /**
  * Hook type for field-level customization
  */
-export type FieldHookType = 'replace' | 'wrapper'
+export type FieldHookType = 'replace' | 'wrapper' | 'hidden'
 
 /**
  * Props passed to a FieldHookComponent
@@ -13,6 +13,7 @@ export interface FieldHookComponentProps {
   fieldPath: string
   value: unknown
   onChange?: (value: unknown) => void
+  onParentChange?: (field: string, value: unknown) => void
   children?: ReactNode
   schema?: ConfigSchema | FieldSchema
   parentValues?: Record<string, unknown>

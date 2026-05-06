@@ -80,22 +80,6 @@ export interface EmojiConfig {
   content_filtration: boolean
 }
 
-export interface MemoryConfig {
-  max_agent_iterations: number
-  agent_timeout_seconds: number
-  enable_jargon_detection: boolean
-  global_memory: boolean
-  chat_history_topic_check_message_threshold: number
-  chat_history_topic_check_time_hours: number
-  chat_history_topic_check_min_messages: number
-  chat_history_finalize_no_update_checks: number
-  chat_history_finalize_message_count: number
-}
-
-export interface ToolConfig {
-  enable_tool: boolean
-}
-
 // MoodConfig 已在后端移除
 
 export interface VoiceConfig {
@@ -227,8 +211,6 @@ export interface AllBotConfigs {
   chatConfig: ChatConfig | null
   expressionConfig: ExpressionConfig | null
   emojiConfig: EmojiConfig | null
-  memoryConfig: MemoryConfig | null
-  toolConfig: ToolConfig | null
   voiceConfig: VoiceConfig | null
   messageReceiveConfig: MessageReceiveConfig | null
   dreamConfig: DreamConfig | null

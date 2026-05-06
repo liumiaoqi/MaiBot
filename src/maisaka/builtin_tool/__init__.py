@@ -66,7 +66,7 @@ class BuiltinToolEntry:
 def _get_query_memory_tool_spec() -> ToolSpec:
     """根据配置生成 query_memory 工具声明。"""
 
-    return get_query_memory_tool_spec(enabled=bool(global_config.memory.enable_memory_query_tool))
+    return get_query_memory_tool_spec(enabled=bool(global_config.a_memorix.integration.enable_memory_query_tool))
 
 
 BUILTIN_TOOL_ENTRIES: List[BuiltinToolEntry] = [

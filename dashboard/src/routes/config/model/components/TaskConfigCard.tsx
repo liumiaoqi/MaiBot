@@ -104,11 +104,11 @@ export const TaskConfigCard = React.memo(function TaskConfigCard({
                   type="number"
                   step="0.1"
                   min="0"
-                  max="1"
-                  value={taskConfig.temperature ?? 0.3}
+                  max="2"
+                  value={taskConfig.temperature ?? 0.7}
                   onChange={(e) => {
                     const value = parseFloat(e.target.value)
-                    if (!isNaN(value) && value >= 0 && value <= 1) {
+                    if (!isNaN(value) && value >= 0 && value <= 2) {
                       onChange('temperature', value)
                     }
                   }}
@@ -116,10 +116,10 @@ export const TaskConfigCard = React.memo(function TaskConfigCard({
                 />
               </div>
               <Slider
-                value={[taskConfig.temperature ?? 0.3]}
+                value={[taskConfig.temperature ?? 0.7]}
                 onValueChange={(values) => onChange('temperature', values[0])}
                 min={0}
-                max={1}
+                max={2}
                 step={0.1}
                 className="w-full"
               />

@@ -166,7 +166,7 @@ MaiSaka 不仅仅是一个机器人，不仅仅是一个可以帮你完成任务
 ## 🙋 贡献和致谢
 <sub><sup>Contributing and Acknowledgments</sup></sub>
 
-欢迎参与贡献！请先阅读 [贡献指南](docs/CONTRIBUTE.md)。  
+欢迎参与贡献！请先阅读 [贡献指南](docs/CONTRIBUTE.md)。
 <sub><sup>Contributions are welcome. Please read the <a href="docs/CONTRIBUTE.md">Contribution Guide</a> first.</sup></sub>
 
 ### 🌟 贡献者

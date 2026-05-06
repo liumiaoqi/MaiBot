@@ -194,7 +194,6 @@ class MaisakaChatLoopService:
         chat_system_prompt: Optional[str] = None,
         session_id: Optional[str] = None,
         is_group_chat: Optional[bool] = None,
-        max_tokens: int = 2048,
         model_task_name: str = "planner",
     ) -> None:
         """初始化 Maisaka 对话循环服务。
@@ -203,10 +202,7 @@ class MaisakaChatLoopService:
             chat_system_prompt: 可选的系统提示词。
             session_id: 当前会话 ID，用于匹配会话级额外提示。
             is_group_chat: 当前会话是否为群聊。
-            max_tokens: 规划器最大输出长度。
         """
-
-        self._max_tokens = max_tokens
         self._model_task_name = model_task_name.strip() or "planner"
         self._is_group_chat = is_group_chat
         self._session_id = session_id or ""
@@ -606,7 +602,6 @@ class MaisakaChatLoopService:
             message_factory=message_factory,
             options=LLMGenerationOptions(
                 tool_options=all_tools if all_tools else None,
-                max_tokens=self._max_tokens,
                 response_format=response_format,
                 interrupt_flag=self._interrupt_flag,
             ),

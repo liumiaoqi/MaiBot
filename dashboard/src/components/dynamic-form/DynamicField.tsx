@@ -1,5 +1,6 @@
 import * as React from "react"
 import * as LucideIcons from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import { Input } from "@/components/ui/input"
 import { KeyValueEditor } from "@/components/ui/key-value-editor"
@@ -15,6 +16,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { resolveFieldLabel } from "@/lib/config-label"
 import type { FieldSchema } from "@/types/config-schema"
 
 export interface DynamicFieldProps {
@@ -37,6 +39,8 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
   value,
   onChange,
 }) => {
+  const { i18n } = useTranslation()
+  const fieldLabel = resolveFieldLabel(schema, i18n.language)
   const isNumericField = schema.type === 'integer' || schema.type === 'number'
 
   const parseNumericValue = (rawValue: unknown, fallbackValue: unknown = 0) => {
@@ -123,22 +127,66 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
 
   const optionDescriptions = schema['x-option-descriptions'] ?? {}
   const hasOptionDescriptions = Object.keys(optionDescriptions).length > 0
-  const inlineDescription = hasOptionDescriptions ? '' : schema.description
+  const descriptionDisplay = schema['x-description-display'] ?? 'label-hover'
+  const fieldDescription = schema.description
+  const inlineDescription = descriptionDisplay === 'inline' && !hasOptionDescriptions ? fieldDescription : ''
+
+  const renderDescriptionTooltip = (trigger: React.ReactElement, side: 'top' | 'right' = 'top') => {
+    if (!fieldDescription) return trigger
+
+    return (
+      <TooltipProvider delayDuration={150}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            {trigger}
+          </TooltipTrigger>
+          <TooltipContent
+            side={side}
+            align="start"
+            className="max-w-80 whitespace-pre-line bg-background text-foreground border shadow-lg"
+          >
+            {fieldDescription}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    )
+  }
 
   const renderFieldHeader = () => (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-      <Label
-        className={cn(
-          "inline-flex min-h-7 items-center gap-1.5 rounded-md border px-2 py-1 text-sm font-medium shadow-sm",
-          schema.advanced
-            ? "border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-500/60 dark:bg-amber-500/15 dark:text-amber-100"
-            : "bg-muted/60 text-foreground",
-        )}
-      >
-        {renderIcon()}
-        <span className="break-all">{schema.label}</span>
-        {schema.required && <span className="text-destructive">*</span>}
-      </Label>
+    <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+      {(() => {
+        const label = (
+          <Label
+            className={cn(
+              "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[15px] font-semibold leading-6",
+              descriptionDisplay === 'label-hover' && fieldDescription && "cursor-help",
+              schema.advanced
+                ? "text-amber-800 dark:text-amber-200"
+                : "text-foreground",
+            )}
+          >
+            {renderIcon()}
+            <span>{fieldLabel}</span>
+            {schema.required && <span className="text-destructive">*</span>}
+          </Label>
+        )
+
+        return descriptionDisplay === 'label-hover'
+          ? renderDescriptionTooltip(label)
+          : label
+      })()}
+      {descriptionDisplay === 'icon' && fieldDescription && (
+        renderDescriptionTooltip(
+          <button
+            type="button"
+            aria-label={`${fieldLabel} 说明`}
+            className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <LucideIcons.CircleAlert className="h-4 w-4" />
+          </button>,
+          'right',
+        )
+      )}
       {inlineDescription && (
         <span className="text-[13px] leading-6 text-muted-foreground whitespace-pre-line">
           {inlineDescription}
@@ -357,7 +405,7 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
     return (
       <Select value={strValue} onValueChange={(val) => onChange(val)}>
         <SelectTrigger>
-          <SelectValue placeholder={`Select ${schema.label}`} />
+          <SelectValue placeholder={`Select ${fieldLabel}`} />
         </SelectTrigger>
         <SelectContent>
           {hasOptionDescriptions ? (
@@ -415,13 +463,13 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
   if (supportsInlineRight) {
     return (
       <div
-        className="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between"
+        className="flex flex-col gap-2 py-2 sm:flex-row sm:items-center"
         style={{ '--field-input-width': schema['x-input-width'] ?? '12rem' } as React.CSSProperties}
       >
-        <div className="min-w-0 flex-1">
+        <div className="shrink-0">
           {renderFieldHeader()}
         </div>
-        <div className="w-full shrink-0 sm:w-[var(--field-input-width)]">
+        <div className="min-w-20 flex-1 sm:ml-auto sm:max-w-[var(--field-input-width)]">
           {renderInputComponent()}
         </div>
       </div>

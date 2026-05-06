@@ -3020,80 +3020,80 @@ class SDKMemoryKernel:
 
     @staticmethod
     def _feedback_cfg_enabled() -> bool:
-        memory_cfg = getattr(global_config, "memory", None)
+        memory_cfg = global_config.a_memorix.integration
         return bool(getattr(memory_cfg, "feedback_correction_enabled", False))
 
     @staticmethod
     def _feedback_cfg_window_hours() -> float:
-        memory_cfg = getattr(global_config, "memory", None)
+        memory_cfg = global_config.a_memorix.integration
         return max(0.1, float(getattr(memory_cfg, "feedback_correction_window_hours", 12.0) or 12.0))
 
     @staticmethod
     def _feedback_cfg_check_interval_seconds() -> float:
-        memory_cfg = getattr(global_config, "memory", None)
+        memory_cfg = global_config.a_memorix.integration
         minutes = max(1, int(getattr(memory_cfg, "feedback_correction_check_interval_minutes", 30) or 30))
         return float(minutes) * 60.0
 
     @staticmethod
     def _feedback_cfg_batch_size() -> int:
-        memory_cfg = getattr(global_config, "memory", None)
+        memory_cfg = global_config.a_memorix.integration
         return max(1, int(getattr(memory_cfg, "feedback_correction_batch_size", 20) or 20))
 
     @staticmethod
     def _feedback_cfg_auto_apply_threshold() -> float:
-        memory_cfg = getattr(global_config, "memory", None)
+        memory_cfg = global_config.a_memorix.integration
         value = float(getattr(memory_cfg, "feedback_correction_auto_apply_threshold", 0.85) or 0.85)
         return min(1.0, max(0.0, value))
 
     @staticmethod
     def _feedback_cfg_max_messages() -> int:
-        memory_cfg = getattr(global_config, "memory", None)
+        memory_cfg = global_config.a_memorix.integration
         return max(1, int(getattr(memory_cfg, "feedback_correction_max_feedback_messages", 30) or 30))
 
     @staticmethod
     def _feedback_cfg_prefilter_enabled() -> bool:
-        memory_cfg = getattr(global_config, "memory", None)
+        memory_cfg = global_config.a_memorix.integration
         return bool(getattr(memory_cfg, "feedback_correction_prefilter_enabled", True))
 
     @staticmethod
     def _feedback_cfg_paragraph_mark_enabled() -> bool:
-        memory_cfg = getattr(global_config, "memory", None)
+        memory_cfg = global_config.a_memorix.integration
         return bool(getattr(memory_cfg, "feedback_correction_paragraph_mark_enabled", True))
 
     @staticmethod
     def _feedback_cfg_paragraph_hard_filter_enabled() -> bool:
-        memory_cfg = getattr(global_config, "memory", None)
+        memory_cfg = global_config.a_memorix.integration
         return bool(getattr(memory_cfg, "feedback_correction_paragraph_hard_filter_enabled", True))
 
     @staticmethod
     def _feedback_cfg_profile_refresh_enabled() -> bool:
-        memory_cfg = getattr(global_config, "memory", None)
+        memory_cfg = global_config.a_memorix.integration
         return bool(getattr(memory_cfg, "feedback_correction_profile_refresh_enabled", True))
 
     @staticmethod
     def _feedback_cfg_profile_force_refresh_on_read() -> bool:
-        memory_cfg = getattr(global_config, "memory", None)
+        memory_cfg = global_config.a_memorix.integration
         return bool(getattr(memory_cfg, "feedback_correction_profile_force_refresh_on_read", True))
 
     @staticmethod
     def _feedback_cfg_episode_rebuild_enabled() -> bool:
-        memory_cfg = getattr(global_config, "memory", None)
+        memory_cfg = global_config.a_memorix.integration
         return bool(getattr(memory_cfg, "feedback_correction_episode_rebuild_enabled", True))
 
     @staticmethod
     def _feedback_cfg_episode_query_block_enabled() -> bool:
-        memory_cfg = getattr(global_config, "memory", None)
+        memory_cfg = global_config.a_memorix.integration
         return bool(getattr(memory_cfg, "feedback_correction_episode_query_block_enabled", True))
 
     @staticmethod
     def _feedback_cfg_reconcile_interval_seconds() -> float:
-        memory_cfg = getattr(global_config, "memory", None)
+        memory_cfg = global_config.a_memorix.integration
         minutes = max(1, int(getattr(memory_cfg, "feedback_correction_reconcile_interval_minutes", 5) or 5))
         return float(minutes) * 60.0
 
     @staticmethod
     def _feedback_cfg_reconcile_batch_size() -> int:
-        memory_cfg = getattr(global_config, "memory", None)
+        memory_cfg = global_config.a_memorix.integration
         return max(1, int(getattr(memory_cfg, "feedback_correction_reconcile_batch_size", 20) or 20))
 
     @classmethod

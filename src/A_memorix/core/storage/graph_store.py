@@ -119,7 +119,7 @@ class GraphStore:
         # V5: 简单的异步锁 (实际上 asyncio 环境下单线程主循环可能不需要，但为了安全保留)
         self._lock = asyncio.Lock()
 
-        logger.info(f"GraphStore 初始化: format={matrix_format}")
+        logger.debug(f"图存储初始化: format={matrix_format}")
 
     def _canonicalize(self, node: str) -> str:
         """规范化节点名称 (用于去重和内部索引)"""
@@ -1317,8 +1317,8 @@ class GraphStore:
 
         self._adjacency_dirty = True
         logger.info(
-            f"图存储已加载: {len(self._nodes)} 个节点, "
-            f"{self._adjacency.nnz if self._adjacency is not None else 0} 条边"
+            f"图存储已加载: 节点={len(self._nodes)}, "
+            f"边={self._adjacency.nnz if self._adjacency is not None else 0}"
         )
 
     def _expand_adjacency_matrix(self, added_nodes: int) -> None:

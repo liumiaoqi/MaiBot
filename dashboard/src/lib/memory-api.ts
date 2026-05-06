@@ -6,26 +6,104 @@ import { isElectron } from './runtime'
 async function getMemoryApiBase(): Promise<string> {
   if (isElectron()) {
     const base = await getApiBaseUrl()
-    return base ? `${base}/api/webui/memory` : '/api/webui/memory'
+    return normalizeMemoryApiBase(base)
   }
-  return import.meta.env.VITE_API_BASE_URL
-    ? `${import.meta.env.VITE_API_BASE_URL}/memory`
-    : '/api/webui/memory'
+  return normalizeMemoryApiBase(import.meta.env.VITE_API_BASE_URL)
+}
+
+function normalizeMemoryApiBase(rawBase?: string | null): string {
+  const base = String(rawBase ?? '').replace(/\/+$/, '')
+  if (!base) {
+    return '/api/webui/memory'
+  }
+  if (base.endsWith('/api/webui/memory')) {
+    return base
+  }
+  if (base.endsWith('/api/webui')) {
+    return `${base}/memory`
+  }
+  return `${base}/api/webui/memory`
+}
+
+function withMemoryRequestDefaults(init?: RequestInit): RequestInit {
+  return {
+    ...init,
+    credentials: init?.credentials ?? 'include',
+  }
+}
+
+function isHtmlResponse(rawText: string): boolean {
+  const normalizedText = rawText.trimStart().toLowerCase()
+  return normalizedText.startsWith('<!doctype') || normalizedText.startsWith('<html')
+}
+
+function formatRequestUrl(url: string): string {
+  if (typeof window === 'undefined') {
+    return url
+  }
+  try {
+    return new URL(url, window.location.href).toString()
+  } catch {
+    return url
+  }
+}
+
+function getLocalMemoryApiFallbackBases(primaryBase: string): string[] {
+  const fallbackBases: string[] = []
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      fallbackBases.push(`http://${hostname}:8001/api/webui/memory`)
+    }
+  }
+  fallbackBases.push('http://127.0.0.1:8001/api/webui/memory')
+  fallbackBases.push('http://localhost:8001/api/webui/memory')
+  return Array.from(new Set(fallbackBases)).filter((base) => base !== primaryBase)
 }
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${await getMemoryApiBase()}${path}`, init)
-  if (!response.ok) {
-    let detail = `${response.status}`
-    try {
-      const payload = await response.json()
-      detail = String(payload?.detail ?? payload?.error ?? detail)
-    } catch {
-      // ignore json parsing fallback
+  const primaryBase = await getMemoryApiBase()
+  const urls = [
+    `${primaryBase}${path}`,
+    ...getLocalMemoryApiFallbackBases(primaryBase).map((base) => `${base}${path}`),
+  ]
+  const requestInit = withMemoryRequestDefaults(init)
+
+  for (let index = 0; index < urls.length; index += 1) {
+    const url = urls[index]
+    const response = await fetch(url, requestInit)
+    const rawText = await response.text()
+    const htmlResponse = isHtmlResponse(rawText)
+    const canRetry = index < urls.length - 1
+
+    if ((htmlResponse || response.status === 404) && canRetry) {
+      continue
     }
-    throw new Error(detail)
+
+    if (!response.ok) {
+      let detail = `${response.status}`
+      try {
+        const payload = JSON.parse(rawText)
+        detail = String(payload?.detail ?? payload?.error ?? detail)
+      } catch {
+        if (htmlResponse) {
+          detail = `接口返回了前端页面，未命中后端 API 路由；当前请求：${formatRequestUrl(url)}`
+        }
+      }
+      throw new Error(detail)
+    }
+
+    try {
+      return JSON.parse(rawText) as T
+    } catch {
+      if (htmlResponse) {
+        throw new Error(`接口返回了前端页面，未命中后端 API 路由；当前请求：${formatRequestUrl(url)}`)
+      }
+      throw new Error(rawText ? '接口响应不是合法 JSON' : '接口返回了空响应')
+    }
   }
-  return response.json() as Promise<T>
+
+  throw new Error('接口请求失败')
 }
 
 export interface MemoryGraphNodePayload {
@@ -581,6 +659,120 @@ export interface MemorySourceListPayload {
   count: number
 }
 
+export interface MemoryEpisodeItemPayload extends Record<string, unknown> {
+  episode_id?: string
+  id?: string
+  title?: string
+  summary?: string
+  content?: string
+  source?: string
+  person_id?: string
+  person_name?: string
+  time_start?: number | null
+  time_end?: number | null
+  created_at?: number | null
+  updated_at?: number | null
+}
+
+export interface MemoryEpisodeParagraphPayload extends Record<string, unknown> {
+  hash?: string
+  content?: string
+  preview?: string
+  source?: string
+  created_at?: number | null
+  updated_at?: number | null
+}
+
+export interface MemoryEpisodeListPayload {
+  success: boolean
+  items: MemoryEpisodeItemPayload[]
+  count?: number
+  error?: string
+}
+
+export interface MemoryEpisodeDetailPayload {
+  success: boolean
+  episode?: MemoryEpisodeItemPayload & {
+    paragraphs?: MemoryEpisodeParagraphPayload[]
+  }
+  error?: string
+}
+
+export interface MemoryEpisodeStatusPayload extends Record<string, unknown> {
+  success: boolean
+  pending_queue?: number
+  counts?: Record<string, number>
+  failed?: Array<Record<string, unknown>>
+  error?: string
+}
+
+export interface MemoryEpisodeActionPayload extends Record<string, unknown> {
+  success: boolean
+  error?: string
+  detail?: string
+}
+
+export interface MemoryProfileItemPayload extends Record<string, unknown> {
+  person_id: string
+  person_name?: string
+  profile_version?: number
+  profile_text?: string
+  updated_at?: number | null
+  expires_at?: number | null
+  source_note?: string
+  has_manual_override?: boolean
+  manual_override?: Record<string, unknown> | string | null
+}
+
+export interface MemoryProfileListPayload {
+  success: boolean
+  items: MemoryProfileItemPayload[]
+  count?: number
+  error?: string
+}
+
+export interface MemoryProfileQueryPayload extends Record<string, unknown> {
+  success?: boolean
+  profile?: MemoryProfileItemPayload | Record<string, unknown>
+  person_id?: string
+  profile_text?: string
+  evidence?: Array<Record<string, unknown>>
+  error?: string
+}
+
+export interface MemoryProfileOverridePayload extends Record<string, unknown> {
+  success: boolean
+  override?: Record<string, unknown>
+  deleted?: boolean
+  person_id?: string
+  error?: string
+}
+
+export interface MemoryMaintenanceItemPayload extends Record<string, unknown> {
+  hash?: string
+  relation_hash?: string
+  subject?: string
+  predicate?: string
+  object?: string
+  text?: string
+  deleted_at?: number | null
+  updated_at?: number | null
+  source?: string
+}
+
+export interface MemoryRecycleBinPayload {
+  success: boolean
+  items: MemoryMaintenanceItemPayload[]
+  count?: number
+  error?: string
+}
+
+export interface MemoryMaintenanceActionPayload extends Record<string, unknown> {
+  success: boolean
+  detail?: string
+  error?: string
+}
+
 export async function getMemoryGraph(limit: number = 120): Promise<MemoryGraphPayload> {
   return requestJson<MemoryGraphPayload>(`/graph?limit=${limit}`)
 }
@@ -726,6 +918,151 @@ export async function rollbackMemoryFeedbackCorrection(
 
 export async function getMemorySources(): Promise<MemorySourceListPayload> {
   return requestJson<MemorySourceListPayload>('/sources')
+}
+
+export async function getMemoryEpisodes(options?: {
+  query?: string
+  limit?: number
+  source?: string
+  personId?: string
+  platform?: string
+  userId?: string
+  timeStart?: number
+  timeEnd?: number
+}): Promise<MemoryEpisodeListPayload> {
+  const params = new URLSearchParams({
+    query: options?.query ?? '',
+    limit: String(options?.limit ?? 20),
+    source: options?.source ?? '',
+    person_id: options?.personId ?? '',
+    platform: options?.platform ?? '',
+    user_id: options?.userId ?? '',
+  })
+  if (options?.timeStart !== undefined) {
+    params.set('time_start', String(options.timeStart))
+  }
+  if (options?.timeEnd !== undefined) {
+    params.set('time_end', String(options.timeEnd))
+  }
+  return requestJson<MemoryEpisodeListPayload>(`/episodes?${params.toString()}`)
+}
+
+export async function getMemoryEpisode(episodeId: string): Promise<MemoryEpisodeDetailPayload> {
+  return requestJson<MemoryEpisodeDetailPayload>(`/episodes/${encodeURIComponent(episodeId)}`)
+}
+
+export async function rebuildMemoryEpisodes(payload: {
+  source?: string
+  sources?: string[]
+  all?: boolean
+}): Promise<MemoryEpisodeActionPayload> {
+  return requestJson<MemoryEpisodeActionPayload>('/episodes/rebuild', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function getMemoryEpisodeStatus(limit: number = 20): Promise<MemoryEpisodeStatusPayload> {
+  return requestJson<MemoryEpisodeStatusPayload>(`/episodes/status?limit=${limit}`)
+}
+
+export async function processMemoryEpisodePending(payload: {
+  limit?: number
+  max_retry?: number
+}): Promise<MemoryEpisodeActionPayload> {
+  return requestJson<MemoryEpisodeActionPayload>('/episodes/process-pending', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function getMemoryProfiles(limit: number = 50): Promise<MemoryProfileListPayload> {
+  return requestJson<MemoryProfileListPayload>(`/profiles?limit=${limit}`)
+}
+
+export async function searchMemoryProfiles(options: {
+  personId?: string
+  personKeyword?: string
+  platform?: string
+  userId?: string
+  limit?: number
+}): Promise<MemoryProfileListPayload> {
+  const params = new URLSearchParams({
+    person_id: options.personId ?? '',
+    person_keyword: options.personKeyword ?? '',
+    platform: options.platform ?? '',
+    user_id: options.userId ?? '',
+    limit: String(options.limit ?? 50),
+  })
+  return requestJson<MemoryProfileListPayload>(`/profiles/search?${params.toString()}`)
+}
+
+export async function queryMemoryProfile(options: {
+  personId?: string
+  personKeyword?: string
+  platform?: string
+  userId?: string
+  limit?: number
+  forceRefresh?: boolean
+}): Promise<MemoryProfileQueryPayload> {
+  const params = new URLSearchParams({
+    person_id: options.personId ?? '',
+    person_keyword: options.personKeyword ?? '',
+    platform: options.platform ?? '',
+    user_id: options.userId ?? '',
+    limit: String(options.limit ?? 12),
+    force_refresh: options.forceRefresh ? 'true' : 'false',
+  })
+  return requestJson<MemoryProfileQueryPayload>(`/profiles/query?${params.toString()}`)
+}
+
+export async function setMemoryProfileOverride(payload: {
+  person_id: string
+  override_text: string
+  updated_by?: string
+  source?: string
+}): Promise<MemoryProfileOverridePayload> {
+  return requestJson<MemoryProfileOverridePayload>('/profiles/override', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function deleteMemoryProfileOverride(personId: string): Promise<MemoryProfileOverridePayload> {
+  return requestJson<MemoryProfileOverridePayload>(`/profiles/override/${encodeURIComponent(personId)}`, {
+    method: 'DELETE',
+  })
+}
+
+export async function getMemoryRecycleBin(limit: number = 50): Promise<MemoryRecycleBinPayload> {
+  return requestJson<MemoryRecycleBinPayload>(`/maintenance/recycle-bin?limit=${limit}`)
+}
+
+function maintainMemory(path: string, payload: { target: string; hours?: number }): Promise<MemoryMaintenanceActionPayload> {
+  return requestJson<MemoryMaintenanceActionPayload>(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function restoreMaintainedMemory(target: string): Promise<MemoryMaintenanceActionPayload> {
+  return maintainMemory('/maintenance/restore', { target })
+}
+
+export async function reinforceMemory(target: string): Promise<MemoryMaintenanceActionPayload> {
+  return maintainMemory('/maintenance/reinforce', { target })
+}
+
+export async function freezeMemory(target: string): Promise<MemoryMaintenanceActionPayload> {
+  return maintainMemory('/maintenance/freeze', { target })
+}
+
+export async function protectMemory(target: string, hours?: number): Promise<MemoryMaintenanceActionPayload> {
+  return maintainMemory('/maintenance/protect', hours === undefined ? { target } : { target, hours })
 }
 
 export async function getMemoryRuntimeConfig(): Promise<MemoryRuntimeConfigPayload> {

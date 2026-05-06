@@ -12,6 +12,7 @@ NapCat.Framework.Windows.OneKey/
 log/
 logs/
 out/
+SnowLuma-v1.6.10-win-x64/
 tool_call_benchmark.py
 run_maibot_core.bat
 run_voice.bat
@@ -27,7 +28,6 @@ nonebot-maibot-adapter/
 MaiMBot-LPMM
 *.zip
 run_bot.bat
-run_na.bat
 run_all_in_wt.bat
 run.bat
 log_debug/
@@ -36,10 +36,6 @@ run_amds.bat
 run_none.bat
 docs-mai/
 run.py
-message_queue_content.txt
-message_queue_content.bat
-message_queue_window.bat
-message_queue_window.txt
 queue_update.txt
 start_saka.bat
 .env
@@ -49,8 +45,6 @@ start_all.bat
 config/bot_config_dev.toml
 config/bot_config.toml
 config/bot_config.toml.bak
-config/lpmm_config.toml
-config/lpmm_config.toml.bak
 template/compare/bot_config_template.toml
 template/compare/model_config_template.toml
 # CLAUDE.md

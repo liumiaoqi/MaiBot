@@ -122,7 +122,7 @@ class SparseBM25Index:
         self._conn = conn
         self._loaded = True
         self._prepare_tokenizer()
-        logger.info(
+        logger.debug(
             "SparseBM25Index loaded: "
             f"backend=fts5, tokenizer={self.config.tokenizer_mode}, mode={self.config.mode}"
         )
