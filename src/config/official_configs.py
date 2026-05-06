@@ -467,8 +467,8 @@ class TargetItem(ConfigBase):
     """聊天流类型，group（群聊）或private（私聊）"""
 
 
-class MemoryConfig(ConfigBase):
-    """记忆配置类"""
+class AMemorixIntegrationConfig(ConfigBase):
+    """A_Memorix 与 Maisaka 集成配置"""
 
     __ui_parent__ = "a_memorix"
 
@@ -1037,6 +1037,9 @@ class AMemorixConfig(ConfigBase):
 
     __ui_label__ = "长期记忆"
     __ui_icon__ = "brain"
+
+    integration: AMemorixIntegrationConfig = Field(default_factory=AMemorixIntegrationConfig)
+    """Maisaka 集成配置"""
 
     plugin: AMemorixPluginConfig = Field(default_factory=AMemorixPluginConfig)
     """子系统状态"""

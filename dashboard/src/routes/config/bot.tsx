@@ -170,7 +170,6 @@ function BotConfigPageContent() {
   const [chatConfig, setChatConfig] = useState<ConfigSectionData | null>(null)
   const [expressionConfig, setExpressionConfig] = useState<ConfigSectionData | null>(null)
   const [emojiConfig, setEmojiConfig] = useState<ConfigSectionData | null>(null)
-  const [memoryConfig, setMemoryConfig] = useState<ConfigSectionData | null>(null)
   const [visualConfig, setVisualConfig] = useState<ConfigSectionData | null>(null)
   const [voiceConfig, setVoiceConfig] = useState<ConfigSectionData | null>(null)
   const [messageReceiveConfig, setMessageReceiveConfig] = useState<ConfigSectionData | null>(null)
@@ -259,14 +258,14 @@ function BotConfigPageContent() {
    * 抽取自 loadConfig 和 handleModeChange 中的重复逻辑
    */
   const parseAndSetConfig = useCallback((config: Record<string, unknown>) => {
-    configRef.current = config
+    const { memory: _legacyMemory, ...configWithoutLegacyMemory } = config
+    configRef.current = configWithoutLegacyMemory
 
     setBotConfig((config.bot ?? {}) as ConfigSectionData)
     setPersonalityConfig((config.personality ?? {}) as ConfigSectionData)
     setChatConfig((config.chat ?? {}) as ConfigSectionData)
     setExpressionConfig((config.expression ?? {}) as ConfigSectionData)
     setEmojiConfig((config.emoji ?? {}) as ConfigSectionData)
-    setMemoryConfig((config.memory ?? {}) as ConfigSectionData)
     setVisualConfig((config.visual ?? {}) as ConfigSectionData)
     setVoiceConfig((config.voice ?? {}) as ConfigSectionData)
     setMessageReceiveConfig((config.message_receive ?? {}) as ConfigSectionData)
@@ -297,7 +296,6 @@ function BotConfigPageContent() {
       chat: chatConfig,
       expression: expressionConfig,
       emoji: emojiConfig,
-      memory: memoryConfig,
       visual: visualConfig,
       voice: voiceConfig,
       message_receive: messageReceiveConfig,
@@ -321,7 +319,6 @@ function BotConfigPageContent() {
     chatConfig,
     expressionConfig,
     emojiConfig,
-    memoryConfig,
     visualConfig,
     voiceConfig,
     messageReceiveConfig,
@@ -455,7 +452,6 @@ function BotConfigPageContent() {
   useConfigAutoSave(chatConfig, 'chat', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(expressionConfig, 'expression', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(emojiConfig, 'emoji', initialLoadRef.current, triggerAutoSave)
-  useConfigAutoSave(memoryConfig, 'memory', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(visualConfig, 'visual', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(voiceConfig, 'voice', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(messageReceiveConfig, 'message_receive', initialLoadRef.current, triggerAutoSave)
@@ -683,7 +679,6 @@ function BotConfigPageContent() {
       chat: chatConfig,
       expression: expressionConfig,
       emoji: emojiConfig,
-      memory: memoryConfig,
       visual: visualConfig,
       voice: voiceConfig,
       message_receive: messageReceiveConfig,
@@ -707,7 +702,6 @@ function BotConfigPageContent() {
       chatConfig,
       expressionConfig,
       emojiConfig,
-      memoryConfig,
       visualConfig,
       voiceConfig,
       messageReceiveConfig,
@@ -734,7 +728,6 @@ function BotConfigPageContent() {
       chat: setChatConfig,
       expression: setExpressionConfig,
       emoji: setEmojiConfig,
-      memory: setMemoryConfig,
       visual: setVisualConfig,
       voice: setVoiceConfig,
       message_receive: setMessageReceiveConfig,

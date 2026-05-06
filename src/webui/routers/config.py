@@ -32,7 +32,6 @@ from src.config.official_configs import (
     ExpressionConfig,
     KeywordReactionConfig,
     MaimMessageConfig,
-    MemoryConfig,
     MessageReceiveConfig,
     PersonalityConfig,
     ResponsePostProcessConfig,
@@ -333,7 +332,6 @@ async def get_config_section_schema(section_name: str):
     - response_splitter: ResponseSplitterConfig
     - telemetry: TelemetryConfig
     - maim_message: MaimMessageConfig
-    - memory: MemoryConfig
     - debug: DebugConfig
     - voice: VoiceConfig
     - jargon: JargonConfig
@@ -354,7 +352,6 @@ async def get_config_section_schema(section_name: str):
         "response_splitter": ResponseSplitterConfig,
         "telemetry": TelemetryConfig,
         "maim_message": MaimMessageConfig,
-        "memory": MemoryConfig,
         "a_memorix": AMemorixConfig,
         "debug": DebugConfig,
         "voice": VoiceConfig,

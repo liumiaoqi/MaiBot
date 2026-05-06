@@ -349,7 +349,7 @@ class PersonProfileService:
         self,
         evidence: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
-        memory_cfg = getattr(global_config, "memory", None)
+        memory_cfg = global_config.a_memorix.integration
         if not bool(getattr(memory_cfg, "feedback_correction_paragraph_hard_filter_enabled", True)):
             return evidence
         paragraph_hashes = [

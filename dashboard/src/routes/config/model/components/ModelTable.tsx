@@ -3,7 +3,6 @@
  */
 import React from 'react'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Table,
@@ -63,11 +62,11 @@ export const ModelTable = React.memo(function ModelTable({
                   onCheckedChange={onToggleSelectAll}
                 />
               </TableHead>
-              <TableHead className="w-24">使用状态</TableHead>
+              <TableHead className="w-14 text-center">使用</TableHead>
               <TableHead>模型名称</TableHead>
               <TableHead>模型标识符</TableHead>
               <TableHead>提供商</TableHead>
-              <TableHead className="text-center">视觉</TableHead>
+              <TableHead className="w-14 text-center">视觉</TableHead>
               <TableHead className="text-center">温度</TableHead>
               <TableHead className="text-right">输入价格</TableHead>
               <TableHead className="text-right">输出价格</TableHead>
@@ -93,13 +92,16 @@ export const ModelTable = React.memo(function ModelTable({
                         onCheckedChange={() => onToggleSelection(actualIndex)}
                       />
                     </TableCell>
-                    <TableCell>
-                      <Badge 
-                        variant={used ? "default" : "secondary"}
-                        className={used ? "bg-green-600 hover:bg-green-700" : ""}
-                      >
-                        {used ? '已使用' : '未使用'}
-                      </Badge>
+                    <TableCell className="text-center">
+                      <span
+                        className={`mx-auto block h-3 w-3 rounded-full border ${
+                          used
+                            ? 'border-green-500 bg-green-500 shadow-[0_0_0_3px_rgba(34,197,94,0.18)]'
+                            : 'border-green-700/40 bg-green-950/20'
+                        }`}
+                        title={used ? '已使用' : '未使用'}
+                        aria-label={used ? '已使用' : '未使用'}
+                      />
                     </TableCell>
                     <TableCell className="font-medium">{model.name}</TableCell>
                     <TableCell className="max-w-xs truncate" title={model.model_identifier}>
@@ -107,13 +109,15 @@ export const ModelTable = React.memo(function ModelTable({
                     </TableCell>
                     <TableCell>{model.api_provider}</TableCell>
                     <TableCell className="text-center">
-                      {model.visual ? (
-                        <Badge variant="outline" className="border-blue-500 text-blue-600">
-                          启用
-                        </Badge>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
+                      <span
+                        className={`mx-auto block h-3 w-3 rounded-full border ${
+                          model.visual
+                            ? 'border-green-500 bg-green-500 shadow-[0_0_0_3px_rgba(34,197,94,0.18)]'
+                            : 'border-green-700/40 bg-green-950/20'
+                        }`}
+                        title={model.visual ? '已启用视觉' : '未启用视觉'}
+                        aria-label={model.visual ? '已启用视觉' : '未启用视觉'}
+                      />
                     </TableCell>
                     <TableCell className="text-center">
                       {model.temperature != null ? model.temperature : <span className="text-muted-foreground">-</span>}

@@ -27,7 +27,6 @@ from .official_configs import (
     LogConfig,
     MaimMessageConfig,
     MCPConfig,
-    MemoryConfig,
     MessageReceiveConfig,
     PersonalityConfig,
     PluginRuntimeConfig,
@@ -57,7 +56,7 @@ MODEL_CONFIG_PATH: Path = (CONFIG_DIR / "model_config.toml").resolve().absolute(
 LEGACY_ENV_PATH: Path = (PROJECT_ROOT / ".env").resolve().absolute()
 A_MEMORIX_LEGACY_CONFIG_PATH: Path = (CONFIG_DIR / "a_memorix.toml").resolve().absolute()
 MMC_VERSION: str = "1.0.0-pre.11"
-CONFIG_VERSION: str = "8.10.8"
+CONFIG_VERSION: str = "8.10.9"
 MODEL_CONFIG_VERSION: str = "1.15.3"
 
 logger = get_logger("config")
@@ -83,9 +82,6 @@ class Config(ConfigBase):
 
     expression: ExpressionConfig = Field(default_factory=ExpressionConfig)
     """表达配置类"""
-
-    memory: MemoryConfig = Field(default_factory=MemoryConfig)
-    """记忆配置类"""
 
     a_memorix: AMemorixConfig = Field(default_factory=AMemorixConfig)
     """A_Memorix 长期记忆子系统配置"""

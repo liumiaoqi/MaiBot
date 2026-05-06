@@ -58,8 +58,8 @@ function unwrapConfigSchema(payload: unknown): ConfigSchema | null {
   return null
 }
 
-function getModelConfigPath(fieldPath: string) {
-  return fieldPath.startsWith('api_providers') ? '/config/modelProvider' : '/config/model'
+function getModelConfigPath(_fieldPath: string) {
+  return '/config/model'
 }
 
 function buildFieldSearchText(field: FieldSchema, fieldPath: string, sectionTitle: string, language?: string) {
