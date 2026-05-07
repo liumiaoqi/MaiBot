@@ -10,6 +10,7 @@ import tomlkit
 
 from .config_base import AttributeData, ConfigBase, Field
 from .config_utils import compare_versions, output_config_changes, recursive_parse_item_to_table
+from .config_upgrade_hooks import apply_config_upgrade_hooks
 from .default_model_config import create_default_model_config
 from .file_watcher import FileChange, FileWatcher
 from .legacy_migration import migrate_legacy_bind_env_to_bot_config_dict, try_migrate_legacy_bot_config_dict
@@ -55,9 +56,9 @@ BOT_CONFIG_PATH: Path = (CONFIG_DIR / "bot_config.toml").resolve().absolute()
 MODEL_CONFIG_PATH: Path = (CONFIG_DIR / "model_config.toml").resolve().absolute()
 LEGACY_ENV_PATH: Path = (PROJECT_ROOT / ".env").resolve().absolute()
 A_MEMORIX_LEGACY_CONFIG_PATH: Path = (CONFIG_DIR / "a_memorix.toml").resolve().absolute()
-MMC_VERSION: str = "1.0.0-pre.13"
-CONFIG_VERSION: str = "8.10.10"
-MODEL_CONFIG_VERSION: str = "1.15.3"
+MMC_VERSION: str = "1.0.0-pre.14"
+CONFIG_VERSION: str = "8.10.11"
+MODEL_CONFIG_VERSION: str = "1.16.0"
 
 logger = get_logger("config")
 
@@ -547,6 +548,7 @@ def load_config_from_file(
     old_ver: str = inner_version
     env_migration_applied: bool = False
     a_memorix_migration_applied: bool = False
+    upgrade_hook_applied: bool = False
     config_data.remove("inner")  # 移除 inner 部分，避免干扰后续处理
     config_data = config_data.unwrap()  # 转换为普通字典，方便后续处理
     if config_path.name == "bot_config.toml" and config_class.__name__ == "Config":
@@ -561,6 +563,11 @@ def load_config_from_file(
         config_data = legacy_migration.data
         config_data, a_memorix_migration_applied = _migrate_legacy_a_memorix_config(config_data)
         config_data = _normalize_loaded_bot_config_dict(config_data)
+    hook_result = apply_config_upgrade_hooks(config_data, config_path.name, old_ver, new_ver)
+    upgrade_hook_applied = hook_result.migrated
+    if hook_result.migrated:
+        logger.warning(f"检测到配置升级钩子变更，已应用: {hook_result.reason}")
+    config_data = hook_result.data
     # 保留一份“干净”的原始数据副本，避免第一次 from_dict 过程中对 dict 的就地修改
     original_data: dict[str, Any] = copy.deepcopy(config_data)
     try:
@@ -580,7 +587,7 @@ def load_config_from_file(
                     raise e
             else:
                 raise e
-        if compare_versions(old_ver, new_ver) or env_migration_applied or a_memorix_migration_applied:
+        if compare_versions(old_ver, new_ver) or env_migration_applied or a_memorix_migration_applied or upgrade_hook_applied:
             output_config_changes(attribute_data, logger, old_ver, new_ver, config_path.name)
             write_config_to_file(target_config, config_path, new_ver, override_repr)
             if env_migration_applied:

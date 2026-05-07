@@ -204,6 +204,9 @@ def detect_package_runner() -> PackageRunner:
         if " pip " in f" {parent_command} " or executable.endswith("pip.exe") or executable.endswith("/pip"):
             return "pip"
 
+    if sys.prefix != sys.base_prefix or os.getenv("VIRTUAL_ENV"):
+        return "pip"
+
     return "unknown"
 
 

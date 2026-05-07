@@ -284,6 +284,15 @@ def _resolve_emoji_selector_model_task_name() -> str:
     """根据 planner 模型视觉能力选择表情选择子代理的模型任务。"""
 
     model_config = config_manager.get_model_config()
+    emoji_task_config = getattr(model_config.model_task_config, "emoji", None)
+    emoji_models = [
+        model_name
+        for model_name in getattr(emoji_task_config, "model_list", [])
+        if str(model_name).strip()
+    ]
+    if emoji_models:
+        return "emoji"
+
     planner_models = [
         model_name
         for model_name in model_config.model_task_config.planner.model_list
