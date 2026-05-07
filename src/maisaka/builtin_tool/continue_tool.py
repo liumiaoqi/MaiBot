@@ -31,7 +31,6 @@ async def handle_tool(
         success=True,
         content="当前对话继续进入下一轮思考和工具执行。",
         metadata={
-            "pause_execution": True,
             "timing_action": "continue",
         },
     )

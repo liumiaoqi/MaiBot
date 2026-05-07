@@ -37,6 +37,7 @@ class ReasoningPromptListResponse(BaseModel):
     page_size: int
     stages: list[str] = Field(default_factory=list)
     sessions: list[str] = Field(default_factory=list)
+    selected_session: str = ""
 
 
 class ReasoningPromptContentResponse(BaseModel):
@@ -76,15 +77,54 @@ def _relative_posix_path(path: Path) -> str:
     return path.relative_to(PROMPT_LOG_ROOT).as_posix()
 
 
-def _collect_prompt_files() -> tuple[list[ReasoningPromptFile], list[str], list[str]]:
+def _is_safe_name(name: str) -> bool:
+    path = Path(name)
+    return bool(name) and not path.is_absolute() and ".." not in path.parts and len(path.parts) == 1
+
+
+def _list_stage_names() -> list[str]:
     if not PROMPT_LOG_ROOT.is_dir():
-        return [], [], []
+        return []
+
+    return sorted(path.name for path in PROMPT_LOG_ROOT.iterdir() if path.is_dir() and _is_safe_name(path.name))
+
+
+def _resolve_stage_name(stage: str) -> str:
+    normalized_stage = str(stage or "").strip()
+    if not normalized_stage or normalized_stage == "all":
+        return "planner"
+    if not _is_safe_name(normalized_stage):
+        raise HTTPException(status_code=400, detail="阶段名称不合法")
+    return normalized_stage
+
+
+def _list_session_names(stage: str) -> list[str]:
+    stage_dir = PROMPT_LOG_ROOT / stage
+    if not stage_dir.is_dir():
+        return []
+
+    session_dirs = [path for path in stage_dir.iterdir() if path.is_dir() and _is_safe_name(path.name)]
+    session_dirs.sort(key=lambda path: path.stat().st_mtime, reverse=True)
+    return [path.name for path in session_dirs]
+
+
+def _resolve_session_name(session: str, sessions: list[str]) -> str:
+    normalized_session = str(session or "").strip()
+    if not normalized_session or normalized_session in {"all", "auto"}:
+        return sessions[0] if sessions else ""
+    if not _is_safe_name(normalized_session):
+        raise HTTPException(status_code=400, detail="会话名称不合法")
+    return normalized_session if normalized_session in sessions else ""
+
+
+def _collect_prompt_files(stage: str, session: str) -> list[ReasoningPromptFile]:
+    session_dir = PROMPT_LOG_ROOT / stage / session
+    if not session or not session_dir.is_dir():
+        return []
 
     records: dict[tuple[str, str, str], dict[str, object]] = {}
-    stages: set[str] = set()
-    sessions: set[str] = set()
 
-    for file_path in PROMPT_LOG_ROOT.rglob("*"):
+    for file_path in session_dir.iterdir():
         if not file_path.is_file() or file_path.suffix.lower() not in ALLOWED_SUFFIXES:
             continue
 
@@ -97,17 +137,15 @@ def _collect_prompt_files() -> tuple[list[ReasoningPromptFile], list[str], list[
         if len(parts) < 3:
             continue
 
-        stage, session_id = parts[0], parts[1]
+        stage_name, session_id = parts[0], parts[1]
         stem = file_path.stem
-        key = (stage, session_id, stem)
+        key = (stage_name, session_id, stem)
         stat = file_path.stat()
 
-        stages.add(stage)
-        sessions.add(session_id)
         record = records.setdefault(
             key,
             {
-                "stage": stage,
+                "stage": stage_name,
                 "session_id": session_id,
                 "stem": stem,
                 "timestamp": int(stem) if stem.isdigit() else None,
@@ -127,26 +165,26 @@ def _collect_prompt_files() -> tuple[list[ReasoningPromptFile], list[str], list[
 
     items = [ReasoningPromptFile(**record) for record in records.values()]
     items.sort(key=lambda item: (item.modified_at, item.timestamp or 0), reverse=True)
-    return items, sorted(stages), sorted(sessions)
+    return items
 
 
 @router.get("/files", response_model=ReasoningPromptListResponse)
 async def list_reasoning_prompt_files(
-    stage: str = Query("all"),
-    session: str = Query("all"),
+    stage: str = Query("planner"),
+    session: str = Query("auto"),
     search: str = Query(""),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=10, le=200),
 ):
     """列出 logs/maisaka_prompt 下的推理过程日志。"""
 
-    items, stages, sessions = _collect_prompt_files()
+    stages = _list_stage_names()
+    selected_stage = _resolve_stage_name(stage)
+    sessions = _list_session_names(selected_stage)
+    selected_session = _resolve_session_name(session, sessions)
+    items = _collect_prompt_files(selected_stage, selected_session)
     normalized_search = search.strip().lower()
 
-    if stage != "all":
-        items = [item for item in items if item.stage == stage]
-    if session != "all":
-        items = [item for item in items if item.session_id == session]
     if normalized_search:
         items = [
             item
@@ -167,6 +205,7 @@ async def list_reasoning_prompt_files(
         page_size=page_size,
         stages=stages,
         sessions=sessions,
+        selected_session=selected_session,
     )
 
 

@@ -38,6 +38,7 @@ from .context_messages import (
 from .history_post_processor import process_chat_history_after_cycle
 from .history_utils import build_prefixed_message_sequence, build_session_message_visible_text
 from .monitor_events import (
+    emit_cycle_end,
     emit_cycle_start,
     emit_message_ingested,
     emit_planner_finalized,
@@ -418,14 +419,7 @@ class MaisakaReasoningEngine:
         try:
             while self._runtime._running:
                 queued_trigger = await self._runtime._internal_turn_queue.get()
-                message_triggered, timeout_triggered = self._drain_ready_turn_triggers(queued_trigger)
-
-                if self._runtime._agent_state == self._runtime._STATE_WAIT and not timeout_triggered:
-                    self._runtime._message_turn_scheduled = False
-                    logger.debug(
-                        f"{self._runtime.log_prefix} 当前仍处于 wait 状态，忽略消息触发并继续等待超时"
-                    )
-                    continue
+                message_triggered = self._drain_ready_turn_triggers(queued_trigger)
 
                 if message_triggered:
                     await self._runtime._wait_for_message_quiet_period()
@@ -436,34 +430,17 @@ class MaisakaReasoningEngine:
                     if self._runtime._has_pending_messages()
                     else []
                 )
-                if not timeout_triggered and not cached_messages:
+                if not cached_messages:
                     continue
 
                 self._runtime._agent_state = self._runtime._STATE_RUNNING
                 self._runtime._update_stage_status(
                     "消息整理",
-                    f"待处理消息 {len(cached_messages)} 条" if cached_messages else "准备复用超时锚点",
+                    f"待处理消息 {len(cached_messages)} 条",
                 )
-                if cached_messages:
-                    asyncio.create_task(self._runtime._trigger_batch_learning(cached_messages))
-                    if timeout_triggered:
-                        self._runtime._chat_history.append(
-                            self._build_wait_completed_message(has_new_messages=True)
-                        )
-                    await self._ingest_messages(cached_messages)
-                    anchor_message = cached_messages[-1]
-                else:
-                    anchor_message = self._get_timeout_anchor_message()
-                    if anchor_message is None:
-                        logger.warning(
-                            f"{self._runtime.log_prefix} 等待超时后缺少可复用的锚点消息，跳过本轮继续思考"
-                        )
-                        continue
-                    logger.info(f"{self._runtime.log_prefix} 等待超时后开始新一轮思考")
-                    if self._runtime._pending_wait_tool_call_id:
-                        self._runtime._chat_history.append(
-                            self._build_wait_completed_message(has_new_messages=False)
-                        )
+                asyncio.create_task(self._runtime._trigger_batch_learning(cached_messages))
+                await self._ingest_messages(cached_messages)
+                anchor_message = cached_messages[-1]
                 try:
                     timing_gate_required = True
                     for round_index in range(self._runtime._max_internal_rounds):
@@ -716,6 +693,12 @@ class MaisakaReasoningEngine:
                                 time_records=dict(completed_cycle.time_records),
                                 agent_state=self._runtime._agent_state,
                             )
+                            await emit_cycle_end(
+                                session_id=self._runtime.session_id,
+                                cycle_id=cycle_detail.cycle_id,
+                                time_records=dict(completed_cycle.time_records),
+                                agent_state=self._runtime._agent_state,
+                            )
                 finally:
                     if self._runtime._agent_state == self._runtime._STATE_RUNNING:
                         self._runtime._agent_state = self._runtime._STATE_STOP
@@ -731,12 +714,11 @@ class MaisakaReasoningEngine:
 
     def _drain_ready_turn_triggers(
         self,
-        queued_trigger: Literal["message", "timeout"],
-    ) -> tuple[bool, bool]:
-        """合并当前已就绪的 turn 触发信号。"""
+        queued_trigger: Literal["message"],
+    ) -> bool:
+        """合并当前已就绪的消息触发信号。"""
 
         message_triggered = queued_trigger == "message"
-        timeout_triggered = queued_trigger == "timeout"
 
         while True:
             try:
@@ -747,33 +729,8 @@ class MaisakaReasoningEngine:
             if next_trigger == "message":
                 message_triggered = True
                 continue
-            if next_trigger == "timeout":
-                timeout_triggered = True
-                continue
 
-        return message_triggered, timeout_triggered
-
-    def _get_timeout_anchor_message(self) -> Optional[SessionMessage]:
-        """在 wait 超时后复用最近一条真实用户消息作为锚点。"""
-        if self._runtime.message_cache:
-            return self._runtime.message_cache[-1]
-        return None
-
-    def _build_wait_completed_message(self, *, has_new_messages: bool) -> ToolResultMessage:
-        """构造 wait 完成后的工具结果消息。"""
-        tool_call_id = self._runtime._pending_wait_tool_call_id or "wait_timeout"
-        self._runtime._pending_wait_tool_call_id = None
-        content = (
-            "等待已结束，期间收到了新的用户输入。请结合这些新消息继续下一轮思考。"
-            if has_new_messages
-            else "等待已超时，期间没有收到新的用户输入。请基于现有上下文继续下一轮思考。"
-        )
-        return ToolResultMessage(
-            content=content,
-            timestamp=datetime.now(),
-            tool_call_id=tool_call_id,
-            tool_name="wait",
-        )
+        return message_triggered
 
     async def _ingest_messages(self, messages: list[SessionMessage]) -> None:
         """处理传入消息列表，将其转换为历史消息并加入聊天历史缓存。"""

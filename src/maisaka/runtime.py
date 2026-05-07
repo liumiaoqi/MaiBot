@@ -46,7 +46,7 @@ from .display.display_utils import build_tool_call_summary_lines, format_token_c
 from .display.prompt_cli_renderer import PromptCLIVisualizer
 from .display.stage_status_board import remove_stage_status, update_stage_status
 from .history_utils import drop_leading_orphan_tool_results
-from .monitor_events import emit_session_start
+from .monitor_events import emit_message_sent, emit_session_start
 from .reasoning_engine import MaisakaReasoningEngine
 from .reply_effect import ReplyEffectTracker
 from .reply_effect.image_utils import extract_visual_attachments_from_sequence
@@ -62,7 +62,6 @@ class MaisakaHeartFlowChatting:
     """会话级别的 Maisaka 运行时。"""
 
     _STATE_RUNNING: Literal["running"] = "running"
-    _STATE_WAIT: Literal["wait"] = "wait"
     _STATE_STOP: Literal["stop"] = "stop"
 
     def __init__(self, session_id: str):
@@ -85,7 +84,7 @@ class MaisakaHeartFlowChatting:
         # Keep all original messages for batching and later learning.
         self.message_cache: list[SessionMessage] = []
         self._last_processed_index = 0
-        self._internal_turn_queue: asyncio.Queue[Literal["message", "timeout"]] = asyncio.Queue()
+        self._internal_turn_queue: asyncio.Queue[Literal["message"]] = asyncio.Queue()
 
         self._mcp_manager: Optional[MCPManager] = None
         self._mcp_host_bridge: Optional[MCPHostLLMBridge] = None
@@ -103,7 +102,6 @@ class MaisakaHeartFlowChatting:
         self._talk_frequency_adjust = 1.0
         self._reply_latency_measurement_started_at: Optional[float] = None
         self._recent_reply_latencies: deque[tuple[float, float]] = deque()
-        self._wait_timeout_task: Optional[asyncio.Task[None]] = None
         self._max_internal_rounds = MAX_INTERNAL_ROUNDS
         configured_context_size = (
             global_config.chat.max_context_size
@@ -111,8 +109,7 @@ class MaisakaHeartFlowChatting:
             else global_config.chat.max_private_context_size
         )
         self._max_context_size = max(1, int(configured_context_size))
-        self._agent_state: Literal["running", "wait", "stop"] = self._STATE_STOP
-        self._pending_wait_tool_call_id: Optional[str] = None
+        self._agent_state: Literal["running", "stop"] = self._STATE_STOP
         self._force_next_timing_continue = False
         self._force_next_timing_message_id = ""
         self._force_next_timing_reason = ""
@@ -211,7 +208,6 @@ class MaisakaHeartFlowChatting:
         self._message_turn_scheduled = False
         self._message_debounce_required = False
         self._cancel_deferred_message_turn_task()
-        self._cancel_wait_timeout_task()
         while not self._internal_turn_queue.empty():
             _ = self._internal_turn_queue.get_nowait()
 
@@ -270,6 +266,11 @@ class MaisakaHeartFlowChatting:
                 source_kind=source_kind,
             )
             self._chat_history.append(history_message)
+            self._emit_monitor_message_sent(
+                message=message,
+                speaker_name=speaker_name,
+                source_kind=source_kind,
+            )
             return True
         except Exception as exc:
             logger.warning(
@@ -277,6 +278,29 @@ class MaisakaHeartFlowChatting:
                 f"message_id={message.message_id} error={exc}"
             )
             return False
+
+    def _emit_monitor_message_sent(
+        self,
+        *,
+        message: SessionMessage,
+        speaker_name: str,
+        source_kind: str,
+    ) -> None:
+        """异步广播 MaiSaka 自己发出的消息，供 WebUI 实时展示。"""
+
+        try:
+            asyncio.create_task(
+                emit_message_sent(
+                    session_id=self.session_id,
+                    speaker_name=speaker_name,
+                    content=(message.processed_plain_text or "").strip(),
+                    message_id=message.message_id,
+                    timestamp=message.timestamp.timestamp(),
+                    source_kind=source_kind,
+                )
+            )
+        except RuntimeError as exc:
+            logger.debug(f"{self.log_prefix} 广播已发送消息到监控面板失败: {exc}")
 
     async def register_message(self, message: SessionMessage) -> None:
         """缓存一条新消息并唤醒主循环。"""
@@ -914,9 +938,6 @@ class MaisakaHeartFlowChatting:
 
     def _schedule_message_turn(self) -> None:
         """为当前待处理消息安排一次内部 turn。"""
-        if self._agent_state == self._STATE_WAIT:
-            return
-
         if not self._has_pending_messages() or self._message_turn_scheduled:
             return
 
@@ -999,51 +1020,9 @@ class MaisakaHeartFlowChatting:
 
         self._message_debounce_required = False
 
-    def _enter_wait_state(self, seconds: Optional[float] = None, tool_call_id: Optional[str] = None) -> None:
-        """切换到等待状态。"""
-        self._agent_state = self._STATE_WAIT
-        self._pending_wait_tool_call_id = tool_call_id
-        self._message_turn_scheduled = False
-        self._cancel_deferred_message_turn_task()
-        self._cancel_wait_timeout_task()
-        if seconds is not None:
-            self._wait_timeout_task = asyncio.create_task(
-                self._schedule_wait_timeout(seconds=seconds, tool_call_id=tool_call_id)
-            )
-
     def _enter_stop_state(self) -> None:
         """切换到停止状态。"""
         self._agent_state = self._STATE_STOP
-        self._pending_wait_tool_call_id = None
-        self._cancel_wait_timeout_task()
-
-    def _cancel_wait_timeout_task(self) -> None:
-        """取消当前 wait 对应的超时任务。"""
-        if self._wait_timeout_task is None:
-            return
-        self._wait_timeout_task.cancel()
-        self._wait_timeout_task = None
-
-    async def _schedule_wait_timeout(self, seconds: float, tool_call_id: Optional[str]) -> None:
-        """在 wait 到期后向内部循环投递 timeout 触发。"""
-        try:
-            if seconds > 0:
-                await asyncio.sleep(seconds)
-            if not self._running:
-                return
-            if self._agent_state != self._STATE_WAIT:
-                return
-            if self._pending_wait_tool_call_id != tool_call_id:
-                return
-
-            logger.debug(f"{self.log_prefix} Maisaka 等待已超时")
-            self._agent_state = self._STATE_RUNNING
-            await self._internal_turn_queue.put("timeout")
-        except asyncio.CancelledError:
-            return
-        finally:
-            if self._wait_timeout_task is not None and self._pending_wait_tool_call_id == tool_call_id:
-                self._wait_timeout_task = None
 
     async def _trigger_batch_learning(self, messages: list[SessionMessage]) -> None:
         """按同一批消息触发表达方式和黑话学习。"""

@@ -38,13 +38,14 @@ import type {
   CycleStartEvent,
   MaisakaToolCall,
   MessageIngestedEvent,
+  MessageSentEvent,
   PlannerFinalizedEvent,
   PlannerResponseEvent,
   ReplierResponseEvent,
   TimingGateResultEvent,
   ToolExecutionEvent,
 } from '@/lib/maisaka-monitor-client'
-import type { SessionInfo, TimelineEntry } from './use-maisaka-monitor'
+import type { SessionInfo, StageStatusInfo, TimelineEntry } from './use-maisaka-monitor'
 import { useMaisakaMonitor } from './use-maisaka-monitor'
 
 // ─── 工具函数 ──────────────────────────────────────────────────
@@ -78,11 +79,13 @@ function formatRelativeTime(ts: number): string {
 
 function SessionSidebar({
   sessions,
+  stageStatuses,
   selectedSession,
   onSelect,
   collapsed,
 }: {
   sessions: Map<string, SessionInfo>
+  stageStatuses: Map<string, StageStatusInfo>
   selectedSession: string | null
   onSelect: (id: string) => void
   collapsed: boolean
@@ -110,31 +113,36 @@ function SessionSidebar({
 
   return (
     <div className={cn('flex flex-col gap-1', collapsed ? 'items-center p-2' : 'p-2')}>
-      {sortedSessions.map((session) => (
+      {sortedSessions.map((session) => {
+        const status = stageStatuses.get(session.sessionId)
+        return (
         <button
           key={session.sessionId}
           onClick={() => onSelect(session.sessionId)}
           title={session.sessionName}
           className={cn(
-            'rounded-lg text-left text-sm transition-colors',
+            'max-w-full overflow-hidden rounded-lg text-left text-sm transition-colors',
             'hover:bg-accent/50',
             collapsed
               ? 'flex h-10 w-10 items-center justify-center p-0'
-              : 'flex w-full flex-col items-start gap-0.5 px-2.5 py-2',
+              : 'flex w-full min-w-0 flex-col items-start gap-0.5 px-2.5 py-2',
             selectedSession === session.sessionId && 'bg-accent text-accent-foreground',
           )}
         >
-          <div className={cn('flex w-full items-center', collapsed ? 'justify-center' : 'justify-between gap-2')}>
-            <div className={cn('flex min-w-0 items-center gap-2', !collapsed && 'flex-1')}>
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-xs font-semibold text-primary">
+          <div className={cn('flex w-full min-w-0 items-center', collapsed ? 'justify-center' : 'justify-between gap-2')}>
+            <div className={cn('flex min-w-0 items-center gap-2 overflow-hidden', !collapsed && 'flex-1')}>
+              <span className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-xs font-semibold text-primary">
                 {getSessionInitial(session)}
+                {status && (
+                  <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-background" />
+                )}
               </span>
               {false && session.isGroupChat !== undefined && (
                 <Badge variant="outline" className="h-4 shrink-0 px-1 text-[10px]">
                   {session.isGroupChat ? '群' : '私'}
                 </Badge>
               )}
-              {!collapsed && <span className="min-w-0 flex-1 truncate font-medium" title={session.sessionName}>
+              {!collapsed && <span className="block min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-medium" title={session.sessionName}>
                 {session.sessionName}
               </span>}
             </div>
@@ -142,16 +150,57 @@ function SessionSidebar({
               {session.eventCount}
             </Badge>}
           </div>
-          {!collapsed && <span className="text-xs text-muted-foreground">
-            {formatRelativeTime(session.lastActivity)}
-          </span>}
+          {!collapsed && (
+            <div className="flex w-full min-w-0 items-center justify-between gap-2 overflow-hidden text-xs text-muted-foreground">
+              <span className="shrink-0">{formatRelativeTime(session.lastActivity)}</span>
+              {status && <span className="min-w-0 truncate text-primary">{status.stage}</span>}
+            </div>
+          )}
         </button>
-      ))}
+        )
+      })}
     </div>
   )
 }
 
 // ─── 单条时间线事件渲染 ──────────────────────────────────────
+
+function StageStatusPanel({ status }: { status?: StageStatusInfo }) {
+  if (!status) {
+    return (
+      <div className="mb-3 rounded-md border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+        当前聊天流暂无阶段状态
+      </div>
+    )
+  }
+
+  return (
+    <div className="mb-3 rounded-md border bg-background px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="default" className="gap-1">
+          <Activity className="h-3 w-3" />
+          {status.stage || '未知阶段'}
+        </Badge>
+        {status.roundText && (
+          <Badge variant="secondary" className="text-[10px]">
+            {status.roundText}
+          </Badge>
+        )}
+        {status.agentState && (
+          <Badge variant={status.agentState === 'running' ? 'default' : 'outline'} className="text-[10px]">
+            {status.agentState}
+          </Badge>
+        )}
+        <span className="ml-auto text-xs text-muted-foreground">
+          更新于 {formatRelativeTime(status.updatedAt)}
+        </span>
+      </div>
+      {status.detail && (
+        <p className="mt-1 text-sm text-muted-foreground">{status.detail}</p>
+      )}
+    </div>
+  )
+}
 
 function MessageIngestedCard({ data }: { data: MessageIngestedEvent }) {
   return (
@@ -166,6 +215,26 @@ function MessageIngestedCard({ data }: { data: MessageIngestedEvent }) {
         </div>
         <p className="text-sm text-foreground/80 whitespace-pre-wrap wrap-break-word leading-relaxed">
           {data.content || '[空消息]'}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function MessageSentCard({ data }: { data: MessageSentEvent }) {
+  return (
+    <div className="flex items-start gap-3 rounded-md border border-emerald-500/30 bg-emerald-500/5 px-3 py-2">
+      <div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-500">
+        <Bot className="h-3.5 w-3.5" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="mb-1 flex items-center gap-2">
+          <span className="font-medium text-sm">{data.speaker_name || '麦麦'}</span>
+          <Badge variant="outline" className="text-[10px]">已发送</Badge>
+          <span className="text-xs text-muted-foreground">{formatTimestamp(data.timestamp)}</span>
+        </div>
+        <p className="text-sm text-foreground/80 whitespace-pre-wrap wrap-break-word leading-relaxed">
+          {data.content || '[非文本消息]'}
         </p>
       </div>
     </div>
@@ -201,7 +270,7 @@ function TimingGateCard({ data }: { data: TimingGateResultEvent }) {
   const Icon = config.icon
 
   return (
-    <div className="flex items-start gap-3">
+    <div className="flex items-start gap-3 rounded-md border bg-background px-3 py-2 shadow-sm">
       <div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-amber-500">
         <Timer className="h-3.5 w-3.5" />
       </div>
@@ -330,9 +399,24 @@ function PlannerToolCallsBlock({ data }: { data: PlannerFinalizedEvent }) {
         duration_ms: 0,
         summary: '',
       }))
+  const isFinishTool = (toolName?: string) => toolName?.trim().toLowerCase() === 'finish'
+  const finishTools = displayTools.filter((tool) => isFinishTool(tool.tool_name))
+  const regularTools = displayTools.filter((tool) => !isFinishTool(tool.tool_name))
 
   if (displayTools.length <= 0) {
     return null
+  }
+
+  if (regularTools.length <= 0 && finishTools.length > 0) {
+    return (
+      <div className="rounded-md border border-emerald-500/30 bg-emerald-500/5 px-3 py-2">
+        <div className="flex items-center gap-2 text-sm">
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
+          <span className="font-medium">本轮思考暂时结束</span>
+          <span className="text-muted-foreground">等待新的消息。</span>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -342,11 +426,18 @@ function PlannerToolCallsBlock({ data }: { data: PlannerFinalizedEvent }) {
           <Wrench className="h-4 w-4 text-teal-500" />
           <CardTitle className="text-sm font-medium">Planner 工具调用</CardTitle>
           <Badge variant="secondary" className="ml-auto text-[10px]">
-            {displayTools.length} 个
+            {regularTools.length} 个
           </Badge>
         </div>
+        {finishTools.length > 0 && (
+          <div className="flex items-center gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/5 px-2.5 py-1.5 text-xs">
+            <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+            <span className="font-medium">本轮思考暂时结束</span>
+            <span className="text-muted-foreground">等待新的消息。</span>
+          </div>
+        )}
         <div className="space-y-2">
-          {displayTools.map((tool, idx) => (
+          {regularTools.map((tool, idx) => (
             <div
               key={`${tool.tool_call_id || tool.tool_name}-${idx}`}
               className="rounded-md border bg-muted/40 px-2.5 py-2 text-xs"
@@ -413,20 +504,15 @@ function ToolExecutionCard({ data }: { data: ToolExecutionEvent }) {
 function CycleEndCard({ data }: { data: CycleEndEvent }) {
   const totalTime = Object.values(data.time_records).reduce((a, b) => a + b, 0)
   return (
-    <div className="flex items-center gap-3">
-      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-500/15 text-slate-500">
-        <CircleDot className="h-3.5 w-3.5" />
-      </div>
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-sm text-muted-foreground">循环结束</span>
+    <div className="my-1 flex items-center gap-3">
+      <Separator className="flex-1" />
+      <div className="flex items-center gap-2 rounded-full border bg-background px-3 py-1">
+        <CircleDot className="h-3.5 w-3.5 text-slate-500" />
+        <span className="text-xs text-muted-foreground">循环结束</span>
         <Badge variant="outline" className="text-[10px]">
-          总耗时 {formatMs(totalTime * 1000)}
+          #{data.cycle_id}
         </Badge>
-        {Object.entries(data.time_records).map(([name, duration]) => (
-          <span key={name} className="text-[10px] text-muted-foreground">
-            {name}: {formatMs(duration * 1000)}
-          </span>
-        ))}
+        <span className="text-[10px] text-muted-foreground">{formatMs(totalTime * 1000)}</span>
         <Badge
           variant={data.agent_state === 'running' ? 'default' : 'secondary'}
           className="text-[10px]"
@@ -434,6 +520,7 @@ function CycleEndCard({ data }: { data: CycleEndEvent }) {
           {data.agent_state}
         </Badge>
       </div>
+      <Separator className="flex-1" />
     </div>
   )
 }
@@ -551,6 +638,8 @@ function TimelineEventRenderer({
   switch (entry.type) {
     case 'message.ingested':
       return <MessageIngestedCard data={entry.data as MessageIngestedEvent} />
+    case 'message.sent':
+      return <MessageSentCard data={entry.data as MessageSentEvent} />
     case 'cycle.start':
       if (!showCycleMarkers) return null
       return <CycleStartCard data={entry.data as CycleStartEvent} />
@@ -559,6 +648,9 @@ function TimelineEventRenderer({
     case 'planner.response':
       return <PlannerResponseCard data={entry.data as PlannerResponseEvent} />
     case 'planner.finalized':
+      if ((entry.data as PlannerFinalizedEvent).timing_gate?.result?.action !== 'continue') {
+        return null
+      }
       return (
         <div className="space-y-2">
           <PlannerFinalizedCard data={entry.data as PlannerFinalizedEvent} />
@@ -583,6 +675,7 @@ export function MaisakaMonitor() {
   const {
     timeline,
     sessions,
+    stageStatuses,
     selectedSession,
     setSelectedSession,
     connected,
@@ -629,7 +722,7 @@ export function MaisakaMonitor() {
 
   // 统计当前会话的各事件类型计数
   const stats = {
-    messages: timeline.filter((e) => e.type === 'message.ingested').length,
+    messages: timeline.filter((e) => e.type === 'message.ingested' || e.type === 'message.sent').length,
     cycles: timeline.filter((e) => e.type === 'cycle.start').length,
     toolCalls: timeline.reduce((count, entry) => {
       if (entry.type === 'tool.execution') {
@@ -641,6 +734,7 @@ export function MaisakaMonitor() {
       return count
     }, 0),
   }
+  const selectedStageStatus = selectedSession ? stageStatuses.get(selectedSession) : undefined
 
   return (
     <div className="flex h-[calc(100vh-180px)] gap-4">
@@ -674,6 +768,7 @@ export function MaisakaMonitor() {
         <ScrollArea className="flex-1">
           <SessionSidebar
             sessions={sessions}
+            stageStatuses={stageStatuses}
             selectedSession={selectedSession}
             onSelect={setSelectedSession}
             collapsed={sidebarCollapsed}
@@ -742,6 +837,8 @@ export function MaisakaMonitor() {
         </div>
 
         {/* 时间线 */}
+        <StageStatusPanel status={selectedStageStatus} />
+
         <Card className="flex-1 overflow-hidden">
           <ScrollArea
             className="h-full"
@@ -760,18 +857,22 @@ export function MaisakaMonitor() {
               ) : (
                 (() => {
                   const continuedTimingGateCycles = new Set<string>()
+                  const stoppedTimingGateCycles = new Set<string>()
 
                   return timeline.map((entry) => {
                     if (entry.type === 'timing_gate.result') {
                       const data = entry.data as TimingGateResultEvent
                       if (data.action === 'continue') {
                         continuedTimingGateCycles.add(buildCycleKey(data.session_id, data.cycle_id))
+                      } else {
+                        stoppedTimingGateCycles.add(buildCycleKey(data.session_id, data.cycle_id))
                       }
                     }
 
                     if (entry.type === 'planner.response' || entry.type === 'planner.finalized') {
                       const data = entry.data as PlannerResponseEvent | PlannerFinalizedEvent
-                      if (!continuedTimingGateCycles.has(buildCycleKey(data.session_id, data.cycle_id))) {
+                      const cycleKey = buildCycleKey(data.session_id, data.cycle_id)
+                      if (stoppedTimingGateCycles.has(cycleKey) || !continuedTimingGateCycles.has(cycleKey)) {
                         return null
                       }
                     }
@@ -784,9 +885,6 @@ export function MaisakaMonitor() {
                         className="animate-in fade-in-0 slide-in-from-bottom-2 duration-300"
                       >
                         {rendered}
-                        {entry.type === 'cycle.end' && (
-                          <Separator className="mt-3" />
-                        )}
                       </div>
                     )
                   })

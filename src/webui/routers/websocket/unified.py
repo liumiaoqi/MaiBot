@@ -159,6 +159,15 @@ async def _handle_maisaka_monitor_subscribe(connection_id: str, request_id: Opti
         ok=True,
         data={"domain": "maisaka_monitor", "topic": "main"},
     )
+    from src.maisaka.display.stage_status_board import get_stage_status_snapshot
+
+    await websocket_manager.send_event(
+        connection_id,
+        domain="maisaka_monitor",
+        event="stage.snapshot",
+        topic="main",
+        data={"entries": get_stage_status_snapshot(), "timestamp": time.time()},
+    )
 
 
 async def _handle_subscribe(connection_id: str, message: Dict[str, Any]) -> None:

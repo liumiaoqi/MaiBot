@@ -33,11 +33,43 @@ export interface SessionStartEvent {
   timestamp: number
 }
 
+export interface StageStatusEvent {
+  session_id: string
+  session_name?: string
+  stage: string
+  detail: string
+  round_text: string
+  agent_state: string
+  stage_started_at: number
+  updated_at: number
+  timestamp: number
+}
+
+export interface StageRemovedEvent {
+  session_id: string
+  session_name?: string
+  timestamp: number
+}
+
+export interface StageSnapshotEvent {
+  entries: StageStatusEvent[]
+  timestamp: number
+}
+
 export interface MessageIngestedEvent {
   session_id: string
   speaker_name: string
   content: string
   message_id: string
+  timestamp: number
+}
+
+export interface MessageSentEvent {
+  session_id: string
+  speaker_name: string
+  content: string
+  message_id: string
+  source_kind?: string
   timestamp: number
 }
 
@@ -181,7 +213,11 @@ export interface ReplierResponseEvent {
 
 export type MaisakaMonitorEvent =
   | { type: 'session.start'; data: SessionStartEvent }
+  | { type: 'stage.status'; data: StageStatusEvent }
+  | { type: 'stage.removed'; data: StageRemovedEvent }
+  | { type: 'stage.snapshot'; data: StageSnapshotEvent }
   | { type: 'message.ingested'; data: MessageIngestedEvent }
+  | { type: 'message.sent'; data: MessageSentEvent }
   | { type: 'cycle.start'; data: CycleStartEvent }
   | { type: 'timing_gate.result'; data: TimingGateResultEvent }
   | { type: 'planner.request'; data: PlannerRequestEvent }
