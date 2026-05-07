@@ -175,9 +175,12 @@ export interface PlannerFinalizedEvent {
   request: MaisakaRequestBlock | null
   planner: MaisakaPlannerBlock | null
   tools: MaisakaFinalizedToolResult[]
+  interrupted?: boolean
   final_state: {
     time_records: Record<string, number>
     agent_state: string
+    end_reason?: string
+    end_detail?: string
   }
 }
 
@@ -186,6 +189,8 @@ export interface CycleEndEvent {
   cycle_id: number
   time_records: Record<string, number>
   agent_state: string
+  end_reason?: string
+  end_detail?: string
   timestamp: number
 }
 

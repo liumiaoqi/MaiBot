@@ -6,6 +6,7 @@
  */
 import {
   Activity,
+  AlertCircle,
   ArrowRight,
   Bot,
   Brain,
@@ -315,6 +316,38 @@ function openPromptHtml(uri: string) {
   window.open(normalized, '_blank', 'noopener,noreferrer')
 }
 
+function isPlannerInterrupted(data: PlannerFinalizedEvent) {
+  const content = data.planner?.content?.trim() ?? ''
+  return data.interrupted === true || (
+    content.startsWith('Planner ') &&
+    data.planner?.prompt_tokens === 0 &&
+    data.planner?.completion_tokens === 0 &&
+    data.planner?.tool_calls.length === 0
+  )
+}
+
+function PlannerInterruptedCard({ data }: { data: PlannerFinalizedEvent }) {
+  const planner = data.planner
+
+  return (
+    <div className="rounded-md border border-amber-500/35 bg-amber-500/5 px-3 py-2">
+      <div className="flex items-center gap-2 text-sm">
+        <AlertCircle className="h-4 w-4 shrink-0 text-amber-500" />
+        <span className="font-medium">Planner 被新消息打断</span>
+        <Badge variant="outline" className="ml-auto text-[10px]">
+          #{data.cycle_id}
+        </Badge>
+        {planner && planner.duration_ms > 0 && (
+          <span className="text-xs text-muted-foreground">{formatMs(planner.duration_ms)}</span>
+        )}
+      </div>
+      <p className="mt-1 text-sm text-muted-foreground">
+        {planner?.content || '收到新消息，已停止当前思考并准备重新决策。'}
+      </p>
+    </div>
+  )
+}
+
 function PlannerResponseCard({ data }: { data: PlannerResponseEvent }) {
   return (
     <div className="flex items-start gap-3">
@@ -501,26 +534,62 @@ function ToolExecutionCard({ data }: { data: ToolExecutionEvent }) {
   )
 }
 
+function getCycleEndReasonText(data: CycleEndEvent) {
+  const reason = data.end_reason ?? ''
+  const detail = data.end_detail?.trim()
+
+  if (detail) {
+    return detail
+  }
+
+  if (reason === 'finish') return 'Planner 调用 finish，结束本轮思考并等待新消息。'
+  if (reason === 'timing_no_reply') return 'Timing Gate 选择 no_reply，本轮不会进入 Planner。'
+  if (reason === 'max_rounds') return '已达到内部思考轮次上限，本轮处理结束。'
+  if (reason === 'planner_interrupted') return 'Planner 被新消息打断，当前轮结束。'
+  if (reason.startsWith('tool_pause:')) return `工具 ${reason.slice('tool_pause:'.length)} 要求暂停当前思考循环。`
+  if (reason === 'tool_pause') return '工具要求暂停当前思考循环。'
+  if (reason === 'empty_planner_response') return 'Planner 没有返回文本或工具调用，本轮思考结束。'
+  if (reason === 'tool_continue') return 'Planner 工具执行完成，继续下一轮内部思考。'
+  return '本轮思考完成。'
+}
+
+function getCycleEndReasonLabel(data: CycleEndEvent) {
+  const reason = data.end_reason ?? ''
+
+  if (reason === 'finish') return 'finish 结束'
+  if (reason === 'timing_no_reply') return 'no_reply 结束'
+  if (reason === 'max_rounds') return '轮次上限'
+  if (reason === 'planner_interrupted') return 'Planner 打断'
+  if (reason.startsWith('tool_pause:')) return '工具暂停'
+  if (reason === 'tool_pause') return '工具暂停'
+  if (reason === 'empty_planner_response') return '空响应'
+  if (reason === 'tool_continue') return '继续下一轮'
+  return '循环结束'
+}
+
 function CycleEndCard({ data }: { data: CycleEndEvent }) {
   const totalTime = Object.values(data.time_records).reduce((a, b) => a + b, 0)
   return (
-    <div className="my-1 flex items-center gap-3">
-      <Separator className="flex-1" />
-      <div className="flex items-center gap-2 rounded-full border bg-background px-3 py-1">
-        <CircleDot className="h-3.5 w-3.5 text-slate-500" />
-        <span className="text-xs text-muted-foreground">循环结束</span>
-        <Badge variant="outline" className="text-[10px]">
-          #{data.cycle_id}
-        </Badge>
-        <span className="text-[10px] text-muted-foreground">{formatMs(totalTime * 1000)}</span>
-        <Badge
-          variant={data.agent_state === 'running' ? 'default' : 'secondary'}
-          className="text-[10px]"
-        >
-          {data.agent_state}
-        </Badge>
+    <div className="my-1 space-y-1.5">
+      <div className="flex items-center gap-3">
+        <Separator className="flex-1" />
+        <div className="flex items-center gap-2 rounded-full border bg-background px-3 py-1">
+          <CircleDot className="h-3.5 w-3.5 text-slate-500" />
+          <span className="text-xs text-muted-foreground">{getCycleEndReasonLabel(data)}</span>
+          <Badge variant="outline" className="text-[10px]">
+            #{data.cycle_id}
+          </Badge>
+          <span className="text-[10px] text-muted-foreground">{formatMs(totalTime * 1000)}</span>
+          <Badge
+            variant={data.agent_state === 'running' ? 'default' : 'secondary'}
+            className="text-[10px]"
+          >
+            {data.agent_state}
+          </Badge>
+        </div>
+        <Separator className="flex-1" />
       </div>
-      <Separator className="flex-1" />
+      <p className="text-center text-xs text-muted-foreground">{getCycleEndReasonText(data)}</p>
     </div>
   )
 }
@@ -648,7 +717,10 @@ function TimelineEventRenderer({
     case 'planner.response':
       return <PlannerResponseCard data={entry.data as PlannerResponseEvent} />
     case 'planner.finalized':
-      if ((entry.data as PlannerFinalizedEvent).timing_gate?.result?.action !== 'continue') {
+      if (isPlannerInterrupted(entry.data as PlannerFinalizedEvent)) {
+        return <PlannerInterruptedCard data={entry.data as PlannerFinalizedEvent} />
+      }
+      if ((entry.data as PlannerFinalizedEvent).timing_gate?.result?.action === 'no_reply') {
         return null
       }
       return (
@@ -856,23 +928,32 @@ export function MaisakaMonitor() {
                 </div>
               ) : (
                 (() => {
-                  const continuedTimingGateCycles = new Set<string>()
-                  const stoppedTimingGateCycles = new Set<string>()
+                  const noReplyTimingGateCycles = new Set<string>()
 
                   return timeline.map((entry) => {
                     if (entry.type === 'timing_gate.result') {
                       const data = entry.data as TimingGateResultEvent
-                      if (data.action === 'continue') {
-                        continuedTimingGateCycles.add(buildCycleKey(data.session_id, data.cycle_id))
-                      } else {
-                        stoppedTimingGateCycles.add(buildCycleKey(data.session_id, data.cycle_id))
+                      if (data.action === 'no_reply') {
+                        noReplyTimingGateCycles.add(buildCycleKey(data.session_id, data.cycle_id))
                       }
                     }
 
                     if (entry.type === 'planner.response' || entry.type === 'planner.finalized') {
                       const data = entry.data as PlannerResponseEvent | PlannerFinalizedEvent
                       const cycleKey = buildCycleKey(data.session_id, data.cycle_id)
-                      if (stoppedTimingGateCycles.has(cycleKey) || !continuedTimingGateCycles.has(cycleKey)) {
+                      if (entry.type === 'planner.finalized' && isPlannerInterrupted(data as PlannerFinalizedEvent)) {
+                        const rendered = <TimelineEventRenderer entry={entry} showCycleMarkers={showCycleMarkers} />
+                        if (!rendered) return null
+                        return (
+                          <div
+                            key={entry.id}
+                            className="animate-in fade-in-0 slide-in-from-bottom-2 duration-300"
+                          >
+                            {rendered}
+                          </div>
+                        )
+                      }
+                      if (noReplyTimingGateCycles.has(cycleKey)) {
                         return null
                       }
                     }
@@ -897,3 +978,4 @@ export function MaisakaMonitor() {
     </div>
   )
 }
+

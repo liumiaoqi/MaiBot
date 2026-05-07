@@ -19,6 +19,7 @@ import {
   cleanupLocalCache,
   getLocalCacheStats,
   type CacheDirectoryStats,
+  type LocalCacheCleanupTarget,
   type LocalCacheStats,
   type LogCleanupTable,
 } from '@/lib/system-api'
@@ -60,9 +61,12 @@ function DirectoryCard({
 }: {
   item: CacheDirectoryStats
   cleanupDisabled: boolean
-  onCleanup: (target: 'images' | 'emoji') => void
+  onCleanup: (target: 'images' | 'emoji' | 'log_files') => void
 }) {
-  const cleanupTarget = item.key === 'images' ? 'images' : item.key === 'emoji' ? 'emoji' : null
+  const cleanupTarget = item.key === 'images' ? 'images' : item.key === 'emoji' ? 'emoji' : item.key === 'logs' ? 'log_files' : null
+  const cleanupDescription = cleanupTarget === 'log_files'
+    ? '这会删除 logs 目录中的日志文件。操作不可撤销。'
+    : '这会删除对应目录中的文件，并移除数据库里的相关记录。操作不可撤销。'
 
   return (
     <div className="rounded-lg border bg-card p-4">
@@ -86,7 +90,7 @@ function DirectoryCard({
               <AlertDialogHeader>
                 <AlertDialogTitle>确认清理{item.label}？</AlertDialogTitle>
                 <AlertDialogDescription>
-                  这会删除对应目录中的文件，并移除数据库里的相关记录。操作不可撤销。
+                  {cleanupDescription}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -124,7 +128,7 @@ export function LocalCacheTab() {
   const { toast } = useToast()
   const [stats, setStats] = useState<LocalCacheStats | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [cleanupTarget, setCleanupTarget] = useState<string | null>(null)
+  const [cleanupTarget, setCleanupTarget] = useState<LocalCacheCleanupTarget | null>(null)
   const [selectedLogTables, setSelectedLogTables] = useState<LogCleanupTable[]>([])
 
   const tableRows = useMemo(() => {
@@ -152,7 +156,7 @@ export function LocalCacheTab() {
     }
   }, [toast])
 
-  const handleDirectoryCleanup = async (target: 'images' | 'emoji') => {
+  const handleDirectoryCleanup = async (target: 'images' | 'emoji' | 'log_files') => {
     setCleanupTarget(target)
     try {
       const result = await cleanupLocalCache(target)
@@ -173,18 +177,18 @@ export function LocalCacheTab() {
   }
 
   const handleLogCleanup = async () => {
-    setCleanupTarget('logs')
+    setCleanupTarget('database_logs')
     try {
-      const result = await cleanupLocalCache('logs', selectedLogTables)
+      const result = await cleanupLocalCache('database_logs', selectedLogTables)
       setSelectedLogTables([])
       await refreshStats()
       toast({
         title: result.message,
-        description: `已清理 ${result.removed_records} 条日志记录。`,
+        description: `已清理 ${result.removed_records} 条数据库记录。`,
       })
     } catch (error) {
       toast({
-        title: '日志清理失败',
+        title: '数据库清理失败',
         description: error instanceof Error ? error.message : '请稍后重试',
         variant: 'destructive',
       })
@@ -242,22 +246,22 @@ export function LocalCacheTab() {
           <div>
             <h3 className="flex items-center gap-2 text-base font-semibold sm:text-lg">
               <Database className="h-5 w-5" />
-              日志清理
+              数据库清理
             </h3>
             <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
-              清理运行日志类数据，不会删除图片、表情文件和配置文件。
+              清理数据库中的统计、工具和消息记录，不会删除日志文件、图片、表情文件和配置文件。
             </p>
           </div>
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="outline" className="gap-2" disabled={cleanupTarget !== null || isLoading}>
                 <Trash2 className="h-4 w-4" />
-                日志清理
+                数据库清理
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>选择要清理的日志范围</AlertDialogTitle>
+                <AlertDialogTitle>选择要清理的数据库记录范围</AlertDialogTitle>
                 <AlertDialogDescription>
                   数据库当前占用 {formatBytes(stats?.database.total_size ?? 0)}。请手动勾选需要清理的表，默认不会选择任何内容。
                 </AlertDialogDescription>

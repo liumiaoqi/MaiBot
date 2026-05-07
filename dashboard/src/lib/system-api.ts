@@ -86,7 +86,7 @@ export interface LocalCacheStats {
 export interface LocalCacheCleanupResult {
   success: boolean
   message: string
-  target: 'images' | 'emoji' | 'logs'
+  target: 'images' | 'emoji' | 'log_files' | 'database_logs'
   removed_files: number
   removed_bytes: number
   removed_records: number

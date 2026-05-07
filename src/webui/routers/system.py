@@ -114,7 +114,7 @@ class LocalCacheStatsResponse(BaseModel):
 class LocalCacheCleanupRequest(BaseModel):
     """本地缓存清理请求。"""
 
-    target: Literal["images", "emoji", "logs"]
+    target: Literal["images", "emoji", "log_files", "database_logs"]
     tables: list[Literal["llm_usage", "tool_records", "mai_messages"]] = Field(default_factory=list)
 
 
@@ -385,13 +385,23 @@ async def cleanup_local_cache(request: LocalCacheCleanupRequest):
                 removed_records=removed_records,
             )
 
+        if request.target == "log_files":
+            removed_files, removed_bytes = _remove_directory_contents(_LOG_DIR)
+            return LocalCacheCleanupResponse(
+                success=True,
+                message="日志文件已清理",
+                target=request.target,
+                removed_files=removed_files,
+                removed_bytes=removed_bytes,
+            )
+
         if not request.tables:
-            raise HTTPException(status_code=400, detail="请至少选择一个要清理的日志表")
+            raise HTTPException(status_code=400, detail="请至少选择一个要清理的数据库表")
 
         removed_records = _delete_log_records(list(request.tables))
         return LocalCacheCleanupResponse(
             success=True,
-            message="日志记录已清理",
+            message="数据库日志记录已清理",
             target=request.target,
             removed_records=removed_records,
         )

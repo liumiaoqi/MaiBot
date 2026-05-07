@@ -470,6 +470,8 @@ async def emit_cycle_end(
     cycle_id: int,
     time_records: Dict[str, float],
     agent_state: str,
+    end_reason: str,
+    end_detail: str,
 ) -> None:
     """广播单个推理循环结束事件。"""
 
@@ -478,6 +480,8 @@ async def emit_cycle_end(
         "cycle_id": cycle_id,
         "time_records": _normalize_payload_value(time_records),
         "agent_state": agent_state,
+        "end_reason": end_reason,
+        "end_detail": end_detail,
         "timestamp": time.time(),
     })
 
@@ -533,10 +537,13 @@ async def emit_planner_finalized(
     planner_completion_tokens: Optional[int],
     planner_total_tokens: Optional[int],
     planner_duration_ms: Optional[float],
-    planner_prompt_html_uri: Optional[str],
-    tools: Optional[List[Dict[str, Any]]],
-    time_records: Dict[str, float],
-    agent_state: str,
+    planner_prompt_html_uri: Optional[str] = None,
+    tools: Optional[List[Dict[str, Any]]] = None,
+    time_records: Optional[Dict[str, float]] = None,
+    agent_state: str = "",
+    planner_interrupted: bool = False,
+    end_reason: str = "",
+    end_detail: str = "",
 ) -> None:
     """广播一轮 planner 结束后的最终聚合事件。"""
 
@@ -572,8 +579,11 @@ async def emit_planner_finalized(
             planner_prompt_html_uri,
         ),
         "tools": _serialize_tool_results(list(tools or [])),
+        "interrupted": planner_interrupted,
         "final_state": {
-            "time_records": _normalize_payload_value(time_records),
+            "time_records": _normalize_payload_value(time_records or {}),
             "agent_state": agent_state,
+            "end_reason": end_reason,
+            "end_detail": end_detail,
         },
     })

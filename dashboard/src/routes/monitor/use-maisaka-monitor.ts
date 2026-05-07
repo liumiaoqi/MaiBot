@@ -389,6 +389,14 @@ function updateSessionInfo(event: MaisakaMonitorEvent, sessionId: string, timest
 }
 
 function updateStageStatus(event: MaisakaMonitorEvent) {
+  const applyStatusIfFresh = (next: Map<string, StageStatusInfo>, status: StageStatusInfo) => {
+    const existing = next.get(status.sessionId)
+    if (existing && status.updatedAt < existing.updatedAt) {
+      return
+    }
+    next.set(status.sessionId, status)
+  }
+
   if (event.type === 'stage.snapshot') {
     const rawEntries = (event.data as unknown as Record<string, unknown>).entries
     if (!Array.isArray(rawEntries)) {
@@ -401,7 +409,7 @@ function updateStageStatus(event: MaisakaMonitorEvent) {
       }
       const status = toStageStatusInfo(rawEntry as Record<string, unknown>)
       if (status) {
-        next.set(status.sessionId, status)
+        applyStatusIfFresh(next, status)
       }
     }
     cachedStageStatuses = next
@@ -414,7 +422,7 @@ function updateStageStatus(event: MaisakaMonitorEvent) {
       return
     }
     const next = new Map(cachedStageStatuses)
-    next.set(status.sessionId, status)
+    applyStatusIfFresh(next, status)
     cachedStageStatuses = next
     return
   }

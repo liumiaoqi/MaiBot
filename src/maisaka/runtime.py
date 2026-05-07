@@ -55,7 +55,7 @@ from .tool_provider import MaisakaBuiltinToolProvider
 
 logger = get_logger("maisaka_runtime")
 
-MAX_INTERNAL_ROUNDS = 6
+MAX_INTERNAL_ROUNDS = 10
 
 
 class MaisakaHeartFlowChatting:
