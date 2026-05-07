@@ -1,0 +1,88 @@
+═══════════════════════════════════════════════
+  MaiBot Docker 一键启动与配置速查
+  最后更新: 2026-05-06
+═══════════════════════════════════════════════
+
+【每次启动】
+  cd E:\Users\lmq\MaiBot
+  docker compose up -d
+
+【查看状态】
+  docker compose ps
+  docker compose logs -f core     ← 看核心日志
+  docker compose logs -f napcat   ← 看QQ适配器日志
+
+【停止】
+  docker compose down
+
+
+═══════════════════════════════════════════════
+  🔐 各页面地址和Token
+═══════════════════════════════════════════════
+
+  MaiBot WebUI      http://localhost:18001     Token: e6f0de2c17135da26193e638214cbf1af7ed134ed72385b454a496defaef45f4
+  NapCat 管理页     http://localhost:6099      Token: 11b2dbcb5cd0
+  SQLite 数据库     http://localhost:8120      无密码
+
+
+═══════════════════════════════════════════════
+  ⚙️  配置文件在哪里（所有配置都是改完重启生效: docker compose restart core）
+═══════════════════════════════════════════════
+
+  1. 机器人主配置      docker-config\mmc\bot_config.toml
+     ├─ QQ号、昵称
+     ├─ 人格设定 (personality / reply_style)
+     ├─ 聊天频率 (talk_value)
+     ├─ WebUI 地址端口
+     └─ 长期记忆开关 (a_memorix.plugin.enabled)
+
+  2. 模型/API配置      docker-config\mmc\model_config.toml
+     ├─ api_key (API密钥)
+     ├─ api_provider (服务商)
+     └─ model_list (使用的模型)
+
+  3. QQ适配器配置      data\MaiMBot\plugins\MaiBot-Napcat-Adapter\config.toml
+     ├─ [chat] group_list = ["929960604"]  ← 群白名单
+     ├─ [chat] ban_user_id = []            ← 禁言用户
+     └─ [napcat_server] host/port          ← 连NapCat的地址(一般不用改)
+
+  4. NapCat QQ配置     docker-config\napcat\onebot11_167747869.json
+     └─ WebSocket 服务端/客户端设置(一般不用改)
+
+
+═══════════════════════════════════════════════
+  📱 QQ 使用
+═══════════════════════════════════════════════
+
+  机器人QQ号: 167747869
+  机器人昵称: 刘妙奇
+  白名单群号: 929960604
+
+  启动后步骤:
+    1. 打开 http://localhost:6099 扫码登录QQ
+    2. 启动后等10秒左右自动连接
+    3. 把机器人拉进群，发消息即自动回复
+
+
+═══════════════════════════════════════════════
+  🔧 常用改配置操作
+═══════════════════════════════════════════════
+
+  换人格(银狼风) → 改 bot_config.toml 的 [personality] reply_style
+  加群白名单    → 改 data\MaiMBot\plugins\MaiBot-Napcat-Adapter\config.toml 的 group_list
+  换API Key     → 改 docker-config\mmc\model_config.toml 的 api_key
+  改聊天频率    → 改 bot_config.toml 的 [chat] talk_value (0=沉默 1=话痨)
+  开长期记忆    → 改 bot_config.toml 的 [a_memorix.plugin] enabled = true
+
+  改完后执行: docker compose restart core
+
+
+═══════════════════════════════════════════════
+  📖 官方文档
+═══════════════════════════════════════════════
+
+  部署文档    https://docs.mai-mai.org/manual/deployment/docker.html
+  适配器文档  https://docs.mai-mai.org/manual/adapters/napcat.html
+  配置详解    https://docs.mai-mai.org/manual/configuration/
+  常见问题    https://docs.mai-mai.org/manual/faq/
+  官方仓库    https://github.com/MaiM-with-u/MaiBot
