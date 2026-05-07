@@ -48,6 +48,7 @@ start_saka.bat
 start_all.bat
 config/bot_config_dev.toml
 config/bot_config.toml
+docker-config/
 config/bot_config.toml.bak
 config/lpmm_config.toml
 config/lpmm_config.toml.bak
