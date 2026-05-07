@@ -45,6 +45,14 @@ REQUEST_TYPE_BY_REQUEST_KIND = {
     "planner": "maisaka_planner",
     "timing_gate": "maisaka_timing_gate",
 }
+PROMPT_PREVIEW_CATEGORY_BY_REQUEST_KIND = {
+    "planner": "planner",
+    "timing_gate": "timing_gate",
+    "reply_effect_judge": "reply_effect_judge",
+    "expression_selector": "expression_selector",
+    "emotion": "emotion",
+    "sub_agent": "sub_agent",
+}
 CONTEXT_SELECTION_CACHE_STABILITY_RATIO = 2.0
 
 
@@ -233,6 +241,15 @@ class MaisakaChatLoopService:
             normalized_request_kind,
             f"maisaka_{normalized_request_kind}" if normalized_request_kind else "maisaka_planner",
         )
+
+    @staticmethod
+    def _resolve_prompt_preview_category(request_kind: str) -> str:
+        """根据请求类型决定 Prompt 预览落盘目录，避免子代理混入 planner。"""
+
+        normalized_request_kind = str(request_kind or "").strip().lower()
+        if not normalized_request_kind:
+            return "planner"
+        return PROMPT_PREVIEW_CATEGORY_BY_REQUEST_KIND.get(normalized_request_kind, normalized_request_kind)
 
     def _get_llm_chat_client(self, request_kind: str) -> LLMServiceClient:
         """获取当前请求类型对应的 LLM 客户端。"""
@@ -544,7 +561,7 @@ class MaisakaChatLoopService:
         if global_config.debug.show_maisaka_thinking:
             prompt_section_result = PromptCLIVisualizer.build_prompt_section_result(
                 built_messages,
-                category="planner" if request_kind != "timing_gate" else "timing_gate",
+                category=self._resolve_prompt_preview_category(request_kind),
                 chat_id=self._session_id,
                 request_kind=request_kind,
                 selection_reason=selection_reason,
