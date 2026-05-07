@@ -116,6 +116,10 @@ class MaisakaHeartFlowChatting:
         self._force_next_timing_continue = False
         self._force_next_timing_message_id = ""
         self._force_next_timing_reason = ""
+        self._timing_gate_non_continue_cooldown_seconds = max(
+            0.0,
+            float(global_config.chat.timing_gate_non_continue_cooldown_seconds),
+        )
         self._planner_interrupt_flag: Optional[asyncio.Event] = None
         self._planner_interrupt_requested = False
         self._planner_interrupt_consecutive_count = 0
@@ -566,6 +570,20 @@ class MaisakaHeartFlowChatting:
         """判断是否已有 @/提及必回触发，需绕过普通频率阈值。"""
 
         return self._force_next_timing_continue
+
+    async def _wait_for_timing_gate_non_continue_cooldown(self, elapsed_seconds: float) -> None:
+        """仅对 Timing Gate 的 wait/no_reply 动作应用冷却窗口。"""
+
+        cooldown_seconds = self._timing_gate_non_continue_cooldown_seconds
+        if cooldown_seconds <= 0:
+            return
+
+        remaining_seconds = cooldown_seconds - max(0.0, elapsed_seconds)
+        if remaining_seconds <= 0:
+            return
+
+        logger.info(f"{self.log_prefix} Timing Gate 非 continue 冷却中，等待 {remaining_seconds:.2f} 秒后结束")
+        await asyncio.sleep(remaining_seconds)
 
     def _bind_planner_interrupt_flag(self, interrupt_flag: asyncio.Event) -> None:
         """绑定当前可打断请求使用的中断标记。"""

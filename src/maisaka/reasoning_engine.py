@@ -511,6 +511,11 @@ class MaisakaReasoningEngine:
                                     timing_tool_results,
                                     timing_tool_monitor_results,
                                 ) = await self._run_timing_gate(anchor_message)
+                                timing_elapsed_seconds = time.time() - timing_started_at
+                                if timing_action != "continue":
+                                    await self._runtime._wait_for_timing_gate_non_continue_cooldown(
+                                        timing_elapsed_seconds
+                                    )
                                 timing_duration_ms = (time.time() - timing_started_at) * 1000
                                 cycle_detail.time_records["timing_gate"] = timing_duration_ms / 1000
                                 await emit_timing_gate_result(

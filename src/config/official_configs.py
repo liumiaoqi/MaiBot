@@ -421,6 +421,22 @@ class ChatConfig(ConfigBase):
     )
     """Planner 连续被新消息打断的最大次数，0 表示不启用打断"""
 
+    timing_gate_non_continue_cooldown_seconds: float = Field(
+        default=0,
+        ge=0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "Timing Gate 非 continue 冷却",
+                "en_US": "Timing Gate non-continue cooldown",
+                "ja_JP": "Timing Gate 非 continue クールダウン",
+            },
+            "x-widget": "input",
+            "x-icon": "timer",
+            "advanced": True,
+        },
+    )
+    """Timing Gate 返回 wait/no_reply 时的最小窗口秒数，0 表示不启用冷却"""
+
     group_chat_prompt: str = Field(
         default=(
             "你正在qq群里聊天，下面是群里正在聊的内容，其中包含聊天记录和聊天中的图片和表情包。\n"
