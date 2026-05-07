@@ -766,8 +766,8 @@ function BotConfigPageContent() {
   }
 
   return (
-    <ScrollArea className="h-full">
-      <div className="space-y-4 sm:space-y-6 p-4 sm:p-6">
+    <ScrollArea className="h-full min-w-0" scrollbars="vertical">
+      <div className="max-w-full space-y-4 overflow-x-hidden p-4 sm:space-y-6 sm:p-6">
         {/* 页面标题 */}
         <div className="flex flex-col gap-3 sm:gap-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -776,11 +776,11 @@ function BotConfigPageContent() {
               <p className="text-muted-foreground mt-1 text-xs sm:text-sm">管理麦麦的核心功能和行为设置</p>
             </div>
             {/* 按钮组 - 桌面端靠右 */}
-            <div className="flex flex-wrap gap-2 flex-shrink-0 sm:justify-end">
+            <div className="flex w-full min-w-0 flex-wrap gap-2 sm:w-auto sm:flex-shrink-0 sm:justify-end">
               <Tabs
                 value={editMode}
                 onValueChange={(v) => handleModeChange(v as 'visual' | 'source')}
-                className="w-full min-w-[13rem] sm:w-[14rem]"
+                className="w-full min-w-0 sm:w-[14rem]"
               >
                 <TabsList className="grid h-8 w-full grid-cols-2 sm:h-9">
                   <TabsTrigger value="visual" className="px-2 text-xs">
@@ -798,7 +798,7 @@ function BotConfigPageContent() {
                 disabled={saving || autoSaving || isRestarting}
                 size="sm"
                 variant="outline"
-                className="w-20 sm:w-24"
+                className="min-w-0 flex-1 sm:w-24 sm:flex-none"
               >
                 <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                 刷新
@@ -808,7 +808,7 @@ function BotConfigPageContent() {
                 disabled={saving || autoSaving || !hasUnsavedChanges || isRestarting}
                 size="sm"
                 variant="outline"
-                className="w-20 sm:w-24"
+                className="min-w-0 flex-1 sm:w-24 sm:flex-none"
               >
                 <Save className="h-4 w-4 flex-shrink-0" strokeWidth={2} fill="none" />
                 <span className="ml-1 truncate text-xs sm:text-sm">
@@ -820,7 +820,7 @@ function BotConfigPageContent() {
                   <Button
                     disabled={saving || autoSaving || isRestarting}
                     size="sm"
-                    className="w-20 sm:w-28"
+                    className="min-w-0 flex-1 sm:w-28 sm:flex-none"
                   >
                     <Power className="h-4 w-4 flex-shrink-0" />
                     <span className="ml-1 truncate text-xs sm:text-sm">
@@ -1041,7 +1041,7 @@ function DynamicConfigTabs(props: DynamicConfigTabsProps) {
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-      <TabsList className="flex flex-wrap h-auto gap-1 p-1 transition-all duration-300 ease-out">
+      <TabsList className="flex h-auto max-w-full justify-start gap-1 overflow-x-auto p-1 transition-all duration-300 ease-out sm:flex-wrap sm:overflow-x-visible">
         {visibleTabGroups.map((tab) => {
           const isExpandedOnlyTab = !DEFAULT_VISIBLE_TAB_IDS.has(tab.id)
           return (
@@ -1052,7 +1052,7 @@ function DynamicConfigTabs(props: DynamicConfigTabsProps) {
               <TabsTrigger
                 value={tab.id}
                 className={cn(
-                  "px-2 py-1.5 text-sm transition-all duration-200 ease-out sm:px-3 sm:py-2 data-[state=active]:shadow-sm",
+                  "shrink-0 px-2 py-1.5 text-sm transition-all duration-200 ease-out sm:px-3 sm:py-2 data-[state=active]:shadow-sm",
                   isExpandedOnlyTab &&
                     "border border-dashed border-border/70 bg-background/45 text-muted-foreground/80 motion-safe:animate-[config-tab-enter_180ms_ease-out_both] hover:bg-background/70 data-[state=active]:border-primary/45 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none"
                 )}
@@ -1067,7 +1067,7 @@ function DynamicConfigTabs(props: DynamicConfigTabsProps) {
             type="button"
             variant="ghost"
             size="sm"
-            className="group h-8 px-2 text-xs transition-all duration-200 ease-out sm:h-9 sm:px-3"
+            className="group h-8 shrink-0 px-2 text-xs transition-all duration-200 ease-out sm:h-9 sm:px-3"
             onClick={toggleExpanded}
           >
             {expanded ? (
@@ -1082,7 +1082,7 @@ function DynamicConfigTabs(props: DynamicConfigTabsProps) {
           type="button"
           variant={advancedVisible ? 'default' : 'outline'}
           size="sm"
-          className="ml-auto h-8 px-2 text-xs transition-all duration-200 ease-out sm:h-9 sm:px-3"
+          className="h-8 shrink-0 px-2 text-xs transition-all duration-200 ease-out sm:ml-auto sm:h-9 sm:px-3"
           onClick={() => setAdvancedVisible((current) => !current)}
         >
           高级设置

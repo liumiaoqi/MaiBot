@@ -1,24 +1,26 @@
-from rich.traceback import install
 from typing import TYPE_CHECKING
+
+from rich.traceback import install
 
 import asyncio
 import time
 
 from src.A_memorix.host_service import a_memorix_host_service
-from src.learners.expression_auto_check_task import ExpressionAutoCheckTask
-from src.emoji_system.emoji_manager import emoji_manager
-from src.chat.message_receive.bot import chat_bot
 from src.chat.message_receive.chat_manager import chat_manager
+from src.chat.message_receive.bot import chat_bot
 from src.chat.utils.statistic import OnlineTimeRecordTask, StatisticOutputTask
 from src.common.i18n import t
 from src.common.logger import get_logger
 from src.common.message_server.server import Server, get_global_server
 from src.config.config import config_manager, global_config
+from src.emoji_system.emoji_manager import emoji_manager
+from src.learners.expression_auto_check_task import ExpressionAutoCheckTask
 from src.manager.async_task_manager import async_task_manager
 from src.maisaka.display.stage_status_board import disable_stage_status_board, enable_stage_status_board
 from src.plugin_runtime.integration import get_plugin_runtime_manager
 from src.prompt.prompt_manager import prompt_manager
 from src.services.memory_flow_service import memory_automation_service
+from src.webui.dashboard_update import auto_update_dashboard_if_needed
 
 # from src.api.main import start_api_server
 
@@ -45,9 +47,6 @@ class MainSystem:
         self.server: Server = get_global_server()
         self.webui_server: WebUIServer | None = None  # 独立的 WebUI 服务器
 
-        # 设置独立的 WebUI 服务器
-        self._setup_webui_server()
-
     def _setup_webui_server(self) -> None:
         """设置独立的 WebUI 服务器"""
         from src.config.config import global_config
@@ -70,10 +69,29 @@ class MainSystem:
             enable_stage_status_board()
         logger.info(t("startup.waking_up", nickname=global_config.bot.nickname))
 
+        await self._auto_update_webui_dashboard()
+
+        # 设置独立的 WebUI 服务器
+        self._setup_webui_server()
+
         # 其他初始化任务
         await asyncio.gather(self._init_components())
 
         logger.info(t("startup.initialization_completed_banner", nickname=global_config.bot.nickname))
+
+    async def _auto_update_webui_dashboard(self) -> None:
+        """启动时自动检查并更新 WebUI dashboard。"""
+        if not global_config.webui.enabled:
+            return
+        if not global_config.webui.auto_update_dashboard:
+            logger.info("WebUI dashboard 自动更新已关闭")
+            return
+
+        result = await auto_update_dashboard_if_needed()
+        if result.updated:
+            logger.info(result.message)
+        elif result.checked:
+            logger.info(result.message)
 
     async def _init_components(self) -> None:
         """初始化其他组件"""

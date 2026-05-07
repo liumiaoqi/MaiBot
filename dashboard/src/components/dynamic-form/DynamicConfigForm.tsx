@@ -84,7 +84,7 @@ function DynamicConfigSection({
   values: Record<string, unknown>
 }) {
   return (
-    <Card>
+    <Card className="min-w-0">
       <CardHeader className="border-b border-border/50 pb-4">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
@@ -296,15 +296,15 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
         row.length > 1 ? (
           <div
             key={row.map((field) => field.name).join('|')}
-            className="grid gap-4 py-1 md:grid-cols-[repeat(var(--field-row-count),minmax(0,1fr))]"
+            className="grid min-w-0 gap-4 py-1 md:grid-cols-[repeat(var(--field-row-count),minmax(0,1fr))]"
             style={{ '--field-row-count': row.length } as React.CSSProperties}
           >
             {row.map((field) => (
-              <div key={field.name}>{renderField(field)}</div>
+              <div key={field.name} className="min-w-0">{renderField(field)}</div>
             ))}
           </div>
         ) : (
-          <div key={row[0].name} className="py-1">{renderField(row[0])}</div>
+          <div key={row[0].name} className="min-w-0 py-1">{renderField(row[0])}</div>
         )
       ))}
     </>
@@ -322,7 +322,7 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
   )
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6">
       {visibleFields.length > 0 && (
         <div>
           {renderFieldList(visibleFields)}
@@ -353,7 +353,7 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
             const HookComponent = hookEntry.component
             if (hookEntry.type === 'replace') {
               return (
-                <div key={key}>
+                <div key={key} className="min-w-0">
                   <HookComponent
                     fieldPath={nestedFieldPath}
                     value={values[key]}
@@ -368,7 +368,7 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
             }
 
             return (
-              <div key={key}>
+              <div key={key} className="min-w-0">
                 <HookComponent
                   fieldPath={nestedFieldPath}
                   value={values[key]}
@@ -416,7 +416,7 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
           }
 
           return (
-            <Card key={key} className="border-border/70 bg-muted/20 shadow-none">
+            <Card key={key} className="min-w-0 border-border/70 bg-muted/20 shadow-none">
               <CardHeader className="border-b border-border/50 px-4 py-3">
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-1">
@@ -449,7 +449,7 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
 
           if (level === 0 && sectionColumns === 2 && visibleNestedSections.length > 1) {
             return (
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid min-w-0 gap-4 md:grid-cols-2">
                 {visibleNestedSections}
               </div>
             )

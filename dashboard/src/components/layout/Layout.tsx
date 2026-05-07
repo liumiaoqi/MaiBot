@@ -178,7 +178,7 @@ export function Layout({ children }: LayoutProps) {
             )}
           </AnimatePresence>
           {/* Main content */}
-          <div className="flex flex-1 flex-col overflow-hidden">
+          <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
             {/* HTTP 安全警告横幅 */}
             <HttpWarningBanner />
 
@@ -211,7 +211,7 @@ export function Layout({ children }: LayoutProps) {
               <AnimatePresence mode="wait" initial={false}>
                 <motion.div
                   key={workspaceMode}
-                  className="relative z-10 h-full"
+                  className="relative z-10 h-full min-w-0"
                   initial={{ opacity: 0, x: isChatWorkspace ? 32 : -32, filter: 'blur(6px)' }}
                   animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
                   exit={{ opacity: 0, x: isChatWorkspace ? -32 : 32, filter: 'blur(6px)' }}

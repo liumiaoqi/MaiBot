@@ -158,7 +158,7 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
         const label = (
           <Label
             className={cn(
-              "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[15px] leading-6",
+              "inline-flex min-w-0 items-center gap-1.5 text-[15px] leading-6",
               descriptionDisplay === 'label-hover' && fieldDescription && "cursor-help",
               schema.advanced
                 ? "text-sky-700 dark:text-sky-300"
@@ -166,7 +166,7 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
             )}
           >
             {renderIcon()}
-            <span>{fieldLabel}</span>
+            <span className="break-words">{fieldLabel}</span>
             {schema.required && <span className="text-destructive">*</span>}
           </Label>
         )
@@ -281,8 +281,8 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
   const renderSwitch = () => {
     const checked = Boolean(value)
     return (
-      <div className="flex items-center justify-between gap-4 py-2">
-        <div className="pr-4">
+      <div className="flex min-w-0 items-center justify-between gap-4 py-2">
+        <div className="min-w-0 pr-4">
           {renderFieldHeader()}
         </div>
         <Switch
@@ -303,7 +303,7 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
     const step = schema.step ?? 1
 
     return (
-      <div className="space-y-2">
+      <div className="min-w-0 space-y-2">
         <Slider
           value={[numValue]}
           onValueChange={(values) => onChange(values[0])}
@@ -466,7 +466,7 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
         className="flex flex-col gap-2 py-2 sm:flex-row sm:items-center"
         style={{ '--field-input-width': schema['x-input-width'] ?? '12rem' } as React.CSSProperties}
       >
-        <div className="shrink-0">
+        <div className="min-w-0 sm:shrink-0">
           {renderFieldHeader()}
         </div>
         <div className="min-w-20 flex-1 sm:ml-auto sm:max-w-[var(--field-input-width)]">
@@ -477,7 +477,7 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
   }
 
   return (
-    <div className="space-y-2">
+    <div className="min-w-0 space-y-2">
       {renderFieldHeader()}
 
       {/* Input component */}
