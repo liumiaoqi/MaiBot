@@ -17,9 +17,6 @@ export function PlannerMonitorPage() {
             <Activity className="h-6 w-6 sm:h-7 sm:w-7" />
             麦麦观察
           </h1>
-          <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base">
-            实时追踪 MaiSaka 推理引擎的完整思考过程
-          </p>
         </div>
       </div>
 

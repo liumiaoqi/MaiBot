@@ -11,8 +11,7 @@ from src.chat.message_receive.message import SessionMessage
 from src.common.database.database import get_db_session
 from src.common.database.database_model import Expression
 from src.common.logger import get_logger
-from src.common.utils.utils_config import ExpressionConfigUtils
-from src.common.utils.utils_session import SessionUtils
+from src.common.utils.utils_config import ChatConfigUtils, ExpressionConfigUtils
 from src.config.config import global_config
 from src.learners.learner_utils_old import weighted_sample
 from src.maisaka.context_messages import LLMContextMessage
@@ -65,14 +64,9 @@ class MaisakaExpressionSelector:
                 if not platform or not item_id:
                     continue
 
-                rule_type = target_item.rule_type
-                target_session_id = SessionUtils.calculate_session_id(
-                    platform,
-                    group_id=item_id if rule_type == "group" else None,
-                    user_id=None if rule_type == "group" else item_id,
-                )
-                group_session_ids.add(target_session_id)
-                if target_session_id == session_id:
+                target_session_ids = ChatConfigUtils.get_target_session_ids(target_item)
+                group_session_ids.update(target_session_ids)
+                if ChatConfigUtils.target_matches_session(target_item, session_id):
                     contains_current_session = True
 
             if contains_global_share_marker:

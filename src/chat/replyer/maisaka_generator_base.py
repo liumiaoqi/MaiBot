@@ -30,7 +30,7 @@ from src.common.data_models.message_component_data_model import (
     VoiceComponent,
 )
 from src.common.logger import get_logger
-from src.common.utils.utils_session import SessionUtils
+from src.common.utils.utils_config import ChatConfigUtils
 from src.config.config import global_config
 from src.config.model_configs import ModelInfo
 from src.core.types import ActionInfo
@@ -211,46 +211,7 @@ class BaseMaisakaReplyGenerator:
     @staticmethod
     def _get_chat_prompt_for_chat(chat_id: str, is_group_chat: Optional[bool]) -> str:
         """根据聊天流 ID 获取匹配的额外 prompt。"""
-        if not global_config.chat.chat_prompts:
-            return ""
-
-        for chat_prompt_item in global_config.chat.chat_prompts:
-            if hasattr(chat_prompt_item, "platform"):
-                platform = str(chat_prompt_item.platform or "").strip()
-                item_id = str(chat_prompt_item.item_id or "").strip()
-                rule_type = str(chat_prompt_item.rule_type or "").strip()
-                prompt_content = str(chat_prompt_item.prompt or "").strip()
-            elif isinstance(chat_prompt_item, str):
-                parts = chat_prompt_item.split(":", 3)
-                if len(parts) != 4:
-                    continue
-
-                platform, item_id, rule_type, prompt_content = parts
-                platform = platform.strip()
-                item_id = item_id.strip()
-                rule_type = rule_type.strip()
-                prompt_content = prompt_content.strip()
-            else:
-                continue
-
-            if not platform or not item_id or not prompt_content:
-                continue
-
-            if rule_type == "group":
-                config_is_group = True
-                config_chat_id = SessionUtils.calculate_session_id(platform, group_id=item_id)
-            elif rule_type == "private":
-                config_is_group = False
-                config_chat_id = SessionUtils.calculate_session_id(platform, user_id=item_id)
-            else:
-                continue
-
-            if config_is_group != is_group_chat:
-                continue
-            if config_chat_id == chat_id:
-                return prompt_content
-
-        return ""
+        return ChatConfigUtils.get_chat_prompt_for_chat(chat_id, is_group_chat)
 
     def _build_group_chat_attention_block(self, session_id: str) -> str:
         """构建当前聊天场景下的额外注意事项块。"""

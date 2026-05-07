@@ -1,4 +1,4 @@
-import { Activity, Boxes, Database, FileSearch, FileText, Hash, Home, MessageSquare, Network, Package, ScrollText, Settings, Sliders, Smile } from 'lucide-react'
+import { Activity, Boxes, BrainCircuit, Database, FileSearch, FileText, Hash, Home, MessageSquare, Network, Package, ScrollText, Settings, Sliders, Smile } from 'lucide-react'
 
 import type { MenuSection } from './types'
 
@@ -39,6 +39,7 @@ export const menuSections: MenuSection[] = [
     title: 'sidebar.groups.system',
     items: [
       { icon: FileSearch, label: 'sidebar.menu.logViewer', path: '/logs', searchDescription: 'search.items.logsDesc' },
+      { icon: BrainCircuit, label: 'sidebar.menu.reasoningProcess', path: '/reasoning-process', searchDescription: 'search.items.reasoningProcessDesc' },
       { icon: Settings, label: 'sidebar.menu.settings', path: '/settings', searchDescription: 'search.items.settingsDesc' },
     ],
   },

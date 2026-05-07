@@ -45,6 +45,7 @@ class MainSystem:
 
         self.app: MessageServer = get_global_api()
         self.server: Server = get_global_server()
+        self.webui_task: asyncio.Task[None] | None = None
         self.webui_server: WebUIServer | None = None  # 独立的 WebUI 服务器
 
     def _setup_webui_server(self) -> None:
@@ -69,15 +70,22 @@ class MainSystem:
             enable_stage_status_board()
         logger.info(t("startup.waking_up", nickname=global_config.bot.nickname))
 
-        await self._auto_update_webui_dashboard()
-
-        # 设置独立的 WebUI 服务器
-        self._setup_webui_server()
-
-        # 其他初始化任务
-        await asyncio.gather(self._init_components())
+        self.webui_task = asyncio.create_task(self._run_webui_startup_sequence(), name="webui_startup")
+        try:
+            await self._init_components()
+        except Exception:
+            self.webui_task.cancel()
+            await asyncio.gather(self.webui_task, return_exceptions=True)
+            raise
 
         logger.info(t("startup.initialization_completed_banner", nickname=global_config.bot.nickname))
+
+    async def _run_webui_startup_sequence(self) -> None:
+        """按顺序检查 WebUI 更新并启动 WebUI，同时允许主初始化并行执行。"""
+        await self._auto_update_webui_dashboard()
+        self._setup_webui_server()
+        if self.webui_server:
+            await self.webui_server.start()
 
     async def _auto_update_webui_dashboard(self) -> None:
         """启动时自动检查并更新 WebUI dashboard。"""
@@ -166,7 +174,9 @@ class MainSystem:
             ]
 
             # 如果 WebUI 服务器已初始化，添加到任务列表
-            if self.webui_server:
+            if self.webui_task:
+                tasks.append(self.webui_task)
+            elif self.webui_server:
                 tasks.append(self.webui_server.start())
 
             await asyncio.gather(*tasks)
