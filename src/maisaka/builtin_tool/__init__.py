@@ -30,6 +30,8 @@ from .tool_search import get_tool_spec as get_tool_search_tool_spec
 from .tool_search import handle_tool as handle_tool_search_tool
 from .view_complex_message import get_tool_spec as get_view_complex_message_tool_spec
 from .view_complex_message import handle_tool as handle_view_complex_message_tool
+from .wait import get_tool_spec as get_wait_tool_spec
+from .wait import handle_tool as handle_wait_tool
 
 BuiltinToolHandler = Callable[[ToolInvocation, Optional[ToolExecutionContext]], Awaitable[ToolExecutionResult]]
 BuiltinToolRawHandler = Callable[
@@ -70,6 +72,7 @@ def _get_query_memory_tool_spec() -> ToolSpec:
 BUILTIN_TOOL_ENTRIES: List[BuiltinToolEntry] = [
     BuiltinToolEntry("no_reply", get_no_reply_tool_spec, handle_no_reply_tool, stage="timing"),
     BuiltinToolEntry("continue", get_continue_tool_spec, handle_continue_tool, stage="timing"),
+    BuiltinToolEntry("wait", get_wait_tool_spec, handle_wait_tool, stage="timing", chat_scope="private"),
     BuiltinToolEntry("finish", get_finish_tool_spec, handle_finish_tool, stage="action"),
     BuiltinToolEntry("reply", get_reply_tool_spec, handle_reply_tool, stage="action"),
     BuiltinToolEntry(
@@ -145,12 +148,12 @@ def get_all_builtin_tool_specs(context: Optional[ToolAvailabilityContext] = None
     return [entry.build_spec() for entry in _get_builtin_tool_entries(context=context)]
 
 
-def get_timing_tools() -> List[ToolDefinitionInput]:
+def get_timing_tools(context: Optional[ToolAvailabilityContext] = None) -> List[ToolDefinitionInput]:
     """获取 Timing Gate 阶段的兼容工具定义。"""
 
     tool_specs = [
         entry.build_spec()
-        for entry in _get_builtin_tool_entries(stage="timing", visibility="visible")
+        for entry in _get_builtin_tool_entries(stage="timing", visibility="visible", context=context)
     ]
     return [tool_spec.to_llm_definition() for tool_spec in tool_specs if tool_spec.enabled]
 

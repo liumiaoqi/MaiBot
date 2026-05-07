@@ -164,20 +164,12 @@ class SummaryImporter:
     def _pick_default_summary_task(self, available_tasks: Dict[str, TaskConfig]) -> Tuple[Optional[str], Optional[TaskConfig]]:
         """
         选择总结默认任务，避免错误落到 embedding 任务。
-        优先级：replyer > utils > planner > tool_use > 其他非 embedding。
+        优先级：memory > utils > planner；不再顺延到 replyer 或其他任务。
         """
-        preferred = ("replyer", "utils", "planner", "tool_use")
+        preferred = ("memory", "utils", "planner")
         for name in preferred:
             cfg = available_tasks.get(name)
             if cfg and cfg.model_list:
-                return name, cfg
-
-        for name, cfg in available_tasks.items():
-            if name != "embedding" and cfg.model_list:
-                return name, cfg
-
-        for name, cfg in available_tasks.items():
-            if cfg.model_list:
                 return name, cfg
 
         return None, None
@@ -187,6 +179,7 @@ class SummaryImporter:
         解析 summarization.model_name 为 TaskConfig。
         支持：
         - "auto"
+        - "memory"（任务名）
         - "replyer"（任务名）
         - "some-model-name"（具体模型名）
         - ["utils:model1", "utils:model2", "replyer"]（数组混合语法）
@@ -199,7 +192,7 @@ class SummaryImporter:
         # 避免默认值本身触发类型校验异常。
         raw_cfg = self.plugin_config.get("summarization", {}).get("model_name", ["auto"])
         selectors = self._normalize_summary_model_selectors(raw_cfg)
-        default_task_name, default_task_cfg = self._pick_default_summary_task(available_tasks)
+        _default_task_name, default_task_cfg = self._pick_default_summary_task(available_tasks)
 
         selected_models: List[str] = []
         base_cfg: Optional[TaskConfig] = None
@@ -262,16 +255,11 @@ class SummaryImporter:
                 _append_models(default_task_cfg.model_list)
                 if base_cfg is None:
                     base_cfg = default_task_cfg
-            else:
-                first_cfg = next(iter(available_tasks.values()))
-                _append_models(first_cfg.model_list)
-                if base_cfg is None:
-                    base_cfg = first_cfg
 
         if not selected_models:
             return None
 
-        template_cfg = base_cfg or default_task_cfg or next(iter(available_tasks.values()))
+        template_cfg = base_cfg or default_task_cfg or TaskConfig()
         return TaskConfig(
             model_list=selected_models,
             max_tokens=template_cfg.max_tokens,

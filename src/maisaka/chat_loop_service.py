@@ -8,6 +8,7 @@ import asyncio
 
 from rich.console import RenderableType
 from src.common.data_models.llm_service_data_models import LLMGenerationOptions
+from src.common.i18n import get_locale
 from src.common.logger import get_logger
 from src.common.prompt_i18n import load_prompt
 from src.common.utils.utils_config import ChatConfigUtils
@@ -40,7 +41,7 @@ from .history_utils import drop_orphan_tool_results, normalize_tool_result_order
 from .display.prompt_cli_renderer import PromptCLIVisualizer
 from .visual_mode_utils import resolve_enable_visual_planner
 
-TIMING_GATE_TOOL_NAMES = {"continue", "no_reply"}
+TIMING_GATE_TOOL_NAMES = {"continue", "no_reply", "wait"}
 REQUEST_TYPE_BY_REQUEST_KIND = {
     "planner": "maisaka_planner",
     "timing_gate": "maisaka_timing_gate",
@@ -362,6 +363,7 @@ class MaisakaChatLoopService:
             "file_tools_section": tools_section,
             "group_chat_attention_block": self._build_group_chat_attention_block(),
             "identity": self._personality_prompt,
+            "timing_gate_wait_rule": self._build_timing_gate_wait_rule(),
             "time_block": self._build_time_block(),
         }
 
@@ -397,6 +399,29 @@ class MaisakaChatLoopService:
             return ""
 
         return "在该聊天中的注意事项：\n" + "\n\n".join(prompt_lines) + "\n"
+
+    def _build_timing_gate_wait_rule(self) -> str:
+        """构造 Timing Gate 中 wait 工具的场景说明。"""
+
+        locale = get_locale()
+        if locale == "en-US":
+            if self._is_group_chat is True:
+                return ""
+            if self._is_group_chat is False:
+                return "- wait: wait for a fixed period, then judge again"
+            return "- wait: available only in private chats; if this is a group chat, do not call it"
+        if locale == "ja-JP":
+            if self._is_group_chat is True:
+                return ""
+            if self._is_group_chat is False:
+                return "- wait：一定時間待ってから再判断する"
+            return "- wait：個人チャットでのみ利用できます。現在がグループチャットなら呼び出さないでください"
+
+        if self._is_group_chat is True:
+            return ""
+        if self._is_group_chat is False:
+            return "- wait：固定再等待一段时间，时间到后再重新判断"
+        return "- wait：仅私聊可用；如果当前是群聊，不要调用"
 
     @staticmethod
     def _get_chat_prompt_for_chat(chat_id: str, is_group_chat: Optional[bool]) -> str:

@@ -78,14 +78,12 @@ function unwrapModelConfig(data: unknown): Record<string, unknown> {
   return data as Record<string, unknown>
 }
 
-function getAdvancedTaskNames(schema: ConfigSchema | null): Set<string> {
-  const advancedTaskNames = new Set(
+function getRequiredTaskNames(schema: ConfigSchema | null): Set<string> {
+  return new Set(
     (schema?.fields ?? [])
-      .filter((field) => field.advanced)
+      .filter((field) => field.type === 'object' && !field.advanced)
       .map((field) => field.name)
   )
-  advancedTaskNames.add('learner')
-  return advancedTaskNames
 }
 
 // 主导出组件：包装 RestartProvider
@@ -137,6 +135,7 @@ function ModelConfigPageContent() {
     oldProviders: [],
   })
   const [taskConfigSchema, setTaskConfigSchema] = useState<ConfigSchema | null>(null)
+  const taskConfigSchemaRef = useRef<ConfigSchema | null>(null)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [jumpToPage, setJumpToPage] = useState('')
@@ -187,12 +186,12 @@ function ModelConfigPageContent() {
   const checkTaskConfigIssues = useCallback((
     taskConf: ModelTaskConfig | null,
     modelList: ModelInfo[],
-    schema: ConfigSchema | null = taskConfigSchema
+    schema?: ConfigSchema | null
   ) => {
     if (!taskConf) return
     
     const modelNameSet = new Set(modelList.map(m => m.name))
-    const advancedTaskNames = getAdvancedTaskNames(schema)
+    const requiredTaskNames = getRequiredTaskNames(schema ?? taskConfigSchemaRef.current)
     const invalidRefs: { taskName: string; invalidModels: string[] }[] = []
     const emptyTaskList: string[] = []
     
@@ -201,7 +200,7 @@ function ModelConfigPageContent() {
       
       // 检查是否有模型
       if (!task.model_list || task.model_list.length === 0) {
-        if (!advancedTaskNames.has(key)) {
+        if (requiredTaskNames.has(key)) {
           emptyTaskList.push(key)
         }
         continue
@@ -216,7 +215,7 @@ function ModelConfigPageContent() {
     
     setInvalidModelRefs(invalidRefs)
     setEmptyTasks(emptyTaskList)
-  }, [taskConfigSchema])
+  }, [])
   
   // 加载配置
   const loadConfig = useCallback(async () => {
@@ -252,6 +251,7 @@ function ModelConfigPageContent() {
       if (schemaResult.success && schemaResult.data) {
         const schema = (schemaResult.data as unknown as Record<string, unknown>).schema as ConfigSchema
         nextTaskConfigSchema = schema.nested?.model_task_config ?? null
+        taskConfigSchemaRef.current = nextTaskConfigSchema
         setTaskConfigSchema(nextTaskConfigSchema)
       }
       
