@@ -54,7 +54,7 @@ logger = get_logger("maisaka_reasoning_engine")
 
 TIMING_GATE_CONTEXT_DROP_HEAD_RATIO = 0.7
 TIMING_GATE_MAX_ATTEMPTS = 3
-TIMING_GATE_TOOL_NAMES = {"continue", "no_reply", "wait"}
+TIMING_GATE_TOOL_NAMES = {"continue", "no_reply"}
 HISTORY_SILENT_TOOL_NAMES = {"finish"}
 
 
@@ -149,10 +149,9 @@ class MaisakaReasoningEngine:
         return (
             "你是 Maisaka 的 timing gate 子代理，只负责决定当前会话下一步的节奏控制。\n"
             "你必须且只能调用一个工具，不要输出普通文本答案。\n"
-            "可用工具只有三个：\n"
-            "1. wait: 适合暂时等待一段时间，再重新判断是否继续。\n"
-            "2. no_reply: 适合当前不继续本轮，直接等待新的外部消息。\n"
-            "3. continue: 适合现在立刻进入下一轮正常思考、回复、查询和其他工具执行。\n"
+            "可用工具只有两个：\n"
+            "1. no_reply: 适合当前不继续本轮发言，等待新的外部消息或让用户继续说完。\n"
+            "2. continue: 适合现在立刻进入下一轮正常思考、回复、查询和其他工具执行。\n"
             "如果需要真正回复消息、查询信息或使用其他工具，应该调用 continue，让主分支继续执行，而不是在这里完成。\n"
             "不要连续调用多个工具，也不要输出工具之外的计划。"
         )
@@ -242,7 +241,7 @@ class MaisakaReasoningEngine:
     async def _run_timing_gate(
         self,
         anchor_message: SessionMessage,
-    ) -> tuple[Literal["continue", "no_reply", "wait"], Any, list[str], list[dict[str, Any]]]:
+    ) -> tuple[Literal["continue", "no_reply"], Any, list[str], list[dict[str, Any]]]:
         """运行 Timing Gate 子代理并返回控制决策。"""
 
         if self._runtime._force_next_timing_continue:
@@ -388,7 +387,7 @@ class MaisakaReasoningEngine:
         hint_content = (
             "Timing Gate 上一轮选择了非法工具："
             f"{normalized_tool_text}。\n"
-            "Timing Gate 只能调用 continue、wait 或 no_reply 中的一个工具。"
+            "Timing Gate 只能调用 continue 或 no_reply 中的一个工具。"
         )
         self._runtime._chat_history.append(
             SessionBackedMessage(

@@ -30,8 +30,6 @@ from .tool_search import get_tool_spec as get_tool_search_tool_spec
 from .tool_search import handle_tool as handle_tool_search_tool
 from .view_complex_message import get_tool_spec as get_view_complex_message_tool_spec
 from .view_complex_message import handle_tool as handle_view_complex_message_tool
-from .wait import get_tool_spec as get_wait_tool_spec
-from .wait import handle_tool as handle_wait_tool
 
 BuiltinToolHandler = Callable[[ToolInvocation, Optional[ToolExecutionContext]], Awaitable[ToolExecutionResult]]
 BuiltinToolRawHandler = Callable[
@@ -70,7 +68,6 @@ def _get_query_memory_tool_spec() -> ToolSpec:
 
 
 BUILTIN_TOOL_ENTRIES: List[BuiltinToolEntry] = [
-    BuiltinToolEntry("wait", get_wait_tool_spec, handle_wait_tool, stage="timing"),
     BuiltinToolEntry("no_reply", get_no_reply_tool_spec, handle_no_reply_tool, stage="timing"),
     BuiltinToolEntry("continue", get_continue_tool_spec, handle_continue_tool, stage="timing"),
     BuiltinToolEntry("finish", get_finish_tool_spec, handle_finish_tool, stage="action"),

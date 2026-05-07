@@ -3,12 +3,13 @@ from __future__ import annotations
 from argparse import ArgumentParser, Namespace
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import DefaultDict
 
 import csv
 import json
+import re
 import sqlite3
 import sys
 
@@ -43,6 +44,35 @@ def parse_datetime_filter(value: str | None) -> str | None:
         return parsed.strftime("%Y-%m-%d %H:%M:%S")
 
     raise ValueError(f"无法解析时间: {value!r}，请使用 YYYY-MM-DD 或 YYYY-MM-DD HH:MM:SS")
+
+
+def parse_recent_filter(value: str | None) -> str | None:
+    if value is None:
+        return None
+
+    normalized_value = value.strip().lower()
+    if not normalized_value:
+        return None
+
+    match = re.fullmatch(r"(\d+(?:\.\d+)?)([mhdw])", normalized_value)
+    if match is None:
+        raise ValueError(f"无法解析最近时间: {value!r}，请使用 30m、24h、7d 或 2w")
+
+    amount = float(match.group(1))
+    unit = match.group(2)
+    if amount <= 0:
+        raise ValueError(f"最近时间必须大于 0: {value!r}")
+
+    if unit == "m":
+        delta = timedelta(minutes=amount)
+    elif unit == "h":
+        delta = timedelta(hours=amount)
+    elif unit == "d":
+        delta = timedelta(days=amount)
+    else:
+        delta = timedelta(weeks=amount)
+
+    return (datetime.now() - delta).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def connect_readonly(db_path: Path) -> sqlite3.Connection:
@@ -249,6 +279,7 @@ def print_csv(rows: list[ToolUsageRow]) -> None:
 def parse_args() -> Namespace:
     parser = ArgumentParser(description="统计不同 chat_id 的工具使用次数和占比。")
     parser.add_argument("--db", type=Path, default=DEFAULT_DB_PATH, help=f"数据库路径，默认: {DEFAULT_DB_PATH}")
+    parser.add_argument("--recent", help="统计最近多久的记录，例如: 30m、24h、7d、2w；如果同时指定 --since，则优先使用 --since")
     parser.add_argument("--since", help="仅统计此时间之后的记录，格式: YYYY-MM-DD 或 YYYY-MM-DD HH:MM:SS")
     parser.add_argument("--until", help="仅统计此时间之前的记录，格式: YYYY-MM-DD 或 YYYY-MM-DD HH:MM:SS")
     parser.add_argument("--min-chat-total", type=int, default=1, help="只显示工具调用总数不低于该值的 chat_id")
@@ -261,7 +292,7 @@ def parse_args() -> Namespace:
 
 def main() -> None:
     args = parse_args()
-    since = parse_datetime_filter(args.since)
+    since = parse_datetime_filter(args.since) or parse_recent_filter(args.recent)
     until = parse_datetime_filter(args.until)
     min_chat_total = max(1, int(args.min_chat_total))
     top_tools = args.top_tools if args.top_tools is None else max(1, int(args.top_tools))

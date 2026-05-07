@@ -44,7 +44,6 @@ BUILTIN_TOOL_NAMES = frozenset(
     {
         "reply",
         "no_reply",
-        "wait",
         "stop",
         "create_table",
         "list_tables",

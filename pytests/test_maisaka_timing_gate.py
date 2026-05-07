@@ -6,6 +6,7 @@ import pytest
 
 from src.core.tooling import ToolExecutionResult, ToolInvocation
 from src.llm_models.payload_content.tool_option import ToolCall
+from src.maisaka.builtin_tool import get_timing_tools
 from src.maisaka.chat_loop_service import ChatResponse, MaisakaChatLoopService
 from src.maisaka.context_messages import AssistantMessage, TIMING_GATE_INVALID_TOOL_HINT_SOURCE
 from src.maisaka.reasoning_engine import MaisakaReasoningEngine
@@ -30,6 +31,12 @@ def _build_chat_response(tool_calls: list[ToolCall]) -> ChatResponse:
         total_tokens=13,
         prompt_section=None,
     )
+
+
+def test_timing_gate_tools_only_expose_continue_and_no_reply() -> None:
+    tool_names = {tool_definition["name"] for tool_definition in get_timing_tools()}
+
+    assert tool_names == {"continue", "no_reply"}
 
 
 @pytest.mark.asyncio

@@ -435,7 +435,7 @@ class ChatConfig(ConfigBase):
             "advanced": True,
         },
     )
-    """Timing Gate 返回 wait/no_reply 时的最小窗口秒数，0 表示不启用冷却"""
+    """Timing Gate 返回 no_reply 时的最小窗口秒数，0 表示不启用冷却"""
 
     group_chat_prompt: str = Field(
         default=(
