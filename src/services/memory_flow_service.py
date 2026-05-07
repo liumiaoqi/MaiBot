@@ -84,7 +84,12 @@ class PersonFactWritebackService:
         if target_person is None or not target_person.is_known:
             return
 
-        facts = await self._extract_facts(target_person, reply_text)
+        user_evidence_messages = self._collect_user_evidence_messages(message, target_person)
+        if not user_evidence_messages:
+            return
+        user_evidence_text = self._format_user_evidence(user_evidence_messages)
+
+        facts = await self._extract_facts(target_person, reply_text, user_evidence_text)
         if not facts:
             return
 
@@ -104,8 +109,19 @@ class PersonFactWritebackService:
         if not person_name:
             return
 
+        evidence_message_ids = [
+            str(getattr(item, "message_id", "") or "").strip()
+            for item in user_evidence_messages
+            if str(getattr(item, "message_id", "") or "").strip()
+        ]
         for fact in facts:
-            await store_person_memory_from_answer(person_name, fact, session_id)
+            await store_person_memory_from_answer(
+                person_name,
+                fact,
+                session_id,
+                evidence_source="user_supported",
+                evidence_message_ids=evidence_message_ids,
+            )
 
     def _resolve_target_person(self, message: Any) -> Optional[Person]:
         session = getattr(message, "session", None)
@@ -140,22 +156,110 @@ class PersonFactWritebackService:
         person = Person(person_id=person_id)
         return person if person.is_known else None
 
-    async def _extract_facts(self, person: Person, reply_text: str) -> List[str]:
+    def _collect_user_evidence_messages(self, message: Any, person: Person) -> List[Any]:
+        session = getattr(message, "session", None)
+        session_id = str(
+            getattr(message, "session_id", "")
+            or getattr(session, "session_id", "")
+            or ""
+        ).strip()
+        if not session_id:
+            return []
+
+        evidence: List[Any] = []
+        seen_ids = set()
+
+        reply_to = str(getattr(message, "reply_to", "") or "").strip()
+        if reply_to:
+            try:
+                replies = find_messages(message_id=reply_to, limit=1)
+            except Exception as exc:
+                logger.debug("查询人物事实 reply_to 证据失败: %s", exc)
+                replies = []
+            evidence.extend(self._filter_target_user_messages(replies, person, seen_ids))
+
+        if evidence:
+            return evidence[:3]
+
+        timestamp = self._extract_message_timestamp(message)
+        try:
+            candidates = find_messages(
+                session_id=session_id,
+                before_time=timestamp,
+                limit=6,
+                limit_mode="latest",
+                filter_bot=True,
+            )
+        except Exception as exc:
+            logger.debug("查询人物事实近期用户证据失败: %s", exc)
+            return []
+        return self._filter_target_user_messages(candidates, person, seen_ids)[:3]
+
+    @staticmethod
+    def _extract_message_timestamp(message: Any) -> float | None:
+        raw_timestamp = getattr(message, "timestamp", None)
+        if hasattr(raw_timestamp, "timestamp") and callable(raw_timestamp.timestamp):
+            try:
+                return float(raw_timestamp.timestamp())
+            except Exception:
+                return None
+        if isinstance(raw_timestamp, (int, float)):
+            return float(raw_timestamp)
+        return None
+
+    @staticmethod
+    def _filter_target_user_messages(messages: List[Any], person: Person, seen_ids: set) -> List[Any]:
+        filtered: List[Any] = []
+        target_person_id = str(getattr(person, "person_id", "") or "").strip()
+        for item in messages:
+            platform = str(getattr(item, "platform", "") or "").strip()
+            user_info = getattr(getattr(item, "message_info", None), "user_info", None)
+            user_id = str(getattr(user_info, "user_id", "") or getattr(item, "user_id", "") or "").strip()
+            if not platform or not user_id or is_bot_self(platform, user_id):
+                continue
+            if target_person_id and get_person_id(platform, user_id) != target_person_id:
+                continue
+            text = str(getattr(item, "processed_plain_text", "") or "").strip()
+            if not text:
+                continue
+            message_id = str(getattr(item, "message_id", "") or "").strip()
+            dedup_key = message_id or f"{platform}:{user_id}:{text}"
+            if dedup_key in seen_ids:
+                continue
+            seen_ids.add(dedup_key)
+            filtered.append(item)
+        return filtered
+
+    @staticmethod
+    def _format_user_evidence(messages: List[Any]) -> str:
+        lines: List[str] = []
+        for item in messages[:3]:
+            text = str(getattr(item, "processed_plain_text", "") or "").strip()
+            if text:
+                lines.append(f"- {text}")
+        return "\n".join(lines)
+
+    async def _extract_facts(self, person: Person, reply_text: str, user_evidence_text: str) -> List[str]:
         person_name = str(getattr(person, "person_name", "") or getattr(person, "nickname", "") or person.person_id)
-        prompt = f"""你要从一条机器人刚刚发送的回复中，提取“关于{person_name}的稳定事实”。
+        prompt = f"""你要从用户原始发言中提取“关于{person_name}的稳定事实”。
 
 目标人物：{person_name}
+用户原始发言证据：
+{user_evidence_text}
+
 机器人回复：
 {reply_text}
 
 请只提取满足以下条件的事实：
-1. 明确是关于目标人物本人的信息。
-2. 具有相对稳定性，可以作为长期记忆保存。
-3. 用简洁中文陈述句表达。
-4. 如果回复是在直接对目标人物说话，出现“你/你的/你自己”时，默认都指目标人物，请先改写成关于目标人物的第三人称事实再输出。
+1. 必须能被“用户原始发言证据”直接支持，不能只来自机器人回复。
+2. 明确是关于目标人物本人的信息。
+3. 具有相对稳定性，可以作为长期记忆保存。
+4. 用简洁中文陈述句表达。
+5. 如果用户原始发言中出现“我/我的/自己”，默认指目标人物，请先改写成关于目标人物的第三人称事实再输出。
 
 不要提取：
 - 机器人的情绪、计划、临时动作、客套话
+- 仅由机器人提出的建议、猜测、玩笑、回忆或承诺
 - 只适用于当前时刻的短期安排
 - 不确定、猜测、反问
 - 与目标人物无关的信息
