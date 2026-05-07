@@ -376,6 +376,7 @@ async def _select_emoji_with_sub_agent(
         context_message_limit=_EMOJI_SUB_AGENT_CONTEXT_LIMIT,
         system_prompt=system_prompt,
         extra_messages=[prompt_message, candidate_message],
+        request_kind="emotion",
         model_task_name=model_task_name,
     )
     selection_duration_ms = round((datetime.now() - selection_started_at).total_seconds() * 1000, 2)

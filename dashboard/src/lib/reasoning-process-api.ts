@@ -22,6 +22,7 @@ export type ReasoningPromptListResponse = {
   page_size: number
   stages: string[]
   sessions: string[]
+  selected_session: string
 }
 
 export type ReasoningPromptContentResponse = {
@@ -43,8 +44,8 @@ export async function listReasoningPromptFiles(
   params: ReasoningPromptListParams
 ): Promise<ReasoningPromptListResponse> {
   const queryParams = new URLSearchParams()
-  queryParams.set('stage', params.stage ?? 'all')
-  queryParams.set('session', params.session ?? 'all')
+  queryParams.set('stage', params.stage ?? 'planner')
+  queryParams.set('session', params.session ?? 'auto')
   queryParams.set('search', params.search ?? '')
   queryParams.set('page', String(params.page ?? 1))
   queryParams.set('page_size', String(params.pageSize ?? 50))

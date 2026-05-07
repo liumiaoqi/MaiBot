@@ -8,6 +8,8 @@ _REQUEST_PANEL_STYLE_MAP: dict[str, tuple[str, str]] = {
     "timing_gate": ("MaiSaka 大模型请求 - Timing Gate 子代理", "bright_magenta"),
     "replyer": ("MaiSaka 回复器 Prompt", "bright_yellow"),
     "emotion": ("MaiSaka Emotion Tool Prompt", "bright_cyan"),
+    "expression_selector": ("MaiSaka 表达选择子代理 Prompt", "bright_yellow"),
+    "reply_effect_judge": ("MaiSaka 回复效果评分器 Prompt", "bright_red"),
     "sub_agent": ("MaiSaka 大模型请求 - 子代理", "bright_blue"),
 }
 

@@ -29,6 +29,7 @@ import {
 import { cn } from '@/lib/utils'
 
 const PAGE_SIZE = 50
+const AUTO_SESSION = 'auto'
 
 function formatTime(timestamp: number | null, modifiedAt: number): string {
   const value = timestamp ? timestamp : modifiedAt * 1000
@@ -51,8 +52,8 @@ export function ReasoningProcessPage() {
   const [items, setItems] = useState<ReasoningPromptFile[]>([])
   const [stages, setStages] = useState<string[]>([])
   const [sessions, setSessions] = useState<string[]>([])
-  const [stage, setStage] = useState('all')
-  const [session, setSession] = useState('all')
+  const [stage, setStage] = useState('planner')
+  const [session, setSession] = useState(AUTO_SESSION)
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -85,6 +86,9 @@ export function ReasoningProcessPage() {
         setItems(data.items)
         setStages(data.stages)
         setSessions(data.sessions)
+        if (data.selected_session && data.selected_session !== session) {
+          setSession(data.selected_session)
+        }
         setTotal(data.total)
         setSelected((current) => {
           if (
@@ -185,7 +189,8 @@ export function ReasoningProcessPage() {
           onValueChange={(value) =>
             resetToFirstPage(() => {
               setStage(value)
-              setSession('all')
+              setSession(AUTO_SESSION)
+              setSelected(null)
             })
           }
         >
@@ -193,7 +198,11 @@ export function ReasoningProcessPage() {
             <SelectValue placeholder="阶段" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">全部阶段</SelectItem>
+            {!stages.includes(stage) && (
+              <SelectItem value={stage}>
+                {stage}
+              </SelectItem>
+            )}
             {stages.map((item) => (
               <SelectItem key={item} value={item}>
                 {item}
@@ -205,12 +214,15 @@ export function ReasoningProcessPage() {
         <Select
           value={session}
           onValueChange={(value) => resetToFirstPage(() => setSession(value))}
+          disabled={sessions.length === 0 && loading}
         >
           <SelectTrigger>
             <SelectValue placeholder="会话" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">全部会话</SelectItem>
+            {session === AUTO_SESSION && (
+              <SelectItem value={AUTO_SESSION}>自动选择最近会话</SelectItem>
+            )}
             {sessions.map((item) => (
               <SelectItem key={item} value={item}>
                 {item}

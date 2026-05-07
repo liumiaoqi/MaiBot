@@ -184,7 +184,6 @@ def test_timing_gate_invalid_tool_hint_only_visible_to_timing_gate() -> None:
 
 def test_forced_timing_trigger_bypasses_message_frequency_threshold() -> None:
     runtime = SimpleNamespace(
-        _STATE_WAIT="wait",
         _agent_state="stop",
         _message_turn_scheduled=False,
         _internal_turn_queue=asyncio.Queue(),
