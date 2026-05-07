@@ -137,6 +137,7 @@ function ModelConfigPageContent() {
     oldProviders: [],
   })
   const [taskConfigSchema, setTaskConfigSchema] = useState<ConfigSchema | null>(null)
+  const taskConfigSchemaRef = useRef<ConfigSchema | null>(null)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [jumpToPage, setJumpToPage] = useState('')
@@ -187,12 +188,12 @@ function ModelConfigPageContent() {
   const checkTaskConfigIssues = useCallback((
     taskConf: ModelTaskConfig | null,
     modelList: ModelInfo[],
-    schema: ConfigSchema | null = taskConfigSchema
+    schema?: ConfigSchema | null
   ) => {
     if (!taskConf) return
     
     const modelNameSet = new Set(modelList.map(m => m.name))
-    const advancedTaskNames = getAdvancedTaskNames(schema)
+    const advancedTaskNames = getAdvancedTaskNames(schema ?? taskConfigSchemaRef.current)
     const invalidRefs: { taskName: string; invalidModels: string[] }[] = []
     const emptyTaskList: string[] = []
     
@@ -216,7 +217,7 @@ function ModelConfigPageContent() {
     
     setInvalidModelRefs(invalidRefs)
     setEmptyTasks(emptyTaskList)
-  }, [taskConfigSchema])
+  }, [])
   
   // 加载配置
   const loadConfig = useCallback(async () => {
@@ -252,6 +253,7 @@ function ModelConfigPageContent() {
       if (schemaResult.success && schemaResult.data) {
         const schema = (schemaResult.data as unknown as Record<string, unknown>).schema as ConfigSchema
         nextTaskConfigSchema = schema.nested?.model_task_config ?? null
+        taskConfigSchemaRef.current = nextTaskConfigSchema
         setTaskConfigSchema(nextTaskConfigSchema)
       }
       
