@@ -8,6 +8,7 @@ import asyncio
 
 from rich.console import RenderableType
 from src.common.data_models.llm_service_data_models import LLMGenerationOptions
+from src.common.i18n import get_locale
 from src.common.logger import get_logger
 from src.common.prompt_i18n import load_prompt
 from src.common.utils.utils_config import ChatConfigUtils
@@ -401,6 +402,20 @@ class MaisakaChatLoopService:
 
     def _build_timing_gate_wait_rule(self) -> str:
         """构造 Timing Gate 中 wait 工具的场景说明。"""
+
+        locale = get_locale()
+        if locale == "en-US":
+            if self._is_group_chat is True:
+                return ""
+            if self._is_group_chat is False:
+                return "- wait: wait for a fixed period, then judge again"
+            return "- wait: available only in private chats; if this is a group chat, do not call it"
+        if locale == "ja-JP":
+            if self._is_group_chat is True:
+                return ""
+            if self._is_group_chat is False:
+                return "- wait：一定時間待ってから再判断する"
+            return "- wait：個人チャットでのみ利用できます。現在がグループチャットなら呼び出さないでください"
 
         if self._is_group_chat is True:
             return ""
