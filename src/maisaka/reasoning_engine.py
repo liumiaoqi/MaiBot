@@ -55,7 +55,7 @@ logger = get_logger("maisaka_reasoning_engine")
 
 TIMING_GATE_CONTEXT_DROP_HEAD_RATIO = 0.7
 TIMING_GATE_MAX_ATTEMPTS = 3
-TIMING_GATE_TOOL_NAMES = {"continue", "no_reply"}
+TIMING_GATE_TOOL_NAMES = {"continue", "no_reply", "wait"}
 HISTORY_SILENT_TOOL_NAMES = {"finish"}
 
 
@@ -143,30 +143,13 @@ class MaisakaReasoningEngine:
             tool_definitions=tool_definitions,
         )
 
-    @staticmethod
-    def _build_timing_gate_fallback_prompt() -> str:
-        """构造 Timing Gate 子代理的兜底提示词。"""
-
-        return (
-            "你是 Maisaka 的 timing gate 子代理，只负责决定当前会话下一步的节奏控制。\n"
-            "你必须且只能调用一个工具，不要输出普通文本答案。\n"
-            "可用工具只有两个：\n"
-            "1. no_reply: 适合当前不继续本轮发言，等待新的外部消息或让用户继续说完。\n"
-            "2. continue: 适合现在立刻进入下一轮正常思考、回复、查询和其他工具执行。\n"
-            "如果需要真正回复消息、查询信息或使用其他工具，应该调用 continue，让主分支继续执行，而不是在这里完成。\n"
-            "不要连续调用多个工具，也不要输出工具之外的计划。"
-        )
-
     def _build_timing_gate_system_prompt(self) -> str:
         """构造 Timing Gate 子代理使用的系统提示词。"""
 
-        try:
-            return load_prompt(
-                "maisaka_timing_gate",
-                **self._runtime._chat_loop_service.build_prompt_template_context(),
-            )
-        except Exception:
-            return self._build_timing_gate_fallback_prompt()
+        return load_prompt(
+            "maisaka_timing_gate",
+            **self._runtime._chat_loop_service.build_prompt_template_context(),
+        )
 
     async def _build_action_tool_definitions(self) -> tuple[list[dict[str, Any]], str]:
         """构造 Action Loop 阶段可见的工具定义与 deferred tools 提示。"""
@@ -242,7 +225,7 @@ class MaisakaReasoningEngine:
     async def _run_timing_gate(
         self,
         anchor_message: SessionMessage,
-    ) -> tuple[Literal["continue", "no_reply"], Any, list[str], list[dict[str, Any]]]:
+    ) -> tuple[Literal["continue", "no_reply", "wait"], Any, list[str], list[dict[str, Any]]]:
         """运行 Timing Gate 子代理并返回控制决策。"""
 
         if self._runtime._force_next_timing_continue:
@@ -254,13 +237,19 @@ class MaisakaReasoningEngine:
         selected_tool_call: Optional[ToolCall] = None
         invalid_tool_text = ""
         for attempt_index in range(TIMING_GATE_MAX_ATTEMPTS):
+            timing_tool_definitions = get_timing_tools(self._build_tool_availability_context())
+            available_timing_tool_names = {
+                str(tool_definition.get("name") or "").strip()
+                for tool_definition in timing_tool_definitions
+                if str(tool_definition.get("name") or "").strip()
+            }
             response = await self._run_timing_gate_sub_agent(
                 system_prompt=self._build_timing_gate_system_prompt(),
-                tool_definitions=get_timing_tools(),
+                tool_definitions=timing_tool_definitions,
             )
             selected_tool_call = None
             for tool_call in response.tool_calls:
-                if tool_call.func_name in TIMING_GATE_TOOL_NAMES:
+                if tool_call.func_name in available_timing_tool_names:
                     selected_tool_call = tool_call
                     break
 
@@ -332,7 +321,12 @@ class MaisakaReasoningEngine:
         self._append_timing_gate_execution_result(response, selected_tool_call, result)
 
         timing_action = str(result.metadata.get("timing_action") or selected_tool_call.func_name).strip()
-        if timing_action not in TIMING_GATE_TOOL_NAMES:
+        available_timing_action_names = {
+            str(tool_definition.get("name") or "").strip()
+            for tool_definition in get_timing_tools(self._build_tool_availability_context())
+            if str(tool_definition.get("name") or "").strip()
+        }
+        if timing_action not in available_timing_action_names:
             logger.warning(
                 f"{self._runtime.log_prefix} Timing Gate 返回未知动作 {timing_action!r}，将按 no_reply 处理"
             )
@@ -388,7 +382,7 @@ class MaisakaReasoningEngine:
         hint_content = (
             "Timing Gate 上一轮选择了非法工具："
             f"{normalized_tool_text}。\n"
-            "Timing Gate 只能调用 continue 或 no_reply 中的一个工具。"
+            "Timing Gate 只能调用当前可用的 continue、no_reply 或 wait 中的一个工具。"
         )
         self._runtime._chat_history.append(
             SessionBackedMessage(
@@ -419,7 +413,12 @@ class MaisakaReasoningEngine:
         try:
             while self._runtime._running:
                 queued_trigger = await self._runtime._internal_turn_queue.get()
-                message_triggered = self._drain_ready_turn_triggers(queued_trigger)
+                message_triggered, timeout_triggered = self._drain_ready_turn_triggers(queued_trigger)
+
+                if self._runtime._agent_state == self._runtime._STATE_WAIT and not timeout_triggered:
+                    self._runtime._message_turn_scheduled = False
+                    logger.debug(f"{self._runtime.log_prefix} 当前仍处于 wait 状态，忽略消息触发并继续等待超时")
+                    continue
 
                 if message_triggered:
                     await self._runtime._wait_for_message_quiet_period()
@@ -430,17 +429,30 @@ class MaisakaReasoningEngine:
                     if self._runtime._has_pending_messages()
                     else []
                 )
-                if not cached_messages:
-                    continue
+                if cached_messages:
+                    self._runtime._agent_state = self._runtime._STATE_RUNNING
+                    self._runtime._update_stage_status(
+                        "消息整理",
+                        f"待处理消息 {len(cached_messages)} 条",
+                    )
+                    asyncio.create_task(self._runtime._trigger_batch_learning(cached_messages))
+                    if timeout_triggered:
+                        self._runtime._chat_history.append(
+                            self._build_wait_completed_message(has_new_messages=True)
+                        )
+                    await self._ingest_messages(cached_messages)
+                    anchor_message = cached_messages[-1]
+                else:
+                    anchor_message = self._get_timeout_anchor_message()
+                    if anchor_message is None:
+                        logger.warning(f"{self._runtime.log_prefix} wait 超时后没有可复用的锚点消息，跳过本轮")
+                        continue
+                    logger.info(f"{self._runtime.log_prefix} 等待超时后开始新一轮思考")
+                    if self._runtime._pending_wait_tool_call_id:
+                        self._runtime._chat_history.append(
+                            self._build_wait_completed_message(has_new_messages=False)
+                        )
 
-                self._runtime._agent_state = self._runtime._STATE_RUNNING
-                self._runtime._update_stage_status(
-                    "消息整理",
-                    f"待处理消息 {len(cached_messages)} 条",
-                )
-                asyncio.create_task(self._runtime._trigger_batch_learning(cached_messages))
-                await self._ingest_messages(cached_messages)
-                anchor_message = cached_messages[-1]
                 try:
                     timing_gate_required = True
                     round_index = 0
@@ -492,7 +504,7 @@ class MaisakaReasoningEngine:
                                     timing_tool_monitor_results,
                                 ) = await self._run_timing_gate(anchor_message)
                                 timing_elapsed_seconds = time.time() - timing_started_at
-                                if timing_action != "continue":
+                                if timing_action == "no_reply":
                                     await self._runtime._wait_for_timing_gate_non_continue_cooldown(
                                         timing_elapsed_seconds
                                     )
@@ -511,8 +523,12 @@ class MaisakaReasoningEngine:
                                 )
                                 timing_gate_required = self._mark_timing_gate_completed(timing_action)
                                 if timing_action != "continue":
-                                    cycle_end_reason = "timing_no_reply"
-                                    cycle_end_detail = "Timing Gate 选择 no_reply，本轮不会进入 Planner。"
+                                    if timing_action == "wait":
+                                        cycle_end_reason = "timing_wait"
+                                        cycle_end_detail = "Timing Gate 选择 wait，本轮不会进入 Planner，将在等待结束后继续。"
+                                    else:
+                                        cycle_end_reason = "timing_no_reply"
+                                        cycle_end_detail = "Timing Gate 选择 no_reply，本轮不会进入 Planner。"
                                     logger.debug(
                                         f"{self._runtime.log_prefix} Timing Gate 结束当前回合: "
                                         f"回合={round_index + 1} 动作={timing_action}"
@@ -757,11 +773,12 @@ class MaisakaReasoningEngine:
 
     def _drain_ready_turn_triggers(
         self,
-        queued_trigger: Literal["message"],
-    ) -> bool:
+        queued_trigger: Literal["message", "timeout"],
+    ) -> tuple[bool, bool]:
         """合并当前已就绪的消息触发信号。"""
 
         message_triggered = queued_trigger == "message"
+        timeout_triggered = queued_trigger == "timeout"
 
         while True:
             try:
@@ -772,8 +789,33 @@ class MaisakaReasoningEngine:
             if next_trigger == "message":
                 message_triggered = True
                 continue
+            if next_trigger == "timeout":
+                timeout_triggered = True
+                continue
 
-        return message_triggered
+        return message_triggered, timeout_triggered
+
+    def _get_timeout_anchor_message(self) -> Optional[SessionMessage]:
+        """在 wait 超时后复用最近一条真实用户消息作为锚点。"""
+        if self._runtime.message_cache:
+            return self._runtime.message_cache[-1]
+        return None
+
+    def _build_wait_completed_message(self, *, has_new_messages: bool) -> ToolResultMessage:
+        """构造 wait 完成后的工具结果消息。"""
+        tool_call_id = self._runtime._pending_wait_tool_call_id or "wait_timeout"
+        self._runtime._pending_wait_tool_call_id = None
+        content = (
+            "等待已结束，期间收到了新的用户输入。请结合这些新消息继续下一轮思考。"
+            if has_new_messages
+            else "等待已超时，期间没有收到新的用户输入。请基于现有上下文继续下一轮思考。"
+        )
+        return ToolResultMessage(
+            content=content,
+            timestamp=datetime.now(),
+            tool_call_id=tool_call_id,
+            tool_name="wait",
+        )
 
     async def _ingest_messages(self, messages: list[SessionMessage]) -> None:
         """处理传入消息列表，将其转换为历史消息并加入聊天历史缓存。"""
