@@ -78,14 +78,12 @@ function unwrapModelConfig(data: unknown): Record<string, unknown> {
   return data as Record<string, unknown>
 }
 
-function getAdvancedTaskNames(schema: ConfigSchema | null): Set<string> {
-  const advancedTaskNames = new Set(
+function getRequiredTaskNames(schema: ConfigSchema | null): Set<string> {
+  return new Set(
     (schema?.fields ?? [])
-      .filter((field) => field.advanced)
+      .filter((field) => field.type === 'object' && !field.advanced)
       .map((field) => field.name)
   )
-  advancedTaskNames.add('learner')
-  return advancedTaskNames
 }
 
 // 主导出组件：包装 RestartProvider
@@ -193,7 +191,7 @@ function ModelConfigPageContent() {
     if (!taskConf) return
     
     const modelNameSet = new Set(modelList.map(m => m.name))
-    const advancedTaskNames = getAdvancedTaskNames(schema ?? taskConfigSchemaRef.current)
+    const requiredTaskNames = getRequiredTaskNames(schema ?? taskConfigSchemaRef.current)
     const invalidRefs: { taskName: string; invalidModels: string[] }[] = []
     const emptyTaskList: string[] = []
     
@@ -202,7 +200,7 @@ function ModelConfigPageContent() {
       
       // 检查是否有模型
       if (!task.model_list || task.model_list.length === 0) {
-        if (!advancedTaskNames.has(key)) {
+        if (requiredTaskNames.has(key)) {
           emptyTaskList.push(key)
         }
         continue
