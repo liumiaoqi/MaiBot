@@ -340,10 +340,50 @@ class PersonProfileService:
                     "type": "paragraph",
                     "score": 1.1,
                     "content": content[:220],
-                    "metadata": {},
+                    "source": str(row.get("source", "") or source),
+                    "metadata": dict(row.get("metadata", {}) or {}),
                 }
             )
         return self._filter_stale_paragraph_evidence(evidence)
+
+    @staticmethod
+    def _source_type_from_source(source: str) -> str:
+        token = str(source or "").strip()
+        if token.startswith("chat_summary:"):
+            return "chat_summary"
+        if token.startswith("person_fact:"):
+            return "person_fact"
+        return ""
+
+    def _enrich_paragraph_evidence_metadata(
+        self,
+        paragraph_hash: str,
+        metadata: Dict[str, Any],
+    ) -> Tuple[Dict[str, Any], str]:
+        merged = dict(metadata or {})
+        source = str(merged.get("source", "") or "").strip()
+        try:
+            paragraph = self.metadata_store.get_paragraph(paragraph_hash)
+        except Exception:
+            paragraph = None
+        if isinstance(paragraph, dict):
+            paragraph_metadata = paragraph.get("metadata", {}) or {}
+            if isinstance(paragraph_metadata, dict):
+                merged = {**paragraph_metadata, **merged}
+            source = source or str(paragraph.get("source", "") or "").strip()
+        source_type = str(merged.get("source_type", "") or "").strip() or self._source_type_from_source(source)
+        if source_type:
+            merged["source_type"] = source_type
+        if source:
+            merged["source"] = source
+        return merged, source
+
+    @staticmethod
+    def _is_chat_summary_evidence(item: Dict[str, Any]) -> bool:
+        metadata = item.get("metadata", {}) if isinstance(item.get("metadata"), dict) else {}
+        source_type = str(metadata.get("source_type", "") or "").strip()
+        source = str(item.get("source", "") or metadata.get("source", "") or "").strip()
+        return source_type == "chat_summary" or source.startswith("chat_summary:")
 
     def _filter_stale_paragraph_evidence(
         self,
@@ -417,7 +457,8 @@ class PersonProfileService:
                             "type": "paragraph",
                             "score": 0.0,
                             "content": str(para.get("content", ""))[:180],
-                            "metadata": {},
+                            "source": str(para.get("source", "") or ""),
+                            "metadata": dict(para.get("metadata", {}) or {}),
                         }
                     )
             return self._filter_stale_paragraph_evidence(fallback[:top_k])
@@ -443,13 +484,18 @@ class PersonProfileService:
                 if not h or h in seen_hash:
                     continue
                 seen_hash.add(h)
+                metadata, source = self._enrich_paragraph_evidence_metadata(
+                    h,
+                    dict(getattr(item, "metadata", {}) or {}),
+                )
                 evidence.append(
                     {
                         "hash": h,
                         "type": str(getattr(item, "result_type", "")),
                         "score": float(getattr(item, "score", 0.0) or 0.0),
                         "content": str(getattr(item, "content", "") or "")[:220],
-                        "metadata": dict(getattr(item, "metadata", {}) or {}),
+                        "source": source,
+                        "metadata": metadata,
                     }
                 )
         evidence.sort(key=lambda x: x.get("score", 0.0), reverse=True)
@@ -475,7 +521,7 @@ class PersonProfileService:
             lines.append(f"记忆特征: {'; '.join(memory_traits[:6])}")
 
         if relation_edges:
-            lines.append("关系证据:")
+            lines.append("稳定关系证据:")
             for rel in relation_edges[:6]:
                 s = rel.get("subject", "")
                 p = rel.get("predicate", "")
@@ -483,9 +529,19 @@ class PersonProfileService:
                 conf = float(rel.get("confidence", 0.0))
                 lines.append(f"- {s} {p} {o} (conf={conf:.2f})")
 
-        if vector_evidence:
-            lines.append("向量证据摘要:")
-            for item in vector_evidence[:4]:
+        stable_evidence = [item for item in vector_evidence if not self._is_chat_summary_evidence(item)]
+        recent_interactions = [item for item in vector_evidence if self._is_chat_summary_evidence(item)]
+
+        if stable_evidence:
+            lines.append("稳定人物事实:")
+            for item in stable_evidence[:4]:
+                content = str(item.get("content", "")).strip()
+                if content:
+                    lines.append(f"- {content}")
+
+        if recent_interactions:
+            lines.append("近期相关互动:")
+            for item in recent_interactions[:2]:
                 content = str(item.get("content", "")).strip()
                 if content:
                     lines.append(f"- {content}")
