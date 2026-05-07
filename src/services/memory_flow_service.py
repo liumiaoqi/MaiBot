@@ -48,7 +48,7 @@ class PersonFactWritebackService:
         except asyncio.CancelledError:
             pass
         except Exception as exc:
-            logger.warning("关闭人物事实写回 worker 失败: %s", exc)
+            logger.warning(f"关闭人物事实写回 worker 失败: {exc}")
 
     async def enqueue(self, message: Any) -> None:
         if not bool(global_config.a_memorix.integration.person_fact_writeback_enabled):
@@ -67,7 +67,7 @@ class PersonFactWritebackService:
                 try:
                     await self._handle_message(message)
                 except Exception as exc:
-                    logger.warning("人物事实写回处理失败: %s", exc, exc_info=True)
+                    logger.warning(f"人物事实写回处理失败: {exc}", exc_info=True)
                 finally:
                     self._queue.task_done()
         except asyncio.CancelledError:
@@ -126,7 +126,7 @@ class PersonFactWritebackService:
         try:
             replies = find_messages(message_id=reply_to, limit=1)
         except Exception as exc:
-            logger.debug("查询 reply_to 目标失败: %s", exc)
+            logger.debug(f"查询 reply_to 目标失败: {exc}")
             return None
         if not replies:
             return None
@@ -166,7 +166,7 @@ class PersonFactWritebackService:
         try:
             response_result = await self._extractor.generate_response(prompt)
         except Exception as exc:
-            logger.debug("人物事实提取模型调用失败: %s", exc)
+            logger.debug(f"人物事实提取模型调用失败: {exc}")
             return []
         return self._parse_fact_list(response_result.response)
 
@@ -248,7 +248,7 @@ class ChatSummaryWritebackService:
         except asyncio.CancelledError:
             pass
         except Exception as exc:
-            logger.warning("关闭聊天摘要写回 worker 失败: %s", exc)
+            logger.warning(f"关闭聊天摘要写回 worker 失败: {exc}")
 
     async def enqueue(self, message: Any) -> None:
         if not bool(global_config.a_memorix.integration.chat_summary_writeback_enabled):
@@ -267,7 +267,7 @@ class ChatSummaryWritebackService:
                 try:
                     await self._handle_message(message)
                 except Exception as exc:
-                    logger.warning("聊天摘要写回处理失败: %s", exc, exc_info=True)
+                    logger.warning(f"聊天摘要写回处理失败: {exc}", exc_info=True)
                 finally:
                     self._queue.task_done()
         except asyncio.CancelledError:
@@ -319,21 +319,16 @@ class ChatSummaryWritebackService:
         )
         if not getattr(result, "success", False):
             logger.warning(
-                "聊天摘要自动写回失败: session_id=%s detail=%s",
-                session_id,
-                getattr(result, "detail", ""),
+                f"聊天摘要自动写回失败: session_id={session_id} detail={getattr(result, 'detail', '')}",
             )
             return
 
         state.last_trigger_message_count = total_message_count
         state.last_trigger_time = time.time()
         logger.info(
-            "聊天摘要自动写回成功: session_id=%s trigger=%s total_messages=%s context_length=%s detail=%s",
-            session_id,
-            "message_threshold",
-            total_message_count,
-            context_length,
-            getattr(result, "detail", ""),
+            f"聊天摘要自动写回成功: session_id={session_id} trigger=message_threshold "
+            f"total_messages={total_message_count} context_length={context_length} "
+            f"detail={getattr(result, 'detail', '')}",
         )
 
     async def _load_last_trigger_message_count(self, *, session_id: str, total_message_count: int) -> int:
@@ -363,7 +358,7 @@ class ChatSummaryWritebackService:
             # 至少避免重启后立刻重复写入一条相近摘要。
             return total_message_count
         except Exception as exc:
-            logger.debug("恢复聊天摘要写回游标失败: session_id=%s error=%s", session_id, exc)
+            logger.debug(f"恢复聊天摘要写回游标失败: session_id={session_id} error={exc}")
             return 0
 
     @staticmethod

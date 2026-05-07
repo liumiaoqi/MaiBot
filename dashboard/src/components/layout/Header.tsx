@@ -87,12 +87,12 @@ export function Header({
   return (
     <header
       className={cn(
-        'sticky top-0 isolate z-10 flex h-16 items-center justify-between border-b px-4 backdrop-blur-md',
+        'sticky top-0 isolate z-10 flex h-16 min-w-0 items-center justify-between gap-2 border-b px-3 backdrop-blur-md sm:px-4',
         inheritsPageBackground ? 'bg-transparent' : 'bg-card/80'
       )}
     >
       {!inheritsPageBackground && <BackgroundLayer config={headerBg} layerId="header" />}
-      <div className="relative z-10 flex items-center gap-4">
+      <div className="relative z-10 flex min-w-0 shrink-0 items-center gap-2 sm:gap-4">
         {/* 移动端菜单按钮 */}
         <button
           onClick={onMobileMenuToggle}
@@ -122,7 +122,7 @@ export function Header({
         </button>
       </div>
 
-      <div className="relative z-10 flex items-center gap-2">
+      <div className="relative z-10 flex min-w-0 flex-1 items-center justify-end gap-1 sm:gap-2">
         {/* 工作区切换：复用 Tabs 组件 + Motion 动画指示器 */}
         <LayoutGroup id="workspace-switcher">
           <Tabs value={workspaceMode} aria-label={t('workspace.switcherLabel')}>
@@ -165,7 +165,7 @@ export function Header({
           </Tabs>
         </LayoutGroup>
 
-        <div className="bg-border h-6 w-px" />
+        <div className="bg-border hidden h-6 w-px sm:block" />
         {/* 后端切换按钮（仅 Electron） */}
         {isElectron() && (
           <>
@@ -211,7 +211,7 @@ export function Header({
           variant="ghost"
           size="sm"
           onClick={() => window.open('https://docs.mai-mai.org', '_blank')}
-          className="gap-2"
+          className="hidden gap-2 sm:inline-flex"
           title={t('header.viewDocs')}
         >
           <BookOpen className="h-4 w-4" />
@@ -221,7 +221,7 @@ export function Header({
         {/* 语言切换 */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="gap-2">
+            <Button variant="ghost" size="sm" className="gap-2 px-2 sm:px-3">
               <Globe className="h-4 w-4" />
               <span className="hidden text-xs sm:inline">
                 {LANGUAGE_NAMES[currentLang.split('-')[0] as 'zh' | 'en' | 'ja' | 'ko'] ??
@@ -259,14 +259,14 @@ export function Header({
         </button>
 
         {/* 分隔线 */}
-        <div className="bg-border h-6 w-px" />
+        <div className="bg-border hidden h-6 w-px sm:block" />
 
         {/* 登出按钮 */}
         <Button
           variant="ghost"
           size="sm"
           onClick={handleLogout}
-          className="gap-2"
+          className="gap-2 px-2 sm:px-3"
           title={t('header.logout')}
         >
           <LogOut className="h-4 w-4" />

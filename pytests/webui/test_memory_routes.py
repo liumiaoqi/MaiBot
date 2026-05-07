@@ -241,6 +241,145 @@ def test_webui_memory_profile_query_prefers_explicit_person_id(client: TestClien
     assert response.json()["person_id"] == "explicit-person-id"
 
 
+def test_webui_memory_profile_list_enriches_person_name(client: TestClient, monkeypatch):
+    async def fake_profile_admin(*, action: str, **kwargs):
+        assert action == "list"
+        assert kwargs["limit"] == 7
+        return {
+            "success": True,
+            "items": [
+                {"person_id": "person-1", "profile_text": "profile-1"},
+                {"person_id": "person-2", "profile_text": "profile-2"},
+            ],
+        }
+
+    monkeypatch.setattr(memory_router_module.memory_service, "profile_admin", fake_profile_admin)
+    monkeypatch.setattr(
+        memory_router_module,
+        "_get_person_name_for_person_id",
+        lambda person_id: {"person-1": "Alice"}.get(person_id, ""),
+    )
+
+    response = client.get("/api/webui/memory/profiles", params={"limit": 7})
+
+    assert response.status_code == 200
+    assert response.json()["items"][0]["person_name"] == "Alice"
+    assert response.json()["items"][1]["person_name"] == ""
+
+
+def test_webui_memory_profile_search_resolves_platform_user_id(client: TestClient, monkeypatch):
+    def fake_resolve_person_id_for_memory(**kwargs):
+        assert kwargs == {"platform": "qq", "user_id": "12345", "strict_known": False}
+        return "resolved-person-id"
+
+    async def fake_profile_list(limit: int):
+        assert limit == 200
+        return {
+            "success": True,
+            "items": [
+                {"person_id": "resolved-person-id", "person_name": "Alice", "profile_text": "喜欢咖啡"},
+                {"person_id": "other-person-id", "person_name": "Bob", "profile_text": "喜欢茶"},
+            ],
+        }
+
+    monkeypatch.setattr(memory_router_module, "resolve_person_id_for_memory", fake_resolve_person_id_for_memory)
+    monkeypatch.setattr(memory_router_module, "_profile_list", fake_profile_list)
+
+    response = client.get(
+        "/api/webui/memory/profiles/search",
+        params={"platform": "qq", "user_id": "12345", "limit": 50},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["items"] == [
+        {"person_id": "resolved-person-id", "person_name": "Alice", "profile_text": "喜欢咖啡"}
+    ]
+
+
+def test_webui_memory_profile_search_filters_keyword(client: TestClient, monkeypatch):
+    async def fake_profile_list(limit: int):
+        assert limit == 200
+        return {
+            "success": True,
+            "items": [
+                {"person_id": "person-1", "person_name": "Alice", "profile_text": "喜欢咖啡"},
+                {"person_id": "person-2", "person_name": "Bob", "profile_text": "喜欢茶"},
+            ],
+        }
+
+    monkeypatch.setattr(memory_router_module, "_profile_list", fake_profile_list)
+
+    response = client.get("/api/webui/memory/profiles/search", params={"person_keyword": "咖啡", "limit": 50})
+
+    assert response.status_code == 200
+    assert response.json()["items"] == [
+        {"person_id": "person-1", "person_name": "Alice", "profile_text": "喜欢咖啡"}
+    ]
+
+
+def test_webui_memory_episode_list_resolves_platform_user_id(client: TestClient, monkeypatch):
+    def fake_resolve_person_id_for_memory(**kwargs):
+        assert kwargs == {"platform": "qq", "user_id": "12345", "strict_known": False}
+        return "resolved-person-id"
+
+    async def fake_episode_admin(*, action: str, **kwargs):
+        assert action == "list"
+        assert kwargs == {
+            "query": "咖啡",
+            "limit": 9,
+            "source": "chat_summary:demo",
+            "person_id": "resolved-person-id",
+            "time_start": 100.0,
+            "time_end": 200.0,
+        }
+        return {
+            "success": True,
+            "items": [{"episode_id": "ep-1", "person_id": "resolved-person-id", "summary": "喝咖啡"}],
+            "count": 1,
+        }
+
+    monkeypatch.setattr(memory_router_module, "resolve_person_id_for_memory", fake_resolve_person_id_for_memory)
+    monkeypatch.setattr(memory_router_module.memory_service, "episode_admin", fake_episode_admin)
+    monkeypatch.setattr(memory_router_module, "_get_person_name_for_person_id", lambda person_id: "测试人物")
+
+    response = client.get(
+        "/api/webui/memory/episodes",
+        params={
+            "query": "咖啡",
+            "limit": 9,
+            "source": "chat_summary:demo",
+            "platform": "qq",
+            "user_id": "12345",
+            "time_start": 100,
+            "time_end": 200,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["items"][0]["person_name"] == "测试人物"
+
+
+def test_webui_memory_episode_list_prefers_explicit_person_id(client: TestClient, monkeypatch):
+    def fake_resolve_person_id_for_memory(**kwargs):
+        raise AssertionError(f"不应解析平台账号: {kwargs}")
+
+    async def fake_episode_admin(*, action: str, **kwargs):
+        assert action == "list"
+        assert kwargs["person_id"] == "explicit-person-id"
+        return {"success": True, "items": []}
+
+    monkeypatch.setattr(memory_router_module, "resolve_person_id_for_memory", fake_resolve_person_id_for_memory)
+    monkeypatch.setattr(memory_router_module.memory_service, "episode_admin", fake_episode_admin)
+
+    response = client.get(
+        "/api/webui/memory/episodes",
+        params={"person_id": "explicit-person-id", "platform": "qq", "user_id": "12345"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["items"] == []
+
+
 def test_compat_aggregate_route(client: TestClient, monkeypatch):
     async def fake_search(query: str, **kwargs):
         assert kwargs["mode"] == "aggregate"

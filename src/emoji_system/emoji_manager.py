@@ -768,11 +768,8 @@ class EmojiManager:
         selected_emoji, similarity = random.choice(top_emojis)
         self.update_emoji_usage(selected_emoji)
         logger.info(
-            "[获取表情包] 为[%s]选中表情包: %s(%s)，相似度: %.4f",
-            emotion_label,
-            selected_emoji.file_name,
-            ",".join(_get_emoji_emotions(selected_emoji)),
-            similarity,
+            f"[获取表情包] 为[{emotion_label}]选中表情包: "
+            f"{selected_emoji.file_name}({','.join(_get_emoji_emotions(selected_emoji))})，相似度: {similarity:.4f}",
         )
         return selected_emoji
 

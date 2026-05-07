@@ -544,7 +544,7 @@ async def websocket_endpoint(websocket: WebSocket, token: Optional[str] = Query(
 
     connection_id = uuid.uuid4().hex
     await websocket_manager.connect(connection_id=connection_id, websocket=websocket)
-    logger.info("统一 WebSocket 客户端已连接: connection=%s", connection_id)
+    logger.info(f"统一 WebSocket 客户端已连接: connection={connection_id}")
     await websocket_manager.send_event(
         connection_id,
         domain="system",
@@ -565,17 +565,15 @@ async def websocket_endpoint(websocket: WebSocket, token: Optional[str] = Query(
                 continue
             await handle_client_message(connection_id, cast(Dict[str, Any], raw_message))
     except WebSocketDisconnect:
-        logger.info("统一 WebSocket 客户端已断开: connection=%s", connection_id)
+        logger.info(f"统一 WebSocket 客户端已断开: connection={connection_id}")
     except asyncio.CancelledError:
-        logger.warning("统一 WebSocket 连接处理被取消: connection=%s", connection_id)
+        logger.warning(f"统一 WebSocket 连接处理被取消: connection={connection_id}")
         raise
     except Exception as exc:
-        logger.error("统一 WebSocket 处理失败: connection=%s, error=%s", connection_id, exc, exc_info=True)
+        logger.error(f"统一 WebSocket 处理失败: connection={connection_id}, error={exc}", exc_info=True)
     finally:
         chat_manager.disconnect_connection(connection_id)
         await websocket_manager.disconnect(connection_id)
         logger.info(
-            "统一 WebSocket 连接清理完成: connection=%s, 剩余连接=%s",
-            connection_id,
-            len(websocket_manager.connections),
+            f"统一 WebSocket 连接清理完成: connection={connection_id}, 剩余连接={len(websocket_manager.connections)}",
         )

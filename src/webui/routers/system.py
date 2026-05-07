@@ -4,21 +4,28 @@
 提供系统重启、状态查询等功能
 """
 
-import os
-import time
 from datetime import datetime
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+import os
+import time
+
 from src.common.logger import get_logger
 from src.config.config import MMC_VERSION
+from src.webui.dashboard_update import (
+    DASHBOARD_PACKAGE_NAME,
+    PYPI_PROJECT_URL,
+    detect_package_runner,
+    get_dashboard_version_info,
+)
 from src.webui.dependencies import require_auth
 
 router = APIRouter(prefix="/system", tags=["system"], dependencies=[Depends(require_auth)])
 logger = get_logger("webui_system")
 
-# 记录启动时间
 _start_time = time.time()
 
 
@@ -36,6 +43,17 @@ class StatusResponse(BaseModel):
     uptime: float
     version: str
     start_time: str
+
+
+class DashboardVersionResponse(BaseModel):
+    """WebUI 版本检查响应"""
+
+    current_version: str
+    latest_version: Optional[str] = None
+    has_update: bool = False
+    runner: str = "unknown"
+    package_name: str = DASHBOARD_PACKAGE_NAME
+    pypi_url: str = PYPI_PROJECT_URL
 
 
 @router.post("/restart", response_model=RestartResponse)
@@ -87,6 +105,19 @@ async def get_maibot_status():
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取状态失败: {str(e)}") from e
+
+
+@router.get("/dashboard-version", response_model=DashboardVersionResponse)
+async def get_dashboard_version(current_version: Optional[str] = None):
+    """获取 WebUI 当前版本和 PyPI 最新版本。"""
+    version_info = await get_dashboard_version_info(current_version)
+
+    return DashboardVersionResponse(
+        current_version=version_info.current_version,
+        latest_version=version_info.latest_version,
+        has_update=version_info.has_update,
+        runner=detect_package_runner(),
+    )
 
 
 # 可选：添加更多系统控制功能

@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button'
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
@@ -31,18 +30,8 @@ function buildFieldPath(basePath: string, fieldName: string) {
   return basePath ? `${basePath}.${fieldName}` : fieldName
 }
 
-function hasTopLevelAdvancedFields(schema: ConfigSchema) {
-  return schema.fields.some((field) => field.advanced && !schema.nested?.[field.name])
-}
-
 function resolveSectionTitle(schema: ConfigSchema) {
   return schema.uiLabel || schema.classDoc || schema.className
-}
-
-function resolveSectionDescription(schema: ConfigSchema, sectionTitle: string) {
-  return schema.classDoc && schema.classDoc !== sectionTitle
-    ? schema.classDoc
-    : undefined
 }
 
 function SectionIcon({ iconName }: { iconName?: string }) {
@@ -54,7 +43,7 @@ function SectionIcon({ iconName }: { iconName?: string }) {
   return <IconComponent className="h-5 w-5 text-muted-foreground" />
 }
 
-function AdvancedSettingsButton({
+export function AdvancedSettingsButton({
   active,
   onClick,
 }: {
@@ -74,51 +63,39 @@ function AdvancedSettingsButton({
 }
 
 function DynamicConfigSection({
+  advancedVisible,
   basePath,
   hooks,
   level,
   nestedSchema,
   onChange,
-  sectionDescription,
   sectionKey,
   sectionTitle,
   values,
 }: {
+  advancedVisible: boolean
   basePath: string
   hooks: FieldHookRegistry
   level: number
   nestedSchema: ConfigSchema
   onChange: (field: string, value: unknown) => void
-  sectionDescription?: string
   sectionKey: string
   sectionTitle: string
   values: Record<string, unknown>
 }) {
-  const [advancedVisible, setAdvancedVisible] = React.useState(false)
-  const hasAdvanced = hasTopLevelAdvancedFields(nestedSchema)
-
   return (
-    <Card>
-      <CardHeader className="pb-4">
+    <Card className="min-w-0">
+      <CardHeader className="border-b border-border/50 pb-4">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <SectionIcon iconName={nestedSchema.uiIcon} />
-              <CardTitle className="text-lg">{sectionTitle}</CardTitle>
+              <CardTitle className="text-lg text-primary">{sectionTitle}</CardTitle>
             </div>
-            {sectionDescription && (
-              <CardDescription>{sectionDescription}</CardDescription>
-            )}
           </div>
-          {hasAdvanced && (
-            <AdvancedSettingsButton
-              active={advancedVisible}
-              onClick={() => setAdvancedVisible((current) => !current)}
-            />
-          )}
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-4">
         <DynamicConfigForm
           schema={nestedSchema}
           values={values}
@@ -126,7 +103,7 @@ function DynamicConfigSection({
           basePath={basePath}
           hooks={hooks}
           level={level}
-          advancedVisible={hasAdvanced ? advancedVisible : undefined}
+          advancedVisible={advancedVisible}
           sectionColumns={1}
         />
       </CardContent>
@@ -154,8 +131,7 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
   advancedVisible,
   sectionColumns = 1,
 }) => {
-  const [localAdvancedVisible, setLocalAdvancedVisible] = React.useState(false)
-  const resolvedAdvancedVisible = advancedVisible ?? localAdvancedVisible
+  const resolvedAdvancedVisible = advancedVisible ?? false
 
   const fieldMap = React.useMemo(
     () => new Map(schema.fields.map((field) => [field.name, field])),
@@ -230,6 +206,51 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
     return hooks.get(fieldPath)?.type === 'replace'
   }
 
+  const schemaHasVisibleContent = React.useCallback(
+    (targetSchema: ConfigSchema, targetBasePath: string): boolean => {
+      const targetFields = targetSchema.fields ?? []
+      const hasVisibleInlineField = targetFields.some((field) => {
+        const fieldPath = buildFieldPath(targetBasePath, field.name)
+        const hookEntry = hooks.get(fieldPath)
+
+        if (hookEntry?.type === 'hidden') {
+          return false
+        }
+
+        if (targetSchema.nested?.[field.name] && hookEntry?.type !== 'replace') {
+          return false
+        }
+
+        return resolvedAdvancedVisible || !field.advanced
+      })
+
+      if (hasVisibleInlineField) {
+        return true
+      }
+
+      return Object.entries(targetSchema.nested ?? {}).some(([key, nestedSchema]) => {
+        const nestedField = targetFields.find((field) => field.name === key)
+        const nestedFieldPath = buildFieldPath(targetBasePath, key)
+        const hookEntry = hooks.get(nestedFieldPath)
+
+        if (hookEntry?.type === 'hidden') {
+          return false
+        }
+
+        if (nestedField?.advanced && !resolvedAdvancedVisible) {
+          return false
+        }
+
+        if (hookEntry?.type === 'replace') {
+          return true
+        }
+
+        return schemaHasVisibleContent(nestedSchema, nestedFieldPath)
+      })
+    },
+    [hooks, resolvedAdvancedVisible],
+  )
+
   const inlineFields = schema.fields.filter(shouldRenderFieldInline)
   const inlineNestedFieldNames = new Set(
     inlineFields
@@ -275,15 +296,15 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
         row.length > 1 ? (
           <div
             key={row.map((field) => field.name).join('|')}
-            className="grid gap-4 py-1 md:grid-cols-[repeat(var(--field-row-count),minmax(0,1fr))]"
+            className="grid min-w-0 gap-4 py-1 md:grid-cols-[repeat(var(--field-row-count),minmax(0,1fr))]"
             style={{ '--field-row-count': row.length } as React.CSSProperties}
           >
             {row.map((field) => (
-              <div key={field.name}>{renderField(field)}</div>
+              <div key={field.name} className="min-w-0">{renderField(field)}</div>
             ))}
           </div>
         ) : (
-          <div key={row[0].name} className="py-1">{renderField(row[0])}</div>
+          <div key={row[0].name} className="min-w-0 py-1">{renderField(row[0])}</div>
         )
       ))}
     </>
@@ -301,17 +322,9 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
   )
 
   return (
-    <div className="space-y-6">
-      {inlineFields.length > 0 && (
+    <div className="min-w-0 space-y-6">
+      {visibleFields.length > 0 && (
         <div>
-          {advancedVisible === undefined && advancedFields.length > 0 && (
-            <div className="flex justify-end pb-2">
-              <AdvancedSettingsButton
-                active={localAdvancedVisible}
-                onClick={() => setLocalAdvancedVisible((current) => !current)}
-              />
-            </div>
-          )}
           {renderFieldList(visibleFields)}
         </div>
       )}
@@ -327,11 +340,20 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
           if (hooks.has(nestedFieldPath)) {
             const hookEntry = hooks.get(nestedFieldPath)
             if (!hookEntry) return null
+            if (hookEntry.type === 'hidden') return null
+            if (nestedField?.advanced && !resolvedAdvancedVisible) return null
+            if (
+              hookEntry.type !== 'replace' &&
+              nestedSchema &&
+              !schemaHasVisibleContent(nestedSchema, nestedFieldPath)
+            ) {
+              return null
+            }
 
             const HookComponent = hookEntry.component
             if (hookEntry.type === 'replace') {
               return (
-                <div key={key}>
+                <div key={key} className="min-w-0">
                   <HookComponent
                     fieldPath={nestedFieldPath}
                     value={values[key]}
@@ -346,7 +368,7 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
             }
 
             return (
-              <div key={key}>
+              <div key={key} className="min-w-0">
                 <HookComponent
                   fieldPath={nestedFieldPath}
                   value={values[key]}
@@ -363,6 +385,7 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
                     basePath={nestedFieldPath}
                     hooks={hooks}
                     level={level + 1}
+                    advancedVisible={resolvedAdvancedVisible}
                     sectionColumns={1}
                   />
                 </HookComponent>
@@ -371,12 +394,15 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
           }
 
           const sectionTitle = resolveSectionTitle(nestedSchema)
-          const sectionDescription = resolveSectionDescription(nestedSchema, sectionTitle)
+          if (!schemaHasVisibleContent(nestedSchema, nestedFieldPath)) {
+            return null
+          }
 
           if (level === 0) {
             return (
               <DynamicConfigSection
                 key={key}
+                advancedVisible={resolvedAdvancedVisible}
                 nestedSchema={nestedSchema}
                 values={(values[key] as Record<string, unknown>) || {}}
                 onChange={onChange}
@@ -385,29 +411,23 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
                 level={level + 1}
                 sectionKey={key}
                 sectionTitle={sectionTitle}
-                sectionDescription={sectionDescription}
               />
             )
           }
 
           return (
-            <Card key={key} className="border-border/70 bg-muted/20 shadow-none">
-              <CardHeader className="px-4 py-3">
+            <Card key={key} className="min-w-0 border-border/70 bg-muted/20 shadow-none">
+              <CardHeader className="border-b border-border/50 px-4 py-3">
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <SectionIcon iconName={nestedSchema.uiIcon} />
-                      <CardTitle className="text-sm">{sectionTitle}</CardTitle>
+                      <CardTitle className="text-sm text-primary">{sectionTitle}</CardTitle>
                     </div>
-                    {sectionDescription && (
-                      <CardDescription className="text-xs">
-                        {sectionDescription}
-                      </CardDescription>
-                    )}
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="px-4 pb-4 pt-0">
+              <CardContent className="px-4 pb-4 pt-4">
                 <DynamicConfigForm
                   schema={nestedSchema}
                   values={(values[key] as Record<string, unknown>) || {}}
@@ -415,6 +435,7 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
                   basePath={nestedFieldPath}
                   hooks={hooks}
                   level={level + 1}
+                  advancedVisible={resolvedAdvancedVisible}
                   sectionColumns={1}
                 />
               </CardContent>
@@ -428,7 +449,7 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
 
           if (level === 0 && sectionColumns === 2 && visibleNestedSections.length > 1) {
             return (
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid min-w-0 gap-4 md:grid-cols-2">
                 {visibleNestedSections}
               </div>
             )

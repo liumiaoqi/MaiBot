@@ -26,7 +26,7 @@
       "home": "首页",
       "botMainConfig": "麦麦设置",
       "aiModelProvider": "模型厂商设置",
-      "modelManagement": "模型管理与分配",
+      "modelManagement": "模型管理",
       "promptManagement": "Prompt 管理",
       "adapterConfig": "麦麦适配器配置",
       "emojiManagement": "表情包",

@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 import type { FieldHookComponent } from '@/lib/field-hooks'
 
 import { createJsonFieldHook } from './JsonFieldHookFactory'
@@ -131,6 +132,98 @@ const formatPlatformAccount = (row: PlatformAccountRow): string => {
   return `${platform}:${account}`
 }
 
+interface StringListHookOptions {
+  addLabel: string
+  emptyText: string
+  label: string
+  multiline?: boolean
+  placeholder?: string
+}
+
+function createStringListHook(options: StringListHookOptions): FieldHookComponent {
+  return ({ onChange, value }) => {
+    const items = Array.isArray(value) ? value.map((item) => String(item ?? '')) : []
+
+    const updateItems = (nextItems: string[]) => {
+      onChange?.(nextItems)
+    }
+
+    const addItem = () => {
+      updateItems([...items, ''])
+    }
+
+    const removeItem = (itemIndex: number) => {
+      updateItems(items.filter((_, index) => index !== itemIndex))
+    }
+
+    const updateItem = (itemIndex: number, nextValue: string) => {
+      updateItems(items.map((item, index) => (index === itemIndex ? nextValue : item)))
+    }
+
+    const InputComponent = options.multiline ? Textarea : Input
+
+    return (
+      <div className="space-y-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <Label className="text-[15px] leading-6">{options.label}</Label>
+          <Button type="button" size="sm" variant="outline" onClick={addItem}>
+            <Plus className="mr-2 h-4 w-4" />
+            {options.addLabel}
+          </Button>
+        </div>
+
+        {items.length === 0 ? (
+          <div className="rounded-md border border-dashed bg-muted/30 px-4 py-5 text-center text-sm text-muted-foreground">
+            {options.emptyText}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {items.map((item, itemIndex) => (
+              <div
+                key={itemIndex}
+                className="grid gap-2 rounded-md border bg-muted/20 p-3 sm:grid-cols-[minmax(0,1fr)_2.5rem]"
+              >
+                <InputComponent
+                  value={item}
+                  placeholder={options.placeholder}
+                  onChange={(event) => updateItem(itemIndex, event.target.value)}
+                  {...(options.multiline ? { rows: 2 } : {})}
+                />
+                <div className="flex items-start justify-end">
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    aria-label={`删除${options.label} ${itemIndex + 1}`}
+                    onClick={() => removeItem(itemIndex)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+}
+
+export const AliasNamesHook = createStringListHook({
+  addLabel: '添加别名',
+  emptyText: '暂无别名。',
+  label: '别名',
+  placeholder: '小麦',
+})
+
+export const MultipleReplyStyleHook = createStringListHook({
+  addLabel: '添加表达风格',
+  emptyText: '暂无备用表达风格。',
+  label: '备用表达风格',
+  multiline: true,
+  placeholder: '输入一种备用表达风格',
+})
+
 export const ChatTalkValueRulesHook = createListItemEditorHook({
   addLabel: '添加发言频率规则',
   addButtonPlacement: 'top',
@@ -140,6 +233,7 @@ export const ChatTalkValueRulesHook = createListItemEditorHook({
   collapseLabel: '折叠规则',
   helperText: '可按平台/聊天流/时段分别配置发言频率，留空表示全局。',
   emptyText: '尚未配置任何规则，将使用全局默认频率。',
+  collapseButtonDisplay: 'icon',
   fieldRows: [
     ['platform', 'item_id', 'rule_type'],
     ['time', 'value'],

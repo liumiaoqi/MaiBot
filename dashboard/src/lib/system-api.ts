@@ -42,3 +42,31 @@ export async function getMaiBotStatus(): Promise<{
   
   return await response.json()
 }
+
+export interface DashboardVersionStatus {
+  current_version: string
+  latest_version: string | null
+  has_update: boolean
+  package_name: string
+  pypi_url: string
+}
+
+/**
+ * 检查 WebUI 是否有 PyPI 新版本
+ */
+export async function getDashboardVersionStatus(
+  currentVersion: string
+): Promise<DashboardVersionStatus> {
+  const params = new URLSearchParams({ current_version: currentVersion })
+  const response = await fetchWithAuth(`/api/webui/system/dashboard-version?${params.toString()}`, {
+    method: 'GET',
+    headers: getAuthHeaders(),
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || '获取 WebUI 版本失败')
+  }
+
+  return await response.json()
+}

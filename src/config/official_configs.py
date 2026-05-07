@@ -93,7 +93,7 @@ class BotConfig(ConfigBase):
             "x-icon": "user-circle",
         },
     )
-    """机器人昵称"""
+    """"""
 
     alias_names: list[str] = Field(
         default_factory=lambda: [],
@@ -130,6 +130,7 @@ class PersonalityConfig(ConfigBase):
             "x-icon": "user-circle",
             "x-textarea-min-height": 40,
             "x-textarea-rows": 1,
+            "x-description-display": "icon",
         },
     )
     """人格，建议200字以内，描述人格特质和身份特征；可以写完整设定。要求第二人称"""
@@ -146,6 +147,7 @@ class PersonalityConfig(ConfigBase):
             "x-icon": "message-square",
             "x-textarea-min-height": 40,
             "x-textarea-rows": 1,
+            "x-description-display": "icon",
         },
     )
     """默认表达风格，描述麦麦说话的表达风格，表达习惯，如要修改，可以酌情新增内容，建议1-2行"""
@@ -514,6 +516,7 @@ class MessageReceiveConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "image",
+            "advanced": True,
         },
     )
     """
@@ -3146,6 +3149,15 @@ class WebUIConfig(ConfigBase):
         },
     )
     """是否启用WebUI"""
+
+    auto_update_dashboard: bool = Field(
+        default=True,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "refresh-cw",
+        },
+    )
+    """启动时是否自动检查并更新 WebUI dashboard"""
 
     host: str = Field(
         default="127.0.0.1",
