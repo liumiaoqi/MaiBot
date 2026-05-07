@@ -394,7 +394,7 @@ class ChatConfig(ConfigBase):
     """上下文长度"""
     
     max_private_context_size: int = Field(
-        default=40,
+        default=60,
         json_schema_extra={
             "label": {
                 "zh_CN": "私聊上下文",
@@ -422,20 +422,21 @@ class ChatConfig(ConfigBase):
     """Planner 连续被新消息打断的最大次数，0 表示不启用打断"""
 
     timing_gate_non_continue_cooldown_seconds: float = Field(
-        default=0,
+        default=8,
         ge=0,
         json_schema_extra={
             "label": {
-                "zh_CN": "Timing Gate 非 continue 冷却",
+                "zh_CN": "Timing Gate 平滑",
                 "en_US": "Timing Gate non-continue cooldown",
                 "ja_JP": "Timing Gate 非 continue クールダウン",
             },
             "x-widget": "input",
             "x-icon": "timer",
-            "advanced": True,
+            "x-description-display": "icon",
+            "advanced": False,
         },
     )
-    """Timing Gate 返回 no_reply 时的最小窗口秒数，0 表示不启用冷却"""
+    """这个值决定了 timing gate 判断的频率，值越大，timing gate 的判断越平滑，但也可能导致反应变慢。建议根据实际情况调整，找到一个既能保持反应及时又不过于频繁的平衡点。"""
 
     group_chat_prompt: str = Field(
         default=(
