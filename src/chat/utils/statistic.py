@@ -1,22 +1,43 @@
+from collections import defaultdict
+from datetime import datetime, timedelta
+from os import getenv
+from pathlib import Path
+from typing import cast
+
 import asyncio
 import concurrent.futures
 import json
 
-from collections import defaultdict
-from datetime import datetime, timedelta
-from typing import cast
-
 from typing_extensions import TypedDict
 
-from sqlmodel import col, func, select
+from sqlmodel import col, select
 
 from src.common.logger import get_logger
 from src.common.database.database import get_db_session
-from src.common.database.database_model import Messages, ModelUsage, OnlineTime, ToolRecord
+from src.common.database.database_model import OnlineTime
 from src.manager.async_task_manager import AsyncTask
 from src.manager.local_store_manager import local_storage
+from src.services.statistics_service import (
+    fetch_messages_since,
+    fetch_model_usage_since,
+    fetch_online_time_since,
+    fetch_tool_records_since,
+    get_earliest_statistics_time,
+    refresh_dashboard_statistics_cache,
+)
 
 logger = get_logger("maibot_statistic")
+
+STATISTICS_REPORT_PATH_ENV = "MAIBOT_STATISTICS_REPORT_PATH"
+DEFAULT_STATISTICS_REPORT_PATH = "maibot_statistics.html"
+
+
+def _resolve_statistics_report_path(record_file_path: str | None = None) -> str:
+    if record_file_path:
+        return record_file_path
+
+    configured_path = getenv(STATISTICS_REPORT_PATH_ENV, "").strip()
+    return configured_path or DEFAULT_STATISTICS_REPORT_PATH
 
 
 class StatPeriodData(TypedDict):
@@ -225,7 +246,7 @@ class StatisticOutputTask(AsyncTask):
 
     SEP_LINE = "-" * 84
 
-    def __init__(self, record_file_path: str = "maibot_statistics.html"):
+    def __init__(self, record_file_path: str | None = None):
         # 延迟300秒启动，运行间隔300秒
         super().__init__(task_name="Statistics Data Output Task", wait_before_start=0, run_interval=300)
 
@@ -235,7 +256,7 @@ class StatisticOutputTask(AsyncTask):
             注：设计记录时间的目的是方便更新名称，使联系人/群聊名称保持最新
         """
 
-        self.record_file_path: str = record_file_path
+        self.record_file_path: str = _resolve_statistics_report_path(record_file_path)
         """
         记录文件路径
         """
@@ -249,7 +270,7 @@ class StatisticOutputTask(AsyncTask):
             deploy_time = datetime(2000, 1, 1)
             local_storage["deploy_time"] = now.timestamp()
 
-        self.all_time_start_time = self._get_all_time_start_time(deploy_time)
+        self.all_time_start_time = get_earliest_statistics_time(deploy_time)
 
         self.stat_period: list[tuple[str, timedelta, str]] = [
             ("all_time", now - self.all_time_start_time, "自部署以来"),  # 必须保留"all_time"
@@ -265,23 +286,6 @@ class StatisticOutputTask(AsyncTask):
         统计时间段 [(统计名称, 统计时间段, 统计描述), ...]
         """
 
-    @staticmethod
-    def _get_all_time_start_time(fallback_time: datetime) -> datetime:
-        """获取统计数据的最早时间，避免全量统计展示窗口漏掉历史数据。"""
-        try:
-            with get_db_session(auto_commit=False) as session:
-                start_times = [
-                    session.exec(select(func.min(ModelUsage.timestamp))).first(),
-                    session.exec(select(func.min(Messages.timestamp))).first(),
-                    session.exec(select(func.min(OnlineTime.start_timestamp))).first(),
-                    session.exec(select(func.min(ToolRecord.timestamp))).first(),
-                ]
-            valid_start_times = [item for item in start_times if isinstance(item, datetime)]
-            if valid_start_times:
-                return min(valid_start_times)
-        except Exception as e:
-            logger.warning(f"获取全量统计起始时间失败，将使用部署时间：{e}")
-        return fallback_time
 
     def _statistic_console_output(self, stats: StatPeriodMapping, now: datetime) -> None:
         """
@@ -324,6 +328,10 @@ class StatisticOutputTask(AsyncTask):
 
                 # 等待数据收集完成
                 stats = await collect_task
+                try:
+                    await refresh_dashboard_statistics_cache()
+                except Exception as e:
+                    logger.warning(f"刷新 WebUI 统计缓存失败，将继续生成 HTML 报告: {e}")
                 logger.info("统计数据收集完成")
 
                 # 并行执行控制台输出和HTML报告生成
@@ -354,6 +362,10 @@ class StatisticOutputTask(AsyncTask):
                     logger.info("正在后台收集统计数据...")
 
                     stats = await loop.run_in_executor(executor, self._collect_all_statistics, now)
+                    try:
+                        await refresh_dashboard_statistics_cache()
+                    except Exception as e:
+                        logger.warning(f"刷新 WebUI 统计缓存失败，将继续生成 HTML 报告: {e}")
                     logger.info("统计数据收集完成")
 
                     # 创建并发的输出任务
@@ -454,33 +466,6 @@ class StatisticOutputTask(AsyncTask):
         counter[subkey].append(value)
 
     @staticmethod
-    def _fetch_online_time_since(query_start_time: datetime) -> list[tuple[datetime, datetime]]:
-        with get_db_session(auto_commit=False) as session:
-            statement = select(OnlineTime).where(col(OnlineTime.end_timestamp) >= query_start_time)
-            records = session.exec(statement).all()
-            return [(record.start_timestamp, record.end_timestamp) for record in records]
-
-    @staticmethod
-    def _fetch_model_usage_since(query_start_time: datetime) -> list[dict[str, object]]:
-        with get_db_session(auto_commit=False) as session:
-            statement = select(ModelUsage).where(col(ModelUsage.timestamp) >= query_start_time)
-            records = session.exec(statement).all()
-            return [
-                {
-                    "timestamp": record.timestamp,
-                    "request_type": record.request_type,
-                    "model_api_provider_name": record.model_api_provider_name,
-                    "model_assign_name": record.model_assign_name,
-                    "model_name": record.model_name,
-                    "prompt_tokens": record.prompt_tokens,
-                    "completion_tokens": record.completion_tokens,
-                    "cost": record.cost,
-                    "time_cost": record.time_cost,
-                }
-                for record in records
-            ]
-
-    @staticmethod
     def _collect_model_request_for_period(collect_period: list[tuple[str, datetime]]) -> StatPeriodMapping:
         """
         收集指定时间段的LLM请求统计数据
@@ -500,7 +485,7 @@ class StatisticOutputTask(AsyncTask):
         # 以最早的时间戳为起始时间获取记录
         # Assuming LLMUsage.timestamp is a DateTimeField
         query_start_time = collect_period[-1][1]
-        records = StatisticOutputTask._fetch_model_usage_since(query_start_time)
+        records = fetch_model_usage_since(query_start_time)
         for record in records:
             record_timestamp = cast(datetime, record["timestamp"])
             for idx, (_, period_start) in enumerate(collect_period):
@@ -647,7 +632,7 @@ class StatisticOutputTask(AsyncTask):
 
         query_start_time = collect_period[-1][1]
         # Assuming OnlineTime.end_timestamp is a DateTimeField
-        records = StatisticOutputTask._fetch_online_time_since(query_start_time)
+        records = fetch_online_time_since(query_start_time)
         for record_start_timestamp, record_end_timestamp in records:
             for idx, (_, period_boundary_start) in enumerate(collect_period):
                 if record_end_timestamp >= period_boundary_start:
@@ -688,9 +673,7 @@ class StatisticOutputTask(AsyncTask):
         }
 
         query_start_timestamp = collect_period[-1][1]
-        with get_db_session(auto_commit=False) as session:
-            statement = select(Messages).where(col(Messages.timestamp) >= query_start_timestamp)
-            messages = session.exec(statement).all()
+        messages = fetch_messages_since(query_start_timestamp)
         for message in messages:
             message_time_ts = message.timestamp.timestamp()
 
@@ -737,9 +720,7 @@ class StatisticOutputTask(AsyncTask):
         # 使用 ToolRecord 中的 reply 工具次数作为回复数基准
         try:
             tool_query_start_timestamp = collect_period[-1][1]
-            with get_db_session(auto_commit=False) as session:
-                statement = select(ToolRecord).where(col(ToolRecord.timestamp) >= tool_query_start_timestamp)
-                tool_records = session.exec(statement).all()
+            tool_records = fetch_tool_records_since(tool_query_start_timestamp)
             for tool_record in tool_records:
                 if tool_record.tool_name != "reply":
                     continue
@@ -865,7 +846,7 @@ class StatisticOutputTask(AsyncTask):
             "module": defaultdict(lambda: {"count": 0.0, "sum": 0.0, "sum_sq": 0.0}),
         }
 
-        records = self._fetch_model_usage_since(self.all_time_start_time)
+        records = fetch_model_usage_since(self.all_time_start_time)
         for record in records:
             time_cost = cast(float | None, record["time_cost"]) or 0.0
             if time_cost <= 0:
@@ -1762,7 +1743,11 @@ class StatisticOutputTask(AsyncTask):
         """
         )
 
-        with open(self.record_file_path, "w", encoding="utf-8") as f:
+        record_file = Path(self.record_file_path)
+        if record_file.parent != Path("."):
+            record_file.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(record_file, "w", encoding="utf-8") as f:
             f.write(html_template)
 
     def _generate_chart_data(self, stat: StatPeriodMapping) -> dict[str, dict[str, object]]:
@@ -1806,7 +1791,7 @@ class StatisticOutputTask(AsyncTask):
 
         # 查询LLM使用记录
         query_start_time = start_time
-        records = StatisticOutputTask._fetch_model_usage_since(query_start_time)
+        records = fetch_model_usage_since(query_start_time)
         for record in records:
             record_time = cast(datetime, record["timestamp"])
 
@@ -1835,9 +1820,7 @@ class StatisticOutputTask(AsyncTask):
 
         # 查询消息记录
         query_start_timestamp = start_time.timestamp()
-        with get_db_session(auto_commit=False) as session:
-            statement = select(Messages).where(col(Messages.timestamp) >= start_time)
-            messages = session.exec(statement).all()
+        messages = fetch_messages_since(start_time)
         for message in messages:
             message_time_ts = message.timestamp.timestamp()
 
@@ -2197,7 +2180,7 @@ class StatisticOutputTask(AsyncTask):
 
         # 查询LLM使用记录
         query_start_time = start_time
-        records = StatisticOutputTask._fetch_model_usage_since(query_start_time)
+        records = fetch_model_usage_since(query_start_time)
         for record in records:
             record_time = cast(datetime, record["timestamp"])
 
@@ -2216,9 +2199,7 @@ class StatisticOutputTask(AsyncTask):
 
         # 查询消息记录
         query_start_timestamp = start_time.timestamp()
-        with get_db_session(auto_commit=False) as session:
-            statement = select(Messages).where(col(Messages.timestamp) >= start_time)
-            messages = session.exec(statement).all()
+        messages = fetch_messages_since(start_time)
         for message in messages:
             message_time_ts = message.timestamp.timestamp()
 
@@ -2232,7 +2213,7 @@ class StatisticOutputTask(AsyncTask):
                     total_replies[interval_index] += 1
 
         # 查询在线时间记录
-        records = StatisticOutputTask._fetch_online_time_since(start_time)
+        records = fetch_online_time_since(start_time)
         for record_start, record_end in records:
             # 找到记录覆盖的所有时间间隔
             for idx, time_point in enumerate(time_points):
@@ -2467,7 +2448,7 @@ class StatisticOutputTask(AsyncTask):
 class AsyncStatisticOutputTask(AsyncTask):
     """完全异步的统计输出任务 - 更高性能版本"""
 
-    def __init__(self, record_file_path: str = "maibot_statistics.html"):
+    def __init__(self, record_file_path: str | None = None):
         # 延迟0秒启动，运行间隔300秒
         super().__init__(task_name="Async Statistics Data Output Task", wait_before_start=0, run_interval=300)
 
@@ -2491,6 +2472,10 @@ class AsyncStatisticOutputTask(AsyncTask):
 
                     # 数据收集任务
                     stats = await loop.run_in_executor(executor, self._statistic_task._collect_all_statistics, now)
+                    try:
+                        await refresh_dashboard_statistics_cache()
+                    except Exception as e:
+                        logger.warning(f"刷新 WebUI 统计缓存失败，将继续生成 HTML 报告: {e}")
                     logger.info("统计数据收集完成")
 
                     # 创建并发的输出任务

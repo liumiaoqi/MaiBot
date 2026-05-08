@@ -493,7 +493,10 @@ class TestSDK:
                         "timeout_ms": timeout_ms,
                     }
                 )
-                return SimpleNamespace(error=None, payload={"result": {"ok": True}})
+                return SimpleNamespace(
+                    error=None,
+                    payload={"success": True, "result": {"success": True, "result": {"ok": True}}},
+                )
 
         class DummyPlugin:
             def _set_context(self, ctx):
@@ -508,9 +511,36 @@ class TestSDK:
         plugin.ctx._plugin_id = "forged_plugin"
         result = await plugin.ctx.call_capability("send.text", text="hello", stream_id="stream-1")
 
-        assert result == {"ok": True}
+        assert result is True
         assert runner._rpc_client.calls[0]["plugin_id"] == "owner_plugin"
-        assert runner._rpc_client.calls[0]["method"] == "cap.request"
+        assert runner._rpc_client.calls[0]["method"] == "cap.call"
+
+    @pytest.mark.asyncio
+    async def test_runner_injected_context_unwraps_llm_available_models(self):
+        """Runner 应为 SDK 解开 cap.call 响应外层，避免模型列表被规整成空列表。"""
+        from src.plugin_runtime.runner.runner_main import PluginRunner
+
+        class DummyRPCClient:
+            async def send_request(self, method, plugin_id="", payload=None, timeout_ms=30000):
+                assert method == "cap.call"
+                assert plugin_id == "owner_plugin"
+                assert payload == {"capability": "llm.get_available_models", "args": {}}
+                return SimpleNamespace(
+                    error=None,
+                    payload={"success": True, "result": {"success": True, "models": ["utils", "replyer"]}},
+                )
+
+        class DummyPlugin:
+            def _set_context(self, ctx):
+                self.ctx = ctx
+
+        runner = PluginRunner(host_address="dummy", session_token="token", plugin_dirs=[])
+        runner._rpc_client = DummyRPCClient()
+
+        plugin = DummyPlugin()
+        runner._inject_context("owner_plugin", plugin)
+
+        assert await plugin.ctx.llm.get_available_models() == ["utils", "replyer"]
 
     @pytest.mark.asyncio
     async def test_runner_applies_initial_plugin_config(self, tmp_path):
@@ -671,7 +701,7 @@ class TestSDK:
                 if method == "cap.call":
                     bootstrap_methods = [call["method"] for call in self.calls[:-1]]
                     assert "plugin.bootstrap" in bootstrap_methods
-                    return SimpleNamespace(error=None, payload={"success": True})
+                    return SimpleNamespace(error=None, payload={"success": True, "result": {"success": True}})
                 return SimpleNamespace(error=None, payload={"accepted": True})
 
             async def disconnect(self):
@@ -702,11 +732,15 @@ class TestSDK:
             instance=plugin,
             version="1.0.0",
             capabilities_required=["send.text"],
+            dependencies=[],
+            manifest=SimpleNamespace(plugin_dependencies=[], llm_provider_client_types=[]),
+            component_handlers={},
+            llm_provider_handlers={},
         )
 
         monkeypatch.setattr(runner, "_install_log_handler", lambda: None)
         monkeypatch.setattr(runner, "_uninstall_log_handler", lambda: asyncio.sleep(0))
-        monkeypatch.setattr(runner._loader, "discover_and_load", lambda plugin_dirs: [meta])
+        monkeypatch.setattr(runner._loader, "discover_and_load", lambda plugin_dirs, **kwargs: [meta])
 
         await runner.run()
 

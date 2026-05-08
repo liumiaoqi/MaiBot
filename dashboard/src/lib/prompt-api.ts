@@ -11,6 +11,7 @@ export interface PromptFileInfo {
   display_name: string
   advanced: boolean
   description: string
+  customized: boolean
 }
 
 export interface PromptCatalog {
@@ -24,6 +25,7 @@ export interface PromptFileContent {
   language: string
   filename: string
   content: string
+  customized: boolean
 }
 
 export async function getPromptCatalog(): Promise<ApiResponse<PromptCatalog>> {
@@ -39,6 +41,16 @@ export async function getPromptFile(
   return parseResponse<PromptFileContent>(response)
 }
 
+export async function getDefaultPromptFile(
+  language: string,
+  filename: string
+): Promise<ApiResponse<PromptFileContent>> {
+  const response = await fetchWithAuth(
+    `${API_BASE}/${encodeURIComponent(language)}/${encodeURIComponent(filename)}/default`
+  )
+  return parseResponse<PromptFileContent>(response)
+}
+
 export async function updatePromptFile(
   language: string,
   filename: string,
@@ -47,6 +59,16 @@ export async function updatePromptFile(
   const response = await fetchWithAuth(`${API_BASE}/${encodeURIComponent(language)}/${encodeURIComponent(filename)}`, {
     method: 'PUT',
     body: JSON.stringify({ content }),
+  })
+  return parseResponse<PromptFileContent>(response)
+}
+
+export async function resetPromptFile(
+  language: string,
+  filename: string
+): Promise<ApiResponse<PromptFileContent>> {
+  const response = await fetchWithAuth(`${API_BASE}/${encodeURIComponent(language)}/${encodeURIComponent(filename)}`, {
+    method: 'DELETE',
   })
   return parseResponse<PromptFileContent>(response)
 }

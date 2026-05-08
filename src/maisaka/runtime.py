@@ -46,7 +46,7 @@ from .display.display_utils import build_tool_call_summary_lines, format_token_c
 from .display.prompt_cli_renderer import PromptCLIVisualizer
 from .display.stage_status_board import remove_stage_status, update_stage_status
 from .history_utils import drop_leading_orphan_tool_results
-from .monitor_events import emit_session_start
+from .monitor_events import emit_message_sent, emit_session_start
 from .reasoning_engine import MaisakaReasoningEngine
 from .reply_effect import ReplyEffectTracker
 from .reply_effect.image_utils import extract_visual_attachments_from_sequence
@@ -55,7 +55,7 @@ from .tool_provider import MaisakaBuiltinToolProvider
 
 logger = get_logger("maisaka_runtime")
 
-MAX_INTERNAL_ROUNDS = 6
+MAX_INTERNAL_ROUNDS = 10
 
 
 class MaisakaHeartFlowChatting:
@@ -116,6 +116,10 @@ class MaisakaHeartFlowChatting:
         self._force_next_timing_continue = False
         self._force_next_timing_message_id = ""
         self._force_next_timing_reason = ""
+        self._timing_gate_non_continue_cooldown_seconds = max(
+            0.0,
+            float(global_config.chat.timing_gate_non_continue_cooldown_seconds),
+        )
         self._planner_interrupt_flag: Optional[asyncio.Event] = None
         self._planner_interrupt_requested = False
         self._planner_interrupt_consecutive_count = 0
@@ -266,6 +270,11 @@ class MaisakaHeartFlowChatting:
                 source_kind=source_kind,
             )
             self._chat_history.append(history_message)
+            self._emit_monitor_message_sent(
+                message=message,
+                speaker_name=speaker_name,
+                source_kind=source_kind,
+            )
             return True
         except Exception as exc:
             logger.warning(
@@ -273,6 +282,29 @@ class MaisakaHeartFlowChatting:
                 f"message_id={message.message_id} error={exc}"
             )
             return False
+
+    def _emit_monitor_message_sent(
+        self,
+        *,
+        message: SessionMessage,
+        speaker_name: str,
+        source_kind: str,
+    ) -> None:
+        """异步广播 MaiSaka 自己发出的消息，供 WebUI 实时展示。"""
+
+        try:
+            asyncio.create_task(
+                emit_message_sent(
+                    session_id=self.session_id,
+                    speaker_name=speaker_name,
+                    content=(message.processed_plain_text or "").strip(),
+                    message_id=message.message_id,
+                    timestamp=message.timestamp.timestamp(),
+                    source_kind=source_kind,
+                )
+            )
+        except RuntimeError as exc:
+            logger.debug(f"{self.log_prefix} 广播已发送消息到监控面板失败: {exc}")
 
     async def register_message(self, message: SessionMessage) -> None:
         """缓存一条新消息并唤醒主循环。"""
@@ -566,6 +598,20 @@ class MaisakaHeartFlowChatting:
         """判断是否已有 @/提及必回触发，需绕过普通频率阈值。"""
 
         return self._force_next_timing_continue
+
+    async def _wait_for_timing_gate_non_continue_cooldown(self, elapsed_seconds: float) -> None:
+        """仅对 Timing Gate 的 no_reply 动作应用冷却窗口。"""
+
+        cooldown_seconds = self._timing_gate_non_continue_cooldown_seconds
+        if cooldown_seconds <= 0:
+            return
+
+        remaining_seconds = cooldown_seconds - max(0.0, elapsed_seconds)
+        if remaining_seconds <= 0:
+            return
+
+        logger.info(f"{self.log_prefix} Timing Gate 非 continue 冷却中，等待 {remaining_seconds:.2f} 秒后结束")
+        await asyncio.sleep(remaining_seconds)
 
     def _bind_planner_interrupt_flag(self, interrupt_flag: asyncio.Event) -> None:
         """绑定当前可打断请求使用的中断标记。"""
@@ -981,6 +1027,12 @@ class MaisakaHeartFlowChatting:
 
         self._message_debounce_required = False
 
+    def _enter_stop_state(self) -> None:
+        """切换到停止状态。"""
+        self._agent_state = self._STATE_STOP
+        self._pending_wait_tool_call_id = None
+        self._cancel_wait_timeout_task()
+
     def _enter_wait_state(self, seconds: Optional[float] = None, tool_call_id: Optional[str] = None) -> None:
         """切换到等待状态。"""
         self._agent_state = self._STATE_WAIT
@@ -992,12 +1044,6 @@ class MaisakaHeartFlowChatting:
             self._wait_timeout_task = asyncio.create_task(
                 self._schedule_wait_timeout(seconds=seconds, tool_call_id=tool_call_id)
             )
-
-    def _enter_stop_state(self) -> None:
-        """切换到停止状态。"""
-        self._agent_state = self._STATE_STOP
-        self._pending_wait_tool_call_id = None
-        self._cancel_wait_timeout_task()
 
     def _cancel_wait_timeout_task(self) -> None:
         """取消当前 wait 对应的超时任务。"""

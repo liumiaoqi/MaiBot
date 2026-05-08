@@ -1,7 +1,7 @@
 from typing import Optional
 
 from src.common.logger import get_logger
-from src.config.config import global_config
+from src.common.utils.utils_config import ExpressionConfigUtils
 
 logger = get_logger("common_utils")
 
@@ -11,29 +11,7 @@ class TempMethodsExpression:
 
     @staticmethod
     def _find_expression_config_item(chat_stream_id: Optional[str] = None):
-        if not global_config.expression.learning_list:
-            return None
-
-        if chat_stream_id:
-            for config_item in global_config.expression.learning_list:
-                if not config_item.platform and not config_item.item_id:
-                    continue
-                stream_id = TempMethodsExpression._get_stream_id(
-                    config_item.platform,
-                    str(config_item.item_id),
-                    (config_item.rule_type == "group"),
-                )
-                if stream_id is None:
-                    continue
-                if stream_id != chat_stream_id:
-                    continue
-                return config_item
-
-        for config_item in global_config.expression.learning_list:
-            if not config_item.platform and not config_item.item_id:
-                return config_item
-
-        return None
+        return ExpressionConfigUtils._find_expression_config_item(chat_stream_id)
 
     @staticmethod
     def get_expression_config_for_chat(chat_stream_id: Optional[str] = None) -> tuple[bool, bool, bool]:
@@ -46,15 +24,7 @@ class TempMethodsExpression:
         Returns:
             tuple: (是否使用表达, 是否学习表达, 是否启用 jargon 学习)
         """
-        config_item = TempMethodsExpression._find_expression_config_item(chat_stream_id)
-        if config_item is None:
-            return True, True, True
-
-        return (
-            config_item.use_expression,
-            config_item.enable_learning,
-            config_item.enable_jargon_learning,
-        )
+        return ExpressionConfigUtils.get_expression_config_for_chat(chat_stream_id)
 
     @staticmethod
     def _get_stream_id(

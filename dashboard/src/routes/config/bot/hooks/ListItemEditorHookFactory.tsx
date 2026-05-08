@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import * as LucideIcons from 'lucide-react'
-import { Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -43,6 +43,7 @@ export interface ListItemEditorOptions {
   collapsedText?: string
   expandLabel?: string
   collapseLabel?: string
+  collapseButtonDisplay?: 'text' | 'icon'
 }
 
 function resolveLabel(schema?: ConfigSchema | FieldSchema, fieldPath?: string): string {
@@ -293,6 +294,9 @@ export function createListItemEditorHook(
     const shouldCollapse = options.collapseWhen?.({ parentValues }) ?? false
     const [manuallyExpanded, setManuallyExpanded] = useState(false)
     const collapsed = shouldCollapse && !manuallyExpanded
+    const collapseButtonLabel = collapsed
+      ? (options.expandLabel ?? '灞曞紑')
+      : (options.collapseLabel ?? '鎶樺彔')
 
     useEffect(() => {
       if (!shouldCollapse) {
@@ -332,12 +336,31 @@ export function createListItemEditorHook(
               {renderLucideIcon(iconName, 'h-5 w-5 flex-shrink-0 text-muted-foreground')}
               <CardTitle className="truncate text-base">{label}</CardTitle>
             </div>
-            {shouldCollapse && (
+            {shouldCollapse && options.collapseButtonDisplay === 'icon' && (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => setManuallyExpanded((current) => !current)}
+                aria-label={collapseButtonLabel}
+                title={collapseButtonLabel}
+                className="inline-flex items-center justify-center"
+              >
+                {collapsed ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronUp className="h-4 w-4" />
+                )}
+              </Button>
+            )}
+            {shouldCollapse && options.collapseButtonDisplay !== 'icon' && (
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => setManuallyExpanded((current) => !current)}
+                aria-label={collapseButtonLabel}
+                title={collapseButtonLabel}
               >
                 {collapsed
                   ? (options.expandLabel ?? '展开')

@@ -8,9 +8,10 @@ import asyncio
 
 from rich.console import RenderableType
 from src.common.data_models.llm_service_data_models import LLMGenerationOptions
+from src.common.i18n import get_locale
 from src.common.logger import get_logger
-from src.common.prompt_i18n import load_prompt
-from src.common.utils.utils_session import SessionUtils
+from src.common.prompt_i18n import get_prompt_cache_revision, load_prompt
+from src.common.utils.utils_config import ChatConfigUtils
 from src.config.config import global_config
 from src.core.tooling import ToolAvailabilityContext, ToolRegistry
 from src.llm_models.model_client.base_client import BaseClient
@@ -44,6 +45,14 @@ TIMING_GATE_TOOL_NAMES = {"continue", "no_reply", "wait"}
 REQUEST_TYPE_BY_REQUEST_KIND = {
     "planner": "maisaka_planner",
     "timing_gate": "maisaka_timing_gate",
+}
+PROMPT_PREVIEW_CATEGORY_BY_REQUEST_KIND = {
+    "planner": "planner",
+    "timing_gate": "timing_gate",
+    "reply_effect_judge": "reply_effect_judge",
+    "expression_selector": "expression_selector",
+    "emotion": "emotion",
+    "sub_agent": "sub_agent",
 }
 CONTEXT_SELECTION_CACHE_STABILITY_RATIO = 2.0
 
@@ -210,6 +219,7 @@ class MaisakaChatLoopService:
         self._interrupt_flag: asyncio.Event | None = None
         self._tool_registry: ToolRegistry | None = None
         self._prompts_loaded = chat_system_prompt is not None
+        self._prompt_cache_revision = get_prompt_cache_revision()
         self._prompt_load_lock = asyncio.Lock()
         self._personality_prompt = self._build_personality_prompt()
         if chat_system_prompt is None:
@@ -233,6 +243,15 @@ class MaisakaChatLoopService:
             normalized_request_kind,
             f"maisaka_{normalized_request_kind}" if normalized_request_kind else "maisaka_planner",
         )
+
+    @staticmethod
+    def _resolve_prompt_preview_category(request_kind: str) -> str:
+        """根据请求类型决定 Prompt 预览落盘目录，避免子代理混入 planner。"""
+
+        normalized_request_kind = str(request_kind or "").strip().lower()
+        if not normalized_request_kind:
+            return "planner"
+        return PROMPT_PREVIEW_CATEGORY_BY_REQUEST_KIND.get(normalized_request_kind, normalized_request_kind)
 
     def _get_llm_chat_client(self, request_kind: str) -> LLMServiceClient:
         """获取当前请求类型对应的 LLM 客户端。"""
@@ -336,6 +355,7 @@ class MaisakaChatLoopService:
                 self._chat_system_prompt = f"{self._personality_prompt}\n\nYou are a helpful AI assistant."
 
             self._prompts_loaded = True
+            self._prompt_cache_revision = get_prompt_cache_revision()
 
     def build_prompt_template_context(self, tools_section: str = "") -> dict[str, str]:
         """构造 Maisaka prompt 模板的公共渲染参数。"""
@@ -345,6 +365,7 @@ class MaisakaChatLoopService:
             "file_tools_section": tools_section,
             "group_chat_attention_block": self._build_group_chat_attention_block(),
             "identity": self._personality_prompt,
+            "timing_gate_wait_rule": self._build_timing_gate_wait_rule(),
             "time_block": self._build_time_block(),
         }
 
@@ -381,52 +402,33 @@ class MaisakaChatLoopService:
 
         return "在该聊天中的注意事项：\n" + "\n\n".join(prompt_lines) + "\n"
 
+    def _build_timing_gate_wait_rule(self) -> str:
+        """构造 Timing Gate 中 wait 工具的场景说明。"""
+
+        locale = get_locale()
+        if locale == "en-US":
+            if self._is_group_chat is True:
+                return ""
+            if self._is_group_chat is False:
+                return "- wait: wait for a fixed period, then judge again"
+            return "- wait: available only in private chats; if this is a group chat, do not call it"
+        if locale == "ja-JP":
+            if self._is_group_chat is True:
+                return ""
+            if self._is_group_chat is False:
+                return "- wait：一定時間待ってから再判断する"
+            return "- wait：個人チャットでのみ利用できます。現在がグループチャットなら呼び出さないでください"
+
+        if self._is_group_chat is True:
+            return ""
+        if self._is_group_chat is False:
+            return "- wait：固定再等待一段时间，时间到后再重新判断"
+        return "- wait：仅私聊可用；如果当前是群聊，不要调用"
+
     @staticmethod
     def _get_chat_prompt_for_chat(chat_id: str, is_group_chat: Optional[bool]) -> str:
         """根据聊天流 ID 获取匹配的额外提示。"""
-
-        if not global_config.chat.chat_prompts:
-            return ""
-
-        for chat_prompt_item in global_config.chat.chat_prompts:
-            if hasattr(chat_prompt_item, "platform"):
-                platform = str(chat_prompt_item.platform or "").strip()
-                item_id = str(chat_prompt_item.item_id or "").strip()
-                rule_type = str(chat_prompt_item.rule_type or "").strip()
-                prompt_content = str(chat_prompt_item.prompt or "").strip()
-            elif isinstance(chat_prompt_item, str):
-                parts = chat_prompt_item.split(":", 3)
-                if len(parts) != 4:
-                    continue
-
-                platform, item_id, rule_type, prompt_content = parts
-                platform = platform.strip()
-                item_id = item_id.strip()
-                rule_type = rule_type.strip()
-                prompt_content = prompt_content.strip()
-            else:
-                continue
-
-            if not platform or not item_id or not prompt_content:
-                continue
-
-            if rule_type == "group":
-                config_is_group = True
-                config_chat_id = SessionUtils.calculate_session_id(platform, group_id=item_id)
-            elif rule_type == "private":
-                config_is_group = False
-                config_chat_id = SessionUtils.calculate_session_id(platform, user_id=item_id)
-            else:
-                continue
-
-            if is_group_chat is not None and config_is_group != is_group_chat:
-                continue
-
-            if config_chat_id == chat_id:
-                logger.debug(f"匹配到 Maisaka 聊天额外提示，chat_id: {chat_id}, prompt: {prompt_content[:50]}...")
-                return prompt_content
-
-        return ""
+        return ChatConfigUtils.get_chat_prompt_for_chat(chat_id, is_group_chat)
 
     def set_extra_tools(self, tools: Sequence[ToolDefinitionInput]) -> None:
         """设置额外工具定义。
@@ -519,7 +521,7 @@ class MaisakaChatLoopService:
             ChatResponse: 本轮规划器返回结果。
         """
 
-        if not self._prompts_loaded:
+        if not self._prompts_loaded or self._prompt_cache_revision != get_prompt_cache_revision():
             await self.ensure_chat_prompt_loaded()
         enable_visual_message = self._resolve_enable_visual_message(request_kind)
         selected_history, selection_reason = self.select_llm_context_messages(
@@ -586,7 +588,7 @@ class MaisakaChatLoopService:
         if global_config.debug.show_maisaka_thinking:
             prompt_section_result = PromptCLIVisualizer.build_prompt_section_result(
                 built_messages,
-                category="planner" if request_kind != "timing_gate" else "timing_gate",
+                category=self._resolve_prompt_preview_category(request_kind),
                 chat_id=self._session_id,
                 request_kind=request_kind,
                 selection_reason=selection_reason,

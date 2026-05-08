@@ -1,4 +1,4 @@
-import { Info, Palette, Settings, Shield } from 'lucide-react'
+import { HardDrive, Info, Palette, Settings, Shield } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import { AboutTab } from './AboutTab'
 import { AppearanceTab } from './AppearanceTab'
+import { LocalCacheTab } from './LocalCacheTab'
 import { OtherTab } from './OtherTab'
 import { SecurityTab } from './SecurityTab'
 
@@ -23,7 +24,7 @@ export function SettingsPage() {
 
       {/* 标签页 */}
       <Tabs defaultValue="appearance" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-0.5 sm:gap-1 h-auto p-1">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 gap-0.5 sm:gap-1 h-auto p-1">
           <TabsTrigger value="appearance" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3 py-2">
             <Palette className="h-3.5 w-3.5 sm:h-4 sm:w-4" strokeWidth={2} fill="none" />
             <span>{t('settings.tabs.appearance')}</span>
@@ -31,6 +32,10 @@ export function SettingsPage() {
           <TabsTrigger value="security" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3 py-2">
             <Shield className="h-3.5 w-3.5 sm:h-4 sm:w-4" strokeWidth={2} fill="none" />
             <span>{t('settings.tabs.security')}</span>
+          </TabsTrigger>
+          <TabsTrigger value="local-cache" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3 py-2">
+            <HardDrive className="h-3.5 w-3.5 sm:h-4 sm:w-4" strokeWidth={2} fill="none" />
+            <span>本地缓存</span>
           </TabsTrigger>
           <TabsTrigger value="other" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3 py-2">
             <Settings className="h-3.5 w-3.5 sm:h-4 sm:w-4" strokeWidth={2} fill="none" />
@@ -49,6 +54,10 @@ export function SettingsPage() {
 
           <TabsContent value="security" className="mt-0">
             <SecurityTab />
+          </TabsContent>
+
+          <TabsContent value="local-cache" className="mt-0">
+            <LocalCacheTab />
           </TabsContent>
 
           <TabsContent value="other" className="mt-0">

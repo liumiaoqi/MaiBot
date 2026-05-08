@@ -517,6 +517,8 @@ class PluginRunner:
             )
             if resp.error:
                 raise RuntimeError(resp.error.get("message", "能力调用失败"))
+            if normalized_method == "cap.call" and isinstance(resp.payload, dict) and "result" in resp.payload:
+                return resp.payload.get("result")
             return resp.payload
 
         ctx = PluginContext(plugin_id=plugin_id, rpc_call=_rpc_call)

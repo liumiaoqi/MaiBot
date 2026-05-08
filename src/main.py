@@ -1,24 +1,25 @@
-from rich.traceback import install
 from typing import TYPE_CHECKING
+
+from rich.traceback import install
 
 import asyncio
 import time
 
 from src.A_memorix.host_service import a_memorix_host_service
-from src.learners.expression_auto_check_task import ExpressionAutoCheckTask
-from src.emoji_system.emoji_manager import emoji_manager
-from src.chat.message_receive.bot import chat_bot
 from src.chat.message_receive.chat_manager import chat_manager
+from src.chat.message_receive.bot import chat_bot
 from src.chat.utils.statistic import OnlineTimeRecordTask, StatisticOutputTask
 from src.common.i18n import t
 from src.common.logger import get_logger
 from src.common.message_server.server import Server, get_global_server
 from src.config.config import config_manager, global_config
+from src.emoji_system.emoji_manager import emoji_manager
+from src.learners.expression_auto_check_task import ExpressionAutoCheckTask
 from src.manager.async_task_manager import async_task_manager
-from src.maisaka.display.stage_status_board import disable_stage_status_board, enable_stage_status_board
 from src.plugin_runtime.integration import get_plugin_runtime_manager
 from src.prompt.prompt_manager import prompt_manager
 from src.services.memory_flow_service import memory_automation_service
+from src.webui.dashboard_update import auto_update_dashboard_if_needed
 
 # from src.api.main import start_api_server
 
@@ -43,10 +44,8 @@ class MainSystem:
 
         self.app: MessageServer = get_global_api()
         self.server: Server = get_global_server()
+        self.webui_task: asyncio.Task[None] | None = None
         self.webui_server: WebUIServer | None = None  # 独立的 WebUI 服务器
-
-        # 设置独立的 WebUI 服务器
-        self._setup_webui_server()
 
     def _setup_webui_server(self) -> None:
         """设置独立的 WebUI 服务器"""
@@ -66,14 +65,38 @@ class MainSystem:
 
     async def initialize(self) -> None:
         """初始化系统组件"""
-        if global_config.debug.enable_maisaka_stage_board:
-            enable_stage_status_board()
         logger.info(t("startup.waking_up", nickname=global_config.bot.nickname))
 
-        # 其他初始化任务
-        await asyncio.gather(self._init_components())
+        self.webui_task = asyncio.create_task(self._run_webui_startup_sequence(), name="webui_startup")
+        try:
+            await self._init_components()
+        except Exception:
+            self.webui_task.cancel()
+            await asyncio.gather(self.webui_task, return_exceptions=True)
+            raise
 
         logger.info(t("startup.initialization_completed_banner", nickname=global_config.bot.nickname))
+
+    async def _run_webui_startup_sequence(self) -> None:
+        """按顺序检查 WebUI 更新并启动 WebUI，同时允许主初始化并行执行。"""
+        await self._auto_update_webui_dashboard()
+        self._setup_webui_server()
+        if self.webui_server:
+            await self.webui_server.start()
+
+    async def _auto_update_webui_dashboard(self) -> None:
+        """启动时自动检查并更新 WebUI dashboard。"""
+        if not global_config.webui.enabled:
+            return
+        if not global_config.webui.auto_update_dashboard:
+            logger.info("WebUI dashboard 自动更新已关闭")
+            return
+
+        result = await auto_update_dashboard_if_needed()
+        if result.updated:
+            logger.info(result.message)
+        elif result.checked:
+            logger.info(result.message)
 
     async def _init_components(self) -> None:
         """初始化其他组件"""
@@ -81,6 +104,7 @@ class MainSystem:
 
         await config_manager.start_file_watcher()
         a_memorix_host_service.register_config_reload_callback()
+        prompt_manager.load_prompts()
 
         # 添加在线时间统计任务
         await async_task_manager.add_task(OnlineTimeRecordTask())
@@ -121,8 +145,6 @@ class MainSystem:
         self.app.register_message_handler(chat_bot.message_process)
         self.app.register_custom_message_handler("message_id_echo", chat_bot.echo_message_process)
 
-        prompt_manager.load_prompts()
-
         # 触发 ON_START 事件
         from src.core.event_bus import event_bus
         from src.core.types import EventType
@@ -149,7 +171,9 @@ class MainSystem:
             ]
 
             # 如果 WebUI 服务器已初始化，添加到任务列表
-            if self.webui_server:
+            if self.webui_task:
+                tasks.append(self.webui_task)
+            elif self.webui_server:
                 tasks.append(self.webui_server.start())
 
             await asyncio.gather(*tasks)
@@ -161,12 +185,9 @@ async def main() -> None:
     """主函数"""
     system = MainSystem()
     try:
-        await asyncio.gather(
-            system.initialize(),
-            system.schedule_tasks(),
-        )
+        await system.initialize()
+        await system.schedule_tasks()
     finally:
-        disable_stage_status_board()
         emoji_manager.shutdown()
         await memory_automation_service.shutdown()
         await a_memorix_host_service.stop()

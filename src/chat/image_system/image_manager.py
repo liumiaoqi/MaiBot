@@ -119,7 +119,7 @@ class ImageManager:
             logger.warning("图片哈希值未找到，且未提供图片字节数据，返回无描述")
             return ""
         try:
-            await self.ensure_image_saved(image_bytes)
+            saved_image = await self.ensure_image_saved(image_bytes)
         except Exception as e:
             logger.error(f"保存图片文件时发生错误: {e}")
             return ""
@@ -127,22 +127,29 @@ class ImageManager:
             logger.info("未配置 VLM 模型，跳过图片识别")
             return ""
         if not wait_for_build:
-            self._schedule_description_build(hash_str, image_bytes)
+            self._schedule_description_build(hash_str, image_bytes, saved_image=saved_image)
             return ""
         logger.info(f"图片描述未找到，哈希值: {hash_str}，准备生成新描述")
         try:
-            image = await self.build_image_description(image_bytes)
+            image = await self.build_image_description(image_bytes, saved_image=saved_image)
             return image.description
         except Exception as e:
             logger.error(f"生成图片描述时发生错误: {e}")
             return ""
 
-    def _schedule_description_build(self, image_hash: str, image_bytes: bytes) -> None:
+    def _schedule_description_build(
+        self,
+        image_hash: str,
+        image_bytes: bytes,
+        *,
+        saved_image: Optional[MaiImage] = None,
+    ) -> None:
         """调度图片描述后台构建任务。
 
         Args:
             image_hash: 图片哈希值。
             image_bytes: 图片字节数据。
+            saved_image: 已保存的图片对象，避免后台任务重复执行保存流程。
         """
         if not _is_vlm_task_configured():
             logger.info("未配置 VLM 模型，跳过图片后台识别任务")
@@ -151,20 +158,27 @@ class ImageManager:
         if image_hash in self._pending_description_tasks:
             return
 
-        task = asyncio.create_task(self._build_description_in_background(image_hash, image_bytes))
+        task = asyncio.create_task(self._build_description_in_background(image_hash, image_bytes, saved_image=saved_image))
         self._pending_description_tasks[image_hash] = task
         task.add_done_callback(lambda finished_task: self._finalize_description_build(image_hash, finished_task))
 
-    async def _build_description_in_background(self, image_hash: str, image_bytes: bytes) -> None:
+    async def _build_description_in_background(
+        self,
+        image_hash: str,
+        image_bytes: bytes,
+        *,
+        saved_image: Optional[MaiImage] = None,
+    ) -> None:
         """在后台构建并缓存图片描述。
 
         Args:
             image_hash: 图片哈希值。
             image_bytes: 图片字节数据。
+            saved_image: 已保存的图片对象，避免重复查询和更新访问计数。
         """
         try:
             logger.info(f"图片描述后台构建已开始，哈希值: {image_hash}")
-            await self.build_image_description(image_bytes)
+            await self.build_image_description(image_bytes, saved_image=saved_image)
             logger.info(f"图片描述后台构建完成，哈希值: {image_hash}")
         except Exception as exc:
             logger.warning(f"图片描述后台构建失败，哈希值: {image_hash}，错误: {exc}")
@@ -315,9 +329,14 @@ class ImageManager:
             raise RuntimeError(f"保存图片记录到数据库失败: {hash_str}")
         return mai_image
 
-    async def build_image_description(self, image_bytes: bytes) -> MaiImage:
+    async def build_image_description(
+        self,
+        image_bytes: bytes,
+        *,
+        saved_image: Optional[MaiImage] = None,
+    ) -> MaiImage:
         """在图片已保存的前提下生成或补齐图片描述。"""
-        mai_image = await self.ensure_image_saved(image_bytes)
+        mai_image = saved_image or await self.ensure_image_saved(image_bytes)
         if not mai_image.image_format:
             await mai_image.calculate_hash_format()
         if mai_image.vlm_processed and mai_image.description:

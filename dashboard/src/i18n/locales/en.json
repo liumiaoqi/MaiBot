@@ -40,6 +40,7 @@
       "pluginConfig": "Plugin Management",
       "mcpSettings": "MCP Settings",
       "logViewer": "Log Viewer",
+      "reasoningProcess": "Reasoning Process",
       "maisakaMonitor": "MaiSaka Chat Monitor",
       "localChat": "Local Chat",
       "settings": "Settings"
@@ -793,6 +794,7 @@
       "pluginsDesc": "Browse and install plugins",
       "logs": "Log Viewer",
       "logsDesc": "View system logs",
+      "reasoningProcessDesc": "Browse Maisaka prompt reasoning logs",
       "settings": "Settings",
       "settingsDesc": "Configure system settings"
     }

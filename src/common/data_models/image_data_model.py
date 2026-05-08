@@ -150,9 +150,11 @@ class BaseImageDataModel(BaseDatabaseDataModel[Images]):
 
             file_ext = self.file_name.split(".")[-1].lower()
             if file_ext != self.image_format:
-                logger.warning(
-                    f"[初始化] {self.file_name} 文件扩展名与实际格式不符: ext`{file_ext}`!=`{self.image_format}`"
-                )
+                log_message = f"[初始化] {self.file_name} 文件扩展名与实际格式不符: ext`{file_ext}`!=`{self.image_format}`"
+                if file_ext == "tmp":
+                    logger.debug(log_message)
+                else:
+                    logger.warning(log_message)
                 self._rename_file_to_match_format()
 
             return True

@@ -3139,9 +3139,7 @@ class SDKMemoryKernel:
             return {"success": False, "queued": False, "reason": "db_save_failed"}
 
         logger.debug(
-            "反馈纠错任务入队: query_tool_id=%s due_at=%s",
-            clean_tool_id,
-            due_at.isoformat(),
+            f"反馈纠错任务入队: query_tool_id={clean_tool_id} due_at={due_at.isoformat()}",
         )
         return {
             "success": True,

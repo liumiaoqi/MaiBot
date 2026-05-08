@@ -162,6 +162,12 @@ const logsRoute = createRoute({
   component: lazyRouteComponent(() => import('./routes/logs'), 'LogViewerPage'),
 })
 
+const reasoningProcessRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: '/reasoning-process',
+  component: lazyRouteComponent(() => import('./routes/reasoning-process'), 'ReasoningProcessPage'),
+})
+
 // MaiSaka 聊天流监控路由
 const plannerMonitorRoute = createRoute({
   getParentRoute: () => protectedRoute,
@@ -289,6 +295,7 @@ const routeTree = rootRoute.addChildren([
     pluginMirrorsRoute,
     mcpSettingsRoute,
     logsRoute,
+    reasoningProcessRoute,
     plannerMonitorRoute,
     chatRoute,
     settingsRoute,
