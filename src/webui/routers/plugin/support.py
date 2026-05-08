@@ -269,7 +269,9 @@ def backup_file(file_path: Path, action: str, move_file: bool = False) -> Option
         return None
 
     backup_name = f"{file_path.name}.{action}.{datetime.now().strftime('%Y%m%d%H%M%S')}"
-    backup_path = file_path.parent / backup_name
+    backup_dir = file_path.parent / "config_back"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    backup_path = backup_dir / backup_name
     if move_file:
         shutil.move(file_path, backup_path)
     else:
