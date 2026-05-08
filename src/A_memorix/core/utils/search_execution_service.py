@@ -14,7 +14,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from src.common.logger import get_logger
 
-from ..retrieval import TemporalQueryOptions
+from ..retrieval import RetrievalResult, TemporalQueryOptions
+from .metadata import coerce_metadata_dict
 from .search_postprocess import (
     apply_safe_content_dedup,
     maybe_apply_smart_path_fallback,
@@ -286,8 +287,8 @@ class SearchExecutionService:
         )
 
         async def _executor() -> Dict[str, Any]:
-            original_ppr = bool(getattr(retriever.config, "enable_ppr", True))
-            setattr(retriever.config, "enable_ppr", bool(request.enable_ppr))
+            original_ppr = bool(retriever.config.enable_ppr)
+            retriever.config.enable_ppr = bool(request.enable_ppr)
             started_at = time.time()
             try:
                 retrieved = await retriever.retrieve(
@@ -321,7 +322,7 @@ class SearchExecutionService:
                     relation_hashes = [
                         item.hash_value
                         for item in retrieved
-                        if getattr(item, "result_type", "") == "relation"
+                        if item.result_type == "relation"
                     ]
                     if relation_hashes:
                         await plugin_instance.reinforce_access(relation_hashes)
@@ -380,7 +381,7 @@ class SearchExecutionService:
                 elapsed_ms = (time.time() - started_at) * 1000.0
                 return {"results": retrieved, "elapsed_ms": elapsed_ms}
             finally:
-                setattr(retriever.config, "enable_ppr", original_ppr)
+                retriever.config.enable_ppr = original_ppr
 
         dedup_hit = False
         try:
@@ -421,18 +422,18 @@ class SearchExecutionService:
         )
 
     @staticmethod
-    def to_serializable_results(results: List[Any]) -> List[Dict[str, Any]]:
+    def to_serializable_results(results: List[RetrievalResult]) -> List[Dict[str, Any]]:
         serialized: List[Dict[str, Any]] = []
         for item in results:
-            metadata = dict(getattr(item, "metadata", {}) or {})
+            metadata = coerce_metadata_dict(item.metadata)
             if "time_meta" not in metadata:
                 metadata["time_meta"] = {}
             serialized.append(
                 {
-                    "hash": getattr(item, "hash_value", ""),
-                    "type": getattr(item, "result_type", ""),
-                    "score": float(getattr(item, "score", 0.0)),
-                    "content": getattr(item, "content", ""),
+                    "hash": item.hash_value,
+                    "type": item.result_type,
+                    "score": float(item.score),
+                    "content": item.content,
                     "metadata": metadata,
                 }
             )
