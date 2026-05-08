@@ -16,7 +16,7 @@ import traceback
 from src.common.logger import get_logger
 from src.services import llm_service as llm_api
 from src.services import message_service as message_api
-from src.config.config import global_config, model_config as host_model_config
+from src.config.config import config_manager, global_config
 from src.config.model_configs import TaskConfig
 
 from ..storage import (
@@ -150,14 +150,20 @@ class SummaryImporter:
         return True
 
     def _normalize_summary_model_selectors(self, raw_value: Any) -> List[str]:
-        """标准化 summarization.model_name 配置（vNext 仅接受字符串数组）。"""
+        """标准化 summarization.model_name 配置。"""
         if raw_value is None:
             return ["auto"]
         if isinstance(raw_value, list):
             selectors = [str(x).strip() for x in raw_value if str(x).strip()]
             return selectors or ["auto"]
+        if isinstance(raw_value, str):
+            selector = raw_value.strip()
+            if selector:
+                logger.warning("summarization.model_name 建议使用 List[str]，当前字符串配置已兼容处理。")
+                return [selector]
+            return ["auto"]
         raise ValueError(
-            "summarization.model_name 在 vNext 必须为 List[str]。"
+            "summarization.model_name 必须为 List[str] 或 str。"
             " 请执行 scripts/release_vnext_migrate.py migrate。"
         )
 
@@ -182,9 +188,17 @@ class SummaryImporter:
 
         return None, None
 
-    def _resolve_summary_model_config(self) -> Optional[TaskConfig]:
+    @staticmethod
+    def _current_model_dict() -> Dict[str, Any]:
+        try:
+            return getattr(config_manager.get_model_config(), "models_dict", {}) or {}
+        except Exception as exc:
+            logger.warning(f"读取当前模型字典失败: {exc}")
+            return {}
+
+    def _resolve_summary_model_config(self) -> Optional[Tuple[str, TaskConfig]]:
         """
-        解析 summarization.model_name 为 TaskConfig。
+        解析 summarization.model_name 为 (task_name, TaskConfig)。
         支持：
         - "auto"
         - "replyer"（任务名）
@@ -201,14 +215,16 @@ class SummaryImporter:
         selectors = self._normalize_summary_model_selectors(raw_cfg)
         default_task_name, default_task_cfg = self._pick_default_summary_task(available_tasks)
 
-        selected_models: List[str] = []
         base_cfg: Optional[TaskConfig] = None
-        model_dict = getattr(host_model_config, "models_dict", {})
+        base_task_name: Optional[str] = None
+        model_dict = self._current_model_dict()
 
-        def _append_models(models: List[str]):
-            for model_name in models:
-                if model_name and model_name not in selected_models:
-                    selected_models.append(model_name)
+        def _find_task_for_model(model_name: str) -> Tuple[Optional[str], Optional[TaskConfig]]:
+            for task_name, task_cfg in available_tasks.items():
+                task_models = [str(item).strip() for item in (getattr(task_cfg, "model_list", []) or []) if str(item).strip()]
+                if model_name in task_models:
+                    return task_name, task_cfg
+            return None, None
 
         for raw_selector in selectors:
             selector = raw_selector.strip()
@@ -217,9 +233,9 @@ class SummaryImporter:
 
             if selector.lower() == "auto":
                 if default_task_cfg:
-                    _append_models(default_task_cfg.model_list)
                     if base_cfg is None:
                         base_cfg = default_task_cfg
+                        base_task_name = default_task_name
                 continue
 
             if ":" in selector:
@@ -233,47 +249,60 @@ class SummaryImporter:
 
                 if base_cfg is None:
                     base_cfg = task_cfg
+                    base_task_name = task_name
 
                 if not model_name or model_name.lower() == "auto":
-                    _append_models(task_cfg.model_list)
                     continue
 
-                if model_name in model_dict or model_name in task_cfg.model_list:
-                    _append_models([model_name])
+                if model_name in task_cfg.model_list:
+                    logger.info(
+                        f"总结模型选择器 '{selector}' 已定位到任务 '{task_name}'；"
+                        "当前 LLM 服务按任务候选列表执行，不单独覆盖具体模型。"
+                    )
                 else:
-                    logger.warning(f"总结模型选择器 '{selector}' 的模型 '{model_name}' 不存在，已跳过")
+                    logger.warning(f"总结模型选择器 '{selector}' 的模型 '{model_name}' 不在任务 '{task_name}' 中，已跳过")
                 continue
 
             task_cfg = available_tasks.get(selector)
             if task_cfg:
-                _append_models(task_cfg.model_list)
                 if base_cfg is None:
                     base_cfg = task_cfg
+                    base_task_name = selector
                 continue
 
             if selector in model_dict:
-                _append_models([selector])
+                task_name, task_cfg = _find_task_for_model(selector)
+                if task_name and task_cfg:
+                    if base_cfg is None:
+                        base_cfg = task_cfg
+                        base_task_name = task_name
+                    logger.info(
+                        f"总结模型选择器 '{selector}' 已映射到任务 '{task_name}'；"
+                        "当前 LLM 服务按任务候选列表执行，不单独覆盖具体模型。"
+                    )
+                    continue
+                logger.warning(f"总结模型选择器 '{selector}' 未归属于任何任务，已跳过")
                 continue
 
             logger.warning(f"总结模型选择器 '{selector}' 无法识别，已跳过")
 
-        if not selected_models:
+        if base_cfg is None or not base_task_name:
             if default_task_cfg:
-                _append_models(default_task_cfg.model_list)
                 if base_cfg is None:
                     base_cfg = default_task_cfg
+                    base_task_name = default_task_name
             else:
-                first_cfg = next(iter(available_tasks.values()))
-                _append_models(first_cfg.model_list)
+                base_task_name, first_cfg = next(iter(available_tasks.items()))
                 if base_cfg is None:
                     base_cfg = first_cfg
 
-        if not selected_models:
+        if base_cfg is None or not base_task_name:
             return None
 
-        template_cfg = base_cfg or default_task_cfg or next(iter(available_tasks.values()))
-        return TaskConfig(
-            model_list=selected_models,
+        template_cfg = base_cfg
+        task_name_to_use = base_task_name
+        return task_name_to_use, TaskConfig(
+            model_list=list(template_cfg.model_list),
             max_tokens=template_cfg.max_tokens,
             temperature=template_cfg.temperature,
             slow_threshold=template_cfg.slow_threshold,
@@ -343,12 +372,13 @@ class SummaryImporter:
                 chat_history=chat_history_text
             )
 
-            model_config_to_use = self._resolve_summary_model_config()
-            if model_config_to_use is None:
+            resolved_model = self._resolve_summary_model_config()
+            if resolved_model is None:
                 return False, "未找到可用的总结模型配置"
-            task_name_to_use = llm_api.resolve_task_name_from_model_config(model_config_to_use)
+            task_name_to_use, model_config_to_use = resolved_model
 
             logger.info(f"正在为流 {stream_id} 执行总结，消息条数: {len(messages)}")
+            logger.info(f"总结模型任务: {task_name_to_use}")
             logger.info(f"总结模型候选列表: {model_config_to_use.model_list}")
 
             result = await llm_api.generate(
