@@ -56,6 +56,9 @@ from .tool_provider import MaisakaBuiltinToolProvider
 logger = get_logger("maisaka_runtime")
 
 MAX_INTERNAL_ROUNDS = 10
+MESSAGE_CACHE_MIN_RETAINED = 200
+MESSAGE_CACHE_CONTEXT_MULTIPLIER = 4
+HISTORY_LOOP_MAX_RETAINED = 256
 
 
 class MaisakaHeartFlowChatting:
@@ -82,7 +85,7 @@ class MaisakaHeartFlowChatting:
         self._chat_history: list[LLMContextMessage] = []
         self.history_loop: list[CycleDetail] = []
 
-        # Keep all original messages for batching and later learning.
+        # Keep recent original messages for batching, tools, and later learning.
         self.message_cache: list[SessionMessage] = []
         self._last_processed_index = 0
         self._internal_turn_queue: asyncio.Queue[Literal["message", "timeout"]] = asyncio.Queue()
@@ -111,6 +114,10 @@ class MaisakaHeartFlowChatting:
             else global_config.chat.max_private_context_size
         )
         self._max_context_size = max(1, int(configured_context_size))
+        self._message_cache_max_size = max(
+            MESSAGE_CACHE_MIN_RETAINED,
+            self._max_context_size * MESSAGE_CACHE_CONTEXT_MULTIPLIER,
+        )
         self._agent_state: Literal["running", "wait", "stop"] = self._STATE_STOP
         self._pending_wait_tool_call_id: Optional[str] = None
         self._force_next_timing_continue = False
@@ -939,6 +946,54 @@ class MaisakaHeartFlowChatting:
 
     def _has_pending_messages(self) -> bool:
         return self._last_processed_index < len(self.message_cache)
+
+    def _get_expression_learner_processed_index(self) -> int:
+        learner_index = getattr(self._expression_learner, "_last_processed_index", self._last_processed_index)
+        try:
+            return max(0, int(learner_index))
+        except (TypeError, ValueError):
+            return self._last_processed_index
+
+    def _adjust_expression_learner_processed_index(self, removed_count: int) -> None:
+        if not hasattr(self._expression_learner, "_last_processed_index"):
+            return
+        learner_index = self._get_expression_learner_processed_index()
+        setattr(self._expression_learner, "_last_processed_index", max(0, learner_index - removed_count))
+
+    def _prune_processed_message_cache(self) -> None:
+        """Trim old processed messages while preserving pending and learning windows."""
+        max_size = max(1, int(getattr(self, "_message_cache_max_size", MESSAGE_CACHE_MIN_RETAINED)))
+        overflow_count = len(self.message_cache) - max_size
+        if overflow_count <= 0:
+            return
+
+        processed_boundary = self._last_processed_index
+        removable_count = min(overflow_count, processed_boundary)
+        if removable_count <= 0:
+            return
+
+        removed_messages = self.message_cache[:removable_count]
+        removed_message_ids = {message.message_id for message in removed_messages}
+        del self.message_cache[:removable_count]
+        self._last_processed_index = max(0, self._last_processed_index - removable_count)
+        self._adjust_expression_learner_processed_index(removable_count)
+        retained_message_ids = {message.message_id for message in self.message_cache}
+
+        for message_id in removed_message_ids:
+            if message_id not in retained_message_ids:
+                self._message_received_at_by_id.pop(message_id, None)
+                self._source_messages_by_id.pop(message_id, None)
+
+        logger.debug(
+            f"{self.log_prefix} 已裁剪 Maisaka 消息缓存: "
+            f"移除={removable_count} 剩余={len(self.message_cache)} 上限={max_size}"
+        )
+
+    def prune_runtime_caches(self) -> None:
+        """Apply bounded retention to runtime-only in-memory histories."""
+        self._prune_processed_message_cache()
+        if len(self.history_loop) > HISTORY_LOOP_MAX_RETAINED:
+            del self.history_loop[: len(self.history_loop) - HISTORY_LOOP_MAX_RETAINED]
 
     def _schedule_message_turn(self) -> None:
         """为当前待处理消息安排一次内部 turn。"""

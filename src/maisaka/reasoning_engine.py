@@ -941,6 +941,7 @@ class MaisakaReasoningEngine:
         """结束并记录一轮 Maisaka 思考循环。"""
         cycle_detail.end_time = time.time()
         self._runtime.history_loop.append(cycle_detail)
+        self._runtime.prune_runtime_caches()
         self._post_process_chat_history_after_cycle()
 
         timer_strings = [
