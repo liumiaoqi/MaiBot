@@ -287,8 +287,11 @@ class SearchExecutionService:
         )
 
         async def _executor() -> Dict[str, Any]:
-            original_ppr = bool(retriever.config.enable_ppr)
-            retriever.config.enable_ppr = bool(request.enable_ppr)
+            retriever_config = getattr(retriever, "config", None)
+            has_runtime_ppr_switch = retriever_config is not None and hasattr(retriever_config, "enable_ppr")
+            original_ppr = bool(retriever_config.enable_ppr) if has_runtime_ppr_switch else None
+            if has_runtime_ppr_switch:
+                retriever_config.enable_ppr = bool(request.enable_ppr)
             started_at = time.time()
             try:
                 retrieved = await retriever.retrieve(
@@ -381,7 +384,8 @@ class SearchExecutionService:
                 elapsed_ms = (time.time() - started_at) * 1000.0
                 return {"results": retrieved, "elapsed_ms": elapsed_ms}
             finally:
-                retriever.config.enable_ppr = original_ppr
+                if has_runtime_ppr_switch:
+                    retriever_config.enable_ppr = bool(original_ppr)
 
         dedup_hit = False
         try:
