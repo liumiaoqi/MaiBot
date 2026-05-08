@@ -220,6 +220,7 @@ function PluginsPageContent() {
                   id: installedPlugin.id,
                   manifest: {
                     manifest_version: installedPlugin.manifest.manifest_version || 1,
+                    id: installedPlugin.manifest.id || installedPlugin.id,
                     name: installedPlugin.manifest.name,
                     version: installedPlugin.manifest.version,
                     description: installedPlugin.manifest.description || '',
