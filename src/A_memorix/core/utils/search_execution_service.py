@@ -325,7 +325,7 @@ class SearchExecutionService:
                     relation_hashes = [
                         item.hash_value
                         for item in retrieved
-                        if item.result_type == "relation"
+                        if getattr(item, "result_type", "") == "relation"
                     ]
                     if relation_hashes:
                         await plugin_instance.reinforce_access(relation_hashes)
