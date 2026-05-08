@@ -40,6 +40,7 @@
       "pluginConfig": "플러그인 관리",
       "mcpSettings": "MCP 설정",
       "logViewer": "로그 뷰어",
+      "reasoningProcess": "추론 과정",
       "maisakaMonitor": "MaiSaka 채팅 모니터",
       "localChat": "로컬 채팅",
       "settings": "설정"
@@ -793,6 +794,7 @@
       "pluginsDesc": "플러그인 탐색 및 설치",
       "logs": "로그 뷰어",
       "logsDesc": "시스템 로그 보기",
+      "reasoningProcessDesc": "Maisaka prompt 추론 로그 보기",
       "settings": "설정",
       "settingsDesc": "시스템 설정 구성"
     }

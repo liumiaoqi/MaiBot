@@ -768,11 +768,8 @@ class EmojiManager:
         selected_emoji, similarity = random.choice(top_emojis)
         self.update_emoji_usage(selected_emoji)
         logger.info(
-            "[获取表情包] 为[%s]选中表情包: %s(%s)，相似度: %.4f",
-            emotion_label,
-            selected_emoji.file_name,
-            ",".join(_get_emoji_emotions(selected_emoji)),
-            similarity,
+            f"[获取表情包] 为[{emotion_label}]选中表情包: "
+            f"{selected_emoji.file_name}({','.join(_get_emoji_emotions(selected_emoji))})，相似度: {similarity:.4f}",
         )
         return selected_emoji
 
@@ -1037,12 +1034,13 @@ class EmojiManager:
                 self._emoji_num < global_config.emoji.max_reg_num
                 or (self._emoji_num > global_config.emoji.max_reg_num and global_config.emoji.do_replace)
             ):
+                registered_paths = {Path(emoji.full_path).resolve() for emoji in self.emojis}
                 logger.info("[emoji_maintenance] Scanning data/emoji for new emojis...")
                 for emoji_file in EMOJI_DIR.iterdir():
                     if not emoji_file.is_file():
                         continue
                     resolved_file = emoji_file.absolute().resolve()
-                    if resolved_file in self._known_emoji_file_paths:
+                    if resolved_file in registered_paths:
                         continue
                     try:
                         register_status = await self.register_emoji_by_filename(emoji_file)

@@ -13,6 +13,7 @@ PROJECT_ROOT: Path = Path(__file__).parent.parent.parent.absolute().resolve()
 sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(PROJECT_ROOT / "src" / "config"))
 
+from src.common.i18n.loaders import DEFAULT_LOCALE  # noqa
 from src.prompt.prompt_manager import (  # noqa
     SUFFIX_PROMPT,
     Prompt,
@@ -689,7 +690,7 @@ def test_prompt_manager_save_prompts_io_error_on_write(tmp_path, monkeypatch):
     original_write_text = Path.write_text
 
     def fake_write_text(self, *args, **kwargs):
-        if self == custom_dir / f"save_error{SUFFIX_PROMPT}":
+        if self == custom_dir / DEFAULT_LOCALE / f"save_error{SUFFIX_PROMPT}":
             raise OSError("disk write error")
         return original_write_text(self, *args, **kwargs)
 
@@ -863,7 +864,7 @@ def test_prompt_manager_save_prompts_use_custom_dir(tmp_path, monkeypatch):
     manager.save_prompts()
 
     # Assert: 文件应保存在 custom_dir 中
-    saved_file = custom_dir / f"save_me{SUFFIX_PROMPT}"
+    saved_file = custom_dir / DEFAULT_LOCALE / f"save_me{SUFFIX_PROMPT}"
     assert saved_file.exists()
     assert saved_file.read_text(encoding="utf-8") == "Template {x}"
 

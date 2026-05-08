@@ -25,6 +25,13 @@ DEFAULT_TASK_CONFIG_TEMPLATES: dict[str, dict[str, Any]] = {
         "slow_threshold": 15.0,
         "selection_strategy": "random",
     },
+    "memory": {
+        "model_list": [],
+        "max_tokens": 4096,
+        "temperature": 0.5,
+        "slow_threshold": 30.0,
+        "selection_strategy": "random",
+    },
     "replyer": {
         "model_list": ["deepseek-v4-pro-think", "deepseek-v4-pro-nonthink"],
         "max_tokens": 4096,

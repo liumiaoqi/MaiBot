@@ -309,7 +309,7 @@ class AMemorixHostService:
         try:
             config_model = _get_config_manager().get_global_config().a_memorix
         except Exception as exc:
-            logger.warning("读取 A_Memorix 主配置失败，使用默认值: %s", exc)
+            logger.warning(f"读取 A_Memorix 主配置失败，使用默认值: {exc}")
             defaults = self._build_default_config()
             self._config_cache = defaults
             return dict(defaults)

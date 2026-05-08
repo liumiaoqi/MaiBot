@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Plus, Trash2, ChevronRight, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -292,12 +292,23 @@ export function NestedKeyValueEditor({
   placeholder = "添加参数...",
 }: NestedKeyValueEditorProps) {
   const [nodes, setNodes] = useState<TreeNode[]>(() => recordToTree(value || {}))
+  const lastEmittedValueRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    const nextValueJson = JSON.stringify(value || {})
+    if (lastEmittedValueRef.current === nextValueJson) {
+      return
+    }
+    setNodes(recordToTree(value || {}))
+  }, [value])
 
   // 同步到父组件
   const syncToParent = useCallback(
     (newNodes: TreeNode[]) => {
+      const nextValue = treeToRecord(newNodes)
+      lastEmittedValueRef.current = JSON.stringify(nextValue)
       setNodes(newNodes)
-      onChange(treeToRecord(newNodes))
+      onChange(nextValue)
     },
     [onChange]
   )

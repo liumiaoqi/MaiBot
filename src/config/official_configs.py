@@ -93,7 +93,7 @@ class BotConfig(ConfigBase):
             "x-icon": "user-circle",
         },
     )
-    """机器人昵称"""
+    """"""
 
     alias_names: list[str] = Field(
         default_factory=lambda: [],
@@ -130,6 +130,7 @@ class PersonalityConfig(ConfigBase):
             "x-icon": "user-circle",
             "x-textarea-min-height": 40,
             "x-textarea-rows": 1,
+            "x-description-display": "icon",
         },
     )
     """人格，建议200字以内，描述人格特质和身份特征；可以写完整设定。要求第二人称"""
@@ -146,6 +147,7 @@ class PersonalityConfig(ConfigBase):
             "x-icon": "message-square",
             "x-textarea-min-height": 40,
             "x-textarea-rows": 1,
+            "x-description-display": "icon",
         },
     )
     """默认表达风格，描述麦麦说话的表达风格，表达习惯，如要修改，可以酌情新增内容，建议1-2行"""
@@ -392,7 +394,7 @@ class ChatConfig(ConfigBase):
     """上下文长度"""
     
     max_private_context_size: int = Field(
-        default=40,
+        default=60,
         json_schema_extra={
             "label": {
                 "zh_CN": "私聊上下文",
@@ -419,12 +421,29 @@ class ChatConfig(ConfigBase):
     )
     """Planner 连续被新消息打断的最大次数，0 表示不启用打断"""
 
+    timing_gate_non_continue_cooldown_seconds: float = Field(
+        default=8,
+        ge=0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "Timing Gate 平滑",
+                "en_US": "Timing Gate non-continue cooldown",
+                "ja_JP": "Timing Gate 非 continue クールダウン",
+            },
+            "x-widget": "input",
+            "x-icon": "timer",
+            "x-description-display": "icon",
+            "advanced": False,
+        },
+    )
+    """这个值决定了 timing gate 判断的频率，值越大，timing gate 的判断越平滑，但也可能导致反应变慢。建议根据实际情况调整，找到一个既能保持反应及时又不过于频繁的平衡点。"""
+
     group_chat_prompt: str = Field(
         default=(
             "你正在qq群里聊天，下面是群里正在聊的内容，其中包含聊天记录和聊天中的图片和表情包。\n"
             "回复尽量简短一些。最好一次对一个话题进行回复，但必须考虑不同群友发言之间的交互，免得啰嗦或者回复内容太乱。请注意把握聊天内容。\n"
-            "不要总是提及自己的身份背景，根据聊天内容自由发挥，但是要日常不浮夸，不要太关注具体的聊天内容，不要刻意找话题，。\n"
-            "不要回复的太频繁！不用刻意回复表情包，只要关注表情包表达的含义。控制回复的频率，不要每个人的消息都回复，只回复你感兴趣的或者主动提及你的。\n"
+            "不要总是提及自己的身份背景，根据聊天内容自由发挥，但是要日常不浮夸，不要刻意找话题，。\n"
+            "不用刻意回复其他人发送的表情包，只要关注表情包表达的含义。你可以适当发送表情包表达情绪。控制回复的频率，不要每个人的消息都回复，优先回复你感兴趣的或者主动提及你的，适当回复其他话题。\n"
         ),
         json_schema_extra={
             "label": {
@@ -514,6 +533,7 @@ class MessageReceiveConfig(ConfigBase):
         json_schema_extra={
             "x-widget": "input",
             "x-icon": "image",
+            "advanced": True,
         },
     )
     """
@@ -2747,15 +2767,6 @@ class DebugConfig(ConfigBase):
     __ui_label__ = "其他"
     __ui_icon__ = "more-horizontal"
 
-    enable_maisaka_stage_board: bool = Field(
-        default=False,
-        json_schema_extra={
-            "x-widget": "switch",
-            "x-icon": "layout-dashboard",
-        },
-    )
-    """是否启用 Maisaka 阶段看板"""
-
     show_maisaka_thinking: bool = Field(
         default=True,
         json_schema_extra={
@@ -3146,6 +3157,15 @@ class WebUIConfig(ConfigBase):
         },
     )
     """是否启用WebUI"""
+
+    auto_update_dashboard: bool = Field(
+        default=True,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "refresh-cw",
+        },
+    )
+    """启动时是否自动检查并更新 WebUI dashboard"""
 
     host: str = Field(
         default="127.0.0.1",

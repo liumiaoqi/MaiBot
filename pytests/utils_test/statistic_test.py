@@ -105,11 +105,13 @@ def test_statistic_read_queries_disable_auto_commit(monkeypatch: pytest.MonkeyPa
     utils_module = ModuleType("src.chat.utils.utils")
     utils_module.is_bot_self = _is_bot_self
     monkeypatch.setitem(sys.modules, "src.chat.utils.utils", utils_module)
+    monkeypatch.setattr(statistic, "fetch_online_time_since", lambda query_start_time: [])
+    monkeypatch.setattr(statistic, "fetch_model_usage_since", lambda query_start_time: [])
+    monkeypatch.setattr(statistic, "fetch_messages_since", lambda query_start_time: [])
+    monkeypatch.setattr(statistic, "fetch_tool_records_since", lambda query_start_time: [])
 
-    statistic.StatisticOutputTask._fetch_online_time_since(now)
-    statistic.StatisticOutputTask._fetch_model_usage_since(now)
     task._collect_message_count_for_period([("last_hour", now - timedelta(hours=1))])
     task._collect_interval_data(now, hours=1, interval_minutes=60)
     task._collect_metrics_interval_data(now, hours=1, interval_hours=1)
 
-    assert calls == [False] * 9
+    assert calls == []

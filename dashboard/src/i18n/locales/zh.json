@@ -26,7 +26,7 @@
       "home": "首页",
       "botMainConfig": "麦麦设置",
       "aiModelProvider": "模型厂商设置",
-      "modelManagement": "模型管理与分配",
+      "modelManagement": "模型管理",
       "promptManagement": "Prompt 管理",
       "adapterConfig": "麦麦适配器配置",
       "emojiManagement": "表情包",
@@ -40,6 +40,7 @@
       "pluginConfig": "插件管理",
       "mcpSettings": "MCP 设置",
       "logViewer": "日志查看器",
+      "reasoningProcess": "推理过程",
       "maisakaMonitor": "麦麦观察",
       "localChat": "本地聊天室",
       "settings": "系统设置"
@@ -793,6 +794,7 @@
       "pluginsDesc": "浏览和安装插件",
       "logs": "日志查看器",
       "logsDesc": "查看系统日志",
+      "reasoningProcessDesc": "浏览 Maisaka prompt 推理记录",
       "settings": "系统设置",
       "settingsDesc": "配置系统参数"
     }
