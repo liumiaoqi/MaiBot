@@ -1,11 +1,22 @@
 ═══════════════════════════════════════════════
   MaiBot Docker 一键启动与配置速查
-  最后更新: 2026-05-06
+  最后更新: 2026-05-08
 ═══════════════════════════════════════════════
 
 【每次启动】
   cd E:\Users\lmq\MaiBot
   docker compose up -d
+
+  启动后自动拉取最新版核心包:
+    maibot-dashboard / maibot-plugin-sdk / maim-message
+  (配置在 docker-entrypoint.sh 里，无需手动 pip install)
+
+【更新镜像】
+  docker compose pull && docker compose up -d
+
+  更新后建议清理残留资源(可选，节省磁盘):
+    docker image prune -f     ← 清理旧版悬空镜像 <none>
+    docker volume prune -f    ← 清理未使用的 volume
 
 【查看状态】
   docker compose ps
@@ -68,13 +79,27 @@
   🔧 常用改配置操作
 ═══════════════════════════════════════════════
 
-  换人格(银狼风) → 改 bot_config.toml 的 [personality] reply_style
+  换人格(银狼风) → 改 bot_config.toml 的 [personality] personality / reply_style
   加群白名单    → 改 data\MaiMBot\plugins\MaiBot-Napcat-Adapter\config.toml 的 group_list
   换API Key     → 改 docker-config\mmc\model_config.toml 的 api_key
   改聊天频率    → 改 bot_config.toml 的 [chat] talk_value (0=沉默 1=话痨)
   开长期记忆    → 改 bot_config.toml 的 [a_memorix.plugin] enabled = true
 
   改完后执行: docker compose restart core
+
+  ⚠️ docker-config/ 已加入 .gitignore，配置里的 QQ号/API Key 不会被 git 提交
+
+
+═══════════════════════════════════════════════
+  ⚡ 自动升级说明
+═══════════════════════════════════════════════
+
+  docker-entrypoint.sh 在每次启动时自动升级三个核心包:
+    maibot-dashboard  (WebUI)
+    maibot-plugin-sdk (插件框架)
+    maim-message      (消息中间件)
+
+  无需手动 pip install。升级失败不会阻塞启动。
 
 
 ═══════════════════════════════════════════════
