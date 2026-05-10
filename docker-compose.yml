@@ -27,6 +27,7 @@ services:
       - ./data/MaiMBot/logs:/MaiMBot/logs # 日志目录
       - ./depends-data:/MaiMBot/depends-data:ro # 运行时资源文件
       # - site-packages:/usr/local/lib/python3.13/site-packages # 持久化Python包，需要时启用
+    entrypoint: ["/bin/sh", "-c", "mkdir -p /MaiMBot/plugins; uv pip install --python /MaiMBot/.venv/bin/python --upgrade maibot-dashboard; rm -rf /MaiMBot/plugins/MaiBot-Napcat-Adapter; exec /MaiMBot/.venv/bin/python bot.py"]
     restart: always
     networks:
       - maim_bot
