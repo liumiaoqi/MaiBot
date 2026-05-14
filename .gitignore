@@ -80,6 +80,8 @@ dist-ssr/
 *.sln
 *.sw?
 result.json
+.arts/*
+.codeartsdoer/*
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
