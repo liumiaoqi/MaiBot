@@ -80,7 +80,7 @@ class PersonProfileService:
         """读取人物画像证据分类的最大输出 token 数。"""
         raw_value = self._cfg("person_profile.evidence_classification_max_tokens", 1200)
         try:
-            return max(128, int(raw_value or 1200))
+            return min(32768, max(128, int(raw_value or 1200)))
         except (TypeError, ValueError):
             return 1200
 
