@@ -76,6 +76,14 @@ class PersonProfileService:
                 return default
         return current
 
+    def _profile_classification_max_tokens(self) -> int:
+        """读取人物画像证据分类的最大输出 token 数。"""
+        raw_value = self._cfg("person_profile.evidence_classification_max_tokens", 1200)
+        try:
+            return max(128, int(raw_value or 1200))
+        except (TypeError, ValueError):
+            return 1200
+
     def _build_retriever(self) -> Optional[DualPathRetriever]:
         """按需构建检索器（无依赖时返回 None）。"""
         if not all(
@@ -700,7 +708,7 @@ class PersonProfileService:
                 PROFILE_CLASSIFICATION_REQUEST_TYPE,
                 prompt,
                 temperature=0.1,
-                max_tokens=1200,
+                max_tokens=self._profile_classification_max_tokens(),
             )
         except Exception as exc:
             logger.debug(f"人物画像证据分类模型调用失败: person_id={person_id}, err={exc}")

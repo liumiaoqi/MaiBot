@@ -1747,6 +1747,19 @@ class AMemorixPersonProfileConfig(ConfigBase):
     )
     """证据条数"""
 
+    evidence_classification_max_tokens: int = Field(
+        default=1200,
+        ge=128,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "证据分类输出上限",
+                "en_US": "Evidence classification max tokens",
+                "ja_JP": "証拠分類の最大トークン数",
+            },
+        },
+    )
+    """人物画像证据分类最大输出 token 数"""
+
 
 class AMemorixMemoryEvolutionConfig(ConfigBase):
     """A_Memorix 记忆演化配置"""

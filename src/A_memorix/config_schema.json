@@ -993,6 +993,23 @@
           "max": 200,
           "step": 1,
           "choices": null
+        },
+        "evidence_classification_max_tokens": {
+          "name": "evidence_classification_max_tokens",
+          "type": "integer",
+          "default": 1200,
+          "description": "证据分类输出 token 上限",
+          "label": "证据分类输出上限",
+          "ui_type": "number",
+          "required": false,
+          "hidden": false,
+          "disabled": false,
+          "order": 6,
+          "hint": "控制人物画像证据分类 LLM 调用的最大输出 token 数。",
+          "min": 128,
+          "max": 32768,
+          "step": 1,
+          "choices": null
         }
       }
     },
