@@ -20,6 +20,7 @@ from src.core.tooling import (
 )
 from src.core.types import ActionActivationType, ActionInfo, CommandInfo, ComponentInfo, ComponentType, ToolInfo
 from src.llm_models.payload_content.tool_option import normalize_tool_option
+from src.plugin_runtime.host.message_utils import PluginMessageUtils
 
 if TYPE_CHECKING:
     from src.plugin_runtime.host.component_registry import ActionEntry, CommandEntry, ComponentEntry, ToolEntry
@@ -503,6 +504,10 @@ class ComponentQueryService:
                 "user_id": str(getattr(user_info, "user_id", "") or ""),
                 "matched_groups": matched_groups if isinstance(matched_groups, dict) else {},
             }
+            if message is not None:
+                invoke_args["message"] = dict(
+                    PluginMessageUtils._session_message_to_dict(message, include_binary_data=False)
+                )
             if isinstance(plugin_config, dict):
                 invoke_args["plugin_config"] = plugin_config
 
