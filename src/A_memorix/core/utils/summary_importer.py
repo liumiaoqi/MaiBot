@@ -5,8 +5,8 @@
 导入到 A_memorix 的存储组件中。
 """
 
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 import json
 import re
@@ -14,10 +14,10 @@ import time
 import traceback
 
 from src.common.logger import get_logger
-from src.services import llm_service as llm_api
-from src.services import message_service as message_api
 from src.config.config import config_manager, global_config
 from src.config.model_configs import TaskConfig
+from src.services import llm_service as llm_api
+from src.services import message_service as message_api
 
 from ..storage import (
     KnowledgeType,
@@ -36,6 +36,23 @@ from .relation_write_service import RelationWriteService
 from .runtime_self_check import ensure_runtime_self_check, run_embedding_runtime_self_check
 
 logger = get_logger("A_Memorix.SummaryImporter")
+
+
+@dataclass(frozen=True)
+class SummaryImportResult:
+    """聊天摘要导入结果。
+
+    保留二元组解包兼容：旧调用方仍可使用 ``success, detail = result``。
+    """
+
+    success: bool
+    detail: str
+    paragraph_hash: str = ""
+    source: str = ""
+
+    def __iter__(self) -> Iterator[bool | str]:
+        yield self.success
+        yield self.detail
 
 # 默认总结提示词模版
 SUMMARY_PROMPT_TEMPLATE = """
@@ -161,7 +178,7 @@ class SummaryImporter:
         graph_store: GraphStore,
         metadata_store: MetadataStore,
         embedding_manager: EmbeddingAPIAdapter,
-        plugin_config: dict
+        plugin_config: dict,
     ):
         self.vector_store = vector_store
         self.graph_store = graph_store
@@ -169,9 +186,7 @@ class SummaryImporter:
         self.embedding_manager = embedding_manager
         self.plugin_config = plugin_config
         self.relation_write_service: Optional[RelationWriteService] = (
-            plugin_config.get("relation_write_service")
-            if isinstance(plugin_config, dict)
-            else None
+            plugin_config.get("relation_write_service") if isinstance(plugin_config, dict) else None
         )
 
     def _allow_metadata_only_write(self) -> bool:
@@ -200,11 +215,12 @@ class SummaryImporter:
                 return [selector]
             return ["auto"]
         raise ValueError(
-            "summarization.model_name 必须为 List[str] 或 str。"
-            " 请执行 scripts/release_vnext_migrate.py migrate。"
+            "summarization.model_name 必须为 List[str] 或 str。 请执行 scripts/release_vnext_migrate.py migrate。"
         )
 
-    def _pick_default_summary_task(self, available_tasks: Dict[str, TaskConfig]) -> Tuple[Optional[str], Optional[TaskConfig]]:
+    def _pick_default_summary_task(
+        self, available_tasks: Dict[str, TaskConfig]
+    ) -> Tuple[Optional[str], Optional[TaskConfig]]:
         """
         选择总结默认任务，避免错误落到 embedding/voice/vlm 等非文本生成任务。
         优先级：memory > utils > planner > tool_use > replyer > 其他文本生成任务。
@@ -282,7 +298,9 @@ class SummaryImporter:
                         "当前 LLM 服务按任务候选列表执行，不单独覆盖具体模型。"
                     )
                 else:
-                    logger.warning(f"总结模型选择器 '{selector}' 的模型 '{model_name}' 不在任务 '{task_name}' 中，已跳过")
+                    logger.warning(
+                        f"总结模型选择器 '{selector}' 的模型 '{model_name}' 不在任务 '{task_name}' 中，已跳过"
+                    )
                 continue
 
             task_cfg = available_tasks.get(selector)
@@ -329,6 +347,7 @@ class SummaryImporter:
             temperature=template_cfg.temperature,
             slow_threshold=template_cfg.slow_threshold,
             selection_strategy=template_cfg.selection_strategy,
+            hard_timeout=template_cfg.hard_timeout,
         )
 
     def _summary_review_count(self, metadata: Optional[Dict[str, Any]]) -> int:
@@ -414,7 +433,7 @@ class SummaryImporter:
         include_personality: Optional[bool] = None,
         time_end: Optional[float] = None,
         metadata: Optional[Dict[str, Any]] = None,
-    ) -> Tuple[bool, str]:
+    ) -> SummaryImportResult:
         """
         从指定的聊天流中提取记录并执行总结导入
 
@@ -425,17 +444,17 @@ class SummaryImporter:
             time_end: 用于截取聊天记录的时间上界（闭区间）
 
         Returns:
-            Tuple[bool, str]: (是否成功, 结果消息)
+            SummaryImportResult: 导入结果，包含本次新增摘要段落 hash。
         """
         try:
             self_check_ok, self_check_msg = await self._ensure_runtime_self_check()
             if not self_check_ok:
-                return False, f"导入前自检失败: {self_check_msg}"
+                return SummaryImportResult(False, f"导入前自检失败: {self_check_msg}")
 
             # 1. 获取配置
             if context_length is None:
                 context_length = self.plugin_config.get("summarization", {}).get("context_length", 50)
-            
+
             if include_personality is None:
                 include_personality = self.plugin_config.get("summarization", {}).get("include_personality", True)
 
@@ -450,7 +469,7 @@ class SummaryImporter:
             )
 
             if not messages:
-                return False, "未找到有效的聊天记录进行总结"
+                return SummaryImportResult(False, "未找到有效的聊天记录进行总结")
 
             # 转换为可读文本
             chat_history_text = message_api.build_readable_messages(messages)
@@ -459,7 +478,7 @@ class SummaryImporter:
                 stream_id,
                 limit=review_count,
             )
-            
+
             # 3. 准备提示词内容
             bot_name = global_config.bot.nickname or "机器人"
             personality_context = ""
@@ -473,12 +492,12 @@ class SummaryImporter:
                 bot_name=bot_name,
                 personality_context=personality_context,
                 previous_summary_context=previous_summary_context,
-                chat_history=chat_history_text
+                chat_history=chat_history_text,
             )
 
             resolved_model = self._resolve_summary_model_config()
             if resolved_model is None:
-                return False, "未找到可用的总结模型配置"
+                return SummaryImportResult(False, "未找到可用的总结模型配置")
             task_name_to_use, model_config_to_use = resolved_model
 
             logger.info(f"正在为流 {stream_id} 执行总结，消息条数: {len(messages)}")
@@ -498,16 +517,16 @@ class SummaryImporter:
             response = str(result.completion.response or "")
 
             if not success or not response:
-                return False, "LLM 生成总结失败"
+                return SummaryImportResult(False, "LLM 生成总结失败")
 
             # 5. 解析结果
             data = self._parse_llm_response(response)
             if not data or "summary" not in data:
-                return False, "解析 LLM 响应失败或总结为空"
+                return SummaryImportResult(False, "解析 LLM 响应失败或总结为空")
 
             summary_text = str(data["summary"] or "").strip()
             if not summary_text:
-                return False, "解析 LLM 响应失败或总结为空"
+                return SummaryImportResult(False, "解析 LLM 响应失败或总结为空")
             entities = _normalize_entity_items(data.get("entities"))
             relations = _normalize_relation_items(data.get("relations"))
             msg_times = [timestamp for msg in messages if (timestamp := _message_timestamp(msg)) is not None]
@@ -521,7 +540,7 @@ class SummaryImporter:
                 }
 
             # 6. 执行导入
-            await self._execute_import(
+            paragraph_hash = await self._execute_import(
                 summary_text,
                 entities,
                 relations,
@@ -540,11 +559,16 @@ class SummaryImporter:
                 f"📌 提取实体: {len(entities)}\n"
                 f"🔗 提取关系: {len(relations)}"
             )
-            return True, result_msg
+            return SummaryImportResult(
+                True,
+                result_msg,
+                paragraph_hash=paragraph_hash,
+                source=f"chat_summary:{stream_id}",
+            )
 
         except Exception as e:
             logger.error(f"总结导入过程中出错: {e}\n{traceback.format_exc()}")
-            return False, f"错误: {str(e)}"
+            return SummaryImportResult(False, f"错误: {str(e)}")
 
     async def _ensure_runtime_self_check(self) -> Tuple[bool, str]:
         plugin_instance = self.plugin_config.get("plugin_instance") if isinstance(self.plugin_config, dict) else None
@@ -595,7 +619,7 @@ class SummaryImporter:
         stream_id: str,
         time_meta: Optional[Dict[str, Any]] = None,
         metadata: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> str:
         """将数据写入存储"""
         # 获取默认知识类型
         type_str = self.plugin_config.get("summarization", {}).get("default_knowledge_type", "narrative")
@@ -627,10 +651,7 @@ class SummaryImporter:
         else:
             try:
                 embedding = await self.embedding_manager.encode(summary)
-                self.vector_store.add(
-                    vectors=embedding.reshape(1, -1),
-                    ids=[hash_value]
-                )
+                self.vector_store.add(vectors=embedding.reshape(1, -1), ids=[hash_value])
             except Exception as exc:
                 if not self._allow_metadata_only_write():
                     raise
@@ -661,11 +682,7 @@ class SummaryImporter:
                 else:
                     # 写入元数据
                     rel_hash = self.metadata_store.add_relation(
-                        subject=s,
-                        predicate=p,
-                        obj=o,
-                        confidence=1.0,
-                        source_paragraph=hash_value
+                        subject=s, predicate=p, obj=o, confidence=1.0, source_paragraph=hash_value
                     )
                     # 写入图数据库（写入 relation_hashes，确保后续可按关系精确修剪）
                     self.graph_store.add_edges([(s, o)], relation_hashes=[rel_hash])
@@ -673,5 +690,6 @@ class SummaryImporter:
                         self.metadata_store.set_relation_vector_state(rel_hash, "none")
                     except Exception:
                         pass
-                
+
         logger.info(f"总结导入完成: hash={hash_value[:8]}")
+        return hash_value
