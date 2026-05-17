@@ -220,6 +220,7 @@ function SetupPageContent() {
         description: t('setupPage.toast.saveSuccessDescription', {
           step: steps[currentStep].title,
         }),
+        duration: 1000,
       })
       return true
     } catch (error) {

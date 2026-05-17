@@ -518,7 +518,7 @@
     },
     "header": {
       "title": "首次配置向导",
-      "description": "让我们一起完成 {{appName}} 的初始配置"
+      "description": "让我们一起完成麦麦的初始配置"
     },
     "progress": {
       "stepCounter": "步骤 {{current}} / {{total}}"
@@ -735,7 +735,7 @@
     "restartingTip": "🔄 配置已保存，正在重启主程序...",
     "checking": "检查服务状态",
     "checkingDesc": "等待服务恢复... ({{current}}/{{max}})",
-    "checkingTip": "⏳ 正在等待服务恢复，请勿关闭页面...",
+    "checkingTip": "重启中，请勿关闭页面...",
     "success": "重启成功",
     "successDesc": "正在跳转到登录页面...",
     "successTip": "✅ 配置已生效，服务运行正常",

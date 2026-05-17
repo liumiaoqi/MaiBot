@@ -85,10 +85,12 @@ function unwrapModelConfig(data: unknown): Record<string, unknown> {
   return data as Record<string, unknown>
 }
 
+const ADVANCED_MODEL_TASK_NAMES = new Set(['memory', 'learner', 'emoji', 'voice'])
+
 function getRequiredTaskNames(schema: ConfigSchema | null): Set<string> {
   return new Set(
     (schema?.fields ?? [])
-      .filter((field) => field.type === 'object' && !field.advanced)
+      .filter((field) => field.type === 'object' && !field.advanced && !ADVANCED_MODEL_TASK_NAMES.has(field.name))
       .map((field) => field.name)
   )
 }
