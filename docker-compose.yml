@@ -7,6 +7,7 @@ services:
     #### dev ####
     # image: sengokucola/maibot:dev
     # image: infinitycat/maibot:dev
+    entrypoint: ["/bin/sh", "/MaiMBot/docker-entrypoint-wrapper.sh"]
     environment:
       - TZ=Asia/Shanghai
       - EULA_AGREE=1b662741904d7155d1ce1c00b3530d0d
@@ -24,6 +25,7 @@ services:
       - ./data/MaiMBot:/MaiMBot/data # 共享目录
       - ./data/MaiMBot/emoji:/data/emoji # 持久化表情包
       - ./data/MaiMBot/plugins:/MaiMBot/plugins # 插件目录
+      - ./docker-entrypoint-wrapper.sh:/MaiMBot/docker-entrypoint-wrapper.sh:ro # 去重入口包装
       - ./data/MaiMBot/logs:/MaiMBot/logs # 日志目录
       - ./depends-data:/MaiMBot/depends-data:ro # 运行时资源文件
       # - site-packages:/usr/local/lib/python3.13/site-packages # 持久化Python包，需要时启用
