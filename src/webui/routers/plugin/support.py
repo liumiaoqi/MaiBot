@@ -205,6 +205,22 @@ def get_plugin_candidate_paths(plugin_id: str) -> Tuple[Path, Path]:
     return validate_safe_path(folder_name, plugins_dir), validate_safe_path(plugin_id, plugins_dir)
 
 
+def is_plugin_install_residue(plugin_path: Path) -> bool:
+    """判断目录是否只是卸载失败留下的插件安装残留。"""
+    if not plugin_path.exists() or not plugin_path.is_dir() or plugin_path.is_symlink():
+        return False
+
+    manifest_path = resolve_plugin_file_path(plugin_path, "_manifest.json")
+    if manifest_path.exists():
+        return False
+
+    allowed_residue_files = {"config.toml"}
+    try:
+        return all(entry.is_file() and entry.name in allowed_residue_files for entry in plugin_path.iterdir())
+    except OSError:
+        return False
+
+
 def resolve_installed_plugin_path(plugin_id: str) -> Optional[Path]:
     new_format_path, old_format_path = get_plugin_candidate_paths(plugin_id)
     plugins_dir = get_plugins_dir()
