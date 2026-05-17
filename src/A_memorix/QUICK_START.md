@@ -110,6 +110,7 @@ refresh_interval_minutes = 30
 active_window_hours = 72
 max_refresh_per_cycle = 50
 top_k_evidence = 12
+evidence_classification_max_tokens = 1200
 
 [memory]
 enabled = true
