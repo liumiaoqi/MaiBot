@@ -419,7 +419,7 @@ class TaskConfig(ConfigBase):
     """模型选择策略：balance（负载均衡）、random（随机选择）或 sequential（按配置顺序优先选择）"""
 
     hard_timeout: float = Field(
-        default=180.0,
+        default=240.0,
         ge=1.0,
         json_schema_extra={
             "x-widget": "input",
