@@ -114,25 +114,13 @@ class MaisakaHeartFlowChatting:
         self._force_next_timing_continue = False
         self._force_next_timing_message_id = ""
         self._force_next_timing_reason = ""
-        self._timing_gate_non_continue_cooldown_seconds = max(
-            0.0,
-            float(global_config.chat.timing_gate_non_continue_cooldown_seconds),
-        )
         self._planner_interrupt_flag: Optional[asyncio.Event] = None
         self._planner_interrupt_requested = False
         self._planner_interrupt_consecutive_count = 0
         self._current_action_tool_names: set[str] = set()
         self.discovered_tool_names: set[str] = set()
         self.deferred_tool_specs_by_name: dict[str, ToolSpec] = {}
-        self._planner_interrupt_max_consecutive_count = max(
-            0,
-            int(global_config.chat.planner_interrupt_max_consecutive_count),
-        )
 
-        expr_use, expr_learn = ExpressionConfigUtils.get_expression_config_for_chat(session_id)
-        self._enable_expression_use = expr_use
-        self._enable_expression_learning = expr_learn
-        self._enable_jargon_use, self._enable_jargon_learning = JargonConfigUtils.get_jargon_config_for_chat(session_id)
         self._min_extraction_interval = 30
         self._last_expression_extraction_time = 0.0
         self._expression_learner = ExpressionLearner(session_id)
@@ -160,6 +148,32 @@ class MaisakaHeartFlowChatting:
             else global_config.chat.max_private_context_size
         )
         return max(1, int(configured_context_size))
+
+    @property
+    def _planner_interrupt_max_consecutive_count(self) -> int:
+        """返回当前实时生效的 Planner 连续打断上限。"""
+
+        return max(0, int(global_config.chat.planner_interrupt_max_consecutive_count))
+
+    @property
+    def _timing_gate_non_continue_cooldown_seconds(self) -> float:
+        """返回当前实时生效的 Timing Gate 非 continue 冷却时间。"""
+
+        return max(0.0, float(global_config.chat.timing_gate_non_continue_cooldown_seconds))
+
+    @property
+    def _enable_expression_learning(self) -> bool:
+        """返回当前会话实时生效的表达学习开关。"""
+
+        _, enable_learning = ExpressionConfigUtils.get_expression_config_for_chat(self.session_id)
+        return enable_learning
+
+    @property
+    def _enable_jargon_learning(self) -> bool:
+        """返回当前会话实时生效的黑话学习开关。"""
+
+        _, enable_learning = JargonConfigUtils.get_jargon_config_for_chat(self.session_id)
+        return enable_learning
 
     def _emit_monitor_session_start(self) -> None:
         """向 WebUI 监控面板同步当前会话的展示标识。"""
@@ -408,19 +422,20 @@ class MaisakaHeartFlowChatting:
         if self._agent_state == self._STATE_RUNNING:
             self._message_debounce_required = True
         if self._agent_state == self._STATE_RUNNING and self._planner_interrupt_flag is not None:
+            planner_interrupt_max_count = self._planner_interrupt_max_consecutive_count
             if self._planner_interrupt_requested:
                 logger.info(
                     f"{self.log_prefix} 收到新消息，但当前请求已发起过一次规划器打断，"
                     f"本次不重复打断; 消息编号={message.message_id} "
                     f"连续打断次数={self._planner_interrupt_consecutive_count}/"
-                    f"{self._planner_interrupt_max_consecutive_count}"
+                    f"{planner_interrupt_max_count}"
                 )
-            elif self._planner_interrupt_consecutive_count >= self._planner_interrupt_max_consecutive_count:
+            elif self._planner_interrupt_consecutive_count >= planner_interrupt_max_count:
                 logger.info(
                     f"{self.log_prefix} 收到新消息，但已达到规划器连续打断上限，"
                     f"将等待当前请求自然完成; 消息编号={message.message_id} "
                     f"连续打断次数={self._planner_interrupt_consecutive_count}/"
-                    f"{self._planner_interrupt_max_consecutive_count}"
+                    f"{planner_interrupt_max_count}"
                 )
             else:
                 self._planner_interrupt_requested = True
@@ -430,7 +445,7 @@ class MaisakaHeartFlowChatting:
                     f"消息编号={message.message_id} 缓存条数={len(self.message_cache)} "
                     f"时间戳={time.time():.3f} "
                     f"连续打断次数={self._planner_interrupt_consecutive_count}/"
-                    f"{self._planner_interrupt_max_consecutive_count}"
+                    f"{planner_interrupt_max_count}"
                 )
                 self._planner_interrupt_flag.set()
         if self._running:
@@ -1225,13 +1240,14 @@ class MaisakaHeartFlowChatting:
 
         if not context_messages:
             return
-        if not self._enable_expression_learning:
+        enable_expression_learning = self._enable_expression_learning
+        if not enable_expression_learning:
             logger.debug(f"{self.log_prefix} 表达学习未启用，跳过裁切历史学习")
             return
 
         pending_context_count = len(context_messages)
         if not self._should_trigger_learning(
-            enabled=self._enable_expression_learning,
+            enabled=enable_expression_learning,
             feature_name="表达学习",
             last_extraction_time=self._last_expression_extraction_time,
             pending_count=pending_context_count,
@@ -1240,14 +1256,15 @@ class MaisakaHeartFlowChatting:
             return
 
         self._last_expression_extraction_time = time.time()
+        enable_jargon_learning = self._enable_jargon_learning
         logger.info(
             f"{self.log_prefix} 触发裁切历史表达学习: "
             f"裁切上下文消息数量={pending_context_count} "
-            f"是否启用黑话学习={self._enable_jargon_learning}"
+            f"是否启用黑话学习={enable_jargon_learning}"
         )
 
         try:
-            jargon_miner = self._jargon_miner if self._enable_jargon_learning else None
+            jargon_miner = self._jargon_miner if enable_jargon_learning else None
             learnt_style = await self._expression_learner.learn_from_context_messages(
                 context_messages,
                 jargon_miner,

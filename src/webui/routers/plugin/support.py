@@ -11,6 +11,7 @@ from fastapi import HTTPException
 
 from src.common.logger import get_logger
 from src.core.config_types import ConfigField
+from src.plugin_runtime.runner.manifest_validator import is_reserved_plugin_directory
 from src.webui.core import get_token_manager
 
 logger = get_logger("webui.plugin_routes")
@@ -265,6 +266,8 @@ def iter_plugin_directories() -> List[Path]:
     plugins_dir = get_plugins_dir()
     plugin_directories: List[Path] = []
     for path in plugins_dir.iterdir():
+        if is_reserved_plugin_directory(path):
+            continue
         safe_path = _resolve_safe_plugin_directory(path, plugins_dir, strict=False)
         if safe_path is not None:
             plugin_directories.append(safe_path)
