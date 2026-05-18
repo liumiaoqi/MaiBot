@@ -265,9 +265,13 @@ async def _delayed_restart() -> None:
     logger.info("WebUI 请求重启，正在停止插件运行时")
     from src.common.runtime_loop import run_on_main_loop
 
-    await run_on_main_loop(_stop_runtime_before_restart())
-    logger.info(f"WebUI 请求重启，退出代码 {_RESTART_EXIT_CODE}")
-    os._exit(_RESTART_EXIT_CODE)
+    try:
+        await run_on_main_loop(_stop_runtime_before_restart())
+    except Exception as exc:
+        logger.error(f"WebUI 重启前清理运行时失败，将继续退出以触发外部 runner 重启: {exc}", exc_info=True)
+    finally:
+        logger.info(f"WebUI 请求重启，退出代码 {_RESTART_EXIT_CODE}")
+        os._exit(_RESTART_EXIT_CODE)
 
 
 @router.post("/restart", response_model=RestartResponse)
