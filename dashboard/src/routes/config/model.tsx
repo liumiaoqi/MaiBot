@@ -1329,7 +1329,7 @@ function ModelConfigPageContent() {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="providers" className="w-full" data-tour="providers-tab-trigger">模型厂商设置</TabsTrigger>
-            <TabsTrigger value="models" className="w-full" data-tour="models-tab-trigger">添加模型</TabsTrigger>
+            <TabsTrigger value="models" className="w-full" data-tour="models-tab-trigger">模型列表</TabsTrigger>
             <TabsTrigger value="tasks" className="w-full" data-tour="tasks-tab-trigger">为模型分配功能</TabsTrigger>
           </TabsList>
           {/* 模型厂商设置标签页 */}
