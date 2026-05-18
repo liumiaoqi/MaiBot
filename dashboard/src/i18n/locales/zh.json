@@ -691,8 +691,8 @@
       "modelSetup": {
         "planner": {
           "identifier": {
-            "label": "planner 模型标识符 *",
-            "description": "API 服务商提供的真实模型 ID，模型名称会自动初始化为该标识符"
+            "label": "用于规划的 模型 名称 *",
+            "description": "API 服务商提供的真实模型 ID"
           },
           "visual": {
             "label": "启用视觉"
@@ -700,8 +700,8 @@
         },
         "replyer": {
           "identifier": {
-            "label": "replyer 模型标识符 *",
-            "description": "API 服务商提供的真实模型 ID，模型名称会自动初始化为该标识符"
+            "label": "用于回复的 模型 名称 *",
+            "description": "API 服务商提供的真实模型 ID"
           },
           "visual": {
             "label": "启用视觉"

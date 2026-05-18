@@ -7,8 +7,8 @@ T = TypeVar("T", bound=ConfigBase)
 
 DEFAULT_PROVIDER_TEMPLATES: list[dict[str, Any]] = [
     {
-        "name": "BaiLian",
-        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "name": "DeepSeek",
+        "base_url": "https://api.deepseek.com",
         "api_key": "your-api-key",
         "auth_type": OpenAICompatibleAuthType.BEARER.value,
         "max_retry": 3,
@@ -61,29 +61,29 @@ DEFAULT_MODEL_TEMPLATES: list[dict[str, Any]] = [
     {
         "model_identifier": "deepseek-v4-pro",
         "name": "deepseek-v4-pro-think",
-        "api_provider": "BaiLian",
+        "api_provider": "DeepSeek",
         "price_in": 12.0,
         "price_out": 24.0,
         "visual": False,
-        "extra_params": {"enable_thinking": "True"},
+        "extra_params": {"thinking": {"type": "enabled"}, "reasoning_effort": "high"},
     },
     {
         "model_identifier": "deepseek-v4-pro",
         "name": "deepseek-v4-pro-nonthink",
-        "api_provider": "BaiLian",
+        "api_provider": "DeepSeek",
         "price_in": 12.0,
         "price_out": 24.0,
         "visual": False,
-        "extra_params": {"enable_thinking": "false"},
+        "extra_params": {"thinking": {"type": "disabled"}},
     },
     {
         "model_identifier": "deepseek-v4-flash",
         "name": "deepseek-v4-flash",
-        "api_provider": "BaiLian",
+        "api_provider": "DeepSeek",
         "price_in": 1.0,
         "price_out": 2.0,
         "visual": False,
-        "extra_params": {"enable_thinking": "false"},
+        "extra_params": {"thinking": {"type": "disabled"}},
     },
 ]
 

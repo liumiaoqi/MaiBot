@@ -81,6 +81,7 @@ export interface ItemFieldDefinition {
   label?: string
   placeholder?: string
   default?: unknown
+  i18n?: Record<string, Record<string, string>>
 }
 
 /**
@@ -102,6 +103,7 @@ export interface ConfigFieldSchema {
   label: string
   placeholder?: string
   hint?: string
+  i18n?: Record<string, Record<string, string>>
   icon?: string
   hidden: boolean
   disabled: boolean
@@ -126,6 +128,7 @@ export interface ConfigSectionSchema {
   name: string
   title: string
   description?: string
+  i18n?: Record<string, Record<string, string>>
   icon?: string
   collapsed: boolean
   order: number
@@ -138,6 +141,7 @@ export interface ConfigSectionSchema {
 export interface ConfigTabSchema {
   id: string
   title: string
+  i18n?: Record<string, Record<string, string>>
   sections: string[]
   icon?: string
   order: number
@@ -162,6 +166,7 @@ export interface PluginConfigSchema {
     version: string
     description: string
     author: string
+    i18n?: Record<string, Record<string, string>>
   }
   sections: Record<string, ConfigSectionSchema>
   layout: ConfigLayoutSchema
