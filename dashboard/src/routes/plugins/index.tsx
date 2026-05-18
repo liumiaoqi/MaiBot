@@ -38,6 +38,7 @@ import {
 import { InstallDialog } from './InstallDialog'
 import { InstalledTab } from './InstalledTab'
 import { MarketplaceTab } from './MarketplaceTab'
+import { UpdatesTab } from './UpdatesTab'
 import type { GitStatus, MaimaiVersion, MarketplaceSortKey, PluginInfo, PluginLoadProgress } from './types'
 
 // 主导出组件：包装 RestartProvider
@@ -712,25 +713,6 @@ function PluginsPageContent() {
     }).length
   }
 
-  // 过滤插件用于可更新标签页
-  const filteredUpdatablePlugins = plugins.filter(plugin => {
-    if (!plugin.manifest) return false
-    
-    const matchesSearch = searchQuery === '' ||
-      plugin.manifest.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      plugin.manifest.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (plugin.manifest.keywords && plugin.manifest.keywords.some(k => k.toLowerCase().includes(searchQuery.toLowerCase())))
-    
-    const matchesCategory = categoryFilter === 'all' ||
-      (plugin.manifest.categories && plugin.manifest.categories.includes(categoryFilter))
-    
-    const matchesCompatibility = !showCompatibleOnly || 
-      !maimaiVersion || 
-      checkPluginCompatibility(plugin)
-    
-    return plugin.installed && needsUpdate(plugin) && matchesSearch && matchesCategory && matchesCompatibility
-  })
-
   return (
     <ScrollArea className="h-full">
       <div className="space-y-6 p-4 sm:p-6">
@@ -969,15 +951,25 @@ function PluginsPageContent() {
             getStatusBadge={getStatusBadge}
             getIncompatibleReason={getIncompatibleReason}
           />
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredUpdatablePlugins.map((plugin) => (
-              <div key={plugin.id}>
-                {/* PluginCard would go here */}
-              </div>
-            ))}
-          </div>
-        )}
+        ) : activeTab === 'updates' ? (
+          <UpdatesTab
+            plugins={plugins}
+            searchQuery={searchQuery}
+            categoryFilter={categoryFilter}
+            showCompatibleOnly={showCompatibleOnly}
+            gitStatus={gitStatus}
+            maimaiVersion={maimaiVersion}
+            pluginStats={pluginStats}
+            loadProgress={loadProgress}
+            onInstall={openInstallDialog}
+            onUpdate={handleUpdate}
+            onUninstall={handleUninstall}
+            checkPluginCompatibility={checkPluginCompatibility}
+            needsUpdate={needsUpdate}
+            getStatusBadge={getStatusBadge}
+            getIncompatibleReason={getIncompatibleReason}
+          />
+        ) : null}
 
         {/* 安装对话框 */}
         <InstallDialog
