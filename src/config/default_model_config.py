@@ -7,8 +7,8 @@ T = TypeVar("T", bound=ConfigBase)
 
 DEFAULT_PROVIDER_TEMPLATES: list[dict[str, Any]] = [
     {
-        "name": "BaiLian",
-        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "name": "DeepSeek",
+        "base_url": "https://api.deepseek.com",
         "api_key": "your-api-key",
         "auth_type": OpenAICompatibleAuthType.BEARER.value,
         "max_retry": 3,
@@ -24,6 +24,7 @@ DEFAULT_TASK_CONFIG_TEMPLATES: dict[str, dict[str, Any]] = {
         "temperature": 0.5,
         "slow_threshold": 15.0,
         "selection_strategy": "random",
+        "hard_timeout": 120.0,
     },
     "memory": {
         "model_list": [],
@@ -31,6 +32,7 @@ DEFAULT_TASK_CONFIG_TEMPLATES: dict[str, dict[str, Any]] = {
         "temperature": 0.5,
         "slow_threshold": 30.0,
         "selection_strategy": "random",
+        "hard_timeout": 240.0,
     },
     "replyer": {
         "model_list": ["deepseek-v4-pro-think", "deepseek-v4-pro-nonthink"],
@@ -38,6 +40,7 @@ DEFAULT_TASK_CONFIG_TEMPLATES: dict[str, dict[str, Any]] = {
         "temperature": 1,
         "slow_threshold": 120.0,
         "selection_strategy": "random",
+        "hard_timeout": 240.0,
     },
     "planner": {
         "model_list": ["deepseek-v4-flash"],
@@ -45,37 +48,43 @@ DEFAULT_TASK_CONFIG_TEMPLATES: dict[str, dict[str, Any]] = {
         "temperature": 0.7,
         "slow_threshold": 12.0,
         "selection_strategy": "random",
+        "hard_timeout": 180.0,
     },
+    "learner": {"model_list": [], "hard_timeout": 120.0},
+    "emoji": {"model_list": [], "hard_timeout": 120.0},
+    "vlm": {"model_list": [], "hard_timeout": 240.0},
+    "voice": {"model_list": [], "hard_timeout": 120.0},
+    "embedding": {"model_list": [], "hard_timeout": 60.0},
 }
 
 DEFAULT_MODEL_TEMPLATES: list[dict[str, Any]] = [
     {
         "model_identifier": "deepseek-v4-pro",
         "name": "deepseek-v4-pro-think",
-        "api_provider": "BaiLian",
+        "api_provider": "DeepSeek",
         "price_in": 12.0,
         "price_out": 24.0,
         "visual": False,
-        "extra_params": {"enable_thinking": "True"},
+        "extra_params": {"thinking": {"type": "enabled"}, "reasoning_effort": "high"},
     },
     {
         "model_identifier": "deepseek-v4-pro",
         "name": "deepseek-v4-pro-nonthink",
-        "api_provider": "BaiLian",
+        "api_provider": "DeepSeek",
         "price_in": 12.0,
         "price_out": 24.0,
         "visual": False,
-        "extra_params": {"enable_thinking": "false"},
+        "extra_params": {"thinking": {"type": "disabled"}},
     },
     {
         "model_identifier": "deepseek-v4-flash",
         "name": "deepseek-v4-flash",
-        "api_provider": "BaiLian",
+        "api_provider": "DeepSeek",
         "price_in": 1.0,
         "price_out": 2.0,
         "visual": False,
-        "extra_params": {"enable_thinking": "false"},
-    }
+        "extra_params": {"thinking": {"type": "disabled"}},
+    },
 ]
 
 

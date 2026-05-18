@@ -14,6 +14,7 @@ from .support import (
     find_plugin_path_by_id,
     get_plugin_candidate_paths,
     get_plugin_config_path,
+    is_plugin_install_residue,
     iter_plugin_directories,
     load_manifest_json,
     parse_repository_url,
@@ -99,6 +100,36 @@ def _get_runtime_plugin_load_statuses() -> Dict[str, str]:
         return {}
 
 
+def _write_plugin_disabled_for_uninstall(plugin_path: Path) -> None:
+    config_path = resolve_plugin_file_path(plugin_path, "config.toml")
+    if config_path.exists():
+        with open(config_path, "r", encoding="utf-8") as file_obj:
+            config_doc = tomlkit.load(file_obj)
+    else:
+        config_doc = tomlkit.document()
+
+    plugin_section = config_doc.get("plugin")
+    if not isinstance(plugin_section, dict):
+        plugin_section = tomlkit.table()
+        config_doc["plugin"] = plugin_section
+    plugin_section["enabled"] = False
+
+    with open(config_path, "w", encoding="utf-8") as file_obj:
+        file_obj.write(tomlkit.dumps(config_doc))
+
+
+async def _release_plugin_runtime_before_delete(plugin_id: str, plugin_path: Path) -> bool:
+    try:
+        _write_plugin_disabled_for_uninstall(plugin_path)
+
+        from src.plugin_runtime.integration import get_plugin_runtime_manager
+
+        return await get_plugin_runtime_manager().reload_plugins_globally([plugin_id], reason="uninstall")
+    except Exception as exc:
+        logger.warning(f"插件 {plugin_id} 删除前运行时卸载失败，将继续尝试删除文件: {exc}")
+        return False
+
+
 @router.post("/install")
 async def install_plugin(request: InstallPluginRequest, maibot_session: Optional[str] = Cookie(None)) -> Dict[str, Any]:
     require_plugin_token(maibot_session)
@@ -121,6 +152,10 @@ async def install_plugin(request: InstallPluginRequest, maibot_session: Optional
         )
 
         target_path, old_format_path = get_plugin_candidate_paths(plugin_id)
+        for candidate_path in (target_path, old_format_path):
+            if is_plugin_install_residue(candidate_path):
+                logger.warning(f"检测到插件安装残留目录，安装前自动清理: {candidate_path}")
+                remove_tree(candidate_path)
         if target_path.exists() or old_format_path.exists():
             await update_progress(
                 stage="error",
@@ -257,15 +292,24 @@ async def uninstall_plugin(
             )
             raise HTTPException(status_code=404, detail="插件未安装")
 
+        manifest = load_manifest_json(resolve_plugin_file_path(plugin_path, "_manifest.json"))
+        plugin_name = str(manifest.get("name", plugin_id)) if manifest is not None else plugin_id
+        runtime_plugin_id = str(manifest.get("id", plugin_id)) if manifest is not None else plugin_id
         await update_progress(
             stage="loading",
             progress=30,
+            message=f"正在卸载运行中的插件: {plugin_name}",
+            operation="uninstall",
+            plugin_id=plugin_id,
+        )
+        await _release_plugin_runtime_before_delete(runtime_plugin_id, plugin_path)
+        await update_progress(
+            stage="loading",
+            progress=45,
             message=f"正在删除插件文件: {plugin_path}",
             operation="uninstall",
             plugin_id=plugin_id,
         )
-        manifest = load_manifest_json(resolve_plugin_file_path(plugin_path, "_manifest.json"))
-        plugin_name = str(manifest.get("name", plugin_id)) if manifest is not None else plugin_id
         await update_progress(
             stage="loading",
             progress=50,

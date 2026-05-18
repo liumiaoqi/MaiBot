@@ -1016,5 +1016,7 @@ class MaisakaChatLoopService:
     def _resolve_enable_visual_message(request_kind: str) -> bool:
         if request_kind in {"planner", "timing_gate"}:
             return resolve_enable_visual_planner()
+        if request_kind in {"expression_selector", "reply_effect_judge"}:
+            return False
         return True
 

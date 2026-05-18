@@ -134,3 +134,67 @@ def test_install_plugin_backfills_missing_manifest_id(client: TestClient, monkey
     assert plugin_path is not None
     manifest = json.loads((plugin_path / "_manifest.json").read_text(encoding="utf-8"))
     assert manifest["id"] == "market.legacy"
+
+
+def test_install_plugin_cleans_config_only_residue(client: TestClient, monkeypatch):
+    residue_path, _ = support_module.get_plugin_candidate_paths("market.residue")
+    residue_path.mkdir(parents=True)
+    (residue_path / "config.toml").write_text("[plugin]\nenabled = true\n", encoding="utf-8")
+
+    class FakeGitMirrorService:
+        async def clone_repository(self, **kwargs):
+            target_path = kwargs["target_path"]
+            assert target_path == residue_path
+            assert not (target_path / "config.toml").exists()
+            target_path.mkdir(parents=True, exist_ok=True)
+            (target_path / "_manifest.json").write_text(
+                json.dumps(
+                    {
+                        "manifest_version": 2,
+                        "id": "market.residue",
+                        "name": "Residue Plugin",
+                        "version": "1.0.0",
+                        "author": {"name": "market"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            return {"success": True}
+
+    monkeypatch.setattr(management_module, "get_git_mirror_service", lambda: FakeGitMirrorService())
+
+    response = client.post(
+        "/api/webui/plugins/install",
+        json={
+            "plugin_id": "market.residue",
+            "repository_url": "https://github.com/market/residue",
+            "branch": "main",
+        },
+    )
+
+    assert response.status_code == 200
+    assert (residue_path / "_manifest.json").exists()
+    assert not (residue_path / "config.toml").exists()
+
+
+def test_uninstall_plugin_releases_runtime_before_delete(client: TestClient, monkeypatch):
+    from src.plugin_runtime import integration as integration_module
+
+    plugin_path = support_module.resolve_installed_plugin_path("test.demo")
+    assert plugin_path is not None
+    reload_calls = []
+
+    class FakeRuntimeManager:
+        async def reload_plugins_globally(self, plugin_ids, reason="manual"):
+            reload_calls.append((list(plugin_ids), reason))
+            config_text = (plugin_path / "config.toml").read_text(encoding="utf-8")
+            assert "enabled = false" in config_text
+            return True
+
+    monkeypatch.setattr(integration_module, "get_plugin_runtime_manager", lambda: FakeRuntimeManager())
+
+    response = client.post("/api/webui/plugins/uninstall", json={"plugin_id": "test.demo"})
+
+    assert response.status_code == 200
+    assert reload_calls == [(["test.demo"], "uninstall")]
+    assert not plugin_path.exists()

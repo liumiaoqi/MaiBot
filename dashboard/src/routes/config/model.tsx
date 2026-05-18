@@ -85,10 +85,12 @@ function unwrapModelConfig(data: unknown): Record<string, unknown> {
   return data as Record<string, unknown>
 }
 
+const ADVANCED_MODEL_TASK_NAMES = new Set(['memory', 'learner', 'emoji', 'voice'])
+
 function getRequiredTaskNames(schema: ConfigSchema | null): Set<string> {
   return new Set(
     (schema?.fields ?? [])
-      .filter((field) => field.type === 'object' && !field.advanced)
+      .filter((field) => field.type === 'object' && !field.advanced && !ADVANCED_MODEL_TASK_NAMES.has(field.name))
       .map((field) => field.name)
   )
 }
@@ -1327,7 +1329,7 @@ function ModelConfigPageContent() {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="providers" className="w-full" data-tour="providers-tab-trigger">模型厂商设置</TabsTrigger>
-            <TabsTrigger value="models" className="w-full" data-tour="models-tab-trigger">添加模型</TabsTrigger>
+            <TabsTrigger value="models" className="w-full" data-tour="models-tab-trigger">模型列表</TabsTrigger>
             <TabsTrigger value="tasks" className="w-full" data-tour="tasks-tab-trigger">为模型分配功能</TabsTrigger>
           </TabsList>
           {/* 模型厂商设置标签页 */}

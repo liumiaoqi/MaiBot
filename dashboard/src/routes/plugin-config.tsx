@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -66,6 +67,7 @@ import {
   type PluginConfigSchema,
   type ConfigFieldSchema,
   type ConfigSectionSchema,
+  type ItemFieldDefinition,
 } from '@/lib/plugin-api'
 
 // 字段渲染组件
@@ -74,6 +76,73 @@ interface FieldRendererProps {
   value: unknown
   onChange: (value: unknown) => void
   sectionName: string
+}
+
+function getLocaleCandidates(language: string): string[] {
+  const normalized = (language || 'zh').replace('-', '_')
+  const base = normalized.split('_')[0]
+  const candidates = [language, normalized, base]
+
+  if (base === 'zh') candidates.push('zh_CN', 'zh-CN')
+  if (base === 'en') candidates.push('en_US', 'en-US')
+  if (base === 'ja') candidates.push('ja_JP', 'ja-JP')
+  if (base === 'ko') candidates.push('ko_KR', 'ko-KR')
+
+  candidates.push('zh_CN', 'zh-CN', 'zh')
+  return Array.from(new Set(candidates.filter(Boolean)))
+}
+
+function resolveLocalizedText(
+  value: unknown,
+  language: string,
+  fallback = '',
+  i18n?: Record<string, Record<string, string>>,
+  key?: string,
+): string {
+  const candidates = getLocaleCandidates(language)
+
+  if (i18n && key) {
+    for (const locale of candidates) {
+      const localized = i18n[locale]?.[key]
+      if (typeof localized === 'string' && localized.trim()) {
+        return localized
+      }
+    }
+  }
+
+  if (typeof value === 'string') {
+    return value || fallback
+  }
+
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const localizedMap = value as Record<string, unknown>
+    for (const locale of candidates) {
+      const localized = localizedMap[locale]
+      if (typeof localized === 'string' && localized.trim()) {
+        return localized
+      }
+    }
+  }
+
+  return fallback
+}
+
+function localizeItemFields(
+  itemFields: Record<string, ItemFieldDefinition> | undefined,
+  language: string,
+): Record<string, ItemFieldDefinition> | undefined {
+  if (!itemFields) return undefined
+
+  return Object.fromEntries(
+    Object.entries(itemFields).map(([fieldName, field]) => [
+      fieldName,
+      {
+        ...field,
+        label: resolveLocalizedText(field.label, language, fieldName, field.i18n, 'label'),
+        placeholder: resolveLocalizedText(field.placeholder, language, '', field.i18n, 'placeholder') || undefined,
+      },
+    ])
+  )
 }
 
 function getNestedRecord(config: Record<string, unknown>, path?: string): Record<string, unknown> | undefined {
@@ -128,6 +197,12 @@ function setNestedField(
 
 function FieldRenderer({ field, value, onChange }: FieldRendererProps) {
   const [showPassword, setShowPassword] = useState(false)
+  const { i18n } = useTranslation()
+  const language = i18n.resolvedLanguage || i18n.language || 'zh'
+  const label = resolveLocalizedText(field.label, language, field.name, field.i18n, 'label')
+  const hint = resolveLocalizedText(field.hint, language, '', field.i18n, 'hint')
+  const placeholder = resolveLocalizedText(field.placeholder, language, '', field.i18n, 'placeholder')
+  const localizedItemFields = localizeItemFields(field.item_fields, language)
 
   // 根据 ui_type 渲染不同的控件
   switch (field.ui_type) {
@@ -135,9 +210,9 @@ function FieldRenderer({ field, value, onChange }: FieldRendererProps) {
       return (
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
-            <Label>{field.label}</Label>
-            {field.hint && (
-              <p className="text-xs text-muted-foreground">{field.hint}</p>
+            <Label>{label}</Label>
+            {hint && (
+              <p className="text-xs text-muted-foreground">{hint}</p>
             )}
           </div>
           <Switch
@@ -151,7 +226,7 @@ function FieldRenderer({ field, value, onChange }: FieldRendererProps) {
     case 'number':
       return (
         <div className="space-y-2">
-          <Label>{field.label}</Label>
+          <Label>{label}</Label>
           <Input
             type="number"
             value={value as number ?? field.default}
@@ -159,11 +234,11 @@ function FieldRenderer({ field, value, onChange }: FieldRendererProps) {
             min={field.min}
             max={field.max}
             step={field.step ?? 1}
-            placeholder={field.placeholder}
+            placeholder={placeholder}
             disabled={field.disabled}
           />
-          {field.hint && (
-            <p className="text-xs text-muted-foreground">{field.hint}</p>
+          {hint && (
+            <p className="text-xs text-muted-foreground">{hint}</p>
           )}
         </div>
       )
@@ -172,7 +247,7 @@ function FieldRenderer({ field, value, onChange }: FieldRendererProps) {
       return (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label>{field.label}</Label>
+            <Label>{label}</Label>
             <span className="text-sm text-muted-foreground">
               {value as number ?? field.default}
             </span>
@@ -185,8 +260,8 @@ function FieldRenderer({ field, value, onChange }: FieldRendererProps) {
             step={field.step ?? 1}
             disabled={field.disabled}
           />
-          {field.hint && (
-            <p className="text-xs text-muted-foreground">{field.hint}</p>
+          {hint && (
+            <p className="text-xs text-muted-foreground">{hint}</p>
           )}
         </div>
       )
@@ -194,14 +269,14 @@ function FieldRenderer({ field, value, onChange }: FieldRendererProps) {
     case 'select':
       return (
         <div className="space-y-2">
-          <Label>{field.label}</Label>
+          <Label>{label}</Label>
           <Select
             value={String(value ?? field.default)}
             onValueChange={onChange}
             disabled={field.disabled}
           >
             <SelectTrigger>
-              <SelectValue placeholder={field.placeholder ?? '请选择'} />
+              <SelectValue placeholder={placeholder || '请选择'} />
             </SelectTrigger>
             <SelectContent>
               {field.choices?.map((choice) => (
@@ -211,8 +286,8 @@ function FieldRenderer({ field, value, onChange }: FieldRendererProps) {
               ))}
             </SelectContent>
           </Select>
-          {field.hint && (
-            <p className="text-xs text-muted-foreground">{field.hint}</p>
+          {hint && (
+            <p className="text-xs text-muted-foreground">{hint}</p>
           )}
         </div>
       )
@@ -220,16 +295,16 @@ function FieldRenderer({ field, value, onChange }: FieldRendererProps) {
     case 'textarea':
       return (
         <div className="space-y-2">
-          <Label>{field.label}</Label>
+          <Label>{label}</Label>
           <Textarea
             value={value as string ?? field.default}
             onChange={(e) => onChange(e.target.value)}
-            placeholder={field.placeholder}
+            placeholder={placeholder}
             rows={field.rows ?? 3}
             disabled={field.disabled}
           />
-          {field.hint && (
-            <p className="text-xs text-muted-foreground">{field.hint}</p>
+          {hint && (
+            <p className="text-xs text-muted-foreground">{hint}</p>
           )}
         </div>
       )
@@ -237,13 +312,13 @@ function FieldRenderer({ field, value, onChange }: FieldRendererProps) {
     case 'password':
       return (
         <div className="space-y-2">
-          <Label>{field.label}</Label>
+          <Label>{label}</Label>
           <div className="relative">
             <Input
               type={showPassword ? 'text' : 'password'}
               value={value as string ?? ''}
               onChange={(e) => onChange(e.target.value)}
-              placeholder={field.placeholder}
+              placeholder={placeholder}
               disabled={field.disabled}
               className="pr-10"
             />
@@ -261,8 +336,8 @@ function FieldRenderer({ field, value, onChange }: FieldRendererProps) {
               )}
             </Button>
           </div>
-          {field.hint && (
-            <p className="text-xs text-muted-foreground">{field.hint}</p>
+          {hint && (
+            <p className="text-xs text-muted-foreground">{hint}</p>
           )}
         </div>
       )
@@ -270,19 +345,19 @@ function FieldRenderer({ field, value, onChange }: FieldRendererProps) {
     case 'list':
       return (
         <div className="space-y-2">
-          <Label>{field.label}</Label>
+          <Label>{label}</Label>
           <ListFieldEditor
             value={Array.isArray(value) ? value : (Array.isArray(field.default) ? field.default : [])}
             onChange={(newValue) => onChange(newValue)}
             itemType={field.item_type ?? 'string'}
-            itemFields={field.item_fields}
+            itemFields={localizedItemFields}
             minItems={field.min_items}
             maxItems={field.max_items}
             disabled={field.disabled}
-            placeholder={field.placeholder}
+            placeholder={placeholder}
           />
-          {field.hint && (
-            <p className="text-xs text-muted-foreground">{field.hint}</p>
+          {hint && (
+            <p className="text-xs text-muted-foreground">{hint}</p>
           )}
         </div>
       )
@@ -291,17 +366,17 @@ function FieldRenderer({ field, value, onChange }: FieldRendererProps) {
     default:
       return (
         <div className="space-y-2">
-          <Label>{field.label}</Label>
+          <Label>{label}</Label>
           <Input
             type="text"
             value={value as string ?? field.default ?? ''}
             onChange={(e) => onChange(e.target.value)}
-            placeholder={field.placeholder}
+            placeholder={placeholder}
             maxLength={field.max_length}
             disabled={field.disabled}
           />
-          {field.hint && (
-            <p className="text-xs text-muted-foreground">{field.hint}</p>
+          {hint && (
+            <p className="text-xs text-muted-foreground">{hint}</p>
           )}
         </div>
       )
@@ -318,8 +393,12 @@ interface SectionRendererProps {
 
 function SectionRenderer({ sectionName, section, config, onChange }: SectionRendererProps) {
   const [isOpen, setIsOpen] = useState(!section.collapsed)
+  const { i18n } = useTranslation()
+  const language = i18n.resolvedLanguage || i18n.language || 'zh'
   const resolvedSectionName = section.name || sectionName
   const sectionConfig = getNestedRecord(config, resolvedSectionName)
+  const title = resolveLocalizedText(section.title, language, sectionName, section.i18n, 'title')
+  const description = resolveLocalizedText(section.description, language, '', section.i18n, 'description')
   
   // 按 order 排序字段
   const sortedFields = Object.entries(section.fields)
@@ -338,15 +417,15 @@ function SectionRenderer({ sectionName, section, config, onChange }: SectionRend
                 ) : (
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
                 )}
-                <CardTitle className="text-lg">{section.title}</CardTitle>
+                <CardTitle className="text-lg">{title}</CardTitle>
               </div>
               <Badge variant="secondary" className="text-xs">
                 {sortedFields.length} 项
               </Badge>
             </div>
-            {section.description && (
+            {description && (
               <CardDescription className="ml-6">
-                {section.description}
+                {description}
               </CardDescription>
             )}
           </CardHeader>
@@ -378,6 +457,8 @@ interface PluginConfigEditorProps {
 function PluginConfigEditor({ plugin, onBack }: PluginConfigEditorProps) {
   const { toast } = useToast()
   const { triggerRestart, isRestarting } = useRestart()
+  const { i18n } = useTranslation()
+  const language = i18n.resolvedLanguage || i18n.language || 'zh'
   const [editMode, setEditMode] = useState<'visual' | 'source'>('visual')
   const [schema, setSchema] = useState<PluginConfigSchema | null>(null)
   const [config, setConfig] = useState<Record<string, unknown>>({})
@@ -585,6 +666,13 @@ function PluginConfigEditor({ plugin, onBack }: PluginConfigEditorProps) {
 
   // 获取当前启用状态
   const isEnabled = (config.plugin as Record<string, unknown>)?.enabled !== false
+  const pluginName = resolveLocalizedText(
+    schema.plugin_info.name,
+    language,
+    plugin.manifest.name,
+    schema.plugin_info.i18n,
+    'name',
+  )
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -596,7 +684,7 @@ function PluginConfigEditor({ plugin, onBack }: PluginConfigEditorProps) {
           </Button>
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold">
-              {schema.plugin_info.name || plugin.manifest.name}
+              {pluginName}
             </h1>
             <div className="flex items-center gap-2 mt-1">
               <Badge variant={isEnabled ? 'default' : 'secondary'}>
@@ -728,7 +816,7 @@ function PluginConfigEditor({ plugin, onBack }: PluginConfigEditorProps) {
           <TabsList>
             {schema.layout.tabs.map(tab => (
               <TabsTrigger key={tab.id} value={tab.id}>
-                {tab.title}
+                {resolveLocalizedText(tab.title, language, tab.id, tab.i18n, 'title')}
                 {tab.badge && (
                   <Badge variant="secondary" className="ml-2 text-xs">
                     {tab.badge}
