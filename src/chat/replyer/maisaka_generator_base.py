@@ -5,6 +5,7 @@ from typing import Any, Awaitable, Callable, Dict, List, Literal, Optional, Tupl
 
 import json
 import random
+import re
 import time
 
 from rich.console import Group, RenderableType
@@ -252,6 +253,101 @@ class BaseMaisakaReplyGenerator:
             "消息发送时会检查这种标记并转换为真正的 at 消息。\n"
         )
 
+    @staticmethod
+    def _replace_regex_capture_groups(reaction: str, match: re.Match[str]) -> str:
+        """将 reaction 中的 [name] 替换为正则命名捕获组的内容。"""
+        replaced_reaction = reaction
+        for group_name, group_value in match.groupdict().items():
+            replaced_reaction = replaced_reaction.replace(f"[{group_name}]", group_value or "")
+        return replaced_reaction
+
+    @staticmethod
+    def _build_text_from_message_sequence(message: SessionBackedMessage) -> str:
+        text_parts: List[str] = []
+        for component in getattr(message.raw_message, "components", ()):
+            if isinstance(component, TextComponent):
+                text_parts.append(component.text)
+                continue
+            if isinstance(component, AtComponent):
+                rendered_at = BaseMaisakaReplyGenerator._render_target_at_component(component)
+                if rendered_at:
+                    text_parts.append(rendered_at)
+                continue
+            if isinstance(component, ImageComponent) and component.content:
+                text_parts.append(component.content)
+                continue
+            if isinstance(component, EmojiComponent) and component.content:
+                text_parts.append(component.content)
+                continue
+            if isinstance(component, VoiceComponent) and component.content:
+                text_parts.append(component.content)
+
+        return " ".join(part.strip() for part in text_parts if part and part.strip()).strip()
+
+    def _extract_keyword_reaction_match_text(
+        self,
+        chat_history: List[LLMContextMessage],
+        reply_message: Optional[SessionMessage],
+    ) -> str:
+        if reply_message is not None:
+            return self._build_target_message_content(reply_message).strip()
+
+        for message in reversed(chat_history):
+            if not isinstance(message, SessionBackedMessage):
+                continue
+            if message.source_kind != "user":
+                continue
+            if message.original_message is not None:
+                match_text = self._build_target_message_content(message.original_message).strip()
+            else:
+                match_text = self._build_text_from_message_sequence(message)
+            if not match_text:
+                match_text = (message.processed_plain_text or "").strip()
+            if match_text:
+                return match_text
+        return ""
+
+    def _build_keyword_reaction_prompt(
+        self,
+        chat_history: List[LLMContextMessage],
+        reply_message: Optional[SessionMessage],
+    ) -> str:
+        match_text = self._extract_keyword_reaction_match_text(chat_history, reply_message)
+        if not match_text:
+            return ""
+
+        matched_reactions: List[str] = []
+        keyword_reaction = global_config.keyword_reaction
+
+        for rule in keyword_reaction.keyword_rules:
+            keywords = [keyword.strip() for keyword in rule.keywords if keyword.strip()]
+            if keywords and any(keyword in match_text for keyword in keywords):
+                reaction = rule.reaction.strip()
+                if reaction:
+                    matched_reactions.append(reaction)
+
+        for rule in keyword_reaction.regex_rules:
+            reaction = rule.reaction.strip()
+            if not reaction:
+                continue
+            for pattern in rule.regex:
+                if not pattern.strip():
+                    continue
+                match = re.search(pattern, match_text)
+                if match is None:
+                    continue
+                matched_reactions.append(self._replace_regex_capture_groups(reaction, match))
+                break
+
+        if not matched_reactions:
+            return ""
+
+        reaction_lines = "\n".join(f"- {reaction}" for reaction in matched_reactions)
+        return (
+            "【关键词反应】\n"
+            f"最新消息命中了预设反应规则，请在回复时优先参考以下要求：\n{reaction_lines}\n"
+        )
+
     def _build_system_prompt(
         self,
         reply_message: Optional[SessionMessage],
@@ -289,6 +385,7 @@ class BaseMaisakaReplyGenerator:
         reply_reason: str,
         reference_info: str = "",
         expression_habits: str = "",
+        keywords_reaction_prompt: str = "",
     ) -> str:
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         sections: List[str] = [f"当前时间：{current_time}"]
@@ -304,6 +401,8 @@ class BaseMaisakaReplyGenerator:
             reply_reference_lines.append(f"【参考信息】\n{reference_info.strip()}")
         if reply_reference_lines:
             sections.append("【回复信息参考】\n" + "\n\n".join(reply_reference_lines))
+        if keywords_reaction_prompt.strip():
+            sections.append(keywords_reaction_prompt.strip())
         sections.append(self._build_reply_instruction())
         return "\n\n".join(sections)
 
@@ -354,6 +453,10 @@ class BaseMaisakaReplyGenerator:
         enable_visual_message: bool = False,
     ) -> List[Message]:
         messages: List[Message] = []
+        keywords_reaction_prompt = self._build_keyword_reaction_prompt(
+            chat_history=chat_history,
+            reply_message=reply_message,
+        )
         system_prompt = self._build_system_prompt(
             reply_message=reply_message,
             reply_reason=reply_reason,
@@ -366,6 +469,7 @@ class BaseMaisakaReplyGenerator:
             reply_reason=reply_reason,
             reference_info=reference_info,
             expression_habits=expression_habits,
+            keywords_reaction_prompt=keywords_reaction_prompt,
         )
 
         messages.append(MessageBuilder().set_role(RoleType.System).add_text_content(system_prompt).build())
