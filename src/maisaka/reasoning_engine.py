@@ -29,7 +29,11 @@ from .builtin_tool import get_builtin_tool_visibility, is_builtin_tool_in_action
 from .builtin_tool import is_builtin_tool_in_timing_stage
 from .builtin_tool import get_timing_tools
 from .chat_loop_service import ChatResponse
-from .chat_history_visual_refresher import has_pending_image_recognition, refresh_chat_history_visual_placeholders
+from .chat_history_visual_refresher import (
+    has_pending_image_recognition,
+    log_pending_image_recognition_before_text_planner,
+    refresh_chat_history_visual_placeholders,
+)
 from .builtin_tool.context import BuiltinToolRuntimeContext
 from .context_messages import (
     AssistantMessage,
@@ -614,6 +618,11 @@ class MaisakaReasoningEngine:
                                 source_messages=cached_messages or [anchor_message],
                                 deferred_tools_reminder=deferred_tools_reminder,
                             )
+                            if not resolve_enable_visual_planner():
+                                log_pending_image_recognition_before_text_planner(
+                                    self._runtime._chat_history,
+                                    log_prefix=self._runtime.log_prefix,
+                                )
                             logger.info(
                                 f"{self._runtime.log_prefix} 规划器开始执行: "
                                 f"回合={round_index + 1} "
