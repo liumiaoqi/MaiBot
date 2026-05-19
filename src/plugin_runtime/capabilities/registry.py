@@ -26,6 +26,8 @@ def register_capability_impls(manager: "PluginRuntimeManager", supervisor: Plugi
     _register("send.text", manager._cap_send_text)
     _register("send.emoji", manager._cap_send_emoji)
     _register("send.image", manager._cap_send_image)
+    _register("send.forward", manager._cap_send_forward)
+    _register("send.hybrid", manager._cap_send_hybrid)
     _register("send.command", manager._cap_send_command)
     _register("send.custom", manager._cap_send_custom)
 
