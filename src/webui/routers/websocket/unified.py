@@ -384,6 +384,10 @@ async def _handle_chat_message_send(connection_id: str, message: Dict[str, Any])
     payload = {
         "type": "message",
         "content": data.get("content", ""),
+        "images": data.get("images", []),
+        "emojis": data.get("emojis", []),
+        "files": data.get("files", []),
+        "voices": data.get("voices", []),
         "user_name": data.get("user_name", ""),
     }
     await websocket_manager.send_response(
