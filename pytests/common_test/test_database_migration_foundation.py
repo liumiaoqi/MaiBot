@@ -1095,8 +1095,8 @@ def test_legacy_v1_migration_reports_table_progress(tmp_path: Path) -> None:
 
     migration_plan = manager.migrate(target_version=LATEST_SCHEMA_VERSION)
 
-    assert migration_plan.step_count() == 7
-    assert len(reporter_instances) == 7
+    assert migration_plan.step_count() == 9
+    assert len(reporter_instances) == 9
     reporter_events = reporter_instances[0].events
 
     assert reporter_events[0] == ("open", None, None, None)

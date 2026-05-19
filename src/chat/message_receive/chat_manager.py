@@ -39,7 +39,10 @@ class BotChatSession(MaiChatSession):
         session_id: str,
         platform: str,
         user_id: Optional[str] = None,
+        user_nickname: Optional[str] = None,
+        user_cardname: Optional[str] = None,
         group_id: Optional[str] = None,
+        group_name: Optional[str] = None,
         account_id: Optional[str] = None,
         scope: Optional[str] = None,
         created_timestamp: Optional[datetime] = None,
@@ -52,7 +55,10 @@ class BotChatSession(MaiChatSession):
             session_id=session_id,
             platform=platform,
             user_id=user_id,
+            user_nickname=user_nickname,
+            user_cardname=user_cardname,
             group_id=group_id,
+            group_name=group_name,
             account_id=account_id,
             scope=scope,
             created_timestamp=created_timestamp,
@@ -118,7 +124,10 @@ class ChatManager:
         if session := self.get_session_by_session_id(session_id):
             route_metadata_changed = self._apply_route_metadata(session, account_id=account_id, scope=scope)
             session.update_active_time()
-            if route_metadata_changed:
+            identity_changed = False
+            if session_id in self.last_messages:
+                identity_changed = self._update_session_identity(session, self.last_messages[session_id])
+            if route_metadata_changed or identity_changed:
                 self._save_session(session)
             return session
 
@@ -128,9 +137,19 @@ class ChatManager:
                 statement = select(ChatSession).filter_by(session_id=session_id).limit(1)
                 if result := db_session.exec(statement).first():
                     session = BotChatSession.from_db_instance(result)
-                    if self._apply_route_metadata(session, account_id=account_id, scope=scope):
+                    route_metadata_changed = self._apply_route_metadata(session, account_id=account_id, scope=scope)
+                    identity_changed = False
+                    if session.session_id in self.last_messages:
+                        session.set_context(self.last_messages[session.session_id])
+                        identity_changed = self._update_session_identity(session, self.last_messages[session.session_id])
+                    if route_metadata_changed or identity_changed:
                         result.account_id = session.account_id
                         result.scope = session.scope
+                        result.user_id = session.user_id
+                        result.user_nickname = session.user_nickname
+                        result.user_cardname = session.user_cardname
+                        result.group_id = session.group_id
+                        result.group_name = session.group_name
                         db_session.add(result)
                     self.sessions[session.session_id] = session
                     return session
@@ -150,6 +169,7 @@ class ChatManager:
         self.sessions[new_session.session_id] = new_session
         if new_session.session_id in self.last_messages:
             new_session.set_context(self.last_messages[new_session.session_id])
+            self._update_session_identity(new_session, self.last_messages[new_session.session_id])
         self._save_session(new_session)
         return new_session
 
@@ -173,6 +193,46 @@ class ChatManager:
         )
         message.session_id = session_id  # 确保消息的session_id正确设置
         self.last_messages[session_id] = message
+        session = self.sessions.get(session_id)
+        if session is not None and self._update_session_identity(session, message):
+            self._save_session(session)
+
+    @staticmethod
+    def _normalize_identity_text(value: Optional[str]) -> Optional[str]:
+        normalized_value = str(value or "").strip()
+        return normalized_value or None
+
+    def _update_session_identity(self, session: BotChatSession, message: "SessionMessage") -> bool:
+        """用真实入站消息补齐聊天流展示身份，群聊不保存最近发言人的用户信息。"""
+
+        changed = False
+        group_info = message.message_info.group_info
+        user_info = message.message_info.user_info
+        if group_info is not None:
+            group_name = self._normalize_identity_text(group_info.group_name)
+            if group_name and session.group_name != group_name:
+                session.group_name = group_name
+                changed = True
+            if session.user_id is not None:
+                session.user_id = None
+                changed = True
+            if session.user_nickname is not None:
+                session.user_nickname = None
+                changed = True
+            if session.user_cardname is not None:
+                session.user_cardname = None
+                changed = True
+            return changed
+
+        user_nickname = self._normalize_identity_text(user_info.user_nickname)
+        user_cardname = self._normalize_identity_text(user_info.user_cardname)
+        if user_nickname and session.user_nickname != user_nickname:
+            session.user_nickname = user_nickname
+            changed = True
+        if user_cardname != session.user_cardname:
+            session.user_cardname = user_cardname
+            changed = True
+        return changed
 
     async def load_all_sessions_from_db(self):
         """从数据库加载全部会话记录到内存中"""
@@ -219,8 +279,12 @@ class ChatManager:
         if not session:
             return None
         if session.is_group_session:
+            if session.group_name:
+                return session.group_name
             if session.context and session.context.message and session.context.message.message_info.group_info:
                 return session.context.message.message_info.group_info.group_name
+        elif session.user_nickname:
+            return f"{session.user_nickname}的私聊"
         elif session.context and session.context.message and session.context.message.message_info.user_info:
             nickname = session.context.message.message_info.user_info.user_nickname
             return f"{nickname}的私聊"
@@ -423,6 +487,11 @@ class ChatManager:
             if result := db_session.exec(statement).first():
                 result.created_timestamp = db_instance.created_timestamp
                 result.last_active_timestamp = db_instance.last_active_timestamp
+                result.user_id = db_instance.user_id
+                result.user_nickname = db_instance.user_nickname
+                result.user_cardname = db_instance.user_cardname
+                result.group_id = db_instance.group_id
+                result.group_name = db_instance.group_name
                 result.account_id = db_instance.account_id
                 result.scope = db_instance.scope
                 db_session.add(result)

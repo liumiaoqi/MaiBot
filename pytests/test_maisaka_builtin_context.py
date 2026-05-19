@@ -1,9 +1,18 @@
 from datetime import datetime
 from types import SimpleNamespace
 
+import asyncio
+import pytest
+
 from src.chat.message_receive.message import SessionMessage
 from src.common.data_models.mai_message_data_model import MessageInfo, UserInfo
-from src.common.data_models.message_component_data_model import AtComponent, MessageSequence, ReplyComponent, TextComponent
+from src.common.data_models.message_component_data_model import (
+    AtComponent,
+    ImageComponent,
+    MessageSequence,
+    ReplyComponent,
+    TextComponent,
+)
 from src.config.config import global_config
 from src.maisaka.builtin_tool.context import BuiltinToolRuntimeContext
 from src.maisaka.runtime import MaisakaHeartFlowChatting
@@ -47,6 +56,42 @@ def test_append_sent_message_to_chat_history_keeps_message_id() -> None:
     assert history_message.message_id == "real-message-id"
     assert '<message msg_id="real-message-id" time="12:00:00" user="MaiSaka">' in history_message.raw_message.components[0].text
     assert "[msg_id:real-message-id]" in history_message.visible_text
+
+
+@pytest.mark.asyncio
+async def test_append_sent_image_message_schedules_image_recognition(monkeypatch: pytest.MonkeyPatch) -> None:
+    """bot 自己发送的图片进入 Maisaka 历史时，也应触发后台识图。"""
+
+    image_bytes = b"sent-image"
+    message = _build_sent_message()
+    message.raw_message = MessageSequence([ImageComponent(binary_hash="", binary_data=image_bytes)])
+    runtime = MaisakaHeartFlowChatting.__new__(MaisakaHeartFlowChatting)
+    runtime._chat_history = []
+    runtime.log_prefix = "[test]"
+    runtime._emit_monitor_message_sent = lambda **_kwargs: None
+
+    calls: list[dict[str, object]] = []
+
+    async def fake_get_image_description(**kwargs):
+        calls.append(kwargs)
+        return ""
+
+    monkeypatch.setattr(
+        "src.chat.image_system.image_manager.image_manager.get_image_description",
+        fake_get_image_description,
+    )
+
+    assert runtime.append_sent_message_to_chat_history(message) is True
+    await asyncio.sleep(0)
+
+    assert len(runtime._chat_history) == 1
+    assert calls == [
+        {
+            "image_hash": message.raw_message.components[0].binary_hash,
+            "image_bytes": image_bytes,
+            "wait_for_build": False,
+        }
+    ]
 
 
 def test_post_process_reply_message_sequences_converts_at_marker_before_bracket_cleanup(monkeypatch) -> None:

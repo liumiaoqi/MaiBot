@@ -64,7 +64,9 @@
     },
     "actions": {
       "cancel": "取消",
+      "addImage": "添加图片",
       "reconnect": "重新连接",
+      "removeImage": "移除图片",
       "save": "保存",
       "send": "发送消息"
     },
@@ -141,6 +143,12 @@
       "currentSessionUnavailable": "当前聊天会话不可用，请稍后重试",
       "error": "错误",
       "incompleteConfig": "配置不完整",
+      "imageLimit": "图片数量已达上限",
+      "imageLimitDesc": "一次最多可以发送 {{count}} 张图片。",
+      "imageReadFailed": "图片读取失败",
+      "imageReadFailedDesc": "请换一张图片后重试。",
+      "imageUnsupported": "不支持的文件",
+      "imageUnsupportedDesc": "请选择图片文件。",
       "networkError": "网络错误",
       "platformFailed": "获取平台失败",
       "selectPlatformAndUser": "请选择平台和用户",

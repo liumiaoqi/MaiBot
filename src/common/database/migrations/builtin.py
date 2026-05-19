@@ -14,6 +14,7 @@ from .v5_to_v6 import migrate_v5_to_v6
 from .v6_to_v7 import migrate_v6_to_v7
 from .v7_to_v8 import migrate_v7_to_v8
 from .v8_to_v9 import migrate_v8_to_v9
+from .v9_to_v10 import migrate_v9_to_v10
 from .version_store import SQLiteUserVersionStore
 
 EMPTY_SCHEMA_VERSION = 0
@@ -25,7 +26,8 @@ V5_SCHEMA_VERSION = 5
 V6_SCHEMA_VERSION = 6
 V7_SCHEMA_VERSION = 7
 V8_SCHEMA_VERSION = 8
-LATEST_SCHEMA_VERSION = 9
+V9_SCHEMA_VERSION = 9
+LATEST_SCHEMA_VERSION = 10
 
 _LEGACY_V1_EXCLUSIVE_TABLES = (
     "chat_streams",
@@ -94,6 +96,12 @@ class LatestSchemaVersionDetector(BaseSchemaVersionDetector):
             return None
         if not snapshot.has_column("chat_sessions", "scope"):
             return None
+        if not snapshot.has_column("chat_sessions", "user_nickname"):
+            return None
+        if not snapshot.has_column("chat_sessions", "user_cardname"):
+            return None
+        if not snapshot.has_column("chat_sessions", "group_name"):
+            return None
         if snapshot.has_column("expressions", "rejected"):
             return None
         if snapshot.has_column("mai_messages", "display_message"):
@@ -107,6 +115,61 @@ class LatestSchemaVersionDetector(BaseSchemaVersionDetector):
         if not snapshot.has_table("statistics_aggregation_cursors"):
             return None
         return LATEST_SCHEMA_VERSION
+
+
+class V9SchemaVersionDetector(BaseSchemaVersionDetector):
+    """v9 schema 结构探测器。"""
+
+    @property
+    def name(self) -> str:
+        return "v9_schema_detector"
+
+    def detect_version(self, snapshot: DatabaseSchemaSnapshot) -> Optional[int]:
+        """检测数据库是否为 v9 结构。"""
+
+        if any(snapshot.has_table(table_name) for table_name in _LEGACY_V1_EXCLUSIVE_TABLES):
+            return None
+        if not all(snapshot.has_table(table_name) for table_name in _COMMON_MARKER_TABLES):
+            return None
+        if snapshot.has_table("action_records"):
+            return None
+        if snapshot.has_table("thinking_questions"):
+            return None
+        if snapshot.has_column("images", "emotion"):
+            return None
+        if not snapshot.has_column("images", "image_hash"):
+            return None
+        if not snapshot.has_column("images", "full_path"):
+            return None
+        if not snapshot.has_column("images", "image_type"):
+            return None
+        if not snapshot.has_column("chat_history", "session_id"):
+            return None
+        if not snapshot.has_column("person_info", "user_nickname"):
+            return None
+        if not snapshot.has_column("chat_sessions", "account_id"):
+            return None
+        if not snapshot.has_column("chat_sessions", "scope"):
+            return None
+        if snapshot.has_column("chat_sessions", "user_nickname"):
+            return None
+        if snapshot.has_column("chat_sessions", "user_cardname"):
+            return None
+        if snapshot.has_column("chat_sessions", "group_name"):
+            return None
+        if snapshot.has_column("expressions", "rejected"):
+            return None
+        if snapshot.has_column("mai_messages", "display_message"):
+            return None
+        if not snapshot.has_table("statistics_message_hourly"):
+            return None
+        if not snapshot.has_table("statistics_tool_hourly"):
+            return None
+        if not snapshot.has_table("statistics_model_hourly"):
+            return None
+        if not snapshot.has_table("statistics_aggregation_cursors"):
+            return None
+        return V9_SCHEMA_VERSION
 
 
 class V6SchemaVersionDetector(BaseSchemaVersionDetector):
@@ -315,6 +378,7 @@ def build_default_schema_version_detectors() -> List[BaseSchemaVersionDetector]:
 
     return [
         LatestSchemaVersionDetector(),
+        V9SchemaVersionDetector(),
         V6SchemaVersionDetector(),
         V5SchemaVersionDetector(),
         V3SchemaVersionDetector(),
@@ -397,10 +461,17 @@ def build_default_migration_registry() -> MigrationRegistry:
             ),
             MigrationStep(
                 version_from=V8_SCHEMA_VERSION,
-                version_to=LATEST_SCHEMA_VERSION,
+                version_to=V9_SCHEMA_VERSION,
                 name="v8_to_v9",
                 description="新增统计汇总表、索引与历史统计回填。",
                 handler=migrate_v8_to_v9,
+            ),
+            MigrationStep(
+                version_from=V9_SCHEMA_VERSION,
+                version_to=LATEST_SCHEMA_VERSION,
+                name="v9_to_v10",
+                description="为 chat_sessions 增加群名与私聊用户展示名字段。",
+                handler=migrate_v9_to_v10,
             ),
         ]
     )

@@ -106,16 +106,12 @@ export function TourRenderer() {
     // 每次步骤变化时，先等待一段时间让 DOM 更新（弹窗关闭动画等）
     const initialDelay = setTimeout(() => {
       const checkTarget = () => {
-        const element = document.querySelector(target as string)
-        if (element) {
-          // 确保元素可见
+        const elements = document.querySelectorAll(target as string)
+
+        return Array.from(elements).some((element) => {
           const rect = element.getBoundingClientRect()
-          const isVisible = rect.width > 0 && rect.height > 0
-          if (isVisible) {
-            return true
-          }
-        }
-        return false
+          return rect.width > 0 && rect.height > 0
+        })
       }
 
       if (checkTarget()) {

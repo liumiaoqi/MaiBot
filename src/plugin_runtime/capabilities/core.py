@@ -330,6 +330,120 @@ class RuntimeCoreCapabilityMixin:
             logger.error(f"[cap.send.image] 执行失败: {exc}", exc_info=True)
             return {"success": False, "error": str(exc)}
 
+    @staticmethod
+    def _normalize_plugin_segment(segment: Dict[str, Any]) -> Dict[str, Any]:
+        """将 SDK 侧常见的 content 字段归一化为 Host 消息组件字典。"""
+
+        segment_type = str(segment.get("type") or "").strip().lower()
+        if segment_type == "text":
+            return {"type": "text", "data": str(segment.get("data") or segment.get("content") or "")}
+        if segment_type in {"image", "emoji", "voice"}:
+            normalized_segment = dict(segment)
+            normalized_segment["type"] = segment_type
+            content = str(segment.get("content") or "").strip()
+            if content and not normalized_segment.get("binary_data_base64") and not normalized_segment.get("hash"):
+                normalized_segment["binary_data_base64"] = content
+            normalized_segment.setdefault("data", str(segment.get("data") or ""))
+            return normalized_segment
+        return dict(segment)
+
+    @staticmethod
+    def _normalize_plugin_segments(segments: Any) -> List[Dict[str, Any]]:
+        """归一化 SDK 传入的消息段列表。"""
+
+        if not isinstance(segments, list):
+            return []
+        return [
+            RuntimeCoreCapabilityMixin._normalize_plugin_segment(segment)
+            for segment in segments
+            if isinstance(segment, dict)
+        ]
+
+    async def _cap_send_hybrid(self, plugin_id: str, capability: str, args: Dict[str, Any]) -> Any:
+        """向指定流发送图文混合消息。"""
+
+        del plugin_id, capability
+        from src.plugin_runtime.host.message_utils import PluginMessageUtils
+        from src.services import send_service as send_api
+
+        stream_id = str(args.get("stream_id", ""))
+        segments = self._normalize_plugin_segments(args.get("segments") or args.get("parts"))
+        sync_to_maisaka_history = bool(args.get("sync_to_maisaka_history", False))
+        maisaka_source_kind = str(args.get("maisaka_source_kind", "plugin_send") or "plugin_send")
+        if not segments or not stream_id:
+            return {"success": False, "error": "缺少必要参数 segments 或 stream_id"}
+
+        try:
+            message_sequence = PluginMessageUtils._message_sequence_from_dict(segments)
+            result = await send_api.custom_reply_set_to_stream(
+                reply_set=message_sequence,
+                stream_id=stream_id,
+                processed_plain_text=str(args.get("processed_plain_text", "")),
+                typing=bool(args.get("typing", False)),
+                storage_message=bool(args.get("storage_message", True)),
+                show_log=bool(args.get("show_log", True)),
+                sync_to_maisaka_history=sync_to_maisaka_history,
+                maisaka_source_kind=maisaka_source_kind,
+            )
+            return {"success": result}
+        except Exception as exc:
+            logger.error(f"[cap.send.hybrid] 执行失败: {exc}", exc_info=True)
+            return {"success": False, "error": str(exc)}
+
+    async def _cap_send_forward(self, plugin_id: str, capability: str, args: Dict[str, Any]) -> Any:
+        """向指定流发送转发消息。"""
+
+        del plugin_id, capability
+        from src.plugin_runtime.host.message_utils import PluginMessageUtils
+        from src.services import send_service as send_api
+
+        stream_id = str(args.get("stream_id", ""))
+        messages = args.get("messages")
+        sync_to_maisaka_history = bool(args.get("sync_to_maisaka_history", False))
+        maisaka_source_kind = str(args.get("maisaka_source_kind", "plugin_send") or "plugin_send")
+        if not isinstance(messages, list) or not messages or not stream_id:
+            return {"success": False, "error": "缺少必要参数 messages 或 stream_id"}
+
+        forward_nodes: List[Dict[str, Any]] = []
+        for index, message in enumerate(messages):
+            if not isinstance(message, dict):
+                continue
+            raw_segments = message.get("segments") or message.get("content") or []
+            segments = self._normalize_plugin_segments(raw_segments)
+            if not segments:
+                continue
+            forward_nodes.append(
+                {
+                    "user_id": str(message.get("user_id") or ""),
+                    "user_nickname": str(message.get("nickname") or message.get("user_nickname") or "插件消息"),
+                    "user_cardname": str(message.get("user_cardname") or ""),
+                    "message_id": str(message.get("message_id") or f"plugin_forward_{index}"),
+                    "content": segments,
+                }
+            )
+
+        if not forward_nodes:
+            return {"success": False, "error": "messages 中缺少有效的转发节点"}
+
+        try:
+            message_sequence = PluginMessageUtils._message_sequence_from_dict(
+                [{"type": "forward", "data": forward_nodes}]
+            )
+            result = await send_api.custom_reply_set_to_stream(
+                reply_set=message_sequence,
+                stream_id=stream_id,
+                processed_plain_text=str(args.get("processed_plain_text", "[转发消息]")),
+                typing=bool(args.get("typing", False)),
+                storage_message=bool(args.get("storage_message", True)),
+                show_log=bool(args.get("show_log", True)),
+                sync_to_maisaka_history=sync_to_maisaka_history,
+                maisaka_source_kind=maisaka_source_kind,
+            )
+            return {"success": result}
+        except Exception as exc:
+            logger.error(f"[cap.send.forward] 执行失败: {exc}", exc_info=True)
+            return {"success": False, "error": str(exc)}
+
     async def _cap_send_command(self, plugin_id: str, capability: str, args: Dict[str, Any]) -> Any:
         """向指定流发送命令消息。
 

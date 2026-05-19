@@ -32,7 +32,7 @@ export interface VirtualIdentityConfig {
   userId: string
   userName: string
   groupName: string
-  groupId: string  // 虚拟群 ID，用于持久化历史记录
+  groupId: string // 虚拟群 ID，用于持久化历史记录
 }
 
 // 聊天标签页
@@ -94,8 +94,8 @@ export interface ChatMessage {
   type: 'user' | 'bot' | 'system' | 'error'
   content: string
   timestamp: number
-  message_type?: 'text' | 'rich'  // 消息格式类型
-  segments?: MessageSegment[]  // 富文本消息段
+  message_type?: 'text' | 'rich' // 消息格式类型
+  segments?: MessageSegment[] // 富文本消息段
   sender?: {
     name: string
     user_id?: string
@@ -104,6 +104,23 @@ export interface ChatMessage {
 }
 
 // WebSocket 消息类型
+export interface ChatImageAttachment {
+  id: string
+  name: string
+  mime_type: string
+  base64: string
+  data_url: string
+}
+
+export interface ChatIncomingImage {
+  name?: string
+  mime_type?: string
+  mimeType?: string
+  base64?: string
+  data_url?: string
+  dataUrl?: string
+}
+
 export interface WsMessage {
   type: string
   content?: string
@@ -120,6 +137,7 @@ export interface WsMessage {
     user_id?: string
     is_bot?: boolean
   }
+  images?: ChatIncomingImage[]
   // 历史消息列表（用于 type: 'history'）
   messages?: Array<{
     id?: string

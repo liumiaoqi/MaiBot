@@ -53,6 +53,7 @@ def _build_group_stream() -> BotChatSession:
         platform="qq",
         user_id="target-user",
         group_id="target-group",
+        group_name="目标群",
     )
 
 
