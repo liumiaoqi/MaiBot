@@ -69,14 +69,13 @@ const botConfigRoute = createRoute({
   component: lazyRouteComponent(() => import('./routes/config/bot'), 'BotConfigPage'),
 })
 
-// 配置路由 - 麦麦模型提供商配置
+// 配置路由 - 旧模型厂商配置入口，已合并到模型配置页
 const modelProviderConfigRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/config/modelProvider',
-  component: lazyRouteComponent(
-    () => import('./routes/config/modelProvider/index.tsx'),
-    'ModelProviderConfigPage'
-  ),
+  beforeLoad: () => {
+    throw redirect({ to: '/config/model' })
+  },
 })
 
 // 配置路由 - 麦麦模型配置

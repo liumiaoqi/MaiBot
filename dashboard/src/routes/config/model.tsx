@@ -1360,7 +1360,7 @@ function ModelConfigPageContent() {
                   <Zap className="mr-2 h-4 w-4" />
                   {testingProviders.size > 0 ? `测试中 (${testingProviders.size})` : '测试全部'}
                 </Button>
-                <Button onClick={() => openProviderDialog(null, null)} size="sm" variant="outline" className="w-full sm:w-auto" data-tour="add-provider-button">
+                <Button onClick={() => openProviderDialog(null, null)} size="sm" variant="outline" className="w-full sm:w-auto">
                   <Plus className="mr-2 h-4 w-4" strokeWidth={2} fill="none" />
                   添加提供商
                 </Button>
@@ -1428,7 +1428,7 @@ function ModelConfigPageContent() {
                     批量删除 ({selectedModels.size})
                   </Button>
                 )}
-                <Button onClick={() => openEditDialog(null, null)} size="sm" variant="outline" className="w-full sm:w-auto" data-tour="add-model-button">
+                <Button onClick={() => openEditDialog(null, null)} size="sm" variant="outline" className="w-full sm:w-auto">
                   <Plus className="mr-2 h-4 w-4" strokeWidth={2} fill="none" />
                   添加模型
                 </Button>
