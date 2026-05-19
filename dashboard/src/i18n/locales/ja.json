@@ -64,7 +64,9 @@
     },
     "actions": {
       "cancel": "キャンセル",
+      "addImage": "画像を追加",
       "reconnect": "再接続",
+      "removeImage": "画像を削除",
       "save": "保存",
       "send": "メッセージを送信"
     },
@@ -141,6 +143,12 @@
       "currentSessionUnavailable": "現在のチャットセッションは利用できません。しばらくしてから再試行してください",
       "error": "エラー",
       "incompleteConfig": "設定が未完了です",
+      "imageLimit": "画像数の上限に達しました",
+      "imageLimitDesc": "一度に送信できる画像は {{count}} 枚までです。",
+      "imageReadFailed": "画像の読み込みに失敗しました",
+      "imageReadFailedDesc": "別の画像を選んで再試行してください。",
+      "imageUnsupported": "対応していないファイルです",
+      "imageUnsupportedDesc": "画像ファイルを選択してください。",
       "networkError": "ネットワークエラー",
       "platformFailed": "プラットフォームの取得に失敗しました",
       "selectPlatformAndUser": "プラットフォームとユーザーを選択してください",

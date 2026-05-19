@@ -64,7 +64,9 @@
     },
     "actions": {
       "cancel": "Cancel",
+      "addImage": "Add image",
       "reconnect": "Reconnect",
+      "removeImage": "Remove image",
       "save": "Save",
       "send": "Send message"
     },
@@ -141,6 +143,12 @@
       "currentSessionUnavailable": "The current chat session is unavailable. Please try again later.",
       "error": "Error",
       "incompleteConfig": "Incomplete configuration",
+      "imageLimit": "Image limit reached",
+      "imageLimitDesc": "You can send up to {{count}} images at once.",
+      "imageReadFailed": "Failed to read image",
+      "imageReadFailedDesc": "Please choose another image and try again.",
+      "imageUnsupported": "Unsupported file",
+      "imageUnsupportedDesc": "Please choose an image file.",
       "networkError": "Network error",
       "platformFailed": "Failed to load platforms",
       "selectPlatformAndUser": "Please select a platform and user",
