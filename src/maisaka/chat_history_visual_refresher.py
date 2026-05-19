@@ -12,6 +12,7 @@ from src.common.logger import get_logger
 from src.config.config import config_manager
 
 from .context_messages import LLMContextMessage, SessionBackedMessage
+from .message_adapter import build_visible_text_from_sequence
 
 logger = get_logger("maisaka_chat_history_visual_refresher")
 
@@ -36,6 +37,12 @@ async def refresh_chat_history_visual_placeholders(
 
         original_message = history_message.original_message
         if original_message is None:
+            visual_components_updated = _refresh_pending_visual_components(history_message.raw_message.components)
+            if not visual_components_updated:
+                continue
+
+            history_message.visible_text = build_visible_text_from_sequence(history_message.raw_message).strip()
+            refreshed_count += 1
             continue
 
         visual_components_updated = _refresh_pending_visual_components(original_message.raw_message.components)
@@ -71,9 +78,11 @@ def has_pending_image_recognition(chat_history: list[LLMContextMessage]) -> bool
 
         original_message = history_message.original_message
         if original_message is None:
-            continue
+            components = history_message.raw_message.components
+        else:
+            components = original_message.raw_message.components
 
-        if _has_pending_image_component(original_message.raw_message.components):
+        if _has_pending_image_component(components):
             return True
 
     return False
@@ -96,9 +105,11 @@ def log_pending_image_recognition_before_text_planner(
 
         original_message = history_message.original_message
         if original_message is None:
-            continue
+            components = history_message.raw_message.components
+        else:
+            components = original_message.raw_message.components
 
-        pending_image_hashes.update(_collect_pending_image_hashes(original_message.raw_message.components))
+        pending_image_hashes.update(_collect_pending_image_hashes(components))
 
     pending_count = len(pending_image_hashes)
     if pending_count <= 0:
@@ -131,7 +142,7 @@ def _is_vlm_task_configured() -> bool:
 def _has_pending_image_component(components: list[object]) -> bool:
     for component in components:
         if isinstance(component, ImageComponent):
-            if _should_refresh_image_component(component) and _is_image_description_pending(component.binary_hash):
+            if _should_refresh_image_component(component) and _is_image_component_pending(component):
                 return True
             continue
 
@@ -149,7 +160,7 @@ def _collect_pending_image_hashes(components: list[object]) -> list[str]:
     pending_image_hashes: list[str] = []
     for component in components:
         if isinstance(component, ImageComponent):
-            if _should_refresh_image_component(component) and _is_image_description_pending(component.binary_hash):
+            if _should_refresh_image_component(component) and _is_image_component_pending(component):
                 pending_image_hashes.append(component.binary_hash)
             continue
 
@@ -160,6 +171,16 @@ def _collect_pending_image_hashes(components: list[object]) -> list[str]:
             pending_image_hashes.extend(_collect_pending_image_hashes(forward_component.content))
 
     return pending_image_hashes
+
+
+def _is_image_component_pending(component: ImageComponent) -> bool:
+    if not component.binary_hash:
+        return False
+    if _is_image_description_pending(component.binary_hash):
+        return True
+    if component.binary_data and not _lookup_cached_image_description(component.binary_hash):
+        return True
+    return False
 
 
 def _is_image_description_pending(image_hash: str) -> bool:

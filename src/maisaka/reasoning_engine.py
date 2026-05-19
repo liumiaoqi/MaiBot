@@ -521,6 +521,19 @@ class MaisakaReasoningEngine:
                         self._runtime._consume_force_next_timing_continue_reason()
                     round_index = 0
                     while round_index < self._runtime._max_internal_rounds:
+                        if round_index > 0 and self._runtime._has_pending_messages():
+                            await self._runtime._wait_for_message_quiet_period()
+                            self._runtime._message_turn_scheduled = False
+                            pending_round_messages = self._runtime._collect_pending_messages()
+                            if pending_round_messages:
+                                await self._ingest_messages(pending_round_messages)
+                                cached_messages = pending_round_messages
+                                anchor_message = pending_round_messages[-1]
+                                logger.info(
+                                    f"{self._runtime.log_prefix} 内部轮次开始前已合并新消息: "
+                                    f"消息数={len(pending_round_messages)} 回合={round_index + 1}"
+                                )
+
                         cycle_detail = self._start_cycle()
                         round_text = f"第 {round_index + 1}/{self._runtime._max_internal_rounds} 轮"
                         self._runtime._log_cycle_started(cycle_detail, round_index)
@@ -1659,6 +1672,7 @@ class MaisakaReasoningEngine:
             media_sequence = self._build_tool_result_media_message_sequence(tool_call, item_index, item)
             visible_text = self._build_tool_result_media_visible_text(tool_call, item_index, item, media_sequence)
             media_index = self._build_tool_result_media_index(tool_call, item_index)
+            self._schedule_tool_result_media_image_recognition(media_sequence, media_index)
             self._runtime._chat_history.append(
                 SessionBackedMessage(
                     raw_message=media_sequence,
@@ -1668,6 +1682,37 @@ class MaisakaReasoningEngine:
                     source_kind=TOOL_RESULT_MEDIA_SOURCE_KIND,
                 )
             )
+
+    def _schedule_tool_result_media_image_recognition(self, media_sequence: MessageSequence, media_index: str) -> None:
+        """为 tool result 拆出的图片消息调度后台识图。"""
+
+        images = [component for component in media_sequence.components if isinstance(component, ImageComponent)]
+        readable_images = [image for image in images if image.binary_data]
+        if not readable_images:
+            return
+
+        try:
+            asyncio.get_running_loop().create_task(self._recognize_tool_result_media_images(readable_images, media_index))
+        except RuntimeError:
+            logger.debug(f"{self._runtime.log_prefix} 当前无运行中的事件循环，跳过 tool result 图片识别调度")
+
+    async def _recognize_tool_result_media_images(self, images: list[ImageComponent], media_index: str) -> None:
+        """后台触发 tool result 图片描述构建，不阻塞工具执行链路。"""
+
+        from src.chat.image_system.image_manager import image_manager
+
+        for image in images:
+            try:
+                await image_manager.get_image_description(
+                    image_hash=image.binary_hash,
+                    image_bytes=image.binary_data,
+                    wait_for_build=False,
+                )
+            except Exception as exc:
+                logger.debug(
+                    f"{self._runtime.log_prefix} 调度 tool result 图片识别失败: "
+                    f"media_index={media_index} image_hash={image.binary_hash} error={exc}"
+                )
 
     def _remove_tool_call_from_history(self, tool_call: ToolCall) -> None:
         """从历史里的 assistant 消息中移除控制类工具调用。"""

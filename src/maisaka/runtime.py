@@ -20,7 +20,12 @@ from src.chat.message_receive.chat_manager import BotChatSession, chat_manager
 from src.chat.message_receive.message import SessionMessage
 from src.chat.utils.utils import is_mentioned_bot_in_message
 from src.common.data_models.mai_message_data_model import GroupInfo, MessageInfo, UserInfo
-from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
+from src.common.data_models.message_component_data_model import (
+    ForwardNodeComponent,
+    ImageComponent,
+    MessageSequence,
+    TextComponent,
+)
 from src.common.logger import get_logger
 from src.common.utils.utils_config import ChatConfigUtils, ExpressionConfigUtils, JargonConfigUtils
 from src.config.config import global_config
@@ -293,6 +298,7 @@ class MaisakaHeartFlowChatting:
                 source_kind=source_kind,
             )
             self._chat_history.append(history_message)
+            self._schedule_sent_image_recognition(message)
             self._emit_monitor_message_sent(
                 message=message,
                 speaker_name=speaker_name,
@@ -305,6 +311,51 @@ class MaisakaHeartFlowChatting:
                 f"message_id={message.message_id} error={exc}"
             )
             return False
+
+    def _schedule_sent_image_recognition(self, message: SessionMessage) -> None:
+        """为已发送并同步进历史的图片消息调度后台识图。"""
+
+        images = self._collect_sent_image_components(message.raw_message.components)
+        readable_images = [image for image in images if image.binary_data]
+        if not readable_images:
+            return
+
+        try:
+            asyncio.get_running_loop().create_task(self._recognize_sent_images(readable_images, message.message_id))
+        except RuntimeError:
+            logger.debug(f"{self.log_prefix} 当前无运行中的事件循环，跳过已发送图片后台识图调度")
+
+    def _collect_sent_image_components(self, components: Sequence[object]) -> list[ImageComponent]:
+        """递归收集消息序列中的图片组件。"""
+
+        images: list[ImageComponent] = []
+        for component in components:
+            if isinstance(component, ImageComponent):
+                images.append(component)
+                continue
+            if not isinstance(component, ForwardNodeComponent):
+                continue
+            for forward_component in component.forward_components:
+                images.extend(self._collect_sent_image_components(forward_component.content))
+        return images
+
+    async def _recognize_sent_images(self, images: list[ImageComponent], message_id: str) -> None:
+        """后台触发已发送图片的描述构建，不阻塞发送链路。"""
+
+        from src.chat.image_system.image_manager import image_manager
+
+        for image in images:
+            try:
+                await image_manager.get_image_description(
+                    image_hash=image.binary_hash,
+                    image_bytes=image.binary_data,
+                    wait_for_build=False,
+                )
+            except Exception as exc:
+                logger.debug(
+                    f"{self.log_prefix} 调度已发送图片识别失败: "
+                    f"message_id={message_id} image_hash={image.binary_hash} error={exc}"
+                )
 
     async def enqueue_proactive_task(
         self,
