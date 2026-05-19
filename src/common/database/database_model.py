@@ -374,7 +374,10 @@ class ChatSession(SQLModel, table=True):
 
     # 身份元数据
     user_id: Optional[str] = Field(index=True, max_length=255, nullable=True)  # 用户ID
+    user_nickname: Optional[str] = Field(default=None, max_length=255, nullable=True)  # 私聊用户昵称
+    user_cardname: Optional[str] = Field(default=None, max_length=255, nullable=True)  # 私聊用户群名片/备注
     group_id: Optional[str] = Field(index=True, default=None, max_length=255, nullable=True)  # 群组id
+    group_name: Optional[str] = Field(default=None, max_length=255, nullable=True)  # 群组名称
     platform: str = Field(index=True, max_length=100)  # 会话所在平台
     account_id: Optional[str] = Field(default=None, index=True, max_length=255, nullable=True)  # 平台账号 ID
     scope: Optional[str] = Field(default=None, index=True, max_length=255, nullable=True)  # 路由作用域

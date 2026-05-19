@@ -1,11 +1,15 @@
 """聊天会话数据模型回归测试。"""
 
 from contextlib import contextmanager
+from datetime import datetime
 from importlib import import_module
 
 import pytest
 
 from src.chat.message_receive.chat_manager import BotChatSession, ChatManager
+from src.chat.message_receive.message import SessionMessage
+from src.common.data_models.mai_message_data_model import GroupInfo, MessageInfo, UserInfo
+from src.common.utils.utils_session import SessionUtils
 from src.plugin_runtime.capabilities import data as capability_data_module
 from src.plugin_runtime.capabilities.data import RuntimeDataCapabilityMixin
 
@@ -29,6 +33,8 @@ def test_group_chat_session_does_not_store_sender_user_id() -> None:
     assert session.account_id == "bot-account"
     assert session.scope == "main"
     assert session.is_group_session is True
+    assert session.user_nickname is None
+    assert session.user_cardname is None
 
 
 def test_private_chat_session_keeps_user_id() -> None:
@@ -44,6 +50,59 @@ def test_private_chat_session_keeps_user_id() -> None:
     assert session.user_id == "target-user"
     assert session.group_id is None
     assert session.is_group_session is False
+
+
+def test_register_group_message_updates_group_name_without_sender_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """群聊会话只用入站消息更新群名，不保存最近发言人的用户身份。"""
+
+    manager = ChatManager()
+    message = SessionMessage(message_id="msg-1", timestamp=datetime.now(), platform="qq")
+    message.message_info = MessageInfo(
+        user_info=UserInfo(user_id="speaker-1", user_nickname="发言人"),
+        group_info=GroupInfo(group_id="group-1", group_name="测试群"),
+    )
+    session_id = SessionUtils.calculate_session_id("qq", user_id="speaker-1", group_id="group-1")
+    session = BotChatSession(
+        session_id=session_id,
+        platform="qq",
+        user_id="stale-speaker",
+        group_id="group-1",
+    )
+    manager.sessions[session.session_id] = session
+    saved_sessions: list[BotChatSession] = []
+    monkeypatch.setattr(manager, "_save_session", saved_sessions.append)
+
+    manager.register_message(message)
+
+    assert session.group_name == "测试群"
+    assert session.user_id is None
+    assert session.user_nickname is None
+    assert session.user_cardname is None
+    assert saved_sessions == [session]
+
+
+def test_register_private_message_updates_user_identity(monkeypatch: pytest.MonkeyPatch) -> None:
+    """私聊会话用入站消息更新对端用户展示名。"""
+
+    manager = ChatManager()
+    message = SessionMessage(message_id="msg-1", timestamp=datetime.now(), platform="qq")
+    message.message_info = MessageInfo(
+        user_info=UserInfo(user_id="user-1", user_nickname="测试用户", user_cardname="备注名"),
+    )
+    session_id = SessionUtils.calculate_session_id("qq", user_id="user-1")
+    session = BotChatSession(session_id=session_id, platform="qq", user_id="user-1")
+    manager.sessions[session.session_id] = session
+    saved_sessions: list[BotChatSession] = []
+    monkeypatch.setattr(manager, "_save_session", saved_sessions.append)
+
+    manager.register_message(message)
+
+    assert session.user_nickname == "测试用户"
+    assert session.user_cardname == "备注名"
+    assert session.group_name is None
+    assert saved_sessions == [session]
 
 
 @pytest.mark.asyncio
