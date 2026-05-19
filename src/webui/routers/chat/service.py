@@ -1,6 +1,8 @@
 """WebUI 聊天运行时服务。"""
 
 from dataclasses import dataclass
+import base64
+import binascii
 import time
 import uuid
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Set, Tuple, cast
@@ -840,6 +842,129 @@ def resolve_sender_identity(
     return current_user_name, normalized_user_id
 
 
+def normalize_chat_images(raw_images: Any) -> List[Dict[str, str]]:
+    if not isinstance(raw_images, list):
+        return []
+
+    images: List[Dict[str, str]] = []
+    for raw_image in raw_images[:8]:
+        if not isinstance(raw_image, dict):
+            continue
+
+        mime_type = str(raw_image.get("mime_type") or raw_image.get("mimeType") or "image/png").strip()
+        if not mime_type.startswith("image/"):
+            continue
+
+        raw_base64 = str(raw_image.get("base64") or "").strip()
+        data_url = str(raw_image.get("data_url") or raw_image.get("dataUrl") or "").strip()
+        if not raw_base64 and data_url.startswith("data:image/") and "," in data_url:
+            raw_base64 = data_url.split(",", maxsplit=1)[1].strip()
+        if not raw_base64:
+            continue
+
+        try:
+            base64.b64decode(raw_base64, validate=True)
+        except (binascii.Error, ValueError):
+            logger.warning("WebUI chat image ignored: invalid base64 payload")
+            continue
+
+        images.append(
+            {
+                "name": str(raw_image.get("name") or "").strip(),
+                "mime_type": mime_type,
+                "base64": raw_base64,
+            }
+        )
+
+    return images
+
+
+def normalize_chat_files(raw_files: Any) -> List[Dict[str, Any]]:
+    if not isinstance(raw_files, list):
+        return []
+
+    files: List[Dict[str, Any]] = []
+    for raw_file in raw_files[:6]:
+        if not isinstance(raw_file, dict):
+            continue
+
+        name = str(raw_file.get("name") or raw_file.get("file_name") or raw_file.get("filename") or "").strip()
+        raw_base64 = str(raw_file.get("base64") or "").strip()
+        if not name or not raw_base64:
+            continue
+
+        try:
+            base64.b64decode(raw_base64, validate=True)
+        except (binascii.Error, ValueError):
+            logger.warning("WebUI chat file ignored: invalid base64 payload")
+            continue
+
+        files.append(
+            {
+                "name": name,
+                "mime_type": str(raw_file.get("mime_type") or raw_file.get("mimeType") or "application/octet-stream").strip(),
+                "base64": raw_base64,
+                "size": int(raw_file.get("size") or 0),
+            }
+        )
+
+    return files
+
+
+def normalize_chat_voices(raw_voices: Any) -> List[Dict[str, str]]:
+    if not isinstance(raw_voices, list):
+        return []
+
+    voices: List[Dict[str, str]] = []
+    for raw_voice in raw_voices[:4]:
+        if not isinstance(raw_voice, dict):
+            continue
+
+        mime_type = str(raw_voice.get("mime_type") or raw_voice.get("mimeType") or "audio/mpeg").strip()
+        if not mime_type.startswith("audio/"):
+            continue
+
+        raw_base64 = str(raw_voice.get("base64") or "").strip()
+        data_url = str(raw_voice.get("data_url") or raw_voice.get("dataUrl") or "").strip()
+        if not raw_base64 and data_url.startswith("data:audio/") and "," in data_url:
+            raw_base64 = data_url.split(",", maxsplit=1)[1].strip()
+        if not raw_base64:
+            continue
+
+        try:
+            base64.b64decode(raw_base64, validate=True)
+        except (binascii.Error, ValueError):
+            logger.warning("WebUI chat voice ignored: invalid base64 payload")
+            continue
+
+        voices.append(
+            {
+                "name": str(raw_voice.get("name") or "").strip(),
+                "mime_type": mime_type,
+                "base64": raw_base64,
+            }
+        )
+
+    return voices
+
+
+def build_display_content(
+    content: str,
+    images: List[Dict[str, str]],
+    emojis: Optional[List[Dict[str, str]]] = None,
+    files: Optional[List[Dict[str, Any]]] = None,
+    voices: Optional[List[Dict[str, str]]] = None,
+) -> str:
+    image_count = len(images)
+    emoji_count = len(emojis or [])
+    voice_count = len(voices or [])
+    file_parts = [f"[文件] {file.get('name', '')}".strip() for file in files or []]
+    image_text = "" if image_count == 0 else ("[图片]" if image_count == 1 else f"[图片 x{image_count}]")
+    emoji_text = "" if emoji_count == 0 else ("[表情]" if emoji_count == 1 else f"[表情 x{emoji_count}]")
+    voice_text = "" if voice_count == 0 else ("[语音]" if voice_count == 1 else f"[语音 x{voice_count}]")
+    return "\n".join(part for part in (content, image_text, emoji_text, voice_text, *file_parts) if part).strip()
+
+
 def create_message_data(
     content: str,
     user_id: str,
@@ -847,6 +972,10 @@ def create_message_data(
     message_id: Optional[str] = None,
     is_at_bot: bool = True,
     virtual_config: Optional[VirtualIdentityConfig] = None,
+    images: Optional[List[Dict[str, str]]] = None,
+    emojis: Optional[List[Dict[str, str]]] = None,
+    files: Optional[List[Dict[str, Any]]] = None,
+    voices: Optional[List[Dict[str, str]]] = None,
 ) -> Dict[str, Any]:
     """构建发送给聊天核心的消息数据。
 
@@ -900,19 +1029,65 @@ def create_message_data(
             "platform": platform,
         }
 
+    normalized_images = images or []
+    normalized_emojis = emojis or []
+    normalized_files = files or []
+    normalized_voices = voices or []
+    message_segments: List[Dict[str, Any]] = []
+    if content:
+        message_segments.append(
+            {
+                "type": "text",
+                "data": content,
+            }
+        )
+    for image in normalized_images:
+        message_segments.append(
+            {
+                "type": "image",
+                "data": image["base64"],
+            }
+        )
+    for emoji in normalized_emojis:
+        message_segments.append(
+            {
+                "type": "emoji",
+                "data": emoji["base64"],
+            }
+        )
+    for voice in normalized_voices:
+        message_segments.append(
+            {
+                "type": "voice",
+                "data": voice["base64"],
+            }
+        )
+    for file in normalized_files:
+        message_segments.append(
+            {
+                "type": "dict",
+                "data": {
+                    "type": "file",
+                    "data": {
+                        "name": file.get("name", ""),
+                        "mime_type": file.get("mime_type", ""),
+                        "size": file.get("size", 0),
+                        "base64": file.get("base64", ""),
+                    },
+                },
+            }
+        )
+
+    display_content = build_display_content(content, normalized_images, normalized_emojis, normalized_files, normalized_voices)
+
     return {
         "message_info": message_info,
         "message_segment": {
             "type": "seglist",
-            "data": [
-                {
-                    "type": "text",
-                    "data": content,
-                },
-            ],
+            "data": message_segments,
         },
-        "raw_message": content,
-        "processed_plain_text": content,
+        "raw_message": display_content,
+        "processed_plain_text": display_content,
     }
 
 
@@ -936,8 +1111,13 @@ async def handle_chat_message(
         str: 处理后的最新昵称。
     """
     content = str(data.get("content", "")).strip()
-    if not content:
+    images = normalize_chat_images(data.get("images"))
+    emojis = normalize_chat_images(data.get("emojis"))
+    files = normalize_chat_files(data.get("files"))
+    voices = normalize_chat_voices(data.get("voices"))
+    if not content and not images and not emojis and not files and not voices:
         return current_user_name
+    display_content = build_display_content(content, images, emojis, files, voices)
 
     next_user_name = str(data.get("user_name", current_user_name))
     message_id = str(uuid.uuid4())
@@ -953,7 +1133,11 @@ async def handle_chat_message(
         target_group_id,
         {
             "type": "user_message",
-            "content": content,
+            "content": display_content,
+            "images": images,
+            "emojis": emojis,
+            "files": files,
+            "voices": voices,
             "group_id": target_group_id,
             "message_id": message_id,
             "timestamp": timestamp,
@@ -974,6 +1158,10 @@ async def handle_chat_message(
         message_id=message_id,
         is_at_bot=True,
         virtual_config=current_virtual_config,
+        images=images,
+        emojis=emojis,
+        files=files,
+        voices=voices,
     )
 
     try:

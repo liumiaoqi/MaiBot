@@ -70,7 +70,7 @@ class MessageUtils:
         if raw_msg_seq.type == "seglist":
             assert isinstance(raw_msg_seq.data, list), "seglist类型的message_segment数据应该是一个列表"
             components.extend(MessageUtils._parse_maim_message_segment_to_component(item) for item in raw_msg_seq.data)
-        elif raw_msg_seq.type in {"text", "image", "emoji", "voice", "at", "reply"}:
+        elif raw_msg_seq.type in {"text", "image", "emoji", "voice", "at", "reply", "dict"}:
             components.append(MessageUtils._parse_maim_message_segment_to_component(raw_msg_seq))
         else:
             raise NotImplementedError(f"暂时不支持的消息片段类型: {raw_msg_seq.type}")
@@ -113,6 +113,9 @@ class MessageUtils:
         elif seg.type == "reply":
             assert isinstance(seg.data, str), "reply类型的seg数据应该是字符串"
             return ReplyComponent(target_message_id=seg.data)
+        elif seg.type == "dict":
+            assert isinstance(seg.data, dict), "dict类型的seg数据应该是字典"
+            return DictComponent(data=seg.data)
         else:
             raise NotImplementedError(f"暂时不支持的消息片段类型: {seg.type}")
 
