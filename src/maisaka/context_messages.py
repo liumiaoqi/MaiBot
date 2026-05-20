@@ -124,6 +124,12 @@ def contains_complex_message(message_sequence: MessageSequence) -> bool:
 async def build_full_complex_message_content(message: SessionMessage) -> str:
     """构造复杂消息的完整文本内容。"""
 
+    if _prepare_unresolved_visual_components(message.raw_message.components):
+        await message.process(
+            enable_heavy_media_analysis=True,
+            enable_voice_transcription=False,
+        )
+
     full_content = _build_complex_message_full_text(message.raw_message)
     if full_content:
         return full_content
@@ -141,6 +147,37 @@ def _is_expandable_dict_component(component: StandardMessageComponents) -> bool:
 
     raw_type = str(component.data.get("type") or "").strip().lower()
     return raw_type in {"file"}
+
+
+def _prepare_unresolved_visual_components(components: Sequence[StandardMessageComponents]) -> bool:
+    """检查复杂消息内是否存在需要补充识图文本的图片或表情。"""
+
+    found_unresolved = False
+    for component in components:
+        if isinstance(component, ImageComponent):
+            normalized_content = component.content.strip()
+            if normalized_content in {"[image]", "[图片，识别中.....]"}:
+                component.content = ""
+                normalized_content = ""
+            if not normalized_content and component.binary_data:
+                found_unresolved = True
+            continue
+
+        if isinstance(component, EmojiComponent):
+            normalized_content = component.content.strip()
+            if normalized_content in {"[emoji]", "[表情包]"}:
+                component.content = ""
+                normalized_content = ""
+            if not normalized_content and component.binary_data:
+                found_unresolved = True
+            continue
+
+        if isinstance(component, ForwardNodeComponent):
+            for forward_component in component.forward_components:
+                if _prepare_unresolved_visual_components(forward_component.content):
+                    found_unresolved = True
+
+    return found_unresolved
 
 
 def _build_complex_message_full_text(message_sequence: MessageSequence) -> str:

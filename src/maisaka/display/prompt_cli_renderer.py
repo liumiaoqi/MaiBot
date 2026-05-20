@@ -12,7 +12,6 @@ from urllib.parse import quote
 import hashlib
 import html
 import json
-import tempfile
 
 from pydantic import BaseModel, Field as PydanticField
 from rich.console import Group, RenderableType
@@ -31,6 +30,8 @@ from .preview_path_utils import build_display_path, build_file_uri, REPO_ROOT
 from .prompt_preview_logger import PromptPreviewLogger
 
 DATA_IMAGE_DIR = REPO_ROOT / "data" / "images"
+DATA_EMOJI_DIR = REPO_ROOT / "data" / "emoji"
+DATA_HTML_IMAGE_DIR = REPO_ROOT / "data" / "html_imgs"
 
 
 def _build_prompt_preview_web_uri(file_path: Path) -> str:
@@ -70,7 +71,7 @@ class PromptImageDisplayMode(str, Enum):
     """不新增链接，仅保留原有的元信息展示。"""
 
     PATH_LINK = "path_link"
-    """把图片落盘到临时目录并输出可点击路径。"""
+    """把图片落盘到 data 目录并输出可点击路径。"""
 
 
 class PromptImageDisplaySettings(BaseModel):
@@ -138,41 +139,36 @@ class PromptCLIVisualizer:
         return normalized
 
     @staticmethod
-    def _build_image_cache_path(image_format: str, image_base64: str) -> Path:
-        image_format = PromptCLIVisualizer._normalize_image_format(image_format)
-        root = Path(tempfile.gettempdir()) / "maisaka_prompt_images"
-        root.mkdir(parents=True, exist_ok=True)
-        digest = hashlib.sha256(image_base64.encode("utf-8")).hexdigest()
-        return root / f"{digest}.{image_format}"
+    def _build_image_cache_path(image_format: str, image_bytes: bytes) -> Path:
+        image_format = PromptCLIVisualizer._normalize_image_format(image_format) or "bin"
+        DATA_HTML_IMAGE_DIR.mkdir(parents=True, exist_ok=True)
+        digest = hashlib.sha256(image_bytes).hexdigest()
+        return DATA_HTML_IMAGE_DIR / f"{digest}.{image_format}"
 
     @staticmethod
-    def _build_official_image_path(image_format: str, image_base64: str) -> Path | None:
-        normalized_format = PromptCLIVisualizer._normalize_image_format(image_format)
-        try:
-            image_bytes = b64decode(image_base64)
-        except Exception:
-            return None
-
+    def _build_official_image_path(image_format: str, image_bytes: bytes) -> Path | None:
+        normalized_format = PromptCLIVisualizer._normalize_image_format(image_format) or "bin"
         digest = hashlib.sha256(image_bytes).hexdigest()
-        official_path = DATA_IMAGE_DIR / f"{digest}.{normalized_format}"
-        if official_path.exists():
-            return official_path
+        for image_dir in (DATA_IMAGE_DIR, DATA_EMOJI_DIR):
+            official_path = image_dir / f"{digest}.{normalized_format}"
+            if official_path.exists():
+                return official_path
         return None
 
     @staticmethod
     def _build_image_file_link(image_format: str, image_base64: str) -> tuple[str, Path] | None:
-        """优先返回正式图片路径；不存在时回退到临时缓存路径。"""
+        """优先返回已有 data 图片路径；不存在时落盘到 data/html_imgs。"""
         normalized_format = PromptCLIVisualizer._normalize_image_format(image_format) or "bin"
-        official_path = PromptCLIVisualizer._build_official_image_path(image_format, image_base64)
-        if official_path is not None:
-            return build_file_uri(official_path), official_path
-
         try:
             image_bytes = b64decode(image_base64)
         except Exception:
             return None
 
-        path = PromptCLIVisualizer._build_image_cache_path(normalized_format, image_base64)
+        official_path = PromptCLIVisualizer._build_official_image_path(normalized_format, image_bytes)
+        if official_path is not None:
+            return build_file_uri(official_path), official_path
+
+        path = PromptCLIVisualizer._build_image_cache_path(normalized_format, image_bytes)
         if not path.exists():
             try:
                 path.write_bytes(image_bytes)
