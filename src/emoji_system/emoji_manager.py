@@ -490,9 +490,13 @@ class EmojiManager:
             with get_db_session() as session:
                 statement = select(Images)
                 results = session.exec(statement).all()
+                known_paths: set[Path] = set()
+                self.emojis = []
                 for record in results:
                     if record.image_type != ImageType.EMOJI:
                         continue
+                    if record_path := _resolve_existing_emoji_path(record.full_path):
+                        known_paths.add(record_path)
                     if not record.is_registered:
                         continue
                     if record.no_file_flag:
@@ -507,10 +511,12 @@ class EmojiManager:
                             f"[数据库] 加载表情包记录时出错: {e}\n记录ID: {record.id}, 路径: {record.full_path}"
                         )
                 self._emoji_num = len(self.emojis)
+                self._known_emoji_file_paths = known_paths
                 logger.info(f"[数据库] 成功加载 {self._emoji_num} 个已注册表情包")
         except Exception as e:
             logger.critical(f"[数据库] 加载表情包记录时发生不可恢复错误: {e}")
             self.emojis = []
+            self._known_emoji_file_paths = set()
             self._emoji_num = 0
             raise e
 
@@ -962,13 +968,17 @@ class EmojiManager:
         """
         检查表情包文件和数据库注册记录的一致性。
 
-        数据库记录存在但文件缺失时删除数据库记录；文件存在但没有数据库记录时删除文件。
+        数据库记录存在但文件缺失时删除数据库记录；
+        曾经被数据库追踪、但当前记录消失的文件会被删除；
+        从未被追踪的新文件会保留，等待后续扫描注册。
         """
         _ensure_directories()
         logger.info("[完整性检查] 开始检查表情包文件和注册记录一致性...")
+        previously_tracked_paths = set(self._known_emoji_file_paths)
         tracked_paths: set[Path] = set()
         record_removal_count = 0
         file_removal_count = 0
+        pending_file_count = 0
         available_emojis: list[MaiEmoji] = []
 
         with get_db_session() as session:
@@ -1002,18 +1012,23 @@ class EmojiManager:
             resolved_file = emoji_file.absolute().resolve()
             if resolved_file in tracked_paths:
                 continue
+            if resolved_file not in previously_tracked_paths:
+                pending_file_count += 1
+                logger.debug(f"[完整性检查] 发现未注册表情包文件，保留等待扫描注册: {emoji_file}")
+                continue
             try:
                 emoji_file.unlink()
                 file_removal_count += 1
-                logger.warning(f"[完整性检查] 表情包文件缺少数据库记录，删除文件: {emoji_file}")
+                logger.warning(f"[完整性检查] 已追踪表情包文件缺少数据库记录，删除文件: {emoji_file}")
             except Exception as exc:
-                logger.error(f"[完整性检查] 删除无注册记录的表情包文件失败: {emoji_file}, error={exc}")
+                logger.error(f"[完整性检查] 删除缺少数据库记录的已追踪表情包文件失败: {emoji_file}, error={exc}")
 
         self.emojis = available_emojis
         self._known_emoji_file_paths = tracked_paths
         self._emoji_num = len(self.emojis)
         logger.info(
-            f"[完整性检查] 表情包完整性检查完成，删除数据库记录 {record_removal_count} 条，删除图片文件 {file_removal_count} 个"
+            f"[完整性检查] 表情包完整性检查完成，删除数据库记录 {record_removal_count} 条，"
+            f"删除已追踪孤儿图片文件 {file_removal_count} 个，保留待注册图片文件 {pending_file_count} 个"
         )
 
     async def periodic_emoji_maintenance(self) -> None:
@@ -1028,22 +1043,18 @@ class EmojiManager:
                 self._maintenance_wakeup_event.clear()
 
             _ensure_directories()
-            try:
-                self.check_emoji_file_integrity()
-            except Exception as e:
-                logger.error(f"[emoji_maintenance] Maintenance task failed: {e}")
-
             if global_config.emoji.steal_emoji and (
                 self._emoji_num < global_config.emoji.max_reg_num
                 or (self._emoji_num > global_config.emoji.max_reg_num and global_config.emoji.do_replace)
             ):
                 registered_paths = {Path(emoji.full_path).resolve() for emoji in self.emojis}
+                known_paths = registered_paths | self._known_emoji_file_paths
                 logger.info("[emoji_maintenance] Scanning data/emoji for new emojis...")
                 for emoji_file in EMOJI_DIR.iterdir():
                     if not emoji_file.is_file():
                         continue
                     resolved_file = emoji_file.absolute().resolve()
-                    if resolved_file in registered_paths:
+                    if resolved_file in known_paths:
                         continue
                     try:
                         register_status = await self.register_emoji_by_filename(emoji_file)
@@ -1051,12 +1062,18 @@ class EmojiManager:
                         logger.error(f"[emoji_maintenance] Failed to process {emoji_file.name}: {e}")
                         register_status = "failed"
                     if register_status == "registered":
-                        self._known_emoji_file_paths.add(resolved_file)
+                        registered_paths = {Path(emoji.full_path).resolve() for emoji in self.emojis}
+                        self._known_emoji_file_paths.update(registered_paths)
                         break
                     if register_status == "skipped":
                         logger.debug(f"[emoji_maintenance] Emoji already registered, keep file: {emoji_file.name}")
                     else:
                         logger.debug(f"[emoji_maintenance] Emoji not registered, keep file: {emoji_file.name}")
+
+            try:
+                self.check_emoji_file_integrity()
+            except Exception as e:
+                logger.error(f"[emoji_maintenance] Maintenance task failed: {e}")
 
     async def register_emoji_by_filename(self, filename: Path | str) -> EmojiRegisterStatus:
         """Register an emoji file from ``data/emoji`` without moving or deleting it."""
