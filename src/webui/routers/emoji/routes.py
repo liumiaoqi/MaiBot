@@ -78,6 +78,129 @@ def _normalize_emoji_description(description: str = "", emotion: str = "") -> st
     return ",".join(item.strip() for item in tags if item.strip())
 
 
+def _apply_emoji_status_filter(statement: Any, status: Optional[str]) -> Any:
+    """按 WebUI 的统一表情包状态筛选数据库查询。"""
+    if status is None:
+        return statement
+
+    description_text = func.trim(func.coalesce(col(Images.description), ""))
+    if status == "discarded":
+        return statement.where(col(Images.is_banned).is_(True))
+    if status == "adopted":
+        return statement.where(
+            col(Images.is_registered).is_(True),
+            col(Images.is_banned).is_(False),
+        )
+    if status == "known":
+        return statement.where(
+            col(Images.is_registered).is_(False),
+            col(Images.is_banned).is_(False),
+            description_text != "",
+        )
+    if status == "unknown":
+        return statement.where(
+            col(Images.is_registered).is_(False),
+            col(Images.is_banned).is_(False),
+            description_text == "",
+        )
+
+    raise HTTPException(status_code=400, detail="无效的表情包状态")
+
+
+def _apply_emoji_format_filter(statement: Any, image_format: Optional[str]) -> Any:
+    """按图片文件后缀筛选表情包。"""
+    if not image_format:
+        return statement
+
+    normalized_format = image_format.strip().lower().lstrip(".")
+    if not normalized_format:
+        return statement
+    if normalized_format == "unknown":
+        return statement.where(~col(Images.full_path).contains("."))
+
+    return statement.where(func.lower(col(Images.full_path)).like(f"%.{normalized_format}"))
+
+
+def _save_uploaded_emoji_file(file_content: bytes, emoji_hash: str, image_format: str) -> str:
+    """保存上传的表情包文件并返回完整路径。"""
+    os.makedirs(EMOJI_DIR, exist_ok=True)
+
+    timestamp = int(datetime.now().timestamp())
+    filename = f"emoji_{timestamp}_{emoji_hash[:8]}.{image_format}"
+    full_path = os.path.join(EMOJI_DIR, filename)
+
+    counter = 1
+    while os.path.exists(full_path):
+        filename = f"emoji_{timestamp}_{emoji_hash[:8]}_{counter}.{image_format}"
+        full_path = os.path.join(EMOJI_DIR, filename)
+        counter += 1
+
+    with open(full_path, "wb") as output_file:
+        _ = output_file.write(file_content)
+
+    logger.info(f"表情包文件已保存: {full_path}")
+    return full_path
+
+
+def _delete_emoji_file(full_path: str) -> bool:
+    """删除表情包本地文件，文件不存在时视为已删除。"""
+    if not full_path:
+        return True
+
+    try:
+        file_path = Path(full_path)
+        if not file_path.exists():
+            return True
+        if not file_path.is_file():
+            logger.warning(f"跳过删除非文件路径: {full_path}")
+            return False
+        file_path.unlink()
+        logger.info(f"表情包文件已删除: {full_path}")
+        return True
+    except Exception as exc:
+        logger.error(f"删除表情包文件失败: {full_path}, error={exc}")
+        return False
+
+
+def _remove_emoji_from_memory(emoji_hash: str) -> None:
+    """从运行中的表情包管理器里移除指定表情。"""
+    from src.emoji_system.emoji_manager import emoji_manager
+
+    emoji_manager.emojis = [emoji for emoji in emoji_manager.emojis if emoji.file_hash != emoji_hash]
+    emoji_manager._emoji_num = len(emoji_manager.emojis)
+
+def _delete_emoji_thumbnail_cache(emoji_hash: str) -> bool:
+    """删除表情包缩略图缓存，返回是否实际删除了缓存文件。"""
+    cache_path = get_thumbnail_cache_path(emoji_hash)
+    if not cache_path.exists():
+        return False
+
+    cache_path.unlink()
+    return True
+
+
+async def _review_emoji_record_for_registration(
+    emoji: Images,
+    *,
+    image_bytes: Optional[bytes] = None,
+    image_format: str = "",
+) -> bool:
+    """复用 EmojiManager 的注册前审核逻辑检查 WebUI 注册入口。"""
+    from src.common.data_models.image_data_model import MaiEmoji
+    from src.emoji_system.emoji_manager import emoji_manager
+
+    try:
+        target_emoji = MaiEmoji(full_path=emoji.full_path, image_bytes=image_bytes)
+    except Exception as exc:
+        logger.warning(f"表情包注册审核失败，无法读取文件: id={emoji.id}, path={emoji.full_path}, error={exc}")
+        return False
+
+    target_emoji.file_hash = emoji.image_hash
+    target_emoji.description = emoji.description or ""
+    target_emoji.image_format = image_format.strip().lower() or Path(emoji.full_path).suffix.lower().lstrip(".")
+    return await emoji_manager.review_emoji_for_registration(target_emoji)
+
+
 @router.get("/list", response_model=EmojiListResponse)
 async def get_emoji_list(
     page: int = Query(1, ge=1, description="页码"),
@@ -85,6 +208,8 @@ async def get_emoji_list(
     search: Optional[str] = Query(None, description="搜索关键词"),
     is_registered: Optional[bool] = Query(None, description="是否已注册筛选"),
     is_banned: Optional[bool] = Query(None, description="是否被禁用筛选"),
+    status: Optional[str] = Query(None, description="表情包状态筛选"),
+    format: Optional[str] = Query(None, description="图片格式筛选"),
     sort_by: Optional[str] = Query("query_count", description="排序字段"),
     sort_order: Optional[str] = Query("desc", description="排序方向"),
     maibot_session: Optional[str] = Cookie(None),
@@ -114,11 +239,15 @@ async def get_emoji_list(
                 (col(Images.description).contains(search)) | (col(Images.image_hash).contains(search))
             )
 
-        if is_registered is not None:
-            statement = statement.where(col(Images.is_registered) == is_registered)
+        statement = _apply_emoji_status_filter(statement, status)
+        statement = _apply_emoji_format_filter(statement, format)
 
-        if is_banned is not None:
-            statement = statement.where(col(Images.is_banned) == is_banned)
+        if status is None:
+            if is_registered is not None:
+                statement = statement.where(col(Images.is_registered) == is_registered)
+
+            if is_banned is not None:
+                statement = statement.where(col(Images.is_banned) == is_banned)
 
         sort_field_map = {
             "usage_count": col(Images.query_count),
@@ -141,10 +270,13 @@ async def get_emoji_list(
                 count_statement = count_statement.where(
                     (col(Images.description).contains(search)) | (col(Images.image_hash).contains(search))
                 )
-            if is_registered is not None:
-                count_statement = count_statement.where(col(Images.is_registered) == is_registered)
-            if is_banned is not None:
-                count_statement = count_statement.where(col(Images.is_banned) == is_banned)
+            count_statement = _apply_emoji_status_filter(count_statement, status)
+            count_statement = _apply_emoji_format_filter(count_statement, format)
+            if status is None:
+                if is_registered is not None:
+                    count_statement = count_statement.where(col(Images.is_registered) == is_registered)
+                if is_banned is not None:
+                    count_statement = count_statement.where(col(Images.is_banned) == is_banned)
             total = session.exec(count_statement).one()
             data = [emoji_to_response(emoji) for emoji in emojis]
 
@@ -226,6 +358,8 @@ async def update_emoji(
                 raise HTTPException(status_code=400, detail="未提供任何需要更新的字段")
 
             if "is_registered" in update_data and update_data["is_registered"] and not emoji.is_registered:
+                if not await _review_emoji_record_for_registration(emoji):
+                    raise HTTPException(status_code=400, detail="表情包未通过内容审核，无法注册")
                 update_data["register_time"] = datetime.now()
 
             if "emotion" in update_data:
@@ -248,7 +382,7 @@ async def update_emoji(
             session.add(emoji)
 
             # 若通过更新接口封禁表情包，同步从内存列表移除
-            if update_data.get("is_banned"):
+            if update_data.get("is_banned") or update_data.get("is_registered") is False:
                 from src.emoji_system.emoji_manager import emoji_manager
 
                 emoji_manager.emojis = [
@@ -295,6 +429,13 @@ async def delete_emoji(emoji_id: int, maibot_session: Optional[str] = Cookie(Non
                 raise HTTPException(status_code=404, detail=f"未找到 ID 为 {emoji_id} 的表情包")
 
             emoji_hash = emoji.image_hash
+            full_path = emoji.full_path
+            was_registered = emoji.is_registered
+            if not _delete_emoji_file(full_path):
+                raise HTTPException(status_code=500, detail="删除表情包文件失败")
+            _delete_emoji_thumbnail_cache(emoji_hash)
+            if was_registered:
+                _remove_emoji_from_memory(emoji_hash)
             session.delete(emoji)
             logger.info(f"表情包已删除: ID={emoji_id}, hash={emoji_hash}")
             return EmojiDeleteResponse(success=True, message=f"成功删除表情包: {emoji_hash}")
@@ -336,10 +477,33 @@ async def get_emoji_stats(maibot_session: Optional[str] = Cookie(None)) -> Dict[
                     col(Images.is_banned),
                 )
             )
+            description_text = func.trim(func.coalesce(col(Images.description), ""))
+            known_statement = (
+                select(func.count())
+                .select_from(Images)
+                .where(
+                    col(Images.image_type) == ImageType.EMOJI,
+                    col(Images.is_registered).is_(False),
+                    col(Images.is_banned).is_(False),
+                    description_text != "",
+                )
+            )
+            unknown_statement = (
+                select(func.count())
+                .select_from(Images)
+                .where(
+                    col(Images.image_type) == ImageType.EMOJI,
+                    col(Images.is_registered).is_(False),
+                    col(Images.is_banned).is_(False),
+                    description_text == "",
+                )
+            )
 
             total = session.exec(total_statement).one()
             registered = session.exec(registered_statement).one()
             banned = session.exec(banned_statement).one()
+            known = session.exec(known_statement).one()
+            unknown = session.exec(unknown_statement).one()
 
             formats: Dict[str, int] = {}
             format_statement = select(Images.full_path).where(col(Images.image_type) == ImageType.EMOJI)
@@ -371,6 +535,10 @@ async def get_emoji_stats(maibot_session: Optional[str] = Cookie(None)) -> Dict[
                 "registered": registered,
                 "banned": banned,
                 "unregistered": total - registered,
+                "known": known,
+                "unknown": unknown,
+                "adopted": registered,
+                "discarded": banned,
                 "formats": formats,
                 "top_used": top_used_list,
             },
@@ -407,6 +575,8 @@ async def register_emoji(emoji_id: int, maibot_session: Optional[str] = Cookie(N
                 raise HTTPException(status_code=404, detail=f"未找到 ID 为 {emoji_id} 的表情包")
             if emoji.is_registered:
                 return EmojiUpdateResponse(success=True, message="表情包已注册", data=emoji_to_response(emoji))
+            if not await _review_emoji_record_for_registration(emoji):
+                raise HTTPException(status_code=400, detail="表情包未通过内容审核，无法注册")
 
             emoji.is_registered = True
             emoji.is_banned = False
@@ -589,6 +759,16 @@ async def batch_delete_emojis(
                         col(Images.image_type) == ImageType.EMOJI,
                     )
                     if emoji := session.exec(statement).first():
+                        emoji_hash = emoji.image_hash
+                        full_path = emoji.full_path
+                        was_registered = emoji.is_registered
+                        if not _delete_emoji_file(full_path):
+                            failed_count += 1
+                            failed_ids.append(emoji_id)
+                            continue
+                        _delete_emoji_thumbnail_cache(emoji_hash)
+                        if was_registered:
+                            _remove_emoji_from_memory(emoji_hash)
                         session.delete(emoji)
                         deleted_count += 1
                         logger.info(f"批量删除表情包: {emoji_id}")
@@ -664,7 +844,9 @@ async def upload_emoji(
         with Image.open(io.BytesIO(file_content)) as img:
             img_format = img.format.lower() if img.format else "png"
 
-        emoji_hash = hashlib.md5(file_content).hexdigest()
+        emoji_hash = hashlib.sha256(file_content).hexdigest()
+        final_description = _normalize_emoji_description(description=description, emotion=emotion)
+        current_time = datetime.now()
 
         with get_db_session() as session:
             existing_statement = select(Images).where(
@@ -672,27 +854,23 @@ async def upload_emoji(
                 col(Images.image_type) == ImageType.EMOJI,
             )
             if existing_emoji := session.exec(existing_statement).first():
-                raise HTTPException(status_code=409, detail=f"已存在相同的表情包 (ID: {existing_emoji.id})")
+                if not os.path.exists(existing_emoji.full_path) or existing_emoji.no_file_flag:
+                    existing_emoji.full_path = _save_uploaded_emoji_file(file_content, emoji_hash, img_format)
+                    existing_emoji.no_file_flag = False
+                existing_emoji.description = final_description
+                existing_emoji.is_registered = True
+                existing_emoji.is_banned = False
+                existing_emoji.register_time = current_time
+                session.add(existing_emoji)
+                session.flush()
+                return EmojiUploadResponse(
+                    success=True,
+                    message="表情包已存在，已标记为据为己用",
+                    data=emoji_to_response(existing_emoji),
+                )
 
-        os.makedirs(EMOJI_DIR, exist_ok=True)
+        full_path = _save_uploaded_emoji_file(file_content, emoji_hash, img_format)
 
-        timestamp = int(datetime.now().timestamp())
-        filename = f"emoji_{timestamp}_{emoji_hash[:8]}.{img_format}"
-        full_path = os.path.join(EMOJI_DIR, filename)
-
-        counter = 1
-        while os.path.exists(full_path):
-            filename = f"emoji_{timestamp}_{emoji_hash[:8]}_{counter}.{img_format}"
-            full_path = os.path.join(EMOJI_DIR, filename)
-            counter += 1
-
-        with open(full_path, "wb") as output_file:
-            _ = output_file.write(file_content)
-
-        logger.info(f"表情包文件已保存: {full_path}")
-        final_description = _normalize_emoji_description(description=description, emotion=emotion)
-
-        current_time = datetime.now()
         with get_db_session() as session:
             emoji = Images(
                 image_type=ImageType.EMOJI,
@@ -700,19 +878,23 @@ async def upload_emoji(
                 image_hash=emoji_hash,
                 description=final_description,
                 query_count=0,
-                is_registered=is_registered,
+                is_registered=True,
                 is_banned=False,
                 record_time=current_time,
-                register_time=current_time if is_registered else None,
+                register_time=current_time,
                 last_used_time=None,
             )
             session.add(emoji)
             session.flush()
 
-            logger.info(f"表情包已上传并注册: ID={emoji.id}, hash={emoji_hash}")
+            logger.info(
+                f"表情包已上传: ID={emoji.id}, hash={emoji_hash}, registered={emoji.is_registered}"
+            )
+            message = "表情包上传成功"
+            message += "并已注册"
             return EmojiUploadResponse(
                 success=True,
-                message="表情包上传成功" + ("并已注册" if is_registered else ""),
+                message=message,
                 data=emoji_to_response(emoji),
             )
     except HTTPException:
@@ -783,35 +965,32 @@ async def batch_upload_emoji(
                     )
                     continue
 
-                emoji_hash = hashlib.md5(file_content).hexdigest()
+                emoji_hash = hashlib.sha256(file_content).hexdigest()
+                current_time = datetime.now()
+                final_description = _normalize_emoji_description(emotion=emotion)
 
                 with get_db_session() as session:
                     existing_statement = select(Images).where(
                         col(Images.image_hash) == emoji_hash,
                         col(Images.image_type) == ImageType.EMOJI,
                     )
-                    if session.exec(existing_statement).first():
-                        results["failed"] += 1
+                    if existing_emoji := session.exec(existing_statement).first():
+                        if not os.path.exists(existing_emoji.full_path) or existing_emoji.no_file_flag:
+                            existing_emoji.full_path = _save_uploaded_emoji_file(file_content, emoji_hash, img_format)
+                            existing_emoji.no_file_flag = False
+                        existing_emoji.description = final_description
+                        existing_emoji.is_registered = True
+                        existing_emoji.is_banned = False
+                        existing_emoji.register_time = current_time
+                        session.add(existing_emoji)
+                        session.flush()
+                        results["uploaded"] += 1
                         results["details"].append(
-                            {"filename": file.filename, "success": False, "error": "已存在相同的表情包"}
+                            {"filename": file.filename, "success": True, "id": existing_emoji.id, "existed": True}
                         )
                         continue
 
-                timestamp = int(datetime.now().timestamp())
-                filename = f"emoji_{timestamp}_{emoji_hash[:8]}.{img_format}"
-                full_path = os.path.join(EMOJI_DIR, filename)
-
-                counter = 1
-                while os.path.exists(full_path):
-                    filename = f"emoji_{timestamp}_{emoji_hash[:8]}_{counter}.{img_format}"
-                    full_path = os.path.join(EMOJI_DIR, filename)
-                    counter += 1
-
-                with open(full_path, "wb") as output_file:
-                    _ = output_file.write(file_content)
-
-                current_time = datetime.now()
-                final_description = _normalize_emoji_description(emotion=emotion)
+                full_path = _save_uploaded_emoji_file(file_content, emoji_hash, img_format)
 
                 with get_db_session() as session:
                     emoji = Images(
@@ -820,17 +999,18 @@ async def batch_upload_emoji(
                         image_hash=emoji_hash,
                         description=final_description,
                         query_count=0,
-                        is_registered=is_registered,
+                        is_registered=True,
                         is_banned=False,
                         record_time=current_time,
-                        register_time=current_time if is_registered else None,
+                        register_time=current_time,
                         last_used_time=None,
                     )
                     session.add(emoji)
                     session.flush()
 
                     results["uploaded"] += 1
-                    results["details"].append({"filename": file.filename, "success": True, "id": emoji.id})
+                    detail = {"filename": file.filename, "success": True, "id": emoji.id}
+                    results["details"].append(detail)
             except Exception as e:
                 results["failed"] += 1
                 results["details"].append({"filename": file.filename, "success": False, "error": str(e)})

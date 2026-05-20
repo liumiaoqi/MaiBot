@@ -1,3 +1,5 @@
+export type EmojiStatus = 'known' | 'unknown' | 'adopted' | 'discarded'
+
 /**
  * 表情包相关类型定义
  */
@@ -14,6 +16,7 @@ export interface Emoji {
   query_count: number
   is_registered: boolean
   is_banned: boolean
+  status: EmojiStatus
   emotion: string | null
   record_time: number
   register_time: number | null
@@ -75,6 +78,10 @@ export interface EmojiStats {
   registered: number
   banned: number
   unregistered: number
+  known: number
+  unknown: number
+  adopted: number
+  discarded: number
   formats: Record<string, number>
   top_used: Array<{
     id: number

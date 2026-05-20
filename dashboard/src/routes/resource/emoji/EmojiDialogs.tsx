@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, Check, CheckCircle2, ImageIcon, Upload, X } from 'lucide-react'
+import { ArrowLeft, Check, CheckCircle2, ImageIcon, Plus, Upload, X } from 'lucide-react'
 import Dashboard from '@uppy/react/dashboard'
 import Uppy from '@uppy/core'
 import '@uppy/core/css/style.min.css'
@@ -7,7 +7,6 @@ import '@uppy/dashboard/css/style.min.css'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogBody,
@@ -21,6 +20,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Markdown } from '@/components/ui/markdown'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 
 import '@/styles/uppy-custom.css'
@@ -31,9 +37,22 @@ import {
   updateEmoji,
 } from '@/lib/emoji-api'
 import { fetchWithAuth } from '@/lib/fetch-with-auth'
-import type { Emoji } from '@/types/emoji'
+import type { Emoji, EmojiStatus } from '@/types/emoji'
 
 import type { UploadedFileInfo, UploadStep } from './types'
+
+const emojiStatusLabel: Record<EmojiStatus, string> = {
+  known: '认识',
+  unknown: '不认识',
+  adopted: '据为己用',
+  discarded: '丢弃',
+}
+
+function getEmojiStatusVariant(status: EmojiStatus) {
+  if (status === 'discarded') return 'destructive' as const
+  if (status === 'unknown') return 'secondary' as const
+  return status === 'adopted' ? 'default' as const : 'outline' as const
+}
 
 // ============================
 // 详情对话框组件
@@ -135,17 +154,9 @@ export function EmojiDetailDialog({
               <div>
                 <Label className="text-muted-foreground">状态</Label>
                 <div className="mt-2 flex gap-2">
-                  {emoji.is_registered && (
-                    <Badge variant="default" className="bg-green-600">
-                      已注册
-                    </Badge>
-                  )}
-                  {emoji.is_banned && (
-                    <Badge variant="destructive">已封禁</Badge>
-                  )}
-                  {!emoji.is_registered && !emoji.is_banned && (
-                    <Badge variant="outline">未注册</Badge>
-                  )}
+                  <Badge variant={getEmojiStatusVariant(emoji.status)}>
+                    {emojiStatusLabel[emoji.status]}
+                  </Badge>
                 </div>
               </div>
               <div>
@@ -199,8 +210,7 @@ export function EmojiEditDialog({
   onSuccess: () => void
 }) {
   const [emotionInput, setEmotionInput] = useState('')
-  const [isRegistered, setIsRegistered] = useState(false)
-  const [isBanned, setIsBanned] = useState(false)
+  const [status, setStatus] = useState<EmojiStatus>('known')
   const [saving, setSaving] = useState(false)
 
   const { toast } = useToast()
@@ -208,8 +218,7 @@ export function EmojiEditDialog({
   useEffect(() => {
     if (emoji) {
       setEmotionInput(emoji.emotion || '')
-      setIsRegistered(emoji.is_registered)
-      setIsBanned(emoji.is_banned)
+      setStatus(emoji.status)
     }
   }, [emoji])
 
@@ -224,11 +233,12 @@ export function EmojiEditDialog({
         .map((s) => s.trim())
         .filter(Boolean)
         .join(',')
+      const finalEmotion = status === 'unknown' ? '' : emotionString
 
       await updateEmoji(emoji.id, {
-        emotion: emotionString || undefined,
-        is_registered: isRegistered,
-        is_banned: isBanned,
+        emotion: finalEmotion,
+        is_registered: status === 'adopted',
+        is_banned: status === 'discarded',
       })
 
       toast({
@@ -274,42 +284,19 @@ export function EmojiEditDialog({
             </p>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="is_registered"
-                checked={isRegistered}
-                onCheckedChange={(checked) => {
-                  if (checked === true) {
-                    setIsRegistered(true)
-                    setIsBanned(false) // 注册时自动取消封禁
-                  } else {
-                    setIsRegistered(false)
-                  }
-                }}
-              />
-              <Label htmlFor="is_registered" className="cursor-pointer">
-                已注册
-              </Label>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="is_banned"
-                checked={isBanned}
-                onCheckedChange={(checked) => {
-                  if (checked === true) {
-                    setIsBanned(true)
-                    setIsRegistered(false) // 封禁时自动取消注册
-                  } else {
-                    setIsBanned(false)
-                  }
-                }}
-              />
-              <Label htmlFor="is_banned" className="cursor-pointer">
-                已封禁
-              </Label>
-            </div>
+          <div className="space-y-2">
+            <Label>表情包状态</Label>
+            <Select value={status} onValueChange={(value) => setStatus(value as EmojiStatus)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="known">认识</SelectItem>
+                <SelectItem value="unknown">不认识</SelectItem>
+                <SelectItem value="adopted">据为己用</SelectItem>
+                <SelectItem value="discarded">丢弃</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
         </DialogBody>
@@ -498,9 +485,7 @@ export function EmojiUploadDialog({
         id: file.id,
         name: file.name,
         previewUrl: file.preview || URL.createObjectURL(file.data as File),
-        emotion: '',
-        description: '',
-        isRegistered: true,
+        tags: [''],
         file: file.data as File,
       }))
 
@@ -532,20 +517,46 @@ export function EmojiUploadDialog({
     }
   }, [open, uppy])
 
-  // 更新单个文件的元数据
-  const updateFileInfo = useCallback(
-    (fileId: string, updates: Partial<UploadedFileInfo>) => {
+  const updateFileTag = useCallback(
+    (fileId: string, tagIndex: number, value: string) => {
       setUploadedFiles((prev) =>
-        prev.map((f) => (f.id === fileId ? { ...f, ...updates } : f))
+        prev.map((file) => {
+          if (file.id !== fileId) return file
+          const tags = [...file.tags]
+          tags[tagIndex] = value
+          return { ...file, tags }
+        })
       )
     },
     []
   )
 
+  const addFileTag = useCallback((fileId: string) => {
+    setUploadedFiles((prev) =>
+      prev.map((file) =>
+        file.id === fileId ? { ...file, tags: [...file.tags, ''] } : file
+      )
+    )
+  }, [])
+
+  const removeFileTag = useCallback((fileId: string, tagIndex: number) => {
+    setUploadedFiles((prev) =>
+      prev.map((file) => {
+        if (file.id !== fileId) return file
+        const tags = file.tags.filter((_, index) => index !== tagIndex)
+        return { ...file, tags: tags.length > 0 ? tags : [''] }
+      })
+    )
+  }, [])
+
+  const getFileEmotion = useCallback((file: UploadedFileInfo) => {
+    return file.tags.map((tag) => tag.trim()).filter(Boolean).join(',')
+  }, [])
+
   // 检查文件是否填写完成必填项(情感标签必填)
   const isFileComplete = useCallback((file: UploadedFileInfo) => {
-    return file.emotion.trim().length > 0
-  }, [])
+    return getFileEmotion(file).length > 0
+  }, [getFileEmotion])
 
   // 检查所有文件是否都填写完成
   const allFilesComplete = useMemo(() => {
@@ -585,9 +596,7 @@ export function EmojiUploadDialog({
       for (const fileInfo of uploadedFiles) {
         const formData = new FormData()
         formData.append('file', fileInfo.file)
-        formData.append('emotion', fileInfo.emotion)
-        formData.append('description', fileInfo.description)
-        formData.append('is_registered', fileInfo.isRegistered.toString())
+        formData.append('description', getFileEmotion(fileInfo))
 
         try {
           const response = await fetchWithAuth(getEmojiUploadUrl(), {
@@ -623,7 +632,49 @@ export function EmojiUploadDialog({
     } finally {
       setUploading(false)
     }
-  }, [allFilesComplete, uploadedFiles, toast, onOpenChange, onSuccess])
+  }, [allFilesComplete, uploadedFiles, getFileEmotion, toast, onOpenChange, onSuccess])
+  const renderTagEditor = (file: UploadedFileInfo, inputPrefix: string) => (
+    <div className="space-y-2">
+      <Label>
+        情感标签 <span className="text-destructive">*</span>
+      </Label>
+      <div className="space-y-2">
+        {file.tags.map((tag, index) => (
+          <div key={`${file.id}-tag-${index}`} className="flex items-center gap-2">
+            <Input
+              id={`${inputPrefix}-tag-${index}`}
+              value={tag}
+              onChange={(e) => updateFileTag(file.id, index, e.target.value)}
+              placeholder="输入一个标签"
+              className={!tag.trim() && file.tags.length === 1 ? 'border-destructive' : ''}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="shrink-0"
+              onClick={() => removeFileTag(file.id, index)}
+              disabled={file.tags.length === 1}
+              title="移除标签"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        ))}
+      </div>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="gap-2"
+        onClick={() => addFileTag(file.id)}
+      >
+        <Plus className="h-4 w-4" />
+        添加标签
+      </Button>
+    </div>
+  )
+
 
   // 渲染文件选择步骤
   const renderSelectStep = () => (
@@ -676,48 +727,7 @@ export function EmojiUploadDialog({
 
           {/* 表单 */}
           <div className="flex-1 space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="single-emotion">
-                情感标签 <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="single-emotion"
-                value={file.emotion}
-                onChange={(e) =>
-                  updateFileInfo(file.id, { emotion: e.target.value })
-                }
-                placeholder="多个标签用逗号分隔,如:开心,高兴"
-                className={!file.emotion.trim() ? 'border-destructive' : ''}
-              />
-              <p className="text-xs text-muted-foreground">
-                用于情感匹配,多个标签用逗号分隔
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="single-description">描述</Label>
-              <Input
-                id="single-description"
-                value={file.description}
-                onChange={(e) =>
-                  updateFileInfo(file.id, { description: e.target.value })
-                }
-                placeholder="输入表情包描述..."
-              />
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="single-is-registered"
-                checked={file.isRegistered}
-                onCheckedChange={(checked) =>
-                  updateFileInfo(file.id, { isRegistered: checked === true })
-                }
-              />
-              <Label htmlFor="single-is-registered" className="cursor-pointer">
-                上传后立即注册(可被麦麦使用)
-              </Label>
-            </div>
+            {renderTagEditor(file, 'single')}
           </div>
         </div>
 
@@ -795,7 +805,7 @@ export function EmojiUploadDialog({
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{file.name}</p>
                       <p className="text-xs text-muted-foreground truncate">
-                        {file.emotion || '未填写情感标签'}
+                        {getFileEmotion(file) || '未填写情感标签'}
                       </p>
                     </div>
                     {complete ? (
@@ -835,56 +845,7 @@ export function EmojiUploadDialog({
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="multi-emotion">
-                    情感标签 <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    id="multi-emotion"
-                    value={selectedFile.emotion}
-                    onChange={(e) =>
-                      updateFileInfo(selectedFile.id, {
-                        emotion: e.target.value,
-                      })
-                    }
-                    placeholder="多个标签用逗号分隔,如:开心,高兴"
-                    className={
-                      !selectedFile.emotion.trim() ? 'border-destructive' : ''
-                    }
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="multi-description">描述</Label>
-                  <Input
-                    id="multi-description"
-                    value={selectedFile.description}
-                    onChange={(e) =>
-                      updateFileInfo(selectedFile.id, {
-                        description: e.target.value,
-                      })
-                    }
-                    placeholder="输入表情包描述..."
-                  />
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="multi-is-registered"
-                    checked={selectedFile.isRegistered}
-                    onCheckedChange={(checked) =>
-                      updateFileInfo(selectedFile.id, {
-                        isRegistered: checked === true,
-                      })
-                    }
-                  />
-                  <Label
-                    htmlFor="multi-is-registered"
-                    className="cursor-pointer text-sm"
-                  >
-                    上传后立即注册
-                  </Label>
-                </div>
+                {renderTagEditor(selectedFile, 'multi')}
               </div>
             ) : (
               <div className="h-full flex items-center justify-center text-muted-foreground">
@@ -922,9 +883,9 @@ export function EmojiUploadDialog({
           <DialogDescription>
             {step === 'select' &&
               '支持 JPG、PNG、GIF、WebP 格式,单个文件最大 10MB,可同时上传多个文件'}
-            {step === 'edit-single' && '请填写表情包的情感标签(必填)和描述'}
+            {step === 'edit-single' && '请填写表情包的情感标签'}
             {step === 'edit-multiple' &&
-              '点击左侧卡片编辑每个表情包的信息,情感标签为必填项'}
+              '点击左侧卡片编辑每个表情包的情感标签'}
           </DialogDescription>
         </DialogHeader>
 

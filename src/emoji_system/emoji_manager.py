@@ -255,7 +255,6 @@ class EmojiManager:
 
         self._emoji_num: int = 0
         self.emojis: list[MaiEmoji] = []
-        self._known_emoji_file_paths: set[Path] = set()
         self._maintenance_wakeup_event: asyncio.Event = asyncio.Event()
         self._pending_description_tasks: dict[str, asyncio.Task[None]] = {}
         self._reload_callback_registered: bool = False
@@ -490,13 +489,10 @@ class EmojiManager:
             with get_db_session() as session:
                 statement = select(Images)
                 results = session.exec(statement).all()
-                known_paths: set[Path] = set()
                 self.emojis = []
                 for record in results:
                     if record.image_type != ImageType.EMOJI:
                         continue
-                    if record_path := _resolve_existing_emoji_path(record.full_path):
-                        known_paths.add(record_path)
                     if not record.is_registered:
                         continue
                     if record.no_file_flag:
@@ -511,12 +507,10 @@ class EmojiManager:
                             f"[数据库] 加载表情包记录时出错: {e}\n记录ID: {record.id}, 路径: {record.full_path}"
                         )
                 self._emoji_num = len(self.emojis)
-                self._known_emoji_file_paths = known_paths
                 logger.info(f"[数据库] 成功加载 {self._emoji_num} 个已注册表情包")
         except Exception as e:
             logger.critical(f"[数据库] 加载表情包记录时发生不可恢复错误: {e}")
             self.emojis = []
-            self._known_emoji_file_paths = set()
             self._emoji_num = 0
             raise e
 
@@ -588,13 +582,14 @@ class EmojiManager:
 
         return "registered"
 
-    def delete_emoji(self, emoji: MaiEmoji, no_desc: bool = False) -> bool:
+    def delete_emoji(self, emoji: MaiEmoji, keep_desc: bool = True) -> bool:
         """
         删除表情包的文件和数据库记录
 
         Args:
             emoji (MaiEmoji): 需要删除的表情包对象
-            no_desc (bool): 如果为 True，则表示删除的表情包记录没有描述信息，删除时直接删除数据库记录；如果为`False`，则表示删除的表情包记录有描述信息，删除时将数据库记录的`no_file_flag`标记为`True`而不是直接删除记录。默认为`False`。
+            keep_desc (bool): 如果为 True，则删除文件后保留数据库描述缓存，并将 `no_file_flag`
+                标记为 True；如果为 False，则同时删除数据库记录。默认为 True。
         Returns:
             return (bool): 删除是否成功
         """
@@ -614,13 +609,13 @@ class EmojiManager:
             with get_db_session() as session:
                 statement = select(Images).filter_by(image_hash=emoji.file_hash, image_type=ImageType.EMOJI).limit(1)
                 if image_record := session.exec(statement).first():
-                    if no_desc:
-                        session.delete(image_record)
-                        logger.info(f"[删除表情包] 成功删除数据库中的空表情包记录: {emoji.file_name}")
-                    else:
+                    if keep_desc:
                         image_record.no_file_flag = True
                         session.add(image_record)
                         logger.info(f"[删除表情包] 成功修改数据库中的表情包记录: {emoji.file_name}")
+                    else:
+                        session.delete(image_record)
+                        logger.info(f"[删除表情包] 成功删除数据库中的表情包记录: {emoji.file_name}")
                 else:
                     logger.warning(f"[删除表情包] 数据库中未找到表情包记录: {emoji.file_name}")
         except Exception as e:
@@ -754,6 +749,30 @@ class EmojiManager:
             return False
         return True
 
+    def unregister_emoji(self, emoji: MaiEmoji) -> bool:
+        """取消表情包注册状态，但保留文件和识别结果。"""
+        if not emoji or not emoji.file_hash:
+            logger.error("[取消注册表情包] 无效的表情包对象")
+            return False
+
+        try:
+            with get_db_session() as session:
+                statement = select(Images).filter_by(image_hash=emoji.file_hash, image_type=ImageType.EMOJI).limit(1)
+                if image_record := session.exec(statement).first():
+                    image_record.is_registered = False
+                    session.add(image_record)
+                else:
+                    logger.warning(f"[取消注册表情包] 未找到表情包记录: {emoji.file_name}")
+                    return False
+        except Exception as e:
+            logger.error(f"[取消注册表情包] 取消注册时出错: {e}")
+            return False
+
+        self.emojis = [item for item in self.emojis if item.file_hash != emoji.file_hash]
+        self._emoji_num = len(self.emojis)
+        logger.info(f"[取消注册表情包] 成功取消注册表情包: {emoji.file_name}")
+        return True
+
     async def get_emoji_for_emotion(self, emotion_label: str) -> Optional[MaiEmoji]:
         """
         根据文本情感标签获取合适的表情包
@@ -821,39 +840,76 @@ class EmojiManager:
         decision = decision_result.response
         logger.info(f"[决策] 结果: {decision}")
 
-        # 解析决策结果
-        if "不删除" in decision:
-            logger.info("[决策] 不删除任何表情包")
+        # 解析决策结果；兼容旧 prompt 的“删除编号X”，实际动作只取消注册。
+        skip_decisions = ("不取消注册", "不删除", "do not unregister", "do not delete", "解除しない", "削除しない")
+        if any(skip_text in decision for skip_text in skip_decisions):
+            logger.info("[决策] 不取消注册任何表情包")
             return False
         try:
-            match = re.search(r"删除编号(\d+)", decision)
+            match = re.search(
+                r"(?:取消注册|删除)编号(\d+)|(?:unregister|delete)\s+number\s+(\d+)|番号(\d+)を(?:解除|削除)",
+                decision,
+                re.IGNORECASE,
+            )
         except Exception as e:
             logger.error(f"[决策] 解析决策结果时出错: {e}")
             return False
         if match:
-            emoji_index = int(match.group(1)) - 1  # 转换为0-based索引
+            matched_number = next(group for group in match.groups() if group)
+            emoji_index = int(matched_number) - 1  # 转换为0-based索引
             # 检查索引是否有效
             if 0 <= emoji_index < len(selected_emojis):
-                emoji_to_delete = selected_emojis[emoji_index]
-                logger.info(f"[决策] 删除表情包: {emoji_to_delete.description}")
-                if self.delete_emoji(emoji_to_delete):
-                    self.emojis.remove(emoji_to_delete)
+                emoji_to_unregister = selected_emojis[emoji_index]
+                logger.info(f"[决策] 取消注册表情包: {emoji_to_unregister.description}")
+                if self.unregister_emoji(emoji_to_unregister):
                     register_status = self.register_emoji_to_db(new_emoji)
                     if register_status == "registered":
                         self.emojis.append(new_emoji)
-                        logger.info(f"[register_emoji] Replaced old emoji with new emoji: {new_emoji.description}")
+                        self._emoji_num = len(self.emojis)
+                        logger.info(f"[register_emoji] 成功替换并注册新表情包: {new_emoji.description}")
                         return True
                     if register_status == "skipped":
                         logger.info(f"[register_emoji] Replacement emoji was already registered: {new_emoji.description}")
                     else:
                         logger.error(f"[register_emoji] Failed to register replacement emoji: {new_emoji.description}")
                 else:
-                    logger.error("[错误] 删除表情包失败，无法完成替换")
+                    logger.error("[错误] 取消注册表情包失败，无法完成替换")
             else:
                 logger.error(f"[决策] 无效的表情包编号: {emoji_index + 1}")
         else:
-            logger.error("[决策] 未能解析删除编号")
+            logger.error("[决策] 未能解析取消注册编号")
         return False
+
+    async def review_emoji_for_registration(self, target_emoji: MaiEmoji) -> bool:
+        """注册前审核表情包内容，审核关闭时直接通过。"""
+        if not global_config.emoji.content_filtration:
+            return True
+        if not _is_vlm_task_configured():
+            logger.warning(f"[表情包审查] 已启用内容过滤但未配置 VLM 模型，拒绝注册: {target_emoji.file_name}")
+            return False
+
+        image_format = target_emoji.image_format
+        image_bytes = target_emoji.image_bytes or await asyncio.to_thread(
+            target_emoji.read_image_bytes, target_emoji.full_path
+        )
+        image_base64 = ImageUtils.image_bytes_to_base64(image_bytes)
+        try:
+            review_prompt_template = prompt_manager.get_prompt("emoji_content_filtration")
+            review_prompt = await prompt_manager.render_prompt(review_prompt_template)
+            filtration_result = await emoji_manager_vlm.generate_response_for_image(
+                review_prompt,
+                image_base64,
+                image_format,
+            )
+            llm_response = filtration_result.response
+        except Exception as e:
+            logger.error(f"[表情包审查] 调用视觉模型审查表情包时出错: {e}")
+            return False
+
+        if "否" in llm_response:
+            logger.warning(f"[表情包审查] 表情包内容不符合要求，拒绝注册: {target_emoji.file_name}")
+            return False
+        return True
 
     async def build_emoji_description(self, target_emoji: MaiEmoji) -> tuple[bool, MaiEmoji]:
         """
@@ -866,7 +922,7 @@ class EmojiManager:
         """
         if not _is_vlm_task_configured():
             logger.info(
-                f"[构建描述] 未配置 VLM 模型，跳过表情包识别、打标签和审核: {target_emoji.file_name}"
+                f"[构建描述] 未配置 VLM 模型，跳过表情包识别和打标签: {target_emoji.file_name}"
             )
             return False, target_emoji
 
@@ -918,23 +974,6 @@ class EmojiManager:
             logger.warning(f"[构建描述] 视觉模型返回空描述，跳过注册: {target_emoji.file_name}")
             return False, target_emoji
 
-        # 表情包审查
-        if global_config.emoji.content_filtration:
-            try:
-                review_prompt_template = prompt_manager.get_prompt("emoji_content_filtration")
-                review_prompt = await prompt_manager.render_prompt(review_prompt_template)
-                filtration_result = await emoji_manager_vlm.generate_response_for_image(
-                    review_prompt,
-                    image_base64,
-                    image_format,
-                )
-                llm_response = filtration_result.response
-            except Exception as e:
-                logger.error(f"[表情包审查] 调用视觉模型审查表情包时出错: {e}")
-                return False, target_emoji
-            if "否" in llm_response:
-                logger.warning(f"[表情包审查] 表情包内容不符合要求，拒绝注册: {target_emoji.file_name}")
-                return False, target_emoji
         normalized_description = str(description).strip()
         if not normalized_description:
             logger.warning(f"[构建描述] 视觉模型返回空标签，跳过注册: {target_emoji.file_name}")
@@ -968,17 +1007,11 @@ class EmojiManager:
         """
         检查表情包文件和数据库注册记录的一致性。
 
-        数据库记录存在但文件缺失时删除数据库记录；
-        曾经被数据库追踪、但当前记录消失的文件会被删除；
-        从未被追踪的新文件会保留，等待后续扫描注册。
+        该检查只维护数据库记录与内存可发送池，不主动删除 ``data/emoji`` 下的图片文件。
         """
         _ensure_directories()
         logger.info("[完整性检查] 开始检查表情包文件和注册记录一致性...")
-        previously_tracked_paths = set(self._known_emoji_file_paths)
-        tracked_paths: set[Path] = set()
         record_removal_count = 0
-        file_removal_count = 0
-        pending_file_count = 0
         available_emojis: list[MaiEmoji] = []
 
         with get_db_session() as session:
@@ -987,18 +1020,21 @@ class EmojiManager:
             for record in records:
                 record_path = _resolve_existing_emoji_path(record.full_path)
                 if record.no_file_flag or record_path is None:
-                    logger.warning(
-                        f"[完整性检查] 表情包数据库记录缺少实际文件，删除数据库记录: id={record.id}, path={record.full_path}"
-                    )
-                    session.delete(record)
-                    record_removal_count += 1
+                    if record.is_registered:
+                        logger.warning(
+                            f"[完整性检查] 已注册表情包缺少实际文件，删除破损注册记录: id={record.id}, path={record.full_path}"
+                        )
+                        session.delete(record)
+                        record_removal_count += 1
+                    else:
+                        logger.debug(
+                            f"[完整性检查] 未注册表情包缺少实际文件，保留为描述缓存: id={record.id}, path={record.full_path}"
+                        )
                     continue
                 if not record.is_registered or record.is_banned:
-                    tracked_paths.add(record_path)
                     continue
                 try:
                     available_emojis.append(MaiEmoji.from_db_instance(record))
-                    tracked_paths.add(record_path)
                 except Exception as exc:
                     logger.error(
                         f"[完整性检查] 加载表情包记录时出错，将删除异常记录: {exc}\n记录ID: {record.id}, 路径: {record.full_path}"
@@ -1006,29 +1042,11 @@ class EmojiManager:
                     session.delete(record)
                     record_removal_count += 1
 
-        for emoji_file in EMOJI_DIR.iterdir():
-            if not emoji_file.is_file():
-                continue
-            resolved_file = emoji_file.absolute().resolve()
-            if resolved_file in tracked_paths:
-                continue
-            if resolved_file not in previously_tracked_paths:
-                pending_file_count += 1
-                logger.debug(f"[完整性检查] 发现未注册表情包文件，保留等待扫描注册: {emoji_file}")
-                continue
-            try:
-                emoji_file.unlink()
-                file_removal_count += 1
-                logger.warning(f"[完整性检查] 已追踪表情包文件缺少数据库记录，删除文件: {emoji_file}")
-            except Exception as exc:
-                logger.error(f"[完整性检查] 删除缺少数据库记录的已追踪表情包文件失败: {emoji_file}, error={exc}")
-
         self.emojis = available_emojis
-        self._known_emoji_file_paths = tracked_paths
         self._emoji_num = len(self.emojis)
         logger.info(
             f"[完整性检查] 表情包完整性检查完成，删除数据库记录 {record_removal_count} 条，"
-            f"删除已追踪孤儿图片文件 {file_removal_count} 个，保留待注册图片文件 {pending_file_count} 个"
+            f"当前可发送表情包 {self._emoji_num} 个"
         )
 
     async def periodic_emoji_maintenance(self) -> None:
@@ -1047,8 +1065,12 @@ class EmojiManager:
                 self._emoji_num < global_config.emoji.max_reg_num
                 or (self._emoji_num > global_config.emoji.max_reg_num and global_config.emoji.do_replace)
             ):
-                registered_paths = {Path(emoji.full_path).resolve() for emoji in self.emojis}
-                known_paths = registered_paths | self._known_emoji_file_paths
+                known_paths: set[Path] = set()
+                with get_db_session() as session:
+                    statement = select(Images).filter_by(image_type=ImageType.EMOJI)
+                    for record in session.exec(statement).all():
+                        if record_path := _resolve_existing_emoji_path(record.full_path):
+                            known_paths.add(record_path)
                 logger.info("[emoji_maintenance] Scanning data/emoji for new emojis...")
                 for emoji_file in EMOJI_DIR.iterdir():
                     if not emoji_file.is_file():
@@ -1062,8 +1084,6 @@ class EmojiManager:
                         logger.error(f"[emoji_maintenance] Failed to process {emoji_file.name}: {e}")
                         register_status = "failed"
                     if register_status == "registered":
-                        registered_paths = {Path(emoji.full_path).resolve() for emoji in self.emojis}
-                        self._known_emoji_file_paths.update(registered_paths)
                         break
                     if register_status == "skipped":
                         logger.debug(f"[emoji_maintenance] Emoji already registered, keep file: {emoji_file.name}")
@@ -1131,6 +1151,10 @@ class EmojiManager:
             if not desc_success:
                 logger.error(f"[register_emoji] Failed to build emoji description: {file_full_path}")
                 return "failed"
+
+        if not await self.review_emoji_for_registration(target_emoji):
+            logger.error(f"[register_emoji] Emoji did not pass content review: {file_full_path}")
+            return "failed"
 
         if self._emoji_num >= global_config.emoji.max_reg_num and global_config.emoji.do_replace:
             logger.warning(
