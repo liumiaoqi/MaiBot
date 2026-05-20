@@ -2,7 +2,7 @@ from datetime import datetime
 
 import pytest
 
-from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
+from src.common.data_models.message_component_data_model import ImageComponent, MessageSequence, TextComponent
 from src.llm_models.payload_content.tool_option import ToolCall
 from src.maisaka.context_messages import AssistantMessage, SessionBackedMessage, ToolResultMessage
 from src.maisaka.history_post_processor import process_chat_history_after_cycle
@@ -118,6 +118,67 @@ def test_context_optimization_preserves_trimmed_assistant_tool_content_as_user_m
     assert "旧记忆" in folded_tool_messages[0]
     assert "旧工具结果" in folded_tool_messages[0]
     assert result.removed_count == 1
+
+
+def test_context_optimization_keeps_tool_result_media_after_tool_history_is_folded() -> None:
+    removed_tool_call = ToolCall(call_id="removed-call", func_name="image_tool", args={"prompt": "cat"})
+    tool_result_content = "\n".join(
+        [
+            "image ready",
+            "<tool_result_media_list>",
+            '  <media msg_id="tool_result:removed-call:1" type="image" mime="image/png" />',
+            "</tool_result_media_list>",
+        ]
+    )
+    media_message = SessionBackedMessage(
+        raw_message=MessageSequence(
+            [
+                TextComponent('<tool_result_media msg_id="tool_result:removed-call:1" />'),
+                ImageComponent(binary_hash="", binary_data=b"image-bytes"),
+            ]
+        ),
+        visible_text='<tool_result_media msg_id="tool_result:removed-call:1" />\n[图片]',
+        timestamp=datetime.now(),
+        message_id="tool_result:removed-call:1",
+        source_kind="tool_result_media",
+    )
+    chat_history = [
+        _assistant_message("", [removed_tool_call]),
+        ToolResultMessage(
+            content=tool_result_content,
+            timestamp=datetime.now(),
+            tool_call_id="removed-call",
+            tool_name="image_tool",
+        ),
+        media_message,
+        _assistant_message("assistant 1"),
+        _assistant_message("assistant 2"),
+        _assistant_message("assistant 3"),
+    ]
+
+    result = process_chat_history_after_cycle(
+        chat_history,
+        max_context_size=100,
+        enable_context_optimization=True,
+    )
+
+    tool_results = [message for message in result.history if isinstance(message, ToolResultMessage)]
+    folded_tool_messages = [
+        message
+        for message in result.history
+        if isinstance(message, SessionBackedMessage) and message.source_kind == "optimized_tool_history"
+    ]
+    media_messages = [
+        message
+        for message in result.history
+        if isinstance(message, SessionBackedMessage) and message.source_kind == "tool_result_media"
+    ]
+
+    assert tool_results == []
+    assert len(folded_tool_messages) == 1
+    assert "removed-call" in folded_tool_messages[0].visible_text
+    assert media_messages == [media_message]
+    assert any(isinstance(component, ImageComponent) for component in media_messages[0].raw_message.components)
 
 
 @pytest.mark.parametrize("tool_name", ["continue", "finish", "no_action", "reply", "wait"])
