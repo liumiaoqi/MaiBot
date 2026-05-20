@@ -627,18 +627,6 @@ class ChatBot:
             # if modified_message and modified_message._modify_flags.modify_plain_text:
             #     message.processed_plain_text = modified_message.plain_text
 
-            # # 确认从接口发来的message是否有自定义的prompt模板信息
-            # if message.message_info.template_info and not message.message_info.template_info.template_default:
-            #     template_group_name: Optional[str] = message.message_info.template_info.template_name  # type: ignore
-            #     template_items = message.message_info.template_info.template_items
-            #     async with global_prompt_manager.async_message_scope(template_group_name):
-            #         if isinstance(template_items, dict):
-            #             for k in template_items.keys():
-            #                 await Prompt.create_async(template_items[k], k)
-            #                 logger.debug(f"注册{template_items[k]},{k}")
-            # else:
-            #     template_group_name = None
-
             async def preprocess():
                 if group_info is None:
                     logger.debug("[私聊]检测到私聊消息，路由到 Maisaka")
