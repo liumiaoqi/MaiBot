@@ -15,6 +15,11 @@ VISUAL_MODE_OPTION_DESCRIPTIONS = {
     "multimodal": "多模态模式，会向模型发送视觉输入",
 }
 
+OVERSIZED_IMAGE_HANDLE_METHOD_DESCRIPTIONS = {
+    "compress": "压缩图片并继续处理",
+    "discard": "丢弃超过最大大小的图片组件",
+}
+
 """
 须知：
 1. 本文件中记录了所有的配置项
@@ -233,6 +238,57 @@ class VisualConfig(ConfigBase):
         },
     )
     """非视觉 planner 请求前等待图片识别完成的最长秒数；为 0 时不等待，保持占位请求。"""
+
+    handle_oversized_images: bool = Field(
+        default=True,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "image",
+            "x-layout": "inline-right",
+            "x-row": "visual-image-compression",
+            "label": {
+                "zh_CN": "处理过大图片",
+                "en_US": "Handle oversized images",
+                "ja_JP": "過大画像を処理",
+            },
+        },
+    )
+    """开启后，接收图片会检查大小并按配置处理过大图片；关闭后跳过检查和处理。"""
+
+    max_image_size_mb: float = Field(
+        default=30.0,
+        ge=0,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "image",
+            "x-layout": "inline-right",
+            "x-input-width": "8rem",
+            "x-row": "visual-image-compression",
+            "label": {
+                "zh_CN": "最大图片大小(MB)",
+                "en_US": "Max image size (MB)",
+                "ja_JP": "最大画像サイズ(MB)",
+            },
+        },
+    )
+    """接收图片超过该大小时视为过大图片；设为 0 时不限制图片大小。"""
+
+    oversized_image_handle_method: Literal["compress", "discard"] = Field(
+        default="compress",
+        json_schema_extra={
+            "x-widget": "select",
+            "x-icon": "minimize-2",
+            "x-layout": "inline-right",
+            "x-row": "visual-image-compression",
+            "x-option-descriptions": OVERSIZED_IMAGE_HANDLE_METHOD_DESCRIPTIONS,
+            "label": {
+                "zh_CN": "过大图片处理方法",
+                "en_US": "Oversized image handling",
+                "ja_JP": "過大画像の処理方法",
+            },
+        },
+    )
+    """接收图片超过最大图片大小时的处理方法：compress 为压缩，discard 为丢弃。"""
 
 
 class TalkRulesItem(ConfigBase):
