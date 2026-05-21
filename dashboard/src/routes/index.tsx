@@ -34,6 +34,7 @@ import {
   DollarSign,
   Clock,
   MessageSquare,
+  HardDrive,
   Zap,
   Database,
   RefreshCw,
@@ -56,6 +57,7 @@ import { RestartOverlay } from '@/components/restart-overlay'
 import { ExpressionReviewer } from '@/components/expression-reviewer'
 import { getBotConfigCached, getModelConfigCached } from '@/lib/config-api'
 import { getReviewStats } from '@/lib/expression-api'
+import { getLocalCacheStats, type LocalCacheStats } from '@/lib/system-api'
 import { APP_VERSION } from '@/lib/version'
 import { ZoomableChart } from '@/components/ui/zoomable-chart'
 
@@ -133,7 +135,11 @@ interface FeatureStatus {
 
 const DEFAULT_TIME_RANGE = 24
 const DASHBOARD_DATA_CACHE_TTL = 30_000
+const BOT_STATUS_CACHE_TTL = 30_000
+const LOCAL_CACHE_STATS_CACHE_TTL = 120_000
 const dashboardDataCache = new Map<number, { timestamp: number; data: DashboardData }>()
+let botStatusCache: { timestamp: number; data: BotStatus } | null = null
+let localCacheStatsCache: { timestamp: number; data: LocalCacheStats } | null = null
 
 function getCachedDashboardData(hours: number): DashboardData | null {
   const cached = dashboardDataCache.get(hours)
@@ -141,6 +147,24 @@ function getCachedDashboardData(hours: number): DashboardData | null {
     return null
   }
   return cached.data
+}
+
+function getStaleDashboardData(hours: number): DashboardData | null {
+  return dashboardDataCache.get(hours)?.data ?? null
+}
+
+function getCachedBotStatus(): BotStatus | null {
+  if (!botStatusCache || Date.now() - botStatusCache.timestamp > BOT_STATUS_CACHE_TTL) {
+    return null
+  }
+  return botStatusCache.data
+}
+
+function getCachedLocalCacheStats(): LocalCacheStats | null {
+  if (!localCacheStatsCache || Date.now() - localCacheStatsCache.timestamp > LOCAL_CACHE_STATS_CACHE_TTL) {
+    return null
+  }
+  return localCacheStatsCache.data
 }
 
 // 为饼图生成更丰富的颜色方案 (HSL色相均匀分布)
@@ -168,9 +192,19 @@ function FeatureStatusLight({ enabled, label }: { enabled: boolean; label: strin
   )
 }
 
+function formatStorageBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return '0 B'
+  }
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const unitIndex = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
+  const value = bytes / 1024 ** unitIndex
+  return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`
+}
+
 function IndexPageContent() {
   const { t } = useTranslation()
-  const initialDashboardData = getCachedDashboardData(DEFAULT_TIME_RANGE)
+  const initialDashboardData = getCachedDashboardData(DEFAULT_TIME_RANGE) ?? getStaleDashboardData(DEFAULT_TIME_RANGE)
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(initialDashboardData)
   const [loading, setLoading] = useState(!initialDashboardData)
   const [loadingProgress, setLoadingProgress] = useState(0)
@@ -178,13 +212,16 @@ function IndexPageContent() {
   const [autoRefresh, setAutoRefresh] = useState(false)
   const [hitokoto, setHitokoto] = useState<{ hitokoto: string; from: string } | null>(null)
   const [hitokotoLoading, setHitokotoLoading] = useState(true)
-  const [botStatus, setBotStatus] = useState<BotStatus | null>(null)
+  const [botStatus, setBotStatus] = useState<BotStatus | null>(botStatusCache?.data ?? null)
+  const [isBotStatusLoading, setIsBotStatusLoading] = useState(!botStatusCache)
   const [maibotStableRelease, setMaibotStableRelease] = useState<ReleaseStatus | null>(null)
   const [maibotTestRelease, setMaibotTestRelease] = useState<ReleaseStatus | null>(null)
   const [featureStatus, setFeatureStatus] = useState<FeatureStatus>({
     memoryEnabled: false,
     visualEnabled: false,
   })
+  const [localCacheStats, setLocalCacheStats] = useState<LocalCacheStats | null>(localCacheStatsCache?.data ?? null)
+  const [isLocalCacheStatsLoading, setIsLocalCacheStatsLoading] = useState(!localCacheStatsCache)
   const [isReviewerOpen, setIsReviewerOpen] = useState(false)
   const [uncheckedCount, setUncheckedCount] = useState(0)
   const { triggerRestart, isRestarting } = useRestart()
@@ -294,19 +331,32 @@ function IndexPageContent() {
 
   // 获取机器人状态
   const fetchBotStatus = useCallback(async () => {
+    const cachedStatus = getCachedBotStatus()
+    if (cachedStatus) {
+      setBotStatus(cachedStatus)
+      setIsBotStatusLoading(false)
+      return
+    }
+
+    setIsBotStatusLoading(true)
     try {
       const response = await fetchWithAuth('/api/webui/system/status')
       if (!isMountedRef.current) return
       if (response.ok) {
         const data = await response.json()
+        botStatusCache = { timestamp: Date.now(), data }
         setBotStatus(data)
-      } else {
+      } else if (!botStatusCache) {
         setBotStatus(null)
       }
     } catch (error) {
       console.error('获取机器人状态失败:', error)
-      if (isMountedRef.current) {
+      if (isMountedRef.current && !botStatusCache) {
         setBotStatus(null)
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setIsBotStatusLoading(false)
       }
     }
   }, [])
@@ -350,13 +400,40 @@ function IndexPageContent() {
     }
   }, [])
 
+  const fetchLocalCacheStats = useCallback(async () => {
+    const cachedStats = getCachedLocalCacheStats()
+    if (cachedStats) {
+      setLocalCacheStats(cachedStats)
+      setIsLocalCacheStatsLoading(false)
+      return
+    }
+
+    setIsLocalCacheStatsLoading(true)
+    try {
+      const stats = await getLocalCacheStats()
+      if (isMountedRef.current) {
+        localCacheStatsCache = { timestamp: Date.now(), data: stats }
+        setLocalCacheStats(stats)
+      }
+    } catch (error) {
+      console.error('获取本地存储占用失败:', error)
+      if (isMountedRef.current && !localCacheStatsCache) {
+        setLocalCacheStats(null)
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setIsLocalCacheStatsLoading(false)
+      }
+    }
+  }, [])
+
   const handleRestart = async () => {
     await triggerRestart()
   }
 
-  const fetchDashboardData = useCallback(async () => {
+  const fetchDashboardData = useCallback(async (force = false) => {
     try {
-      const cachedData = getCachedDashboardData(timeRange)
+      const cachedData = force ? null : getCachedDashboardData(timeRange)
       if (cachedData) {
         setDashboardData(cachedData)
         setLoading(false)
@@ -364,7 +441,14 @@ function IndexPageContent() {
         return
       }
 
-      setLoading(true)
+      const staleData = getStaleDashboardData(timeRange)
+      if (staleData) {
+        setDashboardData(staleData)
+        setLoading(false)
+        setLoadingProgress(100)
+      } else {
+        setLoading(true)
+      }
       const response = await fetchWithAuth(`/api/webui/statistics/dashboard?hours=${timeRange}`)
       if (!isMountedRef.current) return
       if (response.ok) {
@@ -420,8 +504,9 @@ function IndexPageContent() {
     fetchHitokoto()
     fetchBotStatus()
     fetchFeatureStatus()
+    fetchLocalCacheStats()
     fetchReviewStats()
-  }, [fetchDashboardData, fetchHitokoto, fetchBotStatus, fetchFeatureStatus, fetchReviewStats])
+  }, [fetchDashboardData, fetchHitokoto, fetchBotStatus, fetchFeatureStatus, fetchLocalCacheStats, fetchReviewStats])
 
   // 自动刷新
   useEffect(() => {
@@ -435,9 +520,10 @@ function IndexPageContent() {
 
     refreshIntervalRef.current = setInterval(() => {
       if (isMountedRef.current) {
-        fetchDashboardData()
+        fetchDashboardData(true)
         fetchBotStatus()
         fetchFeatureStatus()
+        fetchLocalCacheStats()
       }
     }, 30000) // 30秒刷新一次
 
@@ -447,7 +533,7 @@ function IndexPageContent() {
         refreshIntervalRef.current = null
       }
     }
-  }, [autoRefresh, fetchDashboardData, fetchBotStatus, fetchFeatureStatus])
+  }, [autoRefresh, fetchDashboardData, fetchBotStatus, fetchFeatureStatus, fetchLocalCacheStats])
 
   if (loading || !dashboardData) {
     return (
@@ -561,6 +647,14 @@ function IndexPageContent() {
     },
   } satisfies ChartConfig
 
+  const localCacheDirectories = localCacheStats?.directories ?? []
+  const imageCacheSize = localCacheDirectories.find((item) => item.key === 'images')?.total_size ?? 0
+  const emojiCacheSize = localCacheDirectories.find((item) => item.key === 'emoji')?.total_size ?? 0
+  const logCacheSize = localCacheDirectories.find((item) => item.key === 'logs')?.total_size ?? 0
+  const databaseSize = localCacheStats?.database.total_size ?? 0
+  const totalStorageSize = localCacheDirectories.reduce((total, item) => total + item.total_size, 0) + databaseSize
+  const hasLocalCacheStats = localCacheStats !== null
+
   return (
     <ScrollArea className="h-full">
       <div className="space-y-4 sm:space-y-6 p-4 sm:p-6">
@@ -589,7 +683,7 @@ function IndexPageContent() {
             <RefreshCw className={`h-4 w-4 ${autoRefresh ? 'animate-spin' : ''}`} />
             <span className="hidden sm:inline">{t('home.autoRefresh')}</span>
           </Button>
-          <Button variant="outline" size="sm" onClick={fetchDashboardData}>
+          <Button variant="outline" size="sm" onClick={() => fetchDashboardData(true)}>
             <RefreshCw className="h-4 w-4" />
           </Button>
         </div>
@@ -616,7 +710,7 @@ function IndexPageContent() {
       </div>
 
       {/* 机器人状态和快速操作 */}
-      <div className="grid gap-4 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)_max-content]">
+      <div className="grid gap-4 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)_max-content]">
         {/* 机器人状态卡片 */}
         <Card className="lg:col-span-1">
           <CardHeader className="pb-3">
@@ -692,7 +786,15 @@ function IndexPageContent() {
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-4">
                 <div className="flex items-center gap-2">
-                  {botStatus?.running ? (
+                  {isBotStatusLoading && !botStatus ? (
+                    <>
+                      <div className="h-3 w-3 rounded-full bg-muted-foreground/40 animate-pulse" />
+                      <Badge variant="outline" className="whitespace-nowrap text-muted-foreground">
+                        <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                        读取中
+                      </Badge>
+                    </>
+                  ) : botStatus?.running ? (
                     <>
                       <div className="h-3 w-3 rounded-full bg-green-500 animate-pulse" />
                       <Badge variant="outline" className="whitespace-nowrap text-green-600 border-green-300 bg-green-50">
@@ -700,12 +802,20 @@ function IndexPageContent() {
                         {t('home.botStatus.running')}
                       </Badge>
                     </>
-                  ) : (
+                  ) : botStatus ? (
                     <>
                       <div className="h-3 w-3 rounded-full bg-red-500" />
                       <Badge variant="outline" className="whitespace-nowrap text-red-600 border-red-300 bg-red-50">
                         <AlertCircle className="h-3 w-3 mr-1" />
                         {t('home.botStatus.stopped')}
+                      </Badge>
+                    </>
+                  ) : (
+                    <>
+                      <div className="h-3 w-3 rounded-full bg-muted-foreground/40" />
+                      <Badge variant="outline" className="whitespace-nowrap text-muted-foreground">
+                        <AlertCircle className="h-3 w-3 mr-1" />
+                        未知
                       </Badge>
                     </>
                   )}
@@ -720,6 +830,35 @@ function IndexPageContent() {
                 <FeatureStatusLight enabled={featureStatus.visualEnabled} label="启用视觉" />
                 <FeatureStatusLight enabled={featureStatus.memoryEnabled} label="启用记忆" />
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-1">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <HardDrive className="h-4 w-4" />
+              存储占用
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div>
+                <div className="text-2xl font-bold">
+                  {hasLocalCacheStats ? formatStorageBytes(totalStorageSize) : isLocalCacheStatsLoading ? '读取中' : '-'}
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {hasLocalCacheStats
+                    ? `图片 ${formatStorageBytes(imageCacheSize)} · 表情 ${formatStorageBytes(emojiCacheSize)} · 日志 ${formatStorageBytes(logCacheSize)} · 数据库 ${formatStorageBytes(databaseSize)}`
+                    : isLocalCacheStatsLoading ? '正在读取本地存储占用...' : '暂未获取到本地存储占用'}
+                </p>
+              </div>
+              <Button variant="outline" size="sm" asChild className="w-full justify-start gap-2">
+                <Link to="/settings" search={{ tab: 'local-cache' }}>
+                  <HardDrive className="h-4 w-4" />
+                  管理存储
+                </Link>
+              </Button>
             </div>
           </CardContent>
         </Card>
