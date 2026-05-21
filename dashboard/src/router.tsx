@@ -92,7 +92,7 @@ const promptManagementRoute = createRoute({
   component: lazyRouteComponent(() => import('./routes/config/prompts'), 'PromptManagementPage'),
 })
 
-// 配置路由 - Prompt 生成器
+// 配置路由 - 人设生成器（测试功能）
 const promptGeneratorRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/config/prompt-generator',

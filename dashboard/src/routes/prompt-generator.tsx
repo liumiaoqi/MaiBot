@@ -300,7 +300,7 @@ export function PromptGeneratorPage() {
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <Sparkles className="h-6 w-6 text-primary" />
-              <h1 className="text-xl font-bold sm:text-2xl md:text-3xl">Prompt 生成器</h1>
+              <h1 className="text-xl font-bold sm:text-2xl md:text-3xl">人设生成器（测试功能）</h1>
             </div>
             <p className="text-sm text-muted-foreground">
               选择已配置模型，把任意文段、角色卡或人设解析成 MaiBot 配置格式。

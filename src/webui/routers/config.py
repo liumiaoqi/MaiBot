@@ -156,13 +156,13 @@ class PromptGeneratorResponse(BaseModel):
 
 
 class PromptGeneratorApplyRequest(BaseModel):
-    """Prompt 生成器配置块写入请求。"""
+    """人设生成器配置块写入请求。"""
 
     blocks: List[PromptGeneratorConfigBlock] = Field(default_factory=list, description="要写入的配置块")
 
 
 class PromptGeneratorApplyResponse(BaseModel):
-    """Prompt 生成器配置块写入响应。"""
+    """人设生成器配置块写入响应。"""
 
     success: bool = True
     message: str
@@ -336,6 +336,61 @@ def _ensure_prompt_generator_model_exists(model_name: str) -> None:
         raise HTTPException(status_code=404, detail=f"未找到模型: {normalized_model_name}")
 
 
+_PROMPT_GENERATOR_REFERENCE_CONFIG: Dict[str, Any] = {
+    "personality": "是一个大二女大学生，现在正在上网和群友聊天。包容且善良",
+    "reply_style": (
+        "你的风格平淡简短。可以参考贴吧，知乎的回复风格。不浮夸不过分修辞，不使用复杂句。"
+        "只回复简短的内容就好。\n"
+        "（禁止生成固定化、模板化的怼人、威胁或玩梗句式，尤其避免“你搁这…呢”“你才…/你全家…”"
+        "“…你个头”“…了是吧”“再…就禁言/踢/封”“技术群不是让你…”“v我/转我…”“排队…”“子曰…”"
+        "等相似结构；需要反驳、提醒或调侃时，改用自然、具体、低攻击性的当场回应。)"
+    ),
+    "multiple_reply_style": [
+        "如果有人对你有敌意，或者很无聊的玩笑，尝试讽刺并且之后不会理他了，十分无语",
+        "用1-2个字进行回复",
+        "用1-2个符号进行回复",
+        "言辭凝練古雅，穿插《論語》經句卻不晦澀，以文言短句為基，輔以淺白語意，持長者溫和風範，全用繁體字表達，具先秦儒者談吐韻致。",
+        "你的风格平淡简短。你很慵懒，打算随便回几句应付一下.不浮夸不长篇大论，不要过分修辞和复杂句。",
+    ],
+    "group_chat_prompt": (
+        "你正在qq群里聊天，下面是群里正在聊的内容，其中包含聊天记录和聊天中的图片和表情包。\n"
+        "回复尽量简短一些。最好一次对一个话题进行回复，但必须考虑不同群友发言之间的交互，"
+        "免得啰嗦或者回复内容太乱。请注意把握聊天内容。\n"
+        "不要总是提及自己的身份背景，根据聊天内容自由发挥，但是要日常不浮夸，不要刻意找话题，。\n"
+        "不用刻意回复其他人发送的表情包，只要关注表情包表达的含义。你可以适当发送表情包表达情绪。"
+        "控制回复的频率，意思是如果有人不喜欢你或者不理你，就不要强行回复，回复前读空气。"
+        "不要每个人的消息都回复，优先回复你感兴趣的或者主动提及你的，适当回复其他话题。不要硬找话题。\n"
+    ),
+    "private_chat_prompts": (
+        "你正在聊天，下面是正在聊的内容，其中包含聊天记录和聊天中的图片。\n"
+        "回复尽量简短一些。请注意把握聊天内容。\n"
+        "请考虑对方的发言频率，想法，思考自己何时回复以及回复内容。\n"
+    ),
+}
+
+
+def _build_prompt_generator_reference_config() -> str:
+    """构建固定的人设参考快照，不读取运行时配置。"""
+
+    lines = [
+        "[personality]",
+        f"personality = {_toml_string(_PROMPT_GENERATOR_REFERENCE_CONFIG['personality'])}",
+        f"reply_style = {_toml_string(_PROMPT_GENERATOR_REFERENCE_CONFIG['reply_style'])}",
+        "multiple_reply_style = [",
+    ]
+    lines.extend(f"  {_toml_string(item)}," for item in _PROMPT_GENERATOR_REFERENCE_CONFIG["multiple_reply_style"])
+    lines.extend(
+        [
+            "]",
+            "",
+            "[chat]",
+            f"group_chat_prompt = {_toml_string(_PROMPT_GENERATOR_REFERENCE_CONFIG['group_chat_prompt'])}",
+            f"private_chat_prompts = {_toml_string(_PROMPT_GENERATOR_REFERENCE_CONFIG['private_chat_prompts'])}",
+        ]
+    )
+    return "\n".join(lines)
+
+
 def _build_prompt_generator_instruction(request: PromptGeneratorRequest) -> str:
     """构建给 LLM 的人设解析提示词。"""
 
@@ -344,11 +399,16 @@ def _build_prompt_generator_instruction(request: PromptGeneratorRequest) -> str:
         "private": "私聊",
         "both": "群聊和私聊",
     }.get(request.target_scene.strip().lower(), "群聊")
+    reference_config = _build_prompt_generator_reference_config()
 
     return f"""你是 MaiBot/MaiM 的配置人设解析助手。请把用户提供的任意文段、角色卡、人设、说话风格或聊天要求，改写成可以直接放入 bot_config.toml 的麦麦人设配置。
 
 目标场景：{target_scene_label}
 主要输出语言：{request.language.strip() or "简体中文"}
+
+默认人设参考：
+下面是用于本功能的固定默认参考人设，只用于理解麦麦默认语气、字段职责和通用聊天边界；生成时必须以用户原文为主，不要逐字照抄。如果用户原文缺少场景规则，可以沿用这些设定的精神。
+{reference_config}
 
 必须只输出一个 JSON 对象，不要 Markdown，不要代码块，不要额外解释。JSON 结构如下：
 {{
@@ -366,8 +426,8 @@ def _build_prompt_generator_instruction(request: PromptGeneratorRequest) -> str:
 生成要求：
 1. 输出要适合聊天型 bot，像真实聊天参与者，不要像客服、旁白、小说角色卡或系统公告。
 2. personality 放稳定身份与人格；reply_style 放表达风格和边界；chat prompt 放聊天场景规则。不要三处重复同一段话。
-3. 默认回复应日常、自然、不过度展开；可以保留原文中的鲜明风格，但要改成可维护的配置文字。
-4. 如果原文包含极端、攻击、威胁、隐私、色情、违法或固定化怼人模板，请转化为低攻击性、可维护的边界要求，不要原样强化。
+3. 除非特别提到，reply_style 和 multiple_reply_style 最好不要是特别具体的句式，而是描述性的风格要求，方便覆盖不同话题和场景的回复。
+4. 默认回复应日常、自然、不过度展开；可以保留原文中的鲜明风格，但要改成可维护的配置文字。
 5. 如果信息不足，请根据原文谨慎补全通用聊天规则，并在 notes 中说明需要人工确认，不要反问用户。
 6. 字段值必须都是字符串、字符串数组或对象数组，不能为 null。
 
@@ -645,7 +705,7 @@ _PROMPT_GENERATOR_ALLOWED_BLOCK_FIELDS = {
 
 
 def _normalize_prompt_generator_block_value(block: PromptGeneratorConfigBlock) -> Tuple[str, str, Any]:
-    """校验并规范化单个配置块，避免 Prompt 生成器写入非人设字段。"""
+    """校验并规范化单个配置块，避免人设生成器写入非人设字段。"""
 
     section = block.section.strip()
     field = block.field.strip()
@@ -694,7 +754,7 @@ def _normalize_prompt_generator_block_value(block: PromptGeneratorConfigBlock) -
 
 
 def _apply_prompt_generator_config_blocks(blocks: List[PromptGeneratorConfigBlock]) -> PromptGeneratorApplyResponse:
-    """把选中的 Prompt 生成器配置块写入 bot_config.toml。"""
+    """把选中的人设生成器配置块写入 bot_config.toml。"""
 
     if not blocks:
         raise HTTPException(status_code=400, detail="请选择要注入的配置块")
@@ -726,7 +786,7 @@ def _apply_prompt_generator_config_blocks(blocks: List[PromptGeneratorConfigBloc
 
     save_toml_with_format(plain_config_data, config_path)
     applied_sections = sorted(section_updates)
-    logger.info(f"Prompt 生成器已注入 {len(blocks)} 个配置块: {', '.join(applied_sections)}")
+    logger.info(f"人设生成器已注入 {len(blocks)} 个配置块: {', '.join(applied_sections)}")
     return PromptGeneratorApplyResponse(
         message=f"已注入 {len(blocks)} 个配置块",
         applied_blocks=len(blocks),
@@ -918,7 +978,7 @@ async def generate_prompt_persona(request: PromptGeneratorRequest):
 
 @router.post("/prompt-generator/apply", response_model=PromptGeneratorApplyResponse)
 async def apply_prompt_generator_blocks(request: PromptGeneratorApplyRequest):
-    """把 Prompt 生成器产出的配置块写入 bot_config.toml。"""
+    """把人设生成器产出的配置块写入 bot_config.toml。"""
 
     try:
         return _apply_prompt_generator_config_blocks(request.blocks)
