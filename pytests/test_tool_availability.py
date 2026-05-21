@@ -279,7 +279,12 @@ def test_mute_plugin_exports_allowed_groups_as_component_allowed_session() -> No
     module.MutePluginConfig.model_rebuild()
 
     plugin = module.MutePlugin()
-    plugin.set_plugin_config({"permissions": {"allowed_groups": ["qq:10001", "raw-group-id"]}})
+    plugin.set_plugin_config(
+        {
+            "plugin": {"config_version": "4.5.1"},
+            "permissions": {"allowed_groups": ["qq:10001", "raw-group-id"]},
+        }
+    )
 
     mute_components = [component for component in plugin.get_components() if component.get("name") == "mute"]
 
@@ -306,18 +311,13 @@ async def test_mute_tool_queries_target_message_with_current_chat_id() -> None:
     async def fake_call_capability(name: str, **kwargs: Any) -> dict[str, Any]:
         capability_calls.append({"name": name, **kwargs})
         return {
-            "success": True,
-            "result": {
-                "success": True,
-                "message": {
-                    "message_info": {
-                        "user_info": {
-                            "user_id": "35529667",
-                            "user_cardname": "目标用户",
-                            "user_nickname": "目标昵称",
-                        }
-                    }
-                },
+            "message_id": "2046083292",
+            "message_info": {
+                "user_info": {
+                    "user_id": "35529667",
+                    "user_cardname": "目标用户",
+                    "user_nickname": "目标昵称",
+                }
             },
         }
 
@@ -327,13 +327,25 @@ async def test_mute_tool_queries_target_message_with_current_chat_id() -> None:
             return {"success": True, "result": {"data": {"role": "member"}}}
         return {"status": "ok", "retcode": 0}
 
+    async def fake_api_list() -> list[dict[str, Any]]:
+        return []
+
     plugin = module.MutePlugin()
-    plugin.set_plugin_config({"components": {"enable_smart_mute": True}})
+    plugin.set_plugin_config(
+        {
+            "plugin": {"config_version": "4.5.1"},
+            "components": {"enable_smart_mute": True},
+        }
+    )
     plugin._set_context(
         SimpleNamespace(
             call_capability=fake_call_capability,
-            api=SimpleNamespace(call=fake_api_call),
-            logger=SimpleNamespace(info=lambda *args, **kwargs: None, warning=lambda *args, **kwargs: None),
+            api=SimpleNamespace(call=fake_api_call, list=fake_api_list),
+            logger=SimpleNamespace(
+                debug=lambda *args, **kwargs: None,
+                info=lambda *args, **kwargs: None,
+                warning=lambda *args, **kwargs: None,
+            ),
         )
     )
 
