@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from base64 import b64decode
 from datetime import datetime
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Sequence, TYPE_CHECKING
 
 import re
 
@@ -15,7 +15,11 @@ from src.core.tooling import ToolExecutionResult
 
 from ..context_messages import SessionBackedMessage
 from ..message_adapter import format_speaker_content
-from ..planner_message_utils import build_planner_prefix, build_session_backed_text_message
+from ..planner_message_utils import (
+    build_planner_prefix,
+    build_session_backed_text_message,
+    extract_quote_ids_from_message_sequence,
+)
 
 if TYPE_CHECKING:
     from ..reasoning_engine import MaisakaReasoningEngine
@@ -221,6 +225,35 @@ class BuiltinToolRuntimeContext:
         )
         self.runtime._chat_history.append(history_message)
 
+    def append_replyer_expression_annotation(
+        self,
+        *,
+        selected_expression_ids: Sequence[int],
+        expression_habits: str,
+    ) -> bool:
+        """将 replyer 本轮选中的表达方式作为内部 user 注解写入历史。"""
+
+        normalized_ids = [str(expression_id) for expression_id in selected_expression_ids if expression_id is not None]
+        expression_text = str(expression_habits or "").strip()
+        if expression_text.startswith("【表达习惯参考】"):
+            expression_text = expression_text.removeprefix("【表达习惯参考】").strip()
+        if not normalized_ids and not expression_text:
+            return False
+
+        note_lines = []
+        if expression_text:
+            note_lines.append(expression_text)
+
+        history_message = build_session_backed_text_message(
+            speaker_name="replyer表达注解",
+            text="\n".join(note_lines),
+            timestamp=datetime.now(),
+            source_kind="replyer_expression_annotation",
+            include_message_id=False,
+        )
+        self.runtime._chat_history.append(history_message)
+        return True
+
     def append_sent_message_to_chat_history(self, message: Any, *, source_kind: str = "guided_reply") -> bool:
         """将已发送消息写回 Maisaka 历史。"""
 
@@ -230,8 +263,6 @@ class BuiltinToolRuntimeContext:
 
         from ..context_messages import SessionBackedMessage
         from ..history_utils import build_prefixed_message_sequence, build_session_message_visible_text
-        from ..planner_message_utils import build_planner_prefix
-
         user_info = message.message_info.user_info
         speaker_name = user_info.user_cardname or user_info.user_nickname or user_info.user_id
         planner_prefix = build_planner_prefix(
@@ -239,6 +270,7 @@ class BuiltinToolRuntimeContext:
             user_name=speaker_name,
             group_card=user_info.user_cardname or "",
             message_id=message.message_id,
+            quote_ids=extract_quote_ids_from_message_sequence(message.raw_message),
             include_message_id=not message.is_notify and bool(message.message_id),
         )
         history_message = SessionBackedMessage.from_session_message(

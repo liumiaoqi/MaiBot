@@ -277,7 +277,7 @@ class MaisakaHeartFlowChatting:
         try:
             from .context_messages import SessionBackedMessage
             from .history_utils import build_prefixed_message_sequence, build_session_message_visible_text
-            from .planner_message_utils import build_planner_prefix
+            from .planner_message_utils import build_planner_prefix, extract_quote_ids_from_message_sequence
 
             user_info = message.message_info.user_info
             speaker_name = user_info.user_cardname or user_info.user_nickname or user_info.user_id
@@ -286,6 +286,7 @@ class MaisakaHeartFlowChatting:
                 user_name=speaker_name,
                 group_card=user_info.user_cardname or "",
                 message_id=message.message_id,
+                quote_ids=extract_quote_ids_from_message_sequence(message.raw_message),
                 include_message_id=not message.is_notify and bool(message.message_id),
             )
             history_message = SessionBackedMessage.from_session_message(

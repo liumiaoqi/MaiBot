@@ -20,7 +20,11 @@ def build_prefixed_message_sequence(
 ) -> MessageSequence:
     """基于原始消息序列构造带规划器前缀的新序列。"""
 
-    planner_components = clone_message_sequence(source_sequence).components
+    planner_components = [
+        component
+        for component in clone_message_sequence(source_sequence).components
+        if not isinstance(component, ReplyComponent)
+    ]
     if planner_components and isinstance(planner_components[0], TextComponent):
         planner_components[0].text = f"{planner_prefix}{planner_components[0].text}"
     else:

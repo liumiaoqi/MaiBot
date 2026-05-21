@@ -78,6 +78,11 @@ display_name = "Timing Gate"
 advanced = false
 description = "Maisaka 节奏控制模板，负责在每轮主循环前判断当前应该等待、停止，还是继续进入思考与回复流程。"
 
+[mid_term_memory_summary]
+display_name = "Mid-term Chat Summary"
+advanced = true
+description = "Used during context trimming to summarize removed chat history into long_summary, brief, and keywords."
+
 [memory_retrieval_react_prompt_head_memory]
 display_name = "记忆检索 ReAct 头部"
 advanced = true

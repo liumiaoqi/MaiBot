@@ -476,6 +476,39 @@ class ChatConfig(ConfigBase):
     )
     """优化50%左右的Planner上下文消耗，但是可能影响缓存，轻微影响性能表现"""
 
+    mid_term_memory: bool = Field(
+        default=True,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "中期聊天摘要",
+                "en_US": "Mid-term chat summaries",
+                "ja_JP": "中期チャット要約",
+            },
+            "x-widget": "switch",
+            "x-icon": "archive",
+            "x-row": "context-sizes",
+        },
+    )
+    """上下文裁切时是否使用 utils 模型生成中期聊天摘要，并以可展开复杂消息保留在历史中"""
+
+    mid_term_memory_lenth: int = Field(
+        default=10,
+        ge=0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "中期摘要保留数",
+                "en_US": "Mid-term summary limit",
+                "ja_JP": "中期要約保持数",
+            },
+            "x-widget": "input",
+            "x-icon": "archive",
+            "x-layout": "inline-right",
+            "x-input-width": "12rem",
+            "x-row": "context-sizes",
+        },
+    )
+    """最多保留多少条中期聊天摘要消息，超出后移除最早的摘要"""
+
     enable_independent_timing_gate: bool = Field(
         default=True,
         json_schema_extra={

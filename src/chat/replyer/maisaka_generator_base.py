@@ -47,6 +47,7 @@ from src.maisaka.context_messages import (
 )
 from src.maisaka.display.prompt_cli_renderer import PromptCLIVisualizer
 from src.maisaka.message_adapter import parse_speaker_content
+from src.maisaka.planner_message_utils import extract_quote_ids_from_message_sequence
 from src.plugin_runtime.hook_payloads import serialize_prompt_messages
 
 from .maisaka_expression_selector import maisaka_expression_selector
@@ -155,18 +156,27 @@ class BaseMaisakaReplyGenerator:
         sender_name = user_info.user_cardname or user_info.user_nickname or user_info.user_id
         target_message_id = reply_message.message_id.strip() if reply_message.message_id else "未知"
         target_time = reply_message.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+        quote_ids = extract_quote_ids_from_message_sequence(reply_message.raw_message)
         target_content = self._normalize_content(self._build_target_message_content(reply_message), limit=300)
         if not target_content:
             target_content = "[无可见文本内容]"
 
-        return (
-            "【本次回复目标】\n"
-            f"- msg_id：{target_message_id}\n"
-            f"- 时间：{target_time}\n"
-            f"- 用户名：{sender_name}\n"
-            f"- 发言内容：{target_content}\n\n"
-            "你这次要回复的就是这条目标消息，请结合整段上下文理解，但不要把其他历史消息当成当前回复对象。"
+        target_lines = [
+            "【本次回复目标】",
+            f"- msg_id：{target_message_id}",
+        ]
+        if quote_ids:
+            target_lines.append(f"- quote={','.join(quote_ids)}")
+        target_lines.extend(
+            [
+                f"- 时间：{target_time}",
+                f"- 用户名：{sender_name}",
+                f"- 发言内容：{target_content}",
+                "",
+                "你这次要回复的就是这条目标消息，请结合整段上下文理解，但不要把其他历史消息当成当前回复对象。",
+            ]
         )
+        return "\n".join(target_lines)
 
     @staticmethod
     def _render_target_at_component(component: AtComponent) -> str:
@@ -183,9 +193,6 @@ class BaseMaisakaReplyGenerator:
                 continue
 
             if isinstance(component, ReplyComponent):
-                target_message_id = component.target_message_id.strip()
-                if target_message_id:
-                    rendered_parts.append(f"[引用:quote_id={target_message_id}]")
                 continue
 
             if isinstance(component, AtComponent):
@@ -1000,6 +1007,8 @@ class BaseMaisakaReplyGenerator:
         result.metrics.extra["replyer_aggregate_prompt_tokens"] = aggregate_prompt_tokens
         result.metrics.extra["replyer_aggregate_completion_tokens"] = aggregate_completion_tokens
         result.metrics.extra["replyer_aggregate_total_tokens"] = aggregate_total_tokens
+        if result.selected_expression_ids and merged_expression_habits.strip():
+            result.metrics.extra["selected_expression_habits"] = merged_expression_habits.strip()
         if retry_reasons:
             result.metrics.extra["replyer_retry_reasons"] = list(retry_reasons)
         if retry_events:

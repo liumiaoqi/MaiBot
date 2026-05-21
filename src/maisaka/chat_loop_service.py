@@ -40,6 +40,7 @@ from .context_messages import (
     build_llm_message_from_context,
 )
 from .history_utils import drop_orphan_tool_results, normalize_tool_result_order
+from .mid_term_memory import is_mid_term_memory_message
 from .display.prompt_cli_renderer import PromptCLIVisualizer
 from .visual_mode_utils import resolve_enable_visual_planner
 
@@ -1009,6 +1010,7 @@ class MaisakaChatLoopService:
             int(base_context_size * CONTEXT_SELECTION_CACHE_STABILITY_RATIO),
         )
         selected_indices: List[int] = []
+        pinned_indices: List[int] = []
         counted_message_count = 0
 
         active_enable_visual_message = (
@@ -1016,6 +1018,18 @@ class MaisakaChatLoopService:
             if enable_visual_message is not None
             else MaisakaChatLoopService._resolve_enable_visual_message(request_kind)
         )
+
+        if request_kind in {"planner", "timing_gate", "sub_agent"}:
+            pinned_indices = [
+                index
+                for index, message in enumerate(filtered_history)
+                if is_mid_term_memory_message(message)
+                and build_llm_message_from_context(
+                    message,
+                    enable_visual_message=active_enable_visual_message,
+                )
+                is not None
+            ]
 
         for index in range(len(filtered_history) - 1, -1, -1):
             message = filtered_history[index]
@@ -1034,20 +1048,24 @@ class MaisakaChatLoopService:
                 if counted_message_count >= effective_context_size:
                     break
 
+        selected_indices = sorted(set(selected_indices).union(pinned_indices))
+
         if not selected_indices:
             return [], "实际发送 0 条消息（tool 0 条，普通消息 0 条）"
 
-        selected_indices.reverse()
         selected_history = [filtered_history[index] for index in selected_indices]
         selected_history, _ = drop_orphan_tool_results(selected_history)
         selected_history, _ = normalize_tool_result_order(selected_history)
         tool_message_count = sum(1 for message in selected_history if isinstance(message, ToolResultMessage))
         normal_message_count = len(selected_history) - tool_message_count
+        pinned_message_count = sum(1 for message in selected_history if is_mid_term_memory_message(message))
         stability_text = f"|cache_window {base_context_size}->{effective_context_size}"
+        pinned_text = f"|中期摘要 {pinned_message_count} 条" if pinned_message_count else ""
         selection_reason = (
             f"实际发送 {len(selected_history)} 条消息"
             f"|消息 {normal_message_count} 条|tool {tool_message_count} 条"
             f"{stability_text}"
+            f"{pinned_text}"
         )
         return (
             selected_history,

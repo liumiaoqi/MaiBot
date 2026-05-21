@@ -6,8 +6,15 @@ from math import ceil
 
 from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
 
-from .context_messages import AssistantMessage, ComplexSessionMessage, LLMContextMessage, SessionBackedMessage, ToolResultMessage
+from .context_messages import (
+    AssistantMessage,
+    ComplexSessionMessage,
+    LLMContextMessage,
+    SessionBackedMessage,
+    ToolResultMessage,
+)
 from .history_utils import drop_leading_orphan_tool_results, drop_orphan_tool_results, normalize_tool_result_order
+from .mid_term_memory import is_mid_term_memory_message
 
 TRIM_TARGET_RATIO = 1.0
 TRIM_THRESHOLD_RATIO = 2.0
@@ -262,17 +269,21 @@ def _trim_history_to_context_target(
     if remaining_context_count <= target_context_count:
         return []
 
-    remove_count = 0
-    for message in chat_history:
-        remove_count += 1
+    remove_indexes: list[int] = []
+    for index, message in enumerate(chat_history):
+        if is_mid_term_memory_message(message):
+            continue
+
+        remove_indexes.append(index)
         if message.count_in_context:
             remaining_context_count -= 1
             if remaining_context_count <= target_context_count:
                 break
 
-    if remove_count <= 0:
+    if not remove_indexes:
         return []
 
-    removed_messages = list(chat_history[:remove_count])
-    del chat_history[:remove_count]
+    removed_messages = [chat_history[index] for index in remove_indexes]
+    for index in reversed(remove_indexes):
+        del chat_history[index]
     return removed_messages
