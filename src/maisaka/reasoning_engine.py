@@ -46,6 +46,7 @@ from .context_messages import (
 )
 from .history_post_processor import process_chat_history_after_cycle
 from .history_utils import build_prefixed_message_sequence, build_session_message_visible_text
+from .mid_term_memory import build_mid_term_memory_message, insert_mid_term_memory_message
 from .monitor_events import (
     emit_cycle_end,
     emit_cycle_start,
@@ -769,7 +770,7 @@ class MaisakaReasoningEngine:
                             )
                             continue
                         finally:
-                            completed_cycle = self._end_cycle(cycle_detail)
+                            completed_cycle = await self._end_cycle(cycle_detail)
                             if (
                                 round_index + 1 >= self._runtime._max_internal_rounds
                                 and cycle_end_reason in {"continue", "tool_continue"}
@@ -1072,11 +1073,11 @@ class MaisakaReasoningEngine:
         self._runtime._current_cycle_detail.thinking_id = f"maisaka_tid{round(time.time(), 2)}"
         return self._runtime._current_cycle_detail
 
-    def _end_cycle(self, cycle_detail: CycleDetail, only_long_execution: bool = True) -> CycleDetail:
+    async def _end_cycle(self, cycle_detail: CycleDetail, only_long_execution: bool = True) -> CycleDetail:
         """结束并记录一轮 Maisaka 思考循环。"""
-        cycle_detail.end_time = time.time()
         self._runtime.history_loop.append(cycle_detail)
-        self._post_process_chat_history_after_cycle()
+        await self._post_process_chat_history_after_cycle(cycle_detail)
+        cycle_detail.end_time = time.time()
 
         timer_strings = [
             f"{name}: {duration:.2f}s"
@@ -1086,7 +1087,7 @@ class MaisakaReasoningEngine:
         self._runtime._log_cycle_completed(cycle_detail, timer_strings)
         return cycle_detail
 
-    def _post_process_chat_history_after_cycle(self) -> None:
+    async def _post_process_chat_history_after_cycle(self, cycle_detail: CycleDetail) -> None:
         """裁剪聊天历史，保证用户消息数量不超过配置限制。"""
         process_result = process_chat_history_after_cycle(
             self._runtime._chat_history,
@@ -1096,7 +1097,43 @@ class MaisakaReasoningEngine:
         if process_result.changed_count <= 0:
             return
 
-        self._runtime._chat_history = process_result.history
+        final_history = process_result.history
+        if process_result.removed_messages and bool(global_config.chat.mid_term_memory):
+            logger.info(
+                f"{self._runtime.log_prefix} 开始生成中期聊天记录摘要: "
+                f"裁切上下文消息数量={len(process_result.removed_messages)} "
+                f"保留上限={global_config.chat.mid_term_memory_lenth}"
+            )
+            summary_started_at = time.time()
+            try:
+                summary_result = await build_mid_term_memory_message(
+                    process_result.removed_messages,
+                    session_id=self._runtime.session_id,
+                    log_prefix=self._runtime.log_prefix,
+                )
+            except Exception:
+                logger.exception(f"{self._runtime.log_prefix} 生成中期聊天记录摘要失败，已跳过本次摘要插入")
+                summary_result = None
+
+            cycle_detail.time_records["mid_term_memory"] = time.time() - summary_started_at
+            if summary_result is not None:
+                final_history = insert_mid_term_memory_message(
+                    final_history,
+                    summary_result.message,
+                    max_summary_count=max(0, int(global_config.chat.mid_term_memory_lenth)),
+                )
+                logger.info(
+                    f"{self._runtime.log_prefix} 已生成中期聊天记录摘要: "
+                    f"msg_id={summary_result.message.message_id} "
+                    f"模型={summary_result.model_name or 'unknown'} "
+                    f"token={summary_result.total_tokens}"
+                )
+            else:
+                logger.debug(f"{self._runtime.log_prefix} 中期聊天记录摘要未产生可插入内容，已跳过")
+        elif process_result.removed_messages:
+            logger.debug(f"{self._runtime.log_prefix} 中期聊天记录摘要未启用，跳过摘要生成")
+
+        self._runtime._chat_history = final_history
         if process_result.removed_count <= 0:
             return
         self._runtime._log_history_trimmed(

@@ -63,6 +63,21 @@ class RuntimeDataCapabilityMixin:
         return tags[0] if tags else ""
 
     @staticmethod
+    def _normalize_optional_bool(value: Any) -> Optional[bool]:
+        """将插件入参中的布尔值规范化，未提供时返回 None。"""
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            normalized_value = value.strip().lower()
+            if normalized_value in {"1", "true", "yes", "on"}:
+                return True
+            if normalized_value in {"0", "false", "no", "off"}:
+                return False
+        return bool(value)
+
+    @staticmethod
     def _build_emoji_temp_path() -> Path:
         from src.emoji_system.emoji_manager import EMOJI_DIR
 
@@ -747,13 +762,15 @@ class RuntimeDataCapabilityMixin:
             if emoji is None:
                 return {"success": False, "message": f"未找到表情包: {emoji_hash}", "hash": emoji_hash}
 
-            success = emoji_manager.delete_emoji(emoji, not bool(emoji.description and emoji.description.strip()))
+            keep_desc_arg = self._normalize_optional_bool(args.get("keep_desc"))
+            keep_desc = bool(emoji.description and emoji.description.strip()) if keep_desc_arg is None else keep_desc_arg
+            success = emoji_manager.delete_emoji(emoji, keep_desc=keep_desc)
             if not success:
                 return {"success": False, "message": f"删除表情包失败: {emoji_hash}", "hash": emoji_hash}
 
             emoji_manager.emojis = [item for item in emoji_manager.emojis if item.file_hash != emoji_hash]
             emoji_manager._emoji_num = len(emoji_manager.emojis)
-            return {"success": True, "message": f"成功删除表情包: {emoji_hash}", "hash": emoji_hash}
+            return {"success": True, "message": f"成功删除表情包: {emoji_hash}", "hash": emoji_hash, "keep_desc": keep_desc}
         except Exception as e:
             logger.error(f"[cap.emoji.delete] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}

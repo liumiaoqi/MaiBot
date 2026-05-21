@@ -9,7 +9,7 @@ httpx
 jieba>=0.42.1
 json-repair>=0.47.6
 maim-message==0.6.8
-maibot-plugin-sdk>=2.5.0
+maibot-plugin-sdk>=2.5.1
 matplotlib>=3.10.5
 mcp
 msgpack>=1.1.2
@@ -33,4 +33,4 @@ tomlkit>=0.13.3
 typing-extensions
 uvicorn>=0.35.0
 watchfiles>=1.1.1
-maibot-dashboard>=1.1.6
+maibot-dashboard>=1.2.0

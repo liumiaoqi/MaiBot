@@ -2,10 +2,14 @@
 
 from datetime import datetime
 from html import escape
-from typing import Optional
+from typing import Optional, Sequence
 
 from src.chat.message_receive.message import SessionMessage
-from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
+from src.common.data_models.message_component_data_model import (
+    MessageSequence,
+    ReplyComponent,
+    TextComponent,
+)
 
 from .context_messages import SessionBackedMessage
 from .message_adapter import format_speaker_content
@@ -17,6 +21,7 @@ def build_planner_prefix(
     user_name: str,
     group_card: str = "",
     message_id: Optional[str] = None,
+    quote_ids: Optional[Sequence[str]] = None,
     include_message_id: bool = True,
 ) -> str:
     """构造 Maisaka 规划器使用的统一消息前缀。
@@ -26,23 +31,66 @@ def build_planner_prefix(
         user_name: 展示给规划器的用户名。
         group_card: 群昵称。
         message_id: 消息 ID。
+        quote_ids: 被引用消息 ID 列表。
         include_message_id: 是否输出 `msg_id` 段。
 
     Returns:
         str: 拼接完成的规划器前缀。
     """
 
-    message_attrs = [
-        f'time="{escape(timestamp.strftime("%H:%M:%S"), quote=True)}"',
-        f'user="{escape(user_name, quote=True)}"',
-    ]
+    message_attrs: list[str] = []
     if include_message_id:
-        message_attrs.insert(0, f'msg_id="{escape(message_id or "", quote=True)}"')
+        message_attrs.append(f'msg_id="{escape(message_id or "", quote=True)}"')
+
+    normalized_quote = _format_quote_ids(quote_ids)
+    if normalized_quote:
+        message_attrs.append(f'quote="{escape(normalized_quote, quote=True)}"')
+
+    message_attrs.extend(
+        [
+            f'time="{escape(timestamp.strftime("%H:%M:%S"), quote=True)}"',
+            f'user="{escape(user_name, quote=True)}"',
+        ]
+    )
 
     normalized_group_card = group_card.strip()
     if normalized_group_card:
         message_attrs.append(f'group_card="{escape(normalized_group_card, quote=True)}"')
     return f"<message {' '.join(message_attrs)}>\n"
+
+
+def _format_quote_ids(quote_ids: Optional[Sequence[str]]) -> str:
+    """将引用消息 ID 列表格式化为 XML 属性值。"""
+
+    if not quote_ids:
+        return ""
+
+    normalized_ids: list[str] = []
+    seen: set[str] = set()
+    for raw_quote_id in quote_ids:
+        quote_id = str(raw_quote_id or "").strip()
+        if not quote_id or quote_id in seen:
+            continue
+        seen.add(quote_id)
+        normalized_ids.append(quote_id)
+    return ",".join(normalized_ids)
+
+
+def extract_quote_ids_from_message_sequence(message_sequence: MessageSequence) -> list[str]:
+    """从消息片段中提取引用目标 ID，供 prompt 元信息使用。"""
+
+    quote_ids: list[str] = []
+    seen: set[str] = set()
+    for component in message_sequence.components:
+        if not isinstance(component, ReplyComponent):
+            continue
+
+        quote_id = component.target_message_id.strip()
+        if not quote_id or quote_id in seen:
+            continue
+        seen.add(quote_id)
+        quote_ids.append(quote_id)
+    return quote_ids
 
 
 def build_planner_user_prefix_from_session_message(message: SessionMessage) -> str:
@@ -62,6 +110,7 @@ def build_planner_user_prefix_from_session_message(message: SessionMessage) -> s
         user_name=user_name,
         group_card=user_info.user_cardname or "",
         message_id=message.message_id,
+        quote_ids=extract_quote_ids_from_message_sequence(message.raw_message),
         include_message_id=not message.is_notify and bool(message.message_id),
     )
 
@@ -74,6 +123,7 @@ def build_session_backed_text_message(
     source_kind: str,
     group_card: str = "",
     message_id: Optional[str] = None,
+    quote_ids: Optional[Sequence[str]] = None,
     include_message_id: bool = True,
 ) -> SessionBackedMessage:
     """构造带规划器前缀的纯文本历史消息。
@@ -85,6 +135,7 @@ def build_session_backed_text_message(
         source_kind: 上下文来源类型。
         group_card: 群昵称。
         message_id: 消息 ID。
+        quote_ids: 被引用消息 ID 列表。
         include_message_id: 是否输出 `msg_id` 段。
 
     Returns:
@@ -96,6 +147,7 @@ def build_session_backed_text_message(
         user_name=speaker_name,
         group_card=group_card,
         message_id=message_id,
+        quote_ids=quote_ids,
         include_message_id=include_message_id,
     )
     return SessionBackedMessage(

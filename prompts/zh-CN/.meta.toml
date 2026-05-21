@@ -77,3 +77,8 @@ description = "用于从聊天内容中学习表达风格的模板。"
 display_name = "时机"
 advanced = true
 description = "Maisaka 节奏控制模板，负责在每轮主循环前判断当前应该等待、停止，还是继续进入思考与回复流程。"
+
+[mid_term_memory_summary]
+display_name = "中期聊天摘要"
+advanced = true
+description = "用于在上下文裁切时，将被移出的聊天记录概括成 long_summary、brief 和 keywords。"

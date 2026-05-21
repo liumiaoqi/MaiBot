@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from typing import Any
+import json
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
@@ -56,6 +57,7 @@ class ReasoningPromptFile(BaseModel):
     text_path: str | None = None
     html_path: str | None = None
     output_preview: str | None = None
+    action_preview: str | None = None
     size: int = 0
     modified_at: float = 0
 
@@ -301,13 +303,8 @@ def _fallback_session_display_name(name: str, parsed: tuple[str, str, str] | Non
     return f"{platform} {chat_type_label} {target_id}"
 
 
-def _extract_output_preview(file_path: Path, max_chars: int = 160) -> str | None:
-    """从新版 prompt 预览 txt 中提取输出结果摘要。"""
-
-    try:
-        content = file_path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return None
+def _extract_output_block_from_content(content: str) -> str | None:
+    """从新版 prompt 预览 txt 内容中提取原始输出结果区块。"""
 
     marker = "[输出结果]"
     marker_index = content.find(marker)
@@ -319,13 +316,129 @@ def _extract_output_preview(file_path: Path, max_chars: int = 160) -> str | None
     if separator_index >= 0:
         output_text = output_text[:separator_index]
 
+    output_text = output_text.strip()
+    if not output_text:
+        return None
+
+    return output_text
+
+
+def _extract_output_text_from_content(content: str) -> str | None:
+    """从新版 prompt 预览 txt 内容中提取完整输出结果。"""
+
+    output_text = _extract_output_block_from_content(content)
+    if not output_text:
+        return None
+
     normalized_output = " ".join(line.strip() for line in output_text.splitlines() if line.strip())
+    if not normalized_output:
+        return None
+
+    return normalized_output
+
+
+def _extract_output_text(file_path: Path) -> str | None:
+    """从新版 prompt 预览 txt 中提取完整输出结果。"""
+
+    try:
+        content = file_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+
+    return _extract_output_text_from_content(content)
+
+
+def _extract_output_preview(file_path: Path, max_chars: int = 160) -> str | None:
+    """从新版 prompt 预览 txt 中提取输出结果摘要。"""
+
+    normalized_output = _extract_output_text(file_path)
     if not normalized_output:
         return None
 
     if len(normalized_output) <= max_chars:
         return normalized_output
     return f"{normalized_output[:max_chars].rstrip()}..."
+
+
+def _extract_action_names_from_output(output_text: str) -> list[str]:
+    """从输出结果中提取实际调用的动作名称。"""
+
+    marker = "工具调用:"
+    marker_index = output_text.find(marker)
+    if marker_index < 0:
+        return []
+
+    raw_tool_calls = output_text[marker_index + len(marker) :].strip()
+    if not raw_tool_calls:
+        return []
+
+    try:
+        parsed_tool_calls, _ = json.JSONDecoder().raw_decode(raw_tool_calls)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return []
+
+    if isinstance(parsed_tool_calls, dict):
+        parsed_tool_calls = [parsed_tool_calls]
+    if not isinstance(parsed_tool_calls, list):
+        return []
+
+    action_names: list[str] = []
+    for tool_call in parsed_tool_calls:
+        if not isinstance(tool_call, dict):
+            continue
+        action_name = str(tool_call.get("name") or "").strip()
+        if action_name:
+            action_names.append(action_name)
+    return action_names
+
+
+def _extract_action_preview(file_path: Path, max_actions: int = 4) -> str | None:
+    """从 prompt 预览 txt 中提取动作摘要。"""
+
+    try:
+        content = file_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+
+    output_text = _extract_output_block_from_content(content)
+    if not output_text:
+        return None
+
+    action_names = _extract_action_names_from_output(output_text)
+    if not action_names:
+        return None
+
+    shown_actions = action_names[:max_actions]
+    preview = f"动作：{'、'.join(shown_actions)}"
+    if len(action_names) > max_actions:
+        preview = f"{preview} 等 {len(action_names)} 个"
+    return preview
+
+
+def _matches_prompt_file_search(item: ReasoningPromptFile, normalized_search: str) -> bool:
+    """判断推理过程条目是否匹配搜索词。"""
+
+    if (
+        normalized_search in item.stage.casefold()
+        or normalized_search in item.session_id.casefold()
+        or normalized_search in (item.session_display_name or "").casefold()
+        or normalized_search in (item.resolved_session_id or "").casefold()
+        or normalized_search in (item.output_preview or "").casefold()
+        or normalized_search in (item.action_preview or "").casefold()
+        or normalized_search in item.stem.casefold()
+    ):
+        return True
+
+    if item.stage != "replyer" or not item.text_path:
+        return False
+
+    try:
+        file_path = _resolve_prompt_log_path(item.text_path, {".txt"})
+    except HTTPException:
+        return False
+
+    output_text = _extract_output_text(file_path)
+    return normalized_search in (output_text or "").casefold()
 
 
 def _resolve_reasoning_session_info(
@@ -431,6 +544,7 @@ def _collect_prompt_files(
                 "text_path": None,
                 "html_path": None,
                 "output_preview": None,
+                "action_preview": None,
                 "size": 0,
                 "modified_at": 0.0,
             },
@@ -442,6 +556,8 @@ def _collect_prompt_files(
             record["text_path"] = _relative_posix_path(file_path)
             if stage_name == "replyer":
                 record["output_preview"] = _extract_output_preview(file_path)
+            elif stage_name in {"planner", "timing_gate"}:
+                record["action_preview"] = _extract_action_preview(file_path)
         elif file_path.suffix.lower() == ".html":
             record["html_path"] = _relative_posix_path(file_path)
 
@@ -476,23 +592,14 @@ async def list_reasoning_prompt_files(
     selected_stage = _resolve_stage_name(stage)
     sessions = _list_session_names(selected_stage)
     selected_session = _resolve_session_name(session, sessions)
-    normalized_search = search.strip().lower()
-    sessions_to_resolve = sessions if normalized_search else ([selected_session] if selected_session else [])
-    session_infos = _list_session_infos(selected_stage, sessions_to_resolve)
+    normalized_search = search.strip().casefold()
+    # 下拉菜单需要展示全部会话的真实名称，不能只解析当前选中项。
+    session_infos = _list_session_infos(selected_stage, sessions)
     session_info_map = {item.name: item for item in session_infos}
     items = _collect_prompt_files(selected_stage, selected_session, session_info_map)
 
     if normalized_search:
-        items = [
-            item
-            for item in items
-            if normalized_search in item.stage.lower()
-            or normalized_search in item.session_id.lower()
-            or normalized_search in (item.session_display_name or "").lower()
-            or normalized_search in (item.resolved_session_id or "").lower()
-            or normalized_search in (item.output_preview or "").lower()
-            or normalized_search in item.stem.lower()
-        ]
+        items = [item for item in items if _matches_prompt_file_search(item, normalized_search)]
 
     total = len(items)
     start = (page - 1) * page_size

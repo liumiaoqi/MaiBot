@@ -9,6 +9,7 @@ import type {
   EmojiUpdateRequest,
   EmojiUpdateResponse,
   EmojiDeleteResponse,
+  EmojiStatus,
   EmojiStatsResponse,
 } from '@/types/emoji'
 
@@ -23,6 +24,7 @@ export async function getEmojiList(params: {
   search?: string
   is_registered?: boolean
   is_banned?: boolean
+  status?: EmojiStatus
   format?: string
   sort_by?: string
   sort_order?: 'asc' | 'desc'
@@ -33,6 +35,7 @@ export async function getEmojiList(params: {
   if (params.search) query.append('search', params.search)
   if (params.is_registered !== undefined) query.append('is_registered', params.is_registered.toString())
   if (params.is_banned !== undefined) query.append('is_banned', params.is_banned.toString())
+  if (params.status) query.append('status', params.status)
   if (params.format) query.append('format', params.format)
   if (params.sort_by) query.append('sort_by', params.sort_by)
   if (params.sort_order) query.append('sort_order', params.sort_order)

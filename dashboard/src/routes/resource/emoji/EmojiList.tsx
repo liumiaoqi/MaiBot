@@ -8,6 +8,25 @@ import { EmojiThumbnail } from '@/components/emoji-thumbnail'
 import { getEmojiThumbnailUrl } from '@/lib/emoji-api'
 import type { Emoji } from '@/types/emoji'
 
+const emojiStatusLabel: Record<Emoji['status'], string> = {
+  known: '认识',
+  unknown: '不认识',
+  adopted: '据为己用',
+  discarded: '丢弃',
+}
+
+function getEmojiStatusClassName(status: Emoji['status']) {
+  if (status === 'adopted') return 'bg-green-600 text-[10px] px-1 py-0'
+  if (status === 'discarded') return 'text-[10px] px-1 py-0'
+  return 'text-[10px] px-1 py-0 bg-background/90'
+}
+
+function getEmojiStatusVariant(status: Emoji['status']) {
+  if (status === 'discarded') return 'destructive' as const
+  if (status === 'unknown') return 'secondary' as const
+  return status === 'adopted' ? 'default' as const : 'outline' as const
+}
+
 interface EmojiListProps {
   emojiList: Emoji[]
   loading: boolean
@@ -104,19 +123,12 @@ export function EmojiList({
 
             {/* 状态标签 */}
             <div className="absolute top-1 right-1 z-10 flex flex-col gap-0.5">
-              {emoji.is_registered && (
-                <Badge
-                  variant="default"
-                  className="bg-green-600 text-[10px] px-1 py-0"
-                >
-                  已注册
-                </Badge>
-              )}
-              {emoji.is_banned && (
-                <Badge variant="destructive" className="text-[10px] px-1 py-0">
-                  已封禁
-                </Badge>
-              )}
+              <Badge
+                variant={getEmojiStatusVariant(emoji.status)}
+                className={getEmojiStatusClassName(emoji.status)}
+              >
+                {emojiStatusLabel[emoji.status]}
+              </Badge>
             </div>
 
             {/* 图片 */}
@@ -177,7 +189,7 @@ export function EmojiList({
                 >
                   <Info className="h-3 w-3" />
                 </Button>
-                {!emoji.is_registered && (
+                {emoji.status !== 'adopted' && (
                   <Button
                     variant="ghost"
                     size="icon"
@@ -191,7 +203,7 @@ export function EmojiList({
                     <CheckCircle2 className="h-3 w-3" />
                   </Button>
                 )}
-                {!emoji.is_banned && (
+                {emoji.status !== 'discarded' && (
                   <Button
                     variant="ghost"
                     size="icon"

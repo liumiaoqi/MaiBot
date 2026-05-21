@@ -85,13 +85,11 @@ def _append_image_component(
 
 
 def _append_reply_component(builder: MessageBuilder, component: ReplyComponent) -> bool:
-    """将回复组件追加到 LLM 消息构建器。"""
-    target_message_id = component.target_message_id.strip()
-    if not target_message_id:
-        return False
+    """回复关系已放入消息元信息，不再作为正文内容追加。"""
 
-    builder.add_text_content(f"[引用消息]{target_message_id}")
-    return True
+    del builder
+    del component
+    return False
 
 
 def _render_at_component_text(component: AtComponent) -> str:
@@ -124,6 +122,12 @@ def contains_complex_message(message_sequence: MessageSequence) -> bool:
 async def build_full_complex_message_content(message: SessionMessage) -> str:
     """构造复杂消息的完整文本内容。"""
 
+    if _prepare_unresolved_visual_components(message.raw_message.components):
+        await message.process(
+            enable_heavy_media_analysis=True,
+            enable_voice_transcription=False,
+        )
+
     full_content = _build_complex_message_full_text(message.raw_message)
     if full_content:
         return full_content
@@ -133,6 +137,12 @@ async def build_full_complex_message_content(message: SessionMessage) -> str:
     return (message.processed_plain_text or "").strip()
 
 
+def build_full_complex_message_content_from_sequence(message_sequence: MessageSequence) -> str:
+    """从消息组件序列构造复杂消息的完整文本内容。"""
+
+    return _build_complex_message_full_text(message_sequence)
+
+
 def _is_expandable_dict_component(component: StandardMessageComponents) -> bool:
     """判断字典组件是否属于可通过复杂消息工具展开的类型。"""
 
@@ -140,7 +150,38 @@ def _is_expandable_dict_component(component: StandardMessageComponents) -> bool:
         return False
 
     raw_type = str(component.data.get("type") or "").strip().lower()
-    return raw_type in {"file"}
+    return raw_type in {"file", "mid_term_memory"}
+
+
+def _prepare_unresolved_visual_components(components: Sequence[StandardMessageComponents]) -> bool:
+    """检查复杂消息内是否存在需要补充识图文本的图片或表情。"""
+
+    found_unresolved = False
+    for component in components:
+        if isinstance(component, ImageComponent):
+            normalized_content = component.content.strip()
+            if normalized_content in {"[image]", "[图片，识别中.....]"}:
+                component.content = ""
+                normalized_content = ""
+            if not normalized_content and component.binary_data:
+                found_unresolved = True
+            continue
+
+        if isinstance(component, EmojiComponent):
+            normalized_content = component.content.strip()
+            if normalized_content in {"[emoji]", "[表情包]"}:
+                component.content = ""
+                normalized_content = ""
+            if not normalized_content and component.binary_data:
+                found_unresolved = True
+            continue
+
+        if isinstance(component, ForwardNodeComponent):
+            for forward_component in component.forward_components:
+                if _prepare_unresolved_visual_components(forward_component.content):
+                    found_unresolved = True
+
+    return found_unresolved
 
 
 def _build_complex_message_full_text(message_sequence: MessageSequence) -> str:
@@ -175,6 +216,10 @@ def _render_expandable_dict_component(component: DictComponent) -> str:
 
     raw_type = str(component.data.get("type") or "").strip().lower()
     raw_payload = component.data.get("data", {})
+    if raw_type == "mid_term_memory" and isinstance(raw_payload, dict):
+        from .mid_term_memory import build_mid_term_memory_full_text
+
+        return build_mid_term_memory_full_text(raw_payload)
     if raw_type == "file" and isinstance(raw_payload, dict):
         return _render_file_dict_payload(raw_payload)
     return "[复杂消息]"
@@ -238,18 +283,7 @@ def _render_component_for_prompt(component: StandardMessageComponents) -> str:
         return _render_at_component_text(component)
 
     if isinstance(component, ReplyComponent):
-        sender_name = (
-            component.target_message_sender_cardname
-            or component.target_message_sender_nickname
-            or component.target_message_sender_id
-        )
-        target_content = (component.target_message_content or "").strip()
-        if sender_name and target_content:
-            return f"[回复了{sender_name}的消息: {target_content}]"
-        if target_content:
-            return f"[回复消息: {target_content}]"
-        target_message_id = component.target_message_id.strip()
-        return f"[引用消息]{target_message_id}" if target_message_id else "[回复消息]"
+        return ""
 
     if isinstance(component, ForwardNodeComponent):
         return _build_forward_preview_block(component)
@@ -288,6 +322,13 @@ def _build_dict_preview_block(component: DictComponent) -> str:
     """构造字典复杂消息的提示文本。"""
 
     raw_type = str(component.data.get("type") or "").strip().lower()
+    if raw_type == "mid_term_memory":
+        raw_payload = component.data.get("data", {})
+        if isinstance(raw_payload, dict):
+            from .mid_term_memory import build_mid_term_memory_preview_text
+
+            return build_mid_term_memory_preview_text(raw_payload)
+        return "[消息类型]复杂消息"
     if raw_type == "file":
         raw_payload = component.data.get("data", {})
         file_name = ""

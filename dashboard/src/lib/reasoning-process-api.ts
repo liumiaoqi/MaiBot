@@ -17,6 +17,7 @@ export type ReasoningPromptFile = {
   text_path: string | null
   html_path: string | null
   output_preview: string | null
+  action_preview: string | null
   size: number
   modified_at: number
 }

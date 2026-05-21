@@ -177,6 +177,7 @@ class LLMServiceClient:
             prompt=prompt,
             temperature=active_options.temperature,
             max_tokens=active_options.max_tokens,
+            model_name=active_options.model_name,
             tools=active_options.tool_options,
             response_format=active_options.response_format,
             raise_when_empty=active_options.raise_when_empty,
@@ -218,6 +219,7 @@ class LLMServiceClient:
             message_factory=cache_stats_message_factory,
             temperature=active_options.temperature,
             max_tokens=active_options.max_tokens,
+            model_name=active_options.model_name,
             tools=active_options.tool_options,
             response_format=active_options.response_format,
             raise_when_empty=active_options.raise_when_empty,
@@ -621,6 +623,7 @@ async def generate(request: LLMServiceRequest) -> LLMServiceResult:
             options=LLMGenerationOptions(
                 temperature=request.temperature,
                 max_tokens=request.max_tokens,
+                model_name=request.model_name,
                 tool_options=request.tool_options,
                 response_format=request.response_format,
                 interrupt_flag=request.interrupt_flag,

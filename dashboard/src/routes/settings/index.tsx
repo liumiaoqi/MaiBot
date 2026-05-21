@@ -1,4 +1,5 @@
 import { HardDrive, Info, Palette, Settings, Shield } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -10,20 +11,72 @@ import { LocalCacheTab } from './LocalCacheTab'
 import { OtherTab } from './OtherTab'
 import { SecurityTab } from './SecurityTab'
 
+type SettingsTab = 'appearance' | 'security' | 'local-cache' | 'other' | 'about'
+const SETTINGS_TABS: SettingsTab[] = ['appearance', 'security', 'local-cache', 'other', 'about']
+
+function getInitialSettingsTab(): SettingsTab {
+  const fallback: SettingsTab = 'appearance'
+  if (typeof window === 'undefined') {
+    return fallback
+  }
+
+  const searchTab = new URLSearchParams(window.location.search).get('tab')
+  const hashTab = window.location.hash.replace(/^#/, '')
+  const targetTab = searchTab || hashTab
+  return SETTINGS_TABS.includes(targetTab as SettingsTab) ? (targetTab as SettingsTab) : fallback
+}
+
 export function SettingsPage() {
   const { t } = useTranslation()
+  const [activeTab, setActiveTab] = useState<SettingsTab>(getInitialSettingsTab)
+  const [isTitleCollapsed, setIsTitleCollapsed] = useState(false)
+  const scrollViewportRef = useRef<HTMLDivElement | null>(null)
+
+  const handleTabChange = (value: string) => {
+    const nextTab = SETTINGS_TABS.includes(value as SettingsTab) ? (value as SettingsTab) : 'appearance'
+    setActiveTab(nextTab)
+    const nextUrl = nextTab === 'appearance' ? '/settings' : `/settings?tab=${nextTab}`
+    window.history.replaceState(null, '', nextUrl)
+    scrollViewportRef.current?.scrollTo({ top: 0 })
+    setIsTitleCollapsed(false)
+  }
+
+  useEffect(() => {
+    const viewport = scrollViewportRef.current
+    if (!viewport) {
+      return
+    }
+
+    const handleScroll = () => {
+      setIsTitleCollapsed(viewport.scrollTop > 8)
+    }
+
+    handleScroll()
+    viewport.addEventListener('scroll', handleScroll, { passive: true })
+    return () => {
+      viewport.removeEventListener('scroll', handleScroll)
+    }
+  }, [])
+
   return (
-    <div className="space-y-4 sm:space-y-6 p-4 sm:p-6">
+    <div className="p-4 sm:p-6">
       {/* 页面标题 */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div
+        className={`flex flex-col justify-between gap-4 overflow-hidden transition-all duration-200 sm:flex-row sm:items-center ${
+          isTitleCollapsed ? 'max-h-0 opacity-0' : 'max-h-12 opacity-100'
+        }`}
+      >
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold">{t('settings.title')}</h1>
-          <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base">{t('settings.description')}</p>
         </div>
       </div>
 
       {/* 标签页 */}
-      <Tabs defaultValue="appearance" className="w-full">
+      <Tabs
+        value={activeTab}
+        onValueChange={handleTabChange}
+        className={`w-full transition-[margin] duration-200 ${isTitleCollapsed ? 'mt-0' : 'mt-4 sm:mt-6'}`}
+      >
         <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 gap-0.5 sm:gap-1 h-auto p-1">
           <TabsTrigger value="appearance" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3 py-2">
             <Palette className="h-3.5 w-3.5 sm:h-4 sm:w-4" strokeWidth={2} fill="none" />
@@ -47,7 +100,12 @@ export function SettingsPage() {
           </TabsTrigger>
         </TabsList>
 
-        <ScrollArea className="h-[calc(100vh-240px)] sm:h-[calc(100vh-280px)] mt-4 sm:mt-6">
+        <ScrollArea
+          viewportRef={scrollViewportRef}
+          className={`mt-4 transition-[height] duration-200 sm:mt-6 ${
+            isTitleCollapsed ? 'h-[calc(100vh-180px)] sm:h-[calc(100vh-200px)]' : 'h-[calc(100vh-240px)] sm:h-[calc(100vh-280px)]'
+          }`}
+        >
           <TabsContent value="appearance" className="mt-0">
             <AppearanceTab />
           </TabsContent>

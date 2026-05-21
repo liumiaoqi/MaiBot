@@ -1156,7 +1156,7 @@ def test_delete_emoji_success(monkeypatch):
     assert any("成功修改数据库中的表情包记录" in m for m in _messages(logger.info_calls))
 
 
-def test_delete_emoji_no_desc_deletes_record(monkeypatch):
+def test_delete_emoji_without_keep_desc_deletes_record(monkeypatch):
     emoji_manager_new = import_emoji_manager_new(monkeypatch)
     logger = emoji_manager_new.logger
     manager = emoji_manager_new.EmojiManager()
@@ -1219,7 +1219,7 @@ def test_delete_emoji_no_desc_deletes_record(monkeypatch):
     emoji.file_name = "empty.png"
     emoji.file_hash = "hash-empty"
 
-    result = manager.delete_emoji(emoji, no_desc=True)
+    result = manager.delete_emoji(emoji, keep_desc=False)
 
     assert result is True
     assert any("成功删除数据库中的空表情包记录" in m for m in _messages(logger.info_calls))
@@ -2184,7 +2184,7 @@ def test_check_emoji_file_integrity_no_issues(monkeypatch):
 
     called = {"count": 0}
 
-    def _delete(_emoji, no_desc=False):
+    def _delete(_emoji, keep_desc=True):
         called["count"] += 1
         return True
 
@@ -2231,8 +2231,8 @@ def test_check_emoji_file_integrity_removes_invalid_records(monkeypatch):
 
     deleted = []
 
-    def _delete(emoji, no_desc=False):
-        deleted.append((emoji.file_name, no_desc))
+    def _delete(emoji, keep_desc=True):
+        deleted.append((emoji.file_name, keep_desc))
         return True
 
     monkeypatch.setattr(manager, "delete_emoji", _delete)
@@ -2241,7 +2241,7 @@ def test_check_emoji_file_integrity_removes_invalid_records(monkeypatch):
 
     assert manager.emojis == []
     assert manager._emoji_num == 0
-    assert set(deleted) == {("missing.png", False), ("nodesc.png", True)}
+    assert set(deleted) == {("missing.png", True), ("nodesc.png", False)}
     messages = _messages(logger.warning_calls)
     assert any("文件缺失" in m for m in messages)
     assert any("缺失描述" in m for m in messages)
@@ -2273,7 +2273,7 @@ def test_check_emoji_file_integrity_delete_failed(monkeypatch):
     manager.emojis = [emoji]
     manager._emoji_num = 1
 
-    def _delete(_emoji, no_desc=False):
+    def _delete(_emoji, keep_desc=True):
         return False
 
     monkeypatch.setattr(manager, "delete_emoji", _delete)

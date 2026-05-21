@@ -290,7 +290,9 @@ class SessionMessage(MaiMessage):
         except Exception:
             desc = None  # 失败置空
 
-        content = f"[图片：{desc}]" if desc else "[图片]"
+        # desc 为空时保持 content 为空，表示图片仍处于待识别状态；
+        # 展示占位由 Maisaka 渲染层处理，避免把占位符当作已识别内容。
+        content = f"[图片：{desc}]" if desc else ""
         component.content = content
         component.binary_data = b""  # 处理完就丢掉二进制数据，节省内存
         return content

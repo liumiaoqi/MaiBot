@@ -20,8 +20,8 @@ def get_tool_spec() -> ToolSpec:
     return ToolSpec(
         name="send_image",
         description=(
-            "发送聊天上下文或工具返回结果中的图片。按 msg_id 和 index 发送指定消息里的原图；"
-            "也可以把工具返回媒体索引 tool_result:<call_id>:<item_index> 填入 msg_id、media_index 或 tool_result_index。"
+            "将图片发送给用户，变为用户可见的图片消息。当你需要通过图片进行说明解释时使用。当用户需要你发图片时使用。"
+            "按 msg_id 和 index 发送指定消息里的图片；也可以把工具返回媒体索引 tool_result:<call_id>:<item_index> 填入 msg_id 或 media_index。"
         ),
         parameters_schema={
             "type": "object",
@@ -34,11 +34,6 @@ def get_tool_spec() -> ToolSpec:
                 "media_index": {
                     "type": "string",
                     "description": "工具返回媒体索引，例如 tool_result:call_x:1；与 msg_id 二选一。",
-                    "default": "",
-                },
-                "tool_result_index": {
-                    "type": "string",
-                    "description": "media_index 的别名，用于发送工具返回的图片。",
                     "default": "",
                 },
                 "index": {
@@ -140,7 +135,6 @@ async def handle_tool(
     arguments = dict(invocation.arguments or {})
     target_message_id = (
         str(arguments.get("media_index") or "").strip()
-        or str(arguments.get("tool_result_index") or "").strip()
         or str(arguments.get("msg_id") or "").strip()
     )
     image_index = _normalize_image_index(arguments)

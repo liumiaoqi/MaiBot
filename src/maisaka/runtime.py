@@ -277,7 +277,7 @@ class MaisakaHeartFlowChatting:
         try:
             from .context_messages import SessionBackedMessage
             from .history_utils import build_prefixed_message_sequence, build_session_message_visible_text
-            from .planner_message_utils import build_planner_prefix
+            from .planner_message_utils import build_planner_prefix, extract_quote_ids_from_message_sequence
 
             user_info = message.message_info.user_info
             speaker_name = user_info.user_cardname or user_info.user_nickname or user_info.user_id
@@ -286,6 +286,7 @@ class MaisakaHeartFlowChatting:
                 user_name=speaker_name,
                 group_card=user_info.user_cardname or "",
                 message_id=message.message_id,
+                quote_ids=extract_quote_ids_from_message_sequence(message.raw_message),
                 include_message_id=not message.is_notify and bool(message.message_id),
             )
             history_message = SessionBackedMessage.from_session_message(
@@ -1292,14 +1293,15 @@ class MaisakaHeartFlowChatting:
         if not context_messages:
             return
         enable_expression_learning = self._enable_expression_learning
-        if not enable_expression_learning:
-            logger.debug(f"{self.log_prefix} 表达学习未启用，跳过裁切历史学习")
+        enable_jargon_learning = self._enable_jargon_learning
+        if not enable_expression_learning and not enable_jargon_learning:
+            logger.debug(f"{self.log_prefix} 表达学习和黑话学习均未启用，跳过裁切历史学习")
             return
 
         pending_context_count = len(context_messages)
         if not self._should_trigger_learning(
-            enabled=enable_expression_learning,
-            feature_name="表达学习",
+            enabled=enable_expression_learning or enable_jargon_learning,
+            feature_name="表达/黑话学习",
             last_extraction_time=self._last_expression_extraction_time,
             pending_count=pending_context_count,
             min_messages_for_extraction=self._expression_learner.min_messages_for_extraction,
@@ -1307,10 +1309,10 @@ class MaisakaHeartFlowChatting:
             return
 
         self._last_expression_extraction_time = time.time()
-        enable_jargon_learning = self._enable_jargon_learning
         logger.info(
-            f"{self.log_prefix} 触发裁切历史表达学习: "
+            f"{self.log_prefix} 触发裁切历史学习: "
             f"裁切上下文消息数量={pending_context_count} "
+            f"是否启用表达学习={enable_expression_learning} "
             f"是否启用黑话学习={enable_jargon_learning}"
         )
 
@@ -1319,13 +1321,14 @@ class MaisakaHeartFlowChatting:
             learnt_style = await self._expression_learner.learn_from_context_messages(
                 context_messages,
                 jargon_miner,
+                enable_expression_learning=enable_expression_learning,
             )
             if learnt_style:
-                logger.info(f"{self.log_prefix} 裁切历史表达学习成功")
+                logger.info(f"{self.log_prefix} 裁切历史学习成功")
             else:
-                logger.debug(f"{self.log_prefix} 裁切历史表达学习未产生结果")
+                logger.debug(f"{self.log_prefix} 裁切历史学习未产生结果")
         except Exception:
-            logger.exception(f"{self.log_prefix} 裁切历史表达学习异常")
+            logger.exception(f"{self.log_prefix} 裁切历史学习异常")
 
     def _should_trigger_learning(
         self,

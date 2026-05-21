@@ -64,6 +64,24 @@ def is_current_account_session(chat_session: Optional[ChatSession]) -> bool:
     return bool(platform and account_id and (platform, account_id) in get_configured_platform_accounts())
 
 
+def select_legacy_import_matched_sessions(
+    sessions: List[Any],
+    configured_accounts: set[tuple[str, str]],
+) -> List[Any]:
+    """为旧版导入选择可自动匹配的聊天流。"""
+
+    configured_matches = [
+        session
+        for session in sessions
+        if (str(session.platform or "").strip(), str(session.account_id or "").strip()) in configured_accounts
+    ]
+    if configured_matches:
+        return configured_matches
+
+    # 旧数据升级后可能没有 account_id。严格账号匹配没有结果时，允许这些历史聊天流参与自动匹配。
+    return [session for session in sessions if not str(session.account_id or "").strip()]
+
+
 def get_visible_expression_chat_ids(db_session: Any, include_legacy: bool) -> set[str]:
     """返回表达方式页面默认可见的聊天流 ID。"""
 
@@ -706,16 +724,13 @@ def resolve_legacy_group_preview(
 
     if platform and target_id and chat_type:
         configured_accounts = get_configured_platform_accounts()
+        candidate_sessions = _chat_manager.resolve_sessions_by_target(
+            platform=platform,
+            target_id=target_id,
+            chat_type=chat_type,
+        )
         matched_sessions = sorted(
-            [
-                session
-                for session in _chat_manager.resolve_sessions_by_target(
-                    platform=platform,
-                    target_id=target_id,
-                    chat_type=chat_type,
-                )
-                if (str(session.platform or "").strip(), str(session.account_id or "").strip()) in configured_accounts
-            ],
+            select_legacy_import_matched_sessions(candidate_sessions, configured_accounts),
             key=lambda session: session.session_id,
         )
         if matched_sessions:

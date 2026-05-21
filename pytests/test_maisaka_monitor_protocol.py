@@ -77,7 +77,13 @@ class _FakeLegacyLLMServiceClient:
         del args
         del kwargs
 
-    async def generate_response_with_messages(self, *, message_factory: Callable[[object], list[Any]]) -> _FakeLLMResult:
+    async def generate_response_with_messages(
+        self,
+        *,
+        message_factory: Callable[[object], list[Any]],
+        options: Any = None,
+    ) -> _FakeLLMResult:
+        del options
         assert message_factory(object())
         return _FakeLLMResult()
 
@@ -87,8 +93,65 @@ class _FakeMultimodalLLMServiceClient:
         del args
         del kwargs
 
-    async def generate_response_with_messages(self, *, message_factory: Callable[[object], list[Any]]) -> _FakeLLMResult:
+    async def generate_response_with_messages(
+        self,
+        *,
+        message_factory: Callable[[object], list[Any]],
+        options: Any = None,
+    ) -> _FakeLLMResult:
+        del options
         assert message_factory(object())
+        return _FakeLLMResult()
+
+
+class _FakeReplyerHookManager:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, dict[str, Any]]] = []
+
+    async def invoke_hook(self, hook_name: str, **kwargs: Any) -> SimpleNamespace:
+        self.calls.append((hook_name, dict(kwargs)))
+        if hook_name == "maisaka.replyer.before_request":
+            modified_kwargs = dict(kwargs)
+            reply_tool_args = dict(modified_kwargs.get("reply_tool_args") or {})
+            reply_tool_args["hook_added"] = "yes"
+            modified_kwargs["reply_tool_args"] = reply_tool_args
+            return SimpleNamespace(kwargs=modified_kwargs, aborted=False)
+        return SimpleNamespace(kwargs=dict(kwargs), aborted=False)
+
+
+class _FakeReplyerRoutingHookManager:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, dict[str, Any]]] = []
+
+    async def invoke_hook(self, hook_name: str, **kwargs: Any) -> SimpleNamespace:
+        self.calls.append((hook_name, dict(kwargs)))
+        if hook_name == "maisaka.replyer.before_request":
+            reply_tool_args = dict(kwargs.get("reply_tool_args") or {})
+            if reply_tool_args.get("thinking_level") == "deep":
+                kwargs["task_name"] = "planner"
+                kwargs["model_name"] = "Qwen3.5-397B-A17B"
+                kwargs["extra_prompt"] = "请更细致地理解上下文后再回复。"
+        return SimpleNamespace(kwargs=dict(kwargs), aborted=False)
+
+
+class _FakeRoutingLLMServiceClient:
+    task_names: list[str] = []
+    model_names: list[str] = []
+    prompt_texts: list[str] = []
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        del args
+        self.task_names.append(str(kwargs.get("task_name") or ""))
+
+    async def generate_response_with_messages(
+        self,
+        *,
+        message_factory: Callable[[object], list[Any]],
+        options: Any = None,
+    ) -> _FakeLLMResult:
+        self.model_names.append(str(getattr(options, "model_name", "") or ""))
+        messages = message_factory(object())
+        self.prompt_texts.append("\n".join(message.get_text_content() for message in messages))
         return _FakeLLMResult()
 
 
@@ -130,6 +193,66 @@ async def test_legacy_and_multimodal_replyer_monitor_detail_have_same_shape(monk
     assert legacy_result.monitor_detail["metrics"]["prompt_tokens"] == 12
     assert legacy_result.monitor_detail["metrics"]["completion_tokens"] == 7
     assert legacy_result.monitor_detail["metrics"]["total_tokens"] == 19
+
+
+@pytest.mark.asyncio
+async def test_replyer_hooks_receive_reply_tool_args(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(replyer_module, "LLMServiceClient", _FakeLegacyLLMServiceClient)
+    monkeypatch.setattr(replyer_module, "load_prompt", lambda *args, **kwargs: "reply prompt")
+
+    fake_hook_manager = _FakeReplyerHookManager()
+    generator = replyer_module.MaisakaReplyGenerator(
+        chat_stream=None,
+        request_type="test_reply_tool_args",
+        enable_visual_message=False,
+    )
+    monkeypatch.setattr(generator, "_get_runtime_manager", lambda: fake_hook_manager)
+
+    success, _ = await generator.generate_reply_with_context(
+        stream_id="session-reply-tool-args",
+        chat_history=[],
+        reply_reason="测试原因",
+        reply_tool_args={"route": "fast"},
+    )
+
+    assert success is True
+    before_call = fake_hook_manager.calls[0]
+    after_call = fake_hook_manager.calls[1]
+    assert before_call[0] == "maisaka.replyer.before_request"
+    assert before_call[1]["reply_tool_args"] == {"route": "fast"}
+    assert after_call[0] == "maisaka.replyer.after_response"
+    assert after_call[1]["reply_tool_args"] == {"route": "fast", "hook_added": "yes"}
+
+
+@pytest.mark.asyncio
+async def test_replyer_before_request_can_route_task_and_append_prompt(monkeypatch: pytest.MonkeyPatch) -> None:
+    _FakeRoutingLLMServiceClient.task_names = []
+    _FakeRoutingLLMServiceClient.model_names = []
+    _FakeRoutingLLMServiceClient.prompt_texts = []
+    monkeypatch.setattr(replyer_module, "LLMServiceClient", _FakeRoutingLLMServiceClient)
+    monkeypatch.setattr(replyer_module, "load_prompt", lambda *args, **kwargs: "reply prompt")
+
+    fake_hook_manager = _FakeReplyerRoutingHookManager()
+    generator = replyer_module.MaisakaReplyGenerator(
+        chat_stream=None,
+        request_type="test_reply_routing",
+        enable_visual_message=False,
+    )
+    monkeypatch.setattr(generator, "_get_runtime_manager", lambda: fake_hook_manager)
+
+    success, _ = await generator.generate_reply_with_context(
+        stream_id="session-reply-routing",
+        chat_history=[],
+        reply_reason="测试原因",
+        reply_tool_args={"thinking_level": "deep"},
+    )
+
+    assert success is True
+    assert _FakeRoutingLLMServiceClient.task_names == ["replyer", "planner"]
+    assert _FakeRoutingLLMServiceClient.model_names == ["Qwen3.5-397B-A17B"]
+    assert "请更细致地理解上下文后再回复。" in _FakeRoutingLLMServiceClient.prompt_texts[-1]
+    assert fake_hook_manager.calls[-1][1]["task_name"] == "planner"
+    assert fake_hook_manager.calls[-1][1]["requested_model_name"] == "Qwen3.5-397B-A17B"
 
 
 def test_legacy_replyer_builds_message_sequence_like_multimodal() -> None:

@@ -320,6 +320,8 @@ class ExpressionLearner:
         self,
         context_messages: Sequence["LLMContextMessage"],
         jargon_miner: Optional["JargonMiner"] = None,
+        *,
+        enable_expression_learning: bool = True,
     ) -> bool:
         """从 Maisaka 被裁切的上下文消息中学习表达方式。
 
@@ -340,6 +342,7 @@ class ExpressionLearner:
         return await self._learn_from_session_messages(
             source_messages,
             jargon_miner=jargon_miner,
+            enable_expression_learning=enable_expression_learning,
         )
 
     @staticmethod
@@ -384,6 +387,7 @@ class ExpressionLearner:
         pending_messages: List["SessionMessage"],
         *,
         jargon_miner: Optional["JargonMiner"] = None,
+        enable_expression_learning: bool = True,
     ) -> bool:
         """对一批真实会话消息执行表达学习。"""
 
@@ -421,6 +425,7 @@ class ExpressionLearner:
                 pending_messages,
                 learning_session_id=learning_session_id,
                 jargon_miner=jargon_miner,
+                enable_expression_learning=enable_expression_learning,
             )
         finally:
             await expression_learning_batch_gate.release(learning_session_id)
@@ -431,6 +436,7 @@ class ExpressionLearner:
         *,
         learning_session_id: str,
         jargon_miner: Optional["JargonMiner"] = None,
+        enable_expression_learning: bool = True,
     ) -> bool:
         """执行已经获得并发闸门的表达学习批次。"""
 
@@ -476,10 +482,6 @@ class ExpressionLearner:
             logger.info(f"表达方式数量超过20: {len(expressions)}")
             expressions = []
 
-        if len(jargon_entries) > 30:
-            logger.info(f"黑话数量超过30: {len(jargon_entries)}")
-            jargon_entries = []
-
         after_extract_result = await self._get_runtime_manager().invoke_hook(
             "expression.learn.after_extract",
             session_id=learning_session_id,
@@ -499,6 +501,7 @@ class ExpressionLearner:
         if raw_jargon_entries is not None:
             jargon_entries = self._deserialize_jargon_entries(raw_jargon_entries)
 
+        processed_jargon = False
         if jargon_entries:
             original_jargon_session_id = getattr(jargon_miner, "session_id", None) if jargon_miner is not None else None
             original_jargon_session_name = getattr(jargon_miner, "session_name", None) if jargon_miner is not None else None
@@ -507,11 +510,16 @@ class ExpressionLearner:
                 jargon_miner.session_id = learning_session_id
                 jargon_miner.session_name = chat_name
             try:
-                await self._process_jargon_entries(jargon_entries, pending_messages, jargon_miner)
+                processed_jargon = await self._process_jargon_entries(jargon_entries, pending_messages, jargon_miner)
             finally:
                 if jargon_miner is not None and original_jargon_session_id is not None:
                     jargon_miner.session_id = original_jargon_session_id
                     jargon_miner.session_name = original_jargon_session_name or original_jargon_session_id
+
+        if not enable_expression_learning:
+            if processed_jargon:
+                logger.info("表达学习未启用，本轮仅完成黑话学习")
+            return processed_jargon
 
         if not expressions:
             logger.info("没有可学习的表达方式")
@@ -753,7 +761,7 @@ class ExpressionLearner:
         jargon_entries: List[Tuple[str, str]],
         messages: List["SessionMessage"],
         jargon_miner: Optional["JargonMiner"] = None,
-    ):
+    ) -> bool:
         """
         处理从 expression learner 提取的黑话条目，路由到 jargon_miner
 
@@ -762,11 +770,11 @@ class ExpressionLearner:
             jargon_miner: JargonMiner 实例
         """
         if not jargon_entries or not messages:
-            return
+            return False
 
         if not jargon_miner:
             logger.warning("缺少 JargonMiner 实例，无法处理黑话条目")
-            return
+            return False
 
         # 构建黑话条目格式
         entries: List["JargonEntry"] = []
@@ -821,10 +829,11 @@ class ExpressionLearner:
             entries.append({"content": content, "raw_content": {context_paragraph}})  # type: ignore
 
         if not entries:
-            return
+            return False
 
-        await jargon_miner.process_extracted_entries(entries)
+        saved, updated = await jargon_miner.process_extracted_entries(entries)
         logger.info(f"成功处理 {len(entries)} 个黑话条目")
+        return saved + updated > 0
 
     # ====== 过滤方法 ======
     def _filter_expressions(

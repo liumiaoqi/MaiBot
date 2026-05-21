@@ -40,6 +40,7 @@ from .context_messages import (
     build_llm_message_from_context,
 )
 from .history_utils import drop_orphan_tool_results, normalize_tool_result_order
+from .mid_term_memory import is_mid_term_memory_message
 from .display.prompt_cli_renderer import PromptCLIVisualizer
 from .visual_mode_utils import resolve_enable_visual_planner
 
@@ -196,6 +197,84 @@ def register_maisaka_hook_specs(registry: HookSpecRegistry) -> List[HookSpec]:
                 allow_kwargs_mutation=True,
             ),
             HookSpec(
+                name="maisaka.replyer.before_request",
+                description="在 Maisaka replyer 向模型发起请求前触发，可读取或改写本次 reply 工具透传参数。",
+                parameters_schema=build_object_schema(
+                    {
+                        "session_id": {
+                            "type": "string",
+                            "description": "当前会话 ID。",
+                        },
+                        "request_type": {
+                            "type": "string",
+                            "description": "当前 replyer 请求类型。",
+                        },
+                        "task_name": {
+                            "type": "string",
+                            "description": "本次 replyer 请求使用的模型任务名；Hook 可改写该值。",
+                        },
+                        "model_name": {
+                            "type": "string",
+                            "description": "本次 replyer 请求指定使用的具体模型名；留空时按任务策略选择。",
+                        },
+                        "extra_prompt": {
+                            "type": "string",
+                            "description": "Hook 可追加到本次 replyer 提示词中的额外回复要求。",
+                        },
+                        "attempt": {
+                            "type": "integer",
+                            "description": "当前生成尝试序号，从 1 开始。",
+                        },
+                        "retry_count": {
+                            "type": "integer",
+                            "description": "当前已经重新生成的次数。",
+                        },
+                        "max_retries": {
+                            "type": "integer",
+                            "description": "本轮 replyer 最多允许重新生成多少次。",
+                        },
+                        "reply_message_id": {
+                            "type": "string",
+                            "description": "被回复消息 ID；无目标消息时为空字符串。",
+                        },
+                        "reply_reason": {
+                            "type": "string",
+                            "description": "本次 replyer 生成的回复理由。",
+                        },
+                        "reference_info": {
+                            "type": "string",
+                            "description": "本次 replyer 生成使用的参考信息。",
+                        },
+                        "selected_expression_ids": {
+                            "type": "array",
+                            "description": "本次 replyer 选中的表达方式编号列表。",
+                        },
+                        "reply_tool_args": {
+                            "type": "object",
+                            "description": "reply 工具里除 msg_id、set_quote、reference_info 外透传给 replyer 的额外参数。",
+                        },
+                    },
+                    required=[
+                        "session_id",
+                        "request_type",
+                        "task_name",
+                        "model_name",
+                        "extra_prompt",
+                        "attempt",
+                        "retry_count",
+                        "max_retries",
+                        "reply_message_id",
+                        "reply_reason",
+                        "reference_info",
+                        "selected_expression_ids",
+                        "reply_tool_args",
+                    ],
+                ),
+                default_timeout_ms=6000,
+                allow_abort=False,
+                allow_kwargs_mutation=True,
+            ),
+            HookSpec(
                 name="maisaka.replyer.after_response",
                 description="在 Maisaka replyer 收到模型响应后触发，可要求重新生成或改写回复文本。",
                 parameters_schema=build_object_schema(
@@ -211,6 +290,14 @@ def register_maisaka_hook_specs(registry: HookSpecRegistry) -> List[HookSpec]:
                         "request_type": {
                             "type": "string",
                             "description": "当前 replyer 请求类型。",
+                        },
+                        "task_name": {
+                            "type": "string",
+                            "description": "本次 replyer 实际使用的模型任务名。",
+                        },
+                        "requested_model_name": {
+                            "type": "string",
+                            "description": "Hook 请求指定的具体模型名；留空表示按任务策略选择。",
                         },
                         "attempt": {
                             "type": "integer",
@@ -231,6 +318,10 @@ def register_maisaka_hook_specs(registry: HookSpecRegistry) -> List[HookSpec]:
                         "selected_expression_ids": {
                             "type": "array",
                             "description": "本次 replyer 选中的表达方式编号列表。",
+                        },
+                        "reply_tool_args": {
+                            "type": "object",
+                            "description": "reply 工具里除 msg_id、set_quote、reference_info 外透传给 replyer 的额外参数。",
                         },
                         "prompt_tokens": {
                             "type": "integer",
@@ -269,11 +360,14 @@ def register_maisaka_hook_specs(registry: HookSpecRegistry) -> List[HookSpec]:
                         "response",
                         "session_id",
                         "request_type",
+                        "task_name",
+                        "requested_model_name",
                         "attempt",
                         "retry_count",
                         "max_retries",
                         "reply_message_id",
                         "selected_expression_ids",
+                        "reply_tool_args",
                         "prompt_tokens",
                         "completion_tokens",
                         "total_tokens",
@@ -916,6 +1010,7 @@ class MaisakaChatLoopService:
             int(base_context_size * CONTEXT_SELECTION_CACHE_STABILITY_RATIO),
         )
         selected_indices: List[int] = []
+        pinned_indices: List[int] = []
         counted_message_count = 0
 
         active_enable_visual_message = (
@@ -923,6 +1018,18 @@ class MaisakaChatLoopService:
             if enable_visual_message is not None
             else MaisakaChatLoopService._resolve_enable_visual_message(request_kind)
         )
+
+        if request_kind in {"planner", "timing_gate", "sub_agent"}:
+            pinned_indices = [
+                index
+                for index, message in enumerate(filtered_history)
+                if is_mid_term_memory_message(message)
+                and build_llm_message_from_context(
+                    message,
+                    enable_visual_message=active_enable_visual_message,
+                )
+                is not None
+            ]
 
         for index in range(len(filtered_history) - 1, -1, -1):
             message = filtered_history[index]
@@ -941,20 +1048,24 @@ class MaisakaChatLoopService:
                 if counted_message_count >= effective_context_size:
                     break
 
+        selected_indices = sorted(set(selected_indices).union(pinned_indices))
+
         if not selected_indices:
             return [], "实际发送 0 条消息（tool 0 条，普通消息 0 条）"
 
-        selected_indices.reverse()
         selected_history = [filtered_history[index] for index in selected_indices]
         selected_history, _ = drop_orphan_tool_results(selected_history)
         selected_history, _ = normalize_tool_result_order(selected_history)
         tool_message_count = sum(1 for message in selected_history if isinstance(message, ToolResultMessage))
         normal_message_count = len(selected_history) - tool_message_count
+        pinned_message_count = sum(1 for message in selected_history if is_mid_term_memory_message(message))
         stability_text = f"|cache_window {base_context_size}->{effective_context_size}"
+        pinned_text = f"|中期摘要 {pinned_message_count} 条" if pinned_message_count else ""
         selection_reason = (
             f"实际发送 {len(selected_history)} 条消息"
             f"|消息 {normal_message_count} 条|tool {tool_message_count} 条"
             f"{stability_text}"
+            f"{pinned_text}"
         )
         return (
             selected_history,

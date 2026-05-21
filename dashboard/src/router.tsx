@@ -92,6 +92,13 @@ const promptManagementRoute = createRoute({
   component: lazyRouteComponent(() => import('./routes/config/prompts'), 'PromptManagementPage'),
 })
 
+// 配置路由 - 人设生成器（测试功能）
+const promptGeneratorRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: '/config/prompt-generator',
+  component: lazyRouteComponent(() => import('./routes/prompt-generator'), 'PromptGeneratorPage'),
+})
+
 const adapterConfigRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/config/adapter',
@@ -281,6 +288,7 @@ const routeTree = rootRoute.addChildren([
     modelProviderConfigRoute,
     modelConfigRoute,
     promptManagementRoute,
+    promptGeneratorRoute,
     adapterConfigRoute,
     emojiManagementRoute,
     expressionManagementRoute,

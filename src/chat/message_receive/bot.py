@@ -21,6 +21,7 @@ from src.plugin_runtime.host.hook_dispatcher import HookDispatchResult
 from src.plugin_runtime.host.hook_spec_registry import HookSpec, HookSpecRegistry
 
 from .chat_manager import chat_manager
+from .image_receive_compressor import process_received_images_in_message
 from .message import SessionMessage
 
 # 定义日志配置
@@ -535,6 +536,25 @@ class ChatBot:
             )
 
             message.session_id = session_id  # 正确初始化session_id
+            image_process_report = process_received_images_in_message(message.raw_message.components)
+            if image_process_report.compressed_count or image_process_report.discarded_count:
+                image_process_details = []
+                if image_process_report.compressed_count:
+                    image_process_details.append(
+                        f"压缩 {image_process_report.compressed_count} 张，"
+                        f"{image_process_report.original_bytes / 1024:.1f}KB -> "
+                        f"{image_process_report.compressed_bytes / 1024:.1f}KB"
+                    )
+                if image_process_report.discarded_count:
+                    image_process_details.append(
+                        f"丢弃 {image_process_report.discarded_count} 张，"
+                        f"{image_process_report.discarded_bytes / 1024:.1f}KB"
+                    )
+                logger.info(
+                    f"消息 {message.message_id} 入站过大图片处理完成: "
+                    f"{'；'.join(image_process_details)}"
+                )
+
             before_process_result, message = await self._invoke_message_hook(
                 "chat.receive.before_process",
                 message,
@@ -626,18 +646,6 @@ class ChatBot:
             #     return
             # if modified_message and modified_message._modify_flags.modify_plain_text:
             #     message.processed_plain_text = modified_message.plain_text
-
-            # # 确认从接口发来的message是否有自定义的prompt模板信息
-            # if message.message_info.template_info and not message.message_info.template_info.template_default:
-            #     template_group_name: Optional[str] = message.message_info.template_info.template_name  # type: ignore
-            #     template_items = message.message_info.template_info.template_items
-            #     async with global_prompt_manager.async_message_scope(template_group_name):
-            #         if isinstance(template_items, dict):
-            #             for k in template_items.keys():
-            #                 await Prompt.create_async(template_items[k], k)
-            #                 logger.debug(f"注册{template_items[k]},{k}")
-            # else:
-            #     template_group_name = None
 
             async def preprocess():
                 if group_info is None:

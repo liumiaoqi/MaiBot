@@ -16,12 +16,7 @@ from src.chat.message_receive.chat_manager import BotChatSession
 from src.chat.message_receive.message import SessionMessage
 from src.chat.utils.utils import get_chat_type_and_target_info
 from src.cli.console import console
-from src.common.data_models.reply_generation_data_models import (
-    GenerationMetrics,
-    LLMCompletionResult,
-    ReplyGenerationResult,
-    build_reply_monitor_detail,
-)
+from src.common.data_models.llm_service_data_models import LLMGenerationOptions
 from src.common.data_models.message_component_data_model import (
     AtComponent,
     EmojiComponent,
@@ -29,6 +24,12 @@ from src.common.data_models.message_component_data_model import (
     ReplyComponent,
     TextComponent,
     VoiceComponent,
+)
+from src.common.data_models.reply_generation_data_models import (
+    GenerationMetrics,
+    LLMCompletionResult,
+    ReplyGenerationResult,
+    build_reply_monitor_detail,
 )
 from src.common.logger import get_logger
 from src.common.utils.utils_config import ChatConfigUtils
@@ -46,6 +47,7 @@ from src.maisaka.context_messages import (
 )
 from src.maisaka.display.prompt_cli_renderer import PromptCLIVisualizer
 from src.maisaka.message_adapter import parse_speaker_content
+from src.maisaka.planner_message_utils import extract_quote_ids_from_message_sequence
 from src.plugin_runtime.hook_payloads import serialize_prompt_messages
 
 from .maisaka_expression_selector import maisaka_expression_selector
@@ -154,18 +156,27 @@ class BaseMaisakaReplyGenerator:
         sender_name = user_info.user_cardname or user_info.user_nickname or user_info.user_id
         target_message_id = reply_message.message_id.strip() if reply_message.message_id else "未知"
         target_time = reply_message.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+        quote_ids = extract_quote_ids_from_message_sequence(reply_message.raw_message)
         target_content = self._normalize_content(self._build_target_message_content(reply_message), limit=300)
         if not target_content:
             target_content = "[无可见文本内容]"
 
-        return (
-            "【本次回复目标】\n"
-            f"- msg_id：{target_message_id}\n"
-            f"- 时间：{target_time}\n"
-            f"- 用户名：{sender_name}\n"
-            f"- 发言内容：{target_content}\n\n"
-            "你这次要回复的就是这条目标消息，请结合整段上下文理解，但不要把其他历史消息当成当前回复对象。"
+        target_lines = [
+            "【本次回复目标】",
+            f"- msg_id：{target_message_id}",
+        ]
+        if quote_ids:
+            target_lines.append(f"- quote={','.join(quote_ids)}")
+        target_lines.extend(
+            [
+                f"- 时间：{target_time}",
+                f"- 用户名：{sender_name}",
+                f"- 发言内容：{target_content}",
+                "",
+                "你这次要回复的就是这条目标消息，请结合整段上下文理解，但不要把其他历史消息当成当前回复对象。",
+            ]
         )
+        return "\n".join(target_lines)
 
     @staticmethod
     def _render_target_at_component(component: AtComponent) -> str:
@@ -182,9 +193,6 @@ class BaseMaisakaReplyGenerator:
                 continue
 
             if isinstance(component, ReplyComponent):
-                target_message_id = component.target_message_id.strip()
-                if target_message_id:
-                    rendered_parts.append(f"[引用:quote_id={target_message_id}]")
                 continue
 
             if isinstance(component, AtComponent):
@@ -509,6 +517,25 @@ class BaseMaisakaReplyGenerator:
         return default
 
     @staticmethod
+    def _normalize_reply_tool_args(raw_value: Any) -> Dict[str, Any]:
+        """规范化 reply 工具透传给 replyer 的额外参数。"""
+
+        return dict(raw_value) if isinstance(raw_value, dict) else {}
+
+    @staticmethod
+    def _append_extra_prompt(reference_info: str, extra_prompt: str) -> str:
+        """将 Hook 返回的额外提示追加到本次 replyer 参考信息中。"""
+
+        normalized_reference_info = reference_info.strip()
+        normalized_extra_prompt = extra_prompt.strip()
+        if not normalized_extra_prompt:
+            return normalized_reference_info
+        extra_prompt_block = f"【额外回复要求】\n{normalized_extra_prompt}"
+        if normalized_reference_info:
+            return f"{normalized_reference_info}\n\n{extra_prompt_block}"
+        return extra_prompt_block
+
+    @staticmethod
     def _build_retry_reference_info(reference_info: str, retry_constraints: List[str]) -> str:
         normalized_reference_info = reference_info.strip()
         if not retry_constraints:
@@ -656,6 +683,8 @@ class BaseMaisakaReplyGenerator:
             result.error_message = "回复模型尚未初始化"
             return finalize(False)
 
+        active_reply_tool_args = self._normalize_reply_tool_args(reply_tool_args)
+
         try:
             reply_context = await self._build_reply_context(
                 chat_history=filtered_history,
@@ -663,7 +692,7 @@ class BaseMaisakaReplyGenerator:
                 reply_reason=reply_reason or "",
                 stream_id=stream_id,
                 sub_agent_runner=sub_agent_runner,
-                reply_tool_args=reply_tool_args or {},
+                reply_tool_args=active_reply_tool_args,
             )
         except Exception as exc:
             import traceback
@@ -698,16 +727,51 @@ class BaseMaisakaReplyGenerator:
         aggregate_prompt_tokens = 0
         aggregate_completion_tokens = 0
         aggregate_total_tokens = 0
+        default_task_name = str(getattr(self.express_model, "task_name", "") or "replyer").strip() or "replyer"
 
         while True:
             effective_reference_info = self._build_retry_reference_info(reference_info or "", retry_constraints)
+            try:
+                before_request_result = await self._get_runtime_manager().invoke_hook(
+                    "maisaka.replyer.before_request",
+                    session_id=preview_chat_id,
+                    request_type=self.request_type,
+                    task_name=default_task_name,
+                    model_name="",
+                    extra_prompt="",
+                    attempt=retry_count + 1,
+                    retry_count=retry_count,
+                    max_retries=REPLYER_MAX_HOOK_RETRIES,
+                    reply_message_id=str(reply_message.message_id if reply_message is not None else ""),
+                    reply_reason=reply_reason or "",
+                    reference_info=effective_reference_info,
+                    selected_expression_ids=list(result.selected_expression_ids),
+                    reply_tool_args=dict(active_reply_tool_args),
+                )
+                before_request_kwargs = before_request_result.kwargs
+                if isinstance(before_request_kwargs.get("reply_tool_args"), dict):
+                    active_reply_tool_args = dict(before_request_kwargs["reply_tool_args"])
+            except Exception as exc:
+                logger.warning(f"Maisaka 回复器 before_request Hook 调用失败，将继续使用当前请求参数: {exc}")
+                before_request_kwargs = {}
+
+            active_task_name = str(before_request_kwargs.get("task_name") or default_task_name).strip()
+            if not active_task_name:
+                active_task_name = default_task_name
+            active_model_name = str(before_request_kwargs.get("model_name") or "").strip() or None
+            active_reference_info = str(before_request_kwargs.get("reference_info") or effective_reference_info)
+            active_reference_info = self._append_extra_prompt(
+                active_reference_info,
+                str(before_request_kwargs.get("extra_prompt") or ""),
+            )
+
             prompt_started_at = time.perf_counter()
             try:
                 request_messages = self._build_request_messages(
                     chat_history=filtered_history,
                     reply_message=reply_message,
                     reply_reason=reply_reason or "",
-                    reference_info=effective_reference_info,
+                    reference_info=active_reference_info,
                     expression_habits=merged_expression_habits,
                     stream_id=stream_id,
                 )
@@ -727,7 +791,7 @@ class BaseMaisakaReplyGenerator:
             def message_factory(
                 _client: object,
                 model_info: Optional[ModelInfo] = None,
-                reference_info_for_attempt: str = effective_reference_info,
+                reference_info_for_attempt: str = active_reference_info,
             ) -> List[Message]:
                 nonlocal prompt_ms, prompt_preview, request_messages
                 prompt_started_at = time.perf_counter()
@@ -746,8 +810,16 @@ class BaseMaisakaReplyGenerator:
 
             llm_started_at = time.perf_counter()
             try:
-                generation_result = await self.express_model.generate_response_with_messages(
-                    message_factory=message_factory
+                active_model = self.express_model
+                if active_task_name != default_task_name:
+                    active_model = self._llm_client_cls(
+                        task_name=active_task_name,
+                        request_type=self.request_type,
+                        session_id=preview_chat_id,
+                    )
+                generation_result = await active_model.generate_response_with_messages(
+                    message_factory=message_factory,
+                    options=LLMGenerationOptions(model_name=active_model_name),
                 )
             except Exception as exc:
                 logger.exception("Maisaka 回复器调用失败")
@@ -799,11 +871,14 @@ class BaseMaisakaReplyGenerator:
                     response=response_text,
                     session_id=preview_chat_id,
                     request_type=self.request_type,
+                    task_name=active_task_name,
+                    requested_model_name=active_model_name or "",
                     attempt=retry_count + 1,
                     retry_count=retry_count,
                     max_retries=REPLYER_MAX_HOOK_RETRIES,
                     reply_message_id=str(reply_message.message_id if reply_message is not None else ""),
                     selected_expression_ids=list(result.selected_expression_ids),
+                    reply_tool_args=dict(active_reply_tool_args),
                     prompt_tokens=generation_result.prompt_tokens,
                     completion_tokens=generation_result.completion_tokens,
                     total_tokens=generation_result.total_tokens,
@@ -932,6 +1007,8 @@ class BaseMaisakaReplyGenerator:
         result.metrics.extra["replyer_aggregate_prompt_tokens"] = aggregate_prompt_tokens
         result.metrics.extra["replyer_aggregate_completion_tokens"] = aggregate_completion_tokens
         result.metrics.extra["replyer_aggregate_total_tokens"] = aggregate_total_tokens
+        if result.selected_expression_ids and merged_expression_habits.strip():
+            result.metrics.extra["selected_expression_habits"] = merged_expression_habits.strip()
         if retry_reasons:
             result.metrics.extra["replyer_retry_reasons"] = list(retry_reasons)
         if retry_events:

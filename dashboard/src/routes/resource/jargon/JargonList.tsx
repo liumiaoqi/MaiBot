@@ -46,6 +46,22 @@ function renderJargonStatus(isJargon: boolean | null) {
   }
 }
 
+function renderCreatedBy(createdBy: Jargon['created_by']) {
+  return createdBy === 'MANUAL' ? (
+    <Badge variant="outline">手动</Badge>
+  ) : (
+    <Badge variant="secondary">AI</Badge>
+  )
+}
+
+function formatJargonChatDisplay(jargon: Jargon) {
+  const chatNames = jargon.chat_names?.length ? jargon.chat_names : []
+  if (chatNames.length > 0) {
+    return chatNames.join('、')
+  }
+  return jargon.chat_name || jargon.session_id
+}
+
 /**
  * 黑话列表组件（桁面端表格 + 移动端卡片 + 分页）
  */
@@ -126,11 +142,16 @@ export function JargonList({
                     {jargon.meaning || <span className="text-muted-foreground">-</span>}
                   </TableCell>
                   {!hideChatColumn && (
-                    <TableCell className="max-w-[150px] truncate" title={jargon.chat_name || jargon.chat_id}>
-                      {jargon.chat_name || jargon.chat_id}
+                    <TableCell className="max-w-[150px] truncate" title={formatJargonChatDisplay(jargon)}>
+                      {formatJargonChatDisplay(jargon)}
                     </TableCell>
                   )}
-                  <TableCell>{renderJargonStatus(jargon.is_jargon)}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {renderJargonStatus(jargon.is_jargon)}
+                      {renderCreatedBy(jargon.created_by)}
+                    </div>
+                  </TableCell>
                   <TableCell className="text-center">{jargon.count}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
@@ -193,11 +214,12 @@ export function JargonList({
                   )}
                   <div className="flex flex-wrap items-center gap-2 text-xs">
                     {renderJargonStatus(jargon.is_jargon)}
+                    {renderCreatedBy(jargon.created_by)}
                     <span className="text-muted-foreground">次数: {jargon.count}</span>
                   </div>
                   {!hideChatColumn && (
                     <div className="text-xs text-muted-foreground truncate">
-                      聊天: {jargon.chat_name || jargon.chat_id}
+                      聊天: {formatJargonChatDisplay(jargon)}
                     </div>
                   )}
                 </div>
