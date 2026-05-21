@@ -35,6 +35,7 @@ class LLMServiceRequest(BaseDataModel):
     request_type: str
     prompt: PromptInput | None = None
     message_factory: MessageFactory | None = None
+    model_name: str | None = None
     tool_options: List[ToolDefinitionInput] | None = None
     temperature: float | None = None
     max_tokens: int | None = None
@@ -153,6 +154,7 @@ class LLMGenerationOptions(BaseDataModel):
 
     temperature: float | None = None
     max_tokens: int | None = None
+    model_name: str | None = None
     tool_options: List[ToolDefinitionInput] | None = None
     response_format: RespFormat | None = None
     interrupt_flag: asyncio.Event | None = None

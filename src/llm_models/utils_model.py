@@ -308,6 +308,7 @@ class LLMOrchestrator:
         prompt: str,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        model_name: Optional[str] = None,
         tools: List[ToolDefinitionInput] | None = None,
         response_format: RespFormat | None = None,
         raise_when_empty: bool = True,
@@ -343,6 +344,7 @@ class LLMOrchestrator:
             message_factory=message_factory,
             temperature=temperature,
             max_tokens=max_tokens,
+            model_name=model_name,
             tool_options=tool_built,
             response_format=response_format,
             interrupt_flag=interrupt_flag,
@@ -381,6 +383,7 @@ class LLMOrchestrator:
         message_factory: Callable[[BaseClient], List[Message]],
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        model_name: Optional[str] = None,
         tools: List[ToolDefinitionInput] | None = None,
         response_format: RespFormat | None = None,
         raise_when_empty: bool = True,
@@ -411,6 +414,7 @@ class LLMOrchestrator:
             message_factory=message_factory,
             temperature=temperature,
             max_tokens=max_tokens,
+            model_name=model_name,
             tool_options=tool_built,
             response_format=response_format,
             interrupt_flag=interrupt_flag,
@@ -668,7 +672,11 @@ class LLMOrchestrator:
             )
         raise ValueError(f"不支持的请求类型: {request_type}")
 
-    def _select_model(self, exclude_models: Optional[Set[str]] = None) -> Tuple[ModelInfo, APIProvider, BaseClient]:
+    def _select_model(
+        self,
+        exclude_models: Optional[Set[str]] = None,
+        model_name: Optional[str] = None,
+    ) -> Tuple[ModelInfo, APIProvider, BaseClient]:
         """根据策略选择一个可用模型。
 
         Args:
@@ -683,6 +691,15 @@ class LLMOrchestrator:
             for model, scores in self.model_usage.items()
             if not exclude_models or model not in exclude_models
         }
+        requested_model_name = str(model_name or "").strip()
+        if requested_model_name:
+            if exclude_models and requested_model_name in exclude_models:
+                raise RuntimeError(f"指定模型 '{requested_model_name}' 已在本次请求中尝试失败")
+            TempMethodsLLMUtils.get_model_info_by_name(requested_model_name)
+            if requested_model_name not in self.model_usage:
+                self.model_usage[requested_model_name] = (0, 0, 0)
+            available_models = {requested_model_name: self.model_usage.get(requested_model_name, (0, 0, 0))}
+
         if not available_models:
             raise RuntimeError("没有可用的模型可供选择。所有模型均已尝试失败。")
 
@@ -690,7 +707,9 @@ class LLMOrchestrator:
 
         strategy = self.model_for_task.selection_strategy.strip().lower()
 
-        if strategy == "random":
+        if requested_model_name:
+            selected_model_name = requested_model_name
+        elif strategy == "random":
             # 随机选择策略
             selected_model_name = random.choice(list(available_models.keys()))
         elif strategy == "sequential":
@@ -918,6 +937,7 @@ class LLMOrchestrator:
         async_response_parser: Optional[Callable[..., Any]] = None,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        model_name: Optional[str] = None,
         embedding_input: str | None = None,
         audio_base64: str | None = None,
         interrupt_flag: asyncio.Event | None = None,
@@ -941,11 +961,14 @@ class LLMOrchestrator:
             LLMExecutionResult: 单次模型执行结果对象。
         """
         failed_models_this_request: Set[str] = set()
-        max_attempts = len(self.model_for_task.model_list)
+        max_attempts = 1 if str(model_name or "").strip() else len(self.model_for_task.model_list)
         last_exception: Optional[Exception] = None
 
         for _ in range(max_attempts):
-            model_info, api_provider, client = self._select_model(exclude_models=failed_models_this_request)
+            model_info, api_provider, client = self._select_model(
+                exclude_models=failed_models_this_request,
+                model_name=model_name,
+            )
             message_list = []
             if message_factory:
                 parameter_count = len(inspect.signature(message_factory).parameters)
