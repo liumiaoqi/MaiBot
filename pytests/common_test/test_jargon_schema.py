@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine
 
-from src.common.database.database_model import Jargon
+from src.common.database.database_model import Jargon, JargonCreatedBy
 
 
 @pytest.fixture(name="jargon_engine")
@@ -45,6 +45,10 @@ def test_jargon_insert_assigns_auto_increment_id(jargon_engine) -> None:
 
     assert jargon.id is not None
     assert jargon.id > 0
+    assert jargon.created_timestamp is not None
+    assert jargon.updated_timestamp is not None
+    assert jargon.updated_timestamp >= jargon.created_timestamp
+    assert jargon.created_by == JargonCreatedBy.AI
 
 
 def test_jargon_insert_allows_same_content_with_different_rows(jargon_engine) -> None:
@@ -82,3 +86,25 @@ def test_jargon_insert_allows_same_content_with_different_rows(jargon_engine) ->
     assert first_jargon.id is not None
     assert second_jargon.id is not None
     assert first_jargon.id != second_jargon.id
+
+
+def test_jargon_insert_accepts_manual_created_by(jargon_engine) -> None:
+    """手动黑话应能保存 MANUAL 创建来源。"""
+    with Session(jargon_engine) as session:
+        jargon = Jargon(
+            content="手动黑话",
+            raw_content=None,
+            meaning="手动录入的含义",
+            session_id_dict='{"session-a": 1}',
+            count=0,
+            is_jargon=True,
+            is_complete=False,
+            is_global=False,
+            last_inference_count=0,
+            created_by=JargonCreatedBy.MANUAL,
+        )
+        session.add(jargon)
+        session.commit()
+        session.refresh(jargon)
+
+    assert jargon.created_by == JargonCreatedBy.MANUAL

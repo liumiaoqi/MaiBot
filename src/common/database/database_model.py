@@ -21,6 +21,11 @@ class ModifiedBy(str, Enum):
     USER = "USER"
 
 
+class JargonCreatedBy(str, Enum):
+    AI = "AI"
+    MANUAL = "MANUAL"
+
+
 class Messages(SQLModel, table=True):
     __tablename__ = "mai_messages"  # type: ignore
     id: Optional[int] = Field(default=None, primary_key=True)  # 自增主键
@@ -286,12 +291,14 @@ class Jargon(SQLModel, table=True):
     is_complete: bool = Field(default=False)  # 是否为已经完成全部推断（count > 100后不再推断）
     is_global: bool = Field(default=False)  # 是否为全局黑话（独立于session_id_dict）
     last_inference_count: int = Field(default=0)  # 上一次进行推断时的count值，用于判断是否需要重新推断
-    inference_with_context: Optional[str] = Field(
-        default=None, sa_column=Column(Text, nullable=True)
-    )  # 带上下文的推断结果，JSON格式
-    inference_with_content_only: Optional[str] = Field(
-        default=None, sa_column=Column(Text, nullable=True)
-    )  # 只基于词条的推断结果，JSON格式
+    created_by: JargonCreatedBy = Field(
+        default=JargonCreatedBy.AI,
+        sa_column=Column(SQLEnum(JargonCreatedBy), nullable=False),
+    )  # 创建来源，AI 表示自动学习，MANUAL 表示手动创建
+    created_timestamp: datetime = Field(default_factory=datetime.now, sa_column=Column(DateTime, index=True))
+    updated_timestamp: datetime = Field(default_factory=datetime.now, sa_column=Column(DateTime, index=True))
+
+
 class ChatHistory(SQLModel, table=True):
     """存储聊天历史记录的模型"""
 

@@ -1,15 +1,18 @@
 """测试 jargon 路由的完整性和正确性"""
 
-import json
+from contextlib import contextmanager
 from datetime import datetime
+from types import SimpleNamespace
+import json
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.pool import StaticPool
-from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel import Session, SQLModel, create_engine, select
 
-from src.common.database.database_model import ChatSession, Jargon
+from src.common.database.database_model import ChatSession, Jargon, JargonCreatedBy
+from src.webui.dependencies import require_auth
 from src.webui.routers.jargon import router as jargon_router
 
 
@@ -17,6 +20,7 @@ from src.webui.routers.jargon import router as jargon_router
 def app_fixture():
     app = FastAPI()
     app.include_router(jargon_router, prefix="/api/webui")
+    app.dependency_overrides[require_auth] = lambda: "test-token"
     return app
 
 
@@ -46,13 +50,17 @@ def session_fixture(engine):
 
 @pytest.fixture(name="client", scope="function")
 def client_fixture(app: FastAPI, session: Session, monkeypatch):
-    from contextlib import contextmanager
-
     @contextmanager
-    def mock_get_db_session():
+    def mock_get_db_session(auto_commit: bool = True):
         yield session
+        if auto_commit:
+            session.commit()
 
     monkeypatch.setattr("src.webui.routers.jargon.get_db_session", mock_get_db_session)
+    monkeypatch.setattr(
+        "src.webui.routers.jargon._chat_manager.get_existing_session_by_session_id",
+        lambda chat_id: SimpleNamespace(session_id=chat_id),
+    )
 
     with TestClient(app) as client:
         yield client
@@ -65,6 +73,7 @@ def sample_chat_session_fixture(session: Session):
         session_id="test_stream_001",
         platform="qq",
         group_id="123456789",
+        group_name="测试群",
         user_id=None,
         created_timestamp=datetime.now(),
         last_active_timestamp=datetime.now(),
@@ -84,7 +93,7 @@ def sample_jargons_fixture(session: Session, sample_chat_session: ChatSession):
             content="yyds",
             raw_content="永远的神",
             meaning="永远的神",
-            session_id=sample_chat_session.session_id,
+            session_id_dict=json.dumps({sample_chat_session.session_id: 10}),
             count=10,
             is_jargon=True,
             is_complete=False,
@@ -94,7 +103,7 @@ def sample_jargons_fixture(session: Session, sample_chat_session: ChatSession):
             content="awsl",
             raw_content="啊我死了",
             meaning="啊我死了",
-            session_id=sample_chat_session.session_id,
+            session_id_dict=json.dumps({sample_chat_session.session_id: 5}),
             count=5,
             is_jargon=True,
             is_complete=False,
@@ -104,7 +113,7 @@ def sample_jargons_fixture(session: Session, sample_chat_session: ChatSession):
             content="hello",
             raw_content=None,
             meaning="你好",
-            session_id=sample_chat_session.session_id,
+            session_id_dict=json.dumps({sample_chat_session.session_id: 2}),
             count=2,
             is_jargon=False,
             is_complete=False,
@@ -169,16 +178,16 @@ def test_list_jargons_with_search(client: TestClient, sample_jargons):
     assert data["data"][0]["content"] == "hello"
 
 
-def test_list_jargons_with_chat_id_filter(client: TestClient, sample_jargons, sample_chat_session: ChatSession):
-    """测试按 chat_id 筛选"""
-    response = client.get(f"/api/webui/jargon/list?chat_id={sample_chat_session.session_id}")
+def test_list_jargons_with_session_id_filter(client: TestClient, sample_jargons, sample_chat_session: ChatSession):
+    """测试按 session_id 筛选"""
+    response = client.get(f"/api/webui/jargon/list?session_id={sample_chat_session.session_id}")
     assert response.status_code == 200
 
     data = response.json()
     assert data["total"] == 3
 
-    # 测试不存在的 chat_id
-    response = client.get("/api/webui/jargon/list?chat_id=nonexistent")
+    # 测试不存在的 session_id
+    response = client.get("/api/webui/jargon/list?session_id=nonexistent")
     assert response.status_code == 200
     data = response.json()
     assert data["total"] == 0
@@ -222,14 +231,13 @@ def test_get_jargon_detail_not_found(client: TestClient):
     assert "黑话不存在" in response.json()["detail"]
 
 
-@pytest.mark.skip(reason="Composite PK (id+content) prevents autoincrement - database model issue")
 def test_create_jargon(client: TestClient, sample_chat_session: ChatSession):
     """测试 POST /jargon/ 创建黑话"""
     request_data = {
         "content": "新黑话",
         "raw_content": "原始内容",
         "meaning": "含义",
-        "chat_id": sample_chat_session.session_id,
+        "session_id": sample_chat_session.session_id,
     }
 
     response = client.post("/api/webui/jargon/", json=request_data)
@@ -241,21 +249,105 @@ def test_create_jargon(client: TestClient, sample_chat_session: ChatSession):
     assert data["data"]["content"] == "新黑话"
     assert data["data"]["meaning"] == "含义"
     assert data["data"]["count"] == 0
-    assert data["data"]["is_jargon"] is None
+    assert data["data"]["is_jargon"] is True
     assert data["data"]["is_complete"] is False
+    assert data["data"]["created_by"] == JargonCreatedBy.MANUAL.value
+    assert data["data"]["session_ids"] == [sample_chat_session.session_id]
 
 
-def test_create_duplicate_jargon(client: TestClient, sample_jargons, sample_chat_session: ChatSession):
-    """测试创建重复黑话返回 400"""
+def test_create_manual_jargon_replaces_overlapping_ai_jargon(
+    client: TestClient,
+    sample_jargons,
+    sample_chat_session: ChatSession,
+    session: Session,
+):
+    """手动创建同名黑话时，应替换同作用域内的 AI 记录。"""
     request_data = {
         "content": "yyds",
-        "meaning": "重复的",
-        "chat_id": sample_chat_session.session_id,
+        "meaning": "手动含义",
+        "session_id": sample_chat_session.session_id,
     }
 
     response = client.post("/api/webui/jargon/", json=request_data)
+    assert response.status_code == 200
+
+    data = response.json()["data"]
+    assert data["content"] == "yyds"
+    assert data["meaning"] == "手动含义"
+    assert data["created_by"] == JargonCreatedBy.MANUAL.value
+    assert data["is_jargon"] is True
+
+    remaining_jargons = session.exec(select(Jargon).where(Jargon.content == "yyds")).all()
+    assert len(remaining_jargons) == 1
+    assert remaining_jargons[0].created_by == JargonCreatedBy.MANUAL
+
+
+def test_create_jargon_accepts_multiple_session_ids(
+    client: TestClient,
+    sample_chat_session: ChatSession,
+    session: Session,
+):
+    """新增黑话应支持一次关联多个聊天流。"""
+    second_chat_session = ChatSession(
+        session_id="test_stream_002",
+        platform="qq",
+        group_id="987654321",
+        group_name="第二测试群",
+        user_id=None,
+        created_timestamp=datetime.now(),
+        last_active_timestamp=datetime.now(),
+    )
+    session.add(second_chat_session)
+    session.commit()
+
+    request_data = {
+        "content": "多群黑话",
+        "meaning": "多个聊天共用的含义",
+        "session_ids": [sample_chat_session.session_id, second_chat_session.session_id],
+    }
+
+    response = client.post("/api/webui/jargon/", json=request_data)
+    assert response.status_code == 200
+
+    data = response.json()["data"]
+    assert data["session_id"] == sample_chat_session.session_id
+    assert data["session_ids"] == [sample_chat_session.session_id, second_chat_session.session_id]
+    assert data["chat_names"] == [sample_chat_session.group_name, second_chat_session.group_name]
+    assert data["created_by"] == JargonCreatedBy.MANUAL.value
+
+
+def test_create_duplicate_manual_jargon_returns_400(
+    client: TestClient,
+    sample_chat_session: ChatSession,
+    session: Session,
+):
+    """同范围已有手动黑话时，不应继续创建重复手动记录。"""
+    session.add(
+        Jargon(
+            content="手动重复",
+            raw_content=None,
+            meaning="旧含义",
+            session_id_dict=json.dumps({sample_chat_session.session_id: 1}),
+            count=0,
+            is_jargon=True,
+            is_complete=False,
+            is_global=False,
+            created_by=JargonCreatedBy.MANUAL,
+        )
+    )
+    session.commit()
+
+    response = client.post(
+        "/api/webui/jargon/",
+        json={
+            "content": "手动重复",
+            "meaning": "新含义",
+            "session_id": sample_chat_session.session_id,
+        },
+    )
+
     assert response.status_code == 400
-    assert "已存在相同内容的黑话" in response.json()["detail"]
+    assert "已存在相同内容的手动黑话" in response.json()["detail"]
 
 
 def test_update_jargon(client: TestClient, sample_jargons):
@@ -277,11 +369,11 @@ def test_update_jargon(client: TestClient, sample_jargons):
     assert data["data"]["content"] == "yyds"  # 未改变的字段保持不变
 
 
-def test_update_jargon_with_chat_id_mapping(client: TestClient, sample_jargons):
-    """测试更新时 chat_id → session_id 的映射"""
+def test_update_jargon_with_session_id_mapping(client: TestClient, sample_jargons):
+    """测试更新时切换 session_id 归属"""
     jargon_id = sample_jargons[0].id
     update_data = {
-        "chat_id": "new_session_id",
+        "session_id": "new_session_id",
     }
 
     response = client.patch(f"/api/webui/jargon/{jargon_id}", json=update_data)
@@ -289,7 +381,7 @@ def test_update_jargon_with_chat_id_mapping(client: TestClient, sample_jargons):
 
     data = response.json()
     assert data["success"] is True
-    assert data["data"]["chat_id"] == "new_session_id"
+    assert data["data"]["session_id"] == "new_session_id"
 
 
 def test_update_jargon_not_found(client: TestClient):
@@ -393,20 +485,64 @@ def test_get_chat_list(client: TestClient, sample_jargons, sample_chat_session: 
     assert len(data["data"]) == 1
 
     chat_info = data["data"][0]
-    assert chat_info["chat_id"] == sample_chat_session.session_id
+    assert chat_info["session_id"] == sample_chat_session.session_id
+    assert "chat_id" not in chat_info
     assert chat_info["platform"] == "qq"
     assert chat_info["is_group"] is True
-    assert chat_info["chat_name"] == sample_chat_session.group_id
+    assert chat_info["chat_name"] == sample_chat_session.group_name
 
 
-def test_get_chat_list_with_json_chat_id(client: TestClient, session: Session, sample_chat_session: ChatSession):
-    """测试解析 JSON 格式的 chat_id"""
-    json_chat_id = json.dumps([[sample_chat_session.session_id, "user123"]])
+def test_get_chat_list_includes_chat_session_without_jargon(client: TestClient, sample_chat_session: ChatSession):
+    """聊天流没有黑话记录时，默认不出现在侧边栏，但仍可用于新增黑话下拉选项。"""
+    response = client.get("/api/webui/jargon/chats")
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["success"] is True
+    assert data["data"] == []
+
+    response = client.get("/api/webui/jargon/chats?include_empty=true")
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["success"] is True
+    assert data["data"] == [
+        {
+            "session_id": sample_chat_session.session_id,
+            "chat_name": sample_chat_session.group_name,
+            "platform": sample_chat_session.platform,
+            "is_group": True,
+        }
+    ]
+
+
+def test_get_chat_list_excludes_global_only_jargon(client: TestClient, session: Session, sample_chat_session: ChatSession):
+    """侧边栏聊天列表只按非全局黑话归属显示聊天流。"""
+    jargon = Jargon(
+        id=99,
+        content="全局黑话",
+        meaning="全局",
+        session_id_dict=json.dumps({sample_chat_session.session_id: 1}),
+        count=1,
+        is_global=True,
+    )
+    session.add(jargon)
+    session.commit()
+
+    response = client.get("/api/webui/jargon/chats")
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["data"] == []
+
+
+def test_get_chat_list_with_session_id_dict(client: TestClient, session: Session, sample_chat_session: ChatSession):
+    """测试解析 session_id_dict 格式的聊天流归属"""
     jargon = Jargon(
         id=100,
         content="测试黑话",
         meaning="测试",
-        session_id=json_chat_id,
+        session_id_dict=json.dumps({sample_chat_session.session_id: 1}),
         count=1,
     )
     session.add(jargon)
@@ -417,7 +553,7 @@ def test_get_chat_list_with_json_chat_id(client: TestClient, session: Session, s
 
     data = response.json()
     assert len(data["data"]) == 1
-    assert data["data"][0]["chat_id"] == sample_chat_session.session_id
+    assert data["data"][0]["session_id"] == sample_chat_session.session_id
 
 
 def test_get_chat_list_without_chat_session(client: TestClient, session: Session):
@@ -426,7 +562,7 @@ def test_get_chat_list_without_chat_session(client: TestClient, session: Session
         id=101,
         content="孤立黑话",
         meaning="无对应会话",
-        session_id="nonexistent_stream_id",
+        session_id_dict=json.dumps({"nonexistent_stream_id": 1}),
         count=1,
     )
     session.add(jargon)
@@ -437,7 +573,7 @@ def test_get_chat_list_without_chat_session(client: TestClient, session: Session
 
     data = response.json()
     assert len(data["data"]) == 1
-    assert data["data"][0]["chat_id"] == "nonexistent_stream_id"
+    assert data["data"][0]["session_id"] == "nonexistent_stream_id"
     assert data["data"][0]["chat_name"] == "nonexistent_stream_id"[:20]
     assert data["data"][0]["platform"] is None
     assert data["data"][0]["is_group"] is False
@@ -456,28 +592,37 @@ def test_jargon_response_fields(client: TestClient, sample_jargons, sample_chat_
         "content",
         "raw_content",
         "meaning",
-        "chat_id",
-        "stream_id",
+        "session_id",
+        "session_ids",
         "chat_name",
+        "chat_names",
         "count",
         "is_jargon",
         "is_complete",
-        "inference_with_context",
-        "inference_content_only",
+        "is_global",
+        "created_by",
+        "created_timestamp",
+        "updated_timestamp",
     ]
     for field in required_fields:
         assert field in data
+    assert "chat_id" not in data
+    assert "stream_id" not in data
+    assert "inference_with_context" not in data
+    assert "inference_content_only" not in data
+    assert datetime.fromisoformat(data["created_timestamp"])
+    assert datetime.fromisoformat(data["updated_timestamp"])
+    assert data["created_by"] == JargonCreatedBy.AI.value
 
     # 验证 chat_name 显示逻辑
-    assert data["chat_name"] == sample_chat_session.group_id
+    assert data["chat_name"] == sample_chat_session.group_name
 
 
-@pytest.mark.skip(reason="Composite PK (id+content) prevents autoincrement - database model issue")
 def test_create_jargon_without_optional_fields(client: TestClient, sample_chat_session: ChatSession):
     """测试创建黑话时可选字段为空"""
     request_data = {
         "content": "简单黑话",
-        "chat_id": sample_chat_session.session_id,
+        "session_id": sample_chat_session.session_id,
     }
 
     response = client.post("/api/webui/jargon/", json=request_data)
@@ -486,6 +631,8 @@ def test_create_jargon_without_optional_fields(client: TestClient, sample_chat_s
     data = response.json()["data"]
     assert data["raw_content"] is None
     assert data["meaning"] == ""
+    assert data["is_jargon"] is True
+    assert data["created_by"] == JargonCreatedBy.MANUAL.value
 
 
 def test_update_jargon_partial_fields(client: TestClient, sample_jargons):
@@ -504,7 +651,7 @@ def test_update_jargon_partial_fields(client: TestClient, sample_jargons):
 
 def test_list_jargons_multiple_filters(client: TestClient, sample_jargons, sample_chat_session: ChatSession):
     """测试组合多个过滤条件"""
-    response = client.get(f"/api/webui/jargon/list?search=永远&chat_id={sample_chat_session.session_id}&is_jargon=true")
+    response = client.get(f"/api/webui/jargon/list?search=永远&session_id={sample_chat_session.session_id}&is_jargon=true")
     assert response.status_code == 200
 
     data = response.json()

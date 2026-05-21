@@ -67,6 +67,7 @@ export function JargonManagementPage() {
     top_chats: {},
   })
   const [chatList, setChatList] = useState<JargonChatInfo[]>([])
+  const [formChatList, setFormChatList] = useState<JargonChatInfo[]>([])
   const { toast } = useToast()
 
   // 加载黑话列表
@@ -77,7 +78,7 @@ export function JargonManagementPage() {
         page,
         page_size: pageSize,
         search: search || undefined,
-        chat_id: scopeFilter !== 'global' && filterChatId !== 'all' ? filterChatId : undefined,
+        session_id: scopeFilter !== 'global' && filterChatId !== 'all' ? filterChatId : undefined,
         is_jargon: filterIsJargon === 'all' ? undefined : filterIsJargon === 'true' ? true : filterIsJargon === 'false' ? false : undefined,
         is_global: scopeFilter === 'all' ? undefined : scopeFilter === 'global',
       })
@@ -109,9 +110,15 @@ export function JargonManagementPage() {
   // 加载聊天列表
   const loadChatList = async () => {
     try {
-      const response = await getJargonChatList()
-      if (response?.data) {
-        setChatList(response.data)
+      const [sidebarResponse, formResponse] = await Promise.all([
+        getJargonChatList(),
+        getJargonChatList({ include_empty: true }),
+      ])
+      if (sidebarResponse?.data) {
+        setChatList(sidebarResponse.data)
+      }
+      if (formResponse?.data) {
+        setFormChatList(formResponse.data)
       }
     } catch (error) {
       console.error('加载聊天列表失败:', error)
@@ -158,6 +165,7 @@ export function JargonManagementPage() {
       setDeleteConfirmJargon(null)
       loadJargons()
       loadStats()
+      loadChatList()
     } catch (error) {
       toast({
         title: '删除失败',
@@ -199,6 +207,7 @@ export function JargonManagementPage() {
       setIsBatchDeleteDialogOpen(false)
       loadJargons()
       loadStats()
+      loadChatList()
     } catch (error) {
       toast({
         title: '批量删除失败',
@@ -444,23 +453,23 @@ export function JargonManagementPage() {
                     </button>
                     {chatList.map((chat) => (
                       <button
-                        key={chat.chat_id}
+                        key={chat.session_id}
                         type="button"
-                        onClick={() => handleChatChange(chat.chat_id)}
+                        onClick={() => handleChatChange(chat.session_id)}
                         className={`w-full rounded-md px-2 py-2 text-left text-sm transition-colors ${
-                          filterChatId === chat.chat_id
+                          filterChatId === chat.session_id
                             ? 'bg-primary text-primary-foreground'
                             : 'text-foreground hover:bg-muted'
                         }`}
-                        title={`${chat.chat_name} (${chat.chat_id})`}
+                        title={`${chat.chat_name} (${chat.session_id})`}
                       >
                         <span className="block truncate">{chat.chat_name}</span>
                         <span
                           className={`block truncate text-xs ${
-                            filterChatId === chat.chat_id ? 'text-primary-foreground/75' : 'text-muted-foreground'
+                            filterChatId === chat.session_id ? 'text-primary-foreground/75' : 'text-muted-foreground'
                           }`}
                         >
-                          {chat.chat_id}
+                          {chat.session_id}
                         </span>
                       </button>
                     ))}
@@ -500,10 +509,11 @@ export function JargonManagementPage() {
       <JargonCreateDialog
         open={isCreateDialogOpen}
         onOpenChange={setIsCreateDialogOpen}
-        chatList={chatList}
+        chatList={formChatList}
         onSuccess={() => {
           loadJargons()
           loadStats()
+          loadChatList()
           setIsCreateDialogOpen(false)
         }}
       />
@@ -513,10 +523,11 @@ export function JargonManagementPage() {
         jargon={selectedJargon}
         open={isEditDialogOpen}
         onOpenChange={setIsEditDialogOpen}
-        chatList={chatList}
+        chatList={formChatList}
         onSuccess={() => {
           loadJargons()
           loadStats()
+          loadChatList()
           setIsEditDialogOpen(false)
         }}
       />
