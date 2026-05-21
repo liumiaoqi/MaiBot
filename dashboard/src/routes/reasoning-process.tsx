@@ -37,6 +37,7 @@ import { cn } from '@/lib/utils'
 
 const PAGE_SIZE = 50
 const AUTO_SESSION = 'auto'
+const PRIMARY_STAGE_NAMES = ['timing_gate', 'planner', 'replyer']
 const STAGE_LABELS: Record<string, string> = {
   emotion: '情绪分析',
   expression_learner: '表达学习',
@@ -125,6 +126,16 @@ export function ReasoningProcessPage() {
     if (stageInfos.length > 0) return stageInfos
     return stages.map((name) => ({ name, session_count: 0, latest_modified_at: 0 }))
   }, [stageInfos, stages])
+  const primaryStageCards = useMemo(() => {
+    const stageInfoByName = new Map(stageCards.map((item) => [item.name, item]))
+    return PRIMARY_STAGE_NAMES.flatMap((name) => {
+      const item = stageInfoByName.get(name)
+      return item ? [item] : []
+    })
+  }, [stageCards])
+  const secondaryStageCards = useMemo(() => {
+    return stageCards.filter((item) => !PRIMARY_STAGE_NAMES.includes(item.name))
+  }, [stageCards])
   const sessionInfoByName = useMemo(() => {
     return new Map(sessionInfos.map((item) => [item.name, item]))
   }, [sessionInfos])
@@ -302,6 +313,31 @@ export function ReasoningProcessPage() {
   }
 
   const selectedSessionInfo = selected ? sessionInfoByName.get(selected.session_id) : undefined
+  const renderStageCard = (item: ReasoningPromptStageInfo, compact = false) => (
+    <button
+      key={item.name}
+      type="button"
+      onClick={() => enterStage(item.name)}
+      className={cn(
+        'flex flex-col justify-between rounded-md border text-left transition-colors',
+        'hover:border-primary hover:bg-primary/10 focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none',
+        compact ? 'min-h-20 p-3' : 'min-h-32 p-4'
+      )}
+    >
+      <div className={compact ? 'space-y-1.5' : 'space-y-2'}>
+        <Badge variant="secondary" className="w-fit">
+          {item.name}
+        </Badge>
+        <div className={cn('text-foreground font-semibold', compact ? 'text-sm' : 'text-base')}>
+          {formatStageName(item.name)}
+        </div>
+      </div>
+      <div className={cn('text-muted-foreground text-xs', compact ? 'mt-2' : 'mt-4')}>
+        {item.session_count} 个会话
+        {item.latest_modified_at > 0 ? ` · 最新 ${formatTime(null, item.latest_modified_at)}` : ''}
+      </div>
+    </button>
+  )
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden p-3 lg:p-4">
@@ -369,7 +405,7 @@ export function ReasoningProcessPage() {
               value={search}
               onChange={(event) => resetToFirstPage(() => setSearch(event.target.value))}
               className="pl-9"
-              placeholder="搜索会话显示名、真实会话或文件名"
+              placeholder="搜索会话显示名、真实会话、文件名或 replyer 回复内容"
             />
           </div>
         </div>
@@ -388,35 +424,21 @@ export function ReasoningProcessPage() {
             <div className="text-sm font-medium">选择推理类型</div>
           </div>
           <ScrollArea className="min-h-0 flex-1">
-            <div className="grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-3">
-              {stageCards.map((item) => (
-                <button
-                  key={item.name}
-                  type="button"
-                  onClick={() => enterStage(item.name)}
-                  className={cn(
-                    'flex min-h-32 flex-col justify-between rounded-md border p-4 text-left transition-colors',
-                    'hover:border-primary hover:bg-primary/10 focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none'
-                  )}
-                >
-                  <div className="space-y-2">
-                    <Badge variant="secondary" className="w-fit">
-                      {item.name}
-                    </Badge>
-                    <div className="text-foreground text-base font-semibold">
-                      {formatStageName(item.name)}
-                    </div>
+            <div className="space-y-4 p-3">
+              {primaryStageCards.length > 0 && (
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {primaryStageCards.map((item) => renderStageCard(item))}
+                </div>
+              )}
+              {secondaryStageCards.length > 0 && (
+                <div className="border-t pt-3">
+                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                    {secondaryStageCards.map((item) => renderStageCard(item, true))}
                   </div>
-                  <div className="text-muted-foreground mt-4 text-xs">
-                    {item.session_count} 个会话
-                    {item.latest_modified_at > 0
-                      ? ` · 最新 ${formatTime(null, item.latest_modified_at)}`
-                      : ''}
-                  </div>
-                </button>
-              ))}
+                </div>
+              )}
               {!loading && stageCards.length === 0 && (
-                <div className="text-muted-foreground col-span-full px-3 py-10 text-center text-sm">
+                <div className="text-muted-foreground px-3 py-10 text-center text-sm">
                   没有找到推理过程类型
                 </div>
               )}
@@ -439,12 +461,6 @@ export function ReasoningProcessPage() {
                     selected?.stage === item.stage &&
                     selected?.session_id === item.session_id &&
                     selected?.stem === item.stem
-                  const itemSessionInfo = sessionInfoByName.get(item.session_id)
-                  const sessionDisplayName = getSessionDisplayName(
-                    item.session_id,
-                    itemSessionInfo,
-                    item.session_display_name
-                  )
                   return (
                     <button
                       key={`${item.stage}/${item.session_id}/${item.stem}`}
@@ -466,15 +482,20 @@ export function ReasoningProcessPage() {
                           {formatTime(item.timestamp, item.modified_at)}
                         </span>
                       </div>
-                      <div className="truncate font-medium" title={sessionDisplayName}>
-                        {sessionDisplayName}
-                      </div>
                       {item.stage === 'replyer' && item.output_preview && (
                         <div
                           className="text-foreground line-clamp-2 text-sm"
                           title={item.output_preview}
                         >
                           {item.output_preview}
+                        </div>
+                      )}
+                      {(item.stage === 'planner' || item.stage === 'timing_gate') && item.action_preview && (
+                        <div
+                          className="text-foreground line-clamp-2 text-sm"
+                          title={item.action_preview}
+                        >
+                          {item.action_preview}
                         </div>
                       )}
                       <div className="text-muted-foreground flex items-center justify-between gap-2 text-xs">
