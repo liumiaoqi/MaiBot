@@ -162,7 +162,7 @@ export function ExpressionReviewLogPanel({ onRescued }: ExpressionReviewLogPanel
         </div>
       </div>
 
-      <div className="hidden min-h-0 flex-1 md:block">
+      <div className="hidden min-h-0 flex-1 overflow-y-auto overflow-x-auto md:block">
         <Table aria-label="表达方式 AI 审核记录">
           <TableHeader>
             <TableRow>
@@ -239,7 +239,7 @@ export function ExpressionReviewLogPanel({ onRescued }: ExpressionReviewLogPanel
         </Table>
       </div>
 
-      <div className="space-y-3 p-4 md:hidden">
+      <div className="min-h-0 flex-1 space-y-3 overflow-auto p-4 md:hidden">
         {loading ? (
           <div className="py-8 text-center text-muted-foreground">Thinking...</div>
         ) : entries.length === 0 ? (
