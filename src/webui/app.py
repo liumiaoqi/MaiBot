@@ -7,12 +7,13 @@ from typing import Any, Dict, Tuple
 
 import mimetypes
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from src.common.i18n import t
 from src.common.logger import get_logger
+from src.webui.dependencies import require_auth
 
 logger = get_logger("webui.app")
 
@@ -196,7 +197,7 @@ def _setup_static_files(app: FastAPI):
         logger.warning(t("startup.webui_dashboard_package_hint", command=_MANUAL_INSTALL_COMMAND))
         return
 
-    @app.get("/maibot_statistics.html", include_in_schema=False)
+    @app.get("/maibot_statistics.html", include_in_schema=False, dependencies=[Depends(require_auth)])
     async def serve_statistics_report():
         report_path = _resolve_statistics_report_path()
         if not report_path.exists() or not report_path.is_file():

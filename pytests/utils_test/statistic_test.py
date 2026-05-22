@@ -108,10 +108,32 @@ def test_statistic_read_queries_disable_auto_commit(monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr(statistic, "fetch_online_time_since", lambda query_start_time: [])
     monkeypatch.setattr(statistic, "fetch_model_usage_since", lambda query_start_time: [])
     monkeypatch.setattr(statistic, "fetch_messages_since", lambda query_start_time: [])
-    monkeypatch.setattr(statistic, "fetch_tool_records_since", lambda query_start_time: [])
+    monkeypatch.setattr(statistic, "count_tool_records_since", lambda query_start_time, tool_name: 0)
 
     task._collect_message_count_for_period([("last_hour", now - timedelta(hours=1))])
     task._collect_interval_data(now, hours=1, interval_minutes=60)
     task._collect_metrics_interval_data(now, hours=1, interval_hours=1)
 
     assert calls == []
+
+
+def test_html_report_encodes_chat_names_in_tables_and_charts(tmp_path) -> None:
+    report_path = tmp_path / "maibot_statistics.html"
+    now = datetime.now()
+    chat_name = '</script><span data-case="report-rendering">&'
+
+    task = statistic.StatisticOutputTask(str(report_path))
+    stats = {}
+    for period_key, _duration, _label in task.stat_period:
+        period_data = task._build_stat_period_data()
+        period_data[statistic.MSG_CNT_BY_CHAT]["g_validation"] = 1
+        period_data[statistic.TOTAL_MSG_CNT] = 1
+        stats[period_key] = period_data
+    task.name_mapping["g_validation"] = (chat_name, now.timestamp())
+
+    task._generate_html_report(stats, now)
+    generated_html = report_path.read_text(encoding="utf-8")
+
+    assert chat_name not in generated_html
+    assert "&lt;/script&gt;&lt;span data-case=&quot;report-rendering&quot;&gt;&amp;" in generated_html
+    assert "\\u003c/script\\u003e\\u003cspan data-case=" in generated_html
