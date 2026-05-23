@@ -4,11 +4,13 @@ import {
   Clock,
   Code2,
   Copy,
+  Cpu,
   FileCode2,
   FileText,
   Layers,
   RefreshCw,
   Search,
+  Timer,
 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
@@ -66,6 +68,24 @@ function formatSize(size: number): string {
   if (size < 1024) return `${size} B`
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
   return `${(size / 1024 / 1024).toFixed(1)} MB`
+}
+
+function formatDurationMs(durationMs: number | null): string {
+  if (durationMs === null || !Number.isFinite(durationMs)) return ''
+  if (durationMs < 1000) return `${durationMs.toFixed(durationMs >= 100 ? 0 : 1)} ms`
+  return `${(durationMs / 1000).toFixed(2)} s`
+}
+
+function getReasoningMetadataText(item: ReasoningPromptFile): string {
+  const parts: string[] = []
+  if (item.model_name) {
+    parts.push(`模型：${item.model_name}`)
+  }
+  const durationText = formatDurationMs(item.duration_ms)
+  if (durationText) {
+    parts.push(`耗时：${durationText}`)
+  }
+  return parts.join(' · ')
 }
 
 function formatSessionType(chatType: string): string {
@@ -313,6 +333,8 @@ export function ReasoningProcessPage() {
   }
 
   const selectedSessionInfo = selected ? sessionInfoByName.get(selected.session_id) : undefined
+  const selectedMetadataText = selected ? getReasoningMetadataText(selected) : ''
+  const selectedDurationText = selected ? formatDurationMs(selected.duration_ms) : ''
   const renderStageCard = (item: ReasoningPromptStageInfo, compact = false) => (
     <button
       key={item.name}
@@ -461,6 +483,8 @@ export function ReasoningProcessPage() {
                     selected?.stage === item.stage &&
                     selected?.session_id === item.session_id &&
                     selected?.stem === item.stem
+                  const durationText = formatDurationMs(item.duration_ms)
+                  const metadataText = getReasoningMetadataText(item)
                   return (
                     <button
                       key={`${item.stage}/${item.session_id}/${item.stem}`}
@@ -496,6 +520,25 @@ export function ReasoningProcessPage() {
                           title={item.action_preview}
                         >
                           {item.action_preview}
+                        </div>
+                      )}
+                      {metadataText && (
+                        <div
+                          className="text-muted-foreground flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs"
+                          title={metadataText}
+                        >
+                          {item.model_name && (
+                            <span className="inline-flex min-w-0 items-center gap-1">
+                              <Cpu className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate">{item.model_name}</span>
+                            </span>
+                          )}
+                          {durationText && (
+                            <span className="inline-flex items-center gap-1">
+                              <Timer className="h-3.5 w-3.5 shrink-0" />
+                              {durationText}
+                            </span>
+                          )}
                         </div>
                       )}
                       <div className="text-muted-foreground flex items-center justify-between gap-2 text-xs">
@@ -554,6 +597,22 @@ export function ReasoningProcessPage() {
                     ? `${formatSize(selected.size)} · ${formatTime(selected.timestamp, selected.modified_at)}`
                     : '从左侧列表选择一条记录'}
                 </div>
+                {selectedMetadataText && (
+                  <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                    {selected?.model_name && (
+                      <span className="inline-flex min-w-0 items-center gap-1">
+                        <Cpu className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">{selected.model_name}</span>
+                      </span>
+                    )}
+                    {selectedDurationText && (
+                      <span className="inline-flex items-center gap-1">
+                        <Timer className="h-3.5 w-3.5 shrink-0" />
+                        {selectedDurationText}
+                      </span>
+                    )}
+                  </div>
+                )}
                 {selected && selectedSessionInfo && (
                   <div className="text-muted-foreground mt-1 truncate text-xs">
                     {getSessionSubtitle(selectedSessionInfo)}
