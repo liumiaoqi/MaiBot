@@ -723,39 +723,40 @@ export function ExpressionReviewer({
     })
   }
 
-  // 获取状态标签
-  const getStatusBadge = (expr: Expression) => {
+  // 获取审核状态标签
+  const getReviewBadge = (expr: Expression) => {
+    const modifier = expr.modified_by?.toLowerCase()
+
     if (!expr.checked) {
+      if (modifier === 'ai') {
+        return (
+          <Badge variant="secondary" className="gap-1 whitespace-nowrap">
+            <Bot className="h-3 w-3" />
+            AI预检通过
+          </Badge>
+        )
+      }
       return (
-        <Badge variant="outline" className="gap-1">
+        <Badge variant="outline" className="gap-1 whitespace-nowrap">
           <Clock className="h-3 w-3" />
           待审核
         </Badge>
       )
     }
-    return (
-      <Badge variant="default" className="gap-1 bg-green-600">
-        <CheckCircle2 className="h-3 w-3" />
-        已通过
-      </Badge>
-    )
-  }
 
-  // 获取修改者标签
-  const getModifierBadge = (modifier: string | null) => {
-    if (!modifier) return null
-    if (modifier === 'ai') {
+    if (modifier === 'user') {
       return (
-        <Badge variant="secondary" className="gap-1 text-xs">
-          <Bot className="h-3 w-3" />
-          AI
+        <Badge variant="default" className="gap-1 whitespace-nowrap bg-green-600">
+          <User className="h-3 w-3" />
+          人工通过
         </Badge>
       )
     }
+
     return (
-      <Badge variant="secondary" className="gap-1 text-xs">
-        <User className="h-3 w-3" />
-        人工
+      <Badge variant="default" className="gap-1 whitespace-nowrap bg-green-600">
+        <CheckCircle2 className="h-3 w-3" />
+        已通过
       </Badge>
     )
   }
@@ -1138,8 +1139,7 @@ export function ExpressionReviewer({
                         <span>·</span>
                         <span>{formatTime(expr.create_date)}</span>
                         <div className="flex items-center gap-1">
-                          {getStatusBadge(expr)}
-                          {getModifierBadge(expr.modified_by)}
+                          {getReviewBadge(expr)}
                         </div>
                       </div>
                     </div>
@@ -1385,7 +1385,7 @@ export function ExpressionReviewer({
             </div>
 
             {/* 卡片区域 */}
-            <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-8 relative overflow-hidden">
+            <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 p-3 sm:p-4 relative overflow-hidden">
               {quickLoading && quickExpressions.length === 0 ? (
                 <div className="flex flex-col items-center justify-center">
                   <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground mb-4" />
@@ -1402,7 +1402,7 @@ export function ExpressionReviewer({
               ) : (
                 <>
                   {/* 进度提示 */}
-                  <div className="absolute top-4 left-1/2 -translate-x-1/2 text-sm text-muted-foreground z-50">
+                  <div className="shrink-0 text-sm text-muted-foreground">
                     {quickCurrentIndex + 1} / {quickExpressions.length}
                     {quickTotal > quickExpressions.length && (
                       <span className="ml-1">（共 {quickTotal} 条）</span>
@@ -1439,7 +1439,7 @@ export function ExpressionReviewer({
 
                   {/* 堆叠卡片 */}
                   <div
-                    className="relative w-full max-w-md h-[400px] flex items-center justify-center"
+                    className="relative w-full max-w-md flex-1 min-h-0 max-h-[400px] flex items-center justify-center"
                     role="listbox"
                     tabIndex={0}
                     aria-label="待审核的表达方式"
@@ -1460,7 +1460,7 @@ export function ExpressionReviewer({
                           transition: isCurrent && !isDraggingRef.current ? 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)' : 'none',
                         }
 
-if (isCurrent) {
+                        if (isCurrent) {
                           // 当前卡片：样式由 useSpring 控制，通过 animated.div 渲染
                           // style 仅保留非动画属性
                           style = {
@@ -1512,7 +1512,7 @@ if (isCurrent) {
                             id={`quick-expr-${expr.id}`}
                             aria-selected={true}
                             className={cn(
-                              'bg-card border rounded-xl shadow-xl p-6 select-none h-full flex flex-col',
+                              'bg-card border rounded-xl shadow-xl p-5 sm:p-6 select-none h-full min-h-0 overflow-hidden flex flex-col',
                               'active:cursor-grabbing shadow-2xl ring-1 ring-border/50',
                               // 冲突动效
                               conflictId === expr.id && 'ring-4 ring-orange-500/50 bg-orange-50/10'
@@ -1549,26 +1549,25 @@ if (isCurrent) {
                               </div>
                             </div>
                             {/* 内容区 */}
-                            <div className="space-y-4 flex-1">
+                            <div className="space-y-3 flex-1 min-h-0 overflow-hidden">
                               {/* 状态和ID */}
                               <div className="flex items-center justify-between">
                                 <span className="text-sm text-muted-foreground font-mono">#{expr.id}</span>
                                 <div className="flex items-center gap-2">
-                                  {getStatusBadge(expr)}
-                                  {getModifierBadge(expr.modified_by)}
+                                  {getReviewBadge(expr)}
                                 </div>
                               </div>
                               {/* 情景 */}
                               <div className="space-y-1.5">
                                 <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">情景</div>
                                 <div className="p-3 bg-muted/30 rounded-lg border border-border/50">
-                                  <p className="text-lg font-medium leading-relaxed">{expr.situation}</p>
+                                  <p className="text-base sm:text-lg font-medium leading-relaxed break-words line-clamp-3">{expr.situation}</p>
                                 </div>
                               </div>
                               {/* 风格 */}
-                              <div className="space-y-1.5">
+                              <div className="space-y-1.5 min-h-0">
                                 <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">风格</div>
-                                <div className="flex flex-wrap gap-2">
+                                <div className="flex max-h-24 flex-wrap gap-2 overflow-y-auto pr-1">
                                   {expr.style.split(/[,，]/).map((s, i) => (
                                     <Badge key={i} variant="secondary" className="font-normal">
                                       {s.trim()}
@@ -1578,16 +1577,16 @@ if (isCurrent) {
                               </div>
                             </div>
                             {/* 底部信息 */}
-                            <div className="mt-auto pt-4 border-t flex items-center justify-between text-xs text-muted-foreground">
-                              <div className="flex items-center gap-2">
+                            <div className="mt-3 shrink-0 pt-3 border-t flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                              <div className="flex min-w-0 items-center gap-2">
                                 <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary">
                                   <User className="h-3 w-3" />
                                 </div>
-                                <span title={getChatName(expr)} className="truncate max-w-[120px] font-medium">
+                                <span title={getChatName(expr)} className="truncate font-medium">
                                   {getChatName(expr)}
                                 </span>
                               </div>
-                              <span className="font-mono">{formatTime(expr.create_date)}</span>
+                              <span className="shrink-0 font-mono">{formatTime(expr.create_date)}</span>
                             </div>
                           </AnimatedDiv>
                         ) : (
@@ -1597,31 +1596,30 @@ if (isCurrent) {
                             id={`quick-expr-${expr.id}`}
                             aria-selected={false}
                             className={cn(
-                              'bg-card border rounded-xl shadow-xl p-6 select-none h-full flex flex-col'
+                              'bg-card border rounded-xl shadow-xl p-5 sm:p-6 select-none h-full min-h-0 overflow-hidden flex flex-col'
                             )}
                             style={style}
                           >
                             {/* 内容区 */}
-                            <div className="space-y-4 flex-1">
+                            <div className="space-y-3 flex-1 min-h-0 overflow-hidden">
                               {/* 状态和ID */}
                               <div className="flex items-center justify-between">
                                 <span className="text-sm text-muted-foreground font-mono">#{expr.id}</span>
                                 <div className="flex items-center gap-2">
-                                  {getStatusBadge(expr)}
-                                  {getModifierBadge(expr.modified_by)}
+                                  {getReviewBadge(expr)}
                                 </div>
                               </div>
                               {/* 情景 */}
                               <div className="space-y-1.5">
                                 <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">情景</div>
                                 <div className="p-3 bg-muted/30 rounded-lg border border-border/50">
-                                  <p className="text-lg font-medium leading-relaxed">{expr.situation}</p>
+                                  <p className="text-base sm:text-lg font-medium leading-relaxed break-words line-clamp-3">{expr.situation}</p>
                                 </div>
                               </div>
                               {/* 风格 */}
-                              <div className="space-y-1.5">
+                              <div className="space-y-1.5 min-h-0">
                                 <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">风格</div>
-                                <div className="flex flex-wrap gap-2">
+                                <div className="flex max-h-24 flex-wrap gap-2 overflow-y-auto pr-1">
                                   {expr.style.split(/[,，]/).map((s, i) => (
                                     <Badge key={i} variant="secondary" className="font-normal">
                                       {s.trim()}
@@ -1631,16 +1629,16 @@ if (isCurrent) {
                               </div>
                             </div>
                             {/* 底部信息 */}
-                            <div className="mt-auto pt-4 border-t flex items-center justify-between text-xs text-muted-foreground">
-                              <div className="flex items-center gap-2">
+                            <div className="mt-3 shrink-0 pt-3 border-t flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                              <div className="flex min-w-0 items-center gap-2">
                                 <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary">
                                   <User className="h-3 w-3" />
                                 </div>
-                                <span title={getChatName(expr)} className="truncate max-w-[120px] font-medium">
+                                <span title={getChatName(expr)} className="truncate font-medium">
                                   {getChatName(expr)}
                                 </span>
                               </div>
-                              <span className="font-mono">{formatTime(expr.create_date)}</span>
+                              <span className="shrink-0 font-mono">{formatTime(expr.create_date)}</span>
                             </div>
                           </div>
                         )
@@ -1648,7 +1646,7 @@ if (isCurrent) {
                   </div>
 
                   {/* 操作按钮（移动端） */}
-                  <div className="flex items-center gap-8 mt-8 sm:hidden z-50">
+                  <div className="flex shrink-0 items-center gap-8 sm:hidden z-50">
                     {(() => {
                       const currentExpr = quickExpressions[quickCurrentIndex]
                       const directions = getAllowedDirections(currentExpr)
@@ -1687,7 +1685,7 @@ if (isCurrent) {
             </div>
 
             {/* 底部快捷键提示（桌面端） */}
-            <div className="hidden sm:flex items-center justify-center gap-6 px-6 py-3 border-t text-xs text-muted-foreground">
+            <div className="hidden sm:flex shrink-0 flex-wrap items-center justify-center gap-x-5 gap-y-2 px-4 py-2 border-t text-xs text-muted-foreground">
               <div className="flex items-center gap-1">
                 <ShortcutKbd size="sm" keys={['left']} />
                 <span>拒绝</span>

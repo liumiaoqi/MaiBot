@@ -168,11 +168,13 @@ def get_recent_ai_review_logs(
     *,
     limit: int = 50,
     passed: Optional[bool] = None,
+    session_id: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """返回最近的表达方式 AI 审核记录。"""
 
     entries = read_review_log_entries()
     rescues = _rescue_by_review_id(entries)
+    normalized_session_id = str(session_id or "").strip()
     review_entries = [
         entry
         for entry in entries
@@ -181,6 +183,13 @@ def get_recent_ai_review_logs(
 
     if passed is not None:
         review_entries = [entry for entry in review_entries if bool(entry.get("passed")) is passed]
+
+    if normalized_session_id:
+        review_entries = [
+            entry
+            for entry in review_entries
+            if str(entry.get("session_id") or "").strip() == normalized_session_id
+        ]
 
     review_entries.sort(key=lambda entry: _parse_created_at(entry.get("created_at")), reverse=True)
     normalized_limit = max(1, int(limit))

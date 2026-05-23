@@ -58,28 +58,20 @@ export function ExpressionList({
     return expression.chat_name || chatNameMap.get(expression.chat_id) || expression.chat_id
   }
 
-  const isReviewed = (expression: Expression): boolean => expression.checked
-
-  const getReviewStatusBadge = (expression: Expression) => {
-    if (expression.checked) {
-      return <Badge className="whitespace-nowrap bg-green-600 hover:bg-green-600">已通过</Badge>
-    }
-    return <Badge variant="outline" className="whitespace-nowrap text-muted-foreground">未审核</Badge>
-  }
-
-  const getReviewerBadge = (expression: Expression) => {
-    if (!isReviewed(expression)) {
-      return <Badge variant="outline" className="whitespace-nowrap text-muted-foreground">未检查</Badge>
-    }
-
+  const getReviewBadge = (expression: Expression) => {
     const modifier = expression.modified_by?.toLowerCase()
-    if (modifier === 'ai') {
-      return <Badge variant="secondary" className="whitespace-nowrap">AI</Badge>
+
+    if (!expression.checked) {
+      if (modifier === 'ai') {
+        return <Badge variant="secondary" className="whitespace-nowrap">AI预检通过</Badge>
+      }
+      return <Badge variant="outline" className="whitespace-nowrap text-muted-foreground">未审核</Badge>
     }
+
     if (modifier === 'user') {
-      return <Badge variant="secondary" className="whitespace-nowrap">人工</Badge>
+      return <Badge className="whitespace-nowrap bg-green-600 hover:bg-green-600">人工通过</Badge>
     }
-    return <Badge variant="outline" className="whitespace-nowrap text-muted-foreground">未知</Badge>
+    return <Badge className="whitespace-nowrap bg-green-600 hover:bg-green-600">已通过</Badge>
   }
 
   const totalPages = Math.ceil(total / pageSize)
@@ -157,8 +149,7 @@ export function ExpressionList({
                   )}
                   <TableCell>
                     <div className="flex flex-wrap items-center gap-1.5">
-                      {getReviewStatusBadge(expression)}
-                      {getReviewerBadge(expression)}
+                      {getReviewBadge(expression)}
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
@@ -250,8 +241,7 @@ export function ExpressionList({
               <div className="text-sm">
                 <div className="text-xs text-muted-foreground mb-1">审核</div>
                 <div className="flex flex-wrap items-center gap-1.5">
-                  {getReviewStatusBadge(expression)}
-                  {getReviewerBadge(expression)}
+                  {getReviewBadge(expression)}
                 </div>
               </div>
 
