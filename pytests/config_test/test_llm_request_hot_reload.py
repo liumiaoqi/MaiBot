@@ -1,10 +1,10 @@
-from types import SimpleNamespace
 from importlib import util
 from pathlib import Path
+from types import SimpleNamespace
 
 from src.config.config import config_manager
 from src.config.model_configs import TaskConfig
-from src.llm_models.utils_model import LLMRequest
+from src.llm_models.utils_model import LLMOrchestrator, LLMRequest
 
 
 def _load_llm_api_module():
@@ -74,3 +74,38 @@ def test_llm_api_get_available_models_reads_latest_config(monkeypatch):
     state["task"] = second_utils
     second = llm_api.get_available_models()
     assert second["utils"].model_list == ["gpt-z"]
+
+
+def test_mid_memory_task_falls_back_to_planner_when_empty(monkeypatch):
+    mid_memory = TaskConfig(model_list=[])
+    planner = TaskConfig(model_list=["planner-model"], max_tokens=8000, temperature=0.7, slow_threshold=12.0)
+    model_task_config = SimpleNamespace(mid_memory=mid_memory, planner=planner)
+
+    monkeypatch.setattr(
+        config_manager,
+        "get_model_config",
+        lambda: SimpleNamespace(model_task_config=model_task_config, models=[], api_providers=[]),
+    )
+
+    orchestrator = LLMOrchestrator(task_name="mid_memory", request_type="test")
+
+    assert orchestrator.model_for_task is planner
+    assert list(orchestrator.model_usage.keys()) == ["planner-model"]
+
+
+def test_mid_memory_task_uses_explicit_config_when_model_list_set(monkeypatch):
+    mid_memory = TaskConfig(model_list=["mid-memory-model"], max_tokens=4096, temperature=0.3, slow_threshold=20.0)
+    planner = TaskConfig(model_list=["planner-model"], max_tokens=8000, temperature=0.7, slow_threshold=12.0)
+    model_task_config = SimpleNamespace(mid_memory=mid_memory, planner=planner)
+
+    monkeypatch.setattr(
+        config_manager,
+        "get_model_config",
+        lambda: SimpleNamespace(model_task_config=model_task_config, models=[], api_providers=[]),
+    )
+
+    orchestrator = LLMOrchestrator(task_name="mid_memory", request_type="test")
+
+    assert orchestrator.model_for_task is mid_memory
+    assert orchestrator.model_for_task.max_tokens == 4096
+    assert list(orchestrator.model_usage.keys()) == ["mid-memory-model"]

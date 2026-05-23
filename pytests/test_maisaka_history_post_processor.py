@@ -1,9 +1,11 @@
+from base64 import b64decode
 from datetime import datetime
+from types import SimpleNamespace
 
 import pytest
 
 from src.common.data_models.message_component_data_model import ImageComponent, MessageSequence, TextComponent
-from src.llm_models.payload_content.message import RoleType
+from src.llm_models.payload_content.message import ImageMessagePart, RoleType
 from src.llm_models.payload_content.tool_option import ToolCall
 from src.maisaka.context_messages import (
     AssistantMessage,
@@ -18,9 +20,14 @@ from src.maisaka.mid_term_memory import (
     MidTermMemorySummaryModel,
     _build_summary_prompt_messages,
     _select_summary_source_messages,
+    _should_enable_visual_summary,
     build_mid_term_memory_complex_message,
     insert_mid_term_memory_message,
     is_mid_term_memory_message,
+)
+
+PNG_BYTES = b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="
 )
 
 
@@ -28,6 +35,17 @@ def _user_message(content: str) -> SessionBackedMessage:
     return SessionBackedMessage(
         raw_message=MessageSequence([TextComponent(content)]),
         visible_text=content,
+        timestamp=datetime.now(),
+    )
+
+
+def _image_message(content: str = "") -> SessionBackedMessage:
+    visible_text = content or "[图片，识别中.....]"
+    return SessionBackedMessage(
+        raw_message=MessageSequence(
+            [ImageComponent(binary_hash="", binary_data=PNG_BYTES, content=content)]
+        ),
+        visible_text=visible_text,
         timestamp=datetime.now(),
     )
 
@@ -306,6 +324,36 @@ def test_mid_term_memory_summary_prompt_uses_multi_messages() -> None:
     assert prompt_messages[0].get_text_content() == "系统指令"
     assert prompt_messages[1].get_text_content() == "用户消息 1"
     assert prompt_messages[2].get_text_content() == "用户消息 2"
+
+
+def test_mid_term_memory_summary_prompt_uses_text_fallback_without_visual_model() -> None:
+    prompt_messages = _build_summary_prompt_messages(
+        [_image_message()],
+        instruction_prompt="系统指令",
+        enable_visual_message=False,
+    )
+
+    assert len(prompt_messages) == 2
+    assert prompt_messages[1].get_text_content() == "[图片，识别中.....]"
+    assert not any(isinstance(part, ImageMessagePart) for part in prompt_messages[1].parts)
+
+
+def test_mid_term_memory_summary_prompt_attaches_image_for_visual_model() -> None:
+    prompt_messages = _build_summary_prompt_messages(
+        [_image_message()],
+        instruction_prompt="系统指令",
+        enable_visual_message=True,
+    )
+
+    assert len(prompt_messages) == 2
+    assert prompt_messages[1].get_text_content() == ""
+    assert any(isinstance(part, ImageMessagePart) for part in prompt_messages[1].parts)
+
+
+def test_mid_term_memory_visual_summary_follows_model_capability() -> None:
+    assert _should_enable_visual_summary(SimpleNamespace(visual=True)) is True
+    assert _should_enable_visual_summary(SimpleNamespace(visual=False)) is False
+    assert _should_enable_visual_summary(None) is False
 
 
 def test_insert_mid_term_memory_message_after_previous_summary_and_limits_count() -> None:
