@@ -66,6 +66,8 @@ export interface PluginInfo {
   marketplace_id?: string
   /** 统计服务可能使用的 ID 别名 */
   stats_ids?: string[]
+  /** 插件市场清单中的原始顺序，用于在缺少发布时间时推断较新的插件 */
+  marketplace_order?: number
   /** 插件清单 */
   manifest: PluginManifest
   /** 下载量 */
