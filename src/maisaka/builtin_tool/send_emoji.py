@@ -381,6 +381,7 @@ async def _select_emoji_with_sub_agent(
     selection_duration_ms = round((datetime.now() - selection_started_at).total_seconds() * 1000, 2)
 
     selection_metrics: Dict[str, Any] = {
+        "model_name": getattr(response, "model_name", "") or "",
         "prompt_tokens": response.prompt_tokens,
         "completion_tokens": response.completion_tokens,
         "total_tokens": response.total_tokens,
