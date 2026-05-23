@@ -48,7 +48,8 @@ from src.maisaka.context_messages import (
 from src.maisaka.display.prompt_cli_renderer import PromptCLIVisualizer
 from src.maisaka.message_adapter import parse_speaker_content
 from src.maisaka.planner_message_utils import extract_quote_ids_from_message_sequence
-from src.plugin_runtime.hook_payloads import serialize_prompt_messages
+from src.maisaka.visual_message_limiter import limit_latest_images_in_messages
+from src.plugin_runtime.hook_payloads import deserialize_prompt_messages, serialize_prompt_messages
 
 from .maisaka_expression_selector import maisaka_expression_selector
 
@@ -483,7 +484,63 @@ class BaseMaisakaReplyGenerator:
         messages.append(MessageBuilder().set_role(RoleType.System).add_text_content(system_prompt).build())
         messages.extend(self._build_history_messages(chat_history, enable_visual_message))
         messages.append(MessageBuilder().set_role(RoleType.User).add_text_content(final_user_message).build())
+        if enable_visual_message:
+            return limit_latest_images_in_messages(
+                messages,
+                max_image_num=global_config.visual.max_image_num,
+            )
         return messages
+
+    async def _invoke_before_model_request_hook(
+        self,
+        *,
+        request_messages: List[Message],
+        session_id: str,
+        active_task_name: str,
+        active_model_name: Optional[str],
+        model_info: Optional[ModelInfo],
+        attempt: int,
+        retry_count: int,
+        reply_message: Optional[SessionMessage],
+        reply_reason: str,
+        reference_info: str,
+        selected_expression_ids: List[int],
+        reply_tool_args: Dict[str, Any],
+    ) -> List[Message]:
+        """触发 replyer 模型请求前 Hook，允许插件改写最终 messages。"""
+
+        try:
+            hook_result = await self._get_runtime_manager().invoke_hook(
+                "maisaka.replyer.before_model_request",
+                messages=serialize_prompt_messages(request_messages),
+                session_id=session_id,
+                request_type=self.request_type,
+                task_name=active_task_name,
+                requested_model_name=active_model_name or "",
+                selected_model_name=str(getattr(model_info, "name", "") or ""),
+                selected_model_visual=bool(getattr(model_info, "visual", False)),
+                attempt=attempt,
+                retry_count=retry_count,
+                max_retries=REPLYER_MAX_HOOK_RETRIES,
+                reply_message_id=str(reply_message.message_id if reply_message is not None else ""),
+                reply_reason=reply_reason or "",
+                reference_info=reference_info,
+                selected_expression_ids=list(selected_expression_ids),
+                reply_tool_args=dict(reply_tool_args),
+            )
+        except Exception as exc:
+            logger.warning(f"Maisaka 回复器 before_model_request Hook 调用失败，将继续使用当前请求消息: {exc}")
+            return request_messages
+
+        raw_messages = hook_result.kwargs.get("messages")
+        if not isinstance(raw_messages, list):
+            return request_messages
+
+        try:
+            return deserialize_prompt_messages(raw_messages)
+        except Exception as exc:
+            logger.warning(f"Hook maisaka.replyer.before_model_request 返回的 messages 无法反序列化，已忽略: {exc}")
+            return request_messages
 
     def _resolve_enable_visual_message(self, model_info: Optional[ModelInfo] = None) -> bool:
         if self._enable_visual_message is not None:
@@ -788,14 +845,19 @@ class BaseMaisakaReplyGenerator:
             prompt_ms = round((time.perf_counter() - prompt_started_at) * 1000, 2)
             prompt_preview = PromptCLIVisualizer._build_prompt_dump_text(request_messages)
 
-            def message_factory(
+            async def message_factory(
                 _client: object,
                 model_info: Optional[ModelInfo] = None,
                 reference_info_for_attempt: str = active_reference_info,
+                active_task_name_for_attempt: str = active_task_name,
+                active_model_name_for_attempt: Optional[str] = active_model_name,
+                retry_count_for_attempt: int = retry_count,
+                selected_expression_ids_for_attempt: tuple[int, ...] = tuple(result.selected_expression_ids),
+                reply_tool_args_for_attempt: tuple[tuple[str, Any], ...] = tuple(active_reply_tool_args.items()),
             ) -> List[Message]:
                 nonlocal prompt_ms, prompt_preview, request_messages
                 prompt_started_at = time.perf_counter()
-                request_messages = self._build_request_messages(
+                built_request_messages = self._build_request_messages(
                     chat_history=filtered_history,
                     reply_message=reply_message,
                     reply_reason=reply_reason or "",
@@ -803,6 +865,20 @@ class BaseMaisakaReplyGenerator:
                     expression_habits=merged_expression_habits,
                     stream_id=stream_id,
                     enable_visual_message=self._resolve_enable_visual_message(model_info),
+                )
+                request_messages = await self._invoke_before_model_request_hook(
+                    request_messages=built_request_messages,
+                    session_id=preview_chat_id,
+                    active_task_name=active_task_name_for_attempt,
+                    active_model_name=active_model_name_for_attempt,
+                    model_info=model_info,
+                    attempt=retry_count_for_attempt + 1,
+                    retry_count=retry_count_for_attempt,
+                    reply_message=reply_message,
+                    reply_reason=reply_reason or "",
+                    reference_info=reference_info_for_attempt,
+                    selected_expression_ids=list(selected_expression_ids_for_attempt),
+                    reply_tool_args=dict(reply_tool_args_for_attempt),
                 )
                 prompt_ms = round((time.perf_counter() - prompt_started_at) * 1000, 2)
                 prompt_preview = PromptCLIVisualizer._build_prompt_dump_text(request_messages)
@@ -964,6 +1040,10 @@ class BaseMaisakaReplyGenerator:
                     request_kind="replyer",
                     selection_reason=f"ID: {preview_chat_id}",
                     output_content=response_text,
+                    metadata={
+                        "model_name": generation_result.model_name or "",
+                        "duration_ms": llm_ms,
+                    },
                 ),
                 title="Reply Prompt",
                 border_style="bright_yellow",

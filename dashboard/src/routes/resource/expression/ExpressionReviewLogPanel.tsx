@@ -19,11 +19,12 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { useToast } from '@/hooks/use-toast'
-import { approveExpressionReviewLog, getExpressionReviewLogs } from '@/lib/expression-api'
+import { approveExpressionReviewLog, getExpressionChatTargets, getExpressionReviewLogs } from '@/lib/expression-api'
 
-import type { ExpressionReviewLogEntry } from '@/types/expression'
+import type { ChatInfo, ExpressionReviewLogEntry } from '@/types/expression'
 
 type ReviewLogFilter = 'all' | 'failed' | 'passed'
+const ALL_CHATS_VALUE = '__all__'
 
 interface ExpressionReviewLogPanelProps {
   onRescued?: () => void
@@ -37,11 +38,6 @@ function formatTime(timestamp: number | null): string {
     hour: '2-digit',
     minute: '2-digit',
   })
-}
-
-function getSourceLabel(source: string): string {
-  if (source === 'learn_before_upsert') return '学习写入前'
-  return source || '未知来源'
 }
 
 function ReviewStatusBadge({ entry }: { entry: ExpressionReviewLogEntry }) {
@@ -72,6 +68,8 @@ function RescueBadge({ entry }: { entry: ExpressionReviewLogEntry }) {
 
 export function ExpressionReviewLogPanel({ onRescued }: ExpressionReviewLogPanelProps) {
   const [entries, setEntries] = useState<ExpressionReviewLogEntry[]>([])
+  const [chatList, setChatList] = useState<ChatInfo[]>([])
+  const [chatFilter, setChatFilter] = useState(ALL_CHATS_VALUE)
   const [filter, setFilter] = useState<ReviewLogFilter>('all')
   const [loading, setLoading] = useState(false)
   const [processingId, setProcessingId] = useState<string | null>(null)
@@ -83,6 +81,7 @@ export function ExpressionReviewLogPanel({ onRescued }: ExpressionReviewLogPanel
       const result = await getExpressionReviewLogs({
         limit: 100,
         passed: filter === 'all' ? undefined : filter === 'passed',
+        chat_id: chatFilter === ALL_CHATS_VALUE ? undefined : chatFilter,
       })
       if (result.success) {
         setEntries(result.data.data)
@@ -102,7 +101,38 @@ export function ExpressionReviewLogPanel({ onRescued }: ExpressionReviewLogPanel
     } finally {
       setLoading(false)
     }
-  }, [filter, toast])
+  }, [chatFilter, filter, toast])
+
+  const loadChatList = useCallback(async () => {
+    try {
+      const [targetResult, logResult] = await Promise.all([
+        getExpressionChatTargets(),
+        getExpressionReviewLogs({ limit: 200 }),
+      ])
+      const chatMap = new Map<string, ChatInfo>()
+      if (targetResult.success) {
+        targetResult.data.forEach((chat) => {
+          chatMap.set(chat.chat_id, chat)
+        })
+      }
+      if (logResult.success) {
+        logResult.data.data.forEach((entry) => {
+          if (!entry.session_id || chatMap.has(entry.session_id)) return
+          chatMap.set(entry.session_id, {
+            chat_id: entry.session_id,
+            chat_name: entry.chat_name || entry.session_id,
+            platform: null,
+            is_group: false,
+            use_expression: false,
+            enable_learning: false,
+          })
+        })
+      }
+      setChatList([...chatMap.values()])
+    } catch (error) {
+      console.error('加载聊天流列表失败:', error)
+    }
+  }, [])
 
   const handleApprove = useCallback(async (entry: ExpressionReviewLogEntry) => {
     try {
@@ -138,14 +168,31 @@ export function ExpressionReviewLogPanel({ onRescued }: ExpressionReviewLogPanel
     loadLogs()
   }, [loadLogs])
 
+  useEffect(() => {
+    loadChatList()
+  }, [loadChatList])
+
   return (
-    <div className="flex h-full min-h-0 flex-col rounded-lg border bg-card">
-      <div className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border bg-card">
+      <div className="shrink-0 flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold">AI 审核记录</h2>
           <p className="text-sm text-muted-foreground">最近 {entries.length} 条表达方式学习写入前审核情况</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={chatFilter} onValueChange={setChatFilter}>
+            <SelectTrigger className="w-56">
+              <SelectValue placeholder="选择聊天流" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_CHATS_VALUE}>全部聊天流</SelectItem>
+              {chatList.map((chat) => (
+                <SelectItem key={chat.chat_id} value={chat.chat_id}>
+                  {chat.chat_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select value={filter} onValueChange={(value) => setFilter(value as ReviewLogFilter)}>
             <SelectTrigger className="w-32">
               <SelectValue />
@@ -162,29 +209,28 @@ export function ExpressionReviewLogPanel({ onRescued }: ExpressionReviewLogPanel
         </div>
       </div>
 
-      <div className="hidden min-h-0 flex-1 overflow-y-auto overflow-x-auto md:block">
+      <div className="hidden min-h-0 flex-1 overflow-auto md:block">
         <Table aria-label="表达方式 AI 审核记录">
-          <TableHeader>
+          <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow>
               <TableHead className="w-32">时间</TableHead>
               <TableHead className="w-24">结果</TableHead>
               <TableHead>表达方式</TableHead>
               <TableHead>理由</TableHead>
               <TableHead className="w-48">聊天流</TableHead>
-              <TableHead className="w-24">来源</TableHead>
               <TableHead className="w-32 text-right">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
                   Thinking...
                 </TableCell>
               </TableRow>
             ) : entries.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
                   暂无 AI 审核记录
                 </TableCell>
               </TableRow>
@@ -218,9 +264,6 @@ export function ExpressionReviewLogPanel({ onRescued }: ExpressionReviewLogPanel
                   <TableCell className="max-w-[12rem] truncate" title={entry.chat_name || entry.session_id}>
                     {entry.chat_name || entry.session_id}
                   </TableCell>
-                  <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                    {getSourceLabel(entry.source)}
-                  </TableCell>
                   <TableCell className="text-right">
                     <Button
                       variant="outline"
@@ -239,7 +282,7 @@ export function ExpressionReviewLogPanel({ onRescued }: ExpressionReviewLogPanel
         </Table>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-3 overflow-auto p-4 md:hidden">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4 md:hidden">
         {loading ? (
           <div className="py-8 text-center text-muted-foreground">Thinking...</div>
         ) : entries.length === 0 ? (
@@ -266,11 +309,10 @@ export function ExpressionReviewLogPanel({ onRescued }: ExpressionReviewLogPanel
                 <div className="mb-1 text-xs text-muted-foreground">理由</div>
                 <div className="break-all text-sm">{entry.reason || entry.error || '-'}</div>
               </div>
-              <div className="flex items-center justify-between gap-2 border-t pt-3 text-xs text-muted-foreground">
+              <div className="border-t pt-3 text-xs text-muted-foreground">
                 <span className="truncate" title={entry.chat_name || entry.session_id}>
                   {entry.chat_name || entry.session_id}
                 </span>
-                <span>{getSourceLabel(entry.source)}</span>
               </div>
               <Button
                 variant="outline"

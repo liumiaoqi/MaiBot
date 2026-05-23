@@ -203,11 +203,15 @@ class LLMServiceClient:
         active_options = self._normalize_generation_options(options)
         prompt_text_holder: dict[str, str] = {}
 
-        def cache_stats_message_factory(client: BaseClient, model_info: Any = None) -> List[Message]:
+        async def cache_stats_message_factory(client: BaseClient, model_info: Any = None) -> List[Message]:
             if len(inspect.signature(message_factory).parameters) >= 2:
-                messages = message_factory(client, model_info)
+                message_result = message_factory(client, model_info)
             else:
-                messages = message_factory(client)
+                message_result = message_factory(client)
+            if inspect.isawaitable(message_result):
+                messages = await message_result
+            else:
+                messages = message_result
             prompt_text_holder["prompt_text"] = self._build_cache_stats_prompt_text(
                 messages=messages,
                 tool_options=active_options.tool_options,

@@ -18,6 +18,8 @@ export type ReasoningPromptFile = {
   html_path: string | null
   output_preview: string | null
   action_preview: string | null
+  model_name: string | null
+  duration_ms: number | null
   size: number
   modified_at: number
 }
@@ -61,6 +63,8 @@ export type ReasoningPromptContentResponse = {
   content: string
   size: number
   modified_at: number
+  model_name: string | null
+  duration_ms: number | null
 }
 
 export type ReasoningPromptListParams = {

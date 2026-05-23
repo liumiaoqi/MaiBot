@@ -224,6 +224,22 @@ class VisualConfig(ConfigBase):
     )
     """回复器模式，auto根据模型信息自动选择，text为纯文本模式，multimodal为多模态模式"""
 
+    max_image_num: int = Field(
+        default=128,
+        ge=0,
+        json_schema_extra={
+            "advanced": True,
+            "x-widget": "input",
+            "x-icon": "images",
+            "label": {
+                "zh_CN": "多模态最大图片数",
+                "en_US": "Max multimodal images",
+                "ja_JP": "マルチモーダル最大画像数",
+            },
+        },
+    )
+    """多模态请求中最多保留的图片数量；只保留最新图片，超出数量的旧图片会显示为 [图片]。"""
+
     wait_image_recognize_max_time: float = Field(
         default=10,
         ge=0,

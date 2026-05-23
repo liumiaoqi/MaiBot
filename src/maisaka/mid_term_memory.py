@@ -4,9 +4,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from hashlib import sha1
 from html import escape
-from typing import Any, Sequence
-
 from pydantic import BaseModel
+from typing import Any, Sequence
 
 import json
 import re
@@ -14,9 +13,17 @@ import re
 from src.common.data_models.message_component_data_model import DictComponent, MessageSequence
 from src.common.logger import get_logger
 from src.common.prompt_i18n import load_prompt
-from src.llm_models.payload_content.message import Message, MessageBuilder, RoleType
+from src.config.config import global_config
+from src.llm_models.payload_content.message import (
+    ImageMessagePart,
+    Message,
+    MessageBuilder,
+    RoleType,
+    TextMessagePart,
+)
 
 from .context_messages import ComplexSessionMessage, LLMContextMessage, build_llm_message_from_context
+from .visual_message_limiter import limit_latest_images_in_messages
 
 MID_TERM_MEMORY_COMPONENT_TYPE = "mid_term_memory"
 MID_TERM_MEMORY_SOURCE_KIND = "mid_term_memory"
@@ -75,41 +82,44 @@ async def build_mid_term_memory_message(
         time_range=time_range,
         participants=participants,
     )
-    prompt_messages = _build_summary_prompt_messages(
+    text_prompt_messages = _build_summary_prompt_messages(
         summary_source_messages,
         instruction_prompt=instruction_prompt,
+        enable_visual_message=False,
     )
-    if len(prompt_messages) <= 1:
+    if len(text_prompt_messages) <= 1:
         logger.debug(f"{log_prefix} 中期聊天记录摘要跳过: 摘要输入消息为空")
         return None
 
     logger.info(
         f"{log_prefix} 中期聊天记录概括完整 Prompt Messages: "
         f"裁切消息数={len(summary_source_messages)} "
-        f"发送消息数={len(prompt_messages)} "
+        f"发送消息数={len(text_prompt_messages)} "
         f"时间范围={time_range} "
         f"参与人物={'、'.join(participants) if participants else '未知'} "
-        f"prompt_chars={_count_prompt_message_chars(prompt_messages)}\n"
-        f"{_render_summary_prompt_messages_for_log(prompt_messages)}"
+        f"prompt_chars={_count_prompt_message_chars(text_prompt_messages)}\n"
+        f"{_render_summary_prompt_messages_for_log(text_prompt_messages)}"
     )
     from src.common.data_models.llm_service_data_models import LLMGenerationOptions
     from src.llm_models.payload_content.resp_format import RespFormat, RespFormatType
     from src.services.llm_service import LLMServiceClient
 
     llm_client = LLMServiceClient(
-        task_name="utils",
+        task_name="mid_memory",
         request_type="maisaka.mid_term_memory",
         session_id=session_id,
     )
 
-    def message_factory(_client: Any) -> list[Message]:
-        return list(prompt_messages)
+    def message_factory(_client: Any, model_info: Any = None) -> list[Message]:
+        return _build_summary_prompt_messages(
+            summary_source_messages,
+            instruction_prompt=instruction_prompt,
+            enable_visual_message=_should_enable_visual_summary(model_info),
+        )
 
     result = await llm_client.generate_response_with_messages(
         message_factory,
         options=LLMGenerationOptions(
-            temperature=0.2,
-            max_tokens=1200,
             response_format=RespFormat(RespFormatType.JSON_SCHEMA, MidTermMemorySummaryModel),
         ),
     )
@@ -315,6 +325,7 @@ def _build_summary_prompt_messages(
     source_messages: Sequence[LLMContextMessage],
     *,
     instruction_prompt: str,
+    enable_visual_message: bool = False,
 ) -> list[Message]:
     prompt_messages = [
         MessageBuilder()
@@ -326,36 +337,76 @@ def _build_summary_prompt_messages(
     for source_message in source_messages:
         llm_message = build_llm_message_from_context(
             source_message,
-            enable_visual_message=False,
+            enable_visual_message=enable_visual_message,
         )
         if llm_message is None:
             continue
 
         message_text = llm_message.get_text_content().strip()
-        if not message_text:
+        if not message_text and not _message_has_visual_content(llm_message):
             continue
 
         remaining_chars = MAX_SUMMARY_INPUT_CHARS - total_source_chars
         if remaining_chars <= 0:
             break
         if len(message_text) > remaining_chars:
-            llm_message = (
-                MessageBuilder()
-                .set_role(RoleType.User)
-                .add_text_content(message_text[:remaining_chars])
-                .build()
-            )
+            llm_message = _truncate_message_text(llm_message, remaining_chars)
             prompt_messages.append(llm_message)
             break
 
         prompt_messages.append(llm_message)
         total_source_chars += len(message_text)
 
+    if enable_visual_message:
+        return limit_latest_images_in_messages(
+            prompt_messages,
+            max_image_num=global_config.visual.max_image_num,
+        )
     return prompt_messages
 
 
 def _count_prompt_message_chars(messages: Sequence[Message]) -> int:
     return sum(len(message.get_text_content()) for message in messages)
+
+
+def _should_enable_visual_summary(model_info: Any) -> bool:
+    return bool(getattr(model_info, "visual", False))
+
+
+def _message_has_visual_content(message: Message) -> bool:
+    return any(isinstance(part, ImageMessagePart) for part in message.parts)
+
+
+def _truncate_message_text(message: Message, max_text_chars: int) -> Message:
+    remaining_chars = max(0, int(max_text_chars))
+    truncated_parts = []
+    for part in message.parts:
+        if isinstance(part, TextMessagePart):
+            if remaining_chars <= 0:
+                continue
+
+            truncated_text = part.text[:remaining_chars]
+            if truncated_text:
+                truncated_parts.append(TextMessagePart(truncated_text))
+                remaining_chars -= len(truncated_text)
+            continue
+
+        truncated_parts.append(part)
+
+    if not truncated_parts:
+        return (
+            MessageBuilder()
+            .set_role(message.role)
+            .add_text_content(message.get_text_content()[:max_text_chars])
+            .build()
+        )
+    return Message(
+        role=message.role,
+        parts=truncated_parts,
+        tool_call_id=message.tool_call_id,
+        tool_name=message.tool_name,
+        tool_calls=message.tool_calls,
+    )
 
 
 def _render_summary_prompt_messages_for_log(messages: Sequence[Message]) -> str:

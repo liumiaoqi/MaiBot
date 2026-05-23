@@ -58,6 +58,7 @@ def test_builtin_hook_catalog_includes_new_business_hooks(monkeypatch: pytest.Mo
     assert "jargon.query.after_search" in hook_names
     assert "expression.select.before_select" in hook_names
     assert "expression.learn.before_upsert" in hook_names
+    assert "maisaka.replyer.before_model_request" in hook_names
 
 
 @pytest.mark.asyncio

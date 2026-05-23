@@ -133,7 +133,7 @@ export function EmojiList({
 
             {/* 图片 */}
             <div
-              className={`aspect-square bg-muted flex items-center justify-center overflow-hidden ${
+              className={`relative aspect-square bg-muted flex items-center justify-center overflow-hidden ${
                 cardSize === 'small'
                   ? 'p-1'
                   : cardSize === 'medium'
@@ -145,23 +145,33 @@ export function EmojiList({
                 src={getEmojiThumbnailUrl(emoji.id)}
                 alt="表情包"
               />
+              <Badge
+                variant="outline"
+                className="absolute bottom-1 left-1 bg-background/90 text-[10px] px-1 py-0 backdrop-blur"
+              >
+                {emoji.format.toUpperCase()}
+              </Badge>
+              <span className="absolute bottom-1 right-1 rounded border bg-background/90 px-1 py-0 text-[10px] font-mono text-muted-foreground backdrop-blur">
+                {emoji.usage_count}次
+              </span>
             </div>
 
             {/* 底部信息和操作 */}
             <div
               className={`border-t bg-card ${cardSize === 'small' ? 'p-1' : 'p-2'}`}
             >
-              {/* 使用次数和格式 */}
-              <div className="flex items-center justify-between gap-1 text-xs text-muted-foreground mb-1">
-                <Badge variant="outline" className="text-[10px] px-1 py-0">
-                  {emoji.format.toUpperCase()}
-                </Badge>
-                <span className="font-mono">{emoji.usage_count}次</span>
-              </div>
+              <p
+                className={`text-xs text-muted-foreground break-all ${
+                  cardSize === 'small' ? 'min-h-4 line-clamp-1' : 'min-h-8 line-clamp-2'
+                }`}
+                title={emoji.description || '暂无描述'}
+              >
+                {emoji.description?.trim() || '暂无描述'}
+              </p>
 
               {/* 操作按钮 - 悬停时显示 */}
               <div
-                className={`flex gap-1 justify-center opacity-0 group-hover:opacity-100 transition-opacity ${
+                className={`mt-1 flex gap-1 justify-center opacity-0 group-hover:opacity-100 transition-opacity ${
                   cardSize === 'small' ? 'flex-wrap' : ''
                 }`}
               >
