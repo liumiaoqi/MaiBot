@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MaiBot 从零开始配置教程</title>
+<style>
+:root{--bg:#0d1117;--card:#161b22;--border:#30363d;--text:#c9d1d9;--text2:#8b949e;--accent:#58a6ff;--accent2:#1f6feb;--green:#3fb950;--yellow:#d29922;--red:#f85149;--code:#1b1f23;--hl:#0d1117}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"Noto Sans SC","Microsoft YaHei",system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.8;font-size:15px}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code{font-family:"Fira Code",Consolas,monospace;background:var(--code);padding:2px 6px;border-radius:4px;font-size:0.9em;color:#e6edf3}
+pre{background:var(--code);border:1px solid var(--border);border-radius:8px;padding:16px;overflow-x:auto;margin:12px 0}
+pre code{background:none;padding:0}
+.container{max-width:900px;margin:0 auto;padding:20px}
+h1{text-align:center;font-size:2.2em;margin:30px 0 10px;color:#fff;letter-spacing:1px}
+.subtitle{text-align:center;color:var(--text2);font-size:1em;margin-bottom:40px}
+h2{color:#fff;font-size:1.5em;margin:40px 0 16px;padding-bottom:8px;border-bottom:2px solid var(--accent2)}
+h3{color:var(--accent);font-size:1.15em;margin:24px 0 10px}
+.step{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:24px 28px;margin:20px 0}
+.step-num{display:inline-block;background:var(--accent2);color:#fff;font-weight:bold;width:32px;height:32px;line-height:32px;text-align:center;border-radius:50%;margin-right:10px;font-size:0.95em}
+.warn{border-left:4px solid var(--yellow);background:rgba(210,153,34,0.08);padding:12px 16px;border-radius:0 8px 8px 0;margin:12px 0}
+.warn::before{content:"⚠ 注意：";color:var(--yellow);font-weight:bold}
+.tip{border-left:4px solid var(--green);background:rgba(63,185,80,0.08);padding:12px 16px;border-radius:0 8px 8px 0;margin:12px 0}
+.tip::before{content:"💡 提示：";color:var(--green);font-weight:bold}
+.danger{border-left:4px solid var(--red);background:rgba(248,81,73,0.08);padding:12px 16px;border-radius:0 8px 8px 0;margin:12px 0}
+.danger::before{content:"🚫 警告：";color:var(--red);font-weight:bold}
+p{margin:8px 0}
+ul,ol{margin:8px 0 8px 24px}
+li{margin:4px 0}
+.diff{display:flex;gap:12px;margin:12px 0;flex-wrap:wrap}
+.diff-col{flex:1;min-width:280px}
+.diff-col h4{font-size:0.9em;color:var(--text2);margin-bottom:4px}
+.diff-old{border:1px solid var(--red);border-radius:6px;padding:10px}
+.diff-new{border:1px solid var(--green);border-radius:6px;padding:10px}
+.toc{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px 28px;margin:20px 0 30px}
+.toc h2{margin:0 0 12px;border:none;font-size:1.2em}
+.toc ol{margin-left:20px}
+.toc li{margin:4px 0;color:var(--text)}
+.toc a{color:var(--text)}
+.toc a:hover{color:var(--accent)}
+.file-tag{display:inline-block;background:var(--accent2);color:#fff;padding:1px 8px;border-radius:4px;font-size:0.8em;margin-right:6px;vertical-align:middle}
+.status-ok{color:var(--green)}
+.status-fail{color:var(--red)}
+.status-off{color:var(--text2)}
+hr{border:none;border-top:1px solid var(--border);margin:30px 0}
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>MaiBot 从零开始配置教程</h1>
+<p class="subtitle">基于 Docker 部署的完整配置指南 — 从克隆仓库到 Bot 上线</p>
+
+<div class="toc">
+<h2>目录</h2>
+<ol>
+<li><a href="#s1">克隆仓库与目录结构</a></li>
+<li><a href="#s2">Docker Compose 配置</a></li>
+<li><a href="#s3">解决插件ID冲突（关键）</a></li>
+<li><a href="#s4">首次启动与NapCat登录</a></li>
+<li><a href="#s5">模型配置 (model_config.toml)</a></li>
+<li><a href="#s6">Bot人格配置 (bot_config.toml)</a></li>
+<li><a href="#s7">NapCat-Adapter 插件配置</a></li>
+<li><a href="#s8">WebUI 首次设置</a></li>
+<li><a href="#s9">安装与配置插件</a></li>
+<li><a href="#s10">常见问题排查</a></li>
+</ol>
+</div>
+
+<!-- ====== Step 1 ====== -->
+<h2 id="s1"><span class="step-num">1</span>克隆仓库与目录结构</h2>
+
+<div class="step">
+<h3>1.1 克隆仓库</h3>
+<pre><code>git clone https://github.com/MaiM-with-u/MaiBot.git
+cd MaiBot</code></pre>
+
+<h3>1.2 创建必要的目录结构</h3>
+<p>克隆下来的仓库<strong>没有</strong> <code>data/</code> 和 <code>docker-config/</code> 目录，需要手动创建：</p>
+<pre><code>mkdir -p docker-config/mmc
+mkdir -p docker-config/napcat
+mkdir -p data/MaiMBot/plugins
+mkdir -p data/MaiMBot/emoji
+mkdir -p data/MaiMBot/logs
+mkdir -p data/qq</code></pre>
+
+<h3>1.3 最终目录结构</h3>
+<pre><code>MaiBot/
+├── docker-compose.yml          # Docker编排文件（需修改）
+├── docker-entrypoint-wrapper.sh # 自定义入口脚本（需创建）
+├── docker-config/
+│   ├── mmc/                    # MaiBot核心配置
+│   │   ├── bot_config.toml     # （首次运行自动生成，需修改）
+│   │   └── model_config.toml   # （首次运行自动生成，需修改）
+│   └── napcat/                 # NapCat配置（首次运行自动生成）
+├── data/
+│   ├── MaiMBot/
+│   │   ├── plugins/            # 插件目录
+│   │   ├── emoji/              # 表情包
+│   │   └── logs/               # 日志
+│   └── qq/                     # QQ登录态数据
+└── depends-data/               # 运行时资源（仓库自带）</code></pre>
+</div>
+
+<!-- ====== Step 2 ====== -->
+<h2 id="s2"><span class="step-num">2</span>Docker Compose 配置</h2>
+
+<div class="step">
+<h3>2.1 修改 docker-compose.yml</h3>
+<p>需要对原始文件做<strong>两处关键修改</strong>：</p>
+
+<div class="diff">
+<div class="diff-col">
+<h4>❌ 原始版本（有问题）</h4>
+<div class="diff-old">
+<pre><code>services:
+  core:
+    image: sengokucola/maibot:latest
+    environment:
+      - TZ=Asia/Shanghai
+      - EULA_AGREE=...
+    ports:
+      - "18001:8001"
+    volumes:
+      - ./docker-config/mmc:/MaiMBot/config
+      - ./data/MaiMBot:/MaiMBot/data
+      - ./data/MaiMBot/emoji:/data/emoji
+      - ./data/MaiMBot/plugins:/MaiMBot/plugins
+      - ./data/MaiMBot/logs:/MaiMBot/logs
+      - ./depends-data:/MaiMBot/depends-data
+    restart: always</code></pre>
+</div>
+</div>
+<div class="diff-col">
+<h4>✅ 修改后版本</h4>
+<div class="diff-new">
+<pre><code>services:
+  core:
+    image: sengokucola/maibot:latest
+    <strong>entrypoint: ["/bin/sh", "/MaiMBot/docker-entrypoint-wrapper.sh"]</strong>
+    environment:
+      - TZ=Asia/Shanghai
+      - EULA_AGREE=...
+    ports:
+      - "18001:8001"
+    volumes:
+      - ./docker-config/mmc:/MaiMBot/config
+      - ./data/MaiMBot:/MaiMBot/data
+      - ./data/MaiMBot/emoji:/data/emoji
+      - ./data/MaiMBot/plugins:/MaiMBot/plugins
+      <strong>- ./docker-entrypoint-wrapper.sh:/MaiMBot/docker-entrypoint-wrapper.sh:ro</strong>
+      - ./data/MaiMBot/logs:/MaiMBot/logs
+      - ./depends-data:/MaiMBot/depends-data:ro
+    restart: always</code></pre>
+</div>
+</div>
+</div>
+
+<h3>2.2 修改说明</h3>
+<ul>
+<li><strong>添加 <code>entrypoint</code></strong>：使用自定义入口包装脚本，解决插件ID冲突（见下一步）</li>
+<li><strong>挂载 wrapper 脚本</strong>：以只读模式挂载到容器内</li>
+<li><strong><code>depends-data</code> 改为只读</strong>：防止容器意外修改运行时资源</li>
+</ul>
+</div>
+
+<!-- ====== Step 3 ====== -->
+<h2 id="s3"><span class="step-num">3</span>解决插件ID冲突（关键）</h2>
+
+<div class="step">
+<div class="danger">这是<strong>最容易踩坑</strong>的问题！如果不处理，会导致<strong>所有插件加载失败</strong>。</div>
+
+<h3>3.1 问题原因</h3>
+<p>Docker镜像的入口脚本 <code>docker-entrypoint.sh</code> 每次启动时，会自动从模板复制 <code>MaiBot-Napcat-Adapter</code> 到 <code>/MaiMBot/plugins/</code>。如果你后续通过 WebUI 安装了 <code>maibot-team_napcat-adapter</code>（同ID不同目录名），IPC插件系统检测到<strong>重复插件ID</strong>后会<strong>拒绝启动整个插件运行时</strong>，导致所有插件无法加载。</p>
+
+<h3>3.2 解决方案：创建入口包装脚本</h3>
+<p>在项目根目录创建 <code>docker-entrypoint-wrapper.sh</code>：</p>
+<pre><code>#!/bin/sh
+# MaiBot 自定义入口包装脚本
+# 解决：docker-entrypoint.sh 自动从模板复制 MaiBot-Napcat-Adapter，
+# 而 WebUI 安装的 maibot-team_napcat-adapter 与之同ID，
+# 导致 IPC 插件系统检测到重复插件ID后拒绝启动整个插件运行时。
+
+ADAPTER_A="/MaiMBot/plugins/MaiBot-Napcat-Adapter"
+ADAPTER_B="/MaiMBot/plugins/maibot-team_napcat-adapter"
+
+if [ -d "$ADAPTER_A" ] && [ -d "$ADAPTER_B" ]; then
+    echo "[wrapper] 检测到重复 napcat-adapter 插件，删除镜像自带版本: $ADAPTER_A"
+    rm -rf "$ADAPTER_A"
+fi
+
+exec /MaiMBot/docker-entrypoint.sh "$@"</code></pre>
+
+<div class="tip">此脚本会在原入口脚本执行前检测去重：如果两个 napcat-adapter 同时存在，删除镜像自带的版本（保留你通过 WebUI 安装的、有配置文件的版本）。</div>
+</div>
+
+<!-- ====== Step 4 ====== -->
+<h2 id="s4"><span class="step-num">4</span>首次启动与NapCat登录</h2>
+
+<div class="step">
+<h3>4.1 启动所有容器</h3>
+<pre><code>docker compose up -d</code></pre>
+
+<h3>4.2 登录QQ（NapCat）</h3>
+<ol>
+<li>浏览器访问 NapCat WebUI：<code>http://localhost:6099</code></li>
+<li>使用 <code>webui.json</code> 中的 token 登录（首次启动后自动生成，可在 <code>docker-config/napcat/webui.json</code> 中查看）</li>
+<li>扫码登录你的QQ机器人账号</li>
+<li>登录成功后，记住你的<strong>QQ号</strong>，后续配置需要用到</li>
+</ol>
+
+<h3>4.3 配置NapCat的OneBot11 WebSocket</h3>
+<p>QQ号登录后，NapCat会自动生成 <code>docker-config/napcat/onebot11_{QQ号}.json</code>。需要确保其中配置了WebSocket Server供MaiBot连接：</p>
+<pre><code>{
+  "network": {
+    "httpServers": [],
+    "httpSseServers": [],
+    "httpClients": [],
+    "websocketServers": [
+      {
+        "enable": true,
+        "name": "maibot",
+        "host": "0.0.0.0",
+        "port": 3001,
+        "reportSelfMessage": false,
+        "messagePostFormat": "array",
+        "token": "",
+        "heartInterval": 30000
+      }
+    ],
+    "websocketClients": [],
+    "plugins": []
+  }
+}</code></pre>
+<div class="warn">端口 <code>3001</code> 是MaiBot连接NapCat的默认端口，确保与后续 adapter 配置一致。</div>
+</div>
+
+<!-- ====== Step 5 ====== -->
+<h2 id="s5"><span class="step-num">5</span>模型配置 (model_config.toml)</h2>
+
+<div class="step">
+<p><span class="file-tag">文件</span><code>docker-config/mmc/model_config.toml</code></p>
+<p>首次启动后MaiBot会自动生成此文件，但<strong>API Key是占位符</strong>，必须修改。</p>
+
+<h3>5.1 配置 API Provider</h3>
+<p>默认配置了DeepSeek，但API Key是 <code>"your-api-key"</code>。你需要替换为真实Key，并按需添加更多Provider。</p>
+
+<p><strong>推荐配置两个Provider</strong>：</p>
+<pre><code>[[api_providers]]
+name = "BaiLian"                          # DeepSeek API（命名随意，models中引用此名）
+base_url = "https://api.deepseek.com"
+api_key = "sk-你的DeepSeek密钥"            # ← 替换！
+client_type = "openai"
+max_retry = 2
+timeout = 30
+
+[[api_providers]]
+name = "Alibaba"                          # 阿里云百炼（通义千问兼容API）
+base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+api_key = "sk-你的阿里云百炼密钥"          # ← 替换！
+client_type = "openai"
+max_retry = 2
+timeout = 30</code></pre>
+
+<h3>5.2 配置模型列表</h3>
+<pre><code># 聊天模型（DeepSeek）
+[[models]]
+model_identifier = "deepseek-v4-flash"
+name = "deepseek-v4-flash"
+api_provider = "BaiLian"
+price_in = 0
+price_out = 0
+visual = false
+
+[[models]]
+model_identifier = "deepseek-v4-pro"
+name = "deepseek-v4-pro"
+api_provider = "BaiLian"
+price_in = 0
+price_out = 0
+visual = false
+
+# 视觉模型（阿里云百炼 - Qwen）
+[[models]]
+model_identifier = "qwen3.6-max-preview"
+name = "qwen3.6-max-preview"
+api_provider = "Alibaba"
+price_in = 0
+price_out = 0
+visual = true
+
+# Embedding模型（阿里云百炼）
+[[models]]
+model_identifier = "text-embedding-v4"
+name = "text-embedding-v4"
+api_provider = "Alibaba"
+price_in = 0
+price_out = 0
+visual = false</code></pre>
+
+<h3>5.3 配置任务模型分配</h3>
+<pre><code>[model_task_config.replyer]
+model_list = ["deepseek-v4-flash", "deepseek-v4-pro"]
+
+[model_task_config.planner]
+model_list = ["deepseek-v4-flash", "deepseek-v4-pro"]
+
+[model_task_config.utils]
+model_list = ["deepseek-v4-flash", "deepseek-v4-pro"]
+
+[model_task_config.vlm]
+model_list = ["qwen3.6-max-preview"]
+
+[model_task_config.embedding]
+model_list = ["text-embedding-v4"]</code></pre>
+
+<div class="warn">
+<strong>Embedding模型必须配置！</strong>默认配置的 <code>deepseek-v4-pro</code> 不支持embedding，会导致记忆系统的向量检索完全失效（降级为关键词匹配）。推荐使用阿里云百炼的 <code>text-embedding-v4</code>，价格极低（约0.0007元/千token）。
+</div>
+</div>
+
+<!-- ====== Step 6 ====== -->
+<h2 id="s6"><span class="step-num">6</span>Bot人格配置 (bot_config.toml)</h2>
+
+<div class="step">
+<p><span class="file-tag">文件</span><code>docker-config/mmc/bot_config.toml</code></p>
+
+<h3>6.1 基础信息</h3>
+<pre><code>[bot]
+platform = "qq"
+qq_account = "你的QQ机器人号"     # ← 替换为NapCat登录的QQ号
+nickname = "你的Bot昵称"</code></pre>
+
+<h3>6.2 人格设定</h3>
+<p>这是Bot的灵魂，建议认真编写：</p>
+<pre><code>[personality]
+personality = "你是XXX，...(详细人设描述，建议200字以内)"
+reply_style = "【语言风格】\n语气特点：...\n常用表达：..."
+multiple_reply_style = [
+    "你的风格平淡但不失讽刺",
+    "用1-2个字进行回复",
+    "用1-2个符号进行回复",
+]</code></pre>
+
+<h3>6.3 聊天参数</h3>
+<pre><code>[chat]
+talk_value = 0.3              # 群聊发言频率（0-1，越小越沉默）
+private_talk_value = 1        # 私聊发言频率
+inevitable_at_reply = true    # AT必回
+max_context_size = 40         # 上下文长度
+enable_context_optimization = true  # 优化Planner上下文消耗
+mid_term_memory = true        # 中期记忆摘要</code></pre>
+
+<h3>6.4 WebUI安全</h3>
+<pre><code>[webui]
+enabled = true
+host = "0.0.0.0"             # ← Docker部署必须改为0.0.0.0！
+port = 8001                   # 与docker-compose.yml端口映射右侧一致
+allowed_ips = "127.0.0.1"    # IP白名单，按需修改</code></pre>
+
+<div class="danger">Docker部署时 <code>webui.host</code> <strong>必须</strong>改为 <code>"0.0.0.0"</code>！默认值是 <code>"127.0.0.1"</code>，在容器内这意味着只有容器自身能访问WebUI，宿主机<strong>无法</strong>通过端口映射访问。改完前浏览器打不开WebUI。</div>
+</div>
+
+<!-- ====== Step 7 ====== -->
+<h2 id="s7"><span class="step-num">7</span>NapCat-Adapter 插件配置</h2>
+
+<div class="step">
+<p>这是MaiBot连接QQ的桥梁，配置错误会导致Bot无法收发消息。</p>
+
+<h3>7.1 关键配置项</h3>
+<p><span class="file-tag">文件</span><code>data/MaiMBot/plugins/MaiBot-Napcat-Adapter/config.toml</code></p>
+
+<div class="danger"><code>napcat_server.host</code> 绝对不能是 <code>"127.0.0.1"</code>！在Docker环境中，core和napcat是不同容器，必须使用<strong>Docker容器名</strong>或<strong>网络别名</strong>通信。</div>
+
+<pre><code>[plugin]
+enabled = true                # ← 必须为true！
+config_version = "0.1.0"
+
+[napcat_server]
+host = "napcat"               # ← Docker Compose服务名，不是127.0.0.1！
+port = 3001                   # 与NapCat onebot11配置一致
+token = ""                    # 若NapCat设置了token则填写
+
+[chat]
+enable_chat_list_filter = true
+group_list_type = "whitelist"
+group_list = [123456789]      # ← 允许Bot活跃的群号列表
+private_list_type = "whitelist"
+private_list = [987654321]    # ← 允许Bot私聊的QQ号列表</code></pre>
+
+<div class="warn"><strong>群聊收不到消息？</strong>NapCat适配器默认启用聊天名单过滤，且群聊默认是白名单模式。如果群号没有写进 <code>group_list</code>，群消息会被适配器<strong>直接丢弃</strong>，看起来就像NapCat已连接但MaiBot没反应。一定要把你希望Bot活跃的群号加入白名单！</div>
+
+<div class="tip">Docker Compose 中 napcat 的<strong>服务名</strong>是 <code>napcat</code>（即 docker-compose.yml 中的 service key），core容器可以通过此名称在Docker bridge网络中解析到napcat容器。<strong>不是</strong> <code>maim-bot-napcat</code>（那是container_name）。</div>
+</div>
+
+<!-- ====== Step 8 ====== -->
+<h2 id="s8"><span class="step-num">8</span>WebUI 首次设置</h2>
+
+<div class="step">
+<ol>
+<li>浏览器访问 <code>http://localhost:18001</code></li>
+<li>完成首次设置向导（设置访问密码等）</li>
+<li><strong>配置GitHub镜像源</strong>（国内环境必需，否则无法下载插件）：
+  <ul>
+    <li>在WebUI设置中配置镜像源，如 <code>https://gh-proxy.org/https://raw.githubusercontent.com</code></li>
+  </ul>
+</li>
+<li>在插件页面浏览并安装需要的插件</li>
+</ol>
+</div>
+
+<!-- ====== Step 9 ====== -->
+<h2 id="s9"><span class="step-num">9</span>安装与配置插件</h2>
+
+<div class="step">
+<h3>9.1 通过WebUI安装插件</h3>
+<p>在WebUI的插件市场页面，点击安装即可。插件会下载到 <code>data/MaiMBot/plugins/</code> 目录。</p>
+
+<div class="warn">安装 <code>maibot-team.napcat-adapter</code> 插件后，<strong>不要</strong>手动删除 <code>MaiBot-Napcat-Adapter</code> 目录！wrapper脚本会自动处理冲突。也不要通过WebUI重复安装napcat-adapter。</div>
+
+<h3>9.2 常用插件推荐</h3>
+<table style="width:100%;border-collapse:collapse;margin:12px 0">
+<tr style="border-bottom:1px solid var(--border)"><th style="text-align:left;padding:6px">插件</th><th style="text-align:left;padding:6px">功能</th><th style="text-align:left;padding:6px">推荐</th></tr>
+<tr style="border-bottom:1px solid var(--border)"><td style="padding:6px">internetsb.maizone</td><td style="padding:6px">QQ空间自动说说/评论/阅读</td><td class="status-ok" style="padding:6px">推荐</td></tr>
+<tr style="border-bottom:1px solid var(--border)"><td style="padding:6px">sengokucola.aliyun-tts-plugin</td><td style="padding:6px">阿里云TTS语音合成</td><td class="status-ok" style="padding:6px">推荐</td></tr>
+<tr style="border-bottom:1px solid var(--border)"><td style="padding:6px">sengokucola.better-image</td><td style="padding:6px">图片搜索/裁剪/变换</td><td class="status-ok" style="padding:6px">推荐</td></tr>
+<tr style="border-bottom:1px solid var(--border)"><td style="padding:6px">xxxxx7258.google-search-plugin</td><td style="padding:6px">搜索引擎(Bing/搜狗/DDG)</td><td class="status-ok" style="padding:6px">推荐</td></tr>
+<tr style="border-bottom:1px solid var(--border)"><td style="padding:6px">TAIY2020.smart_poke_plugin</td><td style="padding:6px">智能戳一戳回复</td><td class="status-ok" style="padding:6px">推荐</td></tr>
+<tr style="border-bottom:1px solid var(--border)"><td style="padding:6px">small_sunshine.prompt-injection-guard</td><td style="padding:6px">提示词注入防护</td><td class="status-ok" style="padding:6px">推荐</td></tr>
+<tr style="border-bottom:1px solid var(--border)"><td style="padding:6px">local.goodnight-sleep-manager</td><td style="padding:6px">晚安休眠管理</td><td class="status-off" style="padding:6px">可选</td></tr>
+<tr><td style="padding:6px">saberlights.smart-segmentation-plugin</td><td style="padding:6px">智能分段</td><td class="status-off" style="padding:6px">可选</td></tr>
+</table>
+
+<h3>9.3 internetsb.maizone 配置要点</h3>
+<p>安装后编辑 <code>data/MaiMBot/plugins/internetsb_maizone/config.toml</code>：</p>
+<pre><code>[plugin]
+enabled = true
+text_model = "replyer"                  # 使用主配置的replyer模型
+
+# Cookie获取方式：优先adapter（通过NapCat Adapter获取）
+http_host = "napcat"                    # NapCat服务名（Docker Compose内）
+http_port = 9999                         # NapCat HTTP端口（如有）
+napcat_token = ""
+cookie_methods = ["adapter", "napcat", "qrcode", "local"]
+
+[auto_read]
+enable_auto_read = true
+interval = 15                            # 自动读说说间隔（分钟）
+silent_duration = "22:00-07:00"          # 静默时段
+
+[auto_send]
+enable_auto_send = true
+daily_probability = 0.3                  # 每天发说说的概率
+schedule = ["08:00", "20:00"]            # 发说说时间点
+fluctuation = 60                         # 时间随机波动（分钟）</code></pre>
+</div>
+
+<!-- ====== Step 10 ====== -->
+<h2 id="s10"><span class="step-num">10</span>常见问题排查</h2>
+
+<div class="step">
+<h3>Q1: 所有插件加载失败，日志显示"检测到重复插件ID"</h3>
+<p><strong>原因</strong>：<code>MaiBot-Napcat-Adapter</code>（镜像自带）与 <code>maibot-team_napcat-adapter</code>（WebUI安装）同ID冲突。</p>
+<p><strong>解决</strong>：确认 <code>docker-entrypoint-wrapper.sh</code> 已创建且 <code>docker-compose.yml</code> 中已配置 entrypoint 和 volume 挂载。重启容器。</p>
+
+<h3>Q2: NapCat连接失败 "Cannot connect to host 127.0.0.1:3001"</h3>
+<p><strong>原因</strong>：adapter 配置中 <code>host</code> 指向了 <code>127.0.0.1</code>，但NapCat在另一个容器中。</p>
+<p><strong>解决</strong>：将 <code>napcat_server.host</code> 改为 <code>"napcat"</code>（Docker Compose服务名，即docker-compose.yml中的service key）。</p>
+
+<h3>Q3: "关系向量未启用" / embedding 进入降级态</h3>
+<p><strong>原因</strong>：embedding模型配置的模型不支持embedding（如 <code>deepseek-v4-pro</code>）。</p>
+<p><strong>解决</strong>：在 <code>model_config.toml</code> 中将 embedding 的 <code>model_list</code> 改为支持embedding的模型（如阿里云百炼的 <code>text-embedding-v4</code>），并确保对应的 API Provider 和 model 定义存在。</p>
+
+<h3>Q4: 插件"配置版本非法"</h3>
+<p><strong>原因</strong>：插件自身的 <code>config_model</code> 定义与运行时校验不兼容，通常是插件版本bug。</p>
+<p><strong>解决</strong>：在WebUI中卸载重装该插件，或等待插件作者更新。</p>
+
+<h3>Q5: WebUI无法下载插件</h3>
+<p><strong>原因</strong>：GitHub在国内无法直接访问。</p>
+<p><strong>解决</strong>：在WebUI设置中配置GitHub镜像源。</p>
+
+<h3>Q6: 查看容器日志的常用命令</h3>
+<pre><code># 查看MaiBot核心日志
+docker logs maim-bot-core --since 5m
+
+# 查看NapCat日志
+docker logs maim-bot-napcat --since 5m
+
+# 搜索插件相关错误
+docker logs maim-bot-core 2>&1 | grep -iE "插件.*失败|重复|拒绝|error"
+
+# 搜索embedding相关错误
+docker logs maim-bot-core 2>&1 | grep -iE "embedding|降级|Not Found"</code></pre>
+</div>
+
+<hr>
+<p style="text-align:center;color:var(--text2);font-size:0.85em;margin-top:30px">
+本教程基于 MaiBot Docker 部署实践总结 · 最后更新：2026-05
+</p>
+
+</div>
+</body>
+</html>
