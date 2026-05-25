@@ -28,7 +28,7 @@ services:
       - ./docker-entrypoint-wrapper.sh:/MaiMBot/docker-entrypoint-wrapper.sh:ro # 去重入口包装
       - ./data/MaiMBot/logs:/MaiMBot/logs # 日志目录
       - ./depends-data:/MaiMBot/depends-data:ro # 运行时资源文件
-      # - site-packages:/usr/local/lib/python3.13/site-packages # 持久化Python包，需要时启用
+      - site-packages:/MaiMBot/.venv # 持久化Python包（含插件依赖），镜像更新不丢失
     restart: always
     networks:
       - maim_bot
@@ -93,8 +93,8 @@ services:
   #   networks:
   #     - maim_bot
   
-# volumes:         #  若需要持久化Python包时启用
-#   site-packages:
+volumes:
+  site-packages:
 #   caddy_data:
 #   caddy_config:
 networks:
