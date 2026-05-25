@@ -1,3 +1,15 @@
+# 1.0.0-pre.25
+
+## 开发侧 / 修复 / SDK 与 API 改动
+
+### 开发容器 / 工程
+- 新增 `.devcontainer/Dockerfile`，基于 Python 3.13 的 Microsoft devcontainers 镜像，预装 uv 并修复 Yarn APT 仓库 GPG 密钥过期问题。
+- 重构 `.devcontainer/devcontainer.json`：改为从 Dockerfile 构建，引入 docker-outside-of-docker 支持，新增 WebUI 8001 端口转发，预配置开发环境变量（语言、时区、协议确认等），`postCreateCommand` 改用 `uv sync` 安装依赖，`postStartCommand` 自动配置 git safe.directory 和 docker-config/data 目录权限。
+- VS Code 开发容器预装 Copilot、DeepSeek V4、OAI Compatible 等智能体相关插件，并配置 ruff 作为 Python 默认格式化和自动 import 整理工具。
+- 重整 `.gitignore`：按模块分类组织条目，新增 `docker-config/` 忽略规则，统一 `.venv` 为目录匹配语义，消除重复条目。
+- 新增 `.devcontainer/setup-dood-override.sh` 脚本：自动检测宿主机项目路径并生成 `docker-compose.devcontainer.yml`，配合 `remoteEnv.COMPOSE_FILE` 仅于 devcontainer 内加载，修复 Docker-outside-of-Docker 场景下 bind mount 路径解析错误导致重启后数据丢失的问题。方案不修改项目 `docker-compose.yml`，容器外 `docker compose` 不受任何影响。
+
+
 # 1.0.0-pre.24
 
 ## 用户感知功能侧
