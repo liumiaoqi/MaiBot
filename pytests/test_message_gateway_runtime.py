@@ -59,6 +59,7 @@ async def test_message_gateway_runtime_state_binds_send_and_receive_routes(
                             "route_type": "duplex",
                             "platform": "qq",
                             "protocol": "napcat",
+                            "timeout_ms": 49000,
                         },
                     }
                 ],
@@ -95,6 +96,8 @@ async def test_message_gateway_runtime_state_binds_send_and_receive_routes(
 
     assert [binding.driver_id for binding in send_bindings] == ["gateway:napcat_plugin:napcat_gateway"]
     assert [binding.driver_id for binding in receive_bindings] == ["gateway:napcat_plugin:napcat_gateway"]
+    driver = platform_io_manager.driver_registry.get("gateway:napcat_plugin:napcat_gateway")
+    assert getattr(driver, "_timeout_ms") == 49000
 
 
 @pytest.mark.asyncio
