@@ -51,6 +51,9 @@ REQUEST_TYPE_BY_REQUEST_KIND = {
     "planner": "maisaka_planner",
     "timing_gate": "maisaka_timing_gate",
 }
+MODEL_TASK_NAME_BY_REQUEST_KIND = {
+    "timing_gate": "timing_gate",
+}
 PROMPT_PREVIEW_CATEGORY_BY_REQUEST_KIND = {
     "planner": "planner",
     "timing_gate": "timing_gate",
@@ -524,15 +527,22 @@ class MaisakaChatLoopService:
             return "planner"
         return PROMPT_PREVIEW_CATEGORY_BY_REQUEST_KIND.get(normalized_request_kind, normalized_request_kind)
 
+    def _resolve_model_task_name(self, request_kind: str) -> str:
+        """根据请求类型解析模型任务配置名。"""
+
+        normalized_request_kind = str(request_kind or "").strip().lower()
+        return MODEL_TASK_NAME_BY_REQUEST_KIND.get(normalized_request_kind, self._model_task_name)
+
     def _get_llm_chat_client(self, request_kind: str) -> LLMServiceClient:
         """获取当前请求类型对应的 LLM 客户端。"""
 
         request_type = self._resolve_llm_request_type(request_kind)
-        client_key = f"{self._model_task_name}:{request_type}"
+        model_task_name = self._resolve_model_task_name(request_kind)
+        client_key = f"{model_task_name}:{request_type}"
         llm_client = self._llm_chat_clients.get(client_key)
         if llm_client is None:
             llm_client = LLMServiceClient(
-                task_name=self._model_task_name,
+                task_name=model_task_name,
                 request_type=request_type,
                 session_id=self._session_id,
             )
