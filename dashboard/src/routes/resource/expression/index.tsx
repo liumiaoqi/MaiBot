@@ -948,7 +948,7 @@ export function ExpressionManagementPage() {
       )}
 
       {activeView === 'reviewLogs' && (
-        <div className="min-h-0 flex-1 pr-4">
+        <div className="h-full min-h-0 flex-1 pr-4">
           <ExpressionReviewLogPanel
             onRescued={() => {
               loadExpressions()

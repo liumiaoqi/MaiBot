@@ -1966,20 +1966,24 @@ class SDKMemoryKernel:
 
         if act == "delete":
             source = str(kwargs.get("source", "") or "").strip()
-            return await self._execute_delete_action(
+            result = await self._execute_delete_action(
                 mode="source",
                 selector={"sources": [source]},
                 requested_by=str(kwargs.get("requested_by", "") or "memory_source_admin"),
                 reason=str(kwargs.get("reason", "") or "source_delete"),
             )
+            await self._invalidate_import_manifest_for_sources(result)
+            return result
 
         if act == "batch_delete":
-            return await self._execute_delete_action(
+            result = await self._execute_delete_action(
                 mode="source",
                 selector={"sources": list(kwargs.get("sources") or [])},
                 requested_by=str(kwargs.get("requested_by", "") or "memory_source_admin"),
                 reason=str(kwargs.get("reason", "") or "source_batch_delete"),
             )
+            await self._invalidate_import_manifest_for_sources(result)
+            return result
 
         return {"success": False, "error": f"不支持的 source action: {act}"}
 
@@ -2441,12 +2445,14 @@ class SDKMemoryKernel:
         if act == "preview":
             return await self._preview_delete_action(mode=mode, selector=selector)
         if act == "execute":
-            return await self._execute_delete_action(
+            result = await self._execute_delete_action(
                 mode=mode,
                 selector=selector,
                 requested_by=requested_by,
                 reason=reason,
             )
+            await self._invalidate_import_manifest_for_sources(result)
+            return result
         if act == "restore":
             return await self._restore_delete_action(
                 mode=mode,
@@ -6512,6 +6518,23 @@ class SDKMemoryKernel:
             conn.rollback()
             logger.warning(f"delete_admin execute 失败: {exc}")
             return self._build_standard_delete_result(mode=act_mode, error=str(exc))
+
+    async def _invalidate_import_manifest_for_sources(self, result: Dict[str, Any]) -> None:
+        if not isinstance(result, dict) or not result.get("success"):
+            return
+        manager = self.import_task_manager
+        if manager is None:
+            return
+        sources = self._tokens(result.get("sources"))
+        if not sources:
+            return
+        try:
+            manifest_result = await manager.invalidate_manifest_for_sources(sources)
+        except Exception as exc:
+            logger.warning(f"删除来源后清理导入清单失败: sources={sources}, err={exc}")
+            result["manifest_invalidation"] = {"success": False, "error": str(exc), "sources": sources}
+            return
+        result["manifest_invalidation"] = manifest_result
 
     async def _restore_delete_action(
         self,

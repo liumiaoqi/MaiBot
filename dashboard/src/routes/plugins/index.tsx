@@ -8,11 +8,11 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { AlertCircle, AlertTriangle, CheckCircle2, Info, Loader2, RotateCw, Search, Settings2 } from 'lucide-react'
+import { AlertCircle, AlertTriangle, CheckCircle2, Info, Loader2, Search, Settings2 } from 'lucide-react'
 
 import { RestartOverlay } from '@/components/restart-overlay'
 import { useToast } from '@/hooks/use-toast'
-import { RestartProvider, useRestart } from '@/lib/restart-context'
+import { RestartProvider } from '@/lib/restart-context'
 import {
   checkGitStatus,
   checkPluginInstalled,
@@ -53,7 +53,6 @@ export function PluginsPage() {
 // 内部组件：实际内容
 function PluginsPageContent() {
   const navigate = useNavigate()
-  const { triggerRestart, isRestarting } = useRestart()
   const [restartNoticeVisible, setRestartNoticeVisible] = useState(
     () => localStorage.getItem('plugins-restart-notice-dismissed') !== 'true'
   )
@@ -720,17 +719,8 @@ function PluginsPageContent() {
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold">插件市场</h1>
-            <p className="text-muted-foreground mt-2">浏览和管理麦麦的插件</p>
           </div>
           <div className="flex gap-2">
-            <Button 
-              variant="outline"
-              onClick={() => triggerRestart()}
-              disabled={isRestarting}
-            >
-              <RotateCw className={`h-4 w-4 mr-2 ${isRestarting ? 'animate-spin' : ''}`} />
-              重启麦麦
-            </Button>
             <Button onClick={() => navigate({ to: '/plugin-mirrors' })}>
               <Settings2 className="h-4 w-4 mr-2" />
               配置镜像源
@@ -784,81 +774,77 @@ function PluginsPageContent() {
 
         {/* 搜索和筛选栏 */}
         <Card className="p-4">
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col sm:flex-row gap-4">
-              {/* 搜索框 */}
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="搜索插件..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-
-              {/* 分类筛选 */}
-              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger className="w-full sm:w-[200px]">
-                  <SelectValue placeholder="选择分类" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部分类</SelectItem>
-                  <SelectItem value="Group Management">群组管理</SelectItem>
-                  <SelectItem value="Entertainment & Interaction">娱乐互动</SelectItem>
-                  <SelectItem value="Utility Tools">实用工具</SelectItem>
-                  <SelectItem value="Content Generation">内容生成</SelectItem>
-                  <SelectItem value="Multimedia">多媒体</SelectItem>
-                  <SelectItem value="External Integration">外部集成</SelectItem>
-                  <SelectItem value="Data Analysis & Insights">数据分析与洞察</SelectItem>
-                  <SelectItem value="Other">其他</SelectItem>
-                </SelectContent>
-              </Select>
-
-              {/* 排序 */}
-              <Select
-                value={marketplaceSortBy}
-                onValueChange={(value) => setMarketplaceSortBy(value as MarketplaceSortKey)}
-              >
-                <SelectTrigger className="w-full sm:w-[160px]">
-                  <SelectValue placeholder="排序" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="default">推荐排序</SelectItem>
-                  <SelectItem value="downloads">下载最多</SelectItem>
-                  <SelectItem value="likes">点赞最多</SelectItem>
-                  <SelectItem value="rating">评分最高</SelectItem>
-                </SelectContent>
-              </Select>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+            {/* 搜索框 */}
+            <div className="relative w-full sm:max-w-md sm:flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="搜索插件..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
             </div>
-            
+
+            {/* 分类筛选 */}
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="w-full sm:w-[200px]">
+                <SelectValue placeholder="选择分类" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部分类</SelectItem>
+                <SelectItem value="Group Management">群组管理</SelectItem>
+                <SelectItem value="Entertainment & Interaction">娱乐互动</SelectItem>
+                <SelectItem value="Utility Tools">实用工具</SelectItem>
+                <SelectItem value="Content Generation">内容生成</SelectItem>
+                <SelectItem value="Multimedia">多媒体</SelectItem>
+                <SelectItem value="External Integration">外部集成</SelectItem>
+                <SelectItem value="Data Analysis & Insights">数据分析与洞察</SelectItem>
+                <SelectItem value="Other">其他</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* 排序 */}
+            <Select
+              value={marketplaceSortBy}
+              onValueChange={(value) => setMarketplaceSortBy(value as MarketplaceSortKey)}
+            >
+              <SelectTrigger className="w-full sm:w-[160px]">
+                <SelectValue placeholder="排序" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">推荐排序</SelectItem>
+                <SelectItem value="downloads">下载最多</SelectItem>
+                <SelectItem value="likes">点赞最多</SelectItem>
+                <SelectItem value="rating">评分最高</SelectItem>
+              </SelectContent>
+            </Select>
+
             {/* 兼容性筛选 */}
-            <div className="flex items-center">
-              <div className="relative flex items-center space-x-2">
-                <Checkbox
-                  id="compatible-only"
-                  checked={showCompatibleOnly}
-                  onCheckedChange={(checked) => setShowCompatibleOnly(checked === true)}
-                />
-                <label
-                  htmlFor="compatible-only"
-                  className="cursor-pointer text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            <div className="flex w-full flex-wrap items-center gap-x-2 gap-y-2 sm:w-auto sm:min-w-fit">
+              <Checkbox
+                id="compatible-only"
+                checked={showCompatibleOnly}
+                onCheckedChange={(checked) => setShowCompatibleOnly(checked === true)}
+              />
+              <label
+                htmlFor="compatible-only"
+                className="cursor-pointer text-sm font-medium leading-none whitespace-nowrap peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                仅显示当前版本
+              </label>
+              {isFetchingMarketplace && (
+                <div
+                  className="flex min-w-0 max-w-full items-center gap-2 rounded-md border bg-background/85 px-2 py-0.5 text-xs whitespace-nowrap shadow-sm backdrop-blur sm:max-w-80"
+                  aria-live="polite"
                 >
-                  只显示兼容当前版本的插件
-                </label>
-                {isFetchingMarketplace && (
-                  <div
-                    className="absolute top-1/2 left-[calc(100%+0.75rem)] z-10 flex max-w-[34rem] -translate-y-1/2 items-center gap-2 rounded-md border bg-background/85 px-2 py-0.5 text-xs whitespace-nowrap shadow-sm backdrop-blur"
-                    aria-live="polite"
-                  >
-                    <Loader2 className="h-3 w-3 shrink-0 animate-spin text-muted-foreground" />
-                    <span className="shrink-0 font-medium">加载插件市场</span>
-                    <span className="min-w-0 truncate text-muted-foreground">
-                      {loadProgress.message || '正在获取插件清单'}
-                    </span>
-                  </div>
-                )}
-              </div>
+                  <Loader2 className="h-3 w-3 shrink-0 animate-spin text-muted-foreground" />
+                  <span className="shrink-0 font-medium">加载插件市场</span>
+                  <span className="min-w-0 truncate text-muted-foreground">
+                    {loadProgress.message || '正在获取插件清单'}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </Card>

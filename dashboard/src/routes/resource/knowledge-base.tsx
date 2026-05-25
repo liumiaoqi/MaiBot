@@ -2208,7 +2208,7 @@ export function KnowledgeBasePage() {
             </div>
 
             <TabsContent value="graph" className="h-[calc(100vh-132px)] min-h-[820px] overflow-hidden rounded-2xl border border-border/60 bg-background shadow-sm">
-              <KnowledgeGraphPage embedded onOpenConsole={() => setActiveTab('graph')} />
+              <KnowledgeGraphPage embedded onOpenConsole={() => setActiveTab('import')} />
             </TabsContent>
 
             {shouldRenderMemoryTab('import') && (shouldShowPanelFallback('import') ? renderPanelFallback('import', '导入数据') : (

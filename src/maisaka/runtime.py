@@ -263,7 +263,7 @@ class MaisakaHeartFlowChatting:
 
     def adjust_talk_frequency(self, frequency: float) -> None:
         """调整当前会话的回复频率倍率。"""
-        self._talk_frequency_adjust = max(0.01, float(frequency))
+        self._talk_frequency_adjust = max(0.0, float(frequency))
         self._schedule_message_turn()
 
     def append_sent_message_to_chat_history(
@@ -505,16 +505,29 @@ class MaisakaHeartFlowChatting:
 
     def _get_effective_reply_frequency(self) -> float:
         """返回当前会话生效的回复频率。"""
-        talk_value = max(
-            0.01,
-            float(
-                ChatConfigUtils.get_talk_value(
-                    self.session_id,
-                    is_group_chat=self.chat_stream.is_group_session,
-                )
-            ),
+        base_talk_value = self._get_base_reply_frequency()
+        if base_talk_value <= 0 or self._talk_frequency_adjust <= 0:
+            return 0.0
+
+        talk_value = float(
+            ChatConfigUtils.get_talk_value(
+                self.session_id,
+                is_group_chat=self.chat_stream.is_group_session,
+            )
         )
-        return max(0.01, talk_value * self._talk_frequency_adjust)
+        if talk_value <= 0:
+            return 0.0
+        return max(0.0, talk_value * self._talk_frequency_adjust)
+
+    def _get_base_reply_frequency(self) -> float:
+        """返回当前会话类型对应的基础回复频率。"""
+        if self.chat_stream.is_group_session:
+            return float(global_config.chat.talk_value)
+        return float(global_config.chat.private_talk_value)
+
+    def _is_reply_frequency_silent(self) -> bool:
+        """判断当前会话是否处于回复频率为 0 的静默接收模式。"""
+        return self._get_effective_reply_frequency() <= 0.0
 
     async def track_reply_effect(
         self,
@@ -598,6 +611,8 @@ class MaisakaHeartFlowChatting:
     def _get_message_trigger_threshold(self) -> int:
         """根据回复频率折算出触发一轮循环所需的消息数。"""
         effective_frequency = min(1.0, self._get_effective_reply_frequency())
+        if effective_frequency <= 0:
+            return 0
         return max(1, int(ceil(1.0 / effective_frequency)))
 
     def _get_pending_message_count(self) -> int:
@@ -790,6 +805,12 @@ class MaisakaHeartFlowChatting:
         self._force_next_timing_message_id = ""
         self._force_next_timing_reason = ""
         return reason
+
+    def _clear_force_next_timing_continue_state(self) -> None:
+        """清理一次性 Timing Gate continue 状态，不触发门控提示。"""
+        self._force_next_timing_continue = False
+        self._force_next_timing_message_id = ""
+        self._force_next_timing_reason = ""
 
     def _has_forced_timing_trigger(self) -> bool:
         """判断是否已有 @/提及必回触发，需绕过普通频率阈值。"""
@@ -1159,13 +1180,21 @@ class MaisakaHeartFlowChatting:
     def _schedule_message_turn(self) -> None:
         """为当前待处理消息安排一次内部 turn。"""
         if self._agent_state == self._STATE_WAIT:
-            return
+            if not self._is_reply_frequency_silent():
+                return
+            self._enter_stop_state()
 
         if not self._has_pending_messages() or self._message_turn_scheduled:
             return
 
         pending_count = self._get_pending_message_count()
         if pending_count <= 0:
+            return
+
+        if self._is_reply_frequency_silent():
+            self._cancel_deferred_message_turn_task()
+            self._message_turn_scheduled = True
+            self._internal_turn_queue.put_nowait("message")
             return
 
         if self._has_forced_timing_trigger():
@@ -1732,6 +1761,7 @@ class MaisakaHeartFlowChatting:
         tool_call_id: str,
         border_style: str = "bright_yellow",
         output_content: str = "",
+        metadata: Optional[dict[str, Any]] = None,
     ) -> Panel:
         """将工具 prompt 渲染为可点击查看的预览入口。"""
 
@@ -1754,6 +1784,7 @@ class MaisakaHeartFlowChatting:
                         request_kind=labels["request_kind"],
                         selection_reason=subtitle,
                         output_content=output_content,
+                        metadata=metadata,
                     ),
                     title=labels["prompt_title"],
                     border_style=border_style,
@@ -1768,11 +1799,32 @@ class MaisakaHeartFlowChatting:
                 request_kind=labels["request_kind"],
                 subtitle=subtitle,
                 output_content=output_content,
+                metadata=metadata,
             ),
             title=labels["prompt_title"],
             border_style=border_style,
             padding=(0, 1),
         )
+
+    @staticmethod
+    def _build_prompt_preview_metadata_from_tool_metrics(metrics: Any) -> dict[str, Any]:
+        """从工具监控 metrics 中提取可写入 Prompt 预览的模型与耗时。"""
+
+        if not isinstance(metrics, dict):
+            return {}
+
+        metadata: dict[str, Any] = {}
+        model_name = str(metrics.get("model_name") or "").strip()
+        if model_name:
+            metadata["model_name"] = model_name
+
+        for duration_key in ("llm_ms", "overall_ms"):
+            duration_ms = metrics.get(duration_key)
+            if isinstance(duration_ms, (int, float)):
+                metadata["duration_ms"] = duration_ms
+                break
+
+        return metadata
 
     def _normalize_tool_card_body_lines(self, body: Any) -> list[str]:
         """将工具卡片正文规范化为行列表。"""
@@ -1862,6 +1914,7 @@ class MaisakaHeartFlowChatting:
             )
 
         metrics = detail.get("metrics")
+        preview_metadata = self._build_prompt_preview_metadata_from_tool_metrics(metrics)
         if isinstance(metrics, dict):
             metrics_text = self._build_tool_metrics_text(metrics)
             if metrics_text:
@@ -1881,10 +1934,13 @@ class MaisakaHeartFlowChatting:
                 self._build_tool_prompt_access_panel(
                     tool_name=tool_name,
                     prompt_text=prompt_text,
-                    request_messages=detail.get("request_messages") if isinstance(detail.get("request_messages"), list) else None,
+                    request_messages=(
+                        detail.get("request_messages") if isinstance(detail.get("request_messages"), list) else None
+                    ),
                     tool_call_id=tool_call_id,
                     border_style=prompt_border_style,
                     output_content=output_text,
+                    metadata=preview_metadata,
                 )
             )
 

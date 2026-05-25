@@ -88,6 +88,18 @@ function normalizePluginManifest(manifest: PluginApiResponse['manifest']): Plugi
   }
 }
 
+function normalizeDateString(value: unknown): string {
+  if (typeof value === 'string') {
+    return value
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return new Date(value).toISOString()
+  }
+
+  return ''
+}
+
 function readPluginListStorageCache(): PluginListStorageCache | null {
   if (typeof localStorage === 'undefined') {
     return null
@@ -194,7 +206,7 @@ async function fetchPluginListUncached(): Promise<ApiResponse<PluginInfo[]>> {
       }
       return true
     })
-    .map((item) => {
+    .map((item, index) => {
       const manifestId = item.manifest.id?.trim()
       const marketplaceId = item.id?.trim()
       const pluginId = manifestId || marketplaceId!
@@ -202,6 +214,7 @@ async function fetchPluginListUncached(): Promise<ApiResponse<PluginInfo[]>> {
       return {
         id: pluginId,
         marketplace_id: marketplaceId,
+        marketplace_order: index,
         stats_ids: uniqueNonEmptyValues([manifestId]),
         manifest: normalizePluginManifest({ ...item.manifest, id: pluginId }),
         downloads: 0,
@@ -209,8 +222,8 @@ async function fetchPluginListUncached(): Promise<ApiResponse<PluginInfo[]>> {
         review_count: 0,
         installed: false,
         source: 'market' as const,
-        published_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        published_at: normalizeDateString(item.published_at ?? item.created_at ?? item.added_at),
+        updated_at: normalizeDateString(item.updated_at ?? item.modified_at),
       }
     })
   

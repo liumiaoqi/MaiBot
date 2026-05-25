@@ -5,7 +5,7 @@
 """
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, TypeAlias
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, List, TypeAlias
 
 import asyncio
 
@@ -23,7 +23,7 @@ PromptMessage: TypeAlias = Dict[str, Any]
 PromptInput: TypeAlias = str | List[PromptMessage]
 """统一的提示输入类型。"""
 
-MessageFactory: TypeAlias = Callable[..., List["Message"]]
+MessageFactory: TypeAlias = Callable[..., List["Message"] | Awaitable[List["Message"]]]
 """统一的消息工厂类型。"""
 
 

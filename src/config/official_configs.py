@@ -196,6 +196,70 @@ class PersonalityConfig(ConfigBase):
     )
     """每次构建回复时，从 multiple_reply_style 中随机替换 reply_style 的概率（0.0-1.0）"""
 
+
+class ImageCacheCleanupConfig(ConfigBase):
+    """图片缓存自动清理配置。"""
+
+    enabled: bool = Field(
+        default=True,
+        json_schema_extra={
+            "x-widget": "switch",
+            "x-icon": "trash-2",
+            "label": {
+                "zh_CN": "启用图片缓存自动清理",
+                "en_US": "Enable image cache cleanup",
+                "ja_JP": "画像キャッシュ自動クリーンアップを有効化",
+            },
+        },
+    )
+    """是否启用图片缓存自动清理。"""
+
+    check_interval_hours: float = Field(
+        default=6.0,
+        ge=1.0 / 60.0,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "clock",
+            "label": {
+                "zh_CN": "清理检查间隔（小时）",
+                "en_US": "Cleanup check interval (hours)",
+                "ja_JP": "クリーンアップ確認間隔（時間）",
+            },
+        },
+    )
+    """图片缓存自动清理任务的轮询间隔，单位为小时。"""
+
+    image_file_retention_days: int = Field(
+        default=14,
+        ge=1,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "calendar-days",
+            "label": {
+                "zh_CN": "图片文件保留天数",
+                "en_US": "Image file retention days",
+                "ja_JP": "画像ファイル保持日数",
+            },
+        },
+    )
+    """图片文件超过该天数未使用后会被删除，但识别结果会继续保留。"""
+
+    no_file_result_retention_days: int = Field(
+        default=30,
+        ge=1,
+        json_schema_extra={
+            "x-widget": "input",
+            "x-icon": "database",
+            "label": {
+                "zh_CN": "无文件识别结果保留天数",
+                "en_US": "No-file recognition retention days",
+                "ja_JP": "ファイルなし認識結果保持日数",
+            },
+        },
+    )
+    """图片文件被清理或缺失后，识别结果继续保留的天数。"""
+
+
 class VisualConfig(ConfigBase):
     """视觉配置类"""
 
@@ -223,6 +287,22 @@ class VisualConfig(ConfigBase):
         },
     )
     """回复器模式，auto根据模型信息自动选择，text为纯文本模式，multimodal为多模态模式"""
+
+    max_image_num: int = Field(
+        default=128,
+        ge=0,
+        json_schema_extra={
+            "advanced": True,
+            "x-widget": "input",
+            "x-icon": "images",
+            "label": {
+                "zh_CN": "多模态最大图片数",
+                "en_US": "Max multimodal images",
+                "ja_JP": "マルチモーダル最大画像数",
+            },
+        },
+    )
+    """多模态请求中最多保留的图片数量；只保留最新图片，超出数量的旧图片会显示为 [图片]。"""
 
     wait_image_recognize_max_time: float = Field(
         default=10,
@@ -289,6 +369,9 @@ class VisualConfig(ConfigBase):
         },
     )
     """接收图片超过最大图片大小时的处理方法：compress 为压缩，discard 为丢弃。"""
+
+    image_cache_cleanup: ImageCacheCleanupConfig = Field(default_factory=ImageCacheCleanupConfig)
+    """图片缓存自动清理配置。"""
 
 
 class TalkRulesItem(ConfigBase):
@@ -374,7 +457,7 @@ class ChatConfig(ConfigBase):
             "x-widget": "slider",
             "x-icon": "message-circle",
             "x-row": "talk-values",
-            "step": 0.1,
+            "step": 0.001,
         },
     )
     """聊天频率，越小越沉默，范围0-1"""
@@ -392,7 +475,7 @@ class ChatConfig(ConfigBase):
             "x-widget": "slider",
             "x-icon": "message-circle",
             "x-row": "talk-values",
-            "step": 0.1,
+            "step": 0.001,
         },
     )
     """私聊聊天频率，越小越沉默，范围0-1"""

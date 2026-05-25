@@ -1,5 +1,5 @@
 import { Check, MessageCircle, Plus, Search, Trash2, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -46,6 +46,7 @@ export function JargonManagementPage() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [scopeFilter, setScopeFilter] = useState<'all' | 'global' | 'local'>('all')
   const [filterChatId, setFilterChatId] = useState<string>('all')
   const [filterIsJargon, setFilterIsJargon] = useState<string>('all')
@@ -68,30 +69,41 @@ export function JargonManagementPage() {
   })
   const [chatList, setChatList] = useState<JargonChatInfo[]>([])
   const [formChatList, setFormChatList] = useState<JargonChatInfo[]>([])
+  const jargonListRequestSeqRef = useRef(0)
   const { toast } = useToast()
 
   // 加载黑话列表
   const loadJargons = async () => {
+    const requestSeq = jargonListRequestSeqRef.current + 1
+    jargonListRequestSeqRef.current = requestSeq
     try {
       setLoading(true)
       const response = await getJargonList({
         page,
         page_size: pageSize,
-        search: search || undefined,
+        search: debouncedSearch || undefined,
         session_id: scopeFilter !== 'global' && filterChatId !== 'all' ? filterChatId : undefined,
         is_jargon: filterIsJargon === 'all' ? undefined : filterIsJargon === 'true' ? true : filterIsJargon === 'false' ? false : undefined,
         is_global: scopeFilter === 'all' ? undefined : scopeFilter === 'global',
       })
+      if (requestSeq !== jargonListRequestSeqRef.current) {
+        return
+      }
       setJargons(response.data)
       setTotal(response.total)
     } catch (error) {
+      if (requestSeq !== jargonListRequestSeqRef.current) {
+        return
+      }
       toast({
         title: '加载失败',
         description: error instanceof Error ? error.message : '无法加载黑话列表',
         variant: 'destructive',
       })
     } finally {
-      setLoading(false)
+      if (requestSeq === jargonListRequestSeqRef.current) {
+        setLoading(false)
+      }
     }
   }
 
@@ -126,11 +138,26 @@ export function JargonManagementPage() {
   }
 
   useEffect(() => {
+    const timerId = window.setTimeout(() => {
+      const normalizedSearch = search.trim()
+      setDebouncedSearch((current) => (current === normalizedSearch ? current : normalizedSearch))
+      setPage((current) => (current === 1 ? current : 1))
+      setSelectedIds((current) => (current.size === 0 ? current : new Set<number>()))
+    }, 300)
+
+    return () => window.clearTimeout(timerId)
+  }, [search])
+
+  useEffect(() => {
     loadJargons()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, pageSize, debouncedSearch, scopeFilter, filterChatId, filterIsJargon])
+
+  useEffect(() => {
     loadStats()
     loadChatList()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize, search, scopeFilter, filterChatId, filterIsJargon])
+  }, [])
 
   // 查看详情
   const handleViewDetail = async (jargon: Jargon) => {
@@ -332,7 +359,7 @@ export function JargonManagementPage() {
                   <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="search"
-                    placeholder="搜索内容、含义..."
+                    placeholder="搜索黑话内容..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     className="h-8 pl-9"

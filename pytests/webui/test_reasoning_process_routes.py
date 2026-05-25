@@ -68,6 +68,86 @@ def test_replyer_search_matches_full_output_beyond_preview(tmp_path, monkeypatch
     assert reasoning_process._matches_prompt_file_search(items[0], needle.casefold())
 
 
+def test_collect_prompt_files_extracts_model_and_duration_metadata(tmp_path, monkeypatch):
+    session_name = "qq_group_10000"
+    session_dir = tmp_path / "planner" / session_name
+    session_dir.mkdir(parents=True)
+
+    (session_dir / "1700000000001.txt").write_text(
+        f"""[请求信息]
+
+请求模型：test-planner-model
+推理耗时：88.5 ms
+
+{'=' * 80}
+
+[输出结果]
+
+需要先查询资料，然后回复用户。
+
+工具调用:
+[
+  {{
+    "id": "call_1",
+    "name": "query_memory",
+    "arguments": {{}}
+  }}
+]
+
+{'=' * 80}
+
+[Prompt]
+系统提示
+""",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(reasoning_process, "PROMPT_LOG_ROOT", tmp_path)
+
+    items = reasoning_process._collect_prompt_files(
+        "planner",
+        session_name,
+        {session_name: ReasoningPromptSessionInfo(name=session_name, display_name="测试群")},
+    )
+
+    assert len(items) == 1
+    assert items[0].model_name == "test-planner-model"
+    assert items[0].duration_ms == 88.5
+    assert items[0].action_preview == "动作：query_memory"
+    assert reasoning_process._matches_prompt_file_search(items[0], "test-planner-model")
+
+
+def test_collect_prompt_files_extracts_metadata_from_html(tmp_path, monkeypatch):
+    session_name = "qq_group_10000"
+    session_dir = tmp_path / "planner" / session_name
+    session_dir.mkdir(parents=True)
+
+    (session_dir / "1700000000003.html").write_text(
+        """<!DOCTYPE html>
+<html lang="zh-CN">
+<body>
+<script type="application/json" id="prompt-preview-metadata">
+{"model_name":"html-model","duration_ms":7.25}
+</script>
+</body>
+</html>
+""",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(reasoning_process, "PROMPT_LOG_ROOT", tmp_path)
+
+    items = reasoning_process._collect_prompt_files(
+        "planner",
+        session_name,
+        {session_name: ReasoningPromptSessionInfo(name=session_name, display_name="测试群")},
+    )
+
+    assert len(items) == 1
+    assert items[0].model_name == "html-model"
+    assert items[0].duration_ms == 7.25
+
+
 def test_planner_collects_action_preview(tmp_path, monkeypatch):
     session_name = "qq_group_10000"
     session_dir = tmp_path / "planner" / session_name

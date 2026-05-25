@@ -1797,11 +1797,13 @@ class BatchReviewResponse(BaseModel):
 async def get_expression_review_logs(
     limit: int = Query(50, ge=1, le=200, description="返回最近多少条 AI 审核记录"),
     passed: Optional[bool] = Query(None, description="按 AI 审核是否通过筛选"),
+    chat_id: Optional[str] = Query(None, description="按聊天流 ID 筛选"),
 ) -> ExpressionReviewLogListResponse:
     """查看最近的表达方式 AI 审核记录。"""
 
     try:
-        log_entries = get_recent_ai_review_logs(limit=limit, passed=passed)
+        normalized_chat_id = str(chat_id or "").strip() or None
+        log_entries = get_recent_ai_review_logs(limit=limit, passed=passed, session_id=normalized_chat_id)
         with get_db_session() as session:
             data = [review_log_to_response(entry, session) for entry in log_entries]
         return ExpressionReviewLogListResponse(total=len(data), data=data)

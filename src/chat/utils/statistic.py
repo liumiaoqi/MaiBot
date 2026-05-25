@@ -1,5 +1,6 @@
 from collections import defaultdict
 from datetime import datetime, timedelta
+from html import escape
 from os import getenv
 from pathlib import Path
 from typing import cast
@@ -243,6 +244,17 @@ def _format_large_number(num: float | int, html: bool = False) -> str:
             return f"{num:.1f}" if num != int(num) else str(int(num))
         else:
             return str(num)
+
+
+def _json_for_html_script(value: object) -> str:
+    json_text = json.dumps(value, ensure_ascii=False)
+    return (
+        json_text.replace("&", "\\u0026")
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+        .replace("\u2028", "\\u2028")
+        .replace("\u2029", "\\u2029")
+    )
 
 
 class StatisticOutputTask(AsyncTask):
@@ -1205,10 +1217,14 @@ class StatisticOutputTask(AsyncTask):
 
             # 聊天消息统计
             chat_rows = []
+            sorted_chat_ids = sorted(stat_data[MSG_CNT_BY_CHAT].keys())
             for chat_id, count in sorted(stat_data[MSG_CNT_BY_CHAT].items()):
                 try:
                     chat_name = self.name_mapping.get(chat_id, ("未知聊天", 0))[0]
-                    chat_rows.append(f"<tr><td>{chat_name}</td><td>{_format_large_number(count, html=True)}</td></tr>")
+                    escaped_chat_name = escape(str(chat_name), quote=True)
+                    chat_rows.append(
+                        f"<tr><td>{escaped_chat_name}</td><td>{_format_large_number(count, html=True)}</td></tr>"
+                    )
                 except (IndexError, TypeError) as e:
                     logger.warning(f"生成HTML聊天统计时发生错误，chat_id: {chat_id}, 错误: {e}")
                     chat_rows.append(f"<tr><td>未知聊天</td><td>{_format_large_number(count, html=True)}</td></tr>")
@@ -1218,6 +1234,10 @@ class StatisticOutputTask(AsyncTask):
                 if chat_rows
                 else "<tr><td colspan='2' style='text-align: center; color: #999;'>暂无数据</td></tr>"
             )
+            chat_labels = [str(self.name_mapping.get(chat_id, ("未知聊天", 0))[0]) for chat_id in sorted_chat_ids]
+            chat_counts = [stat_data[MSG_CNT_BY_CHAT][chat_id] for chat_id in sorted_chat_ids]
+            chat_labels_json = _json_for_html_script(chat_labels)
+            chat_counts_json = _json_for_html_script(chat_counts)
             # 生成HTML
             return f"""
             <div id=\"{div_id}\" class=\"tab-content\">
@@ -1465,12 +1485,12 @@ class StatisticOutputTask(AsyncTask):
                         }}
                         
                         // 聊天消息分布饼图
-                        const chatLabels = {[self.name_mapping.get(chat_id, ("未知聊天", 0))[0] for chat_id in sorted(stat_data[MSG_CNT_BY_CHAT].keys())] if stat_data[MSG_CNT_BY_CHAT] else []};
+                        const chatLabels = {chat_labels_json};
                         if (chatLabels.length > 0) {{
                             const chatData = {{
                                 labels: chatLabels,
                                 datasets: [{{
-                                    data: {[stat_data[MSG_CNT_BY_CHAT][chat_id] for chat_id in sorted(stat_data[MSG_CNT_BY_CHAT].keys())] if stat_data[MSG_CNT_BY_CHAT] else []},
+                                    data: {chat_counts_json},
                                     backgroundColor: colors.slice(0, {len(stat_data[MSG_CNT_BY_CHAT]) if stat_data[MSG_CNT_BY_CHAT] else 0}),
                                     borderColor: colors.slice(0, {len(stat_data[MSG_CNT_BY_CHAT]) if stat_data[MSG_CNT_BY_CHAT] else 0}),
                                     borderWidth: 2
@@ -1856,8 +1876,8 @@ class StatisticOutputTask(AsyncTask):
         for i, (model_name, cost_data) in enumerate(cost_by_model.items()):
             color = colors[i % len(colors)]
             model_datasets.append(f"""{{
-                label: '{model_name}',
-                data: {cost_data},
+                label: {_json_for_html_script(str(model_name))},
+                data: {_json_for_html_script(cost_data)},
                 borderColor: '{color}',
                 backgroundColor: '{color}20',
                 tension: 0.4,
@@ -1871,8 +1891,8 @@ class StatisticOutputTask(AsyncTask):
         for i, (module_name, cost_data) in enumerate(cost_by_module.items()):
             color = colors[i % len(colors)]
             module_datasets.append(f"""{{
-                label: '{module_name}',
-                data: {cost_data},
+                label: {_json_for_html_script(str(module_name))},
+                data: {_json_for_html_script(cost_data)},
                 borderColor: '{color}',
                 backgroundColor: '{color}20',
                 tension: 0.4,
@@ -1886,8 +1906,8 @@ class StatisticOutputTask(AsyncTask):
         for i, (chat_name, message_data) in enumerate(message_by_chat.items()):
             color = colors[i % len(colors)]
             message_datasets.append(f"""{{
-                label: '{chat_name}',
-                data: {message_data},
+                label: {_json_for_html_script(str(chat_name))},
+                data: {_json_for_html_script(message_data)},
                 borderColor: '{color}',
                 backgroundColor: '{color}20',
                 tension: 0.4,

@@ -586,6 +586,38 @@ def test_get_expression_review_logs_reads_json_file(client: TestClient, mock_aut
     assert data["data"][0]["reason"] == "表达方式过于特定"
 
 
+def test_get_expression_review_logs_filters_by_chat_id(client: TestClient, mock_auth, tmp_path, monkeypatch):
+    """Test GET /expression/review/logs filters AI review records by chat_id."""
+    import src.learners.expression_review_store as review_store
+
+    monkeypatch.setattr(review_store, "REVIEW_LOG_PATH", tmp_path / "expression_review" / "review_logs.json")
+    review_store.append_ai_review_log(
+        session_id="chat_a",
+        situation="表示惊讶",
+        style="使用 好家伙",
+        passed=False,
+        reason="表达方式过于特定",
+        source="learn_before_upsert",
+    )
+    review_store.append_ai_review_log(
+        session_id="chat_b",
+        situation="表示赞同",
+        style="使用 确实",
+        passed=True,
+        reason="表达方式可用",
+        source="learn_before_upsert",
+    )
+
+    response = client.get("/api/webui/expression/review/logs?chat_id=chat_b")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"] is True
+    assert data["total"] == 1
+    assert data["data"][0]["session_id"] == "chat_b"
+    assert data["data"][0]["situation"] == "表示赞同"
+
+
 def test_approve_expression_review_log_restores_deleted_expression(
     client: TestClient,
     mock_auth,

@@ -6,6 +6,7 @@ import asyncio
 import time
 
 from src.A_memorix.host_service import a_memorix_host_service
+from src.chat.image_system.image_cache_cleanup import periodic_image_cache_cleanup
 from src.chat.message_receive.chat_manager import chat_manager
 from src.chat.message_receive.bot import chat_bot
 from src.chat.utils.statistic import OnlineTimeRecordTask, StatisticOutputTask
@@ -141,6 +142,7 @@ class MainSystem:
         try:
             tasks = [
                 emoji_manager.periodic_emoji_maintenance(),
+                periodic_image_cache_cleanup(),
                 self.app.run(),
                 self.server.run(),
             ]

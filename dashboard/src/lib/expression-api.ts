@@ -898,10 +898,12 @@ export async function batchReviewExpressions(
 export async function getExpressionReviewLogs(params: {
   limit?: number
   passed?: boolean
+  chat_id?: string
 } = {}): Promise<ApiResponse<ExpressionReviewLogListResponse>> {
   const queryParams = new URLSearchParams()
   if (params.limit) queryParams.append('limit', params.limit.toString())
   if (params.passed !== undefined) queryParams.append('passed', params.passed ? 'true' : 'false')
+  if (params.chat_id) queryParams.append('chat_id', params.chat_id)
 
   const response = await fetchWithAuth(`${API_BASE}/review/logs?${queryParams}`)
 
