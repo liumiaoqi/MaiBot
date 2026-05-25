@@ -1,3 +1,4 @@
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -34,6 +35,13 @@ class _DummyMetadataStore:
 
     def set_relation_vector_state(self, rel_hash: str, state: str) -> None:
         del rel_hash, state
+
+    def get_live_paragraphs_by_source(self, source: str):
+        return [
+            paragraph
+            for paragraph in self.paragraphs
+            if paragraph.get("source") == source and not paragraph.get("is_deleted")
+        ]
 
 
 class _DummyGraphStore:
@@ -103,6 +111,78 @@ def _build_chunk(data) -> ProcessedChunk:
         chunk=ChunkContext(chunk_id="chunk-1", index=0, text="Alice 持有地图"),
         data=data,
     )
+
+
+def _test_manifest_path(name: str) -> Path:
+    path = Path("temp") / "web_import_manager_tests" / name
+    if path.exists():
+        path.unlink()
+    return path
+
+
+def test_manifest_hit_requires_existing_live_source() -> None:
+    manager, metadata_store = _build_manager()
+    manager._manifest_path = _test_manifest_path("manifest_hit.json")
+    manager._manifest_cache = None
+    file_record = ImportFileRecord(file_id="file-1", name="demo.txt", source_kind="paste", input_mode="text")
+    content_hash = "abc123"
+    manager._save_manifest(
+        {
+            "hash:abc123": {
+                "hash": content_hash,
+                "imported": True,
+                "name": "demo.txt",
+                "source_kind": "paste",
+            }
+        }
+    )
+
+    assert manager._is_manifest_hit(file_record, content_hash, "content_hash") is False
+    assert manager._load_manifest() == {}
+
+    metadata_store.paragraphs.append({"source": "web_import:demo.txt", "is_deleted": 0})
+    manager._save_manifest(
+        {
+            "hash:abc123": {
+                "hash": content_hash,
+                "imported": True,
+                "name": "demo.txt",
+                "source_kind": "paste",
+            }
+        }
+    )
+
+    assert manager._is_manifest_hit(file_record, content_hash, "content_hash") is True
+
+
+@pytest.mark.asyncio
+async def test_invalidate_manifest_for_sources_matches_recorded_imported_sources() -> None:
+    manager, _ = _build_manager()
+    manager._manifest_path = _test_manifest_path("invalidate_sources.json")
+    manager._manifest_cache = None
+    manager._save_manifest(
+        {
+            "hash:abc123": {
+                "hash": "abc123",
+                "imported": True,
+                "name": "custom.json",
+                "source_kind": "upload",
+                "sources": ["custom:knowledge"],
+            },
+            "hash:def456": {
+                "hash": "def456",
+                "imported": True,
+                "name": "other.txt",
+                "source_kind": "paste",
+            },
+        }
+    )
+
+    result = await manager.invalidate_manifest_for_sources(["custom:knowledge"])
+
+    assert result["removed_count"] == 1
+    assert result["removed_keys"] == ["hash:abc123"]
+    assert "hash:def456" in manager._load_manifest()
 
 
 @pytest.mark.asyncio

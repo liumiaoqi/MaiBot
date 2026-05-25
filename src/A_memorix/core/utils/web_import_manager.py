@@ -285,6 +285,7 @@ class ImportFileRecord:
     source_path: Optional[str] = None
     inline_content: Optional[str] = None
     content_hash: str = ""
+    imported_sources: List[str] = field(default_factory=list)
     retry_chunk_indexes: List[int] = field(default_factory=list)
     retry_mode: str = ""
     warning_count: int = 0
@@ -309,6 +310,7 @@ class ImportFileRecord:
             "updated_at": self.updated_at,
             "source_path": self.source_path or "",
             "content_hash": self.content_hash or "",
+            "imported_sources": list(self.imported_sources or []),
             "retry_chunk_indexes": list(self.retry_chunk_indexes or []),
             "retry_mode": self.retry_mode or "",
             "warning_count": int(self.warning_count),
@@ -681,6 +683,9 @@ class ImportTaskManager:
         item_kind = str(item.get("source_kind") or "").strip().lower()
         item_name = str(item.get("name") or "").strip()
         item_path_norm = self._normalize_manifest_path(item.get("source_path") or "")
+        item_sources = self._dedupe_sources(item.get("sources") if isinstance(item.get("sources"), list) else [])
+        if any(source_text.lower() == item_source.lower() for item_source in item_sources):
+            return True
 
         if source_kind in {"raw_scan", "lpmm_openie"}:
             source_path_norm = self._normalize_manifest_path(source_value)
@@ -766,6 +771,67 @@ class ImportTaskManager:
             return f"path:{Path(file_record.source_path).as_posix().lower()}"
         return f"hash:{content_hash}"
 
+    def _dedupe_sources(self, sources: List[Any]) -> List[str]:
+        normalized: List[str] = []
+        seen = set()
+        for raw in sources or []:
+            source = str(raw or "").strip()
+            if not source:
+                continue
+            key = source.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            normalized.append(source)
+        return normalized
+
+    def _default_sources_for_file(self, file_record: ImportFileRecord) -> List[str]:
+        imported_sources = getattr(file_record, "imported_sources", None)
+        if imported_sources:
+            return self._dedupe_sources(imported_sources)
+        if file_record.source_path:
+            return [f"{file_record.source_kind}:{file_record.source_path}"]
+        return [f"web_import:{file_record.name}"]
+
+    def _manifest_item_sources(self, file_record: ImportFileRecord, item: Dict[str, Any]) -> List[str]:
+        imported_sources = item.get("sources")
+        if isinstance(imported_sources, list):
+            sources = self._dedupe_sources(imported_sources)
+            if sources:
+                return sources
+
+        source_kind = str(item.get("source_kind") or file_record.source_kind or "").strip()
+        source_path = str(item.get("source_path") or file_record.source_path or "").strip()
+        name = str(item.get("name") or file_record.name or "").strip()
+        sources: List[str] = []
+        if source_path:
+            sources.append(f"{source_kind}:{source_path}")
+        if source_kind in {"upload", "paste"} and name:
+            sources.append(f"web_import:{name}")
+        if source_kind == "lpmm_openie" and name:
+            sources.append(f"lpmm_openie:{name}")
+        sources.extend(self._default_sources_for_file(file_record))
+        return self._dedupe_sources(sources)
+
+    def _source_has_live_paragraphs(self, source: str) -> bool:
+        metadata_store = getattr(self.plugin, "metadata_store", None)
+        if metadata_store is None:
+            return False
+
+        try:
+            if hasattr(metadata_store, "get_live_paragraphs_by_source"):
+                return bool(metadata_store.get_live_paragraphs_by_source(source))
+            if hasattr(metadata_store, "get_paragraphs_by_source"):
+                rows = metadata_store.get_paragraphs_by_source(source)
+                return any(not bool(row.get("is_deleted", 0)) for row in rows if isinstance(row, dict))
+        except Exception as exc:
+            logger.warning(f"校验导入清单来源失败: source={source}, err={exc}")
+        return False
+
+    def _manifest_item_has_live_sources(self, file_record: ImportFileRecord, item: Dict[str, Any]) -> bool:
+        sources = self._manifest_item_sources(file_record, item)
+        return any(self._source_has_live_paragraphs(source) for source in sources)
+
     def _is_manifest_hit(
         self,
         file_record: ImportFileRecord,
@@ -777,7 +843,18 @@ class ImportTaskManager:
         item = manifest.get(key)
         if not isinstance(item, dict):
             return False
-        return str(item.get("hash") or "") == content_hash and bool(item.get("imported"))
+        if str(item.get("hash") or "") != content_hash or not bool(item.get("imported")):
+            return False
+        if self._manifest_item_has_live_sources(file_record, item):
+            return True
+
+        logger.info(
+            "导入清单命中但未找到对应 live 段落，清理清单并继续导入: "
+            f"key={key} sources={self._manifest_item_sources(file_record, item)}"
+        )
+        manifest.pop(key, None)
+        self._save_manifest(manifest)
+        return False
 
     def _record_manifest_import(
         self,
@@ -796,6 +873,7 @@ class ImportTaskManager:
             "name": file_record.name,
             "source_path": file_record.source_path or "",
             "source_kind": file_record.source_kind,
+            "sources": self._dedupe_sources(getattr(file_record, "imported_sources", []) or self._default_sources_for_file(file_record)),
         }
         self._save_manifest(manifest)
 
@@ -3094,6 +3172,7 @@ class ImportTaskManager:
                                 knowledge_type=k_type,
                                 time_meta=unit.get("time_meta"),
                             )
+                            self._record_file_source(file_record, source)
                             vector_result = await self._write_paragraph_vector_or_enqueue(
                                 paragraph_hash=para_hash,
                                 content=content,
@@ -3162,6 +3241,17 @@ class ImportTaskManager:
             return f"{file_record.source_kind}:{file_record.source_path}"
         return f"web_import:{file_record.name}"
 
+    def _record_file_source(self, file_record: ImportFileRecord, source: str) -> None:
+        source_text = str(source or "").strip()
+        if not source_text:
+            return
+        imported_sources = getattr(file_record, "imported_sources", None)
+        if imported_sources is None:
+            imported_sources = []
+            setattr(file_record, "imported_sources", imported_sources)
+        if source_text not in imported_sources:
+            imported_sources.append(source_text)
+
     async def _ensure_embedding_runtime_ready(self) -> None:
         report = await ensure_runtime_self_check(self.plugin)
         if bool(report.get("ok", False)):
@@ -3192,12 +3282,14 @@ class ImportTaskManager:
             logger.warning(f"跳过疑似哈希段落写入: source={self._source_label(file_record)} preview={content[:32]}")
             return
         data = _coerce_import_data_dict(processed.data, context="分块抽取结果")
+        source = self._source_label(file_record)
         para_hash = self.plugin.metadata_store.add_paragraph(
             content=content,
-            source=self._source_label(file_record),
+            source=source,
             knowledge_type=_storage_type_from_strategy(processed.type),
             time_meta=time_meta,
         )
+        self._record_file_source(file_record, source)
 
         vector_result = await self._write_paragraph_vector_or_enqueue(
             paragraph_hash=para_hash,
