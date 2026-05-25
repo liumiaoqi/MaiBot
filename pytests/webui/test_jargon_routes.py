@@ -162,7 +162,7 @@ def test_list_jargons_with_pagination(client: TestClient, sample_jargons):
 
 
 def test_list_jargons_with_search(client: TestClient, sample_jargons):
-    """测试 GET /jargon/list?search=xxx 搜索功能"""
+    """测试 GET /jargon/list?search=xxx 只按黑话内容搜索。"""
     response = client.get("/api/webui/jargon/list?search=yyds")
     assert response.status_code == 200
 
@@ -170,12 +170,17 @@ def test_list_jargons_with_search(client: TestClient, sample_jargons):
     assert data["total"] == 1
     assert data["data"][0]["content"] == "yyds"
 
-    # 测试搜索 meaning
+    # meaning 不参与搜索
     response = client.get("/api/webui/jargon/list?search=你好")
     assert response.status_code == 200
     data = response.json()
-    assert data["total"] == 1
-    assert data["data"][0]["content"] == "hello"
+    assert data["total"] == 0
+
+    # raw_content 不参与搜索
+    response = client.get("/api/webui/jargon/list?search=永远")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 0
 
 
 def test_list_jargons_with_session_id_filter(client: TestClient, sample_jargons, sample_chat_session: ChatSession):
@@ -191,6 +196,36 @@ def test_list_jargons_with_session_id_filter(client: TestClient, sample_jargons,
     assert response.status_code == 200
     data = response.json()
     assert data["total"] == 0
+
+
+def test_list_jargons_with_session_id_filter_matches_exact_json_key(client: TestClient, session: Session):
+    """session_id 筛选应按 session_id_dict 的 JSON key 精确匹配。"""
+    session.add(
+        Jargon(
+            id=201,
+            content="exact",
+            meaning="exact match",
+            session_id_dict=json.dumps({"stream_1": 1}),
+            count=2,
+        )
+    )
+    session.add(
+        Jargon(
+            id=202,
+            content="prefix",
+            meaning="prefix only",
+            session_id_dict=json.dumps({"stream_10": 1}),
+            count=1,
+        )
+    )
+    session.commit()
+
+    response = client.get("/api/webui/jargon/list?session_id=stream_1")
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["total"] == 1
+    assert data["data"][0]["content"] == "exact"
 
 
 def test_list_jargons_with_is_jargon_filter(client: TestClient, sample_jargons):
@@ -651,7 +686,7 @@ def test_update_jargon_partial_fields(client: TestClient, sample_jargons):
 
 def test_list_jargons_multiple_filters(client: TestClient, sample_jargons, sample_chat_session: ChatSession):
     """测试组合多个过滤条件"""
-    response = client.get(f"/api/webui/jargon/list?search=永远&session_id={sample_chat_session.session_id}&is_jargon=true")
+    response = client.get(f"/api/webui/jargon/list?search=yyds&session_id={sample_chat_session.session_id}&is_jargon=true")
     assert response.status_code == 200
 
     data = response.json()

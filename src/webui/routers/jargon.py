@@ -5,6 +5,7 @@ from typing import Annotated, Any, Dict, List, Optional, Set
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
+from sqlalchemy import func, or_
 from sqlmodel import Session, col, delete, select
 
 import json
@@ -47,6 +48,61 @@ def parse_session_id_candidates(session_id_str: str) -> List[str]:
     except (json.JSONDecodeError, TypeError):
         # 不是有效的 JSON，可能是直接的 session_id
         return [session_id_str]
+
+
+def message_to_display_name(message: Messages) -> Optional[str]:
+    """从消息记录中解析聊天显示名称。"""
+
+    if message.group_id:
+        return message.group_name or f"群聊{message.group_id}"
+    private_name = message.user_cardname or message.user_nickname or (f"用户{message.user_id}" if message.user_id else None)
+    return f"{private_name}的私聊" if private_name else None
+
+
+def chat_session_to_display_name(chat_session: ChatSession) -> str:
+    """从 ChatSession 记录中解析聊天显示名称。"""
+
+    if chat_session.group_id:
+        return chat_session.group_name or f"群聊{chat_session.group_id}"
+    if chat_session.user_id:
+        private_name = chat_session.user_cardname or chat_session.user_nickname or f"用户{chat_session.user_id}"
+        return f"{private_name}的私聊"
+    return chat_session.session_id[:20]
+
+
+def get_latest_message_display_name(session_id: str, session: Session) -> Optional[str]:
+    """读取指定聊天流的最新消息名称。"""
+
+    message = session.exec(
+        select(Messages).where(col(Messages.session_id) == session_id).order_by(col(Messages.timestamp).desc()).limit(1)
+    ).first()
+    return message_to_display_name(message) if message else None
+
+
+def build_session_display_name_cache(session_ids: List[str], session: Session, include_message_fallback: bool = False) -> Dict[str, str]:
+    """批量构建聊天流显示名称缓存，避免列表接口逐条查询。"""
+
+    unique_session_ids = list(dict.fromkeys(session_id for session_id in session_ids if session_id))
+    if not unique_session_ids:
+        return {}
+
+    display_name_by_session_id: Dict[str, str] = {}
+    chat_sessions = session.exec(select(ChatSession).where(col(ChatSession.session_id).in_(unique_session_ids))).all()
+    for chat_session in chat_sessions:
+        display_name_by_session_id[chat_session.session_id] = chat_session_to_display_name(chat_session)
+
+    missing_session_ids = [
+        session_id for session_id in unique_session_ids if session_id not in display_name_by_session_id
+    ]
+    if include_message_fallback:
+        for session_id in missing_session_ids:
+            if display_name := get_latest_message_display_name(session_id, session):
+                display_name_by_session_id[session_id] = display_name
+
+    for session_id in unique_session_ids:
+        display_name_by_session_id.setdefault(session_id, session_id[:20])
+
+    return display_name_by_session_id
 
 
 def get_display_name_for_session_id(session_id_str: str, session: Session) -> str:
@@ -293,6 +349,70 @@ def has_session_id(session_id_dict_str: Optional[str], session_id: str) -> bool:
     return session_id in parse_session_id_dict(session_id_dict_str)
 
 
+def build_session_id_dict_search_tokens(session_id: str) -> Set[str]:
+    """构建 JSON key 的精确文本标记，用于 SQL 侧过滤 session_id_dict。"""
+
+    normalized_session_id = session_id.strip()
+    if not normalized_session_id:
+        return set()
+    return {
+        json.dumps(normalized_session_id),
+        json.dumps(normalized_session_id, ensure_ascii=False),
+    }
+
+
+def build_session_id_dict_filter(session_ids: List[str]) -> Optional[Any]:
+    """构建 session_id_dict 包含任一聊天流 ID 的数据库过滤条件。"""
+
+    conditions = []
+    seen_tokens: Set[str] = set()
+    for session_id in session_ids:
+        for token in build_session_id_dict_search_tokens(session_id):
+            if token in seen_tokens:
+                continue
+            seen_tokens.add(token)
+            conditions.append(func.instr(col(Jargon.session_id_dict), token) > 0)
+    if not conditions:
+        return None
+    return or_(*conditions)
+
+
+def apply_jargon_list_filters(
+    statement: Any,
+    *,
+    search: Optional[str],
+    session_id: Optional[str],
+    is_jargon: Optional[bool],
+    is_global: Optional[bool],
+) -> Any:
+    """向黑话列表查询追加筛选条件。"""
+
+    normalized_search = search.strip() if search else ""
+    if normalized_search:
+        statement = statement.where(col(Jargon.content).contains(normalized_search))
+
+    if session_id:
+        session_id_candidates = parse_session_id_candidates(session_id)
+        session_ids = session_id_candidates or [session_id]
+        session_id_filter = build_session_id_dict_filter(session_ids)
+        if session_id_filter is not None:
+            statement = statement.where(session_id_filter)
+
+    if is_jargon is not None:
+        statement = statement.where(col(Jargon.is_jargon) == is_jargon)
+
+    if is_global is not None:
+        statement = statement.where(col(Jargon.is_global) == is_global)
+
+    return statement
+
+
+def count_jargon_query(session: Session, statement: Any) -> int:
+    """统计查询结果数量。"""
+
+    return int(session.exec(select(func.count()).select_from(statement.subquery())).one() or 0)
+
+
 def build_session_id_dict_for_session(session_id: str, count: int = 1) -> str:
     """为单个聊天 ID 构建会话计数字典。
 
@@ -347,7 +467,11 @@ def scopes_overlap(jargon: Jargon, target_session_ids: Set[str], target_is_globa
     return bool(target_session_ids.intersection(parse_session_id_dict(jargon.session_id_dict)))
 
 
-def jargon_to_dict(jargon: Jargon, session: Session) -> Dict[str, Any]:
+def jargon_to_dict(
+    jargon: Jargon,
+    session: Session,
+    chat_name_cache: Optional[Dict[str, str]] = None,
+) -> Dict[str, Any]:
     """将黑话模型转换为字典。
 
     Args:
@@ -359,7 +483,13 @@ def jargon_to_dict(jargon: Jargon, session: Session) -> Dict[str, Any]:
     """
     session_ids = get_session_ids(jargon.session_id_dict)
     session_id = session_ids[0] if session_ids else ""
-    chat_names = [get_display_name_for_session_id(current_session_id, session) for current_session_id in session_ids]
+
+    def resolve_chat_name(current_session_id: str) -> str:
+        if chat_name_cache is not None and current_session_id in chat_name_cache:
+            return chat_name_cache[current_session_id]
+        return get_display_name_for_session_id(current_session_id, session)
+
+    chat_names = [resolve_chat_name(current_session_id) for current_session_id in session_ids]
     chat_name = chat_names[0] if chat_names else None
 
     return {
@@ -407,40 +537,31 @@ async def get_jargon_list(
         JargonListResponse: 分页后的黑话列表。
     """
     try:
-        statement = select(Jargon)
+        statement = apply_jargon_list_filters(
+            select(Jargon),
+            search=search,
+            session_id=session_id,
+            is_jargon=is_jargon,
+            is_global=is_global,
+        ).order_by(col(Jargon.count).desc(), col(Jargon.id).desc())
 
-        if search:
-            search_filter = (
-                (col(Jargon.content).contains(search))
-                | (col(Jargon.meaning).contains(search))
-                | (col(Jargon.raw_content).contains(search))
-            )
-            statement = statement.where(search_filter)
-
-        if is_jargon is not None:
-            statement = statement.where(col(Jargon.is_jargon) == is_jargon)
-
-        if is_global is not None:
-            statement = statement.where(col(Jargon.is_global) == is_global)
-
-        statement = statement.order_by(col(Jargon.count).desc(), col(Jargon.id).desc())
+        count_statement = apply_jargon_list_filters(
+            select(Jargon.id),
+            search=search,
+            session_id=session_id,
+            is_jargon=is_jargon,
+            is_global=is_global,
+        )
 
         with get_db_session() as session:
-            jargons = session.exec(statement).all()
-
-            if session_id:
-                session_id_candidates = parse_session_id_candidates(session_id)
-                session_ids = session_id_candidates or [session_id]
-                jargons = [
-                    jargon
-                    for jargon in jargons
-                    if any(has_session_id(jargon.session_id_dict, current_session_id) for current_session_id in session_ids)
-                ]
-
-            total = len(jargons)
+            total = count_jargon_query(session, count_statement)
             offset = (page - 1) * page_size
-            page_jargons = jargons[offset : offset + page_size]
-            data = [jargon_to_dict(jargon, session) for jargon in page_jargons]
+            page_jargons = session.exec(statement.offset(offset).limit(page_size)).all()
+            page_session_ids: List[str] = []
+            for jargon in page_jargons:
+                page_session_ids.extend(get_session_ids(jargon.session_id_dict))
+            chat_name_cache = build_session_display_name_cache(page_session_ids, session, include_message_fallback=True)
+            data = [jargon_to_dict(jargon, session, chat_name_cache) for jargon in page_jargons]
 
         return JargonListResponse(
             success=True,
@@ -465,11 +586,11 @@ async def get_chat_list(include_empty: bool = Query(False, description="是否�
     try:
         with get_db_session() as session:
             seen_session_ids: Set[str] = set()
-            jargon_statement = select(Jargon)
+            jargon_statement = select(Jargon.session_id_dict)
             if not include_empty:
                 jargon_statement = jargon_statement.where(col(Jargon.is_global).is_(False))
-            for jargon in session.exec(jargon_statement).all():
-                seen_session_ids.update(parse_session_id_dict(jargon.session_id_dict).keys())
+            for session_id_dict in session.exec(jargon_statement).all():
+                seen_session_ids.update(parse_session_id_dict(session_id_dict).keys())
 
             chat_by_session_id: Dict[str, ChatInfoResponse] = {}
 
@@ -479,10 +600,21 @@ async def get_chat_list(include_empty: bool = Query(False, description="是否�
             elif not include_empty:
                 chat_session_statement = chat_session_statement.where(col(ChatSession.session_id) == "")
 
-            for chat_session in session.exec(chat_session_statement).all():
+            chat_sessions = session.exec(chat_session_statement).all()
+            display_name_cache = {
+                chat_session.session_id: chat_session_to_display_name(chat_session) for chat_session in chat_sessions
+            }
+            orphan_session_ids = [
+                session_id for session_id in seen_session_ids if session_id not in display_name_cache
+            ]
+            display_name_cache.update(
+                build_session_display_name_cache(orphan_session_ids, session, include_message_fallback=True)
+            )
+
+            for chat_session in chat_sessions:
                 chat_by_session_id[chat_session.session_id] = ChatInfoResponse(
                     session_id=chat_session.session_id,
-                    chat_name=get_display_name_for_session_id(chat_session.session_id, session),
+                    chat_name=display_name_cache[chat_session.session_id],
                     platform=chat_session.platform,
                     is_group=bool(chat_session.group_id),
                 )
@@ -493,7 +625,7 @@ async def get_chat_list(include_empty: bool = Query(False, description="是否�
                     continue
                 chat_by_session_id[stored_session_id] = ChatInfoResponse(
                     session_id=stored_session_id,
-                    chat_name=get_display_name_for_session_id(stored_session_id, session),
+                    chat_name=display_name_cache[stored_session_id],
                     platform=None,
                     is_group=False,
                 )
@@ -516,18 +648,26 @@ async def get_jargon_stats() -> JargonStatsResponse:
     """
     try:
         with get_db_session() as session:
-            jargons = session.exec(select(Jargon)).all()
-
-            total = len(jargons)
-            confirmed_jargon = sum(jargon.is_jargon is True for jargon in jargons)
-            confirmed_not_jargon = sum(jargon.is_jargon is False for jargon in jargons)
-            pending = sum(jargon.is_jargon is None for jargon in jargons)
-            global_count = sum(jargon.is_global for jargon in jargons)
-            complete_count = sum(jargon.is_complete for jargon in jargons)
+            total = session.exec(select(func.count()).select_from(Jargon)).one()
+            confirmed_jargon = session.exec(
+                select(func.count()).select_from(Jargon).where(col(Jargon.is_jargon).is_(True))
+            ).one()
+            confirmed_not_jargon = session.exec(
+                select(func.count()).select_from(Jargon).where(col(Jargon.is_jargon).is_(False))
+            ).one()
+            pending = session.exec(
+                select(func.count()).select_from(Jargon).where(col(Jargon.is_jargon).is_(None))
+            ).one()
+            global_count = session.exec(
+                select(func.count()).select_from(Jargon).where(col(Jargon.is_global).is_(True))
+            ).one()
+            complete_count = session.exec(
+                select(func.count()).select_from(Jargon).where(col(Jargon.is_complete).is_(True))
+            ).one()
 
             top_chats_counter: Dict[str, int] = {}
-            for jargon in jargons:
-                for session_id in parse_session_id_dict(jargon.session_id_dict):
+            for session_id_dict in session.exec(select(Jargon.session_id_dict)).all():
+                for session_id in parse_session_id_dict(session_id_dict):
                     top_chats_counter[session_id] = top_chats_counter.get(session_id, 0) + 1
 
             top_chats_dict = dict(sorted(top_chats_counter.items(), key=lambda item: item[1], reverse=True)[:5])
