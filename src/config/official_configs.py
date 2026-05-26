@@ -2030,6 +2030,75 @@ class AMemorixAdvancedConfig(ConfigBase):
     """是否启用调试"""
 
 
+class AMemorixWebImportTimeoutConfig(ConfigBase):
+    """A_Memorix 导入中心超时配置"""
+
+    llm_call_seconds: float = Field(
+        default=240.0,
+        ge=0.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "LLM 单次调用超时",
+                "en_US": "LLM call timeout",
+                "ja_JP": "LLM 呼び出しタイムアウト",
+            },
+        },
+    )
+    """Web 导入中单次 LLM 抽取调用的超时时间，0 表示不额外限制"""
+
+    process_poll_seconds: float = Field(
+        default=1.0,
+        ge=0.1,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "子进程轮询等待",
+                "en_US": "Process poll wait",
+                "ja_JP": "子プロセス待機ポーリング",
+            },
+        },
+    )
+    """迁移或转换子进程状态轮询等待时间"""
+
+    process_terminate_seconds: float = Field(
+        default=5.0,
+        ge=0.1,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "子进程终止等待",
+                "en_US": "Process terminate wait",
+                "ja_JP": "子プロセス終了待機",
+            },
+        },
+    )
+    """取消任务时等待子进程正常终止的时间"""
+
+    process_kill_seconds: float = Field(
+        default=3.0,
+        ge=0.1,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "子进程强杀等待",
+                "en_US": "Process kill wait",
+                "ja_JP": "子プロセス強制終了待機",
+            },
+        },
+    )
+    """取消任务时强制结束子进程后的等待时间"""
+
+    convert_preflight_seconds: float = Field(
+        default=20.0,
+        ge=0.1,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "转换预检超时",
+                "en_US": "Convert preflight timeout",
+                "ja_JP": "変換事前チェックタイムアウト",
+            },
+        },
+    )
+    """LPMM 转换依赖预检的超时时间"""
+
+
 class AMemorixWebImportConfig(ConfigBase):
     """A_Memorix 导入中心配置"""
 
@@ -2122,6 +2191,18 @@ class AMemorixWebImportConfig(ConfigBase):
         },
     )
     """默认分块并发"""
+
+    timeout: AMemorixWebImportTimeoutConfig = Field(
+        default_factory=AMemorixWebImportTimeoutConfig,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "导入超时",
+                "en_US": "Import timeouts",
+                "ja_JP": "インポートタイムアウト",
+            },
+        },
+    )
+    """导入中心超时配置"""
 
 
 class AMemorixWebTuningConfig(ConfigBase):

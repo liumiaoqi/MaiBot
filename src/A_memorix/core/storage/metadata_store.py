@@ -4,14 +4,15 @@
 基于SQLite的元数据管理，存储段落、实体、关系等信息。
 """
 
-import sqlite3
-import pickle
 import json
-import uuid
+import pickle
 import re
+import sqlite3
+import time
+import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Union, List, Dict, Any, Tuple, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 from src.common.logger import get_logger
 from ..utils.hash import compute_hash, normalize_text
@@ -1604,6 +1605,139 @@ class MetadataStore:
             return [compact]
         return [compact[i : i + n] for i in range(0, len(compact) - n + 1)]
 
+    def _get_paragraph_ngram_n_if_ready(
+        self,
+        conn: Optional[sqlite3.Connection] = None,
+    ) -> Optional[int]:
+        """读取已初始化的 paragraph ngram 配置；未初始化时返回 None。"""
+        c = self._resolve_conn(conn)
+        cur = c.cursor()
+        try:
+            cur.execute("SELECT value FROM paragraph_ngram_meta WHERE key='ngram_n'")
+            row = cur.fetchone()
+            if not row or row[0] is None:
+                return None
+            return max(1, int(row[0]))
+        except (sqlite3.OperationalError, TypeError, ValueError):
+            return None
+
+    def is_paragraph_ngram_ready(
+        self,
+        n: int = 2,
+        conn: Optional[sqlite3.Connection] = None,
+    ) -> bool:
+        """检查 paragraph ngram 索引是否已初始化且与 active 段落数量一致。"""
+        c = self._resolve_conn(conn)
+        cur = c.cursor()
+        try:
+            current_n = self._get_paragraph_ngram_n_if_ready(conn=c)
+            if current_n != max(1, int(n)):
+                return False
+
+            cur.execute("SELECT COUNT(1) FROM paragraphs WHERE is_deleted IS NULL OR is_deleted = 0")
+            para_count = int(cur.fetchone()[0])
+            cur.execute("SELECT value FROM paragraph_ngram_meta WHERE key='paragraph_count'")
+            row = cur.fetchone()
+            if not row or row[0] is None:
+                return False
+            indexed_docs = int(row[0])
+            return para_count == indexed_docs
+        except (sqlite3.OperationalError, TypeError, ValueError):
+            return False
+
+    def _set_paragraph_ngram_meta_value(
+        self,
+        key: str,
+        value: str,
+        *,
+        conn: Optional[sqlite3.Connection] = None,
+    ) -> None:
+        c = self._resolve_conn(conn)
+        c.execute(
+            """
+            INSERT INTO paragraph_ngram_meta(key, value) VALUES(?, ?)
+            ON CONFLICT(key) DO UPDATE SET value=excluded.value
+            """,
+            (str(key), str(value)),
+        )
+
+    def _adjust_paragraph_ngram_count(
+        self,
+        delta: int,
+        *,
+        conn: Optional[sqlite3.Connection] = None,
+    ) -> None:
+        """在索引已初始化时维护 active paragraph 计数。"""
+        if delta == 0:
+            return
+        c = self._resolve_conn(conn)
+        cur = c.cursor()
+        try:
+            cur.execute("SELECT value FROM paragraph_ngram_meta WHERE key='paragraph_count'")
+            row = cur.fetchone()
+            if not row or row[0] is None:
+                return
+            current = max(0, int(row[0]))
+        except (sqlite3.OperationalError, TypeError, ValueError):
+            return
+        self._set_paragraph_ngram_meta_value(
+            "paragraph_count",
+            str(max(0, current + int(delta))),
+            conn=c,
+        )
+
+    def _upsert_paragraph_ngram_if_ready(
+        self,
+        paragraph_hash: str,
+        content: str,
+        *,
+        count_delta: int = 0,
+        conn: Optional[sqlite3.Connection] = None,
+    ) -> bool:
+        """若 ngram 索引已初始化，则只增量维护当前段落。"""
+        c = self._resolve_conn(conn)
+        n = self._get_paragraph_ngram_n_if_ready(conn=c)
+        if n is None:
+            return False
+
+        cur = c.cursor()
+        cur.execute("DELETE FROM paragraph_ngrams WHERE paragraph_hash = ?", (paragraph_hash,))
+        terms = list(dict.fromkeys(self._char_ngrams(content, n)))
+        if terms:
+            cur.executemany(
+                "INSERT OR IGNORE INTO paragraph_ngrams(term, paragraph_hash) VALUES (?, ?)",
+                [(term, paragraph_hash) for term in terms],
+            )
+        self._adjust_paragraph_ngram_count(count_delta, conn=c)
+        return True
+
+    def _delete_paragraph_ngrams_if_ready(
+        self,
+        paragraph_hashes: Sequence[str],
+        *,
+        count_delta: int = 0,
+        conn: Optional[sqlite3.Connection] = None,
+    ) -> bool:
+        """若 ngram 索引已初始化，则批量移除段落 ngram。"""
+        hashes = [str(h) for h in paragraph_hashes if str(h or "").strip()]
+        if not hashes:
+            return False
+        c = self._resolve_conn(conn)
+        if self._get_paragraph_ngram_n_if_ready(conn=c) is None:
+            return False
+
+        cur = c.cursor()
+        batch_size = 900
+        for i in range(0, len(hashes), batch_size):
+            batch = hashes[i:i + batch_size]
+            placeholders = ",".join(["?"] * len(batch))
+            cur.execute(
+                f"DELETE FROM paragraph_ngrams WHERE paragraph_hash IN ({placeholders})",
+                batch,
+            )
+        self._adjust_paragraph_ngram_count(count_delta, conn=c)
+        return True
+
     def ensure_paragraph_ngram_backfilled(
         self,
         n: int = 2,
@@ -1617,6 +1751,7 @@ class MetadataStore:
         c = self._resolve_conn(conn)
         cur = c.cursor()
         n = max(1, int(n))
+        started = time.perf_counter()
         try:
             cur.execute("SELECT value FROM paragraph_ngram_meta WHERE key='ngram_n'")
             row = cur.fetchone()
@@ -1624,8 +1759,13 @@ class MetadataStore:
 
             cur.execute("SELECT COUNT(1) FROM paragraphs WHERE is_deleted IS NULL OR is_deleted = 0")
             para_count = int(cur.fetchone()[0])
-            cur.execute("SELECT COUNT(DISTINCT paragraph_hash) FROM paragraph_ngrams")
-            indexed_docs = int(cur.fetchone()[0])
+            cur.execute("SELECT value FROM paragraph_ngram_meta WHERE key='paragraph_count'")
+            meta_row = cur.fetchone()
+            if meta_row and meta_row[0] is not None:
+                indexed_docs = int(meta_row[0])
+            else:
+                cur.execute("SELECT COUNT(DISTINCT paragraph_hash) FROM paragraph_ngrams")
+                indexed_docs = int(cur.fetchone()[0])
 
             need_rebuild = (current_n != n) or (para_count != indexed_docs)
             if not need_rebuild:
@@ -1641,9 +1781,11 @@ class MetadataStore:
 
             batch: List[Tuple[str, str]] = []
             batch_size = 2000
+            term_count = 0
             for row in rows:
                 p_hash = str(row["hash"])
                 terms = list(dict.fromkeys(self._char_ngrams(str(row["content"] or ""), n)))
+                term_count += len(terms)
                 for term in terms:
                     batch.append((term, p_hash))
                 if len(batch) >= batch_size:
@@ -1666,8 +1808,16 @@ class MetadataStore:
                 INSERT INTO paragraph_ngram_meta(key, value) VALUES('paragraph_count', ?)
                 ON CONFLICT(key) DO UPDATE SET value=excluded.value
             """, (str(para_count),))
+            cur.execute("""
+                INSERT INTO paragraph_ngram_meta(key, value) VALUES('updated_at', ?)
+                ON CONFLICT(key) DO UPDATE SET value=excluded.value
+            """, (str(datetime.now().timestamp()),))
             c.commit()
-            logger.info(f"paragraph ngram 回填完成: n={n}, paragraphs={para_count}")
+            elapsed_ms = (time.perf_counter() - started) * 1000.0
+            logger.info(
+                "paragraph ngram 回填完成: "
+                f"n={n}, paragraphs={para_count}, terms={term_count}, duration_ms={elapsed_ms:.2f}"
+            )
             return True
         except Exception as e:
             logger.warning(f"paragraph ngram 回填失败: {e}")
@@ -2038,6 +2188,11 @@ class MetadataStore:
                 normalized_time.get("time_confidence", 1.0),
                 resolved_knowledge_type.value,
             ))
+            self._upsert_paragraph_ngram_if_ready(
+                hash_value,
+                content,
+                count_delta=1,
+            )
             self._conn.commit()
             try:
                 self.enqueue_episode_source_rebuild(
@@ -2728,6 +2883,16 @@ class MetadataStore:
             是否成功删除
         """
         cursor = self._conn.cursor()
+        cursor.execute(
+            "SELECT is_deleted FROM paragraphs WHERE hash = ?",
+            (hash_value,),
+        )
+        row = cursor.fetchone()
+        was_active = bool(row and (row["is_deleted"] is None or int(row["is_deleted"]) == 0))
+        self._delete_paragraph_ngrams_if_ready(
+            [hash_value],
+            count_delta=-1 if was_active else 0,
+        )
         cursor.execute("""
             DELETE FROM paragraphs WHERE hash = ?
         """, (hash_value,))
@@ -3836,11 +4001,21 @@ class MetadataStore:
         """恢复软删除段落。"""
         cursor = self._conn.cursor()
         cursor.execute(
-            "UPDATE paragraphs SET is_deleted=0, deleted_at=NULL WHERE hash=?",
+            "SELECT content FROM paragraphs WHERE hash=? AND is_deleted=1",
             (str(paragraph_hash),),
         )
-        changed = cursor.rowcount > 0
+        row = cursor.fetchone()
+        cursor.execute(
+            "UPDATE paragraphs SET is_deleted=0, deleted_at=NULL WHERE hash=? AND is_deleted=1",
+            (str(paragraph_hash),),
+        )
+        changed = cursor.rowcount > 0 and row is not None
         if changed:
+            self._upsert_paragraph_ngram_if_ready(
+                str(paragraph_hash),
+                str(row["content"] or ""),
+                count_delta=1,
+            )
             self._conn.commit()
         return changed
 
@@ -3946,8 +4121,12 @@ class MetadataStore:
             candidate_relations = [row[0] for row in cursor.fetchall()]
 
             # 2. [快照] 确认该段落存在并记录 ID 用于向量删除
-            cursor.execute("SELECT hash, source FROM paragraphs WHERE hash = ?", (paragraph_hash,))
+            cursor.execute("SELECT hash, source, is_deleted FROM paragraphs WHERE hash = ?", (paragraph_hash,))
             paragraph_row = cursor.fetchone()
+            paragraph_was_active = bool(
+                paragraph_row
+                and (paragraph_row["is_deleted"] is None or int(paragraph_row["is_deleted"]) == 0)
+            )
             if paragraph_row:
                 cleanup_plan["vector_id_to_remove"] = paragraph_hash
                 cleanup_plan["episode_sources_to_rebuild"] = self._dedupe_episode_sources(
@@ -3955,6 +4134,11 @@ class MetadataStore:
                 )
 
             # 3. [主删除] 删除段落 (触发 CASCADE 删 paragraph_relations)
+            self._delete_paragraph_ngrams_if_ready(
+                [paragraph_hash],
+                count_delta=-1 if paragraph_was_active else 0,
+                conn=self._conn,
+            )
             cursor.execute("DELETE FROM paragraphs WHERE hash = ?", (paragraph_hash,))
 
             # 4. [计算孤儿]
@@ -4608,7 +4792,13 @@ class MetadataStore:
                 SET is_deleted = 1, deleted_at = ?
                 WHERE is_deleted = 0 AND hash IN ({placeholders})
             """, [now] + batch)
-            count += cursor.rowcount
+            changed = cursor.rowcount
+            count += changed
+            if type_ == "paragraph" and changed > 0:
+                self._delete_paragraph_ngrams_if_ready(
+                    batch,
+                    count_delta=-changed,
+                )
             
         self._conn.commit()
         if type_ == "paragraph" and count > 0:
@@ -4667,9 +4857,26 @@ class MetadataStore:
         """物理删除段落 (批量)"""
         if not hashes: return 0
         touched_sources = self._get_sources_for_paragraph_hashes(hashes, include_deleted=True)
+        active_delete_count = 0
+        batch_size = 900
+        for i in range(0, len(hashes), batch_size):
+            batch = hashes[i:i+batch_size]
+            placeholders = ",".join(["?"] * len(batch))
+            cursor = self._conn.cursor()
+            cursor.execute(f"""
+                SELECT hash
+                FROM paragraphs
+                WHERE (is_deleted IS NULL OR is_deleted = 0)
+                  AND hash IN ({placeholders})
+            """, batch)
+            active_batch = [str(row["hash"]) for row in cursor.fetchall()]
+            active_delete_count += len(active_batch)
+        self._delete_paragraph_ngrams_if_ready(
+            hashes,
+            count_delta=-active_delete_count,
+        )
         
         count = 0
-        batch_size = 900
         for i in range(0, len(hashes), batch_size):
             batch = hashes[i:i+batch_size]
             placeholders = ",".join(["?"] * len(batch))
@@ -4716,11 +4923,25 @@ class MetadataStore:
                 
                 cursor = self._conn.cursor()
                 cursor.execute(f"""
+                    SELECT hash, content
+                    FROM paragraphs
+                    WHERE is_deleted = 1 AND hash IN ({placeholders})
+                """, batch)
+                revive_rows = cursor.fetchall()
+                cursor.execute(f"""
                     UPDATE paragraphs
                     SET is_deleted = 0, deleted_at = NULL
                     WHERE is_deleted = 1 AND hash IN ({placeholders})
                 """, batch)
-                count += cursor.rowcount
+                changed = cursor.rowcount
+                count += changed
+                if changed > 0:
+                    for row in revive_rows:
+                        self._upsert_paragraph_ngram_if_ready(
+                            str(row["hash"]),
+                            str(row["content"] or ""),
+                            count_delta=1,
+                        )
         else:
             touched_sources = []
         

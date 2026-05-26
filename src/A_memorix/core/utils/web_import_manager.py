@@ -104,6 +104,13 @@ def _coerce_int(value: Any, default: int) -> int:
         return default
 
 
+def _coerce_float(value: Any, default: float) -> float:
+    try:
+        return float(value)
+    except Exception:
+        return default
+
+
 def _coerce_bool(value: Any, default: bool) -> bool:
     if value is None:
         return default
@@ -447,6 +454,9 @@ class ImportTaskManager:
     def _cfg_int(self, key: str, default: int) -> int:
         return _coerce_int(self._cfg(key, default), default)
 
+    def _cfg_float(self, key: str, default: float) -> float:
+        return _coerce_float(self._cfg(key, default), default)
+
     def _allow_metadata_only_write(self) -> bool:
         return bool(self._cfg("embedding.fallback.allow_metadata_only_write", True))
 
@@ -474,6 +484,49 @@ class ImportTaskManager:
         except Exception as exc:
             logger.warning(f"回填入队失败（metadata_store）: {exc}")
 
+    async def _enqueue_paragraph_backfill_locked(self, paragraph_hash: str, *, error: str = "") -> None:
+        async with self._storage_lock:
+            self._enqueue_paragraph_backfill(paragraph_hash, error=error)
+
+    async def _add_paragraph_metadata(
+        self,
+        *,
+        file_record: ImportFileRecord,
+        content: str,
+        source: str,
+        knowledge_type: str,
+        time_meta: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        async with self._storage_lock:
+            para_hash = self.plugin.metadata_store.add_paragraph(
+                content=content,
+                source=source,
+                knowledge_type=knowledge_type,
+                time_meta=time_meta,
+            )
+            self._record_file_source(file_record, source)
+            return para_hash
+
+    async def _set_relation_vector_state_locked(
+        self,
+        relation_hash: str,
+        state: str,
+        *,
+        error: Optional[str] = None,
+        bump_retry: bool = False,
+    ) -> None:
+        async with self._storage_lock:
+            try:
+                self.plugin.metadata_store.set_relation_vector_state(
+                    relation_hash,
+                    state,
+                    error=error,
+                    bump_retry=bump_retry,
+                )
+            except Exception:
+                if state != "none":
+                    raise
+
     async def _write_paragraph_vector_or_enqueue(
         self,
         *,
@@ -481,14 +534,33 @@ class ImportTaskManager:
         content: str,
         context: str,
     ) -> Dict[str, Any]:
-        writer = getattr(self.plugin, "write_paragraph_vector_or_enqueue", None)
-        if callable(writer):
-            return await writer(paragraph_hash=paragraph_hash, content=content, context=context)
+        token = str(paragraph_hash or "").strip()
+        text = str(content or "").strip()
+        if not token or not text:
+            return {
+                "success": False,
+                "vector_written": False,
+                "queued": False,
+                "warning": "",
+                "detail": "invalid_paragraph_input",
+            }
+
+        if self.plugin.vector_store is None or self.plugin.embedding_manager is None:
+            if not self._allow_metadata_only_write():
+                raise RuntimeError("向量写入依赖未初始化")
+            await self._enqueue_paragraph_backfill_locked(token, error="vector_runtime_components_missing")
+            return {
+                "success": True,
+                "vector_written": False,
+                "queued": True,
+                "warning": "vector_degraded_write",
+                "detail": "vector_runtime_components_missing",
+            }
 
         if self._is_embedding_degraded():
             if not self._allow_metadata_only_write():
                 raise RuntimeError("embedding 处于降级态且 metadata-only 写入被禁用")
-            self._enqueue_paragraph_backfill(paragraph_hash, error="embedding_degraded")
+            await self._enqueue_paragraph_backfill_locked(token, error="embedding_degraded")
             return {
                 "success": True,
                 "vector_written": False,
@@ -497,9 +569,36 @@ class ImportTaskManager:
                 "detail": "embedding_degraded",
             }
 
+        if token in self.plugin.vector_store:
+            return {
+                "success": True,
+                "vector_written": True,
+                "queued": False,
+                "warning": "",
+                "detail": "vector_already_exists",
+            }
+
         try:
-            emb = await self.plugin.embedding_manager.encode(content)
-            self.plugin.vector_store.add(emb.reshape(1, -1), [paragraph_hash])
+            emb = await self.plugin.embedding_manager.encode(text)
+            if getattr(emb, "ndim", 1) == 1:
+                emb = emb.reshape(1, -1)
+            if token in self.plugin.vector_store:
+                return {
+                    "success": True,
+                    "vector_written": True,
+                    "queued": False,
+                    "warning": "",
+                    "detail": "vector_already_exists_after_encode",
+                }
+            added_count = self.plugin.vector_store.add(emb, [token])
+            if added_count == 0:
+                return {
+                    "success": True,
+                    "vector_written": True,
+                    "queued": False,
+                    "warning": "",
+                    "detail": "vector_already_exists",
+                }
             return {
                 "success": True,
                 "vector_written": True,
@@ -510,13 +609,13 @@ class ImportTaskManager:
         except Exception as exc:
             if not self._allow_metadata_only_write():
                 raise
-            self._enqueue_paragraph_backfill(paragraph_hash, error=str(exc))
+            await self._enqueue_paragraph_backfill_locked(token, error=str(exc))
             return {
                 "success": True,
                 "vector_written": False,
                 "queued": True,
                 "warning": "vector_degraded_write",
-                "detail": str(exc),
+                "detail": f"{str(context or 'paragraph')} vector write failed: {exc}",
             }
 
     def _is_enabled(self) -> bool:
@@ -547,7 +646,25 @@ class ImportTaskManager:
     def _max_chunk_concurrency(self) -> int:
         return max(1, self._cfg_int("web.import.max_chunk_concurrency", 12))
 
+    def _timeout_config(self) -> Dict[str, float]:
+        """读取 WebImport 可配置超时；LLM 超时允许设为 0 表示不额外限制。"""
+        llm_timeout = max(0.0, self._cfg_float("web.import.timeout.llm_call_seconds", 240.0))
+        return {
+            "llm_call_seconds": llm_timeout,
+            "process_poll_seconds": max(0.1, self._cfg_float("web.import.timeout.process_poll_seconds", 1.0)),
+            "process_terminate_seconds": max(
+                0.1,
+                self._cfg_float("web.import.timeout.process_terminate_seconds", 5.0),
+            ),
+            "process_kill_seconds": max(0.1, self._cfg_float("web.import.timeout.process_kill_seconds", 3.0)),
+            "convert_preflight_seconds": max(
+                0.1,
+                self._cfg_float("web.import.timeout.convert_preflight_seconds", 20.0),
+            ),
+        }
+
     def _llm_retry_config(self) -> Dict[str, float]:
+        timeout_cfg = self._timeout_config()
         retries = max(0, self._cfg_int("web.import.llm_retry.max_attempts", 4))
         min_wait = max(0.1, float(self._cfg("web.import.llm_retry.min_wait_seconds", 3) or 3))
         max_wait = max(min_wait, float(self._cfg("web.import.llm_retry.max_wait_seconds", 40) or 40))
@@ -557,6 +674,7 @@ class ImportTaskManager:
             "min_wait": min_wait,
             "max_wait": max_wait,
             "multiplier": mult,
+            "llm_call_seconds": timeout_cfg["llm_call_seconds"],
         }
 
     def _default_path_aliases(self) -> Dict[str, str]:
@@ -1105,6 +1223,7 @@ class ImportTaskManager:
             "maibot_target_data_dir": str(self._resolve_data_dir()),
             "path_aliases": self.get_path_aliases(),
             "llm_retry": llm_retry,
+            "timeout": self._timeout_config(),
             "convert_enable_staging_switch": _coerce_bool(
                 self._cfg("web.import.convert.enable_staging_switch", True), True
             ),
@@ -2173,13 +2292,14 @@ class ImportTaskManager:
     async def _terminate_process(self, process: asyncio.subprocess.Process) -> None:
         if process.returncode is not None:
             return
+        timeout_cfg = self._timeout_config()
         try:
             process.terminate()
-            await asyncio.wait_for(process.wait(), timeout=5.0)
+            await asyncio.wait_for(process.wait(), timeout=timeout_cfg["process_terminate_seconds"])
         except Exception:
             try:
                 process.kill()
-                await asyncio.wait_for(process.wait(), timeout=3.0)
+                await asyncio.wait_for(process.wait(), timeout=timeout_cfg["process_kill_seconds"])
             except Exception:
                 pass
 
@@ -2259,7 +2379,10 @@ class ImportTaskManager:
 
                 await self._refresh_maibot_progress_from_state(task_id, file_record.file_id, chunk_id, state_path)
                 try:
-                    return_code = await asyncio.wait_for(process.wait(), timeout=1.0)
+                    return_code = await asyncio.wait_for(
+                        process.wait(),
+                        timeout=self._timeout_config()["process_poll_seconds"],
+                    )
                     break
                 except asyncio.TimeoutError:
                     continue
@@ -2379,7 +2502,10 @@ class ImportTaskManager:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            stdout, stderr = await asyncio.wait_for(probe.communicate(), timeout=20.0)
+            stdout, stderr = await asyncio.wait_for(
+                probe.communicate(),
+                timeout=self._timeout_config()["convert_preflight_seconds"],
+            )
         except Exception as e:
             return False, f"依赖预检执行失败: {e}"
 
@@ -2498,7 +2624,10 @@ class ImportTaskManager:
                     await self._terminate_process(process)
                     break
                 try:
-                    return_code = await asyncio.wait_for(process.wait(), timeout=1.0)
+                    return_code = await asyncio.wait_for(
+                        process.wait(),
+                        timeout=self._timeout_config()["process_poll_seconds"],
+                    )
                     break
                 except asyncio.TimeoutError:
                     continue
@@ -2901,8 +3030,7 @@ class ImportTaskManager:
                         resolved_model,
                         reference_time=chat_reference_time,
                     )
-                async with self._storage_lock:
-                    await self._persist_processed_chunk(file_record, processed, time_meta=time_meta)
+                await self._persist_processed_chunk(file_record, processed, time_meta=time_meta)
                 await self._set_chunk_completed(task_id, file_record.file_id, chunk_id)
             except Exception as e:
                 await self._set_chunk_failed(task_id, file_record.file_id, chunk_id, f"写入失败: {e}")
@@ -3148,88 +3276,85 @@ class ImportTaskManager:
             try:
                 chunk_warnings: List[str] = []
                 skip_write = False
-                async with self._storage_lock:
-                    kind = unit["kind"]
-                    if kind == "paragraph":
-                        content = str(unit.get("content", ""))
-                        if not content.strip():
-                            chunk_warnings.append(f"跳过分块[{chunk_id}]：段落内容为空")
-                            skip_write = True
-                        elif is_probable_hash_token(content):
-                            chunk_warnings.append(f"跳过分块[{chunk_id}]：段落内容疑似哈希值")
-                            skip_write = True
-                        if skip_write:
-                            pass
-                        k_type = resolve_stored_knowledge_type(
-                            unit.get("knowledge_type"),
+                kind = unit["kind"]
+                if kind == "paragraph":
+                    content = str(unit.get("content", ""))
+                    if not content.strip():
+                        chunk_warnings.append(f"跳过分块[{chunk_id}]：段落内容为空")
+                        skip_write = True
+                    elif is_probable_hash_token(content):
+                        chunk_warnings.append(f"跳过分块[{chunk_id}]：段落内容疑似哈希值")
+                        skip_write = True
+                    if skip_write:
+                        pass
+                    k_type = resolve_stored_knowledge_type(
+                        unit.get("knowledge_type"),
+                        content=content,
+                    ).value
+                    source = str(unit.get("source") or f"web_import:{file_record.name}")
+                    if not skip_write:
+                        para_hash = await self._add_paragraph_metadata(
+                            file_record=file_record,
                             content=content,
-                        ).value
-                        source = str(unit.get("source") or f"web_import:{file_record.name}")
-                        if not skip_write:
-                            para_hash = self.plugin.metadata_store.add_paragraph(
-                                content=content,
-                                source=source,
-                                knowledge_type=k_type,
-                                time_meta=unit.get("time_meta"),
+                            source=source,
+                            knowledge_type=k_type,
+                            time_meta=unit.get("time_meta"),
+                        )
+                        vector_result = await self._write_paragraph_vector_or_enqueue(
+                            paragraph_hash=para_hash,
+                            content=content,
+                            context="web_import_json",
+                        )
+                        if str(vector_result.get("warning", "") or "").strip():
+                            logger.warning(
+                                f"web_import json paragraph 向量写入降级: hash={para_hash[:8]} detail={vector_result.get('detail')}"
                             )
-                            self._record_file_source(file_record, source)
-                            vector_result = await self._write_paragraph_vector_or_enqueue(
-                                paragraph_hash=para_hash,
-                                content=content,
-                                context="web_import_json",
-                            )
-                            if str(vector_result.get("warning", "") or "").strip():
-                                logger.warning(
-                                    f"web_import json paragraph 向量写入降级: hash={para_hash[:8]} detail={vector_result.get('detail')}"
+                        for name in unit.get("entities", []) or []:
+                            n = str(name or "").strip()
+                            if not n:
+                                continue
+                            if is_probable_hash_token(n):
+                                chunk_warnings.append(f"跳过分块[{chunk_id}]中的实体：疑似哈希值 ({n[:32]})")
+                                continue
+                            await self._add_entity_with_vector(n, source_paragraph=para_hash)
+                        for rel in unit.get("relations", []) or []:
+                            if not isinstance(rel, dict):
+                                continue
+                            s = str(rel.get("subject", "")).strip()
+                            p = str(rel.get("predicate", "")).strip()
+                            o = str(rel.get("object", "")).strip()
+                            if not (s and p and o):
+                                continue
+                            if any(is_probable_hash_token(token) for token in (s, p, o)):
+                                chunk_warnings.append(
+                                    f"跳过分块[{chunk_id}]中的关系：疑似哈希值 ({s[:24]}|{p[:24]}|{o[:24]})"
                                 )
-                            for name in unit.get("entities", []) or []:
-                                n = str(name or "").strip()
-                                if not n:
-                                    continue
-                                if is_probable_hash_token(n):
-                                    chunk_warnings.append(
-                                        f"跳过分块[{chunk_id}]中的实体：疑似哈希值 ({n[:32]})"
-                                    )
-                                    continue
-                                await self._add_entity_with_vector(n, source_paragraph=para_hash)
-                            for rel in unit.get("relations", []) or []:
-                                if not isinstance(rel, dict):
-                                    continue
-                                s = str(rel.get("subject", "")).strip()
-                                p = str(rel.get("predicate", "")).strip()
-                                o = str(rel.get("object", "")).strip()
-                                if not (s and p and o):
-                                    continue
-                                if any(is_probable_hash_token(token) for token in (s, p, o)):
-                                    chunk_warnings.append(
-                                        f"跳过分块[{chunk_id}]中的关系：疑似哈希值 ({s[:24]}|{p[:24]}|{o[:24]})"
-                                    )
-                                    continue
-                                await self._add_relation(s, p, o, source_paragraph=para_hash)
-                    elif kind == "entity":
-                        entity_name = str(unit.get("name", "")).strip()
-                        if not entity_name:
-                            chunk_warnings.append(f"跳过分块[{chunk_id}]：实体名为空")
-                            skip_write = True
-                        elif is_probable_hash_token(entity_name):
-                            chunk_warnings.append(f"跳过分块[{chunk_id}]：实体名疑似哈希值")
-                            skip_write = True
-                        if not skip_write:
-                            await self._add_entity_with_vector(entity_name)
-                    elif kind == "relation":
-                        subject = str(unit.get("subject", "")).strip()
-                        predicate = str(unit.get("predicate", "")).strip()
-                        obj = str(unit.get("object", "")).strip()
-                        if not (subject and predicate and obj):
-                            chunk_warnings.append(f"跳过分块[{chunk_id}]：关系字段不完整")
-                            skip_write = True
-                        elif any(is_probable_hash_token(token) for token in (subject, predicate, obj)):
-                            chunk_warnings.append(f"跳过分块[{chunk_id}]：关系字段疑似哈希值")
-                            skip_write = True
-                        if not skip_write:
-                            await self._add_relation(subject, predicate, obj)
-                    else:
-                        raise RuntimeError(f"未知 JSON 导入单元类型: {kind}")
+                                continue
+                            await self._add_relation(s, p, o, source_paragraph=para_hash)
+                elif kind == "entity":
+                    entity_name = str(unit.get("name", "")).strip()
+                    if not entity_name:
+                        chunk_warnings.append(f"跳过分块[{chunk_id}]：实体名为空")
+                        skip_write = True
+                    elif is_probable_hash_token(entity_name):
+                        chunk_warnings.append(f"跳过分块[{chunk_id}]：实体名疑似哈希值")
+                        skip_write = True
+                    if not skip_write:
+                        await self._add_entity_with_vector(entity_name)
+                elif kind == "relation":
+                    subject = str(unit.get("subject", "")).strip()
+                    predicate = str(unit.get("predicate", "")).strip()
+                    obj = str(unit.get("object", "")).strip()
+                    if not (subject and predicate and obj):
+                        chunk_warnings.append(f"跳过分块[{chunk_id}]：关系字段不完整")
+                        skip_write = True
+                    elif any(is_probable_hash_token(token) for token in (subject, predicate, obj)):
+                        chunk_warnings.append(f"跳过分块[{chunk_id}]：关系字段疑似哈希值")
+                        skip_write = True
+                    if not skip_write:
+                        await self._add_relation(subject, predicate, obj)
+                else:
+                    raise RuntimeError(f"未知 JSON 导入单元类型: {kind}")
                 if chunk_warnings:
                     await self._append_file_warnings(task_id, file_record.file_id, chunk_warnings)
                 await self._set_chunk_completed(task_id, file_record.file_id, chunk_id)
@@ -3283,13 +3408,13 @@ class ImportTaskManager:
             return
         data = _coerce_import_data_dict(processed.data, context="分块抽取结果")
         source = self._source_label(file_record)
-        para_hash = self.plugin.metadata_store.add_paragraph(
+        para_hash = await self._add_paragraph_metadata(
+            file_record=file_record,
             content=content,
             source=source,
             knowledge_type=_storage_type_from_strategy(processed.type),
             time_meta=time_meta,
         )
-        self._record_file_source(file_record, source)
 
         vector_result = await self._write_paragraph_vector_or_enqueue(
             paragraph_hash=para_hash,
@@ -3336,9 +3461,11 @@ class ImportTaskManager:
             logger.warning(f"跳过疑似哈希实体写入: entity={name_token[:32]}")
             return ""
 
-        hash_value = self.plugin.metadata_store.add_entity(name=name_token, source_paragraph=source_paragraph)
-        self.plugin.graph_store.add_nodes([name_token])
-        if hash_value not in self.plugin.vector_store:
+        async with self._storage_lock:
+            hash_value = self.plugin.metadata_store.add_entity(name=name_token, source_paragraph=source_paragraph)
+            self.plugin.graph_store.add_nodes([name_token])
+            vector_exists = hash_value in self.plugin.vector_store
+        if not vector_exists:
             try:
                 if self._is_embedding_degraded():
                     raise RuntimeError("embedding_degraded")
@@ -3369,31 +3496,52 @@ class ImportTaskManager:
             rv_cfg = {}
         write_vector = bool(rv_cfg.get("enabled", False)) and bool(rv_cfg.get("write_on_import", True))
 
-        relation_service = getattr(self.plugin, "relation_write_service", None)
-        if relation_service is not None:
-            result = await relation_service.upsert_relation_with_vector(
+        async with self._storage_lock:
+            rel_hash = self.plugin.metadata_store.add_relation(
                 subject=subject_token,
                 predicate=predicate_token,
                 obj=object_token,
                 confidence=1.0,
                 source_paragraph=source_paragraph,
-                write_vector=write_vector,
             )
-            return result.hash_value
+            self.plugin.graph_store.add_edges([(subject_token, object_token)], relation_hashes=[rel_hash])
+            if not write_vector:
+                try:
+                    self.plugin.metadata_store.set_relation_vector_state(rel_hash, "none")
+                except Exception:
+                    pass
+                return rel_hash
+            vector_exists = rel_hash in self.plugin.vector_store
+            self.plugin.metadata_store.set_relation_vector_state(rel_hash, "ready" if vector_exists else "pending")
 
-        rel_hash = self.plugin.metadata_store.add_relation(
-            subject=subject_token,
-            predicate=predicate_token,
-            obj=object_token,
-            source_paragraph=source_paragraph,
-            confidence=1.0,
-        )
-        self.plugin.graph_store.add_edges([(subject_token, object_token)], relation_hashes=[rel_hash])
+        if vector_exists:
+            return rel_hash
+
         try:
-            self.plugin.metadata_store.set_relation_vector_state(rel_hash, "none")
-        except Exception:
-            pass
+            relation_service = getattr(self.plugin, "relation_write_service", None)
+            if relation_service is not None:
+                vector_text = relation_service.build_relation_vector_text(subject_token, predicate_token, object_token)
+            else:
+                vector_text = f"{subject_token} {predicate_token} {object_token}\n{subject_token}和{object_token}的关系是{predicate_token}"
+            emb = await self.plugin.embedding_manager.encode(vector_text)
+            if rel_hash in self.plugin.vector_store:
+                await self._set_relation_vector_state_locked(rel_hash, "ready")
+                return rel_hash
+            added_count = self.plugin.vector_store.add(emb.reshape(1, -1), [rel_hash])
+            if added_count == 0 and rel_hash not in self.plugin.vector_store:
+                raise RuntimeError("relation vector add returned 0 without existing vector")
+            await self._set_relation_vector_state_locked(rel_hash, "ready")
+        except ValueError as exc:
+            if rel_hash in self.plugin.vector_store:
+                await self._set_relation_vector_state_locked(rel_hash, "ready")
+            else:
+                await self._set_relation_vector_state_locked(rel_hash, "failed", error=str(exc), bump_retry=True)
+                logger.warning(f"关系向量写入失败，保留 metadata/graph: relation={rel_hash[:16]} error={exc}")
+        except Exception as exc:
+            await self._set_relation_vector_state_locked(rel_hash, "failed", error=str(exc), bump_retry=True)
+            logger.warning(f"关系向量写入降级，保留 metadata/graph: relation={rel_hash[:16]} error={exc}")
         return rel_hash
+
     async def _select_model(self) -> ResolvedLLMModel:
         models = get_text_generation_model_tasks(llm_api)
         if not models:
@@ -3429,16 +3577,21 @@ class ImportTaskManager:
     async def _llm_call(self, prompt: str, resolved_model: ResolvedLLMModel) -> Dict[str, Any]:
         cfg = self._llm_retry_config()
         retries = int(cfg["retries"])
+        llm_timeout = float(cfg.get("llm_call_seconds", 0.0) or 0.0)
         last_error: Optional[Exception] = None
         for attempt in range(retries + 1):
             try:
-                result = await generate_with_resolved_model(
+                generate_coro = generate_with_resolved_model(
                     resolved_model,
                     request_type="A_Memorix.WebImport",
                     prompt=prompt,
                     temperature=getattr(resolved_model.task_config, "temperature", None),
                     max_tokens=getattr(resolved_model.task_config, "max_tokens", None),
                 )
+                if llm_timeout > 0:
+                    result = await asyncio.wait_for(generate_coro, timeout=llm_timeout)
+                else:
+                    result = await generate_coro
                 success = bool(result.success)
                 response = str(result.completion.response or "")
                 if not success or not response:
