@@ -107,6 +107,13 @@ max_paste_chars = 200000
 default_file_concurrency = 2
 default_chunk_concurrency = 4
 
+[web.import.timeout]
+llm_call_seconds = 240
+process_poll_seconds = 1
+process_terminate_seconds = 5
+process_kill_seconds = 3
+convert_preflight_seconds = 20
+
 [web.tuning]
 enabled = true
 max_queue_size = 8
@@ -121,7 +128,7 @@ default_sample_size = 24
 
 - 长期记忆控制台：适合修改高频项，例如 embedding、检索、Episode、人物画像、导入与调优的常用开关。
 - 原始 TOML：适合复制整份配置、批量调整参数，或修改未在可视化表单中展示的高级项。
-- raw-only 高级项仍包括：`retrieval.fusion.*`、`retrieval.search.relation_intent.*`、`retrieval.search.graph_recall.*`、`retrieval.search.posterior_graph.*`、`retrieval.aggregate.*`、`memory.orphan.*`、`advanced.extraction_model`、`web.import.llm_retry.*`、`web.import.path_aliases`、`web.import.convert.*`、`web.tuning.llm_retry.*`、`web.tuning.eval_query_timeout_seconds`。
+- raw-only 高级项仍包括：`retrieval.fusion.*`、`retrieval.search.relation_intent.*`、`retrieval.search.graph_recall.*`、`retrieval.search.posterior_graph.*`、`retrieval.aggregate.*`、`memory.orphan.*`、`advanced.extraction_model`、`web.import.llm_retry.*`、`web.import.timeout.*`、`web.import.path_aliases`、`web.import.convert.*`、`web.tuning.llm_retry.*`、`web.tuning.eval_query_timeout_seconds`。
 
 ## 1. 存储与嵌入
 
@@ -338,6 +345,14 @@ chats = ["group:123", "user:456", "stream:abc"]
 - `web.import.max_file_concurrency` (默认 `6`)
 - `web.import.max_chunk_concurrency` (默认 `12`)
 - `web.import.poll_interval_ms` (默认 `1000`)
+
+### 超时
+
+- `web.import.timeout.llm_call_seconds` (默认 `240`，`0` 表示不额外限制)
+- `web.import.timeout.process_poll_seconds` (默认 `1`)
+- `web.import.timeout.process_terminate_seconds` (默认 `5`)
+- `web.import.timeout.process_kill_seconds` (默认 `3`)
+- `web.import.timeout.convert_preflight_seconds` (默认 `20`)
 
 ### 重试与路径
 
