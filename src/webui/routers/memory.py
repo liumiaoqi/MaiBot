@@ -79,6 +79,15 @@ class ProfileOverrideRequest(BaseModel):
     source: str = "webui"
 
 
+class ProfileEvidenceCorrectRequest(BaseModel):
+    evidence_type: str = Field(..., min_length=1)
+    hash: str = Field(..., min_length=1)
+    requested_by: str = "webui"
+    reason: str = "profile_evidence_correction"
+    refresh: bool = True
+    limit: int = Field(12, ge=1, le=100)
+
+
 class MaintainRequest(BaseModel):
     target: str = Field(..., min_length=1)
     hours: Optional[float] = None
@@ -524,6 +533,28 @@ async def _profile_set_override(payload: ProfileOverrideRequest) -> dict:
 
 async def _profile_delete_override(person_id: str) -> dict:
     return await memory_service.profile_admin(action="delete_override", person_id=person_id)
+
+
+async def _profile_evidence(person_id: str, limit: int, force_refresh: bool) -> dict:
+    return await memory_service.profile_admin(
+        action="evidence",
+        person_id=person_id,
+        limit=limit,
+        force_refresh=force_refresh,
+    )
+
+
+async def _profile_correct_evidence(person_id: str, payload: ProfileEvidenceCorrectRequest) -> dict:
+    return await memory_service.profile_admin(
+        action="correct_evidence",
+        person_id=person_id,
+        evidence_type=payload.evidence_type,
+        hash=payload.hash,
+        requested_by=payload.requested_by,
+        reason=payload.reason,
+        refresh=payload.refresh,
+        limit=payload.limit,
+    )
 
 
 async def _feedback_list(limit: int, status: str, rollback_status: str, query: str) -> dict:
@@ -1055,6 +1086,20 @@ async def set_memory_profile_override(payload: ProfileOverrideRequest):
 @router.delete("/profiles/override/{person_id}")
 async def delete_memory_profile_override(person_id: str):
     return await _profile_delete_override(person_id)
+
+
+@router.get("/profiles/{person_id}/evidence")
+async def get_memory_profile_evidence(
+    person_id: str,
+    limit: int = Query(12, ge=1, le=100),
+    force_refresh: bool = Query(False),
+):
+    return await _profile_evidence(person_id, limit, force_refresh)
+
+
+@router.post("/profiles/{person_id}/evidence/correct")
+async def correct_memory_profile_evidence(person_id: str, payload: ProfileEvidenceCorrectRequest):
+    return await _profile_correct_evidence(person_id, payload)
 
 
 @router.get("/feedback-corrections")

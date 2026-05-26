@@ -220,6 +220,61 @@ def test_webui_memory_profile_query_resolves_platform_user_id(client: TestClient
     assert response.json()["person_id"] == "resolved-person-id"
 
 
+def test_webui_memory_profile_evidence_route(client: TestClient, monkeypatch):
+    async def fake_profile_admin(*, action: str, **kwargs):
+        assert action == "evidence"
+        assert kwargs["person_id"] == "person-1"
+        assert kwargs["limit"] == 7
+        assert kwargs["force_refresh"] is True
+        return {
+            "success": True,
+            "person_id": "person-1",
+            "evidence": [{"evidence_type": "person_fact", "hash": "p-1"}],
+        }
+
+    monkeypatch.setattr(memory_router_module.memory_service, "profile_admin", fake_profile_admin)
+
+    response = client.get(
+        "/api/webui/memory/profiles/person-1/evidence",
+        params={"limit": 7, "force_refresh": True},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+    assert response.json()["evidence"][0]["hash"] == "p-1"
+
+
+def test_webui_memory_profile_evidence_correct_route(client: TestClient, monkeypatch):
+    async def fake_profile_admin(*, action: str, **kwargs):
+        assert action == "correct_evidence"
+        assert kwargs["person_id"] == "person-1"
+        assert kwargs["evidence_type"] == "relation"
+        assert kwargs["hash"] == "rel-1"
+        assert kwargs["requested_by"] == "tester"
+        assert kwargs["reason"] == "wrong_relation"
+        assert kwargs["refresh"] is True
+        assert kwargs["limit"] == 6
+        return {"success": True, "operation_id": "delete-1"}
+
+    monkeypatch.setattr(memory_router_module.memory_service, "profile_admin", fake_profile_admin)
+
+    response = client.post(
+        "/api/webui/memory/profiles/person-1/evidence/correct",
+        json={
+            "evidence_type": "relation",
+            "hash": "rel-1",
+            "requested_by": "tester",
+            "reason": "wrong_relation",
+            "refresh": True,
+            "limit": 6,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+    assert response.json()["operation_id"] == "delete-1"
+
+
 def test_webui_memory_profile_query_prefers_explicit_person_id(client: TestClient, monkeypatch):
     def fake_resolve_person_id_for_memory(**kwargs):
         raise AssertionError(f"不应解析平台账号: {kwargs}")
