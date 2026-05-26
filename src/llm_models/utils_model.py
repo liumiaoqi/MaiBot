@@ -60,6 +60,11 @@ DATA_URI_LIMIT_PATTERN = re.compile(
 )
 DATA_URI_RETRY_MARGIN_BYTES = 128 * 1024
 MIN_COMPRESSED_IMAGE_TARGET_SIZE_BYTES = 512 * 1024
+EMPTY_TASK_FALLBACKS = {
+    "learner": "utils",
+    "mid_memory": "planner",
+    "timing_gate": "planner",
+}
 
 
 class RequestType(Enum):
@@ -113,12 +118,7 @@ class LLMOrchestrator:
         if not isinstance(task_config, TaskConfig):
             raise ValueError(f"未找到名为 '{self.task_name}' 的任务配置")
         if not any(str(model_name).strip() for model_name in task_config.model_list):
-            fallback_task_name = ""
-            if self.task_name == "learner":
-                fallback_task_name = "utils"
-            elif self.task_name == "mid_memory":
-                fallback_task_name = "planner"
-
+            fallback_task_name = EMPTY_TASK_FALLBACKS.get(self.task_name, "")
             if fallback_task_name:
                 fallback_task_config = getattr(model_task_config, fallback_task_name, None)
                 if isinstance(fallback_task_config, TaskConfig):
