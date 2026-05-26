@@ -317,25 +317,55 @@ class ImageManager:
                 statement = select(Images).filter_by(image_hash=hash_str, image_type=ImageType.IMAGE).limit(1)
                 if record := session.exec(statement).first():
                     self._normalize_image_registration_fields(record)
-                    logger.info(f"图片已存在于数据库中，哈希值: {hash_str}")
-                    record.last_used_time = datetime.now()
-                    record.query_count += 1
-                    session.add(record)
-                    session.flush()
-                    return MaiImage.from_db_instance(record)
+                    record_path = Path(record.full_path)
+                    if not record.no_file_flag and record_path.is_file():
+                        logger.info(f"图片已存在于数据库中，哈希值: {hash_str}")
+                        record.last_used_time = datetime.now()
+                        record.query_count += 1
+                        session.add(record)
+                        session.flush()
+                        return MaiImage.from_db_instance(record)
+                    logger.info(f"图片记录存在但文件缺失，准备重新保存图片文件，哈希值: {hash_str}")
         except Exception as e:
             logger.error(f"查询图片记录时发生错误: {e}")
             raise e
 
-        logger.info(f"图片不存在于数据库中，准备保存新图片，哈希值: {hash_str}")
+        logger.info(f"图片不存在或文件缺失，准备保存图片文件，哈希值: {hash_str}")
         tmp_file_path = IMAGE_DIR / f"{hash_str}.tmp"
         with tmp_file_path.open("wb") as f:
             f.write(image_bytes)
         mai_image = MaiImage(full_path=tmp_file_path, image_bytes=image_bytes)
         await mai_image.calculate_hash_format()
-        if not self.register_image_to_db(mai_image):
+        if not self._upsert_saved_image_record(mai_image):
             raise RuntimeError(f"保存图片记录到数据库失败: {hash_str}")
         return mai_image
+
+    def _upsert_saved_image_record(self, image: MaiImage) -> bool:
+        """保存图片记录，或在文件被清理后恢复同 hash 记录的文件状态。"""
+        try:
+            with get_db_session() as session:
+                statement = select(Images).filter_by(image_hash=image.file_hash, image_type=ImageType.IMAGE).limit(1)
+                record = session.exec(statement).first()
+                if record is None:
+                    record = image.to_db_instance()
+                    record.is_registered = False
+                    record.register_time = None
+                    record.query_count = 0
+                else:
+                    self._normalize_image_registration_fields(record)
+                    image.description = record.description
+                    image.vlm_processed = record.vlm_processed
+                    record.full_path = str(image.full_path)
+
+                record.no_file_flag = False
+                record.last_used_time = datetime.now()
+                session.add(record)
+                session.flush()
+                logger.info(f"成功保存图片记录到数据库: ID: {record.id}，路径: {record.full_path}")
+        except Exception as e:
+            logger.error(f"保存图片记录到数据库时发生错误: {e}")
+            return False
+        return True
 
     async def build_image_description(
         self,

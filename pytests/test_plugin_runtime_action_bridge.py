@@ -5,11 +5,13 @@ from typing import Any
 
 import pytest
 
-import src.plugin_runtime.integration as integration_module
-
+from src.core.tooling import ToolInvocation
 from src.core.types import ActionInfo, ToolInfo
 from src.plugin_runtime.component_query import component_query_service
+from src.plugin_runtime.host.component_timeout import resolve_component_rpc_timeout_ms
+from src.plugin_runtime.host.message_utils import PluginMessageUtils
 from src.plugin_runtime.host.supervisor import PluginSupervisor
+import src.plugin_runtime.integration as integration_module
 
 
 class _FakeRuntimeManager:
@@ -76,6 +78,13 @@ def _install_runtime_manager(
     monkeypatch.setattr(integration_module, "get_plugin_runtime_manager", lambda: fake_manager)
 
 
+def test_component_rpc_timeout_default_is_sixty_seconds() -> None:
+    """组件未声明 timeout_ms 时，RPC 调用应默认等待 60 秒。"""
+
+    assert resolve_component_rpc_timeout_ms(0) == 60000
+    assert resolve_component_rpc_timeout_ms(None) == 60000
+
+
 @pytest.mark.asyncio
 async def test_core_component_registry_reads_runtime_action_and_executor(
     monkeypatch: pytest.MonkeyPatch,
@@ -101,6 +110,7 @@ async def test_core_component_registry_reads_runtime_action_and_executor(
             "action_require": ["需要发送回复时使用"],
             "associated_types": ["text"],
             "parallel_action": True,
+            "timeout_ms": 45000,
         },
     )
     _install_runtime_manager(monkeypatch, supervisor, plugin_id, {"enabled": True, "mode": "test"})
@@ -157,6 +167,7 @@ async def test_core_component_registry_reads_runtime_action_and_executor(
     assert captured["args"]["reasoning"] == "当前适合使用这个动作"
     assert captured["args"]["target"] == "MaiBot"
     assert captured["args"]["action_data"] == {"target": "MaiBot"}
+    assert captured["timeout_ms"] == 45000
 
 
 @pytest.mark.asyncio
@@ -180,6 +191,7 @@ async def test_core_component_registry_reads_runtime_command_and_executor(
             "command_pattern": r"^/test(?:\s+.+)?$",
             "aliases": ["/hello"],
             "intercept_message_level": 1,
+            "timeout_ms": 46000,
         },
     )
     _install_runtime_manager(monkeypatch, supervisor, plugin_id, {"mode": "command"})
@@ -201,6 +213,11 @@ async def test_core_component_registry_reads_runtime_command_and_executor(
         return SimpleNamespace(payload={"success": True, "result": (True, "command ok", True)})
 
     monkeypatch.setattr(supervisor, "invoke_plugin", fake_invoke_plugin)
+    monkeypatch.setattr(
+        PluginMessageUtils,
+        "_session_message_to_dict",
+        staticmethod(lambda _message, include_binary_data=False: {}),
+    )
 
     matched = component_query_service.find_command_by_text("/test hello")
     assert matched is not None
@@ -208,7 +225,7 @@ async def test_core_component_registry_reads_runtime_command_and_executor(
 
     assert matched_groups == {}
     assert command_info.plugin_name == plugin_id
-    assert command_info.command_pattern == r"^/test(?:\s+.+)?$"
+    assert command_info.description == "测试命令"
 
     success, response_text, intercept = await command_executor(
         message=SimpleNamespace(processed_plain_text="/test hello", session_id="stream-2"),
@@ -225,6 +242,7 @@ async def test_core_component_registry_reads_runtime_command_and_executor(
     assert captured["args"]["text"] == "/test hello"
     assert captured["args"]["stream_id"] == "stream-2"
     assert captured["args"]["plugin_config"] == {"mode": "command"}
+    assert captured["timeout_ms"] == 46000
 
 
 @pytest.mark.asyncio
@@ -236,6 +254,7 @@ async def test_core_component_registry_reads_runtime_tools_and_executor(
     plugin_id = "runtime_tool_bridge_plugin"
     tool_name = "runtime_tool_bridge_test"
     supervisor = PluginSupervisor(plugin_dirs=[])
+    captured_timeouts: list[int] = []
 
     supervisor.component_registry.register_component(
         name=tool_name,
@@ -252,6 +271,7 @@ async def test_core_component_registry_reads_runtime_tools_and_executor(
                     "required": True,
                 }
             ],
+            "timeout_ms": 47000,
         },
     )
     _install_runtime_manager(monkeypatch, supervisor, plugin_id)
@@ -265,7 +285,7 @@ async def test_core_component_registry_reads_runtime_tools_and_executor(
     ) -> Any:
         """模拟工具 RPC 调用。"""
 
-        del timeout_ms
+        captured_timeouts.append(timeout_ms)
         assert method == "plugin.invoke_tool"
         assert plugin_id == "runtime_tool_bridge_plugin"
         assert component_name == "runtime_tool_bridge_test"
@@ -276,9 +296,17 @@ async def test_core_component_registry_reads_runtime_tools_and_executor(
 
     tool_info = component_query_service.get_tool_info(tool_name)
     assert isinstance(tool_info, ToolInfo)
-    assert tool_info.tool_description == "测试工具"
+    assert tool_info.description == "测试工具"
     assert tool_name in component_query_service.get_llm_available_tools()
 
     executor = component_query_service.get_tool_executor(tool_name)
     assert executor is not None
     assert await executor({"query": "MaiBot"}) == {"content": "tool ok"}
+
+    tool_result = await component_query_service.invoke_tool_as_tool(
+        ToolInvocation(tool_name=tool_name, arguments={"query": "MaiBot"})
+    )
+
+    assert tool_result.success is True
+    assert tool_result.content == "tool ok"
+    assert captured_timeouts == [47000, 47000]

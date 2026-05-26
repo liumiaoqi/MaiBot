@@ -65,6 +65,8 @@ const parsePrimitiveArrayDraft = (draftValue: string, itemType: string) => {
     })
 }
 
+const formatNumericValue = (value: number) => String(value)
+
 function PrimitiveArrayEditor({
   onChange,
   schema,
@@ -154,6 +156,29 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
 
     return 0
   }
+
+  const normalizeNumericValue = (nextValue: number, minValue?: number, maxValue?: number) => {
+    let normalizedValue = schema.type === 'integer' ? Math.trunc(nextValue) : nextValue
+
+    if (typeof minValue === 'number' && Number.isFinite(minValue)) {
+      normalizedValue = Math.max(minValue, normalizedValue)
+    }
+    if (typeof maxValue === 'number' && Number.isFinite(maxValue)) {
+      normalizedValue = Math.min(maxValue, normalizedValue)
+    }
+
+    return normalizedValue
+  }
+
+  const numericValue = parseNumericValue(value, schema.default)
+  const [sliderDraftValue, setSliderDraftValue] = React.useState(() => formatNumericValue(numericValue))
+  const sliderInputFocusedRef = React.useRef(false)
+
+  React.useEffect(() => {
+    if (!sliderInputFocusedRef.current) {
+      setSliderDraftValue(formatNumericValue(numericValue))
+    }
+  }, [numericValue])
 
   const renderPrimitiveArrayEditor = () => {
     return <PrimitiveArrayEditor schema={schema} value={value} onChange={onChange} />
@@ -357,20 +382,66 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
    * 渲染 Slider 组件（用于 number 类型 + x-widget: slider）
    */
   const renderSlider = () => {
-    const numValue = parseNumericValue(value, schema.default)
+    const numValue = numericValue
     const min = schema.minValue ?? 0
     const max = schema.maxValue ?? 100
     const step = schema.step ?? 1
 
+    const commitSliderDraftValue = (nextDraftValue: string) => {
+      setSliderDraftValue(nextDraftValue)
+
+      if (!nextDraftValue.trim()) {
+        return
+      }
+
+      const parsedValue = Number(nextDraftValue)
+      if (!Number.isFinite(parsedValue)) {
+        return
+      }
+
+      onChange(normalizeNumericValue(parsedValue, min, max))
+    }
+
+    const canonicalizeSliderDraftValue = () => {
+      sliderInputFocusedRef.current = false
+
+      const parsedValue = Number(sliderDraftValue)
+      if (!Number.isFinite(parsedValue)) {
+        setSliderDraftValue(formatNumericValue(numValue))
+        return
+      }
+
+      const nextValue = normalizeNumericValue(parsedValue, min, max)
+      onChange(nextValue)
+      setSliderDraftValue(formatNumericValue(nextValue))
+    }
+
     return (
       <div className="min-w-0 space-y-2">
-        <Slider
-          value={[numValue]}
-          onValueChange={(values) => onChange(values[0])}
-          min={min}
-          max={max}
-          step={step}
-        />
+        <div className="flex min-w-0 items-center gap-3">
+          <Slider
+            value={[numValue]}
+            onValueChange={(values) => onChange(values[0])}
+            min={min}
+            max={max}
+            step={step}
+            className="min-w-0 flex-1"
+          />
+          <Input
+            aria-label={`${fieldLabel} 数值`}
+            type="number"
+            value={sliderDraftValue}
+            onBlur={canonicalizeSliderDraftValue}
+            onChange={(event) => commitSliderDraftValue(event.target.value)}
+            onFocus={() => {
+              sliderInputFocusedRef.current = true
+            }}
+            min={min}
+            max={max}
+            step={step}
+            className="h-8 w-24 shrink-0 text-right"
+          />
+        </div>
         <div className="flex justify-between text-xs text-muted-foreground">
           <span>{min}</span>
           <span className="font-medium text-foreground">{numValue}</span>

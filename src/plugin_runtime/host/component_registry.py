@@ -16,6 +16,7 @@ import contextlib
 import re
 
 from src.common.logger import get_logger
+from .component_timeout import normalize_component_timeout_ms
 from .hook_spec_registry import HookSpecRegistry
 
 logger = get_logger("plugin_runtime.host.component_registry")
@@ -91,6 +92,7 @@ class ComponentEntry:
         "plugin_id",
         "metadata",
         "enabled",
+        "timeout_ms",
         "compiled_pattern",
         "disabled_session",
         "chat_scope",
@@ -112,6 +114,7 @@ class ComponentEntry:
         self.plugin_id: str = plugin_id
         self.metadata: Dict[str, Any] = metadata
         self.enabled: bool = metadata.get("enabled", True)
+        self.timeout_ms: int = normalize_component_timeout_ms(metadata.get("timeout_ms", 0))
         self.disabled_session: Set[str] = set()
         self.chat_scope: ComponentChatScope = _normalize_chat_scope(chat_scope)
         self.allowed_session: Set[str] = {
@@ -271,7 +274,6 @@ class HookHandlerEntry(ComponentEntry):
         self.hook: str = self._normalize_hook_name(metadata.get("hook", ""))
         self.mode: str = self._normalize_mode(metadata.get("mode", "blocking"))
         self.order: str = self._normalize_order(metadata.get("order", "normal"))
-        self.timeout_ms: int = self._normalize_timeout_ms(metadata.get("timeout_ms", 0))
         self.error_policy: str = self._normalize_error_policy(metadata.get("error_policy", "skip"))
         super().__init__(name, component_type, plugin_id, metadata, chat_scope, allowed_session)
 
