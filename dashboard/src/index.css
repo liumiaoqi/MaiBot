@@ -495,9 +495,22 @@
   opacity: 1;
 }
 
-:root[data-dashboard-style='future-retro'] [data-dashboard-sidebar='true'] .text-xl {
-  font-size: 1.35rem;
+:root[data-dashboard-style='future-retro'] [data-dashboard-logo-area='true'] {
+  padding-inline: 0.75rem !important;
+}
+
+:root[data-dashboard-style='future-retro']
+  [data-dashboard-logo-area='true']
+  > div {
+  justify-content: flex-start !important;
+}
+
+:root[data-dashboard-style='future-retro'] [data-dashboard-logo-title='true'] {
+  font-size: 1.28rem;
+  font-weight: 900;
   line-height: 1.05;
+  letter-spacing: 0;
+  text-transform: uppercase;
 }
 
 :root[data-dashboard-style='future-retro'] [data-dashboard-main='true'] h1 {
@@ -586,6 +599,51 @@
   background: var(--retro-recessed) !important;
   box-shadow: none !important;
   color: var(--retro-ink) !important;
+}
+
+:root[data-dashboard-style='future-retro'] [data-dashboard-code-editor='true'] {
+  border: var(--retro-stroke) solid var(--retro-line) !important;
+  border-radius: 2px !important;
+  background: var(--retro-recessed) !important;
+  box-shadow: none !important;
+}
+
+:root[data-dashboard-style='future-retro'] [data-dashboard-code-editor='true'] .cm-editor {
+  background: transparent !important;
+  color: var(--retro-ink) !important;
+  font-family: var(--typography-font-family-code) !important;
+}
+
+:root[data-dashboard-style='future-retro'] [data-dashboard-code-editor='true'] .cm-scroller,
+:root[data-dashboard-style='future-retro'] [data-dashboard-code-editor='true'] .cm-content {
+  background: transparent !important;
+  font-family: var(--typography-font-family-code) !important;
+}
+
+:root[data-dashboard-style='future-retro'] [data-dashboard-code-editor='true'] .cm-gutters {
+  border-right: var(--retro-stroke) solid var(--retro-line) !important;
+  background: var(--retro-recessed-strong) !important;
+  color: var(--retro-ink-soft) !important;
+}
+
+:root[data-dashboard-style='future-retro'] [data-dashboard-code-editor='true'] .cm-activeLine,
+:root[data-dashboard-style='future-retro']
+  [data-dashboard-code-editor='true']
+  .cm-activeLineGutter {
+  background: color-mix(in srgb, var(--retro-gold) 18%, transparent) !important;
+}
+
+:root[data-dashboard-style='future-retro'] [data-dashboard-code-editor='true'] .cm-selectionBackground,
+:root[data-dashboard-style='future-retro'] [data-dashboard-code-editor='true'] .cm-content ::selection {
+  background: color-mix(in srgb, var(--retro-rust) 35%, transparent) !important;
+}
+
+:root[data-dashboard-style='future-retro'] [data-dashboard-code-editor='true'] .cm-cursor {
+  border-left-color: var(--retro-rust) !important;
+}
+
+:root[data-dashboard-style='future-retro'] [data-dashboard-code-editor='true'] .cm-placeholder {
+  color: color-mix(in srgb, var(--retro-ink) 58%, transparent) !important;
 }
 
 :root[data-dashboard-style='future-retro'] [data-dashboard-input='true']::placeholder,
