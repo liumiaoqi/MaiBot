@@ -384,12 +384,8 @@
 :root[data-dashboard-style='future-retro'],
 :root[data-dashboard-style='future-retro'] body {
   background-color: var(--retro-paper);
-  background-image:
-    var(--retro-paper-texture),
-    radial-gradient(circle at 12% 18%, rgb(255 248 226 / 0.44) 0 14%, transparent 36%);
-  background-size:
-    180px 180px,
-    100% 100%;
+  background-image: var(--retro-paper-texture);
+  background-size: 180px 180px;
   color: var(--retro-ink);
   font-family: var(--typography-font-family-base);
 }
@@ -404,12 +400,8 @@
 
 :root[data-dashboard-style='future-retro'] [data-dashboard-shell='true'] {
   background-color: var(--retro-paper);
-  background-image:
-    var(--retro-paper-texture),
-    radial-gradient(circle at 12% 18%, rgb(255 248 226 / 0.44) 0 14%, transparent 36%);
-  background-size:
-    180px 180px,
-    100% 100%;
+  background-image: var(--retro-paper-texture);
+  background-size: 180px 180px;
   color: var(--retro-ink);
 }
 
@@ -459,12 +451,8 @@
 :root[data-dashboard-style='future-retro'] [data-dashboard-header='true'],
 :root[data-dashboard-style='future-retro'] [data-dashboard-sidebar='true'] {
   background-color: var(--retro-paper) !important;
-  background-image:
-    var(--retro-paper-texture),
-    radial-gradient(circle at 12% 18%, rgb(255 248 226 / 0.32) 0 14%, transparent 36%) !important;
-  background-size:
-    180px 180px,
-    100% 100% !important;
+  background-image: var(--retro-paper-texture) !important;
+  background-size: 180px 180px !important;
   border-color: var(--retro-line) !important;
   border-width: 0 var(--retro-stroke) 0 0 !important;
   box-shadow: none !important;
