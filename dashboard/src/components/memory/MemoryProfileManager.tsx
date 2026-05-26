@@ -136,11 +136,15 @@ export function MemoryProfileManager() {
     [profiles, selectedPersonId],
   )
   const profileText = resolveProfileText(queryResult, selectedProfile)
-  const displayedProfileText = showAutoProfile && profileEvidence?.auto_profile_text
-    ? profileEvidence.auto_profile_text
-    : (profileEvidence?.profile_text || profileText)
   const selectedDisplayName = selectedProfile?.person_name || selectedPersonId || String(queryResult?.person_id ?? '未选择')
   const activePersonId = selectedPersonId || queryPersonId.trim() || String(queryResult?.person_id ?? profileEvidence?.person_id ?? '')
+  const profileEvidencePersonId = String(profileEvidence?.person_id ?? '').trim()
+  const currentProfileEvidence = profileEvidencePersonId && profileEvidencePersonId === activePersonId.trim()
+    ? profileEvidence
+    : null
+  const displayedProfileText = showAutoProfile && typeof currentProfileEvidence?.auto_profile_text === 'string'
+    ? currentProfileEvidence.auto_profile_text
+    : (typeof currentProfileEvidence?.profile_text === 'string' ? currentProfileEvidence.profile_text : profileText)
 
   const loadProfiles = useCallback(async () => {
     setLoading(true)
@@ -206,11 +210,11 @@ export function MemoryProfileManager() {
   }, [queryLimit, toast])
 
   useEffect(() => {
-    if (!selectedPersonId || profileEvidence || queryResult) {
+    if (!selectedPersonId || profileEvidencePersonId === selectedPersonId || queryResult) {
       return
     }
     void loadProfileEvidence(selectedPersonId)
-  }, [loadProfileEvidence, profileEvidence, queryResult, selectedPersonId])
+  }, [loadProfileEvidence, profileEvidencePersonId, queryResult, selectedPersonId])
 
   const submitQuery = useCallback(async () => {
     const directPersonId = showAdvancedPersonId ? queryPersonId.trim() : ''
@@ -237,6 +241,8 @@ export function MemoryProfileManager() {
         setProfiles(nextItems)
         setProfileListMode('search')
         setQueryResult(null)
+        setProfileEvidence(null)
+        setShowAutoProfile(false)
         setSelectedPersonId(nextItems[0]?.person_id ?? '')
         toast({
           title: '人物画像检索完成',
@@ -296,8 +302,7 @@ export function MemoryProfileManager() {
     setQueryResult(null)
     setProfileEvidence(null)
     setShowAutoProfile(false)
-    void loadProfileEvidence(personId)
-  }, [loadProfileEvidence])
+  }, [])
 
   const saveOverride = useCallback(async () => {
     const personId = selectedPersonId || queryPersonId.trim()
@@ -556,9 +561,9 @@ export function MemoryProfileManager() {
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline">{selectedPersonId || String(queryResult?.person_id ?? '未选择')}</Badge>
                   {selectedProfile?.expires_at ? <Badge variant="secondary">过期时间 {formatMemoryTime(selectedProfile.expires_at)}</Badge> : null}
-                  {profileEvidence?.has_manual_override ? <Badge variant="secondary">当前展示使用画像覆写</Badge> : null}
+                  {currentProfileEvidence?.has_manual_override ? <Badge variant="secondary">当前展示使用画像覆写</Badge> : null}
                 </div>
-                {profileEvidence?.has_manual_override ? (
+                {currentProfileEvidence?.has_manual_override ? (
                   <div className="flex flex-wrap gap-2">
                     <Button
                       type="button"
@@ -585,7 +590,7 @@ export function MemoryProfileManager() {
                     <div>
                       <div className="text-sm font-medium">支撑证据</div>
                       <div className="text-xs text-muted-foreground">
-                        {profileEvidence?.evidence_count ?? 0} 条证据；纠错后会自动刷新自动画像。
+                        {currentProfileEvidence?.evidence_count ?? 0} 条证据；纠错后会自动刷新自动画像。
                       </div>
                     </div>
                     <Button
@@ -611,7 +616,7 @@ export function MemoryProfileManager() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {(profileEvidence?.evidence ?? []).length > 0 ? (profileEvidence?.evidence ?? []).map((item) => {
+                        {(currentProfileEvidence?.evidence ?? []).length > 0 ? (currentProfileEvidence?.evidence ?? []).map((item) => {
                           const evidenceKey = String(item.evidence_key ?? item.hash ?? '')
                           const isCorrecting = correctingEvidenceKey === evidenceKey
                           return (
@@ -666,7 +671,7 @@ export function MemoryProfileManager() {
                   </CollapsibleTrigger>
                   <CollapsibleContent className="border-t">
                     <pre className="max-h-72 overflow-auto p-3 text-xs break-words whitespace-pre-wrap">
-                      {JSON.stringify(profileEvidence ?? queryResult ?? selectedProfile ?? {}, null, 2)}
+                      {JSON.stringify(currentProfileEvidence ?? queryResult ?? selectedProfile ?? {}, null, 2)}
                     </pre>
                   </CollapsibleContent>
                 </Collapsible>

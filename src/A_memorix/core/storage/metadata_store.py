@@ -1061,7 +1061,6 @@ class MetadataStore:
 
         # 时序索引（仅在列存在时创建，兼容旧库迁移）
         self._create_temporal_indexes_if_ready()
-        self._create_performance_indexes()
         self._conn.commit()
 
         # 检查paragraphs表是否有is_permanent列
@@ -1210,6 +1209,9 @@ class MetadataStore:
         except Exception as e:
             logger.error(f"数据自动修复失败: {e}")
 
+        self._create_performance_indexes()
+        self._conn.commit()
+
     def _create_temporal_indexes_if_ready(self) -> None:
         """
         仅当时序列已存在时创建索引。
@@ -1237,6 +1239,11 @@ class MetadataStore:
     def _create_performance_indexes(self) -> None:
         """创建热点查询使用的补充索引。"""
         cursor = self._conn.cursor()
+        cursor.execute("PRAGMA table_info(paragraphs)")
+        paragraph_columns = {row[1] for row in cursor.fetchall()}
+        cursor.execute("PRAGMA table_info(relations)")
+        relation_columns = {row[1] for row in cursor.fetchall()}
+
         cursor.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_paragraph_relations_relation
@@ -1249,24 +1256,26 @@ class MetadataStore:
             ON paragraph_entities(entity_hash, paragraph_hash)
             """
         )
-        cursor.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_paragraphs_source_live_created
-            ON paragraphs(source, is_deleted, created_at, hash)
-            """
-        )
-        cursor.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_relations_subject_object_active
-            ON relations(LOWER(TRIM(subject)), LOWER(TRIM(object)), is_inactive)
-            """
-        )
-        cursor.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_relations_object_active
-            ON relations(LOWER(TRIM(object)), is_inactive)
-            """
-        )
+        if {"source", "is_deleted", "created_at", "hash"}.issubset(paragraph_columns):
+            cursor.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_paragraphs_source_live_created
+                ON paragraphs(source, is_deleted, created_at, hash)
+                """
+            )
+        if {"subject", "object", "is_inactive"}.issubset(relation_columns):
+            cursor.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_relations_subject_object_active
+                ON relations(LOWER(TRIM(subject)), LOWER(TRIM(object)), is_inactive)
+                """
+            )
+            cursor.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_relations_object_active
+                ON relations(LOWER(TRIM(object)), is_inactive)
+                """
+            )
         cursor.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_episode_pending_status_retry_updated

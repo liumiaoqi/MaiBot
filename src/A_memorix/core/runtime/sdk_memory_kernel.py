@@ -5944,7 +5944,7 @@ class SDKMemoryKernel:
         predicate = str(relation.get("predicate", "") or "").strip()
         obj = str(relation.get("object", "") or "").strip()
         if subject and predicate and obj:
-            return f"{subject}{predicate}{obj}"
+            return f"{subject} -[{predicate}]-> {obj}"
         return " ".join(item for item in (subject, predicate, obj) if item).strip()
 
     def _build_profile_relation_evidence_item(self, relation: Dict[str, Any], *, index: int) -> Dict[str, Any]:
