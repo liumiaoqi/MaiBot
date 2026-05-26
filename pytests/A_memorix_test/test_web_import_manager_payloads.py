@@ -71,20 +71,31 @@ class _DummyGraphStore:
 
 class _DummyVectorStore:
     def __init__(self) -> None:
+        self.dimension = 4
         self.ids: list[str] = []
+        self.add_count = 0
 
     def __contains__(self, item: str) -> bool:
         return item in self.ids
 
     def add(self, vectors, ids):
-        del vectors
-        self.ids.extend(list(ids))
+        if vectors.shape[1] != self.dimension:
+            raise ValueError(f"Dimension mismatch: {vectors.shape[1]} vs {self.dimension}")
+        added = 0
+        for item in ids:
+            if item in self.ids:
+                continue
+            self.ids.append(item)
+            added += 1
+        self.add_count += added
+        return added
 
 
 class _DummyEmbeddingManager:
-    def __init__(self, *, delay: float = 0.0, fail_for: str = "") -> None:
+    def __init__(self, *, delay: float = 0.0, fail_for: str = "", dimension: int = 4) -> None:
         self.delay = delay
         self.fail_for = fail_for
+        self.dimension = dimension
         self.inflight = 0
         self.max_inflight = 0
         self.calls: list[str] = []
@@ -100,7 +111,7 @@ class _DummyEmbeddingManager:
                 raise RuntimeError("embedding failed")
         finally:
             self.inflight -= 1
-        return np.ones(4, dtype=np.float32)
+        return np.ones(self.dimension, dtype=np.float32)
 
 
 def _build_manager(
@@ -334,6 +345,29 @@ async def test_persist_processed_chunk_does_not_hold_storage_lock_during_embeddi
 
 
 @pytest.mark.asyncio
+async def test_paragraph_vector_write_is_idempotent_after_concurrent_encode() -> None:
+    embedding_manager = _DummyEmbeddingManager(delay=0.01)
+    manager, _ = _build_manager(embedding_manager=embedding_manager)
+
+    results = await asyncio.gather(
+        manager._write_paragraph_vector_or_enqueue(
+            paragraph_hash="paragraph-same",
+            content="同一段落内容",
+            context="pytest",
+        ),
+        manager._write_paragraph_vector_or_enqueue(
+            paragraph_hash="paragraph-same",
+            content="同一段落内容",
+            context="pytest",
+        ),
+    )
+
+    assert manager.plugin.vector_store.ids == ["paragraph-same"]
+    assert manager.plugin.vector_store.add_count == 1
+    assert {result["detail"] for result in results} <= {"", "vector_already_exists_after_encode", "vector_already_exists"}
+
+
+@pytest.mark.asyncio
 async def test_relation_vector_failure_keeps_metadata_and_marks_failed() -> None:
     manager, metadata_store = _build_manager(
         embedding_manager=_DummyEmbeddingManager(fail_for="关系是持有"),
@@ -346,6 +380,23 @@ async def test_relation_vector_failure_keeps_metadata_and_marks_failed() -> None
     assert metadata_store.relations == [("Alice", "持有", "地图")]
     assert ("relation-1", "pending", None, False) in metadata_store.relation_vector_states
     assert metadata_store.relation_vector_states[-1] == ("relation-1", "failed", "embedding failed", True)
+
+
+@pytest.mark.asyncio
+async def test_relation_vector_value_error_marks_failed_when_vector_missing() -> None:
+    manager, metadata_store = _build_manager(
+        embedding_manager=_DummyEmbeddingManager(dimension=5),
+        relation_vectorization_enabled=True,
+    )
+
+    relation_hash = await manager._add_relation("Alice", "持有", "地图", source_paragraph="paragraph-1")
+
+    assert relation_hash == "relation-1"
+    assert "relation-1" not in manager.plugin.vector_store
+    assert metadata_store.relation_vector_states[-1][0] == "relation-1"
+    assert metadata_store.relation_vector_states[-1][1] == "failed"
+    assert metadata_store.relation_vector_states[-1][3] is True
+    assert "Dimension mismatch" in str(metadata_store.relation_vector_states[-1][2])
 
 
 @pytest.mark.asyncio

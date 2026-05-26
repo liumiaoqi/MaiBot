@@ -1642,7 +1642,7 @@ class MetadataStore:
                 return False
             indexed_docs = int(row[0])
             return para_count == indexed_docs
-        except sqlite3.OperationalError:
+        except (sqlite3.OperationalError, TypeError, ValueError):
             return False
 
     def _set_paragraph_ngram_meta_value(

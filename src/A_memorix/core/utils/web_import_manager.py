@@ -582,7 +582,23 @@ class ImportTaskManager:
             emb = await self.plugin.embedding_manager.encode(text)
             if getattr(emb, "ndim", 1) == 1:
                 emb = emb.reshape(1, -1)
-            self.plugin.vector_store.add(emb, [token])
+            if token in self.plugin.vector_store:
+                return {
+                    "success": True,
+                    "vector_written": True,
+                    "queued": False,
+                    "warning": "",
+                    "detail": "vector_already_exists_after_encode",
+                }
+            added_count = self.plugin.vector_store.add(emb, [token])
+            if added_count == 0:
+                return {
+                    "success": True,
+                    "vector_written": True,
+                    "queued": False,
+                    "warning": "",
+                    "detail": "vector_already_exists",
+                }
             return {
                 "success": True,
                 "vector_written": True,
@@ -3508,10 +3524,19 @@ class ImportTaskManager:
             else:
                 vector_text = f"{subject_token} {predicate_token} {object_token}\n{subject_token}和{object_token}的关系是{predicate_token}"
             emb = await self.plugin.embedding_manager.encode(vector_text)
-            self.plugin.vector_store.add(emb.reshape(1, -1), [rel_hash])
+            if rel_hash in self.plugin.vector_store:
+                await self._set_relation_vector_state_locked(rel_hash, "ready")
+                return rel_hash
+            added_count = self.plugin.vector_store.add(emb.reshape(1, -1), [rel_hash])
+            if added_count == 0 and rel_hash not in self.plugin.vector_store:
+                raise RuntimeError("relation vector add returned 0 without existing vector")
             await self._set_relation_vector_state_locked(rel_hash, "ready")
-        except ValueError:
-            await self._set_relation_vector_state_locked(rel_hash, "ready")
+        except ValueError as exc:
+            if rel_hash in self.plugin.vector_store:
+                await self._set_relation_vector_state_locked(rel_hash, "ready")
+            else:
+                await self._set_relation_vector_state_locked(rel_hash, "failed", error=str(exc), bump_retry=True)
+                logger.warning(f"关系向量写入失败，保留 metadata/graph: relation={rel_hash[:16]} error={exc}")
         except Exception as exc:
             await self._set_relation_vector_state_locked(rel_hash, "failed", error=str(exc), bump_retry=True)
             logger.warning(f"关系向量写入降级，保留 metadata/graph: relation={rel_hash[:16]} error={exc}")

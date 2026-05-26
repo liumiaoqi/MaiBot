@@ -88,6 +88,7 @@ def test_sparse_index_does_not_backfill_ngram_on_read_path(
     monkeypatch,
 ) -> None:
     store = _new_store(tmp_path)
+    index = None
     try:
         store.add_paragraph("没有预热的 ngram fallback 文本", source="test")
 
@@ -102,5 +103,22 @@ def test_sparse_index_does_not_backfill_ngram_on_read_path(
 
         assert index.ensure_loaded()
         assert index.search("完全不存在的检索词", k=3) == []
+    finally:
+        if index is not None:
+            index.unload()
+        store.close()
+
+
+def test_ngram_ready_returns_false_for_corrupt_paragraph_count(tmp_path: Path) -> None:
+    store = _new_store(tmp_path)
+    try:
+        store.add_paragraph("损坏元数据 容错 文本", source="test")
+        assert store.ensure_paragraph_ngram_backfilled(n=2)
+        store.query(
+            "UPDATE paragraph_ngram_meta SET value = ? WHERE key = 'paragraph_count'",
+            ("not-a-number",),
+        )
+
+        assert store.is_paragraph_ngram_ready(n=2) is False
     finally:
         store.close()
