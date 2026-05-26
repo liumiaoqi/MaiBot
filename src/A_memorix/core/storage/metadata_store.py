@@ -34,7 +34,7 @@ except Exception:
 logger = get_logger("A_Memorix.MetadataStore")
 
 
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 13
 RUNTIME_AUTO_MIGRATION_MIN_SCHEMA_VERSION = 9
 
 
@@ -729,6 +729,7 @@ class MetadataStore:
             CREATE INDEX IF NOT EXISTS idx_delete_operation_items_hash
             ON delete_operation_items(item_hash)
         """)
+        self._create_performance_indexes()
         # 新版 schema 包含完整字段，直接写入版本信息
         cursor.execute("INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)", (SCHEMA_VERSION, datetime.now().timestamp()))
         self._conn.commit()
@@ -1208,6 +1209,9 @@ class MetadataStore:
         except Exception as e:
             logger.error(f"数据自动修复失败: {e}")
 
+        self._create_performance_indexes()
+        self._conn.commit()
+
     def _create_temporal_indexes_if_ready(self) -> None:
         """
         仅当时序列已存在时创建索引。
@@ -1231,6 +1235,71 @@ class MetadataStore:
             cursor.execute(
                 "CREATE INDEX IF NOT EXISTS idx_paragraphs_event_end ON paragraphs(event_time_end)"
             )
+
+    def _create_performance_indexes(self) -> None:
+        """创建热点查询使用的补充索引。"""
+        cursor = self._conn.cursor()
+        cursor.execute("PRAGMA table_info(paragraphs)")
+        paragraph_columns = {row[1] for row in cursor.fetchall()}
+        cursor.execute("PRAGMA table_info(relations)")
+        relation_columns = {row[1] for row in cursor.fetchall()}
+
+        cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_paragraph_relations_relation
+            ON paragraph_relations(relation_hash, paragraph_hash)
+            """
+        )
+        cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_paragraph_entities_entity
+            ON paragraph_entities(entity_hash, paragraph_hash)
+            """
+        )
+        if {"source", "is_deleted", "created_at", "hash"}.issubset(paragraph_columns):
+            cursor.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_paragraphs_source_live_created
+                ON paragraphs(source, is_deleted, created_at, hash)
+                """
+            )
+        if {"subject", "object", "is_inactive"}.issubset(relation_columns):
+            cursor.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_relations_subject_object_active
+                ON relations(LOWER(TRIM(subject)), LOWER(TRIM(object)), is_inactive)
+                """
+            )
+            cursor.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_relations_object_active
+                ON relations(LOWER(TRIM(object)), is_inactive)
+                """
+            )
+        cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_episode_pending_status_retry_updated
+            ON episode_pending_paragraphs(status, retry_count, updated_at)
+            """
+        )
+        cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_paragraph_vector_backfill_status_retry_updated
+            ON paragraph_vector_backfill(status, retry_count, updated_at)
+            """
+        )
+        cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_episode_rebuild_status_retry_updated
+            ON episode_rebuild_sources(status, retry_count, requested_at, updated_at)
+            """
+        )
+        cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_person_profile_refresh_status_retry_updated
+            ON person_profile_refresh_queue(status, retry_count, requested_at, updated_at)
+            """
+        )
 
     def run_legacy_migration_for_vnext(self) -> Dict[str, Any]:
         """

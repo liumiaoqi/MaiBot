@@ -762,6 +762,49 @@ export interface MemoryProfileQueryPayload extends Record<string, unknown> {
   error?: string
 }
 
+export interface MemoryProfileEvidenceItemPayload extends Record<string, unknown> {
+  evidence_key?: string
+  evidence_type?: string
+  hash?: string
+  content?: string
+  source?: string
+  source_type?: string
+  metadata?: Record<string, unknown>
+  score?: number | null
+  confidence?: number | null
+  correction_mode?: string
+  deletable?: boolean
+  not_deletable_reason?: string
+}
+
+export interface MemoryProfileEvidencePayload extends Record<string, unknown> {
+  success: boolean
+  person_id?: string
+  person_name?: string
+  profile_text?: string
+  auto_profile_text?: string
+  profile_version?: number
+  updated_at?: number | null
+  expires_at?: number | null
+  profile_source?: string
+  has_manual_override?: boolean
+  manual_override_text?: string
+  evidence?: MemoryProfileEvidenceItemPayload[]
+  evidence_count?: number
+  error?: string
+}
+
+export interface MemoryProfileEvidenceCorrectPayload extends Record<string, unknown> {
+  success: boolean
+  person_id?: string
+  evidence?: MemoryProfileEvidenceItemPayload
+  delete_result?: Record<string, unknown>
+  operation_id?: string
+  refreshed_profile?: Record<string, unknown>
+  refreshed_evidence?: MemoryProfileEvidencePayload
+  error?: string
+}
+
 export interface MemoryProfileOverridePayload extends Record<string, unknown> {
   success: boolean
   override?: Record<string, unknown>
@@ -1056,6 +1099,41 @@ export async function setMemoryProfileOverride(payload: {
 export async function deleteMemoryProfileOverride(personId: string): Promise<MemoryProfileOverridePayload> {
   return requestJson<MemoryProfileOverridePayload>(`/profiles/override/${encodeURIComponent(personId)}`, {
     method: 'DELETE',
+  })
+}
+
+export async function getMemoryProfileEvidence(options: {
+  personId: string
+  limit?: number
+  forceRefresh?: boolean
+}): Promise<MemoryProfileEvidencePayload> {
+  const params = new URLSearchParams({
+    limit: String(options.limit ?? 12),
+    force_refresh: options.forceRefresh ? 'true' : 'false',
+  })
+  return requestJson<MemoryProfileEvidencePayload>(`/profiles/${encodeURIComponent(options.personId)}/evidence?${params.toString()}`)
+}
+
+export async function correctMemoryProfileEvidence(payload: {
+  person_id: string
+  evidence_type: string
+  hash: string
+  requested_by?: string
+  reason?: string
+  refresh?: boolean
+  limit?: number
+}): Promise<MemoryProfileEvidenceCorrectPayload> {
+  return requestJson<MemoryProfileEvidenceCorrectPayload>(`/profiles/${encodeURIComponent(payload.person_id)}/evidence/correct`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      evidence_type: payload.evidence_type,
+      hash: payload.hash,
+      requested_by: payload.requested_by ?? 'knowledge_base',
+      reason: payload.reason ?? 'profile_evidence_correction',
+      refresh: payload.refresh ?? true,
+      limit: payload.limit ?? 12,
+    }),
   })
 }
 

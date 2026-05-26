@@ -14,11 +14,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
 import {
+  correctMemoryProfileEvidence,
   deleteMemoryProfileOverride,
+  getMemoryProfileEvidence,
   getMemoryProfiles,
   queryMemoryProfile,
   searchMemoryProfiles,
   setMemoryProfileOverride,
+  type MemoryProfileEvidenceItemPayload,
+  type MemoryProfileEvidencePayload,
   type MemoryProfileItemPayload,
   type MemoryProfileQueryPayload,
 } from '@/lib/memory-api'
@@ -76,6 +80,33 @@ function resolveProfileText(queryResult: MemoryProfileQueryPayload | null, selec
   return selectedProfile?.profile_text ?? ''
 }
 
+function evidenceTypeLabel(type?: string): string {
+  switch (type) {
+    case 'relation':
+      return '关系'
+    case 'person_fact':
+      return '人物事实'
+    case 'chat_summary':
+      return '聊天摘要'
+    case 'paragraph':
+      return '段落'
+    default:
+      return type || '未知'
+  }
+}
+
+function formatEvidenceScore(item: MemoryProfileEvidenceItemPayload): string {
+  const confidence = Number(item.confidence)
+  if (Number.isFinite(confidence)) {
+    return `置信度 ${confidence.toFixed(2)}`
+  }
+  const score = Number(item.score)
+  if (Number.isFinite(score)) {
+    return `分数 ${score.toFixed(2)}`
+  }
+  return '-'
+}
+
 export function MemoryProfileManager() {
   const { toast } = useToast()
   const [profiles, setProfiles] = useState<MemoryProfileItemPayload[]>([])
@@ -91,9 +122,13 @@ export function MemoryProfileManager() {
   const [showRawProfilePayload, setShowRawProfilePayload] = useState(false)
   const [overrideText, setOverrideText] = useState('')
   const [queryResult, setQueryResult] = useState<MemoryProfileQueryPayload | null>(null)
+  const [profileEvidence, setProfileEvidence] = useState<MemoryProfileEvidencePayload | null>(null)
+  const [showAutoProfile, setShowAutoProfile] = useState(false)
   const [loading, setLoading] = useState(false)
   const [querying, setQuerying] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [evidenceLoading, setEvidenceLoading] = useState(false)
+  const [correctingEvidenceKey, setCorrectingEvidenceKey] = useState('')
   const initialLoadedRef = useRef(false)
 
   const selectedProfile = useMemo(
@@ -102,6 +137,14 @@ export function MemoryProfileManager() {
   )
   const profileText = resolveProfileText(queryResult, selectedProfile)
   const selectedDisplayName = selectedProfile?.person_name || selectedPersonId || String(queryResult?.person_id ?? '未选择')
+  const activePersonId = selectedPersonId || queryPersonId.trim() || String(queryResult?.person_id ?? profileEvidence?.person_id ?? '')
+  const profileEvidencePersonId = String(profileEvidence?.person_id ?? '').trim()
+  const currentProfileEvidence = profileEvidencePersonId && profileEvidencePersonId === activePersonId.trim()
+    ? profileEvidence
+    : null
+  const displayedProfileText = showAutoProfile && typeof currentProfileEvidence?.auto_profile_text === 'string'
+    ? currentProfileEvidence.auto_profile_text
+    : (typeof currentProfileEvidence?.profile_text === 'string' ? currentProfileEvidence.profile_text : profileText)
 
   const loadProfiles = useCallback(async () => {
     setLoading(true)
@@ -136,6 +179,43 @@ export function MemoryProfileManager() {
     setOverrideText(stringifyOverride(selectedProfile?.manual_override))
   }, [selectedProfile])
 
+  const loadProfileEvidence = useCallback(async (personId: string, options?: { forceRefresh?: boolean }) => {
+    const cleanPersonId = personId.trim()
+    if (!cleanPersonId) {
+      setProfileEvidence(null)
+      return null
+    }
+    setEvidenceLoading(true)
+    try {
+      const payload = await getMemoryProfileEvidence({
+        personId: cleanPersonId,
+        limit: parsePositiveInt(queryLimit, 12),
+        forceRefresh: Boolean(options?.forceRefresh),
+      })
+      if (payload.success === false) {
+        throw new Error(String(payload.error ?? '画像证据查询失败'))
+      }
+      setProfileEvidence(payload)
+      return payload
+    } catch (error) {
+      toast({
+        title: '加载画像证据失败',
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      })
+      return null
+    } finally {
+      setEvidenceLoading(false)
+    }
+  }, [queryLimit, toast])
+
+  useEffect(() => {
+    if (!selectedPersonId || profileEvidencePersonId === selectedPersonId || queryResult) {
+      return
+    }
+    void loadProfileEvidence(selectedPersonId)
+  }, [loadProfileEvidence, profileEvidencePersonId, queryResult, selectedPersonId])
+
   const submitQuery = useCallback(async () => {
     const directPersonId = showAdvancedPersonId ? queryPersonId.trim() : ''
     const cleanKeyword = queryKeyword.trim()
@@ -161,6 +241,8 @@ export function MemoryProfileManager() {
         setProfiles(nextItems)
         setProfileListMode('search')
         setQueryResult(null)
+        setProfileEvidence(null)
+        setShowAutoProfile(false)
         setSelectedPersonId(nextItems[0]?.person_id ?? '')
         toast({
           title: '人物画像检索完成',
@@ -195,8 +277,10 @@ export function MemoryProfileManager() {
       if (nextPersonId) {
         setSelectedPersonId(nextPersonId)
         setQueryPersonId(nextPersonId)
+        await loadProfileEvidence(nextPersonId, { forceRefresh })
       } else if (nextItems.length > 0) {
         setSelectedPersonId(nextItems[0].person_id)
+        await loadProfileEvidence(nextItems[0].person_id)
       }
       toast({
         title: '人物画像查询完成',
@@ -211,14 +295,21 @@ export function MemoryProfileManager() {
     } finally {
       setQuerying(false)
     }
-  }, [forceRefresh, queryKeyword, queryLimit, queryPersonId, queryPlatform, queryUserId, showAdvancedPersonId, toast])
+  }, [forceRefresh, loadProfileEvidence, queryKeyword, queryLimit, queryPersonId, queryPlatform, queryUserId, showAdvancedPersonId, toast])
+
+  const selectProfile = useCallback((personId: string) => {
+    setSelectedPersonId(personId)
+    setQueryResult(null)
+    setProfileEvidence(null)
+    setShowAutoProfile(false)
+  }, [])
 
   const saveOverride = useCallback(async () => {
     const personId = selectedPersonId || queryPersonId.trim()
     if (!personId) {
       toast({
         title: '缺少人物 ID',
-        description: '请选择或输入一个 person_id 后再保存 override。',
+        description: '请选择或输入一个 person_id 后再保存画像覆写。',
         variant: 'destructive',
       })
       return
@@ -231,43 +322,91 @@ export function MemoryProfileManager() {
         updated_by: 'knowledge_base',
         source: 'webui',
       })
-      toast({ title: '人物画像 override 已保存' })
+      toast({ title: '人物画像覆写已保存' })
       await loadProfiles()
+      await loadProfileEvidence(personId)
     } catch (error) {
       toast({
-        title: '保存人物画像 override 失败',
+        title: '保存人物画像覆写失败',
         description: error instanceof Error ? error.message : String(error),
         variant: 'destructive',
       })
     } finally {
       setSaving(false)
     }
-  }, [loadProfiles, overrideText, queryPersonId, selectedPersonId, toast])
+  }, [loadProfileEvidence, loadProfiles, overrideText, queryPersonId, selectedPersonId, toast])
 
   const deleteOverride = useCallback(async () => {
     const personId = selectedPersonId || queryPersonId.trim()
     if (!personId) {
       return
     }
-    if (!window.confirm(`确认删除 ${personId} 的人物画像 override？`)) {
+    if (!window.confirm(`确认删除 ${personId} 的人物画像覆写？`)) {
       return
     }
     setSaving(true)
     try {
       await deleteMemoryProfileOverride(personId)
       setOverrideText('')
-      toast({ title: '人物画像 override 已删除' })
+      toast({ title: '人物画像覆写已删除' })
       await loadProfiles()
+      await loadProfileEvidence(personId)
     } catch (error) {
       toast({
-        title: '删除人物画像 override 失败',
+        title: '删除人物画像覆写失败',
         description: error instanceof Error ? error.message : String(error),
         variant: 'destructive',
       })
     } finally {
       setSaving(false)
     }
-  }, [loadProfiles, queryPersonId, selectedPersonId, toast])
+  }, [loadProfileEvidence, loadProfiles, queryPersonId, selectedPersonId, toast])
+
+  const correctEvidence = useCallback(async (item: MemoryProfileEvidenceItemPayload) => {
+    const personId = activePersonId.trim()
+    const evidenceType = String(item.evidence_type ?? '').trim()
+    const hash = String(item.hash ?? '').trim()
+    if (!personId || !evidenceType || !hash) {
+      return
+    }
+    if (!window.confirm('确认停用/删除这条支撑证据并刷新画像？')) {
+      return
+    }
+    const evidenceKey = String(item.evidence_key ?? hash)
+    setCorrectingEvidenceKey(evidenceKey)
+    try {
+      const payload = await correctMemoryProfileEvidence({
+        person_id: personId,
+        evidence_type: evidenceType,
+        hash,
+        requested_by: 'knowledge_base',
+        reason: 'profile_evidence_correction',
+        refresh: true,
+        limit: parsePositiveInt(queryLimit, 12),
+      })
+      if (!payload.success) {
+        throw new Error(String(payload.error ?? '画像证据纠错失败'))
+      }
+      if (payload.refreshed_evidence) {
+        setProfileEvidence(payload.refreshed_evidence)
+      } else {
+        await loadProfileEvidence(personId, { forceRefresh: true })
+      }
+      await loadProfiles()
+      toast({
+        title: '画像证据已纠错',
+        description: payload.operation_id ? `删除记录 ${payload.operation_id}` : '已刷新人物画像。',
+      })
+    } catch (error) {
+      toast({
+        title: '画像证据纠错失败',
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      })
+    } finally {
+      setCorrectingEvidenceKey('')
+    }
+  }, [activePersonId, loadProfileEvidence, loadProfiles, queryLimit, toast])
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
@@ -378,13 +517,13 @@ export function MemoryProfileManager() {
                   <TableRow
                     key={item.person_id}
                     className={cn('cursor-pointer', selectedPersonId === item.person_id && 'bg-muted/60')}
-                    onClick={() => setSelectedPersonId(item.person_id)}
+                    onClick={() => selectProfile(item.person_id)}
                   >
                     <TableCell>
                       <div className="font-medium break-all">{item.person_name || item.person_id}</div>
                       {item.person_name ? <div className="mt-0.5 font-mono text-xs text-muted-foreground break-all">{item.person_id}</div> : null}
                       <div className="mt-1 flex flex-wrap gap-1">
-                        {item.has_manual_override ? <Badge variant="secondary">手动 override</Badge> : null}
+                        {item.has_manual_override ? <Badge variant="secondary">画像覆写</Badge> : null}
                         {item.source_note ? <Badge variant="outline">{item.source_note}</Badge> : null}
                       </div>
                     </TableCell>
@@ -408,7 +547,7 @@ export function MemoryProfileManager() {
         <Card>
           <CardHeader>
             <CardTitle>画像详情</CardTitle>
-            <CardDescription>展示当前快照、查询结果和原始响应。</CardDescription>
+            <CardDescription>展示当前快照、查询结果、支撑证据和原始响应。</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {querying ? (
@@ -422,8 +561,107 @@ export function MemoryProfileManager() {
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline">{selectedPersonId || String(queryResult?.person_id ?? '未选择')}</Badge>
                   {selectedProfile?.expires_at ? <Badge variant="secondary">过期时间 {formatMemoryTime(selectedProfile.expires_at)}</Badge> : null}
+                  {currentProfileEvidence?.has_manual_override ? <Badge variant="secondary">当前展示使用画像覆写</Badge> : null}
                 </div>
-                <Textarea value={profileText} readOnly className="min-h-[180px]" placeholder="当前没有画像文本" />
+                {currentProfileEvidence?.has_manual_override ? (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant={!showAutoProfile ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setShowAutoProfile(false)}
+                    >
+                      画像覆写
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={showAutoProfile ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setShowAutoProfile(true)}
+                    >
+                      自动画像
+                    </Button>
+                  </div>
+                ) : null}
+                <Textarea value={displayedProfileText} readOnly className="min-h-[180px]" placeholder="当前没有画像文本" />
+
+                <div className="rounded-lg border">
+                  <div className="flex items-center justify-between gap-3 border-b px-3 py-2">
+                    <div>
+                      <div className="text-sm font-medium">支撑证据</div>
+                      <div className="text-xs text-muted-foreground">
+                        {currentProfileEvidence?.evidence_count ?? 0} 条证据；纠错后会自动刷新自动画像。
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={!activePersonId || evidenceLoading}
+                      onClick={() => void loadProfileEvidence(activePersonId, { forceRefresh: true })}
+                    >
+                      <RefreshCw className={cn('mr-2 h-4 w-4', evidenceLoading && 'animate-spin')} />
+                      刷新证据
+                    </Button>
+                  </div>
+                  <ScrollArea className="h-[300px]">
+                    <Table>
+                      <TableHeader className="sticky top-0 bg-background">
+                        <TableRow>
+                          <TableHead>类型</TableHead>
+                          <TableHead>内容</TableHead>
+                          <TableHead>来源</TableHead>
+                          <TableHead>分数</TableHead>
+                          <TableHead>操作</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {(currentProfileEvidence?.evidence ?? []).length > 0 ? (currentProfileEvidence?.evidence ?? []).map((item) => {
+                          const evidenceKey = String(item.evidence_key ?? item.hash ?? '')
+                          const isCorrecting = correctingEvidenceKey === evidenceKey
+                          return (
+                            <TableRow key={evidenceKey}>
+                              <TableCell>
+                                <Badge variant="outline">{evidenceTypeLabel(item.evidence_type)}</Badge>
+                              </TableCell>
+                              <TableCell className="max-w-[320px]">
+                                <div className="line-clamp-3 text-sm">{item.content || '-'}</div>
+                                {item.hash ? <div className="mt-1 font-mono text-xs text-muted-foreground break-all">{item.hash}</div> : null}
+                              </TableCell>
+                              <TableCell className="max-w-[220px]">
+                                <div className="line-clamp-2 text-xs text-muted-foreground">{item.source || item.source_type || '-'}</div>
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap text-xs">{formatEvidenceScore(item)}</TableCell>
+                              <TableCell>
+                                {item.deletable ? (
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={Boolean(correctingEvidenceKey)}
+                                    onClick={() => void correctEvidence(item)}
+                                  >
+                                    {isCorrecting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                                    纠错并刷新
+                                  </Button>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">{item.not_deletable_reason || '不可操作'}</span>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          )
+                        }) : (
+                          <TableRow>
+                            <TableCell colSpan={5} className="text-center text-muted-foreground">
+                              {evidenceLoading ? '正在加载画像证据' : '当前没有可展示的支撑证据'}
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </ScrollArea>
+                </div>
+
                 <Collapsible open={showRawProfilePayload} onOpenChange={setShowRawProfilePayload} className="rounded-lg border bg-muted/10">
                   <CollapsibleTrigger asChild>
                     <Button variant="ghost" className="flex h-10 w-full justify-between px-3">
@@ -433,7 +671,7 @@ export function MemoryProfileManager() {
                   </CollapsibleTrigger>
                   <CollapsibleContent className="border-t">
                     <pre className="max-h-72 overflow-auto p-3 text-xs break-words whitespace-pre-wrap">
-                      {JSON.stringify(queryResult ?? selectedProfile ?? {}, null, 2)}
+                      {JSON.stringify(currentProfileEvidence ?? queryResult ?? selectedProfile ?? {}, null, 2)}
                     </pre>
                   </CollapsibleContent>
                 </Collapsible>
@@ -448,13 +686,13 @@ export function MemoryProfileManager() {
 
         <Card>
           <CardHeader>
-            <CardTitle>手动 Override</CardTitle>
-            <CardDescription>用人工画像覆盖自动生成结果；留空保存表示清空文本但保留 override 记录。</CardDescription>
+            <CardTitle>画像覆写</CardTitle>
+            <CardDescription>用人工画像固定展示结果；留空保存表示清空文本但保留画像覆写记录。</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {!selectedPersonId && !queryPersonId.trim() ? (
               <Alert>
-                <AlertDescription>请选择或输入 person_id 后再编辑 override。</AlertDescription>
+                <AlertDescription>请选择或输入 person_id 后再编辑画像覆写。</AlertDescription>
               </Alert>
             ) : null}
             {selectedDisplayName ? <div className="text-sm text-muted-foreground">当前编辑对象：{selectedDisplayName}</div> : null}
@@ -467,11 +705,11 @@ export function MemoryProfileManager() {
             <div className="flex flex-wrap gap-2">
               <Button onClick={() => void saveOverride()} disabled={saving}>
                 <Save className="mr-2 h-4 w-4" />
-                保存 override
+                保存画像覆写
               </Button>
               <Button variant="outline" onClick={() => void deleteOverride()} disabled={saving || (!selectedPersonId && !queryPersonId.trim())}>
                 <Trash2 className="mr-2 h-4 w-4" />
-                删除 override
+                删除画像覆写
               </Button>
             </div>
           </CardContent>
