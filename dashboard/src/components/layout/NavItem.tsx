@@ -21,25 +21,26 @@ export function NavItem({ item, sidebarOpen, tooltipsEnabled, onMobileMenuClose 
 
   const menuItemContent = (
     <>
-      <div className={cn(
-        'flex items-center transition-all duration-300',
-        sidebarOpen ? 'gap-3' : 'gap-3 lg:gap-0'
-      )}>
+      <div
+        className={cn(
+          'flex items-center transition-all duration-300',
+          sidebarOpen ? 'gap-3' : 'gap-3 lg:gap-0'
+        )}
+      >
         <Icon
-          className={cn(
-            'h-5 w-5 flex-shrink-0',
-            isActive && 'text-primary'
-          )}
+          className={cn('h-5 w-5 flex-shrink-0', isActive && 'text-primary')}
           strokeWidth={2}
           fill="none"
         />
-        <span className={cn(
-          'text-sm font-medium whitespace-nowrap transition-all duration-300',
-          isActive && 'font-semibold',
-          sidebarOpen 
-            ? 'opacity-100 max-w-[200px]' 
-            : 'opacity-100 max-w-[200px] lg:opacity-0 lg:max-w-0 lg:overflow-hidden'
-        )}>
+        <span
+          className={cn(
+            'text-sm font-medium whitespace-nowrap transition-all duration-300',
+            isActive && 'font-semibold',
+            sidebarOpen
+              ? 'max-w-[200px] opacity-100'
+              : 'max-w-[200px] opacity-100 lg:max-w-0 lg:overflow-hidden lg:opacity-0'
+          )}
+        >
           {t(item.label)}
         </span>
       </div>
@@ -53,13 +54,15 @@ export function NavItem({ item, sidebarOpen, tooltipsEnabled, onMobileMenuClose 
           <Link
             to={item.path}
             data-tour={item.tourId}
+            data-dashboard-nav-item="true"
+            data-active={isActive ? 'true' : 'false'}
             className={cn(
               'relative flex items-center rounded-lg py-2 transition-all duration-300',
               'hover:bg-accent hover:text-accent-foreground',
               isActive
                 ? 'bg-accent text-foreground'
                 : 'text-muted-foreground hover:text-foreground',
-              sidebarOpen ? 'px-3' : 'px-3 lg:px-0 lg:justify-center lg:w-12 lg:mx-auto'
+              sidebarOpen ? 'px-3' : 'px-3 lg:mx-auto lg:w-12 lg:justify-center lg:px-0'
             )}
             onClick={onMobileMenuClose}
           >

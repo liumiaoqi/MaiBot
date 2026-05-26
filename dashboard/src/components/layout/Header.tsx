@@ -85,6 +85,7 @@ export function Header({
 
   return (
     <header
+      data-dashboard-header="true"
       className={cn(
         'sticky top-0 isolate z-10 flex h-16 min-w-0 items-center justify-between gap-2 border-b px-3 backdrop-blur-md sm:px-4',
         inheritsPageBackground ? 'bg-transparent' : 'bg-card/80'
@@ -129,7 +130,7 @@ export function Header({
               <TabsTrigger
                 asChild
                 value="settings"
-                className="relative h-7 gap-1.5 bg-transparent px-2.5 text-xs font-medium data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground data-[state=active]:shadow-none"
+                className="data-[state=active]:text-primary-foreground relative h-7 gap-1.5 bg-transparent px-2.5 text-xs font-medium data-[state=active]:bg-transparent data-[state=active]:shadow-none"
               >
                 <Link to="/">
                   {workspaceMode === 'settings' && (
@@ -146,7 +147,7 @@ export function Header({
               <TabsTrigger
                 asChild
                 value="chat"
-                className="relative h-7 gap-1.5 bg-transparent px-2.5 text-xs font-medium data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground data-[state=active]:shadow-none"
+                className="data-[state=active]:text-primary-foreground relative h-7 gap-1.5 bg-transparent px-2.5 text-xs font-medium data-[state=active]:bg-transparent data-[state=active]:shadow-none"
               >
                 <Link to="/chat">
                   {workspaceMode === 'chat' && (
