@@ -21,9 +21,12 @@ const ScrollArea = React.forwardRef<
   >
     <ScrollAreaPrimitive.Viewport
       ref={viewportRef}
-      className={cn("h-full w-full rounded-[inherit]", viewportClassName)}
+      className={cn(
+        "h-full w-full rounded-[inherit] [&>div]:!block [&>div]:!min-w-0 [&>div]:w-full",
+        viewportClassName
+      )}
     >
-      <div className={contentClassName}>{children}</div>
+      <div className={cn("!block w-full !min-w-0", contentClassName)}>{children}</div>
     </ScrollAreaPrimitive.Viewport>
     {scrollbars !== "horizontal" && <ScrollBar />}
     {scrollbars !== "vertical" && <ScrollBar orientation="horizontal" />}

@@ -738,19 +738,19 @@
   "restart": {
     "preparing": "准备重启",
     "preparingDesc": "正在发送重启请求...",
-    "preparingTip": "🔄 正在准备重启麦麦...",
+    "preparingTip": "正在准备重启麦麦...",
     "restarting": "正在重启麦麦",
     "restartingDesc": "请稍候，麦麦正在重启中...",
-    "restartingTip": "🔄 配置已保存，正在重启主程序...",
+    "restartingTip": "配置已保存，正在重启主程序...",
     "checking": "检查服务状态",
     "checkingDesc": "等待服务恢复... ({{current}}/{{max}})",
     "checkingTip": "重启中，请勿关闭页面...",
     "success": "重启成功",
     "successDesc": "正在跳转到登录页面...",
-    "successTip": "✅ 配置已生效，服务运行正常",
+    "successTip": "配置已生效，服务运行正常",
     "failed": "重启超时",
     "failedDesc": "服务未能在预期时间内恢复",
-    "failedTip": "⚠️ 如果长时间无响应，请尝试手动重启",
+    "failedTip": "如果长时间无响应，请尝试手动重启",
     "refreshPage": "刷新页面",
     "retryCheck": "重试检测",
     "elapsed": "已用时:"
@@ -816,8 +816,8 @@
     "navigatedTo": "已导航至 {{page}}"
   },
   "home": {
-    "title": "实时监控面板",
-    "subtitle": "麦麦运行状态和统计数据一览",
+    "title": "首页",
+    "subtitle": "观看基本信息和快捷入口",
     "loading": "Thinking...",
     "loadingHint": "Thinking...",
     "timeRange": {
@@ -843,7 +843,7 @@
     },
     "survey": {
       "title": "反馈问卷",
-      "description": "帮助我们改进产品体验",
+      "description": "帮助我们改进麦麦体验",
       "webui": "WebUI 反馈",
       "maibot": "麦麦反馈"
     },

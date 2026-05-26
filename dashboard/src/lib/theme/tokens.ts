@@ -140,12 +140,36 @@ export type ThemePreset = {
   isDark: boolean
 }
 
+export type DashboardStyle = 'modern' | 'future-retro'
+
+export type FutureRetroStyleConfig = {
+  paperTexture: boolean
+  strongBorders: boolean
+}
+
+export type DashboardStyleConfig = {
+  futureRetro: FutureRetroStyleConfig
+}
+
+export const DEFAULT_DASHBOARD_STYLE: DashboardStyle = 'modern'
+
+export const DEFAULT_FUTURE_RETRO_STYLE_CONFIG: FutureRetroStyleConfig = {
+  paperTexture: true,
+  strongBorders: true,
+}
+
+export const DEFAULT_DASHBOARD_STYLE_CONFIG: DashboardStyleConfig = {
+  futureRetro: DEFAULT_FUTURE_RETRO_STYLE_CONFIG,
+}
+
 export type UserThemeConfig = {
   selectedPreset: string
   accentColor: string
   tokenOverrides: Partial<ThemeTokens>
   customCSS: string
   backgroundConfig?: BackgroundConfigMap
+  dashboardStyle: DashboardStyle
+  styleConfig: DashboardStyleConfig
 }
 
 // ============================================================================
@@ -181,7 +205,8 @@ export const defaultLightTokens: ThemeTokens = {
     'chart-5': '340 75% 55%',
   },
   typography: {
-    'font-family-base': '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+    'font-family-base':
+      '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
     'font-family-code': '"JetBrains Mono", "Monaco", "Courier New", monospace',
     'font-size-xs': '0.75rem',
     'font-size-sm': '0.875rem',
@@ -276,7 +301,8 @@ export const defaultDarkTokens: ThemeTokens = {
     'chart-5': '340 75% 60%',
   },
   typography: {
-    'font-family-base': '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+    'font-family-base':
+      '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
     'font-family-code': '"JetBrains Mono", "Monaco", "Courier New", monospace',
     'font-size-xs': '0.75rem',
     'font-size-sm': '0.875rem',
@@ -339,6 +365,108 @@ export const defaultDarkTokens: ThemeTokens = {
 }
 
 // ============================================================================
+// Future Retro Tokens (MaiBotOneKey shell inspired)
+// ============================================================================
+
+const futureRetroBaseTypography = {
+  'font-family-base':
+    '"Bahnschrift Condensed", "Agency FB", "Arial Narrow", "Microsoft YaHei UI", system-ui, sans-serif',
+  'font-family-code': '"Agency FB", "Cascadia Mono", "JetBrains Mono", Consolas, monospace',
+  'font-weight-normal': 700,
+  'font-weight-medium': 700,
+  'font-weight-semibold': 800,
+  'font-weight-bold': 800,
+  'letter-spacing-tight': '0em',
+  'letter-spacing-normal': '0em',
+  'letter-spacing-wide': '0em',
+} satisfies Partial<TypographyTokens>
+
+const futureRetroBaseVisual = {
+  'radius-sm': '2px',
+  'radius-md': '3px',
+  'radius-lg': '4px',
+  'radius-xl': '4px',
+  'shadow-sm': 'none',
+  'shadow-md': 'none',
+  'shadow-lg': 'none',
+  'shadow-xl': 'none',
+} satisfies Partial<VisualTokens>
+
+export const futureRetroLightTokens: Partial<ThemeTokens> = {
+  color: {
+    ...defaultLightTokens.color,
+    primary: '15.6 68.7% 45.1%',
+    'primary-foreground': '39.5 100% 92%',
+    'primary-gradient': 'none',
+    secondary: '34.1 54.8% 81.8%',
+    'secondary-foreground': '189.1 59.6% 17.5%',
+    muted: '34.9 48.3% 82.5%',
+    'muted-foreground': '39.1 11.6% 39%',
+    accent: '34.7 45.6% 75.5%',
+    'accent-foreground': '189 72% 18.2%',
+    background: '35.4 61.9% 87.6%',
+    foreground: '189 72% 18.2%',
+    card: '35.4 61.9% 87.6%',
+    'card-foreground': '189 72% 18.2%',
+    popover: '36 66% 89.6%',
+    'popover-foreground': '189 72% 18.2%',
+    border: '188.1 74% 19.6%',
+    input: '39.1 11.6% 43.5%',
+    ring: '15.6 68.7% 45.1%',
+    'chart-1': '15.6 68.7% 45.1%',
+    'chart-2': '189 72% 18.2%',
+    'chart-3': '39.7 56.3% 51.6%',
+    'chart-4': '39.1 11.6% 39%',
+    'chart-5': '34.1 54.8% 81.8%',
+  },
+  typography: {
+    ...defaultLightTokens.typography,
+    ...futureRetroBaseTypography,
+  },
+  visual: {
+    ...defaultLightTokens.visual,
+    ...futureRetroBaseVisual,
+  },
+}
+
+export const futureRetroDarkTokens: Partial<ThemeTokens> = {
+  color: {
+    ...defaultDarkTokens.color,
+    primary: '19.1 62.6% 51.8%',
+    'primary-foreground': '189 30.4% 14.7%',
+    'primary-gradient': 'none',
+    secondary: '186.3 31.7% 23.5%',
+    'secondary-foreground': '39.1 64.2% 86.9%',
+    muted: '187 33.3% 21.2%',
+    'muted-foreground': '43.4 29.2% 68.4%',
+    accent: '136.8 16.3% 30%',
+    'accent-foreground': '39.1 64.2% 86.9%',
+    background: '189.1 46.5% 13.9%',
+    foreground: '39.1 64.2% 86.9%',
+    card: '189.2 41.9% 18.2%',
+    'card-foreground': '39.1 64.2% 86.9%',
+    popover: '188.6 41.9% 19.6%',
+    'popover-foreground': '39.1 64.2% 86.9%',
+    border: '41.6 43.1% 71.8%',
+    input: '41.6 31.1% 62%',
+    ring: '19.1 62.6% 51.8%',
+    'chart-1': '19.1 62.6% 51.8%',
+    'chart-2': '41.6 43.1% 71.8%',
+    'chart-3': '39.7 56.3% 51.6%',
+    'chart-4': '187.3 36.3% 22.2%',
+    'chart-5': '39.1 64.2% 86.9%',
+  },
+  typography: {
+    ...defaultDarkTokens.typography,
+    ...futureRetroBaseTypography,
+  },
+  visual: {
+    ...defaultDarkTokens.visual,
+    ...futureRetroBaseVisual,
+  },
+}
+
+// ============================================================================
 // Token Utility Functions
 // ============================================================================
 
@@ -348,7 +476,7 @@ export const defaultDarkTokens: ThemeTokens = {
  */
 export function tokenToCSSVarName(
   category: keyof ThemeTokens | 'color' | 'typography' | 'visual' | 'layout' | 'animation',
-  key: string,
+  key: string
 ): string {
   return `--${category}-${key}`
 }
@@ -358,22 +486,22 @@ export function tokenToCSSVarName(
 // ============================================================================
 
 export type BackgroundEffects = {
-  blur: number           // px, 0-50
-  overlayColor: string   // HSL string，如 '0 0% 0%'
+  blur: number // px, 0-50
+  overlayColor: string // HSL string，如 '0 0% 0%'
   overlayOpacity: number // 0-1
   position: 'cover' | 'contain' | 'center' | 'stretch'
-  brightness: number     // 0-200, default 100
-  contrast: number       // 0-200, default 100
-  saturate: number       // 0-200, default 100
+  brightness: number // 0-200, default 100
+  contrast: number // 0-200, default 100
+  saturate: number // 0-200, default 100
   gradientOverlay?: string // CSS gradient string（可选）
 }
 
 export type BackgroundConfig = {
   type: 'none' | 'image' | 'video'
-  assetId?: string       // IndexedDB asset ID
-  inherit?: boolean      // true = 继承页面背景
+  assetId?: string // IndexedDB asset ID
+  inherit?: boolean // true = 继承页面背景
   effects: BackgroundEffects
-  customCSS: string      // 组件级自定义 CSS
+  customCSS: string // 组件级自定义 CSS
 }
 
 export type BackgroundConfigMap = {

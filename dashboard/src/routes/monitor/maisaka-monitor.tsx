@@ -804,11 +804,11 @@ export function MaisakaMonitor() {
   const selectedStageStatus = selectedSession ? stageStatuses.get(selectedSession) : undefined
 
   return (
-    <div className="flex h-[calc(100vh-180px)] gap-4">
+    <div className="flex min-w-0 flex-col gap-4 lg:h-[calc(100vh-180px)] lg:flex-row">
       {/* 会话侧边栏 */}
       <Card className={cn(
-        'shrink-0 flex flex-col transition-[width] duration-200',
-        sidebarCollapsed ? 'w-16' : 'w-52',
+        'flex min-w-0 shrink-0 flex-col transition-[width] duration-200',
+        sidebarCollapsed ? 'w-full lg:w-16' : 'w-full lg:w-52',
       )}>
         <CardHeader className={cn('py-3 space-y-0', sidebarCollapsed ? 'px-2' : 'px-3')}>
           <CardTitle className={cn(
@@ -832,7 +832,7 @@ export function MaisakaMonitor() {
           </CardTitle>
         </CardHeader>
         <Separator />
-        <ScrollArea className="flex-1">
+        <ScrollArea className="max-h-40 flex-1 lg:max-h-none">
           <SessionSidebar
             sessions={sessions}
             stageStatuses={stageStatuses}
@@ -844,10 +844,10 @@ export function MaisakaMonitor() {
       </Card>
 
       {/* 主时间线区域 */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex min-w-0 flex-1 flex-col">
         {/* 顶部统计栏 */}
-        <div className="flex items-center gap-3 mb-3 flex-wrap">
-          <div className="flex items-center gap-4 text-sm">
+        <div className="mb-3 flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 text-sm">
             <div className="flex items-center gap-1.5 text-muted-foreground">
               <MessageSquare className="h-3.5 w-3.5" />
               <span>{stats.messages} 消息</span>
@@ -861,11 +861,11 @@ export function MaisakaMonitor() {
               <span>{stats.toolCalls} 工具调用</span>
             </div>
           </div>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2 sm:ml-auto">
             <Button
               variant={backgroundCollection ? 'secondary' : 'ghost'}
               size="sm"
-              className="h-7 text-xs"
+              className="h-7 max-w-full text-xs"
               onClick={() => setBackgroundCollectionEnabled(!backgroundCollection)}
               title={backgroundCollection ? '关闭离开页面后的持续获取' : '开启离开页面后的持续获取'}
             >
@@ -875,7 +875,7 @@ export function MaisakaMonitor() {
             <Button
               variant={showCycleMarkers ? 'secondary' : 'ghost'}
               size="sm"
-              className="h-7 text-xs"
+              className="h-7 max-w-full text-xs"
               onClick={() => setShowCycleMarkers((value) => !value)}
               title={showCycleMarkers ? '隐藏推理循环标记' : '显示推理循环标记'}
             >
@@ -885,7 +885,7 @@ export function MaisakaMonitor() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 text-xs"
+              className="h-7 max-w-full text-xs"
               onClick={() => setAutoScroll(!autoScroll)}
             >
               <Gauge className={cn('h-3.5 w-3.5 mr-1', autoScroll && 'text-primary')} />
@@ -894,7 +894,7 @@ export function MaisakaMonitor() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 text-xs"
+              className="h-7 max-w-full text-xs"
               onClick={clearTimeline}
             >
               <Eraser className="h-3.5 w-3.5 mr-1" />
@@ -906,13 +906,13 @@ export function MaisakaMonitor() {
         {/* 时间线 */}
         <StageStatusPanel status={selectedStageStatus} />
 
-        <Card className="flex-1 overflow-hidden">
+        <Card className="min-h-[420px] min-w-0 flex-1 overflow-hidden lg:min-h-0">
           <ScrollArea
             className="h-full"
             ref={scrollRef}
             onScrollCapture={handleScroll}
           >
-            <div className="p-4 space-y-3">
+            <div className="min-w-0 space-y-3 p-4">
               {timeline.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-3">
                   <Clock className="h-10 w-10 opacity-30" />
@@ -973,4 +973,3 @@ export function MaisakaMonitor() {
     </div>
   )
 }
-

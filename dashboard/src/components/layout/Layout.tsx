@@ -120,7 +120,10 @@ export function Layout({ children }: LayoutProps) {
     <TooltipProvider delayDuration={300}>
       <SkipNav />
       {isElectron() && <TitleBar />}
-      <div className={cn('relative isolate flex h-screen overflow-hidden', isElectron() && 'pt-8')}>
+      <div
+        data-dashboard-shell="true"
+        className={cn('relative isolate flex h-screen overflow-hidden', isElectron() && 'pt-8')}
+      >
         <BackgroundLayer config={pageBg} layerId="page" />
         <div className="relative z-10 flex h-full w-full overflow-hidden">
           {/* Sidebar：仅在设置工作区显示，伴随滑入/滑出动画 */}
@@ -198,6 +201,7 @@ export function Layout({ children }: LayoutProps) {
             {/* Page content */}
             <main
               id="main-content"
+              data-dashboard-main="true"
               tabIndex={-1}
               className={cn(
                 'relative isolate flex-1 overflow-hidden outline-none',

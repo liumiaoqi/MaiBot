@@ -1986,7 +1986,7 @@ export function KnowledgeBasePage() {
   }
 
   return (
-    <div className="flex h-full flex-col bg-gradient-to-b from-background via-background to-muted/15">
+    <div className="flex h-full flex-col bg-background">
       <div className="flex-1 overflow-auto">
         <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-6 px-6 py-6">
           <div>
@@ -2182,7 +2182,7 @@ export function KnowledgeBasePage() {
             onValueChange={(value) => setActiveTab(value as typeof activeTab)}
             className="space-y-5"
           >
-            <div className="-mx-6 border-b border-border/40 bg-background/85 px-6 pb-2 pt-1 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+            <div className="-mx-6 border-b border-border/40 px-6 pb-2 pt-1">
               <div className="flex flex-wrap items-center gap-3">
                 <MemoryMiniTabs
                   items={[
