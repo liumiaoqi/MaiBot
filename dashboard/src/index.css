@@ -654,6 +654,84 @@
   font-weight: 700;
 }
 
+:root[data-dashboard-style='future-retro'] [data-dashboard-status-dot='true'] {
+  border: 1px solid var(--retro-line) !important;
+  border-radius: 1px !important;
+  background: var(--retro-recessed-strong) !important;
+  box-shadow: none !important;
+  animation: none !important;
+}
+
+:root[data-dashboard-style='future-retro']
+  [data-dashboard-status-dot='true'][data-state='running'] {
+  background: var(--retro-rust) !important;
+}
+
+:root[data-dashboard-style='future-retro']
+  [data-dashboard-status-dot='true'][data-state='loading'] {
+  background: var(--retro-gold) !important;
+}
+
+:root[data-dashboard-style='future-retro']
+  [data-dashboard-status-dot='true'][data-state='stopped'] {
+  background: var(--retro-ink-soft) !important;
+}
+
+:root[data-dashboard-style='future-retro'] [data-dashboard-status-badge='true'] {
+  min-height: 1.7rem;
+  border: var(--retro-stroke) solid var(--retro-line) !important;
+  border-radius: 2px !important;
+  background: var(--retro-recessed) !important;
+  color: var(--retro-ink) !important;
+  box-shadow: none !important;
+  font-weight: 800;
+}
+
+:root[data-dashboard-style='future-retro']
+  [data-dashboard-status-badge='true'][data-state='running'] {
+  background: var(--retro-gold) !important;
+  color: var(--retro-ink) !important;
+}
+
+:root[data-dashboard-style='future-retro']
+  [data-dashboard-status-badge='true'][data-state='stopped'] {
+  background: var(--retro-rust) !important;
+  color: var(--retro-paper) !important;
+}
+
+:root[data-dashboard-style='future-retro'] [data-dashboard-status-badge='true'] svg {
+  color: currentColor !important;
+  stroke-width: 2.35;
+}
+
+:root[data-dashboard-style='future-retro'] [data-dashboard-feature-status='true'] {
+  min-height: 2rem;
+  border: var(--retro-stroke) solid var(--retro-line) !important;
+  border-radius: 2px !important;
+  background: transparent !important;
+  color: var(--retro-ink) !important;
+  font-weight: 700;
+  box-shadow: none !important;
+}
+
+:root[data-dashboard-style='future-retro']
+  [data-dashboard-feature-status='true'][data-enabled='true'] {
+  background: var(--retro-recessed) !important;
+}
+
+:root[data-dashboard-style='future-retro'] [data-dashboard-feature-status-light='true'] {
+  border: 1px solid var(--retro-line) !important;
+  border-radius: 1px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+:root[data-dashboard-style='future-retro']
+  [data-dashboard-feature-status='true'][data-enabled='true']
+  [data-dashboard-feature-status-light='true'] {
+  background: var(--retro-gold) !important;
+}
+
 :root[data-dashboard-style='future-retro'] [data-dashboard-switch='true'] {
   border: var(--retro-stroke) solid var(--retro-line) !important;
   border-radius: 2px !important;
