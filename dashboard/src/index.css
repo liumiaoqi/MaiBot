@@ -405,23 +405,6 @@
   color: var(--retro-ink);
 }
 
-:root[data-dashboard-style='future-retro'] [data-dashboard-shell='true']::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background-image: var(--retro-paper-texture);
-  background-position: 0 0;
-  background-size: 160px 160px;
-  opacity: 0.36;
-}
-
-:root[data-dashboard-style='future-retro'][data-retro-paper-texture='false']
-  [data-dashboard-shell='true']::before {
-  display: none;
-}
-
 :root[data-dashboard-style='future-retro'] [data-dashboard-shell='true']::after {
   content: '';
   position: absolute;
