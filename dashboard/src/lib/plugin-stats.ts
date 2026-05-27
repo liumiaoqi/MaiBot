@@ -22,7 +22,7 @@ export interface PluginStatsData {
   rating_count: number
   recent_ratings?: Array<{
     user_id: string
-    rating: number
+    rating?: number | null
     comment?: string
     created_at: string
   }>
@@ -43,7 +43,9 @@ export interface VoteStatsResponse extends StatsResponse {
 }
 
 export interface RatingStatsResponse extends StatsResponse {
-  user_rating?: number
+  user_rating?: number | null
+  user_comment?: string | null
+  comment?: string | null
   rating?: number
   rating_count?: number
 }
@@ -56,7 +58,7 @@ export interface DownloadStatsResponse extends StatsResponse {
 export interface PluginUserState {
   liked: boolean
   disliked: boolean
-  rating: number
+  rating: number | null
   comment: string
 }
 
@@ -262,7 +264,7 @@ export async function getPluginUserState(
     return {
       liked: data.liked === true,
       disliked: data.disliked === true,
-      rating: Number(data.rating ?? 0),
+      rating: data.rating == null ? null : Number(data.rating),
       comment: typeof data.comment === 'string' ? data.comment : '',
     }
   } catch (error) {
@@ -385,23 +387,43 @@ export async function dislikePlugin(pluginId: string, userId?: string): Promise<
  */
 export async function ratePlugin(
   pluginId: string,
-  rating: number,
-  comment?: string,
+  rating?: number | null,
+  comment?: string | null,
   userId?: string
 ): Promise<RatingStatsResponse> {
-  if (rating < 1 || rating > 5) {
+  const hasRating = rating !== undefined && rating !== null
+  const hasComment = comment !== undefined
+
+  if (!hasRating && !hasComment) {
+    return { success: false, error: '评分和评论至少需要填写一项' }
+  }
+
+  if (hasRating && (rating < 1 || rating > 5)) {
     return { success: false, error: '评分必须在 1-5 之间' }
   }
   
   try {
     const finalUserId = userId || getUserId()
+    const payload: {
+      plugin_id: string
+      user_id: string
+      rating?: number
+      comment?: string | null
+    } = { plugin_id: pluginId, user_id: finalUserId }
+
+    if (hasRating) {
+      payload.rating = Number(rating)
+    }
+    if (hasComment) {
+      payload.comment = comment
+    }
     
     const response = await fetchWithAuth(`${STATS_API_BASE_URL}/stats/rate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ plugin_id: pluginId, rating, comment, user_id: finalUserId }),
+      body: JSON.stringify(payload),
     })
     
     const data = await response.json()
@@ -415,10 +437,14 @@ export async function ratePlugin(
     }
     
     const result: RatingStatsResponse = { success: true, ...data }
-    updateCachedPluginStats(pluginId, {
-      rating: Number(result.rating ?? 0),
-      rating_count: Number(result.rating_count ?? 0),
-    })
+    const updatedStats: Partial<PluginStatsData> = {}
+    if (result.rating !== undefined) {
+      updatedStats.rating = Number(result.rating)
+    }
+    if (result.rating_count !== undefined) {
+      updatedStats.rating_count = Number(result.rating_count)
+    }
+    updateCachedPluginStats(pluginId, updatedStats)
     return result
   } catch (error) {
     console.error('Error rating plugin:', error)
