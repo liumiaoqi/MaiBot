@@ -4,8 +4,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from hashlib import sha1
 from html import escape
-from pydantic import BaseModel
 from typing import Any, Sequence
+
+from json_repair import repair_json
+from pydantic import BaseModel
 
 import json
 import re
@@ -100,8 +102,6 @@ async def build_mid_term_memory_message(
         f"prompt_chars={_count_prompt_message_chars(text_prompt_messages)}\n"
         f"{_render_summary_prompt_messages_for_log(text_prompt_messages)}"
     )
-    from src.common.data_models.llm_service_data_models import LLMGenerationOptions
-    from src.llm_models.payload_content.resp_format import RespFormat, RespFormatType
     from src.services.llm_service import LLMServiceClient
 
     llm_client = LLMServiceClient(
@@ -117,12 +117,7 @@ async def build_mid_term_memory_message(
             enable_visual_message=_should_enable_visual_summary(model_info),
         )
 
-    result = await llm_client.generate_response_with_messages(
-        message_factory,
-        options=LLMGenerationOptions(
-            response_format=RespFormat(RespFormatType.JSON_SCHEMA, MidTermMemorySummaryModel),
-        ),
-    )
+    result = await llm_client.generate_response_with_messages(message_factory)
     summary_payload = _parse_summary_response(result.response)
     if summary_payload is None:
         logger.warning(
@@ -492,18 +487,36 @@ def _load_json_payload(response: str) -> Any:
     if not normalized_response:
         return None
 
+    candidates = [normalized_response]
+    if fence_match := re.search(r"```(?:json)?\s*(.*?)\s*```", normalized_response, flags=re.S | re.I):
+        candidates.append(fence_match.group(1).strip())
+
+    object_start = normalized_response.find("{")
+    object_end = normalized_response.rfind("}")
+    if object_start >= 0 and object_end > object_start:
+        candidates.append(normalized_response[object_start : object_end + 1])
+
+    seen_candidates: set[str] = set()
+    for candidate in candidates:
+        if not candidate or candidate in seen_candidates:
+            continue
+        seen_candidates.add(candidate)
+        parsed_payload = _parse_json_candidate(candidate)
+        if isinstance(parsed_payload, dict):
+            return parsed_payload
+
+    return None
+
+
+def _parse_json_candidate(candidate: str) -> Any:
     try:
-        return json.loads(normalized_response)
+        return json.loads(candidate)
     except json.JSONDecodeError:
         pass
 
-    match = re.search(r"\{.*\}", normalized_response, flags=re.S)
-    if match is None:
-        return None
-
     try:
-        return json.loads(match.group(0))
-    except json.JSONDecodeError:
+        return repair_json(candidate, return_objects=True, logging=False)
+    except Exception:
         return None
 
 
