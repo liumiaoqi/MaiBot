@@ -257,6 +257,7 @@ class EmojiManager:
         self.emojis: list[MaiEmoji] = []
         self._maintenance_wakeup_event: asyncio.Event = asyncio.Event()
         self._pending_description_tasks: dict[str, asyncio.Task[None]] = {}
+        self._emoji_save_locks: dict[str, asyncio.Lock] = {}
         self._reload_callback_registered: bool = False
 
         config_manager.register_reload_callback(self.reload_runtime_config)
@@ -359,6 +360,12 @@ class EmojiManager:
         """先缓存表情包文件与数据库记录，确保后续可按 hash 回填。"""
         hash_str = emoji_hash or hashlib.sha256(emoji_bytes).hexdigest()
 
+        save_lock = self._emoji_save_locks.setdefault(hash_str, asyncio.Lock())
+        async with save_lock:
+            return await self._ensure_emoji_saved_locked(emoji_bytes, hash_str)
+
+    async def _ensure_emoji_saved_locked(self, emoji_bytes: bytes, hash_str: str) -> MaiEmoji:
+        """按 hash 串行化缓存写入，避免同一临时文件被并发消费。"""
         try:
             with get_db_session() as session:
                 statement = select(Images).filter_by(image_hash=hash_str, image_type=ImageType.EMOJI).limit(1)
