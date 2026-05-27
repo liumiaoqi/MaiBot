@@ -605,7 +605,7 @@ class ChatConfig(ConfigBase):
             "x-description-display": "icon",
         },
     )
-    """开启后启用独立 Timing Gate；关闭后不再单独运行 Timing Gate，并将节奏控制工具合并到 Planner"""
+    """开启后对回复时机判定更精确，可能消耗更多token"""
 
     enable_at: bool = Field(
         default=True,
@@ -670,7 +670,7 @@ class ChatConfig(ConfigBase):
             "advanced": True,
         },
     )
-    """Planner 连续被新消息打断的最大次数，0 表示不启用打断"""
+    """planner如果遇到新消息，重新开始思考的次数"""
 
     timing_gate_non_continue_cooldown_seconds: float = Field(
         default=8,
@@ -687,7 +687,7 @@ class ChatConfig(ConfigBase):
             "advanced": False,
         },
     )
-    """这个值决定了 timing gate 判断的频率，值越大，timing gate 的判断越平滑，但也可能导致反应变慢。建议根据实际情况调整，找到一个既能保持反应及时又不过于频繁的平衡点。"""
+    """这个值决定了Timing Gate判断的最低时间间隔"""
 
     group_chat_prompt: str = Field(
         default=(
