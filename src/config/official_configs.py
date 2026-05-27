@@ -3171,7 +3171,7 @@ class LogConfig(ConfigBase):
     """完全屏蔽日志的第三方库列表"""
 
     library_log_levels: dict[str, str] = Field(
-        default_factory=lambda: {"aiohttp": "WARNING"},
+        default_factory=lambda: {"aiohttp": "WARNING", "PIL": "WARNING"},
         json_schema_extra={
             "x-widget": "custom",
             "x-icon": "sliders-horizontal",
