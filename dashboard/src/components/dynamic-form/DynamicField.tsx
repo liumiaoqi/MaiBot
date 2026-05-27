@@ -3,6 +3,7 @@ import * as LucideIcons from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import { Input } from "@/components/ui/input"
+import { DraftNumberInput } from "@/components/ui/draft-number-input"
 import { KeyValueEditor } from "@/components/ui/key-value-editor"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -455,21 +456,16 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
    * 渲染 Input[type="number"] 组件（用于 number/integer 类型）
    */
   const renderNumberInput = () => {
-    const numValue = parseNumericValue(value, schema.default)
     const min = schema.minValue
     const max = schema.maxValue
     const step = schema.step ?? (schema.type === 'integer' ? 1 : 0.1)
 
     return (
-      <Input
-        type="number"
-        value={numValue}
-        onChange={(e) => {
-          const nextValue = schema.type === 'integer'
-            ? parseInt(e.target.value, 10)
-            : parseFloat(e.target.value)
-          onChange(Number.isFinite(nextValue) ? nextValue : 0)
-        }}
+      <DraftNumberInput
+        value={value}
+        defaultValue={schema.default}
+        integer={schema.type === 'integer'}
+        onValueChange={(nextValue) => onChange(nextValue)}
         min={min}
         max={max}
         step={step}

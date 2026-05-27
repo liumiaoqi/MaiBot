@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { DraftNumberInput } from '@/components/ui/draft-number-input'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { X } from 'lucide-react'
@@ -90,36 +91,39 @@ export const DreamSection = React.memo(function DreamSection({ config, onChange 
       
       <div className="space-y-2">
         <Label htmlFor="interval_minutes">做梦时间间隔（分钟）</Label>
-        <Input
+        <DraftNumberInput
           id="interval_minutes"
-          type="number"
           min="1"
           value={config.interval_minutes}
-          onChange={(e) => onChange({ ...config, interval_minutes: Number(e.target.value) })}
+          defaultValue={30}
+          integer
+          onValueChange={(nextValue) => onChange({ ...config, interval_minutes: nextValue })}
         />
         <p className="text-xs text-muted-foreground">默认30分钟</p>
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="max_iterations">做梦最大轮次</Label>
-        <Input
+        <DraftNumberInput
           id="max_iterations"
-          type="number"
           min="1"
           value={config.max_iterations}
-          onChange={(e) => onChange({ ...config, max_iterations: Number(e.target.value) })}
+          defaultValue={20}
+          integer
+          onValueChange={(nextValue) => onChange({ ...config, max_iterations: nextValue })}
         />
         <p className="text-xs text-muted-foreground">默认20轮</p>
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="first_delay_seconds">首次做梦延迟（秒）</Label>
-        <Input
+        <DraftNumberInput
           id="first_delay_seconds"
-          type="number"
           min="0"
           value={config.first_delay_seconds}
-          onChange={(e) => onChange({ ...config, first_delay_seconds: Number(e.target.value) })}
+          defaultValue={60}
+          integer
+          onValueChange={(nextValue) => onChange({ ...config, first_delay_seconds: nextValue })}
         />
         <p className="text-xs text-muted-foreground">程序启动后首次做梦前的延迟时间，默认60秒</p>
       </div>
