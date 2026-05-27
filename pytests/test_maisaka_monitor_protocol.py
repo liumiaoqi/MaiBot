@@ -776,7 +776,7 @@ def test_runtime_render_context_usage_panel_merges_timing_and_planner(monkeypatc
     runtime = object.__new__(MaisakaHeartFlowChatting)
     runtime.session_id = "session-merged"
     runtime.session_name = "测试聊天流"
-    runtime._max_context_size = 20
+    monkeypatch.setattr(runtime, "_get_effective_reply_frequency", lambda: 0.42)
 
     printed: list[Any] = []
     monkeypatch.setattr("src.maisaka.runtime.console.print", lambda renderable: printed.append(renderable))
@@ -799,4 +799,5 @@ def test_runtime_render_context_usage_panel_merges_timing_and_planner(monkeypatc
     assert isinstance(renderables[0], Text)
     assert "聊天流名称：测试聊天流" in renderables[0].plain
     assert "聊天流ID：session-merged" in renderables[0].plain
+    assert "当前回复频率：0.420（42.0%）" in renderables[0].plain
     assert len(renderables) == 3
