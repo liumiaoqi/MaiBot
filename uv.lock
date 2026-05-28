@@ -1055,7 +1055,7 @@ wheels = [
 
 [[package]]
 name = "maibot"
-version = "1.0.0rc24"
+version = "1.0.0rc2"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
@@ -1116,7 +1116,7 @@ requires-dist = [
     { name = "httpx", extras = ["socks"] },
     { name = "jieba", specifier = ">=0.42.1" },
     { name = "json-repair", specifier = ">=0.47.6" },
-    { name = "maibot-dashboard", specifier = ">=1.2.0" },
+    { name = "maibot-dashboard", specifier = ">=1.2.1" },
     { name = "maibot-plugin-sdk", specifier = ">=2.5.2" },
     { name = "maim-message", specifier = "==0.6.8" },
     { name = "matplotlib", specifier = ">=3.10.5" },
@@ -1154,11 +1154,11 @@ dev = [
 
 [[package]]
 name = "maibot-dashboard"
-version = "1.2.0"
+version = "1.2.1"
 source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
-sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/7f/23/47d68225deeec573e03f018c835b01712dff337e7ca5c6b140a6e4877aca/maibot_dashboard-1.2.0.tar.gz", hash = "sha256:ba80841e4e7860ee936cc0f454b87446d0c219c7899c3dfc4fef374fd714b14c", size = 2486107, upload-time = "2026-05-21T13:56:07.396Z" }
+sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/9b/1f/0f2681ec5f95bb4890fcc1ae76a47bb079fd14463f08eba8e00bb3904c0c/maibot_dashboard-1.2.1.tar.gz", hash = "sha256:d1e069128c51eecc4200bb8c770faa68023c48a37a7b2051eae6d1cab8782069", size = 2487740, upload-time = "2026-05-25T17:33:56.497Z" }
 wheels = [
-    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/6e/38/f850f56d65699d591733db6ecbc4da16190a4289e15285de24b16236bd26/maibot_dashboard-1.2.0-py3-none-any.whl", hash = "sha256:fe32506156b8ededc38ca6b38fb7b501b56a48ea825d5504bf691a1f5434a6d7", size = 2551298, upload-time = "2026-05-21T13:56:05.658Z" },
+    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/8f/90/09f9ab64eb0d3ad537542468f9a54fea7f488a4e00c41379723a7585f1d7/maibot_dashboard-1.2.1-py3-none-any.whl", hash = "sha256:232629ec1cc50e5af2c81cd6d01ae13de042b92dd44ec92ca783858c7ab92d21", size = 2553003, upload-time = "2026-05-25T17:33:55.101Z" },
 ]
 
 [[package]]

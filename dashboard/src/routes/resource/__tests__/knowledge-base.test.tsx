@@ -88,6 +88,8 @@ vi.mock('@/lib/memory-api', () => ({
   getMemoryDeleteOperation: vi.fn(),
   getMemoryFeedbackCorrections: vi.fn(),
   getMemoryFeedbackCorrection: vi.fn(),
+  getMemoryProfileEvidence: vi.fn(),
+  correctMemoryProfileEvidence: vi.fn(),
   previewMemoryDelete: vi.fn(),
   executeMemoryDelete: vi.fn(),
   restoreMemoryDelete: vi.fn(),

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { DraftNumberInput } from '@/components/ui/draft-number-input'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -227,10 +228,10 @@ function FieldRenderer({ field, value, onChange }: FieldRendererProps) {
       return (
         <div className="space-y-2">
           <Label>{label}</Label>
-          <Input
-            type="number"
-            value={value as number ?? field.default}
-            onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+          <DraftNumberInput
+            value={value}
+            defaultValue={field.default}
+            onValueChange={onChange}
             min={field.min}
             max={field.max}
             step={field.step ?? 1}

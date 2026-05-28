@@ -114,6 +114,7 @@ def _get_builtin_tool_entries(
     """按阶段与可见性筛选内置工具目录项。"""
 
     entries = BUILTIN_TOOL_ENTRIES
+    entries = [entry for entry in entries if _is_builtin_tool_enabled_by_config(entry)]
     if stage is not None:
         entries = [entry for entry in entries if entry.stage == stage]
     if visibility is not None:
@@ -121,6 +122,16 @@ def _get_builtin_tool_entries(
     if context is not None:
         entries = [entry for entry in entries if _is_builtin_tool_available(entry, context)]
     return entries
+
+
+def _is_builtin_tool_enabled_by_config(entry: BuiltinToolEntry) -> bool:
+    """根据全局配置判断内置工具是否应暴露。"""
+
+    if entry.name in {"send_emoji", "send_image"}:
+        chat_config = getattr(global_config, "chat", None)
+        if bool(getattr(chat_config, "enable_replyer_format_output", False)):
+            return False
+    return True
 
 
 def _is_builtin_tool_available(entry: BuiltinToolEntry, context: ToolAvailabilityContext) -> bool:

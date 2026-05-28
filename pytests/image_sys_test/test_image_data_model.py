@@ -1,9 +1,9 @@
 from pathlib import Path
 from types import SimpleNamespace
-
-import io
-
 from PIL import Image as PILImage
+
+import hashlib
+import io
 import pytest
 
 from src.common.data_models.image_data_model import MaiEmoji, MaiImage
@@ -46,6 +46,24 @@ async def test_calculate_hash_format_reuses_existing_target_file(tmp_path: Path)
     assert emoji.file_name == target_file_path.name
     assert not tmp_file_path.exists()
     assert target_file_path.exists()
+
+
+@pytest.mark.asyncio
+async def test_calculate_hash_format_reuses_existing_hashed_file_when_tmp_was_consumed(tmp_path: Path) -> None:
+    image_bytes = _build_test_image_bytes("PNG")
+    image_hash = hashlib.sha256(image_bytes).hexdigest()
+    existing_file_path = tmp_path / f"{image_hash}.png"
+    tmp_file_path = tmp_path / f"{image_hash}.tmp"
+    existing_file_path.write_bytes(image_bytes)
+    tmp_file_path.write_bytes(image_bytes)
+
+    emoji = MaiEmoji(full_path=tmp_file_path, image_bytes=image_bytes)
+    tmp_file_path.unlink()
+
+    assert await emoji.calculate_hash_format() is True
+    assert emoji.full_path == existing_file_path.resolve()
+    assert emoji.file_name == existing_file_path.name
+    assert not tmp_file_path.exists()
 
 
 @pytest.mark.parametrize(

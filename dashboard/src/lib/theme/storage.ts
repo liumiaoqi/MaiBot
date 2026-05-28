@@ -4,7 +4,17 @@
  */
 
 import { DEFAULT_ACCENT_COLOR_HSL, normalizeAccentColor } from './palette'
-import type { BackgroundConfigMap, UserThemeConfig } from './tokens'
+import {
+  DEFAULT_DASHBOARD_STYLE,
+  DEFAULT_DASHBOARD_STYLE_CONFIG,
+  DEFAULT_FUTURE_RETRO_STYLE_CONFIG,
+} from './tokens'
+import type {
+  BackgroundConfigMap,
+  DashboardStyle,
+  DashboardStyleConfig,
+  UserThemeConfig,
+} from './tokens'
 
 /**
  * 主题存储 key 定义
@@ -17,6 +27,8 @@ export const THEME_STORAGE_KEYS = {
   OVERRIDES: 'maibot-theme-overrides',
   CUSTOM_CSS: 'maibot-theme-custom-css',
   BACKGROUND_CONFIG: 'maibot-theme-background',
+  DASHBOARD_STYLE: 'maibot-theme-dashboard-style',
+  STYLE_CONFIG: 'maibot-theme-style-config',
 } as const
 
 /**
@@ -28,6 +40,33 @@ const DEFAULT_THEME_CONFIG: UserThemeConfig = {
   tokenOverrides: {},
   customCSS: '',
   backgroundConfig: {} as BackgroundConfigMap,
+  dashboardStyle: DEFAULT_DASHBOARD_STYLE,
+  styleConfig: DEFAULT_DASHBOARD_STYLE_CONFIG,
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null
+
+function normalizeDashboardStyle(value: unknown): DashboardStyle {
+  return value === 'future-retro' ? 'future-retro' : DEFAULT_DASHBOARD_STYLE
+}
+
+function normalizeStyleConfig(value: unknown): DashboardStyleConfig {
+  const config = isRecord(value) ? value : {}
+  const futureRetro = isRecord(config.futureRetro) ? config.futureRetro : {}
+
+  return {
+    futureRetro: {
+      paperTexture:
+        typeof futureRetro.paperTexture === 'boolean'
+          ? futureRetro.paperTexture
+          : DEFAULT_FUTURE_RETRO_STYLE_CONFIG.paperTexture,
+      strongBorders:
+        typeof futureRetro.strongBorders === 'boolean'
+          ? futureRetro.strongBorders
+          : DEFAULT_FUTURE_RETRO_STYLE_CONFIG.strongBorders,
+    },
+  }
 }
 
 /**
@@ -41,6 +80,7 @@ export function loadThemeConfig(): UserThemeConfig {
   const accent = localStorage.getItem(THEME_STORAGE_KEYS.ACCENT)
   const overridesStr = localStorage.getItem(THEME_STORAGE_KEYS.OVERRIDES)
   const customCSS = localStorage.getItem(THEME_STORAGE_KEYS.CUSTOM_CSS)
+  const dashboardStyle = localStorage.getItem(THEME_STORAGE_KEYS.DASHBOARD_STYLE)
 
   // 解析 tokenOverrides JSON
   let tokenOverrides = {}
@@ -64,12 +104,24 @@ export function loadThemeConfig(): UserThemeConfig {
     }
   }
 
+  const styleConfigStr = localStorage.getItem(THEME_STORAGE_KEYS.STYLE_CONFIG)
+  let styleConfig: DashboardStyleConfig = DEFAULT_THEME_CONFIG.styleConfig
+  if (styleConfigStr) {
+    try {
+      styleConfig = normalizeStyleConfig(JSON.parse(styleConfigStr))
+    } catch {
+      styleConfig = DEFAULT_THEME_CONFIG.styleConfig
+    }
+  }
+
   return {
     selectedPreset: preset || DEFAULT_THEME_CONFIG.selectedPreset,
     accentColor: normalizeAccentColor(accent),
     tokenOverrides,
     customCSS: customCSS || DEFAULT_THEME_CONFIG.customCSS,
     backgroundConfig,
+    dashboardStyle: normalizeDashboardStyle(dashboardStyle),
+    styleConfig,
   }
 }
 
@@ -83,8 +135,19 @@ export function saveThemeConfig(config: UserThemeConfig): void {
   localStorage.setItem(THEME_STORAGE_KEYS.ACCENT, normalizeAccentColor(config.accentColor))
   localStorage.setItem(THEME_STORAGE_KEYS.OVERRIDES, JSON.stringify(config.tokenOverrides))
   localStorage.setItem(THEME_STORAGE_KEYS.CUSTOM_CSS, config.customCSS)
+  localStorage.setItem(
+    THEME_STORAGE_KEYS.DASHBOARD_STYLE,
+    normalizeDashboardStyle(config.dashboardStyle)
+  )
+  localStorage.setItem(
+    THEME_STORAGE_KEYS.STYLE_CONFIG,
+    JSON.stringify(normalizeStyleConfig(config.styleConfig))
+  )
   if (config.backgroundConfig) {
-    localStorage.setItem(THEME_STORAGE_KEYS.BACKGROUND_CONFIG, JSON.stringify(config.backgroundConfig))
+    localStorage.setItem(
+      THEME_STORAGE_KEYS.BACKGROUND_CONFIG,
+      JSON.stringify(config.backgroundConfig)
+    )
   } else {
     localStorage.removeItem(THEME_STORAGE_KEYS.BACKGROUND_CONFIG)
   }
@@ -122,9 +185,7 @@ export function exportThemeJSON(): string {
  * @param json - JSON 字符串
  * @returns 导入结果，包含成功状态和错误列表
  */
-export function importThemeJSON(
-  json: string,
-): { success: boolean; errors: string[] } {
+export function importThemeJSON(json: string): { success: boolean; errors: string[] } {
   const errors: string[] = []
 
   // JSON 格式校验
@@ -161,6 +222,15 @@ export function importThemeJSON(
   if (configObj.tokenOverrides !== undefined && typeof configObj.tokenOverrides !== 'object') {
     errors.push('tokenOverrides must be an object')
   }
+  if (configObj.dashboardStyle !== undefined && typeof configObj.dashboardStyle !== 'string') {
+    errors.push('dashboardStyle must be a string')
+  }
+  if (
+    configObj.styleConfig !== undefined &&
+    (typeof configObj.styleConfig !== 'object' || configObj.styleConfig === null)
+  ) {
+    errors.push('styleConfig must be an object')
+  }
 
   if (errors.length > 0) {
     return { success: false, errors }
@@ -173,6 +243,8 @@ export function importThemeJSON(
     tokenOverrides: (configObj.tokenOverrides as Partial<any>) || {},
     customCSS: configObj.customCSS as string,
     backgroundConfig: (configObj.backgroundConfig as BackgroundConfigMap) ?? {},
+    dashboardStyle: normalizeDashboardStyle(configObj.dashboardStyle),
+    styleConfig: normalizeStyleConfig(configObj.styleConfig),
   }
 
   saveThemeConfig(validConfig)

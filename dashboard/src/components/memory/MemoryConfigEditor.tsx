@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 
 import { ListFieldEditor } from '@/components/ListFieldEditor'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { DraftNumberInput } from '@/components/ui/draft-number-input'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -105,10 +106,10 @@ function FieldRenderer({
       return (
         <div className="space-y-2">
           <Label>{field.label}</Label>
-          <Input
-            type="number"
-            value={String(value ?? field.default ?? '')}
-            onChange={(event) => onChange(Number(event.target.value))}
+          <DraftNumberInput
+            value={value}
+            defaultValue={field.default}
+            onValueChange={onChange}
             min={field.min}
             max={field.max}
             step={field.step ?? 1}

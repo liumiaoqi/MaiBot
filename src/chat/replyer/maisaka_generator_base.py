@@ -31,6 +31,7 @@ from src.common.data_models.reply_generation_data_models import (
     ReplyGenerationResult,
     build_reply_monitor_detail,
 )
+from src.common.i18n import get_locale
 from src.common.logger import get_logger
 from src.common.utils.utils_config import ChatConfigUtils
 from src.config.config import global_config
@@ -251,15 +252,70 @@ class BaseMaisakaReplyGenerator:
         return "在该聊天中的注意事项：\n" + "\n\n".join(prompt_lines) + "\n"
 
     @staticmethod
-    def _build_replyer_at_block() -> str:
-        """构建 replyer 模式下的 at 标记说明。"""
+    def _get_prompt_locale() -> str:
+        """获取当前 prompt 语言。"""
 
-        if not global_config.chat.enable_at:
-            return ""
+        try:
+            return get_locale().lower()
+        except Exception:
+            return "zh-cn"
+
+    @staticmethod
+    def _build_replyer_output_instruction() -> str:
+        """构建 replyer 的最终输出格式说明。"""
+
+        locale = BaseMaisakaReplyGenerator._get_prompt_locale()
+        if not getattr(global_config.chat, "enable_replyer_format_output", False):
+            if locale.startswith("en"):
+                return (
+                    "Please do not output any extra content (including unnecessary prefixes or suffixes, "
+                    "colons, brackets, stickers, plain at, or @). Only output the message content itself."
+                )
+            if locale.startswith("ja"):
+                return (
+                    "余計な内容（不要な前置きや後置き、コロン、括弧、スタンプ、通常の at や @ など）は出力せず、"
+                    "発言内容だけを出力してください。"
+                )
+            return (
+                "请注意不要输出多余内容(包括不必要的前后缀，冒号，括号，表情包，@等 )，"
+                "只输出发言内容就好。"
+            )
+
+        if locale.startswith("en"):
+            return (
+                "Only output the message fragments to send. Do not output explanations, Markdown, or code fences. "
+                "Use `<text>text</text>` for normal text; "
+                "to mention someone, use `<at msg_id=\"message id\">display name</at>`; "
+                "use `<emoji>emotion or sticker description</emoji>` when you want to send a sticker. "
+                "To resend an existing image from context, use "
+                "`<image msg_id=\"message id\" index=\"0\">optional description</image>`; "
+                "for tool-result media, use `media_index=\"tool_result:call_x:0\"` instead of `msg_id`. "
+                "You may combine fragments in send order, for example: "
+                "`<text>fine</text><image msg_id=\"123\" index=\"0\">that image</image>`."
+            )
+
+        if locale.startswith("ja"):
+            return (
+                "送信するメッセージフラグメントだけを出力してください。説明、Markdown、コードブロックは出力しないでください。"
+                "通常の文字は `<text>文字</text>` を使います；"
+                "`<at msg_id=\"メッセージID\">表示名</at>` で at できます；"
+                "スタンプを送りたいときは `<emoji>感情またはスタンプ説明</emoji>` を使います。"
+                "文脈中の既存画像を送りたいときは "
+                "`<image msg_id=\"メッセージID\" index=\"0\">任意の説明</image>` を使います。"
+                "ツール結果のメディアは `msg_id` の代わりに `media_index=\"tool_result:call_x:0\"` を使います。"
+                "送信順に複数のフラグメントを組み合わせてもかまいません。例："
+                "`<text>まあいいか</text><image msg_id=\"123\" index=\"0\">その画像</image>`。"
+            )
+
         return (
-            "如果需要提及某人、让某人关注你的回复，可以在回复中加入 `at[msg_id]` 标记，"
-            "其中 msg_id 应使用聊天记录中该用户发过的消息编号；"
-            "消息发送时会检查这种标记并转换为真正的 at 消息。\n"
+            "请只输出要发送的消息片段，不要输出解释、Markdown 或代码块。"
+            "普通文字使用 `<text>文字</text>`；"
+            "需要 at 某人时，使用 `<at msg_id=\"消息编号\">显示名</at>`；"
+            "想发送表情包时，使用 `<emoji>情绪或表情描述</emoji>`。"
+            "想转发上下文里已有图片时，使用 `<image msg_id=\"消息编号\" index=\"0\">可选描述</image>`。"
+            "工具返回媒体用 `media_index=\"tool_result:call_x:0\"` 代替 `msg_id`。"
+            "可以按发送顺序组合多个片段，例如："
+            "`<text>行吧</text><image msg_id=\"123\" index=\"0\">那张图</image>`。"
         )
 
     @staticmethod
@@ -376,7 +432,7 @@ class BaseMaisakaReplyGenerator:
                 "maisaka_replyer",
                 bot_name=global_config.bot.nickname,
                 group_chat_attention_block=self._build_group_chat_attention_block(session_id),
-                replyer_at_block=self._build_replyer_at_block(),
+                replyer_output_instruction=self._build_replyer_output_instruction(),
                 identity=self._build_personality_prompt(),
                 reply_style=self._select_reply_style(),
             )
@@ -386,6 +442,8 @@ class BaseMaisakaReplyGenerator:
         return system_prompt
 
     def _build_reply_instruction(self) -> str:
+        if getattr(global_config.chat, "enable_replyer_format_output", False):
+            return self._build_replyer_output_instruction()
         return "请自然地回复。不要输出多余说明、括号、@ 或额外标记，只输出实际要发送的内容。"
 
     def _build_final_user_message(

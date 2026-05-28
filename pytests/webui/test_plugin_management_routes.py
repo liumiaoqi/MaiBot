@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import json
 
 import pytest
@@ -198,3 +200,103 @@ def test_uninstall_plugin_releases_runtime_before_delete(client: TestClient, mon
     assert response.status_code == 200
     assert reload_calls == [(["test.demo"], "uninstall")]
     assert not plugin_path.exists()
+
+
+def test_update_non_git_plugin_reinstalls_and_preserves_known_user_files(client: TestClient, monkeypatch):
+    plugin_path = support_module.resolve_installed_plugin_path("test.demo")
+    assert plugin_path is not None
+    (plugin_path / "plugin.py").write_text("old source", encoding="utf-8")
+    (plugin_path / "config.toml").write_text("[plugin]\nenabled = false\n", encoding="utf-8")
+    (plugin_path / "custom.json").write_text('{"user": true}', encoding="utf-8")
+    config_backup_dir = plugin_path / "config_back"
+    config_backup_dir.mkdir()
+    (config_backup_dir / "config.toml.backup").write_text("[plugin]\nenabled = true\n", encoding="utf-8")
+
+    class FakeGitMirrorService:
+        async def clone_repository(self, **kwargs):
+            assert kwargs["operation"] == "update"
+            target_path = kwargs["target_path"]
+            target_path.mkdir(parents=True, exist_ok=True)
+            (target_path / ".git").mkdir()
+            (target_path / "plugin.py").write_text("new source", encoding="utf-8")
+            (target_path / "config.toml").write_text("[plugin]\nenabled = true\n", encoding="utf-8")
+            (target_path / "_manifest.json").write_text(
+                json.dumps(
+                    {
+                        "manifest_version": 2,
+                        "id": "test.demo",
+                        "name": "Demo Plugin",
+                        "version": "1.1.0",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            return {"success": True}
+
+    monkeypatch.setattr(management_module, "get_git_mirror_service", lambda: FakeGitMirrorService())
+
+    response = client.post(
+        "/api/webui/plugins/update",
+        json={
+            "plugin_id": "test.demo",
+            "repository_url": "https://github.com/test/demo",
+            "branch": "main",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["update_mode"] == "reinstall_from_backup"
+    backup_path = Path(payload["backup_path"])
+    assert backup_path.exists()
+    assert (backup_path / "custom.json").read_text(encoding="utf-8") == '{"user": true}'
+    assert (plugin_path / ".git").is_dir()
+    assert (plugin_path / "plugin.py").read_text(encoding="utf-8") == "new source"
+    assert (plugin_path / "config.toml").read_text(encoding="utf-8") == "[plugin]\nenabled = false\n"
+    assert (plugin_path / "config_back" / "config.toml.backup").exists()
+    assert not (plugin_path / "custom.json").exists()
+    manifest = json.loads((plugin_path / "_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["version"] == "1.1.0"
+
+
+def test_update_non_git_plugin_rolls_back_when_manifest_id_mismatches(client: TestClient, monkeypatch):
+    plugin_path = support_module.resolve_installed_plugin_path("test.demo")
+    assert plugin_path is not None
+    (plugin_path / "plugin.py").write_text("old source", encoding="utf-8")
+    (plugin_path / "custom.json").write_text('{"user": true}', encoding="utf-8")
+
+    class FakeGitMirrorService:
+        async def clone_repository(self, **kwargs):
+            target_path = kwargs["target_path"]
+            target_path.mkdir(parents=True, exist_ok=True)
+            (target_path / ".git").mkdir()
+            (target_path / "plugin.py").write_text("wrong source", encoding="utf-8")
+            (target_path / "_manifest.json").write_text(
+                json.dumps(
+                    {
+                        "manifest_version": 2,
+                        "id": "other.demo",
+                        "name": "Other Plugin",
+                        "version": "1.1.0",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            return {"success": True}
+
+    monkeypatch.setattr(management_module, "get_git_mirror_service", lambda: FakeGitMirrorService())
+
+    response = client.post(
+        "/api/webui/plugins/update",
+        json={
+            "plugin_id": "test.demo",
+            "repository_url": "https://github.com/test/demo",
+            "branch": "main",
+        },
+    )
+
+    assert response.status_code == 400
+    assert "新版本插件 ID 不匹配" in response.json()["detail"]
+    assert (plugin_path / "plugin.py").read_text(encoding="utf-8") == "old source"
+    assert (plugin_path / "custom.json").read_text(encoding="utf-8") == '{"user": true}'
+    assert not (plugin_path / ".git").exists()

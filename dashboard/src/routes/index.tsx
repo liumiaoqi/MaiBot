@@ -181,8 +181,13 @@ const generatePieColors = (count: number): string[] => {
 // 内部实现组件
 function FeatureStatusLight({ enabled, label }: { enabled: boolean; label: string }) {
   return (
-    <div className="inline-flex items-center gap-1.5 rounded-md border bg-background px-2 py-1 text-xs text-muted-foreground">
+    <div
+      data-dashboard-feature-status="true"
+      data-enabled={enabled ? 'true' : 'false'}
+      className="inline-flex items-center gap-1.5 rounded-md border bg-background px-2 py-1 text-xs text-muted-foreground"
+    >
       <span
+        data-dashboard-feature-status-light="true"
         className={`h-2.5 w-2.5 rounded-full ${
           enabled ? 'bg-green-500 shadow-[0_0_0_3px_rgba(34,197,94,0.18)]' : 'bg-muted-foreground/30'
         }`}
@@ -788,32 +793,68 @@ function IndexPageContent() {
                 <div className="flex items-center gap-2">
                   {isBotStatusLoading && !botStatus ? (
                     <>
-                      <div className="h-3 w-3 rounded-full bg-muted-foreground/40 animate-pulse" />
-                      <Badge variant="outline" className="whitespace-nowrap text-muted-foreground">
+                      <div
+                        data-dashboard-status-dot="true"
+                        data-state="loading"
+                        className="h-3 w-3 rounded-full bg-muted-foreground/40 animate-pulse"
+                      />
+                      <Badge
+                        data-dashboard-status-badge="true"
+                        data-state="loading"
+                        variant="outline"
+                        className="whitespace-nowrap text-muted-foreground"
+                      >
                         <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
                         读取中
                       </Badge>
                     </>
                   ) : botStatus?.running ? (
                     <>
-                      <div className="h-3 w-3 rounded-full bg-green-500 animate-pulse" />
-                      <Badge variant="outline" className="whitespace-nowrap text-green-600 border-green-300 bg-green-50">
+                      <div
+                        data-dashboard-status-dot="true"
+                        data-state="running"
+                        className="h-3 w-3 rounded-full bg-green-500 animate-pulse"
+                      />
+                      <Badge
+                        data-dashboard-status-badge="true"
+                        data-state="running"
+                        variant="outline"
+                        className="whitespace-nowrap text-green-600 border-green-300 bg-green-50"
+                      >
                         <CheckCircle2 className="h-3 w-3 mr-1" />
                         {t('home.botStatus.running')}
                       </Badge>
                     </>
                   ) : botStatus ? (
                     <>
-                      <div className="h-3 w-3 rounded-full bg-red-500" />
-                      <Badge variant="outline" className="whitespace-nowrap text-red-600 border-red-300 bg-red-50">
+                      <div
+                        data-dashboard-status-dot="true"
+                        data-state="stopped"
+                        className="h-3 w-3 rounded-full bg-red-500"
+                      />
+                      <Badge
+                        data-dashboard-status-badge="true"
+                        data-state="stopped"
+                        variant="outline"
+                        className="whitespace-nowrap text-red-600 border-red-300 bg-red-50"
+                      >
                         <AlertCircle className="h-3 w-3 mr-1" />
                         {t('home.botStatus.stopped')}
                       </Badge>
                     </>
                   ) : (
                     <>
-                      <div className="h-3 w-3 rounded-full bg-muted-foreground/40" />
-                      <Badge variant="outline" className="whitespace-nowrap text-muted-foreground">
+                      <div
+                        data-dashboard-status-dot="true"
+                        data-state="unknown"
+                        className="h-3 w-3 rounded-full bg-muted-foreground/40"
+                      />
+                      <Badge
+                        data-dashboard-status-badge="true"
+                        data-state="unknown"
+                        variant="outline"
+                        className="whitespace-nowrap text-muted-foreground"
+                      >
                         <AlertCircle className="h-3 w-3 mr-1" />
                         未知
                       </Badge>

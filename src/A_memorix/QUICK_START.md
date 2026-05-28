@@ -132,6 +132,13 @@ max_paste_chars = 200000
 default_file_concurrency = 2
 default_chunk_concurrency = 4
 
+[web.import.timeout]
+llm_call_seconds = 240
+process_poll_seconds = 1
+process_terminate_seconds = 5
+process_kill_seconds = 3
+convert_preflight_seconds = 20
+
 [web.tuning]
 enabled = true
 max_queue_size = 8

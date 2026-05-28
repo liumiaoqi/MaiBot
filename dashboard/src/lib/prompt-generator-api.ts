@@ -2,6 +2,25 @@ import { parseResponse } from '@/lib/api-helpers'
 import { fetchWithAuth } from '@/lib/fetch-with-auth'
 import type { ApiResponse } from '@/types/api'
 
+const PROMPT_GENERATOR_METHOD_NOT_ALLOWED_MESSAGE =
+  '生成失败：可能是模型不支持或前后端版本不匹配，请换用文本聊天模型，或刷新并重启 WebUI 后再试。'
+
+function normalizePromptGeneratorError<T>(result: ApiResponse<T>): ApiResponse<T> {
+  if (result.success) {
+    return result
+  }
+
+  const normalizedError = result.error.toLowerCase()
+  if (normalizedError.includes('method not allowed') || normalizedError.includes('405')) {
+    return {
+      success: false,
+      error: PROMPT_GENERATOR_METHOD_NOT_ALLOWED_MESSAGE,
+    }
+  }
+
+  return result
+}
+
 export interface PromptGeneratorChatPrompt {
   platform: string
   item_id: string
@@ -59,7 +78,7 @@ export async function generatePromptPersona(
     method: 'POST',
     body: JSON.stringify(payload),
   })
-  return parseResponse<PromptGeneratorResponse>(response)
+  return normalizePromptGeneratorError(await parseResponse<PromptGeneratorResponse>(response))
 }
 
 export interface PromptGeneratorApplyResponse {

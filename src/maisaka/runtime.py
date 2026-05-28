@@ -519,6 +519,12 @@ class MaisakaHeartFlowChatting:
             return 0.0
         return max(0.0, talk_value * self._talk_frequency_adjust)
 
+    @staticmethod
+    def _format_reply_frequency_for_display(frequency: float) -> str:
+        """将回复频率格式化为日志中易读的数值。"""
+        normalized_frequency = max(0.0, float(frequency))
+        return f"{normalized_frequency:.3f}（{normalized_frequency * 100:.1f}%）"
+
     def _get_base_reply_frequency(self) -> float:
         """返回当前会话类型对应的基础回复频率。"""
         if self.chat_stream.is_group_session:
@@ -1476,6 +1482,7 @@ class MaisakaHeartFlowChatting:
         body_lines = [
             f"聊天流名称：{getattr(self, 'session_name', self.session_id)}",
             f"聊天流ID：{self.session_id}",
+            f"当前回复频率：{self._format_reply_frequency_for_display(self._get_effective_reply_frequency())}",
         ]
 
         panel_title = "MaiSaka 循环"

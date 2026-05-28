@@ -1,7 +1,17 @@
-import { Plus, Trash2 } from 'lucide-react'
+import { useRef, useState, type PointerEvent } from 'react'
+
+import { GripVertical, Plus, Trash2 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -11,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Slider } from '@/components/ui/slider'
 import { Textarea } from '@/components/ui/textarea'
 import { fieldTitleClassName } from '@/components/dynamic-form/fieldStyle'
 import type { FieldHookComponent } from '@/lib/field-hooks'
@@ -35,6 +46,49 @@ interface PlatformAccountRow {
   account: string
 }
 
+interface TimelineSegment {
+  left: number
+  width: number
+}
+
+interface TalkRuleTimelineItem {
+  groupKey: string
+  groupLabel: string
+  itemId: string
+  platform: string
+  ruleType: string
+  index: number
+  rawTime: string
+  scopeLabel: string
+  title: string
+  timeLabel: string
+  value: number
+  invalidTime: boolean
+  range: TimelineRange | null
+  segments: TimelineSegment[]
+}
+
+interface TalkRuleTimelineGroup {
+  key: string
+  label: string
+  itemId: string
+  platform: string
+  ruleType: string
+  scopeLabel: string
+  hasFallback: boolean
+  hasWildcard: boolean
+  items: TalkRuleTimelineItem[]
+}
+
+interface TimelineRange {
+  end: number
+  start: number
+}
+
+const DAY_MINUTES = 24 * 60
+const TIMELINE_TICKS = [0, 3, 6, 9, 12, 15, 18, 21, 24]
+const TIMELINE_DRAG_STEP_MINUTES = 5
+
 const ruleTypeLabel = (rule: unknown) => {
   if (rule === 'private') return '私聊'
   if (rule === 'group') return '群聊'
@@ -48,6 +102,969 @@ const platformLabel = (item: Record<string, unknown>) => {
   if (!platform) return itemId
   if (!itemId) return platform
   return `${platform}:${itemId}`
+}
+
+const talkTargetScopeLabel = (item: Record<string, unknown>) => {
+  const platform = typeof item.platform === 'string' ? item.platform.trim() : ''
+  const itemId = typeof item.item_id === 'string' ? item.item_id.trim() : ''
+  if (!platform && !itemId) return '全局'
+  if (platform === '*' || itemId === '*') return '通配'
+  if (!platform || !itemId) return '默认'
+  return '精确'
+}
+
+const talkRuleTargetValues = (item: Record<string, unknown>) => {
+  const platform = typeof item.platform === 'string' ? item.platform.trim() : ''
+  const itemId = typeof item.item_id === 'string' ? item.item_id.trim() : ''
+  const ruleType = typeof item.rule_type === 'string' ? item.rule_type.trim() : 'group'
+  return { platform, itemId, ruleType }
+}
+
+const talkRuleGroupKey = (item: Record<string, unknown>) => {
+  const { platform, itemId, ruleType } = talkRuleTargetValues(item)
+  return `${platform}\u0000${itemId}\u0000${ruleType}`
+}
+
+const talkRuleGroupLabel = (item: Record<string, unknown>) => {
+  return `${platformLabel(item)} · ${ruleTypeLabel(talkRuleTargetValues(item).ruleType)}`
+}
+
+const parseTimelineMinute = (value: string) => {
+  const match = /^(\d{1,2}):(\d{1,2})$/.exec(value.trim())
+  if (!match) return null
+
+  const hour = Number(match[1])
+  const minute = Number(match[2])
+  if (!Number.isInteger(hour) || !Number.isInteger(minute)) return null
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null
+
+  return hour * 60 + minute
+}
+
+const formatTimelineMinute = (minute: number) => {
+  const normalizedMinute = Math.max(0, Math.min(DAY_MINUTES - 1, Math.round(minute)))
+  const hour = Math.floor(normalizedMinute / 60)
+  const minuteInHour = normalizedMinute % 60
+  return `${hour.toString().padStart(2, '0')}:${minuteInHour.toString().padStart(2, '0')}`
+}
+
+const parseTalkTimeRange = (time: string): TimelineRange | null => {
+  const [startRaw, endRaw, extra] = time.trim().split('-')
+  const start = startRaw ? parseTimelineMinute(startRaw) : null
+  const end = endRaw ? parseTimelineMinute(endRaw) : null
+  if (extra !== undefined || start === null || end === null) {
+    return null
+  }
+  return { start, end }
+}
+
+const formatTalkTimeRange = (range: TimelineRange) => {
+  return `${formatTimelineMinute(range.start)}-${formatTimelineMinute(range.end)}`
+}
+
+const getTimelineMinuteFromClient = (clientX: number, timelineElement: HTMLElement) => {
+  const rect = timelineElement.getBoundingClientRect()
+  const relativeX = Math.max(0, Math.min(rect.width, clientX - rect.left))
+  const rawMinute = (relativeX / rect.width) * (DAY_MINUTES - 1)
+  return Math.round(rawMinute / TIMELINE_DRAG_STEP_MINUTES) * TIMELINE_DRAG_STEP_MINUTES
+}
+
+const fullDaySegment = (): TimelineSegment => ({ left: 0, width: 100 })
+
+const segmentFromMinutes = (start: number, end: number): TimelineSegment => ({
+  left: (start / DAY_MINUTES) * 100,
+  width: Math.max(((end - start) / DAY_MINUTES) * 100, 0.18),
+})
+
+const parseTalkTimeSegments = (time: string): { invalid: boolean; label: string; segments: TimelineSegment[] } => {
+  const normalizedTime = time.trim()
+  if (!normalizedTime) {
+    return { invalid: false, label: '兜底', segments: [fullDaySegment()] }
+  }
+  if (normalizedTime === '*') {
+    return { invalid: false, label: '强制全天', segments: [fullDaySegment()] }
+  }
+
+  const range = parseTalkTimeRange(normalizedTime)
+  if (!range) {
+    return { invalid: true, label: '时间格式错误', segments: [fullDaySegment()] }
+  }
+  const { end, start } = range
+
+  if (start <= end) {
+    return { invalid: false, label: normalizedTime, segments: [segmentFromMinutes(start, end + 1)] }
+  }
+
+  return {
+    invalid: false,
+    label: `${normalizedTime} 跨夜`,
+    segments: [segmentFromMinutes(start, DAY_MINUTES), segmentFromMinutes(0, end + 1)],
+  }
+}
+
+const normalizeTalkValue = (value: unknown) => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.max(0, Math.min(1, value))
+  }
+  if (typeof value === 'string') {
+    const parsedValue = Number(value)
+    if (Number.isFinite(parsedValue)) {
+      return Math.max(0, Math.min(1, parsedValue))
+    }
+  }
+  return 0
+}
+
+const talkValueColor = (value: number) => {
+  if (value <= 0.25) return 'bg-sky-500'
+  if (value <= 0.5) return 'bg-emerald-500'
+  if (value <= 0.75) return 'bg-amber-500'
+  return 'bg-rose-500'
+}
+
+const buildTalkTimelineItems = (items: Record<string, unknown>[]): TalkRuleTimelineItem[] => {
+  return items.map((item, index) => {
+    const time = typeof item.time === 'string' ? item.time : ''
+    const parsedTime = parseTalkTimeSegments(time)
+    const range = time.trim() && time.trim() !== '*' ? parseTalkTimeRange(time) : null
+    const value = normalizeTalkValue(item.value)
+    const scopeLabel = talkTargetScopeLabel(item)
+    const { platform, itemId, ruleType } = talkRuleTargetValues(item)
+    return {
+      groupKey: talkRuleGroupKey(item),
+      groupLabel: talkRuleGroupLabel(item),
+      itemId,
+      platform,
+      ruleType,
+      index,
+      rawTime: time.trim(),
+      scopeLabel,
+      title: `轨道 ${index + 1}`,
+      timeLabel: parsedTime.label,
+      value,
+      invalidTime: parsedTime.invalid,
+      range,
+      segments: parsedTime.segments,
+    }
+  })
+}
+
+const groupTalkTimelineItems = (items: TalkRuleTimelineItem[]): TalkRuleTimelineGroup[] => {
+  const groups: TalkRuleTimelineGroup[] = []
+  const groupMap = new Map<string, TalkRuleTimelineGroup>()
+
+  for (const item of items) {
+    const existingGroup = groupMap.get(item.groupKey)
+    if (existingGroup) {
+      existingGroup.items.push(item)
+      continue
+    }
+
+    const nextGroup: TalkRuleTimelineGroup = {
+      key: item.groupKey,
+      label: item.groupLabel,
+      itemId: item.itemId,
+      platform: item.platform,
+      ruleType: item.ruleType,
+      scopeLabel: item.scopeLabel,
+      hasFallback: item.rawTime === '',
+      hasWildcard: item.rawTime === '*',
+      items: [item],
+    }
+    groups.push(nextGroup)
+    groupMap.set(item.groupKey, nextGroup)
+  }
+
+  for (const group of groups) {
+    group.hasFallback = group.items.some((item) => item.rawTime === '')
+    group.hasWildcard = group.items.some((item) => item.rawTime === '*')
+  }
+
+  return groups.map((group) => ({
+    ...group,
+    items: [...group.items].sort((a, b) => {
+      const priority = (item: TalkRuleTimelineItem) => {
+        if (item.rawTime === '') return 3
+        if (item.rawTime === '*') return 1
+        return 2
+      }
+      const priorityDiff = priority(a) - priority(b)
+      return priorityDiff || a.index - b.index
+    }),
+  }))
+}
+
+const createTalkRuleForGroup = (
+  group: Pick<TalkRuleTimelineGroup, 'itemId' | 'platform' | 'ruleType'>,
+  time: string,
+) => ({
+  platform: group.platform,
+  item_id: group.itemId,
+  rule_type: group.ruleType || 'group',
+  time,
+  value: 0.5,
+})
+
+const normalizeTalkRuleItems = (
+  items: Record<string, unknown>[],
+  context?: { addedIndex?: number; changedIndex?: number },
+) => {
+  const preferredIndex = context?.changedIndex ?? context?.addedIndex
+  const specialTimeOwner = new Map<string, number>()
+  const duplicateIndexes = new Set<number>()
+
+  items.forEach((item, index) => {
+    const rawTime = typeof item.time === 'string' ? item.time.trim() : ''
+    if (rawTime !== '' && rawTime !== '*') {
+      return
+    }
+
+    const ownerKey = `${talkRuleGroupKey(item)}\u0000${rawTime}`
+    const existingOwner = specialTimeOwner.get(ownerKey)
+    if (existingOwner === undefined) {
+      specialTimeOwner.set(ownerKey, index)
+      return
+    }
+
+    if (index === preferredIndex) {
+      duplicateIndexes.add(existingOwner)
+      specialTimeOwner.set(ownerKey, index)
+      return
+    }
+
+    duplicateIndexes.add(index)
+  })
+
+  if (duplicateIndexes.size === 0) {
+    return items
+  }
+
+  return items.map((item, index) =>
+    duplicateIndexes.has(index)
+      ? {
+          ...item,
+          time: '00:00-23:59',
+        }
+      : item,
+  )
+}
+
+const moveTalkRuleItem = (items: Record<string, unknown>[], fromIndex: number, toIndex: number) => {
+  if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) {
+    return items
+  }
+  if (fromIndex >= items.length || toIndex >= items.length) {
+    return items
+  }
+
+  const nextItems = [...items]
+  const [movedItem] = nextItems.splice(fromIndex, 1)
+  nextItems.splice(toIndex, 0, movedItem)
+  return nextItems
+}
+
+function TalkValueTimelineOverview({
+  items,
+  onAddItem,
+  onItemFieldChange,
+  onItemsChange,
+  onRemoveItem,
+}: {
+  items: Record<string, unknown>[]
+  onAddItem: (item?: Record<string, unknown>) => void
+  onItemFieldChange: (index: number, fieldName: string, fieldValue: unknown) => void
+  onItemsChange: (
+    items: Record<string, unknown>[],
+    context?: { addedIndex?: number; changedIndex?: number },
+  ) => void
+  onRemoveItem: (index: number) => void
+}) {
+  const timelineItems = buildTalkTimelineItems(items)
+  const timelineGroups = groupTalkTimelineItems(timelineItems)
+  const dragFrameRef = useRef<number | null>(null)
+  const draggingTrackRef = useRef<{ groupKey: string; index: number } | null>(null)
+  const lastDragTimeRef = useRef<string | null>(null)
+  const pendingDragRef = useRef<{
+    clientX: number
+    edge: 'end' | 'start'
+    item: TalkRuleTimelineItem
+    timelineElement: HTMLElement
+  } | null>(null)
+  if (timelineItems.length === 0) {
+    return null
+  }
+
+  const commitRangeUpdate = (
+    item: TalkRuleTimelineItem,
+    edge: 'end' | 'start',
+    timelineElement: HTMLElement,
+    clientX: number,
+  ) => {
+    if (!item.range) {
+      return
+    }
+
+    const nextMinute = getTimelineMinuteFromClient(clientX, timelineElement)
+    const nextRange =
+      edge === 'start'
+        ? { ...item.range, start: nextMinute }
+        : { ...item.range, end: nextMinute }
+    const nextTime = formatTalkTimeRange(nextRange)
+    if (lastDragTimeRef.current === nextTime) {
+      return
+    }
+
+    lastDragTimeRef.current = nextTime
+    onItemFieldChange(item.index, 'time', nextTime)
+  }
+
+  const scheduleRangeUpdate = (
+    event: PointerEvent<HTMLElement>,
+    item: TalkRuleTimelineItem,
+    edge: 'end' | 'start',
+  ) => {
+    const timelineElement = event.currentTarget.closest('[data-talk-timeline-track]')
+    if (!(timelineElement instanceof HTMLElement)) {
+      return
+    }
+
+    pendingDragRef.current = {
+      clientX: event.clientX,
+      edge,
+      item,
+      timelineElement,
+    }
+
+    if (dragFrameRef.current !== null) {
+      return
+    }
+
+    dragFrameRef.current = window.requestAnimationFrame(() => {
+      dragFrameRef.current = null
+      const pendingDrag = pendingDragRef.current
+      if (!pendingDrag) {
+        return
+      }
+      commitRangeUpdate(
+        pendingDrag.item,
+        pendingDrag.edge,
+        pendingDrag.timelineElement,
+        pendingDrag.clientX,
+      )
+    })
+  }
+
+  const startRangeDrag = (
+    event: PointerEvent<HTMLElement>,
+    item: TalkRuleTimelineItem,
+    edge: 'end' | 'start',
+  ) => {
+    event.preventDefault()
+    lastDragTimeRef.current = null
+    event.currentTarget.setPointerCapture(event.pointerId)
+    scheduleRangeUpdate(event, item, edge)
+  }
+
+  const reorderTrack = (targetItem: TalkRuleTimelineItem) => {
+    const draggingTrack = draggingTrackRef.current
+    if (!draggingTrack || draggingTrack.groupKey !== targetItem.groupKey) {
+      return
+    }
+    if (draggingTrack.index === targetItem.index || !targetItem.range) {
+      return
+    }
+
+    const nextItems = moveTalkRuleItem(items, draggingTrack.index, targetItem.index)
+    onItemsChange(nextItems, { changedIndex: targetItem.index })
+    draggingTrackRef.current = null
+  }
+
+  return (
+    <div className="overflow-hidden rounded-lg border bg-muted/20">
+      <div className="border-b bg-background/70 px-4 py-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <h5 className="text-sm font-semibold">时间轴视图</h5>
+          <Badge variant="secondary">聊天区域 {timelineGroups.length}</Badge>
+          <Badge variant="outline">轨道 {timelineItems.length}</Badge>
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <div className="min-w-[760px] p-4">
+          <div className="grid grid-cols-[9rem_minmax(28rem,1fr)_12rem] gap-3 pb-2 text-xs text-muted-foreground">
+            <div>轨道</div>
+            <div className="relative h-5 px-1">
+              {TIMELINE_TICKS.map((hour) => (
+                <span
+                  key={hour}
+                  className="absolute -translate-x-1/2"
+                  style={{ left: `${(hour / 24) * 100}%` }}
+                >
+                  {hour.toString().padStart(2, '0')}:00
+                </span>
+              ))}
+            </div>
+            <div>频率</div>
+          </div>
+          <div className="space-y-4">
+            {timelineGroups.map((group) => (
+              <div key={group.key} className="overflow-hidden rounded-lg border bg-card/60">
+                <div className="flex flex-wrap items-center gap-2 border-b bg-background/70 px-3 py-2">
+                  <div className="min-w-0 flex-1 truncate text-sm font-semibold">{group.label}</div>
+                  <Badge variant="secondary">{group.scopeLabel}</Badge>
+                  <Badge variant="outline">{group.items.length} 轨道</Badge>
+                  <div className="ml-auto flex flex-wrap gap-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onAddItem(createTalkRuleForGroup(group, '00:00-23:59'))}
+                    >
+                      <Plus className="mr-1 h-3.5 w-3.5" />
+                      时间段
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={group.hasFallback}
+                      onClick={() => onAddItem(createTalkRuleForGroup(group, ''))}
+                    >
+                      <Plus className="mr-1 h-3.5 w-3.5" />
+                      兜底
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={group.hasWildcard}
+                      onClick={() => onAddItem(createTalkRuleForGroup(group, '*'))}
+                    >
+                      <Plus className="mr-1 h-3.5 w-3.5" />
+                      *
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-2 p-3">
+                  {group.items.map((item, trackIndex) => (
+                    <div
+                      key={item.index}
+                      className="grid min-h-16 grid-cols-[9rem_minmax(28rem,1fr)_12rem] items-center gap-3 rounded-md bg-muted/25 px-3 py-2"
+                      onDragOver={(event) => {
+                        if (item.range && draggingTrackRef.current?.groupKey === item.groupKey) {
+                          event.preventDefault()
+                        }
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault()
+                        reorderTrack(item)
+                      }}
+                    >
+                      <div className="flex min-w-0 items-center gap-2">
+                        <button
+                          type="button"
+                          draggable={Boolean(item.range)}
+                          disabled={!item.range}
+                          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-35"
+                          aria-label={`拖动${group.label}轨道 ${trackIndex + 1} 调整顺序`}
+                          onDragEnd={() => {
+                            draggingTrackRef.current = null
+                          }}
+                          onDragStart={(event) => {
+                            if (!item.range) {
+                              event.preventDefault()
+                              return
+                            }
+                            draggingTrackRef.current = {
+                              groupKey: item.groupKey,
+                              index: item.index,
+                            }
+                            event.dataTransfer.effectAllowed = 'move'
+                          }}
+                        >
+                          <GripVertical className="h-4 w-4" />
+                        </button>
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-medium">轨道 {trackIndex + 1}</div>
+                        <div
+                          className={item.invalidTime ? 'text-xs text-destructive' : 'text-xs text-muted-foreground'}
+                        >
+                          {item.timeLabel}
+                        </div>
+                        </div>
+                      </div>
+                      <div
+                        className="relative h-9 rounded-md border bg-background"
+                        data-talk-timeline-track
+                      >
+                        {TIMELINE_TICKS.slice(1, -1).map((hour) => (
+                          <span
+                            key={hour}
+                            className="absolute top-0 h-full border-l border-dashed border-muted-foreground/20"
+                            style={{ left: `${(hour / 24) * 100}%` }}
+                          />
+                        ))}
+                        {item.segments.map((segment, segmentIndex) => (
+                          <span
+                            key={segmentIndex}
+                            className={`absolute top-1/2 h-5 -translate-y-1/2 rounded-sm ${talkValueColor(item.value)} ${
+                              item.invalidTime ? 'opacity-35' : 'opacity-85'
+                            }`}
+                            style={{
+                              left: `${segment.left}%`,
+                              width: `${segment.width}%`,
+                            }}
+                            title={`${item.timeLabel} · 频率 ${item.value.toFixed(2)}`}
+                          />
+                        ))}
+                        {item.range && !item.invalidTime && (
+                          <>
+                            <button
+                              type="button"
+                              className="absolute top-1/2 h-7 w-2 -translate-x-1/2 -translate-y-1/2 rounded-sm border border-background bg-foreground/80 shadow-sm cursor-ew-resize"
+                              style={{ left: `${(item.range.start / DAY_MINUTES) * 100}%` }}
+                              aria-label={`调整${group.label}轨道 ${trackIndex + 1} 开始时间`}
+                              onPointerDown={(event) => startRangeDrag(event, item, 'start')}
+                              onPointerMove={(event) => {
+                                if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                                  scheduleRangeUpdate(event, item, 'start')
+                                }
+                              }}
+                              onPointerUp={(event) => {
+                                pendingDragRef.current = null
+                                event.currentTarget.releasePointerCapture(event.pointerId)
+                              }}
+                            />
+                            <button
+                              type="button"
+                              className="absolute top-1/2 h-7 w-2 -translate-x-1/2 -translate-y-1/2 rounded-sm border border-background bg-foreground/80 shadow-sm cursor-ew-resize"
+                              style={{ left: `${((item.range.end + 1) / DAY_MINUTES) * 100}%` }}
+                              aria-label={`调整${group.label}轨道 ${trackIndex + 1} 结束时间`}
+                              onPointerDown={(event) => startRangeDrag(event, item, 'end')}
+                              onPointerMove={(event) => {
+                                if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                                  scheduleRangeUpdate(event, item, 'end')
+                                }
+                              }}
+                              onPointerUp={(event) => {
+                                pendingDragRef.current = null
+                                event.currentTarget.releasePointerCapture(event.pointerId)
+                              }}
+                            />
+                          </>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-[minmax(0,1fr)_2rem] items-center gap-2">
+                        <div className="space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">value</span>
+                          <span className="font-mono">{item.value.toFixed(2)}</span>
+                        </div>
+                        <Slider
+                          value={[item.value]}
+                          min={0}
+                          max={1}
+                          step={0.01}
+                          onValueChange={(values) => onItemFieldChange(item.index, 'value', values[0])}
+                        />
+                        </div>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="text-destructive hover:text-destructive"
+                          aria-label={`删除${group.label} 轨道 ${trackIndex + 1}`}
+                          onClick={() => onRemoveItem(item.index)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TalkValueGroupedRuleEditor({
+  emptyText,
+  items,
+  onItemFieldChange,
+  onItemsChange,
+  onRemoveItem,
+}: {
+  emptyText: string
+  items: Record<string, unknown>[]
+  onItemFieldChange: (index: number, fieldName: string, fieldValue: unknown) => void
+  onItemsChange: (
+    items: Record<string, unknown>[],
+    context?: { addedIndex?: number; changedIndex?: number },
+  ) => void
+  onRemoveItem: (index: number) => void
+}) {
+  const timelineGroups = groupTalkTimelineItems(buildTalkTimelineItems(items))
+  if (timelineGroups.length === 0) {
+    return (
+      <div className="rounded-md border border-dashed border-muted-foreground/25 bg-muted/10 p-6 text-center text-sm text-muted-foreground">
+        {emptyText}
+      </div>
+    )
+  }
+
+  const updateGroupField = (
+    group: TalkRuleTimelineGroup,
+    fieldName: 'item_id' | 'platform' | 'rule_type',
+    fieldValue: string,
+  ) => {
+    const groupIndexes = new Set(group.items.map((item) => item.index))
+    const nextItems = items.map((item, index) => {
+      if (!groupIndexes.has(index)) {
+        return item
+      }
+      return {
+        ...item,
+        [fieldName]: fieldValue,
+      }
+    })
+    onItemsChange(nextItems, { changedIndex: group.items[0]?.index })
+  }
+
+  return (
+    <div className="space-y-4">
+      {timelineGroups.map((group) => (
+        <div key={group.key} className="space-y-4 rounded-lg border bg-card/40 p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-semibold">{group.label}</div>
+              <div className="text-xs text-muted-foreground">{group.items.length} 条轨道</div>
+            </div>
+            <Badge variant="secondary">{group.scopeLabel}</Badge>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="space-y-2">
+              <Label className="text-xs font-medium">平台</Label>
+              <Input
+                value={group.platform}
+                placeholder="留空表示全局，* 表示通配"
+                onChange={(event) => updateGroupField(group, 'platform', event.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-medium">聊天流 ID</Label>
+              <Input
+                value={group.itemId}
+                placeholder="留空表示全局，* 表示通配"
+                onChange={(event) => updateGroupField(group, 'item_id', event.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-medium">聊天类型</Label>
+              <Select
+                value={group.ruleType === 'private' ? 'private' : 'group'}
+                onValueChange={(value) => updateGroupField(group, 'rule_type', value)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="group">群聊</SelectItem>
+                  <SelectItem value="private">私聊</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {group.items.map((item, trackIndex) => {
+              const isFallback = item.rawTime === ''
+              const isWildcard = item.rawTime === '*'
+              const canUseFallback = isFallback || !group.hasFallback
+              const canUseWildcard = isWildcard || !group.hasWildcard
+
+              return (
+                <div
+                  key={item.index}
+                  className="grid gap-3 rounded-md border bg-muted/20 p-3 lg:grid-cols-[7rem_minmax(16rem,1fr)_14rem_2.5rem]"
+                >
+                  <div className="flex items-center">
+                    <span className="text-sm font-medium">轨道 {trackIndex + 1}</span>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-3 gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={isFallback ? 'default' : 'outline'}
+                        disabled={!canUseFallback}
+                        onClick={() => onItemFieldChange(item.index, 'time', '')}
+                      >
+                        兜底
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={!isFallback && !isWildcard ? 'default' : 'outline'}
+                        onClick={() =>
+                          onItemFieldChange(
+                            item.index,
+                            'time',
+                            !isFallback && !isWildcard ? item.rawTime : '00:00-23:59',
+                          )
+                        }
+                      >
+                        时间段
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={isWildcard ? 'default' : 'outline'}
+                        disabled={!canUseWildcard}
+                        onClick={() => onItemFieldChange(item.index, 'time', '*')}
+                      >
+                        *
+                      </Button>
+                    </div>
+                    <Input
+                      value={!isFallback && !isWildcard ? item.rawTime : ''}
+                      disabled={isFallback || isWildcard}
+                      placeholder="HH:MM-HH:MM"
+                      onChange={(event) => onItemFieldChange(item.index, 'time', event.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <Label className="text-xs font-medium">发言频率</Label>
+                      <span className="font-mono">{item.value.toFixed(2)}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Slider
+                        value={[item.value]}
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        onValueChange={(values) => onItemFieldChange(item.index, 'value', values[0])}
+                      />
+                      <Input
+                        type="number"
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        value={item.value}
+                        onChange={(event) => {
+                          const nextValue = Number(event.target.value)
+                          if (Number.isFinite(nextValue)) {
+                            onItemFieldChange(item.index, 'value', Math.max(0, Math.min(1, nextValue)))
+                          }
+                        }}
+                        className="h-8 w-20 text-right"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-end">
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="text-destructive hover:text-destructive"
+                      aria-label={`删除${group.label}轨道 ${trackIndex + 1}`}
+                      onClick={() => onRemoveItem(item.index)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+type TalkValueEditorMode = 'grouped' | 'timeline'
+
+const createEmptyTalkRuleDraft = () => ({
+  itemId: '',
+  platform: '',
+  ruleType: 'group',
+})
+
+function TalkValueRuleEditor({
+  emptyText,
+  items,
+  onAddItem,
+  onItemFieldChange,
+  onItemsChange,
+  onRemoveItem,
+}: {
+  emptyText: string
+  items: Record<string, unknown>[]
+  onAddItem: (item?: Record<string, unknown>) => void
+  onItemFieldChange: (index: number, fieldName: string, fieldValue: unknown) => void
+  onItemsChange: (
+    items: Record<string, unknown>[],
+    context?: { addedIndex?: number; changedIndex?: number },
+  ) => void
+  onRemoveItem: (index: number) => void
+}) {
+  const [mode, setMode] = useState<TalkValueEditorMode>('timeline')
+  const [addDialogOpen, setAddDialogOpen] = useState(false)
+  const [addDraft, setAddDraft] = useState(createEmptyTalkRuleDraft)
+  const canSubmitAddRule = addDraft.platform.trim().length > 0 && addDraft.itemId.trim().length > 0
+
+  const handleAddDialogOpenChange = (open: boolean) => {
+    setAddDialogOpen(open)
+    if (!open) {
+      setAddDraft(createEmptyTalkRuleDraft())
+    }
+  }
+
+  const handleSubmitAddRule = () => {
+    if (!canSubmitAddRule) {
+      return
+    }
+
+    onAddItem({
+      platform: addDraft.platform.trim(),
+      item_id: addDraft.itemId.trim(),
+      rule_type: addDraft.ruleType,
+      time: '00:00-23:59',
+      value: 0.5,
+    })
+    handleAddDialogOpenChange(false)
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => setAddDialogOpen(true)}
+        >
+          <Plus className="mr-1 h-4 w-4" />
+          添加发言频率规则
+        </Button>
+        <div className="inline-flex rounded-md border bg-background p-1">
+          <Button
+            type="button"
+            size="sm"
+            variant={mode === 'timeline' ? 'default' : 'ghost'}
+            onClick={() => setMode('timeline')}
+          >
+            可视化轨道
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={mode === 'grouped' ? 'default' : 'ghost'}
+            onClick={() => setMode('grouped')}
+          >
+            合并编辑
+          </Button>
+        </div>
+      </div>
+      <Dialog open={addDialogOpen} onOpenChange={handleAddDialogOpenChange}>
+        <DialogContent className="sm:max-w-md" confirmOnEnter>
+          <DialogHeader>
+            <DialogTitle>添加发言频率规则</DialogTitle>
+            <DialogDescription>
+              先指定平台、聊天流 ID 和聊天类型，再创建该聊天区域的默认时间段轨道。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-xs font-medium">平台</Label>
+              <Input
+                value={addDraft.platform}
+                placeholder="例如 qq"
+                onChange={(event) =>
+                  setAddDraft((current) => ({
+                    ...current,
+                    platform: event.target.value,
+                  }))
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-medium">聊天流 ID</Label>
+              <Input
+                value={addDraft.itemId}
+                placeholder="群号或用户 ID"
+                onChange={(event) =>
+                  setAddDraft((current) => ({
+                    ...current,
+                    itemId: event.target.value,
+                  }))
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-medium">聊天类型</Label>
+              <Select
+                value={addDraft.ruleType}
+                onValueChange={(value) =>
+                  setAddDraft((current) => ({
+                    ...current,
+                    ruleType: value,
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="group">群聊</SelectItem>
+                  <SelectItem value="private">私聊</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleAddDialogOpenChange(false)}
+            >
+              取消
+            </Button>
+            <Button
+              type="button"
+              data-dialog-action="confirm"
+              disabled={!canSubmitAddRule}
+              onClick={handleSubmitAddRule}
+            >
+              添加
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {mode === 'timeline' ? (
+        <TalkValueTimelineOverview
+          items={items}
+          onAddItem={onAddItem}
+          onItemFieldChange={onItemFieldChange}
+          onItemsChange={onItemsChange}
+          onRemoveItem={onRemoveItem}
+        />
+      ) : (
+        <TalkValueGroupedRuleEditor
+          emptyText={emptyText}
+          items={items}
+          onItemFieldChange={onItemFieldChange}
+          onItemsChange={onItemsChange}
+          onRemoveItem={onRemoveItem}
+        />
+      )}
+    </div>
+  )
 }
 
 const truncate = (text: string, max = 32) => {
@@ -235,23 +1252,39 @@ export const MultipleReplyStyleHook = createStringListHook({
 
 export const ChatTalkValueRulesHook = createListItemEditorHook({
   addLabel: '添加发言频率规则',
-  addButtonPlacement: 'top',
+  addButtonPlacement: 'none',
   collapseWhen: ({ parentValues }) => parentValues?.enable_talk_value_rules === false,
   collapsedText: '动态发言频率规则未启用，规则列表已折叠。展开后仍可查看或编辑已有规则。',
   expandLabel: '展开规则',
   collapseLabel: '折叠规则',
-  helperText: '可按平台/聊天流/时段分别配置发言频率，留空表示全局。',
+  helperText: '可按平台/聊天流/时段分别配置发言频率。平台和聊天流都空表示全局；只填平台或聊天流表示对应默认值；* 表示通配覆盖。时间留空表示兜底，* 表示强制全天。',
   emptyText: '尚未配置任何规则，将使用全局默认频率。',
   collapseButtonDisplay: 'icon',
   fieldRows: [
     ['platform', 'item_id', 'rule_type'],
     ['time', 'value'],
   ],
+  normalizeItems: normalizeTalkRuleItems,
+  renderItems: ({
+    emptyText,
+    items,
+    onAddItem,
+    onItemFieldChange,
+    onItemsChange,
+    onRemoveItem,
+  }) => (
+    <TalkValueRuleEditor
+      emptyText={emptyText}
+      items={items}
+      onAddItem={onAddItem}
+      onItemFieldChange={onItemFieldChange}
+      onItemsChange={onItemsChange}
+      onRemoveItem={onRemoveItem}
+    />
+  ),
   itemTitle: (item) => {
-    const time =
-      typeof item.time === 'string' && item.time.trim()
-        ? item.time.trim()
-        : '全天'
+    const rawTime = typeof item.time === 'string' ? item.time.trim() : ''
+    const time = rawTime === '' ? '兜底' : rawTime === '*' ? '强制全天' : rawTime
     const value =
       typeof item.value === 'number' ? item.value.toFixed(2) : '—'
     return `${platformLabel(item)} · ${ruleTypeLabel(item.rule_type)} · ${time} · 频率 ${value}`

@@ -4,12 +4,20 @@ from __future__ import annotations
 
 from base64 import b64decode
 from datetime import datetime
+from html import unescape
 from typing import Any, Dict, List, Optional, Sequence, TYPE_CHECKING
 
 import re
 
 from src.chat.utils.utils import process_llm_response
-from src.common.data_models.message_component_data_model import AtComponent, EmojiComponent, MessageSequence, TextComponent
+from src.common.data_models.message_component_data_model import (
+    AtComponent,
+    EmojiComponent,
+    ImageComponent,
+    MessageSequence,
+    TextComponent,
+)
+from src.common.logger import get_logger
 from src.config.config import global_config
 from src.core.tooling import ToolExecutionResult
 
@@ -25,7 +33,19 @@ if TYPE_CHECKING:
     from ..reasoning_engine import MaisakaReasoningEngine
     from ..runtime import MaisakaHeartFlowChatting
 
-AT_MARKER_PATTERN = re.compile(r"at\[([^\]\s]+)\]")
+FORMATTED_REPLY_TAG_PATTERN = re.compile(
+    r"<(?P<tag>text|at|emoji|image)(?P<attrs>[^>]*)>(?P<body>.*?)</(?P=tag)>",
+    re.IGNORECASE | re.DOTALL,
+)
+FORMATTED_REPLY_ATTR_PATTERN = re.compile(
+    r"(?P<key>[a-zA-Z_][\w:-]*)\s*=\s*(?P<quote>['\"])(?P<value>.*?)(?P=quote)",
+    re.DOTALL,
+)
+FORMATTED_REPLY_CODE_FENCE_PATTERN = re.compile(
+    r"^```(?:xml|html|reply|text)?\s*(?P<body>.*?)\s*```$",
+    re.IGNORECASE | re.DOTALL,
+)
+logger = get_logger("maisaka_builtin_context")
 
 
 class BuiltinToolRuntimeContext:
@@ -171,41 +191,267 @@ class BuiltinToolRuntimeContext:
             target_user_cardname=target_user_cardname or None,
         )
 
-    def post_process_reply_message_sequences(self, reply_text: str) -> List[MessageSequence]:
-        """将回复文本处理为可发送组件序列，并解析 replyer 的 at[msg_id] 标记。"""
+    def _build_at_component_for_display_name(self, display_name: str) -> Optional[AtComponent]:
+        """根据近期聊天中的展示名构造 at 组件。"""
 
-        if not global_config.chat.enable_at or not AT_MARKER_PATTERN.search(reply_text):
-            return [MessageSequence([TextComponent(segment)]) for segment in self.post_process_reply_text(reply_text)]
+        normalized_display_name = display_name.strip().lstrip("@")
+        if not normalized_display_name:
+            return None
 
-        message_sequences: List[MessageSequence] = []
+        history_messages = list(getattr(self.runtime, "_chat_history", []) or [])
+        for history_message in reversed(history_messages):
+            candidate_message = getattr(history_message, "original_message", None) or history_message
+            message_info = getattr(candidate_message, "message_info", None)
+            user_info = getattr(message_info, "user_info", None)
+            if user_info is None:
+                continue
+
+            target_user_id = str(getattr(user_info, "user_id", "") or "").strip()
+            if not target_user_id:
+                continue
+
+            target_user_nickname = str(getattr(user_info, "user_nickname", "") or "").strip()
+            target_user_cardname = str(getattr(user_info, "user_cardname", "") or "").strip()
+            candidate_names = {
+                value
+                for value in (target_user_id, target_user_nickname, target_user_cardname)
+                if value
+            }
+            if normalized_display_name not in candidate_names:
+                continue
+
+            return AtComponent(
+                target_user_id=target_user_id,
+                target_user_nickname=target_user_nickname or None,
+                target_user_cardname=target_user_cardname or None,
+            )
+
+        return None
+
+    def _build_at_component_for_formatted_tag(self, attrs: Dict[str, str], body: str) -> Optional[AtComponent]:
+        """解析格式化回复中的 at 片段。"""
+
+        message_id = (
+            attrs.get("msg_id")
+            or attrs.get("message_id")
+            or attrs.get("id")
+            or ""
+        ).strip()
+        if message_id:
+            at_component = self._build_at_component_for_message_id(message_id)
+            if at_component is not None:
+                return at_component
+
+        target_user_id = (attrs.get("user_id") or attrs.get("target_user_id") or "").strip()
+        if target_user_id:
+            display_name = body.strip().lstrip("@")
+            return AtComponent(
+                target_user_id=target_user_id,
+                target_user_nickname=display_name or None,
+                target_user_cardname=None,
+            )
+
+        normalized_body = body.strip()
+        if not normalized_body:
+            return None
+
+        at_component = self._build_at_component_for_message_id(normalized_body)
+        if at_component is not None:
+            return at_component
+        return self._build_at_component_for_display_name(normalized_body)
+
+    @staticmethod
+    async def _build_emoji_component_for_label(label: str) -> Optional[EmojiComponent]:
+        """根据情绪、描述或哈希构造表情包组件。"""
+
+        normalized_label = label.strip()
+        if not normalized_label:
+            return None
+
+        try:
+            from src.emoji_system.emoji_manager import emoji_manager
+
+            selected_emoji = emoji_manager.get_emoji_by_hash(normalized_label)
+            if selected_emoji is None:
+                selected_emoji = await emoji_manager.get_emoji_for_emotion(normalized_label)
+        except Exception as exc:
+            logger.warning(f"解析格式化回复表情失败: label={normalized_label!r} error={exc}")
+            return None
+
+        if selected_emoji is None:
+            return None
+
+        emoji_hash = str(getattr(selected_emoji, "file_hash", "") or "").strip()
+        if not emoji_hash:
+            return None
+
+        emoji_description = str(getattr(selected_emoji, "description", "") or "").strip() or normalized_label
+        return EmojiComponent(binary_hash=emoji_hash, content=f"[表情包: {emoji_description}]")
+
+    async def _build_image_component_for_formatted_tag(
+        self,
+        attrs: Dict[str, str],
+        body: str,
+    ) -> Optional[ImageComponent]:
+        """根据 send_image 的参数语义解析格式化回复图片片段。"""
+
+        target_message_id = (
+            attrs.get("media_index")
+            or attrs.get("msg_id")
+            or attrs.get("message_id")
+            or attrs.get("source_id")
+            or attrs.get("id")
+            or ""
+        ).strip()
+        body_used_as_target = False
+        if not target_message_id:
+            target_message_id = body.strip()
+            body_used_as_target = bool(target_message_id)
+        if not target_message_id:
+            return None
+
+        try:
+            from .send_image import _collect_message_images, _normalize_image_index
+
+            image_index = _normalize_image_index(attrs)
+            images, error = await _collect_message_images(self, target_message_id)
+        except Exception as exc:
+            logger.warning(f"解析格式化回复图片失败: msg_id={target_message_id!r} error={exc}")
+            return None
+
+        if error is not None:
+            logger.warning(f"解析格式化回复图片失败: msg_id={target_message_id!r} error={error}")
+            return None
+        if image_index < 0 or image_index >= len(images):
+            logger.warning(
+                f"解析格式化回复图片失败: msg_id={target_message_id!r} index={image_index} "
+                f"图片数量={len(images)}"
+            )
+            return None
+
+        image_component = images[image_index].clone()
+        description = "" if body_used_as_target else body.strip()
+        if description:
+            image_component.content = f"[图片: {description}]"
+        elif not image_component.content:
+            image_component.content = f"[图片: {target_message_id} 的第 {image_index} 张图片]"
+        return image_component
+
+    @staticmethod
+    def _parse_formatted_reply_attrs(raw_attrs: str) -> Dict[str, str]:
+        """解析格式化回复片段中的属性。"""
+
+        attrs: Dict[str, str] = {}
+        for match in FORMATTED_REPLY_ATTR_PATTERN.finditer(raw_attrs or ""):
+            key = match.group("key").strip().lower().replace("-", "_")
+            value = unescape(match.group("value").strip())
+            if key:
+                attrs[key] = value
+        return attrs
+
+    @staticmethod
+    def _strip_formatted_reply_code_fence(reply_text: str) -> str:
+        """移除模型偶尔包住格式化回复的代码块。"""
+
+        normalized_reply_text = reply_text.strip()
+        match = FORMATTED_REPLY_CODE_FENCE_PATTERN.match(normalized_reply_text)
+        if match is None:
+            return reply_text
+        return match.group("body").strip()
+
+    @staticmethod
+    def _build_formatted_tag_fallback_text(tag_name: str, body: str) -> str:
+        """在片段无法解析成真实组件时，生成可见文本兜底。"""
+
+        normalized_body = body.strip()
+        if tag_name == "at":
+            if not normalized_body:
+                return ""
+            return f"@{normalized_body.lstrip('@')}"
+        if tag_name == "emoji":
+            if not normalized_body:
+                return ""
+            return f"[表情包: {normalized_body}]"
+        if tag_name == "image":
+            if not normalized_body:
+                return "[图片]"
+            return f"[图片: {normalized_body}]"
+        if not normalized_body:
+            return ""
+        return normalized_body
+
+    def _append_processed_text_components(self, components: List[Any], text: str) -> None:
+        """将普通文本片段追加为 TextComponent。"""
+
+        normalized_text = unescape(text)
+        if not normalized_text.strip():
+            return
+
+        for segment in self._post_process_reply_text_chunk(normalized_text):
+            normalized_segment = segment.strip()
+            if not normalized_segment:
+                continue
+            if components and isinstance(components[-1], AtComponent):
+                normalized_segment = f" {normalized_segment}"
+            components.append(TextComponent(normalized_segment))
+
+    async def _post_process_formatted_reply_message_sequences(self, reply_text: str) -> List[MessageSequence]:
+        """解析 replyer 的 XML-like 格式化输出。"""
+
+        normalized_reply_text = self._strip_formatted_reply_code_fence(reply_text)
+        if not FORMATTED_REPLY_TAG_PATTERN.search(normalized_reply_text):
+            return self.post_process_reply_message_sequences(normalized_reply_text)
+
         components: List[Any] = []
         cursor = 0
+        for match in FORMATTED_REPLY_TAG_PATTERN.finditer(normalized_reply_text):
+            self._append_processed_text_components(components, normalized_reply_text[cursor : match.start()])
 
-        def flush_text_chunk(text: str) -> None:
-            if not text.strip():
-                return
-            for segment in self._post_process_reply_text_chunk(text):
-                prefix = " " if components else ""
-                components.append(TextComponent(f"{prefix}{segment}"))
-
-        for match in AT_MARKER_PATTERN.finditer(reply_text):
-            flush_text_chunk(reply_text[cursor : match.start()])
-            message_id = match.group(1).strip()
-            at_component = self._build_at_component_for_message_id(message_id)
-            if at_component is None:
-                components.append(TextComponent(match.group(0)))
-            else:
-                components.append(at_component)
+            tag_name = match.group("tag").lower()
+            attrs = self._parse_formatted_reply_attrs(match.group("attrs") or "")
+            body = unescape(match.group("body") or "")
+            if tag_name == "text":
+                self._append_processed_text_components(components, body)
+            elif tag_name == "at":
+                at_component = self._build_at_component_for_formatted_tag(attrs, body)
+                if at_component is None:
+                    fallback_text = self._build_formatted_tag_fallback_text(tag_name, body)
+                    self._append_processed_text_components(components, fallback_text)
+                else:
+                    components.append(at_component)
+            elif tag_name == "emoji":
+                emoji_component = await self._build_emoji_component_for_label(body)
+                if emoji_component is None:
+                    fallback_text = self._build_formatted_tag_fallback_text(tag_name, body)
+                    self._append_processed_text_components(components, fallback_text)
+                else:
+                    components.append(emoji_component)
+            elif tag_name == "image":
+                image_component = await self._build_image_component_for_formatted_tag(attrs, body)
+                if image_component is None:
+                    fallback_text = self._build_formatted_tag_fallback_text(tag_name, body)
+                    self._append_processed_text_components(components, fallback_text)
+                else:
+                    components.append(image_component)
             cursor = match.end()
 
-        flush_text_chunk(reply_text[cursor:])
+        self._append_processed_text_components(components, normalized_reply_text[cursor:])
 
         if components:
-            message_sequences.append(MessageSequence(components))
+            return [MessageSequence(components)]
+        return self.post_process_reply_message_sequences(normalized_reply_text)
 
-        if message_sequences:
-            return message_sequences
-        return [MessageSequence([TextComponent(reply_text.strip())])]
+    async def post_process_reply_message_sequences_async(self, reply_text: str) -> List[MessageSequence]:
+        """将 replyer 输出处理为可发送组件序列。"""
+
+        if getattr(global_config.chat, "enable_replyer_format_output", False):
+            return await self._post_process_formatted_reply_message_sequences(reply_text)
+        return self.post_process_reply_message_sequences(reply_text)
+
+    def post_process_reply_message_sequences(self, reply_text: str) -> List[MessageSequence]:
+        """将纯文本回复处理为可发送组件序列。"""
+
+        return [MessageSequence([TextComponent(segment)]) for segment in self.post_process_reply_text(reply_text)]
 
     def get_runtime_manager(self) -> Any:
         """获取插件运行时管理器。"""

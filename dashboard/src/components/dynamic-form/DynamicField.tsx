@@ -2,7 +2,9 @@ import * as React from "react"
 import * as LucideIcons from "lucide-react"
 import { useTranslation } from "react-i18next"
 
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DraftNumberInput } from "@/components/ui/draft-number-input"
 import { KeyValueEditor } from "@/components/ui/key-value-editor"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -304,6 +306,8 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
           return renderTextInput('password')
         case 'switch':
           return renderSwitch()
+        case 'talk-time':
+          return renderTalkTimeInput()
         case 'textarea':
           return renderTextarea()
         case 'select':
@@ -455,21 +459,16 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
    * 渲染 Input[type="number"] 组件（用于 number/integer 类型）
    */
   const renderNumberInput = () => {
-    const numValue = parseNumericValue(value, schema.default)
     const min = schema.minValue
     const max = schema.maxValue
     const step = schema.step ?? (schema.type === 'integer' ? 1 : 0.1)
 
     return (
-      <Input
-        type="number"
-        value={numValue}
-        onChange={(e) => {
-          const nextValue = schema.type === 'integer'
-            ? parseInt(e.target.value, 10)
-            : parseFloat(e.target.value)
-          onChange(Number.isFinite(nextValue) ? nextValue : 0)
-        }}
+      <DraftNumberInput
+        value={value}
+        defaultValue={schema.default}
+        integer={schema.type === 'integer'}
+        onValueChange={(nextValue) => onChange(nextValue)}
         min={min}
         max={max}
         step={step}
@@ -493,6 +492,64 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
         value={strValue}
         onChange={(e) => onChange(e.target.value)}
       />
+    )
+  }
+
+  const renderTalkTimeInput = () => {
+    const strValue =
+      typeof value === 'string'
+        ? value
+        : value === null || value === undefined
+          ? String(schema.default ?? '')
+          : String(value)
+    const trimmedValue = strValue.trim()
+    const mode =
+      trimmedValue === ''
+        ? 'fallback'
+        : trimmedValue === '*'
+          ? 'always'
+          : 'range'
+    const rangeValue = mode === 'range' ? strValue : ''
+
+    const selectFallback = () => onChange('')
+    const selectRange = () => onChange(mode === 'range' ? strValue : '00:00-23:59')
+    const selectAlways = () => onChange('*')
+
+    return (
+      <div className="space-y-2">
+        <div className="grid grid-cols-3 gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant={mode === 'fallback' ? 'default' : 'outline'}
+            onClick={selectFallback}
+          >
+            兜底
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={mode === 'range' ? 'default' : 'outline'}
+            onClick={selectRange}
+          >
+            时间段
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={mode === 'always' ? 'default' : 'outline'}
+            onClick={selectAlways}
+          >
+            *
+          </Button>
+        </div>
+        <Input
+          value={rangeValue}
+          disabled={mode !== 'range'}
+          placeholder="HH:MM-HH:MM"
+          onChange={(event) => onChange(event.target.value)}
+        />
+      </div>
     )
   }
 
