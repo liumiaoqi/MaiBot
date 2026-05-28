@@ -595,6 +595,7 @@ class GitMirrorService:
         mirror_id: Optional[str] = None,
         custom_url: Optional[str] = None,
         depth: Optional[int] = None,
+        operation: str = "install",
     ) -> Dict[str, Any]:
         """
         克隆 GitHub 仓库
@@ -607,6 +608,7 @@ class GitMirrorService:
             mirror_id: 指定的镜像源 ID
             custom_url: 自定义克隆 URL
             depth: 克隆深度（浅克隆）
+            operation: 进度推送的操作类型
 
         Returns:
             Dict 包含:
@@ -631,7 +633,7 @@ class GitMirrorService:
                     "status_code": 400,
                 }
 
-            return await self._clone_with_url(custom_url, target_path, branch, depth, "custom")
+            return await self._clone_with_url(custom_url, target_path, branch, depth, "custom", operation)
 
         # 确定要使用的镜像源列表
         if mirror_id:
@@ -645,7 +647,7 @@ class GitMirrorService:
 
         # 依次尝试每个镜像源
         for mirror in mirrors_to_try:
-            result = await self._clone_from_mirror(owner, repo, target_path, branch, depth, mirror)
+            result = await self._clone_from_mirror(owner, repo, target_path, branch, depth, mirror, operation)
             if result["success"]:
                 return result
             logger.warning(f"镜像源 {mirror['id']} 克隆失败: {result.get('error')}")
@@ -661,6 +663,7 @@ class GitMirrorService:
         branch: Optional[str],
         depth: Optional[int],
         mirror: Dict[str, Any],
+        operation: str = "install",
     ) -> Dict[str, Any]:
         """从指定镜像源克隆仓库"""
         try:
@@ -676,10 +679,16 @@ class GitMirrorService:
 
         url = f"{clone_prefix}/{owner}/{repo}.git"
 
-        return await self._clone_with_url(url, target_path, branch, depth, mirror["id"])
+        return await self._clone_with_url(url, target_path, branch, depth, mirror["id"], operation)
 
     async def _clone_with_url(
-        self, url: str, target_path: Path, branch: Optional[str], depth: Optional[int], mirror_type: str
+        self,
+        url: str,
+        target_path: Path,
+        branch: Optional[str],
+        depth: Optional[int],
+        mirror_type: str,
+        operation: str = "install",
     ) -> Dict[str, Any]:
         """使用指定 URL 克隆仓库，支持重试"""
         attempts = 0
@@ -717,7 +726,7 @@ class GitMirrorService:
                             stage="loading",
                             progress=20 + attempt * 10,
                             message=f"正在克隆仓库 (尝试 {attempt + 1}/{self.max_retries})...",
-                            operation="install",
+                            operation=operation,
                         )
                     except Exception as e:
                         logger.warning(f"推送进度失败: {e}")

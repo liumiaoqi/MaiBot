@@ -35,6 +35,7 @@ NapCat.Shell.Windows.OneKey
 run_amds.bat
 run_none.bat
 docs-mai/
+plugin_repo/
 run.py
 queue_update.txt
 start_saka.bat

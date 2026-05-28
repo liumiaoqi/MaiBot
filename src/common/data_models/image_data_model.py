@@ -71,7 +71,7 @@ class BaseImageDataModel(BaseDatabaseDataModel[Images]):
             existing_file_hash = hashlib.sha256(self.read_image_bytes(new_full_path)).hexdigest()
             if existing_file_hash == self.file_hash:
                 logger.info(f"[初始化] {new_full_path.name} 已存在且内容一致，复用已有文件")
-                self.full_path.unlink()
+                self.full_path.unlink(missing_ok=True)
                 self._set_full_path(new_full_path)
                 return
 

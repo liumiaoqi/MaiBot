@@ -38,6 +38,7 @@ _LOG_DIR = _PROJECT_ROOT / "logs"
 _DATABASE_FILE = _DATA_DIR / "MaiBot.db"
 _DATABASE_AUXILIARY_SUFFIXES = ("-wal", "-shm")
 _RESTART_EXIT_CODE = 42
+_LOCAL_CACHE_STATS_CACHE_TTL_SECONDS = 120
 _CACHE_IMAGE_EXTENSIONS = {
     ".avif",
     ".bmp",
@@ -110,6 +111,9 @@ class LocalCacheStatsResponse(BaseModel):
 
     directories: list[CacheDirectoryStats]
     database: DatabaseStorageStats
+
+
+_local_cache_stats_cache: tuple[float, LocalCacheStatsResponse] | None = None
 
 
 class LocalCacheImageItem(BaseModel):
@@ -577,6 +581,183 @@ def _build_database_stats() -> DatabaseStorageStats:
     )
 
 
+def _build_local_cache_stats_response() -> LocalCacheStatsResponse:
+    return LocalCacheStatsResponse(
+        directories=[
+            _build_directory_stats("images", "图片缓存", _IMAGE_DIR, ImageType.IMAGE),
+            _build_directory_stats(
+                "emoji",
+                "表情包缓存",
+                _EMOJI_DIR,
+                ImageType.EMOJI,
+                extra_paths=(_EMOJI_THUMBNAIL_DIR,),
+            ),
+            _build_directory_stats("logs", "日志文件", _LOG_DIR),
+        ],
+        database=_build_database_stats(),
+    )
+
+
+def _get_cached_local_cache_stats_response() -> LocalCacheStatsResponse | None:
+    cached = _local_cache_stats_cache
+    if cached is None:
+        return None
+
+    expires_at, response = cached
+    if time.monotonic() >= expires_at:
+        return None
+    return response
+
+
+def _store_local_cache_stats_response(response: LocalCacheStatsResponse) -> LocalCacheStatsResponse:
+    global _local_cache_stats_cache
+
+    expires_at = time.monotonic() + _LOCAL_CACHE_STATS_CACHE_TTL_SECONDS
+    _local_cache_stats_cache = (expires_at, response)
+    return response
+
+
+def _invalidate_local_cache_stats_cache() -> None:
+    global _local_cache_stats_cache
+
+    _local_cache_stats_cache = None
+
+
+def _build_local_cache_image_list_response(
+    target: CacheImageTarget,
+    page: int,
+    page_size: int,
+    start_date: str | None,
+    end_date: str | None,
+) -> LocalCacheImageListResponse:
+    all_items = _build_cache_image_items(target)
+    date_groups = _build_cache_image_date_groups(all_items)
+    items = _filter_cache_image_items_by_date(all_items, start_date, end_date)
+    start = (page - 1) * page_size
+    end = start + page_size
+    return LocalCacheImageListResponse(
+        success=True,
+        target=target,
+        total=len(items),
+        page=page,
+        page_size=page_size,
+        total_size=sum(item.size for item in items),
+        data=items[start:end],
+        date_groups=date_groups,
+    )
+
+
+def _delete_local_cache_image_response(request: LocalCacheImageDeleteRequest) -> LocalCacheCleanupResponse:
+    removed_files, removed_bytes, removed_records = _delete_cache_image_file(request.target, request.relative_path)
+    _, _, label = _get_cache_image_target(request.target)
+    return LocalCacheCleanupResponse(
+        success=True,
+        message=f"{label}缓存文件已删除",
+        target=request.target,
+        removed_files=removed_files,
+        removed_bytes=removed_bytes,
+        removed_records=removed_records,
+    )
+
+
+def _delete_local_cache_images_bulk_response(request: LocalCacheImageBulkDeleteRequest) -> LocalCacheCleanupResponse:
+    items = _build_cache_image_items(request.target)
+    if request.mode == "date_range":
+        if not request.start_date and not request.end_date:
+            raise HTTPException(status_code=400, detail="请至少选择开始日期或结束日期")
+        items = _filter_cache_image_items_by_date(items, request.start_date, request.end_date)
+        message = "指定日期区间缓存已删除"
+    else:
+        if request.keep_recent_days is None:
+            raise HTTPException(status_code=400, detail="请选择要保留的最近天数")
+        cutoff_time = time.time() - request.keep_recent_days * 24 * 60 * 60
+        items = [item for item in items if item.modified_time < cutoff_time]
+        message = f"最近 {request.keep_recent_days} 天以外的缓存已删除"
+
+    removed_files, removed_bytes, removed_records = _delete_cache_image_items(request.target, items)
+    return LocalCacheCleanupResponse(
+        success=True,
+        message=message,
+        target=request.target,
+        removed_files=removed_files,
+        removed_bytes=removed_bytes,
+        removed_records=removed_records,
+    )
+
+
+def _build_local_cache_log_directory_list_response() -> LocalCacheLogDirectoryListResponse:
+    items = _build_log_directory_items()
+    return LocalCacheLogDirectoryListResponse(success=True, total=len(items), data=items)
+
+
+def _delete_local_cache_log_directory_response(
+    request: LocalCacheLogDirectoryDeleteRequest,
+) -> LocalCacheCleanupResponse:
+    log_path = _resolve_log_directory(request.relative_path)
+    if log_path == _LOG_DIR.resolve():
+        removed_files, removed_bytes = _remove_direct_files(_LOG_DIR)
+        message = "日志根目录文件已清理"
+    else:
+        removed_files, removed_bytes = _remove_directory_contents(log_path)
+        message = f"日志目录 {request.relative_path} 已清理"
+
+    return LocalCacheCleanupResponse(
+        success=True,
+        message=message,
+        target="log_files",
+        removed_files=removed_files,
+        removed_bytes=removed_bytes,
+    )
+
+
+def _cleanup_local_cache_response(request: LocalCacheCleanupRequest) -> LocalCacheCleanupResponse:
+    if request.target == "images":
+        removed_files, removed_bytes = _remove_directory_contents(_IMAGE_DIR)
+        removed_records = _delete_image_records(ImageType.IMAGE)
+        return LocalCacheCleanupResponse(
+            success=True,
+            message="图片缓存已清理",
+            target=request.target,
+            removed_files=removed_files,
+            removed_bytes=removed_bytes,
+            removed_records=removed_records,
+        )
+
+    if request.target == "emoji":
+        emoji_files, emoji_bytes = _remove_directory_contents(_EMOJI_DIR)
+        thumbnail_files, thumbnail_bytes = _remove_directory_contents(_EMOJI_THUMBNAIL_DIR)
+        removed_records = _delete_image_records(ImageType.EMOJI)
+        return LocalCacheCleanupResponse(
+            success=True,
+            message="表情包缓存已清理",
+            target=request.target,
+            removed_files=emoji_files + thumbnail_files,
+            removed_bytes=emoji_bytes + thumbnail_bytes,
+            removed_records=removed_records,
+        )
+
+    if request.target == "log_files":
+        removed_files, removed_bytes = _remove_directory_contents(_LOG_DIR)
+        return LocalCacheCleanupResponse(
+            success=True,
+            message="日志文件已清理",
+            target=request.target,
+            removed_files=removed_files,
+            removed_bytes=removed_bytes,
+        )
+
+    if not request.tables:
+        raise HTTPException(status_code=400, detail="请至少选择一个要清理的数据库表")
+
+    removed_records = _delete_log_records(list(request.tables))
+    return LocalCacheCleanupResponse(
+        success=True,
+        message="数据库日志记录已清理",
+        target=request.target,
+        removed_records=removed_records,
+    )
+
+
 def _remove_directory_contents(directory: Path) -> tuple[int, int]:
     if not directory.exists() or not directory.is_dir():
         return 0, 0
@@ -842,20 +1023,12 @@ async def get_maibot_status():
 async def get_local_cache_stats():
     """获取 data 目录下图片、表情包和数据库的本地存储情况。"""
     try:
-        return LocalCacheStatsResponse(
-            directories=[
-                _build_directory_stats("images", "图片缓存", _IMAGE_DIR, ImageType.IMAGE),
-                _build_directory_stats(
-                    "emoji",
-                    "表情包缓存",
-                    _EMOJI_DIR,
-                    ImageType.EMOJI,
-                    extra_paths=(_EMOJI_THUMBNAIL_DIR,),
-                ),
-                _build_directory_stats("logs", "日志文件", _LOG_DIR),
-            ],
-            database=_build_database_stats(),
-        )
+        cached_response = _get_cached_local_cache_stats_response()
+        if cached_response is not None:
+            return cached_response
+
+        response = await asyncio.to_thread(_build_local_cache_stats_response)
+        return _store_local_cache_stats_response(response)
     except Exception as e:
         logger.exception(f"获取本地缓存统计失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取本地缓存统计失败: {str(e)}") from e
@@ -871,20 +1044,13 @@ async def list_local_cache_images(
 ) -> LocalCacheImageListResponse:
     """分页列出 images 或 emoji 本地缓存中的图片文件。"""
     try:
-        all_items = _build_cache_image_items(target)
-        date_groups = _build_cache_image_date_groups(all_items)
-        items = _filter_cache_image_items_by_date(all_items, start_date, end_date)
-        start = (page - 1) * page_size
-        end = start + page_size
-        return LocalCacheImageListResponse(
-            success=True,
-            target=target,
-            total=len(items),
-            page=page,
-            page_size=page_size,
-            total_size=sum(item.size for item in items),
-            data=items[start:end],
-            date_groups=date_groups,
+        return await asyncio.to_thread(
+            _build_local_cache_image_list_response,
+            target,
+            page,
+            page_size,
+            start_date,
+            end_date,
         )
     except HTTPException:
         raise
@@ -908,16 +1074,9 @@ async def preview_local_cache_image(
 async def delete_local_cache_image(request: LocalCacheImageDeleteRequest) -> LocalCacheCleanupResponse:
     """删除 images 或 emoji 缓存中的单个图片文件。"""
     try:
-        removed_files, removed_bytes, removed_records = _delete_cache_image_file(request.target, request.relative_path)
-        _, _, label = _get_cache_image_target(request.target)
-        return LocalCacheCleanupResponse(
-            success=True,
-            message=f"{label}缓存文件已删除",
-            target=request.target,
-            removed_files=removed_files,
-            removed_bytes=removed_bytes,
-            removed_records=removed_records,
-        )
+        response = await asyncio.to_thread(_delete_local_cache_image_response, request)
+        _invalidate_local_cache_stats_cache()
+        return response
     except HTTPException:
         raise
     except Exception as e:
@@ -929,28 +1088,9 @@ async def delete_local_cache_image(request: LocalCacheImageDeleteRequest) -> Loc
 async def delete_local_cache_images_bulk(request: LocalCacheImageBulkDeleteRequest) -> LocalCacheCleanupResponse:
     """按日期范围批量删除 images 或 emoji 缓存。"""
     try:
-        items = _build_cache_image_items(request.target)
-        if request.mode == "date_range":
-            if not request.start_date and not request.end_date:
-                raise HTTPException(status_code=400, detail="请至少选择开始日期或结束日期")
-            items = _filter_cache_image_items_by_date(items, request.start_date, request.end_date)
-            message = "指定日期区间缓存已删除"
-        else:
-            if request.keep_recent_days is None:
-                raise HTTPException(status_code=400, detail="请选择要保留的最近天数")
-            cutoff_time = time.time() - request.keep_recent_days * 24 * 60 * 60
-            items = [item for item in items if item.modified_time < cutoff_time]
-            message = f"最近 {request.keep_recent_days} 天以外的缓存已删除"
-
-        removed_files, removed_bytes, removed_records = _delete_cache_image_items(request.target, items)
-        return LocalCacheCleanupResponse(
-            success=True,
-            message=message,
-            target=request.target,
-            removed_files=removed_files,
-            removed_bytes=removed_bytes,
-            removed_records=removed_records,
-        )
+        response = await asyncio.to_thread(_delete_local_cache_images_bulk_response, request)
+        _invalidate_local_cache_stats_cache()
+        return response
     except HTTPException:
         raise
     except Exception as e:
@@ -962,8 +1102,7 @@ async def delete_local_cache_images_bulk(request: LocalCacheImageBulkDeleteReque
 async def list_local_cache_log_directories() -> LocalCacheLogDirectoryListResponse:
     """列出 logs 目录下可分别清理的日志目录。"""
     try:
-        items = _build_log_directory_items()
-        return LocalCacheLogDirectoryListResponse(success=True, total=len(items), data=items)
+        return await asyncio.to_thread(_build_local_cache_log_directory_list_response)
     except Exception as e:
         logger.exception(f"获取日志目录列表失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取日志目录列表失败: {str(e)}") from e
@@ -973,21 +1112,9 @@ async def list_local_cache_log_directories() -> LocalCacheLogDirectoryListRespon
 async def delete_local_cache_log_directory(request: LocalCacheLogDirectoryDeleteRequest) -> LocalCacheCleanupResponse:
     """清理 logs 下的指定目录，空路径仅清理 logs 根目录下的文件。"""
     try:
-        log_path = _resolve_log_directory(request.relative_path)
-        if log_path == _LOG_DIR.resolve():
-            removed_files, removed_bytes = _remove_direct_files(_LOG_DIR)
-            message = "日志根目录文件已清理"
-        else:
-            removed_files, removed_bytes = _remove_directory_contents(log_path)
-            message = f"日志目录 {request.relative_path} 已清理"
-
-        return LocalCacheCleanupResponse(
-            success=True,
-            message=message,
-            target="log_files",
-            removed_files=removed_files,
-            removed_bytes=removed_bytes,
-        )
+        response = await asyncio.to_thread(_delete_local_cache_log_directory_response, request)
+        _invalidate_local_cache_stats_cache()
+        return response
     except HTTPException:
         raise
     except Exception as e:
@@ -999,51 +1126,9 @@ async def delete_local_cache_log_directory(request: LocalCacheLogDirectoryDelete
 async def cleanup_local_cache(request: LocalCacheCleanupRequest):
     """清理指定的本地缓存区域。"""
     try:
-        if request.target == "images":
-            removed_files, removed_bytes = _remove_directory_contents(_IMAGE_DIR)
-            removed_records = _delete_image_records(ImageType.IMAGE)
-            return LocalCacheCleanupResponse(
-                success=True,
-                message="图片缓存已清理",
-                target=request.target,
-                removed_files=removed_files,
-                removed_bytes=removed_bytes,
-                removed_records=removed_records,
-            )
-
-        if request.target == "emoji":
-            emoji_files, emoji_bytes = _remove_directory_contents(_EMOJI_DIR)
-            thumbnail_files, thumbnail_bytes = _remove_directory_contents(_EMOJI_THUMBNAIL_DIR)
-            removed_records = _delete_image_records(ImageType.EMOJI)
-            return LocalCacheCleanupResponse(
-                success=True,
-                message="表情包缓存已清理",
-                target=request.target,
-                removed_files=emoji_files + thumbnail_files,
-                removed_bytes=emoji_bytes + thumbnail_bytes,
-                removed_records=removed_records,
-            )
-
-        if request.target == "log_files":
-            removed_files, removed_bytes = _remove_directory_contents(_LOG_DIR)
-            return LocalCacheCleanupResponse(
-                success=True,
-                message="日志文件已清理",
-                target=request.target,
-                removed_files=removed_files,
-                removed_bytes=removed_bytes,
-            )
-
-        if not request.tables:
-            raise HTTPException(status_code=400, detail="请至少选择一个要清理的数据库表")
-
-        removed_records = _delete_log_records(list(request.tables))
-        return LocalCacheCleanupResponse(
-            success=True,
-            message="数据库日志记录已清理",
-            target=request.target,
-            removed_records=removed_records,
-        )
+        response = await asyncio.to_thread(_cleanup_local_cache_response, request)
+        _invalidate_local_cache_stats_cache()
+        return response
     except HTTPException:
         raise
     except Exception as e:

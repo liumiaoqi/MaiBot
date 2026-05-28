@@ -101,10 +101,14 @@ function SessionSidebar({
   }
 
   if (sortedSessions.length === 0) {
+    if (collapsed) {
+      return <div className="h-full p-2" />
+    }
+
     return (
       <div className={cn(
         'flex flex-col items-center justify-center h-full text-muted-foreground gap-2',
-        collapsed ? 'p-2' : 'p-4',
+        'p-4',
       )}>
         <Bot className="h-8 w-8 opacity-40" />
         <p className="text-sm text-center">等待 MaiSaka 会话…</p>

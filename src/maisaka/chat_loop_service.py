@@ -600,7 +600,7 @@ class MaisakaChatLoopService:
             DEBUG_PLANNER_CACHE_DIR.mkdir(parents=True, exist_ok=True)
             request_body = {
                 "model": model_name,
-                "request_type": self._resolve_request_type(request_kind),
+                "request_type": self._resolve_llm_request_type(request_kind),
                 "request_kind": request_kind,
                 "session_id": self._session_id,
                 "created_at": datetime.now().isoformat(timespec="seconds"),

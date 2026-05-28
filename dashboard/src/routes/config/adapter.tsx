@@ -4,6 +4,7 @@ import { Info, Upload, Download, FileText, Trash2, FolderOpen, Save, RefreshCw, 
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
+import { DraftNumberInput } from '@/components/ui/draft-number-input'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -1066,10 +1067,11 @@ function ChatControlSection({
               </div>
               {config.chat.group_list.map((groupId, index) => (
                 <div key={index} className="flex gap-2">
-                  <Input
-                    type="number"
+                  <DraftNumberInput
                     value={groupId}
-                    onChange={(e) => updateListItem('group', index, parseInt(e.target.value) || 0)}
+                    defaultValue={0}
+                    integer
+                    onValueChange={(nextValue) => updateListItem('group', index, nextValue)}
                     placeholder="输入群号"
                     className="text-sm md:text-base"
                   />
@@ -1135,10 +1137,11 @@ function ChatControlSection({
               </div>
               {config.chat.private_list.map((userId, index) => (
                 <div key={index} className="flex gap-2">
-                  <Input
-                    type="number"
+                  <DraftNumberInput
                     value={userId}
-                    onChange={(e) => updateListItem('private', index, parseInt(e.target.value) || 0)}
+                    defaultValue={0}
+                    integer
+                    onValueChange={(nextValue) => updateListItem('private', index, nextValue)}
                     placeholder="输入QQ号"
                     className="text-sm md:text-base"
                   />
@@ -1185,10 +1188,11 @@ function ChatControlSection({
             </div>
             {config.chat.ban_user_id.map((userId, index) => (
               <div key={index} className="flex gap-2">
-                <Input
-                  type="number"
+                <DraftNumberInput
                   value={userId}
-                  onChange={(e) => updateListItem('ban', index, parseInt(e.target.value) || 0)}
+                  defaultValue={0}
+                  integer
+                  onValueChange={(nextValue) => updateListItem('ban', index, nextValue)}
                   placeholder="输入QQ号"
                   className="text-sm md:text-base"
                 />

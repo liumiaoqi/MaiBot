@@ -1,4 +1,4 @@
-from typing import Iterator, Optional
+from typing import Any, Iterator, Optional
 
 import time
 
@@ -442,43 +442,109 @@ class ChatConfigUtils:
         local_time = time.localtime()
         now_min = local_time.tm_hour * 60 + local_time.tm_min
 
-        # 优先匹配会话相关的规则
-        if session_id:
-            for rule in global_config.chat.talk_value_rules:
-                if not rule.platform and not rule.item_id:
-                    continue  # 一起留空表示全局
-                if not ChatConfigUtils.target_matches_session(rule, session_id, is_group_chat):
-                    continue  # 不匹配的会话 ID，跳过
-                parsed_range = ChatConfigUtils.parse_range(rule.time)
-                if not parsed_range:
-                    continue  # 无法解析的时间范围，跳过
-                start_min, end_min = parsed_range
-                in_range: bool = False
-                if start_min <= end_min:
-                    in_range = start_min <= now_min <= end_min
-                else:  # 跨天的时间范围
-                    in_range = now_min >= start_min or now_min <= end_min
-                if in_range:
-                    return rule.value or 0.0  # 如果规则生效但没有设置值，返回 0.0
-
-        # 没有匹配到会话相关的规则，继续匹配全局规则
+        matched_rules = []
         for rule in global_config.chat.talk_value_rules:
-            if rule.platform or rule.item_id:
-                continue  # 只匹配全局规则
-            if is_group_chat is not None and (rule.rule_type == "group") != is_group_chat:
+            target_priority = ChatConfigUtils._talk_rule_target_priority(rule, session_id, is_group_chat)
+            if target_priority is None:
                 continue
-            parsed_range = ChatConfigUtils.parse_range(rule.time)
-            if not parsed_range:
-                continue  # 无法解析的时间范围，跳过
-            start_min, end_min = parsed_range
-            in_range: bool = False
-            if start_min <= end_min:
-                in_range = start_min <= now_min <= end_min
-            else:  # 跨天的时间范围
-                in_range = now_min >= start_min or now_min <= end_min
-            if in_range:
-                return rule.value or 0.0  # 如果规则生效但没有设置值，返回 0.0
+            matched_rules.append((rule, target_priority))
+
+        matched_value = ChatConfigUtils._select_talk_rule_value(matched_rules, now_min)
+        if matched_value is not None:
+            return matched_value
         return result  # 如果没有任何规则生效，返回默认值
+
+    @staticmethod
+    def _talk_rule_target_priority(rule, session_id: Optional[str], is_group_chat: Optional[bool]) -> Optional[int]:
+        platform, item_id, rule_type = ChatConfigUtils._target_values(rule)
+        if rule_type == "group":
+            config_is_group = True
+            target_attr = "group_id"
+        elif rule_type == "private":
+            config_is_group = False
+            target_attr = "user_id"
+        else:
+            return None
+
+        if is_group_chat is not None and config_is_group != is_group_chat:
+            return None
+
+        if not platform and not item_id:
+            return 1
+
+        has_wildcard = platform == "*" or item_id == "*"
+        if not session_id:
+            if has_wildcard and (platform in {"", "*"} and item_id in {"", "*"}):
+                return 4
+            return None
+
+        chat_stream = ChatConfigUtils._get_chat_stream(session_id)
+        if chat_stream is None:
+            if platform and item_id and not has_wildcard:
+                return 5 if ChatConfigUtils.target_matches_session(rule, session_id, is_group_chat) else None
+            return None
+
+        chat_stream_platform = str(chat_stream.platform or "").strip()
+        chat_stream_target_id = str(getattr(chat_stream, target_attr) or "").strip()
+        if not chat_stream_target_id:
+            return None
+
+        platform_matches = not platform or platform == "*" or chat_stream_platform == platform
+        item_matches = not item_id or item_id == "*" or chat_stream_target_id == item_id
+        if not platform_matches or not item_matches:
+            return None
+
+        if platform and item_id and not has_wildcard:
+            return 5
+        if has_wildcard:
+            return 4
+        return 3
+
+    @staticmethod
+    def _get_rule_time(rule) -> str:
+        if isinstance(rule, dict):
+            return str(rule.get("time") or "").strip()
+        return str(rule.time or "").strip()
+
+    @staticmethod
+    def _get_rule_value(rule) -> float:
+        value = rule.get("value") if isinstance(rule, dict) else rule.value
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return 0.0
+
+    @staticmethod
+    def _talk_rule_time_priority(rule_time: str, now_min: int) -> Optional[int]:
+        if not rule_time:
+            return 1
+        if rule_time == "*":
+            return 3
+
+        parsed_range = ChatConfigUtils.parse_range(rule_time)
+        if not parsed_range:
+            return None
+        start_min, end_min = parsed_range
+        if start_min <= end_min:
+            return 2 if start_min <= now_min <= end_min else None
+        return 2 if now_min >= start_min or now_min <= end_min else None
+
+    @staticmethod
+    def _select_talk_rule_value(rules: list[tuple[Any, int]], now_min: int) -> Optional[float]:
+        selected_priority = (0, 0)
+        selected_value: Optional[float] = None
+
+        for rule, target_priority in rules:
+            time_priority = ChatConfigUtils._talk_rule_time_priority(ChatConfigUtils._get_rule_time(rule), now_min)
+            if time_priority is None:
+                continue
+            priority = (target_priority, time_priority)
+            if priority <= selected_priority:
+                continue
+            selected_priority = priority
+            selected_value = ChatConfigUtils._get_rule_value(rule)
+
+        return selected_value
 
     @staticmethod
     def parse_range(range_str: str) -> Optional[tuple[int, int]]:
