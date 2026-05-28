@@ -607,20 +607,23 @@ class ChatConfig(ConfigBase):
     )
     """开启后对回复时机判定更精确，可能消耗更多token"""
 
-    enable_at: bool = Field(
-        default=True,
+    enable_replyer_format_output: bool = Field(
+        default=False,
         json_schema_extra={
             "label": {
-                "zh_CN": "允许发送 At",
-                "en_US": "Allow sending @",
-                "ja_JP": "@ 送信を許可",
+                "zh_CN": "Replyer 格式化输出",
+                "en_US": "Replyer formatted output",
+                "ja_JP": "Replyer フォーマット出力",
             },
             "x-widget": "switch",
-            "x-icon": "at-sign",
+            "x-icon": "braces",
             "advanced": True,
         },
     )
-    """是否允许 replyer 使用 at[msg_id] 标记来发送真正的 at 消息"""
+    """
+    是否允许 replyer 输出 <text>、<at>、<emoji>、<image> 等格式化片段，
+    并在发送前解析为真实消息组件
+    """
 
     enable_reply_quote: bool = Field(
         default=True,
