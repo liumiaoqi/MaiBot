@@ -12,7 +12,7 @@ from src.llm_models.payload_content.tool_option import ToolCall
 from src.maisaka import reasoning_engine as reasoning_engine_module
 from src.maisaka.builtin_tool import get_timing_tools
 from src.maisaka.chat_loop_service import ChatResponse, MaisakaChatLoopService
-from src.maisaka.context_messages import AssistantMessage, TIMING_GATE_INVALID_TOOL_HINT_SOURCE
+from src.maisaka.context_messages import AssistantMessage, TIMING_GATE_INVALID_TOOL_HINT_SOURCE, ToolResultMessage
 from src.maisaka.history_post_processor import HistoryPostProcessResult
 from src.maisaka.reasoning_engine import MaisakaReasoningEngine
 from src.maisaka.runtime import MaisakaHeartFlowChatting
@@ -67,12 +67,12 @@ def test_timing_gate_tools_expose_wait_only_in_private_chat() -> None:
         for tool_definition in get_timing_tools(ToolAvailabilityContext(is_group_chat=True))
     }
 
-    assert private_tool_names == {"continue", "no_reply", "wait"}
-    assert group_tool_names == {"continue", "no_reply"}
+    assert private_tool_names == {"continue", "no_action", "wait"}
+    assert group_tool_names == {"continue", "no_action"}
 
 
 @pytest.mark.asyncio
-async def test_timing_gate_invalid_tool_defaults_to_no_reply(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_timing_gate_invalid_tool_defaults_to_no_action(monkeypatch: pytest.MonkeyPatch) -> None:
     runtime = _build_runtime_stub(is_group_chat=True)
 
     def _enter_stop_state() -> None:
@@ -100,7 +100,7 @@ async def test_timing_gate_invalid_tool_defaults_to_no_reply(monkeypatch: pytest
 
     action, response, tool_results, tool_monitor_results = await engine._run_timing_gate(object())  # type: ignore[arg-type]
 
-    assert action == "no_reply"
+    assert action == "no_action"
     assert call_count == 3
     assert response.tool_calls[0].func_name == "finish"
     assert runtime.stopped is True
@@ -111,7 +111,7 @@ async def test_timing_gate_invalid_tool_defaults_to_no_reply(monkeypatch: pytest
     assert tool_results == [
         "- retry [非法 Timing 工具]: 返回了 finish，将重试 (1/3)",
         "- retry [非法 Timing 工具]: 返回了 finish，将重试 (2/3)",
-        "- no_reply [非法 Timing 工具]: 返回了 finish，已停止本轮并等待新消息",
+        "- no_action [非法 Timing 工具]: 返回了 finish，已停止本轮并等待新消息",
     ]
 
 
@@ -182,7 +182,7 @@ async def test_timing_gate_group_chat_treats_wait_as_invalid(monkeypatch: pytest
 
     async def _fake_timing_gate_sub_agent(**kwargs: object) -> ChatResponse:
         tool_definitions = kwargs["tool_definitions"]
-        assert {tool_definition["name"] for tool_definition in tool_definitions} == {"continue", "no_reply"}
+        assert {tool_definition["name"] for tool_definition in tool_definitions} == {"continue", "no_action"}
         return _build_chat_response([
             ToolCall(call_id="disabled-wait", func_name="wait", args={"seconds": 3}),
         ])
@@ -196,9 +196,9 @@ async def test_timing_gate_group_chat_treats_wait_as_invalid(monkeypatch: pytest
 
     action, _, tool_results, _ = await engine._run_timing_gate(object())  # type: ignore[arg-type]
 
-    assert action == "no_reply"
+    assert action == "no_action"
     assert runtime.stopped is True
-    assert tool_results[-1] == "- no_reply [非法 Timing 工具]: 返回了 wait，已停止本轮并等待新消息"
+    assert tool_results[-1] == "- no_action [非法 Timing 工具]: 返回了 wait，已停止本轮并等待新消息"
 
 
 def test_timing_gate_invalid_tool_hint_keeps_only_latest() -> None:
@@ -233,6 +233,71 @@ def test_timing_gate_invalid_tool_hint_only_visible_to_timing_gate() -> None:
 
     assert timing_history == [hint_message]
     assert planner_history == []
+
+
+def test_timing_gate_context_filters_non_timing_actions() -> None:
+    reply_call = ToolCall(call_id="reply-call", func_name="reply", args={})
+    query_call = ToolCall(call_id="query-call", func_name="query_memory", args={})
+    continue_call = ToolCall(call_id="continue-call", func_name="continue", args={})
+    wait_call = ToolCall(call_id="wait-call", func_name="wait", args={"seconds": 3})
+
+    action_only_message = AssistantMessage(
+        content="",
+        timestamp=datetime.now(),
+        tool_calls=[reply_call],
+    )
+    mixed_message = AssistantMessage(
+        content="mixed message",
+        timestamp=datetime.now(),
+        tool_calls=[query_call, continue_call, wait_call],
+    )
+    selected_history = [
+        action_only_message,
+        ToolResultMessage(
+            content="reply result",
+            timestamp=datetime.now(),
+            tool_call_id="reply-call",
+            tool_name="reply",
+        ),
+        mixed_message,
+        ToolResultMessage(
+            content="query result",
+            timestamp=datetime.now(),
+            tool_call_id="query-call",
+            tool_name="query_memory",
+        ),
+        ToolResultMessage(
+            content="continue result",
+            timestamp=datetime.now(),
+            tool_call_id="continue-call",
+            tool_name="continue",
+        ),
+        ToolResultMessage(
+            content="wait result",
+            timestamp=datetime.now(),
+            tool_call_id="wait-call",
+            tool_name="wait",
+        ),
+    ]
+
+    timing_history = MaisakaChatLoopService._filter_history_for_request_kind(
+        selected_history,
+        request_kind="timing_gate",
+    )
+
+    assert action_only_message not in timing_history
+    assert all(
+        not (isinstance(message, ToolResultMessage) and message.tool_name in {"reply", "query_memory"})
+        for message in timing_history
+    )
+    filtered_mixed_message = next(message for message in timing_history if isinstance(message, AssistantMessage))
+    assert filtered_mixed_message.content == "mixed message"
+    assert [tool_call.func_name for tool_call in filtered_mixed_message.tool_calls] == ["continue", "wait"]
+    assert [
+        message.tool_name
+        for message in timing_history
+        if isinstance(message, ToolResultMessage)
+    ] == ["continue", "wait"]
 
 
 def test_forced_timing_trigger_bypasses_message_frequency_threshold() -> None:

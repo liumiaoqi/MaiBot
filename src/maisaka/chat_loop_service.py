@@ -1200,7 +1200,50 @@ class MaisakaChatLoopService:
         """按请求类型过滤不应暴露的历史工具链。"""
 
         if request_kind == "timing_gate":
-            return selected_history
+            allowed_tool_call_ids = {
+                tool_call.call_id
+                for message in selected_history
+                if isinstance(message, AssistantMessage)
+                for tool_call in message.tool_calls
+                if tool_call.func_name in TIMING_GATE_TOOL_NAMES and tool_call.call_id
+            }
+            filtered_history: List[LLMContextMessage] = []
+            for message in selected_history:
+                if isinstance(message, ToolResultMessage):
+                    if message.tool_name in TIMING_GATE_TOOL_NAMES or message.tool_call_id in allowed_tool_call_ids:
+                        filtered_history.append(message)
+                    continue
+
+                if isinstance(message, AssistantMessage) and message.tool_calls:
+                    kept_tool_calls = [
+                        tool_call
+                        for tool_call in message.tool_calls
+                        if tool_call.func_name in TIMING_GATE_TOOL_NAMES
+                    ]
+                    if not kept_tool_calls:
+                        if message.content.strip():
+                            filtered_history.append(
+                                AssistantMessage(
+                                    content=message.content,
+                                    timestamp=message.timestamp,
+                                    tool_calls=[],
+                                    source_kind=message.source_kind,
+                                )
+                            )
+                        continue
+                    if len(kept_tool_calls) != len(message.tool_calls):
+                        filtered_history.append(
+                            AssistantMessage(
+                                content=message.content,
+                                timestamp=message.timestamp,
+                                tool_calls=kept_tool_calls,
+                                source_kind=message.source_kind,
+                            )
+                        )
+                        continue
+
+                filtered_history.append(message)
+            return filtered_history
 
         selected_history = [
             message
