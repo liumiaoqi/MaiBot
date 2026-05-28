@@ -28,6 +28,7 @@ from src.maisaka.context_messages import (
     SessionBackedMessage,
 )
 from src.plugin_runtime.hook_payloads import serialize_prompt_messages
+from src.prompt.prompt_manager import prompt_manager
 
 from .context import BuiltinToolRuntimeContext
 
@@ -313,6 +314,21 @@ def _is_missing_visual_model_error(exc: Exception) -> bool:
     return _EMOJI_VLM_NOT_CONFIGURED_MESSAGE in error_text or "未找到名为 '' 的模型" in error_text
 
 
+async def _render_emoji_selection_system_prompt(
+    *,
+    emoji_count: int,
+    grid_rows: int,
+    grid_columns: int,
+) -> str:
+    """渲染表情包选择子代理的系统提示词。"""
+
+    prompt_template = prompt_manager.get_prompt("emoji_selection")
+    prompt_template.add_context("emoji_count", str(emoji_count))
+    prompt_template.add_context("grid_rows", str(grid_rows))
+    prompt_template.add_context("grid_columns", str(grid_columns))
+    return await prompt_manager.render_prompt(prompt_template)
+
+
 async def _select_emoji_with_sub_agent(
     tool_ctx: BuiltinToolRuntimeContext,
     reasoning: str,
@@ -333,14 +349,10 @@ async def _select_emoji_with_sub_agent(
     candidate_message = await _build_emoji_candidate_message(sampled_emojis)
     grid_rows, grid_columns = _calculate_grid_shape(len(sampled_emojis))
 
-    system_prompt = (
-        "你是 Maisaka 的临时表情包选择子代理。\n"
-        f"你会收到群聊上下文，以及 1 条额外候选消息，其中包含一张 {grid_rows}x{grid_columns} 的表情包拼图，"
-        f"一共 {len(sampled_emojis)} 个位置。\n"
-        f"每张小图左上角都有一个较大的序号，范围是 1 到 {len(sampled_emojis)}。\n"
-        f"你的任务是根据上下文和当前语气，从这 {len(sampled_emojis)} 张图里选出最合适的一张表情包。\n"
-        "你必须返回一个 JSON 对象（json object），不要输出任何 JSON 之外的内容。\n"
-        '返回格式固定为：{"emoji_index":1,"reason":"简短理由"}'
+    system_prompt = await _render_emoji_selection_system_prompt(
+        emoji_count=len(sampled_emojis),
+        grid_rows=grid_rows,
+        grid_columns=grid_columns,
     )
     prompt_message = ReferenceMessage(
         content=(

@@ -427,6 +427,15 @@ async def test_send_emoji_tool_puts_monitor_detail_into_metadata(monkeypatch: py
 
     monkeypatch.setattr(send_emoji_tool_module, "_build_emoji_candidate_message", _fake_build_emoji_candidate_message)
     monkeypatch.setattr(send_emoji_tool_module, "send_emoji_for_maisaka", _fake_send_emoji_for_maisaka)
+
+    async def _fake_render_emoji_selection_system_prompt(**kwargs: Any) -> str:
+        return f"测试表情选择提示：{kwargs['grid_rows']}x{kwargs['grid_columns']} / {kwargs['emoji_count']}"
+
+    monkeypatch.setattr(
+        send_emoji_tool_module,
+        "_render_emoji_selection_system_prompt",
+        _fake_render_emoji_selection_system_prompt,
+    )
     monkeypatch.setattr(
         send_emoji_tool_module.emoji_manager,
         "emojis",
