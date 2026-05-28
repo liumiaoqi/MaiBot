@@ -17,6 +17,7 @@ services:
 #      - PRIVACY_AGREE=9943b855e72199d0f5016ea39052f1b6 # 同意EULA
     ports:
       - "18001:8001" # webui端口
+      - "18121:8121" # QQ用户记忆插件WebUI端口
 #      - "8000:8000"
     volumes:
       # 监听地址和端口已迁移到 ./docker-config/mmc/bot_config.toml 的 maim_message 与 webui 配置段
@@ -29,6 +30,7 @@ services:
       - ./data/MaiMBot/logs:/MaiMBot/logs # 日志目录
       - ./depends-data:/MaiMBot/depends-data:ro # 运行时资源文件
       - site-packages:/MaiMBot/.venv # 持久化Python包（含插件依赖），镜像更新不丢失
+      - hf-cache:/root/.cache/huggingface # 持久化HuggingFace模型缓存
     restart: always
     networks:
       - maim_bot
@@ -95,6 +97,7 @@ services:
   
 volumes:
   site-packages:
+  hf-cache:
 #   caddy_data:
 #   caddy_config:
 networks:
