@@ -32,7 +32,9 @@ export function PluginStats({ pluginId, compact = false }: PluginStatsProps) {
   const [stats, setStats] = useState<PluginStatsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [userRating, setUserRating] = useState(0)
+  const [savedUserRating, setSavedUserRating] = useState(0)
   const [userComment, setUserComment] = useState('')
+  const [savedUserComment, setSavedUserComment] = useState('')
   const [liked, setLiked] = useState(false)
   const [disliked, setDisliked] = useState(false)
   const [actionLoading, setActionLoading] = useState<'like' | 'dislike' | 'rating' | null>(null)
@@ -52,8 +54,10 @@ export function PluginStats({ pluginId, compact = false }: PluginStatsProps) {
     if (userState) {
       setLiked(userState.liked)
       setDisliked(userState.disliked)
-      setUserRating(userState.rating)
+      setUserRating(userState.rating ?? 0)
+      setSavedUserRating(userState.rating ?? 0)
       setUserComment(userState.comment)
+      setSavedUserComment(userState.comment)
     }
     setLoading(false)
   }
@@ -118,21 +122,43 @@ export function PluginStats({ pluginId, compact = false }: PluginStatsProps) {
   }
 
   const handleSubmitRating = async () => {
-    if (userRating === 0) {
+    const commentChanged = userComment !== savedUserComment
+    const canSubmit = userRating > 0 || commentChanged
+
+    if (!canSubmit) {
       toast({
-        title: '请选择评分',
-        description: '至少选择 1 颗星',
+        title: '请填写评分或评论',
+        description: '可以只评分，也可以只写评论',
         variant: 'destructive',
       })
       return
     }
 
+    const ratingToSubmit = userRating > 0 && (userRating !== savedUserRating || !commentChanged)
+      ? userRating
+      : undefined
+    const commentToSubmit = commentChanged ? userComment : undefined
+
     setActionLoading('rating')
-    const result = await ratePlugin(pluginId, userRating, userComment || undefined)
+    const result = await ratePlugin(pluginId, ratingToSubmit, commentToSubmit)
     setActionLoading(null)
 
     if (result.success) {
-      setUserRating(Number(result.user_rating ?? userRating))
+      const nextUserRating = result.user_rating === null
+        ? 0
+        : Number(result.user_rating ?? userRating)
+      const nextUserComment = typeof result.user_comment === 'string'
+        ? result.user_comment
+        : typeof result.comment === 'string'
+          ? result.comment
+          : commentToSubmit !== undefined
+            ? commentToSubmit
+            : userComment
+
+      setUserRating(nextUserRating)
+      setSavedUserRating(nextUserRating)
+      setUserComment(nextUserComment)
+      setSavedUserComment(nextUserComment)
       setStats((currentStats) => currentStats
         ? {
           ...currentStats,
@@ -141,12 +167,12 @@ export function PluginStats({ pluginId, compact = false }: PluginStatsProps) {
         }
         : currentStats)
       setIsRatingDialogOpen(false)
-      toast({ title: '评分已更新', description: '你的当前评分已覆盖保存' })
+      toast({ title: '评价已更新', description: '你的评分或评论已保存' })
       return
     }
 
     toast({
-      title: '评分失败',
+      title: '评价失败',
       description: result.error || '未知错误',
       variant: 'destructive',
     })
@@ -178,7 +204,7 @@ export function PluginStats({ pluginId, compact = false }: PluginStatsProps) {
           <Download className="h-4 w-4" />
           <span>{stats.downloads.toLocaleString()}</span>
         </div>
-        <div className="flex items-center gap-1" title={`评分: ${stats.rating.toFixed(1)} (${stats.rating_count} 条评价)`}>
+        <div className="flex items-center gap-1" title={`评分: ${stats.rating.toFixed(1)} (${stats.rating_count} 条评分)`}>
           <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
           <span>{stats.rating.toFixed(1)}</span>
         </div>
@@ -202,7 +228,7 @@ export function PluginStats({ pluginId, compact = false }: PluginStatsProps) {
         <div className="flex flex-col items-center rounded-lg border bg-card p-3">
           <Star className="mb-1 h-5 w-5 fill-yellow-400 text-yellow-400" />
           <span className="text-2xl font-bold">{stats.rating.toFixed(1)}</span>
-          <span className="text-xs text-muted-foreground">{stats.rating_count} 条评价</span>
+          <span className="text-xs text-muted-foreground">{stats.rating_count} 条评分</span>
         </div>
 
         <div className="flex flex-col items-center rounded-lg border bg-card p-3">
@@ -243,13 +269,13 @@ export function PluginStats({ pluginId, compact = false }: PluginStatsProps) {
           <DialogTrigger asChild>
             <Button variant="default" size="sm" disabled={actionLoading !== null}>
               <Star className="mr-1 h-4 w-4" />
-              {userRating > 0 ? '修改评分' : '评分'}
+              {userRating > 0 || savedUserComment ? '修改评价' : '评价'}
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>为插件评分</DialogTitle>
-              <DialogDescription>再次提交会覆盖你之前的评分。</DialogDescription>
+              <DialogTitle>评价插件</DialogTitle>
+              <DialogDescription>可以单独评分或评论；再次提交会更新你的评价。</DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-4">
@@ -284,7 +310,7 @@ export function PluginStats({ pluginId, compact = false }: PluginStatsProps) {
 
               <div>
                 <label htmlFor="plugin-rating-comment" className="mb-2 block text-sm font-medium">
-                  评论（可选）
+                  评论
                 </label>
                 <Textarea
                   value={userComment}
@@ -304,8 +330,11 @@ export function PluginStats({ pluginId, compact = false }: PluginStatsProps) {
               <Button variant="outline" onClick={() => setIsRatingDialogOpen(false)}>
                 取消
               </Button>
-              <Button onClick={handleSubmitRating} disabled={userRating === 0 || actionLoading !== null}>
-                {actionLoading === 'rating' ? '提交中...' : '提交评分'}
+              <Button
+                onClick={handleSubmitRating}
+                disabled={actionLoading !== null || (userRating === 0 && userComment === savedUserComment)}
+              >
+                {actionLoading === 'rating' ? '提交中...' : '提交评价'}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -320,16 +349,20 @@ export function PluginStats({ pluginId, compact = false }: PluginStatsProps) {
               <div key={`${rating.user_id}-${rating.created_at}-${index}`} className="rounded-lg border bg-muted/50 p-3">
                 <div className="mb-2 flex items-center justify-between">
                   <div className="flex gap-1">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <Star
-                        key={star}
-                        className={`h-3 w-3 ${
-                          star <= rating.rating
-                            ? 'fill-yellow-400 text-yellow-400'
-                            : 'text-muted-foreground'
-                        }`}
-                      />
-                    ))}
+                    {rating.rating == null ? (
+                      <span className="text-xs text-muted-foreground">仅评论</span>
+                    ) : (
+                      [1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          className={`h-3 w-3 ${
+                            star <= Number(rating.rating)
+                              ? 'fill-yellow-400 text-yellow-400'
+                              : 'text-muted-foreground'
+                          }`}
+                        />
+                      ))
+                    )}
                   </div>
                   <span className="text-xs text-muted-foreground">
                     {new Date(rating.created_at).toLocaleDateString()}

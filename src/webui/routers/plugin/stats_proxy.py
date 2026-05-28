@@ -5,7 +5,7 @@ from urllib.parse import quote
 import httpx
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from src.common.logger import get_logger
 
@@ -25,8 +25,16 @@ class VoteRequest(BaseModel):
 class RatingRequest(BaseModel):
     plugin_id: str = Field(..., min_length=1, max_length=200)
     user_id: str = Field(..., min_length=1, max_length=300)
-    rating: int = Field(..., ge=1, le=5)
+    rating: int | None = Field(None, ge=1, le=5)
     comment: str | None = Field(None, max_length=500)
+
+    @model_validator(mode="after")
+    def validate_rating_or_comment(self) -> "RatingRequest":
+        has_rating = "rating" in self.model_fields_set and self.rating is not None
+        has_comment = "comment" in self.model_fields_set
+        if not has_rating and not has_comment:
+            raise ValueError("rating 和 comment 至少需要提供一个")
+        return self
 
 
 class DownloadRequest(BaseModel):
@@ -76,7 +84,10 @@ async def dislike_plugin(request: VoteRequest) -> JSONResponse:
 
 @router.post("/stats-proxy/stats/rate")
 async def rate_plugin(request: RatingRequest) -> JSONResponse:
-    return await _request_stats_service("POST", "/stats/rate", request.model_dump())
+    payload = request.model_dump(exclude_unset=True)
+    if payload.get("rating") is None:
+        payload.pop("rating", None)
+    return await _request_stats_service("POST", "/stats/rate", payload)
 
 
 @router.post("/stats-proxy/stats/download")

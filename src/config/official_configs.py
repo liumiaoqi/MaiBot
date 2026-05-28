@@ -385,7 +385,7 @@ class TalkRulesItem(ConfigBase):
             },
         },
     )
-    """平台，与ID一起留空表示全局"""
+    """平台，与 ID 一起留空表示全局；单独填写时表示该平台下所有聊天流的默认值，"*" 表示平台通配覆盖。"""
 
     item_id: str = Field(
         default="",
@@ -397,7 +397,7 @@ class TalkRulesItem(ConfigBase):
             },
         },
     )
-    """用户ID，与平台一起留空表示全局"""
+    """聊天流 ID，与平台一起留空表示全局；单独填写时表示该聊天流 ID 在所有平台下的默认值，"*" 表示聊天流通配覆盖。"""
 
     rule_type: Literal["group", "private"] = Field(
         default="group",
@@ -421,9 +421,10 @@ class TalkRulesItem(ConfigBase):
                 "en_US": "Time range",
                 "ja_JP": "時間帯",
             },
+            "x-widget": "talk-time",
         },
     )
-    """时间段，格式为 "HH:MM-HH:MM"，支持跨夜区间"""
+    """留空表示兜底，"HH:MM-HH:MM" 表示指定时间段，"*" 表示强制全天覆盖。支持跨夜区间。"""
 
     value: float = Field(
         default=0.5,
@@ -605,22 +606,25 @@ class ChatConfig(ConfigBase):
             "x-description-display": "icon",
         },
     )
-    """开启后启用独立 Timing Gate；关闭后不再单独运行 Timing Gate，并将节奏控制工具合并到 Planner"""
+    """开启后对回复时机判定更精确，可能消耗更多token"""
 
-    enable_at: bool = Field(
-        default=True,
+    enable_replyer_format_output: bool = Field(
+        default=False,
         json_schema_extra={
             "label": {
-                "zh_CN": "允许发送 At",
-                "en_US": "Allow sending @",
-                "ja_JP": "@ 送信を許可",
+                "zh_CN": "Replyer 格式化输出",
+                "en_US": "Replyer formatted output",
+                "ja_JP": "Replyer フォーマット出力",
             },
             "x-widget": "switch",
-            "x-icon": "at-sign",
+            "x-icon": "braces",
             "advanced": True,
         },
     )
-    """是否允许 replyer 使用 at[msg_id] 标记来发送真正的 at 消息"""
+    """
+    是否允许 replyer 输出 <text>、<at>、<emoji>、<image> 等格式化片段，
+    并在发送前解析为真实消息组件，可能会影响回复表现
+    """
 
     enable_reply_quote: bool = Field(
         default=True,
@@ -670,7 +674,7 @@ class ChatConfig(ConfigBase):
             "advanced": True,
         },
     )
-    """Planner 连续被新消息打断的最大次数，0 表示不启用打断"""
+    """planner如果遇到新消息，重新开始思考的次数"""
 
     timing_gate_non_continue_cooldown_seconds: float = Field(
         default=8,
@@ -687,7 +691,7 @@ class ChatConfig(ConfigBase):
             "advanced": False,
         },
     )
-    """这个值决定了 timing gate 判断的频率，值越大，timing gate 的判断越平滑，但也可能导致反应变慢。建议根据实际情况调整，找到一个既能保持反应及时又不过于频繁的平衡点。"""
+    """这个值决定了Timing Gate判断的最低时间间隔"""
 
     group_chat_prompt: str = Field(
         default=(
@@ -3171,7 +3175,7 @@ class LogConfig(ConfigBase):
     """完全屏蔽日志的第三方库列表"""
 
     library_log_levels: dict[str, str] = Field(
-        default_factory=lambda: {"aiohttp": "WARNING"},
+        default_factory=lambda: {"aiohttp": "WARNING", "PIL": "WARNING"},
         json_schema_extra={
             "x-widget": "custom",
             "x-icon": "sliders-horizontal",

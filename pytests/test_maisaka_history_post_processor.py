@@ -19,6 +19,7 @@ from src.maisaka.history_post_processor import process_chat_history_after_cycle
 from src.maisaka.mid_term_memory import (
     MidTermMemorySummaryModel,
     _build_summary_prompt_messages,
+    _parse_summary_response,
     _select_summary_source_messages,
     _should_enable_visual_summary,
     build_mid_term_memory_complex_message,
@@ -348,6 +349,22 @@ def test_mid_term_memory_summary_prompt_attaches_image_for_visual_model() -> Non
     assert len(prompt_messages) == 2
     assert prompt_messages[1].get_text_content() == ""
     assert any(isinstance(part, ImageMessagePart) for part in prompt_messages[1].parts)
+
+
+def test_mid_term_memory_summary_parse_repairs_json_response() -> None:
+    raw_response = (
+        "结果如下：\n"
+        "```json\n"
+        '{"long_summary":"完整摘要","brief":"简要摘要","keywords":["中期记忆","JSON",],}\n'
+        "```"
+    )
+
+    parsed_summary = _parse_summary_response(raw_response)
+
+    assert parsed_summary is not None
+    assert parsed_summary.long_summary == "完整摘要"
+    assert parsed_summary.brief == "简要摘要"
+    assert parsed_summary.keywords == ["中期记忆", "JSON"]
 
 
 def test_mid_term_memory_visual_summary_follows_model_capability() -> None:

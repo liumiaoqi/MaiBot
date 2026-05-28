@@ -1,8 +1,10 @@
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Cookie, HTTPException
 import json
+import shutil
 import tomlkit
 
 from src.common.logger import get_logger
@@ -98,6 +100,150 @@ def _get_runtime_plugin_load_statuses() -> Dict[str, str]:
     except Exception as exc:
         logger.warning(f"获取插件运行时加载状态失败: {exc}")
         return {}
+
+
+def _build_update_work_path(plugin_path: Path, plugin_id: str, directory_name: str) -> Path:
+    safe_plugin_id = "".join(char if char.isalnum() or char in "._-" else "_" for char in plugin_id)
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S%f")
+    return plugin_path.parent / directory_name / f"{safe_plugin_id}.{timestamp}"
+
+
+def _remove_path(path: Path) -> None:
+    if path.is_symlink():
+        raise ValueError(f"拒绝删除符号链接路径: {path}")
+    if not path.exists():
+        return
+    if path.is_dir():
+        remove_tree(path)
+    else:
+        path.unlink()
+
+
+def _restore_known_user_files(source_plugin_path: Path, target_plugin_path: Path) -> None:
+    """只恢复 WebUI 明确管理的用户文件，不自动混入未知文件。"""
+    config_path = source_plugin_path / "config.toml"
+    if config_path.is_symlink():
+        raise HTTPException(status_code=400, detail="插件配置文件不能是符号链接")
+    if config_path.is_file():
+        target_config_path = target_plugin_path / "config.toml"
+        _remove_path(target_config_path)
+        shutil.copy2(config_path, target_config_path)
+
+    config_backup_dir = source_plugin_path / "config_back"
+    if config_backup_dir.is_dir() and not config_backup_dir.is_symlink():
+        target_backup_dir = target_plugin_path / "config_back"
+        _remove_path(target_backup_dir)
+        shutil.copytree(config_backup_dir, target_backup_dir)
+
+
+def _read_required_manifest(plugin_path: Path) -> Dict[str, Any]:
+    manifest = load_manifest_json(resolve_plugin_file_path(plugin_path, "_manifest.json"))
+    if manifest is None:
+        raise HTTPException(status_code=400, detail="无效的插件：_manifest.json 不存在或无法读取")
+    return manifest
+
+
+def _validate_updated_manifest(plugin_path: Path, expected_plugin_id: str) -> Dict[str, Any]:
+    manifest = _read_required_manifest(plugin_path)
+    new_plugin_id = str(manifest.get("id", "")).strip()
+    if not new_plugin_id:
+        raise HTTPException(status_code=400, detail="无效的插件：_manifest.json 缺少 id")
+    if new_plugin_id != expected_plugin_id:
+        raise HTTPException(
+            status_code=400,
+            detail=f"新版本插件 ID 不匹配：期望 {expected_plugin_id}，实际 {new_plugin_id}",
+        )
+    return manifest
+
+
+async def _clone_plugin_repository_for_update(
+    request: UpdatePluginRequest,
+    target_path: Path,
+) -> Dict[str, Any]:
+    repo_url, owner, repo = parse_repository_url(request.repository_url)
+    service = get_git_mirror_service()
+    if "github.com" in repo_url:
+        return await service.clone_repository(
+            owner=owner,
+            repo=repo,
+            target_path=target_path,
+            branch=request.branch,
+            mirror_id=request.mirror_id,
+            depth=1,
+            operation="update",
+        )
+
+    return await service.clone_repository(
+        owner=owner,
+        repo=repo,
+        target_path=target_path,
+        branch=request.branch,
+        custom_url=repo_url,
+        depth=1,
+        operation="update",
+    )
+
+
+async def _update_non_git_plugin(
+    plugin_id: str,
+    plugin_path: Path,
+    old_manifest: Dict[str, Any],
+    request: UpdatePluginRequest,
+) -> Dict[str, Any]:
+    old_version = str(old_manifest.get("version", "unknown"))
+    old_manifest_id = str(old_manifest.get("id") or plugin_id).strip()
+    candidate_path = _build_update_work_path(plugin_path, plugin_id, ".update_tmp")
+    backup_path = _build_update_work_path(plugin_path, plugin_id, ".update_backups")
+    old_moved = False
+
+    try:
+        await update_progress(
+            stage="loading",
+            progress=30,
+            message="当前插件不是 Git 仓库，正在重新克隆新版本...",
+            operation="update",
+            plugin_id=plugin_id,
+        )
+        candidate_path.parent.mkdir(parents=True, exist_ok=True)
+        result = await _clone_plugin_repository_for_update(request, candidate_path)
+        if not result.get("success"):
+            error_msg = str(result.get("error", "克隆失败"))
+            raise HTTPException(status_code=int(result.get("status_code", 500)), detail=error_msg)
+
+        await update_progress(
+            stage="loading",
+            progress=70,
+            message="正在校验新版本插件身份...",
+            operation="update",
+            plugin_id=plugin_id,
+        )
+        new_manifest = _validate_updated_manifest(candidate_path, old_manifest_id)
+        _restore_known_user_files(plugin_path, candidate_path)
+
+        backup_path.parent.mkdir(parents=True, exist_ok=True)
+        candidate_path.parent.mkdir(parents=True, exist_ok=True)
+        plugin_path.rename(backup_path)
+        old_moved = True
+        candidate_path.rename(plugin_path)
+
+        new_version = str(new_manifest.get("version", "unknown"))
+        new_name = str(new_manifest.get("name", plugin_id))
+        return {
+            "success": True,
+            "message": "插件更新成功",
+            "plugin_id": plugin_id,
+            "plugin_name": new_name,
+            "old_version": old_version,
+            "new_version": new_version,
+            "update_mode": "reinstall_from_backup",
+            "backup_path": str(backup_path),
+        }
+    except Exception:
+        if candidate_path.exists():
+            _remove_path(candidate_path)
+        if old_moved and backup_path.exists() and not plugin_path.exists():
+            backup_path.rename(plugin_path)
+        raise
 
 
 def _write_plugin_disabled_for_uninstall(plugin_path: Path) -> None:
@@ -371,8 +517,9 @@ async def update_plugin(request: UpdatePluginRequest, maibot_session: Optional[s
             )
             raise HTTPException(status_code=404, detail="插件未安装")
 
-        manifest = load_manifest_json(resolve_plugin_file_path(plugin_path, "_manifest.json"))
-        old_version = str(manifest.get("version", "unknown")) if manifest is not None else "unknown"
+        manifest = _read_required_manifest(plugin_path)
+        old_version = str(manifest.get("version", "unknown"))
+        old_manifest_id = str(manifest.get("id") or plugin_id).strip()
         await update_progress(
             stage="loading",
             progress=10,
@@ -380,6 +527,18 @@ async def update_plugin(request: UpdatePluginRequest, maibot_session: Optional[s
             operation="update",
             plugin_id=plugin_id,
         )
+
+        if not (plugin_path / ".git").is_dir():
+            result = await _update_non_git_plugin(plugin_id, plugin_path, manifest, request)
+            await update_progress(
+                stage="success",
+                progress=100,
+                message=f"成功更新 {result['plugin_name']}: {old_version} → {result['new_version']}",
+                operation="update",
+                plugin_id=plugin_id,
+            )
+            return result
+
         await update_progress(
             stage="loading", progress=30, message="正在通过 Git 拉取新版本...", operation="update", plugin_id=plugin_id
         )
@@ -418,8 +577,7 @@ async def update_plugin(request: UpdatePluginRequest, maibot_session: Optional[s
             raise HTTPException(status_code=400, detail="无效的插件：缺少 _manifest.json")
 
         try:
-            with open(new_manifest_path, "r", encoding="utf-8") as file_obj:
-                new_manifest = json.load(file_obj)
+            new_manifest = _validate_updated_manifest(plugin_path, old_manifest_id)
             new_version = str(new_manifest.get("version", "unknown"))
             new_name = str(new_manifest.get("name", plugin_id))
             logger.info(f"成功更新插件: {plugin_id} {old_version} → {new_version}")
@@ -437,7 +595,18 @@ async def update_plugin(request: UpdatePluginRequest, maibot_session: Optional[s
                 "plugin_name": new_name,
                 "old_version": old_version,
                 "new_version": new_version,
+                "update_mode": "git_pull",
             }
+        except HTTPException as e:
+            await update_progress(
+                stage="error",
+                progress=0,
+                message="_manifest.json 无效",
+                operation="update",
+                plugin_id=plugin_id,
+                error=str(e.detail),
+            )
+            raise
         except Exception as e:
             await update_progress(
                 stage="error",

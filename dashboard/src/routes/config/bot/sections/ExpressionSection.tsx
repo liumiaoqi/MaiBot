@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { DraftNumberInput } from '@/components/ui/draft-number-input'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -587,16 +588,17 @@ export const ExpressionSection = React.memo(function ExpressionSection({
               <Label htmlFor="max_expression_learner">
                 表达学习最大并发
               </Label>
-              <Input
+              <DraftNumberInput
                 id="max_expression_learner"
-                type="number"
                 min="1"
                 max="20"
                 value={config.max_expression_learner ?? 3}
-                onChange={(e) =>
+                defaultValue={3}
+                integer
+                onValueChange={(nextValue) =>
                   onChange({
                     ...config,
-                    max_expression_learner: parseInt(e.target.value) || 3,
+                    max_expression_learner: nextValue,
                   })
                 }
               />

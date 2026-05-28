@@ -1,23 +1,14 @@
-import logging
-import sys
-from importlib import util
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
-
-import pytest
 from pydantic import BaseModel, Field
 
-# -------------------------------------------------------------
-# 测试环境准备：补全 logger 和 AttrDocBase 依赖
-# -------------------------------------------------------------
+import logging
+import pytest
+import sys
 
-TEST_ROOT = Path(__file__).parent.parent.absolute().resolve()
-logger_file = TEST_ROOT / "logger.py"
-spec = util.spec_from_file_location("src.common.logger", logger_file)
-module = util.module_from_spec(spec)  # type: ignore
-assert spec is not None and spec.loader is not None
-spec.loader.exec_module(module)  # type: ignore
-sys.modules["src.common.logger"] = module
+# -------------------------------------------------------------
+# 测试环境准备：补全 AttrDocBase 依赖
+# -------------------------------------------------------------
 
 PROJECT_ROOT: Path = Path(__file__).parent.parent.parent.absolute().resolve()
 sys.path.insert(0, str(PROJECT_ROOT))
