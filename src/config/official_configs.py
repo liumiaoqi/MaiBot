@@ -623,7 +623,7 @@ class ChatConfig(ConfigBase):
     )
     """
     是否允许 replyer 输出 <text>、<at>、<emoji>、<image> 等格式化片段，
-    并在发送前解析为真实消息组件
+    并在发送前解析为真实消息组件，可能会影响回复表现
     """
 
     enable_reply_quote: bool = Field(
