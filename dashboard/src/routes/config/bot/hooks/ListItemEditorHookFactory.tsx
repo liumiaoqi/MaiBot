@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import * as LucideIcons from 'lucide-react'
 import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react'
 
@@ -38,13 +38,39 @@ export interface ListItemEditorOptions {
   /** Hook-local field UI metadata overrides */
   fieldSchemaOverrides?: Record<string, Partial<FieldSchema>>
   /** 添加按钮位置 */
-  addButtonPlacement?: 'top' | 'bottom'
+  addButtonPlacement?: 'top' | 'bottom' | 'none'
   /** 根据同级配置决定是否默认折叠 */
   collapseWhen?: (context: { parentValues?: Record<string, unknown> }) => boolean
   collapsedText?: string
   expandLabel?: string
   collapseLabel?: string
   collapseButtonDisplay?: 'text' | 'icon'
+  normalizeItems?: (
+    items: Record<string, unknown>[],
+    context?: { addedIndex?: number; changedIndex?: number },
+  ) => Record<string, unknown>[]
+  renderOverview?: (context: {
+    items: Record<string, unknown>[]
+    onAddItem: (item?: Record<string, unknown>) => void
+    onItemFieldChange: (index: number, fieldName: string, fieldValue: unknown) => void
+    onItemsChange: (
+      items: Record<string, unknown>[],
+      context?: { addedIndex?: number; changedIndex?: number },
+    ) => void
+    onRemoveItem: (index: number) => void
+  }) => ReactNode
+  renderItems?: (context: {
+    emptyText: string
+    items: Record<string, unknown>[]
+    onAddItem: (item?: Record<string, unknown>) => void
+    onItemFieldChange: (index: number, fieldName: string, fieldValue: unknown) => void
+    onItemsChange: (
+      items: Record<string, unknown>[],
+      context?: { addedIndex?: number; changedIndex?: number },
+    ) => void
+    onRemoveItem: (index: number) => void
+    renderItemEditor: (item: Record<string, unknown>, index: number) => ReactNode
+  }) => ReactNode
 }
 
 function resolveLabel(schema?: ConfigSchema | FieldSchema, fieldPath?: string): string {
@@ -179,17 +205,32 @@ export function createListItemEditorHook(
       )
     }, [value])
 
+    const emitItems = useCallback(
+      (nextItems: Record<string, unknown>[], context?: { addedIndex?: number; changedIndex?: number }) => {
+        onChange?.(options.normalizeItems?.(nextItems, context) ?? nextItems)
+      },
+      [onChange],
+    )
+
     const handleAdd = useCallback(() => {
       const next = [...items, buildDefaultItem(nestedSchema)]
-      onChange?.(next)
-    }, [items, nestedSchema, onChange])
+      emitItems(next, { addedIndex: next.length - 1 })
+    }, [emitItems, items, nestedSchema])
+
+    const handleAddItem = useCallback(
+      (item: Record<string, unknown> = {}) => {
+        const next = [...items, { ...buildDefaultItem(nestedSchema), ...item }]
+        emitItems(next, { addedIndex: next.length - 1 })
+      },
+      [emitItems, items, nestedSchema],
+    )
 
     const handleRemove = useCallback(
       (index: number) => {
         const next = items.filter((_, idx) => idx !== index)
-        onChange?.(next)
+        emitItems(next)
       },
-      [items, onChange],
+      [emitItems, items],
     )
 
     const handleItemFieldChange = useCallback(
@@ -200,9 +241,9 @@ export function createListItemEditorHook(
           setNested(cloned, fieldName, fieldValue)
           return cloned
         })
-        onChange?.(next)
+        emitItems(next, { changedIndex: index })
       },
-      [items, onChange],
+      [emitItems, items],
     )
 
     const renderItemEditor = (item: Record<string, unknown>, index: number) => {
@@ -383,8 +424,25 @@ export function createListItemEditorHook(
             </div>
           ) : (
             <>
+          {options.renderOverview?.({
+            items,
+            onAddItem: handleAddItem,
+            onItemFieldChange: handleItemFieldChange,
+            onItemsChange: emitItems,
+            onRemoveItem: handleRemove,
+          })}
           {addButtonPlacement === 'top' && addButton}
-          {items.length === 0 ? (
+          {options.renderItems ? (
+            options.renderItems({
+              emptyText: options.emptyText ?? '尚未添加任何条目，点击下方按钮新增。',
+              items,
+              onAddItem: handleAddItem,
+              onItemFieldChange: handleItemFieldChange,
+              onItemsChange: emitItems,
+              onRemoveItem: handleRemove,
+              renderItemEditor,
+            })
+          ) : items.length === 0 ? (
             <div className="rounded-md border border-dashed border-muted-foreground/25 bg-muted/10 p-6 text-center text-sm text-muted-foreground">
               {options.emptyText ?? '尚未添加任何条目，点击下方按钮新增。'}
             </div>

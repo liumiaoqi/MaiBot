@@ -385,7 +385,7 @@ class TalkRulesItem(ConfigBase):
             },
         },
     )
-    """平台，与ID一起留空表示全局"""
+    """平台，与 ID 一起留空表示全局；单独填写时表示该平台下所有聊天流的默认值，"*" 表示平台通配覆盖。"""
 
     item_id: str = Field(
         default="",
@@ -397,7 +397,7 @@ class TalkRulesItem(ConfigBase):
             },
         },
     )
-    """用户ID，与平台一起留空表示全局"""
+    """聊天流 ID，与平台一起留空表示全局；单独填写时表示该聊天流 ID 在所有平台下的默认值，"*" 表示聊天流通配覆盖。"""
 
     rule_type: Literal["group", "private"] = Field(
         default="group",
@@ -421,9 +421,10 @@ class TalkRulesItem(ConfigBase):
                 "en_US": "Time range",
                 "ja_JP": "時間帯",
             },
+            "x-widget": "talk-time",
         },
     )
-    """时间段，格式为 "HH:MM-HH:MM"，支持跨夜区间"""
+    """留空表示兜底，"HH:MM-HH:MM" 表示指定时间段，"*" 表示强制全天覆盖。支持跨夜区间。"""
 
     value: float = Field(
         default=0.5,

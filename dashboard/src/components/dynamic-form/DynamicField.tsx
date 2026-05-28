@@ -2,6 +2,7 @@ import * as React from "react"
 import * as LucideIcons from "lucide-react"
 import { useTranslation } from "react-i18next"
 
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { DraftNumberInput } from "@/components/ui/draft-number-input"
 import { KeyValueEditor } from "@/components/ui/key-value-editor"
@@ -305,6 +306,8 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
           return renderTextInput('password')
         case 'switch':
           return renderSwitch()
+        case 'talk-time':
+          return renderTalkTimeInput()
         case 'textarea':
           return renderTextarea()
         case 'select':
@@ -489,6 +492,64 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
         value={strValue}
         onChange={(e) => onChange(e.target.value)}
       />
+    )
+  }
+
+  const renderTalkTimeInput = () => {
+    const strValue =
+      typeof value === 'string'
+        ? value
+        : value === null || value === undefined
+          ? String(schema.default ?? '')
+          : String(value)
+    const trimmedValue = strValue.trim()
+    const mode =
+      trimmedValue === ''
+        ? 'fallback'
+        : trimmedValue === '*'
+          ? 'always'
+          : 'range'
+    const rangeValue = mode === 'range' ? strValue : ''
+
+    const selectFallback = () => onChange('')
+    const selectRange = () => onChange(mode === 'range' ? strValue : '00:00-23:59')
+    const selectAlways = () => onChange('*')
+
+    return (
+      <div className="space-y-2">
+        <div className="grid grid-cols-3 gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant={mode === 'fallback' ? 'default' : 'outline'}
+            onClick={selectFallback}
+          >
+            兜底
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={mode === 'range' ? 'default' : 'outline'}
+            onClick={selectRange}
+          >
+            时间段
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={mode === 'always' ? 'default' : 'outline'}
+            onClick={selectAlways}
+          >
+            *
+          </Button>
+        </div>
+        <Input
+          value={rangeValue}
+          disabled={mode !== 'range'}
+          placeholder="HH:MM-HH:MM"
+          onChange={(event) => onChange(event.target.value)}
+        />
+      </div>
     )
   }
 

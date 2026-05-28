@@ -20,6 +20,7 @@ export type XWidgetType =
   | 'select'
   | 'slider'
   | 'switch'
+  | 'talk-time'
   | 'textarea'
 
 export type LocalizedText = string | Record<string, string>

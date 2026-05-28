@@ -1,6 +1,7 @@
 ﻿from types import SimpleNamespace
 
 from src.chat.message_receive.chat_manager import chat_manager
+from src.common.utils import utils_config
 from src.common.utils.utils_config import ChatConfigUtils, ExpressionConfigUtils, JargonConfigUtils
 from src.common.utils.utils_session import SessionUtils
 from src.config.config import global_config
@@ -285,3 +286,128 @@ def test_talk_value_rules_match_routed_session_by_chat_stream(monkeypatch):
     )
 
     assert ChatConfigUtils.get_talk_value(session_id, True) == 0.7
+
+
+def test_talk_value_rule_empty_time_is_fallback_and_time_range_overrides(monkeypatch):
+    current_time = SimpleNamespace(tm_hour=10, tm_min=30)
+    monkeypatch.setattr(utils_config.time, "localtime", lambda: current_time)
+    monkeypatch.setattr(global_config.chat, "talk_value", 0.1)
+    monkeypatch.setattr(global_config.chat, "enable_talk_value_rules", True)
+    monkeypatch.setattr(
+        global_config.chat,
+        "talk_value_rules",
+        [
+            {"platform": "", "item_id": "", "rule_type": "group", "time": "", "value": 0.2},
+            {"platform": "", "item_id": "", "rule_type": "group", "time": "09:00-11:00", "value": 0.5},
+        ],
+    )
+
+    assert ChatConfigUtils.get_talk_value(None, True) == 0.5
+
+    current_time.tm_hour = 12
+    assert ChatConfigUtils.get_talk_value(None, True) == 0.2
+
+
+def test_talk_value_rule_star_time_overrides_fallback_and_time_range(monkeypatch):
+    monkeypatch.setattr(utils_config.time, "localtime", lambda: SimpleNamespace(tm_hour=10, tm_min=30))
+    monkeypatch.setattr(global_config.chat, "talk_value", 0.1)
+    monkeypatch.setattr(global_config.chat, "enable_talk_value_rules", True)
+    monkeypatch.setattr(
+        global_config.chat,
+        "talk_value_rules",
+        [
+            {"platform": "", "item_id": "", "rule_type": "group", "time": "", "value": 0.2},
+            {"platform": "", "item_id": "", "rule_type": "group", "time": "09:00-11:00", "value": 0.5},
+            {"platform": "", "item_id": "", "rule_type": "group", "time": "*", "value": 0.8},
+        ],
+    )
+
+    assert ChatConfigUtils.get_talk_value(None, True) == 0.8
+
+
+def test_talk_value_rule_platform_only_is_platform_default(monkeypatch):
+    session_id = "session-a"
+    monkeypatch.setattr(utils_config.time, "localtime", lambda: SimpleNamespace(tm_hour=10, tm_min=30))
+    monkeypatch.setattr(global_config.chat, "talk_value", 0.1)
+    monkeypatch.setattr(global_config.chat, "enable_talk_value_rules", True)
+    monkeypatch.setattr(
+        global_config.chat,
+        "talk_value_rules",
+        [
+            {"platform": "", "item_id": "", "rule_type": "group", "time": "", "value": 0.2},
+            {"platform": "qq", "item_id": "", "rule_type": "group", "time": "", "value": 0.4},
+        ],
+    )
+    monkeypatch.setattr(
+        chat_manager,
+        "get_session_by_session_id",
+        lambda _session_id: SimpleNamespace(platform="qq", group_id="10001", user_id=None),
+    )
+
+    assert ChatConfigUtils.get_talk_value(session_id, True) == 0.4
+
+
+def test_talk_value_rule_item_only_is_item_default(monkeypatch):
+    session_id = "session-a"
+    monkeypatch.setattr(utils_config.time, "localtime", lambda: SimpleNamespace(tm_hour=10, tm_min=30))
+    monkeypatch.setattr(global_config.chat, "talk_value", 0.1)
+    monkeypatch.setattr(global_config.chat, "enable_talk_value_rules", True)
+    monkeypatch.setattr(
+        global_config.chat,
+        "talk_value_rules",
+        [
+            {"platform": "", "item_id": "", "rule_type": "group", "time": "", "value": 0.2},
+            {"platform": "", "item_id": "10001", "rule_type": "group", "time": "", "value": 0.4},
+        ],
+    )
+    monkeypatch.setattr(
+        chat_manager,
+        "get_session_by_session_id",
+        lambda _session_id: SimpleNamespace(platform="telegram", group_id="10001", user_id=None),
+    )
+
+    assert ChatConfigUtils.get_talk_value(session_id, True) == 0.4
+
+
+def test_talk_value_rule_exact_target_overrides_partial_default(monkeypatch):
+    session_id = "session-a"
+    monkeypatch.setattr(utils_config.time, "localtime", lambda: SimpleNamespace(tm_hour=10, tm_min=30))
+    monkeypatch.setattr(global_config.chat, "talk_value", 0.1)
+    monkeypatch.setattr(global_config.chat, "enable_talk_value_rules", True)
+    monkeypatch.setattr(
+        global_config.chat,
+        "talk_value_rules",
+        [
+            {"platform": "qq", "item_id": "", "rule_type": "group", "time": "*", "value": 0.4},
+            {"platform": "qq", "item_id": "10001", "rule_type": "group", "time": "", "value": 0.7},
+        ],
+    )
+    monkeypatch.setattr(
+        chat_manager,
+        "get_session_by_session_id",
+        lambda _session_id: SimpleNamespace(platform="qq", group_id="10001", user_id=None),
+    )
+
+    assert ChatConfigUtils.get_talk_value(session_id, True) == 0.7
+
+
+def test_talk_value_rule_wildcard_target_overrides_partial_default(monkeypatch):
+    session_id = "session-a"
+    monkeypatch.setattr(utils_config.time, "localtime", lambda: SimpleNamespace(tm_hour=10, tm_min=30))
+    monkeypatch.setattr(global_config.chat, "talk_value", 0.1)
+    monkeypatch.setattr(global_config.chat, "enable_talk_value_rules", True)
+    monkeypatch.setattr(
+        global_config.chat,
+        "talk_value_rules",
+        [
+            {"platform": "qq", "item_id": "", "rule_type": "group", "time": "*", "value": 0.4},
+            {"platform": "qq", "item_id": "*", "rule_type": "group", "time": "", "value": 0.6},
+        ],
+    )
+    monkeypatch.setattr(
+        chat_manager,
+        "get_session_by_session_id",
+        lambda _session_id: SimpleNamespace(platform="qq", group_id="10001", user_id=None),
+    )
+
+    assert ChatConfigUtils.get_talk_value(session_id, True) == 0.6
