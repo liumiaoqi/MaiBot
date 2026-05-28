@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from json_repair import repair_json
 from typing import Any, List, Optional
 
 import asyncio
@@ -9,18 +10,22 @@ import json
 import pickle
 import time
 
-from json_repair import repair_json
-
-from src.services import memory_service as memory_service_module
 from src.chat.utils.utils import is_bot_self
 from src.common.logger import get_logger
 from src.common.message_repository import count_messages, find_messages
 from src.config.config import global_config
 from src.person_info.person_info import Person, get_person_id, store_person_memory_from_answer
-from src.services.memory_service import memory_service
+from src.services import memory_service as memory_service_module
 from src.services.llm_service import LLMServiceClient
+from src.services.memory_service import memory_service
 
 logger = get_logger("memory_flow_service")
+
+
+@dataclass
+class PersonFactEvidence:
+    target_messages: List[Any]
+    context_messages: List[Any]
 
 
 class PersonFactWritebackService:
@@ -84,10 +89,10 @@ class PersonFactWritebackService:
         if target_person is None or not target_person.is_known:
             return
 
-        user_evidence_messages = self._collect_user_evidence_messages(message, target_person)
-        if not user_evidence_messages:
+        evidence = self._collect_user_evidence(message, target_person)
+        if not evidence.target_messages:
             return
-        user_evidence_text = self._format_user_evidence(user_evidence_messages)
+        user_evidence_text = self._format_user_evidence(evidence)
 
         facts = await self._extract_facts(target_person, reply_text, user_evidence_text)
         if not facts:
@@ -111,7 +116,7 @@ class PersonFactWritebackService:
 
         evidence_message_ids = [
             str(getattr(item, "message_id", "") or "").strip()
-            for item in user_evidence_messages
+            for item in evidence.target_messages
             if str(getattr(item, "message_id", "") or "").strip()
         ]
         for fact in facts:
@@ -119,6 +124,7 @@ class PersonFactWritebackService:
                 person_name,
                 fact,
                 session_id,
+                person_id=str(getattr(target_person, "person_id", "") or "").strip(),
                 evidence_source="user_supported",
                 evidence_message_ids=evidence_message_ids,
             )
@@ -156,7 +162,7 @@ class PersonFactWritebackService:
         person = Person(person_id=person_id)
         return person if person.is_known else None
 
-    def _collect_user_evidence_messages(self, message: Any, person: Person) -> List[Any]:
+    def _collect_user_evidence(self, message: Any, person: Person) -> PersonFactEvidence:
         session = getattr(message, "session", None)
         session_id = str(
             getattr(message, "session_id", "")
@@ -164,10 +170,11 @@ class PersonFactWritebackService:
             or ""
         ).strip()
         if not session_id:
-            return []
+            return PersonFactEvidence(target_messages=[], context_messages=[])
 
-        evidence: List[Any] = []
+        target_messages: List[Any] = []
         seen_ids = set()
+        timestamp = self._extract_message_timestamp(message)
 
         reply_to = str(getattr(message, "reply_to", "") or "").strip()
         if reply_to:
@@ -176,12 +183,12 @@ class PersonFactWritebackService:
             except Exception as exc:
                 logger.debug("查询人物事实 reply_to 证据失败: %s", exc)
                 replies = []
-            evidence.extend(self._filter_target_user_messages(replies, person, seen_ids))
+            target_messages.extend(self._filter_target_user_messages(replies, person, seen_ids))
 
-        if evidence:
-            return evidence[:3]
+        if target_messages:
+            context_messages = self._collect_context_messages(session_id=session_id, trigger_message=message, limit=8)
+            return PersonFactEvidence(target_messages=target_messages[:3], context_messages=context_messages)
 
-        timestamp = self._extract_message_timestamp(message)
         try:
             candidates = find_messages(
                 session_id=session_id,
@@ -192,8 +199,22 @@ class PersonFactWritebackService:
             )
         except Exception as exc:
             logger.debug("查询人物事实近期用户证据失败: %s", exc)
+            return PersonFactEvidence(target_messages=[], context_messages=[])
+        target_messages = self._filter_target_user_messages(candidates, person, seen_ids)[:3]
+        return PersonFactEvidence(target_messages=target_messages, context_messages=candidates)
+
+    def _collect_context_messages(self, *, session_id: str, trigger_message: Any, limit: int = 8) -> List[Any]:
+        timestamp = self._extract_message_timestamp(trigger_message)
+        try:
+            return find_messages(
+                session_id=session_id,
+                before_time=timestamp,
+                limit=max(1, int(limit)),
+                limit_mode="latest",
+            )
+        except Exception as exc:
+            logger.debug("查询人物事实邻近上下文失败: %s", exc)
             return []
-        return self._filter_target_user_messages(candidates, person, seen_ids)[:3]
 
     @staticmethod
     def _extract_message_timestamp(message: Any) -> float | None:
@@ -231,13 +252,54 @@ class PersonFactWritebackService:
         return filtered
 
     @staticmethod
-    def _format_user_evidence(messages: List[Any]) -> str:
-        lines: List[str] = []
-        for item in messages[:3]:
-            text = str(getattr(item, "processed_plain_text", "") or "").strip()
-            if text:
-                lines.append(f"- {text}")
-        return "\n".join(lines)
+    def _format_user_evidence(evidence: PersonFactEvidence) -> str:
+        target_lines: List[str] = []
+        for item in evidence.target_messages[:3]:
+            line = PersonFactWritebackService._format_evidence_message_line(item, include_sender=False)
+            if line:
+                target_lines.append(f"- {line}")
+
+        context_lines: List[str] = []
+        target_ids = {
+            str(getattr(item, "message_id", "") or "").strip()
+            for item in evidence.target_messages
+            if str(getattr(item, "message_id", "") or "").strip()
+        }
+        for item in evidence.context_messages[:8]:
+            line = PersonFactWritebackService._format_evidence_message_line(
+                item,
+                include_sender=True,
+                mark_target=str(getattr(item, "message_id", "") or "").strip() in target_ids,
+            )
+            if line:
+                context_lines.append(f"- {line}")
+
+        parts: List[str] = []
+        if target_lines:
+            parts.append("目标用户原始发言（事实值必须来自这里）：\n" + "\n".join(target_lines))
+        if context_lines:
+            parts.append("邻近上下文（只用于理解省略、追问和指代，不能单独作为事实来源）：\n" + "\n".join(context_lines))
+        return "\n\n".join(parts)
+
+    @staticmethod
+    def _format_evidence_message_line(item: Any, *, include_sender: bool, mark_target: bool = False) -> str:
+        text = str(getattr(item, "processed_plain_text", "") or "").strip()
+        if not text:
+            return ""
+        if not include_sender:
+            return text
+
+        user_info = getattr(getattr(item, "message_info", None), "user_info", None)
+        sender_name = str(
+            getattr(user_info, "user_cardname", "")
+            or getattr(user_info, "user_nickname", "")
+            or getattr(user_info, "user_id", "")
+            or getattr(item, "user_id", "")
+            or ""
+        ).strip()
+        prefix = f"{sender_name}: " if sender_name else ""
+        target_marker = " [目标用户发言]" if mark_target else ""
+        return f"{prefix}{text}{target_marker}"
 
     async def _extract_facts(self, person: Person, reply_text: str, user_evidence_text: str) -> List[str]:
         person_name = str(getattr(person, "person_name", "") or getattr(person, "nickname", "") or person.person_id)
@@ -251,11 +313,13 @@ class PersonFactWritebackService:
 {reply_text}
 
 请只提取满足以下条件的事实：
-1. 必须能被“用户原始发言证据”直接支持，不能只来自机器人回复。
+1. 事实值必须能被“目标用户原始发言”直接支持，不能只来自机器人回复或邻近上下文。
 2. 明确是关于目标人物本人的信息。
 3. 具有相对稳定性，可以作为长期记忆保存。
 4. 用简洁中文陈述句表达。
 5. 如果用户原始发言中出现“我/我的/自己”，默认指目标人物，请先改写成关于目标人物的第三人称事实再输出。
+6. 邻近上下文只能用于补全目标用户短答、省略、被追问的问题或代词指向。例如上下文问“你对什么过敏？”，目标用户答“青霉素”，可以提取“目标人物对青霉素过敏”。
+7. 如果完整事实只能靠机器人回复或邻近上下文中的新增事实值成立，而目标用户原始发言没有确认或给出该事实值，不要提取。
 
 不要提取：
 - 机器人的情绪、计划、临时动作、客套话
