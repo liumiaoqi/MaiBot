@@ -86,6 +86,17 @@ function unwrapModelConfig(data: unknown): Record<string, unknown> {
 }
 
 const ADVANCED_MODEL_TASK_NAMES = new Set(['memory', 'learner', 'emoji', 'voice'])
+const MODEL_CONFIG_TABS = ['providers', 'models', 'tasks'] as const
+type ModelConfigTab = (typeof MODEL_CONFIG_TABS)[number]
+
+function getInitialModelConfigTab(): ModelConfigTab {
+  if (typeof window === 'undefined') {
+    return 'providers'
+  }
+
+  const tab = new URLSearchParams(window.location.search).get('tab')
+  return MODEL_CONFIG_TABS.includes(tab as ModelConfigTab) ? (tab as ModelConfigTab) : 'providers'
+}
 
 function getRequiredTaskNames(schema: ConfigSchema | null): Set<string> {
   return new Set(
@@ -148,7 +159,7 @@ function ModelConfigPageContent() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [jumpToPage, setJumpToPage] = useState('')
-  const [activeTab, setActiveTab] = useState('providers')
+  const [activeTab, setActiveTab] = useState<ModelConfigTab>(getInitialModelConfigTab)
   
   const [advancedModelSettingsVisible, setAdvancedModelSettingsVisible] = useState(false)
   const [advancedTaskSettingsVisible, setAdvancedTaskSettingsVisible] = useState(false)
@@ -680,15 +691,24 @@ function ModelConfigPageContent() {
     setProviderDialogOpen(true)
   }
 
+  const handleActiveTabChange = useCallback((value: string) => {
+    const nextTab = MODEL_CONFIG_TABS.includes(value as ModelConfigTab)
+      ? (value as ModelConfigTab)
+      : 'providers'
+    setActiveTab(nextTab)
+    const nextUrl = nextTab === 'providers' ? '/config/model' : `/config/model?tab=${nextTab}`
+    window.history.replaceState(null, '', nextUrl)
+  }, [])
+
   // Tour 引导 (使用 hook 封装的逻辑)
   const { startTour: handleStartTour, isRunning: tourIsRunning } = useModelTour({
     onOpenEditDialog: () => openEditDialog(null, null),
     onCloseEditDialog: () => setEditDialogOpen(false),
     onOpenProviderDialog: () => openProviderDialog(null, null),
     onCloseProviderDialog: () => setProviderDialogOpen(false),
-    onOpenProvidersTab: () => setActiveTab('providers'),
-    onOpenModelsTab: () => setActiveTab('models'),
-    onOpenTasksTab: () => setActiveTab('tasks'),
+    onOpenProvidersTab: () => handleActiveTabChange('providers'),
+    onOpenModelsTab: () => handleActiveTabChange('models'),
+    onOpenTasksTab: () => handleActiveTabChange('tasks'),
   })
 
   const handleSaveProviderEdit = (provider: APIProvider, index: number | null) => {
@@ -1326,7 +1346,7 @@ function ModelConfigPageContent() {
         )}
 
         {/* 标签页 */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <Tabs value={activeTab} onValueChange={handleActiveTabChange} className="w-full">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="providers" className="w-full" data-tour="providers-tab-trigger">模型厂商设置</TabsTrigger>
             <TabsTrigger value="models" className="w-full" data-tour="models-tab-trigger">模型列表</TabsTrigger>

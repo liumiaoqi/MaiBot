@@ -1,11 +1,22 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import axios from 'axios'
+import type { CSSProperties } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Progress } from '@/components/ui/progress'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { fetchWithAuth } from '@/lib/fetch-with-auth'
 import {
   ChartContainer,
@@ -45,19 +56,28 @@ import {
   Puzzle,
   CheckCircle2,
   AlertCircle,
-  ClipboardList,
   ClipboardCheck,
   ExternalLink,
+  type LucideIcon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import { Link } from '@tanstack/react-router'
 import { RestartProvider, useRestart } from '@/lib/restart-context'
+import { ThemeProviderContext } from '@/lib/theme-context'
+import type { DashboardStyle } from '@/lib/theme/tokens'
 import { RestartOverlay } from '@/components/restart-overlay'
 import { ExpressionReviewer } from '@/components/expression-reviewer'
 import { getBotConfigCached, getModelConfigCached } from '@/lib/config-api'
 import { getReviewStats } from '@/lib/expression-api'
 import { getLocalCacheStats, type LocalCacheStats } from '@/lib/system-api'
+import {
+  getInstalledPlugins,
+  getPluginConfigSchema,
+  type InstalledPlugin,
+  type PluginConfigSchema,
+} from '@/lib/plugin-api'
 import { APP_VERSION } from '@/lib/version'
 import { ZoomableChart } from '@/components/ui/zoomable-chart'
 
@@ -133,13 +153,113 @@ interface FeatureStatus {
   visualEnabled: boolean
 }
 
+type QuickShortcutCategory = 'system' | 'config' | 'resource' | 'plugin' | 'monitor' | 'external'
+
+interface QuickShortcutDefinition {
+  id: string
+  category: QuickShortcutCategory
+  label: string
+  description: string
+  icon: LucideIcon
+  href?: string
+  action?: () => void | Promise<void>
+  disabled?: boolean
+  badge?: string
+  external?: boolean
+}
+
 const DEFAULT_TIME_RANGE = 24
 const DASHBOARD_DATA_CACHE_TTL = 30_000
 const BOT_STATUS_CACHE_TTL = 30_000
 const LOCAL_CACHE_STATS_CACHE_TTL = 120_000
+const QUICK_SHORTCUT_STORAGE_KEY = 'maibot-home-quick-shortcuts'
+const DEFAULT_QUICK_SHORTCUT_IDS = [
+  'action:restart',
+  'action:expression-review',
+  'route:logs',
+  'route:plugin-market',
+  'route:settings',
+  'external:statistics',
+]
 const dashboardDataCache = new Map<number, { timestamp: number; data: DashboardData }>()
 let botStatusCache: { timestamp: number; data: BotStatus } | null = null
 let localCacheStatsCache: { timestamp: number; data: LocalCacheStats } | null = null
+
+function loadQuickShortcutIds(): string[] {
+  const fallback = [...DEFAULT_QUICK_SHORTCUT_IDS]
+  if (typeof window === 'undefined') {
+    return fallback
+  }
+
+  const stored = localStorage.getItem(QUICK_SHORTCUT_STORAGE_KEY)
+  if (!stored) {
+    return fallback
+  }
+
+  try {
+    const parsed = JSON.parse(stored)
+    if (Array.isArray(parsed)) {
+      const ids = parsed.filter((item): item is string => typeof item === 'string' && item.length > 0)
+      return ids.length > 0 ? Array.from(new Set(ids)) : fallback
+    }
+  } catch {
+    return fallback
+  }
+
+  return fallback
+}
+
+function saveQuickShortcutIds(ids: string[]): void {
+  localStorage.setItem(QUICK_SHORTCUT_STORAGE_KEY, JSON.stringify(Array.from(new Set(ids))))
+}
+
+function getPluginShortcutId(pluginId: string, tabId?: string): string {
+  const encodedPluginId = encodeURIComponent(pluginId)
+  if (!tabId) {
+    return `plugin-config:${encodedPluginId}`
+  }
+  return `plugin-config:${encodedPluginId}:tab:${encodeURIComponent(tabId)}`
+}
+
+function parsePluginShortcutId(id: string): { pluginId: string; tabId?: string } | null {
+  if (!id.startsWith('plugin-config:')) {
+    return null
+  }
+
+  const [, encodedPluginId, marker, encodedTabId] = id.split(':')
+  if (!encodedPluginId) {
+    return null
+  }
+
+  return {
+    pluginId: decodeURIComponent(encodedPluginId),
+    tabId: marker === 'tab' && encodedTabId ? decodeURIComponent(encodedTabId) : undefined,
+  }
+}
+
+function getPluginConfigHref(pluginId: string, tabId?: string): string {
+  const params = new URLSearchParams({ plugin: pluginId })
+  if (tabId) {
+    params.set('tab', tabId)
+  }
+  return `/plugin-config?${params.toString()}`
+}
+
+function getFallbackPluginShortcut(id: string): QuickShortcutDefinition | null {
+  const parsed = parsePluginShortcutId(id)
+  if (!parsed) {
+    return null
+  }
+
+  return {
+    id,
+    category: 'plugin',
+    label: parsed.tabId ? `插件配置：${parsed.pluginId} / ${parsed.tabId}` : `插件配置：${parsed.pluginId}`,
+    description: parsed.tabId ? '打开指定插件配置标签页' : '打开指定插件配置页面',
+    icon: Puzzle,
+    href: getPluginConfigHref(parsed.pluginId, parsed.tabId),
+  }
+}
 
 function getCachedDashboardData(hours: number): DashboardData | null {
   const cached = dashboardDataCache.get(hours)
@@ -167,8 +287,25 @@ function getCachedLocalCacheStats(): LocalCacheStats | null {
   return localCacheStatsCache.data
 }
 
-// 为饼图生成更丰富的颜色方案 (HSL色相均匀分布)
-const generatePieColors = (count: number): string[] => {
+const FUTURE_RETRO_PIE_COLORS = [
+  '#0b5a66',
+  '#c84d24',
+  '#8b6f2a',
+  '#2f7d6f',
+  '#9b3f58',
+  '#57704a',
+  '#284b63',
+  '#d08a2d',
+  '#6b5b95',
+  '#7a4f2b',
+]
+
+// 为饼图生成颜色；未来复古模式使用更贴近纸张、青绿边框和橘红强调色的调色盘。
+const generatePieColors = (count: number, dashboardStyle: DashboardStyle): string[] => {
+  if (dashboardStyle === 'future-retro') {
+    return Array.from({ length: count }, (_, index) => FUTURE_RETRO_PIE_COLORS[index % FUTURE_RETRO_PIE_COLORS.length])
+  }
+
   const colors: string[] = []
   for (let i = 0; i < count; i++) {
     // 使用黄金角度分布色相，避免相邻颜色相似
@@ -209,6 +346,7 @@ function formatStorageBytes(bytes: number): string {
 
 function IndexPageContent() {
   const { t } = useTranslation()
+  const { themeConfig } = useContext(ThemeProviderContext)
   const initialDashboardData = getCachedDashboardData(DEFAULT_TIME_RANGE) ?? getStaleDashboardData(DEFAULT_TIME_RANGE)
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(initialDashboardData)
   const [loading, setLoading] = useState(!initialDashboardData)
@@ -229,6 +367,11 @@ function IndexPageContent() {
   const [isLocalCacheStatsLoading, setIsLocalCacheStatsLoading] = useState(!localCacheStatsCache)
   const [isReviewerOpen, setIsReviewerOpen] = useState(false)
   const [uncheckedCount, setUncheckedCount] = useState(0)
+  const [quickShortcutIds, setQuickShortcutIds] = useState<string[]>(loadQuickShortcutIds)
+  const [quickShortcutDialogOpen, setQuickShortcutDialogOpen] = useState(false)
+  const [quickShortcutSearch, setQuickShortcutSearch] = useState('')
+  const [pluginShortcuts, setPluginShortcuts] = useState<QuickShortcutDefinition[]>([])
+  const [isPluginShortcutsLoading, setIsPluginShortcutsLoading] = useState(false)
   const { triggerRestart, isRestarting } = useRestart()
   
   // 使用 ref 跟踪组件是否已卸载，防止内存泄漏
@@ -432,9 +575,248 @@ function IndexPageContent() {
     }
   }, [])
 
-  const handleRestart = async () => {
+  const handleRestart = useCallback(async () => {
     await triggerRestart()
-  }
+  }, [triggerRestart])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadPluginShortcuts = async () => {
+      setIsPluginShortcutsLoading(true)
+      try {
+        const installedResult = await getInstalledPlugins()
+        if (!installedResult.success || cancelled) {
+          return
+        }
+
+        const enabledPlugins = installedResult.data
+          .filter((plugin) => plugin.disabled !== true && plugin.enabled !== false)
+          .filter((plugin, index, all) => index === all.findIndex((item) => item.id === plugin.id))
+
+        const shortcuts = await Promise.all(
+          enabledPlugins.map(async (plugin: InstalledPlugin): Promise<QuickShortcutDefinition[]> => {
+            const pluginName = plugin.manifest.name || plugin.id
+            const baseShortcut: QuickShortcutDefinition = {
+              id: getPluginShortcutId(plugin.id),
+              category: 'plugin',
+              label: `${pluginName} 配置`,
+              description: `打开 ${pluginName} 的插件配置页面`,
+              icon: Puzzle,
+              href: getPluginConfigHref(plugin.id),
+            }
+
+            const schemaResult = await getPluginConfigSchema(plugin.id)
+            if (!schemaResult.success || !schemaResult.data) {
+              return [baseShortcut]
+            }
+
+            const schema = schemaResult.data as PluginConfigSchema
+            const tabs = schema.layout.type === 'tabs' ? schema.layout.tabs : []
+            const tabShortcuts = tabs.map((tab) => ({
+              id: getPluginShortcutId(plugin.id, tab.id),
+              category: 'plugin' as const,
+              label: `${pluginName} / ${tab.title || tab.id}`,
+              description: `打开 ${pluginName} 的 ${tab.title || tab.id} 标签页`,
+              icon: Puzzle,
+              href: getPluginConfigHref(plugin.id, tab.id),
+            }))
+
+            return [baseShortcut, ...tabShortcuts]
+          })
+        )
+
+        if (!cancelled) {
+          setPluginShortcuts(shortcuts.flat())
+        }
+      } catch (error) {
+        console.error('加载插件快捷入口失败:', error)
+      } finally {
+        if (!cancelled) {
+          setIsPluginShortcutsLoading(false)
+        }
+      }
+    }
+
+    void loadPluginShortcuts()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const quickShortcutOptions = useMemo<QuickShortcutDefinition[]>(
+    () => [
+      {
+        id: 'action:restart',
+        category: 'system',
+        label: isRestarting ? t('home.quickActions.restarting') : t('home.quickActions.restart'),
+        description: '重启麦麦主程序',
+        icon: RotateCcw,
+        action: handleRestart,
+        disabled: isRestarting,
+      },
+      {
+        id: 'action:expression-review',
+        category: 'resource',
+        label: t('home.quickActions.expressionReview'),
+        description: '打开表达学习审核弹窗',
+        icon: ClipboardCheck,
+        action: () => setIsReviewerOpen(true),
+        badge: uncheckedCount > 0 ? (uncheckedCount > 99 ? '99+' : String(uncheckedCount)) : undefined,
+      },
+      {
+        id: 'route:logs',
+        category: 'monitor',
+        label: t('home.quickActions.viewLogs'),
+        description: '查看 WebUI 日志',
+        icon: FileText,
+        href: '/logs',
+      },
+      {
+        id: 'route:plugin-market',
+        category: 'plugin',
+        label: t('home.quickActions.pluginManage'),
+        description: '打开插件市场与插件管理',
+        icon: Puzzle,
+        href: '/plugins',
+      },
+      {
+        id: 'route:plugin-config',
+        category: 'plugin',
+        label: '插件配置',
+        description: '打开已安装插件配置页面',
+        icon: Settings,
+        href: '/plugin-config',
+      },
+      {
+        id: 'route:settings',
+        category: 'system',
+        label: t('home.quickActions.systemSettings'),
+        description: '打开系统设置',
+        icon: Settings,
+        href: '/settings',
+      },
+      {
+        id: 'route:settings-appearance',
+        category: 'system',
+        label: '外观设置',
+        description: '打开设置 / 外观',
+        icon: Settings,
+        href: '/settings?tab=appearance',
+      },
+      {
+        id: 'route:settings-local-cache',
+        category: 'system',
+        label: '本地缓存',
+        description: '打开设置 / 本地缓存',
+        icon: HardDrive,
+        href: '/settings?tab=local-cache',
+      },
+      {
+        id: 'route:model-providers',
+        category: 'config',
+        label: '模型厂商设置',
+        description: '打开模型管理 / 模型厂商设置',
+        icon: Settings,
+        href: '/config/model?tab=providers',
+      },
+      {
+        id: 'route:model-list',
+        category: 'config',
+        label: '模型列表',
+        description: '打开模型管理 / 模型列表',
+        icon: Settings,
+        href: '/config/model?tab=models',
+      },
+      {
+        id: 'route:model-tasks',
+        category: 'config',
+        label: '模型功能分配',
+        description: '打开模型管理 / 为模型分配功能',
+        icon: Settings,
+        href: '/config/model?tab=tasks',
+      },
+      {
+        id: 'route:bot-config',
+        category: 'config',
+        label: '主程序配置',
+        description: '打开麦麦主程序配置',
+        icon: Settings,
+        href: '/config/bot',
+      },
+      {
+        id: 'route:emoji',
+        category: 'resource',
+        label: '表情包管理',
+        description: '打开表情包资源管理',
+        icon: MessageSquare,
+        href: '/resource/emoji',
+      },
+      {
+        id: 'route:expression',
+        category: 'resource',
+        label: '表达方式管理',
+        description: '打开表达方式管理',
+        icon: MessageSquare,
+        href: '/resource/expression',
+      },
+      {
+        id: 'external:statistics',
+        category: 'external',
+        label: '详细统计数据',
+        description: '打开 maibot_statistics.html',
+        icon: BarChart3,
+        href: '/maibot_statistics.html',
+        external: true,
+      },
+      ...pluginShortcuts,
+    ],
+    [handleRestart, isRestarting, pluginShortcuts, t, uncheckedCount]
+  )
+
+  const quickShortcutMap = useMemo(
+    () => new Map(quickShortcutOptions.map((shortcut) => [shortcut.id, shortcut])),
+    [quickShortcutOptions]
+  )
+
+  const selectedQuickShortcuts = useMemo(
+    () =>
+      quickShortcutIds
+        .map((id) => quickShortcutMap.get(id) ?? getFallbackPluginShortcut(id))
+        .filter((shortcut): shortcut is QuickShortcutDefinition => Boolean(shortcut)),
+    [quickShortcutIds, quickShortcutMap]
+  )
+
+  const filteredQuickShortcutOptions = useMemo(() => {
+    const query = quickShortcutSearch.trim().toLowerCase()
+    if (!query) {
+      return quickShortcutOptions
+    }
+
+    return quickShortcutOptions.filter((shortcut) =>
+      `${shortcut.label} ${shortcut.description}`.toLowerCase().includes(query)
+    )
+  }, [quickShortcutOptions, quickShortcutSearch])
+
+  const updateQuickShortcutIds = useCallback((nextIds: string[]) => {
+    const normalizedIds = Array.from(new Set(nextIds))
+    setQuickShortcutIds(normalizedIds)
+    saveQuickShortcutIds(normalizedIds)
+  }, [])
+
+  const toggleQuickShortcut = useCallback(
+    (id: string, checked: boolean) => {
+      updateQuickShortcutIds(
+        checked ? [...quickShortcutIds, id] : quickShortcutIds.filter((shortcutId) => shortcutId !== id)
+      )
+    },
+    [quickShortcutIds, updateQuickShortcutIds]
+  )
+
+  const resetQuickShortcuts = useCallback(() => {
+    updateQuickShortcutIds([...DEFAULT_QUICK_SHORTCUT_IDS])
+  }, [updateQuickShortcutIds])
 
   const fetchDashboardData = useCallback(async (force = false) => {
     try {
@@ -628,11 +1010,11 @@ function IndexPageContent() {
     })
   }
 
-  // 准备饼图数据（模型请求分布）- 使用黄金角度分布避免相邻颜色相似
-  const pieColors = generatePieColors(model_stats.length)
+  // 准备饼图数据（模型花费分布）- 使用黄金角度分布避免相邻颜色相似
+  const pieColors = generatePieColors(model_stats.length, themeConfig.dashboardStyle)
   const modelPieData = model_stats.map((stat, index) => ({
     name: stat.model_name,
-    value: stat.request_count,
+    value: stat.total_cost,
     fill: pieColors[index],
   }))
 
@@ -672,13 +1054,6 @@ function IndexPageContent() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Tabs value={timeRange.toString()} onValueChange={(v) => setTimeRange(Number(v))}>
-            <TabsList className="grid grid-cols-3 w-full sm:w-auto">
-              <TabsTrigger value="24">{t('home.timeRange.24h')}</TabsTrigger>
-              <TabsTrigger value="168">{t('home.timeRange.7d')}</TabsTrigger>
-              <TabsTrigger value="720">{t('home.timeRange.30d')}</TabsTrigger>
-            </TabsList>
-          </Tabs>
           <Button
             variant={autoRefresh ? 'default' : 'outline'}
             size="sm"
@@ -715,7 +1090,7 @@ function IndexPageContent() {
       </div>
 
       {/* 机器人状态和快速操作 */}
-      <div className="grid gap-4 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)_max-content]">
+      <div className="grid gap-4 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)]">
         {/* 机器人状态卡片 */}
         <Card className="lg:col-span-1">
           <CardHeader className="pb-3">
@@ -875,7 +1250,221 @@ function IndexPageContent() {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-1">
+        {/* 快速操作卡片 */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Zap className="h-4 w-4" />
+              {t('home.quickActions.title')}
+            </CardTitle>
+            <Button variant="ghost" size="sm" onClick={() => setQuickShortcutDialogOpen(true)}>
+              <Settings className="mr-2 h-4 w-4" />
+              自定义
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {selectedQuickShortcuts.length === 0 ? (
+              <div className="flex flex-col gap-3 rounded-lg border border-dashed p-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+                <span>还没有选择快捷入口</span>
+                <Button variant="outline" size="sm" onClick={() => setQuickShortcutDialogOpen(true)}>
+                  添加入口
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {selectedQuickShortcuts.map((shortcut) => {
+                  const Icon = shortcut.icon
+                  const content = (
+                    <>
+                      <Icon className={`h-4 w-4 ${shortcut.id === 'action:restart' && isRestarting ? 'animate-spin' : ''}`} />
+                      {shortcut.label}
+                      {shortcut.badge && (
+                        <span className="ml-1 rounded-full bg-orange-500 px-1.5 py-0.5 text-xs text-white">
+                          {shortcut.badge}
+                        </span>
+                      )}
+                      {shortcut.external && <ExternalLink className="h-3.5 w-3.5" />}
+                    </>
+                  )
+
+                  if (shortcut.href) {
+                    return (
+                      <Button key={shortcut.id} variant="outline" size="sm" asChild className="gap-2">
+                        <a
+                          href={shortcut.href}
+                          target={shortcut.external ? '_blank' : undefined}
+                          rel={shortcut.external ? 'noopener noreferrer' : undefined}
+                        >
+                          {content}
+                        </a>
+                      </Button>
+                    )
+                  }
+
+                  return (
+                    <Button
+                      key={shortcut.id}
+                      variant="outline"
+                      size="sm"
+                      onClick={shortcut.action}
+                      disabled={shortcut.disabled}
+                      className="gap-2"
+                    >
+                      {content}
+                    </Button>
+                  )
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+      </div>
+
+      <div className="grid gap-4 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px]">
+        {/* 统计概览 */}
+        <Card>
+          <CardHeader className="flex flex-col gap-3 pb-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-1.5">
+              <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                <BarChart3 className="h-4 w-4" />
+                统计概览
+              </CardTitle>
+              <CardDescription>
+                {t('home.stats.recentPeriod', {
+                  range: timeRange < 48
+                    ? timeRange + t('home.stats.hours')
+                    : Math.floor(timeRange / 24) + t('home.stats.days'),
+                })}
+              </CardDescription>
+            </div>
+            <Tabs value={timeRange.toString()} onValueChange={(v) => setTimeRange(Number(v))}>
+              <TabsList className="grid grid-cols-3">
+                <TabsTrigger value="24">{t('home.timeRange.24h')}</TabsTrigger>
+                <TabsTrigger value="168">{t('home.timeRange.7d')}</TabsTrigger>
+                <TabsTrigger value="720">{t('home.timeRange.30d')}</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
+              <div className="rounded-lg border p-4">
+                <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
+                  <span>{t('home.stats.totalRequests')}</span>
+                  <Activity className="h-4 w-4" />
+                </div>
+                <div className="mt-3 text-2xl font-bold">
+                  {formatNumber(summary.total_requests).display}
+                  {formatNumber(summary.total_requests).needsExact && (
+                    <span className="ml-1 text-xs font-normal text-muted-foreground">
+                      ({formatNumber(summary.total_requests).exact})
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-lg border p-4">
+                <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
+                  <span>{t('home.stats.totalCost')}</span>
+                  <DollarSign className="h-4 w-4" />
+                </div>
+                <div className="mt-3 text-2xl font-bold">
+                  {formatCurrency(summary.total_cost).display}
+                  {formatCurrency(summary.total_cost).needsExact && (
+                    <span className="ml-1 text-xs font-normal text-muted-foreground">
+                      ({formatCurrency(summary.total_cost).exact})
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {summary.cost_per_hour > 0
+                    ? t('home.stats.perHour', { value: `¥${summary.cost_per_hour.toFixed(2)}` })
+                    : t('home.stats.noData')}
+                </p>
+              </div>
+
+              <div className="rounded-lg border p-4">
+                <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
+                  <span>{t('home.stats.tokenUsage')}</span>
+                  <Database className="h-4 w-4" />
+                </div>
+                <div className="mt-3 text-2xl font-bold">
+                  {formatNumber(summary.total_tokens).display}
+                  {formatNumber(summary.total_tokens).needsExact && (
+                    <span className="ml-1 text-xs font-normal text-muted-foreground">
+                      ({formatNumber(summary.total_tokens).exact})
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {summary.tokens_per_hour > 0
+                    ? t('home.stats.perHour', { value: formatNumber(summary.tokens_per_hour).display })
+                    : t('home.stats.noData')}
+                </p>
+              </div>
+
+              <div className="rounded-lg border p-4">
+                <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
+                  <span>{t('home.stats.avgResponse')}</span>
+                  <Zap className="h-4 w-4" />
+                </div>
+                <div className="mt-3 text-2xl font-bold">{summary.avg_response_time.toFixed(2)}s</div>
+                <p className="mt-1 text-xs text-muted-foreground">{t('home.stats.avgResponseDesc')}</p>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-lg border p-4">
+                <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
+                  <span>{t('home.stats.onlineTime')}</span>
+                  <Clock className="h-4 w-4" />
+                </div>
+                <div className="mt-3 text-xl font-bold">
+                  {formatTime(summary.online_time)}
+                  <span className="ml-1 text-xs font-normal text-muted-foreground">
+                    ({summary.online_time.toLocaleString()}{t('home.stats.seconds')})
+                  </span>
+                </div>
+              </div>
+
+              <div className="rounded-lg border p-4">
+                <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
+                  <span>{t('home.stats.messageProcessing')}</span>
+                  <MessageSquare className="h-4 w-4" />
+                </div>
+                <div className="mt-3 text-xl font-bold">
+                  {formatNumber(summary.total_messages).display}
+                  {formatNumber(summary.total_messages).needsExact && (
+                    <span className="ml-1 text-xs font-normal text-muted-foreground">
+                      ({formatNumber(summary.total_messages).exact})
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {t('home.stats.replied', { num: formatNumber(summary.total_replies).display })}
+                  {formatNumber(summary.total_replies).needsExact && (
+                    <span>({formatNumber(summary.total_replies).exact})</span>
+                  )}
+                </p>
+              </div>
+
+              <div className="rounded-lg border p-4">
+                <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
+                  <span>{t('home.stats.costEfficiency')}</span>
+                  <TrendingUp className="h-4 w-4" />
+                </div>
+                <div className="mt-3 text-xl font-bold">
+                  {summary.total_messages > 0
+                    ? `¥${((summary.total_cost / summary.total_messages) * 100).toFixed(2)}`
+                    : '¥0.00'}
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">{t('home.stats.per100Messages')}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="xl:self-stretch">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <HardDrive className="h-4 w-4" />
@@ -901,217 +1490,6 @@ function IndexPageContent() {
                 </Link>
               </Button>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* 快速操作卡片 */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Zap className="h-4 w-4" />
-              {t('home.quickActions.title')}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRestart}
-                disabled={isRestarting}
-                className="gap-2"
-              >
-                <RotateCcw className={`h-4 w-4 ${isRestarting ? 'animate-spin' : ''}`} />
-                {isRestarting ? t('home.quickActions.restarting') : t('home.quickActions.restart')}
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => setIsReviewerOpen(true)}
-                className="gap-2"
-              >
-                <ClipboardCheck className="h-4 w-4" />
-                {t('home.quickActions.expressionReview')}
-                {uncheckedCount > 0 && (
-                  <span className="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-orange-500 text-white">
-                    {uncheckedCount > 99 ? '99+' : uncheckedCount}
-                  </span>
-                )}
-              </Button>
-              <Button variant="outline" size="sm" asChild className="gap-2">
-                <Link to="/logs">
-                  <FileText className="h-4 w-4" />
-                  {t('home.quickActions.viewLogs')}
-                </Link>
-              </Button>
-              <Button variant="outline" size="sm" asChild className="gap-2">
-                <Link to="/plugins">
-                  <Puzzle className="h-4 w-4" />
-                  {t('home.quickActions.pluginManage')}
-                </Link>
-              </Button>
-              <Button variant="outline" size="sm" asChild className="gap-2">
-                <Link to="/settings">
-                  <Settings className="h-4 w-4" />
-                  {t('home.quickActions.systemSettings')}
-                </Link>
-              </Button>
-              <Button variant="outline" size="sm" asChild className="gap-2">
-                <a href="/maibot_statistics.html" target="_blank" rel="noopener noreferrer">
-                  <BarChart3 className="h-4 w-4" />
-                  详细统计数据
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </a>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* 问卷调查卡片 */}
-        <Card className="lg:w-[190px]">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <ClipboardList className="h-4 w-4" />
-              {t('home.survey.title')}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col gap-2">
-              <Button variant="outline" size="sm" asChild className="w-full justify-start gap-2">
-                <Link to="/survey/webui-feedback">
-                  <FileText className="h-4 w-4" />
-                  {t('home.survey.webui')}
-                </Link>
-              </Button>
-              <Button variant="outline" size="sm" asChild className="w-full justify-start gap-2">
-                <Link to="/survey/maibot-feedback">
-                  <MessageSquare className="h-4 w-4" />
-                  {t('home.survey.maibot')}
-                </Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* 核心指标卡片 */}
-      <div className="grid gap-4 grid-cols-1 xs:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{t('home.stats.totalRequests')}</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatNumber(summary.total_requests).display}
-              {formatNumber(summary.total_requests).needsExact && (
-                <span className="text-xs font-normal text-muted-foreground ml-1">({formatNumber(summary.total_requests).exact})</span>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {t('home.stats.recentPeriod', { range: timeRange < 48 ? timeRange + t('home.stats.hours') : Math.floor(timeRange / 24) + t('home.stats.days') })}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{t('home.stats.totalCost')}</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(summary.total_cost).display}
-              {formatCurrency(summary.total_cost).needsExact && (
-                <span className="text-xs font-normal text-muted-foreground ml-1">({formatCurrency(summary.total_cost).exact})</span>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {summary.cost_per_hour > 0 ? t('home.stats.perHour', { value: `¥${summary.cost_per_hour.toFixed(2)}` }) : t('home.stats.noData')}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{t('home.stats.tokenUsage')}</CardTitle>
-            <Database className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatNumber(summary.total_tokens).display}
-              {formatNumber(summary.total_tokens).needsExact && (
-                <span className="text-xs font-normal text-muted-foreground ml-1">({formatNumber(summary.total_tokens).exact})</span>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {summary.tokens_per_hour > 0
-                ? t('home.stats.perHour', { value: formatNumber(summary.tokens_per_hour).display })
-                : t('home.stats.noData')}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{t('home.stats.avgResponse')}</CardTitle>
-            <Zap className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{summary.avg_response_time.toFixed(2)}s</div>
-            <p className="text-xs text-muted-foreground mt-1">{t('home.stats.avgResponseDesc')}</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* 次要指标 */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{t('home.stats.onlineTime')}</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl font-bold">
-              {formatTime(summary.online_time)}
-              <span className="text-xs font-normal text-muted-foreground ml-1">({summary.online_time.toLocaleString()}{t('home.stats.seconds')})</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{t('home.stats.messageProcessing')}</CardTitle>
-            <MessageSquare className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl font-bold">
-              {formatNumber(summary.total_messages).display}
-              {formatNumber(summary.total_messages).needsExact && (
-                <span className="text-xs font-normal text-muted-foreground ml-1">({formatNumber(summary.total_messages).exact})</span>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {t('home.stats.replied', { num: formatNumber(summary.total_replies).display })}
-              {formatNumber(summary.total_replies).needsExact && (
-                <span>({formatNumber(summary.total_replies).exact})</span>
-              )}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{t('home.stats.costEfficiency')}</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl font-bold">
-              {summary.total_messages > 0
-                ? `¥${((summary.total_cost / summary.total_messages) * 100).toFixed(2)}`
-                : '¥0.00'}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">{t('home.stats.per100Messages')}</p>
           </CardContent>
         </Card>
       </div>
@@ -1262,6 +1640,7 @@ function IndexPageContent() {
                       }}
                       outerRadius={100}
                       dataKey="value"
+                      nameKey="name"
                     >
                       {modelPieData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.fill} />
@@ -1292,7 +1671,7 @@ function IndexPageContent() {
                           <div
                             className="w-3 h-3 rounded-full ml-2 flex-shrink-0"
                             style={{
-                              backgroundColor: `hsl(var(--color-chart-${(index % 5) + 1}))`,
+                              backgroundColor: pieColors[index],
                             }}
                           />
                         </div>
@@ -1436,6 +1815,79 @@ function IndexPageContent() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={quickShortcutDialogOpen} onOpenChange={setQuickShortcutDialogOpen}>
+        <DialogContent style={{ '--dialog-width': '46rem' } as CSSProperties}>
+          <DialogHeader>
+            <DialogTitle>自定义快捷入口</DialogTitle>
+            <DialogDescription>
+              选择首页快捷操作卡片中显示的入口，可包含页面标签页和插件配置页。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody viewportClassName="max-h-[60vh]">
+            <div className="space-y-4 pr-1">
+              <Input
+                value={quickShortcutSearch}
+                onChange={(event) => setQuickShortcutSearch(event.target.value)}
+                placeholder="搜索入口、插件或标签页..."
+              />
+              <div className="space-y-2">
+                {filteredQuickShortcutOptions.map((shortcut) => {
+                  const Icon = shortcut.icon
+                  const checked = quickShortcutIds.includes(shortcut.id)
+                  return (
+                    <label
+                      key={shortcut.id}
+                      className="flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors hover:bg-accent/40"
+                    >
+                      <Checkbox
+                        className="mt-0.5"
+                        checked={checked}
+                        onCheckedChange={(value) => toggleQuickShortcut(shortcut.id, value === true)}
+                      />
+                      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium">{shortcut.label}</span>
+                          <Badge variant="outline" className="text-[10px]">
+                            {shortcut.category === 'plugin'
+                              ? '插件'
+                              : shortcut.category === 'config'
+                                ? '配置'
+                                : shortcut.category === 'resource'
+                                  ? '资源'
+                                  : shortcut.category === 'monitor'
+                                    ? '监控'
+                                    : shortcut.category === 'external'
+                                      ? '外部'
+                                      : '系统'}
+                          </Badge>
+                        </span>
+                        <span className="mt-1 block text-sm text-muted-foreground">
+                          {shortcut.description}
+                        </span>
+                      </span>
+                    </label>
+                  )
+                })}
+                {filteredQuickShortcutOptions.length === 0 && (
+                  <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                    {isPluginShortcutsLoading ? '正在加载插件入口...' : '没有找到匹配的入口'}
+                  </div>
+                )}
+              </div>
+            </div>
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="outline" onClick={resetQuickShortcuts}>
+              恢复默认
+            </Button>
+            <Button onClick={() => setQuickShortcutDialogOpen(false)}>
+              完成
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* 重启遮罩层 */}
       <RestartOverlay />
