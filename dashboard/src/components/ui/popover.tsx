@@ -16,6 +16,7 @@ const PopoverContent = React.forwardRef<
   <PopoverPrimitive.Portal>
     <PopoverPrimitive.Content
       ref={ref}
+      data-dashboard-floating-content="true"
       align={align}
       sideOffset={sideOffset}
       className={cn(

@@ -623,6 +623,7 @@
 }
 
 :root[data-dashboard-style='future-retro'] [data-dashboard-select-content='true'],
+:root[data-dashboard-style='future-retro'] [data-dashboard-floating-content='true'],
 :root[data-dashboard-style='future-retro'] [data-dashboard-dialog-content='true'] {
   border: var(--retro-stroke) solid var(--retro-line) !important;
   border-radius: var(--visual-radius-lg) !important;
