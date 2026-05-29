@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Select,
   SelectContent,
@@ -14,11 +16,12 @@ import { Card } from '@/components/ui/card'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { Search, RefreshCw, Download, Filter, Trash2, Pause, Play, Calendar as CalendarIcon, X, Type, ChevronDown, ChevronUp } from 'lucide-react'
+import { BrainCircuit, Search, Download, Filter, Trash2, Pause, Play, Calendar as CalendarIcon, X, Type, ChevronDown, ChevronUp, Terminal } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { logWebSocket, type LogEntry } from '@/lib/log-websocket'
 import { format } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
+import { ReasoningProcessPage } from './reasoning-process'
 
 // 字号配置
 type FontSize = 'xs' | 'sm' | 'base'
@@ -87,7 +90,12 @@ function formatLogLevel(level: LogEntry['level']) {
   return level.slice(0, 4)
 }
 
-export function LogViewerPage() {
+interface LogTerminalPaneProps {
+  toolbarContainerId: string
+  toolbarVisible: boolean
+}
+
+function LogTerminalPane({ toolbarContainerId, toolbarVisible }: LogTerminalPaneProps) {
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [levelFilter, setLevelFilter] = useState<LogLevelFilter>('INFO')
@@ -99,7 +107,12 @@ export function LogViewerPage() {
   const [fontSize, setFontSize] = useState<FontSize>('xs') // 默认使用小字号以显示更多信息
   const [lineSpacing, setLineSpacing] = useState(4) // 行间距，默认4px（紧凑）
   const [filtersOpen, setFiltersOpen] = useState(false) // 控制折叠面板，默认折叠
+  const [toolbarRoot, setToolbarRoot] = useState<HTMLElement | null>(null)
   const parentRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    setToolbarRoot(document.getElementById(toolbarContainerId))
+  }, [toolbarContainerId])
 
   // 订阅全局 WebSocket 连接
   useEffect(() => {
@@ -147,11 +160,6 @@ export function LogViewerPage() {
       default:
         return 'text-foreground'
     }
-  }
-
-  // 刷新日志（刷新页面）
-  const handleRefresh = () => {
-    window.location.reload()
   }
 
   // 清空日志
@@ -287,106 +295,90 @@ export function LogViewerPage() {
     }
   }, [filteredLogs.length, autoScroll, rowVirtualizer])
 
-  return (
-    <div className="h-full flex flex-col overflow-hidden">
-      {/* 顶部操作面板 - 紧凑设计，默认折叠 */}
-      <div className="flex-shrink-0 space-y-2 sm:space-y-3 p-2 sm:p-3 lg:p-4">
-        {/* 控制栏 - 可折叠 */}
-        <Card className="p-2 sm:p-3">
-          <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
-            <div className="flex flex-col gap-2">
-              {/* 第一行：始终显示 - 搜索、快捷操作、展开按钮 */}
-              <div className="flex gap-2">
-                {/* 搜索框 */}
-                <div className="flex-1 relative min-w-0">
-                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                  <Input
-                    placeholder="搜索日志..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-8 h-8 text-xs sm:text-sm"
-                  />
-                </div>
+  const toolbarContent = (
+    <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+      <div className="flex w-full flex-col gap-2 lg:items-end">
+        <div className="flex w-full flex-wrap items-center gap-1.5 lg:justify-end">
+          <div className="relative min-w-[180px] flex-1 lg:max-w-64">
+            <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="搜索日志..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-8 pl-8 text-xs sm:text-sm"
+            />
+          </div>
 
-                {/* 快捷操作按钮 */}
-                <div className="flex gap-1 flex-shrink-0">
-                  <Button
-                    variant={autoScroll ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={toggleAutoScroll}
-                    className="h-8 px-2"
-                    title={autoScroll ? '自动滚动' : '已暂停'}
-                  >
-                    {autoScroll ? (
-                      <Pause className="h-3.5 w-3.5" />
-                    ) : (
-                      <Play className="h-3.5 w-3.5" />
-                    )}
-                    <span className="ml-1 text-xs hidden sm:inline">
-                      {autoScroll ? '滚动' : '暂停'}
-                    </span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleClear}
-                    className="h-8 px-2"
-                    title="清空日志"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    <span className="ml-1 text-xs hidden md:inline">清空</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleExport}
-                    className="h-8 px-2 hidden sm:flex"
-                    title="导出日志"
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                    <span className="ml-1 text-xs hidden lg:inline">导出</span>
-                  </Button>
-                  
-                  {/* 展开/收起按钮 */}
-                  <CollapsibleTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 px-2"
-                      title={filtersOpen ? '收起筛选' : '展开筛选'}
-                    >
-                      <Filter className="h-3.5 w-3.5" />
-                      {filtersOpen ? (
-                        <ChevronUp className="h-3.5 w-3.5 ml-1" />
-                      ) : (
-                        <ChevronDown className="h-3.5 w-3.5 ml-1" />
-                      )}
-                    </Button>
-                  </CollapsibleTrigger>
-                </div>
-              </div>
+          <Button
+            variant={autoScroll ? 'default' : 'outline'}
+            size="sm"
+            onClick={toggleAutoScroll}
+            className="h-8 px-2"
+            title={autoScroll ? '自动滚动' : '已暂停'}
+          >
+            {autoScroll ? (
+              <Pause className="h-3.5 w-3.5" />
+            ) : (
+              <Play className="h-3.5 w-3.5" />
+            )}
+            <span className="ml-1 text-xs">{autoScroll ? '滚动' : '暂停'}</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleClear}
+            className="h-8 px-2"
+            title="清空日志"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            <span className="ml-1 text-xs">清空</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExport}
+            className="h-8 px-2"
+            title="导出日志"
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span className="ml-1 text-xs">导出</span>
+          </Button>
 
-              {/* 日志数量显示 */}
-              <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground -mt-1">
-                <div className="flex items-center gap-2">
-                  <div
-                    className={cn(
-                      'h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full',
-                      connected ? 'bg-green-500 animate-pulse' : 'bg-red-500'
-                    )}
-                  />
-                  <span>{connected ? '已连接' : '未连接'}</span>
-                </div>
-                <div className="text-right">
-                  <span className="font-mono">
-                    {filteredLogs.length} / {logs.length}
-                  </span>
-                  <span className="ml-1">条日志</span>
-                </div>
-              </div>
+          <CollapsibleTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-2"
+              title={filtersOpen ? '收起筛选' : '展开筛选'}
+            >
+              <Filter className="h-3.5 w-3.5" />
+              <span className="ml-1 text-xs">筛选</span>
+              {filtersOpen ? (
+                <ChevronUp className="ml-1 h-3.5 w-3.5" />
+              ) : (
+                <ChevronDown className="ml-1 h-3.5 w-3.5" />
+              )}
+            </Button>
+          </CollapsibleTrigger>
 
-              {/* 可折叠的筛选区域 */}
-              <CollapsibleContent className="space-y-2">
+          <div className="ml-auto flex items-center gap-2 whitespace-nowrap text-xs text-muted-foreground lg:ml-1">
+            <span className="flex items-center gap-1.5">
+              <span
+                className={cn(
+                  'h-2 w-2 rounded-full',
+                  connected ? 'bg-green-500 animate-pulse' : 'bg-red-500'
+                )}
+              />
+              {connected ? '已连接' : '未连接'}
+            </span>
+            <span>
+              <span className="font-mono">{filteredLogs.length} / {logs.length}</span>
+              <span className="ml-1">条日志</span>
+            </span>
+          </div>
+        </div>
+
+        <CollapsibleContent className="w-full space-y-2 lg:max-w-[760px]">
                 {/* 级别和模块筛选 */}
                 <div className="flex flex-col gap-2 sm:flex-row sm:gap-2">
                   <Select value={levelFilter} onValueChange={(value) => setLevelFilter(value as LogLevelFilter)}>
@@ -490,7 +482,7 @@ export function LogViewerPage() {
                 </div>
 
                 {/* 显示设置 */}
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 pt-2 border-t border-border/50">
+                <div className="flex flex-col gap-2 border-t border-border/50 pt-2 sm:flex-row sm:items-center sm:gap-3">
                   {/* 字号调整 */}
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -526,36 +518,21 @@ export function LogViewerPage() {
                     <span className="text-xs text-muted-foreground w-7">{lineSpacing}px</span>
                   </div>
 
-                  {/* 额外操作按钮（移动端） */}
-                  <div className="flex gap-2 sm:hidden">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleRefresh}
-                      className="flex-1 h-8"
-                    >
-                      <RefreshCw className="h-3.5 w-3.5 mr-1" />
-                      <span className="text-xs">刷新</span>
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleExport}
-                      className="flex-1 h-8"
-                    >
-                      <Download className="h-3.5 w-3.5 mr-1" />
-                      <span className="text-xs">导出</span>
-                    </Button>
-                  </div>
                 </div>
               </CollapsibleContent>
-            </div>
-          </Collapsible>
-        </Card>
       </div>
+    </Collapsible>
+  )
+
+  const toolbarPortal =
+    toolbarVisible && toolbarRoot ? createPortal(toolbarContent, toolbarRoot) : null
+
+  return (
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      {toolbarPortal}
 
       {/* 日志终端 - 占据剩余所有空间 */}
-      <div className="flex-1 min-h-0 px-2 sm:px-3 lg:px-4 pb-2 sm:pb-3 lg:pb-4">
+      <div className="min-h-0 flex-1 px-2 pb-2 sm:px-3 sm:pb-3 lg:p-4">
         <Card
           className="h-full overflow-hidden border-[#24170f]/70 dark:border-[#1d120c]/80"
           style={{ backgroundColor: '#633312' }}
@@ -698,4 +675,42 @@ export function LogViewerPage() {
       </div>
     </div>
   )
+}
+
+interface LogViewerPageProps {
+  defaultTab?: 'terminal' | 'reasoning'
+}
+
+export function LogViewerPage({ defaultTab = 'terminal' }: LogViewerPageProps) {
+  const [activeTab, setActiveTab] = useState(defaultTab)
+  const toolbarContainerId = 'log-terminal-toolbar'
+
+  return (
+    <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'terminal' | 'reasoning')} className="flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="flex shrink-0 flex-col gap-2 border-b px-3 py-2 lg:flex-row lg:items-start lg:justify-between lg:px-4">
+        <TabsList>
+          <TabsTrigger value="terminal" className="gap-1.5">
+            <Terminal className="h-4 w-4" />
+            终端
+          </TabsTrigger>
+          <TabsTrigger value="reasoning" className="gap-1.5">
+            <BrainCircuit className="h-4 w-4" />
+            推理过程
+          </TabsTrigger>
+        </TabsList>
+        <div id={toolbarContainerId} className="min-w-0 flex-1 lg:flex lg:justify-end" />
+      </div>
+
+      <TabsContent value="terminal" className="m-0 min-h-0 flex-1 overflow-hidden">
+        <LogTerminalPane toolbarContainerId={toolbarContainerId} toolbarVisible={activeTab === 'terminal'} />
+      </TabsContent>
+      <TabsContent value="reasoning" className="m-0 min-h-0 flex-1 overflow-hidden p-3 lg:p-4">
+        <ReasoningProcessPage embedded />
+      </TabsContent>
+    </Tabs>
+  )
+}
+
+export function ReasoningLogViewerPage() {
+  return <LogViewerPage defaultTab="reasoning" />
 }

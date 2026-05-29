@@ -50,7 +50,8 @@
   "workspace": {
     "switcherLabel": "切换麦麦工作区",
     "settings": "麦麦设置",
-    "chat": "麦麦聊天"
+    "chat": "麦麦聊天",
+    "logs": "麦麦日志"
   },
   "chat": {
     "defaultTab": "WebUI",
@@ -113,7 +114,7 @@
       "groupName": "虚拟群名（可选）",
       "groupNameHint": "麦麦会认为这是一个名为此名称的群聊",
       "knownUserSuffix": " · 已认识",
-      "loading": "Thinking...",
+      "loading": "加载中...",
       "noUsers": "没有找到用户",
       "personCount": "({{count}} 人)",
       "platform": "选择平台",
@@ -522,8 +523,8 @@
       }
     },
     "loading": {
-      "title": "Thinking...",
-      "description": "Thinking..."
+      "title": "加载中...",
+      "description": "正在读取已有配置"
     },
     "header": {
       "title": "首次配置向导",
@@ -721,7 +722,7 @@
     }
   },
   "common": {
-    "loading": "Thinking...",
+    "loading": "加载中...",
     "error": "错误",
     "retry": "重试",
     "save": "保存",
@@ -818,8 +819,8 @@
   "home": {
     "title": "首页",
     "subtitle": "观看基本信息和快捷入口",
-    "loading": "Thinking...",
-    "loadingHint": "Thinking...",
+    "loading": "加载中...",
+    "loadingHint": "加载中...",
     "timeRange": {
       "24h": "24小时",
       "7d": "7天",

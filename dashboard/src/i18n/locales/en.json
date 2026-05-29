@@ -50,7 +50,8 @@
   "workspace": {
     "switcherLabel": "Switch MaiBot workspace",
     "settings": "Mai Settings",
-    "chat": "Mai Chat"
+    "chat": "Mai Chat",
+    "logs": "Mai Logs"
   },
   "chat": {
     "defaultTab": "WebUI",
@@ -86,7 +87,7 @@
       "empty": "Start chatting with {{bot}}!",
       "emptyHint": "Type a message below and press Enter to send",
       "errorFallback": "An error occurred",
-      "thinking": "Thinking..."
+      "thinking": "Loading..."
     },
     "composer": {
       "hint": "Enter to send · Shift + Enter for newline"
@@ -113,7 +114,7 @@
       "groupName": "Virtual group name (optional)",
       "groupNameHint": "MaiBot will treat this as a group chat with this name",
       "knownUserSuffix": " · Known",
-      "loading": "Thinking...",
+      "loading": "Loading...",
       "noUsers": "No users found",
       "personCount": "({{count}} people)",
       "platform": "Select platform",
@@ -522,7 +523,7 @@
       }
     },
     "loading": {
-      "title": "Thinking...",
+      "title": "Loading...",
       "description": "Reading existing configuration"
     },
     "header": {
@@ -721,7 +722,7 @@
     }
   },
   "common": {
-    "loading": "Thinking...",
+    "loading": "Loading...",
     "error": "Error",
     "retry": "Retry",
     "save": "Save",
@@ -818,8 +819,8 @@
   "home": {
     "title": "Live Monitor",
     "subtitle": "MaiBot runtime status and statistics overview",
-    "loading": "Thinking...",
-    "loadingHint": "Thinking...",
+    "loading": "Loading...",
+    "loadingHint": "Loading...",
     "timeRange": {
       "24h": "24 Hours",
       "7d": "7 Days",

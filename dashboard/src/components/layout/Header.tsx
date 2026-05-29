@@ -1,7 +1,8 @@
-import { Link } from '@tanstack/react-router'
+import { Link, useRouterState } from '@tanstack/react-router'
 import {
   BookOpen,
   ChevronLeft,
+  FileText,
   Globe,
   LogOut,
   Menu,
@@ -9,6 +10,7 @@ import {
   Moon,
   Search,
   Server,
+  Settings,
   SlidersHorizontal,
   Sun,
 } from 'lucide-react'
@@ -69,6 +71,7 @@ export function Header({
   const currentLang = i18nInstance.language || 'zh'
   const { config: headerBg, inheritedFrom } = useBackground('header')
   const inheritsPageBackground = inheritedFrom === 'page'
+  const pathname = useRouterState({ select: (state) => state.location.pathname })
   const [backendManagerOpen, setBackendManagerOpen] = useState(false)
   const [activeBackendName, setActiveBackendName] = useState<string>('')
 
@@ -100,7 +103,7 @@ export function Header({
           aria-expanded={mobileMenuOpen}
           className={cn(
             'hover:bg-accent rounded-lg p-2 lg:hidden',
-            workspaceMode === 'chat' && 'hidden'
+            workspaceMode !== 'settings' && 'hidden'
           )}
         >
           <Menu className="h-5 w-5" />
@@ -113,7 +116,7 @@ export function Header({
           aria-expanded={sidebarOpen}
           className={cn(
             'hover:bg-accent hidden rounded-lg p-2 lg:block',
-            workspaceMode === 'chat' && 'lg:hidden'
+            workspaceMode !== 'settings' && 'lg:hidden'
           )}
         >
           <ChevronLeft
@@ -161,11 +164,40 @@ export function Header({
                   <span className="hidden sm:inline">{t('workspace.chat')}</span>
                 </Link>
               </TabsTrigger>
+              <TabsTrigger
+                asChild
+                value="logs"
+                className="data-[state=active]:text-primary-foreground relative h-7 gap-1.5 bg-transparent px-2.5 text-xs font-medium data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+              >
+                <Link to="/logs">
+                  {workspaceMode === 'logs' && (
+                    <motion.span
+                      layoutId="workspace-tab-pill"
+                      className="bg-primary absolute inset-0 -z-10 rounded-md shadow-sm"
+                      transition={{ type: 'spring', stiffness: 480, damping: 38, mass: 0.6 }}
+                    />
+                  )}
+                  <FileText className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">{t('workspace.logs')}</span>
+                </Link>
+              </TabsTrigger>
             </TabsList>
           </Tabs>
         </LayoutGroup>
 
         <div className="bg-border hidden h-6 w-px sm:block" />
+        <Button
+          asChild
+          variant="ghost"
+          size="icon"
+          className={cn(pathname === '/settings' && 'bg-accent text-accent-foreground')}
+          title={t('sidebar.menu.settings')}
+          aria-label={t('sidebar.menu.settings')}
+        >
+          <Link to="/settings">
+            <Settings className="h-4 w-4" />
+          </Link>
+        </Button>
         {/* 后端切换按钮（仅 Electron） */}
         {isElectron() && (
           <>
@@ -186,14 +218,16 @@ export function Header({
           </>
         )}
         {/* 搜索框 */}
-        <button
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={() => onSearchOpenChange(true)}
           aria-label={t('header.searchPlaceholder')}
           title={t('header.searchPlaceholder')}
-          className="bg-background/50 hover:bg-accent/50 hidden h-9 w-12 items-center justify-center rounded-md border transition-colors md:flex"
+          className="hidden md:inline-flex"
         >
-          <Search className="text-muted-foreground h-4 w-4" aria-hidden="true" />
-        </button>
+          <Search className="h-4 w-4" aria-hidden="true" />
+        </Button>
 
         {/* 搜索对话框 */}
         <SearchDialog open={searchOpen} onOpenChange={onSearchOpenChange} />

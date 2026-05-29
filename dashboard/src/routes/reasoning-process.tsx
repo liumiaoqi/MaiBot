@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { ThinkingIllustration } from '@/components/ui/thinking-illustration'
 import {
   Select,
   SelectContent,
@@ -119,7 +120,11 @@ function getSessionSubtitle(sessionInfo?: ReasoningPromptSessionInfo): string {
   return parts.join(' · ')
 }
 
-export function ReasoningProcessPage() {
+interface ReasoningProcessPageProps {
+  embedded?: boolean
+}
+
+export function ReasoningProcessPage({ embedded = false }: ReasoningProcessPageProps) {
   const { toast } = useToast()
   const [items, setItems] = useState<ReasoningPromptFile[]>([])
   const [stages, setStages] = useState<string[]>([])
@@ -362,17 +367,20 @@ export function ReasoningProcessPage() {
   )
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden p-3 lg:p-4">
+    <div className={cn('flex h-full min-h-0 flex-col gap-3 overflow-hidden', embedded ? 'p-0' : 'p-3 lg:p-4')}>
       <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <h1 className="text-foreground text-xl font-semibold tracking-normal">推理过程</h1>
-          <p className="text-muted-foreground text-sm">浏览 logs/maisaka_prompt 下的 prompt 记录</p>
-        </div>
+        {!embedded && (
+          <div>
+            <h1 className="text-foreground text-xl font-semibold tracking-normal">推理过程</h1>
+            <p className="text-muted-foreground text-sm">浏览 logs/maisaka_prompt 下的 prompt 记录</p>
+          </div>
+        )}
         <Button
           variant="outline"
           size="sm"
           onClick={() => setRefreshKey((current) => current + 1)}
           disabled={loading}
+          className={embedded ? 'self-end' : undefined}
         >
           <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
           刷新
@@ -668,9 +676,15 @@ export function ReasoningProcessPage() {
 
               <TabsContent value="text" className="m-0 min-h-0 flex-1 overflow-hidden">
                 <ScrollArea className="h-full">
-                  <pre className="text-foreground min-h-full p-4 font-mono text-xs leading-5 break-words whitespace-pre-wrap">
-                    {contentLoading ? 'Thinking...' : textContent || '没有文本内容'}
-                  </pre>
+                  {contentLoading ? (
+                    <div className="flex min-h-full items-center justify-center p-4">
+                      <ThinkingIllustration />
+                    </div>
+                  ) : (
+                    <pre className="text-foreground min-h-full p-4 font-mono text-xs leading-5 break-words whitespace-pre-wrap">
+                      {textContent || '没有文本内容'}
+                    </pre>
+                  )}
                 </ScrollArea>
               </TabsContent>
 

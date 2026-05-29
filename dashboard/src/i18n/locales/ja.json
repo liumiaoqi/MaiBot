@@ -50,7 +50,8 @@
   "workspace": {
     "switcherLabel": "麦麦ワークスペースを切り替え",
     "settings": "麦麦設定",
-    "chat": "麦麦チャット"
+    "chat": "麦麦チャット",
+    "logs": "麦麦ログ"
   },
   "chat": {
     "defaultTab": "WebUI",
@@ -113,7 +114,7 @@
       "groupName": "仮想グループ名（任意）",
       "groupNameHint": "麦麦はこれをこの名前のグループチャットとして認識します",
       "knownUserSuffix": " · 既知",
-      "loading": "Thinking...",
+      "loading": "読み込み中...",
       "noUsers": "ユーザーが見つかりません",
       "personCount": "({{count}} 人)",
       "platform": "プラットフォームを選択",
@@ -522,7 +523,7 @@
       }
     },
     "loading": {
-      "title": "設定をThinking...",
+      "title": "設定を読み込み中...",
       "description": "既存の設定を読み取っています"
     },
     "header": {
@@ -721,7 +722,7 @@
     }
   },
   "common": {
-    "loading": "Thinking...",
+    "loading": "読み込み中...",
     "error": "エラー",
     "retry": "再試行",
     "save": "保存する",
@@ -818,8 +819,8 @@
   "home": {
     "title": "リアルタイムモニター",
     "subtitle": "MaiBotの稼働状況と統計データの一覧",
-    "loading": "統計データをThinking...",
-    "loadingHint": "Thinking...",
+    "loading": "統計データを読み込み中...",
+    "loadingHint": "読み込み中...",
     "timeRange": {
       "24h": "24時間",
       "7d": "7日間",
