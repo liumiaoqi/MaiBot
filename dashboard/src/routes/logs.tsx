@@ -30,12 +30,61 @@ const fontSizeConfig: Record<FontSize, { label: string; rowHeight: number; class
   base: { label: '大', rowHeight: 44, class: 'text-sm sm:text-base' },
 }
 
+const logColumnLayoutConfig: Record<
+  FontSize,
+  { gapClass: string; levelClass: string; moduleClass: string; timestampClass: string }
+> = {
+  xs: {
+    gapClass: 'gap-1.5',
+    timestampClass: 'w-[60px] lg:w-[60px]',
+    levelClass: 'w-[30px] lg:w-[30px]',
+    moduleClass: 'w-[90px] lg:w-[90px]',
+  },
+  sm: {
+    gapClass: 'gap-2',
+    timestampClass: 'w-[76px] lg:w-[76px]',
+    levelClass: 'w-[38px] lg:w-[38px]',
+    moduleClass: 'w-[112px] lg:w-[112px]',
+  },
+  base: {
+    gapClass: 'gap-2.5',
+    timestampClass: 'w-[92px] lg:w-[92px]',
+    levelClass: 'w-[46px] lg:w-[46px]',
+    moduleClass: 'w-[136px] lg:w-[136px]',
+  },
+}
+
 const levelPriority: Record<LogEntry['level'], number> = {
   DEBUG: 10,
   INFO: 20,
   WARNING: 30,
   ERROR: 40,
   CRITICAL: 50,
+}
+
+function formatLogTimestamp(timestamp: string) {
+  const normalized = timestamp.trim()
+  const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})([ T].*)$/)
+  if (!match) {
+    return timestamp
+  }
+
+  return `${match[2]}-${match[3]}${match[4].replace(/^T/, ' ')}`
+}
+
+function getModuleTextStyle(log: LogEntry) {
+  if (!log.moduleColor) {
+    return undefined
+  }
+
+  return {
+    color: log.moduleColor,
+    fontWeight: log.moduleBold ? 700 : undefined,
+  }
+}
+
+function formatLogLevel(level: LogEntry['level']) {
+  return level.slice(0, 4)
 }
 
 export function LogViewerPage() {
@@ -97,23 +146,6 @@ export function LogViewerPage() {
         return 'text-red-700 dark:text-red-400 font-bold'
       default:
         return 'text-foreground'
-    }
-  }
-
-  const getLevelBgColor = (level: LogEntry['level']) => {
-    switch (level) {
-      case 'DEBUG':
-        return 'bg-gray-800/30 dark:bg-gray-800/50'
-      case 'INFO':
-        return 'bg-blue-900/20 dark:bg-blue-500/20'
-      case 'WARNING':
-        return 'bg-yellow-900/20 dark:bg-yellow-500/20'
-      case 'ERROR':
-        return 'bg-red-900/20 dark:bg-red-500/20'
-      case 'CRITICAL':
-        return 'bg-red-900/30 dark:bg-red-600/30'
-      default:
-        return 'bg-gray-800/20 dark:bg-gray-800/30'
     }
   }
 
@@ -194,6 +226,7 @@ export function LogViewerPage() {
 
   // 虚拟滚动配置 - 根据字号和行间距动态计算行高
   const estimatedRowHeight = fontSizeConfig[fontSize].rowHeight + lineSpacing
+  const logColumnLayout = logColumnLayoutConfig[fontSize]
   
   const rowVirtualizer = useVirtualizer({
     count: filteredLogs.length,
@@ -258,28 +291,6 @@ export function LogViewerPage() {
     <div className="h-full flex flex-col overflow-hidden">
       {/* 顶部操作面板 - 紧凑设计，默认折叠 */}
       <div className="flex-shrink-0 space-y-2 sm:space-y-3 p-2 sm:p-3 lg:p-4">
-        {/* 标题和连接状态 */}
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h1 className="text-lg sm:text-xl lg:text-2xl font-bold">日志查看器</h1>
-            <p className="text-xs text-muted-foreground mt-0.5 hidden sm:block">
-              实时查看和分析麦麦运行日志
-            </p>
-          </div>
-          {/* 连接状态指示器 */}
-          <div className="flex items-center gap-2">
-            <div
-              className={cn(
-                'h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full',
-                connected ? 'bg-green-500 animate-pulse' : 'bg-red-500'
-              )}
-            />
-            <span className="text-xs text-muted-foreground">
-              {connected ? '已连接' : '未连接'}
-            </span>
-          </div>
-        </div>
-
         {/* 控制栏 - 可折叠 */}
         <Card className="p-2 sm:p-3">
           <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
@@ -356,11 +367,22 @@ export function LogViewerPage() {
               </div>
 
               {/* 日志数量显示 */}
-              <div className="text-xs text-muted-foreground text-center sm:text-right -mt-1">
-                <span className="font-mono">
-                  {filteredLogs.length} / {logs.length}
-                </span>
-                <span className="ml-1">条日志</span>
+              <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground -mt-1">
+                <div className="flex items-center gap-2">
+                  <div
+                    className={cn(
+                      'h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full',
+                      connected ? 'bg-green-500 animate-pulse' : 'bg-red-500'
+                    )}
+                  />
+                  <span>{connected ? '已连接' : '未连接'}</span>
+                </div>
+                <div className="text-right">
+                  <span className="font-mono">
+                    {filteredLogs.length} / {logs.length}
+                  </span>
+                  <span className="ml-1">条日志</span>
+                </div>
               </div>
 
               {/* 可折叠的筛选区域 */}
@@ -534,22 +556,30 @@ export function LogViewerPage() {
 
       {/* 日志终端 - 占据剩余所有空间 */}
       <div className="flex-1 min-h-0 px-2 sm:px-3 lg:px-4 pb-2 sm:pb-3 lg:pb-4">
-        <Card className="bg-black dark:bg-gray-950 border-gray-800 dark:border-gray-900 h-full overflow-hidden">
+        <Card
+          className="h-full overflow-hidden border-[#24170f]/70 dark:border-[#1d120c]/80"
+          style={{ backgroundColor: '#633312' }}
+        >
           <div 
             ref={parentRef}
             className={cn(
-              "h-full overflow-auto",
+              "h-full overflow-auto selection:bg-[#5a3924] selection:text-[#fff2df]",
               // 自定义滚动条样式
               "[&::-webkit-scrollbar]:w-2.5",
               "[&::-webkit-scrollbar-track]:bg-transparent",
               "[&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-thumb]:rounded-full",
               "[&::-webkit-scrollbar-thumb:hover]:bg-border/80"
             )}
+            style={{ backgroundColor: '#211607' }}
           >
             <div
-              className={cn("p-2 sm:p-3 font-mono relative", fontSizeConfig[fontSize].class)}
+              className={cn(
+                "p-2 sm:p-3 font-mono relative selection:bg-[#5a3924] selection:text-[#fff2df]",
+                fontSizeConfig[fontSize].class
+              )}
               style={{
                 height: `${rowVirtualizer.getTotalSize()}px`,
+                minHeight: '100%',
               }}
             >
               {filteredLogs.length === 0 ? (
@@ -559,15 +589,15 @@ export function LogViewerPage() {
               ) : (
                 rowVirtualizer.getVirtualItems().map((virtualRow) => {
                   const log = filteredLogs[virtualRow.index]
+                  const timestampText = formatLogTimestamp(log.timestamp)
+                  const levelText = formatLogLevel(log.level)
+                  const moduleTextStyle = getModuleTextStyle(log)
                   return (
                     <div
                       key={virtualRow.key}
                       data-index={virtualRow.index}
                       ref={rowVirtualizer.measureElement}
-                      className={cn(
-                        'absolute top-0 left-0 w-full px-2 sm:px-3 rounded hover:bg-white/5 transition-colors',
-                        getLevelBgColor(log.level)
-                      )}
+                      className="absolute top-0 left-0 w-full px-2 sm:px-3"
                       style={{
                         transform: `translateY(${virtualRow.start}px)`,
                         paddingTop: `${lineSpacing / 2}px`,
@@ -579,7 +609,7 @@ export function LogViewerPage() {
                         {/* 第一行：时间戳和级别 */}
                         <div className="flex items-center gap-2">
                           <span className="text-gray-500 dark:text-gray-600 text-[10px]">
-                            {log.timestamp}
+                            {timestampText}
                           </span>
                           <span
                             className={cn(
@@ -587,43 +617,74 @@ export function LogViewerPage() {
                               getLevelColor(log.level)
                             )}
                           >
-                            [{log.level}]
+                            [{levelText}]
                           </span>
                         </div>
                         {/* 第二行：模块名 */}
-                        <div className="text-cyan-400 dark:text-cyan-500 truncate text-[10px]">
+                        <div
+                          className={cn(
+                            'truncate text-[10px]',
+                            !moduleTextStyle && 'text-cyan-400 dark:text-cyan-500'
+                          )}
+                          style={moduleTextStyle}
+                        >
                           {log.module}
                         </div>
                         {/* 第三行：消息内容 */}
-                        <div className="text-gray-300 dark:text-gray-400 whitespace-pre-wrap break-words text-[10px]">
+                        <div
+                          className={cn(
+                            'whitespace-pre-wrap break-words text-[10px]',
+                            !moduleTextStyle && 'text-gray-300 dark:text-gray-400'
+                          )}
+                          style={moduleTextStyle}
+                        >
                           {log.message}
                         </div>
                       </div>
 
                       {/* 平板/桌面端：水平布局 */}
-                      <div className="hidden sm:flex gap-2 items-start">
+                      <div className={cn('hidden sm:flex items-start', logColumnLayout.gapClass)}>
                         {/* 时间戳 */}
-                        <span className="text-gray-500 dark:text-gray-600 flex-shrink-0 w-[130px] lg:w-[160px]">
-                          {log.timestamp}
+                        <span
+                          className={cn(
+                            'text-gray-500 dark:text-gray-600 flex-shrink-0',
+                            logColumnLayout.timestampClass
+                          )}
+                        >
+                          {timestampText}
                         </span>
 
                         {/* 日志级别 */}
                         <span
                           className={cn(
-                            'flex-shrink-0 w-[65px] lg:w-[75px] font-semibold',
+                            'flex-shrink-0 font-semibold',
+                            logColumnLayout.levelClass,
                             getLevelColor(log.level)
                           )}
                         >
-                          [{log.level}]
+                          [{levelText}]
                         </span>
 
                         {/* 模块名 */}
-                        <span className="text-cyan-400 dark:text-cyan-500 flex-shrink-0 w-[100px] lg:w-[130px] truncate">
+                        <span
+                          className={cn(
+                            'flex-shrink-0 truncate',
+                            logColumnLayout.moduleClass,
+                            !moduleTextStyle && 'text-cyan-400 dark:text-cyan-500'
+                          )}
+                          style={moduleTextStyle}
+                        >
                           {log.module}
                         </span>
 
                         {/* 消息内容 */}
-                        <span className="text-gray-300 dark:text-gray-400 flex-1 whitespace-pre-wrap break-words">
+                        <span
+                          className={cn(
+                            'flex-1 whitespace-pre-wrap break-words',
+                            !moduleTextStyle && 'text-gray-300 dark:text-gray-400'
+                          )}
+                          style={moduleTextStyle}
+                        >
                           {log.message}
                         </span>
                       </div>

@@ -30,6 +30,7 @@ export function Layout({ children }: LayoutProps) {
   const announce = useAnnounce()
   const workspaceMode = pathname.startsWith('/chat') ? 'chat' : 'settings'
   const isChatWorkspace = workspaceMode === 'chat'
+  const showBackToTop = !isChatWorkspace && pathname !== '/logs'
 
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -234,7 +235,7 @@ export function Layout({ children }: LayoutProps) {
             </main>
 
             {/* Back to Top Button */}
-            {!isChatWorkspace && <BackToTop />}
+            {showBackToTop && <BackToTop />}
           </div>
         </div>
       </div>
