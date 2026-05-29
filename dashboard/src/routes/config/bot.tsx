@@ -16,6 +16,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ThinkingIllustration } from '@/components/ui/thinking-illustration'
 import { CodeEditor } from '@/components/CodeEditor'
 import { DynamicConfigForm } from '@/components/dynamic-form'
 import { RestartOverlay } from '@/components/restart-overlay'
@@ -778,7 +779,7 @@ function BotConfigPageContent() {
       <ScrollArea className="h-full">
         <div className="space-y-4 sm:space-y-6 p-4 sm:p-6">
           <div className="flex items-center justify-center h-64">
-            <p className="text-muted-foreground">Thinking...</p>
+            <ThinkingIllustration size="lg" />
           </div>
         </div>
       </ScrollArea>

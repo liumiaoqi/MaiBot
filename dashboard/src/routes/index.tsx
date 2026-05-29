@@ -8,6 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Progress } from '@/components/ui/progress'
 import { Checkbox } from '@/components/ui/checkbox'
+import { ThinkingIllustration } from '@/components/ui/thinking-illustration'
 import {
   Dialog,
   DialogBody,
@@ -926,11 +927,7 @@ function IndexPageContent() {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-200px)]">
         <div className="text-center space-y-6 w-full max-w-md px-4">
-          <RefreshCw className="h-12 w-12 animate-spin mx-auto text-primary" />
-          <div className="space-y-2">
-            <p className="text-lg font-medium">{t('home.loading')}</p>
-            <p className="text-sm text-muted-foreground">{t('home.loadingHint')}</p>
-          </div>
+          <ThinkingIllustration size="lg" className="mx-auto" />
           <div className="space-y-2">
             <Progress value={loadingProgress} className="h-2" />
             <p className="text-xs text-muted-foreground">{loadingProgress}%</p>
