@@ -194,6 +194,7 @@ class LLMUsageRecorder:
         user_id: str,
         request_type: str,
         endpoint: str,
+        task_name: str | None = None,
         time_cost: float = 0.0,
     ):
         input_cost = self._calculate_input_cost(model_info, model_usage)
@@ -207,6 +208,7 @@ class LLMUsageRecorder:
                     model_api_provider_name=model_info.api_provider,
                     endpoint=endpoint,
                     user_type=ModelUser.SYSTEM,
+                    task_name=task_name,
                     request_type=request_type,
                     time_cost=round(time_cost or 0.0, 3),
                     timestamp=datetime.now(),

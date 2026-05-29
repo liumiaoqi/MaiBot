@@ -284,6 +284,7 @@ class LLMOrchestrator:
                 user_id="system",
                 request_type=self.request_type,
                 endpoint="/chat/completions",
+                task_name=self.task_name,
                 time_cost=time_cost,
             )
         return self._build_generation_result(
@@ -375,6 +376,7 @@ class LLMOrchestrator:
                 user_id="system",
                 request_type=self.request_type,
                 endpoint="/chat/completions",
+                task_name=self.task_name,
                 time_cost=time.time() - start_time,
             )
         return self._build_generation_result(
@@ -447,6 +449,7 @@ class LLMOrchestrator:
                 user_id="system",
                 request_type=self.request_type,
                 endpoint="/chat/completions",
+                task_name=self.task_name,
                 time_cost=time_cost,
             )
         return self._build_generation_result(
@@ -482,6 +485,7 @@ class LLMOrchestrator:
                 user_id="system",
                 request_type=self.request_type,
                 endpoint="/embeddings",
+                task_name=self.task_name,
                 time_cost=time.time() - start_time,
             )
         if not embedding:

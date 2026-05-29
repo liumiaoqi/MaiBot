@@ -59,6 +59,8 @@ class Messages(SQLModel, table=True):
 
     # 其他配置
     additional_config: Optional[str] = Field(default=None)  # 额外配置，JSON格式存储
+    reply_frequency: Optional[float] = Field(default=None, sa_column=Column(Float, nullable=True))
+    # 消息发生时当前会话的生效回复频率；无法解析时为空
 
 
 class ModelUsage(SQLModel, table=True):
@@ -74,6 +76,7 @@ class ModelUsage(SQLModel, table=True):
     # 请求相关信息
     endpoint: Optional[str] = Field(default=None, max_length=255, nullable=True)  # 模型API的具体endpoint
     user_type: ModelUser = Field(sa_column=Column(SQLEnum(ModelUser)), default=ModelUser.SYSTEM)  # 模型使用者类型
+    task_name: Optional[str] = Field(default=None, index=True, max_length=100, nullable=True)  # 模型任务配置名称
     request_type: str = Field(max_length=50)  # 内部请求类型，记录哪种模块使用了此模型
     time_cost: float = Field(sa_column=Column(Float))  # 本次请求耗时，单位秒
     timestamp: datetime = Field(default_factory=datetime.now, sa_column=Column(DateTime, index=True))  # 请求时间戳

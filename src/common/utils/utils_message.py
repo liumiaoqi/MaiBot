@@ -208,6 +208,7 @@ class MessageUtils:
 
         with _DB_WRITE_THREAD_LOCK:
             with get_db_session() as session:
+                MessageUtils.fill_reply_frequency_if_available(message)
                 MessageUtils._persist_image_components(message.raw_message.components, session)
                 db_message = message.to_db_instance()
                 session.add(db_message)
@@ -220,6 +221,32 @@ class MessageUtils:
         本体里持有，本方法仅做 `to_thread` 透传。
         """
         await asyncio.to_thread(MessageUtils.store_message_to_db, message)
+
+    @staticmethod
+    def fill_reply_frequency_if_available(message: "SessionMessage") -> None:
+        """在消息入库前补充当前会话的生效回复频率。"""
+
+        if getattr(message, "reply_frequency", None) is not None:
+            return
+
+        session_id = str(getattr(message, "session_id", "") or "").strip()
+        if not session_id:
+            return
+
+        try:
+            from src.chat.heart_flow.heartflow_manager import heartflow_manager
+
+            runtime = heartflow_manager.heartflow_chat_list.get(session_id)
+            if runtime is not None:
+                message.reply_frequency = float(runtime._get_effective_reply_frequency())
+                return
+
+            from src.common.utils.utils_config import ChatConfigUtils
+
+            is_group_chat = getattr(message.message_info, "group_info", None) is not None
+            message.reply_frequency = float(ChatConfigUtils.get_talk_value(session_id, is_group_chat=is_group_chat))
+        except Exception as exc:
+            logger.debug(f"补充消息回复频率失败: session_id={session_id} error={exc}")
 
     @staticmethod
     def _persist_image_components(components: List[StandardMessageComponents], session: Any) -> None:

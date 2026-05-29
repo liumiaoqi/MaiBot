@@ -18,6 +18,7 @@ from .v9_to_v10 import migrate_v9_to_v10
 from .v10_to_v11 import migrate_v10_to_v11
 from .v11_to_v12 import migrate_v11_to_v12
 from .v12_to_v13 import migrate_v12_to_v13
+from .v13_to_v14 import migrate_v13_to_v14
 from .version_store import SQLiteUserVersionStore
 
 EMPTY_SCHEMA_VERSION = 0
@@ -33,7 +34,8 @@ V9_SCHEMA_VERSION = 9
 V10_SCHEMA_VERSION = 10
 V11_SCHEMA_VERSION = 11
 V12_SCHEMA_VERSION = 12
-LATEST_SCHEMA_VERSION = 13
+V13_SCHEMA_VERSION = 13
+LATEST_SCHEMA_VERSION = 14
 
 _LEGACY_V1_EXCLUSIVE_TABLES = (
     "chat_streams",
@@ -53,6 +55,64 @@ _COMMON_MARKER_TABLES = (
     "jargons",
     "tool_records",
 )
+
+
+def _detect_v13_base_schema(snapshot: DatabaseSchemaSnapshot) -> bool:
+    """判断数据库是否满足 v13 共有结构条件。"""
+
+    if any(snapshot.has_table(table_name) for table_name in _LEGACY_V1_EXCLUSIVE_TABLES):
+        return False
+    if not all(snapshot.has_table(table_name) for table_name in _COMMON_MARKER_TABLES):
+        return False
+    if snapshot.has_table("action_records"):
+        return False
+    if snapshot.has_table("thinking_questions"):
+        return False
+    if snapshot.has_column("images", "emotion"):
+        return False
+    if not snapshot.has_column("images", "image_hash"):
+        return False
+    if not snapshot.has_column("images", "full_path"):
+        return False
+    if not snapshot.has_column("images", "image_type"):
+        return False
+    if not snapshot.has_column("chat_history", "session_id"):
+        return False
+    if not snapshot.has_column("person_info", "user_nickname"):
+        return False
+    if not snapshot.has_column("chat_sessions", "account_id"):
+        return False
+    if not snapshot.has_column("chat_sessions", "scope"):
+        return False
+    if not snapshot.has_column("chat_sessions", "user_nickname"):
+        return False
+    if not snapshot.has_column("chat_sessions", "user_cardname"):
+        return False
+    if not snapshot.has_column("chat_sessions", "group_name"):
+        return False
+    if snapshot.has_column("expressions", "rejected"):
+        return False
+    if snapshot.has_column("mai_messages", "display_message"):
+        return False
+    if not snapshot.has_table("statistics_message_hourly"):
+        return False
+    if not snapshot.has_table("statistics_tool_hourly"):
+        return False
+    if not snapshot.has_table("statistics_model_hourly"):
+        return False
+    if not snapshot.has_table("statistics_aggregation_cursors"):
+        return False
+    if not snapshot.has_column("jargons", "created_timestamp"):
+        return False
+    if not snapshot.has_column("jargons", "updated_timestamp"):
+        return False
+    if snapshot.has_column("jargons", "inference_with_context"):
+        return False
+    if snapshot.has_column("jargons", "inference_with_content_only"):
+        return False
+    if not snapshot.has_column("jargons", "created_by"):
+        return False
+    return True
 
 
 class LatestSchemaVersionDetector(BaseSchemaVersionDetector):
@@ -78,59 +138,32 @@ class LatestSchemaVersionDetector(BaseSchemaVersionDetector):
             Optional[int]: 若识别为最新结构则返回最新版本号，否则返回 ``None``。
         """
 
-        if any(snapshot.has_table(table_name) for table_name in _LEGACY_V1_EXCLUSIVE_TABLES):
+        if not _detect_v13_base_schema(snapshot):
             return None
-        if not all(snapshot.has_table(table_name) for table_name in _COMMON_MARKER_TABLES):
+        if not snapshot.has_column("mai_messages", "reply_frequency"):
             return None
-        if snapshot.has_table("action_records"):
-            return None
-        if snapshot.has_table("thinking_questions"):
-            return None
-        if snapshot.has_column("images", "emotion"):
-            return None
-        if not snapshot.has_column("images", "image_hash"):
-            return None
-        if not snapshot.has_column("images", "full_path"):
-            return None
-        if not snapshot.has_column("images", "image_type"):
-            return None
-        if not snapshot.has_column("chat_history", "session_id"):
-            return None
-        if not snapshot.has_column("person_info", "user_nickname"):
-            return None
-        if not snapshot.has_column("chat_sessions", "account_id"):
-            return None
-        if not snapshot.has_column("chat_sessions", "scope"):
-            return None
-        if not snapshot.has_column("chat_sessions", "user_nickname"):
-            return None
-        if not snapshot.has_column("chat_sessions", "user_cardname"):
-            return None
-        if not snapshot.has_column("chat_sessions", "group_name"):
-            return None
-        if snapshot.has_column("expressions", "rejected"):
-            return None
-        if snapshot.has_column("mai_messages", "display_message"):
-            return None
-        if not snapshot.has_table("statistics_message_hourly"):
-            return None
-        if not snapshot.has_table("statistics_tool_hourly"):
-            return None
-        if not snapshot.has_table("statistics_model_hourly"):
-            return None
-        if not snapshot.has_table("statistics_aggregation_cursors"):
-            return None
-        if not snapshot.has_column("jargons", "created_timestamp"):
-            return None
-        if not snapshot.has_column("jargons", "updated_timestamp"):
-            return None
-        if snapshot.has_column("jargons", "inference_with_context"):
-            return None
-        if snapshot.has_column("jargons", "inference_with_content_only"):
-            return None
-        if not snapshot.has_column("jargons", "created_by"):
+        if not snapshot.has_column("llm_usage", "task_name"):
             return None
         return LATEST_SCHEMA_VERSION
+
+
+class V13SchemaVersionDetector(BaseSchemaVersionDetector):
+    """v13 schema 结构探测器。"""
+
+    @property
+    def name(self) -> str:
+        return "v13_schema_detector"
+
+    def detect_version(self, snapshot: DatabaseSchemaSnapshot) -> Optional[int]:
+        """检测数据库是否为 v13 结构。"""
+
+        if not _detect_v13_base_schema(snapshot):
+            return None
+        if snapshot.has_column("mai_messages", "reply_frequency"):
+            return None
+        if snapshot.has_column("llm_usage", "task_name"):
+            return None
+        return V13_SCHEMA_VERSION
 
 
 class V12SchemaVersionDetector(BaseSchemaVersionDetector):
@@ -582,6 +615,7 @@ def build_default_schema_version_detectors() -> List[BaseSchemaVersionDetector]:
 
     return [
         LatestSchemaVersionDetector(),
+        V13SchemaVersionDetector(),
         V12SchemaVersionDetector(),
         V11SchemaVersionDetector(),
         V10SchemaVersionDetector(),
@@ -696,10 +730,17 @@ def build_default_migration_registry() -> MigrationRegistry:
             ),
             MigrationStep(
                 version_from=V12_SCHEMA_VERSION,
-                version_to=LATEST_SCHEMA_VERSION,
+                version_to=V13_SCHEMA_VERSION,
                 name="v12_to_v13",
                 description="为 jargons 增加创建来源字段。",
                 handler=migrate_v12_to_v13,
+            ),
+            MigrationStep(
+                version_from=V13_SCHEMA_VERSION,
+                version_to=LATEST_SCHEMA_VERSION,
+                name="v13_to_v14",
+                description="为遥测聚合增加消息回复频率与模型任务名称字段。",
+                handler=migrate_v13_to_v14,
             ),
         ]
     )

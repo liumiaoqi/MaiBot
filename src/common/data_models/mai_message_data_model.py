@@ -57,6 +57,7 @@ class MaiMessage(BaseDatabaseDataModel[Messages]):
 
         self.session_id: str
         self.reply_to: Optional[str] = None
+        self.reply_frequency: Optional[float] = None
 
         self.processed_plain_text: Optional[str] = None
         self.raw_message: MessageSequence
@@ -83,6 +84,7 @@ class MaiMessage(BaseDatabaseDataModel[Messages]):
         obj.is_command = db_record.is_command
         obj.is_notify = db_record.is_notify
         obj.reply_to = db_record.reply_to
+        obj.reply_frequency = getattr(db_record, "reply_frequency", None)
         obj.session_id = db_record.session_id
         obj.processed_plain_text = db_record.processed_plain_text
         obj.raw_message = MessageUtils.from_db_record_msg_to_MaiSeq(db_record.raw_content)
@@ -112,6 +114,7 @@ class MaiMessage(BaseDatabaseDataModel[Messages]):
             raw_content=MessageUtils.from_MaiSeq_to_db_record_msg(self.raw_message),
             processed_plain_text=self.processed_plain_text,
             additional_config=additional_config,
+            reply_frequency=self.reply_frequency,
         )
 
     @classmethod

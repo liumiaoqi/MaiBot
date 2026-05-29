@@ -91,10 +91,11 @@ class MainSystem:
         # 添加统计信息输出任务
         await async_task_manager.add_task(StatisticOutputTask())
 
-        # 添加遥测心跳任务
-        from src.common.remote import TelemetryHeartBeatTask
+        # 添加遥测心跳与统计上传任务
+        from src.common.remote import TelemetryHeartBeatTask, TelemetryStatsUploadTask
 
         await async_task_manager.add_task(TelemetryHeartBeatTask())
+        await async_task_manager.add_task(TelemetryStatsUploadTask())
 
         # 启动API服务器
         # start_api_server()
