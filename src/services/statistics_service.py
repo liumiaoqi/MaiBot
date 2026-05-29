@@ -440,6 +440,9 @@ def fetch_model_usage_since(query_start_time: datetime) -> list[dict[str, object
                 "model_name": record.model_name,
                 "prompt_tokens": record.prompt_tokens,
                 "completion_tokens": record.completion_tokens,
+                "prompt_cache_enabled": bool(getattr(record, "prompt_cache_enabled", False)),
+                "prompt_cache_hit_tokens": getattr(record, "prompt_cache_hit_tokens", 0) or 0,
+                "prompt_cache_miss_tokens": getattr(record, "prompt_cache_miss_tokens", 0) or 0,
                 "cost": record.cost,
                 "time_cost": record.time_cost,
             }

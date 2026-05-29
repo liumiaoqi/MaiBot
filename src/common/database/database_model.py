@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import Column, DateTime, Enum as SQLEnum, Float, Index, Text, UniqueConstraint
+from sqlalchemy import Boolean, Column, DateTime, Enum as SQLEnum, Float, Index, Integer, Text, UniqueConstraint
 from sqlmodel import Field, LargeBinary, SQLModel
 
 
@@ -85,6 +85,18 @@ class ModelUsage(SQLModel, table=True):
     prompt_tokens: int  # 提示词令牌数
     completion_tokens: int  # 完成词令牌数
     total_tokens: int  # 总令牌数
+    prompt_cache_enabled: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="0"),
+    )  # 本次请求发生时是否启用了模型输入缓存计费
+    prompt_cache_hit_tokens: int = Field(
+        default=0,
+        sa_column=Column(Integer, nullable=False, server_default="0"),
+    )  # prompt cache 命中令牌数
+    prompt_cache_miss_tokens: int = Field(
+        default=0,
+        sa_column=Column(Integer, nullable=False, server_default="0"),
+    )  # prompt cache 未命中令牌数
     cost: float  # 本次请求的费用，单位元
 
 
