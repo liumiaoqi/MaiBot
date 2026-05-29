@@ -94,10 +94,12 @@ export function ExpressionReviewer({
   const [quickFilterType, setQuickFilterType] = useState<'unchecked' | 'passed' | 'all'>('unchecked')
   const [quickExpressions, setQuickExpressions] = useState<Expression[]>([])
   const quickExpressionsRef = useRef<Expression[]>([])
+  const quickExcludedIdsRef = useRef<Set<number>>(new Set())
   const [quickCurrentIndex, setQuickCurrentIndex] = useState(0)
   const [quickLoading, setQuickLoading] = useState(false)
+  const quickLoadingRef = useRef(false)
   const [quickTotal, setQuickTotal] = useState(0)
-  const [quickPage, setQuickPage] = useState(1)
+  const [quickHasMore, setQuickHasMore] = useState(true)
   const swipeDirectionRef = useRef<'left' | 'right' | null>(null)
   const isAnimatingRef = useRef(false)
   const [cardSpring, cardApi] = useSpring(() => ({ x: 0, opacity: 1, rotate: 0, config: { tension: 300, friction: 30 } }))
@@ -194,30 +196,37 @@ export function ExpressionReviewer({
 
   // 快速审核模式 - 加载数据
   const loadQuickList = useCallback(async (resetIndex = true, append = false) => {
+    if (quickLoadingRef.current) return
+
     try {
+      quickLoadingRef.current = true
       setQuickLoading(true)
-      const pageToLoad = append ? quickPage + 1 : quickPage
+      const excludedIds = append ? Array.from(quickExcludedIdsRef.current) : []
       const result = await getReviewList({
-        page: quickFilterType === 'unchecked' ? 1 : pageToLoad,
+        page: 1,
         page_size: 20,
         filter_type: quickFilterType,
         order: quickFilterType === 'unchecked' ? 'random' : 'latest',
-        exclude_ids: quickFilterType === 'unchecked' && append
-          ? quickExpressionsRef.current.map((expr) => expr.id)
-          : undefined,
+        exclude_ids: excludedIds.length > 0 ? excludedIds : undefined,
       })
-      
+
       if (result.success) {
         if (append) {
-          // 追加模式：拼接数据
-          setQuickExpressions(prev => [...prev, ...result.data.data])
-          setQuickPage(pageToLoad)
+          const loadedCount = quickExpressionsRef.current.length
+          const existingIds = new Set(quickExpressionsRef.current.map(e => e.id))
+          const newItems = result.data.data.filter((e: Expression) => !existingIds.has(e.id))
+          newItems.forEach((expr: Expression) => quickExcludedIdsRef.current.add(expr.id))
+
+          setQuickExpressions(prev => [...prev, ...newItems])
+          setQuickTotal(loadedCount + result.data.total)
+          setQuickHasMore(newItems.length > 0 && result.data.total > newItems.length)
         } else {
-          // 替换模式
+          quickExcludedIdsRef.current = new Set(result.data.data.map((expr: Expression) => expr.id))
           setQuickExpressions(result.data.data)
+          setQuickTotal(result.data.total)
+          setQuickHasMore(result.data.total > result.data.data.length)
         }
-        
-        setQuickTotal(result.data.total)
+
         if (resetIndex) {
           setQuickCurrentIndex(0)
         }
@@ -235,15 +244,18 @@ export function ExpressionReviewer({
         variant: 'destructive',
       })
     } finally {
+      quickLoadingRef.current = false
       setQuickLoading(false)
     }
-  }, [quickPage, quickFilterType, toast])
+  }, [quickFilterType, toast])
 
   // 快速审核模式 - 切换筛选时重置
   useEffect(() => {
     if (reviewMode === 'quick') {
-      setQuickPage(1)
+      quickExcludedIdsRef.current = new Set()
       setQuickCurrentIndex(0)
+      setQuickHasMore(true)
+      setQuickExpressions([])
     }
   }, [quickFilterType, reviewMode])
 
@@ -253,7 +265,7 @@ export function ExpressionReviewer({
       loadQuickList()
       loadStats()
     }
-  }, [open, reviewMode, quickPage, quickFilterType, loadQuickList, loadStats])
+  }, [open, reviewMode, quickFilterType, loadQuickList, loadStats])
 
   // 获取当前卡片允许的滑动方向
   const getAllowedDirections = useCallback((expr: Expression | undefined) => {
@@ -315,28 +327,21 @@ export function ExpressionReviewer({
         
         // 从列表中移除当前项
         setTimeout(() => {
-          setQuickExpressions(prev => prev.filter((_, i) => i !== quickCurrentIndex))
-          setQuickTotal(prev => prev - 1)
-          
-          // 如果当前索引超出范围，调整索引
-          if (quickCurrentIndex >= quickExpressions.length - 1) {
-            setQuickCurrentIndex(Math.max(0, quickCurrentIndex - 1))
-          }
-          
-          // 重置状态
           swipeDirectionRef.current = null
           swipeOffsetRef.current = 0
           cardApi.set({ x: 0, opacity: 1, rotate: 0 })
           isAnimatingRef.current = false
+
+          const stillExists = quickExpressionsRef.current.some(e => e.id === currentExpr.id)
+          if (!stillExists) return
+
+          quickExcludedIdsRef.current.add(currentExpr.id)
+          setQuickExpressions(prev => prev.filter(e => e.id !== currentExpr.id))
+          setQuickTotal(prev => Math.max(0, prev - 1))
           
           // 刷新统计
           loadStats()
           onReviewed?.()
-          
-          // 如果列表为空且还有更多数据，加载下一页
-          if (quickExpressions.length <= 1 && quickTotal > 1) {
-            loadQuickList(false)
-          }
         }, 300)
       } else {
         // 冲突处理
@@ -378,8 +383,6 @@ export function ExpressionReviewer({
     toast,
     loadStats,
     onReviewed,
-    quickTotal,
-    loadQuickList,
   ])
 
   // 拖拽开始
@@ -546,12 +549,21 @@ export function ExpressionReviewer({
     
     // 距离末尾还有5个或更少时，且还有更多数据时，自动加载
     const remaining = quickExpressions.length - quickCurrentIndex - 1
-    const hasMoreData = quickExpressions.length < quickTotal
-    
-    if (remaining <= 5 && hasMoreData) {
+
+    if (remaining <= 5 && quickHasMore) {
       loadQuickList(false, true) // 追加模式
     }
-  }, [open, reviewMode, quickCurrentIndex, quickExpressions.length, quickTotal, quickLoading, loadQuickList])
+  }, [open, reviewMode, quickCurrentIndex, quickExpressions.length, quickHasMore, quickLoading, loadQuickList])
+
+  // 修正删除最后一张卡片后的索引
+  useEffect(() => {
+    if (quickLoading) return
+
+    const maxIndex = Math.max(0, quickExpressions.length - 1)
+    if (quickCurrentIndex > maxIndex) {
+      setQuickCurrentIndex(maxIndex)
+    }
+  }, [quickExpressions.length, quickCurrentIndex, quickLoading])
 
   // 初始加载
   useEffect(() => {
@@ -1402,11 +1414,8 @@ export function ExpressionReviewer({
               ) : (
                 <>
                   {/* 进度提示 */}
-                  <div className="shrink-0 text-sm text-muted-foreground">
-                    {quickCurrentIndex + 1} / {quickExpressions.length}
-                    {quickTotal > quickExpressions.length && (
-                      <span className="ml-1">（共 {quickTotal} 条）</span>
-                    )}
+                  <div className="shrink-0 text-sm text-muted-foreground font-medium">
+                    {Math.min(quickCurrentIndex + 1, Math.max(quickTotal, quickExpressions.length))} / {Math.max(quickTotal, quickExpressions.length)}
                   </div>
 
                   {/* 方向提示 (仅针对当前卡片) */}
