@@ -181,7 +181,7 @@ class TelemetryHeartBeatTask(AsyncTask):
 
 
 class TelemetryStatsUploadTask(AsyncTask):
-    STATS_UPLOAD_INTERVAL = 15*60
+    STATS_UPLOAD_INTERVAL = 60
     MAX_LOOKBACK_SECONDS = 7 * 24 * 60 * 60
     RETRY_DELAYS = (5, 15, 45)
     CURSOR_KEY = "telemetry_stats_cursor"
@@ -282,6 +282,7 @@ class TelemetryStatsUploadTask(AsyncTask):
             period_start=period_start,
             period_end=period_end,
             truncated=truncated,
+            client_info=self.info_dict,
         )
         if await self._send_stats_payload(payload):
             self._save_cursor(period_end)

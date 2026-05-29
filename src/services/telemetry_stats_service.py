@@ -31,6 +31,7 @@ def build_telemetry_stats_payload(
     period_start: datetime,
     period_end: datetime,
     truncated: bool,
+    client_info: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """构建一次遥测统计上传的聚合数据。"""
 
@@ -39,6 +40,7 @@ def build_telemetry_stats_payload(
     return {
         "schema_version": 2,
         "upload_id": upload_id,
+        "client": _build_client_info(client_info),
         "period": {
             "start": period_start.isoformat(),
             "end": period_end.isoformat(),
@@ -49,6 +51,16 @@ def build_telemetry_stats_payload(
         "messages": _collect_message_stats(period_start, period_end),
         "model_task_assignment": _collect_model_task_assignment(),
         "llm_usage": _collect_llm_usage(period_start, period_end),
+    }
+
+
+def _build_client_info(client_info: dict[str, str] | None) -> dict[str, str]:
+    """构建允许上传的客户端基础信息。"""
+
+    client_info = client_info or {}
+    return {
+        "os_type": str(client_info.get("os_type") or "Unknown"),
+        "mmc_version": str(client_info.get("mmc_version") or "Unknown"),
     }
 
 
