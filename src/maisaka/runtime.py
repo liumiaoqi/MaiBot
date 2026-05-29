@@ -66,7 +66,7 @@ logger = get_logger("maisaka_runtime")
 
 MAX_INTERNAL_ROUNDS = 10
 MAX_RETAINED_MESSAGE_CACHE_SIZE = 200
-MAX_RESTORED_CONTEXT_MESSAGES = MAX_RETAINED_MESSAGE_CACHE_SIZE
+CONTEXT_RESTORE_FILL_RATIO = 0.5
 
 
 class MaisakaHeartFlowChatting:
@@ -282,7 +282,7 @@ class MaisakaHeartFlowChatting:
     def _get_context_restore_limit(self) -> int:
         """返回启动时最多回灌的真实消息数量。"""
 
-        return max(MAX_RESTORED_CONTEXT_MESSAGES, self._max_context_size * 2)
+        return max(1, ceil(self._max_context_size * CONTEXT_RESTORE_FILL_RATIO))
 
     @staticmethod
     def _resolve_restored_message_source_kind(message: SessionMessage) -> str:
