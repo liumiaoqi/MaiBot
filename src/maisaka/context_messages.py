@@ -417,6 +417,12 @@ def _build_message_from_sequence(
             )
             continue
 
+        if isinstance(component, VoiceComponent):
+            voice_text = component.content.strip() if component.content else "[语音消息]"
+            builder.add_text_content(voice_text)
+            has_content = True
+            continue
+
         if isinstance(component, AtComponent):
             has_content = _append_at_component(builder, component) or has_content
             continue
