@@ -59,10 +59,10 @@ export function SettingsPage() {
   }, [])
 
   return (
-    <div className="p-4 sm:p-6">
+    <div className="flex h-full min-h-0 flex-col p-4 sm:p-6">
       {/* 页面标题 */}
       <div
-        className={`flex flex-col justify-between gap-4 overflow-hidden transition-all duration-200 sm:flex-row sm:items-center ${
+        className={`flex shrink-0 flex-col justify-between gap-4 overflow-hidden transition-all duration-200 sm:flex-row sm:items-center ${
           isTitleCollapsed ? 'max-h-0 opacity-0' : 'max-h-12 opacity-100'
         }`}
       >
@@ -75,9 +75,9 @@ export function SettingsPage() {
       <Tabs
         value={activeTab}
         onValueChange={handleTabChange}
-        className={`w-full transition-[margin] duration-200 ${isTitleCollapsed ? 'mt-0' : 'mt-4 sm:mt-6'}`}
+        className={`flex min-h-0 w-full flex-1 flex-col transition-[margin] duration-200 ${isTitleCollapsed ? 'mt-0' : 'mt-4 sm:mt-6'}`}
       >
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 gap-0.5 sm:gap-1 h-auto p-1">
+        <TabsList className="grid h-auto w-full shrink-0 grid-cols-2 gap-0.5 p-1 sm:grid-cols-5 sm:gap-1">
           <TabsTrigger value="appearance" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3 py-2">
             <Palette className="h-3.5 w-3.5 sm:h-4 sm:w-4" strokeWidth={2} fill="none" />
             <span>{t('settings.tabs.appearance')}</span>
@@ -102,9 +102,8 @@ export function SettingsPage() {
 
         <ScrollArea
           viewportRef={scrollViewportRef}
-          className={`mt-4 transition-[height] duration-200 sm:mt-6 ${
-            isTitleCollapsed ? 'h-[calc(100vh-180px)] sm:h-[calc(100vh-200px)]' : 'h-[calc(100vh-240px)] sm:h-[calc(100vh-280px)]'
-          }`}
+          contentClassName="pb-6"
+          className="mt-4 min-h-0 flex-1 sm:mt-6"
         >
           <TabsContent value="appearance" className="mt-0">
             <AppearanceTab />

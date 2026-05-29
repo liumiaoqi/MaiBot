@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { TabsContent } from '@/components/ui/tabs'
+import { ThinkingIllustration } from '@/components/ui/thinking-illustration'
 import { cn } from '@/lib/utils'
 import type {
   MemoryFeedbackActionLogPayload,
@@ -327,8 +328,8 @@ export function FeedbackTab(props: FeedbackTabProps) {
                     </div>
 
                     {selectedFeedbackTaskLoading ? (
-                      <div className="rounded-lg border bg-background/60 p-4 text-sm text-muted-foreground">
-                        Thinking...
+                      <div className="rounded-lg border bg-background/60 p-4">
+                        <ThinkingIllustration size="sm" />
                       </div>
                     ) : null}
 

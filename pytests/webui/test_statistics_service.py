@@ -103,6 +103,9 @@ def test_shared_fetch_queries_disable_auto_commit(monkeypatch: pytest.MonkeyPatc
         model_name="gpt-a",
         prompt_tokens=10,
         completion_tokens=5,
+        prompt_cache_enabled=True,
+        prompt_cache_hit_tokens=4,
+        prompt_cache_miss_tokens=6,
         cost=0.01,
         time_cost=1.2,
     )
@@ -133,6 +136,9 @@ def test_shared_fetch_queries_disable_auto_commit(monkeypatch: pytest.MonkeyPatc
             "model_name": "gpt-a",
             "prompt_tokens": 10,
             "completion_tokens": 5,
+            "prompt_cache_enabled": True,
+            "prompt_cache_hit_tokens": 4,
+            "prompt_cache_miss_tokens": 6,
             "cost": 0.01,
             "time_cost": 1.2,
         }
@@ -298,27 +304,8 @@ async def test_get_summary_statistics_aggregates_database_and_message_counts(mon
 async def test_get_model_statistics_groups_by_display_model_name(monkeypatch: pytest.MonkeyPatch) -> None:
     now = datetime(2026, 5, 6, 12, 0, 0)
     records = [
-        SimpleNamespace(
-            model_assign_name="chat-main",
-            model_name="gpt-a",
-            cost=0.4,
-            total_tokens=100,
-            time_cost=2.0,
-        ),
-        SimpleNamespace(
-            model_assign_name="chat-main",
-            model_name="gpt-a",
-            cost=0.6,
-            total_tokens=200,
-            time_cost=4.0,
-        ),
-        SimpleNamespace(
-            model_assign_name=None,
-            model_name="gpt-b",
-            cost=0.2,
-            total_tokens=50,
-            time_cost=0.0,
-        ),
+        ("chat-main", 2, 1.0, 300, 3.0),
+        ("gpt-b", 1, 0.2, 50, 0.0),
     ]
     _patch_session_results(monkeypatch, [_Result(all_values=records)])
 

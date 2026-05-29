@@ -215,6 +215,9 @@ class LLMUsageRecorder:
                     prompt_tokens=model_usage.prompt_tokens or 0,
                     completion_tokens=model_usage.completion_tokens or 0,
                     total_tokens=model_usage.total_tokens or 0,
+                    prompt_cache_enabled=bool(model_info.cache),
+                    prompt_cache_hit_tokens=model_usage.prompt_cache_hit_tokens or 0,
+                    prompt_cache_miss_tokens=model_usage.prompt_cache_miss_tokens or 0,
                     cost=total_cost or 0.0,
                 )
                 session.add(record)

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { ThinkingIllustration } from '@/components/ui/thinking-illustration'
 import {
   Select,
   SelectContent,
@@ -225,7 +226,7 @@ export function ExpressionReviewLogPanel({ onRescued }: ExpressionReviewLogPanel
             {loading ? (
               <TableRow>
                 <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
-                  Thinking...
+                  <ThinkingIllustration size="sm" className="mx-auto" />
                 </TableCell>
               </TableRow>
             ) : entries.length === 0 ? (
@@ -284,7 +285,9 @@ export function ExpressionReviewLogPanel({ onRescued }: ExpressionReviewLogPanel
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4 md:hidden">
         {loading ? (
-          <div className="py-8 text-center text-muted-foreground">Thinking...</div>
+          <div className="py-8 text-center text-muted-foreground">
+            <ThinkingIllustration size="sm" className="mx-auto" />
+          </div>
         ) : entries.length === 0 ? (
           <div className="py-8 text-center text-muted-foreground">暂无 AI 审核记录</div>
         ) : (

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Eye, Loader2, RefreshCw, RotateCcw, Save, Search, SlidersHorizontal } from 'lucide-react'
+import { Eye, RefreshCw, RotateCcw, Save, Search, SlidersHorizontal } from 'lucide-react'
 
 import { CodeEditor } from '@/components/CodeEditor'
 import { Badge } from '@/components/ui/badge'
@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
+import { ThinkingIllustration } from '@/components/ui/thinking-illustration'
 import { useToast } from '@/hooks/use-toast'
 import {
   getDefaultPromptFile,
@@ -310,8 +311,7 @@ export function PromptManagementPage() {
             <div className="space-y-1 p-2">
               {loadingCatalog ? (
                 <div className="flex items-center justify-center gap-2 p-6 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Thinking
+                  <ThinkingIllustration size="sm" />
                 </div>
               ) : filteredFiles.length > 0 ? (
                 filteredFiles.map((file) => (
@@ -386,8 +386,7 @@ export function PromptManagementPage() {
           <CardContent className="min-h-0 p-0">
             {loadingFile ? (
               <div className="flex h-[calc(100vh-290px)] items-center justify-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Thinking
+                <ThinkingIllustration />
               </div>
             ) : (
               <CodeEditor
@@ -413,8 +412,7 @@ export function PromptManagementPage() {
           </DialogHeader>
           {loadingDefaultPrompt ? (
             <div className="flex h-[520px] items-center justify-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Thinking
+              <ThinkingIllustration />
             </div>
           ) : (
             <CodeEditor

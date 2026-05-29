@@ -107,7 +107,9 @@ def test_failed_request_snapshot_contains_replay_entry(tmp_path: Path, monkeypat
     assert "secret-token" not in snapshot_path.read_text(encoding="utf-8")
 
 
-def test_format_request_snapshot_log_info_includes_path_uri_and_command(tmp_path: Path, monkeypatch) -> None:
+def test_format_request_snapshot_log_info_includes_help_text_and_replay_command(
+    tmp_path: Path, monkeypatch
+) -> None:
     monkeypatch.setattr(request_snapshot, "LLM_REQUEST_LOG_DIR", tmp_path)
 
     request = _build_response_request()
@@ -126,6 +128,8 @@ def test_format_request_snapshot_log_info_includes_path_uri_and_command(tmp_path
     attach_request_snapshot(exc, snapshot_path)
 
     log_info = format_request_snapshot_log_info(exc)
+    assert "调用完整信息（如果需要求助，请发送该文本）:" in log_info
     assert str(snapshot_path) in log_info
-    assert snapshot_path.as_uri() in log_info
-    assert "uv run python scripts/replay_llm_request.py" in log_info
+    assert "请求快照链接" not in log_info
+    assert snapshot_path.as_uri() not in log_info
+    assert "使用以下命令重新请求: uv run python scripts/replay_llm_request.py" in log_info

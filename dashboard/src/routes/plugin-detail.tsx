@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { ThinkingIllustration } from '@/components/ui/thinking-illustration'
 import {
   ArrowLeft,
   Download,
@@ -420,8 +421,7 @@ export function PluginDetailPage() {
           </div>
         </div>
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          <span className="ml-3 text-muted-foreground">Thinking...</span>
+          <ThinkingIllustration size="lg" />
         </div>
       </div>
     )
@@ -727,8 +727,7 @@ export function PluginDetailPage() {
                 <ScrollArea className="h-[600px] pr-4">
                   {readmeLoading ? (
                     <div className="flex items-center justify-center py-12">
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                      <span className="ml-3 text-sm text-muted-foreground">Thinking...</span>
+                      <ThinkingIllustration />
                     </div>
                   ) : readme ? (
                     <MarkdownRenderer content={readme} />

@@ -589,80 +589,83 @@ export function ExpressionManagementPage() {
         </div>
       </div>
 
-      <div className="mb-3 inline-flex w-full rounded-lg border bg-muted p-1 sm:w-fit">
-        <button
-          type="button"
-          onClick={() => handleActiveViewChange('list')}
-          className={`inline-flex h-8 flex-1 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:flex-none ${
-            activeView === 'list'
-              ? 'bg-background text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <MessageSquare className="h-4 w-4" />
-          <span>浏览表达</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => handleActiveViewChange('review')}
-          className={`inline-flex h-8 flex-1 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:flex-none ${
-            activeView === 'review'
-              ? 'bg-background text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <ClipboardCheck className="h-4 w-4" />
-          <span>表达审核</span>
-          {uncheckedCount > 0 && (
-            <span className="ml-0.5 rounded-full bg-orange-500 px-1.5 py-0.5 text-xs leading-none text-white">
-              {uncheckedCount > 99 ? '99+' : uncheckedCount}
-            </span>
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={() => handleActiveViewChange('quick')}
-          className={`inline-flex h-8 flex-1 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:flex-none ${
-            activeView === 'quick'
-              ? 'bg-background text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Zap className="h-4 w-4" />
-          <span>快速审核</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => handleActiveViewChange('reviewLogs')}
-          className={`inline-flex h-8 flex-1 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:flex-none ${
-            activeView === 'reviewLogs'
-              ? 'bg-background text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <FileClock className="h-4 w-4" />
-          <span>AI审核记录</span>
-        </button>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="inline-flex w-full rounded-lg border bg-muted p-1 sm:w-fit">
+          <button
+            type="button"
+            onClick={() => handleActiveViewChange('list')}
+            className={`inline-flex h-8 flex-1 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:flex-none ${
+              activeView === 'list'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <MessageSquare className="h-4 w-4" />
+            <span>浏览表达</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleActiveViewChange('review')}
+            className={`inline-flex h-8 flex-1 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:flex-none ${
+              activeView === 'review'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <ClipboardCheck className="h-4 w-4" />
+            <span>表达审核</span>
+            {uncheckedCount > 0 && (
+              <span className="ml-0.5 rounded-full bg-orange-500 px-1.5 py-0.5 text-xs leading-none text-white">
+                {uncheckedCount > 99 ? '99+' : uncheckedCount}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => handleActiveViewChange('quick')}
+            className={`inline-flex h-8 flex-1 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:flex-none ${
+              activeView === 'quick'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Zap className="h-4 w-4" />
+            <span>快速审核</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleActiveViewChange('reviewLogs')}
+            className={`inline-flex h-8 flex-1 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:flex-none ${
+              activeView === 'reviewLogs'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <FileClock className="h-4 w-4" />
+            <span>AI审核记录</span>
+          </button>
+        </div>
+
+        {activeView === 'list' && (
+          <div className="flex flex-1 flex-wrap gap-2">
+            <div className="inline-flex h-9 min-w-[7.5rem] flex-1 items-center justify-between gap-2 rounded-md border bg-card/80 px-3 sm:flex-none">
+              <div className="text-xs text-muted-foreground">总数量</div>
+              <div className="text-base font-semibold leading-none">{stats.total}</div>
+            </div>
+            <div className="inline-flex h-9 min-w-[7.5rem] flex-1 items-center justify-between gap-2 rounded-md border bg-card/80 px-3 sm:flex-none">
+              <div className="text-xs text-muted-foreground">近7天新增</div>
+              <div className="text-base font-semibold leading-none text-green-600">{stats.recent_7days}</div>
+            </div>
+            <div className="inline-flex h-9 min-w-[7.5rem] flex-1 items-center justify-between gap-2 rounded-md border bg-card/80 px-3 sm:flex-none">
+              <div className="text-xs text-muted-foreground">关联聊天数</div>
+              <div className="text-base font-semibold leading-none text-blue-600">{stats.chat_count}</div>
+            </div>
+          </div>
+        )}
       </div>
 
       <ScrollArea className={activeView === 'list' ? 'flex-1' : 'hidden'}>
         <div className="space-y-4 sm:space-y-6 pr-4">
-
-      {/* 统计卡片 */}
-      <div className="flex flex-wrap gap-2">
-        <div className="inline-flex h-9 w-full items-center justify-between gap-3 rounded-md border bg-card/80 px-3 sm:w-auto sm:min-w-[8.5rem]">
-          <div className="text-xs text-muted-foreground">总数量</div>
-          <div className="text-lg font-semibold leading-none">{stats.total}</div>
-        </div>
-        <div className="inline-flex h-9 w-full items-center justify-between gap-3 rounded-md border bg-card/80 px-3 sm:w-auto sm:min-w-[8.5rem]">
-          <div className="text-xs text-muted-foreground">近7天新增</div>
-          <div className="text-lg font-semibold leading-none text-green-600">{stats.recent_7days}</div>
-        </div>
-        <div className="inline-flex h-9 w-full items-center justify-between gap-3 rounded-md border bg-card/80 px-3 sm:w-auto sm:min-w-[8.5rem]">
-          <div className="text-xs text-muted-foreground">关联聊天数</div>
-          <div className="text-lg font-semibold leading-none text-blue-600">{stats.chat_count}</div>
-        </div>
-      </div>
 
       {/* 搜索和批量操作 */}
       <div className="rounded-lg border bg-card p-3">

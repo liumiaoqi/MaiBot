@@ -408,8 +408,8 @@
 :root[data-dashboard-style='future-retro'] [data-dashboard-shell='true']::after {
   content: '';
   position: absolute;
-  right: -58px;
-  bottom: -40px;
+  right: 0;
+  bottom: 0;
   z-index: 0;
   width: 270px;
   height: 118px;

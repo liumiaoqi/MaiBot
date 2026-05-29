@@ -26,6 +26,7 @@ import { ShortcutKbd } from '@/components/ui/kbd'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ThinkingIllustration } from '@/components/ui/thinking-illustration'
 import {
   Select,
   SelectContent,
@@ -1400,8 +1401,7 @@ export function ExpressionReviewer({
             <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 p-3 sm:p-4 relative overflow-hidden">
               {quickLoading && quickExpressions.length === 0 ? (
                 <div className="flex flex-col items-center justify-center">
-                  <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">Thinking...</p>
+                  <ThinkingIllustration size="lg" />
                 </div>
               ) : quickExpressions.length === 0 ? (
                 <div className="flex flex-col items-center justify-center text-center">

@@ -1,12 +1,58 @@
+import type { TFunction } from 'i18next'
+import type { CSSProperties } from 'react'
+import { Link } from '@tanstack/react-router'
+import {
+  Activity,
+  AlertCircle,
+  BarChart3,
+  CheckCircle2,
+  ClipboardCheck,
+  Clock,
+  Database,
+  DollarSign,
+  ExternalLink,
+  FileText,
+  HardDrive,
+  MessageSquare,
+  Plus,
+  Power,
+  Puzzle,
+  RefreshCw,
+  RotateCcw,
+  Settings,
+  TrendingUp,
+  Zap,
+  type LucideIcon,
+} from 'lucide-react'
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  XAxis,
+  YAxis,
+} from 'recharts'
 import axios from 'axios'
-import type { CSSProperties } from 'react'
+
+import { ExpressionReviewer } from '@/components/expression-reviewer'
+import { RestartOverlay } from '@/components/restart-overlay'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Progress } from '@/components/ui/progress'
+import {
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from '@/components/ui/chart'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
@@ -17,69 +63,28 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { fetchWithAuth } from '@/lib/fetch-with-auth'
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent,
-  type ChartConfig,
-} from '@/components/ui/chart'
-import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-} from 'recharts'
-import {
-  Activity,
-  BarChart3,
-  TrendingUp,
-  DollarSign,
-  Clock,
-  MessageSquare,
-  HardDrive,
-  Zap,
-  Database,
-  RefreshCw,
-  Power,
-  RotateCcw,
-  FileText,
-  Settings,
-  Puzzle,
-  CheckCircle2,
-  AlertCircle,
-  ClipboardCheck,
-  ExternalLink,
-  type LucideIcon,
-} from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Link } from '@tanstack/react-router'
-import { RestartProvider, useRestart } from '@/lib/restart-context'
-import { ThemeProviderContext } from '@/lib/theme-context'
-import type { DashboardStyle } from '@/lib/theme/tokens'
-import { RestartOverlay } from '@/components/restart-overlay'
-import { ExpressionReviewer } from '@/components/expression-reviewer'
+import { Progress } from '@/components/ui/progress'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ThinkingIllustration } from '@/components/ui/thinking-illustration'
+import { ZoomableChart } from '@/components/ui/zoomable-chart'
 import { getBotConfigCached, getModelConfigCached } from '@/lib/config-api'
 import { getReviewStats } from '@/lib/expression-api'
-import { getLocalCacheStats, type LocalCacheStats } from '@/lib/system-api'
+import { fetchWithAuth } from '@/lib/fetch-with-auth'
 import {
   getInstalledPlugins,
   getPluginConfigSchema,
   type InstalledPlugin,
   type PluginConfigSchema,
 } from '@/lib/plugin-api'
+import { RestartProvider, useRestart } from '@/lib/restart-context'
+import { getLocalCacheStats, type LocalCacheStats } from '@/lib/system-api'
+import { ThemeProviderContext } from '@/lib/theme-context'
+import type { DashboardStyle } from '@/lib/theme/tokens'
+import { cn } from '@/lib/utils'
 import { APP_VERSION } from '@/lib/version'
-import { ZoomableChart } from '@/components/ui/zoomable-chart'
 
 // 主导出组件：包装 RestartProvider
 export function IndexPage() {
@@ -169,9 +174,9 @@ interface QuickShortcutDefinition {
 }
 
 const DEFAULT_TIME_RANGE = 24
-const DASHBOARD_DATA_CACHE_TTL = 30_000
+const DASHBOARD_DATA_CACHE_TTL = 5 * 60_000
 const BOT_STATUS_CACHE_TTL = 30_000
-const LOCAL_CACHE_STATS_CACHE_TTL = 120_000
+const LOCAL_CACHE_STATS_CACHE_TTL = 15 * 60_000
 const QUICK_SHORTCUT_STORAGE_KEY = 'maibot-home-quick-shortcuts'
 const DEFAULT_QUICK_SHORTCUT_IDS = [
   'action:restart',
@@ -245,7 +250,7 @@ function getPluginConfigHref(pluginId: string, tabId?: string): string {
   return `/plugin-config?${params.toString()}`
 }
 
-function getFallbackPluginShortcut(id: string): QuickShortcutDefinition | null {
+function getFallbackPluginShortcut(id: string, t: TFunction): QuickShortcutDefinition | null {
   const parsed = parsePluginShortcutId(id)
   if (!parsed) {
     return null
@@ -254,8 +259,12 @@ function getFallbackPluginShortcut(id: string): QuickShortcutDefinition | null {
   return {
     id,
     category: 'plugin',
-    label: parsed.tabId ? `插件配置：${parsed.pluginId} / ${parsed.tabId}` : `插件配置：${parsed.pluginId}`,
-    description: parsed.tabId ? '打开指定插件配置标签页' : '打开指定插件配置页面',
+    label: parsed.tabId
+      ? t('home.pluginShortcuts.fallbackTabLabel', { plugin: parsed.pluginId, tab: parsed.tabId })
+      : t('home.pluginShortcuts.fallbackLabel', { plugin: parsed.pluginId }),
+    description: parsed.tabId
+      ? t('home.pluginShortcuts.fallbackTabDescription')
+      : t('home.pluginShortcuts.fallbackDescription'),
     icon: Puzzle,
     href: getPluginConfigHref(parsed.pluginId, parsed.tabId),
   }
@@ -345,14 +354,14 @@ function formatStorageBytes(bytes: number): string {
 }
 
 function IndexPageContent() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { themeConfig } = useContext(ThemeProviderContext)
+  const currentLocale = i18n.resolvedLanguage || i18n.language || 'zh-CN'
   const initialDashboardData = getCachedDashboardData(DEFAULT_TIME_RANGE) ?? getStaleDashboardData(DEFAULT_TIME_RANGE)
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(initialDashboardData)
   const [loading, setLoading] = useState(!initialDashboardData)
   const [loadingProgress, setLoadingProgress] = useState(0)
   const [timeRange, setTimeRange] = useState(DEFAULT_TIME_RANGE) // 默认24小时
-  const [autoRefresh, setAutoRefresh] = useState(false)
   const [hitokoto, setHitokoto] = useState<{ hitokoto: string; from: string } | null>(null)
   const [hitokotoLoading, setHitokotoLoading] = useState(true)
   const [botStatus, setBotStatus] = useState<BotStatus | null>(botStatusCache?.data ?? null)
@@ -376,19 +385,12 @@ function IndexPageContent() {
   
   // 使用 ref 跟踪组件是否已卸载，防止内存泄漏
   const isMountedRef = useRef(true)
-  // 使用 ref 存储 interval ID，方便清理
-  const refreshIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // 组件卸载时清理
   useEffect(() => {
     isMountedRef.current = true
     return () => {
       isMountedRef.current = false
-      // 清理自动刷新定时器
-      if (refreshIntervalRef.current) {
-        clearInterval(refreshIntervalRef.current)
-        refreshIntervalRef.current = null
-      }
     }
   }, [])
 
@@ -478,8 +480,8 @@ function IndexPageContent() {
   }, [t])
 
   // 获取机器人状态
-  const fetchBotStatus = useCallback(async () => {
-    const cachedStatus = getCachedBotStatus()
+  const fetchBotStatus = useCallback(async (force = false) => {
+    const cachedStatus = force ? null : getCachedBotStatus()
     if (cachedStatus) {
       setBotStatus(cachedStatus)
       setIsBotStatusLoading(false)
@@ -600,8 +602,8 @@ function IndexPageContent() {
             const baseShortcut: QuickShortcutDefinition = {
               id: getPluginShortcutId(plugin.id),
               category: 'plugin',
-              label: `${pluginName} 配置`,
-              description: `打开 ${pluginName} 的插件配置页面`,
+              label: t('home.pluginShortcuts.baseLabel', { plugin: pluginName }),
+              description: t('home.pluginShortcuts.baseDescription', { plugin: pluginName }),
               icon: Puzzle,
               href: getPluginConfigHref(plugin.id),
             }
@@ -617,7 +619,10 @@ function IndexPageContent() {
               id: getPluginShortcutId(plugin.id, tab.id),
               category: 'plugin' as const,
               label: `${pluginName} / ${tab.title || tab.id}`,
-              description: `打开 ${pluginName} 的 ${tab.title || tab.id} 标签页`,
+              description: t('home.pluginShortcuts.tabDescription', {
+                plugin: pluginName,
+                tab: tab.title || tab.id,
+              }),
               icon: Puzzle,
               href: getPluginConfigHref(plugin.id, tab.id),
             }))
@@ -651,7 +656,7 @@ function IndexPageContent() {
         id: 'action:restart',
         category: 'system',
         label: isRestarting ? t('home.quickActions.restarting') : t('home.quickActions.restart'),
-        description: '重启麦麦主程序',
+        description: t('home.quickActions.descriptions.restart'),
         icon: RotateCcw,
         action: handleRestart,
         disabled: isRestarting,
@@ -660,7 +665,7 @@ function IndexPageContent() {
         id: 'action:expression-review',
         category: 'resource',
         label: t('home.quickActions.expressionReview'),
-        description: '打开表达学习审核弹窗',
+        description: t('home.quickActions.descriptions.expressionReview'),
         icon: ClipboardCheck,
         action: () => setIsReviewerOpen(true),
         badge: uncheckedCount > 0 ? (uncheckedCount > 99 ? '99+' : String(uncheckedCount)) : undefined,
@@ -669,7 +674,7 @@ function IndexPageContent() {
         id: 'route:logs',
         category: 'monitor',
         label: t('home.quickActions.viewLogs'),
-        description: '查看 WebUI 日志',
+        description: t('home.quickActions.descriptions.viewLogs'),
         icon: FileText,
         href: '/logs',
       },
@@ -677,15 +682,15 @@ function IndexPageContent() {
         id: 'route:plugin-market',
         category: 'plugin',
         label: t('home.quickActions.pluginManage'),
-        description: '打开插件市场与插件管理',
+        description: t('home.quickActions.descriptions.pluginManage'),
         icon: Puzzle,
         href: '/plugins',
       },
       {
         id: 'route:plugin-config',
         category: 'plugin',
-        label: '插件配置',
-        description: '打开已安装插件配置页面',
+        label: t('home.quickActions.pluginConfig'),
+        description: t('home.quickActions.descriptions.pluginConfig'),
         icon: Settings,
         href: '/plugin-config',
       },
@@ -693,79 +698,79 @@ function IndexPageContent() {
         id: 'route:settings',
         category: 'system',
         label: t('home.quickActions.systemSettings'),
-        description: '打开系统设置',
+        description: t('home.quickActions.descriptions.systemSettings'),
         icon: Settings,
         href: '/settings',
       },
       {
         id: 'route:settings-appearance',
         category: 'system',
-        label: '外观设置',
-        description: '打开设置 / 外观',
+        label: t('home.quickActions.appearanceSettings'),
+        description: t('home.quickActions.descriptions.appearanceSettings'),
         icon: Settings,
         href: '/settings?tab=appearance',
       },
       {
         id: 'route:settings-local-cache',
         category: 'system',
-        label: '本地缓存',
-        description: '打开设置 / 本地缓存',
+        label: t('home.quickActions.localCache'),
+        description: t('home.quickActions.descriptions.localCache'),
         icon: HardDrive,
         href: '/settings?tab=local-cache',
       },
       {
         id: 'route:model-providers',
         category: 'config',
-        label: '模型厂商设置',
-        description: '打开模型管理 / 模型厂商设置',
+        label: t('home.quickActions.modelProviders'),
+        description: t('home.quickActions.descriptions.modelProviders'),
         icon: Settings,
         href: '/config/model?tab=providers',
       },
       {
         id: 'route:model-list',
         category: 'config',
-        label: '模型列表',
-        description: '打开模型管理 / 模型列表',
+        label: t('home.quickActions.modelList'),
+        description: t('home.quickActions.descriptions.modelList'),
         icon: Settings,
         href: '/config/model?tab=models',
       },
       {
         id: 'route:model-tasks',
         category: 'config',
-        label: '模型功能分配',
-        description: '打开模型管理 / 为模型分配功能',
+        label: t('home.quickActions.modelTasks'),
+        description: t('home.quickActions.descriptions.modelTasks'),
         icon: Settings,
         href: '/config/model?tab=tasks',
       },
       {
         id: 'route:bot-config',
         category: 'config',
-        label: '主程序配置',
-        description: '打开麦麦主程序配置',
+        label: t('home.quickActions.botConfig'),
+        description: t('home.quickActions.descriptions.botConfig'),
         icon: Settings,
         href: '/config/bot',
       },
       {
         id: 'route:emoji',
         category: 'resource',
-        label: '表情包管理',
-        description: '打开表情包资源管理',
+        label: t('home.quickActions.emojiManagement'),
+        description: t('home.quickActions.descriptions.emojiManagement'),
         icon: MessageSquare,
         href: '/resource/emoji',
       },
       {
         id: 'route:expression',
         category: 'resource',
-        label: '表达方式管理',
-        description: '打开表达方式管理',
+        label: t('home.quickActions.expressionManagement'),
+        description: t('home.quickActions.descriptions.expressionManagement'),
         icon: MessageSquare,
         href: '/resource/expression',
       },
       {
         id: 'external:statistics',
         category: 'external',
-        label: '详细统计数据',
-        description: '打开 maibot_statistics.html',
+        label: t('home.quickActions.statistics'),
+        description: t('home.quickActions.descriptions.statistics'),
         icon: BarChart3,
         href: '/maibot_statistics.html',
         external: true,
@@ -783,9 +788,9 @@ function IndexPageContent() {
   const selectedQuickShortcuts = useMemo(
     () =>
       quickShortcutIds
-        .map((id) => quickShortcutMap.get(id) ?? getFallbackPluginShortcut(id))
+        .map((id) => quickShortcutMap.get(id) ?? getFallbackPluginShortcut(id, t))
         .filter((shortcut): shortcut is QuickShortcutDefinition => Boolean(shortcut)),
-    [quickShortcutIds, quickShortcutMap]
+    [quickShortcutIds, quickShortcutMap, t]
   )
 
   const filteredQuickShortcutOptions = useMemo(() => {
@@ -889,48 +894,41 @@ function IndexPageContent() {
   useEffect(() => {
     fetchDashboardData()
     fetchHitokoto()
-    fetchBotStatus()
+    fetchBotStatus(true)
     fetchFeatureStatus()
     fetchLocalCacheStats()
     fetchReviewStats()
   }, [fetchDashboardData, fetchHitokoto, fetchBotStatus, fetchFeatureStatus, fetchLocalCacheStats, fetchReviewStats])
 
-  // 自动刷新
   useEffect(() => {
-    // 清理旧的定时器
-    if (refreshIntervalRef.current) {
-      clearInterval(refreshIntervalRef.current)
-      refreshIntervalRef.current = null
-    }
-    
-    if (!autoRefresh) return
-
-    refreshIntervalRef.current = setInterval(() => {
+    const refreshBotStatus = () => {
       if (isMountedRef.current) {
-        fetchDashboardData(true)
-        fetchBotStatus()
-        fetchFeatureStatus()
-        fetchLocalCacheStats()
+        fetchBotStatus(true)
       }
-    }, 30000) // 30秒刷新一次
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshBotStatus()
+      }
+    }
+
+    const intervalId = setInterval(refreshBotStatus, 30000)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('focus', refreshBotStatus)
 
     return () => {
-      if (refreshIntervalRef.current) {
-        clearInterval(refreshIntervalRef.current)
-        refreshIntervalRef.current = null
-      }
+      clearInterval(intervalId)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('focus', refreshBotStatus)
     }
-  }, [autoRefresh, fetchDashboardData, fetchBotStatus, fetchFeatureStatus, fetchLocalCacheStats])
+  }, [fetchBotStatus])
 
   if (loading || !dashboardData) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-200px)]">
         <div className="text-center space-y-6 w-full max-w-md px-4">
-          <RefreshCw className="h-12 w-12 animate-spin mx-auto text-primary" />
-          <div className="space-y-2">
-            <p className="text-lg font-medium">{t('home.loading')}</p>
-            <p className="text-sm text-muted-foreground">{t('home.loadingHint')}</p>
-          </div>
+          <ThinkingIllustration size="lg" className="mx-auto" />
           <div className="space-y-2">
             <Progress value={loadingProgress} className="h-2" />
             <p className="text-xs text-muted-foreground">{loadingProgress}%</p>
@@ -971,7 +969,7 @@ function IndexPageContent() {
 
   // 格式化大数字（自动选择合适单位）
   const formatNumber = (num: number): { display: string; exact: string; needsExact: boolean } => {
-    const exact = num.toLocaleString('zh-CN')
+    const exact = num.toLocaleString(currentLocale)
     
     if (num >= 1_000_000_000) {
       return { display: `${(num / 1_000_000_000).toFixed(2)}B`, exact, needsExact: true }
@@ -987,7 +985,7 @@ function IndexPageContent() {
 
   // 格式化金额（自动选择合适单位）
   const formatCurrency = (num: number): { display: string; exact: string; needsExact: boolean } => {
-    const exact = `¥${num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    const exact = `¥${num.toLocaleString(currentLocale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     
     if (num >= 1_000_000) {
       return { display: `¥${(num / 1_000_000).toFixed(2)}M`, exact, needsExact: true }
@@ -1002,7 +1000,7 @@ function IndexPageContent() {
   // 格式化日期时间
   const formatDateTime = (isoString: string) => {
     const date = new Date(isoString)
-    return date.toLocaleString('zh-CN', {
+    return date.toLocaleString(currentLocale, {
       month: '2-digit',
       day: '2-digit',
       hour: '2-digit',
@@ -1044,25 +1042,13 @@ function IndexPageContent() {
 
   return (
     <ScrollArea className="h-full">
-      <div className="space-y-4 sm:space-y-6 p-4 sm:p-6">
+      <div className="space-y-2 sm:space-y-4 p-4 sm:p-6">
       {/* 标题和控制栏 */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold">{t('home.title')}</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {t('home.subtitle')}
-          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant={autoRefresh ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setAutoRefresh(!autoRefresh)}
-            className="gap-2"
-          >
-            <RefreshCw className={`h-4 w-4 ${autoRefresh ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">{t('home.autoRefresh')}</span>
-          </Button>
           <Button variant="outline" size="sm" onClick={() => fetchDashboardData(true)}>
             <RefreshCw className="h-4 w-4" />
           </Button>
@@ -1070,23 +1056,35 @@ function IndexPageContent() {
       </div>
 
       {/* 一言 */}
-      <div className="flex items-center gap-3 px-4 py-2 rounded-lg border border-dashed border-muted-foreground/30 bg-muted/20">
+      <div
+        className={cn(
+          'flex items-center gap-3 rounded-lg bg-muted/20 px-4 py-1',
+          themeConfig.dashboardStyle !== 'future-retro' && 'border border-dashed border-muted-foreground/30'
+        )}
+      >
         {hitokotoLoading ? (
           <Skeleton className="h-5 flex-1" />
         ) : hitokoto ? (
-          <p className="flex-1 text-sm text-muted-foreground italic truncate">
+          <p
+            className={cn(
+              'flex-1 truncate text-muted-foreground',
+              themeConfig.dashboardStyle === 'future-retro'
+                ? 'text-[1.05rem] font-medium tracking-wide'
+                : 'text-sm italic'
+            )}
+            style={
+              themeConfig.dashboardStyle === 'future-retro'
+                ? {
+                    fontFamily:
+                      '"Cormorant Garamond", "EB Garamond", "Libre Baskerville", "Baskerville", "Palatino Linotype", "Book Antiqua", "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", "SimSun", serif',
+                    textShadow: '0 0.035em 0 hsl(var(--background))',
+                  }
+                : undefined
+            }
+          >
             "{hitokoto.hitokoto}" —— {hitokoto.from}
           </p>
         ) : null}
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          className="h-7 w-7 shrink-0" 
-          onClick={fetchHitokoto}
-          disabled={hitokotoLoading}
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${hitokotoLoading ? 'animate-spin' : ''}`} />
-        </Button>
       </div>
 
       {/* 机器人状态和快速操作 */}
@@ -1096,19 +1094,19 @@ function IndexPageContent() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <FileText className="h-4 w-4" />
-              麦麦版本
+              {t('home.versionCard.title')}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-3">
-                <span className="text-sm text-muted-foreground">主程序版本</span>
+                <span className="text-sm text-muted-foreground">{t('home.versionCard.mainVersion')}</span>
                 <Badge variant="secondary" className="border border-primary/20 bg-primary/10 px-2 py-0.5 font-semibold text-primary">
-                  {botStatus?.version ? `v${botStatus.version}` : '未知'}
+                  {botStatus?.version ? `v${botStatus.version}` : t('home.versionCard.unknown')}
                 </Badge>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <span className="text-sm text-muted-foreground">WebUI 版本</span>
+                <span className="text-sm text-muted-foreground">{t('home.versionCard.webuiVersion')}</span>
                 <Badge variant="secondary" className="border border-primary/20 bg-primary/10 px-2 py-0.5 font-semibold text-primary">
                   v{APP_VERSION}
                 </Badge>
@@ -1120,7 +1118,8 @@ function IndexPageContent() {
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 transition-colors hover:text-muted-foreground"
                 >
-                  最新版本 {maibotTestRelease ? `v${maibotTestRelease.version}` : 'GitHub Releases'}
+                  {t('home.versionCard.latestVersion')}{' '}
+                  {maibotTestRelease ? `v${maibotTestRelease.version}` : t('home.versionCard.githubReleases')}
                   <ExternalLink className="h-3 w-3" />
                 </a>
               </div>
@@ -1131,9 +1130,9 @@ function IndexPageContent() {
                   rel="noopener noreferrer"
                   className="flex items-center justify-between gap-2 transition-colors hover:text-muted-foreground"
                 >
-                  <span>正式版最新</span>
+                  <span>{t('home.versionCard.stableLatest')}</span>
                   <span className="inline-flex items-center gap-1">
-                    {maibotStableRelease ? `v${maibotStableRelease.version}` : 'GitHub Releases'}
+                    {maibotStableRelease ? `v${maibotStableRelease.version}` : t('home.versionCard.githubReleases')}
                     <ExternalLink className="h-3 w-3" />
                   </span>
                 </a>
@@ -1143,9 +1142,9 @@ function IndexPageContent() {
                   rel="noopener noreferrer"
                   className="flex items-center justify-between gap-2 transition-colors hover:text-muted-foreground"
                 >
-                  <span>测试版最新</span>
+                  <span>{t('home.versionCard.testLatest')}</span>
                   <span className="inline-flex items-center gap-1">
-                    {maibotTestRelease ? `v${maibotTestRelease.version}` : 'GitHub Releases'}
+                    {maibotTestRelease ? `v${maibotTestRelease.version}` : t('home.versionCard.githubReleases')}
                     <ExternalLink className="h-3 w-3" />
                   </span>
                 </a>
@@ -1180,7 +1179,7 @@ function IndexPageContent() {
                         className="whitespace-nowrap text-muted-foreground"
                       >
                         <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
-                        读取中
+                        {t('home.botStatus.loading')}
                       </Badge>
                     </>
                   ) : botStatus?.running ? (
@@ -1231,7 +1230,7 @@ function IndexPageContent() {
                         className="whitespace-nowrap text-muted-foreground"
                       >
                         <AlertCircle className="h-3 w-3 mr-1" />
-                        未知
+                        {t('home.botStatus.unknown')}
                       </Badge>
                     </>
                   )}
@@ -1243,8 +1242,8 @@ function IndexPageContent() {
                 )}
               </div>
               <div className="flex flex-wrap gap-2">
-                <FeatureStatusLight enabled={featureStatus.visualEnabled} label="启用视觉" />
-                <FeatureStatusLight enabled={featureStatus.memoryEnabled} label="启用记忆" />
+                <FeatureStatusLight enabled={featureStatus.visualEnabled} label={t('home.botStatus.visualEnabled')} />
+                <FeatureStatusLight enabled={featureStatus.memoryEnabled} label={t('home.botStatus.memoryEnabled')} />
               </div>
             </div>
           </CardContent>
@@ -1257,17 +1256,21 @@ function IndexPageContent() {
               <Zap className="h-4 w-4" />
               {t('home.quickActions.title')}
             </CardTitle>
-            <Button variant="ghost" size="sm" onClick={() => setQuickShortcutDialogOpen(true)}>
-              <Settings className="mr-2 h-4 w-4" />
-              自定义
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setQuickShortcutDialogOpen(true)}
+              aria-label={t('home.quickActions.customize')}
+            >
+              <Plus className="h-4 w-4" />
             </Button>
           </CardHeader>
           <CardContent>
             {selectedQuickShortcuts.length === 0 ? (
               <div className="flex flex-col gap-3 rounded-lg border border-dashed p-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-                <span>还没有选择快捷入口</span>
+                <span>{t('home.quickActions.empty')}</span>
                 <Button variant="outline" size="sm" onClick={() => setQuickShortcutDialogOpen(true)}>
-                  添加入口
+                  {t('home.quickActions.add')}
                 </Button>
               </div>
             ) : (
@@ -1328,7 +1331,7 @@ function IndexPageContent() {
             <div className="space-y-1.5">
               <CardTitle className="flex items-center gap-2 text-sm font-medium">
                 <BarChart3 className="h-4 w-4" />
-                统计概览
+                {t('home.stats.overviewTitle')}
               </CardTitle>
               <CardDescription>
                 {t('home.stats.recentPeriod', {
@@ -1468,25 +1471,36 @@ function IndexPageContent() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <HardDrive className="h-4 w-4" />
-              存储占用
+              {t('home.storage.title')}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
               <div>
                 <div className="text-2xl font-bold">
-                  {hasLocalCacheStats ? formatStorageBytes(totalStorageSize) : isLocalCacheStatsLoading ? '读取中' : '-'}
+                  {hasLocalCacheStats
+                    ? formatStorageBytes(totalStorageSize)
+                    : isLocalCacheStatsLoading
+                      ? t('home.storage.reading')
+                      : '-'}
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {hasLocalCacheStats
-                    ? `图片 ${formatStorageBytes(imageCacheSize)} · 表情 ${formatStorageBytes(emojiCacheSize)} · 日志 ${formatStorageBytes(logCacheSize)} · 数据库 ${formatStorageBytes(databaseSize)}`
-                    : isLocalCacheStatsLoading ? '正在读取本地存储占用...' : '暂未获取到本地存储占用'}
+                    ? t('home.storage.summary', {
+                        image: formatStorageBytes(imageCacheSize),
+                        emoji: formatStorageBytes(emojiCacheSize),
+                        logs: formatStorageBytes(logCacheSize),
+                        database: formatStorageBytes(databaseSize),
+                      })
+                    : isLocalCacheStatsLoading
+                      ? t('home.storage.readingDescription')
+                      : t('home.storage.unavailable')}
                 </p>
               </div>
               <Button variant="outline" size="sm" asChild className="w-full justify-start gap-2">
                 <Link to="/settings" search={{ tab: 'local-cache' }}>
                   <HardDrive className="h-4 w-4" />
-                  管理存储
+                  {t('home.storage.manage')}
                 </Link>
               </Button>
             </div>
@@ -1789,7 +1803,10 @@ function IndexPageContent() {
                     dataKey="timestamp"
                     tickFormatter={(value) => {
                       const date = new Date(value)
-                      return `${date.getMonth() + 1}/${date.getDate()}`
+                      return new Intl.DateTimeFormat(currentLocale, {
+                        month: 'numeric',
+                        day: 'numeric',
+                      }).format(date)
                     }}
                     stroke="hsl(var(--color-muted-foreground))"
                     tick={{ fill: 'hsl(var(--color-muted-foreground))' }}
@@ -1801,7 +1818,7 @@ function IndexPageContent() {
                       <ChartTooltipContent
                         labelFormatter={(value) => {
                           const date = new Date(value as string)
-                          return date.toLocaleDateString('zh-CN')
+                          return date.toLocaleDateString(currentLocale)
                         }}
                       />
                     }
@@ -1819,9 +1836,9 @@ function IndexPageContent() {
       <Dialog open={quickShortcutDialogOpen} onOpenChange={setQuickShortcutDialogOpen}>
         <DialogContent style={{ '--dialog-width': '46rem' } as CSSProperties}>
           <DialogHeader>
-            <DialogTitle>自定义快捷入口</DialogTitle>
+            <DialogTitle>{t('home.quickActions.dialog.title')}</DialogTitle>
             <DialogDescription>
-              选择首页快捷操作卡片中显示的入口，可包含页面标签页和插件配置页。
+              {t('home.quickActions.dialog.description')}
             </DialogDescription>
           </DialogHeader>
           <DialogBody viewportClassName="max-h-[60vh]">
@@ -1829,7 +1846,7 @@ function IndexPageContent() {
               <Input
                 value={quickShortcutSearch}
                 onChange={(event) => setQuickShortcutSearch(event.target.value)}
-                placeholder="搜索入口、插件或标签页..."
+                placeholder={t('home.quickActions.dialog.searchPlaceholder')}
               />
               <div className="space-y-2">
                 {filteredQuickShortcutOptions.map((shortcut) => {
@@ -1850,17 +1867,7 @@ function IndexPageContent() {
                         <span className="flex flex-wrap items-center gap-2">
                           <span className="font-medium">{shortcut.label}</span>
                           <Badge variant="outline" className="text-[10px]">
-                            {shortcut.category === 'plugin'
-                              ? '插件'
-                              : shortcut.category === 'config'
-                                ? '配置'
-                                : shortcut.category === 'resource'
-                                  ? '资源'
-                                  : shortcut.category === 'monitor'
-                                    ? '监控'
-                                    : shortcut.category === 'external'
-                                      ? '外部'
-                                      : '系统'}
+                            {t(`home.quickActions.categories.${shortcut.category}`)}
                           </Badge>
                         </span>
                         <span className="mt-1 block text-sm text-muted-foreground">
@@ -1872,7 +1879,9 @@ function IndexPageContent() {
                 })}
                 {filteredQuickShortcutOptions.length === 0 && (
                   <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                    {isPluginShortcutsLoading ? '正在加载插件入口...' : '没有找到匹配的入口'}
+                    {isPluginShortcutsLoading
+                      ? t('home.quickActions.dialog.loadingPluginEntries')
+                      : t('home.quickActions.dialog.noMatches')}
                   </div>
                 )}
               </div>
@@ -1880,10 +1889,10 @@ function IndexPageContent() {
           </DialogBody>
           <DialogFooter>
             <Button variant="outline" onClick={resetQuickShortcuts}>
-              恢复默认
+              {t('home.quickActions.dialog.restoreDefault')}
             </Button>
             <Button onClick={() => setQuickShortcutDialogOpen(false)}>
-              完成
+              {t('home.quickActions.dialog.done')}
             </Button>
           </DialogFooter>
         </DialogContent>

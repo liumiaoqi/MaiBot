@@ -1,3 +1,4 @@
+import { useBlocker } from '@tanstack/react-router'
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -473,6 +474,13 @@ function PluginConfigEditor({ plugin, onBack, initialTab }: PluginConfigEditorPr
   const [hasChanges, setHasChanges] = useState(false)
   const [hasTomlError, setHasTomlError] = useState(false)
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
+  const [internalLeavePromptOpen, setInternalLeavePromptOpen] = useState(false)
+
+  const navigationBlocker = useBlocker({
+    shouldBlockFn: () => hasChanges,
+    enableBeforeUnload: hasChanges,
+    withResolver: true,
+  })
 
   // 加载配置
   const loadConfig = useCallback(async () => {
@@ -546,7 +554,7 @@ function PluginConfigEditor({ plugin, onBack, initialTab }: PluginConfigEditorPr
   }
 
   // 保存配置
-  const handleSave = async () => {
+  const handleSave = async (): Promise<boolean> => {
     setSaving(true)
     try {
       if (editMode === 'source') {
@@ -561,7 +569,7 @@ function PluginConfigEditor({ plugin, onBack, initialTab }: PluginConfigEditorPr
             variant: 'destructive'
           })
           setSaving(false)
-          return
+          return false
         }
         
         // 格式正确，保存原始配置
@@ -578,15 +586,54 @@ function PluginConfigEditor({ plugin, onBack, initialTab }: PluginConfigEditorPr
         title: '配置已保存',
         description: '更改将在插件重新加载后生效'
       })
+      return true
     } catch (error) {
       toast({
         title: '保存失败',
         description: error instanceof Error ? error.message : '未知错误',
         variant: 'destructive'
       })
+      return false
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleBack = () => {
+    if (!hasChanges) {
+      onBack()
+      return
+    }
+    setInternalLeavePromptOpen(true)
+  }
+
+  const closeLeavePrompt = () => {
+    if (navigationBlocker.status === 'blocked') {
+      navigationBlocker.reset?.()
+    }
+    setInternalLeavePromptOpen(false)
+  }
+
+  const leaveWithoutSaving = () => {
+    if (internalLeavePromptOpen) {
+      setInternalLeavePromptOpen(false)
+      onBack()
+      return
+    }
+    navigationBlocker.proceed?.()
+  }
+
+  const saveAndLeave = async () => {
+    const saved = await handleSave()
+    if (!saved) {
+      return
+    }
+    if (internalLeavePromptOpen) {
+      setInternalLeavePromptOpen(false)
+      onBack()
+      return
+    }
+    navigationBlocker.proceed?.()
   }
 
   // 重置配置
@@ -692,7 +739,7 @@ function PluginConfigEditor({ plugin, onBack, initialTab }: PluginConfigEditorPr
       {/* 头部 */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div className="flex items-start gap-3">
-          <Button variant="ghost" size="icon" onClick={onBack}>
+          <Button variant="ghost" size="icon" onClick={handleBack}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
@@ -872,6 +919,36 @@ function PluginConfigEditor({ plugin, onBack, initialTab }: PluginConfigEditorPr
       )}
       </>
       )}
+
+      <Dialog
+        open={internalLeavePromptOpen || navigationBlocker.status === 'blocked'}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeLeavePrompt()
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>有未保存的更改</DialogTitle>
+            <DialogDescription>
+              当前插件配置文件有修改，离开页面前是否保存？
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeLeavePrompt} disabled={saving}>
+              取消
+            </Button>
+            <Button variant="outline" onClick={leaveWithoutSaving} disabled={saving}>
+              不保存
+            </Button>
+            <Button onClick={saveAndLeave} disabled={saving}>
+              {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+              保存并离开
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* 重置确认对话框 */}
       <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
