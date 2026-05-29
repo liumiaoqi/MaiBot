@@ -368,78 +368,86 @@ export function ReasoningProcessPage({ embedded = false }: ReasoningProcessPageP
 
   return (
     <div className={cn('flex h-full min-h-0 flex-col gap-3 overflow-hidden', embedded ? 'p-0' : 'p-3 lg:p-4')}>
-      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-        {!embedded && (
-          <div>
-            <h1 className="text-foreground text-xl font-semibold tracking-normal">推理过程</h1>
-            <p className="text-muted-foreground text-sm">浏览 logs/maisaka_prompt 下的 prompt 记录</p>
-          </div>
+      {!embedded && (
+        <div>
+          <h1 className="text-foreground text-xl font-semibold tracking-normal">推理过程</h1>
+          <p className="text-muted-foreground text-sm">浏览 logs/maisaka_prompt 下的 prompt 记录</p>
+        </div>
+      )}
+
+      <div
+        className={cn(
+          'grid flex-shrink-0 grid-cols-1 gap-2',
+          browsingStage
+            ? 'md:grid-cols-[auto_auto_minmax(220px,320px)_1fr]'
+            : 'md:grid-cols-[auto_1fr]'
         )}
+      >
         <Button
           variant="outline"
           size="sm"
           onClick={() => setRefreshKey((current) => current + 1)}
           disabled={loading}
-          className={embedded ? 'self-end' : undefined}
+          className="h-10 justify-start"
         >
           <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
           刷新
         </Button>
+
+        {browsingStage && (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-10 justify-start"
+              onClick={() => setBrowsingStage(false)}
+            >
+              <ArrowLeft className="h-4 w-4" />
+              类型
+            </Button>
+
+            <Select
+              value={session}
+              onValueChange={(value) => resetToFirstPage(() => setSession(value))}
+              disabled={sessions.length === 0 && loading}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="会话" />
+              </SelectTrigger>
+              <SelectContent>
+                {session === AUTO_SESSION && (
+                  <SelectItem value={AUTO_SESSION}>自动选择最近会话</SelectItem>
+                )}
+                {sessions.map((item) => {
+                  const sessionInfo = sessionInfoByName.get(item)
+                  return (
+                    <SelectItem key={item} value={item}>
+                      <div className="min-w-0">
+                        <div className="truncate">{getSessionDisplayName(item, sessionInfo)}</div>
+                        {sessionInfo && (
+                          <div className="text-muted-foreground truncate text-xs">
+                            {getSessionSubtitle(sessionInfo)}
+                          </div>
+                        )}
+                      </div>
+                    </SelectItem>
+                  )
+                })}
+              </SelectContent>
+            </Select>
+
+            <div className="relative">
+              <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
+              <Input
+                value={search}
+                onChange={(event) => resetToFirstPage(() => setSearch(event.target.value))}
+                className="pl-9"
+                placeholder="搜索会话显示名、真实会话、文件名或 replyer 回复内容"
+              />
+            </div>
+          </>
+        )}
       </div>
-
-      {browsingStage && (
-        <div className="grid flex-shrink-0 grid-cols-1 gap-2 md:grid-cols-[auto_minmax(220px,320px)_1fr]">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-10 justify-start"
-            onClick={() => setBrowsingStage(false)}
-          >
-            <ArrowLeft className="h-4 w-4" />
-            类型
-          </Button>
-
-          <Select
-            value={session}
-            onValueChange={(value) => resetToFirstPage(() => setSession(value))}
-            disabled={sessions.length === 0 && loading}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="会话" />
-            </SelectTrigger>
-            <SelectContent>
-              {session === AUTO_SESSION && (
-                <SelectItem value={AUTO_SESSION}>自动选择最近会话</SelectItem>
-              )}
-              {sessions.map((item) => {
-                const sessionInfo = sessionInfoByName.get(item)
-                return (
-                  <SelectItem key={item} value={item}>
-                    <div className="min-w-0">
-                      <div className="truncate">{getSessionDisplayName(item, sessionInfo)}</div>
-                      {sessionInfo && (
-                        <div className="text-muted-foreground truncate text-xs">
-                          {getSessionSubtitle(sessionInfo)}
-                        </div>
-                      )}
-                    </div>
-                  </SelectItem>
-                )
-              })}
-            </SelectContent>
-          </Select>
-
-          <div className="relative">
-            <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
-            <Input
-              value={search}
-              onChange={(event) => resetToFirstPage(() => setSearch(event.target.value))}
-              className="pl-9"
-              placeholder="搜索会话显示名、真实会话、文件名或 replyer 回复内容"
-            />
-          </div>
-        </div>
-      )}
 
       {error && (
         <div className="border-destructive/30 bg-destructive/10 text-destructive rounded-md border px-3 py-2 text-sm">
