@@ -829,9 +829,23 @@
     "autoRefresh": "自动刷新",
     "botStatus": {
       "title": "麦麦状态",
+      "loading": "读取中",
       "running": "运行中",
       "stopped": "已停止",
-      "uptime": "运行 {{time}}"
+      "unknown": "未知",
+      "uptime": "运行 {{time}}",
+      "visualEnabled": "启用视觉",
+      "memoryEnabled": "启用记忆"
+    },
+    "versionCard": {
+      "title": "麦麦版本",
+      "mainVersion": "主程序版本",
+      "webuiVersion": "WebUI 版本",
+      "latestVersion": "最新版本",
+      "stableLatest": "正式版最新",
+      "testLatest": "测试版最新",
+      "githubReleases": "GitHub Releases",
+      "unknown": "未知"
     },
     "quickActions": {
       "title": "快速操作",
@@ -840,7 +854,63 @@
       "expressionReview": "表达审核",
       "viewLogs": "查看日志",
       "pluginManage": "插件管理",
-      "systemSettings": "系统设置"
+      "systemSettings": "系统设置",
+      "pluginConfig": "插件配置",
+      "appearanceSettings": "外观设置",
+      "localCache": "本地缓存",
+      "modelProviders": "模型厂商设置",
+      "modelList": "模型列表",
+      "modelTasks": "模型功能分配",
+      "botConfig": "主程序配置",
+      "emojiManagement": "表情包管理",
+      "expressionManagement": "表达方式管理",
+      "statistics": "详细统计数据",
+      "customize": "自定义",
+      "empty": "还没有选择快捷入口",
+      "add": "添加入口",
+      "descriptions": {
+        "restart": "重启麦麦主程序",
+        "expressionReview": "打开表达学习审核弹窗",
+        "viewLogs": "查看 WebUI 日志",
+        "pluginManage": "打开插件市场与插件管理",
+        "systemSettings": "打开系统设置",
+        "pluginConfig": "打开已安装插件配置页面",
+        "appearanceSettings": "打开设置 / 外观",
+        "localCache": "打开设置 / 本地缓存",
+        "modelProviders": "打开模型管理 / 模型厂商设置",
+        "modelList": "打开模型管理 / 模型列表",
+        "modelTasks": "打开模型管理 / 为模型分配功能",
+        "botConfig": "打开麦麦主程序配置",
+        "emojiManagement": "打开表情包资源管理",
+        "expressionManagement": "打开表达方式管理",
+        "statistics": "打开 maibot_statistics.html"
+      },
+      "categories": {
+        "system": "系统",
+        "config": "配置",
+        "resource": "资源",
+        "plugin": "插件",
+        "monitor": "监控",
+        "external": "外部"
+      },
+      "dialog": {
+        "title": "自定义快捷入口",
+        "description": "选择首页快捷操作卡片中显示的入口，可包含页面标签页和插件配置页。",
+        "searchPlaceholder": "搜索入口、插件或标签页...",
+        "loadingPluginEntries": "正在加载插件入口...",
+        "noMatches": "没有找到匹配的入口",
+        "restoreDefault": "恢复默认",
+        "done": "完成"
+      }
+    },
+    "pluginShortcuts": {
+      "baseLabel": "{{plugin}} 配置",
+      "baseDescription": "打开 {{plugin}} 的插件配置页面",
+      "tabDescription": "打开 {{plugin}} 的 {{tab}} 标签页",
+      "fallbackLabel": "插件配置：{{plugin}}",
+      "fallbackTabLabel": "插件配置：{{plugin}} / {{tab}}",
+      "fallbackDescription": "打开指定插件配置页面",
+      "fallbackTabDescription": "打开指定插件配置标签页"
     },
     "survey": {
       "title": "反馈问卷",
@@ -849,6 +919,7 @@
       "maibot": "麦麦反馈"
     },
     "stats": {
+      "overviewTitle": "统计概览",
       "totalRequests": "总请求数",
       "totalCost": "总花费",
       "tokenUsage": "Token消耗",
@@ -865,6 +936,14 @@
       "seconds": "秒",
       "hours": "小时",
       "days": "天"
+    },
+    "storage": {
+      "title": "存储占用",
+      "reading": "读取中",
+      "summary": "图片 {{image}} · 表情 {{emoji}} · 日志 {{logs}} · 数据库 {{database}}",
+      "readingDescription": "正在读取本地存储占用...",
+      "unavailable": "暂未获取到本地存储占用",
+      "manage": "管理存储"
     },
     "charts": {
       "tabs": {

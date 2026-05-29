@@ -829,9 +829,23 @@
     "autoRefresh": "Auto Refresh",
     "botStatus": {
       "title": "MaiBot Status",
+      "loading": "Reading",
       "running": "Running",
       "stopped": "Stopped",
-      "uptime": "Up {{time}}"
+      "unknown": "Unknown",
+      "uptime": "Up {{time}}",
+      "visualEnabled": "Vision enabled",
+      "memoryEnabled": "Memory enabled"
+    },
+    "versionCard": {
+      "title": "MaiBot Version",
+      "mainVersion": "Core version",
+      "webuiVersion": "WebUI version",
+      "latestVersion": "Latest version",
+      "stableLatest": "Latest stable",
+      "testLatest": "Latest test",
+      "githubReleases": "GitHub Releases",
+      "unknown": "Unknown"
     },
     "quickActions": {
       "title": "Quick Actions",
@@ -840,7 +854,63 @@
       "expressionReview": "Expression Review",
       "viewLogs": "View Logs",
       "pluginManage": "Plugins",
-      "systemSettings": "Settings"
+      "systemSettings": "Settings",
+      "pluginConfig": "Plugin Config",
+      "appearanceSettings": "Appearance",
+      "localCache": "Local Cache",
+      "modelProviders": "Model Providers",
+      "modelList": "Model List",
+      "modelTasks": "Model Tasks",
+      "botConfig": "Core Config",
+      "emojiManagement": "Emoji Management",
+      "expressionManagement": "Expression Management",
+      "statistics": "Detailed Statistics",
+      "customize": "Customize",
+      "empty": "No quick shortcuts selected yet",
+      "add": "Add Shortcut",
+      "descriptions": {
+        "restart": "Restart the MaiBot core process",
+        "expressionReview": "Open the expression learning review dialog",
+        "viewLogs": "View WebUI logs",
+        "pluginManage": "Open the plugin marketplace and management page",
+        "systemSettings": "Open system settings",
+        "pluginConfig": "Open installed plugin configuration",
+        "appearanceSettings": "Open Settings / Appearance",
+        "localCache": "Open Settings / Local Cache",
+        "modelProviders": "Open Model Management / Providers",
+        "modelList": "Open Model Management / Models",
+        "modelTasks": "Open Model Management / Task assignments",
+        "botConfig": "Open MaiBot core configuration",
+        "emojiManagement": "Open emoji resource management",
+        "expressionManagement": "Open expression management",
+        "statistics": "Open maibot_statistics.html"
+      },
+      "categories": {
+        "system": "System",
+        "config": "Config",
+        "resource": "Resource",
+        "plugin": "Plugin",
+        "monitor": "Monitor",
+        "external": "External"
+      },
+      "dialog": {
+        "title": "Customize Quick Shortcuts",
+        "description": "Choose the shortcuts shown on the home quick actions card, including page tabs and plugin configuration pages.",
+        "searchPlaceholder": "Search shortcuts, plugins, or tabs...",
+        "loadingPluginEntries": "Loading plugin shortcuts...",
+        "noMatches": "No matching shortcuts found",
+        "restoreDefault": "Restore Defaults",
+        "done": "Done"
+      }
+    },
+    "pluginShortcuts": {
+      "baseLabel": "{{plugin}} Config",
+      "baseDescription": "Open the configuration page for {{plugin}}",
+      "tabDescription": "Open the {{tab}} tab for {{plugin}}",
+      "fallbackLabel": "Plugin config: {{plugin}}",
+      "fallbackTabLabel": "Plugin config: {{plugin}} / {{tab}}",
+      "fallbackDescription": "Open the specified plugin configuration page",
+      "fallbackTabDescription": "Open the specified plugin configuration tab"
     },
     "survey": {
       "title": "Feedback Survey",
@@ -849,6 +919,7 @@
       "maibot": "MaiBot Feedback"
     },
     "stats": {
+      "overviewTitle": "Statistics Overview",
       "totalRequests": "Total Requests",
       "totalCost": "Total Cost",
       "tokenUsage": "Token Usage",
@@ -865,6 +936,14 @@
       "seconds": "sec",
       "hours": "hours",
       "days": "days"
+    },
+    "storage": {
+      "title": "Storage Usage",
+      "reading": "Reading",
+      "summary": "Images {{image}} · Emoji {{emoji}} · Logs {{logs}} · Database {{database}}",
+      "readingDescription": "Reading local storage usage...",
+      "unavailable": "Local storage usage is unavailable",
+      "manage": "Manage Storage"
     },
     "charts": {
       "tabs": {
