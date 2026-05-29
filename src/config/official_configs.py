@@ -818,6 +818,16 @@ class AMemorixSparseRetrievalConfig(ConfigBase):
     """关系候选数"""
 
 
+class AMemorixRelationVectorizationConfig(ConfigBase):
+    """A_Memorix 关系向量化配置"""
+
+    enabled: bool = Field(default=False)
+    """为关系生成向量（启用后关系也能参与向量相似检索）"""
+
+    backfill_enabled: bool = Field(default=False)
+    """启用历史关系向量回填任务"""
+
+
 class AMemorixRetrievalConfig(ConfigBase):
     """A_Memorix 检索配置"""
 
@@ -850,6 +860,9 @@ class AMemorixRetrievalConfig(ConfigBase):
 
     sparse: AMemorixSparseRetrievalConfig = Field(default_factory=AMemorixSparseRetrievalConfig)
     """稀疏检索配置"""
+
+    relation_vectorization: AMemorixRelationVectorizationConfig = Field(default_factory=AMemorixRelationVectorizationConfig)
+    """关系向量化配置"""
 
 
 class AMemorixThresholdConfig(ConfigBase):
