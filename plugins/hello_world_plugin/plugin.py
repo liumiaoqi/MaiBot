@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any
 
 import random
+import re
 
 from maibot_sdk import Action, Command, EventHandler, Field, MaiBotPlugin, PluginConfigBase, Tool
 from maibot_sdk.types import ActivationType, EventType, ToolParameterInfo, ToolParamType
@@ -168,6 +169,41 @@ class HelloWorldPlugin(MaiBotPlugin):
 
         await self.ctx.send.text("测试正常！Bot 功能运行中 ✅", stream_id)
         return True, "测试完成", True
+
+    @Command(
+        "send_to",
+        description="向指定聊天流发送文本",
+        pattern=r"^/send_to\s+(?P<target_stream_id>\S+)\s+(?P<text>.+)$",
+    )
+    async def handle_send_to(self, stream_id: str = "", **kwargs: Any):
+        """向指定聊天流发送文本。"""
+
+        matched_groups = kwargs.get("matched_groups")
+        if not isinstance(matched_groups, dict):
+            matched_groups = {}
+
+        target_stream_id = str(matched_groups.get("target_stream_id") or "").strip()
+        text = str(matched_groups.get("text") or "").strip()
+        if not target_stream_id or not text:
+            raw_text = str(kwargs.get("text") or "").strip()
+            match = re.match(r"^/send_to\s+(?P<target_stream_id>\S+)\s+(?P<text>.+)$", raw_text, re.DOTALL)
+            if match is not None:
+                target_stream_id = match.group("target_stream_id").strip()
+                text = match.group("text").strip()
+
+        if not target_stream_id:
+            return False, "用法：/send_to <stream_id> <要发送的文本>", True
+
+        if not text:
+            return False, "要发送的文本不能为空", True
+
+        sent = await self.ctx.send.text(text, target_stream_id)
+        if not sent:
+            return False, f"发送失败：聊天流不存在或不可发送，stream_id={target_stream_id}", True
+
+        if stream_id and stream_id != target_stream_id:
+            await self.ctx.send.text(f"已向 {target_stream_id} 发送文本", stream_id)
+        return True, f"已向 {target_stream_id} 发送文本", True
 
     # ===== EventHandler 组件 =====
 

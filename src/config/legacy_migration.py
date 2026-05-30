@@ -392,10 +392,22 @@ def try_migrate_legacy_bot_config_dict(data: dict[str, Any]) -> MigrationResult:
         migrated_any = True
         reasons.append("visual.visual_style_removed")
 
-    memory = _as_dict(data.get("memory"))
-    if memory is not None and _migrate_target_item_list(memory, "global_memory_blacklist"):
+    memory = _as_dict(data.pop("memory", None))
+    if memory is not None:
+        a_memorix = _as_dict(data.get("a_memorix"))
+        if a_memorix is None:
+            a_memorix = {}
+            data["a_memorix"] = a_memorix
+
+        integration = _as_dict(a_memorix.get("integration"))
+        if integration is None:
+            integration = {}
+            a_memorix["integration"] = integration
+
+        for key, value in memory.items():
+            integration.setdefault(key, value)
         migrated_any = True
-        reasons.append("memory.global_memory_blacklist")
+        reasons.append("memory->a_memorix.integration")
 
     keyword_reaction = _as_dict(data.get("keyword_reaction"))
     if keyword_reaction is not None:

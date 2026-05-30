@@ -23,7 +23,7 @@ def test_json_schema_extra_merged():
     # Verify UI metadata fields from json_schema_extra exist
     assert talk_value.get("x-widget") == "slider"
     assert talk_value.get("x-icon") == "message-circle"
-    assert talk_value.get("step") == 0.1
+    assert talk_value.get("step") == 0.001
 
 
 def test_pydantic_constraints_mapped():

@@ -4,6 +4,7 @@
  * 管理 WebSocket 订阅与事件流的状态。
  */
 import { useCallback, useEffect, useState } from 'react'
+import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 
 import type { MaisakaMonitorEvent } from '@/lib/maisaka-monitor-client'
 import { maisakaMonitorClient } from '@/lib/maisaka-monitor-client'
@@ -34,9 +35,25 @@ export interface SessionInfo {
   eventCount: number
 }
 
-/** 最大保留的时间线条目数 */
-const MAX_TIMELINE_ENTRIES = 500
+export interface StageStatusInfo {
+  sessionId: string
+  sessionName?: string
+  stage: string
+  detail: string
+  roundText: string
+  agentState: string
+  stageStartedAt: number
+  updatedAt: number
+}
+
+/** 前端内存中最多恢复/展示的时间线条目数，避免一次渲染过多节点。 */
+const MAX_TIMELINE_ENTRIES = 3000
+/** IndexedDB 中最多持久化的时间线条目数。 */
+const MAX_PERSISTED_TIMELINE_ENTRIES = 10000
+const PERSIST_PRUNE_INTERVAL = 200
 const BACKGROUND_COLLECTION_STORAGE_KEY = 'maisaka-monitor-background-collection'
+const MONITOR_DB_NAME = 'maisaka-monitor-db'
+const MONITOR_DB_VERSION = 1
 
 function resolveSessionDisplayName({
   fallbackName,
@@ -72,6 +89,7 @@ function resolveSessionDisplayName({
 let entryCounter = 0
 let cachedTimeline: TimelineEntry[] = []
 let cachedSessions: Map<string, SessionInfo> = new Map()
+let cachedStageStatuses: Map<string, StageStatusInfo> = new Map()
 let cachedSelectedSession: string | null = null
 let cachedConnected = false
 let backgroundCollectionEnabled = false
@@ -81,6 +99,56 @@ let monitorSubscriptionStarted = false
 let monitorSubscriptionPromise: Promise<void> | null = null
 let monitorUnsubscribe: (() => Promise<void>) | null = null
 const storeListeners = new Set<() => void>()
+let persistSnapshotTimer: ReturnType<typeof setTimeout> | null = null
+let monitorDbPromise: Promise<IDBPDatabase<MaisakaMonitorDb>> | null = null
+let persistedEntryCountSincePrune = 0
+let pendingPersistEntries: TimelineEntry[] = []
+let pendingPersistSessionIds = new Set<string>()
+let pendingPersistMeta = false
+
+interface PersistedTimelineEntry extends TimelineEntry {
+  persistedAt: number
+}
+
+interface MonitorMetaRecord {
+  key: string
+  value: unknown
+}
+
+interface MaisakaMonitorDb extends DBSchema {
+  timeline: {
+    key: string
+    value: PersistedTimelineEntry
+    indexes: {
+      'by-timestamp': number
+    }
+  }
+  sessions: {
+    key: string
+    value: SessionInfo
+  }
+  meta: {
+    key: string
+    value: MonitorMetaRecord
+  }
+}
+
+function toStageStatusInfo(raw: Record<string, unknown>): StageStatusInfo | null {
+  const sessionId = typeof raw.session_id === 'string' ? raw.session_id : ''
+  if (!sessionId) {
+    return null
+  }
+  return {
+    sessionId,
+    sessionName: typeof raw.session_name === 'string' ? raw.session_name : undefined,
+    stage: typeof raw.stage === 'string' ? raw.stage : '',
+    detail: typeof raw.detail === 'string' ? raw.detail : '',
+    roundText: typeof raw.round_text === 'string' ? raw.round_text : '',
+    agentState: typeof raw.agent_state === 'string' ? raw.agent_state : '',
+    stageStartedAt: typeof raw.stage_started_at === 'number' ? raw.stage_started_at : Date.now() / 1000,
+    updatedAt: typeof raw.updated_at === 'number' ? raw.updated_at : Date.now() / 1000,
+  }
+}
 
 function notifyStoreListeners() {
   storeListeners.forEach((listener) => listener())
@@ -97,6 +165,163 @@ function loadBackgroundCollectionPreference() {
   }
   return backgroundCollectionEnabled
 }
+
+function getMonitorDb() {
+  if (typeof window === 'undefined' || !window.indexedDB) {
+    return null
+  }
+
+  monitorDbPromise ??= openDB<MaisakaMonitorDb>(MONITOR_DB_NAME, MONITOR_DB_VERSION, {
+    upgrade(db) {
+      const timelineStore = db.createObjectStore('timeline', { keyPath: 'id' })
+      timelineStore.createIndex('by-timestamp', 'timestamp')
+      db.createObjectStore('sessions', { keyPath: 'sessionId' })
+      db.createObjectStore('meta', { keyPath: 'key' })
+    },
+  })
+
+  return monitorDbPromise
+}
+
+function toTimelineEntry(entry: PersistedTimelineEntry): TimelineEntry {
+  return {
+    id: entry.id,
+    type: entry.type,
+    data: entry.data,
+    timestamp: entry.timestamp,
+    sessionId: entry.sessionId,
+  }
+}
+
+async function loadMonitorSnapshot() {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  try {
+    const dbPromise = getMonitorDb()
+    if (!dbPromise) {
+      return
+    }
+
+    const db = await dbPromise
+    const [timelineRecords, sessionRecords, selectedSessionMeta, entryCounterMeta] = await Promise.all([
+      db.getAllFromIndex('timeline', 'by-timestamp'),
+      db.getAll('sessions'),
+      db.get('meta', 'selectedSession'),
+      db.get('meta', 'entryCounter'),
+    ])
+
+    cachedTimeline = timelineRecords
+      .slice(-MAX_TIMELINE_ENTRIES)
+      .map(toTimelineEntry)
+    cachedSessions = new Map(sessionRecords.map((session) => [session.sessionId, session]))
+    cachedSelectedSession = typeof selectedSessionMeta?.value === 'string' ? selectedSessionMeta.value : null
+    entryCounter = typeof entryCounterMeta?.value === 'number' ? entryCounterMeta.value : cachedTimeline.length
+    notifyStoreListeners()
+  } catch (error) {
+    console.warn('读取 MaiSaka 观察 IndexedDB 缓存失败，已忽略:', error)
+  }
+}
+
+async function prunePersistedTimeline(db: IDBPDatabase<MaisakaMonitorDb>) {
+  const keys = await db.getAllKeysFromIndex('timeline', 'by-timestamp')
+  const overflowCount = keys.length - MAX_PERSISTED_TIMELINE_ENTRIES
+  if (overflowCount <= 0) {
+    return
+  }
+
+  const tx = db.transaction('timeline', 'readwrite')
+  for (const key of keys.slice(0, overflowCount)) {
+    await tx.store.delete(key)
+  }
+  await tx.done
+}
+
+async function flushMonitorSnapshot() {
+  try {
+    const dbPromise = getMonitorDb()
+    if (!dbPromise) {
+      return
+    }
+
+    const entries = pendingPersistEntries
+    const sessionIds = Array.from(pendingPersistSessionIds)
+    const shouldPersistMeta = pendingPersistMeta
+    pendingPersistEntries = []
+    pendingPersistSessionIds = new Set()
+    pendingPersistMeta = false
+
+    if (entries.length === 0 && sessionIds.length === 0 && !shouldPersistMeta) {
+      return
+    }
+
+    const db = await dbPromise
+    const tx = db.transaction(['timeline', 'sessions', 'meta'], 'readwrite')
+    const persistedAt = Date.now()
+    for (const entry of entries) {
+      await tx.objectStore('timeline').put({ ...entry, persistedAt })
+    }
+    for (const sessionId of sessionIds) {
+      const session = cachedSessions.get(sessionId)
+      if (session) {
+        await tx.objectStore('sessions').put(session)
+      }
+    }
+    await tx.objectStore('meta').put({ key: 'selectedSession', value: cachedSelectedSession })
+    await tx.objectStore('meta').put({ key: 'entryCounter', value: entryCounter })
+    await tx.done
+
+    persistedEntryCountSincePrune += entries.length
+    if (persistedEntryCountSincePrune >= PERSIST_PRUNE_INTERVAL) {
+      persistedEntryCountSincePrune = 0
+      await prunePersistedTimeline(db)
+    }
+  } catch (error) {
+    console.warn('保存 MaiSaka 观察 IndexedDB 缓存失败，已忽略:', error)
+  }
+}
+
+async function clearPersistedMonitorSnapshot() {
+  try {
+    const dbPromise = getMonitorDb()
+    if (!dbPromise) {
+      return
+    }
+    const db = await dbPromise
+    const tx = db.transaction(['timeline', 'sessions', 'meta'], 'readwrite')
+    await Promise.all([
+      tx.objectStore('timeline').clear(),
+      tx.objectStore('sessions').clear(),
+      tx.objectStore('meta').clear(),
+    ])
+    await tx.done
+  } catch (error) {
+    console.warn('清空 MaiSaka 观察 IndexedDB 缓存失败，已忽略:', error)
+  }
+}
+
+function schedulePersistMonitorSnapshot(entry?: TimelineEntry, sessionId?: string) {
+  if (typeof window === 'undefined') {
+    return
+  }
+  if (entry) {
+    pendingPersistEntries.push(entry)
+  }
+  if (sessionId) {
+    pendingPersistSessionIds.add(sessionId)
+  }
+  pendingPersistMeta = true
+  if (persistSnapshotTimer !== null) {
+    window.clearTimeout(persistSnapshotTimer)
+  }
+  persistSnapshotTimer = window.setTimeout(() => {
+    persistSnapshotTimer = null
+    void flushMonitorSnapshot()
+  }, 300)
+}
+
+void loadMonitorSnapshot()
 
 function shouldKeepMonitorActive() {
   return activeConsumerCount > 0 || backgroundCollectionEnabled
@@ -163,22 +388,88 @@ function updateSessionInfo(event: MaisakaMonitorEvent, sessionId: string, timest
   cachedSessions = next
 }
 
+function updateStageStatus(event: MaisakaMonitorEvent) {
+  const applyStatusIfFresh = (next: Map<string, StageStatusInfo>, status: StageStatusInfo) => {
+    const existing = next.get(status.sessionId)
+    if (existing && status.updatedAt < existing.updatedAt) {
+      return
+    }
+    next.set(status.sessionId, status)
+  }
+
+  if (event.type === 'stage.snapshot') {
+    const rawEntries = (event.data as unknown as Record<string, unknown>).entries
+    if (!Array.isArray(rawEntries)) {
+      return
+    }
+    const next = new Map(cachedStageStatuses)
+    for (const rawEntry of rawEntries) {
+      if (!rawEntry || typeof rawEntry !== 'object') {
+        continue
+      }
+      const status = toStageStatusInfo(rawEntry as Record<string, unknown>)
+      if (status) {
+        applyStatusIfFresh(next, status)
+      }
+    }
+    cachedStageStatuses = next
+    return
+  }
+
+  if (event.type === 'stage.status') {
+    const status = toStageStatusInfo(event.data as unknown as Record<string, unknown>)
+    if (!status) {
+      return
+    }
+    const next = new Map(cachedStageStatuses)
+    applyStatusIfFresh(next, status)
+    cachedStageStatuses = next
+    return
+  }
+
+  if (event.type === 'stage.removed') {
+    const dataRecord = event.data as unknown as Record<string, unknown>
+    const sessionId = typeof dataRecord.session_id === 'string' ? dataRecord.session_id : ''
+    if (!sessionId) {
+      return
+    }
+    const next = new Map(cachedStageStatuses)
+    next.delete(sessionId)
+    cachedStageStatuses = next
+  }
+}
+
 function handleMonitorEvent(event: MaisakaMonitorEvent) {
   const dataRecord = event.data as unknown as Record<string, unknown>
   const sessionId = dataRecord.session_id as string
   const timestamp = dataRecord.timestamp as number
 
+  if (event.type === 'stage.snapshot') {
+    updateStageStatus(event)
+    notifyStoreListeners()
+    return
+  }
+
   if (!sessionId || typeof timestamp !== 'number') {
     return
   }
 
-  appendTimelineEntry({
+  if (event.type === 'stage.status' || event.type === 'stage.removed') {
+    updateStageStatus(event)
+    updateSessionInfo(event, sessionId, timestamp)
+    schedulePersistMonitorSnapshot(undefined, sessionId)
+    notifyStoreListeners()
+    return
+  }
+
+  const entry: TimelineEntry = {
     id: `evt_${++entryCounter}_${Date.now()}`,
     type: event.type,
     data: event.data,
     timestamp,
     sessionId,
-  })
+  }
+  appendTimelineEntry(entry)
 
   updateSessionInfo(event, sessionId, timestamp)
 
@@ -186,6 +477,7 @@ function handleMonitorEvent(event: MaisakaMonitorEvent) {
     cachedSelectedSession = sessionId
   }
 
+  schedulePersistMonitorSnapshot(entry, sessionId)
   notifyStoreListeners()
 }
 
@@ -237,6 +529,7 @@ function stopMonitorSubscriptionIfIdle() {
 export function useMaisakaMonitor() {
   const [timeline, setTimeline] = useState<TimelineEntry[]>(cachedTimeline)
   const [sessions, setSessions] = useState<Map<string, SessionInfo>>(new Map(cachedSessions))
+  const [stageStatuses, setStageStatuses] = useState<Map<string, StageStatusInfo>>(new Map(cachedStageStatuses))
   const [selectedSession, setSelectedSessionState] = useState<string | null>(cachedSelectedSession)
   const [connected, setConnected] = useState(cachedConnected)
   const [backgroundCollection, setBackgroundCollection] = useState(loadBackgroundCollectionPreference)
@@ -247,6 +540,7 @@ export function useMaisakaMonitor() {
     const syncFromStore = () => {
       setTimeline(cachedTimeline)
       setSessions(new Map(cachedSessions))
+      setStageStatuses(new Map(cachedStageStatuses))
       setSelectedSessionState(cachedSelectedSession)
       setConnected(cachedConnected)
       setBackgroundCollection(backgroundCollectionEnabled)
@@ -263,13 +557,24 @@ export function useMaisakaMonitor() {
 
   const clearTimeline = useCallback(() => {
     cachedTimeline = []
+    cachedSessions = new Map()
+    cachedStageStatuses = new Map()
+    cachedSelectedSession = null
     setTimeline([])
+    setSessions(new Map())
+    setStageStatuses(new Map())
+    setSelectedSessionState(null)
+    pendingPersistEntries = []
+    pendingPersistSessionIds = new Set()
+    pendingPersistMeta = false
+    void clearPersistedMonitorSnapshot()
     notifyStoreListeners()
   }, [])
 
   const setSelectedSession = useCallback((sessionId: string | null) => {
     cachedSelectedSession = sessionId
     setSelectedSessionState(sessionId)
+    schedulePersistMonitorSnapshot()
     notifyStoreListeners()
   }, [])
 
@@ -297,6 +602,7 @@ export function useMaisakaMonitor() {
     timeline: filteredTimeline,
     allTimeline: timeline,
     sessions,
+    stageStatuses,
     selectedSession,
     setSelectedSession,
     connected,

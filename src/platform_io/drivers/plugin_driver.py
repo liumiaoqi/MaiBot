@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional, Protocol
 
 from src.platform_io.drivers.base import PlatformIODriver
 from src.platform_io.types import DeliveryReceipt, DeliveryStatus, DriverDescriptor, DriverKind, RouteKey
+from src.plugin_runtime.host.component_timeout import resolve_component_rpc_timeout_ms
 
 if TYPE_CHECKING:
     from src.chat.message_receive.message import SessionMessage
@@ -65,6 +66,7 @@ class PluginPlatformDriver(PlatformIODriver):
         self._supervisor = supervisor
         self._component_name = component_name
         self._supports_send = supports_send
+        self._timeout_ms = resolve_component_rpc_timeout_ms((metadata or {}).get("timeout_ms", 0))
 
     async def send_message(
         self,
@@ -120,7 +122,7 @@ class PluginPlatformDriver(PlatformIODriver):
                     },
                     "metadata": metadata or {},
                 },
-                timeout_ms=30000,
+                timeout_ms=self._timeout_ms,
             )
         except Exception as exc:
             return DeliveryReceipt(

@@ -114,15 +114,16 @@ class SparseBM25Index:
             self.metadata_store.ensure_relations_fts_backfilled(conn=conn)
         if self.config.enable_ngram_fallback_index:
             self.metadata_store.ensure_paragraph_ngram_schema(conn=conn)
-            self.metadata_store.ensure_paragraph_ngram_backfilled(
+            if not self.metadata_store.is_paragraph_ngram_ready(
                 n=self.config.char_ngram_n,
                 conn=conn,
-            )
+            ):
+                logger.warning("paragraph ngram 索引未就绪，检索路径将跳过 ngram fallback")
 
         self._conn = conn
         self._loaded = True
         self._prepare_tokenizer()
-        logger.info(
+        logger.debug(
             "SparseBM25Index loaded: "
             f"backend=fts5, tokenizer={self.config.tokenizer_mode}, mode={self.config.mode}"
         )
@@ -217,20 +218,21 @@ class SparseBM25Index:
 
         if self.config.enable_ngram_fallback_index:
             try:
-                # 允许运行时切换开关后按需补齐 schema/回填。
                 self.metadata_store.ensure_paragraph_ngram_schema(conn=self._conn)
-                self.metadata_store.ensure_paragraph_ngram_backfilled(
+                if not self.metadata_store.is_paragraph_ngram_ready(
                     n=self.config.char_ngram_n,
                     conn=self._conn,
-                )
-                rows = self.metadata_store.ngram_search_paragraphs(
-                    tokens=uniq_tokens,
-                    limit=limit,
-                    max_doc_len=self.config.max_doc_len,
-                    conn=self._conn,
-                )
-                if rows:
-                    return rows
+                ):
+                    logger.debug("paragraph ngram 索引未就绪，跳过 ngram fallback")
+                else:
+                    rows = self.metadata_store.ngram_search_paragraphs(
+                        tokens=uniq_tokens,
+                        limit=limit,
+                        max_doc_len=self.config.max_doc_len,
+                        conn=self._conn,
+                    )
+                    if rows:
+                        return rows
             except Exception as e:
                 logger.warning(f"ngram 倒排回退失败，将按配置决定是否使用 LIKE 回退: {e}")
 

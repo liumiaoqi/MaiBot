@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Filter, RefreshCw, Trash2, Upload } from 'lucide-react'
+import { RefreshCw, Trash2, Upload } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -47,7 +47,7 @@ import {
   getEmojiStats,
   registerEmoji,
 } from '@/lib/emoji-api'
-import type { Emoji, EmojiStats } from '@/types/emoji'
+import type { Emoji, EmojiStats, EmojiStatus } from '@/types/emoji'
 
 import {
   EmojiDetailDialog,
@@ -63,8 +63,7 @@ export function EmojiManagementPage() {
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [pageSize, setPageSize] = useState(20)
-  const [registeredFilter, setRegisteredFilter] = useState<string>('registered')
-  const [bannedFilter, setBannedFilter] = useState<string>('all')
+  const [statusFilter, setStatusFilter] = useState<EmojiStatus | 'all'>('adopted')
   const [formatFilter, setFormatFilter] = useState<string>('all')
   const [sortBy, setSortBy] = useState<string>('usage_count')
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc')
@@ -89,12 +88,7 @@ export function EmojiManagementPage() {
       const response = await getEmojiList({
         page,
         page_size: pageSize,
-        is_registered:
-          registeredFilter === 'all'
-            ? undefined
-            : registeredFilter === 'registered',
-        is_banned:
-          bannedFilter === 'all' ? undefined : bannedFilter === 'banned',
+        status: statusFilter === 'all' ? undefined : statusFilter,
         format: formatFilter === 'all' ? undefined : formatFilter,
         sort_by: sortBy,
         sort_order: sortOrder,
@@ -115,8 +109,7 @@ export function EmojiManagementPage() {
   }, [
     page,
     pageSize,
-    registeredFilter,
-    bannedFilter,
+    statusFilter,
     formatFilter,
     sortBy,
     sortOrder,
@@ -298,34 +291,38 @@ export function EmojiManagementPage() {
         <div className="space-y-4 sm:space-y-6 pr-4">
           {/* 统计卡片 */}
           {stats && (
-            <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
               <Card>
-                <CardHeader className="pb-2">
-                  <CardDescription>总数</CardDescription>
-                  <CardTitle className="text-2xl">{stats.total}</CardTitle>
-                </CardHeader>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardDescription>已注册</CardDescription>
-                  <CardTitle className="text-2xl text-green-600">
-                    {stats.registered}
+                <CardHeader className="p-3">
+                  <CardDescription className="text-xs">认识</CardDescription>
+                  <CardTitle className="text-xl leading-none text-sky-600">
+                    {stats.known}
                   </CardTitle>
                 </CardHeader>
               </Card>
               <Card>
-                <CardHeader className="pb-2">
-                  <CardDescription>已封禁</CardDescription>
-                  <CardTitle className="text-2xl text-red-600">
-                    {stats.banned}
+                <CardHeader className="p-3">
+                  <CardDescription className="text-xs">不认识</CardDescription>
+                  <CardTitle className="text-xl leading-none text-gray-600">
+                    {stats.unknown}
                   </CardTitle>
                 </CardHeader>
               </Card>
               <Card>
-                <CardHeader className="pb-2">
-                  <CardDescription>未注册</CardDescription>
-                  <CardTitle className="text-2xl text-gray-600">
-                    {stats.unregistered}
+                <CardHeader className="p-3">
+                  <CardDescription className="text-xs">
+                    据为己用
+                  </CardDescription>
+                  <CardTitle className="text-xl leading-none text-green-600">
+                    {stats.adopted}
+                  </CardTitle>
+                </CardHeader>
+              </Card>
+              <Card>
+                <CardHeader className="p-3">
+                  <CardDescription className="text-xs">丢弃</CardDescription>
+                  <CardTitle className="text-xl leading-none text-red-600">
+                    {stats.discarded}
                   </CardTitle>
                 </CardHeader>
               </Card>
@@ -334,13 +331,7 @@ export function EmojiManagementPage() {
 
           {/* 筛选和排序 */}
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Filter className="h-5 w-5" />
-                筛选和排序
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 pt-6">
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="space-y-2">
                   <Label>排序方式</Label>
@@ -386,11 +377,11 @@ export function EmojiManagementPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>注册状态</Label>
+                  <Label>表情包状态</Label>
                   <Select
-                    value={registeredFilter}
+                    value={statusFilter}
                     onValueChange={(value) => {
-                      setRegisteredFilter(value)
+                      setStatusFilter(value as EmojiStatus | 'all')
                       setPage(1)
                     }}
                   >
@@ -399,28 +390,10 @@ export function EmojiManagementPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">全部</SelectItem>
-                      <SelectItem value="registered">已注册</SelectItem>
-                      <SelectItem value="unregistered">未注册</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>封禁状态</Label>
-                  <Select
-                    value={bannedFilter}
-                    onValueChange={(value) => {
-                      setBannedFilter(value)
-                      setPage(1)
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">全部</SelectItem>
-                      <SelectItem value="banned">已封禁</SelectItem>
-                      <SelectItem value="unbanned">未封禁</SelectItem>
+                      <SelectItem value="known">认识</SelectItem>
+                      <SelectItem value="unknown">不认识</SelectItem>
+                      <SelectItem value="adopted">据为己用</SelectItem>
+                      <SelectItem value="discarded">丢弃</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -543,8 +516,7 @@ export function EmojiManagementPage() {
 
           {/* 表情包卡片列表 */}
           <Card>
-            <CardHeader>
-              <CardTitle>表情包列表</CardTitle>
+            <CardHeader className="pb-3">
               <CardDescription>
                 共 {total} 个表情包,当前第 {page} 页
               </CardDescription>

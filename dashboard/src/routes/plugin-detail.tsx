@@ -32,6 +32,7 @@ import {
   uninstallPlugin,
   updatePlugin,
   checkPluginInstalled,
+  fetchPluginList,
   getInstalledPluginVersion,
   getInstalledPlugins,
   type GitStatus,
@@ -82,96 +83,20 @@ export function PluginDetailPage() {
         setLoading(true)
         setError(null)
 
-        // 从插件列表 API 获取数据
-        const response = await fetchWithAuth('/api/webui/plugins/fetch-raw', {
-          method: 'POST',
-          body: JSON.stringify({
-            owner: 'Mai-with-u',
-            repo: 'plugin-repo',
-            branch: 'main',
-            file_path: 'plugin_details.json',
-          }),
-        })
+        const result = await fetchPluginList()
 
-        if (!response.ok) {
-          throw new Error('获取插件列表失败')
-        }
-
-        const result = await response.json()
-
-        if (!result.success || !result.data) {
+        if (!result.success) {
           throw new Error(result.error || '获取插件列表失败')
         }
 
-        const pluginList = JSON.parse(result.data)
-        const foundPlugin = pluginList.find((p: any) => p.id === search.pluginId)
+        const foundPlugin = result.data.find((p) => p.id === search.pluginId || p.marketplace_id === search.pluginId)
 
         if (!foundPlugin) {
           throw new Error('未找到该插件')
         }
 
-        const rawManifest = foundPlugin.manifest || {}
-        const repositoryUrl = rawManifest.repository_url || rawManifest.urls?.repository
-        const homepageUrl = rawManifest.homepage_url || rawManifest.urls?.homepage
+        setPlugin(foundPlugin)
 
-        // 转换为 PluginInfo 格式
-        const pluginInfo: PluginInfo = {
-          id: foundPlugin.id,
-          manifest: {
-            ...rawManifest,
-            homepage_url: homepageUrl,
-            repository_url: repositoryUrl,
-            default_locale: rawManifest.default_locale || rawManifest.i18n?.default_locale || 'zh-CN',
-            locales_path: rawManifest.locales_path || rawManifest.i18n?.locales_path,
-          },
-          downloads: 0,
-          rating: 0,
-          review_count: 0,
-          installed: false,
-          published_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }
-
-        setPlugin(pluginInfo)
-
-        // 加载额外信息
-        const [gitStatusResult, versionResult, installedPlugins] = await Promise.all([
-          checkGitStatus(),
-          getMaimaiVersion(),
-          getInstalledPlugins(),
-        ])
-
-        if (!gitStatusResult.success) {
-          toast({
-            title: 'Git 状态检查失败',
-            description: gitStatusResult.error,
-            variant: 'destructive',
-          })
-        } else {
-          setGitStatus(gitStatusResult.data)
-        }
-        
-        if (!versionResult.success) {
-          toast({
-            title: '版本获取失败',
-            description: versionResult.error,
-            variant: 'destructive',
-          })
-        } else {
-          setMaimaiVersion(versionResult.data)
-        }
-        
-        if (!installedPlugins.success) {
-          toast({
-            title: '获取已安装插件失败',
-            description: installedPlugins.error,
-            variant: 'destructive',
-          })
-          return
-        }
-        
-        setIsInstalled(checkPluginInstalled(search.pluginId, installedPlugins.data))
-        setInstalledVersion(getInstalledPluginVersion(search.pluginId, installedPlugins.data))
       } catch (err) {
         setError(err instanceof Error ? err.message : '加载失败')
       } finally {
@@ -181,6 +106,64 @@ export function PluginDetailPage() {
 
     loadPluginInfo()
   }, [search.pluginId])
+
+  useEffect(() => {
+    if (!plugin) {
+      return
+    }
+
+    let cancelled = false
+
+    const loadRuntimeInfo = async () => {
+      const [gitStatusResult, versionResult, installedPlugins] = await Promise.all([
+        checkGitStatus(),
+        getMaimaiVersion(),
+        getInstalledPlugins(),
+      ])
+
+      if (cancelled) {
+        return
+      }
+
+      if (!gitStatusResult.success) {
+        toast({
+          title: 'Git 状态检查失败',
+          description: gitStatusResult.error,
+          variant: 'destructive',
+        })
+      } else {
+        setGitStatus(gitStatusResult.data)
+      }
+
+      if (!versionResult.success) {
+        toast({
+          title: '版本获取失败',
+          description: versionResult.error,
+          variant: 'destructive',
+        })
+      } else {
+        setMaimaiVersion(versionResult.data)
+      }
+
+      if (!installedPlugins.success) {
+        toast({
+          title: '获取已安装插件失败',
+          description: installedPlugins.error,
+          variant: 'destructive',
+        })
+        return
+      }
+
+      setIsInstalled(checkPluginInstalled(plugin.id, installedPlugins.data))
+      setInstalledVersion(getInstalledPluginVersion(plugin.id, installedPlugins.data))
+    }
+
+    loadRuntimeInfo()
+
+    return () => {
+      cancelled = true
+    }
+  }, [plugin, toast])
 
   // 加载 README
   useEffect(() => {
@@ -196,7 +179,7 @@ export function PluginDetailPage() {
         // 如果插件已安装，优先尝试从本地读取 README
         if (isInstalled && search.pluginId) {
           try {
-            const localResponse = await fetchWithAuth(`/api/webui/plugins/local-readme/${search.pluginId}`)
+            const localResponse = await fetchWithAuth(`/api/webui/plugins/local-readme/${plugin.id}`)
             
             if (localResponse.ok) {
               const localResult = await localResponse.json()
@@ -207,8 +190,7 @@ export function PluginDetailPage() {
                 return // 成功获取本地 README，直接返回
               }
             }
-          } catch (err) {
-            console.log('本地 README 获取失败，尝试远程获取:', err)
+          } catch {
             // 继续执行远程获取逻辑
           }
         }
@@ -293,9 +275,11 @@ export function PluginDetailPage() {
       }
 
       // 记录下载统计
-      recordPluginDownload(plugin.id).catch((err) => {
-        console.warn('Failed to record download:', err)
-      })
+      if (plugin.manifest.id) {
+        recordPluginDownload(plugin.manifest.id).catch((err) => {
+          console.warn('Failed to record download:', err)
+        })
+      }
 
       toast({
         title: '安装成功',
@@ -437,7 +421,7 @@ export function PluginDetailPage() {
         </div>
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          <span className="ml-3 text-muted-foreground">加载插件信息中...</span>
+          <span className="ml-3 text-muted-foreground">Thinking...</span>
         </div>
       </div>
     )
@@ -609,7 +593,7 @@ export function PluginDetailPage() {
                   <CardTitle className="text-lg">统计信息</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <PluginStats pluginId={plugin.id} />
+                  {plugin.manifest.id && <PluginStats pluginId={plugin.manifest.id} />}
                 </CardContent>
               </Card>
 
@@ -744,7 +728,7 @@ export function PluginDetailPage() {
                   {readmeLoading ? (
                     <div className="flex items-center justify-center py-12">
                       <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                      <span className="ml-3 text-sm text-muted-foreground">加载说明文档中...</span>
+                      <span className="ml-3 text-sm text-muted-foreground">Thinking...</span>
                     </div>
                   ) : readme ? (
                     <MarkdownRenderer content={readme} />

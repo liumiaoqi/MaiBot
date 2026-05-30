@@ -7,17 +7,20 @@ from typing import Any, Dict, Tuple
 
 import mimetypes
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from src.common.i18n import t
 from src.common.logger import get_logger
+from src.webui.dependencies import require_auth
 
 logger = get_logger("webui.app")
 
 _DASHBOARD_PACKAGE_NAME = "maibot-dashboard"
 _LOCAL_DASHBOARD_ENV = "MAIBOT_WEBUI_USE_LOCAL_DASHBOARD"
+_STATISTICS_REPORT_PATH_ENV = "MAIBOT_STATISTICS_REPORT_PATH"
+_DEFAULT_STATISTICS_REPORT_PATH = "maibot_statistics.html"
 _MANUAL_INSTALL_COMMAND = f"pip install {_DASHBOARD_PACKAGE_NAME}"
 
 
@@ -36,6 +39,15 @@ def _resolve_safe_static_file_path(static_path: Path, full_path: str) -> Path | 
 
 def _get_project_root() -> Path:
     return Path(__file__).resolve().parents[2]
+
+
+def _resolve_statistics_report_path() -> Path:
+    configured_path = getenv(_STATISTICS_REPORT_PATH_ENV, "").strip()
+    report_path = Path(configured_path or _DEFAULT_STATISTICS_REPORT_PATH)
+    if report_path.is_absolute():
+        return report_path.resolve()
+
+    return (_get_project_root() / report_path).resolve()
 
 
 def _is_local_dashboard_enabled() -> bool:
@@ -185,9 +197,9 @@ def _setup_static_files(app: FastAPI):
         logger.warning(t("startup.webui_dashboard_package_hint", command=_MANUAL_INSTALL_COMMAND))
         return
 
-    @app.get("/maibot_statistics.html", include_in_schema=False)
+    @app.get("/maibot_statistics.html", include_in_schema=False, dependencies=[Depends(require_auth)])
     async def serve_statistics_report():
-        report_path = (_get_project_root() / "maibot_statistics.html").resolve()
+        report_path = _resolve_statistics_report_path()
         if not report_path.exists() or not report_path.is_file():
             raise HTTPException(status_code=404, detail=t("core.not_found"))
 
@@ -197,6 +209,9 @@ def _setup_static_files(app: FastAPI):
 
     @app.get("/{full_path:path}", include_in_schema=False)
     async def serve_spa(full_path: str):
+        if full_path == "api" or full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail=t("core.not_found"))
+
         if not full_path or full_path == "/":
             response = FileResponse(static_path / "index.html", media_type="text/html")
             response.headers["X-Robots-Tag"] = "noindex, nofollow, noarchive"

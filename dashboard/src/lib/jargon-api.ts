@@ -19,8 +19,13 @@ const API_BASE = '/api/webui/jargon'
 /**
  * 获取聊天列表（有黑话记录的聊天）
  */
-export async function getJargonChatList(): Promise<JargonChatListResponse> {
-  const response = await fetchWithAuth(`${API_BASE}/chats`, {})
+export async function getJargonChatList(params: { include_empty?: boolean } = {}): Promise<JargonChatListResponse> {
+  const queryParams = new URLSearchParams()
+  if (params.include_empty !== undefined) {
+    queryParams.append('include_empty', params.include_empty.toString())
+  }
+  const queryString = queryParams.toString()
+  const response = await fetchWithAuth(`${API_BASE}/chats${queryString ? `?${queryString}` : ''}`, {})
   
   if (!response.ok) {
     const error = await response.json()
@@ -37,7 +42,7 @@ export async function getJargonList(params: {
   page?: number
   page_size?: number
   search?: string
-  chat_id?: string
+  session_id?: string
   is_jargon?: boolean | null
   is_global?: boolean
 }): Promise<JargonListResponse> {
@@ -46,7 +51,7 @@ export async function getJargonList(params: {
   if (params.page) queryParams.append('page', params.page.toString())
   if (params.page_size) queryParams.append('page_size', params.page_size.toString())
   if (params.search) queryParams.append('search', params.search)
-  if (params.chat_id) queryParams.append('chat_id', params.chat_id)
+  if (params.session_id) queryParams.append('session_id', params.session_id)
   if (params.is_jargon !== undefined && params.is_jargon !== null) {
     queryParams.append('is_jargon', params.is_jargon.toString())
   }

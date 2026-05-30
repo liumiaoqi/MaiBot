@@ -25,6 +25,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { MarkdownRenderer } from '@/components/markdown-renderer'
+import { MultiSelect } from '@/components/ui/multi-select'
 import {
   Select,
   SelectContent,
@@ -66,6 +67,14 @@ function InfoItem({
       </div>
     </div>
   )
+}
+
+function formatJargonChatDisplay(jargon: Jargon) {
+  const chatNames = jargon.chat_names?.length ? jargon.chat_names : []
+  if (chatNames.length > 0) {
+    return chatNames.join('、')
+  }
+  return jargon.chat_name || jargon.session_id
 }
 
 // ====================
@@ -140,32 +149,24 @@ export function JargonDetailDialog({
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <InfoItem label="聊天" value={jargon.chat_name || jargon.chat_id} />
+              <InfoItem label="聊天" value={formatJargonChatDisplay(jargon)} />
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">状态</Label>
                 <div className="flex items-center gap-2">
                   {jargon.is_jargon === true && <Badge variant="default" className="bg-green-600">是黑话</Badge>}
                   {jargon.is_jargon === false && <Badge variant="secondary">非黑话</Badge>}
                   {jargon.is_jargon === null && <Badge variant="outline">未判定</Badge>}
+                  {jargon.created_by === 'MANUAL' ? (
+                    <Badge variant="outline">手动</Badge>
+                  ) : (
+                    <Badge variant="secondary">AI</Badge>
+                  )}
                   {jargon.is_global && <Badge variant="outline" className="border-blue-500 text-blue-500">全局</Badge>}
                   {jargon.is_complete && <Badge variant="outline" className="border-purple-500 text-purple-500">推断完成</Badge>}
                 </div>
               </div>
             </div>
 
-            {jargon.inference_with_context && (
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">上下文推断结果</Label>
-                <div className="p-2 bg-muted rounded break-all whitespace-pre-wrap font-mono text-xs max-h-[200px] overflow-y-auto">{jargon.inference_with_context}</div>
-              </div>
-            )}
-
-            {jargon.inference_content_only && (
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">纯词条推断结果</Label>
-                <div className="p-2 bg-muted rounded break-all whitespace-pre-wrap font-mono text-xs max-h-[200px] overflow-y-auto">{jargon.inference_content_only}</div>
-              </div>
-            )}
           </div>
         </DialogBody>
 
@@ -196,14 +197,14 @@ export function JargonCreateDialog({
   const [formData, setFormData] = useState<JargonCreateRequest>({
     content: '',
     meaning: '',
-    chat_id: '',
+    session_ids: [],
     is_global: false,
   })
   const [saving, setSaving] = useState(false)
   const { toast } = useToast()
 
   const handleCreate = async () => {
-    if (!formData.content || !formData.chat_id) {
+    if (!formData.content || !formData.session_ids?.length) {
       toast({
         title: '验证失败',
         description: '请填写必填字段：内容和聊天',
@@ -219,7 +220,7 @@ export function JargonCreateDialog({
         title: '创建成功',
         description: '黑话已创建',
       })
-      setFormData({ content: '', meaning: '', chat_id: '', is_global: false })
+      setFormData({ content: '', meaning: '', session_ids: [], is_global: false })
       onSuccess()
     } catch (error) {
       toast({
@@ -266,24 +267,19 @@ export function JargonCreateDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="chat_id">
+            <Label>
               聊天 <span className="text-destructive">*</span>
             </Label>
-            <Select
-              value={formData.chat_id}
-              onValueChange={(value) => setFormData({ ...formData, chat_id: value })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="选择关联的聊天" />
-              </SelectTrigger>
-              <SelectContent>
-                {chatList.map((chat) => (
-                  <SelectItem key={chat.chat_id} value={chat.chat_id}>
-                    {chat.chat_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <MultiSelect
+              options={chatList.map((chat) => ({
+                label: chat.chat_name,
+                value: chat.session_id,
+              }))}
+              selected={formData.session_ids || []}
+              onChange={(values) => setFormData({ ...formData, session_ids: values, session_id: values[0] })}
+              placeholder="选择关联的聊天"
+              emptyText="没有可选聊天"
+            />
           </div>
 
           <div className="flex items-center space-x-2">
@@ -335,7 +331,8 @@ export function JargonEditDialog({
       setFormData({
         content: jargon.content,
         meaning: jargon.meaning || '',
-        chat_id: jargon.stream_id || jargon.chat_id,
+        session_id: jargon.session_id,
+        session_ids: jargon.session_ids?.length ? jargon.session_ids : [jargon.session_id].filter(Boolean),
         is_global: jargon.is_global,
         is_jargon: jargon.is_jargon,
       })
@@ -344,6 +341,14 @@ export function JargonEditDialog({
 
   const handleSave = async () => {
     if (!jargon) return
+    if (formData.session_ids && formData.session_ids.length === 0) {
+      toast({
+        title: '验证失败',
+        description: '请至少选择一个聊天',
+        variant: 'destructive',
+      })
+      return
+    }
 
     try {
       setSaving(true)
@@ -398,22 +403,17 @@ export function JargonEditDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="edit_chat_id">聊天</Label>
-            <Select
-              value={formData.chat_id || ''}
-              onValueChange={(value) => setFormData({ ...formData, chat_id: value })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="选择关联的聊天" />
-              </SelectTrigger>
-              <SelectContent>
-                {chatList.map((chat) => (
-                  <SelectItem key={chat.chat_id} value={chat.chat_id}>
-                    {chat.chat_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label>聊天</Label>
+            <MultiSelect
+              options={chatList.map((chat) => ({
+                label: chat.chat_name,
+                value: chat.session_id,
+              }))}
+              selected={formData.session_ids || []}
+              onChange={(values) => setFormData({ ...formData, session_ids: values, session_id: values[0] })}
+              placeholder="选择关联的聊天"
+              emptyText="没有可选聊天"
+            />
           </div>
 
           <div className="space-y-2">

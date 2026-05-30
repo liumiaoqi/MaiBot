@@ -14,6 +14,7 @@ import traceback
 
 from src.common.i18n import set_locale, t, tn
 from src.common.logger import get_logger, initialize_logging, shutdown_logging
+from src.common.runtime_loop import set_main_loop
 from src.config.legacy_upgrade_confirmation import require_legacy_upgrade_confirmation
 
 # 设置工作目录为脚本所在目录
@@ -343,6 +344,7 @@ if __name__ == "__main__":
         # 创建事件循环
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
+        set_main_loop(loop)
 
         # 初始化 WebSocket 日志推送
         from src.common.logger import initialize_ws_handler
@@ -391,6 +393,7 @@ if __name__ == "__main__":
     finally:
         # 确保 loop 在任何情况下都尝试关闭（如果存在且未关闭）
         if "loop" in locals() and loop and not loop.is_closed():
+            set_main_loop(None)
             loop.close()
             print(t("startup.event_loop_closed"))
 

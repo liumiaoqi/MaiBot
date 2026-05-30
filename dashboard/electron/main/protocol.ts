@@ -28,12 +28,16 @@ const MIME_TYPES: Record<string, string> = {
   '.webp': 'image/webp',
 }
 
+function shouldProxyToBackend(pathname: string): boolean {
+  return pathname.startsWith('/api/') || pathname === '/maibot_statistics.html'
+}
+
 export function registerAppProtocol(): void {
   protocol.handle('app', async (request) => {
     const url = new URL(request.url)
     const pathname = url.pathname
 
-    if (pathname.startsWith('/api/')) {
+    if (shouldProxyToBackend(pathname)) {
       const backend = getActiveBackend()
       const targetUrl = backend
         ? `${backend.url.replace(/\/$/, '')}${pathname}${url.search}`

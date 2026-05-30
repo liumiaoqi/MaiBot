@@ -14,12 +14,7 @@ def get_tool_spec() -> ToolSpec:
 
     return ToolSpec(
         name="tool_search",
-        brief_description="在 deferred tools 列表中按名称或关键词搜索工具，并将命中的工具加入后续轮次的可用工具列表。",
-        detailed_description=(
-            "参数说明：\n"
-            "- query：String，必填。工具名、前缀或关键词。\n"
-            "- limit：Integer，可选。最多返回多少个匹配工具，默认为 5。"
-        ),
+        description="在 deferred tools 列表中按名称或关键词搜索工具，并将命中的工具加入后续轮次的可用工具列表。",
         parameters_schema={
             "type": "object",
             "properties": {
@@ -79,20 +74,14 @@ async def handle_tool(
             metadata={"record_display_prompt": "tool_search 未找到匹配工具。"},
         )
 
+    newly_discovered_tool_name_set = set(newly_discovered_tool_names)
     content_lines: List[str] = [
         f"已找到 {len(matched_tool_names)} 个 deferred tools，它们会在后续轮次中加入可用工具列表：",
-        *[f"- {tool_name}" for tool_name in matched_tool_names],
+        *[
+            f"- {tool_name}{'（本次新发现）' if tool_name in newly_discovered_tool_name_set else '（此前已发现）'}"
+            for tool_name in matched_tool_names
+        ],
     ]
-    if newly_discovered_tool_names:
-        content_lines.extend(
-            [
-                "",
-                "本次新发现的工具：",
-                *[f"- {tool_name}" for tool_name in newly_discovered_tool_names],
-            ]
-        )
-    else:
-        content_lines.extend(["", "这些工具此前已经发现过，无需重复展开。"])
 
     return tool_ctx.build_success_result(
         invocation.tool_name,

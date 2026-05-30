@@ -1,5 +1,6 @@
 import { createContext } from 'react'
 
+import { DEFAULT_DASHBOARD_STYLE, DEFAULT_DASHBOARD_STYLE_CONFIG } from './theme/tokens'
 import type { UserThemeConfig } from './theme/tokens'
 
 type Theme = 'dark' | 'light' | 'system'
@@ -22,6 +23,8 @@ const initialState: ThemeProviderState = {
     accentColor: '',
     tokenOverrides: {},
     customCSS: '',
+    dashboardStyle: DEFAULT_DASHBOARD_STYLE,
+    styleConfig: DEFAULT_DASHBOARD_STYLE_CONFIG,
   },
   updateThemeConfig: () => null,
   resetTheme: () => null,

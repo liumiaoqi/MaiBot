@@ -3,9 +3,7 @@ export interface UploadedFileInfo {
   id: string
   name: string
   previewUrl: string
-  emotion: string
-  description: string
-  isRegistered: boolean
+  tags: string[]
   file: File
 }
 

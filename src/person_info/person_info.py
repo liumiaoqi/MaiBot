@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 import hashlib
 import json
@@ -506,7 +506,14 @@ class Person:
             logger.error(f"同步用户 {self.person_id} 信息到数据库时出错: {e}")
 
 
-async def store_person_memory_from_answer(person_name: str, memory_content: str, chat_id: str) -> None:
+async def store_person_memory_from_answer(
+    person_name: str,
+    memory_content: str,
+    chat_id: str,
+    *,
+    evidence_source: str = "user_supported",
+    evidence_message_ids: Optional[List[str]] = None,
+) -> None:
     """将人物事实写入长期记忆系统。
 
     Args:
@@ -569,6 +576,8 @@ async def store_person_memory_from_answer(person_name: str, memory_content: str,
                 "person_id": person_id,
                 "person_name": participant_name,
                 "writeback_source": "memory_flow_service",
+                "evidence_source": str(evidence_source or "user_supported"),
+                "evidence_message_ids": evidence_message_ids or [],
             },
             respect_filter=True,
             user_id=session_user_id,

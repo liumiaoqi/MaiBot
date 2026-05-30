@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Set, Tuple
 
 import asyncio
 import inspect
@@ -21,6 +21,7 @@ from src.config.config import config_manager
 from src.config.model_configs import APIProvider, ModelInfo, TaskConfig
 from src.llm_models.exceptions import (
     EmptyResponseException,
+    LLMTaskTimeoutError,
     ModelAttemptFailed,
     NetworkConnectionError,
     ReqAbortException,
@@ -59,6 +60,11 @@ DATA_URI_LIMIT_PATTERN = re.compile(
 )
 DATA_URI_RETRY_MARGIN_BYTES = 128 * 1024
 MIN_COMPRESSED_IMAGE_TARGET_SIZE_BYTES = 512 * 1024
+EMPTY_TASK_FALLBACKS = {
+    "learner": "utils",
+    "mid_memory": "planner",
+    "timing_gate": "planner",
+}
 
 
 class RequestType(Enum):
@@ -111,10 +117,12 @@ class LLMOrchestrator:
         task_config = getattr(model_task_config, self.task_name, None)
         if not isinstance(task_config, TaskConfig):
             raise ValueError(f"未找到名为 '{self.task_name}' 的任务配置")
-        if self.task_name == "learner" and not any(str(model_name).strip() for model_name in task_config.model_list):
-            fallback_task_config = getattr(model_task_config, "utils", None)
-            if isinstance(fallback_task_config, TaskConfig):
-                return fallback_task_config
+        if not any(str(model_name).strip() for model_name in task_config.model_list):
+            fallback_task_name = EMPTY_TASK_FALLBACKS.get(self.task_name, "")
+            if fallback_task_name:
+                fallback_task_config = getattr(model_task_config, fallback_task_name, None)
+                if isinstance(fallback_task_config, TaskConfig):
+                    return fallback_task_config
         return task_config
 
     def _refresh_task_config(self) -> TaskConfig:
@@ -307,6 +315,7 @@ class LLMOrchestrator:
         prompt: str,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        model_name: Optional[str] = None,
         tools: List[ToolDefinitionInput] | None = None,
         response_format: RespFormat | None = None,
         raise_when_empty: bool = True,
@@ -342,6 +351,7 @@ class LLMOrchestrator:
             message_factory=message_factory,
             temperature=temperature,
             max_tokens=max_tokens,
+            model_name=model_name,
             tool_options=tool_built,
             response_format=response_format,
             interrupt_flag=interrupt_flag,
@@ -377,9 +387,10 @@ class LLMOrchestrator:
 
     async def generate_response_with_message_async(
         self,
-        message_factory: Callable[[BaseClient], List[Message]],
+        message_factory: Callable[..., List[Message] | Awaitable[List[Message]]],
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        model_name: Optional[str] = None,
         tools: List[ToolDefinitionInput] | None = None,
         response_format: RespFormat | None = None,
         raise_when_empty: bool = True,
@@ -410,6 +421,7 @@ class LLMOrchestrator:
             message_factory=message_factory,
             temperature=temperature,
             max_tokens=max_tokens,
+            model_name=model_name,
             tool_options=tool_built,
             response_format=response_format,
             interrupt_flag=interrupt_flag,
@@ -667,7 +679,11 @@ class LLMOrchestrator:
             )
         raise ValueError(f"不支持的请求类型: {request_type}")
 
-    def _select_model(self, exclude_models: Optional[Set[str]] = None) -> Tuple[ModelInfo, APIProvider, BaseClient]:
+    def _select_model(
+        self,
+        exclude_models: Optional[Set[str]] = None,
+        model_name: Optional[str] = None,
+    ) -> Tuple[ModelInfo, APIProvider, BaseClient]:
         """根据策略选择一个可用模型。
 
         Args:
@@ -682,6 +698,15 @@ class LLMOrchestrator:
             for model, scores in self.model_usage.items()
             if not exclude_models or model not in exclude_models
         }
+        requested_model_name = str(model_name or "").strip()
+        if requested_model_name:
+            if exclude_models and requested_model_name in exclude_models:
+                raise RuntimeError(f"指定模型 '{requested_model_name}' 已在本次请求中尝试失败")
+            TempMethodsLLMUtils.get_model_info_by_name(requested_model_name)
+            if requested_model_name not in self.model_usage:
+                self.model_usage[requested_model_name] = (0, 0, 0)
+            available_models = {requested_model_name: self.model_usage.get(requested_model_name, (0, 0, 0))}
+
         if not available_models:
             raise RuntimeError("没有可用的模型可供选择。所有模型均已尝试失败。")
 
@@ -689,7 +714,9 @@ class LLMOrchestrator:
 
         strategy = self.model_for_task.selection_strategy.strip().lower()
 
-        if strategy == "random":
+        if requested_model_name:
+            selected_model_name = requested_model_name
+        elif strategy == "random":
             # 随机选择策略
             selected_model_name = random.choice(list(available_models.keys()))
         elif strategy == "sequential":
@@ -830,10 +857,7 @@ class LLMOrchestrator:
                     active_request = active_request.copy_with(message_list=compressed_messages)
                     continue
 
-                if (
-                    e.status_code == 413
-                    and can_retry_with_compression
-                ):
+                if e.status_code == 413 and can_retry_with_compression:
                     logger.warning(
                         f"任务 '{task_display}' 的模型 '{model_info.name}' 返回413请求体过大，尝试压缩后重试..."
                     )
@@ -882,16 +906,45 @@ class LLMOrchestrator:
             f"任务 '{self.request_type or '未知任务'}' 的模型 '{model_info.name}' 未被尝试，因为重试次数已配置为0或更少。"
         )
 
+    async def _attempt_request_on_model_with_timeout(
+        self,
+        api_provider: APIProvider,
+        client: BaseClient,
+        request: ClientRequest,
+        model_name: str,
+    ) -> APIResponse:
+        """对 `_attempt_request_on_model` 套一层任务级 hard_timeout。
+
+        单次模型尝试超时时把 TimeoutError 转成 LLMTaskTimeoutError（继承 ModelAttemptFailed），
+        由 `_execute_request` 内既有的 `except ModelAttemptFailed` 分支接住，按"切下一个模型"
+        的既有语义处理（penalty +1、usage_penalty -1、failed_models_this_request 登记）。
+        全部模型都触发 hard_timeout 时，最后一个 LLMTaskTimeoutError 上抛给调用方。
+        """
+        timeout_s = self.model_for_task.hard_timeout
+        try:
+            return await asyncio.wait_for(
+                self._attempt_request_on_model(api_provider, client, request=request),
+                timeout=timeout_s,
+            )
+        except asyncio.TimeoutError as e:
+            task_display = self.request_type or self.task_name or "未知任务"
+            raise LLMTaskTimeoutError(
+                task_name=task_display,
+                model_name=model_name,
+                timeout_s=timeout_s,
+            ) from e
+
     async def _execute_request(
         self,
         request_type: RequestType,
-        message_factory: Optional[Callable[[BaseClient], List[Message]]] = None,
+        message_factory: Optional[Callable[..., List[Message] | Awaitable[List[Message]]]] = None,
         tool_options: List[ToolOption] | None = None,
         response_format: RespFormat | None = None,
         stream_response_handler: Optional[Callable[..., Any]] = None,
         async_response_parser: Optional[Callable[..., Any]] = None,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        model_name: Optional[str] = None,
         embedding_input: str | None = None,
         audio_base64: str | None = None,
         interrupt_flag: asyncio.Event | None = None,
@@ -915,18 +968,25 @@ class LLMOrchestrator:
             LLMExecutionResult: 单次模型执行结果对象。
         """
         failed_models_this_request: Set[str] = set()
-        max_attempts = len(self.model_for_task.model_list)
+        max_attempts = 1 if str(model_name or "").strip() else len(self.model_for_task.model_list)
         last_exception: Optional[Exception] = None
 
         for _ in range(max_attempts):
-            model_info, api_provider, client = self._select_model(exclude_models=failed_models_this_request)
+            model_info, api_provider, client = self._select_model(
+                exclude_models=failed_models_this_request,
+                model_name=model_name,
+            )
             message_list = []
             if message_factory:
                 parameter_count = len(inspect.signature(message_factory).parameters)
                 if parameter_count >= 2:
-                    message_list = message_factory(client, model_info)
+                    message_result = message_factory(client, model_info)
                 else:
-                    message_list = message_factory(client)
+                    message_result = message_factory(client)
+                if inspect.isawaitable(message_result):
+                    message_list = await message_result
+                else:
+                    message_list = message_result
             try:
                 request = self._build_client_request(
                     request_type=request_type,
@@ -947,15 +1007,14 @@ class LLMOrchestrator:
                         f"LLMOrchestrator[{self.request_type}] 正在向模型 model={model_info.name} 发送请求 "
                         f"(tool_options={len(tool_options or [])})"
                     )
-                response = await self._attempt_request_on_model(
+                response = await self._attempt_request_on_model_with_timeout(
                     api_provider,
                     client,
-                    request=request,
+                    request,
+                    model_info.name,
                 )
                 if self.request_type.startswith("maisaka_"):
-                    logger.debug(
-                        f"LLMOrchestrator[{self.request_type}] 模型 model={model_info.name} 已返回 API 响应"
-                    )
+                    logger.debug(f"LLMOrchestrator[{self.request_type}] 模型 model={model_info.name} 已返回 API 响应")
                 total_tokens, penalty, usage_penalty = self.model_usage[model_info.name]
                 if response_usage := response.usage:
                     total_tokens += response_usage.total_tokens
@@ -1112,6 +1171,7 @@ class LLMRequest(LLMOrchestrator):
             task_config.temperature,
             task_config.slow_threshold,
             task_config.selection_strategy,
+            task_config.hard_timeout,
         )
 
     @classmethod

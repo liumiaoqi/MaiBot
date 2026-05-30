@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Annotated, List, Optional
+from typing import Annotated, List, Literal, Optional
 
 from fastapi import File, Form, UploadFile
 from pydantic import BaseModel
@@ -7,6 +7,8 @@ from pydantic import BaseModel
 import re
 
 from src.common.database.database_model import Images
+
+EmojiStatus = Literal["known", "unknown", "adopted", "discarded"]
 
 EmojiFile = Annotated[UploadFile, File(description="表情包上传文件")]
 EmojiFiles = Annotated[List[UploadFile], File(description="多个表情包上传文件")]
@@ -27,6 +29,7 @@ class EmojiResponse(BaseModel):
     usage_count: int
     is_registered: bool
     is_banned: bool
+    status: EmojiStatus
     emotion: Optional[str]
     record_time: float
     register_time: Optional[float]
@@ -160,8 +163,20 @@ def emoji_to_response(image: Images) -> EmojiResponse:
         usage_count=image.query_count,
         is_registered=image.is_registered,
         is_banned=image.is_banned,
+        status=get_emoji_status(image),
         emotion=emotion,
         record_time=image.record_time.timestamp() if image.record_time else 0.0,
         register_time=image.register_time.timestamp() if image.register_time else None,
         last_used_time=image.last_used_time.timestamp() if image.last_used_time else None,
     )
+
+
+def get_emoji_status(image: Images) -> EmojiStatus:
+    """根据现有数据库字段计算 WebUI 展示用的表情包状态。"""
+    if image.is_banned:
+        return "discarded"
+    if image.is_registered:
+        return "adopted"
+    if (image.description or "").strip():
+        return "known"
+    return "unknown"

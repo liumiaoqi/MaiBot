@@ -156,6 +156,72 @@ def test_plugin_tool_allowed_session_filters_tool_exposure(monkeypatch: pytest.M
     assert "mute" not in blocked_specs
 
 
+def test_plugin_tool_can_declare_visible_core_tool(monkeypatch: pytest.MonkeyPatch) -> None:
+    service = ComponentQueryService()
+    registry = ComponentRegistry()
+    supervisor = SimpleNamespace(component_registry=registry)
+    monkeypatch.setattr(service, "_iter_supervisors", lambda: [supervisor])
+
+    registry.register_plugin_components(
+        "core_tool_plugin",
+        [
+            {
+                "name": "always_ready",
+                "component_type": "TOOL",
+                "metadata": {
+                    "description": "directly visible tool",
+                    "core_tool": True,
+                },
+            },
+            {
+                "name": "explicit_visible",
+                "component_type": "TOOL",
+                "metadata": {
+                    "description": "explicitly visible tool",
+                    "visibility": "visible",
+                },
+            },
+            {
+                "name": "normal_tool",
+                "component_type": "TOOL",
+                "metadata": {"description": "deferred by default"},
+            },
+        ],
+    )
+
+    specs = service.get_llm_available_tool_specs()
+
+    assert specs["always_ready"].metadata["visibility"] == "visible"
+    assert specs["explicit_visible"].metadata["visibility"] == "visible"
+    assert specs["normal_tool"].metadata["visibility"] == "deferred"
+
+
+def test_plugin_tool_can_be_hidden_from_llm(monkeypatch: pytest.MonkeyPatch) -> None:
+    service = ComponentQueryService()
+    registry = ComponentRegistry()
+    supervisor = SimpleNamespace(component_registry=registry)
+    monkeypatch.setattr(service, "_iter_supervisors", lambda: [supervisor])
+
+    registry.register_plugin_components(
+        "hidden_tool_plugin",
+        [
+            {
+                "name": "internal_only",
+                "component_type": "TOOL",
+                "metadata": {
+                    "description": "internal tool",
+                    "visibility": "hidden",
+                },
+            }
+        ],
+    )
+
+    specs = service.get_llm_available_tool_specs()
+
+    assert specs["internal_only"].metadata["visibility"] == "hidden"
+    assert specs["internal_only"].enabled is False
+
+
 def test_plugin_tool_disabled_session_take_precedence_over_allowed_session(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -213,7 +279,12 @@ def test_mute_plugin_exports_allowed_groups_as_component_allowed_session() -> No
     module.MutePluginConfig.model_rebuild()
 
     plugin = module.MutePlugin()
-    plugin.set_plugin_config({"permissions": {"allowed_groups": ["qq:10001", "raw-group-id"]}})
+    plugin.set_plugin_config(
+        {
+            "plugin": {"config_version": "4.5.1"},
+            "permissions": {"allowed_groups": ["qq:10001", "raw-group-id"]},
+        }
+    )
 
     mute_components = [component for component in plugin.get_components() if component.get("name") == "mute"]
 
@@ -240,18 +311,13 @@ async def test_mute_tool_queries_target_message_with_current_chat_id() -> None:
     async def fake_call_capability(name: str, **kwargs: Any) -> dict[str, Any]:
         capability_calls.append({"name": name, **kwargs})
         return {
-            "success": True,
-            "result": {
-                "success": True,
-                "message": {
-                    "message_info": {
-                        "user_info": {
-                            "user_id": "35529667",
-                            "user_cardname": "目标用户",
-                            "user_nickname": "目标昵称",
-                        }
-                    }
-                },
+            "message_id": "2046083292",
+            "message_info": {
+                "user_info": {
+                    "user_id": "35529667",
+                    "user_cardname": "目标用户",
+                    "user_nickname": "目标昵称",
+                }
             },
         }
 
@@ -261,13 +327,25 @@ async def test_mute_tool_queries_target_message_with_current_chat_id() -> None:
             return {"success": True, "result": {"data": {"role": "member"}}}
         return {"status": "ok", "retcode": 0}
 
+    async def fake_api_list() -> list[dict[str, Any]]:
+        return []
+
     plugin = module.MutePlugin()
-    plugin.set_plugin_config({"components": {"enable_smart_mute": True}})
+    plugin.set_plugin_config(
+        {
+            "plugin": {"config_version": "4.5.1"},
+            "components": {"enable_smart_mute": True},
+        }
+    )
     plugin._set_context(
         SimpleNamespace(
             call_capability=fake_call_capability,
-            api=SimpleNamespace(call=fake_api_call),
-            logger=SimpleNamespace(info=lambda *args, **kwargs: None, warning=lambda *args, **kwargs: None),
+            api=SimpleNamespace(call=fake_api_call, list=fake_api_list),
+            logger=SimpleNamespace(
+                debug=lambda *args, **kwargs: None,
+                info=lambda *args, **kwargs: None,
+                warning=lambda *args, **kwargs: None,
+            ),
         )
     )
 

@@ -28,6 +28,7 @@
       "aiModelProvider": "AI Model Providers",
       "modelManagement": "Model Management",
       "promptManagement": "Prompt Management",
+      "promptGenerator": "Persona Generator (Experimental)",
       "adapterConfig": "Adapter Config",
       "emojiManagement": "Emoji Management",
       "expressionManagement": "Expression Management",
@@ -40,6 +41,7 @@
       "pluginConfig": "Plugin Management",
       "mcpSettings": "MCP Settings",
       "logViewer": "Log Viewer",
+      "reasoningProcess": "Reasoning Process",
       "maisakaMonitor": "MaiSaka Chat Monitor",
       "localChat": "Local Chat",
       "settings": "Settings"
@@ -63,7 +65,9 @@
     },
     "actions": {
       "cancel": "Cancel",
+      "addImage": "Add image",
       "reconnect": "Reconnect",
+      "removeImage": "Remove image",
       "save": "Save",
       "send": "Send message"
     },
@@ -109,7 +113,7 @@
       "groupName": "Virtual group name (optional)",
       "groupNameHint": "MaiBot will treat this as a group chat with this name",
       "knownUserSuffix": " · Known",
-      "loading": "Loading...",
+      "loading": "Thinking...",
       "noUsers": "No users found",
       "personCount": "({{count}} people)",
       "platform": "Select platform",
@@ -140,6 +144,12 @@
       "currentSessionUnavailable": "The current chat session is unavailable. Please try again later.",
       "error": "Error",
       "incompleteConfig": "Incomplete configuration",
+      "imageLimit": "Image limit reached",
+      "imageLimitDesc": "You can send up to {{count}} images at once.",
+      "imageReadFailed": "Failed to read image",
+      "imageReadFailedDesc": "Please choose another image and try again.",
+      "imageUnsupported": "Unsupported file",
+      "imageUnsupportedDesc": "Please choose an image file.",
       "networkError": "Network error",
       "platformFailed": "Failed to load platforms",
       "selectPlatformAndUser": "Please select a platform and user",
@@ -512,7 +522,7 @@
       }
     },
     "loading": {
-      "title": "Loading configuration...",
+      "title": "Thinking...",
       "description": "Reading existing configuration"
     },
     "header": {
@@ -711,7 +721,7 @@
     }
   },
   "common": {
-    "loading": "Loading...",
+    "loading": "Thinking...",
     "error": "Error",
     "retry": "Retry",
     "save": "Save",
@@ -779,6 +789,7 @@
       "modelProviderDesc": "Configure model providers",
       "model": "Model Config",
       "modelDesc": "Configure model parameters",
+      "promptGeneratorDesc": "Generate injectable persona config blocks from text",
       "emoji": "Emoji Management",
       "emojiDesc": "Manage bot emoji",
       "expression": "Expression Management",
@@ -793,6 +804,7 @@
       "pluginsDesc": "Browse and install plugins",
       "logs": "Log Viewer",
       "logsDesc": "View system logs",
+      "reasoningProcessDesc": "Browse Maisaka prompt reasoning logs",
       "settings": "Settings",
       "settingsDesc": "Configure system settings"
     }
@@ -806,8 +818,8 @@
   "home": {
     "title": "Live Monitor",
     "subtitle": "MaiBot runtime status and statistics overview",
-    "loading": "Loading statistics...",
-    "loadingHint": "Fetching MaiBot runtime data",
+    "loading": "Thinking...",
+    "loadingHint": "Thinking...",
     "timeRange": {
       "24h": "24 Hours",
       "7d": "7 Days",

@@ -2,6 +2,7 @@
 
 import { parseResponse, throwIfError } from '@/lib/api-helpers'
 import { fetchWithAuth, getAuthHeaders } from '@/lib/fetch-with-auth'
+import { PROVIDER_TEMPLATES } from '@/routes/config/providerTemplates'
 
 import type {
   ApiProviderSetupConfig,
@@ -45,6 +46,44 @@ interface ModelConfig {
   models?: ModelInfo[]
   api_providers?: ApiProviderConfig[]
   model_task_config?: Record<string, TaskConfig>
+}
+
+const DEFAULT_API_PROVIDER_TEMPLATE = PROVIDER_TEMPLATES.find(
+  (template) => template.id === 'deepseek'
+)
+
+function inferThinkingEnabled(modelIdentifier: string): boolean {
+  return modelIdentifier.trim().toLowerCase().includes('deepseek-v4-pro')
+}
+
+function readThinkingEnabled(model?: ModelInfo, fallbackIdentifier = ''): boolean {
+  const thinking = model?.extra_params?.thinking
+  if (typeof thinking === 'object' && thinking !== null && !Array.isArray(thinking)) {
+    return (thinking as Record<string, unknown>).type === 'enabled'
+  }
+
+  const legacyThinking = model?.extra_params?.enable_thinking
+  if (typeof legacyThinking === 'boolean') return legacyThinking
+  if (typeof legacyThinking === 'string') return legacyThinking.toLowerCase() === 'true'
+
+  return inferThinkingEnabled(model?.model_identifier || fallbackIdentifier)
+}
+
+function buildThinkingExtraParams(
+  existingParams: Record<string, unknown> | undefined,
+  thinkingEnabled: boolean
+): Record<string, unknown> {
+  const extraParams = { ...(existingParams || {}) }
+  delete extraParams.enable_thinking
+  extraParams.thinking = { type: thinkingEnabled ? 'enabled' : 'disabled' }
+
+  if (thinkingEnabled) {
+    extraParams.reasoning_effort = 'high'
+  } else {
+    delete extraParams.reasoning_effort
+  }
+
+  return extraParams
 }
 
 // ===== 读取配置 =====
@@ -121,8 +160,8 @@ export async function loadApiProviderSetupConfig(): Promise<ApiProviderSetupConf
   const provider = modelConfig.api_providers?.find((item) => item.name === providerName)
 
   return {
-    provider_name: providerName,
-    base_url: provider?.base_url || '',
+    provider_name: providerName || DEFAULT_API_PROVIDER_TEMPLATE?.name || '',
+    base_url: provider?.base_url || DEFAULT_API_PROVIDER_TEMPLATE?.base_url || '',
     api_key: '',
   }
 }
@@ -141,9 +180,11 @@ export async function loadModelSetupConfig(): Promise<ModelSetupConfig> {
     planner_model_name: plannerName,
     planner_model_identifier: plannerModel?.model_identifier || plannerName,
     planner_visual: Boolean(plannerModel?.visual),
+    planner_thinking: readThinkingEnabled(plannerModel, plannerName),
     replyer_model_name: replyerName,
     replyer_model_identifier: replyerModel?.model_identifier || replyerName,
     replyer_visual: Boolean(replyerModel?.visual),
+    replyer_thinking: readThinkingEnabled(replyerModel, replyerName),
   }
 }
 
@@ -178,6 +219,7 @@ function createBasicModel(
   modelIdentifier: string,
   providerName: string,
   visual: boolean,
+  thinking: boolean,
   existing?: ModelInfo
 ): ModelInfo {
   return {
@@ -186,8 +228,8 @@ function createBasicModel(
     cache_price_in: 0,
     price_out: 0,
     force_stream_mode: false,
-    extra_params: {},
     ...existing,
+    extra_params: buildThinkingExtraParams(existing?.extra_params, thinking),
     visual,
     model_identifier: modelIdentifier,
     name: modelName,
@@ -267,6 +309,7 @@ export async function saveModelSetupConfig(
       plannerModelIdentifier,
       trimmedProviderName,
       config.planner_visual,
+      config.planner_thinking,
       existingPlannerModel
     )
   )
@@ -277,6 +320,7 @@ export async function saveModelSetupConfig(
       replyerModelIdentifier,
       trimmedProviderName,
       config.replyer_visual,
+      config.replyer_thinking,
       existingReplyerModel
     )
   )

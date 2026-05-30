@@ -9,7 +9,7 @@
  * - 动态增删项
  */
 
-import { useState, useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -28,6 +28,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Button } from '@/components/ui/button'
+import { DraftNumberInput } from '@/components/ui/draft-number-input'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card } from '@/components/ui/card'
@@ -155,10 +156,10 @@ function SortableItem({
             disabled={disabled}
           />
         ) : itemType === 'number' ? (
-          <Input
-            type="number"
-            value={value as number ?? ''}
-            onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+          <DraftNumberInput
+            value={value}
+            defaultValue={0}
+            onValueChange={onChange}
             placeholder={placeholder ?? `第 ${index + 1} 项`}
             disabled={disabled}
             className="font-mono"
@@ -294,12 +295,13 @@ function ObjectItemEditor({
           <Label className="text-xs text-muted-foreground">
             {fieldDef.label ?? fieldName}
           </Label>
-          <Input
-            type="number"
-            value={(fieldValue as number) ?? fieldDef.default ?? ''}
-            onChange={(e) =>
-              handleFieldChange(fieldName, parseFloat(e.target.value) || 0)
-            }
+          <DraftNumberInput
+            value={fieldValue}
+            defaultValue={fieldDef.default}
+            onValueChange={(nextValue) => handleFieldChange(fieldName, nextValue)}
+            min={fieldDef.min}
+            max={fieldDef.max}
+            step={fieldDef.step ?? 1}
             placeholder={fieldDef.placeholder}
             disabled={disabled}
             className="h-8 text-sm"

@@ -77,7 +77,7 @@ class UnifiedWebSocketManager:
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            logger.error("统一 WebSocket 发送失败: connection=%s, error=%s", connection.connection_id, exc)
+            logger.error(f"统一 WebSocket 发送失败: connection={connection.connection_id}, error={exc}")
 
     async def connect(self, connection_id: str, websocket: WebSocket) -> WebSocketConnection:
         """注册一个新的物理 WebSocket 连接。
@@ -108,7 +108,7 @@ class UnifiedWebSocketManager:
         try:
             await self._close_websocket(connection)
         except Exception as exc:
-            logger.debug("关闭统一 WebSocket 底层连接时出现异常: connection=%s, error=%s", connection_id, exc)
+            logger.debug(f"关闭统一 WebSocket 底层连接时出现异常: connection={connection_id}, error={exc}")
 
         await connection.send_queue.put(None)
         if connection.sender_task is not None:
@@ -117,7 +117,7 @@ class UnifiedWebSocketManager:
             except asyncio.CancelledError:
                 pass
             except Exception as exc:
-                logger.debug("等待发送协程退出时出现异常: connection=%s, error=%s", connection_id, exc)
+                logger.debug(f"等待发送协程退出时出现异常: connection={connection_id}, error={exc}")
 
     def get_connection(self, connection_id: str) -> Optional[WebSocketConnection]:
         """获取指定连接上下文。

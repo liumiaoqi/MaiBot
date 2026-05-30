@@ -1,6 +1,7 @@
 from pathlib import Path
 from unittest.mock import patch
 
+from fastapi.testclient import TestClient
 import pytest
 
 from src.webui import app as webui_app
@@ -60,6 +61,29 @@ def test_setup_static_files_does_not_duplicate_warning_when_static_path_is_unava
         webui_app._setup_static_files(app)
 
     warning_mock.assert_not_called()
+
+
+def test_statistics_report_route_requires_auth(monkeypatch, tmp_path) -> None:
+    static_path = tmp_path / "dist"
+    static_path.mkdir()
+    (static_path / "index.html").write_text("<html></html>", encoding="utf-8")
+
+    report_path = tmp_path / "maibot_statistics.html"
+    report_path.write_text("<html>statistics</html>", encoding="utf-8")
+    monkeypatch.setenv(webui_app._STATISTICS_REPORT_PATH_ENV, str(report_path))
+
+    app = webui_app.FastAPI()
+    with patch.object(webui_app, "_ensure_static_path_ready", return_value=static_path):
+        webui_app._setup_static_files(app)
+
+    client = TestClient(app)
+    assert client.get("/maibot_statistics.html").status_code == 401
+
+    app.dependency_overrides[webui_app.require_auth] = lambda: "test-token"
+    authenticated_response = client.get("/maibot_statistics.html")
+
+    assert authenticated_response.status_code == 200
+    assert authenticated_response.text == "<html>statistics</html>"
 
 
 def test_resolve_static_path_prefers_installed_dashboard_package(monkeypatch, tmp_path) -> None:

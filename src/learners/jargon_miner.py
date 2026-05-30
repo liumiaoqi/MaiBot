@@ -1,18 +1,20 @@
 from collections import OrderedDict
-from typing import Any, Callable, Dict, List, Optional, Set, TypedDict
+from datetime import datetime
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, TypedDict
+
+from json_repair import repair_json
+from sqlmodel import select
 
 import asyncio
 import json
 import random
 
-from json_repair import repair_json
-from sqlmodel import select
-
 from src.common.data_models.jargon_data_model import MaiJargon
 from src.common.data_models.llm_service_data_models import LLMGenerationOptions
 from src.common.database.database import get_db_session
-from src.common.database.database_model import Jargon
+from src.common.database.database_model import Jargon, JargonCreatedBy
 from src.common.logger import get_logger
+from src.common.utils.utils_config import JargonConfigUtils
 from src.config.config import global_config
 from src.plugin_runtime.hook_schema_utils import build_object_schema
 from src.plugin_runtime.host.hook_spec_registry import HookSpec, HookSpecRegistry
@@ -24,6 +26,9 @@ from .expression_utils import is_single_char_jargon
 logger = get_logger("jargon")
 
 llm_inference = LLMServiceClient(task_name="learner", request_type="jargon.inference")
+JARGON_INFERENCE_THRESHOLDS = [4, 8, 25, 100]
+JARGON_SAMPLE_RAW_CONTENT_THRESHOLDS = {25}
+JARGON_PREVIOUS_MEANING_THRESHOLDS = {25, 100}
 
 
 class JargonEntry(TypedDict):
@@ -130,8 +135,6 @@ def register_jargon_hook_specs(registry: HookSpecRegistry) -> List[HookSpec]:
                             "items": {"type": "string"},
                             "description": "用于推断的原始上下文片段列表。",
                         },
-                        "inference_with_context": {"type": "object", "description": "基于上下文的推断结果。"},
-                        "inference_with_content_only": {"type": "object", "description": "仅基于词条内容的推断结果。"},
                         "comparison_result": {"type": "object", "description": "比较阶段输出结果。"},
                         "is_jargon": {"type": "boolean", "description": "当前推断是否判定为黑话。"},
                         "meaning": {"type": "string", "description": "当前推断出的黑话含义。"},
@@ -144,8 +147,6 @@ def register_jargon_hook_specs(registry: HookSpecRegistry) -> List[HookSpec]:
                         "content",
                         "count",
                         "raw_content_list",
-                        "inference_with_context",
-                        "inference_with_content_only",
                         "comparison_result",
                         "is_jargon",
                         "meaning",
@@ -267,6 +268,10 @@ class JargonMiner:
             jargon_obj: 待推断的黑话数据对象。
         """
         content = jargon_obj.content
+        if jargon_obj.created_by == JargonCreatedBy.MANUAL:
+            logger.debug(f"jargon {content} 是手动记录，跳过含义推断")
+            return
+
         # 解析raw_content列表
         raw_content_list = []
         if raw_content_str := jargon_obj.raw_content:
@@ -288,8 +293,8 @@ class JargonMiner:
         # 步骤1: 基于raw_content和content推断
         raw_content_text = "\n".join(raw_content_list)
 
-        # 当count为24, 60时，随机移除一半的raw_content项目
-        if current_count in [24, 60] and len(raw_content_list) > 1:
+        # 到较高阈值时只抽取一部分上下文，避免 prompt 过长。
+        if current_count in JARGON_SAMPLE_RAW_CONTENT_THRESHOLDS and len(raw_content_list) > 1:
             # 计算要保留的数量（至少保留1个）
             keep_count = max(1, len(raw_content_list) // 2)
             raw_content_list = random.sample(raw_content_list, keep_count)
@@ -297,10 +302,10 @@ class JargonMiner:
                 f"jargon {content} count={current_count}，随机移除后剩余 {len(raw_content_list)} 个raw_content项目"
             )
 
-        # 当count为24, 60, 100时，在prompt中放入上一次推断出的meaning作为参考
+        # 到后续推断阈值时，在 prompt 中放入上一次推断出的 meaning 作为参考。
         previous_meaning_section = ""
         previous_meaning_instruction = ""
-        if current_count in [24, 60, 100] and previous_meaning:
+        if current_count in JARGON_PREVIOUS_MEANING_THRESHOLDS and previous_meaning:
             previous_meaning_section = f"\n**上一次推断的含义（仅供参考）**\n{previous_meaning}"
             previous_meaning_instruction = "- 请参考上一次推断的含义，结合新的上下文信息，给出更准确或更新的推断结果"
 
@@ -397,8 +402,6 @@ class JargonMiner:
             content=content,
             count=current_count,
             raw_content_list=list(raw_content_list),
-            inference_with_context=dict(inference1),
-            inference_with_content_only=dict(inference2),
             comparison_result=dict(comparison_result),
             is_jargon=is_jargon,
             meaning=finalized_meaning,
@@ -450,7 +453,7 @@ class JargonMiner:
 
     async def process_extracted_entries(
         self, entries: List[JargonEntry], person_name_filter: Optional[Callable[[str], bool]] = None
-    ) -> None:
+    ) -> Tuple[int, int]:
         """
         处理已提取的黑话条目（从 expression_learner 路由过来的）
 
@@ -459,7 +462,7 @@ class JargonMiner:
             person_name_filter: 可选的过滤函数，用于检查内容是否包含人物名称
         """
         if not entries:
-            return
+            return 0, 0
         merged_entries: Dict[str, JargonEntry] = {}
         for entry in entries:
             content = entry["content"].strip()
@@ -482,14 +485,14 @@ class JargonMiner:
         )
         if before_persist_result.aborted:
             logger.info(f"[{self.session_name}] 黑话提取结果被 Hook 中止，不写入数据库")
-            return
+            return 0, 0
 
         raw_hook_entries = before_persist_result.kwargs.get("entries")
         if raw_hook_entries is not None:
             uniq_entries = self._deserialize_jargon_entries(raw_hook_entries)
             if not uniq_entries:
                 logger.info(f"[{self.session_name}] Hook 过滤后没有可写入的黑话条目")
-                return
+                return 0, 0
 
         saved = 0
         updated = 0
@@ -502,25 +505,35 @@ class JargonMiner:
             except Exception as e:
                 logger.error(f"查询黑话 '{content}' 失败: {e}")
                 continue
+            related_session_ids, _ = JargonConfigUtils.resolve_jargon_group_scope(self.session_id)
             # 找匹配项
             matched_jargon: Optional[Jargon] = None
+            matched_ai_jargon: Optional[Jargon] = None
             for item in jargon_items:
-                if global_config.expression.all_global_jargon:
-                    # 开启all_global：所有content匹配的记录都可以
+                item_matches_scope = False
+                if item.is_global:
+                    item_matches_scope = True
+                elif item.session_id_dict:
+                    try:
+                        session_id_dict = json.loads(item.session_id_dict)
+                        item_matches_scope = bool(related_session_ids.intersection(session_id_dict))
+                    except Exception as e:
+                        logger.error(f"解析Jargon id={item.id} session_id_list失败: {e}")
+                        continue
+
+                if not item_matches_scope:
+                    continue
+                if item.created_by == JargonCreatedBy.MANUAL:
                     matched_jargon = item
                     break
-                else:
-                    # 检查列表是否包含目标session_id
-                    if item.session_id_dict:
-                        try:
-                            session_id_dict = json.loads(item.session_id_dict)
-                            if self.session_id in session_id_dict:
-                                matched_jargon = item
-                                break
-                        except Exception as e:
-                            logger.error(f"解析Jargon id={item.id} session_id_list失败: {e}")
-                            continue
+                if matched_ai_jargon is None:
+                    matched_ai_jargon = item
+            matched_jargon = matched_jargon or matched_ai_jargon
             if matched_jargon:
+                if matched_jargon.created_by == JargonCreatedBy.MANUAL:
+                    logger.debug(f"黑话 '{content}' 已存在手动记录，跳过 AI 更新与推断")
+                    self._add_to_cache(content)
+                    continue
                 # 已存在记录，更新count和raw_content
                 self._update_jargon(matched_jargon, raw_content_set)
                 if self._should_infer_meaning(matched_jargon):
@@ -528,15 +541,18 @@ class JargonMiner:
                 updated += 1
             else:
                 # 没找到匹配记录，创建新记录
-                is_global_new = global_config.expression.all_global_jargon
                 session_dict_str = json.dumps({self.session_id: 1})
+                now = datetime.now()
                 new_jargon = Jargon(
                     content=content,
                     raw_content=json.dumps(list(raw_content_set), ensure_ascii=False),
                     session_id_dict=session_dict_str,
-                    is_global=is_global_new,
+                    is_global=False,
                     count=1,
                     meaning="",
+                    created_by=JargonCreatedBy.AI,
+                    created_timestamp=now,
+                    updated_timestamp=now,
                 )
                 try:
                     with get_db_session() as session:
@@ -556,6 +572,8 @@ class JargonMiner:
 
         if saved or updated:
             logger.debug(f"jargon写入: 新增 {saved} 条，更新 {updated} 条，session_id={self.session_id}")
+
+        return saved, updated
 
     def _add_to_cache(self, content: str):
         """将黑话内容添加到缓存，并维护缓存大小"""
@@ -580,7 +598,12 @@ class JargonMiner:
             db_jargon: 已命中的黑话 ORM 对象。
             raw_content_set: 本次新增的原始上下文集合。
         """
+        if db_jargon.created_by == JargonCreatedBy.MANUAL:
+            logger.debug(f"黑话 '{db_jargon.content}' 是手动记录，跳过 AI 更新")
+            return
+
         db_jargon.count += 1
+        db_jargon.updated_timestamp = datetime.now()
         existing_raw_content: List[str] = []
         if db_jargon.raw_content:
             try:
@@ -595,10 +618,6 @@ class JargonMiner:
         session_id_dict[self.session_id] = session_id_dict.get(self.session_id, 0) + 1
         db_jargon.session_id_dict = json.dumps(session_id_dict)
 
-        # 开启all_global时，确保记录标记为is_global=True
-        if global_config.expression.all_global_jargon:
-            db_jargon.is_global = True
-
         try:
             with get_db_session() as session:
                 if db_jargon.id is None:
@@ -609,6 +628,7 @@ class JargonMiner:
                     persisted_jargon.raw_content = db_jargon.raw_content
                     persisted_jargon.session_id_dict = db_jargon.session_id_dict
                     persisted_jargon.is_global = db_jargon.is_global
+                    persisted_jargon.updated_timestamp = db_jargon.updated_timestamp
                     session.add(persisted_jargon)
                 else:
                     logger.warning(f"黑话 ID {db_jargon.id} 在数据库中未找到，无法更新")
@@ -631,42 +651,50 @@ class JargonMiner:
         return result
 
     def _modify_jargon_entry(self, jargon_obj: MaiJargon) -> None:
+        if jargon_obj.created_by == JargonCreatedBy.MANUAL:
+            logger.debug(f"黑话 '{jargon_obj.content}' 是手动记录，跳过推断结果写回")
+            return
+
         with get_db_session() as session:
             if not jargon_obj.item_id:
                 raise ValueError("jargon_obj must have item_id to update")
             statement = select(Jargon).filter_by(id=jargon_obj.item_id).limit(1)
             if db_record := session.exec(statement).first():
+                if db_record.created_by == JargonCreatedBy.MANUAL:
+                    logger.debug(f"黑话 '{db_record.content}' 是手动记录，跳过推断结果写回")
+                    return
                 db_record.is_jargon = jargon_obj.is_jargon
                 db_record.meaning = jargon_obj.meaning
                 db_record.last_inference_count = jargon_obj.last_inference_count
                 db_record.is_complete = jargon_obj.is_complete
+                db_record.updated_timestamp = datetime.now()
                 session.add(db_record)
 
     def _should_infer_meaning(self, jargon_obj: Jargon) -> bool:
         """
         判断是否需要进行含义推断
-        在 count 达到 3,6, 10, 20, 40, 60, 100 时进行推断
+        在 count 达到 4, 8, 25, 100 时进行推断
         并且count必须大于last_inference_count，避免重启后重复判定
         如果is_complete为True，不再进行推断
         """
         # 如果已完成所有推断，不再推断
+        if jargon_obj.created_by == JargonCreatedBy.MANUAL:
+            return False
+
         if jargon_obj.is_complete:
             return False
 
         count = jargon_obj.count or 0
         last_inference = jargon_obj.last_inference_count or 0
 
-        # 阈值列表：3,6, 10, 20, 40, 60, 100
-        thresholds = [2, 4, 8, 12, 24, 60, 100]
-
-        if count < thresholds[0]:
+        if count < JARGON_INFERENCE_THRESHOLDS[0]:
             return False
         # 如果count没有超过上次判定值，不需要判定
         if count <= last_inference:
             return False
 
         next_threshold = next(
-            (threshold for threshold in thresholds if threshold > last_inference),
+            (threshold for threshold in JARGON_INFERENCE_THRESHOLDS if threshold > last_inference),
             None,
         )
         # 如果没有找到下一个阈值，说明已经超过100，不应该再推断

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import type { TestConnectionResult } from '@/lib/config-api'
 import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2, Pencil, Search, Trash2, XCircle, Zap } from 'lucide-react'
 
@@ -18,6 +18,7 @@ interface ProviderListProps {
   testingProviders: Set<string>
   testResults: Map<string, TestConnectionResult>
   selectedProviders: Set<number>
+  toolbarActions?: ReactNode
   onEdit: (provider: APIProvider, index: number) => void
   onDelete: (index: number) => void
   onTest: (name: string) => void
@@ -30,6 +31,7 @@ export function ProviderList({
   testingProviders,
   testResults,
   selectedProviders,
+  toolbarActions,
   onEdit,
   onDelete,
   onTest,
@@ -125,20 +127,27 @@ export function ProviderList({
   return (
     <>
       {/* 搜索框 */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mb-4">
-        <div className="relative w-full sm:flex-1 sm:max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="搜索提供商名称、URL 或类型..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative w-full sm:flex-1 sm:max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="搜索提供商名称、URL 或类型..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          {searchQuery && (
+            <p className="text-sm text-muted-foreground whitespace-nowrap">
+              找到 {filteredProviders.length} 个结果
+            </p>
+          )}
         </div>
-        {searchQuery && (
-          <p className="text-sm text-muted-foreground whitespace-nowrap">
-            找到 {filteredProviders.length} 个结果
-          </p>
+        {toolbarActions && (
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
+            {toolbarActions}
+          </div>
         )}
       </div>
 

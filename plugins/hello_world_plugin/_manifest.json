@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "version": "2.0.0",
-  "name": "Hello World 示例插件 (Hello World Plugin)",
+  "name": "Hello World 示例插件 (模板插件/勿使用)",
   "description": "我的第一个 MaiCore 插件，包含问候功能和时间查询等基础示例",
   "author": {
     "name": "MaiBot开发团队",

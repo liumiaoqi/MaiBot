@@ -529,7 +529,7 @@ class EpisodeService:
                 "paragraph_count": 0,
             }
 
-        memory_cfg = getattr(global_config, "memory", None)
+        memory_cfg = global_config.a_memorix.integration
         paragraphs = self.metadata_store.get_live_paragraphs_by_source(
             token,
             exclude_stale=bool(getattr(memory_cfg, "feedback_correction_paragraph_hard_filter_enabled", True)),

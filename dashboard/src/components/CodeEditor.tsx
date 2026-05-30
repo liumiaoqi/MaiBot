@@ -26,6 +26,7 @@ function CodeEditorFallback({
 }: Pick<CodeEditorProps, 'height' | 'minHeight' | 'maxHeight' | 'className'>) {
   return (
     <div
+      data-dashboard-code-editor="true"
       className={`bg-muted animate-pulse rounded-md border ${className}`}
       style={{ height, minHeight, maxHeight }}
     />

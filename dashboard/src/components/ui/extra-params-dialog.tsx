@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   Dialog,
   DialogContent,
@@ -26,6 +26,12 @@ export function ExtraParamsDialog({
   onChange,
 }: ExtraParamsDialogProps) {
   const [editingValue, setEditingValue] = useState<Record<string, unknown>>(value)
+
+  useEffect(() => {
+    if (open) {
+      setEditingValue(value)
+    }
+  }, [open, value])
 
   // 当对话框打开状态改变时的处理
   const handleOpenChange = (newOpen: boolean) => {

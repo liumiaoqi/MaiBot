@@ -222,7 +222,7 @@ def build_search_runtime(
         )
         runtime.threshold_filter = DynamicThresholdFilter(threshold_config)
         runtime.error = ""
-        log.info(f"{prefix_text}[{owner}] 检索运行时初始化完成")
+        log.info(f"{prefix_text}[{owner}] 检索运行时就绪")
     except Exception as e:
         runtime.retriever = None
         runtime.threshold_filter = None

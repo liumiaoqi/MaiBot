@@ -191,7 +191,7 @@ class PluginMessageUtils:
                 return ""
             return base64.b64encode(image_path.read_bytes()).decode("utf-8")
         except Exception as exc:
-            logger.debug("通过 hash 加载历史媒体失败: type=%s hash=%s error=%s", image_type, binary_hash, exc)
+            logger.debug(f"通过 hash 加载历史媒体失败: type={image_type} hash={binary_hash} error={exc}")
             return ""
 
     @staticmethod

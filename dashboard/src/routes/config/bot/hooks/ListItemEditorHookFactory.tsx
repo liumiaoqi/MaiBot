@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import * as LucideIcons from 'lucide-react'
-import { Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -11,6 +11,8 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { DynamicConfigForm } from '@/components/dynamic-form/DynamicConfigForm'
+import { fieldTitleClassName } from '@/components/dynamic-form/fieldStyle'
+import { resolveLocalizedText } from '@/lib/config-label'
 import type { FieldHookComponent } from '@/lib/field-hooks'
 import type { ConfigSchema, FieldSchema } from '@/types/config-schema'
 
@@ -36,12 +38,39 @@ export interface ListItemEditorOptions {
   /** Hook-local field UI metadata overrides */
   fieldSchemaOverrides?: Record<string, Partial<FieldSchema>>
   /** 添加按钮位置 */
-  addButtonPlacement?: 'top' | 'bottom'
+  addButtonPlacement?: 'top' | 'bottom' | 'none'
   /** 根据同级配置决定是否默认折叠 */
   collapseWhen?: (context: { parentValues?: Record<string, unknown> }) => boolean
   collapsedText?: string
   expandLabel?: string
   collapseLabel?: string
+  collapseButtonDisplay?: 'text' | 'icon'
+  normalizeItems?: (
+    items: Record<string, unknown>[],
+    context?: { addedIndex?: number; changedIndex?: number },
+  ) => Record<string, unknown>[]
+  renderOverview?: (context: {
+    items: Record<string, unknown>[]
+    onAddItem: (item?: Record<string, unknown>) => void
+    onItemFieldChange: (index: number, fieldName: string, fieldValue: unknown) => void
+    onItemsChange: (
+      items: Record<string, unknown>[],
+      context?: { addedIndex?: number; changedIndex?: number },
+    ) => void
+    onRemoveItem: (index: number) => void
+  }) => ReactNode
+  renderItems?: (context: {
+    emptyText: string
+    items: Record<string, unknown>[]
+    onAddItem: (item?: Record<string, unknown>) => void
+    onItemFieldChange: (index: number, fieldName: string, fieldValue: unknown) => void
+    onItemsChange: (
+      items: Record<string, unknown>[],
+      context?: { addedIndex?: number; changedIndex?: number },
+    ) => void
+    onRemoveItem: (index: number) => void
+    renderItemEditor: (item: Record<string, unknown>, index: number) => ReactNode
+  }) => ReactNode
 }
 
 function resolveLabel(schema?: ConfigSchema | FieldSchema, fieldPath?: string): string {
@@ -49,7 +78,7 @@ function resolveLabel(schema?: ConfigSchema | FieldSchema, fieldPath?: string): 
     return fieldPath?.split('.').at(-1) ?? '列表配置'
   }
   if ('label' in schema && schema.label) {
-    return schema.label
+    return resolveLocalizedText(schema.label, undefined, fieldPath?.split('.').at(-1) ?? '列表配置')
   }
   if ('uiLabel' in schema && schema.uiLabel) {
     return schema.uiLabel
@@ -176,17 +205,32 @@ export function createListItemEditorHook(
       )
     }, [value])
 
+    const emitItems = useCallback(
+      (nextItems: Record<string, unknown>[], context?: { addedIndex?: number; changedIndex?: number }) => {
+        onChange?.(options.normalizeItems?.(nextItems, context) ?? nextItems)
+      },
+      [onChange],
+    )
+
     const handleAdd = useCallback(() => {
       const next = [...items, buildDefaultItem(nestedSchema)]
-      onChange?.(next)
-    }, [items, nestedSchema, onChange])
+      emitItems(next, { addedIndex: next.length - 1 })
+    }, [emitItems, items, nestedSchema])
+
+    const handleAddItem = useCallback(
+      (item: Record<string, unknown> = {}) => {
+        const next = [...items, { ...buildDefaultItem(nestedSchema), ...item }]
+        emitItems(next, { addedIndex: next.length - 1 })
+      },
+      [emitItems, items, nestedSchema],
+    )
 
     const handleRemove = useCallback(
       (index: number) => {
         const next = items.filter((_, idx) => idx !== index)
-        onChange?.(next)
+        emitItems(next)
       },
-      [items, onChange],
+      [emitItems, items],
     )
 
     const handleItemFieldChange = useCallback(
@@ -197,9 +241,9 @@ export function createListItemEditorHook(
           setNested(cloned, fieldName, fieldValue)
           return cloned
         })
-        onChange?.(next)
+        emitItems(next, { changedIndex: index })
       },
-      [items, onChange],
+      [emitItems, items],
     )
 
     const renderItemEditor = (item: Record<string, unknown>, index: number) => {
@@ -292,6 +336,9 @@ export function createListItemEditorHook(
     const shouldCollapse = options.collapseWhen?.({ parentValues }) ?? false
     const [manuallyExpanded, setManuallyExpanded] = useState(false)
     const collapsed = shouldCollapse && !manuallyExpanded
+    const collapseButtonLabel = collapsed
+      ? (options.expandLabel ?? '灞曞紑')
+      : (options.collapseLabel ?? '鎶樺彔')
 
     useEffect(() => {
       if (!shouldCollapse) {
@@ -316,7 +363,7 @@ export function createListItemEditorHook(
       return (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">{label}</CardTitle>
+            <CardTitle className={fieldTitleClassName(schema, 'text-base')}>{label}</CardTitle>
             <CardDescription>未获取到子配置 schema，无法渲染富编辑器。</CardDescription>
           </CardHeader>
         </Card>
@@ -329,14 +376,33 @@ export function createListItemEditorHook(
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">
               {renderLucideIcon(iconName, 'h-5 w-5 flex-shrink-0 text-muted-foreground')}
-              <CardTitle className="truncate text-base">{label}</CardTitle>
+              <CardTitle className={fieldTitleClassName(schema, 'truncate text-base')}>{label}</CardTitle>
             </div>
-            {shouldCollapse && (
+            {shouldCollapse && options.collapseButtonDisplay === 'icon' && (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => setManuallyExpanded((current) => !current)}
+                aria-label={collapseButtonLabel}
+                title={collapseButtonLabel}
+                className="inline-flex items-center justify-center"
+              >
+                {collapsed ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronUp className="h-4 w-4" />
+                )}
+              </Button>
+            )}
+            {shouldCollapse && options.collapseButtonDisplay !== 'icon' && (
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => setManuallyExpanded((current) => !current)}
+                aria-label={collapseButtonLabel}
+                title={collapseButtonLabel}
               >
                 {collapsed
                   ? (options.expandLabel ?? '展开')
@@ -358,8 +424,25 @@ export function createListItemEditorHook(
             </div>
           ) : (
             <>
+          {options.renderOverview?.({
+            items,
+            onAddItem: handleAddItem,
+            onItemFieldChange: handleItemFieldChange,
+            onItemsChange: emitItems,
+            onRemoveItem: handleRemove,
+          })}
           {addButtonPlacement === 'top' && addButton}
-          {items.length === 0 ? (
+          {options.renderItems ? (
+            options.renderItems({
+              emptyText: options.emptyText ?? '尚未添加任何条目，点击下方按钮新增。',
+              items,
+              onAddItem: handleAddItem,
+              onItemFieldChange: handleItemFieldChange,
+              onItemsChange: emitItems,
+              onRemoveItem: handleRemove,
+              renderItemEditor,
+            })
+          ) : items.length === 0 ? (
             <div className="rounded-md border border-dashed border-muted-foreground/25 bg-muted/10 p-6 text-center text-sm text-muted-foreground">
               {options.emptyText ?? '尚未添加任何条目，点击下方按钮新增。'}
             </div>

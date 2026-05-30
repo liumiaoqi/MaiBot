@@ -5,6 +5,8 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from src.common.logger import get_logger
 
+from .component_timeout import normalize_component_timeout_ms
+
 logger = get_logger("plugin_runtime.host.api_registry")
 
 
@@ -23,6 +25,7 @@ class APIEntry:
     dynamic: bool = False
     offline_reason: str = ""
     disabled_session: Set[str] = field(default_factory=set)
+    timeout_ms: int = field(init=False)
     full_name: str = field(init=False)
     registry_key: str = field(init=False)
 
@@ -35,6 +38,7 @@ class APIEntry:
         self.version = str(self.version or "1").strip() or "1"
         self.handler_name = str(self.handler_name or self.name).strip() or self.name
         self.offline_reason = str(self.offline_reason or "").strip()
+        self.timeout_ms = normalize_component_timeout_ms(self.metadata.get("timeout_ms", 0))
         self.full_name = f"{self.plugin_id}.{self.name}"
         self.registry_key = APIRegistry.build_registry_key(self.plugin_id, self.name, self.version)
 

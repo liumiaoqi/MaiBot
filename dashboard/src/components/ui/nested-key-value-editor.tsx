@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Plus, Trash2, ChevronRight, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,14 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-
-// 生成唯一 ID
-function generateId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID()
-  }
-  return `${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 11)}`
-}
+import { generateId } from "@/lib/id"
 
 type ValueType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'null'
 
@@ -292,12 +285,23 @@ export function NestedKeyValueEditor({
   placeholder = "添加参数...",
 }: NestedKeyValueEditorProps) {
   const [nodes, setNodes] = useState<TreeNode[]>(() => recordToTree(value || {}))
+  const lastEmittedValueRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    const nextValueJson = JSON.stringify(value || {})
+    if (lastEmittedValueRef.current === nextValueJson) {
+      return
+    }
+    setNodes(recordToTree(value || {}))
+  }, [value])
 
   // 同步到父组件
   const syncToParent = useCallback(
     (newNodes: TreeNode[]) => {
+      const nextValue = treeToRecord(newNodes)
+      lastEmittedValueRef.current = JSON.stringify(nextValue)
       setNodes(newNodes)
-      onChange(treeToRecord(newNodes))
+      onChange(nextValue)
     },
     [onChange]
   )

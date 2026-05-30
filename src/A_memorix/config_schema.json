@@ -56,6 +56,7 @@
         "sections": [
           "advanced",
           "web.import",
+          "web.import.timeout",
           "web.tuning"
         ],
         "order": 5
@@ -805,7 +806,7 @@
         "pending_batch_size": {
           "name": "pending_batch_size",
           "type": "integer",
-          "default": 20,
+          "default": 50,
           "description": "待处理批大小",
           "label": "待处理批大小",
           "ui_type": "number",
@@ -991,6 +992,23 @@
           "hint": "生成画像时默认采样的证据条数。",
           "min": 1,
           "max": 200,
+          "step": 1,
+          "choices": null
+        },
+        "evidence_classification_max_tokens": {
+          "name": "evidence_classification_max_tokens",
+          "type": "integer",
+          "default": 1200,
+          "description": "证据分类输出 token 上限",
+          "label": "证据分类输出上限",
+          "ui_type": "number",
+          "required": false,
+          "hidden": false,
+          "disabled": false,
+          "order": 6,
+          "hint": "控制人物画像证据分类 LLM 调用的最大输出 token 数。",
+          "min": 128,
+          "max": 32768,
           "step": 1,
           "choices": null
         }
@@ -1258,7 +1276,7 @@
       "description": "控制检索调优任务的队列与默认策略。",
       "icon": null,
       "collapsed": false,
-      "order": 15,
+      "order": 16,
       "fields": {
         "enabled": {
           "name": "enabled",
@@ -1376,6 +1394,101 @@
           "min": 1,
           "max": 1000,
           "step": 1,
+          "choices": null
+        }
+      }
+    },
+    "web.import.timeout": {
+      "name": "web.import.timeout",
+      "title": "导入超时",
+      "description": "控制 Web Import 中 LLM 调用、迁移/转换子进程与预检步骤的等待时间。",
+      "icon": null,
+      "collapsed": false,
+      "order": 15,
+      "fields": {
+        "llm_call_seconds": {
+          "name": "llm_call_seconds",
+          "type": "number",
+          "default": 240,
+          "description": "单次 LLM 抽取调用超时时间，0 表示不额外限制。",
+          "label": "LLM 单次调用超时（秒）",
+          "ui_type": "number",
+          "required": false,
+          "hidden": false,
+          "disabled": false,
+          "order": 1,
+          "hint": "大量导入时用于避免单个上游请求长时间挂起。",
+          "min": 0,
+          "max": 3600,
+          "step": 1,
+          "choices": null
+        },
+        "process_poll_seconds": {
+          "name": "process_poll_seconds",
+          "type": "number",
+          "default": 1,
+          "description": "迁移或转换子进程状态轮询等待时间。",
+          "label": "子进程轮询等待（秒）",
+          "ui_type": "number",
+          "required": false,
+          "hidden": false,
+          "disabled": false,
+          "order": 2,
+          "hint": "值越小取消响应越快，但轮询更频繁。",
+          "min": 0.1,
+          "max": 60,
+          "step": 0.1,
+          "choices": null
+        },
+        "process_terminate_seconds": {
+          "name": "process_terminate_seconds",
+          "type": "number",
+          "default": 5,
+          "description": "取消任务时等待子进程正常终止的时间。",
+          "label": "子进程终止等待（秒）",
+          "ui_type": "number",
+          "required": false,
+          "hidden": false,
+          "disabled": false,
+          "order": 3,
+          "hint": "超时后会尝试强制结束子进程。",
+          "min": 0.1,
+          "max": 120,
+          "step": 0.1,
+          "choices": null
+        },
+        "process_kill_seconds": {
+          "name": "process_kill_seconds",
+          "type": "number",
+          "default": 3,
+          "description": "强制结束子进程后的等待时间。",
+          "label": "子进程强杀等待（秒）",
+          "ui_type": "number",
+          "required": false,
+          "hidden": false,
+          "disabled": false,
+          "order": 4,
+          "hint": "用于取消任务时回收转换/迁移子进程。",
+          "min": 0.1,
+          "max": 120,
+          "step": 0.1,
+          "choices": null
+        },
+        "convert_preflight_seconds": {
+          "name": "convert_preflight_seconds",
+          "type": "number",
+          "default": 20,
+          "description": "LPMM 转换依赖预检的超时时间。",
+          "label": "转换预检超时（秒）",
+          "ui_type": "number",
+          "required": false,
+          "hidden": false,
+          "disabled": false,
+          "order": 5,
+          "hint": "依赖环境较慢时可以适当调大。",
+          "min": 0.1,
+          "max": 600,
+          "step": 0.1,
           "choices": null
         }
       }

@@ -20,6 +20,10 @@
           ? window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
           : mode;
         document.documentElement.classList.add(theme);
+
+        const dashboardStyle = localStorage.getItem('maibot-theme-dashboard-style');
+        document.documentElement.dataset.dashboardStyle =
+          dashboardStyle === 'modern' ? 'modern' : 'future-retro';
       })();
     </script>
   </head>

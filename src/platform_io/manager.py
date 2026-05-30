@@ -10,7 +10,7 @@ from .outbound_tracker import OutboundTracker
 from .route_key_factory import RouteKeyFactory
 from .registry import DriverRegistry
 from .routing import RouteTable
-from .types import DeliveryBatch, DeliveryReceipt, DeliveryStatus, InboundMessageEnvelope, RouteBinding, RouteKey
+from .types import DeliveryBatch, DeliveryReceipt, DeliveryStatus, DriverKind, InboundMessageEnvelope, RouteBinding, RouteKey
 
 if TYPE_CHECKING:
     from src.chat.message_receive.message import SessionMessage
@@ -400,6 +400,10 @@ class PlatformIOManager:
             if driver is not None and driver.driver_id not in seen_driver_ids:
                 drivers.append(driver)
                 seen_driver_ids.add(driver.driver_id)
+
+        has_plugin_driver = any(driver.descriptor.kind == DriverKind.PLUGIN for driver in drivers)
+        if has_plugin_driver:
+            return drivers
 
         fallback_driver = self._legacy_send_drivers.get(route_key.platform)
         if fallback_driver is not None:

@@ -113,6 +113,7 @@ async def test_register_plugin_syncs_dedicated_api_registry() -> None:
                     "description": "渲染 HTML",
                     "version": "1",
                     "public": True,
+                    "timeout_ms": 48000,
                 },
             }
         ],
@@ -146,6 +147,7 @@ async def test_api_call_allows_public_api_between_plugins(monkeypatch: pytest.Mo
                     "description": "渲染 HTML",
                     "version": "1",
                     "public": True,
+                    "timeout_ms": 48000,
                 },
             }
         ],
@@ -185,6 +187,7 @@ async def test_api_call_allows_public_api_between_plugins(monkeypatch: pytest.Mo
     assert captured["plugin_id"] == "provider"
     assert captured["component_name"] == "render_html"
     assert captured["args"] == {"html": "<div>Hello</div>"}
+    assert captured["timeout_ms"] == 48000
 
 
 @pytest.mark.asyncio
@@ -358,7 +361,7 @@ async def test_api_registry_supports_multiple_versions_with_distinct_handlers(
         },
     )
     assert ambiguous_result["success"] is False
-    assert "多个版本" in str(ambiguous_result["error"])
+    assert "不唯一" in str(ambiguous_result["error"])
 
     disable_ambiguous_result = await manager._cap_component_disable(
         "consumer",
@@ -371,7 +374,7 @@ async def test_api_registry_supports_multiple_versions_with_distinct_handlers(
         },
     )
     assert disable_ambiguous_result["success"] is False
-    assert "多个版本" in str(disable_ambiguous_result["error"])
+    assert "不唯一" in str(disable_ambiguous_result["error"])
 
     disable_v1_result = await manager._cap_component_disable(
         "consumer",

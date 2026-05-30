@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Protocol, Sequence
 
 from src.common.logger import get_logger
+from src.plugin_runtime.host.component_timeout import resolve_component_rpc_timeout_ms
 
 logger = get_logger("plugin_runtime.integration")
 
@@ -711,7 +712,7 @@ class RuntimeComponentCapabilityMixin:
                 plugin_id=entry.plugin_id,
                 component_name=entry.handler_name,
                 args=invoke_args,
-                timeout_ms=30000,
+                timeout_ms=resolve_component_rpc_timeout_ms(entry.timeout_ms),
             )
         except Exception as exc:
             logger.error(f"[cap.api.call] 调用 API {entry.full_name} 失败: {exc}", exc_info=True)

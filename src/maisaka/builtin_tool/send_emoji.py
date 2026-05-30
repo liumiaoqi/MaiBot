@@ -28,13 +28,13 @@ from src.maisaka.context_messages import (
     SessionBackedMessage,
 )
 from src.plugin_runtime.hook_payloads import serialize_prompt_messages
+from src.prompt.prompt_manager import prompt_manager
 
 from .context import BuiltinToolRuntimeContext
 
 logger = get_logger("maisaka_builtin_send_emoji")
 
 _EMOJI_SUB_AGENT_CONTEXT_LIMIT = 12
-_EMOJI_SUB_AGENT_MAX_TOKENS = 240
 _EMOJI_MAX_CANDIDATE_COUNT = 64
 _EMOJI_CANDIDATE_TILE_SIZE = 256
 _EMOJI_SUCCESS_MESSAGE = "表情包发送成功"
@@ -53,8 +53,7 @@ def get_tool_spec() -> ToolSpec:
 
     return ToolSpec(
         name="send_emoji",
-        brief_description="发送一个合适的表情包来辅助表达情绪。",
-        detailed_description="无需参数，直接发送一个合适的表情包。",
+        description="发送一个合适的表情包来辅助表达情绪。",
         parameters_schema={
             "type": "object",
             "properties": {},
@@ -285,6 +284,15 @@ def _resolve_emoji_selector_model_task_name() -> str:
     """根据 planner 模型视觉能力选择表情选择子代理的模型任务。"""
 
     model_config = config_manager.get_model_config()
+    emoji_task_config = getattr(model_config.model_task_config, "emoji", None)
+    emoji_models = [
+        model_name
+        for model_name in getattr(emoji_task_config, "model_list", [])
+        if str(model_name).strip()
+    ]
+    if emoji_models:
+        return "emoji"
+
     planner_models = [
         model_name
         for model_name in model_config.model_task_config.planner.model_list
@@ -304,6 +312,21 @@ def _is_missing_visual_model_error(exc: Exception) -> bool:
 
     error_text = str(exc)
     return _EMOJI_VLM_NOT_CONFIGURED_MESSAGE in error_text or "未找到名为 '' 的模型" in error_text
+
+
+async def _render_emoji_selection_system_prompt(
+    *,
+    emoji_count: int,
+    grid_rows: int,
+    grid_columns: int,
+) -> str:
+    """渲染表情包选择子代理的系统提示词。"""
+
+    prompt_template = prompt_manager.get_prompt("emoji_selection")
+    prompt_template.add_context("emoji_count", str(emoji_count))
+    prompt_template.add_context("grid_rows", str(grid_rows))
+    prompt_template.add_context("grid_columns", str(grid_columns))
+    return await prompt_manager.render_prompt(prompt_template)
 
 
 async def _select_emoji_with_sub_agent(
@@ -326,14 +349,10 @@ async def _select_emoji_with_sub_agent(
     candidate_message = await _build_emoji_candidate_message(sampled_emojis)
     grid_rows, grid_columns = _calculate_grid_shape(len(sampled_emojis))
 
-    system_prompt = (
-        "你是 Maisaka 的临时表情包选择子代理。\n"
-        f"你会收到群聊上下文，以及 1 条额外候选消息，其中包含一张 {grid_rows}x{grid_columns} 的表情包拼图，"
-        f"一共 {len(sampled_emojis)} 个位置。\n"
-        f"每张小图左上角都有一个较大的序号，范围是 1 到 {len(sampled_emojis)}。\n"
-        f"你的任务是根据上下文和当前语气，从这 {len(sampled_emojis)} 张图里选出最合适的一张表情包。\n"
-        "你必须返回一个 JSON 对象（json object），不要输出任何 JSON 之外的内容。\n"
-        '返回格式固定为：{"emoji_index":1,"reason":"简短理由"}'
+    system_prompt = await _render_emoji_selection_system_prompt(
+        emoji_count=len(sampled_emojis),
+        grid_rows=grid_rows,
+        grid_columns=grid_columns,
     )
     prompt_message = ReferenceMessage(
         content=(
@@ -368,12 +387,13 @@ async def _select_emoji_with_sub_agent(
         context_message_limit=_EMOJI_SUB_AGENT_CONTEXT_LIMIT,
         system_prompt=system_prompt,
         extra_messages=[prompt_message, candidate_message],
-        max_tokens=_EMOJI_SUB_AGENT_MAX_TOKENS,
+        request_kind="emotion",
         model_task_name=model_task_name,
     )
     selection_duration_ms = round((datetime.now() - selection_started_at).total_seconds() * 1000, 2)
 
     selection_metrics: Dict[str, Any] = {
+        "model_name": getattr(response, "model_name", "") or "",
         "prompt_tokens": response.prompt_tokens,
         "completion_tokens": response.completion_tokens,
         "total_tokens": response.total_tokens,

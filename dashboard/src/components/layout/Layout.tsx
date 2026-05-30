@@ -120,7 +120,10 @@ export function Layout({ children }: LayoutProps) {
     <TooltipProvider delayDuration={300}>
       <SkipNav />
       {isElectron() && <TitleBar />}
-      <div className={cn('relative isolate flex h-screen overflow-hidden', isElectron() && 'pt-8')}>
+      <div
+        data-dashboard-shell="true"
+        className={cn('relative isolate flex h-screen overflow-hidden', isElectron() && 'pt-8')}
+      >
         <BackgroundLayer config={pageBg} layerId="page" />
         <div className="relative z-10 flex h-full w-full overflow-hidden">
           {/* Sidebar：仅在设置工作区显示，伴随滑入/滑出动画 */}
@@ -130,7 +133,7 @@ export function Layout({ children }: LayoutProps) {
                 key="settings-sidebar"
                 className="relative z-40 hidden shrink-0 lg:block"
                 initial={{ width: 0, opacity: 0 }}
-                animate={{ width: sidebarOpen ? 256 : 64, opacity: 1 }}
+                animate={{ width: sidebarOpen ? 208 : 64, opacity: 1 }}
                 exit={{ width: 0, opacity: 0 }}
                 transition={{
                   type: 'spring',
@@ -178,7 +181,7 @@ export function Layout({ children }: LayoutProps) {
             )}
           </AnimatePresence>
           {/* Main content */}
-          <div className="flex flex-1 flex-col overflow-hidden">
+          <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
             {/* HTTP 安全警告横幅 */}
             <HttpWarningBanner />
 
@@ -198,6 +201,7 @@ export function Layout({ children }: LayoutProps) {
             {/* Page content */}
             <main
               id="main-content"
+              data-dashboard-main="true"
               tabIndex={-1}
               className={cn(
                 'relative isolate flex-1 overflow-hidden outline-none',
@@ -211,7 +215,7 @@ export function Layout({ children }: LayoutProps) {
               <AnimatePresence mode="wait" initial={false}>
                 <motion.div
                   key={workspaceMode}
-                  className="relative z-10 h-full"
+                  className="relative z-10 h-full min-w-0"
                   initial={{ opacity: 0, x: isChatWorkspace ? 32 : -32, filter: 'blur(6px)' }}
                   animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
                   exit={{ opacity: 0, x: isChatWorkspace ? -32 : 32, filter: 'blur(6px)' }}

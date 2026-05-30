@@ -1,5 +1,5 @@
 import { Check, MessageCircle, Plus, Search, Trash2, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -46,6 +46,8 @@ export function JargonManagementPage() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [scopeFilter, setScopeFilter] = useState<'all' | 'global' | 'local'>('all')
   const [filterChatId, setFilterChatId] = useState<string>('all')
   const [filterIsJargon, setFilterIsJargon] = useState<string>('all')
   const [selectedJargon, setSelectedJargon] = useState<Jargon | null>(null)
@@ -66,29 +68,42 @@ export function JargonManagementPage() {
     top_chats: {},
   })
   const [chatList, setChatList] = useState<JargonChatInfo[]>([])
+  const [formChatList, setFormChatList] = useState<JargonChatInfo[]>([])
+  const jargonListRequestSeqRef = useRef(0)
   const { toast } = useToast()
 
   // 加载黑话列表
   const loadJargons = async () => {
+    const requestSeq = jargonListRequestSeqRef.current + 1
+    jargonListRequestSeqRef.current = requestSeq
     try {
       setLoading(true)
       const response = await getJargonList({
         page,
         page_size: pageSize,
-        search: search || undefined,
-        chat_id: filterChatId === 'all' ? undefined : filterChatId,
+        search: debouncedSearch || undefined,
+        session_id: scopeFilter !== 'global' && filterChatId !== 'all' ? filterChatId : undefined,
         is_jargon: filterIsJargon === 'all' ? undefined : filterIsJargon === 'true' ? true : filterIsJargon === 'false' ? false : undefined,
+        is_global: scopeFilter === 'all' ? undefined : scopeFilter === 'global',
       })
+      if (requestSeq !== jargonListRequestSeqRef.current) {
+        return
+      }
       setJargons(response.data)
       setTotal(response.total)
     } catch (error) {
+      if (requestSeq !== jargonListRequestSeqRef.current) {
+        return
+      }
       toast({
         title: '加载失败',
         description: error instanceof Error ? error.message : '无法加载黑话列表',
         variant: 'destructive',
       })
     } finally {
-      setLoading(false)
+      if (requestSeq === jargonListRequestSeqRef.current) {
+        setLoading(false)
+      }
     }
   }
 
@@ -107,22 +122,42 @@ export function JargonManagementPage() {
   // 加载聊天列表
   const loadChatList = async () => {
     try {
-      const response = await getJargonChatList()
-      if (response?.data) {
-        setChatList(response.data)
+      const [sidebarResponse, formResponse] = await Promise.all([
+        getJargonChatList(),
+        getJargonChatList({ include_empty: true }),
+      ])
+      if (sidebarResponse?.data) {
+        setChatList(sidebarResponse.data)
+      }
+      if (formResponse?.data) {
+        setFormChatList(formResponse.data)
       }
     } catch (error) {
       console.error('加载聊天列表失败:', error)
     }
   }
 
-  // 初始加载
+  useEffect(() => {
+    const timerId = window.setTimeout(() => {
+      const normalizedSearch = search.trim()
+      setDebouncedSearch((current) => (current === normalizedSearch ? current : normalizedSearch))
+      setPage((current) => (current === 1 ? current : 1))
+      setSelectedIds((current) => (current.size === 0 ? current : new Set<number>()))
+    }, 300)
+
+    return () => window.clearTimeout(timerId)
+  }, [search])
+
   useEffect(() => {
     loadJargons()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, pageSize, debouncedSearch, scopeFilter, filterChatId, filterIsJargon])
+
+  useEffect(() => {
     loadStats()
     loadChatList()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize, search, filterChatId, filterIsJargon])
+  }, [])
 
   // 查看详情
   const handleViewDetail = async (jargon: Jargon) => {
@@ -157,6 +192,7 @@ export function JargonManagementPage() {
       setDeleteConfirmJargon(null)
       loadJargons()
       loadStats()
+      loadChatList()
     } catch (error) {
       toast({
         title: '删除失败',
@@ -198,6 +234,7 @@ export function JargonManagementPage() {
       setIsBatchDeleteDialogOpen(false)
       loadJargons()
       loadStats()
+      loadChatList()
     } catch (error) {
       toast({
         title: '批量删除失败',
@@ -240,6 +277,21 @@ export function JargonManagementPage() {
         variant: 'destructive',
       })
     }
+  }
+
+  const handleChatChange = (chatId: string) => {
+    setFilterChatId(chatId)
+    setPage(1)
+    setSelectedIds(new Set())
+  }
+
+  const handleScopeChange = (scope: 'all' | 'global' | 'local') => {
+    setScopeFilter(scope)
+    if (scope === 'global') {
+      setFilterChatId('all')
+    }
+    setPage(1)
+    setSelectedIds(new Set())
   }
 
   return (
@@ -299,41 +351,25 @@ export function JargonManagementPage() {
           </div>
 
           {/* 搜索和筛选 */}
-          <div className="rounded-lg border bg-card p-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="space-y-1.5">
+          <div className="rounded-lg border bg-card p-3">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <div className="space-y-1">
                 <Label htmlFor="search">搜索</Label>
                 <div className="relative">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="search"
-                    placeholder="搜索内容、含义..."
+                    placeholder="搜索黑话内容..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    className="pl-9"
+                    className="h-8 pl-9"
                   />
                 </div>
               </div>
-              <div className="space-y-1.5">
-                <Label>聊天筛选</Label>
-                <Select value={filterChatId} onValueChange={setFilterChatId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="全部聊天" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">全部聊天</SelectItem>
-                    {chatList.map((chat) => (
-                      <SelectItem key={chat.chat_id} value={chat.chat_id}>
-                        {chat.chat_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <Label>状态筛选</Label>
                 <Select value={filterIsJargon} onValueChange={setFilterIsJargon}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-8">
                     <SelectValue placeholder="全部状态" />
                   </SelectTrigger>
                   <SelectContent>
@@ -343,7 +379,7 @@ export function JargonManagementPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <Label htmlFor="page-size">每页显示</Label>
                 <Select
                   value={pageSize.toString()}
@@ -353,7 +389,7 @@ export function JargonManagementPage() {
                     setSelectedIds(new Set())
                   }}
                 >
-                  <SelectTrigger id="page-size">
+                  <SelectTrigger id="page-size" className="h-8">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -390,21 +426,102 @@ export function JargonManagementPage() {
           </div>
 
           {/* 黑话列表 */}
-          <JargonList
-            jargons={jargons}
-            loading={loading}
-            total={total}
-            page={page}
-            pageSize={pageSize}
-            selectedIds={selectedIds}
-            onEdit={handleEdit}
-            onViewDetail={handleViewDetail}
-            onDelete={(jargon) => setDeleteConfirmJargon(jargon)}
-            onToggleSelect={toggleSelect}
-            onToggleSelectAll={toggleSelectAll}
-            onPageChange={setPage}
-            onJumpToPage={handleJumpToPage}
-          />
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
+            <aside className="rounded-lg border bg-card lg:sticky lg:top-0 lg:max-h-[calc(100vh-18rem)]">
+              <div className="space-y-2 border-b px-3 py-2">
+                <h2 className="text-sm font-medium">范围</h2>
+                <div className="grid grid-cols-3 gap-1 rounded-md bg-muted p-1">
+                  <button
+                    type="button"
+                    onClick={() => handleScopeChange('all')}
+                    className={`rounded px-2 py-1 text-xs transition-colors ${
+                      scopeFilter === 'all' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    全部
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleScopeChange('global')}
+                    className={`rounded px-2 py-1 text-xs transition-colors ${
+                      scopeFilter === 'global' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    全局
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleScopeChange('local')}
+                    className={`rounded px-2 py-1 text-xs transition-colors ${
+                      scopeFilter === 'local' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    非全局
+                  </button>
+                </div>
+              </div>
+              <div className="max-h-56 space-y-1 overflow-y-auto p-2 lg:max-h-[calc(100vh-21rem)]">
+                {scopeFilter === 'global' ? (
+                  <div className="px-2 py-6 text-center text-sm text-muted-foreground">
+                    全局黑话不按聊天划分
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleChatChange('all')}
+                      className={`w-full rounded-md px-2 py-2 text-left text-sm transition-colors ${
+                        filterChatId === 'all'
+                          ? 'bg-primary text-primary-foreground'
+                          : 'text-foreground hover:bg-muted'
+                      }`}
+                    >
+                      全部聊天
+                    </button>
+                    {chatList.map((chat) => (
+                      <button
+                        key={chat.session_id}
+                        type="button"
+                        onClick={() => handleChatChange(chat.session_id)}
+                        className={`w-full rounded-md px-2 py-2 text-left text-sm transition-colors ${
+                          filterChatId === chat.session_id
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-foreground hover:bg-muted'
+                        }`}
+                        title={`${chat.chat_name} (${chat.session_id})`}
+                      >
+                        <span className="block truncate">{chat.chat_name}</span>
+                        <span
+                          className={`block truncate text-xs ${
+                            filterChatId === chat.session_id ? 'text-primary-foreground/75' : 'text-muted-foreground'
+                          }`}
+                        >
+                          {chat.session_id}
+                        </span>
+                      </button>
+                    ))}
+                  </>
+                )}
+              </div>
+            </aside>
+
+            <JargonList
+              jargons={jargons}
+              loading={loading}
+              total={total}
+              page={page}
+              pageSize={pageSize}
+              selectedIds={selectedIds}
+              hideChatColumn={scopeFilter === 'global' || filterChatId !== 'all'}
+              onEdit={handleEdit}
+              onViewDetail={handleViewDetail}
+              onDelete={(jargon) => setDeleteConfirmJargon(jargon)}
+              onToggleSelect={toggleSelect}
+              onToggleSelectAll={toggleSelectAll}
+              onPageChange={setPage}
+              onJumpToPage={handleJumpToPage}
+            />
+          </div>
         </div>
       </ScrollArea>
 
@@ -419,10 +536,11 @@ export function JargonManagementPage() {
       <JargonCreateDialog
         open={isCreateDialogOpen}
         onOpenChange={setIsCreateDialogOpen}
-        chatList={chatList}
+        chatList={formChatList}
         onSuccess={() => {
           loadJargons()
           loadStats()
+          loadChatList()
           setIsCreateDialogOpen(false)
         }}
       />
@@ -432,10 +550,11 @@ export function JargonManagementPage() {
         jargon={selectedJargon}
         open={isEditDialogOpen}
         onOpenChange={setIsEditDialogOpen}
-        chatList={chatList}
+        chatList={formChatList}
         onSuccess={() => {
           loadJargons()
           loadStats()
+          loadChatList()
           setIsEditDialogOpen(false)
         }}
       />

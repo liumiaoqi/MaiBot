@@ -1,7 +1,10 @@
 import * as React from "react"
 import * as LucideIcons from "lucide-react"
+import { useTranslation } from "react-i18next"
 
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DraftNumberInput } from "@/components/ui/draft-number-input"
 import { KeyValueEditor } from "@/components/ui/key-value-editor"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -15,14 +18,110 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { resolveFieldLabel } from "@/lib/config-label"
 import type { FieldSchema } from "@/types/config-schema"
+
+import { fieldTitleClassName } from "./fieldStyle"
+
+const ARRAY_DRAFT_LINE_PATTERN = /\r\n|\n|\r/
 
 export interface DynamicFieldProps {
   schema: FieldSchema
   value: unknown
   onChange: (value: unknown) => void
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   fieldPath?: string // 用于 Hook 系统（未来使用）
+}
+
+const resolvePrimitiveArrayValue = (value: unknown, defaultValue: unknown): unknown[] => {
+  if (Array.isArray(value)) {
+    return value
+  }
+
+  if (Array.isArray(defaultValue)) {
+    return defaultValue
+  }
+
+  return []
+}
+
+const formatPrimitiveArrayDraft = (items: unknown[]) => {
+  return items.map((item) => String(item ?? '')).join('\n')
+}
+
+const parsePrimitiveArrayDraft = (draftValue: string, itemType: string) => {
+  return draftValue
+    .split(ARRAY_DRAFT_LINE_PATTERN)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .map((line) => {
+      if (itemType === 'integer') {
+        return parseInt(line, 10) || 0
+      }
+      if (itemType === 'number') {
+        return parseFloat(line) || 0
+      }
+      if (itemType === 'boolean') {
+        return line === 'true'
+      }
+      return line
+    })
+}
+
+const formatNumericValue = (value: number) => String(value)
+
+function PrimitiveArrayEditor({
+  onChange,
+  schema,
+  value,
+}: Pick<DynamicFieldProps, 'onChange' | 'schema' | 'value'>) {
+  const itemType = schema.items?.type ?? 'string'
+  const arrayValue = React.useMemo(
+    () => resolvePrimitiveArrayValue(value, schema.default),
+    [schema.default, value],
+  )
+  const formattedValue = React.useMemo(
+    () => formatPrimitiveArrayDraft(arrayValue),
+    [arrayValue],
+  )
+  const [draftValue, setDraftValue] = React.useState(formattedValue)
+  const isFocusedRef = React.useRef(false)
+
+  React.useEffect(() => {
+    if (!isFocusedRef.current) {
+      setDraftValue(formattedValue)
+    }
+  }, [formattedValue])
+
+  const commitDraft = (nextDraftValue: string) => {
+    onChange(parsePrimitiveArrayDraft(nextDraftValue, itemType))
+  }
+
+  const canonicalizeDraft = () => {
+    const nextItems = parsePrimitiveArrayDraft(draftValue, itemType)
+    onChange(nextItems)
+    setDraftValue(formatPrimitiveArrayDraft(nextItems))
+  }
+
+  const draftRows = draftValue ? draftValue.split(ARRAY_DRAFT_LINE_PATTERN).length : 0
+
+  return (
+    <Textarea
+      value={draftValue}
+      onBlur={() => {
+        isFocusedRef.current = false
+        canonicalizeDraft()
+      }}
+      onChange={(e) => {
+        const nextDraftValue = e.target.value
+        setDraftValue(nextDraftValue)
+        commitDraft(nextDraftValue)
+      }}
+      onFocus={() => {
+        isFocusedRef.current = true
+      }}
+      rows={Math.max(4, draftRows, arrayValue.length || 4)}
+    />
+  )
 }
 
 /**
@@ -37,6 +136,8 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
   value,
   onChange,
 }) => {
+  const { i18n } = useTranslation()
+  const fieldLabel = resolveFieldLabel(schema, i18n.language)
   const isNumericField = schema.type === 'integer' || schema.type === 'number'
 
   const parseNumericValue = (rawValue: unknown, fallbackValue: unknown = 0) => {
@@ -58,41 +159,31 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
     return 0
   }
 
+  const normalizeNumericValue = (nextValue: number, minValue?: number, maxValue?: number) => {
+    let normalizedValue = schema.type === 'integer' ? Math.trunc(nextValue) : nextValue
+
+    if (typeof minValue === 'number' && Number.isFinite(minValue)) {
+      normalizedValue = Math.max(minValue, normalizedValue)
+    }
+    if (typeof maxValue === 'number' && Number.isFinite(maxValue)) {
+      normalizedValue = Math.min(maxValue, normalizedValue)
+    }
+
+    return normalizedValue
+  }
+
+  const numericValue = parseNumericValue(value, schema.default)
+  const [sliderDraftValue, setSliderDraftValue] = React.useState(() => formatNumericValue(numericValue))
+  const sliderInputFocusedRef = React.useRef(false)
+
+  React.useEffect(() => {
+    if (!sliderInputFocusedRef.current) {
+      setSliderDraftValue(formatNumericValue(numericValue))
+    }
+  }, [numericValue])
+
   const renderPrimitiveArrayEditor = () => {
-    const itemType = schema.items?.type ?? 'string'
-    const arrayValue = Array.isArray(value)
-      ? value
-      : Array.isArray(schema.default)
-        ? schema.default
-        : []
-
-    const textareaValue = arrayValue.map((item) => String(item ?? '')).join('\n')
-
-    return (
-      <Textarea
-        value={textareaValue}
-        onChange={(e) => {
-          const nextItems = e.target.value
-            .split('\n')
-            .map((line) => line.trim())
-            .filter((line) => line.length > 0)
-            .map((line) => {
-              if (itemType === 'integer') {
-                return parseInt(line, 10) || 0
-              }
-              if (itemType === 'number') {
-                return parseFloat(line) || 0
-              }
-              if (itemType === 'boolean') {
-                return line === 'true'
-              }
-              return line
-            })
-          onChange(nextItems)
-        }}
-        rows={Math.max(4, arrayValue.length || 4)}
-      />
-    )
+    return <PrimitiveArrayEditor schema={schema} value={value} onChange={onChange} />
   }
 
   const renderObjectEditor = () => {
@@ -123,22 +214,66 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
 
   const optionDescriptions = schema['x-option-descriptions'] ?? {}
   const hasOptionDescriptions = Object.keys(optionDescriptions).length > 0
-  const inlineDescription = hasOptionDescriptions ? '' : schema.description
+  const descriptionDisplay = schema['x-description-display'] ?? 'label-hover'
+  const fieldDescription = schema.description
+  const inlineDescription = descriptionDisplay === 'inline' && !hasOptionDescriptions ? fieldDescription : ''
+
+  const renderDescriptionTooltip = (trigger: React.ReactElement, side: 'top' | 'right' = 'top') => {
+    if (!fieldDescription) return trigger
+
+    return (
+      <TooltipProvider delayDuration={150}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            {trigger}
+          </TooltipTrigger>
+          <TooltipContent
+            side={side}
+            align="start"
+            className="max-w-80 whitespace-pre-line bg-background text-foreground border shadow-lg"
+          >
+            {fieldDescription}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    )
+  }
 
   const renderFieldHeader = () => (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-      <Label
-        className={cn(
-          "inline-flex min-h-7 items-center gap-1.5 rounded-md border px-2 py-1 text-sm font-medium shadow-sm",
-          schema.advanced
-            ? "border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-500/60 dark:bg-amber-500/15 dark:text-amber-100"
-            : "bg-muted/60 text-foreground",
-        )}
-      >
-        {renderIcon()}
-        <span className="break-all">{schema.label}</span>
-        {schema.required && <span className="text-destructive">*</span>}
-      </Label>
+    <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+      {(() => {
+        const label = (
+          <Label
+            className={cn(
+              fieldTitleClassName(
+                schema,
+                "inline-flex min-w-0 items-center gap-1.5 text-[15px] leading-6",
+              ),
+              descriptionDisplay === 'label-hover' && fieldDescription && "cursor-help",
+            )}
+          >
+            {renderIcon()}
+            <span className="break-words">{fieldLabel}</span>
+            {schema.required && <span className="text-destructive">*</span>}
+          </Label>
+        )
+
+        return descriptionDisplay === 'label-hover'
+          ? renderDescriptionTooltip(label)
+          : label
+      })()}
+      {descriptionDisplay === 'icon' && fieldDescription && (
+        renderDescriptionTooltip(
+          <button
+            type="button"
+            aria-label={`${fieldLabel} 说明`}
+            className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <LucideIcons.CircleAlert className="h-4 w-4" />
+          </button>,
+          'right',
+        )
+      )}
       {inlineDescription && (
         <span className="text-[13px] leading-6 text-muted-foreground whitespace-pre-line">
           {inlineDescription}
@@ -171,6 +306,8 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
           return renderTextInput('password')
         case 'switch':
           return renderSwitch()
+        case 'talk-time':
+          return renderTalkTimeInput()
         case 'textarea':
           return renderTextarea()
         case 'select':
@@ -233,8 +370,8 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
   const renderSwitch = () => {
     const checked = Boolean(value)
     return (
-      <div className="flex items-center justify-between gap-4 py-2">
-        <div className="pr-4">
+      <div className="flex min-w-0 items-center justify-between gap-4 py-2">
+        <div className="min-w-0 pr-4">
           {renderFieldHeader()}
         </div>
         <Switch
@@ -249,20 +386,66 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
    * 渲染 Slider 组件（用于 number 类型 + x-widget: slider）
    */
   const renderSlider = () => {
-    const numValue = parseNumericValue(value, schema.default)
+    const numValue = numericValue
     const min = schema.minValue ?? 0
     const max = schema.maxValue ?? 100
     const step = schema.step ?? 1
 
+    const commitSliderDraftValue = (nextDraftValue: string) => {
+      setSliderDraftValue(nextDraftValue)
+
+      if (!nextDraftValue.trim()) {
+        return
+      }
+
+      const parsedValue = Number(nextDraftValue)
+      if (!Number.isFinite(parsedValue)) {
+        return
+      }
+
+      onChange(normalizeNumericValue(parsedValue, min, max))
+    }
+
+    const canonicalizeSliderDraftValue = () => {
+      sliderInputFocusedRef.current = false
+
+      const parsedValue = Number(sliderDraftValue)
+      if (!Number.isFinite(parsedValue)) {
+        setSliderDraftValue(formatNumericValue(numValue))
+        return
+      }
+
+      const nextValue = normalizeNumericValue(parsedValue, min, max)
+      onChange(nextValue)
+      setSliderDraftValue(formatNumericValue(nextValue))
+    }
+
     return (
-      <div className="space-y-2">
-        <Slider
-          value={[numValue]}
-          onValueChange={(values) => onChange(values[0])}
-          min={min}
-          max={max}
-          step={step}
-        />
+      <div className="min-w-0 space-y-2">
+        <div className="flex min-w-0 items-center gap-3">
+          <Slider
+            value={[numValue]}
+            onValueChange={(values) => onChange(values[0])}
+            min={min}
+            max={max}
+            step={step}
+            className="min-w-0 flex-1"
+          />
+          <Input
+            aria-label={`${fieldLabel} 数值`}
+            type="number"
+            value={sliderDraftValue}
+            onBlur={canonicalizeSliderDraftValue}
+            onChange={(event) => commitSliderDraftValue(event.target.value)}
+            onFocus={() => {
+              sliderInputFocusedRef.current = true
+            }}
+            min={min}
+            max={max}
+            step={step}
+            className="h-8 w-24 shrink-0 text-right"
+          />
+        </div>
         <div className="flex justify-between text-xs text-muted-foreground">
           <span>{min}</span>
           <span className="font-medium text-foreground">{numValue}</span>
@@ -276,21 +459,16 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
    * 渲染 Input[type="number"] 组件（用于 number/integer 类型）
    */
   const renderNumberInput = () => {
-    const numValue = parseNumericValue(value, schema.default)
     const min = schema.minValue
     const max = schema.maxValue
     const step = schema.step ?? (schema.type === 'integer' ? 1 : 0.1)
 
     return (
-      <Input
-        type="number"
-        value={numValue}
-        onChange={(e) => {
-          const nextValue = schema.type === 'integer'
-            ? parseInt(e.target.value, 10)
-            : parseFloat(e.target.value)
-          onChange(Number.isFinite(nextValue) ? nextValue : 0)
-        }}
+      <DraftNumberInput
+        value={value}
+        defaultValue={schema.default}
+        integer={schema.type === 'integer'}
+        onValueChange={(nextValue) => onChange(nextValue)}
         min={min}
         max={max}
         step={step}
@@ -314,6 +492,64 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
         value={strValue}
         onChange={(e) => onChange(e.target.value)}
       />
+    )
+  }
+
+  const renderTalkTimeInput = () => {
+    const strValue =
+      typeof value === 'string'
+        ? value
+        : value === null || value === undefined
+          ? String(schema.default ?? '')
+          : String(value)
+    const trimmedValue = strValue.trim()
+    const mode =
+      trimmedValue === ''
+        ? 'fallback'
+        : trimmedValue === '*'
+          ? 'always'
+          : 'range'
+    const rangeValue = mode === 'range' ? strValue : ''
+
+    const selectFallback = () => onChange('')
+    const selectRange = () => onChange(mode === 'range' ? strValue : '00:00-23:59')
+    const selectAlways = () => onChange('*')
+
+    return (
+      <div className="space-y-2">
+        <div className="grid grid-cols-3 gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant={mode === 'fallback' ? 'default' : 'outline'}
+            onClick={selectFallback}
+          >
+            兜底
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={mode === 'range' ? 'default' : 'outline'}
+            onClick={selectRange}
+          >
+            时间段
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={mode === 'always' ? 'default' : 'outline'}
+            onClick={selectAlways}
+          >
+            *
+          </Button>
+        </div>
+        <Input
+          value={rangeValue}
+          disabled={mode !== 'range'}
+          placeholder="HH:MM-HH:MM"
+          onChange={(event) => onChange(event.target.value)}
+        />
+      </div>
     )
   }
 
@@ -357,7 +593,7 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
     return (
       <Select value={strValue} onValueChange={(val) => onChange(val)}>
         <SelectTrigger>
-          <SelectValue placeholder={`Select ${schema.label}`} />
+          <SelectValue placeholder={`Select ${fieldLabel}`} />
         </SelectTrigger>
         <SelectContent>
           {hasOptionDescriptions ? (
@@ -415,13 +651,13 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
   if (supportsInlineRight) {
     return (
       <div
-        className="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between"
+        className="flex flex-col gap-2 py-2 sm:flex-row sm:items-center"
         style={{ '--field-input-width': schema['x-input-width'] ?? '12rem' } as React.CSSProperties}
       >
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 sm:shrink-0">
           {renderFieldHeader()}
         </div>
-        <div className="w-full shrink-0 sm:w-[var(--field-input-width)]">
+        <div className="min-w-20 flex-1 sm:ml-auto sm:max-w-[var(--field-input-width)]">
           {renderInputComponent()}
         </div>
       </div>
@@ -429,7 +665,7 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
   }
 
   return (
-    <div className="space-y-2">
+    <div className="min-w-0 space-y-2">
       {renderFieldHeader()}
 
       {/* Input component */}

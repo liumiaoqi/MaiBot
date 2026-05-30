@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { getModelConfig, testProviderConnection, updateModelConfig, updateModelConfigSection } from '@/lib/config-api'
+import {
+  getModelConfig,
+  getModelConfigCached,
+  testProviderConnection,
+  updateModelConfig,
+  updateModelConfigSection,
+} from '@/lib/config-api'
 import type { TestConnectionResult } from '@/lib/config-api'
 import { Info, Plus, Power, Save, Trash2, Zap } from 'lucide-react'
 
@@ -151,7 +157,7 @@ function ModelProviderConfigPageContent() {
   const loadConfig = async () => {
     try {
       setLoading(true)
-      const result = await getModelConfig()
+      const result = await getModelConfigCached()
       if (!result.success) {
         toast({
           title: '加载失败',
@@ -527,10 +533,8 @@ function ModelProviderConfigPageContent() {
         })
       }
 
-      console.log('发送的 providers 数据:', cleanedProviders)
       config.api_providers = cleanedProviders
       config.models = filteredModels
-      console.log('完整配置数据:', config)
 
       const resultUpdate = await updateModelConfig(config)
       if (!resultUpdate.success) {
@@ -731,7 +735,7 @@ function ModelProviderConfigPageContent() {
     return (
       <div className="space-y-4 sm:space-y-6 p-4 sm:p-6">
         <div className="flex items-center justify-center h-64">
-          <p className="text-muted-foreground">加载中...</p>
+          <p className="text-muted-foreground">Thinking...</p>
         </div>
       </div>
     )
@@ -742,10 +746,10 @@ function ModelProviderConfigPageContent() {
       {/* 页面标题 */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">AI模型厂商配置</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">模型厂商设置</h1>
           <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base">管理 AI 模型厂商的 API 配置</p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2">
+        <div className="hidden">
           {selectedProviders.size > 0 && (
             <Button
               onClick={openBatchDeleteDialog}
@@ -838,6 +842,82 @@ function ModelProviderConfigPageContent() {
           testingProviders={testingProviders}
           testResults={testResults}
           selectedProviders={selectedProviders}
+          toolbarActions={(
+            <>
+              {selectedProviders.size > 0 && (
+                <Button
+                  onClick={openBatchDeleteDialog}
+                  size="sm"
+                  variant="destructive"
+                  className="w-full sm:w-auto"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" strokeWidth={2} fill="none" />
+                  <span className="text-sm">批量删除 ({selectedProviders.size})</span>
+                </Button>
+              )}
+              <Button
+                onClick={handleTestAllConnections}
+                size="sm"
+                variant="outline"
+                className="w-full sm:w-auto"
+                disabled={providers.length === 0 || testingProviders.size > 0}
+              >
+                <Zap className="mr-2 h-4 w-4" />
+                <span className="text-sm">
+                  {testingProviders.size > 0 ? `测试中 (${testingProviders.size})` : '测试全部连接'}
+                </span>
+              </Button>
+              <Button onClick={() => openEditDialog(null, null)} size="sm" className="w-full sm:w-auto" data-tour="add-provider-button">
+                <Plus className="mr-2 h-4 w-4" strokeWidth={2} fill="none" />
+                <span className="text-sm">添加厂商</span>
+              </Button>
+              <Button
+                onClick={saveConfig}
+                disabled={saving || autoSaving || !hasUnsavedChanges || isRestarting}
+                size="sm"
+                variant="outline"
+                className="w-full sm:w-auto sm:min-w-[120px]"
+              >
+                <Save className="mr-2 h-4 w-4" strokeWidth={2} fill="none" />
+                <span className="text-sm">
+                  {saving ? '保存中...' : autoSaving ? '自动保存中...' : hasUnsavedChanges ? '保存配置' : '已保存'}
+                </span>
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    disabled={saving || autoSaving || isRestarting}
+                    size="sm"
+                    className="w-full sm:w-auto sm:min-w-[120px]"
+                  >
+                    <Power className="mr-2 h-4 w-4" />
+                    {isRestarting ? '重启中...' : hasUnsavedChanges ? '保存并重启' : '重启麦麦'}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>确认重启麦麦？</AlertDialogTitle>
+                    <AlertDialogDescription asChild>
+                      <div>
+                        <p>
+                          {hasUnsavedChanges
+                            ? '当前有未保存的配置更改。确认后会先保存配置，然后重启麦麦使新配置生效。'
+                            : '即将重启麦麦主程序。配置将在重启后生效。'
+                          }
+                        </p>
+                      </div>
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>取消</AlertDialogCancel>
+                    <AlertDialogAction onClick={hasUnsavedChanges ? handleSaveAndRestart : handleRestart}>
+                      {hasUnsavedChanges ? '保存并重启' : '确认重启'}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </>
+          )}
           onEdit={openEditDialog}
           onDelete={openDeleteDialog}
           onTest={handleTestConnection}

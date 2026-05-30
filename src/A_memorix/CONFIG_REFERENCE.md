@@ -72,7 +72,7 @@ chats = []
 [episode]
 enabled = true
 generation_enabled = true
-pending_batch_size = 20
+pending_batch_size = 50
 pending_max_retry = 3
 max_paragraphs_per_call = 20
 max_chars_per_call = 6000
@@ -85,6 +85,7 @@ refresh_interval_minutes = 30
 active_window_hours = 72
 max_refresh_per_cycle = 50
 top_k_evidence = 12
+evidence_classification_max_tokens = 1200
 
 [memory]
 enabled = true
@@ -106,6 +107,13 @@ max_paste_chars = 200000
 default_file_concurrency = 2
 default_chunk_concurrency = 4
 
+[web.import.timeout]
+llm_call_seconds = 240
+process_poll_seconds = 1
+process_terminate_seconds = 5
+process_kill_seconds = 3
+convert_preflight_seconds = 20
+
 [web.tuning]
 enabled = true
 max_queue_size = 8
@@ -120,7 +128,7 @@ default_sample_size = 24
 
 - 长期记忆控制台：适合修改高频项，例如 embedding、检索、Episode、人物画像、导入与调优的常用开关。
 - 原始 TOML：适合复制整份配置、批量调整参数，或修改未在可视化表单中展示的高级项。
-- raw-only 高级项仍包括：`retrieval.fusion.*`、`retrieval.search.relation_intent.*`、`retrieval.search.graph_recall.*`、`retrieval.search.posterior_graph.*`、`retrieval.aggregate.*`、`memory.orphan.*`、`advanced.extraction_model`、`web.import.llm_retry.*`、`web.import.path_aliases`、`web.import.convert.*`、`web.tuning.llm_retry.*`、`web.tuning.eval_query_timeout_seconds`。
+- raw-only 高级项仍包括：`retrieval.fusion.*`、`retrieval.search.relation_intent.*`、`retrieval.search.graph_recall.*`、`retrieval.search.posterior_graph.*`、`retrieval.aggregate.*`、`memory.orphan.*`、`advanced.extraction_model`、`web.import.llm_retry.*`、`web.import.timeout.*`、`web.import.path_aliases`、`web.import.convert.*`、`web.tuning.llm_retry.*`、`web.tuning.eval_query_timeout_seconds`。
 
 ## 1. 存储与嵌入
 
@@ -278,7 +286,7 @@ chats = ["group:123", "user:456", "stream:abc"]
 
 - `episode.enabled` (默认 `true`)
 - `episode.generation_enabled` (默认 `true`)
-- `episode.pending_batch_size` (默认 `20`，部分路径默认 `12`)
+- `episode.pending_batch_size` (默认 `50`)
 - `episode.pending_max_retry` (默认 `3`)
 - `episode.max_paragraphs_per_call` (默认 `20`)
 - `episode.max_chars_per_call` (默认 `6000`)
@@ -295,6 +303,7 @@ chats = ["group:123", "user:456", "stream:abc"]
 - `person_profile.active_window_hours` (默认 `72`)
 - `person_profile.max_refresh_per_cycle` (默认 `50`)
 - `person_profile.top_k_evidence` (默认 `12`)
+- `person_profile.evidence_classification_max_tokens` (默认 `1200`)
 
 ## 7. 记忆演化与回收
 
@@ -336,6 +345,14 @@ chats = ["group:123", "user:456", "stream:abc"]
 - `web.import.max_file_concurrency` (默认 `6`)
 - `web.import.max_chunk_concurrency` (默认 `12`)
 - `web.import.poll_interval_ms` (默认 `1000`)
+
+### 超时
+
+- `web.import.timeout.llm_call_seconds` (默认 `240`，`0` 表示不额外限制)
+- `web.import.timeout.process_poll_seconds` (默认 `1`)
+- `web.import.timeout.process_terminate_seconds` (默认 `5`)
+- `web.import.timeout.process_kill_seconds` (默认 `3`)
+- `web.import.timeout.convert_preflight_seconds` (默认 `20`)
 
 ### 重试与路径
 

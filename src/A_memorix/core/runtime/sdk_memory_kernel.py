@@ -1,15 +1,16 @@
 from __future__ import annotations
 
-import asyncio
-import json
-import pickle
-import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable, Coroutine, Dict, Iterable, List, Optional, Sequence
 
 from json_repair import repair_json
+import asyncio
+import json
+import numpy as np
+import pickle
+import time
 
 from src.common.logger import get_logger
 from src.config.config import global_config
@@ -25,6 +26,7 @@ from ..utils.episode_retrieval_service import EpisodeRetrievalService
 from ..utils.episode_segmentation_service import EpisodeSegmentationService
 from ..utils.episode_service import EpisodeService
 from ..utils.hash import compute_hash, normalize_text
+from ..utils.metadata import coerce_metadata_dict
 from ..utils.person_profile_service import PersonProfileService
 from ..utils.relation_write_service import RelationWriteService
 from ..utils.retrieval_tuning_manager import RetrievalTuningManager
@@ -175,6 +177,9 @@ class SDKMemoryKernel:
         self._initialized = False
         self._last_maintenance_at: Optional[float] = None
         self._request_dedup_tasks: Dict[str, asyncio.Task] = {}
+        self._vector_rebuild_lock = asyncio.Lock()
+        self._vector_persist_blocked_until_rebuild = False
+        self._vector_rebuild_source_dimension: Optional[int] = None
         self._background_tasks: Dict[str, asyncio.Task] = {}
         self._background_lock = asyncio.Lock()
         self._background_stopping = False
@@ -323,6 +328,24 @@ class SDKMemoryKernel:
             " 当前版本不会兼容 hash 时代或其他维度的旧向量，请改回原 embedding 配置，"
             "或执行重嵌入/重建向量。"
         )
+
+    def _vector_rebuild_status(self) -> Dict[str, Any]:
+        stored_dimension = self._stored_vector_dimension()
+        if self._vector_persist_blocked_until_rebuild and self._vector_rebuild_source_dimension is not None:
+            stored_dimension = int(self._vector_rebuild_source_dimension)
+        current_dimension = int(self.embedding_dimension)
+        rebuild_required = stored_dimension is not None and stored_dimension != current_dimension
+        return {
+            "stored_vector_dimension": int(stored_dimension or 0),
+            "embedding_dimension": current_dimension,
+            "vector_rebuild_required": bool(rebuild_required),
+            "message": self._vector_mismatch_error(
+                stored_dimension=int(stored_dimension or 0),
+                detected_dimension=current_dimension,
+            )
+            if rebuild_required
+            else "",
+        }
 
     def _embedding_fallback_enabled(self) -> bool:
         return bool(self._cfg("embedding.fallback.enabled", True))
@@ -582,6 +605,352 @@ class SDKMemoryKernel:
             "trigger": trigger,
         }
 
+    def _count_vector_rebuild_targets(self) -> Dict[str, int]:
+        if self.metadata_store is None:
+            return {"paragraphs": 0, "entities": 0, "relations": 0}
+        paragraph_where = self._active_row_filter_sql("paragraphs")
+        entity_where = self._active_row_filter_sql("entities")
+        relation_where = self._active_row_filter_sql("relations")
+        rows = self.metadata_store.query(
+            f"""
+            SELECT
+                (SELECT COUNT(*) FROM paragraphs WHERE {paragraph_where}) AS paragraphs,
+                (SELECT COUNT(*) FROM entities WHERE {entity_where}) AS entities,
+                (SELECT COUNT(*) FROM relations WHERE {relation_where}) AS relations
+            """
+        )
+        row = rows[0] if rows else {}
+        return {
+            "paragraphs": int(row.get("paragraphs", 0) or 0),
+            "entities": int(row.get("entities", 0) or 0),
+            "relations": int(row.get("relations", 0) or 0),
+        }
+
+    def _table_has_column(self, table: str, column: str) -> bool:
+        if self.metadata_store is None:
+            return False
+        token = str(table or "").strip()
+        col = str(column or "").strip()
+        if token not in {"paragraphs", "entities", "relations"} or not col:
+            return False
+        rows = self.metadata_store.query(f"PRAGMA table_info({token})")
+        return any(str(row.get("name", "") or "") == col for row in rows)
+
+    def _active_row_filter_sql(self, table: str) -> str:
+        if str(table or "").strip() == "relations" and self._table_has_column("relations", "is_inactive"):
+            return "is_inactive IS NULL OR is_inactive = 0"
+        return "is_deleted IS NULL OR is_deleted = 0" if self._table_has_column(table, "is_deleted") else "1 = 1"
+
+    def _refresh_runtime_dependents(self, *, preserve_managers: bool = True) -> None:
+        if (
+            self.metadata_store is None
+            or self.graph_store is None
+            or self.vector_store is None
+            or self.embedding_manager is None
+            or self.retriever is None
+        ):
+            return
+
+        runtime_config = self._build_runtime_config()
+        self.episode_retriever = EpisodeRetrievalService(metadata_store=self.metadata_store, retriever=self.retriever)
+        self.aggregate_query_service = AggregateQueryService(plugin_config=runtime_config)
+        self.person_profile_service = PersonProfileService(
+            metadata_store=self.metadata_store,
+            graph_store=self.graph_store,
+            vector_store=self.vector_store,
+            embedding_manager=self.embedding_manager,
+            sparse_index=self.sparse_index,
+            plugin_config=runtime_config,
+            retriever=self.retriever,
+        )
+        self.episode_segmentation_service = EpisodeSegmentationService(plugin_config=runtime_config)
+        self.episode_service = EpisodeService(
+            metadata_store=self.metadata_store,
+            plugin_config=runtime_config,
+            segmentation_service=self.episode_segmentation_service,
+        )
+        self.summary_importer = SummaryImporter(
+            vector_store=self.vector_store,
+            graph_store=self.graph_store,
+            metadata_store=self.metadata_store,
+            embedding_manager=self.embedding_manager,
+            plugin_config=runtime_config,
+        )
+        if not preserve_managers:
+            self.import_task_manager = ImportTaskManager(self._runtime_facade)
+            self.retrieval_tuning_manager = RetrievalTuningManager(
+                self._runtime_facade,
+                import_write_blocked_provider=self.import_task_manager.is_write_blocked,
+            )
+
+    async def _encode_and_add_rebuild_vectors(
+        self,
+        *,
+        items: Sequence[tuple[str, str]],
+        batch_size: int,
+    ) -> tuple[int, int, str, List[str], List[str]]:
+        if self.vector_store is None or self.embedding_manager is None:
+            failed_ids = [item_id for item_id, _ in items]
+            return 0, len(items), "vector_runtime_components_missing", [], failed_ids
+
+        done = 0
+        failed = 0
+        last_error = ""
+        done_ids: List[str] = []
+        failed_ids: List[str] = []
+        safe_batch_size = max(1, int(batch_size))
+        for start in range(0, len(items), safe_batch_size):
+            batch = list(items[start : start + safe_batch_size])
+            ids = [item_id for item_id, _ in batch]
+            texts = [text for _, text in batch]
+            try:
+                encoder = getattr(self.embedding_manager, "encode_batch", None)
+                if callable(encoder):
+                    embeddings = await encoder(texts, batch_size=safe_batch_size)
+                else:
+                    embeddings = await self.embedding_manager.encode(texts)
+                embedding_array = np.asarray(embeddings, dtype=np.float32)
+                if embedding_array.ndim == 1:
+                    embedding_array = embedding_array.reshape(1, -1)
+                if embedding_array.shape[0] != len(ids):
+                    raise ValueError(f"embedding 返回数量异常: expected={len(ids)}, got={embedding_array.shape[0]}")
+                self.vector_store.add(vectors=embedding_array, ids=ids)
+                done += len(ids)
+                done_ids.extend(ids)
+            except Exception as exc:
+                last_error = str(exc)[:500]
+                failed += len(ids)
+                failed_ids.extend(ids)
+                logger.warning(f"重建向量批次失败: start={start}, count={len(ids)}, error={last_error}")
+        return done, failed, last_error, done_ids, failed_ids
+
+    async def _rebuild_all_vectors(
+        self,
+        *,
+        batch_size: Optional[int] = None,
+        include_relations: Optional[bool] = None,
+        dry_run: bool = False,
+    ) -> Dict[str, Any]:
+        if self._vector_rebuild_lock.locked():
+            return {
+                "success": False,
+                "error": "vector_rebuild_running",
+                "detail": "已有向量重建任务正在运行",
+            }
+        async with self._vector_rebuild_lock:
+            return await self._rebuild_all_vectors_locked(
+                batch_size=batch_size,
+                include_relations=include_relations,
+                dry_run=dry_run,
+            )
+
+    async def _rebuild_all_vectors_locked(
+        self,
+        *,
+        batch_size: Optional[int] = None,
+        include_relations: Optional[bool] = None,
+        dry_run: bool = False,
+    ) -> Dict[str, Any]:
+        if self.metadata_store is None or self.vector_store is None or self.embedding_manager is None:
+            return {"success": False, "error": "runtime_components_missing"}
+
+        target_counts = self._count_vector_rebuild_targets()
+        relation_enabled = bool(self.relation_vectors_enabled if include_relations is None else include_relations)
+        if not relation_enabled:
+            target_counts["relations"] = 0
+        total = target_counts["paragraphs"] + target_counts["entities"] + target_counts["relations"]
+        if dry_run:
+            return {
+                "success": True,
+                "dry_run": True,
+                "counts": target_counts,
+                "total": int(total),
+                **self._vector_rebuild_status(),
+            }
+
+        started = time.time()
+        safe_batch_size = max(1, int(batch_size or self._cfg("embedding.batch_size", 32) or 32))
+        self._set_embedding_degraded(
+            active=True,
+            reason="正在重建全部向量，检索临时降级",
+            checked_at=started,
+        )
+
+        self.vector_store = VectorStore(
+            dimension=max(1, int(self.embedding_dimension)),
+            quantization_type=QuantizationType.INT8,
+            data_dir=self.data_dir / "vectors",
+        )
+        self.vector_store.clear()
+        self.relation_write_service = RelationWriteService(
+            metadata_store=self.metadata_store,
+            graph_store=self.graph_store,
+            vector_store=self.vector_store,
+            embedding_manager=self.embedding_manager,
+        )
+
+        stats = {
+            "paragraphs": {"done": 0, "failed": 0},
+            "entities": {"done": 0, "failed": 0},
+            "relations": {"done": 0, "failed": 0},
+        }
+        errors: List[str] = []
+        paragraph_where = self._active_row_filter_sql("paragraphs")
+        entity_where = self._active_row_filter_sql("entities")
+        relation_where = self._active_row_filter_sql("relations")
+
+        paragraph_rows = self.metadata_store.query(
+            f"""
+            SELECT hash, content
+            FROM paragraphs
+            WHERE {paragraph_where}
+            ORDER BY created_at ASC
+            """
+        )
+        paragraph_items = [
+            (str(row.get("hash", "") or ""), str(row.get("content", "") or "").strip())
+            for row in paragraph_rows
+            if str(row.get("hash", "") or "").strip() and str(row.get("content", "") or "").strip()
+        ]
+        done, failed, error, _done_ids, _failed_ids = await self._encode_and_add_rebuild_vectors(
+            items=paragraph_items,
+            batch_size=safe_batch_size,
+        )
+        stats["paragraphs"] = {"done": done, "failed": failed}
+        if error:
+            errors.append(error)
+
+        entity_rows = self.metadata_store.query(
+            f"""
+            SELECT hash, name
+            FROM entities
+            WHERE {entity_where}
+            ORDER BY created_at ASC
+            """
+        )
+        entity_items = [
+            (str(row.get("hash", "") or ""), str(row.get("name", "") or "").strip())
+            for row in entity_rows
+            if str(row.get("hash", "") or "").strip() and str(row.get("name", "") or "").strip()
+        ]
+        done, failed, error, _done_ids, _failed_ids = await self._encode_and_add_rebuild_vectors(
+            items=entity_items,
+            batch_size=safe_batch_size,
+        )
+        stats["entities"] = {"done": done, "failed": failed}
+        if error:
+            errors.append(error)
+
+        if relation_enabled:
+            relation_rows = self.metadata_store.query(
+                f"""
+                SELECT hash, subject, predicate, object
+                FROM relations
+                WHERE {relation_where}
+                ORDER BY created_at ASC
+                """
+            )
+            relation_items = [
+                (
+                    str(row.get("hash", "") or ""),
+                    RelationWriteService.build_relation_vector_text(
+                        str(row.get("subject", "") or ""),
+                        str(row.get("predicate", "") or ""),
+                        str(row.get("object", "") or ""),
+                    ),
+                )
+                for row in relation_rows
+                if str(row.get("hash", "") or "").strip()
+            ]
+            done, failed, error, done_ids, failed_ids = await self._encode_and_add_rebuild_vectors(
+                items=relation_items,
+                batch_size=safe_batch_size,
+            )
+            stats["relations"] = {"done": done, "failed": failed}
+            if error:
+                errors.append(error)
+
+            conn = self.metadata_store.get_connection()
+            cursor = conn.cursor()
+            now_ts = time.time()
+            for start in range(0, len(done_ids), 500):
+                batch_ids = done_ids[start : start + 500]
+                if not batch_ids:
+                    continue
+                placeholders = ",".join("?" for _ in batch_ids)
+                cursor.execute(
+                    f"""
+                    UPDATE relations
+                    SET vector_state = 'ready',
+                        vector_updated_at = ?,
+                        vector_error = NULL
+                    WHERE hash IN ({placeholders})
+                    """,
+                    (now_ts, *batch_ids),
+                )
+            for start in range(0, len(failed_ids), 500):
+                batch_ids = failed_ids[start : start + 500]
+                if not batch_ids:
+                    continue
+                placeholders = ",".join("?" for _ in batch_ids)
+                cursor.execute(
+                    f"""
+                    UPDATE relations
+                    SET vector_state = 'failed',
+                        vector_updated_at = ?,
+                        vector_error = ?
+                    WHERE hash IN ({placeholders})
+                    """,
+                    (now_ts, error[:500], *batch_ids),
+                )
+            conn.commit()
+
+        self.vector_store.warmup_index(force_train=True)
+        self._runtime_bundle = build_search_runtime(
+            plugin_config=self._build_runtime_config(),
+            logger_obj=logger,
+            owner_tag="sdk_kernel",
+            log_prefix="[sdk]",
+        )
+        if self._runtime_bundle.ready:
+            self.retriever = self._runtime_bundle.retriever
+            self.threshold_filter = self._runtime_bundle.threshold_filter
+            self.sparse_index = self._runtime_bundle.sparse_index or self.sparse_index
+            self._refresh_runtime_dependents(preserve_managers=True)
+            self._apply_runtime_sparse_mode()
+
+        report = await self._refresh_runtime_self_check(sample_text="A_Memorix vector rebuild self check")
+        if bool(report.get("ok", False)) and not errors:
+            self._set_embedding_degraded(active=False, checked_at=float(report.get("checked_at") or time.time()))
+        else:
+            self._set_embedding_degraded(
+                active=True,
+                reason=str(report.get("message") or "; ".join(errors) or "vector_rebuild_incomplete")[:500],
+                checked_at=float(report.get("checked_at") or time.time()),
+            )
+
+        elapsed_ms = (time.time() - started) * 1000.0
+        done_total = sum(int(item["done"]) for item in stats.values())
+        failed_total = sum(int(item["failed"]) for item in stats.values())
+        rebuild_success = failed_total == 0 and bool(report.get("ok", False))
+        if rebuild_success:
+            self._vector_persist_blocked_until_rebuild = False
+            self._vector_rebuild_source_dimension = None
+        self._persist()
+        return {
+            "success": rebuild_success,
+            "dry_run": False,
+            "counts": target_counts,
+            "stats": stats,
+            "total": int(total),
+            "done": int(done_total),
+            "failed": int(failed_total),
+            "errors": errors[:5],
+            "elapsed_ms": elapsed_ms,
+            "self_check": report,
+            **self._vector_rebuild_status(),
+        }
+
     async def _recover_embedding_once(self, *, sample_text: str = "A_Memorix runtime self check") -> Dict[str, Any]:
         report = await self._refresh_runtime_self_check(sample_text=sample_text)
         checked_at = float(report.get("checked_at") or time.time())
@@ -652,11 +1021,7 @@ class SDKMemoryKernel:
         self.metadata_store = MetadataStore(data_dir=self.data_dir / "metadata")
         self.metadata_store.connect()
 
-        vector_store_loaded = False
-        if stored_dimension is not None and self.vector_store.has_data():
-            self.vector_store.load()
-            self.vector_store.warmup_index(force_train=True)
-            vector_store_loaded = True
+        skip_vector_load = False
         if self.graph_store.has_data():
             self.graph_store.load()
 
@@ -679,21 +1044,32 @@ class SDKMemoryKernel:
         self.embedding_dimension = detected_dimension
 
         if stored_dimension is not None and stored_dimension != detected_dimension:
-            raise RuntimeError(
-                self._vector_mismatch_error(
-                    stored_dimension=stored_dimension,
-                    detected_dimension=detected_dimension,
-                )
+            message = self._vector_mismatch_error(
+                stored_dimension=stored_dimension,
+                detected_dimension=detected_dimension,
             )
-
-        if self.vector_store.dimension != detected_dimension:
+            logger.warning(f"{message} 将以空向量库启动，等待手动重建。")
+            self.vector_store = VectorStore(
+                dimension=detected_dimension,
+                quantization_type=QuantizationType.INT8,
+                data_dir=self.data_dir / "vectors",
+            )
+            self._vector_persist_blocked_until_rebuild = True
+            self._vector_rebuild_source_dimension = stored_dimension
+            skip_vector_load = True
+            self._set_embedding_degraded(
+                active=True,
+                reason=message,
+                checked_at=time.time(),
+            )
+        elif self.vector_store.dimension != detected_dimension:
             self.vector_store = VectorStore(
                 dimension=detected_dimension,
                 quantization_type=QuantizationType.INT8,
                 data_dir=self.data_dir / "vectors",
             )
 
-        if not vector_store_loaded and self.vector_store.has_data():
+        if not skip_vector_load and self.vector_store.has_data():
             self.vector_store.load()
             self.vector_store.warmup_index(force_train=True)
 
@@ -719,31 +1095,7 @@ class SDKMemoryKernel:
         self.sparse_index = self._runtime_bundle.sparse_index or self.sparse_index
         self._apply_runtime_sparse_mode()
 
-        runtime_config = self._build_runtime_config()
-        self.episode_retriever = EpisodeRetrievalService(metadata_store=self.metadata_store, retriever=self.retriever)
-        self.aggregate_query_service = AggregateQueryService(plugin_config=runtime_config)
-        self.person_profile_service = PersonProfileService(
-            metadata_store=self.metadata_store,
-            graph_store=self.graph_store,
-            vector_store=self.vector_store,
-            embedding_manager=self.embedding_manager,
-            sparse_index=self.sparse_index,
-            plugin_config=runtime_config,
-            retriever=self.retriever,
-        )
-        self.episode_segmentation_service = EpisodeSegmentationService(plugin_config=runtime_config)
-        self.episode_service = EpisodeService(
-            metadata_store=self.metadata_store,
-            plugin_config=runtime_config,
-            segmentation_service=self.episode_segmentation_service,
-        )
-        self.summary_importer = SummaryImporter(
-            vector_store=self.vector_store,
-            graph_store=self.graph_store,
-            metadata_store=self.metadata_store,
-            embedding_manager=self.embedding_manager,
-            plugin_config=runtime_config,
-        )
+        self._refresh_runtime_dependents(preserve_managers=True)
         self.import_task_manager = ImportTaskManager(self._runtime_facade)
         self.retrieval_tuning_manager = RetrievalTuningManager(
             self._runtime_facade,
@@ -758,7 +1110,7 @@ class SDKMemoryKernel:
                 self._set_embedding_degraded(active=True, reason=message, checked_at=checked_at)
             else:
                 raise RuntimeError(f"{message}；请改回原 embedding 配置，或执行重嵌入/重建向量。")
-        else:
+        elif not self._is_embedding_degraded():
             self._set_embedding_degraded(active=False, checked_at=float(report.get("checked_at") or time.time()))
 
         self._initialized = True
@@ -830,17 +1182,36 @@ class SDKMemoryKernel:
     ) -> Dict[str, Any]:
         await self.initialize()
         assert self.summary_importer
-        success, detail = await self.summary_importer.import_from_stream(
+        import_result = await self.summary_importer.import_from_stream(
             stream_id=str(chat_id or "").strip(),
             context_length=context_length,
             include_personality=include_personality,
             time_end=time_end,
             metadata=metadata,
         )
+        success = bool(getattr(import_result, "success", False))
+        detail = str(getattr(import_result, "detail", "") or "")
+        paragraph_hash = str(getattr(import_result, "paragraph_hash", "") or "").strip()
+        source = (
+            str(getattr(import_result, "source", "") or "").strip()
+            or self._build_source("chat_summary", chat_id, [])
+        )
+        stored_ids: List[str] = []
+        episode_pending_ids: List[str] = []
         if success:
-            await self.rebuild_episodes_for_sources([self._build_source("chat_summary", chat_id, [])])
+            if not paragraph_hash:
+                raise RuntimeError("聊天摘要导入成功但未返回 paragraph_hash，无法执行 Episode 增量入队")
+            assert self.metadata_store is not None
+            self.metadata_store.enqueue_episode_pending(paragraph_hash, source=source)
+            stored_ids.append(paragraph_hash)
+            episode_pending_ids.append(paragraph_hash)
             self._persist()
-        return {"success": bool(success), "detail": detail}
+        payload = {"success": success, "detail": detail}
+        if stored_ids:
+            payload["stored_ids"] = stored_ids
+        if episode_pending_ids:
+            payload["episode_pending_ids"] = episode_pending_ids
+        return payload
 
     async def ingest_summary(
         self,
@@ -871,7 +1242,7 @@ class SDKMemoryKernel:
                 "detail": "chat_filtered",
             }
 
-        summary_meta = dict(metadata or {})
+        summary_meta = coerce_metadata_dict(metadata)
         summary_meta.setdefault("kind", "chat_summary")
         if not str(text or "").strip() or bool(summary_meta.get("generate_from_chat", False)):
             result = await self.summarize_chat_stream(
@@ -961,7 +1332,7 @@ class SDKMemoryKernel:
         participant_tokens = self._tokens(participants)
         entity_tokens = self._merge_tokens(entities, person_tokens, participant_tokens)
         source = self._build_source(source_type, chat_id, person_tokens)
-        paragraph_meta = dict(metadata or {})
+        paragraph_meta = coerce_metadata_dict(metadata)
         paragraph_meta.update(
             {
                 "external_id": external_token,
@@ -1021,7 +1392,7 @@ class SDKMemoryKernel:
         self.metadata_store.enqueue_episode_pending(paragraph_hash, source=source)
         self._persist()
         await self.process_episode_pending_batch(
-            limit=max(1, int(self._cfg("episode.pending_batch_size", 12))),
+            limit=max(1, int(self._cfg("episode.pending_batch_size", 50))),
             max_retry=max(1, int(self._cfg("episode.pending_max_retry", 3))),
         )
         for person_id in person_tokens:
@@ -1595,20 +1966,24 @@ class SDKMemoryKernel:
 
         if act == "delete":
             source = str(kwargs.get("source", "") or "").strip()
-            return await self._execute_delete_action(
+            result = await self._execute_delete_action(
                 mode="source",
                 selector={"sources": [source]},
                 requested_by=str(kwargs.get("requested_by", "") or "memory_source_admin"),
                 reason=str(kwargs.get("reason", "") or "source_delete"),
             )
+            await self._invalidate_import_manifest_for_sources(result)
+            return result
 
         if act == "batch_delete":
-            return await self._execute_delete_action(
+            result = await self._execute_delete_action(
                 mode="source",
                 selector={"sources": list(kwargs.get("sources") or [])},
                 requested_by=str(kwargs.get("requested_by", "") or "memory_source_admin"),
                 reason=str(kwargs.get("reason", "") or "source_batch_delete"),
             )
+            await self._invalidate_import_manifest_for_sources(result)
+            return result
 
         return {"success": False, "error": f"不支持的 source action: {act}"}
 
@@ -1689,6 +2064,26 @@ class SDKMemoryKernel:
                 source_note="sdk_memory_kernel.memory_profile_admin.query",
             )
             return profile if isinstance(profile, dict) else {"success": False, "error": "invalid profile payload"}
+
+        if act == "evidence":
+            return await self._profile_evidence_admin(
+                person_id=str(kwargs.get("person_id", "") or "").strip(),
+                person_keyword=str(kwargs.get("person_keyword", "") or kwargs.get("keyword", "") or "").strip(),
+                limit=max(1, int(kwargs.get("limit", kwargs.get("top_k", 12)) or 12)),
+                force_refresh=bool(kwargs.get("force_refresh", False)),
+            )
+
+        if act == "correct_evidence":
+            return await self._profile_correct_evidence_admin(
+                person_id=str(kwargs.get("person_id", "") or "").strip(),
+                person_keyword=str(kwargs.get("person_keyword", "") or kwargs.get("keyword", "") or "").strip(),
+                evidence_type=str(kwargs.get("evidence_type", "") or "").strip(),
+                hash_value=str(kwargs.get("hash", "") or kwargs.get("hash_value", "") or "").strip(),
+                requested_by=str(kwargs.get("requested_by", "") or "webui").strip(),
+                reason=str(kwargs.get("reason", "") or "profile_evidence_correction").strip(),
+                refresh=bool(kwargs.get("refresh", True)),
+                limit=max(1, int(kwargs.get("limit", kwargs.get("top_k", 12)) or 12)),
+            )
 
         if act == "status":
             summary = self.metadata_store.get_person_profile_refresh_summary(
@@ -1799,11 +2194,15 @@ class SDKMemoryKernel:
         if act == "get_config":
             degraded = self._embedding_degraded_snapshot()
             backfill_counts = self._paragraph_vector_backfill_counts()
+            rebuild_status = self._vector_rebuild_status()
             return {
                 "success": True,
                 "config": self.config,
                 "data_dir": str(self.data_dir),
                 "embedding_dimension": int(self.embedding_dimension),
+                "stored_vector_dimension": int(rebuild_status["stored_vector_dimension"]),
+                "vector_rebuild_required": bool(rebuild_status["vector_rebuild_required"]),
+                "vector_rebuild_message": str(rebuild_status["message"]),
                 "auto_save": bool(self._cfg("advanced.enable_auto_save", True)),
                 "relation_vectors_enabled": bool(self.relation_vectors_enabled),
                 "runtime_ready": self.is_runtime_ready(),
@@ -1843,6 +2242,17 @@ class SDKMemoryKernel:
             )
             result["embedding_degraded"] = self._is_embedding_degraded()
             result["embedding_state"] = self._embedding_degraded_snapshot()
+            result["backfill_counts"] = self._paragraph_vector_backfill_counts()
+            return result
+
+        if act == "rebuild_all_vectors":
+            include_relations = kwargs.get("include_relations")
+            result = await self._rebuild_all_vectors(
+                batch_size=self._optional_int(kwargs.get("batch_size")),
+                include_relations=include_relations if isinstance(include_relations, bool) else None,
+                dry_run=bool(kwargs.get("dry_run", False)),
+            )
+            result["embedding_degraded"] = self._is_embedding_degraded()
             result["backfill_counts"] = self._paragraph_vector_backfill_counts()
             return result
 
@@ -2055,12 +2465,14 @@ class SDKMemoryKernel:
         if act == "preview":
             return await self._preview_delete_action(mode=mode, selector=selector)
         if act == "execute":
-            return await self._execute_delete_action(
+            result = await self._execute_delete_action(
                 mode=mode,
                 selector=selector,
                 requested_by=requested_by,
                 reason=reason,
             )
+            await self._invalidate_import_manifest_for_sources(result)
+            return result
         if act == "restore":
             return await self._restore_delete_action(
                 mode=mode,
@@ -2164,7 +2576,10 @@ class SDKMemoryKernel:
 
     def _persist(self) -> None:
         if self.vector_store is not None:
-            self.vector_store.save()
+            if self._vector_persist_blocked_until_rebuild:
+                logger.debug("检测到向量维度不匹配且尚未重建，跳过向量库持久化以保留重建提示")
+            else:
+                self.vector_store.save()
         if self.graph_store is not None:
             self.graph_store.save()
         if self.sparse_index is not None and getattr(self.sparse_index.config, "enabled", False):
@@ -2232,7 +2647,7 @@ class SDKMemoryKernel:
                 if not bool(self._cfg("episode.generation_enabled", True)):
                     continue
                 await self.process_episode_pending_batch(
-                    limit=max(1, int(self._cfg("episode.pending_batch_size", 20) or 20)),
+                    limit=max(1, int(self._cfg("episode.pending_batch_size", 50) or 50)),
                     max_retry=max(1, int(self._cfg("episode.pending_max_retry", 3) or 3)),
                 )
         except asyncio.CancelledError:
@@ -3020,80 +3435,80 @@ class SDKMemoryKernel:
 
     @staticmethod
     def _feedback_cfg_enabled() -> bool:
-        memory_cfg = getattr(global_config, "memory", None)
+        memory_cfg = global_config.a_memorix.integration
         return bool(getattr(memory_cfg, "feedback_correction_enabled", False))
 
     @staticmethod
     def _feedback_cfg_window_hours() -> float:
-        memory_cfg = getattr(global_config, "memory", None)
+        memory_cfg = global_config.a_memorix.integration
         return max(0.1, float(getattr(memory_cfg, "feedback_correction_window_hours", 12.0) or 12.0))
 
     @staticmethod
     def _feedback_cfg_check_interval_seconds() -> float:
-        memory_cfg = getattr(global_config, "memory", None)
+        memory_cfg = global_config.a_memorix.integration
         minutes = max(1, int(getattr(memory_cfg, "feedback_correction_check_interval_minutes", 30) or 30))
         return float(minutes) * 60.0
 
     @staticmethod
     def _feedback_cfg_batch_size() -> int:
-        memory_cfg = getattr(global_config, "memory", None)
+        memory_cfg = global_config.a_memorix.integration
         return max(1, int(getattr(memory_cfg, "feedback_correction_batch_size", 20) or 20))
 
     @staticmethod
     def _feedback_cfg_auto_apply_threshold() -> float:
-        memory_cfg = getattr(global_config, "memory", None)
+        memory_cfg = global_config.a_memorix.integration
         value = float(getattr(memory_cfg, "feedback_correction_auto_apply_threshold", 0.85) or 0.85)
         return min(1.0, max(0.0, value))
 
     @staticmethod
     def _feedback_cfg_max_messages() -> int:
-        memory_cfg = getattr(global_config, "memory", None)
+        memory_cfg = global_config.a_memorix.integration
         return max(1, int(getattr(memory_cfg, "feedback_correction_max_feedback_messages", 30) or 30))
 
     @staticmethod
     def _feedback_cfg_prefilter_enabled() -> bool:
-        memory_cfg = getattr(global_config, "memory", None)
+        memory_cfg = global_config.a_memorix.integration
         return bool(getattr(memory_cfg, "feedback_correction_prefilter_enabled", True))
 
     @staticmethod
     def _feedback_cfg_paragraph_mark_enabled() -> bool:
-        memory_cfg = getattr(global_config, "memory", None)
+        memory_cfg = global_config.a_memorix.integration
         return bool(getattr(memory_cfg, "feedback_correction_paragraph_mark_enabled", True))
 
     @staticmethod
     def _feedback_cfg_paragraph_hard_filter_enabled() -> bool:
-        memory_cfg = getattr(global_config, "memory", None)
+        memory_cfg = global_config.a_memorix.integration
         return bool(getattr(memory_cfg, "feedback_correction_paragraph_hard_filter_enabled", True))
 
     @staticmethod
     def _feedback_cfg_profile_refresh_enabled() -> bool:
-        memory_cfg = getattr(global_config, "memory", None)
+        memory_cfg = global_config.a_memorix.integration
         return bool(getattr(memory_cfg, "feedback_correction_profile_refresh_enabled", True))
 
     @staticmethod
     def _feedback_cfg_profile_force_refresh_on_read() -> bool:
-        memory_cfg = getattr(global_config, "memory", None)
+        memory_cfg = global_config.a_memorix.integration
         return bool(getattr(memory_cfg, "feedback_correction_profile_force_refresh_on_read", True))
 
     @staticmethod
     def _feedback_cfg_episode_rebuild_enabled() -> bool:
-        memory_cfg = getattr(global_config, "memory", None)
+        memory_cfg = global_config.a_memorix.integration
         return bool(getattr(memory_cfg, "feedback_correction_episode_rebuild_enabled", True))
 
     @staticmethod
     def _feedback_cfg_episode_query_block_enabled() -> bool:
-        memory_cfg = getattr(global_config, "memory", None)
+        memory_cfg = global_config.a_memorix.integration
         return bool(getattr(memory_cfg, "feedback_correction_episode_query_block_enabled", True))
 
     @staticmethod
     def _feedback_cfg_reconcile_interval_seconds() -> float:
-        memory_cfg = getattr(global_config, "memory", None)
+        memory_cfg = global_config.a_memorix.integration
         minutes = max(1, int(getattr(memory_cfg, "feedback_correction_reconcile_interval_minutes", 5) or 5))
         return float(minutes) * 60.0
 
     @staticmethod
     def _feedback_cfg_reconcile_batch_size() -> int:
-        memory_cfg = getattr(global_config, "memory", None)
+        memory_cfg = global_config.a_memorix.integration
         return max(1, int(getattr(memory_cfg, "feedback_correction_reconcile_batch_size", 20) or 20))
 
     @classmethod
@@ -3139,9 +3554,7 @@ class SDKMemoryKernel:
             return {"success": False, "queued": False, "reason": "db_save_failed"}
 
         logger.debug(
-            "反馈纠错任务入队: query_tool_id=%s due_at=%s",
-            clean_tool_id,
-            due_at.isoformat(),
+            f"反馈纠错任务入队: query_tool_id={clean_tool_id} due_at={due_at.isoformat()}",
         )
         return {
             "success": True,
@@ -5513,6 +5926,259 @@ class SDKMemoryKernel:
         return {"restored_hashes": restored, "restored_count": len(restored), "failures": failures}
 
     @staticmethod
+    def _profile_evidence_type_from_source(source: str, metadata: Optional[Dict[str, Any]] = None) -> str:
+        meta = metadata if isinstance(metadata, dict) else {}
+        source_type = str(meta.get("source_type", "") or "").strip()
+        if source_type in {"person_fact", "chat_summary"}:
+            return source_type
+        token = str(source or meta.get("source", "") or "").strip()
+        if token.startswith("person_fact:"):
+            return "person_fact"
+        if token.startswith("chat_summary:"):
+            return "chat_summary"
+        return "paragraph"
+
+    @staticmethod
+    def _profile_relation_content(relation: Dict[str, Any]) -> str:
+        subject = str(relation.get("subject", "") or "").strip()
+        predicate = str(relation.get("predicate", "") or "").strip()
+        obj = str(relation.get("object", "") or "").strip()
+        if subject and predicate and obj:
+            return f"{subject} -[{predicate}]-> {obj}"
+        return " ".join(item for item in (subject, predicate, obj) if item).strip()
+
+    def _build_profile_relation_evidence_item(self, relation: Dict[str, Any], *, index: int) -> Dict[str, Any]:
+        relation_hash = str(relation.get("hash", "") or "").strip()
+        metadata = coerce_metadata_dict(relation.get("metadata"))
+        return {
+            "evidence_key": f"relation:{relation_hash or index}",
+            "evidence_type": "relation",
+            "hash": relation_hash,
+            "content": self._profile_relation_content(relation),
+            "source": str(relation.get("source_paragraph", "") or metadata.get("source", "") or "").strip(),
+            "source_type": "relation",
+            "metadata": metadata,
+            "score": None,
+            "confidence": relation.get("confidence"),
+            "correction_mode": "delete_relation",
+            "deletable": bool(relation_hash),
+            "not_deletable_reason": "" if relation_hash else "缺少关系 hash",
+            "raw": relation,
+        }
+
+    def _build_profile_paragraph_evidence_item(
+        self,
+        item: Dict[str, Any],
+        *,
+        index: int,
+        fallback_hash: str = "",
+    ) -> Dict[str, Any]:
+        hash_value = str(item.get("hash", "") or fallback_hash or "").strip()
+        metadata = coerce_metadata_dict(item.get("metadata"))
+        source = str(item.get("source", "") or metadata.get("source", "") or "").strip()
+        content = str(item.get("content", "") or "").strip()
+        source_type = self._profile_evidence_type_from_source(source, metadata)
+        is_deleted = False
+        if hash_value:
+            try:
+                paragraph = self.metadata_store.get_paragraph(hash_value) if self.metadata_store else None
+            except Exception:
+                paragraph = None
+            if isinstance(paragraph, dict):
+                paragraph_metadata = coerce_metadata_dict(paragraph.get("metadata"))
+                metadata = {**paragraph_metadata, **metadata}
+                source = source or str(paragraph.get("source", "") or "").strip()
+                content = content or str(paragraph.get("content", "") or "").strip()
+                source_type = self._profile_evidence_type_from_source(source, metadata)
+                is_deleted = bool(paragraph.get("is_deleted", 0))
+        return {
+            "evidence_key": f"{source_type}:{hash_value or index}",
+            "evidence_type": source_type,
+            "hash": hash_value,
+            "content": self._trim_text(content, 260),
+            "source": source,
+            "source_type": source_type,
+            "metadata": metadata,
+            "score": item.get("score"),
+            "confidence": None,
+            "correction_mode": "delete_paragraph",
+            "deletable": bool(hash_value) and not is_deleted,
+            "not_deletable_reason": "" if hash_value and not is_deleted else ("证据已删除" if is_deleted else "缺少段落 hash"),
+            "raw": item,
+        }
+
+    def _build_profile_evidence_items(self, profile: Dict[str, Any]) -> List[Dict[str, Any]]:
+        assert self.metadata_store is not None
+        evidence: List[Dict[str, Any]] = []
+        seen: set[tuple[str, str]] = set()
+
+        def append(item: Dict[str, Any]) -> None:
+            evidence_type = str(item.get("evidence_type", "") or "").strip()
+            hash_value = str(item.get("hash", "") or "").strip()
+            key = (evidence_type, hash_value or str(item.get("evidence_key", "") or ""))
+            if not key[0] or key in seen:
+                return
+            seen.add(key)
+            evidence.append(item)
+
+        for index, relation in enumerate(profile.get("relation_edges") or [], start=1):
+            if isinstance(relation, dict):
+                append(self._build_profile_relation_evidence_item(relation, index=index))
+
+        for index, item in enumerate(profile.get("vector_evidence") or [], start=1):
+            if isinstance(item, dict):
+                append(self._build_profile_paragraph_evidence_item(item, index=index))
+
+        for index, hash_value in enumerate(self._tokens(profile.get("evidence_ids")), start=1):
+            if any(str(item.get("hash", "") or "").strip() == hash_value for item in evidence):
+                continue
+            paragraph = self.metadata_store.get_paragraph(hash_value)
+            if isinstance(paragraph, dict):
+                append(
+                    self._build_profile_paragraph_evidence_item(
+                        {
+                            "hash": hash_value,
+                            "content": str(paragraph.get("content", "") or ""),
+                            "source": str(paragraph.get("source", "") or ""),
+                            "metadata": coerce_metadata_dict(paragraph.get("metadata")),
+                        },
+                        index=index,
+                    )
+                )
+                continue
+            relation = self.metadata_store.get_relation(hash_value)
+            if isinstance(relation, dict):
+                append(self._build_profile_relation_evidence_item(relation, index=index))
+
+        return evidence
+
+    def _profile_evidence_response(self, profile: Dict[str, Any], *, requested_person_id: str, limit: int) -> Dict[str, Any]:
+        if not bool(profile.get("success")):
+            return {
+                "success": False,
+                "error": str(profile.get("error", "") or "人物画像查询失败"),
+                "person_id": str(profile.get("person_id", "") or requested_person_id),
+                "evidence": [],
+            }
+        evidence = self._build_profile_evidence_items(profile)
+        return {
+            "success": True,
+            "person_id": str(profile.get("person_id", "") or requested_person_id),
+            "person_name": str(profile.get("person_name", "") or ""),
+            "profile_text": str(profile.get("profile_text", "") or ""),
+            "auto_profile_text": str(profile.get("auto_profile_text", "") or profile.get("profile_text", "") or ""),
+            "profile_version": profile.get("profile_version"),
+            "updated_at": profile.get("updated_at"),
+            "expires_at": profile.get("expires_at"),
+            "profile_source": str(profile.get("profile_source", "") or "auto_snapshot"),
+            "has_manual_override": bool(profile.get("has_manual_override", False)),
+            "manual_override_text": str(profile.get("manual_override_text", "") or ""),
+            "evidence": evidence[: max(1, int(limit or 12))],
+            "evidence_count": len(evidence),
+            "raw_profile": profile,
+        }
+
+    async def _profile_evidence_admin(
+        self,
+        *,
+        person_id: str = "",
+        person_keyword: str = "",
+        limit: int = 12,
+        force_refresh: bool = False,
+    ) -> Dict[str, Any]:
+        profile = await self._query_person_profile_with_feedback_refresh(
+            person_id=person_id,
+            person_keyword=person_keyword,
+            limit=max(1, int(limit or 12)),
+            force_refresh=force_refresh,
+            source_note="sdk_memory_kernel.memory_profile_admin.evidence",
+        )
+        requested_person_id = str(profile.get("person_id", "") or person_id or "").strip() if isinstance(profile, dict) else person_id
+        return self._profile_evidence_response(profile if isinstance(profile, dict) else {}, requested_person_id=requested_person_id, limit=limit)
+
+    async def _profile_correct_evidence_admin(
+        self,
+        *,
+        person_id: str = "",
+        person_keyword: str = "",
+        evidence_type: str,
+        hash_value: str,
+        requested_by: str = "webui",
+        reason: str = "profile_evidence_correction",
+        refresh: bool = True,
+        limit: int = 12,
+    ) -> Dict[str, Any]:
+        normalized_type = str(evidence_type or "").strip().lower()
+        normalized_hash = str(hash_value or "").strip()
+        if normalized_type not in {"relation", "paragraph", "person_fact", "chat_summary"}:
+            return {"success": False, "error": "不支持的画像证据类型"}
+        if not normalized_hash:
+            return {"success": False, "error": "画像证据 hash 不能为空"}
+
+        evidence_payload = await self._profile_evidence_admin(
+            person_id=person_id,
+            person_keyword=person_keyword,
+            limit=max(50, int(limit or 12)),
+            force_refresh=False,
+        )
+        if not bool(evidence_payload.get("success")):
+            return evidence_payload
+        matched = None
+        for item in evidence_payload.get("evidence") or []:
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("hash", "") or "").strip() != normalized_hash:
+                continue
+            item_type = str(item.get("evidence_type", "") or "").strip().lower()
+            if normalized_type == item_type or (normalized_type == "paragraph" and item_type in {"person_fact", "chat_summary"}):
+                matched = item
+                break
+        if matched is None:
+            return {"success": False, "error": "当前画像证据中未找到目标 hash"}
+        if not bool(matched.get("deletable", False)):
+            return {
+                "success": False,
+                "error": str(matched.get("not_deletable_reason", "") or "该画像证据不可纠错"),
+                "evidence": matched,
+            }
+
+        delete_mode = "relation" if normalized_type == "relation" else "paragraph"
+        delete_result = await self._execute_delete_action(
+            mode=delete_mode,
+            selector={"hashes": [normalized_hash]},
+            requested_by=requested_by or "webui",
+            reason=reason or "profile_evidence_correction",
+        )
+        if bool(delete_result.get("success")):
+            await self._invalidate_import_manifest_for_sources(delete_result)
+
+        refreshed_profile: Dict[str, Any] = {}
+        refreshed_evidence: Dict[str, Any] = {}
+        if refresh and bool(delete_result.get("success")):
+            refreshed_profile = await self.person_profile_service.query_person_profile(
+                person_id=str(evidence_payload.get("person_id", "") or person_id),
+                top_k=max(4, int(limit or 12)),
+                force_refresh=True,
+                source_note="sdk_memory_kernel.memory_profile_admin.correct_evidence",
+            )
+            refreshed_evidence = self._profile_evidence_response(
+                refreshed_profile if isinstance(refreshed_profile, dict) else {},
+                requested_person_id=str(evidence_payload.get("person_id", "") or person_id),
+                limit=limit,
+            )
+
+        return {
+            "success": bool(delete_result.get("success")),
+            "person_id": str(evidence_payload.get("person_id", "") or person_id),
+            "evidence": matched,
+            "delete_result": delete_result,
+            "operation_id": str(delete_result.get("operation_id", "") or ""),
+            "refreshed_profile": refreshed_profile,
+            "refreshed_evidence": refreshed_evidence,
+            "error": str(delete_result.get("error", "") or ""),
+        }
+
+    @staticmethod
     def _selector_dict(selector: Any) -> Dict[str, Any]:
         if isinstance(selector, dict):
             return dict(selector)
@@ -6125,6 +6791,23 @@ class SDKMemoryKernel:
             conn.rollback()
             logger.warning(f"delete_admin execute 失败: {exc}")
             return self._build_standard_delete_result(mode=act_mode, error=str(exc))
+
+    async def _invalidate_import_manifest_for_sources(self, result: Dict[str, Any]) -> None:
+        if not isinstance(result, dict) or not result.get("success"):
+            return
+        manager = self.import_task_manager
+        if manager is None:
+            return
+        sources = self._tokens(result.get("sources"))
+        if not sources:
+            return
+        try:
+            manifest_result = await manager.invalidate_manifest_for_sources(sources)
+        except Exception as exc:
+            logger.warning(f"删除来源后清理导入清单失败: sources={sources}, err={exc}")
+            result["manifest_invalidation"] = {"success": False, "error": str(exc), "sources": sources}
+            return
+        result["manifest_invalidation"] = manifest_result
 
     async def _restore_delete_action(
         self,

@@ -36,7 +36,9 @@ export interface ModelSetupConfig {
   planner_model_name: string
   planner_model_identifier: string
   planner_visual: boolean
+  planner_thinking: boolean
   replyer_model_name: string
   replyer_model_identifier: string
   replyer_visual: boolean
+  replyer_thinking: boolean
 }

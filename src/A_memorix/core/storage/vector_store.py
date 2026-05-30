@@ -108,7 +108,7 @@ class VectorStore:
         # Thread safety lock
         self._lock = threading.RLock()
 
-        logger.info(f"VectorStore Init: dim={dimension}, SQ8 Mode, Append-Only Storage")
+        logger.info(f"向量存储初始化: dim={dimension}, mode=SQ8")
 
     def _init_index(self):
         """初始化空的 Faiss 索引"""
@@ -379,7 +379,7 @@ class VectorStore:
             预热状态摘要
         """
         started = time.perf_counter()
-        logger.info(f"metric.vector_index_prewarm_started=1 force_train={bool(force_train)}")
+        logger.debug(f"metric.vector_index_prewarm_started=1 force_train={bool(force_train)}")
 
         try:
             with self._lock:
@@ -435,7 +435,7 @@ class VectorStore:
             )
             return summary
 
-        logger.info(
+        logger.debug(
             "metric.vector_index_prewarm_success=1 "
             f"metric.vector_index_prewarm_duration_ms={summary['duration_ms']:.2f} "
             f"trained={summary['trained']} "

@@ -3,7 +3,6 @@
  */
 import React from 'react'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Pencil, Trash2 } from 'lucide-react'
 import type { ModelInfo } from '../types'
 
@@ -49,17 +48,15 @@ export const ModelCardList = React.memo(function ModelCardList({
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
                   <h3 className="font-semibold text-base">{model.name}</h3>
-                  <Badge 
-                    variant={used ? "default" : "secondary"}
-                    className={used ? "bg-green-600 hover:bg-green-700" : ""}
-                  >
-                    {used ? '已使用' : '未使用'}
-                  </Badge>
-                  {model.visual && (
-                    <Badge variant="outline" className="border-blue-500 text-blue-600">
-                      视觉
-                    </Badge>
-                  )}
+                  <span
+                    className={`block h-3 w-3 shrink-0 rounded-full border ${
+                      used
+                        ? 'border-green-500 bg-green-500 shadow-[0_0_0_3px_rgba(34,197,94,0.18)]'
+                        : 'border-green-700/40 bg-green-950/20'
+                    }`}
+                    title={used ? '已使用' : '未使用'}
+                    aria-label={used ? '已使用' : '未使用'}
+                  />
                 </div>
                 <p className="text-xs text-muted-foreground break-all" title={model.model_identifier}>
                   {model.model_identifier}
@@ -90,8 +87,18 @@ export const ModelCardList = React.memo(function ModelCardList({
                 <p className="font-medium">{model.api_provider}</p>
               </div>
               <div>
-                <span className="text-muted-foreground text-xs">模型温度</span>
-                <p className="font-medium">{model.temperature != null ? model.temperature : <span className="text-muted-foreground">默认</span>}</p>
+                <span className="text-muted-foreground text-xs">视觉</span>
+                <p className="flex h-5 items-center">
+                  <span
+                    className={`block h-3 w-3 rounded-full border ${
+                      model.visual
+                        ? 'border-green-500 bg-green-500 shadow-[0_0_0_3px_rgba(34,197,94,0.18)]'
+                        : 'border-green-700/40 bg-green-950/20'
+                    }`}
+                    title={model.visual ? '已启用视觉' : '未启用视觉'}
+                    aria-label={model.visual ? '已启用视觉' : '未启用视觉'}
+                  />
+                </p>
               </div>
               <div>
                 <span className="text-muted-foreground text-xs">输入价格</span>

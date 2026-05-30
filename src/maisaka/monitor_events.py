@@ -367,6 +367,47 @@ async def emit_session_start(
     })
 
 
+async def emit_stage_status(
+    *,
+    session_id: str,
+    session_name: str,
+    stage: str,
+    detail: str = "",
+    round_text: str = "",
+    agent_state: str = "",
+    stage_started_at: float,
+    updated_at: float,
+    timestamp: float,
+) -> None:
+    """广播单个聊天流的当前阶段状态。"""
+
+    await _broadcast("stage.status", {
+        "session_id": session_id,
+        "session_name": session_name,
+        "stage": stage,
+        "detail": detail,
+        "round_text": round_text,
+        "agent_state": agent_state,
+        "stage_started_at": stage_started_at,
+        "updated_at": updated_at,
+        "timestamp": timestamp,
+    })
+
+
+async def emit_stage_removed(
+    *,
+    session_id: str,
+    session_name: str = "",
+) -> None:
+    """广播聊天流阶段状态移除事件。"""
+
+    await _broadcast("stage.removed", {
+        "session_id": session_id,
+        "session_name": session_name,
+        "timestamp": time.time(),
+    })
+
+
 async def emit_message_ingested(
     session_id: str,
     speaker_name: str,
@@ -381,6 +422,26 @@ async def emit_message_ingested(
         "speaker_name": speaker_name,
         "content": content,
         "message_id": message_id,
+        "timestamp": timestamp,
+    })
+
+
+async def emit_message_sent(
+    session_id: str,
+    speaker_name: str,
+    content: str,
+    message_id: str,
+    timestamp: float,
+    source_kind: str = "",
+) -> None:
+    """广播 MaiSaka 自己发送的消息事件。"""
+
+    await _broadcast("message.sent", {
+        "session_id": session_id,
+        "speaker_name": speaker_name,
+        "content": content,
+        "message_id": message_id,
+        "source_kind": source_kind,
         "timestamp": timestamp,
     })
 
@@ -400,6 +461,27 @@ async def emit_cycle_start(
         "round_index": round_index,
         "max_rounds": max_rounds,
         "history_count": history_count,
+        "timestamp": time.time(),
+    })
+
+
+async def emit_cycle_end(
+    session_id: str,
+    cycle_id: int,
+    time_records: Dict[str, float],
+    agent_state: str,
+    end_reason: str,
+    end_detail: str,
+) -> None:
+    """广播单个推理循环结束事件。"""
+
+    await _broadcast("cycle.end", {
+        "session_id": session_id,
+        "cycle_id": cycle_id,
+        "time_records": _normalize_payload_value(time_records),
+        "agent_state": agent_state,
+        "end_reason": end_reason,
+        "end_detail": end_detail,
         "timestamp": time.time(),
     })
 
@@ -455,10 +537,13 @@ async def emit_planner_finalized(
     planner_completion_tokens: Optional[int],
     planner_total_tokens: Optional[int],
     planner_duration_ms: Optional[float],
-    planner_prompt_html_uri: Optional[str],
-    tools: Optional[List[Dict[str, Any]]],
-    time_records: Dict[str, float],
-    agent_state: str,
+    planner_prompt_html_uri: Optional[str] = None,
+    tools: Optional[List[Dict[str, Any]]] = None,
+    time_records: Optional[Dict[str, float]] = None,
+    agent_state: str = "",
+    planner_interrupted: bool = False,
+    end_reason: str = "",
+    end_detail: str = "",
 ) -> None:
     """广播一轮 planner 结束后的最终聚合事件。"""
 
@@ -494,8 +579,11 @@ async def emit_planner_finalized(
             planner_prompt_html_uri,
         ),
         "tools": _serialize_tool_results(list(tools or [])),
+        "interrupted": planner_interrupted,
         "final_state": {
-            "time_records": _normalize_payload_value(time_records),
+            "time_records": _normalize_payload_value(time_records or {}),
             "agent_state": agent_state,
+            "end_reason": end_reason,
+            "end_detail": end_detail,
         },
     })

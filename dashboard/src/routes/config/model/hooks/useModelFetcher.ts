@@ -51,7 +51,7 @@ export function useModelFetcher(options: UseModelFetcherOptions): UseModelFetche
     if (!config?.base_url) {
       setAvailableModels([])
       setMatchedTemplate(null)
-      setModelFetchError('提供商配置不完整，请先在"模型提供商配置"中配置')
+      setModelFetchError('提供商配置不完整，请先在"模型厂商设置"中配置')
       return
     }
 
@@ -59,7 +59,7 @@ export function useModelFetcher(options: UseModelFetcherOptions): UseModelFetche
     if (!config.api_key) {
       setAvailableModels([])
       setMatchedTemplate(null)
-      setModelFetchError('该提供商未配置 API Key，请先在"模型提供商配置"中填写')
+      setModelFetchError('该提供商未配置 API Key，请先在"模型厂商设置"中填写')
       return
     }
 
@@ -105,7 +105,7 @@ export function useModelFetcher(options: UseModelFetcherOptions): UseModelFetche
       const errorMessage = (error as Error).message || '获取模型列表失败'
       // 根据错误类型提供更友好的提示
       if (errorMessage.includes('无效') || errorMessage.includes('过期') || errorMessage.includes('API Key')) {
-        setModelFetchError('API Key 无效或已过期，请检查"模型提供商配置"中的密钥')
+        setModelFetchError('API Key 无效或已过期，请检查"模型厂商设置"中的密钥')
       } else if (errorMessage.includes('权限')) {
         setModelFetchError('没有权限获取模型列表，请检查 API Key 权限')
       } else if (errorMessage.includes('timeout') || errorMessage.includes('超时')) {

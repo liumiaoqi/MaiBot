@@ -63,7 +63,10 @@ export default function CodeEditorImpl({
   const effectiveTheme = theme ?? resolvedTheme
 
   return (
-    <div className={`custom-scrollbar overflow-hidden rounded-md border ${className}`}>
+    <div
+      data-dashboard-code-editor="true"
+      className={`custom-scrollbar overflow-hidden rounded-md border ${className}`}
+    >
       <CodeMirror
         value={value}
         height={height}

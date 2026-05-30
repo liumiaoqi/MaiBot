@@ -28,6 +28,11 @@ _ws_handler = None
 _logging_initialized = False
 _cleanup_task_started = False
 
+DEFAULT_LIBRARY_LOG_LEVELS: dict[str, str] = {
+    "aiohttp": "WARNING",
+    "PIL": "WARNING",
+}
+
 
 def get_file_handler():
     """获取文件handler单例"""
@@ -321,7 +326,7 @@ def load_log_config():  # sourcery skip: use-contextlib-suppress
             "uvicorn",
             "jieba",
         ],
-        "library_log_levels": {"aiohttp": "WARNING"},
+        "library_log_levels": DEFAULT_LIBRARY_LOG_LEVELS.copy(),
     }
 
     try:
@@ -335,6 +340,15 @@ def load_log_config():  # sourcery skip: use-contextlib-suppress
 
 
 LOG_CONFIG = load_log_config()
+
+
+def get_library_log_levels() -> dict[str, str]:
+    """获取第三方库日志级别，并补齐内置噪声库的默认限制。"""
+    library_log_levels = DEFAULT_LIBRARY_LOG_LEVELS.copy()
+    configured_levels = LOG_CONFIG.get("library_log_levels", {})
+    if hasattr(configured_levels, "items"):
+        library_log_levels.update(dict(configured_levels.items()))
+    return library_log_levels
 
 
 def get_timestamp_format():
@@ -379,7 +393,7 @@ def configure_third_party_loggers():
         lib_logger.propagate = False  # 阻止向上传播
 
     # 设置特定级别的库
-    library_log_levels = LOG_CONFIG.get("library_log_levels", {})
+    library_log_levels = get_library_log_levels()
     for lib_name, level_name in library_log_levels.items():
         lib_logger = logging.getLogger(lib_name)
         level = getattr(logging, level_name.upper(), logging.WARNING)
@@ -404,7 +418,7 @@ def reconfigure_existing_loggers():
         if isinstance(logger_obj, logging.Logger):
             # 检查是否是第三方库logger
             suppress_libraries = LOG_CONFIG.get("suppress_libraries", [])
-            library_log_levels = LOG_CONFIG.get("library_log_levels", {})
+            library_log_levels = get_library_log_levels()
 
             # 如果在屏蔽列表中
             if any(name.startswith(lib) for lib in suppress_libraries):
