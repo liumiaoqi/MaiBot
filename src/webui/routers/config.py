@@ -42,6 +42,7 @@ from src.config.official_configs import (
     ResponseSplitterConfig,
     TelemetryConfig,
     VoiceConfig,
+    WebUIConfig,
 )
 from src.llm_models.utils_model import LLMOrchestrator
 from src.webui.config_schema import ConfigSchemaGenerator
@@ -1033,6 +1034,7 @@ async def get_config_section_schema(section_name: str):
     - response_splitter: ResponseSplitterConfig
     - telemetry: TelemetryConfig
     - maim_message: MaimMessageConfig
+    - webui: WebUIConfig
     - debug: DebugConfig
     - voice: VoiceConfig
     - jargon: JargonConfig
@@ -1054,6 +1056,7 @@ async def get_config_section_schema(section_name: str):
         "response_splitter": ResponseSplitterConfig,
         "telemetry": TelemetryConfig,
         "maim_message": MaimMessageConfig,
+        "webui": WebUIConfig,
         "a_memorix": AMemorixConfig,
         "debug": DebugConfig,
         "voice": VoiceConfig,
