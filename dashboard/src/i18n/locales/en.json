@@ -12,6 +12,8 @@
     "switchToDark": "Switch to dark mode",
     "logout": "Log out",
     "logoutLabel": "Logout",
+    "switchLanguage": "Switch language",
+    "moreActions": "More actions",
     "notConnected": "Not connected"
   },
   "sidebar": {

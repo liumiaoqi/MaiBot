@@ -1,6 +1,7 @@
 import { Link, useRouterState } from '@tanstack/react-router'
 import {
   BookOpen,
+  Check,
   ChevronLeft,
   FileText,
   Globe,
@@ -8,6 +9,7 @@ import {
   Menu,
   MessageSquare,
   Moon,
+  MoreHorizontal,
   Search,
   Server,
   Settings,
@@ -26,6 +28,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -80,7 +86,7 @@ export function Header({
     window.electronAPI!.getActiveBackend().then((b) => {
       setActiveBackendName(b?.name ?? t('header.notConnected'))
     })
-  }, [])
+  }, [t])
 
   const handleLogout = async () => {
     await logout()
@@ -245,28 +251,35 @@ export function Header({
         </Button>
 
         {/* 语言切换 */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" title="切换语言" aria-label="切换语言">
-              <Globe className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {LANGUAGE_CODES.map((code) => (
-              <DropdownMenuItem
-                key={code}
-                onClick={() => i18nInstance.changeLanguage(code)}
-                className={cn(
-                  'cursor-pointer',
-                  currentLang.split('-')[0] === code && 'text-primary font-semibold'
-                )}
+        <div className="hidden sm:block">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                title={t('header.switchLanguage')}
+                aria-label={t('header.switchLanguage')}
               >
-                {currentLang.split('-')[0] === code && <span className="mr-2">✓</span>}
-                {LANGUAGE_NAMES[code]}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+                <Globe className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {LANGUAGE_CODES.map((code) => (
+                <DropdownMenuItem
+                  key={code}
+                  onClick={() => i18nInstance.changeLanguage(code)}
+                  className={cn(
+                    'cursor-pointer',
+                    currentLang.split('-')[0] === code && 'text-primary font-semibold'
+                  )}
+                >
+                  {currentLang.split('-')[0] === code && <Check className="mr-2 h-3 w-3" />}
+                  {LANGUAGE_NAMES[code]}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
 
         {/* 主题切换按钮 */}
         <button
@@ -275,7 +288,7 @@ export function Header({
             toggleThemeWithTransition(newTheme, onThemeChange, e)
           }}
           aria-label={actualTheme === 'dark' ? t('header.switchToLight') : t('header.switchToDark')}
-          className="hover:bg-accent rounded-lg p-2"
+          className="hover:bg-accent hidden rounded-lg p-2 sm:inline-flex"
         >
           {actualTheme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
         </button>
@@ -290,9 +303,62 @@ export function Header({
           onClick={handleLogout}
           title={t('header.logout')}
           aria-label={t('header.logout')}
+          className="hidden sm:inline-flex"
         >
           <LogOut className="h-4 w-4" />
         </Button>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="sm:hidden"
+              title={t('header.moreActions')}
+              aria-label={t('header.moreActions')}
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem
+              onClick={(event) => {
+                const newTheme = actualTheme === 'dark' ? 'light' : 'dark'
+                toggleThemeWithTransition(newTheme, onThemeChange, event)
+              }}
+              className="cursor-pointer gap-2"
+            >
+              {actualTheme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              {actualTheme === 'dark' ? t('header.switchToLight') : t('header.switchToDark')}
+            </DropdownMenuItem>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger className="cursor-pointer gap-2">
+                <Globe className="h-4 w-4" />
+                {t('header.switchLanguage')}
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent alignOffset={-4}>
+                {LANGUAGE_CODES.map((code) => (
+                  <DropdownMenuItem
+                    key={code}
+                    onClick={() => i18nInstance.changeLanguage(code)}
+                    className={cn(
+                      'cursor-pointer',
+                      currentLang.split('-')[0] === code && 'text-primary font-semibold'
+                    )}
+                  >
+                    {currentLang.split('-')[0] === code && <Check className="mr-2 h-3 w-3" />}
+                    {LANGUAGE_NAMES[code]}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleLogout} className="cursor-pointer gap-2">
+              <LogOut className="h-4 w-4" />
+              {t('header.logoutLabel')}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   )

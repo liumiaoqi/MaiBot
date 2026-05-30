@@ -91,6 +91,7 @@ export const TaskConfigCard = React.memo(function TaskConfigCard({
             onChange={handleModelChange}
             placeholder="选择模型..."
             emptyText="暂无可用模型"
+            compact
           />
         </div>
 

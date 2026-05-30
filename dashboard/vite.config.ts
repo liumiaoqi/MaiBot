@@ -7,7 +7,9 @@ import path from 'path'
 export default defineConfig({
   plugins: [tailwindcss(), react()],
   server: {
+    host: '127.0.0.1',
     port: 7999,
+    allowedHosts: ['sengokucolad.tail1e46b9.ts.net'],
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:8001',  // WebUI 后端服务器

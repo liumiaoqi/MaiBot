@@ -12,6 +12,8 @@
     "switchToDark": "切换到深色模式",
     "logout": "登出系统",
     "logoutLabel": "登出",
+    "switchLanguage": "切换语言",
+    "moreActions": "更多操作",
     "notConnected": "未连接"
   },
   "sidebar": {

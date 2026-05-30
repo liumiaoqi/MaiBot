@@ -12,6 +12,8 @@
     "switchToDark": "다크 모드로 전환",
     "logout": "로그아웃",
     "logoutLabel": "로그아웃",
+    "switchLanguage": "언어 전환",
+    "moreActions": "더 많은 작업",
     "notConnected": "연결 안됨"
   },
   "sidebar": {

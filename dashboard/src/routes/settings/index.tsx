@@ -77,28 +77,30 @@ export function SettingsPage() {
         onValueChange={handleTabChange}
         className={`flex min-h-0 w-full flex-1 flex-col transition-[margin] duration-200 ${isTitleCollapsed ? 'mt-0' : 'mt-4 sm:mt-6'}`}
       >
-        <TabsList className="grid h-auto w-full shrink-0 grid-cols-2 gap-0.5 p-1 sm:grid-cols-5 sm:gap-1">
-          <TabsTrigger value="appearance" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3 py-2">
+        <div className="-mx-1 shrink-0 overflow-x-auto px-1 pb-1 sm:mx-0 sm:overflow-visible sm:p-0">
+        <TabsList className="inline-grid h-auto w-max min-w-full grid-cols-5 gap-1 p-1 sm:w-full">
+          <TabsTrigger value="appearance" className="h-10 min-w-[5.5rem] gap-1 px-3 py-2 text-xs sm:min-w-0 sm:gap-2 sm:text-sm">
             <Palette className="h-3.5 w-3.5 sm:h-4 sm:w-4" strokeWidth={2} fill="none" />
             <span>{t('settings.tabs.appearance')}</span>
           </TabsTrigger>
-          <TabsTrigger value="security" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3 py-2">
+          <TabsTrigger value="security" className="h-10 min-w-[5.5rem] gap-1 px-3 py-2 text-xs sm:min-w-0 sm:gap-2 sm:text-sm">
             <Shield className="h-3.5 w-3.5 sm:h-4 sm:w-4" strokeWidth={2} fill="none" />
             <span>{t('settings.tabs.security')}</span>
           </TabsTrigger>
-          <TabsTrigger value="local-cache" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3 py-2">
+          <TabsTrigger value="local-cache" className="h-10 min-w-[5.5rem] gap-1 px-3 py-2 text-xs sm:min-w-0 sm:gap-2 sm:text-sm">
             <HardDrive className="h-3.5 w-3.5 sm:h-4 sm:w-4" strokeWidth={2} fill="none" />
             <span>本地缓存</span>
           </TabsTrigger>
-          <TabsTrigger value="other" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3 py-2">
+          <TabsTrigger value="other" className="h-10 min-w-[5.5rem] gap-1 px-3 py-2 text-xs sm:min-w-0 sm:gap-2 sm:text-sm">
             <Settings className="h-3.5 w-3.5 sm:h-4 sm:w-4" strokeWidth={2} fill="none" />
             <span>{t('settings.tabs.other')}</span>
           </TabsTrigger>
-          <TabsTrigger value="about" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3 py-2">
+          <TabsTrigger value="about" className="h-10 min-w-[5.5rem] gap-1 px-3 py-2 text-xs sm:min-w-0 sm:gap-2 sm:text-sm">
             <Info className="h-3.5 w-3.5 sm:h-4 sm:w-4" strokeWidth={2} fill="none" />
             <span>{t('settings.tabs.about')}</span>
           </TabsTrigger>
         </TabsList>
+        </div>
 
         <ScrollArea
           viewportRef={scrollViewportRef}

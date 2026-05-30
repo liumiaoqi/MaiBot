@@ -12,6 +12,8 @@
     "switchToDark": "ダークモードに切り替える",
     "logout": "ログアウト",
     "logoutLabel": "ログアウト",
+    "switchLanguage": "言語を切り替える",
+    "moreActions": "その他の操作",
     "notConnected": "未接続"
   },
   "sidebar": {

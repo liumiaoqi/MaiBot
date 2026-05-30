@@ -1048,11 +1048,6 @@ function IndexPageContent() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold">{t('home.title')}</h1>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => fetchDashboardData(true)}>
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-        </div>
       </div>
 
       {/* 一言 */}

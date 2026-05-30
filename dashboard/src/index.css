@@ -322,6 +322,20 @@
     @apply bg-background text-foreground;
   }
 
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  @supports (min-height: 100dvh) {
+    html,
+    body,
+    #root {
+      min-height: 100dvh;
+    }
+  }
+
   /* 隐藏数字输入框的默认上下箭头 */
   input[type='number']::-webkit-inner-spin-button,
   input[type='number']::-webkit-outer-spin-button {
@@ -405,6 +419,13 @@
   color: var(--retro-ink);
 }
 
+@supports (height: 100dvh) {
+  :root[data-dashboard-style='future-retro'] [data-dashboard-shell='true'] {
+    height: 100dvh;
+    min-height: 100dvh;
+  }
+}
+
 :root[data-dashboard-style='future-retro'] [data-dashboard-shell='true']::after {
   content: '';
   position: absolute;
@@ -425,6 +446,16 @@
     transparent 76%
   );
   opacity: 0.92;
+}
+
+@media (max-width: 640px) {
+  :root[data-dashboard-style='future-retro'] [data-dashboard-shell='true']::after {
+    right: -26px;
+    bottom: -12px;
+    width: 190px;
+    height: 82px;
+    opacity: 0.82;
+  }
 }
 
 :root[data-dashboard-style='future-retro'] [data-dashboard-main='true'] {

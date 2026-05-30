@@ -1667,7 +1667,7 @@ function ModelConfigPageContent() {
       {/* 编辑模型对话框 */}
       <Dialog open={editDialogOpen} onOpenChange={handleEditDialogClose}>
         <DialogContent 
-          className="max-w-[95vw] sm:max-w-2xl" 
+          className="max-w-[95vw] gap-3 p-4 sm:max-w-2xl sm:gap-4 sm:p-6"
           data-tour="model-dialog"
           preventOutsideClose={tourIsRunning}
           confirmOnEnter
@@ -1690,10 +1690,10 @@ function ModelConfigPageContent() {
             </div>
           </DialogHeader>
 
-          <DialogBody>
-          <div className="grid gap-4 py-4">
+          <DialogBody viewportClassName="min-h-0 flex-1 pr-3 sm:pr-4 [&>div]:!block">
+          <div className="grid gap-3 py-2 sm:gap-4 sm:py-4">
             <div className="grid gap-2" data-tour="model-name-input">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
                 <Label
                   htmlFor="model_name"
                   className={`sm:w-28 sm:flex-shrink-0 ${formErrors.name ? 'text-destructive' : ''}`}
@@ -1721,7 +1721,7 @@ function ModelConfigPageContent() {
             </div>
 
             <div className="grid gap-2" data-tour="model-provider-select">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
                 <Label
                   htmlFor="api_provider"
                   className={`sm:w-28 sm:flex-shrink-0 ${formErrors.api_provider ? 'text-destructive' : ''}`}
@@ -1783,7 +1783,7 @@ function ModelConfigPageContent() {
                 )}
               </div>
               
-              <div className="flex flex-col gap-2 sm:flex-row">
+              <div className="flex flex-col gap-1.5 sm:flex-row sm:gap-2">
                 {/* 模型标识符 Combobox */}
                 {matchedTemplate?.modelFetcher && (
                   <Popover open={modelComboboxOpen} onOpenChange={setModelComboboxOpen}>
@@ -1905,7 +1905,7 @@ function ModelConfigPageContent() {
               )}
             </div>
 
-            <div className="flex flex-wrap items-center gap-6">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 sm:gap-6">
               <div className="flex items-center space-x-2">
                 <Switch
                   id="model_visual"
@@ -1937,7 +1937,7 @@ function ModelConfigPageContent() {
               </div>
             </div>
 
-            <div className={`grid grid-cols-1 gap-4 ${editingModel?.cache ? 'md:grid-cols-3' : 'sm:grid-cols-2'}`}>
+            <div className={`grid grid-cols-1 gap-3 sm:gap-4 ${editingModel?.cache ? 'md:grid-cols-3' : 'sm:grid-cols-2'}`}>
               <div className="grid gap-2">
                 <Label htmlFor="price_in">输入价格 (¥/M token)</Label>
                 <Input
@@ -2002,7 +2002,7 @@ function ModelConfigPageContent() {
             </div>
 
             {advancedModelSettingsVisible && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-4 space-y-4 dark:border-amber-500/40 dark:bg-amber-500/10">
+              <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50/50 p-3 dark:border-amber-500/40 dark:bg-amber-500/10 sm:space-y-4 sm:p-4">
                 <div className="flex items-center justify-between gap-4">
                   <div className="space-y-1">
                     <Label htmlFor="force_stream_mode" className="cursor-pointer">强制流式输出模式</Label>
@@ -2024,7 +2024,7 @@ function ModelConfigPageContent() {
             )}
 
             {/* 模型级别温度 */}
-            <div className="rounded-lg border p-4 space-y-3">
+            <div className="space-y-2 rounded-lg border p-3 sm:space-y-3 sm:p-4">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-1.5">
@@ -2122,7 +2122,7 @@ function ModelConfigPageContent() {
             </div>
 
             {/* 模型级别最大 Token */}
-            <div className="rounded-lg border p-4 space-y-3">
+            <div className="space-y-2 rounded-lg border p-3 sm:space-y-3 sm:p-4">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-1.5">
@@ -2226,11 +2226,23 @@ function ModelConfigPageContent() {
           </div>
           </DialogBody>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDialogOpen(false)} data-tour="model-cancel-button">
+          <DialogFooter className="flex-row justify-end gap-2 space-x-0">
+            <Button
+              variant="outline"
+              className="flex-1 sm:flex-none"
+              onClick={() => setEditDialogOpen(false)}
+              data-tour="model-cancel-button"
+            >
               取消
             </Button>
-            <Button data-dialog-action="confirm" onClick={handleSaveEdit} data-tour="model-save-button">保存</Button>
+            <Button
+              data-dialog-action="confirm"
+              className="flex-1 sm:flex-none"
+              onClick={handleSaveEdit}
+              data-tour="model-save-button"
+            >
+              保存
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

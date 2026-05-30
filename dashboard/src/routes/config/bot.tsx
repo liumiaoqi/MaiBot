@@ -1062,53 +1062,55 @@ function DynamicConfigTabs(props: DynamicConfigTabsProps) {
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-      <TabsList className="flex h-auto max-w-full justify-start gap-1 overflow-x-auto p-1 transition-all duration-300 ease-out sm:flex-wrap sm:overflow-x-visible">
-        {visibleTabGroups.map((tab) => {
-          const isExpandedOnlyTab = !DEFAULT_VISIBLE_TAB_IDS.has(tab.id)
-          return (
-            <Fragment key={tab.id}>
-              {tab.id === firstExpandedTabId && (
-                <span className="mx-1 hidden h-6 w-px bg-border/80 transition-opacity duration-200 sm:block" />
-              )}
-              <TabsTrigger
-                value={tab.id}
-                className={cn(
-                  "shrink-0 px-2 py-1.5 text-sm transition-all duration-200 ease-out sm:px-3 sm:py-2 data-[state=active]:shadow-sm",
-                  isExpandedOnlyTab &&
-                    "border border-dashed border-border/70 bg-background/45 text-muted-foreground/80 motion-safe:animate-[config-tab-enter_180ms_ease-out_both] hover:bg-background/70 data-[state=active]:border-primary/45 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none"
+      <div className="-mx-4 overflow-x-auto px-4 pb-1 sm:mx-0 sm:overflow-x-visible sm:px-0 sm:pb-0">
+        <TabsList className="flex h-auto w-max min-w-full flex-nowrap justify-start gap-1 p-1 transition-all duration-300 ease-out sm:w-full sm:flex-wrap">
+          {visibleTabGroups.map((tab) => {
+            const isExpandedOnlyTab = !DEFAULT_VISIBLE_TAB_IDS.has(tab.id)
+            return (
+              <Fragment key={tab.id}>
+                {tab.id === firstExpandedTabId && (
+                  <span className="mx-1 hidden h-6 w-px bg-border/80 transition-opacity duration-200 sm:block" />
                 )}
-              >
-                {tab.label}
-              </TabsTrigger>
-            </Fragment>
-          )
-        })}
-        {hasCollapsibleTabs && (
+                <TabsTrigger
+                  value={tab.id}
+                  className={cn(
+                    "shrink-0 px-2 py-1.5 text-sm transition-all duration-200 ease-out sm:px-3 sm:py-2 data-[state=active]:shadow-sm",
+                    isExpandedOnlyTab &&
+                      "border border-dashed border-border/70 bg-background/45 text-muted-foreground/80 motion-safe:animate-[config-tab-enter_180ms_ease-out_both] hover:bg-background/70 data-[state=active]:border-primary/45 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none"
+                  )}
+                >
+                  {tab.label}
+                </TabsTrigger>
+              </Fragment>
+            )
+          })}
+          {hasCollapsibleTabs && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="group h-8 shrink-0 px-2 text-xs transition-all duration-200 ease-out sm:h-9 sm:px-3"
+              onClick={toggleExpanded}
+            >
+              {expanded ? (
+                <ChevronLeft className="mr-1 h-3.5 w-3.5 transition-transform duration-200 group-hover:-translate-x-0.5" />
+              ) : (
+                <ChevronRight className="mr-1 h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
+              )}
+              {expanded ? '收起' : '更多'}
+            </Button>
+          )}
           <Button
             type="button"
-            variant="ghost"
+            variant={advancedVisible ? 'default' : 'outline'}
             size="sm"
-            className="group h-8 shrink-0 px-2 text-xs transition-all duration-200 ease-out sm:h-9 sm:px-3"
-            onClick={toggleExpanded}
+            className="h-8 shrink-0 px-2 text-xs transition-all duration-200 ease-out sm:ml-auto sm:h-9 sm:px-3"
+            onClick={() => setAdvancedVisible((current) => !current)}
           >
-            {expanded ? (
-              <ChevronLeft className="mr-1 h-3.5 w-3.5 transition-transform duration-200 group-hover:-translate-x-0.5" />
-            ) : (
-              <ChevronRight className="mr-1 h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
-            )}
-            {expanded ? '收起' : '更多'}
+            高级设置
           </Button>
-        )}
-        <Button
-          type="button"
-          variant={advancedVisible ? 'default' : 'outline'}
-          size="sm"
-          className="h-8 shrink-0 px-2 text-xs transition-all duration-200 ease-out sm:ml-auto sm:h-9 sm:px-3"
-          onClick={() => setAdvancedVisible((current) => !current)}
-        >
-          高级设置
-        </Button>
-      </TabsList>
+        </TabsList>
+      </div>
       {tabGroups.map((tab) => (
         <TabsContent key={tab.id} value={tab.id} className="space-y-4 motion-safe:animate-[config-tab-content-enter_180ms_ease-out_both]">
           {renderTabContent(tab)}
