@@ -563,20 +563,67 @@ export function ExpressionManagementPage() {
   }
 
   return (
-    <div className="h-[calc(100dvh-4rem)] flex flex-col p-4 pb-6 sm:h-[calc(100vh-4rem)] sm:p-6">
-      {/* 页面标题 */}
-      <div className="mb-4 sm:mb-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
-              <MessageSquare className="h-8 w-8" strokeWidth={2} />
-              表达方式
-            </h1>
-            <p className="text-muted-foreground mt-1 text-sm sm:text-base">
-              管理麦麦的表达方式和话术模板
-            </p>
+    <div className="flex min-h-[calc(100dvh-4rem)] flex-col p-4 pb-6 sm:min-h-[calc(100vh-4rem)] sm:p-6">
+      <div className="mb-4 flex flex-col gap-3 sm:mb-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="-mx-1 w-[calc(100%+0.5rem)] overflow-x-auto px-1 pb-1 sm:mx-0 sm:w-auto sm:overflow-visible sm:p-0">
+            <div className="inline-flex w-max min-w-full rounded-lg border bg-muted p-1 sm:w-fit sm:min-w-0">
+              <button
+                type="button"
+                onClick={() => handleActiveViewChange('list')}
+                className={`inline-flex h-10 shrink-0 flex-1 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:h-8 sm:flex-none ${
+                  activeView === 'list'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <MessageSquare className="h-4 w-4" />
+                <span>浏览表达</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleActiveViewChange('review')}
+                className={`inline-flex h-10 shrink-0 flex-1 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:h-8 sm:flex-none ${
+                  activeView === 'review'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <ClipboardCheck className="h-4 w-4" />
+                <span>表达审核</span>
+                {uncheckedCount > 0 && (
+                  <span className="ml-0.5 rounded-full bg-orange-500 px-1.5 py-0.5 text-xs leading-none text-white">
+                    {uncheckedCount > 99 ? '99+' : uncheckedCount}
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleActiveViewChange('quick')}
+                className={`inline-flex h-10 shrink-0 flex-1 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:h-8 sm:flex-none ${
+                  activeView === 'quick'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Zap className="h-4 w-4" />
+                <span>快速审核</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleActiveViewChange('reviewLogs')}
+                className={`inline-flex h-10 shrink-0 flex-1 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:h-8 sm:flex-none ${
+                  activeView === 'reviewLogs'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <FileClock className="h-4 w-4" />
+                <span>AI审核记录</span>
+              </button>
+            </div>
           </div>
-          <div className="grid grid-cols-1 gap-2 sm:flex sm:items-center">
+          <div className="grid grid-cols-1 gap-2 sm:flex sm:items-center lg:justify-end">
             <Button onClick={() => setIsCreateDialogOpen(true)} className="h-10 justify-center gap-2 sm:h-9">
               <Plus className="h-4 w-4" />
               新增表达方式
@@ -586,66 +633,6 @@ export function ExpressionManagementPage() {
               从旧版本导入
             </Button>
           </div>
-        </div>
-      </div>
-
-      <div className="mb-4 flex flex-wrap items-center gap-3 sm:mb-3 sm:gap-2">
-        <div className="-mx-1 w-[calc(100%+0.5rem)] overflow-x-auto px-1 pb-1 sm:mx-0 sm:w-auto sm:overflow-visible sm:p-0">
-        <div className="inline-flex w-max min-w-full rounded-lg border bg-muted p-1 sm:w-fit sm:min-w-0">
-          <button
-            type="button"
-            onClick={() => handleActiveViewChange('list')}
-            className={`inline-flex h-10 shrink-0 flex-1 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:h-8 sm:flex-none ${
-              activeView === 'list'
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <MessageSquare className="h-4 w-4" />
-            <span>浏览表达</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleActiveViewChange('review')}
-            className={`inline-flex h-10 shrink-0 flex-1 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:h-8 sm:flex-none ${
-              activeView === 'review'
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <ClipboardCheck className="h-4 w-4" />
-            <span>表达审核</span>
-            {uncheckedCount > 0 && (
-              <span className="ml-0.5 rounded-full bg-orange-500 px-1.5 py-0.5 text-xs leading-none text-white">
-                {uncheckedCount > 99 ? '99+' : uncheckedCount}
-              </span>
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={() => handleActiveViewChange('quick')}
-            className={`inline-flex h-10 shrink-0 flex-1 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:h-8 sm:flex-none ${
-              activeView === 'quick'
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Zap className="h-4 w-4" />
-            <span>快速审核</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleActiveViewChange('reviewLogs')}
-            className={`inline-flex h-10 shrink-0 flex-1 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:h-8 sm:flex-none ${
-              activeView === 'reviewLogs'
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <FileClock className="h-4 w-4" />
-            <span>AI审核记录</span>
-          </button>
-        </div>
         </div>
 
         {activeView === 'list' && (
@@ -937,7 +924,7 @@ export function ExpressionManagementPage() {
       </ScrollArea>
 
       {(activeView === 'review' || activeView === 'quick') && (
-        <div className="min-h-0 flex-1 pr-4">
+        <div className="min-h-[38rem] flex-1 pr-4">
           <ExpressionReviewer
             embedded
             open
@@ -953,7 +940,7 @@ export function ExpressionManagementPage() {
       )}
 
       {activeView === 'reviewLogs' && (
-        <div className="h-full min-h-0 flex-1 pr-4">
+        <div className="min-h-[38rem] flex-1 pr-4">
           <ExpressionReviewLogPanel
             onRescued={() => {
               loadExpressions()

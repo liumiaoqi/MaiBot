@@ -1,4 +1,4 @@
-import { Check, MessageCircle, Plus, Search, Trash2, X } from 'lucide-react'
+import { Check, Plus, Search, Trash2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -296,23 +296,11 @@ export function JargonManagementPage() {
 
   return (
     <div className="h-[calc(100vh-4rem)] flex flex-col p-4 sm:p-6">
-      {/* 页面标题 */}
-      <div className="mb-4 sm:mb-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
-              <MessageCircle className="h-8 w-8" strokeWidth={2} />
-              黑话
-            </h1>
-            <p className="text-muted-foreground mt-1 text-sm sm:text-base">
-              管理麦麦学习到的黑话和俗语
-            </p>
-          </div>
-          <Button onClick={() => setIsCreateDialogOpen(true)} className="gap-2">
-            <Plus className="h-4 w-4" />
-            新增黑话
-          </Button>
-        </div>
+      <div className="mb-4 flex justify-end sm:mb-6">
+        <Button onClick={() => setIsCreateDialogOpen(true)} className="gap-2">
+          <Plus className="h-4 w-4" />
+          新增黑话
+        </Button>
       </div>
 
       <ScrollArea className="flex-1">

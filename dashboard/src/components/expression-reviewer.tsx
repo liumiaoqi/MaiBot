@@ -1439,7 +1439,7 @@ export function ExpressionReviewer({
 
                   {/* 堆叠卡片 */}
                   <div
-                    className="relative w-full max-w-md flex-1 min-h-0 max-h-[400px] flex items-center justify-center"
+                    className="relative w-full max-w-md flex-1 min-h-[320px] max-h-[560px] flex items-center justify-center"
                     role="listbox"
                     tabIndex={0}
                     aria-label="待审核的表达方式"
@@ -1499,7 +1499,7 @@ export function ExpressionReviewer({
                             ...style,
                             transform: `translate3d(${currentTranslateX}px, ${currentTranslateY}px, 0) scale(${currentScale}) rotate(${currentRotate}deg)`,
                             opacity: 1 - index * 0.15,
-                            filter: `blur(${Math.max(0, index * 1 - progress)}px)`, // 模糊度也随之减小
+                            filter: `blur(${Math.max(0, index * 1.5 - progress)}px)`, // 模糊度也随之减小
                             pointerEvents: 'none',
                           }
                         }

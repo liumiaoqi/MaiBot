@@ -1980,11 +1980,6 @@ export function KnowledgeBasePage() {
     <div className="flex h-full flex-col bg-background">
       <div className="flex-1 overflow-auto">
         <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-6 px-6 py-6">
-          <div>
-            <h1 className="text-2xl font-bold leading-tight sm:text-3xl">长期记忆</h1>
-            <p className="mt-1 text-sm text-muted-foreground">管理麦麦的长期记忆和知识库</p>
-          </div>
-
           <div className="hidden">
             <Button variant="outline" size="sm" onClick={() => void loadPage()}>
               <RefreshCw className="mr-2 h-4 w-4" />

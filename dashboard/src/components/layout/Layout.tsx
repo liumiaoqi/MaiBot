@@ -209,7 +209,8 @@ export function Layout({ children }: LayoutProps) {
               data-dashboard-main="true"
               tabIndex={-1}
               className={cn(
-                'relative isolate flex-1 overflow-hidden outline-none',
+                'relative isolate flex-1 outline-none',
+                isSettingsWorkspace ? 'overflow-y-auto overflow-x-hidden' : 'overflow-hidden',
                 isChatWorkspace
                   ? 'bg-transparent'
                   : pageBg.type === 'none'
@@ -220,7 +221,7 @@ export function Layout({ children }: LayoutProps) {
               <AnimatePresence mode="wait" initial={false}>
                 <motion.div
                   key={workspaceMode}
-                  className="relative z-10 h-full min-w-0"
+                  className={cn('relative z-10 min-w-0', isSettingsWorkspace ? 'min-h-full' : 'h-full')}
                   initial={{ opacity: 0, x: isChatWorkspace ? 32 : -32, filter: 'blur(6px)' }}
                   animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
                   exit={{ opacity: 0, x: isChatWorkspace ? -32 : 32, filter: 'blur(6px)' }}
