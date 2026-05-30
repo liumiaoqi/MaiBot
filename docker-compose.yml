@@ -29,7 +29,7 @@ services:
       - ./data/MaiMBot/plugins:/MaiMBot/plugins # 插件目录
       - ./docker-entrypoint-wrapper.sh:/MaiMBot/docker-entrypoint-wrapper.sh:ro # 去重入口包装
       - ./data/MaiMBot/logs:/MaiMBot/logs # 日志目录
-<<<<<<< HEAD
+
       - ./depends-data:/MaiMBot/depends-data # 运行时资源文件
       - site-packages:/MaiMBot/.venv # 持久化Python包（含插件依赖），镜像更新不丢失
       - hf-cache:/root/.cache/huggingface # 持久化HuggingFace模型缓存
