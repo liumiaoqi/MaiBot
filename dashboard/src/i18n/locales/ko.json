@@ -935,6 +935,13 @@
       "title": "저장소 사용량",
       "reading": "읽는 중",
       "summary": "이미지 {{image}} · 이모지 {{emoji}} · 로그 {{logs}} · 데이터베이스 {{database}}",
+      "images": "이미지",
+      "emoji": "이모지",
+      "logs": "로그",
+      "database": "데이터베이스",
+      "files": "{{count}}개 파일",
+      "filesAndRecords": "{{files}}개 파일 · {{records}}개 기록",
+      "databaseDetail": "{{files}}개 파일 · {{tables}}개 테이블",
       "readingDescription": "로컬 저장소 사용량을 읽는 중...",
       "unavailable": "로컬 저장소 사용량을 가져오지 못했습니다",
       "manage": "저장소 관리"

@@ -13,6 +13,7 @@ import {
   ExternalLink,
   FileText,
   HardDrive,
+  ImageIcon,
   MessageSquare,
   Plus,
   Power,
@@ -20,6 +21,7 @@ import {
   RefreshCw,
   RotateCcw,
   Settings,
+  Smile,
   TrendingUp,
   Zap,
   type LucideIcon,
@@ -325,6 +327,55 @@ const generatePieColors = (count: number, dashboardStyle: DashboardStyle): strin
 }
 
 // 内部实现组件
+function FeatureStatusIndicator({
+  accent,
+  detail,
+  enabled,
+  label,
+}: {
+  accent: 'green' | 'orange' | 'yellow' | 'red'
+  detail?: string
+  enabled: boolean
+  label: string
+}) {
+  const enabledColorClass = {
+    green: 'text-green-600',
+    orange: 'text-orange-600',
+    yellow: 'text-yellow-600',
+    red: 'text-red-600',
+  }[accent]
+  const enabledBarClass = {
+    green: 'bg-green-500',
+    orange: 'bg-orange-500',
+    yellow: 'bg-yellow-400',
+    red: 'bg-red-500',
+  }[accent]
+
+  return (
+    <div
+      data-dashboard-feature-status="true"
+      data-accent={accent}
+      data-enabled={enabled ? 'true' : 'false'}
+      className={cn(
+        'flex min-h-9 w-full items-center gap-2.5 px-1 py-1 font-sans text-base font-bold transition-colors',
+        enabled ? enabledColorClass : 'text-muted-foreground/55'
+      )}
+    >
+      <span
+        data-dashboard-feature-status-bar="true"
+        className={cn(
+          'h-8 w-2.5 shrink-0 rounded-[2px] transition-colors',
+          enabled ? enabledBarClass : 'bg-muted-foreground/25'
+        )}
+      />
+      <span className="min-w-0 flex-1 truncate">
+        {label}
+        {detail && <span className="ml-2 text-sm font-semibold opacity-75">· {detail}</span>}
+      </span>
+    </div>
+  )
+}
+
 function FeatureStatusLight({ enabled, label }: { enabled: boolean; label: string }) {
   return (
     <div
@@ -334,9 +385,10 @@ function FeatureStatusLight({ enabled, label }: { enabled: boolean; label: strin
     >
       <span
         data-dashboard-feature-status-light="true"
-        className={`h-2.5 w-2.5 rounded-full ${
+        className={cn(
+          'h-2.5 w-2.5 rounded-full',
           enabled ? 'bg-green-500 shadow-[0_0_0_3px_rgba(34,197,94,0.18)]' : 'bg-muted-foreground/30'
-        }`}
+        )}
       />
       <span>{label}</span>
     </div>
@@ -1033,12 +1085,51 @@ function IndexPageContent() {
   } satisfies ChartConfig
 
   const localCacheDirectories = localCacheStats?.directories ?? []
-  const imageCacheSize = localCacheDirectories.find((item) => item.key === 'images')?.total_size ?? 0
-  const emojiCacheSize = localCacheDirectories.find((item) => item.key === 'emoji')?.total_size ?? 0
-  const logCacheSize = localCacheDirectories.find((item) => item.key === 'logs')?.total_size ?? 0
+  const imageCacheDirectory = localCacheDirectories.find((item) => item.key === 'images')
+  const emojiCacheDirectory = localCacheDirectories.find((item) => item.key === 'emoji')
+  const logCacheDirectory = localCacheDirectories.find((item) => item.key === 'logs')
+  const imageCacheSize = imageCacheDirectory?.total_size ?? 0
+  const emojiCacheSize = emojiCacheDirectory?.total_size ?? 0
+  const logCacheSize = logCacheDirectory?.total_size ?? 0
   const databaseSize = localCacheStats?.database.total_size ?? 0
   const totalStorageSize = localCacheDirectories.reduce((total, item) => total + item.total_size, 0) + databaseSize
   const hasLocalCacheStats = localCacheStats !== null
+  const storageDetails = [
+    {
+      key: 'images',
+      label: t('home.storage.images'),
+      size: imageCacheSize,
+      detail: t('home.storage.files', { count: imageCacheDirectory?.file_count ?? 0 }),
+      icon: ImageIcon,
+    },
+    {
+      key: 'emoji',
+      label: t('home.storage.emoji'),
+      size: emojiCacheSize,
+      detail: t('home.storage.filesAndRecords', {
+        files: emojiCacheDirectory?.file_count ?? 0,
+        records: emojiCacheDirectory?.db_records ?? 0,
+      }),
+      icon: Smile,
+    },
+    {
+      key: 'logs',
+      label: t('home.storage.logs'),
+      size: logCacheSize,
+      detail: t('home.storage.files', { count: logCacheDirectory?.file_count ?? 0 }),
+      icon: FileText,
+    },
+    {
+      key: 'database',
+      label: t('home.storage.database'),
+      size: databaseSize,
+      detail: t('home.storage.databaseDetail', {
+        files: localCacheStats?.database.files.length ?? 0,
+        tables: localCacheStats?.database.tables.length ?? 0,
+      }),
+      icon: Database,
+    },
+  ]
 
   return (
     <ScrollArea className="h-full">
@@ -1158,88 +1249,119 @@ function IndexPageContent() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              <div className="flex flex-wrap items-center gap-4">
-                <div className="flex items-center gap-2">
+              {themeConfig.dashboardStyle === 'future-retro' ? (
+                <div className="space-y-2">
                   {isBotStatusLoading && !botStatus ? (
-                    <>
-                      <div
-                        data-dashboard-status-dot="true"
-                        data-state="loading"
-                        className="h-3 w-3 rounded-full bg-muted-foreground/40 animate-pulse"
-                      />
-                      <Badge
-                        data-dashboard-status-badge="true"
-                        data-state="loading"
-                        variant="outline"
-                        className="whitespace-nowrap text-muted-foreground"
-                      >
-                        <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
-                        {t('home.botStatus.loading')}
-                      </Badge>
-                    </>
+                    <FeatureStatusIndicator enabled={false} accent="green" label={t('home.botStatus.loading')} />
                   ) : botStatus?.running ? (
-                    <>
-                      <div
-                        data-dashboard-status-dot="true"
-                        data-state="running"
-                        className="h-3 w-3 rounded-full bg-green-500 animate-pulse"
-                      />
-                      <Badge
-                        data-dashboard-status-badge="true"
-                        data-state="running"
-                        variant="outline"
-                        className="whitespace-nowrap text-green-600 border-green-300 bg-green-50"
-                      >
-                        <CheckCircle2 className="h-3 w-3 mr-1" />
-                        {t('home.botStatus.running')}
-                      </Badge>
-                    </>
+                    <FeatureStatusIndicator
+                      enabled
+                      accent="green"
+                      label={t('home.botStatus.running')}
+                      detail={t('home.botStatus.uptime', { time: formatTime(botStatus.uptime) })}
+                    />
                   ) : botStatus ? (
-                    <>
-                      <div
-                        data-dashboard-status-dot="true"
-                        data-state="stopped"
-                        className="h-3 w-3 rounded-full bg-red-500"
-                      />
-                      <Badge
-                        data-dashboard-status-badge="true"
-                        data-state="stopped"
-                        variant="outline"
-                        className="whitespace-nowrap text-red-600 border-red-300 bg-red-50"
-                      >
-                        <AlertCircle className="h-3 w-3 mr-1" />
-                        {t('home.botStatus.stopped')}
-                      </Badge>
-                    </>
+                    <FeatureStatusIndicator enabled accent="red" label={t('home.botStatus.stopped')} />
                   ) : (
-                    <>
-                      <div
-                        data-dashboard-status-dot="true"
-                        data-state="unknown"
-                        className="h-3 w-3 rounded-full bg-muted-foreground/40"
-                      />
-                      <Badge
-                        data-dashboard-status-badge="true"
-                        data-state="unknown"
-                        variant="outline"
-                        className="whitespace-nowrap text-muted-foreground"
-                      >
-                        <AlertCircle className="h-3 w-3 mr-1" />
-                        {t('home.botStatus.unknown')}
-                      </Badge>
-                    </>
+                    <FeatureStatusIndicator enabled={false} accent="green" label={t('home.botStatus.unknown')} />
                   )}
+                  <FeatureStatusIndicator
+                    accent="orange"
+                    enabled={featureStatus.visualEnabled}
+                    label={t('home.botStatus.visualEnabled')}
+                  />
+                  <FeatureStatusIndicator
+                    accent="yellow"
+                    enabled={featureStatus.memoryEnabled}
+                    label={t('home.botStatus.memoryEnabled')}
+                  />
                 </div>
-                {botStatus && (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span>{t('home.botStatus.uptime', { time: formatTime(botStatus.uptime) })}</span>
+              ) : (
+                <>
+                  <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      {isBotStatusLoading && !botStatus ? (
+                        <>
+                          <div
+                            data-dashboard-status-dot="true"
+                            data-state="loading"
+                            className="h-3 w-3 rounded-full bg-muted-foreground/40 animate-pulse"
+                          />
+                          <Badge
+                            data-dashboard-status-badge="true"
+                            data-state="loading"
+                            variant="outline"
+                            className="whitespace-nowrap text-muted-foreground"
+                          >
+                            <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                            {t('home.botStatus.loading')}
+                          </Badge>
+                        </>
+                      ) : botStatus?.running ? (
+                        <>
+                          <div
+                            data-dashboard-status-dot="true"
+                            data-state="running"
+                            className="h-3 w-3 rounded-full bg-green-500 animate-pulse"
+                          />
+                          <Badge
+                            data-dashboard-status-badge="true"
+                            data-state="running"
+                            variant="outline"
+                            className="whitespace-nowrap text-green-600 border-green-300 bg-green-50"
+                          >
+                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                            {t('home.botStatus.running')}
+                          </Badge>
+                        </>
+                      ) : botStatus ? (
+                        <>
+                          <div
+                            data-dashboard-status-dot="true"
+                            data-state="stopped"
+                            className="h-3 w-3 rounded-full bg-red-500"
+                          />
+                          <Badge
+                            data-dashboard-status-badge="true"
+                            data-state="stopped"
+                            variant="outline"
+                            className="whitespace-nowrap text-red-600 border-red-300 bg-red-50"
+                          >
+                            <AlertCircle className="h-3 w-3 mr-1" />
+                            {t('home.botStatus.stopped')}
+                          </Badge>
+                        </>
+                      ) : (
+                        <>
+                          <div
+                            data-dashboard-status-dot="true"
+                            data-state="unknown"
+                            className="h-3 w-3 rounded-full bg-muted-foreground/40"
+                          />
+                          <Badge
+                            data-dashboard-status-badge="true"
+                            data-state="unknown"
+                            variant="outline"
+                            className="whitespace-nowrap text-muted-foreground"
+                          >
+                            <AlertCircle className="h-3 w-3 mr-1" />
+                            {t('home.botStatus.unknown')}
+                          </Badge>
+                        </>
+                      )}
+                    </div>
+                    {botStatus && (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>{t('home.botStatus.uptime', { time: formatTime(botStatus.uptime) })}</span>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <FeatureStatusLight enabled={featureStatus.visualEnabled} label={t('home.botStatus.visualEnabled')} />
-                <FeatureStatusLight enabled={featureStatus.memoryEnabled} label={t('home.botStatus.memoryEnabled')} />
-              </div>
+                  <div className="flex flex-wrap gap-2">
+                    <FeatureStatusLight enabled={featureStatus.visualEnabled} label={t('home.botStatus.visualEnabled')} />
+                    <FeatureStatusLight enabled={featureStatus.memoryEnabled} label={t('home.botStatus.memoryEnabled')} />
+                  </div>
+                </>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -1492,6 +1614,37 @@ function IndexPageContent() {
                       : t('home.storage.unavailable')}
                 </p>
               </div>
+              {hasLocalCacheStats && (
+                <div className="space-y-2.5">
+                  {storageDetails.map((item) => {
+                    const Icon = item.icon
+                    const percent = totalStorageSize > 0 ? (item.size / totalStorageSize) * 100 : 0
+                    const visiblePercent = item.size > 0 ? Math.max(percent, 2) : 0
+
+                    return (
+                      <div key={item.key} className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <span className="truncate text-sm font-medium">{item.label}</span>
+                          </div>
+                          <span className="shrink-0 text-sm font-semibold">{formatStorageBytes(item.size)}</span>
+                        </div>
+                        <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                          <div
+                            className="h-full rounded-full bg-primary transition-all"
+                            style={{ width: `${visiblePercent}%` }}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                          <span className="truncate">{item.detail}</span>
+                          <span className="shrink-0">{percent.toFixed(percent >= 10 ? 0 : 1)}%</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
               <Button variant="outline" size="sm" asChild className="w-full justify-start gap-2">
                 <Link to="/settings" search={{ tab: 'local-cache' }}>
                   <HardDrive className="h-4 w-4" />
@@ -1847,12 +2000,15 @@ function IndexPageContent() {
                 {filteredQuickShortcutOptions.map((shortcut) => {
                   const Icon = shortcut.icon
                   const checked = quickShortcutIds.includes(shortcut.id)
+                  const checkboxId = `quick-shortcut-${shortcut.id}`
                   return (
                     <label
                       key={shortcut.id}
+                      htmlFor={checkboxId}
                       className="flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors hover:bg-accent/40"
                     >
                       <Checkbox
+                        id={checkboxId}
                         className="mt-0.5"
                         checked={checked}
                         onCheckedChange={(value) => toggleQuickShortcut(shortcut.id, value === true)}

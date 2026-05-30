@@ -835,7 +835,7 @@
       "running": "运行中",
       "stopped": "已停止",
       "unknown": "未知",
-      "uptime": "运行 {{time}}",
+      "uptime": "{{time}}",
       "visualEnabled": "启用视觉",
       "memoryEnabled": "启用记忆"
     },
@@ -943,6 +943,13 @@
       "title": "存储占用",
       "reading": "读取中",
       "summary": "图片 {{image}} · 表情 {{emoji}} · 日志 {{logs}} · 数据库 {{database}}",
+      "images": "图片",
+      "emoji": "表情",
+      "logs": "日志",
+      "database": "数据库",
+      "files": "{{count}} 个文件",
+      "filesAndRecords": "{{files}} 个文件 · {{records}} 条记录",
+      "databaseDetail": "{{files}} 个文件 · {{tables}} 张表",
       "readingDescription": "正在读取本地存储占用...",
       "unavailable": "暂未获取到本地存储占用",
       "manage": "管理存储"

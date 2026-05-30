@@ -943,6 +943,13 @@
       "title": "ストレージ使用量",
       "reading": "読み取り中",
       "summary": "画像 {{image}} · 絵文字 {{emoji}} · ログ {{logs}} · データベース {{database}}",
+      "images": "画像",
+      "emoji": "絵文字",
+      "logs": "ログ",
+      "database": "データベース",
+      "files": "{{count}} ファイル",
+      "filesAndRecords": "{{files}} ファイル · {{records}} 件の記録",
+      "databaseDetail": "{{files}} ファイル · {{tables}} テーブル",
       "readingDescription": "ローカルストレージ使用量を読み取り中...",
       "unavailable": "ローカルストレージ使用量を取得できません",
       "manage": "ストレージ管理"

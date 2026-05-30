@@ -943,6 +943,13 @@
       "title": "Storage Usage",
       "reading": "Reading",
       "summary": "Images {{image}} · Emoji {{emoji}} · Logs {{logs}} · Database {{database}}",
+      "images": "Images",
+      "emoji": "Emoji",
+      "logs": "Logs",
+      "database": "Database",
+      "files": "{{count}} files",
+      "filesAndRecords": "{{files}} files · {{records}} records",
+      "databaseDetail": "{{files}} files · {{tables}} tables",
       "readingDescription": "Reading local storage usage...",
       "unavailable": "Local storage usage is unavailable",
       "manage": "Manage Storage"

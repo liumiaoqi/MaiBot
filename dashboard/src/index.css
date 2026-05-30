@@ -370,20 +370,43 @@
 
 :root.dark[data-dashboard-style='future-retro'],
 .dark[data-dashboard-style='future-retro'] {
-  --retro-paper: #1b3c42;
-  --retro-paper-deep: #132f34;
-  --retro-paper-soft: #24484d;
-  --retro-ink: #f3e4c8;
-  --retro-ink-soft: rgb(243 228 200 / 0.66);
-  --retro-rust: #d16837;
-  --retro-rust-dark: #f08a55;
-  --retro-gold: #d2a44e;
-  --retro-line: rgb(243 228 200 / 0.78);
+  --retro-paper: #110906;
+  --retro-paper-deep: #19110e;
+  --retro-paper-soft: #2b211c;
+  --retro-ink: #d2c0a9;
+  --retro-ink-soft: rgb(210 192 169 / 0.6);
+  --retro-rust: #9d5b3c;
+  --retro-rust-dark: #b86f4a;
+  --retro-gold: #9f8450;
+  --retro-line: rgb(210 192 169 / 0.38);
   --retro-stroke: 1.25px;
-  --retro-recessed: rgb(243 228 200 / 0.055);
-  --retro-recessed-strong: rgb(243 228 200 / 0.085);
-  --retro-shadow: rgb(0 0 0 / 0.28);
-  --retro-paper-texture: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.05' numOctaves='4' seed='11'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 .95 0 0 0 0 .84 0 0 0 0 .60 0 0 0 .14 0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23noise)'/%3E%3C/svg%3E");
+  --retro-recessed: rgb(210 192 169 / 0.04);
+  --retro-recessed-strong: rgb(210 192 169 / 0.065);
+  --retro-shadow: rgb(0 0 0 / 0.18);
+  --retro-paper-texture: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.05' numOctaves='4' seed='11'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 .66 0 0 0 0 .52 0 0 0 0 .36 0 0 0 .1 0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23noise)'/%3E%3C/svg%3E");
+  --color-primary: 19.2 44.7% 42.5%;
+  --color-primary-foreground: 34 40% 86%;
+  --color-primary-gradient: none;
+  --color-secondary: 24 16% 18%;
+  --color-secondary-foreground: 34 28% 76%;
+  --color-muted: 24 14% 17%;
+  --color-muted-foreground: 34 19% 58%;
+  --color-accent: 40 24% 28%;
+  --color-accent-foreground: 34 30% 78%;
+  --color-background: 17 25.9% 10.6%;
+  --color-foreground: 34.3 31.8% 74.3%;
+  --color-card: 20 21.3% 13.9%;
+  --color-card-foreground: 34.3 31.8% 74.3%;
+  --color-popover: 24 20% 15%;
+  --color-popover-foreground: 34.3 31.8% 74.3%;
+  --color-border: 31 18% 28%;
+  --color-input: 31 16% 30%;
+  --color-ring: 20 43% 45%;
+  --color-chart-1: 19.2 44.7% 42.5%;
+  --color-chart-2: 40.3 33.3% 46.9%;
+  --color-chart-3: 91 14% 42%;
+  --color-chart-4: 8 24% 43%;
+  --color-chart-5: 34.3 31.8% 74.3%;
   color-scheme: dark;
 }
 
@@ -767,29 +790,54 @@
 
 :root[data-dashboard-style='future-retro'] [data-dashboard-feature-status='true'] {
   min-height: 2rem;
-  border: var(--retro-stroke) solid var(--retro-line) !important;
-  border-radius: 2px !important;
   background: transparent !important;
-  color: var(--retro-ink) !important;
-  font-weight: 700;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  font-weight: 800;
   box-shadow: none !important;
 }
 
 :root[data-dashboard-style='future-retro']
   [data-dashboard-feature-status='true'][data-enabled='true'] {
-  background: var(--retro-recessed) !important;
+  color: var(--retro-rust) !important;
 }
 
-:root[data-dashboard-style='future-retro'] [data-dashboard-feature-status-light='true'] {
-  border: 1px solid var(--retro-line) !important;
+:root[data-dashboard-style='future-retro']
+  [data-dashboard-feature-status='true'][data-enabled='true'][data-accent='green'] {
+  color: #2f7d6f !important;
+}
+
+:root[data-dashboard-style='future-retro']
+  [data-dashboard-feature-status='true'][data-enabled='true'][data-accent='yellow'] {
+  color: var(--retro-gold) !important;
+}
+
+:root[data-dashboard-style='future-retro']
+  [data-dashboard-feature-status='true'][data-enabled='false'] {
+  color: color-mix(in srgb, var(--retro-ink) 42%, transparent) !important;
+}
+
+:root[data-dashboard-style='future-retro'] [data-dashboard-feature-status-bar='true'] {
   border-radius: 1px !important;
-  background: transparent !important;
+  background: color-mix(in srgb, var(--retro-ink) 22%, transparent) !important;
   box-shadow: none !important;
 }
 
 :root[data-dashboard-style='future-retro']
   [data-dashboard-feature-status='true'][data-enabled='true']
-  [data-dashboard-feature-status-light='true'] {
+  [data-dashboard-feature-status-bar='true'] {
+  background: var(--retro-rust) !important;
+}
+
+:root[data-dashboard-style='future-retro']
+  [data-dashboard-feature-status='true'][data-enabled='true'][data-accent='green']
+  [data-dashboard-feature-status-bar='true'] {
+  background: #2f7d6f !important;
+}
+
+:root[data-dashboard-style='future-retro']
+  [data-dashboard-feature-status='true'][data-enabled='true'][data-accent='yellow']
+  [data-dashboard-feature-status-bar='true'] {
   background: var(--retro-gold) !important;
 }
 
