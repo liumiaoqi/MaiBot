@@ -11,14 +11,20 @@ export type {
   UseAutoSaveReturnGeneric,
 } from './useAutoSave'
 export {
+  AliasNamesHook,
   BotPlatformsHook,
+  BotPlatformAccountsHook,
   ChatPromptsHook,
   ChatTalkValueRulesHook,
   ExpressionGroupsHook,
   ExpressionLearningListHook,
+  JargonGroupsHook,
+  JargonLearningListHook,
   KeywordRulesHook,
+  HiddenFieldHook,
   MCPRootItemsHook,
   MCPServersHook,
+  MultipleReplyStyleHook,
   RegexRulesHook,
 } from './complexFieldHooks'
 export { ChatSectionHook } from './ChatSectionHook'

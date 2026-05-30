@@ -31,6 +31,13 @@ from src.common.database.migrations import (
     SchemaVersionSource,
     SQLiteSchemaInspector,
     SQLiteUserVersionStore,
+    V4_SCHEMA_VERSION,
+    V5_SCHEMA_VERSION,
+    V6_SCHEMA_VERSION,
+    V7_SCHEMA_VERSION,
+    V10_SCHEMA_VERSION,
+    V11_SCHEMA_VERSION,
+    V12_SCHEMA_VERSION,
     build_default_migration_registry,
     build_default_schema_version_resolver,
     create_database_migration_bootstrapper,
@@ -727,6 +734,529 @@ def test_bootstrapper_runs_registered_steps_for_versioned_database(tmp_path: Pat
     assert snapshot.has_column("bootstrap_records", "email")
 
 
+def test_default_bootstrapper_clears_group_session_user_id_from_v4_database(tmp_path: Path) -> None:
+    """v4 -> v5 迁移应清空群聊会话中无归属语义的 ``user_id``。"""
+
+    engine = _create_sqlite_engine(tmp_path / "v4_to_v5.db")
+    bootstrapper = create_database_migration_bootstrapper(engine)
+
+    with engine.begin() as connection:
+        _create_current_schema(connection)
+        connection.execute(
+            text(
+                """
+                INSERT INTO chat_sessions (
+                    session_id,
+                    created_timestamp,
+                    last_active_timestamp,
+                    user_id,
+                    group_id,
+                    platform
+                ) VALUES
+                    ('group-session', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'first-user', 'group-1', 'qq'),
+                    ('private-session', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'private-user', NULL, 'qq')
+                """
+            )
+        )
+        SQLiteUserVersionStore().write_version(connection, V4_SCHEMA_VERSION)
+
+    migration_state = bootstrapper.prepare_database()
+
+    assert migration_state.resolved_version.version == LATEST_SCHEMA_VERSION
+
+    with engine.connect() as connection:
+        rows = {
+            row["session_id"]: row["user_id"]
+            for row in connection.execute(
+                text(
+                    """
+                    SELECT session_id, user_id
+                    FROM chat_sessions
+                    ORDER BY session_id
+                    """
+                )
+            ).mappings()
+        }
+        recorded_version = SQLiteUserVersionStore().read_version(connection)
+
+    assert recorded_version == LATEST_SCHEMA_VERSION
+    assert rows["group-session"] is None
+    assert rows["private-session"] == "private-user"
+
+
+def test_default_bootstrapper_adds_chat_session_route_columns_from_v5_database(tmp_path: Path) -> None:
+    """v5 -> v6 迁移应添加路由字段，历史数据默认保持为空。"""
+
+    engine = _create_sqlite_engine(tmp_path / "v5_to_v6.db")
+    bootstrapper = create_database_migration_bootstrapper(engine)
+
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                CREATE TABLE chat_sessions (
+                    id INTEGER NOT NULL,
+                    session_id VARCHAR(255) NOT NULL,
+                    created_timestamp DATETIME,
+                    last_active_timestamp DATETIME,
+                    user_id VARCHAR(255),
+                    group_id VARCHAR(255),
+                    platform VARCHAR(100) NOT NULL,
+                    PRIMARY KEY (id)
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO chat_sessions (
+                    id,
+                    session_id,
+                    created_timestamp,
+                    last_active_timestamp,
+                    user_id,
+                    group_id,
+                    platform
+                ) VALUES (
+                    1,
+                    'group-session',
+                    CURRENT_TIMESTAMP,
+                    CURRENT_TIMESTAMP,
+                    NULL,
+                    'group-1',
+                    'qq'
+                )
+                """
+            )
+        )
+        SQLiteUserVersionStore().write_version(connection, V5_SCHEMA_VERSION)
+
+    migration_state = bootstrapper.prepare_database()
+
+    assert migration_state.resolved_version.version == LATEST_SCHEMA_VERSION
+
+    with engine.connect() as connection:
+        snapshot = SQLiteSchemaInspector().inspect(connection)
+        row = connection.execute(
+            text(
+                """
+                SELECT account_id, scope
+                FROM chat_sessions
+                WHERE session_id = 'group-session'
+                """
+            )
+        ).mappings().one()
+        recorded_version = SQLiteUserVersionStore().read_version(connection)
+
+    assert recorded_version == LATEST_SCHEMA_VERSION
+    assert snapshot.has_column("chat_sessions", "account_id")
+    assert snapshot.has_column("chat_sessions", "scope")
+    assert row["account_id"] is None
+    assert row["scope"] is None
+
+
+def test_default_bootstrapper_removes_expression_rejected_from_v6_database(tmp_path: Path) -> None:
+    """v6 -> v7 迁移应删除已拒绝表达方式，并移除 rejected 列。"""
+
+    engine = _create_sqlite_engine(tmp_path / "v6_to_v7.db")
+    bootstrapper = create_database_migration_bootstrapper(engine)
+
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                CREATE TABLE expressions (
+                    id INTEGER NOT NULL,
+                    situation VARCHAR(255) NOT NULL,
+                    style VARCHAR(255) NOT NULL,
+                    content_list VARCHAR NOT NULL,
+                    count INTEGER NOT NULL,
+                    last_active_time DATETIME,
+                    create_time DATETIME,
+                    session_id VARCHAR(255),
+                    checked BOOLEAN NOT NULL,
+                    rejected BOOLEAN NOT NULL,
+                    modified_by VARCHAR(4),
+                    PRIMARY KEY (id)
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO expressions (
+                    id,
+                    situation,
+                    style,
+                    content_list,
+                    count,
+                    last_active_time,
+                    create_time,
+                    session_id,
+                    checked,
+                    rejected,
+                    modified_by
+                ) VALUES
+                    (1, '通过情景', '通过风格', '[]', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'chat-1', 1, 0, 'AI'),
+                    (2, '拒绝情景', '拒绝风格', '[]', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'chat-1', 1, 1, 'USER'),
+                    (3, '待审情景', '待审风格', '[]', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'chat-1', 0, 0, NULL)
+                """
+            )
+        )
+        SQLiteUserVersionStore().write_version(connection, V6_SCHEMA_VERSION)
+
+    migration_state = bootstrapper.prepare_database()
+
+    assert migration_state.resolved_version.version == LATEST_SCHEMA_VERSION
+
+    with engine.connect() as connection:
+        snapshot = SQLiteSchemaInspector().inspect(connection)
+        expression_ids = [
+            row["id"]
+            for row in connection.execute(
+                text(
+                    """
+                    SELECT id
+                    FROM expressions
+                    ORDER BY id
+                    """
+                )
+            ).mappings()
+        ]
+        recorded_version = SQLiteUserVersionStore().read_version(connection)
+
+    assert recorded_version == LATEST_SCHEMA_VERSION
+    assert not snapshot.has_column("expressions", "rejected")
+    assert expression_ids == [1, 3]
+
+
+def test_default_bootstrapper_clears_ai_checked_expressions_from_v7_database(tmp_path: Path) -> None:
+    """v7 -> v8 迁移应将 AI 标记的 checked 表达方式改回待人工审核。"""
+
+    engine = _create_sqlite_engine(tmp_path / "v7_to_v8.db")
+    bootstrapper = create_database_migration_bootstrapper(engine)
+
+    with engine.begin() as connection:
+        _create_current_schema(connection)
+        connection.execute(
+            text(
+                """
+                INSERT INTO expressions (
+                    id,
+                    situation,
+                    style,
+                    content_list,
+                    count,
+                    last_active_time,
+                    create_time,
+                    session_id,
+                    checked,
+                    modified_by
+                ) VALUES
+                    (1, 'AI大写情景', 'AI大写风格', '[]', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'chat-1', 1, 'AI'),
+                    (2, 'AI小写情景', 'AI小写风格', '[]', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'chat-1', 1, 'ai'),
+                    (3, '人工情景', '人工风格', '[]', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'chat-1', 1, 'USER'),
+                    (4, 'AI待审情景', 'AI待审风格', '[]', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'chat-1', 0, 'AI')
+                """
+            )
+        )
+        SQLiteUserVersionStore().write_version(connection, V7_SCHEMA_VERSION)
+
+    migration_state = bootstrapper.prepare_database()
+
+    assert migration_state.resolved_version.version == LATEST_SCHEMA_VERSION
+
+    with engine.connect() as connection:
+        rows = {
+            row["id"]: row["checked"]
+            for row in connection.execute(
+                text(
+                    """
+                    SELECT id, checked
+                    FROM expressions
+                    ORDER BY id
+                    """
+                )
+            ).mappings()
+        }
+        recorded_version = SQLiteUserVersionStore().read_version(connection)
+
+    assert recorded_version == LATEST_SCHEMA_VERSION
+    assert rows == {1: 0, 2: 0, 3: 1, 4: 0}
+
+
+def test_default_bootstrapper_adds_jargon_timestamps_from_v10_database(tmp_path: Path) -> None:
+    """v10 -> v11 迁移应为历史黑话记录补齐时间字段。"""
+
+    engine = _create_sqlite_engine(tmp_path / "v10_to_v11.db")
+    bootstrapper = create_database_migration_bootstrapper(engine)
+
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                CREATE TABLE jargons (
+                    id INTEGER NOT NULL,
+                    content VARCHAR(255) NOT NULL,
+                    raw_content TEXT,
+                    meaning TEXT NOT NULL,
+                    session_id_dict TEXT NOT NULL,
+                    count INTEGER NOT NULL,
+                    is_jargon BOOLEAN,
+                    is_complete BOOLEAN NOT NULL,
+                    is_global BOOLEAN NOT NULL,
+                    last_inference_count INTEGER NOT NULL,
+                    inference_with_context TEXT,
+                    inference_with_content_only TEXT,
+                    PRIMARY KEY (id)
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO jargons (
+                    id,
+                    content,
+                    raw_content,
+                    meaning,
+                    session_id_dict,
+                    count,
+                    is_jargon,
+                    is_complete,
+                    is_global,
+                    last_inference_count
+                ) VALUES (
+                    1,
+                    'VF8V4L',
+                    '["[1] first"]',
+                    '',
+                    '{"session-a": 1}',
+                    1,
+                    1,
+                    0,
+                    0,
+                    0
+                )
+                """
+            )
+        )
+        SQLiteUserVersionStore().write_version(connection, V10_SCHEMA_VERSION)
+
+    migration_state = bootstrapper.prepare_database()
+
+    assert migration_state.resolved_version.version == LATEST_SCHEMA_VERSION
+
+    with engine.connect() as connection:
+        snapshot = SQLiteSchemaInspector().inspect(connection)
+        row = connection.execute(
+            text(
+                """
+                SELECT created_timestamp, updated_timestamp, created_by
+                FROM jargons
+                WHERE id = 1
+                """
+            )
+        ).mappings().one()
+        recorded_version = SQLiteUserVersionStore().read_version(connection)
+
+    assert recorded_version == LATEST_SCHEMA_VERSION
+    assert snapshot.has_column("jargons", "created_timestamp")
+    assert snapshot.has_column("jargons", "updated_timestamp")
+    assert snapshot.has_column("jargons", "created_by")
+    assert not snapshot.has_column("jargons", "inference_with_context")
+    assert not snapshot.has_column("jargons", "inference_with_content_only")
+    assert row["created_timestamp"] is not None
+    assert row["updated_timestamp"] is not None
+    assert row["created_by"] == "AI"
+
+
+def test_default_bootstrapper_removes_jargon_inference_cache_from_v11_database(tmp_path: Path) -> None:
+    """v11 -> v12 迁移应删除黑话推理过程缓存字段并保留业务数据。"""
+
+    engine = _create_sqlite_engine(tmp_path / "v11_to_v12.db")
+    bootstrapper = create_database_migration_bootstrapper(engine)
+
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                CREATE TABLE jargons (
+                    id INTEGER NOT NULL,
+                    content VARCHAR(255) NOT NULL,
+                    raw_content TEXT,
+                    meaning TEXT NOT NULL,
+                    session_id_dict TEXT NOT NULL,
+                    count INTEGER NOT NULL,
+                    is_jargon BOOLEAN,
+                    is_complete BOOLEAN NOT NULL,
+                    is_global BOOLEAN NOT NULL,
+                    last_inference_count INTEGER NOT NULL,
+                    inference_with_context TEXT,
+                    inference_with_content_only TEXT,
+                    created_timestamp DATETIME,
+                    updated_timestamp DATETIME,
+                    PRIMARY KEY (id)
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO jargons (
+                    id,
+                    content,
+                    raw_content,
+                    meaning,
+                    session_id_dict,
+                    count,
+                    is_jargon,
+                    is_complete,
+                    is_global,
+                    last_inference_count,
+                    inference_with_context,
+                    inference_with_content_only,
+                    created_timestamp,
+                    updated_timestamp
+                ) VALUES (
+                    1,
+                    'VF8V4L',
+                    '["[1] first"]',
+                    'sample meaning',
+                    '{"session-a": 1}',
+                    8,
+                    1,
+                    0,
+                    0,
+                    4,
+                    '{"guess":"context"}',
+                    '{"guess":"content"}',
+                    '2026-01-01 00:00:00',
+                    '2026-01-02 00:00:00'
+                )
+                """
+            )
+        )
+        SQLiteUserVersionStore().write_version(connection, V11_SCHEMA_VERSION)
+
+    migration_state = bootstrapper.prepare_database()
+
+    assert migration_state.resolved_version.version == LATEST_SCHEMA_VERSION
+
+    with engine.connect() as connection:
+        snapshot = SQLiteSchemaInspector().inspect(connection)
+        row = connection.execute(
+            text(
+                """
+                SELECT content, meaning, session_id_dict, count, created_timestamp, updated_timestamp, created_by
+                FROM jargons
+                WHERE id = 1
+                """
+            )
+        ).mappings().one()
+        recorded_version = SQLiteUserVersionStore().read_version(connection)
+
+    assert recorded_version == LATEST_SCHEMA_VERSION
+    assert not snapshot.has_column("jargons", "inference_with_context")
+    assert not snapshot.has_column("jargons", "inference_with_content_only")
+    assert row["content"] == "VF8V4L"
+    assert row["meaning"] == "sample meaning"
+    assert row["session_id_dict"] == '{"session-a": 1}'
+    assert row["count"] == 8
+    assert row["created_timestamp"] == "2026-01-01 00:00:00"
+    assert row["updated_timestamp"] == "2026-01-02 00:00:00"
+    assert row["created_by"] == "AI"
+
+
+def test_default_bootstrapper_adds_jargon_created_by_from_v12_database(tmp_path: Path) -> None:
+    """v12 -> v13 迁移应为历史黑话记录补齐 AI 创建来源。"""
+
+    engine = _create_sqlite_engine(tmp_path / "v12_to_v13.db")
+    bootstrapper = create_database_migration_bootstrapper(engine)
+
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                CREATE TABLE jargons (
+                    id INTEGER NOT NULL,
+                    content VARCHAR(255) NOT NULL,
+                    raw_content TEXT,
+                    meaning TEXT NOT NULL,
+                    session_id_dict TEXT NOT NULL,
+                    count INTEGER NOT NULL,
+                    is_jargon BOOLEAN,
+                    is_complete BOOLEAN NOT NULL,
+                    is_global BOOLEAN NOT NULL,
+                    last_inference_count INTEGER NOT NULL,
+                    created_timestamp DATETIME,
+                    updated_timestamp DATETIME,
+                    PRIMARY KEY (id)
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO jargons (
+                    id,
+                    content,
+                    raw_content,
+                    meaning,
+                    session_id_dict,
+                    count,
+                    is_jargon,
+                    is_complete,
+                    is_global,
+                    last_inference_count,
+                    created_timestamp,
+                    updated_timestamp
+                ) VALUES (
+                    1,
+                    'VF8V4L',
+                    '["[1] first"]',
+                    'sample meaning',
+                    '{"session-a": 1}',
+                    8,
+                    1,
+                    0,
+                    0,
+                    4,
+                    '2026-01-01 00:00:00',
+                    '2026-01-02 00:00:00'
+                )
+                """
+            )
+        )
+        SQLiteUserVersionStore().write_version(connection, V12_SCHEMA_VERSION)
+
+    migration_state = bootstrapper.prepare_database()
+
+    assert migration_state.resolved_version.version == LATEST_SCHEMA_VERSION
+
+    with engine.connect() as connection:
+        snapshot = SQLiteSchemaInspector().inspect(connection)
+        row = connection.execute(
+            text(
+                """
+                SELECT created_by
+                FROM jargons
+                WHERE id = 1
+                """
+            )
+        ).mappings().one()
+        recorded_version = SQLiteUserVersionStore().read_version(connection)
+
+    assert recorded_version == LATEST_SCHEMA_VERSION
+    assert snapshot.has_column("jargons", "created_by")
+    assert row["created_by"] == "AI"
+
+
 def test_default_bootstrapper_can_migrate_legacy_v1_database(tmp_path: Path) -> None:
     """默认桥接器应能把旧版 ``0.x`` 数据库整体迁移到最新结构。"""
     engine = _create_sqlite_engine(tmp_path / "legacy_v1_to_v2.db")
@@ -763,24 +1293,30 @@ def test_default_bootstrapper_can_migrate_legacy_v1_database(tmp_path: Path) -> 
                 """
             )
         ).mappings().one()
-        expression_row = connection.execute(
+        expression_count = connection.execute(
             text(
                 """
-                SELECT session_id, content_list, modified_by
+                SELECT COUNT(*)
                 FROM expressions
-                WHERE id = 1
                 """
             )
-        ).mappings().one()
-        jargon_row = connection.execute(
+        ).scalar_one()
+        jargon_count = connection.execute(
             text(
                 """
-                SELECT session_id_dict, raw_content, inference_with_content_only
+                SELECT COUNT(*)
                 FROM jargons
-                WHERE id = 1
                 """
             )
-        ).mappings().one()
+        ).scalar_one()
+        chat_session_count = connection.execute(
+            text(
+                """
+                SELECT COUNT(*)
+                FROM chat_sessions
+                """
+            )
+        ).scalar_one()
 
     assert recorded_version == LATEST_SCHEMA_VERSION
     assert snapshot.has_table("__legacy_v1_messages")
@@ -789,13 +1325,10 @@ def test_default_bootstrapper_can_migrate_legacy_v1_database(tmp_path: Path) -> 
     assert snapshot.has_table("tool_records")
     assert not snapshot.has_table("action_records")
     assert not snapshot.has_column("mai_messages", "display_message")
+    assert not snapshot.has_column("expressions", "rejected")
 
     unpacked_raw_content = msgpack.unpackb(message_row["raw_content"], raw=False)
     additional_config = json.loads(message_row["additional_config"])
-    expression_content_list = json.loads(expression_row["content_list"])
-    jargon_session_id_dict = json.loads(jargon_row["session_id_dict"])
-    jargon_raw_content = json.loads(jargon_row["raw_content"])
-
     assert message_row["session_id"] == "session-1"
     assert message_row["processed_plain_text"] == "你好"
     assert unpacked_raw_content == [{"type": "text", "data": "你好呀"}]
@@ -803,12 +1336,9 @@ def test_default_bootstrapper_can_migrate_legacy_v1_database(tmp_path: Path) -> 
     assert tool_row["session_id"] == "session-1"
     assert tool_row["tool_name"] == "search"
     assert tool_row["tool_display_prompt"] == "执行搜索"
-    assert expression_row["session_id"] == "session-1"
-    assert expression_row["modified_by"] == "AI"
-    assert expression_content_list == ["你好呀", "早上好"]
-    assert jargon_session_id_dict == {"session-1": 5}
-    assert jargon_raw_content == ["上分"]
-    assert jargon_row["inference_with_content_only"] == '{"guess":"content"}'
+    assert expression_count == 0
+    assert jargon_count == 0
+    assert chat_session_count == 0
 
 
 def test_legacy_v1_migration_reports_table_progress(tmp_path: Path) -> None:
@@ -838,17 +1368,17 @@ def test_legacy_v1_migration_reports_table_progress(tmp_path: Path) -> None:
 
     migration_plan = manager.migrate(target_version=LATEST_SCHEMA_VERSION)
 
-    assert migration_plan.step_count() == 3
-    assert len(reporter_instances) == 3
+    assert migration_plan.step_count() == 12
+    assert len(reporter_instances) == 12
     reporter_events = reporter_instances[0].events
 
     assert reporter_events[0] == ("open", None, None, None)
-    assert reporter_events[1] == ("start", 6, 12, "总迁移进度")
+    assert reporter_events[1] == ("start", 3, 11, "总迁移进度")
     assert reporter_events[-1] == ("close", None, None, None)
-    assert reporter_events.count(("advance", 1, 0, None)) == 6
-    assert reporter_events.count(("advance", 0, 1, "chat_sessions")) == 1
+    assert reporter_events.count(("advance", 1, 0, None)) == 3
+    assert reporter_events.count(("advance", 0, 1, "chat_sessions")) == 0
     assert reporter_events.count(("advance", 0, 1, "thinking_questions")) == 1
-    assert len([event for event in reporter_events if event[0] == "advance"]) == 18
+    assert len([event for event in reporter_events if event[0] == "advance"]) == 14
 
 
 def test_initialize_database_calls_bootstrapper_before_create_all(

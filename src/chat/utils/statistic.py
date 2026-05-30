@@ -1,10 +1,13 @@
+from collections import defaultdict
+from datetime import datetime, timedelta
+from html import escape
+from os import getenv
+from pathlib import Path
+from typing import cast
+
 import asyncio
 import concurrent.futures
 import json
-
-from collections import defaultdict
-from datetime import datetime, timedelta
-from typing import cast
 
 from typing_extensions import TypedDict
 
@@ -12,11 +15,34 @@ from sqlmodel import col, select
 
 from src.common.logger import get_logger
 from src.common.database.database import get_db_session
-from src.common.database.database_model import Messages, ModelUsage, OnlineTime, ToolRecord
+from src.common.database.database_model import OnlineTime
 from src.manager.async_task_manager import AsyncTask
 from src.manager.local_store_manager import local_storage
+from src.services.statistics_service import (
+    fetch_messages_since,
+    fetch_model_usage_since,
+    fetch_online_time_since,
+    get_earliest_statistics_time,
+    refresh_dashboard_statistics_cache,
+)
+from src.services.statistics_aggregation_service import (
+    count_tool_records_since,
+    fetch_message_count_by_chat_since,
+    refresh_statistics_aggregates,
+)
 
 logger = get_logger("maibot_statistic")
+
+STATISTICS_REPORT_PATH_ENV = "MAIBOT_STATISTICS_REPORT_PATH"
+DEFAULT_STATISTICS_REPORT_PATH = "maibot_statistics.html"
+
+
+def _resolve_statistics_report_path(record_file_path: str | None = None) -> str:
+    if record_file_path:
+        return record_file_path
+
+    configured_path = getenv(STATISTICS_REPORT_PATH_ENV, "").strip()
+    return configured_path or DEFAULT_STATISTICS_REPORT_PATH
 
 
 class StatPeriodData(TypedDict):
@@ -220,12 +246,23 @@ def _format_large_number(num: float | int, html: bool = False) -> str:
             return str(num)
 
 
+def _json_for_html_script(value: object) -> str:
+    json_text = json.dumps(value, ensure_ascii=False)
+    return (
+        json_text.replace("&", "\\u0026")
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+        .replace("\u2028", "\\u2028")
+        .replace("\u2029", "\\u2029")
+    )
+
+
 class StatisticOutputTask(AsyncTask):
     """统计输出任务"""
 
     SEP_LINE = "-" * 84
 
-    def __init__(self, record_file_path: str = "maibot_statistics.html"):
+    def __init__(self, record_file_path: str | None = None):
         # 延迟300秒启动，运行间隔300秒
         super().__init__(task_name="Statistics Data Output Task", wait_before_start=0, run_interval=300)
 
@@ -235,7 +272,7 @@ class StatisticOutputTask(AsyncTask):
             注：设计记录时间的目的是方便更新名称，使联系人/群聊名称保持最新
         """
 
-        self.record_file_path: str = record_file_path
+        self.record_file_path: str = _resolve_statistics_report_path(record_file_path)
         """
         记录文件路径
         """
@@ -249,8 +286,10 @@ class StatisticOutputTask(AsyncTask):
             deploy_time = datetime(2000, 1, 1)
             local_storage["deploy_time"] = now.timestamp()
 
+        self.all_time_start_time = get_earliest_statistics_time(deploy_time)
+
         self.stat_period: list[tuple[str, timedelta, str]] = [
-            ("all_time", now - deploy_time, "自部署以来"),  # 必须保留"all_time"
+            ("all_time", now - self.all_time_start_time, "自部署以来"),  # 必须保留"all_time"
             ("last_30_days", timedelta(days=30), "近30天"),
             ("last_7_days", timedelta(days=7), "近7天"),
             ("last_3_days", timedelta(days=3), "近3天"),
@@ -262,6 +301,7 @@ class StatisticOutputTask(AsyncTask):
         """
         统计时间段 [(统计名称, 统计时间段, 统计描述), ...]
         """
+
 
     def _statistic_console_output(self, stats: StatPeriodMapping, now: datetime) -> None:
         """
@@ -299,11 +339,17 @@ class StatisticOutputTask(AsyncTask):
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 logger.info("正在收集统计数据...")
 
+                await loop.run_in_executor(executor, refresh_statistics_aggregates)
+
                 # 数据收集任务
                 collect_task = loop.run_in_executor(executor, self._collect_all_statistics, now)
 
                 # 等待数据收集完成
                 stats = await collect_task
+                try:
+                    await refresh_dashboard_statistics_cache()
+                except Exception as e:
+                    logger.warning(f"刷新 WebUI 统计缓存失败，将继续生成 HTML 报告: {e}")
                 logger.info("统计数据收集完成")
 
                 # 并行执行控制台输出和HTML报告生成
@@ -334,6 +380,10 @@ class StatisticOutputTask(AsyncTask):
                     logger.info("正在后台收集统计数据...")
 
                     stats = await loop.run_in_executor(executor, self._collect_all_statistics, now)
+                    try:
+                        await refresh_dashboard_statistics_cache()
+                    except Exception as e:
+                        logger.warning(f"刷新 WebUI 统计缓存失败，将继续生成 HTML 报告: {e}")
                     logger.info("统计数据收集完成")
 
                     # 创建并发的输出任务
@@ -434,33 +484,6 @@ class StatisticOutputTask(AsyncTask):
         counter[subkey].append(value)
 
     @staticmethod
-    def _fetch_online_time_since(query_start_time: datetime) -> list[tuple[datetime, datetime]]:
-        with get_db_session(auto_commit=False) as session:
-            statement = select(OnlineTime).where(col(OnlineTime.end_timestamp) >= query_start_time)
-            records = session.exec(statement).all()
-            return [(record.start_timestamp, record.end_timestamp) for record in records]
-
-    @staticmethod
-    def _fetch_model_usage_since(query_start_time: datetime) -> list[dict[str, object]]:
-        with get_db_session(auto_commit=False) as session:
-            statement = select(ModelUsage).where(col(ModelUsage.timestamp) >= query_start_time)
-            records = session.exec(statement).all()
-            return [
-                {
-                    "timestamp": record.timestamp,
-                    "request_type": record.request_type,
-                    "model_api_provider_name": record.model_api_provider_name,
-                    "model_assign_name": record.model_assign_name,
-                    "model_name": record.model_name,
-                    "prompt_tokens": record.prompt_tokens,
-                    "completion_tokens": record.completion_tokens,
-                    "cost": record.cost,
-                    "time_cost": record.time_cost,
-                }
-                for record in records
-            ]
-
-    @staticmethod
     def _collect_model_request_for_period(collect_period: list[tuple[str, datetime]]) -> StatPeriodMapping:
         """
         收集指定时间段的LLM请求统计数据
@@ -480,7 +503,7 @@ class StatisticOutputTask(AsyncTask):
         # 以最早的时间戳为起始时间获取记录
         # Assuming LLMUsage.timestamp is a DateTimeField
         query_start_time = collect_period[-1][1]
-        records = StatisticOutputTask._fetch_model_usage_since(query_start_time)
+        records = fetch_model_usage_since(query_start_time)
         for record in records:
             record_timestamp = cast(datetime, record["timestamp"])
             for idx, (_, period_start) in enumerate(collect_period):
@@ -627,7 +650,7 @@ class StatisticOutputTask(AsyncTask):
 
         query_start_time = collect_period[-1][1]
         # Assuming OnlineTime.end_timestamp is a DateTimeField
-        records = StatisticOutputTask._fetch_online_time_since(query_start_time)
+        records = fetch_online_time_since(query_start_time)
         for record_start_timestamp, record_end_timestamp in records:
             for idx, (_, period_boundary_start) in enumerate(collect_period):
                 if record_end_timestamp >= period_boundary_start:
@@ -667,69 +690,32 @@ class StatisticOutputTask(AsyncTask):
             for period_key, _ in collect_period
         }
 
-        query_start_timestamp = collect_period[-1][1]
-        with get_db_session(auto_commit=False) as session:
-            statement = select(Messages).where(col(Messages.timestamp) >= query_start_timestamp)
-            messages = session.exec(statement).all()
-        for message in messages:
-            message_time_ts = message.timestamp.timestamp()
+        for period_key, period_start_dt in collect_period:
+            for message_row in fetch_message_count_by_chat_since(period_start_dt):
+                chat_id = cast(str, message_row["chat_id"])
+                chat_name = cast(str, message_row["chat_name"])
+                message_count = cast(int, message_row["message_count"])
+                latest_timestamp = cast(datetime, message_row["latest_timestamp"])
+                latest_time_ts = latest_timestamp.timestamp()
 
-            chat_id = None
-            chat_name = None
+                try:
+                    if chat_id in self.name_mapping:
+                        if chat_name != self.name_mapping[chat_id][0] and latest_time_ts > self.name_mapping[chat_id][1]:
+                            self.name_mapping[chat_id] = (chat_name, latest_time_ts)
+                    else:
+                        self.name_mapping[chat_id] = (chat_name, latest_time_ts)
+                except (IndexError, TypeError) as e:
+                    logger.warning(f"更新 name_mapping 时发生错误，chat_id: {chat_id}, 错误: {e}")
+                    self.name_mapping[chat_id] = (chat_name, latest_time_ts)
 
-            # Logic based on Peewee model structure, aiming to replicate original intent
-            if message.group_id:
-                chat_id = f"g{message.group_id}"
-                chat_name = message.group_name or f"群{message.group_id}"
-            elif message.user_id:
-                # This uses the message SENDER's ID as per original logic's fallback
-                chat_id = f"u{message.user_id}"
-                chat_name = message.user_nickname
-            else:
-                # If neither group_id nor sender_id is available for chat identification
-                logger.warning(
-                    f"Message (PK: {message.id if hasattr(message, 'id') else 'N/A'}) lacks group_id and user_id for chat stats."
-                )
-                continue
-
-            if not chat_id:  # Should not happen if above logic is correct
-                continue
-
-            # Update name_mapping（仅用于展示聊天名称）
-            try:
-                if chat_id in self.name_mapping:
-                    if chat_name != self.name_mapping[chat_id][0] and message_time_ts > self.name_mapping[chat_id][1]:
-                        self.name_mapping[chat_id] = (chat_name, message_time_ts)
-                else:
-                    self.name_mapping[chat_id] = (chat_name, message_time_ts)
-            except (IndexError, TypeError) as e:
-                logger.warning(f"更新 name_mapping 时发生错误，chat_id: {chat_id}, 错误: {e}")
-                # 重置为正确的格式
-                self.name_mapping[chat_id] = (chat_name, message_time_ts)
-
-            for idx, (_, period_start_dt) in enumerate(collect_period):
-                if message_time_ts >= period_start_dt.timestamp():
-                    for period_key, _ in collect_period[idx:]:
-                        StatisticOutputTask._add_int_stat(stats[period_key], TOTAL_MSG_CNT, 1)
-                        StatisticOutputTask._add_defaultdict_int(stats[period_key], MSG_CNT_BY_CHAT, chat_id, 1)
-                    break
+                StatisticOutputTask._add_int_stat(stats[period_key], TOTAL_MSG_CNT, message_count)
+                StatisticOutputTask._add_defaultdict_int(stats[period_key], MSG_CNT_BY_CHAT, chat_id, message_count)
 
         # 使用 ToolRecord 中的 reply 工具次数作为回复数基准
         try:
-            tool_query_start_timestamp = collect_period[-1][1]
-            with get_db_session(auto_commit=False) as session:
-                statement = select(ToolRecord).where(col(ToolRecord.timestamp) >= tool_query_start_timestamp)
-                tool_records = session.exec(statement).all()
-            for tool_record in tool_records:
-                if tool_record.tool_name != "reply":
-                    continue
-
-                action_time_ts = tool_record.timestamp.timestamp()
-                for idx, (_, period_start_dt) in enumerate(collect_period):
-                    if action_time_ts >= period_start_dt.timestamp():
-                        for period_key, _ in collect_period[idx:]:
-                            StatisticOutputTask._add_int_stat(stats[period_key], TOTAL_REPLY_CNT, 1)
-                        break
+            for period_key, period_start_dt in collect_period:
+                reply_count = count_tool_records_since(period_start_dt, "reply")
+                StatisticOutputTask._add_int_stat(stats[period_key], TOTAL_REPLY_CNT, reply_count)
         except Exception as e:
             logger.warning(f"统计 reply 工具次数失败，将回复数视为 0，错误信息：{e}")
 
@@ -816,9 +802,12 @@ class StatisticOutputTask(AsyncTask):
                     # 直接合并
                     stat["all_time"][key] += val
 
+        self._refresh_all_time_duration_stats(stat["all_time"])
+
         # 更新上次完整统计数据的时间戳
         # 将所有defaultdict转换为普通dict以避免类型冲突
         clean_stat_data = self._convert_defaultdict_to_dict(stat["all_time"])
+        self._drop_cached_time_cost_lists(clean_stat_data)
 
         # 将 name_mapping 中的元组转换为列表，因为JSON不支持元组
         json_safe_name_mapping = {}
@@ -832,6 +821,67 @@ class StatisticOutputTask(AsyncTask):
         }
 
         return cast(StatPeriodMapping, stat)
+
+    def _refresh_all_time_duration_stats(self, stat_data: StatPeriodData) -> None:
+        """全量耗时均值/标准差从数据库现算，不依赖 local_store 中的原始耗时列表。"""
+        duration_stats: dict[str, defaultdict[str, dict[str, float]]] = {
+            "type": defaultdict(lambda: {"count": 0.0, "sum": 0.0, "sum_sq": 0.0}),
+            "user": defaultdict(lambda: {"count": 0.0, "sum": 0.0, "sum_sq": 0.0}),
+            "model": defaultdict(lambda: {"count": 0.0, "sum": 0.0, "sum_sq": 0.0}),
+            "module": defaultdict(lambda: {"count": 0.0, "sum": 0.0, "sum_sq": 0.0}),
+        }
+
+        records = fetch_model_usage_since(self.all_time_start_time)
+        for record in records:
+            time_cost = cast(float | None, record["time_cost"]) or 0.0
+            if time_cost <= 0:
+                continue
+
+            request_type = cast(str | None, record["request_type"]) or "unknown"
+            user_id = cast(str | None, record["model_api_provider_name"]) or "unknown"
+            model_assign_name = cast(str | None, record["model_assign_name"])
+            model_name = model_assign_name or cast(str | None, record["model_name"]) or "unknown"
+            module_name = request_type.split(".")[0] if "." in request_type else request_type
+
+            for category, item_name in [
+                ("type", request_type),
+                ("user", user_id),
+                ("model", model_name),
+                ("module", module_name),
+            ]:
+                item_stats = duration_stats[category][item_name]
+                item_stats["count"] += 1
+                item_stats["sum"] += time_cost
+                item_stats["sum_sq"] += time_cost * time_cost
+
+        for category, avg_key, std_key in [
+            ("type", AVG_TIME_COST_BY_TYPE, STD_TIME_COST_BY_TYPE),
+            ("user", AVG_TIME_COST_BY_USER, STD_TIME_COST_BY_USER),
+            ("model", AVG_TIME_COST_BY_MODEL, STD_TIME_COST_BY_MODEL),
+            ("module", AVG_TIME_COST_BY_MODULE, STD_TIME_COST_BY_MODULE),
+        ]:
+            avg_data = cast(defaultdict[str, float], stat_data[avg_key])
+            std_data = cast(defaultdict[str, float], stat_data[std_key])
+            avg_data.clear()
+            std_data.clear()
+
+            for item_name, item_stats in duration_stats[category].items():
+                count = item_stats["count"]
+                if count <= 0:
+                    continue
+                avg_time_cost = item_stats["sum"] / count
+                variance = max(item_stats["sum_sq"] / count - avg_time_cost * avg_time_cost, 0.0)
+                avg_data[item_name] = round(avg_time_cost, 3)
+                std_data[item_name] = round(variance**0.5, 3)
+
+    @staticmethod
+    def _drop_cached_time_cost_lists(stat_data: object) -> None:
+        """不把原始耗时列表写入 local_store；需要时从数据库重新统计。"""
+        if not isinstance(stat_data, dict):
+            return
+
+        for key in [TIME_COST_BY_TYPE, TIME_COST_BY_USER, TIME_COST_BY_MODEL, TIME_COST_BY_MODULE]:
+            stat_data.pop(key, None)
 
     def _convert_defaultdict_to_dict(self, data: object) -> object:
         # sourcery skip: dict-comprehension, extract-duplicate-method, inline-immediately-returned-variable, merge-duplicate-blocks
@@ -1167,10 +1217,14 @@ class StatisticOutputTask(AsyncTask):
 
             # 聊天消息统计
             chat_rows = []
+            sorted_chat_ids = sorted(stat_data[MSG_CNT_BY_CHAT].keys())
             for chat_id, count in sorted(stat_data[MSG_CNT_BY_CHAT].items()):
                 try:
                     chat_name = self.name_mapping.get(chat_id, ("未知聊天", 0))[0]
-                    chat_rows.append(f"<tr><td>{chat_name}</td><td>{_format_large_number(count, html=True)}</td></tr>")
+                    escaped_chat_name = escape(str(chat_name), quote=True)
+                    chat_rows.append(
+                        f"<tr><td>{escaped_chat_name}</td><td>{_format_large_number(count, html=True)}</td></tr>"
+                    )
                 except (IndexError, TypeError) as e:
                     logger.warning(f"生成HTML聊天统计时发生错误，chat_id: {chat_id}, 错误: {e}")
                     chat_rows.append(f"<tr><td>未知聊天</td><td>{_format_large_number(count, html=True)}</td></tr>")
@@ -1180,6 +1234,10 @@ class StatisticOutputTask(AsyncTask):
                 if chat_rows
                 else "<tr><td colspan='2' style='text-align: center; color: #999;'>暂无数据</td></tr>"
             )
+            chat_labels = [str(self.name_mapping.get(chat_id, ("未知聊天", 0))[0]) for chat_id in sorted_chat_ids]
+            chat_counts = [stat_data[MSG_CNT_BY_CHAT][chat_id] for chat_id in sorted_chat_ids]
+            chat_labels_json = _json_for_html_script(chat_labels)
+            chat_counts_json = _json_for_html_script(chat_counts)
             # 生成HTML
             return f"""
             <div id=\"{div_id}\" class=\"tab-content\">
@@ -1427,12 +1485,12 @@ class StatisticOutputTask(AsyncTask):
                         }}
                         
                         // 聊天消息分布饼图
-                        const chatLabels = {[self.name_mapping.get(chat_id, ("未知聊天", 0))[0] for chat_id in sorted(stat_data[MSG_CNT_BY_CHAT].keys())] if stat_data[MSG_CNT_BY_CHAT] else []};
+                        const chatLabels = {chat_labels_json};
                         if (chatLabels.length > 0) {{
                             const chatData = {{
                                 labels: chatLabels,
                                 datasets: [{{
-                                    data: {[stat_data[MSG_CNT_BY_CHAT][chat_id] for chat_id in sorted(stat_data[MSG_CNT_BY_CHAT].keys())] if stat_data[MSG_CNT_BY_CHAT] else []},
+                                    data: {chat_counts_json},
                                     backgroundColor: colors.slice(0, {len(stat_data[MSG_CNT_BY_CHAT]) if stat_data[MSG_CNT_BY_CHAT] else 0}),
                                     borderColor: colors.slice(0, {len(stat_data[MSG_CNT_BY_CHAT]) if stat_data[MSG_CNT_BY_CHAT] else 0}),
                                     borderWidth: 2
@@ -1480,7 +1538,7 @@ class StatisticOutputTask(AsyncTask):
             _format_stat_data(
                 stat["all_time"],
                 "all_time",
-                datetime.fromtimestamp(self._to_float_timestamp(local_storage["deploy_time"])),
+                self.all_time_start_time,
             )
         )
 
@@ -1678,7 +1736,11 @@ class StatisticOutputTask(AsyncTask):
         """
         )
 
-        with open(self.record_file_path, "w", encoding="utf-8") as f:
+        record_file = Path(self.record_file_path)
+        if record_file.parent != Path("."):
+            record_file.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(record_file, "w", encoding="utf-8") as f:
             f.write(html_template)
 
     def _generate_chart_data(self, stat: StatPeriodMapping) -> dict[str, dict[str, object]]:
@@ -1722,7 +1784,7 @@ class StatisticOutputTask(AsyncTask):
 
         # 查询LLM使用记录
         query_start_time = start_time
-        records = StatisticOutputTask._fetch_model_usage_since(query_start_time)
+        records = fetch_model_usage_since(query_start_time)
         for record in records:
             record_time = cast(datetime, record["timestamp"])
 
@@ -1751,9 +1813,7 @@ class StatisticOutputTask(AsyncTask):
 
         # 查询消息记录
         query_start_timestamp = start_time.timestamp()
-        with get_db_session(auto_commit=False) as session:
-            statement = select(Messages).where(col(Messages.timestamp) >= start_time)
-            messages = session.exec(statement).all()
+        messages = fetch_messages_since(start_time)
         for message in messages:
             message_time_ts = message.timestamp.timestamp()
 
@@ -1816,8 +1876,8 @@ class StatisticOutputTask(AsyncTask):
         for i, (model_name, cost_data) in enumerate(cost_by_model.items()):
             color = colors[i % len(colors)]
             model_datasets.append(f"""{{
-                label: '{model_name}',
-                data: {cost_data},
+                label: {_json_for_html_script(str(model_name))},
+                data: {_json_for_html_script(cost_data)},
                 borderColor: '{color}',
                 backgroundColor: '{color}20',
                 tension: 0.4,
@@ -1831,8 +1891,8 @@ class StatisticOutputTask(AsyncTask):
         for i, (module_name, cost_data) in enumerate(cost_by_module.items()):
             color = colors[i % len(colors)]
             module_datasets.append(f"""{{
-                label: '{module_name}',
-                data: {cost_data},
+                label: {_json_for_html_script(str(module_name))},
+                data: {_json_for_html_script(cost_data)},
                 borderColor: '{color}',
                 backgroundColor: '{color}20',
                 tension: 0.4,
@@ -1846,8 +1906,8 @@ class StatisticOutputTask(AsyncTask):
         for i, (chat_name, message_data) in enumerate(message_by_chat.items()):
             color = colors[i % len(colors)]
             message_datasets.append(f"""{{
-                label: '{chat_name}',
-                data: {message_data},
+                label: {_json_for_html_script(str(chat_name))},
+                data: {_json_for_html_script(message_data)},
                 borderColor: '{color}',
                 backgroundColor: '{color}20',
                 tension: 0.4,
@@ -2113,7 +2173,7 @@ class StatisticOutputTask(AsyncTask):
 
         # 查询LLM使用记录
         query_start_time = start_time
-        records = StatisticOutputTask._fetch_model_usage_since(query_start_time)
+        records = fetch_model_usage_since(query_start_time)
         for record in records:
             record_time = cast(datetime, record["timestamp"])
 
@@ -2132,9 +2192,7 @@ class StatisticOutputTask(AsyncTask):
 
         # 查询消息记录
         query_start_timestamp = start_time.timestamp()
-        with get_db_session(auto_commit=False) as session:
-            statement = select(Messages).where(col(Messages.timestamp) >= start_time)
-            messages = session.exec(statement).all()
+        messages = fetch_messages_since(start_time)
         for message in messages:
             message_time_ts = message.timestamp.timestamp()
 
@@ -2148,7 +2206,7 @@ class StatisticOutputTask(AsyncTask):
                     total_replies[interval_index] += 1
 
         # 查询在线时间记录
-        records = StatisticOutputTask._fetch_online_time_since(start_time)
+        records = fetch_online_time_since(start_time)
         for record_start, record_end in records:
             # 找到记录覆盖的所有时间间隔
             for idx, time_point in enumerate(time_points):
@@ -2383,7 +2441,7 @@ class StatisticOutputTask(AsyncTask):
 class AsyncStatisticOutputTask(AsyncTask):
     """完全异步的统计输出任务 - 更高性能版本"""
 
-    def __init__(self, record_file_path: str = "maibot_statistics.html"):
+    def __init__(self, record_file_path: str | None = None):
         # 延迟0秒启动，运行间隔300秒
         super().__init__(task_name="Async Statistics Data Output Task", wait_before_start=0, run_interval=300)
 
@@ -2407,6 +2465,10 @@ class AsyncStatisticOutputTask(AsyncTask):
 
                     # 数据收集任务
                     stats = await loop.run_in_executor(executor, self._statistic_task._collect_all_statistics, now)
+                    try:
+                        await refresh_dashboard_statistics_cache()
+                    except Exception as e:
+                        logger.warning(f"刷新 WebUI 统计缓存失败，将继续生成 HTML 报告: {e}")
                     logger.info("统计数据收集完成")
 
                     # 创建并发的输出任务

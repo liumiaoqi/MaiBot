@@ -12,7 +12,6 @@ from src.core.tooling import (
     ToolExecutionResult,
     ToolInvocation,
     ToolSpec,
-    build_tool_detailed_description,
 )
 
 from .config import (
@@ -43,8 +42,7 @@ if TYPE_CHECKING:
 BUILTIN_TOOL_NAMES = frozenset(
     {
         "reply",
-        "no_reply",
-        "wait",
+        "no_action",
         "stop",
         "create_table",
         "list_tables",
@@ -293,23 +291,19 @@ class MCPManager:
 
                 parameters_schema = self._build_tool_parameters_schema(tool)
                 output_schema = self._build_tool_output_schema(tool)
-                brief_description = str(tool.description or f"来自 {server_name} 的 MCP 工具").strip()
+                description = str(tool.description or f"来自 {server_name} 的 MCP 工具").strip()
                 tool_specs.append(
                     ToolSpec(
                         name=str(tool.name),
                         title=str(getattr(tool, "title", "") or ""),
-                        brief_description=brief_description,
-                        detailed_description=build_tool_detailed_description(
-                            parameters_schema,
-                            fallback_description=f"工具来源：MCP 服务 {server_name}。",
-                        ),
+                        description=description,
                         parameters_schema=parameters_schema,
                         output_schema=output_schema,
                         provider_name="mcp",
                         provider_type="mcp",
                         icons=[build_tool_icon(item) for item in getattr(tool, "icons", []) or []],
                         annotation=build_tool_annotation(getattr(tool, "annotations", None)),
-                        metadata={"server_name": server_name} | getattr(tool, "meta", {}),
+                        metadata={"server_name": server_name} | (getattr(tool, "meta", {}) or {}),
                     )
                 )
         return tool_specs

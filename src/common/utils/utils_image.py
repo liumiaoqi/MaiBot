@@ -1,9 +1,11 @@
 from pathlib import Path
-from PIL import Image as PILImage, ImageSequence
 from typing import Optional, Union
+
+from PIL import Image as PILImage, ImageOps as PILImageOps, ImageSequence
 
 import base64
 import io
+
 import numpy as np
 
 from src.common.logger import get_logger
@@ -87,6 +89,68 @@ class ImageUtils:
         buffer = io.BytesIO()
         combined_image.save(buffer, format="JPEG", quality=85)  # 保存为JPEG
         return buffer.getvalue()
+
+    @staticmethod
+    def compress_image_to_size(image_bytes: bytes, target_size: int) -> bytes:
+        """将图片压缩到目标大小以内，失败时保持原图数据。"""
+        if not image_bytes:
+            raise ValueError("输入的图片字节数据无效")
+        if target_size <= 0 or len(image_bytes) <= target_size:
+            return image_bytes
+
+        try:
+            with PILImage.open(io.BytesIO(image_bytes)) as image:
+                image.seek(0)
+                working_image = ImageUtils._prepare_image_for_receive_compression(image)
+        except Exception as exc:
+            logger.warning(f"接收图片压缩失败，无法识别图片格式: {exc}")
+            return image_bytes
+
+        compressed = ImageUtils._compress_static_image_to_size(working_image, target_size)
+        if len(compressed) < len(image_bytes):
+            return compressed
+        return image_bytes
+
+    @staticmethod
+    def _prepare_image_for_receive_compression(image: PILImage.Image) -> PILImage.Image:
+        """将任意图片整理成适合接收链路压缩的 RGB 静态图。"""
+        normalized_image = PILImageOps.exif_transpose(image)
+        if normalized_image.mode in ("RGBA", "LA") or (
+            normalized_image.mode == "P" and "transparency" in normalized_image.info
+        ):
+            alpha_image = normalized_image.convert("RGBA")
+            background = PILImage.new("RGB", alpha_image.size, (255, 255, 255))
+            background.paste(alpha_image, mask=alpha_image.getchannel("A"))
+            return background
+        return normalized_image.convert("RGB")
+
+    @staticmethod
+    def _compress_static_image_to_size(image: PILImage.Image, target_size: int) -> bytes:
+        """通过降低质量和缩放尺寸压缩静态图片。"""
+        working_image = image.copy()
+        quality = 85
+        last_output = b""
+
+        for _ in range(16):
+            output_buffer = io.BytesIO()
+            working_image.save(output_buffer, format="JPEG", quality=quality, optimize=True)
+            output_bytes = output_buffer.getvalue()
+            last_output = output_bytes
+            if len(output_bytes) <= target_size:
+                return output_bytes
+
+            if quality > 55:
+                quality = max(55, quality - 10)
+                continue
+
+            scale = max(0.1, min(0.95, (target_size / len(output_bytes)) ** 0.5 * 0.95))
+            new_width = max(1, int(working_image.width * scale))
+            new_height = max(1, int(working_image.height * scale))
+            if (new_width, new_height) == working_image.size:
+                break
+            working_image = working_image.resize((new_width, new_height), PILImage.Resampling.LANCZOS)
+
+        return last_output
 
     @staticmethod
     def image_bytes_to_base64(image_bytes: bytes) -> str:

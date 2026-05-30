@@ -4,10 +4,16 @@ from types import SimpleNamespace
 import asyncio
 import pytest
 
-from src.core.tooling import ToolExecutionResult, ToolInvocation
+from src.chat.heart_flow.heartFC_utils import CycleDetail
+from src.common.utils.utils_config import ChatConfigUtils
+from src.config.config import global_config
+from src.core.tooling import ToolAvailabilityContext, ToolExecutionResult, ToolInvocation
 from src.llm_models.payload_content.tool_option import ToolCall
+from src.maisaka import reasoning_engine as reasoning_engine_module
+from src.maisaka.builtin_tool import get_timing_tools
 from src.maisaka.chat_loop_service import ChatResponse, MaisakaChatLoopService
 from src.maisaka.context_messages import AssistantMessage, TIMING_GATE_INVALID_TOOL_HINT_SOURCE
+from src.maisaka.history_post_processor import HistoryPostProcessResult
 from src.maisaka.reasoning_engine import MaisakaReasoningEngine
 from src.maisaka.runtime import MaisakaHeartFlowChatting
 
@@ -32,14 +38,42 @@ def _build_chat_response(tool_calls: list[ToolCall]) -> ChatResponse:
     )
 
 
-@pytest.mark.asyncio
-async def test_timing_gate_invalid_tool_defaults_to_no_reply(monkeypatch: pytest.MonkeyPatch) -> None:
-    runtime = SimpleNamespace(
+def _build_runtime_stub(*, is_group_chat: bool) -> SimpleNamespace:
+    return SimpleNamespace(
         _force_next_timing_continue=False,
         _chat_history=[],
+        session_id="test-session",
+        chat_stream=SimpleNamespace(
+            session_id="test-session",
+            stream_id="test-stream",
+            is_group_session=is_group_chat,
+            group_id="group-1" if is_group_chat else "",
+            user_id="user-1",
+            platform="qq",
+        ),
+        _chat_loop_service=SimpleNamespace(build_prompt_template_context=lambda: {}),
         log_prefix="[test]",
         stopped=False,
     )
+
+
+def test_timing_gate_tools_expose_wait_only_in_private_chat() -> None:
+    private_tool_names = {
+        tool_definition["name"]
+        for tool_definition in get_timing_tools(ToolAvailabilityContext(is_group_chat=False))
+    }
+    group_tool_names = {
+        tool_definition["name"]
+        for tool_definition in get_timing_tools(ToolAvailabilityContext(is_group_chat=True))
+    }
+
+    assert private_tool_names == {"continue", "no_reply", "wait"}
+    assert group_tool_names == {"continue", "no_reply"}
+
+
+@pytest.mark.asyncio
+async def test_timing_gate_invalid_tool_defaults_to_no_reply(monkeypatch: pytest.MonkeyPatch) -> None:
+    runtime = _build_runtime_stub(is_group_chat=True)
 
     def _enter_stop_state() -> None:
         runtime.stopped = True
@@ -83,12 +117,7 @@ async def test_timing_gate_invalid_tool_defaults_to_no_reply(monkeypatch: pytest
 
 @pytest.mark.asyncio
 async def test_timing_gate_invalid_tool_retries_until_valid(monkeypatch: pytest.MonkeyPatch) -> None:
-    runtime = SimpleNamespace(
-        _force_next_timing_continue=False,
-        _chat_history=[],
-        log_prefix="[test]",
-        stopped=False,
-    )
+    runtime = _build_runtime_stub(is_group_chat=True)
 
     def _enter_stop_state() -> None:
         runtime.stopped = True
@@ -141,6 +170,37 @@ async def test_timing_gate_invalid_tool_retries_until_valid(monkeypatch: pytest.
     assert tool_monitor_results[0]["tool_name"] == "continue"
 
 
+@pytest.mark.asyncio
+async def test_timing_gate_group_chat_treats_wait_as_invalid(monkeypatch: pytest.MonkeyPatch) -> None:
+    runtime = _build_runtime_stub(is_group_chat=True)
+
+    def _enter_stop_state() -> None:
+        runtime.stopped = True
+
+    runtime._enter_stop_state = _enter_stop_state
+    engine = MaisakaReasoningEngine(runtime)  # type: ignore[arg-type]
+
+    async def _fake_timing_gate_sub_agent(**kwargs: object) -> ChatResponse:
+        tool_definitions = kwargs["tool_definitions"]
+        assert {tool_definition["name"] for tool_definition in tool_definitions} == {"continue", "no_reply"}
+        return _build_chat_response([
+            ToolCall(call_id="disabled-wait", func_name="wait", args={"seconds": 3}),
+        ])
+
+    async def _fail_invoke_tool_call(*args: object, **kwargs: object) -> None:
+        del args, kwargs
+        raise AssertionError("群聊中禁用的 wait 不应被执行")
+
+    monkeypatch.setattr(engine, "_run_timing_gate_sub_agent", _fake_timing_gate_sub_agent)
+    monkeypatch.setattr(engine, "_invoke_tool_call", _fail_invoke_tool_call)
+
+    action, _, tool_results, _ = await engine._run_timing_gate(object())  # type: ignore[arg-type]
+
+    assert action == "no_reply"
+    assert runtime.stopped is True
+    assert tool_results[-1] == "- no_reply [非法 Timing 工具]: 返回了 wait，已停止本轮并等待新消息"
+
+
 def test_timing_gate_invalid_tool_hint_keeps_only_latest() -> None:
     old_hint = SimpleNamespace(source=TIMING_GATE_INVALID_TOOL_HINT_SOURCE)
     runtime = SimpleNamespace(_chat_history=[old_hint])
@@ -183,6 +243,7 @@ def test_forced_timing_trigger_bypasses_message_frequency_threshold() -> None:
         _internal_turn_queue=asyncio.Queue(),
         _has_pending_messages=lambda: True,
         _get_pending_message_count=lambda: 1,
+        _is_reply_frequency_silent=lambda: False,
         _has_forced_timing_trigger=lambda: True,
         _cancel_deferred_message_turn_task=lambda: None,
     )
@@ -196,6 +257,110 @@ def test_forced_timing_trigger_bypasses_message_frequency_threshold() -> None:
 
     assert runtime._message_turn_scheduled is True
     assert runtime._internal_turn_queue.get_nowait() == "message"
+
+
+def test_zero_reply_frequency_keeps_effective_zero(monkeypatch: pytest.MonkeyPatch) -> None:
+    runtime = object.__new__(MaisakaHeartFlowChatting)
+    runtime.session_id = "test-session"
+    runtime.chat_stream = SimpleNamespace(is_group_session=True)
+    runtime._talk_frequency_adjust = 1.0
+
+    monkeypatch.setattr(global_config.chat, "talk_value", 0.0)
+    monkeypatch.setattr(
+        ChatConfigUtils,
+        "get_talk_value",
+        staticmethod(lambda session_id, is_group_chat=None: 1.0),
+    )
+
+    assert runtime._get_effective_reply_frequency() == 0.0
+    assert runtime._is_reply_frequency_silent() is True
+
+
+def test_zero_reply_frequency_schedules_silent_turn_before_forced_trigger() -> None:
+    runtime = SimpleNamespace(
+        _STATE_WAIT="wait",
+        _agent_state="stop",
+        _message_turn_scheduled=False,
+        _internal_turn_queue=asyncio.Queue(),
+        _has_pending_messages=lambda: True,
+        _get_pending_message_count=lambda: 1,
+        _is_reply_frequency_silent=lambda: True,
+        _cancel_deferred_message_turn_task=lambda: None,
+    )
+
+    def _fail_has_forced_timing_trigger() -> bool:
+        raise AssertionError("回复频率为 0 时不应进入 @/提及强制触发分支")
+
+    runtime._has_forced_timing_trigger = _fail_has_forced_timing_trigger
+
+    MaisakaHeartFlowChatting._schedule_message_turn(runtime)  # type: ignore[arg-type]
+
+    assert runtime._message_turn_scheduled is True
+    assert runtime._internal_turn_queue.get_nowait() == "message"
+
+
+@pytest.mark.asyncio
+async def test_silent_post_process_skips_mid_term_summary_but_keeps_learning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    removed_messages = [SimpleNamespace(count_in_context=True)]
+    final_history = [SimpleNamespace(count_in_context=True)]
+    process_result = HistoryPostProcessResult(
+        history=final_history,
+        removed_messages=removed_messages,
+        removed_count=1,
+        changed_count=1,
+        remaining_context_count=1,
+    )
+    trim_logs: list[tuple[int, int]] = []
+    learning_messages: list[object] = []
+
+    async def _fake_trigger_learning(messages: object) -> None:
+        learning_messages.append(messages)
+
+    runtime = SimpleNamespace(
+        _chat_history=[SimpleNamespace(count_in_context=True)],
+        _max_context_size=1,
+        log_prefix="[test]",
+        session_id="test-session",
+        _log_history_trimmed=lambda removed_count, remaining_count: trim_logs.append(
+            (removed_count, remaining_count)
+        ),
+        _trigger_trimmed_history_learning=_fake_trigger_learning,
+    )
+    engine = MaisakaReasoningEngine(runtime)  # type: ignore[arg-type]
+    scheduled_coroutines: list[object] = []
+
+    def _fake_create_task(coro: object) -> SimpleNamespace:
+        scheduled_coroutines.append(coro)
+        return SimpleNamespace()
+
+    async def _fail_build_mid_term_memory_message(*args: object, **kwargs: object) -> None:
+        del args, kwargs
+        raise AssertionError("静默模式裁切历史不应生成中期记忆摘要")
+
+    monkeypatch.setattr(
+        reasoning_engine_module,
+        "process_chat_history_after_cycle",
+        lambda *args, **kwargs: process_result,
+    )
+    monkeypatch.setattr(
+        reasoning_engine_module,
+        "build_mid_term_memory_message",
+        _fail_build_mid_term_memory_message,
+    )
+    monkeypatch.setattr(reasoning_engine_module.asyncio, "create_task", _fake_create_task)
+
+    await engine._post_process_chat_history_after_cycle(
+        CycleDetail(cycle_id=1),
+        enable_mid_term_memory=False,
+    )
+    for coro in scheduled_coroutines:
+        await coro
+
+    assert runtime._chat_history == final_history
+    assert trim_logs == [(1, 1)]
+    assert learning_messages == [removed_messages]
 
 
 def test_finish_tool_is_not_written_back_to_history() -> None:

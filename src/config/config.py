@@ -10,6 +10,7 @@ import tomlkit
 
 from .config_base import AttributeData, ConfigBase, Field
 from .config_utils import compare_versions, output_config_changes, recursive_parse_item_to_table
+from .config_upgrade_hooks import apply_config_upgrade_hooks
 from .default_model_config import create_default_model_config
 from .file_watcher import FileChange, FileWatcher
 from .legacy_migration import migrate_legacy_bind_env_to_bot_config_dict, try_migrate_legacy_bot_config_dict
@@ -23,13 +24,14 @@ from .official_configs import (
     DebugConfig,
     EmojiConfig,
     ExpressionConfig,
+    JargonConfig,
     KeywordReactionConfig,
     LogConfig,
     MaimMessageConfig,
     MCPConfig,
-    MemoryConfig,
     MessageReceiveConfig,
     PersonalityConfig,
+    PluginConfig,
     PluginRuntimeConfig,
     ResponsePostProcessConfig,
     ResponseSplitterConfig,
@@ -56,9 +58,9 @@ BOT_CONFIG_PATH: Path = (CONFIG_DIR / "bot_config.toml").resolve().absolute()
 MODEL_CONFIG_PATH: Path = (CONFIG_DIR / "model_config.toml").resolve().absolute()
 LEGACY_ENV_PATH: Path = (PROJECT_ROOT / ".env").resolve().absolute()
 A_MEMORIX_LEGACY_CONFIG_PATH: Path = (CONFIG_DIR / "a_memorix.toml").resolve().absolute()
-MMC_VERSION: str = "1.0.0-pre.11"
-CONFIG_VERSION: str = "8.10.7"
-MODEL_CONFIG_VERSION: str = "1.15.3"
+MMC_VERSION: str = "1.0.0-rc.2"
+CONFIG_VERSION: str = "8.12.24"
+MODEL_CONFIG_VERSION: str = "1.17.2"
 
 logger = get_logger("config")
 
@@ -84,8 +86,8 @@ class Config(ConfigBase):
     expression: ExpressionConfig = Field(default_factory=ExpressionConfig)
     """表达配置类"""
 
-    memory: MemoryConfig = Field(default_factory=MemoryConfig)
-    """记忆配置类"""
+    jargon: JargonConfig = Field(default_factory=JargonConfig)
+    """黑话配置类"""
 
     a_memorix: AMemorixConfig = Field(default_factory=AMemorixConfig)
     """A_Memorix 长期记忆子系统配置"""
@@ -131,6 +133,9 @@ class Config(ConfigBase):
 
     mcp: MCPConfig = Field(default_factory=MCPConfig)
     """MCP 配置类"""
+
+    plugin: PluginConfig = Field(default_factory=PluginConfig)
+    """插件管理配置类"""
 
     plugin_runtime: PluginRuntimeConfig = Field(default_factory=PluginRuntimeConfig)
     """插件运行时配置类"""
@@ -237,6 +242,7 @@ class ConfigManager:
         self._hot_reload_min_interval_s: float = 1.0
         self._hot_reload_timeout_s: float = 20.0
         self._last_hot_reload_monotonic: float = 0.0
+        self.reload_revision: int = 0
 
     def initialize(self):
         logger.info(t("config.current_version", version=MMC_VERSION))
@@ -427,9 +433,7 @@ class ConfigManager:
 
             self.global_config = global_config_new
             self.model_config = model_config_new
-            global global_config, model_config
-            global_config = global_config_new
-            model_config = model_config_new
+            self.reload_revision += 1
             logger.info(t("config.hot_reload_completed"))
 
             for callback in list(self._reload_callbacks):
@@ -551,6 +555,7 @@ def load_config_from_file(
     old_ver: str = inner_version
     env_migration_applied: bool = False
     a_memorix_migration_applied: bool = False
+    upgrade_hook_applied: bool = False
     config_data.remove("inner")  # 移除 inner 部分，避免干扰后续处理
     config_data = config_data.unwrap()  # 转换为普通字典，方便后续处理
     if config_path.name == "bot_config.toml" and config_class.__name__ == "Config":
@@ -565,6 +570,11 @@ def load_config_from_file(
         config_data = legacy_migration.data
         config_data, a_memorix_migration_applied = _migrate_legacy_a_memorix_config(config_data)
         config_data = _normalize_loaded_bot_config_dict(config_data)
+    hook_result = apply_config_upgrade_hooks(config_data, config_path.name, old_ver, new_ver)
+    upgrade_hook_applied = hook_result.migrated
+    if hook_result.migrated:
+        logger.warning(f"检测到配置升级钩子变更，已应用: {hook_result.reason}")
+    config_data = hook_result.data
     # 保留一份“干净”的原始数据副本，避免第一次 from_dict 过程中对 dict 的就地修改
     original_data: dict[str, Any] = copy.deepcopy(config_data)
     try:
@@ -584,7 +594,7 @@ def load_config_from_file(
                     raise e
             else:
                 raise e
-        if compare_versions(old_ver, new_ver) or env_migration_applied or a_memorix_migration_applied:
+        if compare_versions(old_ver, new_ver) or env_migration_applied or a_memorix_migration_applied or upgrade_hook_applied:
             output_config_changes(attribute_data, logger, old_ver, new_ver, config_path.name)
             write_config_to_file(target_config, config_path, new_ver, override_repr)
             if env_migration_applied:
@@ -654,8 +664,30 @@ def write_config_to_file(
         tomlkit.dump(full_config_data, f)
 
 
+class _ConfigProxy:
+    """稳定配置代理，确保热重载后旧导入也能读取最新配置。"""
+
+    def __init__(self, getter: Callable[[], ConfigBase]) -> None:
+        self._getter = getter
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._getter(), name)
+
+    def __getitem__(self, key: str) -> Any:
+        return self._getter()[key]
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name == "_getter":
+            object.__setattr__(self, name, value)
+            return
+        setattr(self._getter(), name, value)
+
+    def __repr__(self) -> str:
+        return repr(self._getter())
+
+
 # generate_new_config_file(Config, BOT_CONFIG_PATH, CONFIG_VERSION)
 config_manager = ConfigManager()
 config_manager.initialize()
-global_config = config_manager.get_global_config()
-model_config = config_manager.get_model_config()
+global_config: Config = cast(Config, _ConfigProxy(config_manager.get_global_config))
+model_config: ModelConfig = cast(ModelConfig, _ConfigProxy(config_manager.get_model_config))

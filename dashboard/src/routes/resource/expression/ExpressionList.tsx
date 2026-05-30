@@ -1,5 +1,6 @@
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Edit, Eye, Trash2 } from 'lucide-react'
 import { useState } from 'react'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -26,6 +27,7 @@ export function ExpressionList({
   pageSize,
   selectedIds,
   chatNameMap,
+  hideChatColumn = false,
   onEdit,
   onViewDetail,
   onDelete,
@@ -41,6 +43,7 @@ export function ExpressionList({
   pageSize: number
   selectedIds: Set<number>
   chatNameMap: Map<string, string>
+  hideChatColumn?: boolean
   onEdit: (expression: Expression) => void
   onViewDetail: (expression: Expression) => void
   onDelete: (expression: Expression) => void
@@ -55,7 +58,24 @@ export function ExpressionList({
     return expression.chat_name || chatNameMap.get(expression.chat_id) || expression.chat_id
   }
 
+  const getReviewBadge = (expression: Expression) => {
+    const modifier = expression.modified_by?.toLowerCase()
+
+    if (!expression.checked) {
+      if (modifier === 'ai') {
+        return <Badge variant="secondary" className="whitespace-nowrap">AI预检通过</Badge>
+      }
+      return <Badge variant="outline" className="whitespace-nowrap text-muted-foreground">未审核</Badge>
+    }
+
+    if (modifier === 'user') {
+      return <Badge className="whitespace-nowrap bg-green-600 hover:bg-green-600">人工通过</Badge>
+    }
+    return <Badge className="whitespace-nowrap bg-green-600 hover:bg-green-600">已通过</Badge>
+  }
+
   const totalPages = Math.ceil(total / pageSize)
+  const tableColSpan = hideChatColumn ? 5 : 6
 
   const handleJumpToPage = (jumpToPage: string) => {
     const targetPage = parseInt(jumpToPage)
@@ -85,20 +105,21 @@ export function ExpressionList({
               </TableHead>
               <TableHead>情境</TableHead>
               <TableHead>风格</TableHead>
-              <TableHead>聊天</TableHead>
+              {!hideChatColumn && <TableHead>聊天</TableHead>}
+              <TableHead>审核</TableHead>
               <TableHead className="text-right">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                  加载中...
+                <TableCell colSpan={tableColSpan} className="text-center py-8 text-muted-foreground">
+                  Thinking...
                 </TableCell>
               </TableRow>
             ) : expressions.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={tableColSpan} className="text-center py-8 text-muted-foreground">
                   暂无数据
                 </TableCell>
               </TableRow>
@@ -115,14 +136,21 @@ export function ExpressionList({
                     {expression.situation}
                   </TableCell>
                   <TableCell className="max-w-xs truncate">{expression.style}</TableCell>
-                  <TableCell 
-                    className="max-w-[200px] truncate" 
-                    title={getChatName(expression)}
-                    style={{ wordBreak: 'keep-all' }}
-                  >
-                    <span className="whitespace-nowrap overflow-hidden text-ellipsis block">
-                      {getChatName(expression)}
-                    </span>
+                  {!hideChatColumn && (
+                    <TableCell
+                      className="max-w-[200px] truncate"
+                      title={getChatName(expression)}
+                      style={{ wordBreak: 'keep-all' }}
+                    >
+                      <span className="whitespace-nowrap overflow-hidden text-ellipsis block">
+                        {getChatName(expression)}
+                      </span>
+                    </TableCell>
+                  )}
+                  <TableCell>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {getReviewBadge(expression)}
+                    </div>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
@@ -164,7 +192,7 @@ export function ExpressionList({
       <div className="md:hidden space-y-3 p-4">
         {loading ? (
           <div className="text-center py-8 text-muted-foreground">
-            加载中...
+            Thinking...
           </div>
         ) : expressions.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
@@ -197,6 +225,7 @@ export function ExpressionList({
               </div>
 
               {/* 聊天名称 */}
+              {!hideChatColumn && (
               <div className="text-sm">
                 <div className="text-xs text-muted-foreground mb-1">聊天</div>
                 <p 
@@ -206,6 +235,14 @@ export function ExpressionList({
                 >
                   {getChatName(expression)}
                 </p>
+              </div>
+              )}
+
+              <div className="text-sm">
+                <div className="text-xs text-muted-foreground mb-1">审核</div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {getReviewBadge(expression)}
+                </div>
               </div>
 
               {/* 操作按钮 */}

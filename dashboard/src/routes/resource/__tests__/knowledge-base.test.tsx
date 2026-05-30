@@ -1,12 +1,16 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { KnowledgeBasePage } from '../knowledge-base'
 import * as memoryApi from '@/lib/memory-api'
 
 const navigateMock = vi.fn()
 const toastMock = vi.fn()
+
+afterEach(() => {
+  cleanup()
+})
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigateMock,
@@ -72,6 +76,7 @@ vi.mock('@/lib/memory-api', () => ({
   retryMemoryImportTask: vi.fn(),
   resolveMemoryImportPath: vi.fn(),
   refreshMemoryRuntimeSelfCheck: vi.fn(),
+  rebuildMemoryRuntimeVectors: vi.fn(),
   updateMemoryConfig: vi.fn(),
   updateMemoryConfigRaw: vi.fn(),
   getMemoryTuningProfile: vi.fn(),
@@ -83,6 +88,8 @@ vi.mock('@/lib/memory-api', () => ({
   getMemoryDeleteOperation: vi.fn(),
   getMemoryFeedbackCorrections: vi.fn(),
   getMemoryFeedbackCorrection: vi.fn(),
+  getMemoryProfileEvidence: vi.fn(),
+  correctMemoryProfileEvidence: vi.fn(),
   previewMemoryDelete: vi.fn(),
   executeMemoryDelete: vi.fn(),
   restoreMemoryDelete: vi.fn(),
@@ -154,10 +161,50 @@ function mockImportDetail(taskId: string): memoryApi.MemoryImportTaskPayload {
   }
 }
 
+function mockImportCompletedWithErrorsDetail(taskId: string): memoryApi.MemoryImportTaskPayload {
+  return {
+    ...mockImportDetail(taskId),
+    status: 'completed_with_errors',
+    current_step: 'completed_with_errors',
+    total_chunks: 12,
+    done_chunks: 9,
+    failed_chunks: 3,
+    cancelled_chunks: 0,
+    progress: 75,
+    files: [
+      {
+        file_id: 'file-error',
+        name: 'error.txt',
+        source_kind: 'paste',
+        input_mode: 'text',
+        status: 'failed',
+        current_step: 'failed',
+        detected_strategy_type: 'auto',
+        total_chunks: 12,
+        done_chunks: 9,
+        failed_chunks: 3,
+        cancelled_chunks: 0,
+        progress: 75,
+        error: 'mock error',
+        created_at: 1_710_000_000,
+        updated_at: 1_710_000_100,
+      },
+    ],
+  }
+}
+
 describe('KnowledgeBasePage import workflow', () => {
   beforeEach(() => {
     navigateMock.mockReset()
     toastMock.mockReset()
+    vi.mocked(memoryApi.createMemoryUploadImport).mockReset()
+    vi.mocked(memoryApi.createMemoryPasteImport).mockReset()
+    vi.mocked(memoryApi.createMemoryRawScanImport).mockReset()
+    vi.mocked(memoryApi.createMemoryLpmmOpenieImport).mockReset()
+    vi.mocked(memoryApi.createMemoryLpmmConvertImport).mockReset()
+    vi.mocked(memoryApi.createMemoryTemporalBackfillImport).mockReset()
+    vi.mocked(memoryApi.createMemoryMaibotMigrationImport).mockReset()
+    vi.mocked(memoryApi.rebuildMemoryRuntimeVectors).mockReset()
 
     vi.mocked(memoryApi.getMemoryConfigSchema).mockResolvedValue({
       success: true,
@@ -494,6 +541,14 @@ describe('KnowledgeBasePage import workflow', () => {
       success: true,
       report: { ok: true },
     })
+    vi.mocked(memoryApi.rebuildMemoryRuntimeVectors).mockImplementation(async (payload = {}) => ({
+      success: true,
+      dry_run: Boolean(payload.dry_run),
+      counts: { paragraphs: 2, entities: 1, relations: 0 },
+      total: 3,
+      done: payload.dry_run ? 0 : 3,
+      failed: 0,
+    }))
     vi.mocked(memoryApi.updateMemoryConfig).mockResolvedValue({ success: true } as never)
     vi.mocked(memoryApi.updateMemoryConfigRaw).mockResolvedValue({ success: true } as never)
   })
@@ -510,6 +565,25 @@ describe('KnowledgeBasePage import workflow', () => {
     expect(memoryApi.getMemoryImportSettings).toHaveBeenCalled()
     expect(memoryApi.getMemoryImportPathAliases).toHaveBeenCalled()
     expect(memoryApi.getMemoryImportTasks).toHaveBeenCalled()
+  })
+
+  it('rebuilds all vectors from overview controls', async () => {
+    const user = userEvent.setup()
+    render(<KnowledgeBasePage />)
+
+    expect(await screen.findByText('长期记忆控制台', undefined, { timeout: 10_000 })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '重建向量' }))
+    await waitFor(() =>
+      expect(memoryApi.rebuildMemoryRuntimeVectors).toHaveBeenCalledWith({ dry_run: true }),
+    )
+    expect(await screen.findByText('重建全部向量')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '确认重建' }))
+    await waitFor(() =>
+      expect(memoryApi.rebuildMemoryRuntimeVectors).toHaveBeenCalledWith({ dry_run: false }),
+    )
+    await waitFor(() =>
+      expect(toastMock).toHaveBeenLastCalledWith(expect.objectContaining({ title: '向量重建完成' })),
+    )
   })
 
   it('creates import tasks for all 7 modes and calls correct endpoints', async () => {
@@ -581,6 +655,89 @@ describe('KnowledgeBasePage import workflow', () => {
     })
   }, 60_000)
 
+  it('formats MaiBot migration datetime-local values and numeric options', async () => {
+    const user = userEvent.setup()
+    render(<KnowledgeBasePage />)
+
+    await screen.findByText('长期记忆控制台', undefined, { timeout: 10_000 })
+    await user.click(screen.getByRole('tab', { name: '导入' }))
+    await screen.findByRole('button', { name: '创建导入任务' })
+    await user.click(screen.getByRole('tab', { name: 'MaiBot 迁移' }))
+
+    fireEvent.change(await screen.findByLabelText('源数据库路径'), { target: { value: ' data/old-maibot.db ' } })
+    fireEvent.change(screen.getByLabelText('起始时间'), { target: { value: '2024-01-02T03:04' } })
+    fireEvent.change(screen.getByLabelText('结束时间'), { target: { value: '2024-01-03T05:06:07' } })
+    fireEvent.change(screen.getByLabelText('起始 ID'), { target: { value: '10' } })
+    fireEvent.change(screen.getByLabelText('结束 ID'), { target: { value: '20' } })
+    await user.click(screen.getByText('高级选项'))
+    fireEvent.change(screen.getByLabelText('读取批大小'), { target: { value: '123' } })
+    fireEvent.change(screen.getByLabelText('提交窗口行数'), { target: { value: '456' } })
+    fireEvent.change(screen.getByLabelText('向量线程数'), { target: { value: '7' } })
+
+    await user.click(screen.getByRole('button', { name: '创建导入任务' }))
+    await waitFor(() => expect(memoryApi.createMemoryMaibotMigrationImport).toHaveBeenCalledTimes(1))
+    const expectedTimeFrom = new Date('2024-01-02T03:04').toISOString()
+    const expectedTimeTo = new Date('2024-01-03T05:06:07').toISOString()
+    expect(vi.mocked(memoryApi.createMemoryMaibotMigrationImport).mock.calls[0][0]).toMatchObject({
+      source_db: 'data/old-maibot.db',
+      time_from: expectedTimeFrom,
+      time_to: expectedTimeTo,
+      start_id: 10,
+      end_id: 20,
+      read_batch_size: 123,
+      commit_window_rows: 456,
+      embed_workers: 7,
+    })
+  }, 20_000)
+
+  it('blocks invalid MaiBot migration input before creating a task', async () => {
+    const user = userEvent.setup()
+    render(<KnowledgeBasePage />)
+
+    await screen.findByText('长期记忆控制台', undefined, { timeout: 10_000 })
+    await user.click(screen.getByRole('tab', { name: '导入' }))
+    await screen.findByRole('button', { name: '创建导入任务' })
+    await user.click(screen.getByRole('tab', { name: 'MaiBot 迁移' }))
+
+    const sourceDbInput = await screen.findByLabelText('源数据库路径')
+    const createButton = screen.getByRole('button', { name: '创建导入任务' })
+    fireEvent.change(sourceDbInput, { target: { value: '   ' } })
+    await user.click(createButton)
+    await waitFor(() =>
+      expect(toastMock).toHaveBeenLastCalledWith(expect.objectContaining({ description: '请填写源数据库路径' })),
+    )
+    expect(memoryApi.createMemoryMaibotMigrationImport).not.toHaveBeenCalled()
+
+    fireEvent.change(sourceDbInput, { target: { value: 'data/old-maibot.db' } })
+    fireEvent.change(screen.getByLabelText('起始时间'), { target: { value: '2024-01-03T00:00' } })
+    fireEvent.change(screen.getByLabelText('结束时间'), { target: { value: '2024-01-02T00:00' } })
+    await user.click(createButton)
+    await waitFor(() =>
+      expect(toastMock).toHaveBeenLastCalledWith(expect.objectContaining({ description: '起始时间不能晚于结束时间' })),
+    )
+    expect(memoryApi.createMemoryMaibotMigrationImport).not.toHaveBeenCalled()
+
+    fireEvent.change(screen.getByLabelText('起始时间'), { target: { value: '2024-01-02T00:00' } })
+    fireEvent.change(screen.getByLabelText('结束时间'), { target: { value: '2024-01-03T00:00' } })
+    fireEvent.change(screen.getByLabelText('起始 ID'), { target: { value: '20' } })
+    fireEvent.change(screen.getByLabelText('结束 ID'), { target: { value: '10' } })
+    await user.click(createButton)
+    await waitFor(() =>
+      expect(toastMock).toHaveBeenLastCalledWith(expect.objectContaining({ description: '起始 ID 不能大于结束 ID' })),
+    )
+    expect(memoryApi.createMemoryMaibotMigrationImport).not.toHaveBeenCalled()
+
+    fireEvent.change(screen.getByLabelText('起始 ID'), { target: { value: '10' } })
+    fireEvent.change(screen.getByLabelText('结束 ID'), { target: { value: '20' } })
+    await user.click(screen.getByText('高级选项'))
+    fireEvent.change(screen.getByLabelText('读取批大小'), { target: { value: '0' } })
+    await user.click(createButton)
+    await waitFor(() =>
+      expect(toastMock).toHaveBeenLastCalledWith(expect.objectContaining({ description: '读取批大小 必须填写正整数' })),
+    )
+    expect(memoryApi.createMemoryMaibotMigrationImport).not.toHaveBeenCalled()
+  }, 20_000)
+
   it('loads task detail and supports chunk pagination', async () => {
     const user = userEvent.setup()
     render(<KnowledgeBasePage />)
@@ -604,6 +761,21 @@ describe('KnowledgeBasePage import workflow', () => {
     await waitFor(() =>
       expect(memoryApi.getMemoryImportTaskChunks).toHaveBeenCalledWith('import-run-1', 'file-beta', 50, 50),
     )
+  }, 20_000)
+
+  it('shows import failures separately from successful chunks', async () => {
+    vi.mocked(memoryApi.getMemoryImportTask).mockResolvedValue({
+      success: true,
+      task: mockImportCompletedWithErrorsDetail('import-run-1'),
+    })
+    const user = userEvent.setup()
+    render(<KnowledgeBasePage />)
+
+    await screen.findByText('长期记忆控制台', undefined, { timeout: 10_000 })
+    await user.click(screen.getByRole('tab', { name: '导入' }))
+
+    expect((await screen.findAllByText('完成（有错误）')).length).toBeGreaterThan(0)
+    expect(await screen.findByText('成功 9 / 12 分块 · 失败 3')).toBeInTheDocument()
   }, 20_000)
 
   it('supports cancel and retry actions for selected task', async () => {

@@ -1,13 +1,21 @@
 import type { ThemeTokens, UserThemeConfig } from './tokens'
 
-import { generatePalette } from './palette'
+import { generatePalette, getReadableForeground, isDefaultAccentColor } from './palette'
 import { getPresetById } from './presets'
 import { sanitizeCSS } from './sanitizer'
-import { defaultDarkTokens, defaultLightTokens, tokenToCSSVarName } from './tokens'
+import {
+  DEFAULT_DASHBOARD_STYLE,
+  defaultDarkTokens,
+  defaultLightTokens,
+  futureRetroDarkTokens,
+  futureRetroLightTokens,
+  tokenToCSSVarName,
+} from './tokens'
 
 const CUSTOM_CSS_ID = 'maibot-custom-css'
 const COMPONENT_CSS_ID_PREFIX = 'maibot-bg-css-'
 const COMPONENT_IDS = ['page', 'sidebar', 'header', 'card', 'dialog'] as const
+const DEFAULT_PRIMARY_COLOR_HSL = defaultLightTokens.color.primary
 
 const mergeTokens = (base: ThemeTokens, overrides: Partial<ThemeTokens>): ThemeTokens => {
   return {
@@ -36,14 +44,31 @@ const mergeTokens = (base: ThemeTokens, overrides: Partial<ThemeTokens>): ThemeT
 
 const buildTokens = (config: UserThemeConfig, isDark: boolean): ThemeTokens => {
   const baseTokens = isDark ? defaultDarkTokens : defaultLightTokens
-  let mergedTokens = mergeTokens(baseTokens, {})
+  let mergedTokens = mergeTokens(baseTokens, {
+    color: generatePalette(DEFAULT_PRIMARY_COLOR_HSL, isDark),
+  })
 
   if (config.accentColor) {
-    const paletteTokens = generatePalette(config.accentColor, isDark)
-    mergedTokens = mergeTokens(mergedTokens, { color: paletteTokens })
+    if (isDefaultAccentColor(config.accentColor)) {
+      mergedTokens = mergeTokens(mergedTokens, {
+        color: {
+          ...mergedTokens.color,
+          accent: config.accentColor,
+          'accent-foreground': getReadableForeground(config.accentColor),
+        },
+      })
+    } else {
+      mergedTokens = mergeTokens(mergedTokens, {
+        color: generatePalette(config.accentColor, isDark),
+      })
+    }
   }
 
-  if (config.selectedPreset && config.selectedPreset !== 'light' && config.selectedPreset !== 'dark') {
+  if (
+    config.selectedPreset &&
+    config.selectedPreset !== 'light' &&
+    config.selectedPreset !== 'dark'
+  ) {
     const preset = getPresetById(config.selectedPreset)
     if (preset?.tokens) {
       mergedTokens = mergeTokens(mergedTokens, preset.tokens)
@@ -52,6 +77,13 @@ const buildTokens = (config: UserThemeConfig, isDark: boolean): ThemeTokens => {
 
   if (config.tokenOverrides) {
     mergedTokens = mergeTokens(mergedTokens, config.tokenOverrides)
+  }
+
+  if ((config.dashboardStyle ?? DEFAULT_DASHBOARD_STYLE) === 'future-retro') {
+    mergedTokens = mergeTokens(
+      mergedTokens,
+      isDark ? futureRetroDarkTokens : futureRetroLightTokens
+    )
   }
 
   return mergedTokens

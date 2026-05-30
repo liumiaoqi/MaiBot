@@ -12,14 +12,24 @@ class MaiChatSession(BaseDatabaseDataModel[ChatSession]):
         session_id: str,
         platform: str,
         user_id: Optional[str] = None,
+        user_nickname: Optional[str] = None,
+        user_cardname: Optional[str] = None,
         group_id: Optional[str] = None,
+        group_name: Optional[str] = None,
+        account_id: Optional[str] = None,
+        scope: Optional[str] = None,
         created_timestamp: Optional[datetime] = None,
         last_active_timestamp: Optional[datetime] = None,
     ):
         self.session_id: str = session_id
         self.platform: str = platform
-        self.user_id: Optional[str] = user_id
         self.group_id: Optional[str] = group_id
+        self.user_id: Optional[str] = None if self.group_id else user_id
+        self.user_nickname: Optional[str] = None if self.group_id else user_nickname
+        self.user_cardname: Optional[str] = None if self.group_id else user_cardname
+        self.group_name: Optional[str] = group_name if self.group_id else None
+        self.account_id: Optional[str] = account_id
+        self.scope: Optional[str] = scope
         self.created_timestamp: datetime = created_timestamp or datetime.now()
         """会话创建时间，默认为当前时间"""
         self.last_active_timestamp: Optional[datetime] = last_active_timestamp
@@ -37,7 +47,12 @@ class MaiChatSession(BaseDatabaseDataModel[ChatSession]):
             session_id=db_record.session_id,
             platform=db_record.platform,
             user_id=db_record.user_id,
+            user_nickname=getattr(db_record, "user_nickname", None),
+            user_cardname=getattr(db_record, "user_cardname", None),
             group_id=db_record.group_id,
+            group_name=getattr(db_record, "group_name", None),
+            account_id=getattr(db_record, "account_id", None),
+            scope=getattr(db_record, "scope", None),
             created_timestamp=db_record.created_timestamp,
             last_active_timestamp=db_record.last_active_timestamp,
         )
@@ -47,7 +62,12 @@ class MaiChatSession(BaseDatabaseDataModel[ChatSession]):
             session_id=self.session_id,
             platform=self.platform,
             user_id=self.user_id,
+            user_nickname=self.user_nickname,
+            user_cardname=self.user_cardname,
             group_id=self.group_id,
+            group_name=self.group_name,
+            account_id=self.account_id,
+            scope=self.scope,
             created_timestamp=self.created_timestamp,
             last_active_timestamp=self.last_active_timestamp,
         )

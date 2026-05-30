@@ -9,13 +9,17 @@ from src.common.data_models.message_component_data_model import EmojiComponent, 
 from src.common.database.database import get_db_session
 from src.common.database.database_model import Images, ImageType
 from src.common.logger import get_logger
+from src.config.config import config_manager
 
 from .context_messages import LLMContextMessage, SessionBackedMessage
+from .message_adapter import build_visible_text_from_sequence
 
 logger = get_logger("maisaka_chat_history_visual_refresher")
 
 BuildHistoryMessage = Callable[[SessionMessage, str], Awaitable[Optional[LLMContextMessage]]]
 BuildVisibleText = Callable[[SessionMessage, str], str]
+
+_PLANNER_PENDING_IMAGE_HASHES: set[str] = set()
 
 
 async def refresh_chat_history_visual_placeholders(
@@ -33,6 +37,12 @@ async def refresh_chat_history_visual_placeholders(
 
         original_message = history_message.original_message
         if original_message is None:
+            visual_components_updated = _refresh_pending_visual_components(history_message.raw_message.components)
+            if not visual_components_updated:
+                continue
+
+            history_message.visible_text = build_visible_text_from_sequence(history_message.raw_message).strip()
+            refreshed_count += 1
             continue
 
         visual_components_updated = _refresh_pending_visual_components(original_message.raw_message.components)
@@ -54,6 +64,139 @@ async def refresh_chat_history_visual_placeholders(
         refreshed_count += 1
 
     return refreshed_count
+
+
+def has_pending_image_recognition(chat_history: list[LLMContextMessage]) -> bool:
+    """判断历史中是否仍有可等待的图片识别任务。"""
+
+    if not _is_vlm_task_configured():
+        return False
+
+    for history_message in chat_history:
+        if not isinstance(history_message, SessionBackedMessage):
+            continue
+
+        original_message = history_message.original_message
+        if original_message is None:
+            components = history_message.raw_message.components
+        else:
+            components = original_message.raw_message.components
+
+        if _has_pending_image_component(components):
+            return True
+
+    return False
+
+
+def log_pending_image_recognition_before_text_planner(
+    chat_history: list[LLMContextMessage],
+    *,
+    log_prefix: str = "",
+) -> int:
+    """记录非多模态 planner 开始前仍在等待识别的图片数量。"""
+
+    if not _is_vlm_task_configured():
+        return 0
+
+    pending_image_hashes: set[str] = set()
+    for history_message in chat_history:
+        if not isinstance(history_message, SessionBackedMessage):
+            continue
+
+        original_message = history_message.original_message
+        if original_message is None:
+            components = history_message.raw_message.components
+        else:
+            components = original_message.raw_message.components
+
+        pending_image_hashes.update(_collect_pending_image_hashes(components))
+
+    pending_count = len(pending_image_hashes)
+    if pending_count <= 0:
+        return 0
+
+    _PLANNER_PENDING_IMAGE_HASHES.update(pending_image_hashes)
+    logger.info(f"{log_prefix} 非多模态 planner 开始前仍有 {pending_count} 张图片正在等待识别")
+    return pending_count
+
+
+def log_tracked_image_recognition_completed(image_hash: str) -> None:
+    """当 planner 已遇到的待识别图片完成识别时记录一次日志。"""
+
+    if not image_hash or image_hash not in _PLANNER_PENDING_IMAGE_HASHES:
+        return
+
+    _PLANNER_PENDING_IMAGE_HASHES.remove(image_hash)
+    logger.info(f"非多模态 planner 等待中的图片已完成识别，image_hash={image_hash}")
+
+
+def _is_vlm_task_configured() -> bool:
+    try:
+        vlm_models = config_manager.get_model_config().model_task_config.vlm.model_list
+        return any(str(model_name).strip() for model_name in vlm_models)
+    except Exception as exc:
+        logger.warning(f"读取 VLM 模型配置失败，跳过图片识别等待: {exc}")
+        return False
+
+
+def _has_pending_image_component(components: list[object]) -> bool:
+    for component in components:
+        if isinstance(component, ImageComponent):
+            if _should_refresh_image_component(component) and _is_image_component_pending(component):
+                return True
+            continue
+
+        if not isinstance(component, ForwardNodeComponent):
+            continue
+
+        for forward_component in component.forward_components:
+            if _has_pending_image_component(forward_component.content):
+                return True
+
+    return False
+
+
+def _collect_pending_image_hashes(components: list[object]) -> list[str]:
+    pending_image_hashes: list[str] = []
+    for component in components:
+        if isinstance(component, ImageComponent):
+            if _should_refresh_image_component(component) and _is_image_component_pending(component):
+                pending_image_hashes.append(component.binary_hash)
+            continue
+
+        if not isinstance(component, ForwardNodeComponent):
+            continue
+
+        for forward_component in component.forward_components:
+            pending_image_hashes.extend(_collect_pending_image_hashes(forward_component.content))
+
+    return pending_image_hashes
+
+
+def _is_image_component_pending(component: ImageComponent) -> bool:
+    if not component.binary_hash:
+        return False
+    if _is_image_description_pending(component.binary_hash):
+        return True
+    if component.binary_data and not _lookup_cached_image_description(component.binary_hash):
+        return True
+    return False
+
+
+def _is_image_description_pending(image_hash: str) -> bool:
+    if not image_hash:
+        return False
+
+    try:
+        with get_db_session() as session:
+            statement = select(Images).filter_by(image_hash=image_hash, image_type=ImageType.IMAGE).limit(1)
+            image_record = session.exec(statement).first()
+            if image_record is None or image_record.no_file_flag:
+                return False
+            return not bool(image_record.vlm_processed)
+    except Exception as exc:
+        logger.warning(f"读取图片识别状态失败，image_hash={image_hash}: {exc}")
+        return False
 
 
 def _refresh_pending_visual_components(components: list[object]) -> bool:

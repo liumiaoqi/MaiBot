@@ -2,10 +2,10 @@
  * 表达方式审核器弹窗组件
  * 
  * 功能：
- * 1. 分页显示待审核/已通过/已拒绝的表达方式
+ * 1. 分页显示待审核/已通过的表达方式
  * 2. 支持单条通过/拒绝
  * 3. 支持批量操作
- * 4. 冲突检测（防止与AI自动检查冲突）
+ * 4. 冲突检测（防止与并发审核操作冲突）
  */
 
 import { animated, useSpring } from '@react-spring/web'
@@ -67,18 +67,31 @@ import {
 import type { Expression, ReviewStats, ChatInfo, BatchReviewItem } from '@/types/expression'
 
 interface ExpressionReviewerProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  embedded?: boolean
+  className?: string
+  mode?: 'list' | 'quick'
+  onReviewed?: () => void
 }
 
-export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerProps) {
+export function ExpressionReviewer({
+  open = true,
+  onOpenChange = () => undefined,
+  embedded = false,
+  className,
+  mode,
+  onReviewed,
+}: ExpressionReviewerProps) {
   // 审核模式：list（列表模式）或 quick（快速审核模式）
-  const [reviewMode, setReviewMode] = useState<'list' | 'quick'>('list')
+  const [internalReviewMode, setInternalReviewMode] = useState<'list' | 'quick'>('list')
+  const reviewMode = mode ?? internalReviewMode
+  const showModeSwitcher = mode === undefined
   const [stats, setStats] = useState<ReviewStats | null>(null)
   const [expressions, setExpressions] = useState<Expression[]>([])
   
   // 快速审核模式状态
-  const [quickFilterType, setQuickFilterType] = useState<'unchecked' | 'passed' | 'rejected' | 'all'>('unchecked')
+  const [quickFilterType, setQuickFilterType] = useState<'unchecked' | 'passed' | 'all'>('unchecked')
   const [quickExpressions, setQuickExpressions] = useState<Expression[]>([])
   const quickExpressionsRef = useRef<Expression[]>([])
   const [quickCurrentIndex, setQuickCurrentIndex] = useState(0)
@@ -103,7 +116,7 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [jumpPage, setJumpPage] = useState('')
-  const [filterType, setFilterType] = useState<'unchecked' | 'passed' | 'rejected' | 'all'>('unchecked')
+  const [filterType, setFilterType] = useState<'unchecked' | 'passed' | 'all'>('unchecked')
   const [search, setSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
@@ -252,17 +265,11 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
     } else if (quickFilterType === 'passed') {
       // 已通过：只能左滑改为拒绝
       return { left: true, right: false }
-    } else if (quickFilterType === 'rejected') {
-      // 已拒绝：只能右滑改为通过
-      return { left: false, right: true }
     } else {
       // 全部：智能判断
       if (!expr.checked) {
         // 未审核：双向
         return { left: true, right: true }
-      } else if (expr.rejected) {
-        // 已拒绝：只能右滑
-        return { left: false, right: true }
       } else {
         // 已通过：只能左滑
         return { left: true, right: false }
@@ -271,23 +278,23 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
   }, [quickFilterType])
 
   // 快速审核 - 执行审核操作
-  const handleQuickReview = useCallback(async (rejected: boolean) => {
+  const handleQuickReview = useCallback(async (approved: boolean) => {
     const currentExpr = quickExpressions[quickCurrentIndex]
     if (!currentExpr || isAnimatingRef.current) return
 
     const directions = getAllowedDirections(currentExpr)
-    if ((rejected && !directions.left) || (!rejected && !directions.right)) {
+    if ((!approved && !directions.left) || (approved && !directions.right)) {
       return
     }
 
     isAnimatingRef.current = true
-    swipeDirectionRef.current = rejected ? 'left' : 'right'
-    cardApi.start({ x: rejected ? -400 : 400, rotate: rejected ? -20 : 20, opacity: 0 })
+    swipeDirectionRef.current = approved ? 'right' : 'left'
+    cardApi.start({ x: approved ? 400 : -400, rotate: approved ? 20 : -20, opacity: 0 })
 
     try {
       const result = await batchReviewExpressions([{
         id: currentExpr.id,
-        rejected,
+        approved,
         require_unchecked: quickFilterType === 'unchecked',
       }])
 
@@ -302,8 +309,8 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
 
       if (result.data.results[0]?.success) {
         toast({
-          title: rejected ? '已拒绝' : '已通过',
-          description: `表达方式 #${currentExpr.id} ${rejected ? '已拒绝' : '已通过'}`,
+          title: approved ? '已通过' : '已删除',
+          description: `表达方式 #${currentExpr.id} ${approved ? '已通过' : '已删除'}`,
         })
         
         // 从列表中移除当前项
@@ -324,6 +331,7 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
           
           // 刷新统计
           loadStats()
+          onReviewed?.()
           
           // 如果列表为空且还有更多数据，加载下一页
           if (quickExpressions.length <= 1 && quickTotal > 1) {
@@ -361,7 +369,18 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
       cardApi.set({ x: 0, opacity: 1, rotate: 0 })
       isAnimatingRef.current = false
     }
-  }, [quickExpressions, quickCurrentIndex, isAnimatingRef, getAllowedDirections, quickFilterType, toast, loadStats, quickTotal, loadQuickList])
+  }, [
+    quickExpressions,
+    quickCurrentIndex,
+    isAnimatingRef,
+    getAllowedDirections,
+    quickFilterType,
+    toast,
+    loadStats,
+    onReviewed,
+    quickTotal,
+    loadQuickList,
+  ])
 
   // 拖拽开始
   const handleDragStart = useCallback((clientX: number, clientY: number) => {
@@ -424,7 +443,7 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
     const threshold = 100
     const currentX = cardSpring.x.get()
     if (Math.abs(currentX) > threshold && swipeDirectionRef.current) {
-      handleQuickReview(swipeDirectionRef.current === 'left')
+      handleQuickReview(swipeDirectionRef.current === 'right')
     } else {
       // 回弹
       cardApi.start({ x: 0, rotate: 0, opacity: 1 })
@@ -493,13 +512,13 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
 
       if (e.key === 'ArrowLeft') {
         if (directions.left) {
-          handleQuickReview(true) // 拒绝
+          handleQuickReview(false) // 拒绝
         } else {
           triggerInvalidAnimation('left')
         }
       } else if (e.key === 'ArrowRight') {
         if (directions.right) {
-          handleQuickReview(false) // 通过
+          handleQuickReview(true) // 通过
         } else {
           triggerInvalidAnimation('right')
         }
@@ -536,12 +555,16 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
 
   // 初始加载
   useEffect(() => {
-    if (open) {
-      loadStats()
+    if (!open) {
+      return
+    }
+
+    loadStats()
+    if (reviewMode === 'list') {
       loadList()
       loadChatNames()
     }
-  }, [open, loadStats, loadList, loadChatNames])
+  }, [open, reviewMode, loadStats, loadList, loadChatNames])
 
   // 切换筛选时重置页码
   useEffect(() => {
@@ -566,12 +589,12 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
   }
 
   // 单条审核
-  const handleReview = async (id: number, rejected: boolean) => {
+  const handleReview = async (id: number, approved: boolean) => {
     try {
       setProcessingIds((prev) => new Set(prev).add(id))
       
       const result = await batchReviewExpressions([
-        { id, rejected, require_unchecked: filterType === 'unchecked' }
+        { id, approved, require_unchecked: filterType === 'unchecked' }
       ])
       
       if (!result.success) {
@@ -585,12 +608,13 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
 
       if (result.data.results[0]?.success) {
         toast({
-          title: rejected ? '已拒绝' : '已通过',
-          description: `表达方式 #${id} ${rejected ? '已拒绝' : '已通过'}`,
+          title: approved ? '已通过' : '已删除',
+          description: `表达方式 #${id} ${approved ? '已通过' : '已删除'}`,
         })
         // 刷新列表和统计
         loadList()
         loadStats()
+        onReviewed?.()
       } else {
         toast({
           title: '操作失败',
@@ -614,7 +638,7 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
   }
 
   // 批量审核
-  const handleBatchReview = async (rejected: boolean) => {
+  const handleBatchReview = async (approved: boolean) => {
     if (selectedIds.size === 0) {
       toast({
         title: '请选择',
@@ -629,7 +653,7 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
       
       const items: BatchReviewItem[] = Array.from(selectedIds).map((id) => ({
         id,
-        rejected,
+        approved,
         require_unchecked: filterType === 'unchecked',
       }))
       
@@ -654,6 +678,7 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
       setSelectedIds(new Set())
       loadList()
       loadStats()
+      onReviewed?.()
     } catch (error) {
       toast({
         title: '批量审核失败',
@@ -698,47 +723,40 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
     })
   }
 
-  // 获取状态标签
-  const getStatusBadge = (expr: Expression) => {
+  // 获取审核状态标签
+  const getReviewBadge = (expr: Expression) => {
+    const modifier = expr.modified_by?.toLowerCase()
+
     if (!expr.checked) {
+      if (modifier === 'ai') {
+        return (
+          <Badge variant="secondary" className="gap-1 whitespace-nowrap">
+            <Bot className="h-3 w-3" />
+            AI预检通过
+          </Badge>
+        )
+      }
       return (
-        <Badge variant="outline" className="gap-1">
+        <Badge variant="outline" className="gap-1 whitespace-nowrap">
           <Clock className="h-3 w-3" />
           待审核
         </Badge>
       )
     }
-    if (expr.rejected) {
+
+    if (modifier === 'user') {
       return (
-        <Badge variant="destructive" className="gap-1">
-          <XCircle className="h-3 w-3" />
-          已拒绝
+        <Badge variant="default" className="gap-1 whitespace-nowrap bg-green-600">
+          <User className="h-3 w-3" />
+          人工通过
         </Badge>
       )
     }
+
     return (
-      <Badge variant="default" className="gap-1 bg-green-600">
+      <Badge variant="default" className="gap-1 whitespace-nowrap bg-green-600">
         <CheckCircle2 className="h-3 w-3" />
         已通过
-      </Badge>
-    )
-  }
-
-  // 获取修改者标签
-  const getModifierBadge = (modifier: string | null) => {
-    if (!modifier) return null
-    if (modifier === 'ai') {
-      return (
-        <Badge variant="secondary" className="gap-1 text-xs">
-          <Bot className="h-3 w-3" />
-          AI
-        </Badge>
-      )
-    }
-    return (
-      <Badge variant="secondary" className="gap-1 text-xs">
-        <User className="h-3 w-3" />
-        人工
       </Badge>
     )
   }
@@ -790,14 +808,41 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
     }
   }
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl w-[95vw] sm:w-full h-[90vh] sm:h-[85vh] flex flex-col p-0" hideCloseButton>
-        {/* 浏览器标签页风格的模式切换器 */}
+  const renderListHeaderTitle = () => {
+    if (embedded) {
+      return null
+    }
+    return <DialogTitle className="text-lg sm:text-xl">表达方式审核</DialogTitle>
+  }
+
+  const renderListHeaderDescription = () => {
+    const description = '审核麦麦学习到的表达方式。通过人工审核的项目才会被使用（可在配置中调整），不通过的项目会被直接删除。'
+    if (embedded) {
+      return null
+    }
+    return <DialogDescription className="text-xs sm:text-sm">{description}</DialogDescription>
+  }
+
+  const handleReviewModeChange = (nextMode: 'list' | 'quick') => {
+    if (mode === undefined) {
+      setInternalReviewMode(nextMode)
+    }
+  }
+
+  const reviewerContent = (
+    <div
+      className={cn(
+        'flex min-h-0 flex-col overflow-hidden',
+        embedded ? 'h-full rounded-lg border bg-card' : 'h-full',
+        className
+      )}
+    >
+      {/* 浏览器标签页风格的模式切换器 */}
+      {showModeSwitcher && (
         <div className="flex items-end bg-muted/30 px-2 pt-2 shrink-0">
           {/* 列表模式标签 */}
           <button
-            onClick={() => setReviewMode('list')}
+            onClick={() => handleReviewModeChange('list')}
             className={cn(
               'group relative flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-t-lg transition-all',
               'hover:bg-background/50',
@@ -815,7 +860,7 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
           
           {/* 快速审核标签 */}
           <button
-            onClick={() => setReviewMode('quick')}
+            onClick={() => handleReviewModeChange('quick')}
             className={cn(
               'group relative flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-t-lg transition-all',
               'hover:bg-background/50',
@@ -836,48 +881,43 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
           
           {/* 右侧空白区域和关闭按钮 */}
           <div className="flex-1 border-b border-border" />
-          <button
-            onClick={() => onOpenChange(false)}
-            className="mb-[1px] p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
-          >
-            <X className="h-4 w-4" />
-          </button>
+          {!embedded && (
+            <button
+              onClick={() => onOpenChange(false)}
+              className="mb-[1px] p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
+      )}
 
         {/* 列表模式内容 */}
         {reviewMode === 'list' && (
           <>
-        <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-4 border-b shrink-0">
-          <DialogTitle className="text-lg sm:text-xl">表达方式审核</DialogTitle>
-          <DialogDescription className="text-xs sm:text-sm">
-            审核麦麦学习到的表达方式。通过审核的项目才会被使用（可在配置中调整），被拒绝的项目永远不会被使用。
-          </DialogDescription>
+        <DialogHeader className={cn('px-4 sm:px-6 border-b shrink-0', embedded ? 'py-2' : 'pt-4 sm:pt-6 pb-3')}>
+          {renderListHeaderTitle()}
+          {renderListHeaderDescription()}
           
           {/* 统计卡片 */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mt-4">
-            <div className="rounded-lg border p-2 sm:p-3 text-center">
-              <div className="text-xl sm:text-2xl font-bold text-orange-500">
+          <div className={cn('grid grid-cols-3 gap-2', !embedded && 'mt-3')}>
+            <div className="flex h-9 min-w-0 items-center justify-between gap-2 rounded-md border bg-background/50 px-3">
+              <div className="truncate text-xs text-muted-foreground">待审核</div>
+              <div className="text-sm font-semibold leading-none tabular-nums text-orange-500">
                 {statsLoading ? '-' : stats?.unchecked ?? 0}
               </div>
-              <div className="text-xs text-muted-foreground">待审核</div>
             </div>
-            <div className="rounded-lg border p-2 sm:p-3 text-center">
-              <div className="text-xl sm:text-2xl font-bold text-green-500">
+            <div className="flex h-9 min-w-0 items-center justify-between gap-2 rounded-md border bg-background/50 px-3">
+              <div className="truncate text-xs text-muted-foreground">已通过</div>
+              <div className="text-sm font-semibold leading-none tabular-nums text-green-500">
                 {statsLoading ? '-' : stats?.passed ?? 0}
               </div>
-              <div className="text-xs text-muted-foreground">已通过</div>
             </div>
-            <div className="rounded-lg border p-2 sm:p-3 text-center">
-              <div className="text-xl sm:text-2xl font-bold text-red-500">
-                {statsLoading ? '-' : stats?.rejected ?? 0}
-              </div>
-              <div className="text-xs text-muted-foreground">已拒绝</div>
-            </div>
-            <div className="rounded-lg border p-2 sm:p-3 text-center">
-              <div className="text-xl sm:text-2xl font-bold text-blue-500">
+            <div className="flex h-9 min-w-0 items-center justify-between gap-2 rounded-md border bg-background/50 px-3">
+              <div className="truncate text-xs text-muted-foreground">总计</div>
+              <div className="text-sm font-semibold leading-none tabular-nums text-blue-500">
                 {statsLoading ? '-' : stats?.total ?? 0}
               </div>
-              <div className="text-xs text-muted-foreground">总计</div>
             </div>
           </div>
         </DialogHeader>
@@ -889,7 +929,7 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
             onValueChange={(v) => setFilterType(v as typeof filterType)}
             className="w-full"
           >
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="unchecked" className="gap-1 text-xs sm:text-sm px-1 sm:px-3">
                 <Clock className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="hidden sm:inline">待审核</span>
@@ -901,12 +941,6 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
                 <span className="hidden sm:inline">已通过</span>
                 <span className="sm:hidden">通过</span>
                 <span className="hidden sm:inline">({stats?.passed ?? 0})</span>
-              </TabsTrigger>
-              <TabsTrigger value="rejected" className="gap-1 text-xs sm:text-sm px-1 sm:px-3">
-                <XCircle className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span className="hidden sm:inline">已拒绝</span>
-                <span className="sm:hidden">拒绝</span>
-                <span className="hidden sm:inline">({stats?.rejected ?? 0})</span>
               </TabsTrigger>
               <TabsTrigger value="all" className="gap-1 text-xs sm:text-sm px-1 sm:px-3">
                 <span>全部</span>
@@ -953,7 +987,7 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
                       variant="default"
                       size="sm"
                       className="bg-green-600 hover:bg-green-700 flex-1 sm:flex-none"
-                      onClick={() => handleBatchReview(false)}
+                      onClick={() => handleBatchReview(true)}
                       disabled={loading}
                     >
                       <CheckCircle2 className="h-4 w-4 mr-1" />
@@ -965,7 +999,7 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
                       variant="destructive"
                       size="sm"
                       className="flex-1 sm:flex-none"
-                      onClick={() => handleBatchReview(true)}
+                      onClick={() => handleBatchReview(false)}
                       disabled={loading}
                     >
                       <XCircle className="h-4 w-4 mr-1" />
@@ -980,26 +1014,12 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
                     variant="destructive"
                     size="sm"
                     className="flex-1 sm:flex-none"
-                    onClick={() => handleBatchReview(true)}
+                    onClick={() => handleBatchReview(false)}
                     disabled={loading}
                   >
                     <XCircle className="h-4 w-4 mr-1" />
                     <span className="hidden sm:inline">批量改为拒绝</span>
                     <span className="sm:hidden">改为拒绝</span>
-                    ({selectedIds.size})
-                  </Button>
-                ) : filterType === 'rejected' ? (
-                  // 已拒绝：只显示批量改为通过
-                  <Button
-                    variant="default"
-                    size="sm"
-                    className="bg-green-600 hover:bg-green-700 flex-1 sm:flex-none"
-                    onClick={() => handleBatchReview(false)}
-                    disabled={loading}
-                  >
-                    <CheckCircle2 className="h-4 w-4 mr-1" />
-                    <span className="hidden sm:inline">批量改为通过</span>
-                    <span className="sm:hidden">改为通过</span>
                     ({selectedIds.size})
                   </Button>
                 ) : (
@@ -1009,7 +1029,7 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
                       variant="default"
                       size="sm"
                       className="bg-green-600 hover:bg-green-700 flex-1 sm:flex-none"
-                      onClick={() => handleBatchReview(false)}
+                      onClick={() => handleBatchReview(true)}
                       disabled={loading}
                     >
                       <CheckCircle2 className="h-4 w-4 mr-1" />
@@ -1021,7 +1041,7 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
                       variant="destructive"
                       size="sm"
                       className="flex-1 sm:flex-none"
-                      onClick={() => handleBatchReview(true)}
+                      onClick={() => handleBatchReview(false)}
                       disabled={loading}
                     >
                       <XCircle className="h-4 w-4 mr-1" />
@@ -1119,8 +1139,7 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
                         <span>·</span>
                         <span>{formatTime(expr.create_date)}</span>
                         <div className="flex items-center gap-1">
-                          {getStatusBadge(expr)}
-                          {getModifierBadge(expr.modified_by)}
+                          {getReviewBadge(expr)}
                         </div>
                       </div>
                     </div>
@@ -1133,7 +1152,7 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
                             size="sm"
                             variant="outline"
                             className="text-green-600 hover:text-green-700 hover:bg-green-50 h-8 sm:h-9 px-2 sm:px-3"
-                            onClick={() => handleReview(expr.id, false)}
+                            onClick={() => handleReview(expr.id, true)}
                             disabled={processingIds.has(expr.id)}
                           >
                             <CheckCircle2 className="h-4 w-4 sm:mr-1" />
@@ -1143,7 +1162,7 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
                             size="sm"
                             variant="outline"
                             className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 sm:h-9 px-2 sm:px-3"
-                            onClick={() => handleReview(expr.id, true)}
+                            onClick={() => handleReview(expr.id, false)}
                             disabled={processingIds.has(expr.id)}
                           >
                             <XCircle className="h-4 w-4 sm:mr-1" />
@@ -1155,43 +1174,21 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
                           size="sm"
                           variant="outline"
                           className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 sm:h-9 px-2 sm:px-3"
-                          onClick={() => handleReview(expr.id, true)}
+                          onClick={() => handleReview(expr.id, false)}
                           disabled={processingIds.has(expr.id)}
                         >
                           <XCircle className="h-4 w-4 sm:mr-1" />
                           <span className="hidden sm:inline">改为拒绝</span>
                         </Button>
-                      ) : filterType === 'rejected' ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-green-600 hover:text-green-700 hover:bg-green-50 h-8 sm:h-9 px-2 sm:px-3"
-                          onClick={() => handleReview(expr.id, false)}
-                          disabled={processingIds.has(expr.id)}
-                        >
-                          <CheckCircle2 className="h-4 w-4 sm:mr-1" />
-                          <span className="hidden sm:inline">改为通过</span>
-                        </Button>
                       ) : (
                         // all 模式下显示两个按钮
                         <>
-                          {expr.rejected ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-green-600 hover:text-green-700 hover:bg-green-50 h-8 sm:h-9 px-2 sm:px-3"
-                              onClick={() => handleReview(expr.id, false)}
-                              disabled={processingIds.has(expr.id)}
-                            >
-                              <CheckCircle2 className="h-4 w-4 sm:mr-1" />
-                              <span className="hidden sm:inline">改为通过</span>
-                            </Button>
-                          ) : expr.checked ? (
+                          {expr.checked ? (
                             <Button
                               size="sm"
                               variant="outline"
                               className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 sm:h-9 px-2 sm:px-3"
-                              onClick={() => handleReview(expr.id, true)}
+                              onClick={() => handleReview(expr.id, false)}
                               disabled={processingIds.has(expr.id)}
                             >
                               <XCircle className="h-4 w-4 sm:mr-1" />
@@ -1203,7 +1200,7 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
                                 size="sm"
                                 variant="outline"
                                 className="text-green-600 hover:text-green-700 hover:bg-green-50 h-8 sm:h-9 px-2 sm:px-3"
-                                onClick={() => handleReview(expr.id, false)}
+                                onClick={() => handleReview(expr.id, true)}
                                 disabled={processingIds.has(expr.id)}
                               >
                                 <CheckCircle2 className="h-4 w-4 sm:mr-1" />
@@ -1213,7 +1210,7 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
                                 size="sm"
                                 variant="outline"
                                 className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 sm:h-9 px-2 sm:px-3"
-                                onClick={() => handleReview(expr.id, true)}
+                                onClick={() => handleReview(expr.id, false)}
                                 disabled={processingIds.has(expr.id)}
                               >
                                 <XCircle className="h-4 w-4 sm:mr-1" />
@@ -1348,9 +1345,6 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
                   <span className="text-muted-foreground">
                     已通过: <span className="font-medium text-green-500">{stats?.passed ?? 0}</span>
                   </span>
-                  <span className="text-muted-foreground">
-                    已拒绝: <span className="font-medium text-red-500">{stats?.rejected ?? 0}</span>
-                  </span>
                 </div>
                 <Button
                   variant="outline"
@@ -1372,7 +1366,7 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
                 onValueChange={(v) => setQuickFilterType(v as typeof quickFilterType)}
                 className="w-full"
               >
-                <TabsList className="grid w-full grid-cols-4">
+                <TabsList className="grid w-full grid-cols-3">
                   <TabsTrigger value="unchecked" className="gap-1 text-xs sm:text-sm">
                     <Clock className="h-3 w-3 sm:h-4 sm:w-4" />
                     <span className="hidden sm:inline">待审核</span>
@@ -1383,11 +1377,6 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
                     <span className="hidden sm:inline">已通过</span>
                     <span className="sm:hidden">通过</span>
                   </TabsTrigger>
-                  <TabsTrigger value="rejected" className="gap-1 text-xs sm:text-sm">
-                    <XCircle className="h-3 w-3 sm:h-4 sm:w-4" />
-                    <span className="hidden sm:inline">已拒绝</span>
-                    <span className="sm:hidden">拒绝</span>
-                  </TabsTrigger>
                   <TabsTrigger value="all" className="gap-1 text-xs sm:text-sm">
                     全部
                   </TabsTrigger>
@@ -1396,11 +1385,11 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
             </div>
 
             {/* 卡片区域 */}
-            <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-8 relative overflow-hidden">
+            <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 p-3 sm:p-4 relative overflow-hidden">
               {quickLoading && quickExpressions.length === 0 ? (
                 <div className="flex flex-col items-center justify-center">
                   <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">加载中...</p>
+                  <p className="text-muted-foreground">Thinking...</p>
                 </div>
               ) : quickExpressions.length === 0 ? (
                 <div className="flex flex-col items-center justify-center text-center">
@@ -1413,7 +1402,7 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
               ) : (
                 <>
                   {/* 进度提示 */}
-                  <div className="absolute top-4 left-1/2 -translate-x-1/2 text-sm text-muted-foreground z-50">
+                  <div className="shrink-0 text-sm text-muted-foreground">
                     {quickCurrentIndex + 1} / {quickExpressions.length}
                     {quickTotal > quickExpressions.length && (
                       <span className="ml-1">（共 {quickTotal} 条）</span>
@@ -1450,7 +1439,7 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
 
                   {/* 堆叠卡片 */}
                   <div
-                    className="relative w-full max-w-md h-[400px] flex items-center justify-center"
+                    className="relative w-full max-w-md flex-1 min-h-0 max-h-[400px] flex items-center justify-center"
                     role="listbox"
                     tabIndex={0}
                     aria-label="待审核的表达方式"
@@ -1471,7 +1460,7 @@ export function ExpressionReviewer({ open, onOpenChange }: ExpressionReviewerPro
                           transition: isCurrent && !isDraggingRef.current ? 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)' : 'none',
                         }
 
-if (isCurrent) {
+                        if (isCurrent) {
                           // 当前卡片：样式由 useSpring 控制，通过 animated.div 渲染
                           // style 仅保留非动画属性
                           style = {
@@ -1523,7 +1512,7 @@ if (isCurrent) {
                             id={`quick-expr-${expr.id}`}
                             aria-selected={true}
                             className={cn(
-                              'bg-card border rounded-xl shadow-xl p-6 select-none h-full flex flex-col',
+                              'bg-card border rounded-xl shadow-xl p-5 sm:p-6 select-none h-full min-h-0 overflow-hidden flex flex-col',
                               'active:cursor-grabbing shadow-2xl ring-1 ring-border/50',
                               // 冲突动效
                               conflictId === expr.id && 'ring-4 ring-orange-500/50 bg-orange-50/10'
@@ -1560,26 +1549,25 @@ if (isCurrent) {
                               </div>
                             </div>
                             {/* 内容区 */}
-                            <div className="space-y-4 flex-1">
+                            <div className="space-y-3 flex-1 min-h-0 overflow-hidden">
                               {/* 状态和ID */}
                               <div className="flex items-center justify-between">
                                 <span className="text-sm text-muted-foreground font-mono">#{expr.id}</span>
                                 <div className="flex items-center gap-2">
-                                  {getStatusBadge(expr)}
-                                  {getModifierBadge(expr.modified_by)}
+                                  {getReviewBadge(expr)}
                                 </div>
                               </div>
                               {/* 情景 */}
                               <div className="space-y-1.5">
                                 <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">情景</div>
                                 <div className="p-3 bg-muted/30 rounded-lg border border-border/50">
-                                  <p className="text-lg font-medium leading-relaxed">{expr.situation}</p>
+                                  <p className="text-base sm:text-lg font-medium leading-relaxed break-words line-clamp-3">{expr.situation}</p>
                                 </div>
                               </div>
                               {/* 风格 */}
-                              <div className="space-y-1.5">
+                              <div className="space-y-1.5 min-h-0">
                                 <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">风格</div>
-                                <div className="flex flex-wrap gap-2">
+                                <div className="flex max-h-24 flex-wrap gap-2 overflow-y-auto pr-1">
                                   {expr.style.split(/[,，]/).map((s, i) => (
                                     <Badge key={i} variant="secondary" className="font-normal">
                                       {s.trim()}
@@ -1589,16 +1577,16 @@ if (isCurrent) {
                               </div>
                             </div>
                             {/* 底部信息 */}
-                            <div className="mt-auto pt-4 border-t flex items-center justify-between text-xs text-muted-foreground">
-                              <div className="flex items-center gap-2">
+                            <div className="mt-3 shrink-0 pt-3 border-t flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                              <div className="flex min-w-0 items-center gap-2">
                                 <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary">
                                   <User className="h-3 w-3" />
                                 </div>
-                                <span title={getChatName(expr)} className="truncate max-w-[120px] font-medium">
+                                <span title={getChatName(expr)} className="truncate font-medium">
                                   {getChatName(expr)}
                                 </span>
                               </div>
-                              <span className="font-mono">{formatTime(expr.create_date)}</span>
+                              <span className="shrink-0 font-mono">{formatTime(expr.create_date)}</span>
                             </div>
                           </AnimatedDiv>
                         ) : (
@@ -1608,31 +1596,30 @@ if (isCurrent) {
                             id={`quick-expr-${expr.id}`}
                             aria-selected={false}
                             className={cn(
-                              'bg-card border rounded-xl shadow-xl p-6 select-none h-full flex flex-col'
+                              'bg-card border rounded-xl shadow-xl p-5 sm:p-6 select-none h-full min-h-0 overflow-hidden flex flex-col'
                             )}
                             style={style}
                           >
                             {/* 内容区 */}
-                            <div className="space-y-4 flex-1">
+                            <div className="space-y-3 flex-1 min-h-0 overflow-hidden">
                               {/* 状态和ID */}
                               <div className="flex items-center justify-between">
                                 <span className="text-sm text-muted-foreground font-mono">#{expr.id}</span>
                                 <div className="flex items-center gap-2">
-                                  {getStatusBadge(expr)}
-                                  {getModifierBadge(expr.modified_by)}
+                                  {getReviewBadge(expr)}
                                 </div>
                               </div>
                               {/* 情景 */}
                               <div className="space-y-1.5">
                                 <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">情景</div>
                                 <div className="p-3 bg-muted/30 rounded-lg border border-border/50">
-                                  <p className="text-lg font-medium leading-relaxed">{expr.situation}</p>
+                                  <p className="text-base sm:text-lg font-medium leading-relaxed break-words line-clamp-3">{expr.situation}</p>
                                 </div>
                               </div>
                               {/* 风格 */}
-                              <div className="space-y-1.5">
+                              <div className="space-y-1.5 min-h-0">
                                 <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">风格</div>
-                                <div className="flex flex-wrap gap-2">
+                                <div className="flex max-h-24 flex-wrap gap-2 overflow-y-auto pr-1">
                                   {expr.style.split(/[,，]/).map((s, i) => (
                                     <Badge key={i} variant="secondary" className="font-normal">
                                       {s.trim()}
@@ -1642,16 +1629,16 @@ if (isCurrent) {
                               </div>
                             </div>
                             {/* 底部信息 */}
-                            <div className="mt-auto pt-4 border-t flex items-center justify-between text-xs text-muted-foreground">
-                              <div className="flex items-center gap-2">
+                            <div className="mt-3 shrink-0 pt-3 border-t flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                              <div className="flex min-w-0 items-center gap-2">
                                 <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary">
                                   <User className="h-3 w-3" />
                                 </div>
-                                <span title={getChatName(expr)} className="truncate max-w-[120px] font-medium">
+                                <span title={getChatName(expr)} className="truncate font-medium">
                                   {getChatName(expr)}
                                 </span>
                               </div>
-                              <span className="font-mono">{formatTime(expr.create_date)}</span>
+                              <span className="shrink-0 font-mono">{formatTime(expr.create_date)}</span>
                             </div>
                           </div>
                         )
@@ -1659,7 +1646,7 @@ if (isCurrent) {
                   </div>
 
                   {/* 操作按钮（移动端） */}
-                  <div className="flex items-center gap-8 mt-8 sm:hidden z-50">
+                  <div className="flex shrink-0 items-center gap-8 sm:hidden z-50">
                     {(() => {
                       const currentExpr = quickExpressions[quickCurrentIndex]
                       const directions = getAllowedDirections(currentExpr)
@@ -1672,7 +1659,7 @@ if (isCurrent) {
                               'w-16 h-16 rounded-full border-2 shadow-lg transition-all active:scale-95',
                               !directions.left ? 'opacity-30 cursor-not-allowed' : 'hover:bg-red-50 hover:text-red-600 hover:border-red-200'
                             )}
-                            onClick={() => directions.left && handleQuickReview(true)}
+                            onClick={() => directions.left && handleQuickReview(false)}
                             disabled={!directions.left || isAnimatingRef.current}
                           >
                             <XCircle className="h-8 w-8" />
@@ -1684,7 +1671,7 @@ if (isCurrent) {
                               'w-16 h-16 rounded-full border-2 shadow-lg transition-all active:scale-95',
                               !directions.right ? 'opacity-30 cursor-not-allowed' : 'hover:bg-green-50 hover:text-green-600 hover:border-green-200'
                             )}
-                            onClick={() => directions.right && handleQuickReview(false)}
+                            onClick={() => directions.right && handleQuickReview(true)}
                             disabled={!directions.right || isAnimatingRef.current}
                           >
                             <CheckCircle2 className="h-8 w-8" />
@@ -1698,7 +1685,7 @@ if (isCurrent) {
             </div>
 
             {/* 底部快捷键提示（桌面端） */}
-            <div className="hidden sm:flex items-center justify-center gap-6 px-6 py-3 border-t text-xs text-muted-foreground">
+            <div className="hidden sm:flex shrink-0 flex-wrap items-center justify-center gap-x-5 gap-y-2 px-4 py-2 border-t text-xs text-muted-foreground">
               <div className="flex items-center gap-1">
                 <ShortcutKbd size="sm" keys={['left']} />
                 <span>拒绝</span>
@@ -1720,6 +1707,17 @@ if (isCurrent) {
             </div>
           </div>
         )}
+    </div>
+  )
+
+  if (embedded) {
+    return reviewerContent
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-5xl w-[95vw] sm:w-full h-[90vh] sm:h-[85vh] flex flex-col p-0" hideCloseButton>
+        {reviewerContent}
       </DialogContent>
     </Dialog>
   )

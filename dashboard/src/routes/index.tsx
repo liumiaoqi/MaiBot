@@ -34,6 +34,7 @@ import {
   DollarSign,
   Clock,
   MessageSquare,
+  HardDrive,
   Zap,
   Database,
   RefreshCw,
@@ -54,8 +55,10 @@ import { Link } from '@tanstack/react-router'
 import { RestartProvider, useRestart } from '@/lib/restart-context'
 import { RestartOverlay } from '@/components/restart-overlay'
 import { ExpressionReviewer } from '@/components/expression-reviewer'
-import { getBotConfig, getModelConfig } from '@/lib/config-api'
+import { getBotConfigCached, getModelConfigCached } from '@/lib/config-api'
 import { getReviewStats } from '@/lib/expression-api'
+import { getLocalCacheStats, type LocalCacheStats } from '@/lib/system-api'
+import { APP_VERSION } from '@/lib/version'
 import { ZoomableChart } from '@/components/ui/zoomable-chart'
 
 // 主导出组件：包装 RestartProvider
@@ -73,6 +76,11 @@ interface BotStatus {
   uptime: number
   version: string
   start_time: string
+}
+
+interface ReleaseStatus {
+  version: string
+  url: string
 }
 
 interface StatisticsSummary {
@@ -125,6 +133,40 @@ interface FeatureStatus {
   visualEnabled: boolean
 }
 
+const DEFAULT_TIME_RANGE = 24
+const DASHBOARD_DATA_CACHE_TTL = 30_000
+const BOT_STATUS_CACHE_TTL = 30_000
+const LOCAL_CACHE_STATS_CACHE_TTL = 120_000
+const dashboardDataCache = new Map<number, { timestamp: number; data: DashboardData }>()
+let botStatusCache: { timestamp: number; data: BotStatus } | null = null
+let localCacheStatsCache: { timestamp: number; data: LocalCacheStats } | null = null
+
+function getCachedDashboardData(hours: number): DashboardData | null {
+  const cached = dashboardDataCache.get(hours)
+  if (!cached || Date.now() - cached.timestamp > DASHBOARD_DATA_CACHE_TTL) {
+    return null
+  }
+  return cached.data
+}
+
+function getStaleDashboardData(hours: number): DashboardData | null {
+  return dashboardDataCache.get(hours)?.data ?? null
+}
+
+function getCachedBotStatus(): BotStatus | null {
+  if (!botStatusCache || Date.now() - botStatusCache.timestamp > BOT_STATUS_CACHE_TTL) {
+    return null
+  }
+  return botStatusCache.data
+}
+
+function getCachedLocalCacheStats(): LocalCacheStats | null {
+  if (!localCacheStatsCache || Date.now() - localCacheStatsCache.timestamp > LOCAL_CACHE_STATS_CACHE_TTL) {
+    return null
+  }
+  return localCacheStatsCache.data
+}
+
 // 为饼图生成更丰富的颜色方案 (HSL色相均匀分布)
 const generatePieColors = (count: number): string[] => {
   const colors: string[] = []
@@ -139,8 +181,13 @@ const generatePieColors = (count: number): string[] => {
 // 内部实现组件
 function FeatureStatusLight({ enabled, label }: { enabled: boolean; label: string }) {
   return (
-    <div className="inline-flex items-center gap-1.5 rounded-md border bg-background px-2 py-1 text-xs text-muted-foreground">
+    <div
+      data-dashboard-feature-status="true"
+      data-enabled={enabled ? 'true' : 'false'}
+      className="inline-flex items-center gap-1.5 rounded-md border bg-background px-2 py-1 text-xs text-muted-foreground"
+    >
       <span
+        data-dashboard-feature-status-light="true"
         className={`h-2.5 w-2.5 rounded-full ${
           enabled ? 'bg-green-500 shadow-[0_0_0_3px_rgba(34,197,94,0.18)]' : 'bg-muted-foreground/30'
         }`}
@@ -150,20 +197,36 @@ function FeatureStatusLight({ enabled, label }: { enabled: boolean; label: strin
   )
 }
 
+function formatStorageBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return '0 B'
+  }
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const unitIndex = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
+  const value = bytes / 1024 ** unitIndex
+  return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`
+}
+
 function IndexPageContent() {
   const { t } = useTranslation()
-  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
-  const [loading, setLoading] = useState(true)
+  const initialDashboardData = getCachedDashboardData(DEFAULT_TIME_RANGE) ?? getStaleDashboardData(DEFAULT_TIME_RANGE)
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(initialDashboardData)
+  const [loading, setLoading] = useState(!initialDashboardData)
   const [loadingProgress, setLoadingProgress] = useState(0)
-  const [timeRange, setTimeRange] = useState(24) // 默认24小时
-  const [autoRefresh, setAutoRefresh] = useState(true)
+  const [timeRange, setTimeRange] = useState(DEFAULT_TIME_RANGE) // 默认24小时
+  const [autoRefresh, setAutoRefresh] = useState(false)
   const [hitokoto, setHitokoto] = useState<{ hitokoto: string; from: string } | null>(null)
   const [hitokotoLoading, setHitokotoLoading] = useState(true)
-  const [botStatus, setBotStatus] = useState<BotStatus | null>(null)
+  const [botStatus, setBotStatus] = useState<BotStatus | null>(botStatusCache?.data ?? null)
+  const [isBotStatusLoading, setIsBotStatusLoading] = useState(!botStatusCache)
+  const [maibotStableRelease, setMaibotStableRelease] = useState<ReleaseStatus | null>(null)
+  const [maibotTestRelease, setMaibotTestRelease] = useState<ReleaseStatus | null>(null)
   const [featureStatus, setFeatureStatus] = useState<FeatureStatus>({
     memoryEnabled: false,
     visualEnabled: false,
   })
+  const [localCacheStats, setLocalCacheStats] = useState<LocalCacheStats | null>(localCacheStatsCache?.data ?? null)
+  const [isLocalCacheStatsLoading, setIsLocalCacheStatsLoading] = useState(!localCacheStatsCache)
   const [isReviewerOpen, setIsReviewerOpen] = useState(false)
   const [uncheckedCount, setUncheckedCount] = useState(0)
   const { triggerRestart, isRestarting } = useRestart()
@@ -183,6 +246,53 @@ function IndexPageContent() {
         clearInterval(refreshIntervalRef.current)
         refreshIntervalRef.current = null
       }
+    }
+  }, [])
+
+  useEffect(() => {
+    let mounted = true
+
+    const loadLatestVersions = async () => {
+      try {
+        const response = await fetch('https://api.github.com/repos/Mai-with-u/MaiBot/releases?per_page=20', {
+          headers: { Accept: 'application/vnd.github+json' },
+        })
+        if (!response.ok) {
+          throw new Error(`GitHub release status ${response.status}`)
+        }
+        const releases = await response.json() as Array<{
+          draft?: boolean
+          prerelease?: boolean
+          tag_name?: string
+          html_url?: string
+        }>
+        const visibleReleases = releases.filter((release) => !release.draft)
+        const stableRelease = visibleReleases.find((release) => !release.prerelease)
+        const testRelease = visibleReleases[0]
+        if (mounted) {
+          if (stableRelease?.tag_name) {
+            setMaibotStableRelease({
+              version: String(stableRelease.tag_name).replace(/^v/i, '').trim(),
+              url: stableRelease.html_url || 'https://github.com/Mai-with-u/MaiBot/releases',
+            })
+          }
+          if (testRelease?.tag_name) {
+            setMaibotTestRelease({
+              version: String(testRelease.tag_name).replace(/^v/i, '').trim(),
+              url: testRelease.html_url || 'https://github.com/Mai-with-u/MaiBot/releases',
+            })
+          }
+        }
+      } catch (error) {
+        console.debug('检查 MaiBot 最新版本失败:', error)
+      }
+
+    }
+
+    void loadLatestVersions()
+
+    return () => {
+      mounted = false
     }
   }, [])
 
@@ -226,19 +336,32 @@ function IndexPageContent() {
 
   // 获取机器人状态
   const fetchBotStatus = useCallback(async () => {
+    const cachedStatus = getCachedBotStatus()
+    if (cachedStatus) {
+      setBotStatus(cachedStatus)
+      setIsBotStatusLoading(false)
+      return
+    }
+
+    setIsBotStatusLoading(true)
     try {
       const response = await fetchWithAuth('/api/webui/system/status')
       if (!isMountedRef.current) return
       if (response.ok) {
         const data = await response.json()
+        botStatusCache = { timestamp: Date.now(), data }
         setBotStatus(data)
-      } else {
+      } else if (!botStatusCache) {
         setBotStatus(null)
       }
     } catch (error) {
       console.error('获取机器人状态失败:', error)
-      if (isMountedRef.current) {
+      if (isMountedRef.current && !botStatusCache) {
         setBotStatus(null)
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setIsBotStatusLoading(false)
       }
     }
   }, [])
@@ -247,8 +370,8 @@ function IndexPageContent() {
   const fetchFeatureStatus = useCallback(async () => {
     try {
       const [botConfigResult, modelConfigResult] = await Promise.all([
-        getBotConfig(),
-        getModelConfig(),
+        getBotConfigCached(),
+        getModelConfigCached(),
       ])
 
       if (!isMountedRef.current || !botConfigResult.success) return
@@ -282,16 +405,60 @@ function IndexPageContent() {
     }
   }, [])
 
+  const fetchLocalCacheStats = useCallback(async () => {
+    const cachedStats = getCachedLocalCacheStats()
+    if (cachedStats) {
+      setLocalCacheStats(cachedStats)
+      setIsLocalCacheStatsLoading(false)
+      return
+    }
+
+    setIsLocalCacheStatsLoading(true)
+    try {
+      const stats = await getLocalCacheStats()
+      if (isMountedRef.current) {
+        localCacheStatsCache = { timestamp: Date.now(), data: stats }
+        setLocalCacheStats(stats)
+      }
+    } catch (error) {
+      console.error('获取本地存储占用失败:', error)
+      if (isMountedRef.current && !localCacheStatsCache) {
+        setLocalCacheStats(null)
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setIsLocalCacheStatsLoading(false)
+      }
+    }
+  }, [])
+
   const handleRestart = async () => {
     await triggerRestart()
   }
 
-  const fetchDashboardData = useCallback(async () => {
+  const fetchDashboardData = useCallback(async (force = false) => {
     try {
+      const cachedData = force ? null : getCachedDashboardData(timeRange)
+      if (cachedData) {
+        setDashboardData(cachedData)
+        setLoading(false)
+        setLoadingProgress(100)
+        return
+      }
+
+      const staleData = getStaleDashboardData(timeRange)
+      if (staleData) {
+        setDashboardData(staleData)
+        setLoading(false)
+        setLoadingProgress(100)
+      } else {
+        setLoading(true)
+      }
       const response = await fetchWithAuth(`/api/webui/statistics/dashboard?hours=${timeRange}`)
       if (!isMountedRef.current) return
       if (response.ok) {
         const data = await response.json()
+        dashboardDataCache.set(timeRange, { timestamp: Date.now(), data })
         setDashboardData(data)
       }
       setLoading(false)
@@ -342,8 +509,9 @@ function IndexPageContent() {
     fetchHitokoto()
     fetchBotStatus()
     fetchFeatureStatus()
+    fetchLocalCacheStats()
     fetchReviewStats()
-  }, [fetchDashboardData, fetchHitokoto, fetchBotStatus, fetchFeatureStatus, fetchReviewStats])
+  }, [fetchDashboardData, fetchHitokoto, fetchBotStatus, fetchFeatureStatus, fetchLocalCacheStats, fetchReviewStats])
 
   // 自动刷新
   useEffect(() => {
@@ -357,9 +525,10 @@ function IndexPageContent() {
 
     refreshIntervalRef.current = setInterval(() => {
       if (isMountedRef.current) {
-        fetchDashboardData()
+        fetchDashboardData(true)
         fetchBotStatus()
         fetchFeatureStatus()
+        fetchLocalCacheStats()
       }
     }, 30000) // 30秒刷新一次
 
@@ -369,7 +538,7 @@ function IndexPageContent() {
         refreshIntervalRef.current = null
       }
     }
-  }, [autoRefresh, fetchDashboardData, fetchBotStatus, fetchFeatureStatus])
+  }, [autoRefresh, fetchDashboardData, fetchBotStatus, fetchFeatureStatus, fetchLocalCacheStats])
 
   if (loading || !dashboardData) {
     return (
@@ -483,6 +652,14 @@ function IndexPageContent() {
     },
   } satisfies ChartConfig
 
+  const localCacheDirectories = localCacheStats?.directories ?? []
+  const imageCacheSize = localCacheDirectories.find((item) => item.key === 'images')?.total_size ?? 0
+  const emojiCacheSize = localCacheDirectories.find((item) => item.key === 'emoji')?.total_size ?? 0
+  const logCacheSize = localCacheDirectories.find((item) => item.key === 'logs')?.total_size ?? 0
+  const databaseSize = localCacheStats?.database.total_size ?? 0
+  const totalStorageSize = localCacheDirectories.reduce((total, item) => total + item.total_size, 0) + databaseSize
+  const hasLocalCacheStats = localCacheStats !== null
+
   return (
     <ScrollArea className="h-full">
       <div className="space-y-4 sm:space-y-6 p-4 sm:p-6">
@@ -511,7 +688,7 @@ function IndexPageContent() {
             <RefreshCw className={`h-4 w-4 ${autoRefresh ? 'animate-spin' : ''}`} />
             <span className="hidden sm:inline">{t('home.autoRefresh')}</span>
           </Button>
-          <Button variant="outline" size="sm" onClick={fetchDashboardData}>
+          <Button variant="outline" size="sm" onClick={() => fetchDashboardData(true)}>
             <RefreshCw className="h-4 w-4" />
           </Button>
         </div>
@@ -538,8 +715,71 @@ function IndexPageContent() {
       </div>
 
       {/* 机器人状态和快速操作 */}
-      <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)_max-content]">
         {/* 机器人状态卡片 */}
+        <Card className="lg:col-span-1">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              麦麦版本
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm text-muted-foreground">主程序版本</span>
+                <Badge variant="secondary" className="border border-primary/20 bg-primary/10 px-2 py-0.5 font-semibold text-primary">
+                  {botStatus?.version ? `v${botStatus.version}` : '未知'}
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm text-muted-foreground">WebUI 版本</span>
+                <Badge variant="secondary" className="border border-primary/20 bg-primary/10 px-2 py-0.5 font-semibold text-primary">
+                  v{APP_VERSION}
+                </Badge>
+              </div>
+              <div className="hidden">
+                <a
+                  href={maibotTestRelease?.url || 'https://github.com/Mai-with-u/MaiBot/releases'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 transition-colors hover:text-muted-foreground"
+                >
+                  最新版本 {maibotTestRelease ? `v${maibotTestRelease.version}` : 'GitHub Releases'}
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+              <div className="space-y-1 border-t border-border/50 pt-2 text-xs text-muted-foreground/60">
+                <a
+                  href={maibotStableRelease?.url || 'https://github.com/Mai-with-u/MaiBot/releases'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-between gap-2 transition-colors hover:text-muted-foreground"
+                >
+                  <span>正式版最新</span>
+                  <span className="inline-flex items-center gap-1">
+                    {maibotStableRelease ? `v${maibotStableRelease.version}` : 'GitHub Releases'}
+                    <ExternalLink className="h-3 w-3" />
+                  </span>
+                </a>
+                <a
+                  href={maibotTestRelease?.url || 'https://github.com/Mai-with-u/MaiBot/releases'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-between gap-2 transition-colors hover:text-muted-foreground"
+                >
+                  <span>测试版最新</span>
+                  <span className="inline-flex items-center gap-1">
+                    {maibotTestRelease ? `v${maibotTestRelease.version}` : 'GitHub Releases'}
+                    <ExternalLink className="h-3 w-3" />
+                  </span>
+                </a>
+
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <Card className="lg:col-span-1">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -549,32 +789,80 @@ function IndexPageContent() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              <div className="flex items-center gap-4">
+              <div className="flex flex-wrap items-center gap-4">
                 <div className="flex items-center gap-2">
-                  {botStatus?.running ? (
+                  {isBotStatusLoading && !botStatus ? (
                     <>
-                      <div className="h-3 w-3 rounded-full bg-green-500 animate-pulse" />
-                      <Badge variant="outline" className="text-green-600 border-green-300 bg-green-50">
+                      <div
+                        data-dashboard-status-dot="true"
+                        data-state="loading"
+                        className="h-3 w-3 rounded-full bg-muted-foreground/40 animate-pulse"
+                      />
+                      <Badge
+                        data-dashboard-status-badge="true"
+                        data-state="loading"
+                        variant="outline"
+                        className="whitespace-nowrap text-muted-foreground"
+                      >
+                        <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                        读取中
+                      </Badge>
+                    </>
+                  ) : botStatus?.running ? (
+                    <>
+                      <div
+                        data-dashboard-status-dot="true"
+                        data-state="running"
+                        className="h-3 w-3 rounded-full bg-green-500 animate-pulse"
+                      />
+                      <Badge
+                        data-dashboard-status-badge="true"
+                        data-state="running"
+                        variant="outline"
+                        className="whitespace-nowrap text-green-600 border-green-300 bg-green-50"
+                      >
                         <CheckCircle2 className="h-3 w-3 mr-1" />
                         {t('home.botStatus.running')}
                       </Badge>
                     </>
-                  ) : (
+                  ) : botStatus ? (
                     <>
-                      <div className="h-3 w-3 rounded-full bg-red-500" />
-                      <Badge variant="outline" className="text-red-600 border-red-300 bg-red-50">
+                      <div
+                        data-dashboard-status-dot="true"
+                        data-state="stopped"
+                        className="h-3 w-3 rounded-full bg-red-500"
+                      />
+                      <Badge
+                        data-dashboard-status-badge="true"
+                        data-state="stopped"
+                        variant="outline"
+                        className="whitespace-nowrap text-red-600 border-red-300 bg-red-50"
+                      >
                         <AlertCircle className="h-3 w-3 mr-1" />
                         {t('home.botStatus.stopped')}
+                      </Badge>
+                    </>
+                  ) : (
+                    <>
+                      <div
+                        data-dashboard-status-dot="true"
+                        data-state="unknown"
+                        className="h-3 w-3 rounded-full bg-muted-foreground/40"
+                      />
+                      <Badge
+                        data-dashboard-status-badge="true"
+                        data-state="unknown"
+                        variant="outline"
+                        className="whitespace-nowrap text-muted-foreground"
+                      >
+                        <AlertCircle className="h-3 w-3 mr-1" />
+                        未知
                       </Badge>
                     </>
                   )}
                 </div>
                 {botStatus && (
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    <Badge variant="secondary" className="border border-primary/20 bg-primary/10 px-2 py-0.5 font-semibold text-primary">
-                      v{botStatus.version}
-                    </Badge>
-                    <span className="mx-2">|</span>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <span>{t('home.botStatus.uptime', { time: formatTime(botStatus.uptime) })}</span>
                   </div>
                 )}
@@ -583,6 +871,35 @@ function IndexPageContent() {
                 <FeatureStatusLight enabled={featureStatus.visualEnabled} label="启用视觉" />
                 <FeatureStatusLight enabled={featureStatus.memoryEnabled} label="启用记忆" />
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-1">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <HardDrive className="h-4 w-4" />
+              存储占用
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div>
+                <div className="text-2xl font-bold">
+                  {hasLocalCacheStats ? formatStorageBytes(totalStorageSize) : isLocalCacheStatsLoading ? '读取中' : '-'}
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {hasLocalCacheStats
+                    ? `图片 ${formatStorageBytes(imageCacheSize)} · 表情 ${formatStorageBytes(emojiCacheSize)} · 日志 ${formatStorageBytes(logCacheSize)} · 数据库 ${formatStorageBytes(databaseSize)}`
+                    : isLocalCacheStatsLoading ? '正在读取本地存储占用...' : '暂未获取到本地存储占用'}
+                </p>
+              </div>
+              <Button variant="outline" size="sm" asChild className="w-full justify-start gap-2">
+                <Link to="/settings" search={{ tab: 'local-cache' }}>
+                  <HardDrive className="h-4 w-4" />
+                  管理存储
+                </Link>
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -651,25 +968,22 @@ function IndexPageContent() {
         </Card>
 
         {/* 问卷调查卡片 */}
-        <Card>
+        <Card className="lg:w-[190px]">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <ClipboardList className="h-4 w-4" />
               {t('home.survey.title')}
             </CardTitle>
-            <CardDescription className="text-xs">
-              {t('home.survey.description')}
-            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" asChild className="gap-2">
+            <div className="flex flex-col gap-2">
+              <Button variant="outline" size="sm" asChild className="w-full justify-start gap-2">
                 <Link to="/survey/webui-feedback">
                   <FileText className="h-4 w-4" />
                   {t('home.survey.webui')}
                 </Link>
               </Button>
-              <Button variant="outline" size="sm" asChild className="gap-2">
+              <Button variant="outline" size="sm" asChild className="w-full justify-start gap-2">
                 <Link to="/survey/maibot-feedback">
                   <MessageSquare className="h-4 w-4" />
                   {t('home.survey.maibot')}

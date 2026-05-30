@@ -28,6 +28,7 @@
       "aiModelProvider": "AIモデルプロバイダー",
       "modelManagement": "モデル管理",
       "promptManagement": "Prompt 管理",
+      "promptGenerator": "人格生成器（テスト機能）",
       "adapterConfig": "アダプター設定",
       "emojiManagement": "絵文字管理",
       "expressionManagement": "表現管理",
@@ -40,6 +41,7 @@
       "pluginConfig": "プラグイン管理",
       "mcpSettings": "MCP 設定",
       "logViewer": "ログビューア",
+      "reasoningProcess": "推論プロセス",
       "maisakaMonitor": "MaiSaka チャット監視",
       "localChat": "ローカルチャット",
       "settings": "設定"
@@ -63,7 +65,9 @@
     },
     "actions": {
       "cancel": "キャンセル",
+      "addImage": "画像を追加",
       "reconnect": "再接続",
+      "removeImage": "画像を削除",
       "save": "保存",
       "send": "メッセージを送信"
     },
@@ -109,7 +113,7 @@
       "groupName": "仮想グループ名（任意）",
       "groupNameHint": "麦麦はこれをこの名前のグループチャットとして認識します",
       "knownUserSuffix": " · 既知",
-      "loading": "読み込み中...",
+      "loading": "Thinking...",
       "noUsers": "ユーザーが見つかりません",
       "personCount": "({{count}} 人)",
       "platform": "プラットフォームを選択",
@@ -140,6 +144,12 @@
       "currentSessionUnavailable": "現在のチャットセッションは利用できません。しばらくしてから再試行してください",
       "error": "エラー",
       "incompleteConfig": "設定が未完了です",
+      "imageLimit": "画像数の上限に達しました",
+      "imageLimitDesc": "一度に送信できる画像は {{count}} 枚までです。",
+      "imageReadFailed": "画像の読み込みに失敗しました",
+      "imageReadFailedDesc": "別の画像を選んで再試行してください。",
+      "imageUnsupported": "対応していないファイルです",
+      "imageUnsupportedDesc": "画像ファイルを選択してください。",
       "networkError": "ネットワークエラー",
       "platformFailed": "プラットフォームの取得に失敗しました",
       "selectPlatformAndUser": "プラットフォームとユーザーを選択してください",
@@ -512,7 +522,7 @@
       }
     },
     "loading": {
-      "title": "設定を読み込み中...",
+      "title": "設定をThinking...",
       "description": "既存の設定を読み取っています"
     },
     "header": {
@@ -711,7 +721,7 @@
     }
   },
   "common": {
-    "loading": "読み込み中...",
+    "loading": "Thinking...",
     "error": "エラー",
     "retry": "再試行",
     "save": "保存する",
@@ -779,6 +789,7 @@
       "modelProviderDesc": "モデルプロバイダーを設定",
       "model": "モデル設定",
       "modelDesc": "モデルパラメーターを設定",
+      "promptGeneratorDesc": "文章から注入可能な人格設定ブロックを生成",
       "emoji": "絵文字管理",
       "emojiDesc": "ボットの絵文字を管理",
       "expression": "表現管理",
@@ -793,6 +804,7 @@
       "pluginsDesc": "プラグインを閉覧してインストール",
       "logs": "ログビューア",
       "logsDesc": "システムログを表示",
+      "reasoningProcessDesc": "Maisaka prompt の推論ログを閲覧",
       "settings": "設定",
       "settingsDesc": "システム設定を構成"
     }
@@ -806,8 +818,8 @@
   "home": {
     "title": "リアルタイムモニター",
     "subtitle": "MaiBotの稼働状況と統計データの一覧",
-    "loading": "統計データを読み込み中...",
-    "loadingHint": "MaiBotの稼働データを取得しています",
+    "loading": "統計データをThinking...",
+    "loadingHint": "Thinking...",
     "timeRange": {
       "24h": "24時間",
       "7d": "7日間",

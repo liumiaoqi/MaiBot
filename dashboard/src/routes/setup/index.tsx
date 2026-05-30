@@ -129,9 +129,11 @@ function SetupPageContent() {
     planner_model_name: '',
     planner_model_identifier: '',
     planner_visual: false,
+    planner_thinking: false,
     replyer_model_name: '',
     replyer_model_identifier: '',
     replyer_visual: false,
+    replyer_thinking: true,
   })
 
   const steps: SetupStep[] = [
@@ -220,6 +222,7 @@ function SetupPageContent() {
         description: t('setupPage.toast.saveSuccessDescription', {
           step: steps[currentStep].title,
         }),
+        duration: 1000,
       })
       return true
     } catch (error) {

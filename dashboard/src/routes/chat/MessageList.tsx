@@ -85,19 +85,42 @@ export function MessageList({
   language,
 }: MessageListProps) {
   const { t } = useTranslation()
+  const viewportRef = useRef<HTMLDivElement>(null)
   const endRef = useRef<HTMLDivElement>(null)
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const viewport = viewportRef.current
+    if (!viewport) {
+      return
+    }
+
+    viewport.scrollTo({
+      top: viewport.scrollHeight,
+      behavior: 'smooth',
+    })
   }, [messages])
 
   const scrollToMessage = useCallback((messageId: string) => {
+    const viewport = viewportRef.current
     const target = messageRefs.current.get(messageId)
-    if (!target) {
+    if (!target || !viewport) {
       return false
     }
-    target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+
+    const viewportRect = viewport.getBoundingClientRect()
+    const targetRect = target.getBoundingClientRect()
+    const targetTop =
+      viewport.scrollTop +
+      targetRect.top -
+      viewportRect.top -
+      viewport.clientHeight / 2 +
+      targetRect.height / 2
+
+    viewport.scrollTo({
+      top: Math.max(0, targetTop),
+      behavior: 'smooth',
+    })
     target.classList.add('chat-message-flash')
     window.setTimeout(() => {
       target.classList.remove('chat-message-flash')
@@ -130,6 +153,7 @@ export function MessageList({
           className="h-full w-full"
           contentClassName="!block w-full min-w-0"
           scrollbars="vertical"
+          viewportRef={viewportRef}
           viewportClassName="[&>div]:!block [&>div]:!min-w-0 [&>div]:w-full"
         >
           <EmptyState botName={botDisplayName} />
@@ -144,6 +168,7 @@ export function MessageList({
         className="h-full w-full"
         contentClassName="!block w-full min-w-0"
         scrollbars="vertical"
+        viewportRef={viewportRef}
         viewportClassName="[&>div]:!block [&>div]:!min-w-0 [&>div]:w-full"
       >
         <ChatScrollContext.Provider value={scrollContextValue}>

@@ -3,6 +3,11 @@ display_name = "Planner"
 advanced = false
 description = "Maisaka 主规划模板，负责整合身份、时间、工具说明和聊天上下文，驱动主循环进行思考、决策与工具调用。"
 
+[maisaka_chat_merged_timing]
+display_name = "Planner（タイミング統合）"
+advanced = false
+description = "独立时间感知关闭时使用的 Maisaka 主规划模板，将节奏控制判断合并到 Planner。"
+
 [maisaka_replyer]
 display_name = "Replyer"
 advanced = false
@@ -72,6 +77,11 @@ description = "用于从聊天内容中学习表达风格的模板。"
 display_name = "Timing Gate"
 advanced = false
 description = "Maisaka 节奏控制模板，负责在每轮主循环前判断当前应该等待、停止，还是继续进入思考与回复流程。"
+
+[mid_term_memory_summary]
+display_name = "中期チャット要約"
+advanced = true
+description = "コンテキスト裁切時に、削除されるチャット履歴を long_summary、brief、keywords に要約するためのテンプレート。"
 
 [memory_retrieval_react_prompt_head_memory]
 display_name = "记忆检索 ReAct 头部"

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 
 import { ThemeProviderContext } from '@/lib/theme-context'
+import { DEFAULT_DASHBOARD_STYLE, DEFAULT_FUTURE_RETRO_STYLE_CONFIG } from '@/lib/theme/tokens'
 import type { UserThemeConfig } from '@/lib/theme/tokens'
 import {
   THEME_STORAGE_KEYS,
@@ -58,6 +59,16 @@ export function ThemeProvider({
     root.classList.add(resolvedTheme)
 
     const isDark = resolvedTheme === 'dark'
+    const dashboardStyle = themeConfig.dashboardStyle ?? DEFAULT_DASHBOARD_STYLE
+    const futureRetroConfig = {
+      ...DEFAULT_FUTURE_RETRO_STYLE_CONFIG,
+      ...themeConfig.styleConfig?.futureRetro,
+    }
+
+    root.dataset.dashboardStyle = dashboardStyle
+    root.dataset.retroPaperTexture = futureRetroConfig.paperTexture ? 'true' : 'false'
+    root.dataset.retroStrongBorders = futureRetroConfig.strongBorders ? 'true' : 'false'
+
     applyThemePipeline(themeConfig, isDark)
   }, [resolvedTheme, themeConfig])
 
@@ -86,12 +97,8 @@ export function ThemeProvider({
       updateThemeConfig,
       resetTheme,
     }),
-    [themeMode, resolvedTheme, setTheme, themeConfig, updateThemeConfig, resetTheme],
+    [themeMode, resolvedTheme, setTheme, themeConfig, updateThemeConfig, resetTheme]
   )
 
-  return (
-    <ThemeProviderContext value={value}>
-      {children}
-    </ThemeProviderContext>
-  )
+  return <ThemeProviderContext value={value}>{children}</ThemeProviderContext>
 }

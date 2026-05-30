@@ -1,6 +1,7 @@
-import asyncio
 from datetime import datetime
 from typing import TYPE_CHECKING, Dict, List, Optional
+
+import asyncio
 
 from rich.traceback import install
 from sqlmodel import select
@@ -38,7 +39,12 @@ class BotChatSession(MaiChatSession):
         session_id: str,
         platform: str,
         user_id: Optional[str] = None,
+        user_nickname: Optional[str] = None,
+        user_cardname: Optional[str] = None,
         group_id: Optional[str] = None,
+        group_name: Optional[str] = None,
+        account_id: Optional[str] = None,
+        scope: Optional[str] = None,
         created_timestamp: Optional[datetime] = None,
         last_active_timestamp: Optional[datetime] = None,
     ):
@@ -49,7 +55,12 @@ class BotChatSession(MaiChatSession):
             session_id=session_id,
             platform=platform,
             user_id=user_id,
+            user_nickname=user_nickname,
+            user_cardname=user_cardname,
             group_id=group_id,
+            group_name=group_name,
+            account_id=account_id,
+            scope=scope,
             created_timestamp=created_timestamp,
             last_active_timestamp=last_active_timestamp,
         )
@@ -111,7 +122,13 @@ class ChatManager:
             scope=scope,
         )
         if session := self.get_session_by_session_id(session_id):
+            route_metadata_changed = self._apply_route_metadata(session, account_id=account_id, scope=scope)
             session.update_active_time()
+            identity_changed = False
+            if session_id in self.last_messages:
+                identity_changed = self._update_session_identity(session, self.last_messages[session_id])
+            if route_metadata_changed or identity_changed:
+                self._save_session(session)
             return session
 
         # 内存没有就找db
@@ -120,6 +137,20 @@ class ChatManager:
                 statement = select(ChatSession).filter_by(session_id=session_id).limit(1)
                 if result := db_session.exec(statement).first():
                     session = BotChatSession.from_db_instance(result)
+                    route_metadata_changed = self._apply_route_metadata(session, account_id=account_id, scope=scope)
+                    identity_changed = False
+                    if session.session_id in self.last_messages:
+                        session.set_context(self.last_messages[session.session_id])
+                        identity_changed = self._update_session_identity(session, self.last_messages[session.session_id])
+                    if route_metadata_changed or identity_changed:
+                        result.account_id = session.account_id
+                        result.scope = session.scope
+                        result.user_id = session.user_id
+                        result.user_nickname = session.user_nickname
+                        result.user_cardname = session.user_cardname
+                        result.group_id = session.group_id
+                        result.group_name = session.group_name
+                        db_session.add(result)
                     self.sessions[session.session_id] = session
                     return session
         except Exception as e:
@@ -132,10 +163,13 @@ class ChatManager:
             platform=platform,
             user_id=user_id,
             group_id=group_id,
+            account_id=account_id,
+            scope=scope,
         )
         self.sessions[new_session.session_id] = new_session
         if new_session.session_id in self.last_messages:
             new_session.set_context(self.last_messages[new_session.session_id])
+            self._update_session_identity(new_session, self.last_messages[new_session.session_id])
         self._save_session(new_session)
         return new_session
 
@@ -159,6 +193,46 @@ class ChatManager:
         )
         message.session_id = session_id  # 确保消息的session_id正确设置
         self.last_messages[session_id] = message
+        session = self.sessions.get(session_id)
+        if session is not None and self._update_session_identity(session, message):
+            self._save_session(session)
+
+    @staticmethod
+    def _normalize_identity_text(value: Optional[str]) -> Optional[str]:
+        normalized_value = str(value or "").strip()
+        return normalized_value or None
+
+    def _update_session_identity(self, session: BotChatSession, message: "SessionMessage") -> bool:
+        """用真实入站消息补齐聊天流展示身份，群聊不保存最近发言人的用户信息。"""
+
+        changed = False
+        group_info = message.message_info.group_info
+        user_info = message.message_info.user_info
+        if group_info is not None:
+            group_name = self._normalize_identity_text(group_info.group_name)
+            if group_name and session.group_name != group_name:
+                session.group_name = group_name
+                changed = True
+            if session.user_id is not None:
+                session.user_id = None
+                changed = True
+            if session.user_nickname is not None:
+                session.user_nickname = None
+                changed = True
+            if session.user_cardname is not None:
+                session.user_cardname = None
+                changed = True
+            return changed
+
+        user_nickname = self._normalize_identity_text(user_info.user_nickname)
+        user_cardname = self._normalize_identity_text(user_info.user_cardname)
+        if user_nickname and session.user_nickname != user_nickname:
+            session.user_nickname = user_nickname
+            changed = True
+        if user_cardname != session.user_cardname:
+            session.user_cardname = user_cardname
+            changed = True
+        return changed
 
     async def load_all_sessions_from_db(self):
         """从数据库加载全部会话记录到内存中"""
@@ -205,8 +279,12 @@ class ChatManager:
         if not session:
             return None
         if session.is_group_session:
+            if session.group_name:
+                return session.group_name
             if session.context and session.context.message and session.context.message.message_info.group_info:
                 return session.context.message.message_info.group_info.group_name
+        elif session.user_nickname:
+            return f"{session.user_nickname}的私聊"
         elif session.context and session.context.message and session.context.message.message_info.user_info:
             nickname = session.context.message.message_info.user_info.user_nickname
             return f"{nickname}的私聊"
@@ -240,6 +318,119 @@ class ChatManager:
         )
         return self.get_session_by_session_id(session_id)
 
+    def resolve_sessions_by_target(
+        self,
+        *,
+        platform: str,
+        target_id: str,
+        chat_type: str,
+    ) -> List[BotChatSession]:
+        """按平台、目标 ID 与聊天类型解析已存在的真实聊天流。
+
+        业务模块不应自行重新计算 session_id，因为真实会话 ID 可能包含
+        account_id、scope 等路由元数据。该接口只返回已经注册或已入库的会话。
+        """
+
+        normalized_platform = str(platform or "").strip()
+        normalized_target_id = str(target_id or "").strip()
+        normalized_chat_type = str(chat_type or "").strip()
+        if not normalized_platform or not normalized_target_id:
+            return []
+
+        if normalized_chat_type == "group":
+            target_attr = "group_id"
+        elif normalized_chat_type == "private":
+            target_attr = "user_id"
+        else:
+            return []
+
+        matched_sessions: Dict[str, BotChatSession] = {}
+        for session in self.sessions.values():
+            if self._session_matches_target(
+                session,
+                platform=normalized_platform,
+                target_attr=target_attr,
+                target_id=normalized_target_id,
+            ):
+                matched_sessions[session.session_id] = session
+
+        try:
+            with get_db_session() as db_session:
+                statement = select(ChatSession).filter_by(platform=normalized_platform)
+                for db_instance in db_session.exec(statement).all():
+                    if str(getattr(db_instance, target_attr) or "").strip() != normalized_target_id:
+                        continue
+                    if db_instance.session_id in matched_sessions:
+                        continue
+                    session = BotChatSession.from_db_instance(db_instance)
+                    self.sessions[session.session_id] = session
+                    if session.session_id in self.last_messages:
+                        session.set_context(self.last_messages[session.session_id])
+                    matched_sessions[session.session_id] = session
+        except Exception as e:
+            logger.error(
+                f"按目标解析聊天流失败: platform={normalized_platform} "
+                f"target_id={normalized_target_id} chat_type={normalized_chat_type} error={e}"
+            )
+
+        return list(matched_sessions.values())
+
+    def resolve_session_ids_by_target(
+        self,
+        *,
+        platform: str,
+        target_id: str,
+        chat_type: str,
+    ) -> set[str]:
+        """按平台、目标 ID 与聊天类型解析已存在的真实聊天流 ID。"""
+
+        return {
+            session.session_id
+            for session in self.resolve_sessions_by_target(
+                platform=platform,
+                target_id=target_id,
+                chat_type=chat_type,
+            )
+        }
+
+    @staticmethod
+    def _session_matches_target(
+        session: BotChatSession,
+        *,
+        platform: str,
+        target_attr: str,
+        target_id: str,
+    ) -> bool:
+        return (
+            str(session.platform or "").strip() == platform
+            and str(getattr(session, target_attr) or "").strip() == target_id
+        )
+
+    @staticmethod
+    def _normalize_route_value(value: Optional[str]) -> Optional[str]:
+        normalized_value = str(value or "").strip()
+        return normalized_value or None
+
+    @classmethod
+    def _apply_route_metadata(
+        cls,
+        session: BotChatSession,
+        *,
+        account_id: Optional[str],
+        scope: Optional[str],
+    ) -> bool:
+        changed = False
+        normalized_account_id = cls._normalize_route_value(account_id)
+        normalized_scope = cls._normalize_route_value(scope)
+
+        if normalized_account_id and not cls._normalize_route_value(session.account_id):
+            session.account_id = normalized_account_id
+            changed = True
+        if normalized_scope and not cls._normalize_route_value(session.scope):
+            session.scope = normalized_scope
+            changed = True
+        return changed
+
     def get_session_by_session_id(self, session_id: str) -> Optional[BotChatSession]:
         """根据会话ID获取对应的会话
 
@@ -252,6 +443,31 @@ class ChatManager:
         if session and session_id in self.last_messages:
             session.set_context(self.last_messages[session_id])
         return session
+
+    def get_existing_session_by_session_id(self, session_id: str) -> Optional[BotChatSession]:
+        """根据会话 ID 获取已存在的真实会话，内存未命中时从数据库加载。"""
+
+        normalized_session_id = str(session_id or "").strip()
+        if not normalized_session_id:
+            return None
+
+        if session := self.get_session_by_session_id(normalized_session_id):
+            return session
+
+        try:
+            with get_db_session() as db_session:
+                statement = select(ChatSession).filter_by(session_id=normalized_session_id).limit(1)
+                db_instance = db_session.exec(statement).first()
+                if db_instance is None:
+                    return None
+                session = BotChatSession.from_db_instance(db_instance)
+                self.sessions[session.session_id] = session
+                if session.session_id in self.last_messages:
+                    session.set_context(self.last_messages[session.session_id])
+                return session
+        except Exception as e:
+            logger.error(f"从数据库获取已有会话失败: session_id={normalized_session_id} error={e}")
+            return None
 
     def _load_sessions_from_db(self):
         """从数据库加载单个会话记录"""
@@ -271,6 +487,13 @@ class ChatManager:
             if result := db_session.exec(statement).first():
                 result.created_timestamp = db_instance.created_timestamp
                 result.last_active_timestamp = db_instance.last_active_timestamp
+                result.user_id = db_instance.user_id
+                result.user_nickname = db_instance.user_nickname
+                result.user_cardname = db_instance.user_cardname
+                result.group_id = db_instance.group_id
+                result.group_name = db_instance.group_name
+                result.account_id = db_instance.account_id
+                result.scope = db_instance.scope
                 db_session.add(result)
             else:
                 db_session.add(db_instance)

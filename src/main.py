@@ -1,21 +1,22 @@
-from rich.traceback import install
 from typing import TYPE_CHECKING
+
+from rich.traceback import install
 
 import asyncio
 import time
 
 from src.A_memorix.host_service import a_memorix_host_service
-from src.learners.expression_auto_check_task import ExpressionAutoCheckTask
-from src.emoji_system.emoji_manager import emoji_manager
-from src.chat.message_receive.bot import chat_bot
+from src.chat.image_system.image_cache_cleanup import periodic_image_cache_cleanup
 from src.chat.message_receive.chat_manager import chat_manager
+from src.chat.message_receive.bot import chat_bot
 from src.chat.utils.statistic import OnlineTimeRecordTask, StatisticOutputTask
 from src.common.i18n import t
 from src.common.logger import get_logger
 from src.common.message_server.server import Server, get_global_server
+from src.common.runtime_loop import set_main_loop
 from src.config.config import config_manager, global_config
+from src.emoji_system.emoji_manager import emoji_manager
 from src.manager.async_task_manager import async_task_manager
-from src.maisaka.display.stage_status_board import disable_stage_status_board, enable_stage_status_board
 from src.plugin_runtime.integration import get_plugin_runtime_manager
 from src.prompt.prompt_manager import prompt_manager
 from src.services.memory_flow_service import memory_automation_service
@@ -33,7 +34,7 @@ logger = get_logger("main")
 
 if TYPE_CHECKING:
     from maim_message import MessageServer
-    from src.webui.webui_server import WebUIServer
+    from src.webui.webui_server import ThreadedWebUIServer
 
 
 class MainSystem:
@@ -43,13 +44,10 @@ class MainSystem:
 
         self.app: MessageServer = get_global_api()
         self.server: Server = get_global_server()
-        self.webui_server: WebUIServer | None = None  # 独立的 WebUI 服务器
+        self.webui_server: ThreadedWebUIServer | None = None  # 独立线程中的 WebUI 服务器
 
-        # 设置独立的 WebUI 服务器
-        self._setup_webui_server()
-
-    def _setup_webui_server(self) -> None:
-        """设置独立的 WebUI 服务器"""
+    def _start_webui_server(self) -> None:
+        """启动独立线程中的 WebUI 服务器。"""
         from src.config.config import global_config
 
         if not global_config.webui.enabled:
@@ -57,21 +55,25 @@ class MainSystem:
             return
 
         try:
-            from src.webui.webui_server import get_webui_server
+            from src.webui.webui_server import get_threaded_webui_server
 
-            self.webui_server = get_webui_server()
+            self.webui_server = get_threaded_webui_server()
+            self.webui_server.start()
 
         except Exception as e:
             logger.error(t("startup.webui_server_init_failed", error=e))
 
     async def initialize(self) -> None:
         """初始化系统组件"""
-        if global_config.debug.enable_maisaka_stage_board:
-            enable_stage_status_board()
         logger.info(t("startup.waking_up", nickname=global_config.bot.nickname))
 
-        # 其他初始化任务
-        await asyncio.gather(self._init_components())
+        self._start_webui_server()
+        try:
+            await self._init_components()
+        except Exception:
+            if self.webui_server:
+                await self.webui_server.shutdown()
+            raise
 
         logger.info(t("startup.initialization_completed_banner", nickname=global_config.bot.nickname))
 
@@ -81,6 +83,7 @@ class MainSystem:
 
         await config_manager.start_file_watcher()
         a_memorix_host_service.register_config_reload_callback()
+        prompt_manager.load_prompts()
 
         # 添加在线时间统计任务
         await async_task_manager.add_task(OnlineTimeRecordTask())
@@ -92,9 +95,6 @@ class MainSystem:
         from src.common.remote import TelemetryHeartBeatTask
 
         await async_task_manager.add_task(TelemetryHeartBeatTask())
-
-        # 添加表达方式自动检查任务
-        await async_task_manager.add_task(ExpressionAutoCheckTask())
 
         # 启动API服务器
         # start_api_server()
@@ -121,8 +121,6 @@ class MainSystem:
         self.app.register_message_handler(chat_bot.message_process)
         self.app.register_custom_message_handler("message_id_echo", chat_bot.echo_message_process)
 
-        prompt_manager.load_prompts()
-
         # 触发 ON_START 事件
         from src.core.event_bus import event_bus
         from src.core.types import EventType
@@ -144,46 +142,35 @@ class MainSystem:
         try:
             tasks = [
                 emoji_manager.periodic_emoji_maintenance(),
+                periodic_image_cache_cleanup(),
                 self.app.run(),
                 self.server.run(),
             ]
-
-            # 如果 WebUI 服务器已初始化，添加到任务列表
-            if self.webui_server:
-                tasks.append(self.webui_server.start())
 
             await asyncio.gather(*tasks)
         except asyncio.CancelledError:
             logger.info(t("startup.schedule_cancelled"))
             raise
 
-    # async def forget_memory_task(self):
-    #     """记忆遗忘任务"""
-    #     while True:
-    #         await asyncio.sleep(global_config.memory.forget_memory_interval)
-    #         logger.info("[记忆遗忘] 开始遗忘记忆...")
-    #         await self.hippocampus_manager.forget_memory(percentage=global_config.memory.memory_forget_percentage)  # type: ignore
-    #         logger.info("[记忆遗忘] 记忆遗忘完成")
-
 
 async def main() -> None:
     """主函数"""
+    set_main_loop(asyncio.get_running_loop())
     system = MainSystem()
     try:
-        await asyncio.gather(
-            system.initialize(),
-            system.schedule_tasks(),
-        )
+        await system.initialize()
+        await system.schedule_tasks()
     finally:
-        disable_stage_status_board()
+        if system.webui_server:
+            await system.webui_server.shutdown()
         emoji_manager.shutdown()
         await memory_automation_service.shutdown()
         await a_memorix_host_service.stop()
         await get_plugin_runtime_manager().bridge_event("on_stop")
         await get_plugin_runtime_manager().stop()
         await async_task_manager.stop_and_wait_all_tasks()
-        emoji_manager.shutdown()
         await config_manager.stop_file_watcher()
+        set_main_loop(None)
 
 
 if __name__ == "__main__":

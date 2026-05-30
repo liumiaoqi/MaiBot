@@ -71,7 +71,7 @@ class BaseImageDataModel(BaseDatabaseDataModel[Images]):
             existing_file_hash = hashlib.sha256(self.read_image_bytes(new_full_path)).hexdigest()
             if existing_file_hash == self.file_hash:
                 logger.info(f"[初始化] {new_full_path.name} 已存在且内容一致，复用已有文件")
-                self.full_path.unlink()
+                self.full_path.unlink(missing_ok=True)
                 self._set_full_path(new_full_path)
                 return
 
@@ -150,9 +150,11 @@ class BaseImageDataModel(BaseDatabaseDataModel[Images]):
 
             file_ext = self.file_name.split(".")[-1].lower()
             if file_ext != self.image_format:
-                logger.warning(
-                    f"[初始化] {self.file_name} 文件扩展名与实际格式不符: ext`{file_ext}`!=`{self.image_format}`"
-                )
+                log_message = f"[初始化] {self.file_name} 文件扩展名与实际格式不符: ext`{file_ext}`!=`{self.image_format}`"
+                if file_ext == "tmp":
+                    logger.debug(log_message)
+                else:
+                    logger.warning(log_message)
                 self._rename_file_to_match_format()
 
             return True

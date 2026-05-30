@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "MaiBot"
-version = "1.0.0"
+version = "1.0.0-rc.2"
 description = "MaiCore 是一个基于大语言模型的可交互智能体"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
     "Babel>=2.17.0",
     "aiohttp>=3.12.14",
@@ -18,9 +18,9 @@ dependencies = [
     "httpx[socks]",
     "jieba>=0.42.1",
     "json-repair>=0.47.6",
-    "maim-message>=0.6.2",
-    "maibot-dashboard>=1.0.5",
-    "maibot-plugin-sdk>=2.4.0",
+    "maim-message==0.6.8",
+    "maibot-dashboard>=1.3.0",
+    "maibot-plugin-sdk>=2.5.2",
     "matplotlib>=3.10.5",
     "mcp",
     "msgpack>=1.1.2",

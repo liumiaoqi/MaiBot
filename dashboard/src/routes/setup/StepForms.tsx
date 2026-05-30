@@ -365,6 +365,11 @@ interface ModelSetupFormProps {
 export function ModelSetupForm({ config, onChange }: ModelSetupFormProps) {
   const { t } = useTranslation()
 
+  const inferThinkingEnabled = (modelIdentifier: string) => {
+    const normalizedIdentifier = modelIdentifier.trim().toLowerCase()
+    return normalizedIdentifier.includes('deepseek-v4-pro')
+  }
+
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2">
@@ -382,6 +387,7 @@ export function ModelSetupForm({ config, onChange }: ModelSetupFormProps) {
                   ...config,
                   planner_model_identifier: e.target.value,
                   planner_model_name: e.target.value,
+                  planner_thinking: inferThinkingEnabled(e.target.value),
                 })
               }
               className="font-mono"
@@ -403,6 +409,19 @@ export function ModelSetupForm({ config, onChange }: ModelSetupFormProps) {
               }
             />
           </div>
+
+          <div className="flex items-center justify-between gap-4 rounded-md bg-muted/40 p-3">
+            <Label htmlFor="planner_thinking" className="text-sm font-medium">
+              启用思考
+            </Label>
+            <Switch
+              id="planner_thinking"
+              checked={config.planner_thinking}
+              onCheckedChange={(checked) =>
+                onChange({ ...config, planner_thinking: checked })
+              }
+            />
+          </div>
         </div>
 
         <div className="space-y-4 rounded-lg border p-4">
@@ -419,6 +438,7 @@ export function ModelSetupForm({ config, onChange }: ModelSetupFormProps) {
                   ...config,
                   replyer_model_identifier: e.target.value,
                   replyer_model_name: e.target.value,
+                  replyer_thinking: inferThinkingEnabled(e.target.value),
                 })
               }
               className="font-mono"
@@ -437,6 +457,19 @@ export function ModelSetupForm({ config, onChange }: ModelSetupFormProps) {
               checked={config.replyer_visual}
               onCheckedChange={(checked) =>
                 onChange({ ...config, replyer_visual: checked })
+              }
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-4 rounded-md bg-muted/40 p-3">
+            <Label htmlFor="replyer_thinking" className="text-sm font-medium">
+              启用思考
+            </Label>
+            <Switch
+              id="replyer_thinking"
+              checked={config.replyer_thinking}
+              onCheckedChange={(checked) =>
+                onChange({ ...config, replyer_thinking: checked })
               }
             />
           </div>

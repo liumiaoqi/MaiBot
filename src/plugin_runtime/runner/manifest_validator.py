@@ -27,6 +27,12 @@ _SEMVER_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
 _PLUGIN_ID_PATTERN = re.compile(r"^[A-Za-z0-9_]+(?:[.-][A-Za-z0-9_]+)+$")
 _PACKAGE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 _HTTP_URL_PATTERN = re.compile(r"^https?://.+$")
+_RESERVED_PLUGIN_DIRECTORY_NAMES = {"data"}
+
+
+def is_reserved_plugin_directory(path: Path) -> bool:
+    """Return True when a plugins/ child directory is reserved for runtime data."""
+    return path.name.casefold() in _RESERVED_PLUGIN_DIRECTORY_NAMES
 
 
 class VersionComparator:
@@ -47,6 +53,15 @@ class VersionComparator:
             return "0.0.0"
 
         normalized = re.sub(r"-snapshot\.\d+", "", str(version).strip())
+        try:
+            parsed_version = Version(normalized)
+            parts = [str(part) for part in parsed_version.release[:3]]
+            while len(parts) < 3:
+                parts.append("0")
+            return ".".join(parts)
+        except InvalidVersion:
+            pass
+
         if not re.match(r"^\d+(\.\d+){0,2}$", normalized):
             return "0.0.0"
 
@@ -131,6 +146,17 @@ class VersionComparator:
             bool: 是否满足 ``X.Y.Z`` 格式。
         """
         return bool(_SEMVER_PATTERN.fullmatch(str(version or "").strip()))
+
+    @staticmethod
+    def is_valid_project_version(version: str) -> bool:
+        """判断主程序或 SDK 的项目版本号是否可被解析。
+
+        ``pyproject.toml`` 遵循 Python 包版本规范，允许 ``1.0.0rc16`` 或
+        ``1.0.0-pre.16`` 这类预发布版本；兼容性比较时只取其 release 部分。
+        """
+
+        normalized = VersionComparator.normalize_version(version)
+        return normalized != "0.0.0" or str(version or "").strip() == "0.0.0"
 
 
 class _StrictManifestModel(BaseModel):
@@ -782,7 +808,11 @@ class ManifestValidator:
             if not normalized_root.is_dir():
                 continue
 
-            for candidate_path in sorted(entry.resolve() for entry in normalized_root.iterdir() if entry.is_dir()):
+            for candidate_path in sorted(
+                entry.resolve()
+                for entry in normalized_root.iterdir()
+                if entry.is_dir() and not is_reserved_plugin_directory(entry)
+            ):
                 parsed_manifest = self.load_from_plugin_path(candidate_path, require_entrypoint=require_entrypoint)
                 if parsed_manifest is None:
                     continue
@@ -1030,7 +1060,7 @@ class ManifestValidator:
             return ""
 
         raw_version = str(project_data.get("version", "") or "").strip()
-        if VersionComparator.is_valid_semver(raw_version):
+        if VersionComparator.is_valid_project_version(raw_version):
             return raw_version
         return ""
 
@@ -1047,7 +1077,7 @@ class ManifestValidator:
         """
         try:
             raw_version = importlib_metadata.version("maibot-plugin-sdk")
-            if VersionComparator.is_valid_semver(raw_version):
+            if VersionComparator.is_valid_project_version(raw_version):
                 return raw_version
         except importlib_metadata.PackageNotFoundError:
             pass
@@ -1064,7 +1094,7 @@ class ManifestValidator:
             return ""
 
         raw_version = str(project_data.get("version", "") or "").strip()
-        if VersionComparator.is_valid_semver(raw_version):
+        if VersionComparator.is_valid_project_version(raw_version):
             return raw_version
         return ""
 

@@ -9,13 +9,20 @@ interface ChatSessionOpenPayload {
   user_name?: string
 }
 
+export interface ChatImagePayload {
+  name: string
+  mime_type: string
+  base64: string
+}
+
+interface ChatSendOptions {
+  images?: ChatImagePayload[]
+}
+
 type ChatSessionListener = (message: Record<string, unknown>) => void
 
 /** 浅层比较两个 session.open 负载是否完全一致。 */
-function arePayloadsEqual(
-  left: ChatSessionOpenPayload,
-  right: ChatSessionOpenPayload
-): boolean {
+function arePayloadsEqual(left: ChatSessionOpenPayload, right: ChatSessionOpenPayload): boolean {
   const keys = new Set<keyof ChatSessionOpenPayload>([
     ...(Object.keys(left) as Array<keyof ChatSessionOpenPayload>),
     ...(Object.keys(right) as Array<keyof ChatSessionOpenPayload>),
@@ -160,13 +167,19 @@ class ChatWsClient {
     }
   }
 
-  async sendMessage(sessionId: string, content: string, userName: string): Promise<void> {
+  async sendMessage(
+    sessionId: string,
+    content: string,
+    userName: string,
+    options: ChatSendOptions = {}
+  ): Promise<void> {
     await unifiedWsClient.call({
       domain: 'chat',
       method: 'message.send',
       session: sessionId,
       data: {
         content,
+        images: options.images ?? [],
         user_name: userName,
       },
     })

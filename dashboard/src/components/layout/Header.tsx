@@ -26,7 +26,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { ShortcutKbd } from '@/components/ui/kbd'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toggleThemeWithTransition } from '@/components/use-theme'
 import { useBackground } from '@/hooks/use-background'
@@ -86,13 +85,14 @@ export function Header({
 
   return (
     <header
+      data-dashboard-header="true"
       className={cn(
-        'sticky top-0 isolate z-10 flex h-16 items-center justify-between border-b px-4 backdrop-blur-md',
+        'sticky top-0 isolate z-10 flex h-16 min-w-0 items-center justify-between gap-2 border-b px-3 backdrop-blur-md sm:px-4',
         inheritsPageBackground ? 'bg-transparent' : 'bg-card/80'
       )}
     >
       {!inheritsPageBackground && <BackgroundLayer config={headerBg} layerId="header" />}
-      <div className="relative z-10 flex items-center gap-4">
+      <div className="relative z-10 flex min-w-0 shrink-0 items-center gap-2 sm:gap-4">
         {/* 移动端菜单按钮 */}
         <button
           onClick={onMobileMenuToggle}
@@ -122,7 +122,7 @@ export function Header({
         </button>
       </div>
 
-      <div className="relative z-10 flex items-center gap-2">
+      <div className="relative z-10 flex min-w-0 flex-1 items-center justify-end gap-1 sm:gap-2">
         {/* 工作区切换：复用 Tabs 组件 + Motion 动画指示器 */}
         <LayoutGroup id="workspace-switcher">
           <Tabs value={workspaceMode} aria-label={t('workspace.switcherLabel')}>
@@ -130,7 +130,7 @@ export function Header({
               <TabsTrigger
                 asChild
                 value="settings"
-                className="relative h-7 gap-1.5 bg-transparent px-2.5 text-xs font-medium data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground data-[state=active]:shadow-none"
+                className="data-[state=active]:text-primary-foreground relative h-7 gap-1.5 bg-transparent px-2.5 text-xs font-medium data-[state=active]:bg-transparent data-[state=active]:shadow-none"
               >
                 <Link to="/">
                   {workspaceMode === 'settings' && (
@@ -147,7 +147,7 @@ export function Header({
               <TabsTrigger
                 asChild
                 value="chat"
-                className="relative h-7 gap-1.5 bg-transparent px-2.5 text-xs font-medium data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground data-[state=active]:shadow-none"
+                className="data-[state=active]:text-primary-foreground relative h-7 gap-1.5 bg-transparent px-2.5 text-xs font-medium data-[state=active]:bg-transparent data-[state=active]:shadow-none"
               >
                 <Link to="/chat">
                   {workspaceMode === 'chat' && (
@@ -165,7 +165,7 @@ export function Header({
           </Tabs>
         </LayoutGroup>
 
-        <div className="bg-border h-6 w-px" />
+        <div className="bg-border hidden h-6 w-px sm:block" />
         {/* 后端切换按钮（仅 Electron） */}
         {isElectron() && (
           <>
@@ -189,18 +189,10 @@ export function Header({
         <button
           onClick={() => onSearchOpenChange(true)}
           aria-label={t('header.searchPlaceholder')}
-          className="bg-background/50 hover:bg-accent/50 relative hidden h-9 w-64 items-center rounded-md border pr-16 pl-9 text-left transition-colors md:flex"
+          title={t('header.searchPlaceholder')}
+          className="bg-background/50 hover:bg-accent/50 hidden h-9 w-12 items-center justify-center rounded-md border transition-colors md:flex"
         >
-          <Search
-            className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2"
-            aria-hidden="true"
-          />
-          <span className="text-muted-foreground text-sm">{t('header.searchPlaceholder')}</span>
-          <ShortcutKbd
-            size="sm"
-            className="absolute top-1/2 right-2 -translate-y-1/2"
-            keys={['mod', 'k']}
-          />
+          <Search className="text-muted-foreground h-4 w-4" aria-hidden="true" />
         </button>
 
         {/* 搜索对话框 */}
@@ -209,24 +201,20 @@ export function Header({
         {/* 麦麦文档链接 */}
         <Button
           variant="ghost"
-          size="sm"
+          size="icon"
           onClick={() => window.open('https://docs.mai-mai.org', '_blank')}
-          className="gap-2"
+          className="hidden sm:inline-flex"
           title={t('header.viewDocs')}
+          aria-label={t('header.viewDocs')}
         >
           <BookOpen className="h-4 w-4" />
-          <span className="hidden sm:inline">{t('header.docs')}</span>
         </Button>
 
         {/* 语言切换 */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="gap-2">
+            <Button variant="ghost" size="icon" title="切换语言" aria-label="切换语言">
               <Globe className="h-4 w-4" />
-              <span className="hidden text-xs sm:inline">
-                {LANGUAGE_NAMES[currentLang.split('-')[0] as 'zh' | 'en' | 'ja' | 'ko'] ??
-                  currentLang}
-              </span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
@@ -259,18 +247,17 @@ export function Header({
         </button>
 
         {/* 分隔线 */}
-        <div className="bg-border h-6 w-px" />
+        <div className="bg-border hidden h-6 w-px sm:block" />
 
         {/* 登出按钮 */}
         <Button
           variant="ghost"
-          size="sm"
+          size="icon"
           onClick={handleLogout}
-          className="gap-2"
           title={t('header.logout')}
+          aria-label={t('header.logout')}
         >
           <LogOut className="h-4 w-4" />
-          <span className="hidden sm:inline">{t('header.logoutLabel')}</span>
         </Button>
       </div>
     </header>

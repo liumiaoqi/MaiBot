@@ -104,7 +104,7 @@ export function FeedbackTab(props: FeedbackTabProps) {
               反馈纠错历史
             </CardTitle>
             <CardDescription>
-              查看 feedback correction 的判定、修改轨迹与回退结果；本期仅覆盖自动纠错任务
+              查看 feedback correction 的判定、修改轨迹与回退结果
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -328,7 +328,7 @@ export function FeedbackTab(props: FeedbackTabProps) {
 
                     {selectedFeedbackTaskLoading ? (
                       <div className="rounded-lg border bg-background/60 p-4 text-sm text-muted-foreground">
-                        正在加载纠错详情...
+                        Thinking...
                       </div>
                     ) : null}
 

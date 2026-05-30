@@ -1,6 +1,9 @@
-from maim_message import MessageBase, Seg
-from typing import List, Tuple, Optional, Dict, TYPE_CHECKING, Callable
 from datetime import datetime
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
+
+from maim_message import MessageBase, Seg
+from sqlmodel import col, select
 
 import base64
 import hashlib
@@ -8,20 +11,21 @@ import msgpack
 import random
 import re
 
-from sqlmodel import select, col
+import asyncio
+import threading
 
 from src.common.data_models.message_component_data_model import (
+    AtComponent,
+    DictComponent,
+    EmojiComponent,
+    ForwardNodeComponent,
+    ImageComponent,
     MessageSequence,
+    ReplyComponent,
     StandardMessageComponents,
     TextComponent,
-    ImageComponent,
-    EmojiComponent,
-    VoiceComponent,
-    AtComponent,
-    ReplyComponent,
-    DictComponent,
     UnknownUser,
-    ForwardNodeComponent,
+    VoiceComponent,
 )
 from src.common.logger import get_logger
 from src.config.config import global_config
@@ -33,6 +37,16 @@ if TYPE_CHECKING:
     from src.chat.message_receive.message import SessionMessage
 
 logger = get_logger("message_utils")
+
+
+# 串行化 store_message_to_db / update_message_id 的 SQLite 写入：
+# 底层 SQLite WAL 仅允许单写，busy_timeout 1s。bot 进程不只一个 event loop
+# （bot.py 主 loop、WebUI 在另一个线程的独立 loop、临时 asyncio.run 调用等），
+# 因此 lock 必须是进程级的 threading.Lock 而不是 asyncio.Lock；后者只能互斥
+# 同一个 loop 内的协程，跨 loop / 跨线程时形同虚设。
+# 锁直接持有在同步方法本体里，所有调用路径（同步直调、async wrapper 经 to_thread、
+# 测试 / 迁移脚本直调）都被串行化，不存在绕过路径。
+_DB_WRITE_THREAD_LOCK = threading.Lock()
 
 
 class MessageUtils:
@@ -56,7 +70,7 @@ class MessageUtils:
         if raw_msg_seq.type == "seglist":
             assert isinstance(raw_msg_seq.data, list), "seglist类型的message_segment数据应该是一个列表"
             components.extend(MessageUtils._parse_maim_message_segment_to_component(item) for item in raw_msg_seq.data)
-        elif raw_msg_seq.type in {"text", "image", "emoji", "voice", "at", "reply"}:
+        elif raw_msg_seq.type in {"text", "image", "emoji", "voice", "at", "reply", "dict"}:
             components.append(MessageUtils._parse_maim_message_segment_to_component(raw_msg_seq))
         else:
             raise NotImplementedError(f"暂时不支持的消息片段类型: {raw_msg_seq.type}")
@@ -95,13 +109,56 @@ class MessageUtils:
             binary_hash = hashlib.md5(voice_bytes).hexdigest()
             return VoiceComponent(binary_hash=binary_hash, binary_data=voice_bytes)
         elif seg.type == "at":
-            assert isinstance(seg.data, str), "at类型的seg数据应该是字符串"
-            return AtComponent(target_user_id=seg.data)
+            return MessageUtils._parse_at_segment_data(seg.data)
         elif seg.type == "reply":
             assert isinstance(seg.data, str), "reply类型的seg数据应该是字符串"
             return ReplyComponent(target_message_id=seg.data)
+        elif seg.type == "dict":
+            assert isinstance(seg.data, dict), "dict类型的seg数据应该是字典"
+            return DictComponent(data=seg.data)
         else:
             raise NotImplementedError(f"暂时不支持的消息片段类型: {seg.type}")
+
+    @staticmethod
+    def _parse_at_segment_data(data: Any) -> AtComponent:
+        """解析 @ 消息片段，兼容旧字符串格式和 OneBot 字典格式。"""
+
+        if isinstance(data, dict):
+            target_user_id = MessageUtils._first_non_empty_string(
+                data.get("target_user_id"),
+                data.get("qq"),
+                data.get("user_id"),
+                data.get("id"),
+            )
+            target_user_nickname = MessageUtils._first_non_empty_string(
+                data.get("target_user_nickname"),
+                data.get("nickname"),
+                data.get("name"),
+            )
+            target_user_cardname = MessageUtils._first_non_empty_string(
+                data.get("target_user_cardname"),
+                data.get("card"),
+            )
+            return AtComponent(
+                target_user_id=target_user_id,
+                target_user_nickname=target_user_nickname or None,
+                target_user_cardname=target_user_cardname or None,
+            )
+
+        assert isinstance(data, str), "at类型的seg数据应该是字符串或字典"
+        return AtComponent(target_user_id=data)
+
+    @staticmethod
+    def _first_non_empty_string(*values: Any) -> str:
+        """返回第一个非空字符串表示。"""
+
+        for value in values:
+            if value is None:
+                continue
+            text = str(value).strip()
+            if text:
+                return text
+        return ""
 
     @staticmethod
     def check_ban_words(text: str) -> Tuple[bool, Optional[str]]:
@@ -142,12 +199,103 @@ class MessageUtils:
 
     @staticmethod
     def store_message_to_db(message: "SessionMessage"):
-        """存储消息到数据库，此方法没有update机制"""
+        """存储消息到数据库，此方法没有update机制。
+
+        加锁在同步方法本体，保证所有写入路径（包括同步直接调用与 async wrapper）
+        都被串行化，参见 `_DB_WRITE_THREAD_LOCK` 注释。
+        """
         from src.common.database.database import get_db_session
 
-        with get_db_session() as session:
-            db_message = message.to_db_instance()
-            session.add(db_message)
+        with _DB_WRITE_THREAD_LOCK:
+            with get_db_session() as session:
+                MessageUtils._persist_image_components(message.raw_message.components, session)
+                db_message = message.to_db_instance()
+                session.add(db_message)
+
+    @staticmethod
+    async def store_message_to_db_async(message: "SessionMessage") -> None:
+        """异步存储消息到数据库。
+
+        把同步 SQLAlchemy session 移出事件循环；锁逻辑在 `store_message_to_db`
+        本体里持有，本方法仅做 `to_thread` 透传。
+        """
+        await asyncio.to_thread(MessageUtils.store_message_to_db, message)
+
+    @staticmethod
+    def _persist_image_components(components: List[StandardMessageComponents], session: Any) -> None:
+        """将消息中仍携带二进制数据的图片组件保存到图片库。"""
+        from src.common.database.database_model import Images, ImageType
+
+        for component in components:
+            if isinstance(component, ImageComponent):
+                MessageUtils._persist_image_component(component, session, Images, ImageType)
+            elif isinstance(component, ForwardNodeComponent):
+                for forward_component in component.forward_components:
+                    MessageUtils._persist_image_components(forward_component.content, session)
+
+    @staticmethod
+    def _persist_image_component(
+        component: ImageComponent, session: Any, images_model: Any, image_type_model: Any
+    ) -> None:
+        """保存图片文件和图片库记录，确保后续可以通过消息 hash 回读原图。"""
+        if not component.binary_data:
+            return
+
+        image_hash = component.binary_hash.strip()
+        if not image_hash:
+            return
+
+        statement = select(images_model).filter_by(image_hash=image_hash, image_type=image_type_model.IMAGE).limit(1)
+        existing_record = session.exec(statement).first()
+        if existing_record is not None and Path(existing_record.full_path).is_file():
+            existing_record.no_file_flag = False
+            existing_record.last_used_time = datetime.now()
+            session.add(existing_record)
+            return
+
+        image_dir = Path(__file__).parent.parent.parent.parent / "data" / "images"
+        image_dir.mkdir(parents=True, exist_ok=True)
+        image_format = MessageUtils._detect_image_format(component.binary_data)
+        image_path = image_dir / f"{image_hash}.{image_format}"
+        if not image_path.exists():
+            image_path.write_bytes(component.binary_data)
+
+        if existing_record is not None:
+            existing_record.description = component.content.strip()
+            existing_record.full_path = str(image_path.absolute().resolve())
+            existing_record.no_file_flag = False
+            existing_record.last_used_time = datetime.now()
+            existing_record.vlm_processed = bool(component.content.strip())
+            session.add(existing_record)
+        else:
+            session.add(
+                images_model(
+                    image_hash=image_hash,
+                    description=component.content.strip(),
+                    full_path=str(image_path.absolute().resolve()),
+                    image_type=image_type_model.IMAGE,
+                    last_used_time=datetime.now(),
+                    vlm_processed=bool(component.content.strip()),
+                )
+            )
+
+    @staticmethod
+    def _detect_image_format(image_bytes: bytes) -> str:
+        """识别图片格式，失败时使用 png 作为兼容后缀。"""
+        try:
+            from PIL import Image as PILImage
+
+            import io
+
+            with PILImage.open(io.BytesIO(image_bytes)) as image:
+                image_format = (image.format or "").lower()
+                if image_format == "jpeg":
+                    return "jpg"
+                if image_format:
+                    return image_format
+        except Exception as exc:
+            logger.warning(f"识别消息图片格式失败，将按 png 保存: {exc}")
+        return "png"
 
     @staticmethod
     def update_message_id(old_message_id: str, new_message_id: str) -> bool:
@@ -170,35 +318,43 @@ class MessageUtils:
         from src.common.database.database import get_db_session
         from src.common.database.database_model import Messages
 
-        with get_db_session() as session:
-            existing_target = session.exec(
-                select(Messages).filter_by(message_id=normalized_new_message_id).limit(1)
-            ).first()
-            if existing_target is not None:
-                logger.warning(
-                    "消息 ID 回填时发现真实 ID 已存在，已跳过更新: "
-                    f"{normalized_old_message_id} -> {normalized_new_message_id}"
-                )
-                return False
+        with _DB_WRITE_THREAD_LOCK:
+            with get_db_session() as session:
+                existing_target = session.exec(
+                    select(Messages).filter_by(message_id=normalized_new_message_id).limit(1)
+                ).first()
+                if existing_target is not None:
+                    logger.warning(
+                        "消息 ID 回填时发现真实 ID 已存在，已跳过更新: "
+                        f"{normalized_old_message_id} -> {normalized_new_message_id}"
+                    )
+                    return False
 
-            source_messages = session.exec(
-                select(Messages).filter_by(message_id=normalized_old_message_id)
-            ).all()
-            if not source_messages:
-                return False
+                source_messages = session.exec(select(Messages).filter_by(message_id=normalized_old_message_id)).all()
+                if not source_messages:
+                    return False
 
-            for source_message in source_messages:
-                source_message.message_id = normalized_new_message_id
-                session.add(source_message)
+                for source_message in source_messages:
+                    source_message.message_id = normalized_new_message_id
+                    session.add(source_message)
 
-            reply_target_messages = session.exec(
-                select(Messages).filter_by(reply_to=normalized_old_message_id)
-            ).all()
-            for reply_target_message in reply_target_messages:
-                reply_target_message.reply_to = normalized_new_message_id
-                session.add(reply_target_message)
+                reply_target_messages = session.exec(
+                    select(Messages).filter_by(reply_to=normalized_old_message_id)
+                ).all()
+                for reply_target_message in reply_target_messages:
+                    reply_target_message.reply_to = normalized_new_message_id
+                    session.add(reply_target_message)
 
         return True
+
+    @staticmethod
+    async def update_message_id_async(old_message_id: str, new_message_id: str) -> bool:
+        """异步回填消息 ID。
+
+        把同步 SQLAlchemy session 移出事件循环；锁逻辑在 `update_message_id`
+        本体里持有，本方法仅做 `to_thread` 透传。
+        """
+        return await asyncio.to_thread(MessageUtils.update_message_id, old_message_id, new_message_id)
 
     @staticmethod
     async def build_readable_message(

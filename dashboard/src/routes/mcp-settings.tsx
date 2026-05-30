@@ -27,6 +27,7 @@ import { RestartOverlay } from '@/components/restart-overlay'
 import { useToast } from '@/hooks/use-toast'
 import { getBotConfig, getBotConfigSchema, updateBotConfigSection } from '@/lib/config-api'
 import { fieldHooks } from '@/lib/field-hooks'
+import { generateId } from '@/lib/id'
 import { RestartProvider, useRestart } from '@/lib/restart-context'
 import type { ConfigSchema } from '@/types/config-schema'
 import { Copy, Info, Plus, Power, Save, Server, Trash2 } from 'lucide-react'
@@ -42,6 +43,7 @@ interface MCPAuthorization {
 }
 
 interface MCPServerConfig {
+  _uuid?: string
   name: string
   enabled: boolean
   transport: MCPTransport
@@ -100,6 +102,7 @@ function normalizeMCPServer(value: unknown, index: number): MCPServerConfig {
 
   return {
     ...DEFAULT_MCP_SERVER,
+    _uuid: typeof source._uuid === 'string' ? source._uuid : generateId(),
     name: typeof source.name === 'string' ? source.name : `mcp-server-${index + 1}`,
     enabled: typeof source.enabled === 'boolean' ? source.enabled : DEFAULT_MCP_SERVER.enabled,
     transport,
@@ -187,6 +190,7 @@ function MCPServersBlockEditor({
       ...servers,
       {
         ...DEFAULT_MCP_SERVER,
+        _uuid: generateId(),
         name: `mcp-server-${servers.length + 1}`,
       },
     ])
@@ -199,6 +203,7 @@ function MCPServersBlockEditor({
     }
     const nextServer = {
       ...server,
+      _uuid: generateId(),
       name: `${server.name || 'mcp-server'}-copy`,
       args: [...server.args],
       env: { ...server.env },
@@ -245,7 +250,7 @@ function MCPServersBlockEditor({
           </div>
         ) : (
           servers.map((server, index) => (
-            <Card key={`${server.name}-${index}`} className="border-border/70 bg-muted/20 shadow-none">
+            <Card key={server._uuid || `${server.name}-${index}`} className="border-border/70 bg-muted/20 shadow-none">
               <CardHeader className="space-y-3 px-4 py-3">
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -292,7 +297,7 @@ function MCPServersBlockEditor({
               <CardContent className="space-y-4 px-4 pb-4 pt-0">
                 <div className="grid gap-3 md:grid-cols-[12rem_1fr]">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">传输方式</label>
+                    <span className="text-xs font-medium text-muted-foreground">传输方式</span>
                     <Select
                       value={server.transport}
                       onValueChange={(transport) => updateServer(index, { transport: transport as MCPTransport })}
@@ -308,7 +313,7 @@ function MCPServersBlockEditor({
                   </div>
                   {server.transport === 'stdio' ? (
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted-foreground">启动命令</label>
+                      <span className="text-xs font-medium text-muted-foreground">启动命令</span>
                       <Input
                         value={server.command}
                         onChange={(event) => updateServer(index, { command: event.target.value })}
@@ -317,7 +322,7 @@ function MCPServersBlockEditor({
                     </div>
                   ) : (
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted-foreground">服务 URL</label>
+                      <span className="text-xs font-medium text-muted-foreground">服务 URL</span>
                       <Input
                         value={server.url}
                         onChange={(event) => updateServer(index, { url: event.target.value })}
@@ -330,7 +335,7 @@ function MCPServersBlockEditor({
                 {server.transport === 'stdio' ? (
                   <div className="grid gap-3 lg:grid-cols-2">
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted-foreground">命令参数</label>
+                      <span className="text-xs font-medium text-muted-foreground">命令参数</span>
                       <Textarea
                         value={server.args.join('\n')}
                         onChange={(event) => updateServer(index, {
@@ -344,7 +349,7 @@ function MCPServersBlockEditor({
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted-foreground">环境变量</label>
+                      <span className="text-xs font-medium text-muted-foreground">环境变量</span>
                       <KeyValueEditor
                         value={server.env}
                         onChange={(env) => updateServer(index, { env: asStringMap(env) })}
@@ -355,7 +360,7 @@ function MCPServersBlockEditor({
                   <div className="space-y-3">
                     <div className="grid gap-3 md:grid-cols-2">
                       <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-muted-foreground">认证模式</label>
+                        <span className="text-xs font-medium text-muted-foreground">认证模式</span>
                         <Select
                           value={server.authorization.mode}
                           onValueChange={(mode) => updateAuthorization(index, { mode: mode as MCPAuthorization['mode'] })}
@@ -371,7 +376,7 @@ function MCPServersBlockEditor({
                       </div>
                       {server.authorization.mode === 'bearer' && (
                         <div className="space-y-1.5">
-                          <label className="text-xs font-medium text-muted-foreground">Bearer Token</label>
+                          <span className="text-xs font-medium text-muted-foreground">Bearer Token</span>
                           <Input
                             type="password"
                             value={server.authorization.bearer_token}
@@ -382,7 +387,7 @@ function MCPServersBlockEditor({
                       )}
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted-foreground">请求 Headers</label>
+                      <span className="text-xs font-medium text-muted-foreground">请求 Headers</span>
                       <KeyValueEditor
                         value={server.headers}
                         onChange={(headers) => updateServer(index, { headers: asStringMap(headers) })}
@@ -393,7 +398,7 @@ function MCPServersBlockEditor({
 
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">HTTP 请求超时（秒）</label>
+                    <span className="text-xs font-medium text-muted-foreground">HTTP 请求超时（秒）</span>
                     <Input
                       type="number"
                       min={0.1}
@@ -405,7 +410,7 @@ function MCPServersBlockEditor({
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">会话读取超时（秒）</label>
+                    <span className="text-xs font-medium text-muted-foreground">会话读取超时（秒）</span>
                     <Input
                       type="number"
                       min={0.1}
@@ -512,7 +517,15 @@ function MCPSettingsPageContent() {
   const saveConfig = useCallback(async (): Promise<boolean> => {
     try {
       setSaving(true)
-      const result = await updateBotConfigSection('mcp', mcpConfig)
+      const configToSave = { ...mcpConfig }
+      if (Array.isArray(configToSave.servers)) {
+        configToSave.servers = configToSave.servers.map((server: MCPServerConfig) => {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { _uuid, ...rest } = server
+          return rest
+        })
+      }
+      const result = await updateBotConfigSection('mcp', configToSave)
 
       if (!result.success) {
         toast({
@@ -622,7 +635,7 @@ function MCPSettingsPageContent() {
 
         {loading && (
           <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
-            加载中...
+            Thinking...
           </div>
         )}
 

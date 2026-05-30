@@ -3,6 +3,15 @@ import type { ApiResponse } from '@/types/api'
 import { fetchWithAuth } from '@/lib/fetch-with-auth'
 import { parseResponse } from '@/lib/api-helpers'
 
+type UpdatePluginResult = {
+  success: boolean
+  message: string
+  old_version: string
+  new_version: string
+  update_mode?: 'git_pull' | 'reinstall_from_backup'
+  backup_path?: string
+}
+
 /**
  * 安装插件
  */
@@ -36,7 +45,7 @@ export async function uninstallPlugin(pluginId: string): Promise<ApiResponse<{ s
 /**
  * 更新插件
  */
-export async function updatePlugin(pluginId: string, repositoryUrl: string, branch: string = 'main'): Promise<ApiResponse<{ success: boolean; message: string; old_version: string; new_version: string }>> {
+export async function updatePlugin(pluginId: string, repositoryUrl: string, branch: string = 'main'): Promise<ApiResponse<UpdatePluginResult>> {
   const response = await fetchWithAuth('/api/webui/plugins/update', {
     method: 'POST',
     body: JSON.stringify({
@@ -46,5 +55,5 @@ export async function updatePlugin(pluginId: string, repositoryUrl: string, bran
     })
   })
   
-  return await parseResponse<{ success: boolean; message: string; old_version: string; new_version: string }>(response)
+  return await parseResponse<UpdatePluginResult>(response)
 }

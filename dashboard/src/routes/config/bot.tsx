@@ -20,23 +20,35 @@ import { CodeEditor } from '@/components/CodeEditor'
 import { DynamicConfigForm } from '@/components/dynamic-form'
 import { RestartOverlay } from '@/components/restart-overlay'
 import { useToast } from '@/hooks/use-toast'
-import { getBotConfig, getBotConfigRaw, getBotConfigSchema, updateBotConfig, updateBotConfigRaw } from '@/lib/config-api'
+import {
+  getBotConfig,
+  getBotConfigCached,
+  getBotConfigRaw,
+  getBotConfigSchema,
+  updateBotConfig,
+  updateBotConfigRaw,
+} from '@/lib/config-api'
 import { fieldHooks } from '@/lib/field-hooks'
 import { RestartProvider, useRestart } from '@/lib/restart-context'
 import { cn } from '@/lib/utils'
 
-import { ChevronDown, ChevronUp, Code2, Info, Layout, Power, RefreshCw, Save } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Code2, Info, Layout, Power, RefreshCw, Save } from 'lucide-react'
 
 import type { ConfigSchema } from '@/types/config-schema'
 import {
-  BotPlatformsHook,
+  AliasNamesHook,
+  BotPlatformAccountsHook,
   ChatPromptsHook,
   ChatTalkValueRulesHook,
   ExpressionGroupsHook,
   ExpressionLearningListHook,
+  JargonGroupsHook,
+  JargonLearningListHook,
   KeywordRulesHook,
+  HiddenFieldHook,
   MCPRootItemsHook,
   MCPServersHook,
+  MultipleReplyStyleHook,
   RegexRulesHook,
   useAutoSave,
   useConfigAutoSave,
@@ -69,6 +81,7 @@ const DEFAULT_VISIBLE_TAB_IDS = new Set([
   'chat',
   'expression',
   'a_memorix',
+  'visual',
 ])
 
 // ==================== Tab 分组类型与构建 ====================
@@ -168,8 +181,8 @@ function BotConfigPageContent() {
   const [personalityConfig, setPersonalityConfig] = useState<ConfigSectionData | null>(null)
   const [chatConfig, setChatConfig] = useState<ConfigSectionData | null>(null)
   const [expressionConfig, setExpressionConfig] = useState<ConfigSectionData | null>(null)
+  const [jargonConfig, setJargonConfig] = useState<ConfigSectionData | null>(null)
   const [emojiConfig, setEmojiConfig] = useState<ConfigSectionData | null>(null)
-  const [memoryConfig, setMemoryConfig] = useState<ConfigSectionData | null>(null)
   const [visualConfig, setVisualConfig] = useState<ConfigSectionData | null>(null)
   const [voiceConfig, setVoiceConfig] = useState<ConfigSectionData | null>(null)
   const [messageReceiveConfig, setMessageReceiveConfig] = useState<ConfigSectionData | null>(null)
@@ -258,14 +271,15 @@ function BotConfigPageContent() {
    * 抽取自 loadConfig 和 handleModeChange 中的重复逻辑
    */
   const parseAndSetConfig = useCallback((config: Record<string, unknown>) => {
-    configRef.current = config
+    const { memory: _legacyMemory, ...configWithoutLegacyMemory } = config
+    configRef.current = configWithoutLegacyMemory
 
     setBotConfig((config.bot ?? {}) as ConfigSectionData)
     setPersonalityConfig((config.personality ?? {}) as ConfigSectionData)
     setChatConfig((config.chat ?? {}) as ConfigSectionData)
     setExpressionConfig((config.expression ?? {}) as ConfigSectionData)
+    setJargonConfig((config.jargon ?? {}) as ConfigSectionData)
     setEmojiConfig((config.emoji ?? {}) as ConfigSectionData)
-    setMemoryConfig((config.memory ?? {}) as ConfigSectionData)
     setVisualConfig((config.visual ?? {}) as ConfigSectionData)
     setVoiceConfig((config.voice ?? {}) as ConfigSectionData)
     setMessageReceiveConfig((config.message_receive ?? {}) as ConfigSectionData)
@@ -295,8 +309,8 @@ function BotConfigPageContent() {
       personality: personalityConfig,
       chat: chatConfig,
       expression: expressionConfig,
+      jargon: jargonConfig,
       emoji: emojiConfig,
-      memory: memoryConfig,
       visual: visualConfig,
       voice: voiceConfig,
       message_receive: messageReceiveConfig,
@@ -319,8 +333,8 @@ function BotConfigPageContent() {
     personalityConfig,
     chatConfig,
     expressionConfig,
+    jargonConfig,
     emojiConfig,
-    memoryConfig,
     visualConfig,
     voiceConfig,
     messageReceiveConfig,
@@ -378,7 +392,7 @@ function BotConfigPageContent() {
   const loadConfig = useCallback(async () => {
     try {
       setLoading(true)
-      const [result, schemaResult] = await Promise.all([getBotConfig(), getBotConfigSchema()])
+      const [result, schemaResult] = await Promise.all([getBotConfigCached(), getBotConfigSchema()])
       if (!result.success) {
         toast({
           title: '加载失败',
@@ -394,9 +408,6 @@ function BotConfigPageContent() {
       }
       setHasUnsavedChanges(false)
       initialLoadRef.current = false
-      
-      // 同时加载源代码
-      await loadSourceCode()
     } catch (error) {
       console.error('加载配置失败:', error)
       toast({
@@ -407,7 +418,7 @@ function BotConfigPageContent() {
     } finally {
       setLoading(false)
     }
-  }, [toast, loadSourceCode, parseAndSetConfig])
+  }, [toast, parseAndSetConfig])
 
   useEffect(() => {
     loadConfig()
@@ -415,19 +426,25 @@ function BotConfigPageContent() {
 
   useEffect(() => {
     const hookEntries = [
-      ['bot.platforms', BotPlatformsHook],
+      ['bot.platform', BotPlatformAccountsHook, 'replace'],
+      ['bot.alias_names', AliasNamesHook],
+      ['bot.qq_account', HiddenFieldHook, 'hidden'],
+      ['bot.platforms', HiddenFieldHook, 'hidden'],
+      ['personality.multiple_reply_style', MultipleReplyStyleHook],
       ['chat.chat_prompts', ChatPromptsHook],
       ['chat.talk_value_rules', ChatTalkValueRulesHook],
       ['expression.expression_groups', ExpressionGroupsHook],
       ['expression.learning_list', ExpressionLearningListHook],
+      ['jargon.jargon_groups', JargonGroupsHook],
+      ['jargon.learning_list', JargonLearningListHook],
       ['keyword_reaction.keyword_rules', KeywordRulesHook],
       ['keyword_reaction.regex_rules', RegexRulesHook],
       ['mcp.client.roots.items', MCPRootItemsHook],
       ['mcp.servers', MCPServersHook],
     ] as const
 
-    for (const [fieldPath, hookComponent] of hookEntries) {
-      fieldHooks.register(fieldPath, hookComponent, 'replace')
+    for (const [fieldPath, hookComponent, hookType = 'replace'] of hookEntries) {
+      fieldHooks.register(fieldPath, hookComponent, hookType)
     }
 
     return () => {
@@ -451,8 +468,8 @@ function BotConfigPageContent() {
   useConfigAutoSave(personalityConfig, 'personality', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(chatConfig, 'chat', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(expressionConfig, 'expression', initialLoadRef.current, triggerAutoSave)
+  useConfigAutoSave(jargonConfig, 'jargon', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(emojiConfig, 'emoji', initialLoadRef.current, triggerAutoSave)
-  useConfigAutoSave(memoryConfig, 'memory', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(visualConfig, 'visual', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(voiceConfig, 'voice', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(messageReceiveConfig, 'message_receive', initialLoadRef.current, triggerAutoSave)
@@ -596,7 +613,7 @@ function BotConfigPageContent() {
       setHasUnsavedChanges(false)
       toast({
         title: '保存成功',
-        description: '麦麦主程序配置已保存',
+        description: '麦麦设置已保存',
       })
     } catch (error) {
       console.error('保存配置失败:', error)
@@ -623,6 +640,9 @@ function BotConfigPageContent() {
   const handleReloadFromFile = async () => {
     cancelPendingAutoSave()
     await loadConfig()
+    if (editMode === 'source') {
+      await loadSourceCode()
+    }
     setHasUnsavedChanges(false)
     toast({
       title: '已刷新',
@@ -679,8 +699,8 @@ function BotConfigPageContent() {
       personality: personalityConfig,
       chat: chatConfig,
       expression: expressionConfig,
+      jargon: jargonConfig,
       emoji: emojiConfig,
-      memory: memoryConfig,
       visual: visualConfig,
       voice: voiceConfig,
       message_receive: messageReceiveConfig,
@@ -703,8 +723,8 @@ function BotConfigPageContent() {
       personalityConfig,
       chatConfig,
       expressionConfig,
+      jargonConfig,
       emojiConfig,
-      memoryConfig,
       visualConfig,
       voiceConfig,
       messageReceiveConfig,
@@ -730,8 +750,8 @@ function BotConfigPageContent() {
       personality: setPersonalityConfig,
       chat: setChatConfig,
       expression: setExpressionConfig,
+      jargon: setJargonConfig,
       emoji: setEmojiConfig,
-      memory: setMemoryConfig,
       visual: setVisualConfig,
       voice: setVoiceConfig,
       message_receive: setMessageReceiveConfig,
@@ -758,7 +778,7 @@ function BotConfigPageContent() {
       <ScrollArea className="h-full">
         <div className="space-y-4 sm:space-y-6 p-4 sm:p-6">
           <div className="flex items-center justify-center h-64">
-            <p className="text-muted-foreground">加载中...</p>
+            <p className="text-muted-foreground">Thinking...</p>
           </div>
         </div>
       </ScrollArea>
@@ -766,21 +786,21 @@ function BotConfigPageContent() {
   }
 
   return (
-    <ScrollArea className="h-full">
-      <div className="space-y-4 sm:space-y-6 p-4 sm:p-6">
+    <ScrollArea className="h-full min-w-0" scrollbars="vertical">
+      <div className="max-w-full space-y-4 overflow-x-hidden p-4 sm:space-y-6 sm:p-6">
         {/* 页面标题 */}
         <div className="flex flex-col gap-3 sm:gap-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="min-w-0">
-              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">麦麦主程序配置</h1>
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">麦麦设置</h1>
               <p className="text-muted-foreground mt-1 text-xs sm:text-sm">管理麦麦的核心功能和行为设置</p>
             </div>
             {/* 按钮组 - 桌面端靠右 */}
-            <div className="flex flex-wrap gap-2 flex-shrink-0 sm:justify-end">
+            <div className="flex w-full min-w-0 flex-wrap gap-2 sm:w-auto sm:flex-shrink-0 sm:justify-end">
               <Tabs
                 value={editMode}
                 onValueChange={(v) => handleModeChange(v as 'visual' | 'source')}
-                className="w-full min-w-[13rem] sm:w-[14rem]"
+                className="w-full min-w-0 sm:w-[14rem]"
               >
                 <TabsList className="grid h-8 w-full grid-cols-2 sm:h-9">
                   <TabsTrigger value="visual" className="px-2 text-xs">
@@ -798,7 +818,7 @@ function BotConfigPageContent() {
                 disabled={saving || autoSaving || isRestarting}
                 size="sm"
                 variant="outline"
-                className="w-20 sm:w-24"
+                className="min-w-0 flex-1 sm:w-24 sm:flex-none"
               >
                 <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                 刷新
@@ -808,7 +828,7 @@ function BotConfigPageContent() {
                 disabled={saving || autoSaving || !hasUnsavedChanges || isRestarting}
                 size="sm"
                 variant="outline"
-                className="w-20 sm:w-24"
+                className="min-w-0 flex-1 sm:w-24 sm:flex-none"
               >
                 <Save className="h-4 w-4 flex-shrink-0" strokeWidth={2} fill="none" />
                 <span className="ml-1 truncate text-xs sm:text-sm">
@@ -820,7 +840,7 @@ function BotConfigPageContent() {
                   <Button
                     disabled={saving || autoSaving || isRestarting}
                     size="sm"
-                    className="w-20 sm:w-28"
+                    className="min-w-0 flex-1 sm:w-28 sm:flex-none"
                   >
                     <Power className="h-4 w-4 flex-shrink-0" />
                     <span className="ml-1 truncate text-xs sm:text-sm">
@@ -963,6 +983,7 @@ function DynamicConfigTabs(props: DynamicConfigTabsProps) {
   const { configSchema, sectionValues, setHasUnsavedChanges, setSectionValue, tabGroups } = props
   const [expanded, setExpanded] = useState(false)
   const [activeTab, setActiveTab] = useState(tabGroups[0]?.id ?? '')
+  const [advancedVisible, setAdvancedVisible] = useState(false)
 
   useEffect(() => {
     if (!tabGroups.some((tab) => tab.id === activeTab)) {
@@ -1032,26 +1053,28 @@ function DynamicConfigTabs(props: DynamicConfigTabsProps) {
           setHasUnsavedChanges(true)
         }}
         hooks={fieldHooks}
+        advancedVisible={advancedVisible}
+        sectionColumns={2}
       />
     )
   }
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-      <TabsList className="flex flex-wrap h-auto gap-1 p-1">
+      <TabsList className="flex h-auto max-w-full justify-start gap-1 overflow-x-auto p-1 transition-all duration-300 ease-out sm:flex-wrap sm:overflow-x-visible">
         {visibleTabGroups.map((tab) => {
           const isExpandedOnlyTab = !DEFAULT_VISIBLE_TAB_IDS.has(tab.id)
           return (
             <Fragment key={tab.id}>
               {tab.id === firstExpandedTabId && (
-                <span className="mx-1 hidden h-6 w-px bg-border/80 sm:block" />
+                <span className="mx-1 hidden h-6 w-px bg-border/80 transition-opacity duration-200 sm:block" />
               )}
               <TabsTrigger
                 value={tab.id}
                 className={cn(
-                  "text-xs px-2 py-1.5 sm:px-3 sm:py-2 data-[state=active]:shadow-sm",
+                  "shrink-0 px-2 py-1.5 text-sm transition-all duration-200 ease-out sm:px-3 sm:py-2 data-[state=active]:shadow-sm",
                   isExpandedOnlyTab &&
-                    "border border-dashed border-border/70 bg-background/45 text-muted-foreground/80 hover:bg-background/70 data-[state=active]:border-primary/45 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none"
+                    "border border-dashed border-border/70 bg-background/45 text-muted-foreground/80 motion-safe:animate-[config-tab-enter_180ms_ease-out_both] hover:bg-background/70 data-[state=active]:border-primary/45 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none"
                 )}
               >
                 {tab.label}
@@ -1064,20 +1087,29 @@ function DynamicConfigTabs(props: DynamicConfigTabsProps) {
             type="button"
             variant="ghost"
             size="sm"
-            className="h-8 px-2 text-xs sm:h-9 sm:px-3"
+            className="group h-8 shrink-0 px-2 text-xs transition-all duration-200 ease-out sm:h-9 sm:px-3"
             onClick={toggleExpanded}
           >
             {expanded ? (
-              <ChevronUp className="mr-1 h-3.5 w-3.5" />
+              <ChevronLeft className="mr-1 h-3.5 w-3.5 transition-transform duration-200 group-hover:-translate-x-0.5" />
             ) : (
-              <ChevronDown className="mr-1 h-3.5 w-3.5" />
+              <ChevronRight className="mr-1 h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
             )}
             {expanded ? '收起' : '更多'}
           </Button>
         )}
+        <Button
+          type="button"
+          variant={advancedVisible ? 'default' : 'outline'}
+          size="sm"
+          className="h-8 shrink-0 px-2 text-xs transition-all duration-200 ease-out sm:ml-auto sm:h-9 sm:px-3"
+          onClick={() => setAdvancedVisible((current) => !current)}
+        >
+          高级设置
+        </Button>
       </TabsList>
       {tabGroups.map((tab) => (
-        <TabsContent key={tab.id} value={tab.id} className="space-y-4">
+        <TabsContent key={tab.id} value={tab.id} className="space-y-4 motion-safe:animate-[config-tab-content-enter_180ms_ease-out_both]">
           {renderTabContent(tab)}
         </TabsContent>
       ))}
