@@ -71,6 +71,8 @@ import {
   type ConfigSectionSchema,
   type ItemFieldDefinition,
 } from '@/lib/plugin-api'
+import { PluginIcon } from './plugins/PluginIcon'
+import { getPluginTypeLabel } from './plugins/types'
 
 // 字段渲染组件
 interface FieldRendererProps {
@@ -1204,9 +1206,7 @@ function PluginConfigPageContent() {
                         title={statusMeta.label}
                         aria-label={statusMeta.label}
                       />
-                      <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                        <Package className="h-5 w-5 text-primary" />
-                      </div>
+                      <PluginIcon pluginId={plugin.id} manifest={plugin.manifest} installed className="h-10 w-10" />
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <h3 className="font-medium truncate">
@@ -1214,6 +1214,9 @@ function PluginConfigPageContent() {
                           </h3>
                           <Badge variant="secondary" className="text-xs flex-shrink-0">
                             v{plugin.manifest.version}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs flex-shrink-0">
+                            {getPluginTypeLabel(plugin)}
                           </Badge>
                         </div>
                         <p className="text-sm text-muted-foreground truncate">

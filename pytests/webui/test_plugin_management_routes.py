@@ -6,6 +6,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from src.webui.routers.plugin import icon_routes as icon_routes_module
 from src.webui.routers.plugin import management as management_module
 from src.webui.routers.plugin import support as support_module
 
@@ -31,10 +32,12 @@ def client(tmp_path, monkeypatch) -> TestClient:
     )
 
     monkeypatch.setattr(management_module, "require_plugin_token", lambda _: "ok")
+    monkeypatch.setattr(icon_routes_module, "require_plugin_token", lambda _: "ok")
     monkeypatch.setattr(support_module, "get_plugins_dir", lambda: plugins_dir)
 
     app = FastAPI()
     app.include_router(management_module.router, prefix="/api/webui/plugins")
+    app.include_router(icon_routes_module.router, prefix="/api/webui/plugins")
     return TestClient(app)
 
 
@@ -63,6 +66,48 @@ def test_resolve_installed_plugin_path_accepts_manifest_id_case_mismatch(client:
 
     assert plugin_path is not None
     assert plugin_path.name == "demo_plugin"
+
+
+def test_get_plugin_icon_serves_manifest_declared_local_icon(client: TestClient):
+    plugin_path = support_module.resolve_installed_plugin_path("test.demo")
+    assert plugin_path is not None
+    assets_dir = plugin_path / "assets"
+    assets_dir.mkdir()
+    (assets_dir / "icon.svg").write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"></svg>',
+        encoding="utf-8",
+    )
+    manifest = json.loads((plugin_path / "_manifest.json").read_text(encoding="utf-8"))
+    manifest["display"] = {
+        "icon": {
+            "type": "local",
+            "value": "assets/icon.svg",
+        }
+    }
+    (plugin_path / "_manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+    response = client.get("/api/webui/plugins/icon/test.demo")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("image/svg")
+    assert b"<svg" in response.content
+
+
+def test_get_plugin_icon_rejects_manifest_declared_parent_path(client: TestClient):
+    plugin_path = support_module.resolve_installed_plugin_path("test.demo")
+    assert plugin_path is not None
+    manifest = json.loads((plugin_path / "_manifest.json").read_text(encoding="utf-8"))
+    manifest["display"] = {
+        "icon": {
+            "type": "local",
+            "value": "../icon.svg",
+        }
+    }
+    (plugin_path / "_manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+    response = client.get("/api/webui/plugins/icon/test.demo")
+
+    assert response.status_code == 400
 
 
 def test_install_plugin_preserves_manifest_declared_id(client: TestClient, monkeypatch):
