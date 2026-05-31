@@ -35,25 +35,42 @@ const fontSizeConfig: Record<FontSize, { label: string; rowHeight: number; class
 
 const logColumnLayoutConfig: Record<
   FontSize,
-  { gapClass: string; levelClass: string; moduleClass: string; timestampClass: string }
+  {
+    gapClass: string
+    levelClass: string
+    levelWidth: number
+    moduleClass: string
+    moduleWidth: number
+    timestampClass: string
+    timestampWidth: number
+  }
 > = {
   xs: {
     gapClass: 'gap-1.5',
     timestampClass: 'w-[60px] lg:w-[60px]',
+    timestampWidth: 60,
     levelClass: 'w-[30px] lg:w-[30px]',
+    levelWidth: 30,
     moduleClass: 'w-[90px] lg:w-[90px]',
+    moduleWidth: 90,
   },
   sm: {
     gapClass: 'gap-2',
     timestampClass: 'w-[76px] lg:w-[76px]',
+    timestampWidth: 76,
     levelClass: 'w-[38px] lg:w-[38px]',
+    levelWidth: 38,
     moduleClass: 'w-[112px] lg:w-[112px]',
+    moduleWidth: 112,
   },
   base: {
     gapClass: 'gap-2.5',
     timestampClass: 'w-[92px] lg:w-[92px]',
+    timestampWidth: 92,
     levelClass: 'w-[46px] lg:w-[46px]',
+    levelWidth: 46,
     moduleClass: 'w-[136px] lg:w-[136px]',
+    moduleWidth: 136,
   },
 }
 
@@ -106,6 +123,7 @@ function LogTerminalPane({ toolbarContainerId, toolbarVisible }: LogTerminalPane
   const [connected, setConnected] = useState(false)
   const [fontSize, setFontSize] = useState<FontSize>('xs') // 默认使用小字号以显示更多信息
   const [lineSpacing, setLineSpacing] = useState(4) // 行间距，默认4px（紧凑）
+  const [columnWidthExtra, setColumnWidthExtra] = useState(0)
   const [filtersOpen, setFiltersOpen] = useState(false) // 控制折叠面板，默认折叠
   const [toolbarRoot, setToolbarRoot] = useState<HTMLElement | null>(null)
   const parentRef = useRef<HTMLDivElement>(null)
@@ -235,6 +253,9 @@ function LogTerminalPane({ toolbarContainerId, toolbarVisible }: LogTerminalPane
   // 虚拟滚动配置 - 根据字号和行间距动态计算行高
   const estimatedRowHeight = fontSizeConfig[fontSize].rowHeight + lineSpacing
   const logColumnLayout = logColumnLayoutConfig[fontSize]
+  const timestampWidth = logColumnLayout.timestampWidth + columnWidthExtra
+  const levelWidth = logColumnLayout.levelWidth + Math.round(columnWidthExtra * 0.5)
+  const moduleWidth = logColumnLayout.moduleWidth + columnWidthExtra
   
   const rowVirtualizer = useVirtualizer({
     count: filteredLogs.length,
@@ -518,6 +539,19 @@ function LogTerminalPane({ toolbarContainerId, toolbarVisible }: LogTerminalPane
                     <span className="text-xs text-muted-foreground w-7">{lineSpacing}px</span>
                   </div>
 
+                  <div className="flex items-center gap-2 flex-1 max-w-[220px]">
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">列宽</span>
+                    <Slider
+                      value={[columnWidthExtra]}
+                      onValueChange={([value]) => setColumnWidthExtra(value)}
+                      min={0}
+                      max={96}
+                      step={8}
+                      className="flex-1"
+                    />
+                    <span className="text-xs text-muted-foreground w-9">+{columnWidthExtra}</span>
+                  </div>
+
                 </div>
               </CollapsibleContent>
       </div>
@@ -627,6 +661,7 @@ function LogTerminalPane({ toolbarContainerId, toolbarVisible }: LogTerminalPane
                             'text-gray-500 dark:text-gray-600 flex-shrink-0',
                             logColumnLayout.timestampClass
                           )}
+                          style={{ width: timestampWidth }}
                         >
                           {timestampText}
                         </span>
@@ -638,6 +673,7 @@ function LogTerminalPane({ toolbarContainerId, toolbarVisible }: LogTerminalPane
                             logColumnLayout.levelClass,
                             getLevelColor(log.level)
                           )}
+                          style={{ width: levelWidth }}
                         >
                           [{levelText}]
                         </span>
@@ -649,7 +685,7 @@ function LogTerminalPane({ toolbarContainerId, toolbarVisible }: LogTerminalPane
                             logColumnLayout.moduleClass,
                             !moduleTextStyle && 'text-cyan-400 dark:text-cyan-500'
                           )}
-                          style={moduleTextStyle}
+                          style={{ ...moduleTextStyle, width: moduleWidth }}
                         >
                           {log.module}
                         </span>
