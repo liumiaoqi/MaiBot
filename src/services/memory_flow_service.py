@@ -10,14 +10,8 @@ import json
 import pickle
 import time
 
-from src.chat.utils.utils import is_bot_self
 from src.common.logger import get_logger
-from src.common.message_repository import count_messages, find_messages
 from src.config.config import global_config
-from src.person_info.person_info import Person, get_person_id, store_person_memory_from_answer
-from src.services import memory_service as memory_service_module
-from src.services.llm_service import LLMServiceClient
-from src.services.memory_service import memory_service
 
 logger = get_logger("memory_flow_service")
 
@@ -33,7 +27,7 @@ class PersonFactWritebackService:
         self._queue: asyncio.Queue[Any] = asyncio.Queue(maxsize=256)
         self._worker_task: Optional[asyncio.Task] = None
         self._stopping = False
-        self._extractor = LLMServiceClient(task_name="utils", request_type="person_fact_writeback")
+        self._extractor: Any | None = None
 
     async def start(self) -> None:
         if self._worker_task is not None and not self._worker_task.done():
@@ -119,6 +113,8 @@ class PersonFactWritebackService:
             for item in evidence.target_messages
             if str(getattr(item, "message_id", "") or "").strip()
         ]
+        from src.person_info.person_info import store_person_memory_from_answer
+
         for fact in facts:
             await store_person_memory_from_answer(
                 person_name,
@@ -136,6 +132,9 @@ class PersonFactWritebackService:
         group_id = str(getattr(session, "group_id", "") or "").strip()
 
         if session_platform and session_user_id and not group_id:
+            from src.chat.utils.utils import is_bot_self
+            from src.person_info.person_info import Person, get_person_id
+
             if is_bot_self(session_platform, session_user_id):
                 return None
             person_id = get_person_id(session_platform, session_user_id)
@@ -146,6 +145,8 @@ class PersonFactWritebackService:
         if not reply_to:
             return None
         try:
+            from src.common.message_repository import find_messages
+
             replies = find_messages(message_id=reply_to, limit=1)
         except Exception as exc:
             logger.debug(f"查询 reply_to 目标失败: {exc}")
@@ -156,6 +157,9 @@ class PersonFactWritebackService:
         reply_platform = str(getattr(reply_message, "platform", "") or session_platform or "").strip()
         reply_user_info = getattr(getattr(reply_message, "message_info", None), "user_info", None)
         reply_user_id = str(getattr(reply_user_info, "user_id", "") or "").strip()
+        from src.chat.utils.utils import is_bot_self
+        from src.person_info.person_info import Person, get_person_id
+
         if not reply_platform or not reply_user_id or is_bot_self(reply_platform, reply_user_id):
             return None
         person_id = get_person_id(reply_platform, reply_user_id)
@@ -179,6 +183,8 @@ class PersonFactWritebackService:
         reply_to = str(getattr(message, "reply_to", "") or "").strip()
         if reply_to:
             try:
+                from src.common.message_repository import find_messages
+
                 replies = find_messages(message_id=reply_to, limit=1)
             except Exception as exc:
                 logger.debug("查询人物事实 reply_to 证据失败: %s", exc)
@@ -190,6 +196,8 @@ class PersonFactWritebackService:
             return PersonFactEvidence(target_messages=target_messages[:3], context_messages=context_messages)
 
         try:
+            from src.common.message_repository import find_messages
+
             candidates = find_messages(
                 session_id=session_id,
                 before_time=timestamp,
@@ -206,6 +214,8 @@ class PersonFactWritebackService:
     def _collect_context_messages(self, *, session_id: str, trigger_message: Any, limit: int = 8) -> List[Any]:
         timestamp = self._extract_message_timestamp(trigger_message)
         try:
+            from src.common.message_repository import find_messages
+
             return find_messages(
                 session_id=session_id,
                 before_time=timestamp,
@@ -230,6 +240,9 @@ class PersonFactWritebackService:
 
     @staticmethod
     def _filter_target_user_messages(messages: List[Any], person: Person, seen_ids: set) -> List[Any]:
+        from src.chat.utils.utils import is_bot_self
+        from src.person_info.person_info import get_person_id
+
         filtered: List[Any] = []
         target_person_id = str(getattr(person, "person_id", "") or "").strip()
         for item in messages:
@@ -332,6 +345,10 @@ class PersonFactWritebackService:
 ["他喜欢深夜打游戏", "他养了一只猫"]
 如果没有可写入的事实，输出 []"""
         try:
+            if self._extractor is None:
+                from src.services.llm_service import LLMServiceClient
+
+                self._extractor = LLMServiceClient(task_name="utils", request_type="person_fact_writeback")
             response_result = await self._extractor.generate_response(prompt)
         except Exception as exc:
             logger.debug(f"人物事实提取模型调用失败: {exc}")
@@ -467,6 +484,8 @@ class ChatSummaryWritebackService:
         if pending_message_count < threshold:
             return
 
+        from src.services.memory_service import memory_service
+
         configured_context_length = self._context_length()
         context_length = self._effective_context_length(
             configured_context_length=configured_context_length,
@@ -510,6 +529,8 @@ class ChatSummaryWritebackService:
     async def _load_last_trigger_message_count(self, *, session_id: str, total_message_count: int) -> int:
         """从已落库的聊天摘要恢复触发游标，避免服务重启后重复摘要。"""
         try:
+            from src.services import memory_service as memory_service_module
+
             runtime_manager = getattr(memory_service_module, "a_memorix_host_service", None)
             ensure_kernel = getattr(runtime_manager, "_ensure_kernel", None)
             if not callable(ensure_kernel):
@@ -613,6 +634,8 @@ class ChatSummaryWritebackService:
 
     @staticmethod
     def _count_messages_until_trigger(*, session_id: str, message_time: float | None) -> int:
+        from src.common.message_repository import count_messages
+
         if message_time is None:
             return count_messages(session_id=session_id)
         return count_messages(session_id=session_id, end_time=message_time)

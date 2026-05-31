@@ -11,30 +11,86 @@ import json
 
 from typing_extensions import TypedDict
 
-from sqlmodel import col, select
-
 from src.common.logger import get_logger
-from src.common.database.database import get_db_session
-from src.common.database.database_model import OnlineTime
 from src.manager.async_task_manager import AsyncTask
-from src.manager.local_store_manager import local_storage
-from src.services.statistics_service import (
-    fetch_messages_since,
-    fetch_model_usage_since,
-    fetch_online_time_since,
-    get_earliest_statistics_time,
-    refresh_dashboard_statistics_cache,
-)
-from src.services.statistics_aggregation_service import (
-    count_tool_records_since,
-    fetch_message_count_by_chat_since,
-    refresh_statistics_aggregates,
-)
 
 logger = get_logger("maibot_statistic")
 
 STATISTICS_REPORT_PATH_ENV = "MAIBOT_STATISTICS_REPORT_PATH"
 DEFAULT_STATISTICS_REPORT_PATH = "maibot_statistics.html"
+
+
+class _LocalStorageProxy:
+    """延迟访问本地存储，避免导入统计任务时读取完整本地记事本。"""
+
+    @staticmethod
+    def _store():
+        from src.manager.local_store_manager import local_storage
+
+        return local_storage
+
+    def __contains__(self, key: str) -> bool:
+        return key in self._store()
+
+    def __getitem__(self, key: str):
+        return self._store()[key]
+
+    def __setitem__(self, key: str, value) -> None:
+        self._store()[key] = value
+
+    def __delitem__(self, key: str) -> None:
+        del self._store()[key]
+
+
+local_storage = _LocalStorageProxy()
+
+
+def fetch_messages_since(*args, **kwargs):
+    from src.services.statistics_service import fetch_messages_since as impl
+
+    return impl(*args, **kwargs)
+
+
+def fetch_model_usage_since(*args, **kwargs):
+    from src.services.statistics_service import fetch_model_usage_since as impl
+
+    return impl(*args, **kwargs)
+
+
+def fetch_online_time_since(*args, **kwargs):
+    from src.services.statistics_service import fetch_online_time_since as impl
+
+    return impl(*args, **kwargs)
+
+
+def get_earliest_statistics_time(*args, **kwargs):
+    from src.services.statistics_service import get_earliest_statistics_time as impl
+
+    return impl(*args, **kwargs)
+
+
+async def refresh_dashboard_statistics_cache(*args, **kwargs):
+    from src.services.statistics_service import refresh_dashboard_statistics_cache as impl
+
+    return await impl(*args, **kwargs)
+
+
+def count_tool_records_since(*args, **kwargs):
+    from src.services.statistics_aggregation_service import count_tool_records_since as impl
+
+    return impl(*args, **kwargs)
+
+
+def fetch_message_count_by_chat_since(*args, **kwargs):
+    from src.services.statistics_aggregation_service import fetch_message_count_by_chat_since as impl
+
+    return impl(*args, **kwargs)
+
+
+def refresh_statistics_aggregates(*args, **kwargs):
+    from src.services.statistics_aggregation_service import refresh_statistics_aggregates as impl
+
+    return impl(*args, **kwargs)
 
 
 def _resolve_statistics_report_path(record_file_path: str | None = None) -> str:
@@ -163,6 +219,8 @@ class OnlineTimeRecordTask(AsyncTask):
     @staticmethod
     def _init_database():
         """初始化数据库"""
+        from src.common.database.database import get_db_session
+
         with get_db_session() as _:
             return
 
@@ -173,6 +231,10 @@ class OnlineTimeRecordTask(AsyncTask):
 
             if self.record_id:
                 # 如果有记录，则更新结束时间
+                from sqlmodel import col, select
+                from src.common.database.database import get_db_session
+                from src.common.database.database_model import OnlineTime
+
                 with get_db_session() as session:
                     statement = select(OnlineTime).where(col(OnlineTime.id) == self.record_id).limit(1)
                     existing_record = session.exec(statement).first()
@@ -185,6 +247,10 @@ class OnlineTimeRecordTask(AsyncTask):
             if not self.record_id:  # Check again if record_id was reset or initially None
                 # 如果没有记录，检查一分钟以内是否已有记录
                 # Look for a record whose end_timestamp is recent enough to be considered ongoing
+                from sqlmodel import col, select
+                from src.common.database.database import get_db_session
+                from src.common.database.database_model import OnlineTime
+
                 with get_db_session() as session:
                     statement = (
                         select(OnlineTime)
@@ -325,7 +391,9 @@ class StatisticOutputTask(AsyncTask):
             deploy_time = datetime(2000, 1, 1)
             local_storage["deploy_time"] = now.timestamp()
 
-        self.all_time_start_time = get_earliest_statistics_time(deploy_time)
+        self._deploy_time = deploy_time
+        self._all_time_start_resolved = False
+        self.all_time_start_time = deploy_time
 
         self.stat_period: list[tuple[str, timedelta, str]] = [
             ("all_time", now - self.all_time_start_time, "自部署以来"),  # 必须保留"all_time"
@@ -340,6 +408,18 @@ class StatisticOutputTask(AsyncTask):
         """
         统计时间段 [(统计名称, 统计时间段, 统计描述), ...]
         """
+
+
+    def _ensure_all_time_start_time(self, now: datetime) -> None:
+        """首次输出统计前再查询真实最早统计时间。"""
+
+        if self._all_time_start_resolved:
+            return
+
+        self.all_time_start_time = get_earliest_statistics_time(self._deploy_time)
+        self.stat_period = [item for item in self.stat_period if item[0] != "all_time"]
+        self.stat_period.insert(0, ("all_time", now - self.all_time_start_time, "自部署以来"))
+        self._all_time_start_resolved = True
 
 
     def _statistic_console_output(self, stats: StatPeriodMapping, now: datetime) -> None:
@@ -370,6 +450,7 @@ class StatisticOutputTask(AsyncTask):
     async def run(self):
         try:
             now = datetime.now()
+            self._ensure_all_time_start_time(now)
 
             # 使用线程池并行执行耗时操作
             loop = asyncio.get_event_loop()
@@ -413,6 +494,7 @@ class StatisticOutputTask(AsyncTask):
                 import concurrent.futures
 
                 now = datetime.now()
+                self._ensure_all_time_start_time(now)
                 loop = asyncio.get_event_loop()
 
                 with concurrent.futures.ThreadPoolExecutor() as executor:

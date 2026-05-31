@@ -2,15 +2,15 @@ from typing import TYPE_CHECKING
 
 from src.common.logger import get_logger
 from src.plugin_runtime.host.capability_service import CapabilityImpl
-from src.plugin_runtime.host.supervisor import PluginSupervisor
 
 if TYPE_CHECKING:
+    from src.plugin_runtime.host.supervisor import PluginSupervisor
     from src.plugin_runtime.integration import PluginRuntimeManager
 
 logger = get_logger("plugin_runtime.integration")
 
 
-def register_capability_impls(manager: "PluginRuntimeManager", supervisor: PluginSupervisor) -> None:
+def register_capability_impls(manager: "PluginRuntimeManager", supervisor: "PluginSupervisor") -> None:
     """向指定 Supervisor 注册主程序提供的能力实现。"""
     cap_service = supervisor.capability_service
 
