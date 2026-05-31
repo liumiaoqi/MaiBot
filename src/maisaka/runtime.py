@@ -18,7 +18,7 @@ from src.cli.console import console
 from src.chat.heart_flow.heartFC_utils import CycleDetail
 from src.chat.message_receive.chat_manager import BotChatSession, chat_manager
 from src.chat.message_receive.message import SessionMessage
-from src.chat.utils.utils import get_bot_account, is_mentioned_bot_in_message
+from src.chat.utils.utils import get_bot_account, is_bot_self, is_mentioned_bot_in_message
 from src.common.data_models.mai_message_data_model import GroupInfo, MessageInfo, UserInfo
 from src.common.data_models.message_component_data_model import (
     ForwardNodeComponent,
@@ -67,6 +67,7 @@ logger = get_logger("maisaka_runtime")
 MAX_INTERNAL_ROUNDS = 10
 MAX_RETAINED_MESSAGE_CACHE_SIZE = 200
 CONTEXT_RESTORE_FILL_RATIO = 0.5
+EXTERNAL_MESSAGE_INTERVAL_SAMPLE_WINDOW_SECONDS = 1800.0
 
 
 class MaisakaHeartFlowChatting:
@@ -109,11 +110,10 @@ class MaisakaHeartFlowChatting:
         self._deferred_message_turn_task: Optional[asyncio.Task[None]] = None
         self._message_debounce_seconds = 1.0
         self._message_debounce_required = False
-        self._oldest_pending_message_received_at: Optional[float] = None
         self._last_message_received_at = 0.0
+        self._last_external_message_received_at: Optional[float] = None
         self._talk_frequency_adjust = 1.0
-        self._reply_latency_measurement_started_at: Optional[float] = None
-        self._recent_reply_latencies: deque[tuple[float, float]] = deque()
+        self._recent_external_message_intervals: deque[tuple[float, float]] = deque()
         self._wait_timeout_task: Optional[asyncio.Task[None]] = None
         self._max_internal_rounds = MAX_INTERNAL_ROUNDS
         self._agent_state: Literal["running", "wait", "stop"] = self._STATE_STOP
@@ -528,8 +528,7 @@ class MaisakaHeartFlowChatting:
             self._ensure_background_tasks_running()
         received_at = time.time()
         self._last_message_received_at = received_at
-        if self._oldest_pending_message_received_at is None:
-            self._oldest_pending_message_received_at = received_at
+        self._record_external_message_interval(message, received_at)
         self._update_message_trigger_state(message)
         self.message_cache.append(message)
         self._prune_processed_message_cache()
@@ -696,34 +695,46 @@ class MaisakaHeartFlowChatting:
             seen_message_ids.add(message.message_id)
         return len(seen_message_ids)
 
-    def _prune_recent_reply_latencies(self, now: Optional[float] = None) -> None:
-        """仅保留最近 10 分钟内的回复时长记录。"""
+    def _prune_recent_external_message_intervals(self, now: Optional[float] = None) -> None:
+        """仅保留最近 30 分钟内的外部消息间隔记录。"""
         current_time = time.time() if now is None else now
-        expire_before = current_time - 600.0
-        while self._recent_reply_latencies and self._recent_reply_latencies[0][0] < expire_before:
-            self._recent_reply_latencies.popleft()
+        expire_before = current_time - EXTERNAL_MESSAGE_INTERVAL_SAMPLE_WINDOW_SECONDS
+        while (
+            self._recent_external_message_intervals
+            and self._recent_external_message_intervals[0][0] < expire_before
+        ):
+            self._recent_external_message_intervals.popleft()
 
-    def _get_recent_average_reply_latency(self) -> Optional[float]:
-        """获取最近 10 分钟平均消息回复时长。"""
-        self._prune_recent_reply_latencies()
-        if not self._recent_reply_latencies:
+    def _get_recent_average_external_message_interval(self) -> Optional[float]:
+        """获取最近 30 分钟外部消息的平均接收间隔。"""
+        self._prune_recent_external_message_intervals()
+        if not self._recent_external_message_intervals:
             return None
 
-        total_duration = sum(duration for _, duration in self._recent_reply_latencies)
-        return total_duration / len(self._recent_reply_latencies)
+        total_interval = sum(interval for _, interval in self._recent_external_message_intervals)
+        return total_interval / len(self._recent_external_message_intervals)
 
-    def _record_reply_sent(self) -> None:
-        """在成功发送 reply 后记录本轮消息回复时长。"""
-        if self._reply_latency_measurement_started_at is None:
+    def _record_external_message_interval(self, message: SessionMessage, received_at: float) -> None:
+        """记录最近外部消息之间的接收间隔，用于低频触发补偿。"""
+
+        user_info = message.message_info.user_info
+        if is_bot_self(message.platform, user_info.user_id):
             return
 
-        reply_duration = max(0.0, time.time() - self._reply_latency_measurement_started_at)
-        self._reply_latency_measurement_started_at = None
-        self._recent_reply_latencies.append((time.time(), reply_duration))
-        self._prune_recent_reply_latencies()
+        previous_received_at = self._last_external_message_received_at
+        self._last_external_message_received_at = received_at
+        if previous_received_at is None:
+            return
+
+        message_interval = max(0.0, received_at - previous_received_at)
+        if message_interval <= 0:
+            return
+
+        self._recent_external_message_intervals.append((received_at, message_interval))
+        self._prune_recent_external_message_intervals(received_at)
         logger.debug(
-            f"{self.log_prefix} 已记录消息回复时长: {reply_duration:.2f} 秒 "
-            f"最近10分钟样本数={len(self._recent_reply_latencies)}"
+            f"{self.log_prefix} 已记录外部消息接收间隔: {message_interval:.2f} 秒 "
+            f"最近30分钟样本数={len(self._recent_external_message_intervals)}"
         )
 
     def find_source_message_by_id(self, message_id: str) -> Optional[SessionMessage]:
@@ -782,12 +793,13 @@ class MaisakaHeartFlowChatting:
         trigger_threshold: int,
     ) -> bool:
         """在新消息不足阈值时，按空窗时间折算补齐触发条件。"""
-        average_reply_latency = self._get_recent_average_reply_latency()
-        if average_reply_latency is None or average_reply_latency <= 0:
+        average_message_interval = self._get_recent_average_external_message_interval()
+        if average_message_interval is None or average_message_interval <= 0:
             return False
 
-        idle_seconds = max(0.0, time.time() - self._last_message_received_at)
-        equivalent_message_count = pending_count + idle_seconds / average_reply_latency
+        last_external_received_at = self._last_external_message_received_at or self._last_message_received_at
+        idle_seconds = max(0.0, time.time() - last_external_received_at)
+        equivalent_message_count = pending_count + idle_seconds / average_message_interval
         return equivalent_message_count >= trigger_threshold
 
     def _cancel_deferred_message_turn_task(self) -> None:
@@ -1295,12 +1307,13 @@ class MaisakaHeartFlowChatting:
             self._internal_turn_queue.put_nowait("message")
             return
 
-        average_reply_latency = self._get_recent_average_reply_latency()
-        if average_reply_latency is None or average_reply_latency <= 0:
+        average_message_interval = self._get_recent_average_external_message_interval()
+        if average_message_interval is None or average_message_interval <= 0:
             return
 
-        idle_seconds = max(0.0, time.time() - self._last_message_received_at)
-        delay_seconds = max(0.0, (trigger_threshold - pending_count) * average_reply_latency - idle_seconds)
+        last_external_received_at = self._last_external_message_received_at or self._last_message_received_at
+        idle_seconds = max(0.0, time.time() - last_external_received_at)
+        delay_seconds = max(0.0, (trigger_threshold - pending_count) * average_message_interval - idle_seconds)
         self._cancel_deferred_message_turn_task()
         self._deferred_message_turn_task = asyncio.create_task(
             self._schedule_deferred_message_turn(delay_seconds)
@@ -1327,11 +1340,6 @@ class MaisakaHeartFlowChatting:
             # f"{self.log_prefix} 已从消息缓存区[{start_index}:{self._last_processed_index}] "
             # f"收集 {len(unique_messages)} 条新消息"
         # )
-        if unique_messages and self._reply_latency_measurement_started_at is None:
-            self._reply_latency_measurement_started_at = (
-                self._oldest_pending_message_received_at or self._last_message_received_at
-            )
-        self._oldest_pending_message_received_at = None
         return unique_messages
 
     async def _wait_for_message_quiet_period(self) -> None:
