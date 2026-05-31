@@ -270,14 +270,7 @@ export function EmojiManagementPage() {
 
   return (
     <div className="h-[calc(100vh-4rem)] flex flex-col p-4 sm:p-6">
-      {/* 页面标题 */}
-      <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">表情包</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            管理麦麦的表情包资源
-          </p>
-        </div>
+      <div className="mb-4 flex justify-end sm:mb-6">
         <Button
           onClick={() => setUploadDialogOpen(true)}
           className="gap-2"

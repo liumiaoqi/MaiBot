@@ -140,14 +140,15 @@ class FileWatcher:
     async def _run(self) -> None:
         while self._running:
             try:
+                if not self._ready_event.is_set():
+                    # ready 表示后台监听任务已接管，不能等待第一次 timeout tick 才放行启动流程。
+                    self._ready_event.set()
                 async for changes in awatch(
                     *self._paths,
                     debounce=self._debounce_ms,
                     force_polling=self._force_polling,
                     yield_on_timeout=True,
                 ):
-                    if not self._ready_event.is_set():
-                        self._ready_event.set()
                     if not self._running:
                         break
                     if not changes:

@@ -14,11 +14,10 @@ import asyncio
 
 from src.common.logger import get_logger
 
-from .message_utils import PluginMessageUtils, MessageDict
-
 if TYPE_CHECKING:
-    from .supervisor import PluginRunnerSupervisor
     from .component_registry import ComponentRegistry, EventHandlerEntry
+    from .message_utils import MessageDict
+    from .supervisor import PluginRunnerSupervisor
     from src.chat.message_receive.message import SessionMessage
 
 logger = get_logger("plugin_runtime.host.event_dispatcher")
@@ -36,7 +35,7 @@ class EventResult:
     handler_name: str
     success: bool = field(default=True)
     continue_processing: bool = field(default=True)
-    modified_message: Optional[MessageDict] = field(default=None)
+    modified_message: Optional["MessageDict"] = field(default=None)
     custom_result: Any = field(default=None)
 
 
@@ -102,9 +101,13 @@ class EventDispatcher:
             return True, None
 
         should_continue = True
-        modified_message: Optional[MessageDict] = (
-            PluginMessageUtils._session_message_to_dict(message) if message else None
-        )
+        plugin_message_utils: Any | None = None
+        modified_message: Optional["MessageDict"] = None
+        if message is not None:
+            from .message_utils import PluginMessageUtils
+
+            plugin_message_utils = PluginMessageUtils
+            modified_message = plugin_message_utils._session_message_to_dict(message)
         intercept_handlers: List["EventHandlerEntry"] = []
         non_blocking_handlers: List["EventHandlerEntry"] = []
 
@@ -141,9 +144,14 @@ class EventDispatcher:
                 self._background_tasks.add(task)
                 task.add_done_callback(self._background_tasks.discard)
         try:
-            modified_message_obj = (
-                PluginMessageUtils._build_session_message_from_dict(modified_message) if modified_message else None  # type: ignore
-            )
+            if modified_message:
+                if plugin_message_utils is None:
+                    from .message_utils import PluginMessageUtils
+
+                    plugin_message_utils = PluginMessageUtils
+                modified_message_obj = plugin_message_utils._build_session_message_from_dict(modified_message)
+            else:
+                modified_message_obj = None
         except Exception as e:
             logger.error(f"构建修改后的 SessionMessage 失败: {e}")
             modified_message_obj = None

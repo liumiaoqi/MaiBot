@@ -1,9 +1,11 @@
 """插件运行时的浏览器渲染能力。"""
 
-from typing import Any, Dict
+from typing import TYPE_CHECKING, Any, Dict
 
 from src.common.logger import get_logger
-from src.services.html_render_service import HtmlRenderRequest, get_html_render_service
+
+if TYPE_CHECKING:
+    from src.services.html_render_service import HtmlRenderRequest
 
 logger = get_logger("plugin_runtime.integration")
 
@@ -67,7 +69,7 @@ class RuntimeRenderCapabilityMixin:
                 return True
         return bool(value)
 
-    def _build_html_render_request(self, args: Dict[str, Any]) -> HtmlRenderRequest:
+    def _build_html_render_request(self, args: Dict[str, Any]) -> "HtmlRenderRequest":
         """根据 capability 调用参数构造渲染请求。
 
         Args:
@@ -76,6 +78,8 @@ class RuntimeRenderCapabilityMixin:
         Returns:
             HtmlRenderRequest: 结构化后的渲染请求。
         """
+
+        from src.services.html_render_service import HtmlRenderRequest
 
         viewport = args.get("viewport", {})
         viewport_width = 900
@@ -113,6 +117,8 @@ class RuntimeRenderCapabilityMixin:
 
         del plugin_id, capability
         try:
+            from src.services.html_render_service import get_html_render_service
+
             request = self._build_html_render_request(args)
             result = await get_html_render_service().render_html_to_png(request)
             return {"success": True, "result": result.to_payload()}

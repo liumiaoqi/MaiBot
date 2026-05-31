@@ -3634,6 +3634,19 @@ class WebUIConfig(ConfigBase):
     )
     """运行模式：development(开发) 或 production(生产)"""
 
+    webui_style: int = Field(
+        default=1,
+        ge=0,
+        le=1,
+        json_schema_extra={
+            "x-widget": "number",
+            "x-icon": "palette",
+            "x-layout": "inline-right",
+            "x-input-width": "8rem",
+        },
+    )
+    """WebUI界面风格：0为当前风格，1为未来复古"""
+
     anti_crawler_mode: Literal["false", "strict", "loose", "basic"] = Field(
         default="basic",
         json_schema_extra={

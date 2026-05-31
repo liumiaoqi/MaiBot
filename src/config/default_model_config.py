@@ -58,11 +58,19 @@ DEFAULT_TASK_CONFIG_TEMPLATES: dict[str, dict[str, Any]] = {
         "selection_strategy": "random",
         "hard_timeout": 180.0,
     },
-    "learner": {"model_list": [], "hard_timeout": 120.0},
-    "emoji": {"model_list": [], "hard_timeout": 120.0},
-    "vlm": {"model_list": [], "hard_timeout": 240.0},
-    "voice": {"model_list": [], "hard_timeout": 120.0},
-    "embedding": {"model_list": [], "hard_timeout": 60.0},
+    "timing_gate": {
+        "model_list": [],
+        "max_tokens": 4096,
+        "temperature": 0.3,
+        "slow_threshold": 12.0,
+        "selection_strategy": "random",
+        "hard_timeout": 120.0,
+    },
+    "learner": {"model_list": [], "max_tokens": 4096, "hard_timeout": 120.0},
+    "emoji": {"model_list": [], "max_tokens": 4096, "hard_timeout": 120.0},
+    "vlm": {"model_list": [], "max_tokens": 4096, "hard_timeout": 240.0},
+    "voice": {"model_list": [], "max_tokens": 4096, "hard_timeout": 120.0},
+    "embedding": {"model_list": [], "max_tokens": 4096, "hard_timeout": 60.0},
 }
 
 DEFAULT_MODEL_TEMPLATES: list[dict[str, Any]] = [

@@ -172,7 +172,7 @@ const logsRoute = createRoute({
 const reasoningProcessRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/reasoning-process',
-  component: lazyRouteComponent(() => import('./routes/reasoning-process'), 'ReasoningProcessPage'),
+  component: lazyRouteComponent(() => import('./routes/logs'), 'ReasoningLogViewerPage'),
 })
 
 // MaiSaka 聊天流监控路由

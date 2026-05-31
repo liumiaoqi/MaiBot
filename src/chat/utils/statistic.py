@@ -11,30 +11,86 @@ import json
 
 from typing_extensions import TypedDict
 
-from sqlmodel import col, select
-
 from src.common.logger import get_logger
-from src.common.database.database import get_db_session
-from src.common.database.database_model import OnlineTime
 from src.manager.async_task_manager import AsyncTask
-from src.manager.local_store_manager import local_storage
-from src.services.statistics_service import (
-    fetch_messages_since,
-    fetch_model_usage_since,
-    fetch_online_time_since,
-    get_earliest_statistics_time,
-    refresh_dashboard_statistics_cache,
-)
-from src.services.statistics_aggregation_service import (
-    count_tool_records_since,
-    fetch_message_count_by_chat_since,
-    refresh_statistics_aggregates,
-)
 
 logger = get_logger("maibot_statistic")
 
 STATISTICS_REPORT_PATH_ENV = "MAIBOT_STATISTICS_REPORT_PATH"
 DEFAULT_STATISTICS_REPORT_PATH = "maibot_statistics.html"
+
+
+class _LocalStorageProxy:
+    """延迟访问本地存储，避免导入统计任务时读取完整本地记事本。"""
+
+    @staticmethod
+    def _store():
+        from src.manager.local_store_manager import local_storage
+
+        return local_storage
+
+    def __contains__(self, key: str) -> bool:
+        return key in self._store()
+
+    def __getitem__(self, key: str):
+        return self._store()[key]
+
+    def __setitem__(self, key: str, value) -> None:
+        self._store()[key] = value
+
+    def __delitem__(self, key: str) -> None:
+        del self._store()[key]
+
+
+local_storage = _LocalStorageProxy()
+
+
+def fetch_messages_since(*args, **kwargs):
+    from src.services.statistics_service import fetch_messages_since as impl
+
+    return impl(*args, **kwargs)
+
+
+def fetch_model_usage_since(*args, **kwargs):
+    from src.services.statistics_service import fetch_model_usage_since as impl
+
+    return impl(*args, **kwargs)
+
+
+def fetch_online_time_since(*args, **kwargs):
+    from src.services.statistics_service import fetch_online_time_since as impl
+
+    return impl(*args, **kwargs)
+
+
+def get_earliest_statistics_time(*args, **kwargs):
+    from src.services.statistics_service import get_earliest_statistics_time as impl
+
+    return impl(*args, **kwargs)
+
+
+async def refresh_dashboard_statistics_cache(*args, **kwargs):
+    from src.services.statistics_service import refresh_dashboard_statistics_cache as impl
+
+    return await impl(*args, **kwargs)
+
+
+def count_tool_records_since(*args, **kwargs):
+    from src.services.statistics_aggregation_service import count_tool_records_since as impl
+
+    return impl(*args, **kwargs)
+
+
+def fetch_message_count_by_chat_since(*args, **kwargs):
+    from src.services.statistics_aggregation_service import fetch_message_count_by_chat_since as impl
+
+    return impl(*args, **kwargs)
+
+
+def refresh_statistics_aggregates(*args, **kwargs):
+    from src.services.statistics_aggregation_service import refresh_statistics_aggregates as impl
+
+    return impl(*args, **kwargs)
 
 
 def _resolve_statistics_report_path(record_file_path: str | None = None) -> str:
@@ -68,6 +124,16 @@ class StatPeriodData(TypedDict):
     costs_by_user: defaultdict[str, float]
     costs_by_model: defaultdict[str, float]
     costs_by_module: defaultdict[str, float]
+    cache_hit_tokens: int
+    cache_miss_tokens: int
+    cache_hit_tokens_by_type: defaultdict[str, int]
+    cache_hit_tokens_by_user: defaultdict[str, int]
+    cache_hit_tokens_by_model: defaultdict[str, int]
+    cache_hit_tokens_by_module: defaultdict[str, int]
+    cache_miss_tokens_by_type: defaultdict[str, int]
+    cache_miss_tokens_by_user: defaultdict[str, int]
+    cache_miss_tokens_by_model: defaultdict[str, int]
+    cache_miss_tokens_by_module: defaultdict[str, int]
     time_costs_by_type: defaultdict[str, list[float]]
     time_costs_by_user: defaultdict[str, list[float]]
     time_costs_by_model: defaultdict[str, list[float]]
@@ -111,6 +177,16 @@ COST_BY_TYPE = "costs_by_type"
 COST_BY_USER = "costs_by_user"
 COST_BY_MODEL = "costs_by_model"
 COST_BY_MODULE = "costs_by_module"
+CACHE_HIT_TOK = "cache_hit_tokens"
+CACHE_MISS_TOK = "cache_miss_tokens"
+CACHE_HIT_TOK_BY_TYPE = "cache_hit_tokens_by_type"
+CACHE_HIT_TOK_BY_USER = "cache_hit_tokens_by_user"
+CACHE_HIT_TOK_BY_MODEL = "cache_hit_tokens_by_model"
+CACHE_HIT_TOK_BY_MODULE = "cache_hit_tokens_by_module"
+CACHE_MISS_TOK_BY_TYPE = "cache_miss_tokens_by_type"
+CACHE_MISS_TOK_BY_USER = "cache_miss_tokens_by_user"
+CACHE_MISS_TOK_BY_MODEL = "cache_miss_tokens_by_model"
+CACHE_MISS_TOK_BY_MODULE = "cache_miss_tokens_by_module"
 TIME_COST_BY_TYPE = "time_costs_by_type"
 TIME_COST_BY_USER = "time_costs_by_user"
 TIME_COST_BY_MODEL = "time_costs_by_model"
@@ -143,6 +219,8 @@ class OnlineTimeRecordTask(AsyncTask):
     @staticmethod
     def _init_database():
         """初始化数据库"""
+        from src.common.database.database import get_db_session
+
         with get_db_session() as _:
             return
 
@@ -153,6 +231,10 @@ class OnlineTimeRecordTask(AsyncTask):
 
             if self.record_id:
                 # 如果有记录，则更新结束时间
+                from sqlmodel import col, select
+                from src.common.database.database import get_db_session
+                from src.common.database.database_model import OnlineTime
+
                 with get_db_session() as session:
                     statement = select(OnlineTime).where(col(OnlineTime.id) == self.record_id).limit(1)
                     existing_record = session.exec(statement).first()
@@ -165,6 +247,10 @@ class OnlineTimeRecordTask(AsyncTask):
             if not self.record_id:  # Check again if record_id was reset or initially None
                 # 如果没有记录，检查一分钟以内是否已有记录
                 # Look for a record whose end_timestamp is recent enough to be considered ongoing
+                from sqlmodel import col, select
+                from src.common.database.database import get_db_session
+                from src.common.database.database_model import OnlineTime
+
                 with get_db_session() as session:
                     statement = (
                         select(OnlineTime)
@@ -246,6 +332,25 @@ def _format_large_number(num: float | int, html: bool = False) -> str:
             return str(num)
 
 
+def _normalize_prompt_cache_tokens(prompt_tokens: int, hit_tokens: int, miss_tokens: int) -> tuple[int, int]:
+    """将 provider 返回的 prompt cache token 统计规范化为可聚合值。"""
+
+    normalized_hit_tokens = max(hit_tokens, 0)
+    normalized_miss_tokens = max(miss_tokens, 0)
+    if normalized_miss_tokens == 0 and normalized_hit_tokens > 0:
+        normalized_miss_tokens = max(prompt_tokens - normalized_hit_tokens, 0)
+    if normalized_hit_tokens + normalized_miss_tokens == 0 and prompt_tokens > 0:
+        normalized_miss_tokens = prompt_tokens
+    return normalized_hit_tokens, normalized_miss_tokens
+
+
+def _format_cache_hit_rate(hit_tokens: int, miss_tokens: int) -> str:
+    total_cache_tokens = hit_tokens + miss_tokens
+    if total_cache_tokens <= 0:
+        return "N/A"
+    return f"{hit_tokens / total_cache_tokens * 100:.2f}%"
+
+
 def _json_for_html_script(value: object) -> str:
     json_text = json.dumps(value, ensure_ascii=False)
     return (
@@ -286,7 +391,9 @@ class StatisticOutputTask(AsyncTask):
             deploy_time = datetime(2000, 1, 1)
             local_storage["deploy_time"] = now.timestamp()
 
-        self.all_time_start_time = get_earliest_statistics_time(deploy_time)
+        self._deploy_time = deploy_time
+        self._all_time_start_resolved = False
+        self.all_time_start_time = deploy_time
 
         self.stat_period: list[tuple[str, timedelta, str]] = [
             ("all_time", now - self.all_time_start_time, "自部署以来"),  # 必须保留"all_time"
@@ -301,6 +408,18 @@ class StatisticOutputTask(AsyncTask):
         """
         统计时间段 [(统计名称, 统计时间段, 统计描述), ...]
         """
+
+
+    def _ensure_all_time_start_time(self, now: datetime) -> None:
+        """首次输出统计前再查询真实最早统计时间。"""
+
+        if self._all_time_start_resolved:
+            return
+
+        self.all_time_start_time = get_earliest_statistics_time(self._deploy_time)
+        self.stat_period = [item for item in self.stat_period if item[0] != "all_time"]
+        self.stat_period.insert(0, ("all_time", now - self.all_time_start_time, "自部署以来"))
+        self._all_time_start_resolved = True
 
 
     def _statistic_console_output(self, stats: StatPeriodMapping, now: datetime) -> None:
@@ -331,6 +450,7 @@ class StatisticOutputTask(AsyncTask):
     async def run(self):
         try:
             now = datetime.now()
+            self._ensure_all_time_start_time(now)
 
             # 使用线程池并行执行耗时操作
             loop = asyncio.get_event_loop()
@@ -374,6 +494,7 @@ class StatisticOutputTask(AsyncTask):
                 import concurrent.futures
 
                 now = datetime.now()
+                self._ensure_all_time_start_time(now)
                 loop = asyncio.get_event_loop()
 
                 with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -442,6 +563,16 @@ class StatisticOutputTask(AsyncTask):
             COST_BY_USER: defaultdict(float),
             COST_BY_MODEL: defaultdict(float),
             COST_BY_MODULE: defaultdict(float),
+            CACHE_HIT_TOK: 0,
+            CACHE_MISS_TOK: 0,
+            CACHE_HIT_TOK_BY_TYPE: defaultdict(int),
+            CACHE_HIT_TOK_BY_USER: defaultdict(int),
+            CACHE_HIT_TOK_BY_MODEL: defaultdict(int),
+            CACHE_HIT_TOK_BY_MODULE: defaultdict(int),
+            CACHE_MISS_TOK_BY_TYPE: defaultdict(int),
+            CACHE_MISS_TOK_BY_USER: defaultdict(int),
+            CACHE_MISS_TOK_BY_MODEL: defaultdict(int),
+            CACHE_MISS_TOK_BY_MODULE: defaultdict(int),
             TIME_COST_BY_TYPE: time_costs_by_type,
             TIME_COST_BY_USER: time_costs_by_user,
             TIME_COST_BY_MODEL: time_costs_by_model,
@@ -527,6 +658,15 @@ class StatisticOutputTask(AsyncTask):
                         prompt_tokens = cast(int | None, record["prompt_tokens"]) or 0
                         completion_tokens = cast(int | None, record["completion_tokens"]) or 0
                         total_tokens = prompt_tokens + completion_tokens
+                        prompt_cache_enabled = bool(record.get("prompt_cache_enabled"))
+                        prompt_cache_hit_tokens = 0
+                        prompt_cache_miss_tokens = 0
+                        if prompt_cache_enabled:
+                            prompt_cache_hit_tokens, prompt_cache_miss_tokens = _normalize_prompt_cache_tokens(
+                                prompt_tokens=prompt_tokens,
+                                hit_tokens=cast(int | None, record.get("prompt_cache_hit_tokens")) or 0,
+                                miss_tokens=cast(int | None, record.get("prompt_cache_miss_tokens")) or 0,
+                            )
 
                         StatisticOutputTask._add_defaultdict_int(
                             stats[period_key], IN_TOK_BY_TYPE, request_type, prompt_tokens
@@ -565,6 +705,33 @@ class StatisticOutputTask(AsyncTask):
                         )
                         StatisticOutputTask._add_defaultdict_int(
                             stats[period_key], TOTAL_TOK_BY_MODULE, module_name, total_tokens
+                        )
+
+                        StatisticOutputTask._add_int_stat(stats[period_key], CACHE_HIT_TOK, prompt_cache_hit_tokens)
+                        StatisticOutputTask._add_int_stat(stats[period_key], CACHE_MISS_TOK, prompt_cache_miss_tokens)
+                        StatisticOutputTask._add_defaultdict_int(
+                            stats[period_key], CACHE_HIT_TOK_BY_TYPE, request_type, prompt_cache_hit_tokens
+                        )
+                        StatisticOutputTask._add_defaultdict_int(
+                            stats[period_key], CACHE_HIT_TOK_BY_USER, user_id, prompt_cache_hit_tokens
+                        )
+                        StatisticOutputTask._add_defaultdict_int(
+                            stats[period_key], CACHE_HIT_TOK_BY_MODEL, model_name, prompt_cache_hit_tokens
+                        )
+                        StatisticOutputTask._add_defaultdict_int(
+                            stats[period_key], CACHE_HIT_TOK_BY_MODULE, module_name, prompt_cache_hit_tokens
+                        )
+                        StatisticOutputTask._add_defaultdict_int(
+                            stats[period_key], CACHE_MISS_TOK_BY_TYPE, request_type, prompt_cache_miss_tokens
+                        )
+                        StatisticOutputTask._add_defaultdict_int(
+                            stats[period_key], CACHE_MISS_TOK_BY_USER, user_id, prompt_cache_miss_tokens
+                        )
+                        StatisticOutputTask._add_defaultdict_int(
+                            stats[period_key], CACHE_MISS_TOK_BY_MODEL, model_name, prompt_cache_miss_tokens
+                        )
+                        StatisticOutputTask._add_defaultdict_int(
+                            stats[period_key], CACHE_MISS_TOK_BY_MODULE, module_name, prompt_cache_miss_tokens
                         )
 
                         cost = cast(float | None, record["cost"]) or 0.0
@@ -922,6 +1089,8 @@ class StatisticOutputTask(AsyncTask):
         """
         # 计算总token数（从所有模型的token数中累加）
         total_tokens = sum(stats[TOTAL_TOK_BY_MODEL].values()) if stats[TOTAL_TOK_BY_MODEL] else 0
+        cache_hit_tokens = cast(int, stats.get(CACHE_HIT_TOK, 0))
+        cache_miss_tokens = cast(int, stats.get(CACHE_MISS_TOK, 0))
 
         # 计算花费/消息数量指标（每100条）
         cost_per_100_messages = (stats[TOTAL_COST] / stats[TOTAL_MSG_CNT] * 100) if stats[TOTAL_MSG_CNT] > 0 else 0.0
@@ -951,6 +1120,8 @@ class StatisticOutputTask(AsyncTask):
             f"总回复数: {_format_large_number(total_replies)}",
             f"总请求数: {_format_large_number(stats[TOTAL_REQ_CNT])}",
             f"总Token数: {_format_large_number(total_tokens)}",
+            f"Prompt缓存命中率: {_format_cache_hit_rate(cache_hit_tokens, cache_miss_tokens)}",
+            f"Prompt缓存命中Token: {_format_large_number(cache_hit_tokens)}",
             f"总花费: {stats[TOTAL_COST]:.2f}¥",
             f"花费/消息数量: {cost_per_100_messages:.4f}¥/100条" if stats[TOTAL_MSG_CNT] > 0 else "花费/消息数量: N/A",
             f"花费/接受消息数量: {cost_per_100_messages_excluding_replies:.4f}¥/100条"
@@ -971,13 +1142,13 @@ class StatisticOutputTask(AsyncTask):
         """
         if stats[TOTAL_REQ_CNT] <= 0:
             return ""
-        data_fmt = "{:<32}  {:>10}  {:>12}  {:>12}  {:>12}  {:>9.2f}¥  {:>10.1f}  {:>10.1f}  {:>12}  {:>12}  {:>12}"
+        data_fmt = "{:<32}  {:>10}  {:>12}  {:>12}  {:>12}  {:>9.2f}¥  {:>10.1f}  {:>10.1f}  {:>12}  {:>12}  {:>12}  {:>12}"
 
         total_replies = stats.get(TOTAL_REPLY_CNT, 0)
 
         output = [
             "按模型分类统计:",
-            " 模型名称                          调用次数    输入Token     输出Token     Token总量     累计花费    平均耗时(秒)  标准差(秒)  每次回复平均调用次数  每次回复平均Token数  每次调用平均Token",
+            " 模型名称                          调用次数    输入Token     输出Token     Token总量     累计花费    平均耗时(秒)  标准差(秒)  每次回复平均调用次数  每次回复平均Token数  每次调用平均Token     缓存命中率",
         ]
         for model_name, count in sorted(stats[REQ_CNT_BY_MODEL].items()):
             name = f"{model_name[:29]}..." if len(model_name) > 32 else model_name
@@ -987,6 +1158,10 @@ class StatisticOutputTask(AsyncTask):
             cost = stats[COST_BY_MODEL][model_name]
             avg_time_cost = stats[AVG_TIME_COST_BY_MODEL][model_name]
             std_time_cost = stats[STD_TIME_COST_BY_MODEL][model_name]
+            cache_hit_rate = _format_cache_hit_rate(
+                stats[CACHE_HIT_TOK_BY_MODEL][model_name],
+                stats[CACHE_MISS_TOK_BY_MODEL][model_name],
+            )
 
             # 计算每次回复平均值
             avg_count_per_reply = count / total_replies if total_replies > 0 else 0.0
@@ -1017,6 +1192,7 @@ class StatisticOutputTask(AsyncTask):
                     formatted_avg_count,
                     formatted_avg_tokens,
                     formatted_avg_tokens_per_call,
+                    cache_hit_rate,
                 )
             )
 
@@ -1030,13 +1206,13 @@ class StatisticOutputTask(AsyncTask):
         """
         if stats[TOTAL_REQ_CNT] <= 0:
             return ""
-        data_fmt = "{:<32}  {:>10}  {:>12}  {:>12}  {:>12}  {:>9.2f}¥  {:>10.1f}  {:>10.1f}  {:>12}  {:>12}  {:>12}"
+        data_fmt = "{:<32}  {:>10}  {:>12}  {:>12}  {:>12}  {:>9.2f}¥  {:>10.1f}  {:>10.1f}  {:>12}  {:>12}  {:>12}  {:>12}"
 
         total_replies = stats.get(TOTAL_REPLY_CNT, 0)
 
         output = [
             "按模块分类统计:",
-            " 模块名称                          调用次数    输入Token     输出Token     Token总量     累计花费    平均耗时(秒)  标准差(秒)  每次回复平均调用次数  每次回复平均Token数  每次调用平均Token",
+            " 模块名称                          调用次数    输入Token     输出Token     Token总量     累计花费    平均耗时(秒)  标准差(秒)  每次回复平均调用次数  每次回复平均Token数  每次调用平均Token     缓存命中率",
         ]
         for module_name, count in sorted(stats[REQ_CNT_BY_MODULE].items()):
             name = f"{module_name[:29]}..." if len(module_name) > 32 else module_name
@@ -1046,6 +1222,10 @@ class StatisticOutputTask(AsyncTask):
             cost = stats[COST_BY_MODULE][module_name]
             avg_time_cost = stats[AVG_TIME_COST_BY_MODULE][module_name]
             std_time_cost = stats[STD_TIME_COST_BY_MODULE][module_name]
+            cache_hit_rate = _format_cache_hit_rate(
+                stats[CACHE_HIT_TOK_BY_MODULE][module_name],
+                stats[CACHE_MISS_TOK_BY_MODULE][module_name],
+            )
 
             # 计算每次回复平均值
             avg_count_per_reply = count / total_replies if total_replies > 0 else 0.0
@@ -1076,6 +1256,7 @@ class StatisticOutputTask(AsyncTask):
                     formatted_avg_count,
                     formatted_avg_tokens,
                     formatted_avg_tokens_per_call,
+                    cache_hit_rate,
                 )
             )
 
@@ -1152,6 +1333,8 @@ class StatisticOutputTask(AsyncTask):
 
             # 按模型分类统计
             total_replies = stat_data.get(TOTAL_REPLY_CNT, 0)
+            total_cache_hit_tokens = cast(int, stat_data.get(CACHE_HIT_TOK, 0))
+            total_cache_miss_tokens = cast(int, stat_data.get(CACHE_MISS_TOK, 0))
             model_rows = "\n".join(
                 [
                     f"<tr>"
@@ -1160,6 +1343,9 @@ class StatisticOutputTask(AsyncTask):
                     f"<td>{_format_large_number(stat_data[IN_TOK_BY_MODEL][model_name], html=True)}</td>"
                     f"<td>{_format_large_number(stat_data[OUT_TOK_BY_MODEL][model_name], html=True)}</td>"
                     f"<td>{_format_large_number(stat_data[TOTAL_TOK_BY_MODEL][model_name], html=True)}</td>"
+                    f"<td>{_format_large_number(stat_data[CACHE_HIT_TOK_BY_MODEL][model_name], html=True)}</td>"
+                    f"<td>{_format_large_number(stat_data[CACHE_MISS_TOK_BY_MODEL][model_name], html=True)}</td>"
+                    f"<td>{_format_cache_hit_rate(stat_data[CACHE_HIT_TOK_BY_MODEL][model_name], stat_data[CACHE_MISS_TOK_BY_MODEL][model_name])}</td>"
                     f"<td>{stat_data[COST_BY_MODEL][model_name]:.2f} ¥</td>"
                     f"<td>{stat_data[AVG_TIME_COST_BY_MODEL][model_name]:.1f} 秒</td>"
                     f"<td>{stat_data[STD_TIME_COST_BY_MODEL][model_name]:.1f} 秒</td>"
@@ -1170,7 +1356,7 @@ class StatisticOutputTask(AsyncTask):
                     for model_name, count in sorted(stat_data[REQ_CNT_BY_MODEL].items())
                 ]
                 if stat_data[REQ_CNT_BY_MODEL]
-                else ["<tr><td colspan='11' style='text-align: center; color: #999;'>暂无数据</td></tr>"]
+                else ["<tr><td colspan='14' style='text-align: center; color: #999;'>暂无数据</td></tr>"]
             )
             # 按请求类型分类统计
             type_rows = "\n".join(
@@ -1181,6 +1367,9 @@ class StatisticOutputTask(AsyncTask):
                     f"<td>{_format_large_number(stat_data[IN_TOK_BY_TYPE][req_type], html=True)}</td>"
                     f"<td>{_format_large_number(stat_data[OUT_TOK_BY_TYPE][req_type], html=True)}</td>"
                     f"<td>{_format_large_number(stat_data[TOTAL_TOK_BY_TYPE][req_type], html=True)}</td>"
+                    f"<td>{_format_large_number(stat_data[CACHE_HIT_TOK_BY_TYPE][req_type], html=True)}</td>"
+                    f"<td>{_format_large_number(stat_data[CACHE_MISS_TOK_BY_TYPE][req_type], html=True)}</td>"
+                    f"<td>{_format_cache_hit_rate(stat_data[CACHE_HIT_TOK_BY_TYPE][req_type], stat_data[CACHE_MISS_TOK_BY_TYPE][req_type])}</td>"
                     f"<td>{stat_data[COST_BY_TYPE][req_type]:.2f} ¥</td>"
                     f"<td>{stat_data[AVG_TIME_COST_BY_TYPE][req_type]:.1f} 秒</td>"
                     f"<td>{stat_data[STD_TIME_COST_BY_TYPE][req_type]:.1f} 秒</td>"
@@ -1191,7 +1380,7 @@ class StatisticOutputTask(AsyncTask):
                     for req_type, count in sorted(stat_data[REQ_CNT_BY_TYPE].items())
                 ]
                 if stat_data[REQ_CNT_BY_TYPE]
-                else ["<tr><td colspan='11' style='text-align: center; color: #999;'>暂无数据</td></tr>"]
+                else ["<tr><td colspan='14' style='text-align: center; color: #999;'>暂无数据</td></tr>"]
             )
             # 按模块分类统计
             module_rows = "\n".join(
@@ -1202,6 +1391,9 @@ class StatisticOutputTask(AsyncTask):
                     f"<td>{_format_large_number(stat_data[IN_TOK_BY_MODULE][module_name], html=True)}</td>"
                     f"<td>{_format_large_number(stat_data[OUT_TOK_BY_MODULE][module_name], html=True)}</td>"
                     f"<td>{_format_large_number(stat_data[TOTAL_TOK_BY_MODULE][module_name], html=True)}</td>"
+                    f"<td>{_format_large_number(stat_data[CACHE_HIT_TOK_BY_MODULE][module_name], html=True)}</td>"
+                    f"<td>{_format_large_number(stat_data[CACHE_MISS_TOK_BY_MODULE][module_name], html=True)}</td>"
+                    f"<td>{_format_cache_hit_rate(stat_data[CACHE_HIT_TOK_BY_MODULE][module_name], stat_data[CACHE_MISS_TOK_BY_MODULE][module_name])}</td>"
                     f"<td>{stat_data[COST_BY_MODULE][module_name]:.2f} ¥</td>"
                     f"<td>{stat_data[AVG_TIME_COST_BY_MODULE][module_name]:.1f} 秒</td>"
                     f"<td>{stat_data[STD_TIME_COST_BY_MODULE][module_name]:.1f} 秒</td>"
@@ -1212,7 +1404,7 @@ class StatisticOutputTask(AsyncTask):
                     for module_name, count in sorted(stat_data[REQ_CNT_BY_MODULE].items())
                 ]
                 if stat_data[REQ_CNT_BY_MODULE]
-                else ["<tr><td colspan='11' style='text-align: center; color: #999;'>暂无数据</td></tr>"]
+                else ["<tr><td colspan='14' style='text-align: center; color: #999;'>暂无数据</td></tr>"]
             )
 
             # 聊天消息统计
@@ -1267,6 +1459,14 @@ class StatisticOutputTask(AsyncTask):
                         <div class=\"kpi-value\">{_format_large_number(sum(stat_data[TOTAL_TOK_BY_MODEL].values()) if stat_data[TOTAL_TOK_BY_MODEL] else 0, html=True)}</div>
                     </div>
                     <div class=\"kpi-card\">
+                        <div class=\"kpi-title\">Prompt缓存命中率</div>
+                        <div class=\"kpi-value\">{_format_cache_hit_rate(total_cache_hit_tokens, total_cache_miss_tokens)}</div>
+                    </div>
+                    <div class=\"kpi-card\">
+                        <div class=\"kpi-title\">Prompt缓存命中Token</div>
+                        <div class=\"kpi-value\">{_format_large_number(total_cache_hit_tokens, html=True)}</div>
+                    </div>
+                    <div class=\"kpi-card\">
                         <div class=\"kpi-title\">总花费</div>
                         <div class=\"kpi-value\">{stat_data[TOTAL_COST]:.2f} ¥</div>
                     </div>
@@ -1295,7 +1495,7 @@ class StatisticOutputTask(AsyncTask):
                 <h2>按模型分类统计</h2>
                 <div class=\"table-wrap\">
                     <table>
-                        <thead><tr><th>模型名称</th><th>调用次数</th><th>输入Token</th><th>输出Token</th><th>Token总量</th><th>累计花费</th><th>平均耗时(秒)</th><th>标准差(秒)</th><th>每次回复平均调用次数</th><th>每次回复平均Token数</th><th>每次调用平均Token</th></tr></thead>
+                        <thead><tr><th>模型名称</th><th>调用次数</th><th>输入Token</th><th>输出Token</th><th>Token总量</th><th>缓存命中Token</th><th>缓存未命中Token</th><th>缓存命中率</th><th>累计花费</th><th>平均耗时(秒)</th><th>标准差(秒)</th><th>每次回复平均调用次数</th><th>每次回复平均Token数</th><th>每次调用平均Token</th></tr></thead>
                         <tbody>
                             {model_rows}
                         </tbody>
@@ -1306,7 +1506,7 @@ class StatisticOutputTask(AsyncTask):
                 <div class=\"table-wrap\">
                     <table>
                         <thead>
-                            <tr><th>模块名称</th><th>调用次数</th><th>输入Token</th><th>输出Token</th><th>Token总量</th><th>累计花费</th><th>平均耗时(秒)</th><th>标准差(秒)</th><th>每次回复平均调用次数</th><th>每次回复平均Token数</th><th>每次调用平均Token</th></tr>
+                            <tr><th>模块名称</th><th>调用次数</th><th>输入Token</th><th>输出Token</th><th>Token总量</th><th>缓存命中Token</th><th>缓存未命中Token</th><th>缓存命中率</th><th>累计花费</th><th>平均耗时(秒)</th><th>标准差(秒)</th><th>每次回复平均调用次数</th><th>每次回复平均Token数</th><th>每次调用平均Token</th></tr>
                         </thead>
                         <tbody>
                         {module_rows}
@@ -1318,7 +1518,7 @@ class StatisticOutputTask(AsyncTask):
                 <div class=\"table-wrap\">
                     <table>
                         <thead>
-                            <tr><th>请求类型</th><th>调用次数</th><th>输入Token</th><th>输出Token</th><th>Token总量</th><th>累计花费</th><th>平均耗时(秒)</th><th>标准差(秒)</th><th>每次回复平均调用次数</th><th>每次回复平均Token数</th><th>每次调用平均Token</th></tr>
+                            <tr><th>请求类型</th><th>调用次数</th><th>输入Token</th><th>输出Token</th><th>Token总量</th><th>缓存命中Token</th><th>缓存未命中Token</th><th>缓存命中率</th><th>累计花费</th><th>平均耗时(秒)</th><th>标准差(秒)</th><th>每次回复平均调用次数</th><th>每次回复平均Token数</th><th>每次调用平均Token</th></tr>
                         </thead>
                         <tbody>
                         {type_rows}

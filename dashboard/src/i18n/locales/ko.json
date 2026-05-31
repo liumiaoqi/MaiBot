@@ -12,6 +12,8 @@
     "switchToDark": "다크 모드로 전환",
     "logout": "로그아웃",
     "logoutLabel": "로그아웃",
+    "switchLanguage": "언어 전환",
+    "moreActions": "더 많은 작업",
     "notConnected": "연결 안됨"
   },
   "sidebar": {
@@ -50,7 +52,8 @@
   "workspace": {
     "switcherLabel": "MaiBot 작업 공간 전환",
     "settings": "麦麦 설정",
-    "chat": "麦麦 채팅"
+    "chat": "麦麦 채팅",
+    "logs": "麦麦 로그"
   },
   "chat": {
     "defaultTab": "WebUI",
@@ -111,7 +114,7 @@
       "groupName": "가상 그룹 이름(선택)",
       "groupNameHint": "麦麦는 이 이름의 그룹 채팅으로 인식합니다",
       "knownUserSuffix": " · 알고 있음",
-      "loading": "Thinking...",
+      "loading": "불러오는 중...",
       "noUsers": "사용자를 찾을 수 없습니다",
       "personCount": "({{count}}명)",
       "platform": "플랫폼 선택",
@@ -514,7 +517,7 @@
       }
     },
     "loading": {
-      "title": "설정을 Thinking...",
+      "title": "설정을 불러오는 중...",
       "description": "기존 설정을 읽고 있습니다"
     },
     "header": {
@@ -713,7 +716,7 @@
     }
   },
   "common": {
-    "loading": "Thinking...",
+    "loading": "불러오는 중...",
     "error": "오류",
     "retry": "재시도",
     "save": "저장",
@@ -810,8 +813,8 @@
   "home": {
     "title": "실시간 모니터",
     "subtitle": "MaiBot 실행 상태 및 통계 데이터 개요",
-    "loading": "통계 데이터 Thinking...",
-    "loadingHint": "Thinking...",
+    "loading": "통계 데이터를 불러오는 중...",
+    "loadingHint": "불러오는 중...",
     "timeRange": {
       "24h": "24시간",
       "7d": "7일",
@@ -820,9 +823,23 @@
     "autoRefresh": "자동 새로고침",
     "botStatus": {
       "title": "MaiBot 상태",
+      "loading": "읽는 중",
       "running": "실행 중",
       "stopped": "중지됨",
-      "uptime": "가동 {{time}}"
+      "unknown": "알 수 없음",
+      "uptime": "가동 {{time}}",
+      "visualEnabled": "비전 활성화",
+      "memoryEnabled": "메모리 활성화"
+    },
+    "versionCard": {
+      "title": "MaiBot 버전",
+      "mainVersion": "코어 버전",
+      "webuiVersion": "WebUI 버전",
+      "latestVersion": "최신 버전",
+      "stableLatest": "최신 안정판",
+      "testLatest": "최신 테스트판",
+      "githubReleases": "GitHub Releases",
+      "unknown": "알 수 없음"
     },
     "quickActions": {
       "title": "빠른 작업",
@@ -831,7 +848,63 @@
       "expressionReview": "표현 검토",
       "viewLogs": "로그 보기",
       "pluginManage": "플러그인 관리",
-      "systemSettings": "시스템 설정"
+      "systemSettings": "시스템 설정",
+      "pluginConfig": "플러그인 설정",
+      "appearanceSettings": "외관 설정",
+      "localCache": "로컬 캐시",
+      "modelProviders": "모델 공급자 설정",
+      "modelList": "모델 목록",
+      "modelTasks": "모델 기능 할당",
+      "botConfig": "코어 설정",
+      "emojiManagement": "이모지 관리",
+      "expressionManagement": "표현 관리",
+      "statistics": "상세 통계 데이터",
+      "customize": "사용자 지정",
+      "empty": "선택한 빠른 바로가기가 없습니다",
+      "add": "바로가기 추가",
+      "descriptions": {
+        "restart": "MaiBot 코어 프로세스 재시작",
+        "expressionReview": "표현 학습 검토 대화상자 열기",
+        "viewLogs": "WebUI 로그 보기",
+        "pluginManage": "플러그인 마켓과 관리 페이지 열기",
+        "systemSettings": "시스템 설정 열기",
+        "pluginConfig": "설치된 플러그인 설정 페이지 열기",
+        "appearanceSettings": "설정 / 외관 열기",
+        "localCache": "설정 / 로컬 캐시 열기",
+        "modelProviders": "모델 관리 / 공급자 설정 열기",
+        "modelList": "모델 관리 / 모델 목록 열기",
+        "modelTasks": "모델 관리 / 기능 할당 열기",
+        "botConfig": "MaiBot 코어 설정 열기",
+        "emojiManagement": "이모지 리소스 관리 열기",
+        "expressionManagement": "표현 관리 열기",
+        "statistics": "maibot_statistics.html 열기"
+      },
+      "categories": {
+        "system": "시스템",
+        "config": "설정",
+        "resource": "리소스",
+        "plugin": "플러그인",
+        "monitor": "모니터",
+        "external": "외부"
+      },
+      "dialog": {
+        "title": "빠른 바로가기 사용자 지정",
+        "description": "홈 빠른 작업 카드에 표시할 바로가기를 선택합니다. 페이지 탭과 플러그인 설정 페이지도 포함할 수 있습니다.",
+        "searchPlaceholder": "바로가기, 플러그인 또는 탭 검색...",
+        "loadingPluginEntries": "플러그인 바로가기를 불러오는 중...",
+        "noMatches": "일치하는 바로가기를 찾지 못했습니다",
+        "restoreDefault": "기본값 복원",
+        "done": "완료"
+      }
+    },
+    "pluginShortcuts": {
+      "baseLabel": "{{plugin}} 설정",
+      "baseDescription": "{{plugin}}의 플러그인 설정 페이지 열기",
+      "tabDescription": "{{plugin}}의 {{tab}} 탭 열기",
+      "fallbackLabel": "플러그인 설정: {{plugin}}",
+      "fallbackTabLabel": "플러그인 설정: {{plugin}} / {{tab}}",
+      "fallbackDescription": "지정한 플러그인 설정 페이지 열기",
+      "fallbackTabDescription": "지정한 플러그인 설정 탭 열기"
     },
     "survey": {
       "title": "피드백 설문",
@@ -840,6 +913,7 @@
       "maibot": "MaiBot 피드백"
     },
     "stats": {
+      "overviewTitle": "통계 개요",
       "totalRequests": "총 요청 수",
       "totalCost": "총 비용",
       "tokenUsage": "토큰 소비",
@@ -856,6 +930,21 @@
       "seconds": "초",
       "hours": "시간",
       "days": "일"
+    },
+    "storage": {
+      "title": "저장소 사용량",
+      "reading": "읽는 중",
+      "summary": "이미지 {{image}} · 이모지 {{emoji}} · 로그 {{logs}} · 데이터베이스 {{database}}",
+      "images": "이미지",
+      "emoji": "이모지",
+      "logs": "로그",
+      "database": "데이터베이스",
+      "files": "{{count}}개 파일",
+      "filesAndRecords": "{{files}}개 파일 · {{records}}개 기록",
+      "databaseDetail": "{{files}}개 파일 · {{tables}}개 테이블",
+      "readingDescription": "로컬 저장소 사용량을 읽는 중...",
+      "unavailable": "로컬 저장소 사용량을 가져오지 못했습니다",
+      "manage": "저장소 관리"
     },
     "charts": {
       "tabs": {

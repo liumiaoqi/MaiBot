@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { ThinkingIllustration } from '@/components/ui/thinking-illustration'
 import { DynamicConfigForm } from '@/components/dynamic-form'
 import { RestartOverlay } from '@/components/restart-overlay'
 import { useToast } from '@/hooks/use-toast'
@@ -634,8 +635,8 @@ function MCPSettingsPageContent() {
         )}
 
         {loading && (
-          <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
-            Thinking...
+          <div className="flex h-64 items-center justify-center">
+            <ThinkingIllustration size="lg" />
           </div>
         )}
 

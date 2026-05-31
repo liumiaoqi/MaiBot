@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 
 import { ThemeProviderContext } from '@/lib/theme-context'
+import { getBotConfig, updateBotConfigSection } from '@/lib/config-api'
 import { DEFAULT_DASHBOARD_STYLE, DEFAULT_FUTURE_RETRO_STYLE_CONFIG } from '@/lib/theme/tokens'
-import type { UserThemeConfig } from '@/lib/theme/tokens'
+import type { DashboardStyle, UserThemeConfig } from '@/lib/theme/tokens'
 import {
   THEME_STORAGE_KEYS,
   loadThemeConfig,
@@ -21,6 +22,18 @@ type ThemeProviderProps = {
   storageKey?: string
 }
 
+function dashboardStyleToConfigValue(style: DashboardStyle): 0 | 1 {
+  return style === 'future-retro' ? 1 : 0
+}
+
+function configValueToDashboardStyle(value: unknown): DashboardStyle {
+  return Number(value) === 1 ? 'future-retro' : 'modern'
+}
+
+function shouldSyncRemoteWebUIStyle(): boolean {
+  return !window.location.pathname.startsWith('/auth')
+}
+
 export function ThemeProvider({
   children,
   defaultTheme = 'system',
@@ -32,6 +45,7 @@ export function ThemeProvider({
   })
   const [themeConfig, setThemeConfig] = useState<UserThemeConfig>(() => loadThemeConfig())
   const [systemThemeTick, setSystemThemeTick] = useState(0)
+  const pendingWebUIStyleRef = useRef<0 | 1 | null>(null)
 
   const resolvedTheme = useMemo<'dark' | 'light'>(() => {
     if (themeMode !== 'system') return themeMode
@@ -72,21 +86,109 @@ export function ThemeProvider({
     applyThemePipeline(themeConfig, isDark)
   }, [resolvedTheme, themeConfig])
 
+  const applyRemoteWebUIStyle = useCallback((styleValue: unknown) => {
+    const nextDashboardStyle = configValueToDashboardStyle(styleValue)
+
+    setThemeConfig((prev) => {
+      if (prev.dashboardStyle === nextDashboardStyle) {
+        return prev
+      }
+
+      saveThemePartial({ dashboardStyle: nextDashboardStyle })
+      return { ...prev, dashboardStyle: nextDashboardStyle }
+    })
+  }, [])
+
+  const loadRemoteWebUIStyle = useCallback(async () => {
+    if (!shouldSyncRemoteWebUIStyle() || pendingWebUIStyleRef.current !== null) {
+      return
+    }
+
+    try {
+      const result = await getBotConfig()
+      if (!result.success) {
+        return
+      }
+
+      const configData = (result.data as Record<string, unknown>).config as
+        | Record<string, unknown>
+        | undefined
+      const webuiConfig = configData?.webui as Record<string, unknown> | undefined
+      if (!webuiConfig || !('webui_style' in webuiConfig)) {
+        return
+      }
+
+      applyRemoteWebUIStyle(webuiConfig.webui_style)
+    } catch (error) {
+      console.debug('同步 WebUI 风格配置失败:', error)
+    }
+  }, [applyRemoteWebUIStyle])
+
+  const persistRemoteWebUIStyle = useCallback(async (style: DashboardStyle) => {
+    if (!shouldSyncRemoteWebUIStyle()) {
+      return
+    }
+
+    const webuiStyle = dashboardStyleToConfigValue(style)
+    pendingWebUIStyleRef.current = webuiStyle
+
+    try {
+      const result = await updateBotConfigSection('webui', { webui_style: webuiStyle })
+      if (!result.success) {
+        console.warn('保存 WebUI 风格配置失败:', result.error)
+      }
+    } catch (error) {
+      console.warn('保存 WebUI 风格配置失败:', error)
+    } finally {
+      pendingWebUIStyleRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadRemoteWebUIStyle()
+
+    const handleFocus = () => {
+      void loadRemoteWebUIStyle()
+    }
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        void loadRemoteWebUIStyle()
+      }
+    }
+
+    window.addEventListener('focus', handleFocus)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [loadRemoteWebUIStyle])
+
   const setTheme = useCallback((mode: Theme) => {
     localStorage.setItem(THEME_STORAGE_KEYS.MODE, mode)
     setThemeMode(mode)
   }, [])
 
-  const updateThemeConfig = useCallback((partial: Partial<UserThemeConfig>) => {
-    saveThemePartial(partial)
-    setThemeConfig((prev) => ({ ...prev, ...partial }))
-  }, [])
+  const updateThemeConfig = useCallback(
+    (partial: Partial<UserThemeConfig>) => {
+      saveThemePartial(partial)
+      setThemeConfig((prev) => ({ ...prev, ...partial }))
+
+      if (partial.dashboardStyle) {
+        void persistRemoteWebUIStyle(partial.dashboardStyle)
+      }
+    },
+    [persistRemoteWebUIStyle]
+  )
 
   const resetTheme = useCallback(() => {
     resetThemeToDefault()
     removeCustomCSS()
-    setThemeConfig(loadThemeConfig())
-  }, [])
+    const defaultThemeConfig = loadThemeConfig()
+    setThemeConfig(defaultThemeConfig)
+    void persistRemoteWebUIStyle(defaultThemeConfig.dashboardStyle)
+  }, [persistRemoteWebUIStyle])
 
   const value = useMemo(
     () => ({

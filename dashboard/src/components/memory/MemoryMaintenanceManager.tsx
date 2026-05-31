@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { ThinkingIllustration } from '@/components/ui/thinking-illustration'
 import { useToast } from '@/hooks/use-toast'
 import {
   freezeMemory,
@@ -311,7 +312,7 @@ export function MemoryMaintenanceManager() {
                 }) : (
                   <TableRow>
                     <TableCell colSpan={3} className="text-center text-muted-foreground">
-                      {loading ? 'Thinking...' : '回收站没有可展示的关系'}
+                      {loading ? <ThinkingIllustration size="sm" className="mx-auto" /> : '回收站没有可展示的关系'}
                     </TableCell>
                   </TableRow>
                 )}

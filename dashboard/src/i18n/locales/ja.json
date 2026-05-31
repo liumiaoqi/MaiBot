@@ -12,6 +12,8 @@
     "switchToDark": "ダークモードに切り替える",
     "logout": "ログアウト",
     "logoutLabel": "ログアウト",
+    "switchLanguage": "言語を切り替える",
+    "moreActions": "その他の操作",
     "notConnected": "未接続"
   },
   "sidebar": {
@@ -50,7 +52,8 @@
   "workspace": {
     "switcherLabel": "麦麦ワークスペースを切り替え",
     "settings": "麦麦設定",
-    "chat": "麦麦チャット"
+    "chat": "麦麦チャット",
+    "logs": "麦麦ログ"
   },
   "chat": {
     "defaultTab": "WebUI",
@@ -113,7 +116,7 @@
       "groupName": "仮想グループ名（任意）",
       "groupNameHint": "麦麦はこれをこの名前のグループチャットとして認識します",
       "knownUserSuffix": " · 既知",
-      "loading": "Thinking...",
+      "loading": "読み込み中...",
       "noUsers": "ユーザーが見つかりません",
       "personCount": "({{count}} 人)",
       "platform": "プラットフォームを選択",
@@ -522,7 +525,7 @@
       }
     },
     "loading": {
-      "title": "設定をThinking...",
+      "title": "設定を読み込み中...",
       "description": "既存の設定を読み取っています"
     },
     "header": {
@@ -721,7 +724,7 @@
     }
   },
   "common": {
-    "loading": "Thinking...",
+    "loading": "読み込み中...",
     "error": "エラー",
     "retry": "再試行",
     "save": "保存する",
@@ -818,8 +821,8 @@
   "home": {
     "title": "リアルタイムモニター",
     "subtitle": "MaiBotの稼働状況と統計データの一覧",
-    "loading": "統計データをThinking...",
-    "loadingHint": "Thinking...",
+    "loading": "統計データを読み込み中...",
+    "loadingHint": "読み込み中...",
     "timeRange": {
       "24h": "24時間",
       "7d": "7日間",
@@ -828,9 +831,23 @@
     "autoRefresh": "自動更新",
     "botStatus": {
       "title": "MaiBot ステータス",
+      "loading": "読み取り中",
       "running": "稼働中",
       "stopped": "停止中",
-      "uptime": "稼働 {{time}}"
+      "unknown": "不明",
+      "uptime": "稼働 {{time}}",
+      "visualEnabled": "ビジョン有効",
+      "memoryEnabled": "メモリ有効"
+    },
+    "versionCard": {
+      "title": "MaiBot バージョン",
+      "mainVersion": "本体バージョン",
+      "webuiVersion": "WebUI バージョン",
+      "latestVersion": "最新バージョン",
+      "stableLatest": "最新安定版",
+      "testLatest": "最新テスト版",
+      "githubReleases": "GitHub Releases",
+      "unknown": "不明"
     },
     "quickActions": {
       "title": "クイック操作",
@@ -839,7 +856,63 @@
       "expressionReview": "表現レビュー",
       "viewLogs": "ログを見る",
       "pluginManage": "プラグイン管理",
-      "systemSettings": "システム設定"
+      "systemSettings": "システム設定",
+      "pluginConfig": "プラグイン設定",
+      "appearanceSettings": "外観設定",
+      "localCache": "ローカルキャッシュ",
+      "modelProviders": "モデルプロバイダー設定",
+      "modelList": "モデル一覧",
+      "modelTasks": "モデル機能割り当て",
+      "botConfig": "本体設定",
+      "emojiManagement": "絵文字管理",
+      "expressionManagement": "表現管理",
+      "statistics": "詳細統計データ",
+      "customize": "カスタマイズ",
+      "empty": "クイックショートカットがまだ選択されていません",
+      "add": "ショートカットを追加",
+      "descriptions": {
+        "restart": "MaiBot 本体プロセスを再起動",
+        "expressionReview": "表現学習レビューのダイアログを開く",
+        "viewLogs": "WebUI ログを表示",
+        "pluginManage": "プラグインマーケットと管理ページを開く",
+        "systemSettings": "システム設定を開く",
+        "pluginConfig": "インストール済みプラグインの設定ページを開く",
+        "appearanceSettings": "設定 / 外観を開く",
+        "localCache": "設定 / ローカルキャッシュを開く",
+        "modelProviders": "モデル管理 / プロバイダー設定を開く",
+        "modelList": "モデル管理 / モデル一覧を開く",
+        "modelTasks": "モデル管理 / 機能割り当てを開く",
+        "botConfig": "MaiBot 本体設定を開く",
+        "emojiManagement": "絵文字リソース管理を開く",
+        "expressionManagement": "表現管理を開く",
+        "statistics": "maibot_statistics.html を開く"
+      },
+      "categories": {
+        "system": "システム",
+        "config": "設定",
+        "resource": "リソース",
+        "plugin": "プラグイン",
+        "monitor": "監視",
+        "external": "外部"
+      },
+      "dialog": {
+        "title": "クイックショートカットをカスタマイズ",
+        "description": "ホームのクイック操作カードに表示する入口を選択します。ページタブやプラグイン設定ページも含められます。",
+        "searchPlaceholder": "入口、プラグイン、タブを検索...",
+        "loadingPluginEntries": "プラグインショートカットを読み込み中...",
+        "noMatches": "一致する入口が見つかりません",
+        "restoreDefault": "デフォルトに戻す",
+        "done": "完了"
+      }
+    },
+    "pluginShortcuts": {
+      "baseLabel": "{{plugin}} 設定",
+      "baseDescription": "{{plugin}} のプラグイン設定ページを開く",
+      "tabDescription": "{{plugin}} の {{tab}} タブを開く",
+      "fallbackLabel": "プラグイン設定：{{plugin}}",
+      "fallbackTabLabel": "プラグイン設定：{{plugin}} / {{tab}}",
+      "fallbackDescription": "指定したプラグイン設定ページを開く",
+      "fallbackTabDescription": "指定したプラグイン設定タブを開く"
     },
     "survey": {
       "title": "フィードバック",
@@ -848,6 +921,7 @@
       "maibot": "MaiBot フィードバック"
     },
     "stats": {
+      "overviewTitle": "統計概要",
       "totalRequests": "総リクエスト数",
       "totalCost": "総コスト",
       "tokenUsage": "トークン消費",
@@ -864,6 +938,21 @@
       "seconds": "秒間",
       "hours": "時間",
       "days": "日"
+    },
+    "storage": {
+      "title": "ストレージ使用量",
+      "reading": "読み取り中",
+      "summary": "画像 {{image}} · 絵文字 {{emoji}} · ログ {{logs}} · データベース {{database}}",
+      "images": "画像",
+      "emoji": "絵文字",
+      "logs": "ログ",
+      "database": "データベース",
+      "files": "{{count}} ファイル",
+      "filesAndRecords": "{{files}} ファイル · {{records}} 件の記録",
+      "databaseDetail": "{{files}} ファイル · {{tables}} テーブル",
+      "readingDescription": "ローカルストレージ使用量を読み取り中...",
+      "unavailable": "ローカルストレージ使用量を取得できません",
+      "manage": "ストレージ管理"
     },
     "charts": {
       "tabs": {
