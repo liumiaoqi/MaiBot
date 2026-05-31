@@ -10,7 +10,6 @@ import asyncio
 import difflib
 import json
 import time
-import traceback
 
 from src.chat.heart_flow.heartFC_utils import CycleDetail
 from src.chat.message_receive.message import SessionMessage
@@ -19,7 +18,7 @@ from src.common.logger import get_logger
 from src.common.prompt_i18n import load_prompt
 from src.config.config import global_config
 from src.core.tooling import ToolAvailabilityContext, ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
-from src.llm_models.exceptions import ReqAbortException
+from src.llm_models.exceptions import ReqAbortException, RespNotOkException
 from src.llm_models.payload_content.tool_option import ToolCall
 from src.services import database_service as database_api
 from src.services.memory_service import memory_service
@@ -880,9 +879,14 @@ class MaisakaReasoningEngine:
         except asyncio.CancelledError:
             self._runtime._log_internal_loop_cancelled()
             raise
+        except RespNotOkException as exc:
+            logger.error(
+                f"{self._runtime.log_prefix} Maisaka 内部循环发生异常: "
+                f"模型响应异常 HTTP {exc.status_code} - {exc}"
+            )
+            raise
         except Exception:
             logger.exception(f"{self._runtime.log_prefix} Maisaka 内部循环发生异常")
-            logger.error(traceback.format_exc())
             raise
 
     async def _handle_silent_turn(
