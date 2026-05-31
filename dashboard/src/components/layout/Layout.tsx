@@ -130,7 +130,7 @@ export function Layout({ children }: LayoutProps) {
         className={cn('relative isolate flex h-screen overflow-hidden overscroll-none', isElectron() && 'pt-8')}
       >
         <BackgroundLayer config={pageBg} layerId="page" />
-        <div className="relative z-10 flex h-full w-full overflow-hidden">
+        <div className="relative z-10 flex h-full min-h-0 w-full overflow-hidden">
           {/* Sidebar：仅在设置工作区显示，伴随滑入/滑出动画 */}
           <AnimatePresence initial={false}>
             {isSettingsWorkspace && (
@@ -186,7 +186,7 @@ export function Layout({ children }: LayoutProps) {
             )}
           </AnimatePresence>
           {/* Main content */}
-          <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             {/* HTTP 安全警告横幅 */}
             <HttpWarningBanner />
 
@@ -209,7 +209,7 @@ export function Layout({ children }: LayoutProps) {
               data-dashboard-main="true"
               tabIndex={-1}
               className={cn(
-                'relative isolate flex-1 outline-none',
+                'relative isolate min-h-0 flex-1 outline-none',
                 isSettingsWorkspace ? 'overflow-y-auto overflow-x-hidden overscroll-contain' : 'overflow-hidden',
                 isChatWorkspace
                   ? 'bg-transparent'
@@ -221,7 +221,7 @@ export function Layout({ children }: LayoutProps) {
               <AnimatePresence mode="wait" initial={false}>
                 <motion.div
                   key={workspaceMode}
-                  className={cn('relative z-10 min-w-0', isSettingsWorkspace ? 'min-h-full' : 'h-full')}
+                  className={cn('relative z-10 min-w-0', isSettingsWorkspace ? 'h-full min-h-full' : 'h-full')}
                   initial={{ opacity: 0, x: isChatWorkspace ? 32 : -32, filter: 'blur(6px)' }}
                   animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
                   exit={{ opacity: 0, x: isChatWorkspace ? -32 : 32, filter: 'blur(6px)' }}
