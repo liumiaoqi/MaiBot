@@ -745,7 +745,7 @@ function PluginConfigEditor({ plugin, onBack, initialTab }: PluginConfigEditorPr
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold">
+            <h1 className="text-2xl sm:text-3xl font-bold" data-plugin-config-title>
               {pluginName}
             </h1>
             <div className="flex items-center gap-2 mt-1">
@@ -758,7 +758,7 @@ function PluginConfigEditor({ plugin, onBack, initialTab }: PluginConfigEditorPr
             </div>
           </div>
         </div>
-        <div className="flex gap-2 ml-10 sm:ml-0">
+        <div className="ml-10 flex flex-wrap gap-3 sm:ml-0">
           <Button
             variant="outline"
             size="sm"
@@ -1188,28 +1188,28 @@ function PluginConfigPageContent() {
                 </div>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {uniqueFilteredPlugins.map(plugin => {
                   const statusMeta = getPluginStatusMeta(plugin)
                   return (
                   <div
                     key={plugin.id}
-                    className={`flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 cursor-pointer transition-colors ${isPluginDisabled(plugin) ? 'opacity-70' : ''}`}
+                    className={`flex min-h-32 cursor-pointer flex-col justify-between gap-4 rounded-lg border p-5 transition-colors hover:bg-muted/50 sm:min-h-0 sm:flex-row sm:items-center sm:p-4 ${isPluginDisabled(plugin) ? 'opacity-70' : ''}`}
                     role="button"
                     tabIndex={0}
                     onClick={() => openPluginConfig(plugin)}
                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPluginConfig(plugin) } }}
                   >
-                    <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex min-w-0 items-start gap-3 sm:items-center">
                       <span
-                        className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${statusMeta.dotClassName}`}
+                        className={`mt-4 h-2.5 w-2.5 flex-shrink-0 rounded-full sm:mt-0 ${statusMeta.dotClassName}`}
                         title={statusMeta.label}
                         aria-label={statusMeta.label}
                       />
-                      <PluginIcon pluginId={plugin.id} manifest={plugin.manifest} installed className="h-10 w-10" />
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-medium truncate">
+                      <PluginIcon pluginId={plugin.id} manifest={plugin.manifest} installed className="h-12 w-12 sm:h-10 sm:w-10" />
+                      <div className="min-w-0 flex-1 space-y-2 sm:space-y-1">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
+                          <h3 className="min-w-0 break-words text-sm font-medium leading-snug sm:truncate sm:text-base">
                             {plugin.manifest.name}
                           </h3>
                           <Badge variant="secondary" className="text-xs flex-shrink-0">
@@ -1219,13 +1219,13 @@ function PluginConfigPageContent() {
                             {getPluginTypeLabel(plugin)}
                           </Badge>
                         </div>
-                        <p className="text-sm text-muted-foreground truncate">
+                        <p className="line-clamp-2 text-sm leading-relaxed text-muted-foreground sm:truncate sm:leading-normal">
                           {plugin.manifest.description || '暂无描述'}
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <Button variant="ghost" size="sm">
+                    <div className="flex flex-shrink-0 items-center justify-end gap-2 border-t pt-3 sm:border-t-0 sm:pt-0">
+                      <Button variant="ghost" size="sm" className="min-w-24 sm:min-w-0">
                         <Settings className="h-4 w-4" />
                       </Button>
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />

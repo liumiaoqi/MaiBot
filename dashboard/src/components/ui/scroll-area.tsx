@@ -22,7 +22,7 @@ const ScrollArea = React.forwardRef<
     <ScrollAreaPrimitive.Viewport
       ref={viewportRef}
       className={cn(
-        "h-full w-full rounded-[inherit] [&>div]:!block [&>div]:!min-w-0 [&>div]:w-full",
+        "h-full w-full overscroll-contain rounded-[inherit] [&>div]:!block [&>div]:!min-w-0 [&>div]:w-full",
         viewportClassName
       )}
     >

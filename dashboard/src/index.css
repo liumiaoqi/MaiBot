@@ -325,13 +325,24 @@
   html,
   body,
   #root {
+    height: 100%;
     min-height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
   }
 
   @supports (min-height: 100dvh) {
     html,
     body,
     #root {
+      height: 100dvh;
+      min-height: 100dvh;
+    }
+  }
+
+  @supports (height: 100dvh) {
+    [data-dashboard-shell='true'] {
+      height: 100dvh;
       min-height: 100dvh;
     }
   }
@@ -542,6 +553,13 @@
   font-size: clamp(2.35rem, 3vw, 3.15rem);
   line-height: 0.98;
   font-weight: 800;
+}
+
+@media (max-width: 639px) {
+  [data-plugin-config-title] {
+    font-size: 1rem !important;
+    line-height: 1.25 !important;
+  }
 }
 
 :root[data-dashboard-style='future-retro'] [data-dashboard-main='true'] h1 + p {
