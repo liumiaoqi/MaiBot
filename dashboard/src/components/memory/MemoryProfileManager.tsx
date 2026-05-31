@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
+import { ThinkingIllustration } from '@/components/ui/thinking-illustration'
 import { useToast } from '@/hooks/use-toast'
 import {
   correctMemoryProfileEvidence,
@@ -533,7 +534,13 @@ export function MemoryProfileManager() {
                 )) : (
                   <TableRow>
                     <TableCell colSpan={3} className="text-center text-muted-foreground">
-                      {loading ? 'Thinking...' : profileListMode === 'search' ? '没有匹配的人物画像' : '还没有人物画像快照'}
+                      {loading ? (
+                        <ThinkingIllustration size="sm" className="mx-auto" />
+                      ) : profileListMode === 'search' ? (
+                        '没有匹配的人物画像'
+                      ) : (
+                        '还没有人物画像快照'
+                      )}
                     </TableCell>
                   </TableRow>
                 )}

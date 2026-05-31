@@ -91,6 +91,7 @@ export const TaskConfigCard = React.memo(function TaskConfigCard({
             onChange={handleModelChange}
             placeholder="选择模型..."
             emptyText="暂无可用模型"
+            compact
           />
         </div>
 
@@ -133,7 +134,7 @@ export const TaskConfigCard = React.memo(function TaskConfigCard({
                 type="number"
                 step="1"
                 min="1"
-                value={taskConfig.max_tokens ?? 1024}
+                value={taskConfig.max_tokens ?? 4096}
                 onChange={(e) => onChange('max_tokens', parseInt(e.target.value))}
               />
             </div>

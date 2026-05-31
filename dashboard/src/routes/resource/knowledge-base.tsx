@@ -32,6 +32,7 @@ import {
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import { ThinkingIllustration } from '@/components/ui/thinking-illustration'
 import { useToast } from '@/hooks/use-toast'
 import { memoryProgressClient, type MemoryProgressEvent } from '@/lib/memory-progress-client'
 import { cn } from '@/lib/utils'
@@ -162,7 +163,6 @@ function formatMaibotDateTimeLocalForApi(input: string, fieldName: string): stri
 export function KnowledgeBasePage() {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
-  const [loadingDotCount, setLoadingDotCount] = useState(6)
   const [refreshingCheck, setRefreshingCheck] = useState(false)
   const [vectorRebuildDialogOpen, setVectorRebuildDialogOpen] = useState(false)
   const [vectorRebuilding, setVectorRebuilding] = useState(false)
@@ -1956,21 +1956,12 @@ export function KnowledgeBasePage() {
     setQuickStartVisible(false)
   }, [])
 
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setLoadingDotCount((current) => (current >= 6 ? 2 : current + 1))
-    }, 450)
-
-    return () => window.clearInterval(timer)
-  }, [])
-
   const shouldRenderMemoryTab = (tab: MemoryConsoleTab) => activeTab === tab || visitedMemoryTabs.has(tab)
   const shouldShowPanelFallback = (tab: LoadableMemoryTab) => !loadedPanelDataRef.current.has(tab)
   const renderPanelFallback = (tab: LoadableMemoryTab, _label: string) => (
     <TabsContent value={tab} className="space-y-4">
       <div className="flex min-h-[240px] items-center justify-center rounded-xl border bg-background/70 text-sm text-muted-foreground">
-        <Loader2 className={cn('mr-2 h-4 w-4', tabLoading[tab] ? 'animate-spin' : '')} />
-        Thinking...
+        <ThinkingIllustration size={tabLoading[tab] ? 'md' : 'sm'} />
       </div>
     </TabsContent>
   )
@@ -1978,8 +1969,8 @@ export function KnowledgeBasePage() {
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <div className="min-w-[10rem] rounded-xl border bg-background px-5 py-3.5 text-base font-medium text-muted-foreground shadow-sm">
-          Thinking{'.'.repeat(loadingDotCount)}
+        <div className="rounded-xl border bg-background px-6 py-4 shadow-sm">
+          <ThinkingIllustration size="lg" />
         </div>
       </div>
     )
@@ -1989,11 +1980,6 @@ export function KnowledgeBasePage() {
     <div className="flex h-full flex-col bg-background">
       <div className="flex-1 overflow-auto">
         <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-6 px-6 py-6">
-          <div>
-            <h1 className="text-2xl font-bold leading-tight sm:text-3xl">长期记忆</h1>
-            <p className="mt-1 text-sm text-muted-foreground">管理麦麦的长期记忆和知识库</p>
-          </div>
-
           <div className="hidden">
             <Button variant="outline" size="sm" onClick={() => void loadPage()}>
               <RefreshCw className="mr-2 h-4 w-4" />

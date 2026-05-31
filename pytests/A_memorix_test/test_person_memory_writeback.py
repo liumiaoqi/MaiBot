@@ -41,6 +41,40 @@ async def test_store_person_memory_from_answer_writes_person_fact(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_store_person_memory_from_answer_prefers_explicit_person_id(monkeypatch):
+    calls = []
+
+    class FakePerson:
+        def __init__(self, person_id: str):
+            self.person_id = person_id
+            self.person_name = "Alice"
+            self.is_known = True
+
+    async def fake_ingest_text(**kwargs):
+        calls.append(kwargs)
+        return SimpleNamespace(success=True, detail="", stored_ids=["p1"])
+
+    session = SimpleNamespace(platform="qq", user_id="10001", group_id="group-1", session_id="session-1")
+    monkeypatch.setattr(person_info_module, "_chat_manager", SimpleNamespace(get_session_by_session_id=lambda chat_id: session))
+    monkeypatch.setattr(person_info_module, "get_person_id_by_person_name", lambda person_name: "wrong-person")
+    monkeypatch.setattr(person_info_module, "Person", FakePerson)
+    monkeypatch.setattr(person_info_module.memory_service, "ingest_text", fake_ingest_text)
+
+    await person_info_module.store_person_memory_from_answer(
+        "Alice",
+        "Alice 长期使用青轴键盘",
+        "session-1",
+        person_id="person-target",
+    )
+
+    assert len(calls) == 1
+    payload = calls[0]
+    assert payload["external_id"].startswith("person_fact:person-target:")
+    assert payload["person_ids"] == ["person-target"]
+    assert payload["metadata"]["person_id"] == "person-target"
+
+
+@pytest.mark.asyncio
 async def test_store_person_memory_from_answer_skips_unknown_person(monkeypatch):
     calls = []
 
@@ -78,4 +112,3 @@ async def test_store_person_memory_from_answer_skips_empty_content(monkeypatch):
     await person_info_module.store_person_memory_from_answer("Alice", "   ", "session-1")
 
     assert calls == []
-

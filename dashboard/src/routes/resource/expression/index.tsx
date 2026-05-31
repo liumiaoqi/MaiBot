@@ -407,7 +407,7 @@ export function ExpressionManagementPage() {
     const dotClass = status === 'mixed' ? 'bg-amber-500' : status === 'on' ? 'bg-green-500' : 'bg-muted-foreground'
 
     return (
-      <div className="flex items-center gap-2 rounded-md border bg-background px-3 py-1.5 text-sm">
+      <div className="flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm sm:py-1.5">
         <span className={`h-2.5 w-2.5 rounded-full ${dotClass}`} />
         <span className="text-muted-foreground">{label}</span>
         <span className="font-medium">{statusText}</span>
@@ -563,128 +563,120 @@ export function ExpressionManagementPage() {
   }
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col p-4 sm:p-6">
-      {/* 页面标题 */}
-      <div className="mb-4 sm:mb-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
-              <MessageSquare className="h-8 w-8" strokeWidth={2} />
-              表达方式
-            </h1>
-            <p className="text-muted-foreground mt-1 text-sm sm:text-base">
-              管理麦麦的表达方式和话术模板
-            </p>
+    <div className="flex min-h-[calc(100dvh-4rem)] flex-col p-4 pb-6 sm:min-h-[calc(100vh-4rem)] sm:p-6">
+      <div className="mb-4 flex flex-col gap-3 sm:mb-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="-mx-1 w-[calc(100%+0.5rem)] overflow-x-auto px-1 pb-1 sm:mx-0 sm:w-auto sm:overflow-visible sm:p-0">
+            <div className="inline-flex w-max min-w-full rounded-lg border bg-muted p-1 sm:w-fit sm:min-w-0">
+              <button
+                type="button"
+                onClick={() => handleActiveViewChange('list')}
+                className={`inline-flex h-10 shrink-0 flex-1 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:h-8 sm:flex-none ${
+                  activeView === 'list'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <MessageSquare className="h-4 w-4" />
+                <span>浏览表达</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleActiveViewChange('review')}
+                className={`inline-flex h-10 shrink-0 flex-1 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:h-8 sm:flex-none ${
+                  activeView === 'review'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <ClipboardCheck className="h-4 w-4" />
+                <span>表达审核</span>
+                {uncheckedCount > 0 && (
+                  <span className="ml-0.5 rounded-full bg-orange-500 px-1.5 py-0.5 text-xs leading-none text-white">
+                    {uncheckedCount > 99 ? '99+' : uncheckedCount}
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleActiveViewChange('quick')}
+                className={`inline-flex h-10 shrink-0 flex-1 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:h-8 sm:flex-none ${
+                  activeView === 'quick'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Zap className="h-4 w-4" />
+                <span>快速审核</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleActiveViewChange('reviewLogs')}
+                className={`inline-flex h-10 shrink-0 flex-1 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:h-8 sm:flex-none ${
+                  activeView === 'reviewLogs'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <FileClock className="h-4 w-4" />
+                <span>AI审核记录</span>
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button onClick={() => setIsCreateDialogOpen(true)} className="gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:flex sm:items-center lg:justify-end">
+            <Button onClick={() => setIsCreateDialogOpen(true)} className="h-10 justify-center gap-2 sm:h-9">
               <Plus className="h-4 w-4" />
               新增表达方式
             </Button>
-            <Button variant="outline" onClick={() => setIsLegacyImportOpen(true)} className="gap-2">
+            <Button variant="outline" onClick={() => setIsLegacyImportOpen(true)} className="h-10 justify-center gap-2 sm:h-9">
               <Upload className="h-4 w-4" />
               从旧版本导入
             </Button>
           </div>
         </div>
-      </div>
 
-      <div className="mb-3 inline-flex w-full rounded-lg border bg-muted p-1 sm:w-fit">
-        <button
-          type="button"
-          onClick={() => handleActiveViewChange('list')}
-          className={`inline-flex h-8 flex-1 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:flex-none ${
-            activeView === 'list'
-              ? 'bg-background text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <MessageSquare className="h-4 w-4" />
-          <span>浏览表达</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => handleActiveViewChange('review')}
-          className={`inline-flex h-8 flex-1 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:flex-none ${
-            activeView === 'review'
-              ? 'bg-background text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <ClipboardCheck className="h-4 w-4" />
-          <span>表达审核</span>
-          {uncheckedCount > 0 && (
-            <span className="ml-0.5 rounded-full bg-orange-500 px-1.5 py-0.5 text-xs leading-none text-white">
-              {uncheckedCount > 99 ? '99+' : uncheckedCount}
-            </span>
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={() => handleActiveViewChange('quick')}
-          className={`inline-flex h-8 flex-1 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:flex-none ${
-            activeView === 'quick'
-              ? 'bg-background text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Zap className="h-4 w-4" />
-          <span>快速审核</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => handleActiveViewChange('reviewLogs')}
-          className={`inline-flex h-8 flex-1 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:flex-none ${
-            activeView === 'reviewLogs'
-              ? 'bg-background text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <FileClock className="h-4 w-4" />
-          <span>AI审核记录</span>
-        </button>
+        {activeView === 'list' && (
+          <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:flex-1 sm:flex-wrap">
+            <div className="inline-flex h-11 min-w-[7.5rem] items-center justify-between gap-3 rounded-md border bg-card/80 px-4 sm:h-9 sm:flex-1 sm:gap-2 sm:px-3 md:flex-none">
+              <div className="text-xs text-muted-foreground">总数量</div>
+              <div className="text-base font-semibold leading-none">{stats.total}</div>
+            </div>
+            <div className="inline-flex h-11 min-w-[7.5rem] items-center justify-between gap-3 rounded-md border bg-card/80 px-4 sm:h-9 sm:flex-1 sm:gap-2 sm:px-3 md:flex-none">
+              <div className="text-xs text-muted-foreground">近7天新增</div>
+              <div className="text-base font-semibold leading-none text-green-600">{stats.recent_7days}</div>
+            </div>
+            <div className="inline-flex h-11 min-w-[7.5rem] items-center justify-between gap-3 rounded-md border bg-card/80 px-4 sm:h-9 sm:flex-1 sm:gap-2 sm:px-3 md:flex-none">
+              <div className="text-xs text-muted-foreground">关联聊天数</div>
+              <div className="text-base font-semibold leading-none text-blue-600">{stats.chat_count}</div>
+            </div>
+          </div>
+        )}
       </div>
 
       <ScrollArea className={activeView === 'list' ? 'flex-1' : 'hidden'}>
-        <div className="space-y-4 sm:space-y-6 pr-4">
-
-      {/* 统计卡片 */}
-      <div className="flex flex-wrap gap-2">
-        <div className="inline-flex h-9 w-full items-center justify-between gap-3 rounded-md border bg-card/80 px-3 sm:w-auto sm:min-w-[8.5rem]">
-          <div className="text-xs text-muted-foreground">总数量</div>
-          <div className="text-lg font-semibold leading-none">{stats.total}</div>
-        </div>
-        <div className="inline-flex h-9 w-full items-center justify-between gap-3 rounded-md border bg-card/80 px-3 sm:w-auto sm:min-w-[8.5rem]">
-          <div className="text-xs text-muted-foreground">近7天新增</div>
-          <div className="text-lg font-semibold leading-none text-green-600">{stats.recent_7days}</div>
-        </div>
-        <div className="inline-flex h-9 w-full items-center justify-between gap-3 rounded-md border bg-card/80 px-3 sm:w-auto sm:min-w-[8.5rem]">
-          <div className="text-xs text-muted-foreground">关联聊天数</div>
-          <div className="text-lg font-semibold leading-none text-blue-600">{stats.chat_count}</div>
-        </div>
-      </div>
+        <div className="space-y-5 pr-3 sm:space-y-6 sm:pr-4">
 
       {/* 搜索和批量操作 */}
-      <div className="rounded-lg border bg-card p-3">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+      <div className="rounded-lg border bg-card p-4 sm:p-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-2">
           <div className="flex-1">
             <div className="relative">
-              <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground sm:left-2.5 sm:top-2" />
               <Input
                 id="search"
                 aria-label="搜索"
                 placeholder="搜索情境、风格或上下文..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-8 pl-9"
+                className="h-10 pl-10 sm:h-8 sm:pl-9"
               />
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 px-2 text-xs text-muted-foreground"
+              className="h-9 px-3 text-xs text-muted-foreground sm:h-8 sm:px-2"
               title="显示旧格式的表达方式（这些项目会在运行中被转换为新格式）"
               onClick={handleToggleLegacyExpressions}
             >
@@ -699,7 +691,7 @@ export function ExpressionManagementPage() {
                 setSelectedIds(new Set())
               }}
             >
-              <SelectTrigger id="page-size" className="h-8 w-20">
+              <SelectTrigger id="page-size" className="h-9 w-20 sm:h-8">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -713,13 +705,13 @@ export function ExpressionManagementPage() {
         </div>
 
         {/* 批量操作工具栏 */}
-        <div className={`${selectedIds.size > 0 ? 'flex' : 'hidden'} flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mt-3 pt-3 border-t`}>
+        <div className={`${selectedIds.size > 0 ? 'flex' : 'hidden'} flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mt-4 pt-4 border-t sm:mt-3 sm:pt-3`}>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             {selectedIds.size > 0 && (
               <span>已选择 {selectedIds.size} 个表达方式</span>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center">
             {selectedIds.size > 0 && (
               <>
                 <Button
@@ -744,15 +736,15 @@ export function ExpressionManagementPage() {
       </div>
 
       {/* 表达方式列表 */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-5 sm:gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
         <aside className="rounded-lg border bg-card lg:sticky lg:top-0 lg:max-h-[calc(100vh-18rem)]">
-          <div className="space-y-2 border-b px-3 py-2">
+          <div className="space-y-3 border-b px-4 py-3 sm:space-y-2 sm:px-3 sm:py-2">
             <h2 className="text-sm font-medium">浏览方式</h2>
-            <div className="grid grid-cols-3 gap-1 rounded-md bg-muted p-1">
+            <div className="grid grid-cols-3 gap-1 rounded-md bg-muted p-1.5 sm:p-1">
               <button
                 type="button"
                 onClick={() => handleBrowseModeChange('chat')}
-                className={`rounded px-2 py-1 text-xs transition-colors ${
+                className={`rounded px-2 py-2 text-xs transition-colors sm:py-1 ${
                   browseMode === 'chat' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
@@ -761,7 +753,7 @@ export function ExpressionManagementPage() {
               <button
                 type="button"
                 onClick={() => handleBrowseModeChange('group')}
-                className={`rounded px-2 py-1 text-xs transition-colors ${
+                className={`rounded px-2 py-2 text-xs transition-colors sm:py-1 ${
                   browseMode === 'group' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
@@ -770,7 +762,7 @@ export function ExpressionManagementPage() {
               <button
                 type="button"
                 onClick={() => handleBrowseModeChange('all')}
-                className={`rounded px-2 py-1 text-xs transition-colors ${
+                className={`rounded px-2 py-2 text-xs transition-colors sm:py-1 ${
                   browseMode === 'all' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
@@ -778,7 +770,7 @@ export function ExpressionManagementPage() {
               </button>
             </div>
           </div>
-          <div className="max-h-56 space-y-1 overflow-y-auto p-2 lg:max-h-[calc(100vh-21rem)]">
+          <div className="max-h-72 space-y-2 overflow-y-auto p-3 sm:max-h-56 sm:space-y-1 sm:p-2 lg:max-h-[calc(100vh-21rem)]">
             {browseMode === 'chat' ? (
               <>
             {chatList.map((chat) => (
@@ -786,7 +778,7 @@ export function ExpressionManagementPage() {
                 key={chat.chat_id}
                 type="button"
                 onClick={() => handleChatChange(chat.chat_id)}
-                className={`w-full rounded-md px-2 py-2 text-left text-sm transition-colors ${
+                className={`w-full rounded-md px-3 py-2.5 text-left text-sm transition-colors sm:px-2 sm:py-2 ${
                   selectedChatId === chat.chat_id
                     ? 'bg-primary text-primary-foreground'
                     : 'text-foreground hover:bg-muted'
@@ -811,7 +803,7 @@ export function ExpressionManagementPage() {
                     key={group.index}
                     type="button"
                     onClick={() => handleGroupChange(group.index)}
-                    className={`w-full rounded-md px-2 py-2 text-left text-sm transition-colors ${
+                    className={`w-full rounded-md px-3 py-2.5 text-left text-sm transition-colors sm:px-2 sm:py-2 ${
                       selectedGroupIndex === group.index
                         ? 'bg-primary text-primary-foreground'
                         : 'text-foreground hover:bg-muted'
@@ -846,21 +838,21 @@ export function ExpressionManagementPage() {
           </div>
         </aside>
 
-        <div className="space-y-3">
+        <div className="space-y-4 sm:space-y-3">
           {scopeStatus && (
-            <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card px-3 py-2">
-              <div className="mr-2 min-w-0 text-sm font-medium">
+            <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-card px-4 py-3 sm:gap-2 sm:px-3 sm:py-2">
+              <div className="min-w-0 text-sm font-medium sm:mr-2">
                 <span className="text-muted-foreground">当前范围：</span>
                 <span>{scopeStatus.label}</span>
               </div>
               {renderStatusIndicator('开启学习', scopeStatus.enableLearning)}
               {renderStatusIndicator('开启使用', scopeStatus.useExpression)}
               {currentChat && (
-                <div className="ml-auto flex flex-wrap items-center gap-2">
+                <div className="grid w-full grid-cols-2 gap-2 sm:ml-auto sm:flex sm:w-auto sm:flex-wrap sm:items-center">
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-8 gap-1"
+                    className="h-9 justify-center gap-1 sm:h-8"
                     onClick={() => handleExportExpressions(false)}
                   >
                     <Download className="h-4 w-4" />
@@ -869,7 +861,7 @@ export function ExpressionManagementPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-8 gap-1"
+                    className="h-9 justify-center gap-1 sm:h-8"
                     onClick={() => handleExportExpressions(true)}
                     disabled={selectedIds.size === 0}
                   >
@@ -879,7 +871,7 @@ export function ExpressionManagementPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-8 gap-1"
+                    className="h-9 justify-center gap-1 sm:h-8"
                     onClick={() => importInputRef.current?.click()}
                   >
                     <Upload className="h-4 w-4" />
@@ -888,7 +880,7 @@ export function ExpressionManagementPage() {
                   <Button
                     variant="destructive"
                     size="sm"
-                    className="h-8"
+                    className="h-9 justify-center sm:h-8"
                     onClick={() => setIsClearConfirmOpen(true)}
                   >
                     清除
@@ -932,7 +924,7 @@ export function ExpressionManagementPage() {
       </ScrollArea>
 
       {(activeView === 'review' || activeView === 'quick') && (
-        <div className="min-h-0 flex-1 pr-4">
+        <div className="min-h-[38rem] flex-1 pr-4">
           <ExpressionReviewer
             embedded
             open
@@ -948,7 +940,7 @@ export function ExpressionManagementPage() {
       )}
 
       {activeView === 'reviewLogs' && (
-        <div className="h-full min-h-0 flex-1 pr-4">
+        <div className="min-h-[38rem] flex-1 pr-4">
           <ExpressionReviewLogPanel
             onRescued={() => {
               loadExpressions()

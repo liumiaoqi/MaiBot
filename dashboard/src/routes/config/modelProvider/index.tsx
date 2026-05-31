@@ -14,6 +14,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { ThinkingIllustration } from '@/components/ui/thinking-illustration'
 import { MODEL_ASSIGNMENT_TOUR_ID, modelAssignmentTourSteps, STEP_ROUTE_MAP } from '@/components/tour/tours/model-assignment-tour'
 import { useTour } from '@/components/tour'
 import { useToast } from '@/hooks/use-toast'
@@ -735,7 +736,7 @@ function ModelProviderConfigPageContent() {
     return (
       <div className="space-y-4 sm:space-y-6 p-4 sm:p-6">
         <div className="flex items-center justify-center h-64">
-          <p className="text-muted-foreground">Thinking...</p>
+          <ThinkingIllustration size="lg" />
         </div>
       </div>
     )

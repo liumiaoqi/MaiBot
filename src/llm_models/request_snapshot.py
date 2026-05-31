@@ -496,18 +496,15 @@ def format_request_snapshot_log_info(exception: Exception) -> str:
             continue
 
         snapshot_path = getattr(candidate, "request_snapshot_path", "")
-        snapshot_uri = getattr(candidate, "request_snapshot_uri", "")
         replay_command = getattr(candidate, "request_snapshot_replay_command", "")
-        if not any([snapshot_path, snapshot_uri, replay_command]):
+        if not any([snapshot_path, replay_command]):
             continue
 
         lines: list[str] = []
         if snapshot_path:
-            lines.append(f"请求快照路径: {snapshot_path}")
-        if snapshot_uri:
-            lines.append(f"请求快照链接: {snapshot_uri}")
+            lines.append(f"调用完整信息（如果需要求助，请发送该文本）: {snapshot_path}")
         if replay_command:
-            lines.append(f"重放命令: {replay_command}")
+            lines.append(f"使用以下命令重新请求: {replay_command}")
         if lines:
             return "\n  " + "\n  ".join(lines)
 

@@ -38,6 +38,12 @@ RESTART_EXIT_CODE = 42
 # print("-----------------------------------------")
 
 
+def _print_interrupt_exit_notice() -> None:
+    """在日志系统不可用或正在退出时，用最小输出提示 Ctrl+C 退出。"""
+
+    print("\n收到 Ctrl+C，中断退出。")
+
+
 def run_runner_process():
     """
     Runner 进程逻辑：作为守护进程运行，负责启动和监控 Worker 进程。
@@ -360,7 +366,10 @@ if __name__ == "__main__":
             loop.run_until_complete(main_tasks)
 
         except KeyboardInterrupt:
-            logger.warning(t("startup.interrupt_received"))
+            try:
+                logger.warning(t("startup.interrupt_received"))
+            except KeyboardInterrupt:
+                raise
 
             # 取消主任务
             if "main_tasks" in locals() and main_tasks and not main_tasks.done():
@@ -374,6 +383,8 @@ if __name__ == "__main__":
             if loop and not loop.is_closed():
                 try:
                     loop.run_until_complete(graceful_shutdown())
+                except KeyboardInterrupt:
+                    _print_interrupt_exit_notice()
                 except Exception as ge:
                     logger.error(t("startup.graceful_shutdown_error", error=ge))
         # 新增：检测外部请求关闭
@@ -387,23 +398,31 @@ if __name__ == "__main__":
         if exit_code == RESTART_EXIT_CODE:
             logger.info(t("startup.restart_signal_received"))
 
+    except KeyboardInterrupt:
+        _print_interrupt_exit_notice()
     except Exception as e:
-        logger.error(t("startup.main_error", error=f"{str(e)} {str(traceback.format_exc())}"))
+        try:
+            logger.error(t("startup.main_error", error=f"{str(e)} {str(traceback.format_exc())}"))
+        except KeyboardInterrupt:
+            _print_interrupt_exit_notice()
         exit_code = 1  # 标记发生错误
     finally:
-        # 确保 loop 在任何情况下都尝试关闭（如果存在且未关闭）
-        if "loop" in locals() and loop and not loop.is_closed():
-            set_main_loop(None)
-            loop.close()
-            print(t("startup.event_loop_closed"))
-
-        # 关闭日志系统，释放文件句柄
         try:
-            shutdown_logging()
-        except Exception as e:
-            print(t("startup.logging_shutdown_error", error=e))
+            # 确保 loop 在任何情况下都尝试关闭（如果存在且未关闭）
+            if "loop" in locals() and loop and not loop.is_closed():
+                set_main_loop(None)
+                loop.close()
+                print(t("startup.event_loop_closed"))
 
-        print(t("startup.prepare_exit"))
+            # 关闭日志系统，释放文件句柄
+            try:
+                shutdown_logging()
+            except Exception as e:
+                print(t("startup.logging_shutdown_error", error=e))
+
+            print(t("startup.prepare_exit"))
+        except KeyboardInterrupt:
+            _print_interrupt_exit_notice()
 
         # 使用 os._exit() 强制退出，避免被阻塞
         # 由于已经在 graceful_shutdown() 中完成了所有清理工作，这是安全的

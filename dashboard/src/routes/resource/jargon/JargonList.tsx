@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
+import { ThinkingIllustration } from '@/components/ui/thinking-illustration'
 import {
   Table,
   TableBody,
@@ -114,7 +115,7 @@ export function JargonList({
             {loading ? (
               <TableRow>
                 <TableCell colSpan={tableColSpan} className="text-center py-8 text-muted-foreground">
-                  Thinking...
+                  <ThinkingIllustration size="sm" className="mx-auto" />
                 </TableCell>
               </TableRow>
             ) : jargons.length === 0 ? (
@@ -192,7 +193,9 @@ export function JargonList({
       {/* 移动端卡片视图 */}
       <div className="md:hidden space-y-3 p-4">
         {loading ? (
-          <div className="text-center py-8 text-muted-foreground">Thinking...</div>
+          <div className="text-center py-8 text-muted-foreground">
+            <ThinkingIllustration size="sm" className="mx-auto" />
+          </div>
         ) : jargons.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">暂无数据</div>
         ) : (

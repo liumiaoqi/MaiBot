@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import { ThinkingIllustration } from '@/components/ui/thinking-illustration'
 import { cn } from '@/lib/utils'
 import type {
   MemoryImportChunkPayload,
@@ -1098,9 +1099,8 @@ export function ImportTab(props: ImportTabProps) {
           </CardHeader>
           <CardContent className="space-y-6">
             {selectedImportTaskLoading ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Thinking...
+              <div className="flex items-center gap-2">
+                <ThinkingIllustration size="sm" />
               </div>
             ) : null}
 
@@ -1320,7 +1320,7 @@ export function ImportTab(props: ImportTabProps) {
                         {importChunksLoading ? (
                           <TableRow>
                             <TableCell colSpan={5} className="text-center text-muted-foreground">
-                              Thinking...
+                              <ThinkingIllustration size="sm" className="mx-auto" />
                             </TableCell>
                           </TableRow>
                         ) : selectedImportChunks.length > 0 ? (

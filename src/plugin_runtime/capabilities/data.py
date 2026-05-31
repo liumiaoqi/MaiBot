@@ -1,21 +1,23 @@
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import random
 import time
 
-from src.chat.message_receive.chat_manager import BotChatSession, chat_manager
-from src.common.data_models.image_data_model import MaiEmoji
 from src.common.logger import get_logger
-from src.common.utils.utils_image import ImageUtils
-from src.plugin_runtime.host.message_utils import PluginMessageUtils
+
+if TYPE_CHECKING:
+    from src.chat.message_receive.chat_manager import BotChatSession
+    from src.common.data_models.image_data_model import MaiEmoji
 
 logger = get_logger("plugin_runtime.integration")
 
 
 class RuntimeDataCapabilityMixin:
     @staticmethod
-    def _serialize_emoji_payload(emoji: MaiEmoji) -> Optional[Dict[str, str]]:
+    def _serialize_emoji_payload(emoji: "MaiEmoji") -> Optional[Dict[str, str]]:
+        from src.common.utils.utils_image import ImageUtils
+
         emoji_base64 = ImageUtils.image_path_to_base64(str(emoji.full_path))
         if not emoji_base64:
             return None
@@ -57,7 +59,7 @@ class RuntimeDataCapabilityMixin:
         return deduped_tags
 
     @staticmethod
-    def _normalize_emoji_tags(emoji: MaiEmoji) -> str:
+    def _normalize_emoji_tags(emoji: "MaiEmoji") -> str:
         """从表情包对象提取兼容旧数据的情绪标签文本。"""
         tags = RuntimeDataCapabilityMixin._normalize_emoji_tag_text(emoji.description or emoji.emotion)
         return tags[0] if tags else ""
@@ -225,7 +227,9 @@ class RuntimeDataCapabilityMixin:
             logger.error(f"[cap.database.count] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
-    def _list_sessions(self, platform: str, is_group_session: Optional[bool] = None) -> List[BotChatSession]:
+    def _list_sessions(self, platform: str, is_group_session: Optional[bool] = None) -> List["BotChatSession"]:
+        from src.chat.message_receive.chat_manager import chat_manager
+
         return [
             session
             for session in chat_manager.sessions.values()
@@ -234,7 +238,7 @@ class RuntimeDataCapabilityMixin:
         ]
 
     @staticmethod
-    def _serialize_stream(stream: BotChatSession) -> Dict[str, Any]:
+    def _serialize_stream(stream: "BotChatSession") -> Dict[str, Any]:
         return {
             "session_id": stream.session_id,
             "stream_id": stream.session_id,
@@ -306,6 +310,8 @@ class RuntimeDataCapabilityMixin:
             return {"success": False, "error": "私聊会话缺少必要参数 user_id"}
 
         try:
+            from src.chat.message_receive.chat_manager import chat_manager
+
             existing_session_ids = chat_manager.resolve_session_ids_by_target(
                 platform=platform,
                 target_id=group_id if chat_type == "group" else user_id,
@@ -371,6 +377,8 @@ class RuntimeDataCapabilityMixin:
 
     @staticmethod
     def _serialize_messages(messages: list, include_binary_data: bool = True) -> List[Any]:
+        from src.plugin_runtime.host.message_utils import PluginMessageUtils
+
         result: List[Any] = []
         for msg in messages:
             if all(hasattr(msg, attr) for attr in ("message_id", "timestamp", "platform", "message_info", "raw_message")):
@@ -701,6 +709,8 @@ class RuntimeDataCapabilityMixin:
             return {"success": False, "error": "缺少必要参数 emoji_base64"}
 
         try:
+            from src.common.utils.utils_image import ImageUtils
+
             count_before = len(emoji_manager.emojis)
             temp_file_path = self._build_emoji_temp_path()
             if not ImageUtils.base64_to_image(emoji_base64, str(temp_file_path)):

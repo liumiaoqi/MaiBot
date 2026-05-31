@@ -20,3 +20,16 @@ def test_splitter_normalizes_residual_newlines_inside_segment(monkeypatch) -> No
     segments = chat_utils.split_into_sentences_w_remove_punctuation('"第一行\n第二行"')
 
     assert segments == ['"第一行 第二行"']
+
+
+def test_splitter_keeps_dash_adjacent_spaces(monkeypatch) -> None:
+    """空格相邻短横线或破折号时不应拆分，避免命令参数和说明文本被切开。"""
+
+    monkeypatch.setattr(chat_utils.random, "random", lambda: 1.0)
+
+    assert chat_utils.split_into_sentences_w_remove_punctuation("pip install -r requirements.txt") == [
+        "pip install -r requirements.txt"
+    ]
+    assert chat_utils.split_into_sentences_w_remove_punctuation("参数 - 值") == ["参数 - 值"]
+    assert chat_utils.split_into_sentences_w_remove_punctuation("参数 —— 值") == ["参数 —— 值"]
+    assert chat_utils.split_into_sentences_w_remove_punctuation("参数 — 值") == ["参数 — 值"]

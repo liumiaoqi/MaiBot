@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import aiohttp
@@ -8,6 +9,7 @@ from src.common.logger import get_logger
 from src.config.config import global_config, MMC_VERSION
 from src.manager.async_task_manager import AsyncTask
 from src.manager.local_store_manager import local_storage
+from src.services.telemetry_stats_service import build_telemetry_stats_payload, clamp_period_start
 
 logger = get_logger("remote")
 
@@ -29,7 +31,7 @@ async def get_tcp_connector():
 
 
 class TelemetryHeartBeatTask(AsyncTask):
-    HEARTBEAT_INTERVAL = 300
+    HEARTBEAT_INTERVAL = 600
 
     def __init__(self):
         super().__init__(task_name="Telemetry Heart Beat Task", run_interval=self.HEARTBEAT_INTERVAL)
@@ -176,3 +178,111 @@ class TelemetryHeartBeatTask(AsyncTask):
                 return
 
             await self._send_heartbeat()
+
+
+class TelemetryStatsUploadTask(AsyncTask):
+    STATS_UPLOAD_INTERVAL = 15*60
+    MAX_LOOKBACK_SECONDS = 7 * 24 * 60 * 60
+    RETRY_DELAYS = (5, 15, 45)
+    CURSOR_KEY = "telemetry_stats_cursor"
+
+    def __init__(self):
+        super().__init__(
+            task_name="Telemetry Stats Upload Task",
+            wait_before_start=self.STATS_UPLOAD_INTERVAL,
+            run_interval=self.STATS_UPLOAD_INTERVAL,
+        )
+        self.server_url = TELEMETRY_SERVER_URL
+        self.client_uuid: str | None = local_storage["mmc_uuid"] if "mmc_uuid" in local_storage else None  # type: ignore
+        self.info_dict = TelemetryHeartBeatTask._get_sys_info()
+        self.process_start_at = datetime.now().astimezone()
+
+    async def _req_uuid(self) -> bool:
+        heartbeat_task = TelemetryHeartBeatTask()
+        result = await heartbeat_task._req_uuid()
+        self.client_uuid = heartbeat_task.client_uuid
+        return result
+
+    def _resolve_period(self) -> tuple[datetime, datetime, bool]:
+        period_end = datetime.now().astimezone()
+        cursor = local_storage[self.CURSOR_KEY] if self.CURSOR_KEY in local_storage else None
+        period_start = self.process_start_at
+        if isinstance(cursor, dict):
+            raw_last_success_end_at = str(cursor.get("last_success_end_at") or "").strip()
+            if raw_last_success_end_at:
+                try:
+                    period_start = datetime.fromisoformat(raw_last_success_end_at)
+                    if period_start.tzinfo is None:
+                        period_start = period_start.replace(tzinfo=timezone.utc).astimezone()
+                except ValueError:
+                    period_start = self.process_start_at
+
+        period_start, truncated = clamp_period_start(
+            requested_start=period_start,
+            period_end=period_end,
+            max_lookback=timedelta(seconds=self.MAX_LOOKBACK_SECONDS),
+        )
+        return period_start, period_end, truncated
+
+    def _save_cursor(self, period_end: datetime) -> None:
+        local_storage[self.CURSOR_KEY] = {
+            "schema_version": 1,
+            "last_success_end_at": period_end.isoformat(),
+            "updated_at": datetime.now().astimezone().isoformat(),
+        }
+
+    async def _send_stats_payload(self, payload: dict[str, Any]) -> bool:
+        headers = {
+            "Client-UUID": self.client_uuid,
+            "User-Agent": f"TelemetryStatsClient/{self.client_uuid[:8]}",  # type: ignore
+        }
+
+        for attempt_index, delay_seconds in enumerate((0, *self.RETRY_DELAYS), start=1):
+            if delay_seconds:
+                await asyncio.sleep(delay_seconds)
+            try:
+                async with aiohttp.ClientSession(connector=await get_tcp_connector()) as session:
+                    async with session.post(
+                        f"{self.server_url}/stat/client_statistics",
+                        headers=headers,
+                        json=payload,
+                        timeout=aiohttp.ClientTimeout(total=15),
+                    ) as response:
+                        if 200 <= response.status < 300:
+                            logger.debug(f"遥测统计上传成功，状态码: {response.status}")
+                            return True
+                        if response.status == 403:
+                            logger.warning("遥测统计上传失败，UUID 可能无效，将在下次重新注册")
+                            self.client_uuid = None
+                            if "mmc_uuid" in local_storage:
+                                del local_storage["mmc_uuid"]
+                            return False
+                        response_text = await response.text()
+                        logger.warning(
+                            f"遥测统计上传失败: attempt={attempt_index}, status={response.status}, "
+                            f"response={response_text}"
+                        )
+            except Exception as exc:
+                logger.warning(f"遥测统计上传异常: attempt={attempt_index}, error={type(exc).__name__}: {exc}")
+        return False
+
+    async def run(self):
+        if not global_config.telemetry.enable:
+            return
+        if self.client_uuid is None and not await self._req_uuid():
+            logger.warning("获取UUID失败，跳过此次遥测统计上传")
+            return
+
+        period_start, period_end, truncated = self._resolve_period()
+        if period_end <= period_start:
+            return
+
+        payload = build_telemetry_stats_payload(
+            client_uuid=self.client_uuid,
+            period_start=period_start,
+            period_end=period_end,
+            truncated=truncated,
+            client_info=self.info_dict,
+        )
+        if await self._send_stats_payload(payload):
+            self._save_cursor(period_end)

@@ -27,6 +27,9 @@ _SEMVER_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
 _PLUGIN_ID_PATTERN = re.compile(r"^[A-Za-z0-9_]+(?:[.-][A-Za-z0-9_]+)+$")
 _PACKAGE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 _HTTP_URL_PATTERN = re.compile(r"^https?://.+$")
+_ICON_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
+_HEX_COLOR_PATTERN = re.compile(r"^#[0-9A-Fa-f]{6}$")
+_LOCAL_ICON_SUFFIXES = {".jpg", ".jpeg", ".png", ".svg", ".webp"}
 _RESERVED_PLUGIN_DIRECTORY_NAMES = {"data"}
 
 
@@ -517,6 +520,73 @@ ManifestDependencyDefinition = Annotated[
 ]
 
 
+class ManifestDisplayIcon(_StrictManifestModel):
+    """插件展示图标声明。"""
+
+    type: Literal["lucide", "emoji", "local"] = Field(description="图标类型")
+    value: str = Field(description="图标值")
+    fallback: Optional[str] = Field(default=None, description="图标加载失败时使用的 lucide 图标名")
+    background: Optional[str] = Field(default=None, description="图标背景色，格式为 #RRGGBB")
+
+    @field_validator("value")
+    @classmethod
+    def _validate_value(cls, value: str) -> str:
+        """校验图标值不能为空。"""
+        normalized_value = str(value or "").strip()
+        if not normalized_value:
+            raise ValueError("图标值不能为空")
+        return normalized_value
+
+    @field_validator("fallback")
+    @classmethod
+    def _validate_fallback(cls, value: Optional[str]) -> Optional[str]:
+        """校验 fallback 图标名。"""
+        if value is None:
+            return None
+        normalized_value = str(value or "").strip()
+        if not normalized_value:
+            raise ValueError("fallback 不能为空")
+        if not _ICON_NAME_PATTERN.fullmatch(normalized_value):
+            raise ValueError("fallback 只能包含字母、数字、下划线和横线")
+        return normalized_value
+
+    @field_validator("background")
+    @classmethod
+    def _validate_background(cls, value: Optional[str]) -> Optional[str]:
+        """校验图标背景色。"""
+        if value is None:
+            return None
+        normalized_value = str(value or "").strip()
+        if not _HEX_COLOR_PATTERN.fullmatch(normalized_value):
+            raise ValueError("background 必须为 #RRGGBB 格式")
+        return normalized_value
+
+    @model_validator(mode="after")
+    def _validate_icon_value_by_type(self) -> "ManifestDisplayIcon":
+        """按图标类型校验 value。"""
+        if self.type == "lucide":
+            if not _ICON_NAME_PATTERN.fullmatch(self.value):
+                raise ValueError("lucide 图标名只能包含字母、数字、下划线和横线")
+            return self
+
+        if self.type == "local":
+            icon_path = Path(self.value)
+            if icon_path.is_absolute() or any(part == ".." for part in icon_path.parts):
+                raise ValueError("local 图标路径必须是插件目录内的相对路径")
+            if "\x00" in self.value or self.value.startswith(("/", "\\")):
+                raise ValueError("local 图标路径包含非法字符")
+            if icon_path.suffix.lower() not in _LOCAL_ICON_SUFFIXES:
+                raise ValueError("local 图标仅支持 jpg、jpeg、png、svg、webp")
+
+        return self
+
+
+class ManifestDisplay(_StrictManifestModel):
+    """插件展示元信息。"""
+
+    icon: Optional[ManifestDisplayIcon] = Field(default=None, description="插件展示图标")
+
+
 class PluginManifest(_StrictManifestModel):
     """插件 Manifest v2 强类型模型。"""
 
@@ -537,6 +607,19 @@ class PluginManifest(_StrictManifestModel):
     capabilities: List[str] = Field(description="插件声明的能力请求")
     i18n: ManifestI18n = Field(description="国际化配置")
     id: str = Field(description="稳定插件 ID")
+    plugin_type: Literal[
+        "adapter",
+        "tool",
+        "provider",
+        "management",
+        "data",
+        "media",
+        "game",
+        "integration",
+        "extension",
+        "other",
+    ] = Field(default="extension", description="插件类型")
+    display: Optional[ManifestDisplay] = Field(default=None, description="插件展示元信息")
 
     @field_validator("version")
     @classmethod

@@ -1,5 +1,5 @@
 {chat_str}
-Your name is {bot_name}. Now please complete two extraction tasks.
+You need to complete two extraction tasks.
 Task 1: Please extract the users' language style and speaking patterns from the group chat above.
 1. Only consider text; do not consider stickers or images
 2. Do not summarize SELF's messages, because those are your own messages, so do not repeatedly learn from your own messages
@@ -46,4 +46,4 @@ Jargon entries:
 - content: the content of the jargon
 - source_id: the source number corresponding to that jargon, namely the number in the source_id field in the chat log above (for example [source_id:3] corresponds to "3"); output only the number itself
 
-Now please output JSON:
+Output JSON:

@@ -368,7 +368,11 @@ def _convert_text_only_message_content(
     for part in message.parts:
         if not isinstance(part, TextMessagePart):
             raise ValueError(f"{message.role.value} 消息仅支持文本片段")
+        if not part.text.strip():
+            continue
         content.append(_build_text_content_part(part.text))
+    if not content:
+        return ""
     return content
 
 
@@ -387,7 +391,8 @@ def _convert_user_message_content(message: Message) -> str | List[ChatCompletion
     content: List[ChatCompletionContentPartParam] = []
     for part in message.parts:
         if isinstance(part, TextMessagePart):
-            content.append(_build_text_content_part(part.text))
+            if part.text.strip():
+                content.append(_build_text_content_part(part.text))
             continue
 
         normalized_image = _normalize_image_part_for_openai(part)
@@ -404,6 +409,8 @@ def _convert_user_message_content(message: Message) -> str | List[ChatCompletion
                 },
             }
         )
+    if not content:
+        return ""
     return content
 
 

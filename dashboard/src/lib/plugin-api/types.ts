@@ -1,3 +1,5 @@
+import type { PluginDisplay, PluginType } from '@/types/plugin'
+
 /**
  * Git 安装状态
  */
@@ -41,7 +43,8 @@ export interface InstalledPlugin {
     homepage_url?: string
     repository_url?: string
     keywords?: string[]
-    categories?: string[]
+    plugin_type?: PluginType
+    display?: PluginDisplay
     [key: string]: unknown  // 允许其他字段
   }
   path: string

@@ -47,6 +47,79 @@ def test_person_fact_resolve_target_person_for_private_chat(monkeypatch):
     assert person.person_id == "qq:123"
 
 
+def test_person_fact_reply_evidence_keeps_context_for_short_answer(monkeypatch):
+    class FakePerson:
+        person_id = "qq:user-1"
+
+    def make_message(
+        *,
+        message_id: str,
+        user_id: str,
+        nickname: str,
+        text: str,
+        timestamp: float,
+    ):
+        return SimpleNamespace(
+            message_id=message_id,
+            platform="qq",
+            user_id=user_id,
+            timestamp=timestamp,
+            processed_plain_text=text,
+            message_info=SimpleNamespace(
+                user_info=SimpleNamespace(
+                    user_id=user_id,
+                    user_nickname=nickname,
+                    user_cardname="",
+                ),
+            ),
+        )
+
+    bot_question = make_message(
+        message_id="bot-question",
+        user_id="bot-1",
+        nickname="麦麦",
+        text="你对什么过敏？",
+        timestamp=10.0,
+    )
+    user_answer = make_message(
+        message_id="user-answer",
+        user_id="user-1",
+        nickname="测试用户",
+        text="青霉素。",
+        timestamp=11.0,
+    )
+
+    def fake_find_messages(**kwargs):
+        if kwargs.get("message_id") == "user-answer":
+            return [user_answer]
+        if kwargs.get("session_id") == "session-1":
+            assert kwargs.get("filter_bot") is None
+            return [bot_question, user_answer]
+        return []
+
+    monkeypatch.setattr(memory_flow_module, "find_messages", fake_find_messages)
+    monkeypatch.setattr(memory_flow_module, "is_bot_self", lambda platform, user_id: user_id == "bot-1")
+    monkeypatch.setattr(memory_flow_module, "get_person_id", lambda platform, user_id: f"{platform}:{user_id}")
+
+    service = memory_flow_module.PersonFactWritebackService.__new__(memory_flow_module.PersonFactWritebackService)
+    reply_message = SimpleNamespace(
+        session_id="session-1",
+        reply_to="user-answer",
+        timestamp=12.0,
+        session=SimpleNamespace(session_id="session-1"),
+    )
+
+    evidence = service._collect_user_evidence(reply_message, FakePerson())
+    evidence_text = service._format_user_evidence(evidence)
+
+    assert evidence.target_messages == [user_answer]
+    assert evidence.context_messages == [bot_question, user_answer]
+    assert "目标用户原始发言" in evidence_text
+    assert "青霉素。" in evidence_text
+    assert "邻近上下文" in evidence_text
+    assert "麦麦: 你对什么过敏？" in evidence_text
+
+
 @pytest.mark.asyncio
 async def test_person_fact_writeback_skips_bot_only_fact_without_user_evidence(monkeypatch):
     stored_facts: list[tuple[str, str, str]] = []
@@ -82,6 +155,68 @@ async def test_person_fact_writeback_skips_bot_only_fact_without_user_evidence(m
     await service._handle_message(message)
 
     assert stored_facts == []
+
+
+@pytest.mark.asyncio
+async def test_person_fact_writeback_uses_resolved_person_id(monkeypatch):
+    stored_payloads: list[dict[str, object]] = []
+
+    class FakePerson:
+        person_id = "person-target"
+        person_name = "重名用户"
+        nickname = "重名用户"
+        is_known = True
+
+    user_message = SimpleNamespace(
+        message_id="user-1",
+        platform="qq",
+        user_id="10001",
+        processed_plain_text="我长期用青轴键盘。",
+        message_info=SimpleNamespace(user_info=SimpleNamespace(user_id="10001")),
+    )
+
+    service = memory_flow_module.PersonFactWritebackService.__new__(memory_flow_module.PersonFactWritebackService)
+    service._resolve_target_person = lambda message: FakePerson()
+
+    async def fake_extract_facts(person, reply_text, user_evidence_text):
+        assert person.person_id == "person-target"
+        assert "我长期用青轴键盘" in user_evidence_text
+        del reply_text
+        return ["重名用户长期使用青轴键盘"]
+
+    async def fake_store_person_memory_from_answer(person_name: str, memory_content: str, chat_id: str, **kwargs):
+        stored_payloads.append(
+            {
+                "person_name": person_name,
+                "memory_content": memory_content,
+                "chat_id": chat_id,
+                **kwargs,
+            }
+        )
+
+    service._extract_facts = fake_extract_facts
+    monkeypatch.setattr(memory_flow_module, "store_person_memory_from_answer", fake_store_person_memory_from_answer)
+    monkeypatch.setattr(
+        memory_flow_module,
+        "find_messages",
+        lambda **kwargs: [user_message] if kwargs.get("session_id") == "session-1" else [],
+    )
+    monkeypatch.setattr(memory_flow_module, "is_bot_self", lambda platform, user_id: False)
+    monkeypatch.setattr(memory_flow_module, "get_person_id", lambda platform, user_id: "person-target")
+
+    message = SimpleNamespace(
+        processed_plain_text="我记住了，你长期用青轴键盘。",
+        session_id="session-1",
+        reply_to="",
+        timestamp=20.0,
+        session=SimpleNamespace(platform="qq", user_id="bot-1", group_id="", session_id="session-1"),
+    )
+
+    await service._handle_message(message)
+
+    assert len(stored_payloads) == 1
+    assert stored_payloads[0]["person_id"] == "person-target"
+    assert stored_payloads[0]["evidence_message_ids"] == ["user-1"]
 
 
 @pytest.mark.asyncio

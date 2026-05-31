@@ -56,6 +56,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
+import { ThinkingIllustration } from '@/components/ui/thinking-illustration'
 
 import { useToast } from '@/hooks/use-toast'
 
@@ -439,7 +440,7 @@ export function PersonManagementPage() {
               {loading ? (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                    Thinking...
+                    <ThinkingIllustration size="sm" className="mx-auto" />
                   </TableCell>
                 </TableRow>
               ) : persons.length === 0 ? (
@@ -516,7 +517,7 @@ export function PersonManagementPage() {
         <div className="md:hidden space-y-3 p-4">
           {loading ? (
             <div className="text-center py-8 text-muted-foreground">
-              Thinking...
+              <ThinkingIllustration size="sm" className="mx-auto" />
             </div>
           ) : persons.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">

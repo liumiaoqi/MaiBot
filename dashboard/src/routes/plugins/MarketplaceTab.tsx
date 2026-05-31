@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { Sparkles } from 'lucide-react'
 
 import type { GitStatus, MaimaiVersion, MarketplaceSortKey, PluginInfo, PluginLoadProgress, PluginStatsData } from './types'
+import { getPluginType } from './types'
 import { PluginCard } from './PluginCard'
 
 const SURPRISE_PLUGIN_COUNT = 4
@@ -10,7 +11,7 @@ const SURPRISE_CANDIDATE_LIMIT = 20
 interface MarketplaceTabProps {
   plugins: PluginInfo[]
   searchQuery: string
-  categoryFilter: string
+  pluginTypeFilter: string
   showCompatibleOnly: boolean
   sortBy: MarketplaceSortKey
   gitStatus: GitStatus | null
@@ -96,7 +97,7 @@ function selectSurprisePlugins(
 export function MarketplaceTab({
   plugins,
   searchQuery,
-  categoryFilter,
+  pluginTypeFilter,
   showCompatibleOnly,
   sortBy,
   gitStatus,
@@ -167,16 +168,15 @@ export function MarketplaceTab({
       plugin.manifest.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (plugin.manifest.keywords && plugin.manifest.keywords.some(k => k.toLowerCase().includes(searchQuery.toLowerCase())))
     
-    // 分类过滤
-    const matchesCategory = categoryFilter === 'all' ||
-      (plugin.manifest.categories && plugin.manifest.categories.includes(categoryFilter))
+    // 类型过滤
+    const matchesType = pluginTypeFilter === 'all' || getPluginType(plugin) === pluginTypeFilter
     
     // 兼容性过滤
     const matchesCompatibility = !showCompatibleOnly || 
       !maimaiVersion || 
       checkPluginCompatibility(plugin)
     
-    return matchesSearch && matchesCategory && matchesCompatibility
+    return matchesSearch && matchesType && matchesCompatibility
   }).sort((left, right) => {
     const valueDiff = getSortValue(right) - getSortValue(left)
     if (valueDiff !== 0) {
@@ -216,13 +216,13 @@ export function MarketplaceTab({
             <Sparkles className="h-4 w-4 text-primary" />
             <h2 className="text-base font-semibold">惊喜随意</h2>
           </div>
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             {surprisePlugins.map(renderPluginCard)}
           </div>
         </section>
       )}
 
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
         {mainPlugins.map(renderPluginCard)}
       </div>
     </div>

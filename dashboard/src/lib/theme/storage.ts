@@ -48,7 +48,11 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null
 
 function normalizeDashboardStyle(value: unknown): DashboardStyle {
-  return value === 'future-retro' ? 'future-retro' : DEFAULT_DASHBOARD_STYLE
+  if (value === 'modern' || value === 'future-retro') {
+    return value
+  }
+
+  return DEFAULT_DASHBOARD_STYLE
 }
 
 function normalizeStyleConfig(value: unknown): DashboardStyleConfig {

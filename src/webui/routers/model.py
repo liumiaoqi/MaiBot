@@ -14,6 +14,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from src.common.logger import get_logger
 from src.config.config import CONFIG_DIR
 from src.config.model_configs import APIProvider
+from src.llm_models.model_client import ensure_client_type_loaded
+from src.llm_models.model_client.base_client import client_registry
 from src.llm_models.openai_compat import build_openai_compatible_client_config, normalize_openai_base_url
 from src.webui.dependencies import require_auth
 from src.webui.utils.network_security import validate_public_url
@@ -34,6 +36,32 @@ MODEL_FETCHER_CONFIG = {
         "parser": "gemini",
     },
 }
+
+
+@router.get("/client-types")
+async def get_registered_client_types():
+    """返回当前主程序与插件已注册的 LLM Provider client_type。"""
+    for client_type in MODEL_FETCHER_CONFIG:
+        ensure_client_type_loaded(client_type)
+
+    client_types = []
+    for registration in client_registry.client_registry.values():
+        client_types.append(
+            {
+                "client_type": registration.client_type,
+                "owner_plugin_id": registration.owner_plugin_id,
+                "version": registration.version,
+                "description": registration.description,
+                "builtin": registration.builtin,
+            }
+        )
+
+    client_types.sort(key=lambda item: (not item["builtin"], item["client_type"]))
+    return {
+        "success": True,
+        "client_types": client_types,
+        "count": len(client_types),
+    }
 
 
 def _normalize_url(url: str) -> str:

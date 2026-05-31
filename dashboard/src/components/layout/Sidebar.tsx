@@ -70,6 +70,7 @@ export function Sidebar({
                 <div
                   className={cn(
                     'h-[1.25rem] px-3',
+                    section.title === 'sidebar.groups.overview' && 'hidden',
                     // 移动端始终显示，桌面端根据状态切换
                     'mb-2',
                     !sidebarOpen && 'lg:invisible lg:mb-1'

@@ -10,6 +10,10 @@ interface MarkdownRendererProps {
   className?: string
 }
 
+type MarkdownComponentProps<T extends 'code' | 'pre'> = ComponentPropsWithoutRef<T> & {
+  node?: unknown
+}
+
 export function MarkdownRenderer({ content, className = '' }: MarkdownRendererProps) {
   return (
     <div className={`prose prose-sm dark:prose-invert max-w-none ${className}`}>
@@ -17,16 +21,26 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[rehypeKatex]}
         components={{
-          // 自定义代码块样式
-          code({ inline, className, children, ...props }: ComponentPropsWithoutRef<'code'> & { inline?: boolean }) {
-            return inline ? (
-              <code className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono" {...props}>
+          // 自定义代码样式：块级样式交给 pre，避免行内反引号被渲染成独立代码块。
+          code({ className, children, node, ...props }: MarkdownComponentProps<'code'>) {
+            void node
+
+            return (
+              <code className={`${className ?? ''} bg-muted px-1.5 py-0.5 rounded text-sm font-mono`} {...props}>
                 {children}
               </code>
-            ) : (
-              <code className={`${className} block bg-muted p-4 rounded-lg overflow-x-auto`} {...props}>
+            )
+          },
+          pre({ children, node, ...props }: MarkdownComponentProps<'pre'>) {
+            void node
+
+            return (
+              <pre
+                className="my-3 overflow-x-auto rounded-lg bg-muted p-4 text-sm [&>code]:block [&>code]:bg-transparent [&>code]:p-0"
+                {...props}
+              >
                 {children}
-              </code>
+              </pre>
             )
           },
           // 自定义表格样式

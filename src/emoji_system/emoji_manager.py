@@ -8,10 +8,9 @@ import heapq
 import random
 import re
 
+from rapidfuzz.distance import Levenshtein
 from rich.traceback import install
 from sqlmodel import select
-
-import Levenshtein
 
 from src.common.data_models.image_data_model import MaiEmoji
 from src.common.data_models.llm_service_data_models import LLMGenerationOptions

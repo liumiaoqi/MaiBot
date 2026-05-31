@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, Loader2, Play, RefreshCw, RotateCcw, Search } from 'lucide-react'
+import { ChevronDown, Play, RefreshCw, RotateCcw, Search } from 'lucide-react'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
+import { ThinkingIllustration } from '@/components/ui/thinking-illustration'
 import { useToast } from '@/hooks/use-toast'
 import {
   getMemoryEpisode,
@@ -365,7 +366,7 @@ export function MemoryEpisodeManager() {
                   }) : (
                     <TableRow>
                       <TableCell colSpan={3} className="text-center text-muted-foreground">
-                        {loading ? 'Thinking...' : '没有匹配的 Episode'}
+                        {loading ? <ThinkingIllustration size="sm" className="mx-auto" /> : '没有匹配的 Episode'}
                       </TableCell>
                     </TableRow>
                   )}
@@ -384,8 +385,7 @@ export function MemoryEpisodeManager() {
             <CardContent className="space-y-4">
               {detailLoading ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Thinking
+                  <ThinkingIllustration size="sm" />
                 </div>
               ) : selectedEpisode ? (
                 <>

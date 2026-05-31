@@ -59,10 +59,10 @@ export function SettingsPage() {
   }, [])
 
   return (
-    <div className="p-4 sm:p-6">
+    <div className="flex h-full min-h-0 flex-col p-4 sm:p-6">
       {/* 页面标题 */}
       <div
-        className={`flex flex-col justify-between gap-4 overflow-hidden transition-all duration-200 sm:flex-row sm:items-center ${
+        className={`flex shrink-0 flex-col justify-between gap-4 overflow-hidden transition-all duration-200 sm:flex-row sm:items-center ${
           isTitleCollapsed ? 'max-h-0 opacity-0' : 'max-h-12 opacity-100'
         }`}
       >
@@ -75,36 +75,37 @@ export function SettingsPage() {
       <Tabs
         value={activeTab}
         onValueChange={handleTabChange}
-        className={`w-full transition-[margin] duration-200 ${isTitleCollapsed ? 'mt-0' : 'mt-4 sm:mt-6'}`}
+        className={`flex min-h-0 w-full flex-1 flex-col transition-[margin] duration-200 ${isTitleCollapsed ? 'mt-0' : 'mt-4 sm:mt-6'}`}
       >
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 gap-0.5 sm:gap-1 h-auto p-1">
-          <TabsTrigger value="appearance" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3 py-2">
+        <div className="-mx-1 shrink-0 overflow-x-auto px-1 pb-1 sm:mx-0 sm:overflow-visible sm:p-0">
+        <TabsList className="inline-grid h-auto w-max min-w-full grid-cols-5 gap-1 p-1 sm:w-full">
+          <TabsTrigger value="appearance" className="h-10 min-w-[5.5rem] gap-1 px-3 py-2 text-xs sm:min-w-0 sm:gap-2 sm:text-sm">
             <Palette className="h-3.5 w-3.5 sm:h-4 sm:w-4" strokeWidth={2} fill="none" />
             <span>{t('settings.tabs.appearance')}</span>
           </TabsTrigger>
-          <TabsTrigger value="security" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3 py-2">
+          <TabsTrigger value="security" className="h-10 min-w-[5.5rem] gap-1 px-3 py-2 text-xs sm:min-w-0 sm:gap-2 sm:text-sm">
             <Shield className="h-3.5 w-3.5 sm:h-4 sm:w-4" strokeWidth={2} fill="none" />
             <span>{t('settings.tabs.security')}</span>
           </TabsTrigger>
-          <TabsTrigger value="local-cache" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3 py-2">
+          <TabsTrigger value="local-cache" className="h-10 min-w-[5.5rem] gap-1 px-3 py-2 text-xs sm:min-w-0 sm:gap-2 sm:text-sm">
             <HardDrive className="h-3.5 w-3.5 sm:h-4 sm:w-4" strokeWidth={2} fill="none" />
             <span>本地缓存</span>
           </TabsTrigger>
-          <TabsTrigger value="other" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3 py-2">
+          <TabsTrigger value="other" className="h-10 min-w-[5.5rem] gap-1 px-3 py-2 text-xs sm:min-w-0 sm:gap-2 sm:text-sm">
             <Settings className="h-3.5 w-3.5 sm:h-4 sm:w-4" strokeWidth={2} fill="none" />
             <span>{t('settings.tabs.other')}</span>
           </TabsTrigger>
-          <TabsTrigger value="about" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3 py-2">
+          <TabsTrigger value="about" className="h-10 min-w-[5.5rem] gap-1 px-3 py-2 text-xs sm:min-w-0 sm:gap-2 sm:text-sm">
             <Info className="h-3.5 w-3.5 sm:h-4 sm:w-4" strokeWidth={2} fill="none" />
             <span>{t('settings.tabs.about')}</span>
           </TabsTrigger>
         </TabsList>
+        </div>
 
         <ScrollArea
           viewportRef={scrollViewportRef}
-          className={`mt-4 transition-[height] duration-200 sm:mt-6 ${
-            isTitleCollapsed ? 'h-[calc(100vh-180px)] sm:h-[calc(100vh-200px)]' : 'h-[calc(100vh-240px)] sm:h-[calc(100vh-280px)]'
-          }`}
+          contentClassName="pb-6"
+          className="mt-4 min-h-0 flex-1 sm:mt-6"
         >
           <TabsContent value="appearance" className="mt-0">
             <AppearanceTab />

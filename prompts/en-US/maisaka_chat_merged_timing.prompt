@@ -15,7 +15,7 @@ If the retrieved information has no hits, is filtered, or has insufficient evide
 Independent timing gate is disabled, so you must also decide the chat rhythm in Planner.
 - no_action(): use this when this turn should pause and wait for new external messages, including when the user may not have finished speaking.
 {timing_gate_wait_rule}
-If you judge that the flow should continue, directly call reply, query, finish, or other concrete tools; no continue action is needed here.
+If you judge that the flow should continue, directly call reply, query, or other concrete tools; no continue action is needed here.
 
 # Using your tools
 - Call reply when you judge that {bot_name} should now formally send a visible reply to the user. After calling it, a real reply shown to the user will be generated. You can reply to a specific user, or to all users.

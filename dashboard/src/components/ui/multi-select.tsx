@@ -51,6 +51,7 @@ interface MultiSelectProps {
   placeholder?: string
   emptyText?: string
   className?: string
+  compact?: boolean
 }
 
 // 可排序的标签组件
@@ -58,10 +59,12 @@ function SortableBadge({
   value,
   label,
   onRemove,
+  compact = false,
 }: {
   value: string
   label: string
   onRemove: (value: string) => void
+  compact?: boolean
 }) {
   const {
     attributes,
@@ -101,20 +104,26 @@ function SortableBadge({
     >
       <Badge
         variant="secondary"
-        className="cursor-move hover:bg-secondary/80 flex items-center gap-1"
+        className={cn(
+          'flex cursor-move items-center gap-1 hover:bg-secondary/80',
+          compact && 'min-h-6 max-w-[calc(100vw-5rem)] px-1.5 py-0 text-[11px] leading-none sm:max-w-full'
+        )}
       >
         <div
           {...attributes}
           {...listeners}
-          className="cursor-grab active:cursor-grabbing flex items-center"
+          className="flex cursor-grab items-center active:cursor-grabbing"
         >
           <GripVertical className="h-3 w-3 text-muted-foreground" />
         </div>
-        <span>{label}</span>
+        <span className={cn(compact && 'min-w-0 truncate')}>{label}</span>
         <span
           role="button"
           tabIndex={0}
-          className="ml-1 rounded-sm hover:bg-destructive/20 focus:outline-none focus:ring-1 focus:ring-destructive cursor-pointer"
+          className={cn(
+            'ml-1 inline-flex shrink-0 cursor-pointer items-center justify-center rounded-sm hover:bg-destructive/20 focus:outline-none focus:ring-1 focus:ring-destructive',
+            compact ? 'h-4 w-4' : 'h-5 w-5'
+          )}
           onClick={handleRemoveClick}
           onPointerDown={handleRemovePointerDown}
           onMouseDown={(e) => e.stopPropagation()}
@@ -143,6 +152,7 @@ export function MultiSelect({
   placeholder = '选择选项...',
   emptyText = '未找到选项',
   className,
+  compact = false,
 }: MultiSelectProps) {
   const [open, setOpen] = React.useState(false)
 
@@ -189,7 +199,11 @@ export function MultiSelect({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className={cn('w-full justify-between min-h-10 h-auto', className)}
+          className={cn(
+            'h-auto w-full justify-between',
+            compact ? 'min-h-9 px-2 py-1.5' : 'min-h-10',
+            className
+          )}
         >
           <DndContext
             sensors={sensors}
@@ -200,9 +214,9 @@ export function MultiSelect({
               items={selected}
               strategy={horizontalListSortingStrategy}
             >
-              <div className="flex gap-1 flex-wrap flex-1">
+              <div className="flex flex-1 flex-wrap gap-1">
                 {selected.length === 0 ? (
-                  <span className="text-muted-foreground">{placeholder}</span>
+                  <span className={cn('text-muted-foreground', compact && 'text-sm')}>{placeholder}</span>
                 ) : (
                   selected.map((value) => {
                     const option = options.find((opt) => opt.value === value)
@@ -212,6 +226,7 @@ export function MultiSelect({
                         value={value}
                         label={option?.label || value}
                         onRemove={handleRemove}
+                        compact={compact}
                       />
                     )
                   })

@@ -595,7 +595,7 @@ def get_person_by_person_id(person_id: str) -> Optional[PersonInfo]:
     Returns:
         Optional[PersonInfo]: 查到时返回人物信息。
     """
-    with get_db_session() as session:
+    with get_db_session(auto_commit=False) as session:
         statement = select(PersonInfo).where(col(PersonInfo.person_id) == person_id).limit(1)
         return session.exec(statement).first()
 

@@ -1,3 +1,4 @@
+import { useBlocker } from '@tanstack/react-router'
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -70,6 +71,8 @@ import {
   type ConfigSectionSchema,
   type ItemFieldDefinition,
 } from '@/lib/plugin-api'
+import { PluginIcon } from './plugins/PluginIcon'
+import { getPluginTypeLabel } from './plugins/types'
 
 // 字段渲染组件
 interface FieldRendererProps {
@@ -453,15 +456,17 @@ function SectionRenderer({ sectionName, section, config, onChange }: SectionRend
 interface PluginConfigEditorProps {
   plugin: InstalledPlugin
   onBack: () => void
+  initialTab?: string
 }
 
-function PluginConfigEditor({ plugin, onBack }: PluginConfigEditorProps) {
+function PluginConfigEditor({ plugin, onBack, initialTab }: PluginConfigEditorProps) {
   const { toast } = useToast()
   const { triggerRestart, isRestarting } = useRestart()
   const { i18n } = useTranslation()
   const language = i18n.resolvedLanguage || i18n.language || 'zh'
   const [editMode, setEditMode] = useState<'visual' | 'source'>('visual')
   const [schema, setSchema] = useState<PluginConfigSchema | null>(null)
+  const [activeConfigTab, setActiveConfigTab] = useState<string | undefined>(initialTab)
   const [config, setConfig] = useState<Record<string, unknown>>({})
   const [originalConfig, setOriginalConfig] = useState<Record<string, unknown>>({})
   const [sourceCode, setSourceCode] = useState('')
@@ -471,6 +476,13 @@ function PluginConfigEditor({ plugin, onBack }: PluginConfigEditorProps) {
   const [hasChanges, setHasChanges] = useState(false)
   const [hasTomlError, setHasTomlError] = useState(false)
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
+  const [internalLeavePromptOpen, setInternalLeavePromptOpen] = useState(false)
+
+  const navigationBlocker = useBlocker({
+    shouldBlockFn: () => hasChanges,
+    enableBeforeUnload: hasChanges,
+    withResolver: true,
+  })
 
   // 加载配置
   const loadConfig = useCallback(async () => {
@@ -544,7 +556,7 @@ function PluginConfigEditor({ plugin, onBack }: PluginConfigEditorProps) {
   }
 
   // 保存配置
-  const handleSave = async () => {
+  const handleSave = async (): Promise<boolean> => {
     setSaving(true)
     try {
       if (editMode === 'source') {
@@ -559,7 +571,7 @@ function PluginConfigEditor({ plugin, onBack }: PluginConfigEditorProps) {
             variant: 'destructive'
           })
           setSaving(false)
-          return
+          return false
         }
         
         // 格式正确，保存原始配置
@@ -576,15 +588,54 @@ function PluginConfigEditor({ plugin, onBack }: PluginConfigEditorProps) {
         title: '配置已保存',
         description: '更改将在插件重新加载后生效'
       })
+      return true
     } catch (error) {
       toast({
         title: '保存失败',
         description: error instanceof Error ? error.message : '未知错误',
         variant: 'destructive'
       })
+      return false
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleBack = () => {
+    if (!hasChanges) {
+      onBack()
+      return
+    }
+    setInternalLeavePromptOpen(true)
+  }
+
+  const closeLeavePrompt = () => {
+    if (navigationBlocker.status === 'blocked') {
+      navigationBlocker.reset?.()
+    }
+    setInternalLeavePromptOpen(false)
+  }
+
+  const leaveWithoutSaving = () => {
+    if (internalLeavePromptOpen) {
+      setInternalLeavePromptOpen(false)
+      onBack()
+      return
+    }
+    navigationBlocker.proceed?.()
+  }
+
+  const saveAndLeave = async () => {
+    const saved = await handleSave()
+    if (!saved) {
+      return
+    }
+    if (internalLeavePromptOpen) {
+      setInternalLeavePromptOpen(false)
+      onBack()
+      return
+    }
+    navigationBlocker.proceed?.()
   }
 
   // 重置配置
@@ -664,6 +715,16 @@ function PluginConfigEditor({ plugin, onBack }: PluginConfigEditorProps) {
   // 按 order 排序 sections
   const sortedSections = Object.entries(schema.sections)
     .sort(([, a], [, b]) => (a.order ?? 0) - (b.order ?? 0))
+  const schemaTabs = schema.layout.type === 'tabs' ? schema.layout.tabs : []
+  const selectedConfigTab = schemaTabs.some((tab) => tab.id === activeConfigTab)
+    ? activeConfigTab
+    : schemaTabs[0]?.id
+
+  const handleConfigTabChange = (nextTab: string) => {
+    setActiveConfigTab(nextTab)
+    const params = new URLSearchParams({ plugin: plugin.id, tab: nextTab })
+    window.history.replaceState(null, '', `/plugin-config?${params.toString()}`)
+  }
 
   // 获取当前启用状态
   const isEnabled = (config.plugin as Record<string, unknown>)?.enabled !== false
@@ -680,11 +741,11 @@ function PluginConfigEditor({ plugin, onBack }: PluginConfigEditorProps) {
       {/* 头部 */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div className="flex items-start gap-3">
-          <Button variant="ghost" size="icon" onClick={onBack}>
+          <Button variant="ghost" size="icon" onClick={handleBack}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold">
+            <h1 className="text-2xl sm:text-3xl font-bold" data-plugin-config-title>
               {pluginName}
             </h1>
             <div className="flex items-center gap-2 mt-1">
@@ -697,7 +758,7 @@ function PluginConfigEditor({ plugin, onBack }: PluginConfigEditorProps) {
             </div>
           </div>
         </div>
-        <div className="flex gap-2 ml-10 sm:ml-0">
+        <div className="ml-10 flex flex-wrap gap-3 sm:ml-0">
           <Button
             variant="outline"
             size="sm"
@@ -811,11 +872,11 @@ function PluginConfigEditor({ plugin, onBack }: PluginConfigEditorProps) {
       </Alert>
 
       {/* 配置区域 */}
-      {schema.layout.type === 'tabs' && schema.layout.tabs.length > 0 ? (
+      {schema.layout.type === 'tabs' && schemaTabs.length > 0 ? (
         // 标签页布局
-        <Tabs defaultValue={schema.layout.tabs[0]?.id}>
+        <Tabs value={selectedConfigTab} onValueChange={handleConfigTabChange}>
           <TabsList>
-            {schema.layout.tabs.map(tab => (
+            {schemaTabs.map(tab => (
               <TabsTrigger key={tab.id} value={tab.id}>
                 {resolveLocalizedText(tab.title, language, tab.id, tab.i18n, 'title')}
                 {tab.badge && (
@@ -826,7 +887,7 @@ function PluginConfigEditor({ plugin, onBack }: PluginConfigEditorProps) {
               </TabsTrigger>
             ))}
           </TabsList>
-          {schema.layout.tabs.map(tab => (
+          {schemaTabs.map(tab => (
             <TabsContent key={tab.id} value={tab.id} className="space-y-4 mt-4">
               {tab.sections.map(sectionName => {
                 const section = schema.sections[sectionName]
@@ -861,6 +922,36 @@ function PluginConfigEditor({ plugin, onBack }: PluginConfigEditorProps) {
       </>
       )}
 
+      <Dialog
+        open={internalLeavePromptOpen || navigationBlocker.status === 'blocked'}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeLeavePrompt()
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>有未保存的更改</DialogTitle>
+            <DialogDescription>
+              当前插件配置文件有修改，离开页面前是否保存？
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeLeavePrompt} disabled={saving}>
+              取消
+            </Button>
+            <Button variant="outline" onClick={leaveWithoutSaving} disabled={saving}>
+              不保存
+            </Button>
+            <Button onClick={saveAndLeave} disabled={saving}>
+              {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+              保存并离开
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* 重置确认对话框 */}
       <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
         <DialogContent>
@@ -885,6 +976,18 @@ function PluginConfigEditor({ plugin, onBack }: PluginConfigEditorProps) {
 }
 
 // 主页面组件 - 包装 RestartProvider
+function getInitialPluginConfigTarget(): { pluginId: string | null; tabId: string | null } {
+  if (typeof window === 'undefined') {
+    return { pluginId: null, tabId: null }
+  }
+
+  const params = new URLSearchParams(window.location.search)
+  return {
+    pluginId: params.get('plugin'),
+    tabId: params.get('tab'),
+  }
+}
+
 export function PluginConfigPage() {
   return (
     <RestartProvider>
@@ -896,10 +999,28 @@ export function PluginConfigPage() {
 // 内部组件：实际内容
 function PluginConfigPageContent() {
   const { toast } = useToast()
+  const initialTarget = getInitialPluginConfigTarget()
   const [plugins, setPlugins] = useState<InstalledPlugin[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedPlugin, setSelectedPlugin] = useState<InstalledPlugin | null>(null)
+  const [selectedPluginTab, setSelectedPluginTab] = useState<string | undefined>(initialTarget.tabId ?? undefined)
+
+  const openPluginConfig = (plugin: InstalledPlugin, tabId?: string | null) => {
+    setSelectedPlugin(plugin)
+    setSelectedPluginTab(tabId ?? undefined)
+    const params = new URLSearchParams({ plugin: plugin.id })
+    if (tabId) {
+      params.set('tab', tabId)
+    }
+    window.history.replaceState(null, '', `/plugin-config?${params.toString()}`)
+  }
+
+  const closePluginConfig = () => {
+    setSelectedPlugin(null)
+    setSelectedPluginTab(undefined)
+    window.history.replaceState(null, '', '/plugin-config')
+  }
 
   // 加载插件列表
   const loadPlugins = async () => {
@@ -915,6 +1036,12 @@ function PluginConfigPageContent() {
         return
       }
       setPlugins(installedResult.data)
+      if (!selectedPlugin && initialTarget.pluginId) {
+        const targetPlugin = installedResult.data.find((plugin) => plugin.id === initialTarget.pluginId)
+        if (targetPlugin) {
+          openPluginConfig(targetPlugin, initialTarget.tabId)
+        }
+      }
     } catch (error) {
       toast({
         title: '加载插件列表失败',
@@ -975,7 +1102,8 @@ function PluginConfigPageContent() {
           <div className="p-4 sm:p-6">
             <PluginConfigEditor
               plugin={selectedPlugin}
-              onBack={() => setSelectedPlugin(null)}
+              initialTab={selectedPluginTab}
+              onBack={closePluginConfig}
             />
           </div>
         </ScrollArea>
@@ -1060,43 +1188,44 @@ function PluginConfigPageContent() {
                 </div>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {uniqueFilteredPlugins.map(plugin => {
                   const statusMeta = getPluginStatusMeta(plugin)
                   return (
                   <div
                     key={plugin.id}
-                    className={`flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 cursor-pointer transition-colors ${isPluginDisabled(plugin) ? 'opacity-70' : ''}`}
+                    className={`flex min-h-32 cursor-pointer flex-col justify-between gap-4 rounded-lg border p-5 transition-colors hover:bg-muted/50 sm:min-h-0 sm:flex-row sm:items-center sm:p-4 ${isPluginDisabled(plugin) ? 'opacity-70' : ''}`}
                     role="button"
                     tabIndex={0}
-                    onClick={() => setSelectedPlugin(plugin)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedPlugin(plugin) } }}
+                    onClick={() => openPluginConfig(plugin)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPluginConfig(plugin) } }}
                   >
-                    <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex min-w-0 items-start gap-3 sm:items-center">
                       <span
-                        className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${statusMeta.dotClassName}`}
+                        className={`mt-4 h-2.5 w-2.5 flex-shrink-0 rounded-full sm:mt-0 ${statusMeta.dotClassName}`}
                         title={statusMeta.label}
                         aria-label={statusMeta.label}
                       />
-                      <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                        <Package className="h-5 w-5 text-primary" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-medium truncate">
+                      <PluginIcon pluginId={plugin.id} manifest={plugin.manifest} installed className="h-12 w-12 sm:h-10 sm:w-10" />
+                      <div className="min-w-0 flex-1 space-y-2 sm:space-y-1">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
+                          <h3 className="min-w-0 break-words text-sm font-medium leading-snug sm:truncate sm:text-base">
                             {plugin.manifest.name}
                           </h3>
                           <Badge variant="secondary" className="text-xs flex-shrink-0">
                             v{plugin.manifest.version}
                           </Badge>
+                          <Badge variant="outline" className="text-xs flex-shrink-0">
+                            {getPluginTypeLabel(plugin)}
+                          </Badge>
                         </div>
-                        <p className="text-sm text-muted-foreground truncate">
+                        <p className="line-clamp-2 text-sm leading-relaxed text-muted-foreground sm:truncate sm:leading-normal">
                           {plugin.manifest.description || '暂无描述'}
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <Button variant="ghost" size="sm">
+                    <div className="flex flex-shrink-0 items-center justify-end gap-2 border-t pt-3 sm:border-t-0 sm:pt-0">
+                      <Button variant="ghost" size="sm" className="min-w-24 sm:min-w-0">
                         <Settings className="h-4 w-4" />
                       </Button>
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />

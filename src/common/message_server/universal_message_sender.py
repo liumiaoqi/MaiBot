@@ -6,6 +6,7 @@ from src.common.database.database import get_db_session
 from src.common.logger import get_logger
 from src.common.message_server.api import get_global_api
 from src.common.utils.math_utils import calculate_typing_time
+from src.common.utils.utils_message import MessageUtils
 from src.common.data_models.message_component_data_model import ReplyComponent
 
 if TYPE_CHECKING:
@@ -65,6 +66,7 @@ class UniversalMessageSender:
         try:
             if storage_message:
                 with get_db_session() as db_session:
+                    MessageUtils.fill_reply_frequency_if_available(message)
                     db_session.add(message.to_db_instance())
         except Exception as e:
             logger.error(f"[{message.session_id}] 存储消息 {message.message_id} 时出错：{e}")

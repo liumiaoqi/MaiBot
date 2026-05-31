@@ -13,6 +13,7 @@ from src.common.data_models.message_component_data_model import (
     MessageSequence,
     ReplyComponent,
     TextComponent,
+    VoiceComponent,
 )
 
 SPEAKER_PREFIX_PATTERN = re.compile(
@@ -56,6 +57,15 @@ def _render_at_component_text(component: AtComponent) -> str:
     return f"@{target_name}".strip()
 
 
+def _render_voice_component_text(component: VoiceComponent) -> str:
+    """将 VoiceComponent 渲染为文本。"""
+
+    normalized_content = component.content.strip()
+    if normalized_content:
+        return normalized_content
+    return "[语音消息]"
+
+
 def build_visible_text_from_sequence(message_sequence: MessageSequence) -> str:
     """从消息片段序列提取可见文本。"""
 
@@ -96,6 +106,10 @@ def build_visible_text_from_sequence(message_sequence: MessageSequence) -> str:
 
         if isinstance(component, ImageComponent):
             append_visible_part(component.content.strip() or "[图片，识别中.....]")
+            continue
+
+        if isinstance(component, VoiceComponent):
+            append_visible_part(_render_voice_component_text(component))
             continue
 
         if isinstance(component, AtComponent):

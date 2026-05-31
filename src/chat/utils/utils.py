@@ -343,11 +343,15 @@ def split_into_sentences_w_remove_punctuation(text: str) -> list[str]:
                     if can_split and char == " " and i > 0 and i < len(text) - 1:
                         prev_char = text[i - 1]
                         next_char = text[i + 1]
-                        # 不分割数字和数字、数字和英文、英文和数字、英文和英文之间的空格
-                        prev_is_alnum = prev_char.isdigit() or is_english_letter(prev_char)
-                        next_is_alnum = next_char.isdigit() or is_english_letter(next_char)
-                        if prev_is_alnum and next_is_alnum:
+                        dash_chars = {"-", "—"}
+                        if prev_char in dash_chars or next_char in dash_chars:
                             can_split = False
+                        else:
+                            # 不分割数字和数字、数字和英文、英文和数字、英文和英文之间的空格
+                            prev_is_alnum = prev_char.isdigit() or is_english_letter(prev_char)
+                            next_is_alnum = next_char.isdigit() or is_english_letter(next_char)
+                            if prev_is_alnum and next_is_alnum:
+                                can_split = False
 
             if can_split:
                 # 只有当当前段不为空时才添加

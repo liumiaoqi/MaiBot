@@ -6,13 +6,8 @@ import asyncio
 import sys
 import threading
 
-from uvicorn import Config
-from uvicorn import Server as UvicornServer
-
 from src.common.logger import get_logger
 from src.common.utils.port_checker import assert_port_available, is_port_conflict_error, log_port_conflict
-from src.config.startup_bindings import resolve_webui_bind_address
-from src.webui.app import create_app, show_access_token
 
 logger = get_logger("webui_server")
 
@@ -41,9 +36,11 @@ class WebUIServer:
     def __init__(self, host: str = "0.0.0.0", port: int = 8001, register_config_reload: bool = True):
         self.host = host
         self.port = port
+        from src.webui.app import create_app, show_access_token
+
         self._app = create_app(host=host, port=port, enable_static=True)
         self.app = _ASGIProxy(self._app)
-        self._server: Optional[UvicornServer] = None
+        self._server: Optional[Any] = None
         self._reload_callback_registered = False
         self._register_config_reload = register_config_reload
 
@@ -78,12 +75,17 @@ class WebUIServer:
         self._reload_callback_registered = False
 
     async def reload_app(self) -> None:
+        from src.webui.app import create_app
+
         self._app = create_app(host=self.host, port=self.port, enable_static=True)
         self.app.set_app(self._app)
         logger.info("WebUI 应用已热重载")
 
     async def start(self):
         """启动服务器"""
+        from uvicorn import Config
+        from uvicorn import Server as UvicornServer
+
         self._maybe_register_reload_callback()
         assert_port_available(
             host=self.host,
@@ -309,6 +311,8 @@ def get_webui_server() -> WebUIServer:
     """获取全局 WebUI 服务器实例"""
     global _webui_server
     if _webui_server is None:
+        from src.config.startup_bindings import resolve_webui_bind_address
+
         bind_address = resolve_webui_bind_address()
         _webui_server = WebUIServer(host=bind_address.host, port=bind_address.port)
     return _webui_server
@@ -318,6 +322,8 @@ def get_threaded_webui_server() -> ThreadedWebUIServer:
     """获取运行在专用线程中的 WebUI 服务器实例。"""
     global _threaded_webui_server
     if _threaded_webui_server is None:
+        from src.config.startup_bindings import resolve_webui_bind_address
+
         bind_address = resolve_webui_bind_address()
         _threaded_webui_server = ThreadedWebUIServer(host=bind_address.host, port=bind_address.port)
     return _threaded_webui_server

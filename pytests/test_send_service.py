@@ -1,13 +1,17 @@
 """发送服务回归测试。"""
 
-import sys
+from datetime import datetime
 from types import SimpleNamespace
 from typing import Any, Dict, List
+
+import sys
 
 import pytest
 
 from src.chat.message_receive.chat_manager import BotChatSession
-from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
+from src.chat.message_receive.message import SessionMessage
+from src.common.data_models.mai_message_data_model import MessageInfo, UserInfo
+from src.common.data_models.message_component_data_model import MessageSequence, ReplyComponent, TextComponent
 from src.services import send_service
 
 
@@ -55,6 +59,63 @@ def _build_group_stream() -> BotChatSession:
         group_id="target-group",
         group_name="目标群",
     )
+
+
+def _build_session_message(
+    message_id: str,
+    *,
+    user_id: str,
+    user_nickname: str,
+    user_cardname: str | None,
+    text: str,
+) -> SessionMessage:
+    message = SessionMessage(message_id=message_id, timestamp=datetime.now(), platform="qq")
+    message.message_info = MessageInfo(
+        user_info=UserInfo(
+            user_id=user_id,
+            user_nickname=user_nickname,
+            user_cardname=user_cardname,
+        )
+    )
+    message.session_id = "test-session"
+    message.raw_message = MessageSequence(components=[TextComponent(text=text)])
+    message.processed_plain_text = text
+    message.initialized = True
+    return message
+
+
+@pytest.mark.asyncio
+async def test_prepare_message_for_platform_io_enriches_reply_component() -> None:
+    reply_message = _build_session_message(
+        "origin-message",
+        user_id="alice-id",
+        user_nickname="Alice",
+        user_cardname="AliceCard",
+        text="origin text",
+    )
+    outbound_message = _build_session_message(
+        "outbound-message",
+        user_id="bot-qq",
+        user_nickname="Mai",
+        user_cardname=None,
+        text="reply text",
+    )
+
+    await send_service._prepare_message_for_platform_io(
+        outbound_message,
+        typing=False,
+        set_reply=True,
+        reply_message_id="origin-message",
+        reply_message=reply_message,
+    )
+
+    reply_component = outbound_message.raw_message.components[0]
+    assert isinstance(reply_component, ReplyComponent)
+    assert reply_component.target_message_id == "origin-message"
+    assert reply_component.target_message_content == "origin text"
+    assert reply_component.target_message_sender_id == "alice-id"
+    assert reply_component.target_message_sender_nickname == "Alice"
+    assert reply_component.target_message_sender_cardname == "AliceCard"
 
 
 def test_inherit_platform_io_route_metadata_falls_back_to_bot_account(

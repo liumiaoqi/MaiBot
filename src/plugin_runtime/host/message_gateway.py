@@ -5,8 +5,6 @@ from typing import TYPE_CHECKING, Any, Dict
 from src.common.logger import get_logger
 from src.platform_io import get_platform_io_manager
 
-from .message_utils import PluginMessageUtils
-
 if TYPE_CHECKING:
     from src.chat.message_receive.message import SessionMessage
     from .component_registry import ComponentRegistry
@@ -38,6 +36,8 @@ class MessageGateway:
         Raises:
             ValueError: 消息字典不合法时抛出。
         """
+        from .message_utils import PluginMessageUtils
+
         return PluginMessageUtils._build_session_message_from_dict(external_message)
 
     def build_message_dict(self, internal_message: "SessionMessage") -> Dict[str, Any]:
@@ -49,6 +49,8 @@ class MessageGateway:
         Returns:
             Dict[str, Any]: 供消息网关插件消费的标准消息字典。
         """
+        from .message_utils import PluginMessageUtils
+
         return dict(PluginMessageUtils._session_message_to_dict(internal_message))
 
     async def receive_external_message(self, external_message: Dict[str, Any]) -> None:
