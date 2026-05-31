@@ -38,16 +38,16 @@ export const ModelCardList = React.memo(function ModelCardList({
   }
 
   return (
-    <div className="md:hidden space-y-3">
+    <div className="md:hidden space-y-2.5">
       {paginatedModels.map((model, displayIndex) => {
         const actualIndex = allModels.findIndex(m => m === model)
         const used = isModelUsed(model.name)
         return (
-          <div key={displayIndex} className="rounded-lg border bg-card p-4 space-y-3">
+          <div key={displayIndex} className="space-y-2 rounded-lg border bg-card p-3">
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-semibold text-base">{model.name}</h3>
+                <div className="mb-1 flex items-center gap-2">
+                  <h3 className="truncate text-sm font-semibold">{model.name}</h3>
                   <span
                     className={`block h-3 w-3 shrink-0 rounded-full border ${
                       used
@@ -58,33 +58,34 @@ export const ModelCardList = React.memo(function ModelCardList({
                     aria-label={used ? '已使用' : '未使用'}
                   />
                 </div>
-                <p className="text-xs text-muted-foreground break-all" title={model.model_identifier}>
+                <p className="break-all text-[11px] leading-snug text-muted-foreground" title={model.model_identifier}>
                   {model.model_identifier}
                 </p>
               </div>
-              <div className="flex gap-1 flex-shrink-0">
+              <div className="flex shrink-0 gap-1">
                 <Button
                   variant="default"
                   size="sm"
+                  className="h-8 px-2 text-xs"
                   onClick={() => onEdit(model, actualIndex)}
                 >
-                  <Pencil className="h-4 w-4 mr-1" strokeWidth={2} fill="none" />
+                  <Pencil className="mr-1 h-3.5 w-3.5" strokeWidth={2} fill="none" />
                   编辑
                 </Button>
                 <Button
                   size="sm"
                   onClick={() => onDelete(actualIndex)}
-                  className="bg-red-600 hover:bg-red-700 text-white"
+                  className="h-8 bg-red-600 px-2 text-xs text-white hover:bg-red-700"
                 >
-                  <Trash2 className="h-4 w-4 mr-1" strokeWidth={2} fill="none" />
+                  <Trash2 className="mr-1 h-3.5 w-3.5" strokeWidth={2} fill="none" />
                   删除
                 </Button>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-2 text-sm">
+            <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 text-xs">
               <div>
                 <span className="text-muted-foreground text-xs">提供商</span>
-                <p className="font-medium">{model.api_provider}</p>
+                <p className="truncate font-medium">{model.api_provider}</p>
               </div>
               <div>
                 <span className="text-muted-foreground text-xs">视觉</span>

@@ -17,6 +17,29 @@ export interface HostApplication {
   max_version?: string
 }
 
+export type PluginType =
+  | 'adapter'
+  | 'tool'
+  | 'provider'
+  | 'management'
+  | 'data'
+  | 'media'
+  | 'game'
+  | 'integration'
+  | 'extension'
+  | 'other'
+
+export interface PluginDisplayIcon {
+  type: 'lucide' | 'emoji' | 'local'
+  value: string
+  fallback?: string
+  background?: string
+}
+
+export interface PluginDisplay {
+  icon?: PluginDisplayIcon
+}
+
 export interface PluginManifest {
   /** 清单文件版本 */
   manifest_version: number
@@ -47,8 +70,10 @@ export interface PluginManifest {
   }
   /** 插件关键词 */
   keywords: string[]
-  /** 插件分类（可选） */
-  categories?: string[]
+  /** 插件类型 */
+  plugin_type?: PluginType
+  /** 插件展示元信息 */
+  display?: PluginDisplay
   /** 插件默认语言 */
   default_locale: string
   /** 插件语言文件夹（可选） */
@@ -93,30 +118,6 @@ export interface PluginInfo {
   /** 插件来源：plugin-repo 市场或本地已安装插件 */
   source?: 'market' | 'local'
 }
-
-/**
- * 插件分类
- */
-export const PluginCategory = {
-  /** 开发工具 */
-  DEVELOPER_TOOLS: 'Developer Tools',
-  /** AI 增强 */
-  AI_ENHANCEMENT: 'AI Enhancement',
-  /** 工具类 */
-  UTILITY: 'Utility',
-  /** 娱乐 */
-  ENTERTAINMENT: 'Entertainment',
-  /** 集成 */
-  INTEGRATION: 'Integration',
-  /** 数据分析 */
-  DATA_ANALYSIS: 'Data Analysis',
-  /** 自动化 */
-  AUTOMATION: 'Automation',
-  /** 其他 */
-  OTHER: 'Other',
-} as const
-
-export type PluginCategoryType = typeof PluginCategory[keyof typeof PluginCategory]
 
 /**
  * 插件状态

@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ThinkingIllustration } from '@/components/ui/thinking-illustration'
 import { AlertCircle, AlertTriangle, CheckCircle2, Info, Loader2, Search, Settings2 } from 'lucide-react'
 
 import { RestartOverlay } from '@/components/restart-overlay'
@@ -40,6 +41,7 @@ import { InstalledTab } from './InstalledTab'
 import { MarketplaceTab } from './MarketplaceTab'
 import { UpdatesTab } from './UpdatesTab'
 import type { GitStatus, MaimaiVersion, MarketplaceSortKey, PluginInfo, PluginLoadProgress } from './types'
+import { getPluginType, PLUGIN_TYPE_OPTIONS } from './types'
 
 // 主导出组件：包装 RestartProvider
 export function PluginsPage() {
@@ -57,7 +59,7 @@ function PluginsPageContent() {
     () => localStorage.getItem('plugins-restart-notice-dismissed') !== 'true'
   )
   const [searchQuery, setSearchQuery] = useState('')
-  const [categoryFilter, setCategoryFilter] = useState('all')
+  const [pluginTypeFilter, setPluginTypeFilter] = useState('all')
   const [marketplaceSortBy, setMarketplaceSortBy] = useState<MarketplaceSortKey>('default')
   const [activeTab, setActiveTab] = useState('all')  // all | installed | updates
   const [showCompatibleOnly, setShowCompatibleOnly] = useState(true)  // 默认只显示兼容的
@@ -270,7 +272,8 @@ function PluginsPageContent() {
                     repository_url: installedPlugin.manifest.repository_url || urls?.repository,
                     urls,
                     keywords: installedPlugin.manifest.keywords || [],
-                    categories: installedPlugin.manifest.categories || [],
+                    plugin_type: installedPlugin.manifest.plugin_type || 'extension',
+                    display: installedPlugin.manifest.display,
                     default_locale: (installedPlugin.manifest.default_locale as string) || 'zh-CN',
                     locales_path: installedPlugin.manifest.locales_path as string | undefined,
                   },
@@ -695,8 +698,7 @@ function PluginsPageContent() {
         p.manifest.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.manifest.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (p.manifest.keywords && p.manifest.keywords.some(k => k.toLowerCase().includes(searchQuery.toLowerCase())))
-      const matchesCategory = categoryFilter === 'all' ||
-        (p.manifest.categories && p.manifest.categories.includes(categoryFilter))
+      const matchesType = pluginTypeFilter === 'all' || getPluginType(p) === pluginTypeFilter
       const matchesCompatibility = !showCompatibleOnly || 
         !maimaiVersion || 
         checkPluginCompatibility(p)
@@ -708,7 +710,7 @@ function PluginsPageContent() {
         matchesTab = p.installed === true && needsUpdate(p)
       }
       
-      return matchesSearch && matchesCategory && matchesCompatibility && matchesTab
+      return matchesSearch && matchesType && matchesCompatibility && matchesTab
     }).length
   }
 
@@ -786,21 +788,16 @@ function PluginsPageContent() {
               />
             </div>
 
-            {/* 分类筛选 */}
-            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            {/* 类型筛选 */}
+            <Select value={pluginTypeFilter} onValueChange={setPluginTypeFilter}>
               <SelectTrigger className="w-full sm:w-[200px]">
-                <SelectValue placeholder="选择分类" />
+                <SelectValue placeholder="选择类型" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">全部分类</SelectItem>
-                <SelectItem value="Group Management">群组管理</SelectItem>
-                <SelectItem value="Entertainment & Interaction">娱乐互动</SelectItem>
-                <SelectItem value="Utility Tools">实用工具</SelectItem>
-                <SelectItem value="Content Generation">内容生成</SelectItem>
-                <SelectItem value="Multimedia">多媒体</SelectItem>
-                <SelectItem value="External Integration">外部集成</SelectItem>
-                <SelectItem value="Data Analysis & Insights">数据分析与洞察</SelectItem>
-                <SelectItem value="Other">其他</SelectItem>
+                <SelectItem value="all">全部类型</SelectItem>
+                {PLUGIN_TYPE_OPTIONS.map(option => (
+                  <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
 
@@ -886,8 +883,7 @@ function PluginsPageContent() {
         {/* 插件卡片网格 */}
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            <span className="ml-3 text-muted-foreground">Thinking...</span>
+            <ThinkingIllustration size="lg" />
           </div>
         ) : error ? (
           <Card className="p-6">
@@ -904,7 +900,7 @@ function PluginsPageContent() {
           <MarketplaceTab
             plugins={plugins}
             searchQuery={searchQuery}
-            categoryFilter={categoryFilter}
+            pluginTypeFilter={pluginTypeFilter}
             showCompatibleOnly={showCompatibleOnly}
             sortBy={marketplaceSortBy}
             gitStatus={gitStatus}
@@ -923,7 +919,7 @@ function PluginsPageContent() {
           <InstalledTab
             plugins={plugins}
             searchQuery={searchQuery}
-            categoryFilter={categoryFilter}
+            pluginTypeFilter={pluginTypeFilter}
             showCompatibleOnly={showCompatibleOnly}
             gitStatus={gitStatus}
             maimaiVersion={maimaiVersion}
@@ -941,7 +937,7 @@ function PluginsPageContent() {
           <UpdatesTab
             plugins={plugins}
             searchQuery={searchQuery}
-            categoryFilter={categoryFilter}
+            pluginTypeFilter={pluginTypeFilter}
             showCompatibleOnly={showCompatibleOnly}
             gitStatus={gitStatus}
             maimaiVersion={maimaiVersion}

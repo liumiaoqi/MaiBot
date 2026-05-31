@@ -284,6 +284,7 @@ class LLMOrchestrator:
                 user_id="system",
                 request_type=self.request_type,
                 endpoint="/chat/completions",
+                task_name=self.task_name,
                 time_cost=time_cost,
             )
         return self._build_generation_result(
@@ -375,6 +376,7 @@ class LLMOrchestrator:
                 user_id="system",
                 request_type=self.request_type,
                 endpoint="/chat/completions",
+                task_name=self.task_name,
                 time_cost=time.time() - start_time,
             )
         return self._build_generation_result(
@@ -447,6 +449,7 @@ class LLMOrchestrator:
                 user_id="system",
                 request_type=self.request_type,
                 endpoint="/chat/completions",
+                task_name=self.task_name,
                 time_cost=time_cost,
             )
         return self._build_generation_result(
@@ -482,6 +485,7 @@ class LLMOrchestrator:
                 user_id="system",
                 request_type=self.request_type,
                 endpoint="/embeddings",
+                task_name=self.task_name,
                 time_cost=time.time() - start_time,
             )
         if not embedding:
@@ -1084,18 +1088,13 @@ class LLMOrchestrator:
         """
         detail_lines: List[str] = []
         if e.__cause__:
-            detail_lines.append(f"底层异常类型: {type(e.__cause__).__name__}")
-            detail_lines.append(f"底层异常信息: {e.__cause__}")
+            detail_lines.append(f"底层异常: {type(e.__cause__).__name__} | {e.__cause__}")
 
         snapshot_info = format_request_snapshot_log_info(e)
         if detail_lines or snapshot_info:
             detail_text = "\n  " + "\n  ".join(detail_lines) if detail_lines else ""
             return f"{detail_text}{snapshot_info}"
 
-        if e.__cause__:
-            original_error_type = type(e.__cause__).__name__
-            original_error_msg = str(e.__cause__)
-            return f"\n  底层异常类型: {original_error_type}\n  底层异常信息: {original_error_msg}"
         return ""
 
 

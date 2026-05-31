@@ -38,8 +38,9 @@ async def get_summary(hours: int = 24):
 async def get_model_stats(hours: int = 24):
     """获取模型统计。"""
     try:
-        start_time = datetime.now() - timedelta(hours=hours)
-        return await get_model_statistics(start_time)
+        now = datetime.now()
+        start_time = now - timedelta(hours=hours)
+        return await get_model_statistics(start_time, now)
     except Exception as e:
         logger.error(f"获取模型统计失败: {e}")
         raise HTTPException(status_code=500, detail=str(e)) from e

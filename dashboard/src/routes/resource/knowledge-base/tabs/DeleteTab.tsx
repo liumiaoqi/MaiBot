@@ -13,6 +13,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { TabsContent } from '@/components/ui/tabs'
+import { ThinkingIllustration } from '@/components/ui/thinking-illustration'
 import { cn } from '@/lib/utils'
 import type { MemoryDeleteOperationPayload, MemorySourceItemPayload } from '@/lib/memory-api'
 
@@ -368,8 +369,8 @@ export function DeleteTab(props: DeleteTabProps) {
                   </div>
 
                   {selectedOperationDetailLoading ? (
-                    <div className="rounded-lg border bg-background/60 p-4 text-sm text-muted-foreground">
-                      Thinking...
+                    <div className="rounded-lg border bg-background/60 p-4">
+                      <ThinkingIllustration size="sm" />
                     </div>
                   ) : null}
 

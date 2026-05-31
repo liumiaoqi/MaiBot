@@ -5,8 +5,7 @@
 {inference2}
 
 Please compare these two inference results and determine whether they are the same or similar.
-- If the "meaning" in the two inference results is the same or similar, it means this term is not jargon (its meaning is clear)
-- If the two inference results differ, it means this term may be jargon (it can only be understood with context)
+Ignore minor differences and focus on whether the main meanings are similar.
 
 Output in JSON format:
 {{

@@ -374,7 +374,7 @@ class TaskConfig(ConfigBase):
     """使用的模型列表, 每个元素对应上面的模型名称(name)"""
 
     max_tokens: int = Field(
-        default=1024,
+        default=4096,
         ge=1,
         json_schema_extra={
             "x-widget": "input",
@@ -436,7 +436,7 @@ def _default_timing_gate_task_config() -> TaskConfig:
 
     return TaskConfig(
         model_list=[],
-        max_tokens=1024,
+        max_tokens=4096,
         temperature=0.3,
         slow_threshold=12.0,
         selection_strategy="random",

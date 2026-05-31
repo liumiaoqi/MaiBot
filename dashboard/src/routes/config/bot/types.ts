@@ -206,6 +206,7 @@ export interface TelemetryConfig {
 export interface WebUIConfig {
   enabled: boolean
   mode: string
+  webui_style: number
   anti_crawler_mode: string
   allowed_ips: string
   trusted_proxies: string

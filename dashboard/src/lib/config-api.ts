@@ -204,6 +204,31 @@ export interface FetchModelsResponse {
 }
 
 /**
+ * 已注册的模型客户端类型
+ */
+export interface ModelClientType {
+  client_type: string
+  owner_plugin_id: string | null
+  version: string
+  description: string
+  builtin: boolean
+}
+
+/**
+ * 获取当前主程序与插件已注册的模型客户端类型
+ */
+export async function fetchModelClientTypes(): Promise<ApiResponse<ModelClientType[]>> {
+  const response = await fetchWithAuth('/api/webui/models/client-types')
+  const parsed = await parseResponse<{ client_types?: ModelClientType[] } | ModelClientType[]>(response)
+  if (!parsed.success) {
+    return parsed
+  }
+  const body = parsed.data
+  const clientTypes = Array.isArray(body) ? body : Array.isArray(body?.client_types) ? body.client_types : []
+  return { success: true, data: clientTypes }
+}
+
+/**
  * 获取指定提供商的可用模型列表
  * @param providerName 提供商名称（在 model_config.toml 中配置的名称）
  * @param parser 响应解析器类型 ('openai' | 'gemini')

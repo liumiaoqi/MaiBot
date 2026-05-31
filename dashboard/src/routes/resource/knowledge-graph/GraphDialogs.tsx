@@ -5,6 +5,7 @@ import { Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { ThinkingIllustration } from '@/components/ui/thinking-illustration'
 import {
   Dialog,
   DialogBody,
@@ -189,7 +190,7 @@ export function NodeDetailDialog({
               </div>
 
               {loading ? (
-                <p className="text-sm text-muted-foreground">Thinking...</p>
+                <ThinkingIllustration size="sm" />
               ) : (
                 <>
                   <section className="space-y-3">
@@ -303,7 +304,7 @@ export function EdgeDetailDialog({
               </div>
 
               {loading ? (
-                <p className="text-sm text-muted-foreground">Thinking...</p>
+                <ThinkingIllustration size="sm" />
               ) : (
                 <>
                   <section className="space-y-3">

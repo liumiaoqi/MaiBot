@@ -84,19 +84,18 @@ async def get_persons_by_platform(
 
         with get_db_session() as session:
             persons = session.exec(statement).all()
-
-        result = [
-            {
-                "person_id": person.person_id,
-                "user_id": person.user_id,
-                "person_name": person.person_name,
-                "nickname": person.user_nickname,
-                "is_known": person.is_known,
-                "platform": person.platform,
-                "display_name": person.person_name or person.user_nickname or person.user_id,
-            }
-            for person in persons
-        ]
+            result = [
+                {
+                    "person_id": person.person_id,
+                    "user_id": person.user_id,
+                    "person_name": person.person_name,
+                    "nickname": person.user_nickname,
+                    "is_known": person.is_known,
+                    "platform": person.platform,
+                    "display_name": person.person_name or person.user_nickname or person.user_id,
+                }
+                for person in persons
+            ]
         return {"success": True, "persons": result, "total": len(result)}
     except Exception as e:
         logger.error(f"获取用户列表失败: {e}")

@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { ThinkingIllustration } from '@/components/ui/thinking-illustration'
 import {
   ArrowLeft,
   Download,
@@ -41,18 +42,8 @@ import {
 import { MarkdownRenderer } from '@/components/markdown-renderer'
 import { PluginStats } from '@/components/plugin-stats'
 import { recordPluginDownload } from '@/lib/plugin-stats'
-
-// 分类名称映射
-const CATEGORY_NAMES: Record<string, string> = {
-  'Group Management': '群组管理',
-  'Entertainment & Interaction': '娱乐互动',
-  'Utility Tools': '实用工具',
-  'Content Generation': '内容生成',
-  Multimedia: '多媒体',
-  'External Integration': '外部集成',
-  'Data Analysis & Insights': '数据分析与洞察',
-  Other: '其他',
-}
+import { PluginIcon } from './plugins/PluginIcon'
+import { getPluginTypeLabel } from './plugins/types'
 
 export function PluginDetailPage() {
   const navigate = useNavigate()
@@ -420,8 +411,7 @@ export function PluginDetailPage() {
           </div>
         </div>
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          <span className="ml-3 text-muted-foreground">Thinking...</span>
+          <ThinkingIllustration size="lg" />
         </div>
       </div>
     )
@@ -554,31 +544,45 @@ export function PluginDetailPage() {
             <CardHeader>
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 space-y-2">
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <CardTitle className="text-2xl">{plugin.manifest.name}</CardTitle>
-                    <Badge variant="secondary" className="text-sm">
-                      v{plugin.manifest.version}
-                    </Badge>
-                    {isInstalled && (
-                      <Badge variant="default" className="text-sm">
-                        <CheckCircle2 className="h-3 w-3 mr-1" />
-                        已安装 {installedVersion && `(v${installedVersion})`}
-                      </Badge>
-                    )}
-                    {needsUpdate() && (
-                      <Badge variant="outline" className="text-sm border-orange-500 text-orange-500">
-                        <RefreshCw className="h-3 w-3 mr-1" />
-                        可更新
-                      </Badge>
-                    )}
-                    {!isCompatible && (
-                      <Badge variant="destructive" className="text-sm">
-                        <AlertCircle className="h-3 w-3 mr-1" />
-                        不兼容
-                      </Badge>
-                    )}
+                  <div className="flex items-start gap-4">
+                    <PluginIcon
+                      pluginId={plugin.id}
+                      manifest={plugin.manifest}
+                      installed={isInstalled}
+                      className="h-14 w-14"
+                      iconClassName="h-7 w-7"
+                    />
+                    <div className="min-w-0 space-y-2">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <CardTitle className="text-2xl">{plugin.manifest.name}</CardTitle>
+                        <Badge variant="secondary" className="text-sm">
+                          v{plugin.manifest.version}
+                        </Badge>
+                        <Badge variant="outline" className="text-sm">
+                          {getPluginTypeLabel(plugin)}
+                        </Badge>
+                        {isInstalled && (
+                          <Badge variant="default" className="text-sm">
+                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                            已安装 {installedVersion && `(v${installedVersion})`}
+                          </Badge>
+                        )}
+                        {needsUpdate() && (
+                          <Badge variant="outline" className="text-sm border-orange-500 text-orange-500">
+                            <RefreshCw className="h-3 w-3 mr-1" />
+                            可更新
+                          </Badge>
+                        )}
+                        {!isCompatible && (
+                          <Badge variant="destructive" className="text-sm">
+                            <AlertCircle className="h-3 w-3 mr-1" />
+                            不兼容
+                          </Badge>
+                        )}
+                      </div>
+                      <CardDescription className="text-base">{plugin.manifest.description}</CardDescription>
+                    </div>
                   </div>
-                  <CardDescription className="text-base">{plugin.manifest.description}</CardDescription>
                 </div>
               </div>
             </CardHeader>
@@ -624,6 +628,12 @@ export function PluginDetailPage() {
                       <Package className="h-4 w-4 text-muted-foreground" />
                       <span className="text-muted-foreground">版本:</span>
                       <span className="font-medium">v{plugin.manifest.version}</span>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-sm">
+                      <Info className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-muted-foreground">类型:</span>
+                      <span className="font-medium">{getPluginTypeLabel(plugin)}</span>
                     </div>
 
                     <div className="flex items-center gap-2 text-sm">
@@ -680,39 +690,24 @@ export function PluginDetailPage() {
                 </CardContent>
               </Card>
 
-              {/* 分类和标签 */}
-              {(plugin.manifest.categories || plugin.manifest.keywords) && (
+              {/* 类型和标签 */}
+              {plugin.manifest.keywords && plugin.manifest.keywords.length > 0 && (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">分类与标签</CardTitle>
+                    <CardTitle className="text-lg">标签</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {plugin.manifest.categories && plugin.manifest.categories.length > 0 && (
-                      <div>
-                        <p className="text-sm text-muted-foreground mb-2">分类</p>
-                        <div className="flex flex-wrap gap-2">
-                          {plugin.manifest.categories.map((category) => (
-                            <Badge key={category} variant="secondary">
-                              {CATEGORY_NAMES[category] || category}
-                            </Badge>
-                          ))}
-                        </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-2">关键词</p>
+                      <div className="flex flex-wrap gap-2">
+                        {plugin.manifest.keywords.map((keyword) => (
+                          <Badge key={keyword} variant="outline" className="text-xs">
+                            <Tag className="h-3 w-3 mr-1" />
+                            {keyword}
+                          </Badge>
+                        ))}
                       </div>
-                    )}
-
-                    {plugin.manifest.keywords && plugin.manifest.keywords.length > 0 && (
-                      <div>
-                        <p className="text-sm text-muted-foreground mb-2">标签</p>
-                        <div className="flex flex-wrap gap-2">
-                          {plugin.manifest.keywords.map((keyword) => (
-                            <Badge key={keyword} variant="outline" className="text-xs">
-                              <Tag className="h-3 w-3 mr-1" />
-                              {keyword}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                    </div>
                   </CardContent>
                 </Card>
               )}
@@ -727,8 +722,7 @@ export function PluginDetailPage() {
                 <ScrollArea className="h-[600px] pr-4">
                   {readmeLoading ? (
                     <div className="flex items-center justify-center py-12">
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                      <span className="ml-3 text-sm text-muted-foreground">Thinking...</span>
+                      <ThinkingIllustration />
                     </div>
                   ) : readme ? (
                     <MarkdownRenderer content={readme} />

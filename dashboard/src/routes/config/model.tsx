@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { ThinkingIllustration } from '@/components/ui/thinking-illustration'
 import {
   Dialog,
   DialogBody,
@@ -86,6 +87,17 @@ function unwrapModelConfig(data: unknown): Record<string, unknown> {
 }
 
 const ADVANCED_MODEL_TASK_NAMES = new Set(['memory', 'learner', 'emoji', 'voice'])
+const MODEL_CONFIG_TABS = ['providers', 'models', 'tasks'] as const
+type ModelConfigTab = (typeof MODEL_CONFIG_TABS)[number]
+
+function getInitialModelConfigTab(): ModelConfigTab {
+  if (typeof window === 'undefined') {
+    return 'providers'
+  }
+
+  const tab = new URLSearchParams(window.location.search).get('tab')
+  return MODEL_CONFIG_TABS.includes(tab as ModelConfigTab) ? (tab as ModelConfigTab) : 'providers'
+}
 
 function getRequiredTaskNames(schema: ConfigSchema | null): Set<string> {
   return new Set(
@@ -148,7 +160,7 @@ function ModelConfigPageContent() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [jumpToPage, setJumpToPage] = useState('')
-  const [activeTab, setActiveTab] = useState('providers')
+  const [activeTab, setActiveTab] = useState<ModelConfigTab>(getInitialModelConfigTab)
   
   const [advancedModelSettingsVisible, setAdvancedModelSettingsVisible] = useState(false)
   const [advancedTaskSettingsVisible, setAdvancedTaskSettingsVisible] = useState(false)
@@ -680,15 +692,24 @@ function ModelConfigPageContent() {
     setProviderDialogOpen(true)
   }
 
+  const handleActiveTabChange = useCallback((value: string) => {
+    const nextTab = MODEL_CONFIG_TABS.includes(value as ModelConfigTab)
+      ? (value as ModelConfigTab)
+      : 'providers'
+    setActiveTab(nextTab)
+    const nextUrl = nextTab === 'providers' ? '/config/model' : `/config/model?tab=${nextTab}`
+    window.history.replaceState(null, '', nextUrl)
+  }, [])
+
   // Tour 引导 (使用 hook 封装的逻辑)
   const { startTour: handleStartTour, isRunning: tourIsRunning } = useModelTour({
     onOpenEditDialog: () => openEditDialog(null, null),
     onCloseEditDialog: () => setEditDialogOpen(false),
     onOpenProviderDialog: () => openProviderDialog(null, null),
     onCloseProviderDialog: () => setProviderDialogOpen(false),
-    onOpenProvidersTab: () => setActiveTab('providers'),
-    onOpenModelsTab: () => setActiveTab('models'),
-    onOpenTasksTab: () => setActiveTab('tasks'),
+    onOpenProvidersTab: () => handleActiveTabChange('providers'),
+    onOpenModelsTab: () => handleActiveTabChange('models'),
+    onOpenTasksTab: () => handleActiveTabChange('tasks'),
   })
 
   const handleSaveProviderEdit = (provider: APIProvider, index: number | null) => {
@@ -1178,7 +1199,7 @@ function ModelConfigPageContent() {
       <ScrollArea className="h-full">
         <div className="space-y-4 sm:space-y-6 p-4 sm:p-6">
           <div className="flex items-center justify-center h-64">
-            <p className="text-muted-foreground">Thinking...</p>
+            <ThinkingIllustration size="lg" />
           </div>
         </div>
       </ScrollArea>
@@ -1326,7 +1347,7 @@ function ModelConfigPageContent() {
         )}
 
         {/* 标签页 */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <Tabs value={activeTab} onValueChange={handleActiveTabChange} className="w-full">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="providers" className="w-full" data-tour="providers-tab-trigger">模型厂商设置</TabsTrigger>
             <TabsTrigger value="models" className="w-full" data-tour="models-tab-trigger">模型列表</TabsTrigger>
@@ -1335,9 +1356,6 @@ function ModelConfigPageContent() {
           {/* 模型厂商设置标签页 */}
           <TabsContent value="providers" className="space-y-4 mt-0">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-muted-foreground">
-                管理 AI 模型厂商的 API 配置
-              </p>
               <div className="hidden">
                 {selectedProviders.size > 0 && (
                   <Button
@@ -1413,9 +1431,6 @@ function ModelConfigPageContent() {
           {/* 模型配置标签页 */}
           <TabsContent value="models" className="space-y-4 mt-0">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-              <p className="text-sm text-muted-foreground">
-                配置可用的模型列表
-              </p>
               <div className="hidden">
                 {selectedModels.size > 0 && (
                   <Button 
@@ -1652,7 +1667,7 @@ function ModelConfigPageContent() {
       {/* 编辑模型对话框 */}
       <Dialog open={editDialogOpen} onOpenChange={handleEditDialogClose}>
         <DialogContent 
-          className="max-w-[95vw] sm:max-w-2xl" 
+          className="max-w-[95vw] gap-3 p-4 sm:max-w-2xl sm:gap-4 sm:p-6"
           data-tour="model-dialog"
           preventOutsideClose={tourIsRunning}
           confirmOnEnter
@@ -1675,10 +1690,10 @@ function ModelConfigPageContent() {
             </div>
           </DialogHeader>
 
-          <DialogBody>
-          <div className="grid gap-4 py-4">
+          <DialogBody viewportClassName="min-h-0 flex-1 pr-3 sm:pr-4 [&>div]:!block">
+          <div className="grid gap-3 py-2 sm:gap-4 sm:py-4">
             <div className="grid gap-2" data-tour="model-name-input">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
                 <Label
                   htmlFor="model_name"
                   className={`sm:w-28 sm:flex-shrink-0 ${formErrors.name ? 'text-destructive' : ''}`}
@@ -1706,7 +1721,7 @@ function ModelConfigPageContent() {
             </div>
 
             <div className="grid gap-2" data-tour="model-provider-select">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
                 <Label
                   htmlFor="api_provider"
                   className={`sm:w-28 sm:flex-shrink-0 ${formErrors.api_provider ? 'text-destructive' : ''}`}
@@ -1768,7 +1783,7 @@ function ModelConfigPageContent() {
                 )}
               </div>
               
-              <div className="flex flex-col gap-2 sm:flex-row">
+              <div className="flex flex-col gap-1.5 sm:flex-row sm:gap-2">
                 {/* 模型标识符 Combobox */}
                 {matchedTemplate?.modelFetcher && (
                   <Popover open={modelComboboxOpen} onOpenChange={setModelComboboxOpen}>
@@ -1890,24 +1905,41 @@ function ModelConfigPageContent() {
               )}
             </div>
 
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="model_visual"
-                checked={editingModel?.visual || false}
-                onCheckedChange={(checked) =>
-                  setEditingModel((prev) =>
-                    prev ? { ...prev, visual: checked } : null
-                  )
-                }
-              />
-              <Label htmlFor="model_visual" className="cursor-pointer">
-                启用视觉
-              </Label>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 sm:gap-6">
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="model_visual"
+                  checked={editingModel?.visual || false}
+                  onCheckedChange={(checked) =>
+                    setEditingModel((prev) =>
+                      prev ? { ...prev, visual: checked } : null
+                    )
+                  }
+                />
+                <Label htmlFor="model_visual" className="cursor-pointer">
+                  启用视觉
+                </Label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="model_cache"
+                  checked={editingModel?.cache || false}
+                  onCheckedChange={(checked) =>
+                    setEditingModel((prev) =>
+                      prev ? { ...prev, cache: checked } : null
+                    )
+                  }
+                />
+                <Label htmlFor="model_cache" className="cursor-pointer">
+                  支持缓存
+                </Label>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="flex items-center gap-3">
-                <Label htmlFor="price_in" className="w-36 shrink-0">输入价格 (¥/M token)</Label>
+            <div className={`grid grid-cols-1 gap-3 sm:gap-4 ${editingModel?.cache ? 'md:grid-cols-3' : 'sm:grid-cols-2'}`}>
+              <div className="grid gap-2">
+                <Label htmlFor="price_in">输入价格 (¥/M token)</Label>
                 <Input
                   id="price_in"
                   type="number"
@@ -1923,12 +1955,11 @@ function ModelConfigPageContent() {
                     )
                   }}
                   placeholder="默认: 0"
-                  className="flex-1"
                 />
               </div>
 
-              <div className="flex items-center gap-3">
-                <Label htmlFor="price_out" className="w-36 shrink-0">输出价格 (¥/M token)</Label>
+              <div className="grid gap-2">
+                <Label htmlFor="price_out">输出价格 (¥/M token)</Label>
                 <Input
                   id="price_out"
                   type="number"
@@ -1944,55 +1975,35 @@ function ModelConfigPageContent() {
                     )
                   }}
                   placeholder="默认: 0"
-                  className="flex-1"
                 />
               </div>
+
+              {editingModel?.cache && (
+                <div className="grid gap-2">
+                  <Label htmlFor="cache_price_in">缓存价格 (¥/M token)</Label>
+                  <Input
+                    id="cache_price_in"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    value={editingModel?.cache_price_in ?? ''}
+                    onChange={(e) => {
+                      const val = e.target.value === '' ? null : parseFloat(e.target.value)
+                      setEditingModel((prev) =>
+                        prev
+                          ? { ...prev, cache_price_in: val }
+                          : null
+                      )
+                    }}
+                    placeholder="默认: 0"
+                  />
+                </div>
+              )}
             </div>
 
             {advancedModelSettingsVisible && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-4 space-y-4 dark:border-amber-500/40 dark:bg-amber-500/10">
+              <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50/50 p-3 dark:border-amber-500/40 dark:bg-amber-500/10 sm:space-y-4 sm:p-4">
                 <div className="flex items-center justify-between gap-4">
-                  <div className="space-y-1">
-                    <Label htmlFor="model_cache" className="cursor-pointer">支持缓存计费</Label>
-                    <p className="text-xs text-muted-foreground">
-                      开启后，命中缓存的输入 token 会按缓存输入价格统计
-                    </p>
-                  </div>
-                  <Switch
-                    id="model_cache"
-                    checked={editingModel?.cache || false}
-                    onCheckedChange={(checked) =>
-                      setEditingModel((prev) =>
-                        prev ? { ...prev, cache: checked } : null
-                      )
-                    }
-                  />
-                </div>
-
-                {editingModel?.cache && (
-                  <div className="flex items-center gap-3 border-t pt-4">
-                    <Label htmlFor="cache_price_in" className="w-40 shrink-0">缓存输入价格 (¥/M token)</Label>
-                    <Input
-                      id="cache_price_in"
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      value={editingModel?.cache_price_in ?? ''}
-                      onChange={(e) => {
-                        const val = e.target.value === '' ? null : parseFloat(e.target.value)
-                        setEditingModel((prev) =>
-                          prev
-                            ? { ...prev, cache_price_in: val }
-                            : null
-                        )
-                      }}
-                      placeholder="默认: 0"
-                      className="flex-1"
-                    />
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between gap-4 border-t pt-4">
                   <div className="space-y-1">
                     <Label htmlFor="force_stream_mode" className="cursor-pointer">强制流式输出模式</Label>
                     <p className="text-xs text-muted-foreground">
@@ -2013,7 +2024,7 @@ function ModelConfigPageContent() {
             )}
 
             {/* 模型级别温度 */}
-            <div className="rounded-lg border p-4 space-y-3">
+            <div className="space-y-2 rounded-lg border p-3 sm:space-y-3 sm:p-4">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-1.5">
@@ -2111,7 +2122,7 @@ function ModelConfigPageContent() {
             </div>
 
             {/* 模型级别最大 Token */}
-            <div className="rounded-lg border p-4 space-y-3">
+            <div className="space-y-2 rounded-lg border p-3 sm:space-y-3 sm:p-4">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-1.5">
@@ -2215,11 +2226,23 @@ function ModelConfigPageContent() {
           </div>
           </DialogBody>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDialogOpen(false)} data-tour="model-cancel-button">
+          <DialogFooter className="flex-row justify-end gap-2 space-x-0">
+            <Button
+              variant="outline"
+              className="flex-1 sm:flex-none"
+              onClick={() => setEditDialogOpen(false)}
+              data-tour="model-cancel-button"
+            >
               取消
             </Button>
-            <Button data-dialog-action="confirm" onClick={handleSaveEdit} data-tour="model-save-button">保存</Button>
+            <Button
+              data-dialog-action="confirm"
+              className="flex-1 sm:flex-none"
+              onClick={handleSaveEdit}
+              data-tour="model-save-button"
+            >
+              保存
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
