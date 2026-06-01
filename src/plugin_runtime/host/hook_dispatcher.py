@@ -319,7 +319,7 @@ class HookDispatcher:
             int: 默认超时毫秒数。
         """
 
-        timeout_seconds = float(global_config.plugin_runtime.hook_blocking_timeout_sec or 30.0)
+        timeout_seconds = float(global_config.plugin_runtime.hook_blocking_timeout_sec or 60.0)
         return max(int(timeout_seconds * 1000), 1)
 
     @staticmethod
