@@ -5,6 +5,8 @@ from typing import Any
 
 import pytest
 
+from src.A_memorix.core.retrieval import RetrievalResult
+from src.A_memorix.core.runtime.sdk_memory_kernel import KernelSearchRequest
 from src.A_memorix.core.runtime.sdk_memory_kernel import SDKMemoryKernel
 
 
@@ -41,6 +43,117 @@ class _DummyMetadataStore:
         raise AssertionError(f"unexpected query: {sql_token}")
 
 
+class _ScopedSearchMetadataStore:
+    def __init__(self) -> None:
+        self.paragraphs = {
+            "para-current": {
+                "hash": "para-current",
+                "content": "当前群聊提到绿色围巾。",
+                "source": "chat_summary:session-current",
+                "metadata": {"chat_id": "session-current", "source_type": "chat_summary"},
+            },
+            "para-other": {
+                "hash": "para-other",
+                "content": "其他群聊提到秘密计划。",
+                "source": "chat_summary:session-other",
+                "metadata": {"chat_id": "session-other", "source_type": "chat_summary"},
+            },
+            "para-current-relation": {
+                "hash": "para-current-relation",
+                "content": "当前群聊支撑的关系。",
+                "source": "chat_summary:session-current",
+                "metadata": {"chat_id": "session-current", "source_type": "chat_summary"},
+            },
+            "para-other-relation": {
+                "hash": "para-other-relation",
+                "content": "其他群聊支撑的关系。",
+                "source": "chat_summary:session-other",
+                "metadata": {"chat_id": "session-other", "source_type": "chat_summary"},
+            },
+        }
+        self.relation_paragraphs = {
+            "rel-current": [self.paragraphs["para-current-relation"]],
+            "rel-other": [self.paragraphs["para-other-relation"]],
+        }
+
+    def get_paragraphs_by_hashes(self, paragraph_hashes: list[str]) -> dict[str, dict[str, Any]]:
+        return {
+            paragraph_hash: self.paragraphs[paragraph_hash]
+            for paragraph_hash in paragraph_hashes
+            if paragraph_hash in self.paragraphs
+        }
+
+    def get_paragraphs_by_relation_hashes(self, relation_hashes: list[str]) -> dict[str, list[dict[str, Any]]]:
+        return {
+            relation_hash: list(self.relation_paragraphs.get(relation_hash, []))
+            for relation_hash in relation_hashes
+        }
+
+    def get_relation_status_batch(self, hashes: list[str]) -> dict[str, dict[str, Any]]:
+        return {str(hash_value): {"is_inactive": False} for hash_value in hashes}
+
+    def reinforce_relations(self, hashes: list[str]) -> None:
+        del hashes
+
+    def get_paragraph_relations(self, paragraph_hash: str) -> list[dict[str, Any]]:
+        del paragraph_hash
+        return []
+
+    def get_paragraph_stale_relation_marks_batch(self, paragraph_hashes: list[str]) -> dict[str, list[dict[str, Any]]]:
+        return {str(paragraph_hash): [] for paragraph_hash in paragraph_hashes}
+
+
+class _ScopedSearchRetriever:
+    config = type("RetrieverConfig", (), {"enable_ppr": False})()
+
+    def __init__(self) -> None:
+        self.top_k_values: list[int] = []
+
+    async def retrieve(self, *, query: str, top_k: int, temporal: Any) -> list[RetrievalResult]:
+        del query
+        self.top_k_values.append(top_k)
+        results = [
+            RetrievalResult(
+                hash_value="para-other",
+                content="其他群聊提到秘密计划。",
+                score=0.99,
+                result_type="paragraph",
+                source="paragraph_search",
+                metadata={},
+            ),
+            RetrievalResult(
+                hash_value="rel-other",
+                content="其他群聊 讨论 秘密计划",
+                score=0.98,
+                result_type="relation",
+                source="relation_search",
+                metadata={},
+            ),
+            RetrievalResult(
+                hash_value="para-current",
+                content="当前群聊提到绿色围巾。",
+                score=0.97,
+                result_type="paragraph",
+                source="paragraph_search",
+                metadata={},
+            ),
+            RetrievalResult(
+                hash_value="rel-current",
+                content="当前群聊 讨论 绿色围巾",
+                score=0.96,
+                result_type="relation",
+                source="relation_search",
+                metadata={},
+            ),
+        ]
+        source = str(getattr(temporal, "source", "") or "")
+        if source == "chat_summary:session-current":
+            return [item for item in results if item.hash_value.endswith("current")]
+        if source == "chat_summary:session-other":
+            return [item for item in results if item.hash_value.endswith("other")]
+        return results
+
+
 def _build_kernel(*, entities: list[dict[str, Any]], relations: list[dict[str, Any]]) -> SDKMemoryKernel:
     kernel = SDKMemoryKernel(plugin_root=Path.cwd(), config={})
 
@@ -51,6 +164,36 @@ def _build_kernel(*, entities: list[dict[str, Any]], relations: list[dict[str, A
     kernel.metadata_store = _DummyMetadataStore(entities=entities, relations=relations)
     kernel.graph_store = object()  # type: ignore[assignment]
     return kernel
+
+
+def _build_scoped_search_kernel(tmp_path) -> tuple[SDKMemoryKernel, _ScopedSearchRetriever]:
+    kernel = SDKMemoryKernel(
+        plugin_root=tmp_path,
+        config={
+            "retrieval": {
+                "search": {
+                    "smart_fallback": {"enabled": False},
+                    "safe_content_dedup": {"enabled": False},
+                }
+            }
+        },
+    )
+    retriever = _ScopedSearchRetriever()
+
+    async def _fake_initialize() -> None:
+        return None
+
+    kernel.initialize = _fake_initialize  # type: ignore[method-assign]
+    kernel._initialized = True
+    kernel.metadata_store = _ScopedSearchMetadataStore()  # type: ignore[assignment]
+    kernel.graph_store = object()  # type: ignore[assignment]
+    kernel.vector_store = object()  # type: ignore[assignment]
+    kernel.embedding_manager = object()
+    kernel.retriever = retriever  # type: ignore[assignment]
+    kernel.episode_retriever = object()  # type: ignore[assignment]
+    kernel.aggregate_query_service = object()  # type: ignore[assignment]
+    kernel.threshold_filter = None
+    return kernel, retriever
 
 
 @pytest.mark.asyncio
@@ -111,3 +254,61 @@ async def test_memory_graph_admin_search_filters_deleted_and_inactive_records() 
     assert payload["success"] is True
     assert payload["items"] == []
     assert payload["count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_search_memory_filters_hits_to_current_chat_scope(tmp_path) -> None:
+    kernel, retriever = _build_scoped_search_kernel(tmp_path)
+
+    payload = await kernel.search_memory(
+        KernelSearchRequest(
+            query="围巾",
+            limit=2,
+            mode="search",
+            chat_id="session-current",
+        )
+    )
+
+    assert payload["summary"]
+    assert [item["hash"] for item in payload["hits"]] == ["para-current", "rel-current"]
+    assert retriever.top_k_values == [10]
+
+
+@pytest.mark.asyncio
+async def test_search_memory_allows_configured_shared_chat_scope(tmp_path) -> None:
+    kernel, retriever = _build_scoped_search_kernel(tmp_path)
+
+    payload = await kernel.search_memory(
+        KernelSearchRequest(
+            query="围巾",
+            limit=4,
+            mode="search",
+            chat_id="session-current",
+            shared_chat_ids=("session-current", "session-other"),
+        )
+    )
+
+    assert [item["hash"] for item in payload["hits"]] == [
+        "para-other",
+        "rel-other",
+        "para-current",
+        "rel-current",
+    ]
+    assert retriever.top_k_values == [40, 40]
+
+
+@pytest.mark.asyncio
+async def test_search_memory_keeps_global_results_without_chat_id(tmp_path) -> None:
+    kernel, retriever = _build_scoped_search_kernel(tmp_path)
+
+    payload = await kernel.search_memory(
+        KernelSearchRequest(
+            query="围巾",
+            limit=2,
+            mode="search",
+            chat_id="",
+        )
+    )
+
+    assert [item["hash"] for item in payload["hits"]] == ["para-other", "rel-other"]
+    assert retriever.top_k_values == [2]

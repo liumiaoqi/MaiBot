@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 import pytest
@@ -7,6 +9,17 @@ from src.webui.dependencies import require_auth
 from src.webui.routers import memory as memory_router_module
 from src.webui.routers.memory import compat_router
 from src.webui.routes import router as main_router
+
+
+class _FakeDbContext:
+    def __init__(self, db_session):
+        self.db_session = db_session
+
+    def __enter__(self):
+        return self.db_session
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
 
 
 @pytest.fixture
@@ -614,9 +627,15 @@ def test_import_guide_route(client: TestClient, monkeypatch):
 
 def test_import_upload_route(client: TestClient, monkeypatch, tmp_path):
     monkeypatch.setattr(memory_router_module, "STAGING_ROOT", tmp_path)
+    monkeypatch.setattr(
+        memory_router_module._chat_manager,
+        "get_existing_session_by_session_id",
+        lambda chat_id: SimpleNamespace(session_id=chat_id) if chat_id == "session-1" else None,
+    )
 
     async def fake_import_admin(*, action: str, **kwargs):
         assert action == "create_upload"
+        assert kwargs["chat_id"] == "session-1"
         staged_files = kwargs["staged_files"]
         assert len(staged_files) == 1
         assert staged_files[0]["filename"] == "demo.txt"
@@ -627,13 +646,68 @@ def test_import_upload_route(client: TestClient, monkeypatch, tmp_path):
 
     response = client.post(
         "/api/import/upload",
-        data={"payload_json": "{\"source\": \"upload\"}"},
+        data={"payload_json": "{\"source\": \"upload\", \"chat_id\": \"session-1\"}"},
         files=[("files", ("demo.txt", b"hello world", "text/plain"))],
     )
 
     assert response.status_code == 200
     assert response.json() == {"success": True, "task_id": "task-1"}
     assert list(tmp_path.iterdir()) == []
+
+
+def test_import_upload_route_rejects_unknown_chat_id(client: TestClient, monkeypatch, tmp_path):
+    monkeypatch.setattr(memory_router_module, "STAGING_ROOT", tmp_path)
+    monkeypatch.setattr(memory_router_module._chat_manager, "get_existing_session_by_session_id", lambda chat_id: None)
+    monkeypatch.setattr(
+        memory_router_module,
+        "get_db_session",
+        lambda: _FakeDbContext(SimpleNamespace(exec=lambda statement: SimpleNamespace(first=lambda: None))),
+    )
+
+    response = client.post(
+        "/api/import/upload",
+        data={"payload_json": "{\"chat_id\": \"missing-session\"}"},
+        files=[("files", ("demo.txt", b"hello world", "text/plain"))],
+    )
+
+    assert response.status_code == 400
+    assert "聊天流不存在" in response.json()["detail"]
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_import_chat_targets_route(client: TestClient, monkeypatch):
+    chat_session = SimpleNamespace(
+        session_id="session-1",
+        platform="qq",
+        group_id="10001",
+        group_name="测试群",
+        user_id="20002",
+        account_id="bot-1",
+        scope="default",
+        user_nickname=None,
+        user_cardname=None,
+        last_active_timestamp=None,
+    )
+    monkeypatch.setattr(memory_router_module._chat_manager, "get_session_name", lambda chat_id: "")
+    monkeypatch.setattr(
+        memory_router_module,
+        "get_db_session",
+        lambda: _FakeDbContext(
+            SimpleNamespace(exec=lambda statement: SimpleNamespace(all=lambda: [chat_session], first=lambda: None))
+        ),
+    )
+
+    response = client.get("/api/webui/memory/import/chat-targets")
+
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+    assert response.json()["data"][0]["chat_id"] == "session-1"
+    assert response.json()["data"][0]["chat_name"] == "测试群"
+    assert response.json()["data"][0]["platform"] == "qq"
+    assert response.json()["data"][0]["group_id"] == "10001"
+    assert response.json()["data"][0]["user_id"] == "20002"
+    assert response.json()["data"][0]["account_id"] == "bot-1"
+    assert response.json()["data"][0]["scope"] == "default"
 
 
 def test_v5_status_route(client: TestClient, monkeypatch):

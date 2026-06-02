@@ -38,6 +38,7 @@ import { ChevronLeft, ChevronRight, Code2, Info, Layout, Power, RefreshCw, Save 
 import type { ConfigSchema } from '@/types/config-schema'
 import {
   AliasNamesHook,
+  AMemorixSharedMemoryGroupsHook,
   BotPlatformAccountsHook,
   ChatPromptsHook,
   ChatTalkValueRulesHook,
@@ -438,6 +439,7 @@ function BotConfigPageContent() {
       ['expression.learning_list', ExpressionLearningListHook],
       ['jargon.jargon_groups', JargonGroupsHook],
       ['jargon.learning_list', JargonLearningListHook],
+      ['a_memorix.shared_memory_groups', AMemorixSharedMemoryGroupsHook],
       ['keyword_reaction.keyword_rules', KeywordRulesHook],
       ['keyword_reaction.regex_rules', RegexRulesHook],
       ['mcp.client.roots.items', MCPRootItemsHook],

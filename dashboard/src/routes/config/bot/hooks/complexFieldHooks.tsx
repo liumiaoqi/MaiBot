@@ -1580,14 +1580,29 @@ export const RegexRulesHook = createListItemEditorHook({
   },
 })
 
-export const ExpressionGroupsHook: FieldHookComponent = ({ fieldPath, onChange, value }) => {
+export const ExpressionGroupsHook: FieldHookComponent = ({ fieldPath, onChange, schema, value }) => {
   const groups = normalizeExpressionGroups(value)
   const isJargonGroup = fieldPath?.includes('jargon') ?? false
-  const groupLabel = isJargonGroup ? '黑话互通组' : '表达互通组'
+  const isSharedMemoryGroup = fieldPath?.includes('shared_memory_groups') ?? false
+  const displaysAsSection =
+    isSharedMemoryGroup &&
+    Boolean(schema && 'x-display-as-section' in schema && schema['x-display-as-section'])
+  const groupLabel = isSharedMemoryGroup ? '共享记忆组' : isJargonGroup ? '黑话互通组' : '表达互通组'
   const learnedContentLabel = isJargonGroup ? '黑话' : '表达方式'
+  const helperText = isSharedMemoryGroup
+    ? '把几个群聊或私聊放进同一组后，麦麦在其中任意一个聊天里回忆长期记忆时，会一起参考同组聊天的记忆；新产生的内容仍记在原来的聊天里。'
+    : `每个互通组内的聊天流会共享已学习的${learnedContentLabel}。成员会保存为 targets 数组结构。`
 
   const updateGroups = (nextGroups: ExpressionGroupValue[]) => {
-    onChange?.(nextGroups)
+    onChange?.(
+      nextGroups.map((group) => ({
+        targets: group.targets.map((target) => ({
+          platform: target.platform,
+          item_id: target.item_id,
+          rule_type: target.type,
+        })),
+      }))
+    )
   }
 
   const addGroup = () => {
@@ -1649,13 +1664,12 @@ export const ExpressionGroupsHook: FieldHookComponent = ({ fieldPath, onChange, 
   }
 
   return (
-    <div className="space-y-3 rounded-lg border bg-card p-4 sm:p-5">
+    <div className={displaysAsSection ? 'space-y-3' : 'space-y-3 rounded-lg border bg-card p-4 sm:p-5'}>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1">
-          <h3 className="text-base font-semibold">{groupLabel}</h3>
+          {!displaysAsSection && <h3 className="text-base font-semibold">{groupLabel}</h3>}
           <p className="text-sm text-muted-foreground">
-            每个互通组内的聊天流会共享已学习的{learnedContentLabel}。成员会保存为
-            targets 数组结构。
+            {helperText}
           </p>
         </div>
         <Button type="button" size="sm" variant="outline" onClick={addGroup}>
@@ -1698,7 +1712,7 @@ export const ExpressionGroupsHook: FieldHookComponent = ({ fieldPath, onChange, 
                     type="button"
                     size="icon"
                     variant="ghost"
-                    aria-label={`删除互通组 ${groupIndex + 1}`}
+                    aria-label={`删除${groupLabel} ${groupIndex + 1}`}
                     onClick={() => removeGroup(groupIndex)}
                   >
                     <Trash2 className="h-4 w-4" />
@@ -1708,7 +1722,7 @@ export const ExpressionGroupsHook: FieldHookComponent = ({ fieldPath, onChange, 
 
               {group.targets.length === 0 ? (
                 <div className="rounded-md bg-background/70 px-3 py-4 text-sm text-muted-foreground">
-                  这个互通组还没有成员。
+                  这个{groupLabel}还没有成员。
                 </div>
               ) : (
                 <div className="space-y-1.5">
@@ -1771,7 +1785,7 @@ export const ExpressionGroupsHook: FieldHookComponent = ({ fieldPath, onChange, 
                           size="icon"
                           variant="ghost"
                           className="h-8 w-8"
-                          aria-label={`删除互通组 ${groupIndex + 1} 的成员 ${memberIndex + 1}`}
+                          aria-label={`删除${groupLabel} ${groupIndex + 1} 的成员 ${memberIndex + 1}`}
                           onClick={() => removeMember(groupIndex, memberIndex)}
                         >
                           <Trash2 className="h-4 w-4" />
@@ -1790,6 +1804,8 @@ export const ExpressionGroupsHook: FieldHookComponent = ({ fieldPath, onChange, 
 }
 
 export const JargonGroupsHook = ExpressionGroupsHook
+
+export const AMemorixSharedMemoryGroupsHook = ExpressionGroupsHook
 
 export const MCPRootItemsHook = createJsonFieldHook({
   emptyValue: [],
