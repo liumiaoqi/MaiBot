@@ -947,6 +947,163 @@ class AMemorixIntegrationConfig(ConfigBase):
     )
     """每轮自动注入的人物画像数量上限"""
 
+    heuristic_memory_recall_enabled: bool = Field(
+        default=False,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "启发式拉起记忆",
+                "en_US": "Heuristic memory recall",
+                "ja_JP": "ヒューリスティック記憶呼び出し",
+            },
+            "x-widget": "switch",
+            "x-icon": "sparkles",
+        },
+    )
+    """是否根据当前聊天印象自然拉起长期记忆"""
+
+    heuristic_memory_cross_chat_enabled: bool = Field(
+        default=False,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "允许跨聊天流拉起",
+                "en_US": "Allow cross-chat recall",
+                "ja_JP": "チャット横断呼び出しを許可",
+            },
+            "x-widget": "switch",
+            "x-icon": "shuffle",
+        },
+    )
+    """是否允许启发式记忆从其他聊天流召回候选"""
+
+    heuristic_memory_recall_window_size: int = Field(
+        default=20,
+        ge=1,
+        le=200,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "印象窗口消息数",
+                "en_US": "Impression window size",
+                "ja_JP": "印象ウィンドウ件数",
+            },
+            "x-widget": "input",
+            "x-icon": "rows-3",
+            "advanced": True,
+        },
+    )
+    """生成当前聊天印象时使用的最近消息数量"""
+
+    heuristic_memory_recall_limit: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "自然拉起记忆条数",
+                "en_US": "Heuristic memory limit",
+                "ja_JP": "自然呼び出し記憶数",
+            },
+            "x-widget": "input",
+            "x-icon": "list",
+            "advanced": True,
+        },
+    )
+    """每轮自然拉起的长期记忆数量上限"""
+
+    heuristic_memory_recall_max_chars: int = Field(
+        default=900,
+        ge=100,
+        le=4000,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "自然拉起文本上限",
+                "en_US": "Heuristic memory text limit",
+                "ja_JP": "自然呼び出し文字数上限",
+            },
+            "x-widget": "input",
+            "x-icon": "text-cursor-input",
+            "advanced": True,
+        },
+    )
+    """自然拉起记忆注入文本的最大字符数"""
+
+    heuristic_memory_recall_min_interval_seconds: int = Field(
+        default=180,
+        ge=0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "自然拉起冷却秒数",
+                "en_US": "Heuristic recall cooldown",
+                "ja_JP": "自然呼び出しクールダウン",
+            },
+            "x-widget": "input",
+            "x-icon": "timer",
+            "advanced": True,
+        },
+    )
+    """同一聊天流两次自然拉起的最小间隔秒数"""
+
+    heuristic_memory_recall_min_new_messages: int = Field(
+        default=60,
+        ge=1,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "自然拉起新增消息阈值",
+                "en_US": "Heuristic recall message threshold",
+                "ja_JP": "自然呼び出し新規メッセージ閾値",
+            },
+            "x-widget": "input",
+            "x-icon": "messages-square",
+            "advanced": True,
+        },
+    )
+    """两次自然拉起之间至少需要新增的当前聊天流消息数"""
+
+    heuristic_memory_recall_cache_ttl_seconds: int = Field(
+        default=300,
+        ge=0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "自然拉起缓存秒数",
+                "en_US": "Heuristic recall cache TTL",
+                "ja_JP": "自然呼び出しキャッシュ秒数",
+            },
+            "x-widget": "input",
+            "x-icon": "clock-4",
+            "advanced": True,
+        },
+    )
+    """同一聊天流自然拉起结果的运行时缓存时间"""
+
+    heuristic_memory_group_to_private_enabled: bool = Field(
+        default=False,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "私聊拉起群聊记忆",
+                "en_US": "Group memories in private chats",
+                "ja_JP": "個人チャットでグループ記憶を使う",
+            },
+            "x-widget": "switch",
+            "x-icon": "users-round",
+            "advanced": True,
+        },
+    )
+    """私聊中是否允许自然拉起群聊记忆"""
+
+    heuristic_memory_private_to_group_enabled: bool = Field(
+        default=False,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "群聊拉起私聊记忆",
+                "en_US": "Private memories in group chats",
+                "ja_JP": "グループチャットで個人記憶を使う",
+            },
+            "x-widget": "switch",
+            "x-icon": "message-circle",
+            "advanced": True,
+        },
+    )
+    """群聊中是否允许自然拉起私聊记忆"""
+
     person_fact_writeback_enabled: bool = Field(
         default=True,
         json_schema_extra={
@@ -1354,6 +1511,18 @@ class AMemorixEmbeddingConfig(ConfigBase):
     )
     """记忆向量的维度，需要与向量化模型保持一致"""
 
+    dimension_request_mode: Literal["explicit", "always", "never"] = Field(
+        default="explicit",
+        json_schema_extra={
+            "label": {
+                "zh_CN": "维度请求模式",
+                "en_US": "Dimension request mode",
+                "ja_JP": "次元リクエストモード",
+            },
+        },
+    )
+    """是否在 embedding 请求中携带维度参数：explicit 仅显式指定时携带，always 总是携带，never 不携带"""
+
     batch_size: int = Field(
         default=32,
         ge=1,
@@ -1749,6 +1918,24 @@ class AMemorixFilterConfig(ConfigBase):
         },
     )
     """聊天流列表"""
+
+
+class AMemorixSharedMemoryGroupConfig(ConfigBase):
+    """A_Memorix 共享记忆聊天流组配置"""
+
+    targets: list[TargetItem] = Field(
+        default_factory=list,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "共享聊天流",
+                "en_US": "Shared chat streams",
+                "ja_JP": "共有チャットストリーム",
+            },
+            "x-widget": "custom",
+            "x-icon": "users",
+        },
+    )
+    """同组聊天会在回忆长期记忆时互相参考，新内容仍记在原来的聊天中"""
 
 
 class AMemorixEpisodeConfig(ConfigBase):
@@ -2196,6 +2383,62 @@ class AMemorixWebImportConfig(ConfigBase):
     )
     """默认分块并发"""
 
+    default_narrative_window_size: int = Field(
+        default=1600,
+        ge=200,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "默认叙事抽取窗口",
+                "en_US": "Default narrative extraction window",
+                "ja_JP": "既定ナラティブ抽出ウィンドウ",
+            },
+            "advanced": True,
+        },
+    )
+    """默认叙事抽取窗口字符数"""
+
+    default_narrative_overlap: int = Field(
+        default=400,
+        ge=0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "默认叙事重叠字符",
+                "en_US": "Default narrative overlap",
+                "ja_JP": "既定ナラティブ重複文字数",
+            },
+            "advanced": True,
+        },
+    )
+    """默认叙事窗口重叠字符数"""
+
+    default_factual_target_size: int = Field(
+        default=1200,
+        ge=200,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "默认事实分块目标",
+                "en_US": "Default factual chunk target",
+                "ja_JP": "既定ファクトチャンク目標",
+            },
+            "advanced": True,
+        },
+    )
+    """默认事实分块目标字符数"""
+
+    max_chunk_chars: int = Field(
+        default=3200,
+        ge=200,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "分块字符上限",
+                "en_US": "Chunk character limit",
+                "ja_JP": "チャンク文字数上限",
+            },
+            "advanced": True,
+        },
+    )
+    """单个抽取分块的字符上限"""
+
     timeout: AMemorixWebImportTimeoutConfig = Field(
         default_factory=AMemorixWebImportTimeoutConfig,
         json_schema_extra={
@@ -2335,18 +2578,6 @@ class AMemorixConfig(ConfigBase):
     __ui_label__ = "长期记忆"
     __ui_icon__ = "brain"
 
-    integration: AMemorixIntegrationConfig = Field(
-        default_factory=AMemorixIntegrationConfig,
-        json_schema_extra={
-            "label": {
-                "zh_CN": "聊天中使用记忆",
-                "en_US": "Use memory in chat",
-                "ja_JP": "MaiSaka 連携",
-            },
-        },
-    )
-    """控制麦麦在聊天中如何使用长期记忆"""
-
     plugin: AMemorixPluginConfig = Field(
         default_factory=AMemorixPluginConfig,
         json_schema_extra={
@@ -2358,6 +2589,18 @@ class AMemorixConfig(ConfigBase):
         },
     )
     """长期记忆系统的总开关"""
+
+    integration: AMemorixIntegrationConfig = Field(
+        default_factory=AMemorixIntegrationConfig,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "聊天中使用记忆",
+                "en_US": "Use memory in chat",
+                "ja_JP": "MaiSaka 連携",
+            },
+        },
+    )
+    """控制麦麦在聊天中如何使用长期记忆"""
 
     storage: AMemorixStorageConfig = Field(
         default_factory=AMemorixStorageConfig,
@@ -2379,6 +2622,7 @@ class AMemorixConfig(ConfigBase):
                 "en_US": "Memory embedding",
                 "ja_JP": "記憶ベクトル化",
             },
+            "x-collapsed-by-default": True,
         },
     )
     """把记忆内容转换为向量时使用的基础设置"""
@@ -2418,6 +2662,21 @@ class AMemorixConfig(ConfigBase):
         },
     )
     """聊天过滤配置"""
+
+    shared_memory_groups: list[AMemorixSharedMemoryGroupConfig] = Field(
+        default_factory=list,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "共享记忆组",
+                "en_US": "Shared memory groups",
+                "ja_JP": "共有記憶グループ",
+            },
+            "x-widget": "custom",
+            "x-icon": "users-round",
+            "x-display-as-section": True,
+        },
+    )
+    """把需要互相参考长期记忆的群聊或私聊放到同一组"""
 
     episode: AMemorixEpisodeConfig = Field(
         default_factory=AMemorixEpisodeConfig,

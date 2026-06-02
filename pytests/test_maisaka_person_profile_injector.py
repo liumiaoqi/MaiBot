@@ -258,12 +258,21 @@ async def test_reasoning_engine_injected_messages_keep_deferred_reminder(monkeyp
         _ = kwargs
         return ["profile-reference"]
 
+    async def fake_build_heuristic_memory_message(**kwargs: Any) -> str:
+        _ = kwargs
+        return "heuristic-reference"
+
     monkeypatch.setattr(
         reasoning_engine_module,
         "build_person_profile_injection_messages",
         fake_build_person_profile_injection_messages,
     )
-    engine = MaisakaReasoningEngine(runtime=SimpleNamespace(log_prefix="[test]"))
+    monkeypatch.setattr(
+        reasoning_engine_module.heuristic_memory_injector,
+        "build_injection_message",
+        fake_build_heuristic_memory_message,
+    )
+    engine = MaisakaReasoningEngine(runtime=SimpleNamespace(log_prefix="[test]", session_id="session-1"))
     anchor = _build_message(message_id="m1", user_id="alice", nickname="Alice")
 
     result = await engine._build_planner_injected_user_messages(
@@ -272,7 +281,7 @@ async def test_reasoning_engine_injected_messages_keep_deferred_reminder(monkeyp
         deferred_tools_reminder="deferred-tools",
     )
 
-    assert result == ["deferred-tools", "profile-reference"]
+    assert result == ["deferred-tools", "heuristic-reference", "profile-reference"]
 
 
 @pytest.mark.asyncio
@@ -283,12 +292,21 @@ async def test_reasoning_engine_injected_messages_forwards_source_messages(monke
         captured.update(kwargs)
         return []
 
+    async def fake_build_heuristic_memory_message(**kwargs: Any) -> str:
+        _ = kwargs
+        return ""
+
     monkeypatch.setattr(
         reasoning_engine_module,
         "build_person_profile_injection_messages",
         fake_build_person_profile_injection_messages,
     )
-    engine = MaisakaReasoningEngine(runtime=SimpleNamespace(log_prefix="[test]"))
+    monkeypatch.setattr(
+        reasoning_engine_module.heuristic_memory_injector,
+        "build_injection_message",
+        fake_build_heuristic_memory_message,
+    )
+    engine = MaisakaReasoningEngine(runtime=SimpleNamespace(log_prefix="[test]", session_id="session-1"))
     old_message = _build_message(message_id="m1", user_id="alice", nickname="Alice")
     new_message = _build_message(message_id="m2", user_id="bob", nickname="Bob")
 

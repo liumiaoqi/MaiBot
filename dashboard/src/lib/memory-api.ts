@@ -362,6 +362,10 @@ export interface MemoryImportSettings {
   max_paste_chars?: number
   default_file_concurrency?: number
   default_chunk_concurrency?: number
+  default_narrative_window_size?: number
+  default_narrative_overlap?: number
+  default_factual_target_size?: number
+  max_chunk_chars?: number
   max_file_concurrency?: number
   max_chunk_concurrency?: number
   poll_interval_ms?: number
@@ -381,6 +385,23 @@ export interface MemoryImportSettingsPayload {
 export interface MemoryImportPathAliasesPayload {
   success: boolean
   path_aliases: Record<string, string>
+}
+
+export interface MemoryImportChatTargetPayload {
+  chat_id: string
+  chat_name: string
+  platform?: string | null
+  group_id?: string | null
+  user_id?: string | null
+  account_id?: string | null
+  scope?: string | null
+  is_group: boolean
+  last_active_at?: number | null
+}
+
+export interface MemoryImportChatTargetsPayload {
+  success: boolean
+  data: MemoryImportChatTargetPayload[]
 }
 
 export interface MemoryImportResolvePathPayload {
@@ -1225,6 +1246,10 @@ export async function getMemoryImportSettings(): Promise<MemoryImportSettingsPay
 
 export async function getMemoryImportPathAliases(): Promise<MemoryImportPathAliasesPayload> {
   return requestJson<MemoryImportPathAliasesPayload>('/import/path-aliases')
+}
+
+export async function getMemoryImportChatTargets(): Promise<MemoryImportChatTargetsPayload> {
+  return requestJson<MemoryImportChatTargetsPayload>('/import/chat-targets')
 }
 
 export async function resolveMemoryImportPath(payload: {

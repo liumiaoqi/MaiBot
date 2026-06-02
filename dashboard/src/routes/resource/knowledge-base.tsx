@@ -47,6 +47,7 @@ import {
   getMemoryFeedbackCorrection,
   getMemoryFeedbackCorrections,
   getMemoryImportPathAliases,
+  getMemoryImportChatTargets,
   getMemoryImportSettings,
   getMemoryImportTask,
   getMemoryImportTaskChunks,
@@ -64,6 +65,7 @@ import {
   rebuildMemoryRuntimeVectors,
   type MemoryDeleteRequestPayload,
   type MemoryImportChunkListPayload,
+  type MemoryImportChatTargetPayload,
   type MemoryImportInputMode,
   type MemoryImportSettings,
   type MemoryImportTaskKind,
@@ -99,6 +101,7 @@ import {
   buildFeedbackImpactSummary,
   getFeedbackCorrectionPreview,
   parseCommaSeparatedList,
+  parseOptionalNonNegativeInt,
   parseOptionalPositiveInt,
   summarizeFeedbackActionPayload,
 } from './knowledge-base/utils'
@@ -183,6 +186,7 @@ export function KnowledgeBasePage() {
   const [runtimeConfig, setRuntimeConfig] = useState<MemoryRuntimeConfigPayload | null>(null)
   const [importSettings, setImportSettings] = useState<MemoryImportSettings>({})
   const [importPathAliases, setImportPathAliases] = useState<Record<string, string>>({})
+  const [importChatTargets, setImportChatTargets] = useState<MemoryImportChatTargetPayload[]>([])
   const [importTasks, setImportTasks] = useState<MemoryImportTaskPayload[]>([])
   const [selectedImportTaskId, setSelectedImportTaskId] = useState('')
   const [selectedImportTask, setSelectedImportTask] = useState<MemoryImportTaskPayload | null>(null)
@@ -196,10 +200,14 @@ export function KnowledgeBasePage() {
   const [importErrorText, setImportErrorText] = useState('')
   const [importCommonFileConcurrency, setImportCommonFileConcurrency] = useState('2')
   const [importCommonChunkConcurrency, setImportCommonChunkConcurrency] = useState('4')
+  const [importCommonNarrativeWindowSize, setImportCommonNarrativeWindowSize] = useState('1600')
+  const [importCommonNarrativeOverlap, setImportCommonNarrativeOverlap] = useState('400')
+  const [importCommonFactualTargetSize, setImportCommonFactualTargetSize] = useState('1200')
   const [importCommonLlmEnabled, setImportCommonLlmEnabled] = useState(true)
   const [importCommonStrategyOverride, setImportCommonStrategyOverride] = useState('auto')
   const [importCommonDedupePolicy, setImportCommonDedupePolicy] = useState('content_hash')
   const [importCommonChatLog, setImportCommonChatLog] = useState(false)
+  const [importCommonChatId, setImportCommonChatId] = useState('')
   const [importCommonChatReferenceTime, setImportCommonChatReferenceTime] = useState('')
   const [importCommonForce, setImportCommonForce] = useState(false)
   const [importCommonClearManifest, setImportCommonClearManifest] = useState(false)
@@ -318,15 +326,17 @@ export function KnowledgeBasePage() {
     }
     try {
       setPanelLoading('import', true)
-      const [importSettingsPayload, pathAliasPayload, importTaskPayload] = await Promise.all([
+      const [importSettingsPayload, pathAliasPayload, importTaskPayload, chatTargetsPayload] = await Promise.all([
         getMemoryImportSettings(),
         getMemoryImportPathAliases(),
         getMemoryImportTasks(20),
+        getMemoryImportChatTargets(),
       ])
 
       setImportSettings(importSettingsPayload.settings ?? {})
       setImportPathAliases(pathAliasPayload.path_aliases ?? {})
       setImportTasks(importTaskPayload.items ?? [])
+      setImportChatTargets(chatTargetsPayload.data ?? [])
       setSelectedImportTaskId((currentTaskId) => {
         if (currentTaskId || (importTaskPayload.items ?? []).length === 0) {
           return currentTaskId
@@ -579,6 +589,7 @@ export function KnowledgeBasePage() {
   const canImportChunkNext = importChunkOffset + IMPORT_CHUNK_PAGE_SIZE < importChunkTotal
 
   const buildCommonImportPayload = useCallback((): Record<string, unknown> => {
+    const chatId = importCommonChatId.trim()
     const payload: Record<string, unknown> = {
       llm_enabled: importCommonLlmEnabled,
       strategy_override: importCommonStrategyOverride,
@@ -590,39 +601,60 @@ export function KnowledgeBasePage() {
 
     const fileConcurrency = parseOptionalPositiveInt(importCommonFileConcurrency)
     const chunkConcurrency = parseOptionalPositiveInt(importCommonChunkConcurrency)
+    const narrativeWindowSize = parseOptionalPositiveInt(importCommonNarrativeWindowSize)
+    const narrativeOverlap = parseOptionalNonNegativeInt(importCommonNarrativeOverlap)
+    const factualTargetSize = parseOptionalPositiveInt(importCommonFactualTargetSize)
     if (fileConcurrency !== undefined) {
       payload.file_concurrency = fileConcurrency
     }
     if (chunkConcurrency !== undefined) {
       payload.chunk_concurrency = chunkConcurrency
     }
+    if (narrativeWindowSize !== undefined) {
+      payload.narrative_window_size = narrativeWindowSize
+    }
+    if (narrativeOverlap !== undefined) {
+      payload.narrative_overlap = narrativeOverlap
+    }
+    if (factualTargetSize !== undefined) {
+      payload.factual_target_size = factualTargetSize
+    }
     if (importCommonChatReferenceTime.trim()) {
       payload.chat_reference_time = importCommonChatReferenceTime.trim()
     }
+    if (chatId) {
+      payload.chat_id = chatId
+    }
     return payload
   }, [
+    importCommonChatId,
     importCommonChatLog,
     importCommonChatReferenceTime,
     importCommonChunkConcurrency,
     importCommonClearManifest,
     importCommonDedupePolicy,
+    importCommonFactualTargetSize,
     importCommonFileConcurrency,
     importCommonForce,
     importCommonLlmEnabled,
+    importCommonNarrativeOverlap,
+    importCommonNarrativeWindowSize,
     importCommonStrategyOverride,
   ])
 
   const refreshImportQueue = useCallback(async (silent: boolean = false) => {
     try {
-      const [taskPayload, settingsPayload, pathAliasPayload] = await Promise.all([
+      const [taskPayload, settingsPayload, pathAliasPayload, chatTargetsPayload] = await Promise.all([
         getMemoryImportTasks(20),
         getMemoryImportSettings(),
         getMemoryImportPathAliases(),
+        getMemoryImportChatTargets(),
       ])
       const nextTasks = taskPayload.items ?? []
       setImportTasks(nextTasks)
       setImportSettings(settingsPayload.settings ?? {})
       setImportPathAliases(pathAliasPayload.path_aliases ?? {})
+      setImportChatTargets(chatTargetsPayload.data ?? [])
       setImportErrorText('')
       loadedPanelDataRef.current.add('import')
 
@@ -1194,17 +1226,35 @@ export function KnowledgeBasePage() {
   useEffect(() => {
     const defaultFileConcurrency = String(importSettings.default_file_concurrency ?? '').trim()
     const defaultChunkConcurrency = String(importSettings.default_chunk_concurrency ?? '').trim()
+    const defaultNarrativeWindowSize = String(importSettings.default_narrative_window_size ?? '').trim()
+    const defaultNarrativeOverlap = String(importSettings.default_narrative_overlap ?? '').trim()
+    const defaultFactualTargetSize = String(importSettings.default_factual_target_size ?? '').trim()
     if (defaultFileConcurrency && importCommonFileConcurrency === '2') {
       setImportCommonFileConcurrency(defaultFileConcurrency)
     }
     if (defaultChunkConcurrency && importCommonChunkConcurrency === '4') {
       setImportCommonChunkConcurrency(defaultChunkConcurrency)
     }
+    if (defaultNarrativeWindowSize && importCommonNarrativeWindowSize === '1600') {
+      setImportCommonNarrativeWindowSize(defaultNarrativeWindowSize)
+    }
+    if (defaultNarrativeOverlap && importCommonNarrativeOverlap === '400') {
+      setImportCommonNarrativeOverlap(defaultNarrativeOverlap)
+    }
+    if (defaultFactualTargetSize && importCommonFactualTargetSize === '1200') {
+      setImportCommonFactualTargetSize(defaultFactualTargetSize)
+    }
   }, [
     importCommonChunkConcurrency,
+    importCommonFactualTargetSize,
     importCommonFileConcurrency,
+    importCommonNarrativeOverlap,
+    importCommonNarrativeWindowSize,
     importSettings.default_chunk_concurrency,
+    importSettings.default_factual_target_size,
     importSettings.default_file_concurrency,
+    importSettings.default_narrative_overlap,
+    importSettings.default_narrative_window_size,
   ])
 
   useEffect(() => {
@@ -2206,10 +2256,19 @@ export function KnowledgeBasePage() {
               setImportCommonFileConcurrency={setImportCommonFileConcurrency}
               importCommonChunkConcurrency={importCommonChunkConcurrency}
               setImportCommonChunkConcurrency={setImportCommonChunkConcurrency}
+              importCommonNarrativeWindowSize={importCommonNarrativeWindowSize}
+              setImportCommonNarrativeWindowSize={setImportCommonNarrativeWindowSize}
+              importCommonNarrativeOverlap={importCommonNarrativeOverlap}
+              setImportCommonNarrativeOverlap={setImportCommonNarrativeOverlap}
+              importCommonFactualTargetSize={importCommonFactualTargetSize}
+              setImportCommonFactualTargetSize={setImportCommonFactualTargetSize}
               importCommonLlmEnabled={importCommonLlmEnabled}
               setImportCommonLlmEnabled={setImportCommonLlmEnabled}
               importCommonChatLog={importCommonChatLog}
               setImportCommonChatLog={setImportCommonChatLog}
+              importCommonChatId={importCommonChatId}
+              setImportCommonChatId={setImportCommonChatId}
+              importChatTargets={importChatTargets}
               importCommonStrategyOverride={importCommonStrategyOverride}
               setImportCommonStrategyOverride={setImportCommonStrategyOverride}
               importCommonDedupePolicy={importCommonDedupePolicy}

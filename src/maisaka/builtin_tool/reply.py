@@ -10,6 +10,7 @@ from src.common.data_models.reply_generation_data_models import ReplyGenerationR
 from src.common.logger import get_logger
 from src.config import config as config_module
 from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
+from src.maisaka.heuristic_memory_injector import merge_heuristic_memory_reference_for_replyer
 from src.maisaka.message_adapter import build_visible_text_from_sequence
 from src.services import send_service
 
@@ -104,7 +105,10 @@ async def handle_tool(
     """执行 reply 内置工具。"""
 
     latest_thought = context.reasoning if context is not None else invocation.reasoning
-    reference_info = str(invocation.arguments.get("reference_info") or "").strip()
+    reference_info = merge_heuristic_memory_reference_for_replyer(
+        session_id=str(tool_ctx.runtime.session_id or ""),
+        reference_info=str(invocation.arguments.get("reference_info") or "").strip(),
+    )
     target_message_id = str(invocation.arguments.get("msg_id") or "").strip()
     set_quote = bool(invocation.arguments.get("set_quote", True))
     reply_tool_args = {

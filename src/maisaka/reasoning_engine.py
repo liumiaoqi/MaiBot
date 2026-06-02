@@ -45,6 +45,7 @@ from .context_messages import (
 )
 from .history_post_processor import process_chat_history_after_cycle
 from .history_utils import build_prefixed_message_sequence, build_session_message_visible_text
+from .heuristic_memory_injector import heuristic_memory_injector
 from .mid_term_memory import build_mid_term_memory_message, insert_mid_term_memory_message
 from .monitor_events import (
     emit_cycle_end,
@@ -230,6 +231,17 @@ class MaisakaReasoningEngine:
         injected_messages: list[str] = []
         if deferred_tools_reminder:
             injected_messages.append(deferred_tools_reminder)
+
+        try:
+            heuristic_memory_message = await heuristic_memory_injector.build_injection_message(
+                session_id=str(self._runtime.session_id or ""),
+                anchor_message=anchor_message,
+            )
+        except Exception as exc:
+            logger.debug(f"{self._runtime.log_prefix} 启发式记忆自然拉起失败，已跳过: {exc}")
+            heuristic_memory_message = ""
+        if heuristic_memory_message:
+            injected_messages.append(heuristic_memory_message)
 
         try:
             profile_messages = await build_person_profile_injection_messages(

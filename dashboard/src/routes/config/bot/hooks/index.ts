@@ -12,6 +12,7 @@ export type {
 } from './useAutoSave'
 export {
   AliasNamesHook,
+  AMemorixSharedMemoryGroupsHook,
   BotPlatformsHook,
   BotPlatformAccountsHook,
   ChatPromptsHook,
