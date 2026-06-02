@@ -1,4 +1,5 @@
 Babel>=2.17.0
+ahocorasick-rs>=1.0.3
 aiohttp>=3.12.14
 certifi
 colorama>=0.4.6

@@ -45,8 +45,10 @@ export interface FieldSchema {
   'x-layout'?: 'inline-right'
   'x-input-width'?: string
   'x-description-display'?: DescriptionDisplayMode
+  'x-collapsed-by-default'?: boolean
   'x-option-descriptions'?: Record<string, string>
   'x-row'?: string
+  'x-display-as-section'?: boolean
   'x-textarea-min-height'?: number
   'x-textarea-rows'?: number
   advanced?: boolean

@@ -6,14 +6,15 @@ import uuid
 from pathlib import Path
 from typing import Any, Optional
 
-import tomlkit
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
 from sqlmodel import col, select
+import tomlkit
 
 from src.A_memorix.host_service import a_memorix_host_service
+from src.chat.message_receive.chat_manager import chat_manager as _chat_manager
 from src.common.database.database import get_db_session
-from src.common.database.database_model import PersonInfo
+from src.common.database.database_model import ChatSession, Messages, PersonInfo
 from src.person_info.person_info import resolve_person_id_for_memory
 from src.services.memory_service import MemorySearchResult, memory_service
 from src.webui.dependencies import require_auth
@@ -86,6 +87,25 @@ class ProfileEvidenceCorrectRequest(BaseModel):
     reason: str = "profile_evidence_correction"
     refresh: bool = True
     limit: int = Field(12, ge=1, le=100)
+
+
+class ImportChatTarget(BaseModel):
+    """记忆导入可选择的聊天流。"""
+
+    chat_id: str
+    chat_name: str
+    platform: Optional[str] = None
+    group_id: Optional[str] = None
+    user_id: Optional[str] = None
+    account_id: Optional[str] = None
+    scope: Optional[str] = None
+    is_group: bool = False
+    last_active_at: Optional[float] = None
+
+
+class ImportChatTargetsResponse(BaseModel):
+    success: bool
+    data: list[ImportChatTarget]
 
 
 class MaintainRequest(BaseModel):
@@ -187,6 +207,93 @@ def _unwrap_payload(payload: dict[str, Any] | None) -> dict[str, Any]:
     if isinstance(nested, dict):
         return dict(nested)
     return dict(raw)
+
+
+def _get_chat_name_from_latest_message(chat_id: str, db_session: Any) -> Optional[str]:
+    statement = (
+        select(Messages).where(col(Messages.session_id) == chat_id).order_by(col(Messages.timestamp).desc()).limit(1)
+    )
+    message = db_session.exec(statement).first()
+    if not message:
+        return None
+    if message.group_id:
+        return message.group_name or f"群聊{message.group_id}"
+    private_name = message.user_cardname or message.user_nickname or (f"用户{message.user_id}" if message.user_id else "")
+    return f"{private_name}的私聊" if private_name else None
+
+
+def _get_chat_name(chat_session: ChatSession, db_session: Any) -> str:
+    chat_id = str(chat_session.session_id or "").strip()
+    try:
+        if name := _chat_manager.get_session_name(chat_id):
+            return name
+    except Exception:
+        pass
+    if name := _get_chat_name_from_latest_message(chat_id, db_session):
+        return name
+    if chat_session.group_name:
+        return chat_session.group_name
+    if chat_session.group_id:
+        return f"群聊{chat_session.group_id}"
+    private_name = chat_session.user_cardname or chat_session.user_nickname or (
+        f"用户{chat_session.user_id}" if chat_session.user_id else ""
+    )
+    return f"{private_name}的私聊" if private_name else chat_id
+
+
+def _validate_import_chat_id(payload: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(payload)
+    chat_id = str(normalized.get("chat_id") or "").strip()
+    if not chat_id:
+        normalized.pop("chat_id", None)
+        return normalized
+    try:
+        if _chat_manager.get_existing_session_by_session_id(chat_id) is not None:
+            normalized["chat_id"] = chat_id
+            return normalized
+    except Exception:
+        pass
+    with get_db_session() as session:
+        chat_session = session.exec(select(ChatSession).where(col(ChatSession.session_id) == chat_id)).first()
+    if chat_session is None:
+        raise HTTPException(status_code=400, detail=f"聊天流不存在: {chat_id}")
+    normalized["chat_id"] = chat_id
+    return normalized
+
+
+async def _import_chat_targets() -> ImportChatTargetsResponse:
+    try:
+        with get_db_session() as session:
+            rows = list(
+                session.exec(
+                    select(ChatSession).order_by(
+                        col(ChatSession.last_active_timestamp).desc(),
+                        col(ChatSession.created_timestamp).desc(),
+                    )
+                ).all()
+            )
+            targets = [
+                ImportChatTarget(
+                    chat_id=chat_session.session_id,
+                    chat_name=_get_chat_name(chat_session, session),
+                    platform=chat_session.platform,
+                    group_id=chat_session.group_id,
+                    user_id=chat_session.user_id,
+                    account_id=chat_session.account_id,
+                    scope=chat_session.scope,
+                    is_group=bool(chat_session.group_id),
+                    last_active_at=chat_session.last_active_timestamp.timestamp()
+                    if chat_session.last_active_timestamp
+                    else None,
+                )
+                for chat_session in rows
+                if str(chat_session.session_id or "").strip()
+            ]
+        return ImportChatTargetsResponse(success=True, data=targets)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"获取导入聊天流失败: {exc}") from exc
 
 
 async def _graph_get(limit: int) -> dict:
@@ -764,7 +871,7 @@ async def _import_resolve_path(payload: dict[str, Any]) -> dict:
 
 
 async def _import_create(action: str, payload: dict[str, Any]) -> dict:
-    return await memory_service.import_admin(action=action, **_unwrap_payload(payload))
+    return await memory_service.import_admin(action=action, **_validate_import_chat_id(_unwrap_payload(payload)))
 
 
 async def _import_list(limit: int) -> dict:
@@ -1286,6 +1393,11 @@ async def get_memory_import_settings():
 @router.get("/import/path-aliases")
 async def get_memory_import_path_aliases():
     return await _import_path_aliases()
+
+
+@router.get("/import/chat-targets", response_model=ImportChatTargetsResponse)
+async def get_memory_import_chat_targets():
+    return await _import_chat_targets()
 
 
 @router.get("/import/guide")

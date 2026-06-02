@@ -402,6 +402,63 @@ async def test_reply_tool_puts_monitor_detail_into_metadata(monkeypatch: pytest.
 
 
 @pytest.mark.asyncio
+async def test_reply_tool_merges_heuristic_memory_reference(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+    fake_reply_result = ReplyGenerationResult(
+        success=True,
+        completion=LLMCompletionResult(response_text="测试回复"),
+        metrics=GenerationMetrics(overall_ms=11.5),
+        monitor_detail={},
+    )
+
+    class _FakeReplyer:
+        async def generate_reply_with_context(self, **kwargs: Any) -> tuple[bool, ReplyGenerationResult]:
+            captured.update(kwargs)
+            return True, fake_reply_result
+
+    monkeypatch.setattr(reply_tool_module.replyer_manager, "get_replyer", lambda **kwargs: _FakeReplyer())
+    monkeypatch.setattr(reply_tool_module, "render_cli_message", lambda text: text)
+    monkeypatch.setattr(
+        reply_tool_module,
+        "merge_heuristic_memory_reference_for_replyer",
+        lambda **kwargs: f"{kwargs['reference_info']}\n\n【启发式记忆-内部参考】\n1. 测试记忆".strip(),
+    )
+
+    target_message = SimpleNamespace(
+        message_id="msg-1",
+        message_info=SimpleNamespace(
+            user_info=SimpleNamespace(
+                user_cardname="测试用户",
+                user_nickname="测试用户",
+                user_id="user-1",
+            )
+        ),
+    )
+    runtime = SimpleNamespace(
+        find_source_message_by_id=lambda message_id: target_message if message_id == "msg-1" else None,
+        log_prefix="[test]",
+        chat_stream=SimpleNamespace(platform=reply_tool_module.CLI_PLATFORM_NAME),
+        session_id="session-1",
+        _chat_history=[],
+        _clear_force_continue_until_reply=lambda: None,
+        _record_reply_sent=lambda: None,
+        run_sub_agent=None,
+    )
+    engine = SimpleNamespace(_get_runtime_manager=lambda: None)
+    tool_ctx = BuiltinToolRuntimeContext(engine=engine, runtime=runtime)
+    invocation = ToolInvocation(
+        tool_name="reply",
+        arguments={"msg_id": "msg-1", "reference_info": "已有参考"},
+    )
+
+    result = await reply_tool_module.handle_tool(tool_ctx, invocation)
+
+    assert result.success is True
+    assert "已有参考" in captured["reference_info"]
+    assert "启发式记忆-内部参考" in captured["reference_info"]
+
+
+@pytest.mark.asyncio
 async def test_send_emoji_tool_puts_monitor_detail_into_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
     async def _fake_build_emoji_candidate_message(emojis: list[Any]) -> object:
         assert emojis
