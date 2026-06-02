@@ -556,3 +556,23 @@ class ChatConfigUtils:
             return sh * 60 + sm, eh * 60 + em
         except Exception:
             return None
+
+
+class AMemorixConfigUtils:
+    @staticmethod
+    def get_shared_memory_session_ids(session_id: Optional[str]) -> set[str]:
+        """获取与当前聊天流共享长期记忆检索范围的真实聊天流 ID。"""
+        clean_session_id = str(session_id or "").strip()
+        if not clean_session_id:
+            return set()
+
+        shared_groups = getattr(global_config.a_memorix, "shared_memory_groups", []) or []
+        resolved_session_ids: set[str] = set()
+        for group in shared_groups:
+            targets = getattr(group, "targets", []) or []
+            group_session_ids: set[str] = set()
+            for target in targets:
+                group_session_ids.update(ChatConfigUtils.get_target_session_ids(target))
+            if clean_session_id in group_session_ids:
+                resolved_session_ids.update(group_session_ids)
+        return resolved_session_ids or {clean_session_id}

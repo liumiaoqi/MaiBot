@@ -8,21 +8,35 @@ import inspect
 from src.config.config_base import ConfigBase
 
 AMEMORIX_BASIC_FIELDS: Dict[str, set[str]] = {
-    "AMemorixConfig": {"integration", "plugin", "embedding"},
+    "AMemorixConfig": {
+        "episode",
+        "embedding",
+        "integration",
+        "memory",
+        "person_profile",
+        "plugin",
+        "shared_memory_groups",
+    },
     "AMemorixIntegrationConfig": {
         "enable_memory_query_tool",
+        "heuristic_memory_cross_chat_enabled",
+        "heuristic_memory_recall_enabled",
         "memory_query_default_limit",
         "enable_person_profile_query_tool",
     },
+    "AMemorixEpisodeConfig": {"enabled"},
     "AMemorixPluginConfig": {"enabled"},
     "AMemorixEmbeddingConfig": {
         "model_name",
         "dimension",
+        "dimension_request_mode",
         "batch_size",
         "max_concurrent",
         "enable_cache",
         "quantization_type",
     },
+    "AMemorixMemoryEvolutionConfig": {"enabled"},
+    "AMemorixPersonProfileConfig": {"enabled"},
 }
 
 

@@ -9,6 +9,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
+import { resolveLocalizedText } from '@/lib/config-label'
 import { fieldHooks, type FieldHookRegistry } from '@/lib/field-hooks'
 import type { ConfigSchema, FieldSchema } from '@/types/config-schema'
 
@@ -32,6 +33,10 @@ function buildFieldPath(basePath: string, fieldName: string) {
 
 function resolveSectionTitle(schema: ConfigSchema) {
   return schema.uiLabel || schema.classDoc || schema.className
+}
+
+function resolveFieldSectionTitle(field: FieldSchema) {
+  return resolveLocalizedText(field.label, undefined, field.name)
 }
 
 function SectionIcon({ iconName }: { iconName?: string }) {
@@ -65,6 +70,8 @@ export function AdvancedSettingsButton({
 function DynamicConfigSection({
   advancedVisible,
   basePath,
+  children,
+  collapsedByDefault,
   hooks,
   level,
   nestedSchema,
@@ -75,6 +82,8 @@ function DynamicConfigSection({
 }: {
   advancedVisible: boolean
   basePath: string
+  children?: React.ReactNode
+  collapsedByDefault?: boolean
   hooks: FieldHookRegistry
   level: number
   nestedSchema: ConfigSchema
@@ -83,9 +92,12 @@ function DynamicConfigSection({
   sectionTitle: string
   values: Record<string, unknown>
 }) {
+  const [collapsed, setCollapsed] = React.useState(Boolean(collapsedByDefault))
+  const contentId = React.useId()
+
   return (
     <Card className="min-w-0">
-      <CardHeader className="border-b border-border/50 pb-4">
+      <CardHeader className={collapsed ? 'pb-4' : 'border-b border-border/50 pb-4'}>
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
@@ -93,20 +105,98 @@ function DynamicConfigSection({
               <CardTitle className="text-lg text-primary">{sectionTitle}</CardTitle>
             </div>
           </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            aria-controls={contentId}
+            aria-expanded={!collapsed}
+            onClick={() => setCollapsed((current) => !current)}
+          >
+            {collapsed ? '展开' : '收起'}
+          </Button>
         </div>
       </CardHeader>
-      <CardContent className="pt-4">
-        <DynamicConfigForm
-          schema={nestedSchema}
-          values={values}
-          onChange={(field, value) => onChange(`${sectionKey}.${field}`, value)}
-          basePath={basePath}
-          hooks={hooks}
-          level={level}
-          advancedVisible={advancedVisible}
-          sectionColumns={1}
-        />
-      </CardContent>
+      {!collapsed && (
+        <CardContent id={contentId} className="pt-4">
+          {children ?? (
+            <DynamicConfigForm
+              schema={nestedSchema}
+              values={values}
+              onChange={(field, value) => onChange(`${sectionKey}.${field}`, value)}
+              basePath={basePath}
+              hooks={hooks}
+              level={level}
+              advancedVisible={advancedVisible}
+              sectionColumns={1}
+            />
+          )}
+        </CardContent>
+      )}
+    </Card>
+  )
+}
+
+function NestedDynamicConfigSection({
+  advancedVisible,
+  basePath,
+  collapsedByDefault,
+  hooks,
+  level,
+  nestedSchema,
+  onChange,
+  sectionTitle,
+  values,
+}: {
+  advancedVisible: boolean
+  basePath: string
+  collapsedByDefault?: boolean
+  hooks: FieldHookRegistry
+  level: number
+  nestedSchema: ConfigSchema
+  onChange: (field: string, value: unknown) => void
+  sectionTitle: string
+  values: Record<string, unknown>
+}) {
+  const [collapsed, setCollapsed] = React.useState(Boolean(collapsedByDefault))
+  const contentId = React.useId()
+
+  return (
+    <Card className="min-w-0 border-border/70 bg-muted/20 shadow-none">
+      <CardHeader className={collapsed ? 'px-4 py-3' : 'border-b border-border/50 px-4 py-3'}>
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <SectionIcon iconName={nestedSchema.uiIcon} />
+              <CardTitle className="text-sm text-primary">{sectionTitle}</CardTitle>
+            </div>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            aria-controls={contentId}
+            aria-expanded={!collapsed}
+            onClick={() => setCollapsed((current) => !current)}
+          >
+            {collapsed ? '展开' : '收起'}
+          </Button>
+        </div>
+      </CardHeader>
+      {!collapsed && (
+        <CardContent id={contentId} className="px-4 pb-4 pt-4">
+          <DynamicConfigForm
+            schema={nestedSchema}
+            values={values}
+            onChange={onChange}
+            basePath={basePath}
+            hooks={hooks}
+            level={level}
+            advancedVisible={advancedVisible}
+            sectionColumns={1}
+          />
+        </CardContent>
+      )}
     </Card>
   )
 }
@@ -196,6 +286,10 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
   const shouldRenderFieldInline = (field: FieldSchema) => {
     const fieldPath = buildFieldPath(basePath, field.name)
     if (hooks.get(fieldPath)?.type === 'hidden') {
+      return false
+    }
+
+    if (field['x-display-as-section']) {
       return false
     }
 
@@ -351,19 +445,43 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
 
             const HookComponent = hookEntry.component
             if (hookEntry.type === 'replace') {
-              return (
-                <div key={key} className="min-w-0">
-                  <HookComponent
-                    fieldPath={nestedFieldPath}
-                    value={values[key]}
-                      onChange={(v) => onChange(key, v)}
-                      onParentChange={onChange}
-                      schema={nestedField ?? nestedSchema}
-                    nestedSchema={nestedSchema}
-                    parentValues={values}
-                  />
-                </div>
+              const hookContent = (
+                <HookComponent
+                  fieldPath={nestedFieldPath}
+                  value={values[key]}
+                  onChange={(v) => onChange(key, v)}
+                  onParentChange={onChange}
+                  schema={nestedField ?? nestedSchema}
+                  nestedSchema={nestedSchema}
+                  parentValues={values}
+                />
               )
+
+              if (nestedField?.['x-display-as-section']) {
+                return (
+                  <DynamicConfigSection
+                    key={key}
+                    advancedVisible={resolvedAdvancedVisible}
+                    collapsedByDefault={Boolean(nestedField['x-collapsed-by-default'])}
+                    nestedSchema={{
+                      ...nestedSchema,
+                      classDoc: resolveFieldSectionTitle(nestedField),
+                      uiIcon: nestedField['x-icon'],
+                    }}
+                    values={{}}
+                    onChange={onChange}
+                    basePath={nestedFieldPath}
+                    hooks={hooks}
+                    level={level + 1}
+                    sectionKey={key}
+                    sectionTitle={resolveFieldSectionTitle(nestedField)}
+                  >
+                    {hookContent}
+                  </DynamicConfigSection>
+                )
+              }
+
+              return <div key={key} className="min-w-0">{hookContent}</div>
             }
 
             return (
@@ -402,6 +520,7 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
               <DynamicConfigSection
                 key={key}
                 advancedVisible={resolvedAdvancedVisible}
+                collapsedByDefault={Boolean(nestedField?.['x-collapsed-by-default'])}
                 nestedSchema={nestedSchema}
                 values={(values[key] as Record<string, unknown>) || {}}
                 onChange={onChange}
@@ -415,30 +534,18 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
           }
 
           return (
-            <Card key={key} className="min-w-0 border-border/70 bg-muted/20 shadow-none">
-              <CardHeader className="border-b border-border/50 px-4 py-3">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <SectionIcon iconName={nestedSchema.uiIcon} />
-                      <CardTitle className="text-sm text-primary">{sectionTitle}</CardTitle>
-                    </div>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="px-4 pb-4 pt-4">
-                <DynamicConfigForm
-                  schema={nestedSchema}
-                  values={(values[key] as Record<string, unknown>) || {}}
-                  onChange={(field, value) => onChange(`${key}.${field}`, value)}
-                  basePath={nestedFieldPath}
-                  hooks={hooks}
-                  level={level + 1}
-                  advancedVisible={resolvedAdvancedVisible}
-                  sectionColumns={1}
-                />
-              </CardContent>
-            </Card>
+            <NestedDynamicConfigSection
+              key={key}
+              advancedVisible={resolvedAdvancedVisible}
+              basePath={nestedFieldPath}
+              collapsedByDefault={Boolean(nestedField?.['x-collapsed-by-default'])}
+              hooks={hooks}
+              level={level + 1}
+              nestedSchema={nestedSchema}
+              onChange={(field, value) => onChange(`${key}.${field}`, value)}
+              sectionTitle={sectionTitle}
+              values={(values[key] as Record<string, unknown>) || {}}
+            />
           )
         })
 
