@@ -19,13 +19,16 @@ export interface HostApplication {
 
 export type PluginType =
   | 'adapter'
-  | 'tool'
+  | 'chat'
+  | 'creative'
   | 'provider'
   | 'management'
-  | 'data'
+  | 'search'
+  | 'knowledge'
   | 'media'
   | 'game'
-  | 'integration'
+  | 'security'
+  | 'automation'
   | 'extension'
   | 'other'
 
@@ -71,7 +74,7 @@ export interface PluginManifest {
   /** 插件关键词 */
   keywords: string[]
   /** 插件类型 */
-  plugin_type?: PluginType
+  plugin_type?: PluginType | string
   /** 插件展示元信息 */
   display?: PluginDisplay
   /** 插件默认语言 */
