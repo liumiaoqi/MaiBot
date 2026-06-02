@@ -4568,7 +4568,7 @@ class PluginRuntimeConfig(ConfigBase):
     """等待 Runner 子进程启动并注册的超时时间（秒）"""
 
     hook_blocking_timeout_sec: float = Field(
-        default=30,
+        default=60,
         json_schema_extra={
             "x-widget": "number",
             "x-icon": "timer",

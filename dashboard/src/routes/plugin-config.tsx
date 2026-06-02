@@ -862,15 +862,6 @@ function PluginConfigEditor({ plugin, onBack, initialTab }: PluginConfigEditorPr
       {/* 可视化模式 */}
       {editMode === 'visual' && (
       <>
-      {/* 插件未加载提示 */}
-      <Alert>
-        <Info className="h-4 w-4" />
-        <AlertDescription>
-          <strong>提示：</strong>如果插件当前未加载或未启用，WebUI 适配器的高级插件可视化编辑功能可能会不可用。
-          请确保插件已启用并成功加载后，再进行配置编辑。
-        </AlertDescription>
-      </Alert>
-
       {/* 配置区域 */}
       {schema.layout.type === 'tabs' && schemaTabs.length > 0 ? (
         // 标签页布局

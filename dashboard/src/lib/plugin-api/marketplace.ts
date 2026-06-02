@@ -17,13 +17,16 @@ const PLUGIN_LIST_CACHE_TTL = 5 * 60 * 1000
 const PLUGIN_LIST_STORAGE_KEY = 'maibot-plugin-market-list-cache'
 const PLUGIN_TYPES = new Set<PluginType>([
   'adapter',
-  'tool',
+  'chat',
+  'creative',
   'provider',
   'management',
-  'data',
+  'search',
+  'knowledge',
   'media',
   'game',
-  'integration',
+  'security',
+  'automation',
   'extension',
   'other',
 ])
@@ -79,11 +82,16 @@ function uniqueNonEmptyValues(values: Array<string | undefined>): string[] {
 }
 
 function normalizePluginType(value: unknown): PluginType {
-  if (typeof value === 'string' && PLUGIN_TYPES.has(value as PluginType)) {
-    return value as PluginType
+  if (typeof value !== 'string' || !value.trim()) {
+    return 'extension'
   }
 
-  return 'extension'
+  const normalizedValue = value.trim()
+  if (PLUGIN_TYPES.has(normalizedValue as PluginType)) {
+    return normalizedValue as PluginType
+  }
+
+  return 'other'
 }
 
 function normalizePluginManifest(manifest: PluginApiResponse['manifest']): PluginInfo['manifest'] {

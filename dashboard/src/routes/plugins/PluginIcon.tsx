@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import {
   BarChart3,
+  BookOpen,
   Bot,
   Cloud,
   Database,
   Gamepad2,
   Image as ImageIcon,
-  Link,
   Package,
   Plug,
   Puzzle,
+  Search,
   ScrollText,
   Settings,
   Shield,
@@ -22,7 +23,7 @@ import type { PluginDisplayIcon, PluginType } from '@/types/plugin'
 
 interface PluginIconManifest {
   id?: string
-  plugin_type?: PluginType
+  plugin_type?: PluginType | string
   display?: {
     icon?: PluginDisplayIcon
   }
@@ -40,15 +41,17 @@ const LUCIDE_ICONS: Record<string, LucideIcon> = {
   'bar-chart-3': BarChart3,
   bar_chart_3: BarChart3,
   bot: Bot,
+  'book-open': BookOpen,
+  book_open: BookOpen,
   cloud: Cloud,
   database: Database,
   gamepad2: Gamepad2,
   'gamepad-2': Gamepad2,
   image: ImageIcon,
-  link: Link,
   package: Package,
   plug: Plug,
   puzzle: Puzzle,
+  search: Search,
   'scroll-text': ScrollText,
   scroll_text: ScrollText,
   settings: Settings,
@@ -58,15 +61,26 @@ const LUCIDE_ICONS: Record<string, LucideIcon> = {
 
 const DEFAULT_TYPE_ICONS: Record<PluginType, LucideIcon> = {
   adapter: Plug,
-  tool: Wrench,
+  chat: Bot,
+  creative: ImageIcon,
   provider: Cloud,
   management: Shield,
-  data: BarChart3,
+  search: Search,
+  knowledge: BookOpen,
   media: ImageIcon,
   game: Gamepad2,
-  integration: Link,
+  security: Shield,
+  automation: Settings,
   extension: Puzzle,
   other: Package,
+}
+
+function normalizePluginType(value: PluginType | string | undefined): PluginType {
+  if (!value?.trim()) {
+    return 'extension'
+  }
+
+  return value in DEFAULT_TYPE_ICONS ? (value as PluginType) : 'other'
 }
 
 function resolveLucideIcon(name: string | undefined): LucideIcon | undefined {
@@ -78,7 +92,7 @@ function resolveLucideIcon(name: string | undefined): LucideIcon | undefined {
 }
 
 function getFallbackIcon(manifest?: PluginIconManifest, icon?: PluginDisplayIcon): LucideIcon {
-  return resolveLucideIcon(icon?.fallback) ?? DEFAULT_TYPE_ICONS[manifest?.plugin_type ?? 'extension']
+  return resolveLucideIcon(icon?.fallback) ?? DEFAULT_TYPE_ICONS[normalizePluginType(manifest?.plugin_type)]
 }
 
 function getImageSource(pluginId: string, icon: PluginDisplayIcon, installed?: boolean): string | null {
