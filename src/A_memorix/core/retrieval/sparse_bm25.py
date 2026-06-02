@@ -548,10 +548,6 @@ class SparseBM25Index:
                 return []
         if not self.loaded:
             return []
-        # 关系稀疏检索可独立开关，运行时开启后也能按需补齐 schema/回填。
-        if self.config.enable_relation_sparse_fallback:
-            self.metadata_store.ensure_relations_fts_schema(conn=self._conn)
-            self.metadata_store.ensure_relations_fts_backfilled(conn=self._conn)
 
         tokens = self._tokenize(query)
         match_tokens = self._match_tokens(tokens)

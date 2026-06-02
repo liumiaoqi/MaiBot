@@ -567,11 +567,12 @@ class AMemorixConfigUtils:
             return set()
 
         shared_groups = getattr(global_config.a_memorix, "shared_memory_groups", []) or []
+        resolved_session_ids: set[str] = set()
         for group in shared_groups:
             targets = getattr(group, "targets", []) or []
             group_session_ids: set[str] = set()
             for target in targets:
                 group_session_ids.update(ChatConfigUtils.get_target_session_ids(target))
             if clean_session_id in group_session_ids:
-                return group_session_ids
-        return {clean_session_id}
+                resolved_session_ids.update(group_session_ids)
+        return resolved_session_ids or {clean_session_id}

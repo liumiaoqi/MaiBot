@@ -74,7 +74,11 @@ def test_dual_path_clone_ignores_non_dict_metadata():
 
 def test_dual_path_graph_merge_ignores_non_dict_metadata():
     retriever = object.__new__(DualPathRetriever)
-    retriever.metadata_store = SimpleNamespace(get_paragraphs_by_relation=lambda hash_value: [])
+    retriever.metadata_store = SimpleNamespace(
+        get_paragraphs_by_relation_hashes=lambda relation_hashes: {
+            relation_hash: [] for relation_hash in relation_hashes
+        }
+    )
     retriever._build_minmax_score_map = lambda results: {item.hash_value: 1.0 for item in results}
 
     merged = DualPathRetriever._merge_relation_results_graph_enhanced(

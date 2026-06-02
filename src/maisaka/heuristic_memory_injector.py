@@ -217,13 +217,14 @@ class HeuristicMemoryInjector:
         config = global_config.a_memorix.integration
         limit = max(1, int(getattr(config, "heuristic_memory_recall_limit", 3) or 3))
         search_limit = max(limit * 4, limit)
+        cross_chat_enabled = bool(getattr(config, "heuristic_memory_cross_chat_enabled", False))
         result = await memory_service.search(
             impression,
             limit=min(20, search_limit),
             mode="search",
-            chat_id=context.session.session_id,
+            chat_id="" if cross_chat_enabled else context.session.session_id,
             person_id="",
-            respect_filter=True,
+            respect_filter=not cross_chat_enabled,
             user_id=str(context.session.user_id or ""),
             group_id=str(context.session.group_id or ""),
         )
@@ -370,17 +371,17 @@ class HeuristicMemoryInjector:
 
     @staticmethod
     def _format_chat_identity(session: BotChatSession) -> str:
-        chat_type = "群聊" if session.is_group_session else "私聊"
+        chat_type = "group" if session.is_group_session else "private"
         display_name = chat_manager.get_session_name(session.session_id) or session.session_id
         parts = [
-            f"聊天类型：{chat_type}",
-            f"聊天名称：{display_name}",
-            f"平台：{session.platform}",
+            f"chat_type: {chat_type}",
+            f"display_name: {display_name}",
+            f"platform: {session.platform}",
         ]
         if session.group_id:
-            parts.append(f"群ID：{session.group_id}")
+            parts.append(f"group_id: {session.group_id}")
         if session.user_id:
-            parts.append(f"用户ID：{session.user_id}")
+            parts.append(f"user_id: {session.user_id}")
         return "\n".join(parts)
 
     @classmethod
@@ -395,7 +396,7 @@ class HeuristicMemoryInjector:
             if len(text) > 220:
                 text = text[:220].rstrip() + "..."
             lines.append(f"- {sender}: {text}")
-        return "\n".join(lines) if lines else "无可用文本消息"
+        return "\n".join(lines) if lines else "no text messages available"
 
     @staticmethod
     def _message_sender_name(message: SessionMessage) -> str:
@@ -404,7 +405,7 @@ class HeuristicMemoryInjector:
             getattr(user_info, "user_cardname", "")
             or getattr(user_info, "user_nickname", "")
             or getattr(user_info, "user_id", "")
-            or "未知用户"
+            or "unknown_user"
         ).strip()
 
     @staticmethod
@@ -413,7 +414,7 @@ class HeuristicMemoryInjector:
             return ""
         lines = [
             HEURISTIC_MEMORY_REFERENCE_MARKER,
-            "以下内容是根据当前聊天印象自然拉起的长期记忆，仅供内部推理，不要向用户逐字复述。",
+            "Internal long-term memory recalled from the current chat impression. Use it only as reasoning context; do not quote it verbatim to the user.",
             "",
         ]
         for index, hit in enumerate(hits, start=1):

@@ -89,7 +89,10 @@ class NarrativeStrategy(BaseStrategy):
             
             chunks.append(self._create_chunk(chunk_text, scene_id, scene_idx, local_idx, start))
             
-            start += len(chunk_text) - overlap if end < len(text) else len(chunk_text)
+            if end < len(text):
+                start += max(1, len(chunk_text) - overlap)
+            else:
+                start += len(chunk_text)
             local_idx += 1
             
         return chunks

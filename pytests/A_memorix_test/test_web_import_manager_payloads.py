@@ -218,6 +218,32 @@ def test_import_strategy_uses_configurable_chunk_windows() -> None:
     assert factual.target_size == 1400
 
 
+def test_narrative_split_progresses_with_high_overlap_and_newline_backoff() -> None:
+    manager, _ = _build_manager()
+    narrative = manager._instantiate_strategy(
+        "demo.txt",
+        strategy=ImportStrategy.NARRATIVE,
+        import_params={"narrative_window_size": 200, "narrative_overlap": 199},
+    )
+    assert isinstance(narrative, NarrativeStrategy)
+
+    text = (
+        "第一段内容" * 30
+        + "\n"
+        + "第二段内容" * 30
+        + "\n"
+        + "第三段内容" * 30
+    )
+
+    chunks = narrative.split(text)
+    offsets = [chunk.source.offset_start for chunk in chunks]
+
+    assert chunks
+    assert len(chunks) < len(text)
+    assert offsets == sorted(offsets)
+    assert len(set(offsets)) == len(offsets)
+
+
 def test_manifest_hit_requires_existing_live_source() -> None:
     manager, metadata_store = _build_manager()
     manager._manifest_path = _test_manifest_path("manifest_hit.json")

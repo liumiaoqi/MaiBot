@@ -105,18 +105,16 @@ function DynamicConfigSection({
               <CardTitle className="text-lg text-primary">{sectionTitle}</CardTitle>
             </div>
           </div>
-          {collapsedByDefault && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              aria-controls={contentId}
-              aria-expanded={!collapsed}
-              onClick={() => setCollapsed((current) => !current)}
-            >
-              {collapsed ? '展开' : '收起'}
-            </Button>
-          )}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            aria-controls={contentId}
+            aria-expanded={!collapsed}
+            onClick={() => setCollapsed((current) => !current)}
+          >
+            {collapsed ? '展开' : '收起'}
+          </Button>
         </div>
       </CardHeader>
       {!collapsed && (
@@ -173,18 +171,16 @@ function NestedDynamicConfigSection({
               <CardTitle className="text-sm text-primary">{sectionTitle}</CardTitle>
             </div>
           </div>
-          {collapsedByDefault && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              aria-controls={contentId}
-              aria-expanded={!collapsed}
-              onClick={() => setCollapsed((current) => !current)}
-            >
-              {collapsed ? '展开' : '收起'}
-            </Button>
-          )}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            aria-controls={contentId}
+            aria-expanded={!collapsed}
+            onClick={() => setCollapsed((current) => !current)}
+          >
+            {collapsed ? '展开' : '收起'}
+          </Button>
         </div>
       </CardHeader>
       {!collapsed && (

@@ -209,11 +209,7 @@ def _unwrap_payload(payload: dict[str, Any] | None) -> dict[str, Any]:
     return dict(raw)
 
 
-def _get_chat_name_from_latest_message(chat_id: str, db_session: Any) -> Optional[str]:
-    statement = (
-        select(Messages).where(col(Messages.session_id) == chat_id).order_by(col(Messages.timestamp).desc()).limit(1)
-    )
-    message = db_session.exec(statement).first()
+def _get_chat_name_from_latest_message(message: Optional[Messages]) -> Optional[str]:
     if not message:
         return None
     if message.group_id:
@@ -222,14 +218,14 @@ def _get_chat_name_from_latest_message(chat_id: str, db_session: Any) -> Optiona
     return f"{private_name}的私聊" if private_name else None
 
 
-def _get_chat_name(chat_session: ChatSession, db_session: Any) -> str:
+def _get_chat_name(chat_session: ChatSession, latest_messages: dict[str, Messages]) -> str:
     chat_id = str(chat_session.session_id or "").strip()
     try:
         if name := _chat_manager.get_session_name(chat_id):
             return name
     except Exception:
         pass
-    if name := _get_chat_name_from_latest_message(chat_id, db_session):
+    if name := _get_chat_name_from_latest_message(latest_messages.get(chat_id)):
         return name
     if chat_session.group_name:
         return chat_session.group_name
@@ -239,6 +235,23 @@ def _get_chat_name(chat_session: ChatSession, db_session: Any) -> str:
         f"用户{chat_session.user_id}" if chat_session.user_id else ""
     )
     return f"{private_name}的私聊" if private_name else chat_id
+
+
+def _prefetch_latest_messages_by_session(db_session: Any, session_ids: list[str]) -> dict[str, Messages]:
+    if not session_ids:
+        return {}
+
+    statement = (
+        select(Messages)
+        .where(col(Messages.session_id).in_(session_ids))
+        .order_by(col(Messages.session_id).asc(), col(Messages.timestamp).desc())
+    )
+    latest: dict[str, Messages] = {}
+    for message in db_session.exec(statement).all():
+        chat_id = str(message.session_id or "").strip()
+        if chat_id and chat_id not in latest:
+            latest[chat_id] = message
+    return latest
 
 
 def _validate_import_chat_id(payload: dict[str, Any]) -> dict[str, Any]:
@@ -272,10 +285,12 @@ async def _import_chat_targets() -> ImportChatTargetsResponse:
                     )
                 ).all()
             )
+            session_ids = [str(chat_session.session_id or "").strip() for chat_session in rows]
+            latest_messages = _prefetch_latest_messages_by_session(session, [item for item in session_ids if item])
             targets = [
                 ImportChatTarget(
                     chat_id=chat_session.session_id,
-                    chat_name=_get_chat_name(chat_session, session),
+                    chat_name=_get_chat_name(chat_session, latest_messages),
                     platform=chat_session.platform,
                     group_id=chat_session.group_id,
                     user_id=chat_session.user_id,

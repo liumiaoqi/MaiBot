@@ -228,7 +228,11 @@ async def initialize_storage_async(plugin: Any) -> None:
         f"tokenizer={sparse_cfg.tokenizer_mode}"
     )
     if sparse_cfg.enabled and not sparse_cfg.lazy_load:
-        warmup_summary = plugin.sparse_index.warmup()
+        try:
+            warmup_summary = plugin.sparse_index.warmup()
+        except Exception as e:
+            logger.warning(f"稀疏索引预热异常，后续检索将按需重试: {e}")
+            warmup_summary = {"ok": False, "error": str(e)}
         if warmup_summary.get("ok"):
             logger.info(
                 "稀疏索引预热完成: "

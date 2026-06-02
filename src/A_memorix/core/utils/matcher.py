@@ -102,7 +102,11 @@ class AhoCorasick:
         if not patterns or len(patterns) < self.native_min_patterns:
             return
         try:
-            self._native_matcher = ahocorasick_rs.AhoCorasick(patterns, store_patterns=True)
+            self._native_matcher = ahocorasick_rs.AhoCorasick(
+                patterns,
+                match_kind=ahocorasick_rs.MATCHKIND_STANDARD,
+                store_patterns=True,
+            )
             self._native_patterns = patterns
         except Exception:
             self._native_matcher = None
@@ -117,7 +121,7 @@ class AhoCorasick:
         """
         if self._native_matcher is not None:
             try:
-                matches = self._native_matcher.find_matches_as_indexes(text, overlapping=True)  # type: ignore[attr-defined]
+                matches = self._native_matcher.find_matches_as_indexes(text)  # type: ignore[attr-defined]
                 return [
                     (int(end) - 1, self._native_patterns[int(pattern_index)])
                     for pattern_index, _start, end in matches
@@ -146,7 +150,7 @@ class AhoCorasick:
         if self._native_matcher is not None:
             try:
                 stats: Dict[str, int] = {}
-                for pattern in self._native_matcher.find_matches_as_strings(text, overlapping=True):  # type: ignore[attr-defined]
+                for pattern in self._native_matcher.find_matches_as_strings(text):  # type: ignore[attr-defined]
                     stats[str(pattern)] = stats.get(str(pattern), 0) + 1
                 return stats
             except Exception:

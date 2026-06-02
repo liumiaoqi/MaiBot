@@ -185,7 +185,7 @@ class AMemorixHostService:
         if component_name == "search_memory":
             from .core.runtime.sdk_memory_kernel import KernelSearchRequest
 
-            chat_id = str(payload.get("chat_id", "") or "")
+            chat_id = str(payload.get("chat_id", "") or "").strip()
             return await kernel.search_memory(
                 KernelSearchRequest(
                     query=str(payload.get("query", "") or ""),

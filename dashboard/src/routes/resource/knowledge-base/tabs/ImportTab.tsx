@@ -61,12 +61,28 @@ function compactTextParts(parts: Array<string | null | undefined>): string[] {
   return parts.map((part) => String(part ?? '').trim()).filter(Boolean)
 }
 
+function getUserIdLabel(chat: MemoryImportChatTargetPayload): string {
+  const userId = String(chat.user_id ?? '').trim()
+  if (!userId) {
+    return ''
+  }
+
+  const platform = String(chat.platform ?? '').trim().toLowerCase()
+  if (platform === 'qq') {
+    return `QQ ${userId}`
+  }
+  if (platform === 'wechat' || platform === 'wx') {
+    return `微信 ${userId}`
+  }
+  return `用户 ID ${userId}`
+}
+
 function getChatTargetMetaParts(chat: MemoryImportChatTargetPayload): string[] {
   return compactTextParts([
     chat.platform || '未知平台',
     chat.is_group ? '群聊' : '私聊',
     chat.group_id ? `群号 ${chat.group_id}` : '',
-    chat.user_id ? `QQ ${chat.user_id}` : '',
+    getUserIdLabel(chat),
   ])
 }
 

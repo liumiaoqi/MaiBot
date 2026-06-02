@@ -326,17 +326,22 @@ export function KnowledgeBasePage() {
     }
     try {
       setPanelLoading('import', true)
-      const [importSettingsPayload, pathAliasPayload, importTaskPayload, chatTargetsPayload] = await Promise.all([
+      const [importSettingsPayload, pathAliasPayload, importTaskPayload, chatTargetsResult] = await Promise.all([
         getMemoryImportSettings(),
         getMemoryImportPathAliases(),
         getMemoryImportTasks(20),
-        getMemoryImportChatTargets(),
+        getMemoryImportChatTargets().catch((error) => {
+          console.warn('加载聊天流列表失败，导入面板将继续显示其他数据', error)
+          return null
+        }),
       ])
 
       setImportSettings(importSettingsPayload.settings ?? {})
       setImportPathAliases(pathAliasPayload.path_aliases ?? {})
       setImportTasks(importTaskPayload.items ?? [])
-      setImportChatTargets(chatTargetsPayload.data ?? [])
+      if (chatTargetsResult) {
+        setImportChatTargets(chatTargetsResult.data ?? [])
+      }
       setSelectedImportTaskId((currentTaskId) => {
         if (currentTaskId || (importTaskPayload.items ?? []).length === 0) {
           return currentTaskId
@@ -644,17 +649,22 @@ export function KnowledgeBasePage() {
 
   const refreshImportQueue = useCallback(async (silent: boolean = false) => {
     try {
-      const [taskPayload, settingsPayload, pathAliasPayload, chatTargetsPayload] = await Promise.all([
+      const [taskPayload, settingsPayload, pathAliasPayload, chatTargetsResult] = await Promise.all([
         getMemoryImportTasks(20),
         getMemoryImportSettings(),
         getMemoryImportPathAliases(),
-        getMemoryImportChatTargets(),
+        getMemoryImportChatTargets().catch((error) => {
+          console.warn('刷新聊天流列表失败，保留当前聊天流选项', error)
+          return null
+        }),
       ])
       const nextTasks = taskPayload.items ?? []
       setImportTasks(nextTasks)
       setImportSettings(settingsPayload.settings ?? {})
       setImportPathAliases(pathAliasPayload.path_aliases ?? {})
-      setImportChatTargets(chatTargetsPayload.data ?? [])
+      if (chatTargetsResult) {
+        setImportChatTargets(chatTargetsResult.data ?? [])
+      }
       setImportErrorText('')
       loadedPanelDataRef.current.add('import')
 

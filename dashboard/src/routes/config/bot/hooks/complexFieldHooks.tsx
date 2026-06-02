@@ -1594,11 +1594,6 @@ export const ExpressionGroupsHook: FieldHookComponent = ({ fieldPath, onChange, 
     : `每个互通组内的聊天流会共享已学习的${learnedContentLabel}。成员会保存为 targets 数组结构。`
 
   const updateGroups = (nextGroups: ExpressionGroupValue[]) => {
-    if (!isSharedMemoryGroup) {
-      onChange?.(nextGroups)
-      return
-    }
-
     onChange?.(
       nextGroups.map((group) => ({
         targets: group.targets.map((target) => ({

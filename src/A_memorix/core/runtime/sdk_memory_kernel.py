@@ -31,7 +31,7 @@ from ..utils.person_profile_service import PersonProfileService
 from ..utils.relation_write_service import RelationWriteService
 from ..utils.retrieval_tuning_manager import RetrievalTuningManager
 from ..utils.runtime_self_check import run_embedding_runtime_self_check
-from ..utils.search_execution_service import SearchExecutionRequest, SearchExecutionService
+from ..utils.search_execution_service import SearchExecutionRequest, SearchExecutionResult, SearchExecutionService
 from ..utils.summary_importer import SummaryImporter
 from ..utils.time_parser import format_timestamp, parse_query_datetime_to_timestamp
 from ..utils.web_import_manager import ImportTaskManager
@@ -1522,7 +1522,6 @@ class SDKMemoryKernel:
         query = str(request.query or "").strip()
         limit = max(1, int(request.limit or 5))
         shared_chat_ids = tuple(str(item or "").strip() for item in request.shared_chat_ids if str(item or "").strip())
-        search_source = self._chat_source_for_search_scope(request.chat_id, shared_chat_ids)
         scoped_limit = self._scoped_search_limit(limit, chat_id=request.chat_id, shared_chat_ids=shared_chat_ids)
         supported_modes = {"search", "time", "hybrid", "episode", "aggregate"}
         if mode not in supported_modes:
@@ -1540,13 +1539,14 @@ class SDKMemoryKernel:
             return {"summary": "", "hits": [], "error": str(exc)}
 
         if mode == "episode":
-            rows = await self.episode_retriever.query(
+            rows = await self._episode_query_for_chat_scope(
                 query=query,
                 top_k=scoped_limit,
                 time_from=time_window.numeric_start,
                 time_to=time_window.numeric_end,
                 person=request.person_id or None,
-                source=search_source,
+                chat_id=request.chat_id,
+                shared_chat_ids=shared_chat_ids,
             )
             hits = self._filter_episode_hits([self._episode_hit(row) for row in rows])
             hits = self._filter_hits_by_chat_scope(hits, request.chat_id, shared_chat_ids)[:limit]
@@ -1575,27 +1575,16 @@ class SDKMemoryKernel:
 
         query_type = mode
         runtime_config = self._build_runtime_config()
-        result = await SearchExecutionService.execute(
-            retriever=self.retriever,
-            threshold_filter=self.threshold_filter,
+        result = await self._search_execution_for_chat_scope(
+            caller="sdk_memory_kernel",
+            query_type=query_type,
+            query=query,
+            top_k=scoped_limit,
+            request=request,
+            time_from=time_window.query_start,
+            time_to=time_window.query_end,
             plugin_config=runtime_config,
-            request=SearchExecutionRequest(
-                caller="sdk_memory_kernel",
-                stream_id=str(request.chat_id or "") or None,
-                group_id=str(request.group_id or "") or None,
-                user_id=str(request.user_id or "") or None,
-                query_type=query_type,
-                query=query,
-                top_k=scoped_limit,
-                time_from=time_window.query_start,
-                time_to=time_window.query_end,
-                person=str(request.person_id or "") or None,
-                source=search_source,
-                use_threshold=True,
-                enable_ppr=bool(self._cfg("retrieval.enable_ppr", True)),
-            ),
             enforce_chat_filter=bool(request.respect_filter),
-            reinforce_access=True,
         )
         if not result.success:
             return {"summary": "", "hits": [], "error": result.error}
@@ -2553,24 +2542,14 @@ class SDKMemoryKernel:
 
     async def _aggregate_search(self, query: str, limit: int, request: KernelSearchRequest) -> Dict[str, Any]:
         shared_chat_ids = tuple(str(item or "").strip() for item in request.shared_chat_ids if str(item or "").strip())
-        search_source = self._chat_source_for_search_scope(request.chat_id, shared_chat_ids)
-        result = await SearchExecutionService.execute(
-            retriever=self.retriever,
-            threshold_filter=self.threshold_filter,
+        result = await self._search_execution_for_chat_scope(
+            caller="sdk_memory_kernel.aggregate",
+            query_type="search",
+            query=query,
+            top_k=limit,
+            request=request,
             plugin_config=self._build_runtime_config(),
-            request=SearchExecutionRequest(
-                caller="sdk_memory_kernel.aggregate",
-                stream_id=str(request.chat_id or "") or None,
-                query_type="search",
-                query=query,
-                top_k=limit,
-                person=str(request.person_id or "") or None,
-                source=search_source,
-                use_threshold=True,
-                enable_ppr=bool(self._cfg("retrieval.enable_ppr", True)),
-            ),
             enforce_chat_filter=False,
-            reinforce_access=True,
         )
         hits = [self._retrieval_result_hit(item) for item in result.results] if result.success else []
         hits = self._filter_hits_by_chat_scope(hits, request.chat_id, shared_chat_ids)
@@ -2584,26 +2563,16 @@ class SDKMemoryKernel:
         time_window: _NormalizedSearchTimeWindow,
     ) -> Dict[str, Any]:
         shared_chat_ids = tuple(str(item or "").strip() for item in request.shared_chat_ids if str(item or "").strip())
-        search_source = self._chat_source_for_search_scope(request.chat_id, shared_chat_ids)
-        result = await SearchExecutionService.execute(
-            retriever=self.retriever,
-            threshold_filter=self.threshold_filter,
+        result = await self._search_execution_for_chat_scope(
+            caller="sdk_memory_kernel.aggregate",
+            query_type="time",
+            query=query,
+            top_k=limit,
+            request=request,
+            time_from=time_window.query_start,
+            time_to=time_window.query_end,
             plugin_config=self._build_runtime_config(),
-            request=SearchExecutionRequest(
-                caller="sdk_memory_kernel.aggregate",
-                stream_id=str(request.chat_id or "") or None,
-                query_type="time",
-                query=query,
-                top_k=limit,
-                time_from=time_window.query_start,
-                time_to=time_window.query_end,
-                person=str(request.person_id or "") or None,
-                source=search_source,
-                use_threshold=True,
-                enable_ppr=bool(self._cfg("retrieval.enable_ppr", True)),
-            ),
             enforce_chat_filter=False,
-            reinforce_access=True,
         )
         hits = [self._retrieval_result_hit(item) for item in result.results] if result.success else []
         hits = self._filter_hits_by_chat_scope(hits, request.chat_id, shared_chat_ids)
@@ -2618,14 +2587,14 @@ class SDKMemoryKernel:
     ) -> Dict[str, Any]:
         assert self.episode_retriever
         shared_chat_ids = tuple(str(item or "").strip() for item in request.shared_chat_ids if str(item or "").strip())
-        search_source = self._chat_source_for_search_scope(request.chat_id, shared_chat_ids)
-        rows = await self.episode_retriever.query(
+        rows = await self._episode_query_for_chat_scope(
             query=query,
             top_k=limit,
             time_from=time_window.numeric_start,
             time_to=time_window.numeric_end,
             person=request.person_id or None,
-            source=search_source,
+            chat_id=request.chat_id,
+            shared_chat_ids=shared_chat_ids,
         )
         hits = self._filter_episode_hits([self._episode_hit(row) for row in rows])
         hits = self._filter_hits_by_chat_scope(hits, request.chat_id, shared_chat_ids)
@@ -5564,6 +5533,179 @@ class SDKMemoryKernel:
         if clean_chat_id:
             allowed_chat_ids.add(clean_chat_id)
         return allowed_chat_ids
+
+    @staticmethod
+    def _rank_score_from_item(item: Any) -> float:
+        if isinstance(item, dict):
+            raw_score = item.get("score", item.get("final_score", item.get("relevance", 0.0)))
+        else:
+            raw_score = getattr(item, "score", 0.0)
+        try:
+            return float(raw_score or 0.0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    @classmethod
+    def _dedupe_ranked_items(cls, items: Sequence[Any], *, limit: int) -> List[Any]:
+        ranked: Dict[str, Any] = {}
+        for index, item in enumerate(items):
+            if isinstance(item, dict):
+                item_hash = str(item.get("hash", "") or "").strip()
+                item_type = str(item.get("type", "") or "").strip()
+                content = str(item.get("content", "") or "").strip()
+            else:
+                item_hash = str(getattr(item, "hash_value", "") or "").strip()
+                item_type = str(getattr(item, "result_type", "") or "").strip()
+                content = str(getattr(item, "content", "") or "").strip()
+            key = item_hash or f"{item_type}:{content}"
+            if not key:
+                key = f"item:{index}"
+            current = ranked.get(key)
+            if current is None or cls._rank_score_from_item(item) > cls._rank_score_from_item(current):
+                ranked[key] = item
+        return sorted(ranked.values(), key=cls._rank_score_from_item, reverse=True)[: max(1, int(limit or 5))]
+
+    async def _search_execution_once(
+        self,
+        *,
+        caller: str,
+        query_type: str,
+        query: str,
+        top_k: int,
+        request: KernelSearchRequest,
+        plugin_config: dict,
+        source: Optional[str],
+        time_from: Optional[str] = None,
+        time_to: Optional[str] = None,
+        enforce_chat_filter: bool,
+    ) -> SearchExecutionResult:
+        return await SearchExecutionService.execute(
+            retriever=self.retriever,
+            threshold_filter=self.threshold_filter,
+            plugin_config=plugin_config,
+            request=SearchExecutionRequest(
+                caller=caller,
+                stream_id=str(request.chat_id or "") or None,
+                group_id=str(request.group_id or "") or None,
+                user_id=str(request.user_id or "") or None,
+                query_type=query_type,
+                query=query,
+                top_k=top_k,
+                time_from=time_from,
+                time_to=time_to,
+                person=str(request.person_id or "") or None,
+                source=source,
+                use_threshold=True,
+                enable_ppr=bool(self._cfg("retrieval.enable_ppr", True)),
+            ),
+            enforce_chat_filter=enforce_chat_filter,
+            reinforce_access=True,
+        )
+
+    async def _search_execution_for_chat_scope(
+        self,
+        *,
+        caller: str,
+        query_type: str,
+        query: str,
+        top_k: int,
+        request: KernelSearchRequest,
+        plugin_config: dict,
+        time_from: Optional[str] = None,
+        time_to: Optional[str] = None,
+        enforce_chat_filter: bool,
+    ) -> SearchExecutionResult:
+        allowed_chat_ids = self._resolve_allowed_chat_ids(request.chat_id, request.shared_chat_ids)
+        if len(allowed_chat_ids) <= 1:
+            search_source = self._chat_source_for_search_scope(request.chat_id, request.shared_chat_ids)
+            return await self._search_execution_once(
+                caller=caller,
+                query_type=query_type,
+                query=query,
+                top_k=top_k,
+                request=request,
+                plugin_config=plugin_config,
+                source=search_source,
+                time_from=time_from,
+                time_to=time_to,
+                enforce_chat_filter=enforce_chat_filter,
+            )
+
+        scoped_results: List[RetrievalResult] = []
+        errors: List[str] = []
+        chat_filtered = False
+        for chat_id in sorted(allowed_chat_ids):
+            result = await self._search_execution_once(
+                caller=caller,
+                query_type=query_type,
+                query=query,
+                top_k=top_k,
+                request=request,
+                plugin_config=plugin_config,
+                source=self._chat_source(chat_id),
+                time_from=time_from,
+                time_to=time_to,
+                enforce_chat_filter=False,
+            )
+            if result.chat_filtered:
+                chat_filtered = True
+            if not result.success:
+                if result.error:
+                    errors.append(result.error)
+                continue
+            scoped_results.extend(result.results)
+
+        merged_results = self._dedupe_ranked_items(scoped_results, limit=top_k)
+        return SearchExecutionResult(
+            success=bool(merged_results) or not errors,
+            error="; ".join(dict.fromkeys(errors)),
+            query_type=query_type,
+            query=query,
+            top_k=top_k,
+            time_from=time_from,
+            time_to=time_to,
+            person=str(request.person_id or "") or None,
+            source=None,
+            results=merged_results,
+            chat_filtered=chat_filtered and not merged_results,
+        )
+
+    async def _episode_query_for_chat_scope(
+        self,
+        *,
+        query: str,
+        top_k: int,
+        time_from: Optional[float],
+        time_to: Optional[float],
+        person: Optional[str],
+        chat_id: str,
+        shared_chat_ids: Sequence[str] = (),
+    ) -> List[Any]:
+        assert self.episode_retriever is not None
+        allowed_chat_ids = self._resolve_allowed_chat_ids(chat_id, shared_chat_ids)
+        if len(allowed_chat_ids) <= 1:
+            return await self.episode_retriever.query(
+                query=query,
+                top_k=top_k,
+                time_from=time_from,
+                time_to=time_to,
+                person=person,
+                source=self._chat_source_for_search_scope(chat_id, shared_chat_ids),
+            )
+
+        rows: List[Any] = []
+        for allowed_chat_id in sorted(allowed_chat_ids):
+            rows.extend(
+                await self.episode_retriever.query(
+                    query=query,
+                    top_k=top_k,
+                    time_from=time_from,
+                    time_to=time_to,
+                    person=person,
+                    source=self._chat_source(allowed_chat_id),
+                )
+            )
+        return self._dedupe_ranked_items(rows, limit=top_k)
 
     @classmethod
     def _paragraph_matches_chat_scope(cls, paragraph: Optional[Dict[str, Any]], allowed_chat_ids: set[str]) -> bool:

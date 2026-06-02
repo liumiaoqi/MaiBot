@@ -95,6 +95,61 @@ def test_sparse_tokenized_shadow_index_incremental_lifecycle(tmp_path: Path) -> 
         store.close()
 
 
+def test_tokenized_shadow_index_meta_tracks_incremental_lifecycle(tmp_path: Path) -> None:
+    store = MetadataStore(data_dir=tmp_path)
+    store.connect()
+    try:
+        assert store.ensure_paragraph_tokenized_fts_schema()
+        first_hash = store.add_paragraph("第一条 tokenized meta 段落", source="test")
+
+        conn = store._conn
+        assert conn is not None
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM paragraph_tokenized_fts_meta WHERE key='paragraph_count'")
+        assert cursor.fetchone()[0] == "1"
+
+        second_hash = store.add_paragraph("第二条 tokenized meta 段落", source="test")
+        cursor.execute("SELECT value FROM paragraph_tokenized_fts_meta WHERE key='paragraph_count'")
+        assert cursor.fetchone()[0] == "2"
+
+        assert store.mark_as_deleted([first_hash], "paragraph") == 1
+        cursor.execute("SELECT value FROM paragraph_tokenized_fts_meta WHERE key='paragraph_count'")
+        assert cursor.fetchone()[0] == "1"
+
+        assert store.revive_if_deleted(paragraph_hashes=[first_hash]) == 1
+        cursor.execute("SELECT value FROM paragraph_tokenized_fts_meta WHERE key='paragraph_count'")
+        assert cursor.fetchone()[0] == "2"
+
+        assert store.physically_delete_paragraphs([first_hash, second_hash]) == 2
+        cursor.execute("SELECT value FROM paragraph_tokenized_fts_meta WHERE key='paragraph_count'")
+        assert cursor.fetchone()[0] == "0"
+    finally:
+        store.close()
+
+
+def test_relation_support_batch_excludes_soft_deleted_paragraphs(tmp_path: Path) -> None:
+    store = MetadataStore(data_dir=tmp_path)
+    store.connect()
+    try:
+        live_hash = store.add_paragraph("关系支撑 live 段落", source="chat_summary:live")
+        deleted_hash = store.add_paragraph("关系支撑 deleted 段落", source="chat_summary:deleted")
+        relation_hash = store.add_relation("Alice", "记得", "蓝莓曲奇", source_paragraph=live_hash)
+        assert store._conn is not None
+        store._conn.execute(
+            "INSERT OR IGNORE INTO paragraph_relations (paragraph_hash, relation_hash) VALUES (?, ?)",
+            (deleted_hash, relation_hash),
+        )
+        store._conn.commit()
+
+        assert store.mark_as_deleted([deleted_hash], "paragraph") == 1
+
+        grouped = store.get_paragraphs_by_relation_hashes([relation_hash])
+
+        assert [item["hash"] for item in grouped[relation_hash]] == [live_hash]
+    finally:
+        store.close()
+
+
 def test_tokenized_shadow_index_does_not_commit_outer_transaction(tmp_path: Path) -> None:
     store = MetadataStore(data_dir=tmp_path)
     store.connect()

@@ -1753,6 +1753,7 @@ class DualPathRetriever:
             self._ppr_cache.pop(key, None)
 
         async with self._ppr_semaphore:
+            now = time.monotonic()
             cached = self._ppr_cache.get(key)
             if cached is not None:
                 expires_at, scores = cached

@@ -1608,6 +1608,22 @@ class MetadataStore:
         tokens.extend(self._paragraph_phrase_tokens(source))
         return " ".join(dict.fromkeys(token for token in tokens if token))
 
+    def _refresh_paragraph_tokenized_fts_meta(self, conn: sqlite3.Connection) -> None:
+        cur = conn.cursor()
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='paragraph_tokenized_fts_meta'")
+        if cur.fetchone() is None:
+            return
+        cur.execute("SELECT COUNT(1) FROM paragraphs WHERE is_deleted IS NULL OR is_deleted = 0")
+        para_count = int(cur.fetchone()[0])
+        cur.execute("""
+            INSERT INTO paragraph_tokenized_fts_meta(key, value) VALUES('paragraph_count', ?)
+            ON CONFLICT(key) DO UPDATE SET value=excluded.value
+        """, (str(para_count),))
+        cur.execute("""
+            INSERT INTO paragraph_tokenized_fts_meta(key, value) VALUES('updated_at', ?)
+            ON CONFLICT(key) DO UPDATE SET value=excluded.value
+        """, (str(datetime.now().timestamp()),))
+
     def ensure_paragraph_tokenized_fts_backfilled(self, conn: Optional[sqlite3.Connection] = None) -> bool:
         """确保预分词段落 FTS5 shadow index 已回填。"""
         c = self._resolve_conn(conn)
@@ -1630,30 +1646,25 @@ class MetadataStore:
                 FROM paragraphs
                 WHERE is_deleted IS NULL OR is_deleted = 0
             """)
-            rows = cur.fetchall()
             batch: List[Tuple[str, str]] = []
             batch_size = 1000
-            for row in rows:
-                batch.append((str(row["hash"]), self._tokenize_paragraph_for_fts(str(row["content"] or ""))))
-                if len(batch) >= batch_size:
-                    cur.executemany(
-                        "INSERT INTO paragraphs_tokenized_fts(paragraph_hash, tokenized) VALUES (?, ?)",
-                        batch,
-                    )
-                    batch.clear()
+            while True:
+                rows = cur.fetchmany(batch_size)
+                if not rows:
+                    break
+                for row in rows:
+                    batch.append((str(row["hash"]), self._tokenize_paragraph_for_fts(str(row["content"] or ""))))
+                cur.executemany(
+                    "INSERT INTO paragraphs_tokenized_fts(paragraph_hash, tokenized) VALUES (?, ?)",
+                    batch,
+                )
+                batch.clear()
             if batch:
                 cur.executemany(
                     "INSERT INTO paragraphs_tokenized_fts(paragraph_hash, tokenized) VALUES (?, ?)",
                     batch,
                 )
-            cur.execute("""
-                INSERT INTO paragraph_tokenized_fts_meta(key, value) VALUES('paragraph_count', ?)
-                ON CONFLICT(key) DO UPDATE SET value=excluded.value
-            """, (str(para_count),))
-            cur.execute("""
-                INSERT INTO paragraph_tokenized_fts_meta(key, value) VALUES('updated_at', ?)
-                ON CONFLICT(key) DO UPDATE SET value=excluded.value
-            """, (str(datetime.now().timestamp()),))
+            self._refresh_paragraph_tokenized_fts_meta(c)
             c.commit()
             elapsed_ms = (time.perf_counter() - started) * 1000.0
             logger.info(
@@ -1695,6 +1706,7 @@ class MetadataStore:
                     "INSERT INTO paragraphs_tokenized_fts(paragraph_hash, tokenized) VALUES (?, ?)",
                     (paragraph_hash, self._tokenize_paragraph_for_fts(str(row["content"] or ""))),
                 )
+            self._refresh_paragraph_tokenized_fts_meta(c)
             if owns_transaction:
                 c.commit()
             return True
@@ -1718,6 +1730,7 @@ class MetadataStore:
             if cur.fetchone() is None:
                 return False
             cur.execute("DELETE FROM paragraphs_tokenized_fts WHERE paragraph_hash = ?", (paragraph_hash,))
+            self._refresh_paragraph_tokenized_fts_meta(c)
             if owns_transaction:
                 c.commit()
             return True
@@ -3154,6 +3167,8 @@ class MetadataStore:
                 FROM paragraph_relations pr
                 JOIN paragraphs p ON p.hash = pr.paragraph_hash
                 WHERE pr.relation_hash IN ({placeholders})
+                  AND (p.is_deleted IS NULL OR p.is_deleted = 0)
+                ORDER BY pr.relation_hash ASC, p.updated_at DESC, p.created_at DESC, pr.paragraph_hash ASC
                 """,
                 tuple(batch),
             )
@@ -5252,6 +5267,8 @@ class MetadataStore:
             cursor = self._conn.cursor()
             cursor.execute(f"DELETE FROM paragraphs WHERE hash IN ({placeholders})", batch)
             count += cursor.rowcount
+        if count > 0:
+            self._refresh_paragraph_tokenized_fts_meta(self._conn)
             
         self._conn.commit()
         if count > 0:

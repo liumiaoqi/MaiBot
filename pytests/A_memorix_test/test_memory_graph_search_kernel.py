@@ -110,9 +110,9 @@ class _ScopedSearchRetriever:
         self.top_k_values: list[int] = []
 
     async def retrieve(self, *, query: str, top_k: int, temporal: Any) -> list[RetrievalResult]:
-        del query, temporal
+        del query
         self.top_k_values.append(top_k)
-        return [
+        results = [
             RetrievalResult(
                 hash_value="para-other",
                 content="其他群聊提到秘密计划。",
@@ -146,6 +146,12 @@ class _ScopedSearchRetriever:
                 metadata={},
             ),
         ]
+        source = str(getattr(temporal, "source", "") or "")
+        if source == "chat_summary:session-current":
+            return [item for item in results if item.hash_value.endswith("current")]
+        if source == "chat_summary:session-other":
+            return [item for item in results if item.hash_value.endswith("other")]
+        return results
 
 
 def _build_kernel(*, entities: list[dict[str, Any]], relations: list[dict[str, Any]]) -> SDKMemoryKernel:
@@ -288,7 +294,7 @@ async def test_search_memory_allows_configured_shared_chat_scope(tmp_path) -> No
         "para-current",
         "rel-current",
     ]
-    assert retriever.top_k_values == [40]
+    assert retriever.top_k_values == [40, 40]
 
 
 @pytest.mark.asyncio
