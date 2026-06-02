@@ -43,7 +43,7 @@ export interface InstalledPlugin {
     homepage_url?: string
     repository_url?: string
     keywords?: string[]
-    plugin_type?: PluginType
+    plugin_type?: PluginType | string
     display?: PluginDisplay
     [key: string]: unknown  // 允许其他字段
   }

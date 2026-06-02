@@ -497,6 +497,7 @@ class PluginRunner:
             method: str,
             plugin_id: str = "",
             payload: Optional[Dict[str, Any]] = None,
+            timeout_ms: Optional[int] = None,
         ) -> Any:
             """桥接 PluginContext 的原始 RPC 调用到 Host。
 
@@ -510,10 +511,33 @@ class PluginRunner:
                 raise PermissionError(
                     f"插件 {bound_plugin_id} 不允许直接调用 Host 原始 RPC 方法: {normalized_method or '<empty>'}"
                 )
+            request_payload = dict(payload or {})
+            if timeout_ms is None and normalized_method == "cap.call":
+                capability_name = str(request_payload.get("capability") or "").strip()
+                cap_args = request_payload.get("args")
+                if isinstance(cap_args, dict):
+                    if "rpc_timeout_ms" in cap_args:
+                        timeout_ms = cap_args.pop("rpc_timeout_ms")
+                    elif "_timeout_ms" in cap_args:
+                        timeout_ms = cap_args.pop("_timeout_ms")
+                    # 旧版 render.html2png 使用 timeout_ms 表示渲染业务超时，不能按 RPC 超时移除。
+                    elif capability_name != "render.html2png" and "timeout_ms" in cap_args:
+                        timeout_ms = cap_args.pop("timeout_ms")
+
+            request_timeout_ms = 30000
+            if timeout_ms is not None:
+                try:
+                    request_timeout_ms = int(timeout_ms)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError(f"RPC timeout_ms 无效: {timeout_ms}") from exc
+                if request_timeout_ms <= 0:
+                    raise ValueError(f"RPC timeout_ms 必须大于 0: {timeout_ms}")
+
             resp = await rpc_client.send_request(
                 method=normalized_method,
                 plugin_id=bound_plugin_id,
-                payload=payload or {},
+                payload=request_payload,
+                timeout_ms=request_timeout_ms,
             )
             if resp.error:
                 raise RuntimeError(resp.error.get("message", "能力调用失败"))

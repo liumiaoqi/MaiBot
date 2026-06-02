@@ -5,35 +5,46 @@ import type { PluginStatsData } from '@/lib/plugin-stats'
 
 export const PLUGIN_TYPE_LABELS: Record<PluginType, string> = {
   adapter: '适配器',
-  tool: '工具',
+  chat: '聊天',
+  creative: '创作',
   provider: '服务提供方',
   management: '管理',
-  data: '数据',
+  search: '检索搜索',
+  knowledge: '知识',
   media: '媒体',
   game: '游戏娱乐',
-  integration: '外部集成',
+  security: '安全防护',
+  automation: '自动化',
   extension: '通用扩展',
   other: '其他',
 }
 
 export const PLUGIN_TYPE_OPTIONS: Array<{ value: PluginType; label: string }> = [
   { value: 'adapter', label: PLUGIN_TYPE_LABELS.adapter },
-  { value: 'tool', label: PLUGIN_TYPE_LABELS.tool },
+  { value: 'chat', label: PLUGIN_TYPE_LABELS.chat },
+  { value: 'creative', label: PLUGIN_TYPE_LABELS.creative },
   { value: 'provider', label: PLUGIN_TYPE_LABELS.provider },
   { value: 'management', label: PLUGIN_TYPE_LABELS.management },
-  { value: 'data', label: PLUGIN_TYPE_LABELS.data },
+  { value: 'search', label: PLUGIN_TYPE_LABELS.search },
+  { value: 'knowledge', label: PLUGIN_TYPE_LABELS.knowledge },
   { value: 'media', label: PLUGIN_TYPE_LABELS.media },
   { value: 'game', label: PLUGIN_TYPE_LABELS.game },
-  { value: 'integration', label: PLUGIN_TYPE_LABELS.integration },
+  { value: 'security', label: PLUGIN_TYPE_LABELS.security },
+  { value: 'automation', label: PLUGIN_TYPE_LABELS.automation },
   { value: 'extension', label: PLUGIN_TYPE_LABELS.extension },
   { value: 'other', label: PLUGIN_TYPE_LABELS.other },
 ]
 
-export function getPluginType(plugin: { manifest?: { plugin_type?: PluginType } }): PluginType {
-  return plugin.manifest?.plugin_type ?? 'extension'
+export function getPluginType(plugin: { manifest?: { plugin_type?: PluginType | string } }): PluginType {
+  const pluginType = plugin.manifest?.plugin_type
+  if (!pluginType?.trim()) {
+    return 'extension'
+  }
+
+  return pluginType in PLUGIN_TYPE_LABELS ? (pluginType as PluginType) : 'other'
 }
 
-export function getPluginTypeLabel(plugin: { manifest?: { plugin_type?: PluginType } }): string {
+export function getPluginTypeLabel(plugin: { manifest?: { plugin_type?: PluginType | string } }): string {
   return PLUGIN_TYPE_LABELS[getPluginType(plugin)]
 }
 
