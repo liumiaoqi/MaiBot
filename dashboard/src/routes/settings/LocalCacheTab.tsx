@@ -438,8 +438,9 @@ function CacheImageListPanel({
                   <AlertDialogContent>
                     <AlertDialogHeader>
                       <AlertDialogTitle>确认删除这张图片？</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        将删除 {item.file_name}，并移除对应数据库记录。操作不可撤销。
+                      <AlertDialogDescription className="break-words">
+                        将删除 <span className="break-all font-mono">{item.file_name}</span>
+                        ，并移除对应数据库记录。操作不可撤销。
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
