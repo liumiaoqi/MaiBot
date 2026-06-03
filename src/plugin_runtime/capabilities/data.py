@@ -628,7 +628,6 @@ class RuntimeDataCapabilityMixin:
             selected = random.sample(emojis_source, min(count, len(emojis_source)))
             emojis: List[Dict[str, str]] = []
             for emoji in selected:
-                emoji_manager.update_emoji_usage(emoji)
                 serialized = self._serialize_emoji_payload(emoji)
                 if serialized is not None:
                     if not serialized["emotion"]:

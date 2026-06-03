@@ -391,9 +391,6 @@ class EmojiManager:
                 if record := session.exec(statement).first():
                     record_path = Path(record.full_path)
                     if not record.no_file_flag and record_path.exists():
-                        record.last_used_time = datetime.now()
-                        record.query_count += 1
-                        session.add(record)
                         return MaiEmoji.from_db_instance(record)
         except Exception as e:
             logger.error(f"缓存表情包前查询数据库时出错: {e}")
@@ -413,16 +410,13 @@ class EmojiManager:
                 if existing_record := session.exec(statement).first():
                     existing_record.full_path = str(emoji.full_path)
                     existing_record.no_file_flag = False
-                    existing_record.last_used_time = datetime.now()
-                    existing_record.query_count += 1
                     session.add(existing_record)
                 else:
                     image_record = emoji.to_db_instance()
                     image_record.is_registered = False
                     image_record.is_banned = False
                     image_record.no_file_flag = False
-                    image_record.last_used_time = datetime.now()
-                    image_record.query_count = 1
+                    image_record.query_count = 0
                     session.add(image_record)
         except Exception as e:
             logger.error(f"缓存表情包记录到数据库时出错: {e}")
@@ -679,18 +673,40 @@ class EmojiManager:
         if not emoji or not emoji.file_hash:
             logger.error("[更新表情包使用] 无效的表情包对象")
             return False
+
+        return self.update_emoji_usage_by_hash(emoji.file_hash, emoji=emoji)
+
+    def update_emoji_usage_by_hash(
+        self,
+        emoji_hash: str,
+        *,
+        emoji: Optional[MaiEmoji] = None,
+        log_missing: bool = True,
+    ) -> bool:
+        """按表情包哈希记录一次真实发送使用。"""
+
+        normalized_hash = emoji_hash.strip()
+        if not normalized_hash:
+            logger.error("[更新表情包使用] 无效的表情包哈希")
+            return False
+
         try:
             with get_db_session() as session:
-                statement = select(Images).filter_by(image_hash=emoji.file_hash, image_type=ImageType.EMOJI).limit(1)
+                statement = select(Images).filter_by(image_hash=normalized_hash, image_type=ImageType.EMOJI).limit(1)
                 if image_record := session.exec(statement).first():
-                    emoji.query_count += 1
-                    image_record.query_count = emoji.query_count
-                    emoji.last_used_time = datetime.now()
-                    image_record.last_used_time = emoji.last_used_time
+                    current_time = datetime.now()
+                    image_record.query_count += 1
+                    image_record.last_used_time = current_time
+                    if emoji is None:
+                        emoji = next((item for item in self.emojis if item.file_hash == normalized_hash), None)
+                    if emoji is not None:
+                        emoji.query_count = image_record.query_count
+                        emoji.last_used_time = current_time
                     session.add(image_record)
-                    logger.info(f"[记录表情包使用] 成功记录表情包使用: {emoji.file_hash}")
+                    logger.info(f"[记录表情包使用] 成功记录表情包使用: {normalized_hash}")
                 else:
-                    logger.error(f"[记录表情包使用] 未找到表情包记录: {emoji.file_hash}")
+                    if log_missing:
+                        logger.error(f"[记录表情包使用] 未找到表情包记录: {normalized_hash}")
                     return False
         except Exception as e:
             logger.error(f"[记录表情包使用] 记录使用时出错: {e}")
@@ -833,7 +849,6 @@ class EmojiManager:
         # 获取前10个相似度最高的表情包
         top_emojis = heapq.nlargest(10, emoji_similarities, key=lambda x: x[1])
         selected_emoji, similarity = random.choice(top_emojis)
-        self.update_emoji_usage(selected_emoji)
         logger.info(
             f"[获取表情包] 为[{emotion_label}]选中表情包: "
             f"{selected_emoji.file_name}({','.join(_get_emoji_emotions(selected_emoji))})，相似度: {similarity:.4f}",

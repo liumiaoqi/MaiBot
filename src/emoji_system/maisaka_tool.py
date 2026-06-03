@@ -230,8 +230,10 @@ async def send_emoji_for_maisaka(
                 else "[表情包]"
             )
             render_cli_message(preview_message)
+            record_usage_locally = True
             sent = True
         else:
+            record_usage_locally = False
             sent_message = await send_service.emoji_to_stream_with_message(
                 emoji_base64=emoji_base64,
                 stream_id=stream_id,
@@ -264,7 +266,8 @@ async def send_emoji_for_maisaka(
             matched_emotion=matched_emotion,
         )
 
-    emoji_manager.update_emoji_usage(selected_emoji)
+    if record_usage_locally:
+        emoji_manager.update_emoji_usage(selected_emoji)
     success_message = (
         f"已发送表情包：{description}（情绪：{', '.join(emotions)}）"
         if emotions
