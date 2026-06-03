@@ -123,6 +123,10 @@ function isFontSize(value: string): value is FontSize {
   return value in fontSizeConfig
 }
 
+function isLogLevelFilter(value: string): value is LogLevelFilter {
+  return value === 'all' || value in levelPriority
+}
+
 interface LogTerminalPaneProps {
   toolbarContainerId: string
   toolbarVisible: boolean
@@ -131,11 +135,14 @@ interface LogTerminalPaneProps {
 function LogTerminalPane({ toolbarContainerId, toolbarVisible }: LogTerminalPaneProps) {
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [searchQuery, setSearchQuery] = useState('')
-  const [levelFilter, setLevelFilter] = useState<LogLevelFilter>('INFO')
+  const [levelFilter, setLevelFilter] = useState<LogLevelFilter>(() => {
+    const savedLevelFilter = getSetting('logLevelFilter')
+    return isLogLevelFilter(savedLevelFilter) ? savedLevelFilter : 'INFO'
+  })
   const [moduleFilter, setModuleFilter] = useState<string>('all')
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined)
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined)
-  const [autoScroll, setAutoScroll] = useState(true)
+  const [autoScroll, setAutoScroll] = useState(() => getSetting('logAutoScroll'))
   const [connected, setConnected] = useState(false)
   const [fontSize, setFontSize] = useState<FontSize>(() => {
     const savedFontSize = getSetting('logFontSize')
@@ -227,7 +234,14 @@ function LogTerminalPane({ toolbarContainerId, toolbarVisible }: LogTerminalPane
 
   // 切换自动滚动
   const toggleAutoScroll = () => {
-    setAutoScroll(!autoScroll)
+    const nextAutoScroll = !autoScroll
+    setAutoScroll(nextAutoScroll)
+    setSetting('logAutoScroll', nextAutoScroll)
+  }
+
+  const handleLevelFilterChange = (level: LogLevelFilter) => {
+    setLevelFilter(level)
+    setSetting('logLevelFilter', level)
   }
 
   const handleFontSizeChange = (size: FontSize) => {
@@ -442,7 +456,7 @@ function LogTerminalPane({ toolbarContainerId, toolbarVisible }: LogTerminalPane
         <CollapsibleContent className="w-full space-y-2 lg:max-w-[760px]">
                 {/* 级别和模块筛选 */}
                 <div className="flex flex-col gap-2 sm:flex-row sm:gap-2">
-                  <Select value={levelFilter} onValueChange={(value) => setLevelFilter(value as LogLevelFilter)}>
+                  <Select value={levelFilter} onValueChange={(value) => handleLevelFilterChange(value as LogLevelFilter)}>
                     <SelectTrigger className="w-full sm:flex-1 h-8 text-xs">
                       <Filter className="h-3.5 w-3.5 mr-1.5" />
                       <SelectValue placeholder="最低级别" />

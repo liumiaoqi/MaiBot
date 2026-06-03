@@ -13,6 +13,7 @@ interface MarketplaceTabProps {
   searchQuery: string
   pluginTypeFilter: string
   showCompatibleOnly: boolean
+  hideInstalledPlugins: boolean
   sortBy: MarketplaceSortKey
   gitStatus: GitStatus | null
   maimaiVersion: MaimaiVersion | null
@@ -99,6 +100,7 @@ export function MarketplaceTab({
   searchQuery,
   pluginTypeFilter,
   showCompatibleOnly,
+  hideInstalledPlugins,
   sortBy,
   gitStatus,
   maimaiVersion,
@@ -159,6 +161,10 @@ export function MarketplaceTab({
 
     // 全部插件只展示 plugin-repo 中存在的市场插件，本地独有插件只在“已安装”显示。
     if (plugin.source === 'local') {
+      return false
+    }
+
+    if (hideInstalledPlugins && plugin.installed) {
       return false
     }
     

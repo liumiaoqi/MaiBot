@@ -63,6 +63,7 @@ function PluginsPageContent() {
   const [marketplaceSortBy, setMarketplaceSortBy] = useState<MarketplaceSortKey>('default')
   const [activeTab, setActiveTab] = useState('all')  // all | installed | updates
   const [showCompatibleOnly, setShowCompatibleOnly] = useState(true)  // 默认只显示兼容的
+  const [hideInstalledPlugins, setHideInstalledPlugins] = useState(false)
   const [plugins, setPlugins] = useState<PluginInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -694,6 +695,7 @@ function PluginsPageContent() {
     return plugins.filter(p => {
       if (!p.manifest) return false
       if (tab === 'all' && p.source === 'local') return false
+      if (tab === 'all' && hideInstalledPlugins && p.installed) return false
       const matchesSearch = searchQuery === '' ||
         p.manifest.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.manifest.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -830,6 +832,17 @@ function PluginsPageContent() {
               >
                 仅显示当前版本
               </label>
+              <Checkbox
+                id="hide-installed-plugins"
+                checked={hideInstalledPlugins}
+                onCheckedChange={(checked) => setHideInstalledPlugins(checked === true)}
+              />
+              <label
+                htmlFor="hide-installed-plugins"
+                className="cursor-pointer text-sm font-medium leading-none whitespace-nowrap peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                排除已安装
+              </label>
               {isFetchingMarketplace && (
                 <div
                   className="flex min-w-0 max-w-full items-center gap-2 rounded-md border bg-background/85 px-2 py-0.5 text-xs whitespace-nowrap shadow-sm backdrop-blur sm:max-w-80"
@@ -902,6 +915,7 @@ function PluginsPageContent() {
             searchQuery={searchQuery}
             pluginTypeFilter={pluginTypeFilter}
             showCompatibleOnly={showCompatibleOnly}
+            hideInstalledPlugins={hideInstalledPlugins}
             sortBy={marketplaceSortBy}
             gitStatus={gitStatus}
             maimaiVersion={maimaiVersion}
