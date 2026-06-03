@@ -66,6 +66,7 @@ class MaisakaReplyContext:
 
     expression_habits: str = ""
     selected_expression_ids: List[int] = field(default_factory=list)
+    selected_expressions: List[Dict[str, Any]] = field(default_factory=list)
 
 
 class BaseMaisakaReplyGenerator:
@@ -741,6 +742,7 @@ class BaseMaisakaReplyGenerator:
         return MaisakaReplyContext(
             expression_habits=selection_result.expression_habits,
             selected_expression_ids=selection_result.selected_expression_ids,
+            selected_expressions=selection_result.selected_expressions,
         )
 
     async def generate_reply_with_context(
@@ -760,6 +762,7 @@ class BaseMaisakaReplyGenerator:
         chat_history: Optional[List[LLMContextMessage]] = None,
         expression_habits: str = "",
         selected_expression_ids: Optional[List[int]] = None,
+        selected_expressions: Optional[List[Dict[str, Any]]] = None,
         sub_agent_runner: Optional[Callable[[str], Awaitable[str]]] = None,
         reply_tool_args: Optional[Dict[str, Any]] = None,
     ) -> Tuple[bool, ReplyGenerationResult]:
@@ -824,6 +827,11 @@ class BaseMaisakaReplyGenerator:
             list(selected_expression_ids)
             if selected_expression_ids is not None
             else list(reply_context.selected_expression_ids)
+        )
+        result.selected_expression_details = (
+            list(selected_expressions)
+            if selected_expressions is not None
+            else list(reply_context.selected_expressions)
         )
 
         # logger.info(
