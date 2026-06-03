@@ -1049,19 +1049,6 @@ class MaisakaChatLoopService:
         }
 
         if global_config.debug.show_maisaka_thinking:
-            output_parts = []
-            if final_response.strip():
-                output_parts.append(final_response.strip())
-            if final_tool_calls:
-                output_parts.append(
-                    "工具调用:\n"
-                    + json.dumps(
-                        [self._format_tool_call_for_preview(tool_call) for tool_call in final_tool_calls],
-                        ensure_ascii=False,
-                        indent=2,
-                        default=str,
-                    )
-                )
             prompt_section_result = PromptCLIVisualizer.build_prompt_section_result(
                 built_messages,
                 category=self._resolve_prompt_preview_category(request_kind),
@@ -1069,7 +1056,8 @@ class MaisakaChatLoopService:
                 request_kind=request_kind,
                 selection_reason=prompt_selection_reason,
                 tool_definitions=list(all_tools),
-                output_content="\n\n".join(output_parts).strip(),
+                output_content=final_response.strip(),
+                output_tool_calls=final_tool_calls,
                 metadata=prompt_metadata,
             )
             prompt_section = prompt_section_result.panel
@@ -1096,16 +1084,6 @@ class MaisakaChatLoopService:
             prompt_section=prompt_section,
             prompt_html_uri=prompt_html_uri,
         )
-
-    @staticmethod
-    def _format_tool_call_for_preview(tool_call: ToolCall) -> dict[str, Any]:
-        """构造 HTML 顶部输出区里的工具调用摘要。"""
-
-        return {
-            "id": tool_call.call_id,
-            "name": tool_call.func_name,
-            "arguments": tool_call.args,
-        }
 
     @staticmethod
     def select_llm_context_messages(

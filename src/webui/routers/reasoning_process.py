@@ -634,59 +634,27 @@ def _extract_output_preview(file_path: Path, max_chars: int = 160) -> str | None
     return f"{normalized_output[:max_chars].rstrip()}..."
 
 
-def _extract_action_names_from_output(output_text: str) -> list[str]:
-    """从输出结果中提取实际调用的动作名称。"""
+def _extract_action_names_from_tool_calls(raw_tool_calls: Any) -> list[str]:
+    """从结构化工具调用中提取动作名称。"""
 
-    marker = "工具调用:"
-    marker_index = output_text.find(marker)
-    if marker_index < 0:
-        return []
-
-    raw_tool_calls = output_text[marker_index + len(marker) :].strip()
-    if not raw_tool_calls:
-        return []
-
-    try:
-        parsed_tool_calls, _ = json.JSONDecoder().raw_decode(raw_tool_calls)
-    except (TypeError, ValueError, json.JSONDecodeError):
-        return []
-
-    if isinstance(parsed_tool_calls, dict):
-        parsed_tool_calls = [parsed_tool_calls]
-    if not isinstance(parsed_tool_calls, list):
+    if isinstance(raw_tool_calls, dict):
+        raw_tool_calls = [raw_tool_calls]
+    if not isinstance(raw_tool_calls, list):
         return []
 
     action_names: list[str] = []
-    for tool_call in parsed_tool_calls:
+    for tool_call in raw_tool_calls:
         if not isinstance(tool_call, dict):
             continue
-        action_name = str(tool_call.get("name") or "").strip()
+        function_info = tool_call.get("function")
+        action_name = ""
+        if isinstance(function_info, dict):
+            action_name = str(function_info.get("name") or "").strip()
+        if not action_name:
+            action_name = str(tool_call.get("name") or "").strip()
         if action_name:
             action_names.append(action_name)
     return action_names
-
-
-def _extract_action_preview(file_path: Path, max_actions: int = 4) -> str | None:
-    """从 prompt 预览 txt 中提取动作摘要。"""
-
-    try:
-        content = file_path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return None
-
-    output_text = _extract_output_block_from_content(content)
-    if not output_text:
-        return None
-
-    action_names = _extract_action_names_from_output(output_text)
-    if not action_names:
-        return None
-
-    shown_actions = action_names[:max_actions]
-    preview = f"动作：{'、'.join(shown_actions)}"
-    if len(action_names) > max_actions:
-        preview = f"{preview} 等 {len(action_names)} 个"
-    return preview
 
 
 def _extract_action_preview_from_json(file_path: Path, max_actions: int = 4) -> str | None:
@@ -699,16 +667,10 @@ def _extract_action_preview_from_json_payload(payload: dict[str, Any], max_actio
     """从 prompt JSON payload 中提取动作摘要。"""
 
     output = payload.get("output")
-    output_text = _extract_output_text_from_json_payload(payload)
     action_names: list[str] = []
 
     if isinstance(output, dict):
-        content = output.get("content")
-        if isinstance(content, str):
-            action_names = _extract_action_names_from_output(content)
-
-    if not action_names and output_text:
-        action_names = _extract_action_names_from_output(output_text)
+        action_names = _extract_action_names_from_tool_calls(output.get("tool_calls"))
 
     if not action_names:
         return None
@@ -909,13 +871,19 @@ def _resolve_record_file_path(record: dict[str, object], field_name: str, suffix
         return None
 
 
-def _hydrate_prompt_file_record(record: dict[str, object], *, include_previews: bool = True) -> ReasoningPromptFile:
+def _hydrate_prompt_file_record(
+    record: dict[str, object],
+    *,
+    include_previews: bool = True,
+    include_action_preview: bool = False,
+) -> ReasoningPromptFile:
     hydrated_record = dict(record)
     stage_name = str(hydrated_record["stage"])
+    should_extract_action_preview = include_action_preview and stage_name in {"planner", "timing_gate"}
 
     json_file_path = _resolve_record_file_path(hydrated_record, "json_path", {".json"})
     if json_file_path is not None:
-        if include_previews:
+        if include_previews or should_extract_action_preview:
             json_payload = _load_prompt_json(json_file_path)
             _merge_prompt_metadata(hydrated_record, _extract_prompt_metadata_from_json_payload(json_payload))
             if stage_name == "replyer":
@@ -926,9 +894,8 @@ def _hydrate_prompt_file_record(record: dict[str, object], *, include_previews: 
             _merge_prompt_metadata(hydrated_record, _extract_prompt_metadata_from_json_head(json_file_path))
 
     metadata_missing = not hydrated_record.get("model_name") or hydrated_record.get("duration_ms") is None
-    preview_missing = include_previews and (
-        (stage_name == "replyer" and not hydrated_record.get("output_preview"))
-        or (stage_name in {"planner", "timing_gate"} and not hydrated_record.get("action_preview"))
+    preview_missing = (
+        (include_previews and stage_name == "replyer" and not hydrated_record.get("output_preview"))
     )
 
     text_file_path = _resolve_record_file_path(hydrated_record, "text_path", {".txt"})
@@ -936,8 +903,6 @@ def _hydrate_prompt_file_record(record: dict[str, object], *, include_previews: 
         _merge_prompt_metadata(hydrated_record, _extract_prompt_metadata(text_file_path))
         if stage_name == "replyer" and not hydrated_record.get("output_preview"):
             hydrated_record["output_preview"] = _extract_output_preview(text_file_path)
-        elif stage_name in {"planner", "timing_gate"} and not hydrated_record.get("action_preview"):
-            hydrated_record["action_preview"] = _extract_action_preview(text_file_path)
         metadata_missing = not hydrated_record.get("model_name") or hydrated_record.get("duration_ms") is None
 
     html_file_path = _resolve_record_file_path(hydrated_record, "html_path", {".html"})
@@ -951,8 +916,16 @@ def _hydrate_prompt_file_records(
     records: list[dict[str, object]],
     *,
     include_previews: bool = True,
+    include_action_preview: bool = False,
 ) -> list[ReasoningPromptFile]:
-    return [_hydrate_prompt_file_record(record, include_previews=include_previews) for record in records]
+    return [
+        _hydrate_prompt_file_record(
+            record,
+            include_previews=include_previews,
+            include_action_preview=include_action_preview,
+        )
+        for record in records
+    ]
 
 
 @router.get("/stages", response_model=ReasoningPromptStagesResponse)
@@ -998,7 +971,11 @@ async def list_reasoning_prompt_files(
         total = len(records)
         start = (page - 1) * page_size
         end = start + page_size
-        items = _hydrate_prompt_file_records(records[start:end], include_previews=False)
+        items = _hydrate_prompt_file_records(
+            records[start:end],
+            include_previews=False,
+            include_action_preview=True,
+        )
 
     return ReasoningPromptListResponse(
         items=items,

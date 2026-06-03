@@ -494,6 +494,28 @@ class PromptCLIVisualizer:
         return structured_messages
 
     @classmethod
+    def _build_structured_output_payload(
+        cls,
+        output_content: Any | None,
+        output_title: str,
+        output_tool_calls: list[Any] | None,
+    ) -> dict[str, Any] | None:
+        normalized_tool_calls = [
+            cls.format_tool_call_for_display(tool_call) for tool_call in (output_tool_calls or [])
+        ]
+        if output_content in (None, "", []) and not normalized_tool_calls:
+            return None
+
+        payload: dict[str, Any] = {
+            "title": output_title,
+            "content": output_content,
+            "content_text": cls._serialize_message_content_for_dump(output_content),
+        }
+        if normalized_tool_calls:
+            payload["tool_calls"] = normalized_tool_calls
+        return payload
+
+    @classmethod
     def _build_structured_preview_payload(
         cls,
         messages: list[Any],
@@ -503,6 +525,7 @@ class PromptCLIVisualizer:
         tool_definitions: list[dict[str, Any]] | None,
         output_content: Any | None,
         output_title: str,
+        output_tool_calls: list[Any] | None,
         metadata: Mapping[str, Any] | None,
         text_dump: str,
     ) -> dict[str, Any]:
@@ -516,13 +539,7 @@ class PromptCLIVisualizer:
             },
             "metadata": cls._normalize_preview_metadata(metadata),
             "messages": cls._build_structured_message_payload(messages),
-            "output": {
-                "title": output_title,
-                "content": output_content,
-                "content_text": cls._serialize_message_content_for_dump(output_content),
-            }
-            if output_content not in (None, "", [])
-            else None,
+            "output": cls._build_structured_output_payload(output_content, output_title, output_tool_calls),
             "tool_definitions": tool_definitions or [],
             "text_dump": text_dump,
         }
@@ -625,6 +642,7 @@ class PromptCLIVisualizer:
         tool_definitions: list[dict[str, Any]] | None = None,
         output_content: Any | None = None,
         output_title: str = "输出结果",
+        output_tool_calls: list[Any] | None = None,
         metadata: Mapping[str, Any] | None = None,
     ) -> PromptPreviewAccess:
         """保存 Prompt 预览文件，并返回 CLI 展示入口与浏览器可打开的 URI。"""
@@ -665,6 +683,7 @@ class PromptCLIVisualizer:
             tool_definitions=tool_definitions,
             output_content=output_content,
             output_title=output_title,
+            output_tool_calls=output_tool_calls,
             metadata=metadata,
         )
         structured_preview_text = json.dumps(
@@ -675,6 +694,7 @@ class PromptCLIVisualizer:
                 tool_definitions=tool_definitions,
                 output_content=output_content,
                 output_title=output_title,
+                output_tool_calls=output_tool_calls,
                 metadata=metadata,
                 text_dump=prompt_dump_text,
             ),
@@ -730,6 +750,7 @@ class PromptCLIVisualizer:
         tool_definitions: list[dict[str, Any]] | None = None,
         output_content: Any | None = None,
         output_title: str = "输出结果",
+        output_tool_calls: list[Any] | None = None,
         metadata: Mapping[str, Any] | None = None,
     ) -> str:
         panel_title, _ = cls.get_request_panel_style(request_kind)
@@ -774,13 +795,29 @@ class PromptCLIVisualizer:
             )
 
         output_section_html = ""
-        if output_content not in (None, "", []):
+        normalized_output_tool_calls = [
+            cls.format_tool_call_for_display(tool_call) for tool_call in (output_tool_calls or [])
+        ]
+        if output_content not in (None, "", []) or normalized_output_tool_calls:
+            output_content_html = (
+                cls._render_message_content_html(output_content)
+                if output_content not in (None, "", [])
+                else ""
+            )
+            output_tool_call_html = ""
+            if normalized_output_tool_calls:
+                output_tool_call_html = (
+                    "<div class='tool-list'>"
+                    "<div class='tool-list-title'>工具调用</div>"
+                    f"{''.join(cls._build_tool_call_html(tool_call) for tool_call in normalized_output_tool_calls)}"
+                    "</div>"
+                )
             output_section_html = (
                 "<section class='message-card output-card'>"
                 "<div class='message-head'>"
                 f"<span class='role-badge output'>{html.escape(output_title)}</span>"
                 "</div>"
-                f"<div class='message-content'>{cls._render_message_content_html(output_content)}</div>"
+                f"<div class='message-content'>{output_content_html}{output_tool_call_html}</div>"
                 "</section>"
             )
 
@@ -1091,6 +1128,7 @@ class PromptCLIVisualizer:
         tool_definitions: list[dict[str, Any]] | None = None,
         output_content: Any | None = None,
         output_title: str = "输出结果",
+        output_tool_calls: list[Any] | None = None,
         metadata: Mapping[str, Any] | None = None,
     ) -> RenderableType:
         """构建用于查看完整 prompt 的折叠入口内容。"""
@@ -1104,6 +1142,7 @@ class PromptCLIVisualizer:
             tool_definitions=tool_definitions,
             output_content=output_content,
             output_title=output_title,
+            output_tool_calls=output_tool_calls,
             metadata=metadata,
         ).body
 
@@ -1119,6 +1158,7 @@ class PromptCLIVisualizer:
         tool_definitions: list[dict[str, Any]] | None = None,
         output_content: Any | None = None,
         output_title: str = "输出结果",
+        output_tool_calls: list[Any] | None = None,
         metadata: Mapping[str, Any] | None = None,
     ) -> PromptSectionResult:
         """构建默认折叠的 Prompt 面板，并返回对应的 HTML 预览入口。"""
@@ -1133,6 +1173,7 @@ class PromptCLIVisualizer:
             tool_definitions=tool_definitions,
             output_content=output_content,
             output_title=output_title,
+            output_tool_calls=output_tool_calls,
             metadata=metadata,
         )
 
@@ -1300,6 +1341,7 @@ class PromptCLIVisualizer:
         subtitle: str,
         output_content: Any | None = None,
         output_title: str = "输出结果",
+        output_tool_calls: list[Any] | None = None,
         metadata: Mapping[str, Any] | None = None,
     ) -> RenderableType:
         """构建文本型 Prompt 的折叠入口内容。"""
@@ -1325,6 +1367,7 @@ class PromptCLIVisualizer:
                 tool_definitions=None,
                 output_content=output_content,
                 output_title=output_title,
+                output_tool_calls=output_tool_calls,
                 metadata=metadata,
                 text_dump=text_content,
             ),

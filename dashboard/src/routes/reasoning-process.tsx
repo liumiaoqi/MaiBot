@@ -77,6 +77,7 @@ type StructuredPromptPayload = {
     title?: string
     content?: unknown
     content_text?: string
+    tool_calls?: unknown[]
   } | null
   tool_definitions?: unknown[]
   text_dump?: string
@@ -642,6 +643,8 @@ export function ReasoningProcessPage({
                     selected?.stem === item.stem
                   const durationText = formatDurationMs(item.duration_ms)
                   const metadataText = getReasoningMetadataText(item)
+                  const previewText =
+                    item.stage === 'replyer' ? item.output_preview : item.action_preview
                   return (
                     <button
                       key={`${item.stage}/${item.session_id}/${item.stem}`}
@@ -654,31 +657,22 @@ export function ReasoningProcessPage({
                           : 'hover:border-border hover:bg-muted/60 border-transparent'
                       )}
                     >
-                      <div className="flex items-center justify-between gap-2">
-                        <Badge variant="secondary" className="max-w-[150px] truncate">
-                          {formatStageName(item.stage)}
-                        </Badge>
-                        <span className="text-muted-foreground flex items-center gap-1 text-xs">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          {previewText && (
+                            <div
+                              className="text-foreground line-clamp-2 text-sm font-medium"
+                              title={previewText}
+                            >
+                              {previewText}
+                            </div>
+                          )}
+                        </div>
+                        <span className="text-muted-foreground flex shrink-0 items-center gap-1 text-xs">
                           <Clock className="h-3.5 w-3.5" />
                           {formatTime(item.timestamp, item.modified_at)}
                         </span>
                       </div>
-                      {item.stage === 'replyer' && item.output_preview && (
-                        <div
-                          className="text-foreground line-clamp-2 text-sm"
-                          title={item.output_preview}
-                        >
-                          {item.output_preview}
-                        </div>
-                      )}
-                      {(item.stage === 'planner' || item.stage === 'timing_gate') && item.action_preview && (
-                        <div
-                          className="text-foreground line-clamp-2 text-sm"
-                          title={item.action_preview}
-                        >
-                          {item.action_preview}
-                        </div>
-                      )}
                       {metadataText && (
                         <div
                           className="text-muted-foreground flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs"
@@ -698,13 +692,7 @@ export function ReasoningProcessPage({
                           )}
                         </div>
                       )}
-                      <div className="text-muted-foreground flex items-center justify-between gap-2 text-xs">
-                        <span className="truncate">
-                          {item.resolved_session_id
-                            ? item.resolved_session_id.slice(0, 8)
-                            : item.session_id}{' '}
-                          · {item.stem}
-                        </span>
+                      <div className="text-muted-foreground flex items-center justify-end text-xs">
                         <span className="shrink-0">{formatSize(item.size)}</span>
                       </div>
                     </button>
@@ -881,6 +869,12 @@ export function ReasoningProcessPage({
                                 stringifyStructuredValue(structuredPrompt.output.content) ||
                                 '空输出'}
                             </pre>
+                            {structuredPrompt.output.tool_calls &&
+                              structuredPrompt.output.tool_calls.length > 0 && (
+                                <pre className="bg-background/60 mt-3 rounded-md border p-3 font-mono text-xs leading-5 whitespace-pre-wrap">
+                                  {JSON.stringify(structuredPrompt.output.tool_calls, null, 2)}
+                                </pre>
+                              )}
                           </div>
                         )}
 
