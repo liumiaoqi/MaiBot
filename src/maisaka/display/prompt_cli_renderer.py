@@ -54,6 +54,8 @@ class PromptPreviewAccess:
     viewer_web_uri: str
     dump_path: Path
     dump_uri: str
+    structured_path: Path
+    structured_uri: str
 
 
 @dataclass(frozen=True)
@@ -559,6 +561,74 @@ class PromptCLIVisualizer:
         return "\n\n".join(sections).strip()
 
     @classmethod
+    def _build_structured_message_payload(cls, messages: list[Any]) -> list[dict[str, Any]]:
+        """构建 WebUI 可直接解析的 Prompt 消息结构。"""
+
+        structured_messages: list[dict[str, Any]] = []
+        for index, message in enumerate(messages, start=1):
+            if isinstance(message, dict):
+                raw_role = message.get("role", "unknown")
+                content = message.get("content")
+                tool_call_id = message.get("tool_call_id")
+                tool_calls = message.get("tool_calls") or []
+            else:
+                raw_role = getattr(message, "role", "unknown")
+                content = getattr(message, "content", None)
+                tool_call_id = getattr(message, "tool_call_id", None)
+                tool_calls = getattr(message, "tool_calls", None) or []
+
+            role = raw_role.value if hasattr(raw_role, "value") else str(raw_role)
+            structured_message: dict[str, Any] = {
+                "index": index,
+                "role": role,
+                "content": content,
+                "content_text": cls._serialize_message_content_for_dump(content),
+            }
+            if tool_call_id:
+                structured_message["tool_call_id"] = str(tool_call_id)
+            if tool_calls:
+                structured_message["tool_calls"] = [
+                    cls.format_tool_call_for_display(tool_call) for tool_call in tool_calls
+                ]
+            structured_messages.append(structured_message)
+
+        return structured_messages
+
+    @classmethod
+    def _build_structured_preview_payload(
+        cls,
+        messages: list[Any],
+        *,
+        request_kind: str,
+        selection_reason: str,
+        tool_definitions: list[dict[str, Any]] | None,
+        output_content: Any | None,
+        output_title: str,
+        metadata: Mapping[str, Any] | None,
+        text_dump: str,
+    ) -> dict[str, Any]:
+        """构建 Prompt 预览 JSON，供 WebUI 稳定解析展示。"""
+
+        return {
+            "schema_version": 1,
+            "request": {
+                "kind": request_kind,
+                "selection_reason": selection_reason,
+            },
+            "metadata": cls._normalize_preview_metadata(metadata),
+            "messages": cls._build_structured_message_payload(messages),
+            "output": {
+                "title": output_title,
+                "content": output_content,
+                "content_text": cls._serialize_message_content_for_dump(output_content),
+            }
+            if output_content not in (None, "", [])
+            else None,
+            "tool_definitions": tool_definitions or [],
+            "text_dump": text_dump,
+        }
+
+    @classmethod
     def _render_message_content_html(cls, content: Any) -> str:
         if isinstance(content, str):
             return f"<pre>{html.escape(content)}</pre>"
@@ -698,16 +768,33 @@ class PromptCLIVisualizer:
             output_title=output_title,
             metadata=metadata,
         )
+        structured_preview_text = json.dumps(
+            cls._build_structured_preview_payload(
+                messages,
+                request_kind=request_kind,
+                selection_reason=selection_reason,
+                tool_definitions=tool_definitions,
+                output_content=output_content,
+                output_title=output_title,
+                metadata=metadata,
+                text_dump=prompt_dump_text,
+            ),
+            ensure_ascii=False,
+            indent=2,
+            default=str,
+        )
         saved_paths = PromptPreviewLogger.save_preview_files(
             chat_id,
             category,
             {
                 ".html": viewer_html_text,
                 ".txt": prompt_dump_text,
+                ".json": structured_preview_text,
             },
         )
         viewer_html_path = saved_paths[".html"]
         prompt_dump_path = saved_paths[".txt"]
+        structured_path = saved_paths[".json"]
         body = cls._build_preview_access_body(
             viewer_label="html预览",
             viewer_path=viewer_html_path,
@@ -723,6 +810,8 @@ class PromptCLIVisualizer:
             viewer_web_uri=_build_prompt_preview_web_uri(viewer_html_path),
             dump_path=prompt_dump_path,
             dump_uri=build_file_uri(prompt_dump_path),
+            structured_path=structured_path,
+            structured_uri=build_file_uri(structured_path),
         )
 
     @classmethod

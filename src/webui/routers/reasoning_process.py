@@ -19,7 +19,7 @@ router = APIRouter(prefix="/reasoning-process", tags=["reasoning-process"], depe
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 PROMPT_LOG_ROOT = (PROJECT_ROOT / "logs" / "maisaka_prompt").resolve()
-ALLOWED_SUFFIXES = {".txt", ".html"}
+ALLOWED_SUFFIXES = {".txt", ".html", ".json"}
 SESSION_CHAT_TYPES = ("group", "private")
 PROMPT_METADATA_MARKER = "[请求信息]"
 PROMPT_SEPARATOR = "=" * 80
@@ -64,6 +64,7 @@ class ReasoningPromptFile(BaseModel):
     timestamp: int | None = None
     text_path: str | None = None
     html_path: str | None = None
+    json_path: str | None = None
     output_preview: str | None = None
     action_preview: str | None = None
     model_name: str | None = None
@@ -412,13 +413,33 @@ def _extract_prompt_metadata_from_html(content: str) -> dict[str, object]:
     return _extract_prompt_metadata_from_text(plain_text)
 
 
+def _load_prompt_json(file_path: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads(file_path.read_text(encoding="utf-8", errors="replace"))
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _extract_prompt_metadata_from_json_payload(payload: dict[str, Any]) -> dict[str, object]:
+    raw_metadata = payload.get("metadata")
+    return _normalize_prompt_metadata(raw_metadata if isinstance(raw_metadata, dict) else {})
+
+
 def _extract_prompt_metadata(file_path: Path) -> dict[str, object]:
     try:
         content = file_path.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return {}
 
-    if file_path.suffix.lower() == ".html":
+    suffix = file_path.suffix.lower()
+    if suffix == ".json":
+        try:
+            raw_payload = json.loads(content)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return {}
+        return _extract_prompt_metadata_from_json_payload(raw_payload if isinstance(raw_payload, dict) else {})
+    if suffix == ".html":
         return _extract_prompt_metadata_from_html(content)
     return _extract_prompt_metadata_from_text(content)
 
@@ -476,6 +497,32 @@ def _extract_output_text(file_path: Path) -> str | None:
         return None
 
     return _extract_output_text_from_content(content)
+
+
+def _extract_output_text_from_json_payload(payload: dict[str, Any]) -> str | None:
+    output = payload.get("output")
+    if not isinstance(output, dict):
+        return None
+
+    output_text = str(output.get("content_text") or "").strip()
+    if output_text:
+        return " ".join(line.strip() for line in output_text.splitlines() if line.strip())
+
+    content = output.get("content")
+    if content in (None, "", []):
+        return None
+    if isinstance(content, str):
+        return " ".join(line.strip() for line in content.splitlines() if line.strip()) or None
+    return json.dumps(content, ensure_ascii=False, default=str)
+
+
+def _extract_output_preview_from_json(file_path: Path, max_chars: int = 160) -> str | None:
+    normalized_output = _extract_output_text_from_json_payload(_load_prompt_json(file_path))
+    if not normalized_output:
+        return None
+    if len(normalized_output) <= max_chars:
+        return normalized_output
+    return f"{normalized_output[:max_chars].rstrip()}..."
 
 
 def _extract_output_preview(file_path: Path, max_chars: int = 160) -> str | None:
@@ -545,6 +592,32 @@ def _extract_action_preview(file_path: Path, max_actions: int = 4) -> str | None
     return preview
 
 
+def _extract_action_preview_from_json(file_path: Path, max_actions: int = 4) -> str | None:
+    """从 prompt JSON 预览中提取动作摘要。"""
+
+    payload = _load_prompt_json(file_path)
+    output = payload.get("output")
+    output_text = _extract_output_text_from_json_payload(payload)
+    action_names: list[str] = []
+
+    if isinstance(output, dict):
+        content = output.get("content")
+        if isinstance(content, str):
+            action_names = _extract_action_names_from_output(content)
+
+    if not action_names and output_text:
+        action_names = _extract_action_names_from_output(output_text)
+
+    if not action_names:
+        return None
+
+    shown_actions = action_names[:max_actions]
+    preview = f"动作：{'、'.join(shown_actions)}"
+    if len(action_names) > max_actions:
+        preview = f"{preview} 等 {len(action_names)} 个"
+    return preview
+
+
 def _matches_prompt_file_search(item: ReasoningPromptFile, normalized_search: str) -> bool:
     """判断推理过程条目是否匹配搜索词。"""
 
@@ -561,15 +634,19 @@ def _matches_prompt_file_search(item: ReasoningPromptFile, normalized_search: st
     ):
         return True
 
-    if item.stage != "replyer" or not item.text_path:
+    if item.stage != "replyer" or not (item.json_path or item.text_path):
         return False
 
     try:
-        file_path = _resolve_prompt_log_path(item.text_path, {".txt"})
+        if item.json_path:
+            file_path = _resolve_prompt_log_path(item.json_path, {".json"})
+            output_text = _extract_output_text_from_json_payload(_load_prompt_json(file_path))
+        else:
+            file_path = _resolve_prompt_log_path(item.text_path or "", {".txt"})
+            output_text = _extract_output_text(file_path)
     except HTTPException:
         return False
 
-    output_text = _extract_output_text(file_path)
     return normalized_search in (output_text or "").casefold()
 
 
@@ -675,6 +752,7 @@ def _collect_prompt_files(
                 "timestamp": int(stem) if stem.isdigit() else None,
                 "text_path": None,
                 "html_path": None,
+                "json_path": None,
                 "output_preview": None,
                 "action_preview": None,
                 "model_name": None,
@@ -696,6 +774,13 @@ def _collect_prompt_files(
         elif file_path.suffix.lower() == ".html":
             record["html_path"] = _relative_posix_path(file_path)
             _merge_prompt_metadata(record, _extract_prompt_metadata(file_path))
+        elif file_path.suffix.lower() == ".json":
+            record["json_path"] = _relative_posix_path(file_path)
+            _merge_prompt_metadata(record, _extract_prompt_metadata(file_path))
+            if stage_name == "replyer":
+                record["output_preview"] = _extract_output_preview_from_json(file_path)
+            elif stage_name in {"planner", "timing_gate"}:
+                record["action_preview"] = _extract_action_preview_from_json(file_path)
 
     items = [ReasoningPromptFile(**record) for record in records.values()]
     items.sort(key=lambda item: (item.modified_at, item.timestamp or 0), reverse=True)
@@ -756,9 +841,9 @@ async def list_reasoning_prompt_files(
 
 @router.get("/file", response_model=ReasoningPromptContentResponse)
 async def get_reasoning_prompt_file(path: str = Query(...)):
-    """读取推理过程 txt 日志内容。"""
+    """读取推理过程 txt/json 日志内容。"""
 
-    file_path = _resolve_prompt_log_path(path, {".txt"})
+    file_path = _resolve_prompt_log_path(path, {".txt", ".json"})
     stat = file_path.stat()
     metadata = _extract_prompt_metadata(file_path)
 
@@ -768,7 +853,7 @@ async def get_reasoning_prompt_file(path: str = Query(...)):
         size=stat.st_size,
         modified_at=stat.st_mtime,
         model_name=metadata.get("model_name") if isinstance(metadata.get("model_name"), str) else None,
-        duration_ms=metadata.get("duration_ms") if isinstance(metadata.get("duration_ms"), float) else None,
+        duration_ms=metadata.get("duration_ms") if isinstance(metadata.get("duration_ms"), (int, float)) else None,
     )
 
 
