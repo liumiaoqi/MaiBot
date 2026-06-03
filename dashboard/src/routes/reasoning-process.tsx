@@ -10,6 +10,7 @@ import {
   FileJson,
   FileText,
   Layers,
+  MessageSquare,
   RefreshCw,
   Search,
   Timer,
@@ -118,6 +119,51 @@ function getReasoningMetadataText(item: ReasoningPromptFile): string {
     parts.push(`耗时：${durationText}`)
   }
   return parts.join(' · ')
+}
+
+function getStructuredPromptMessageRoleStyle(role?: string): {
+  label: string
+  containerClassName: string
+  badgeClassName: string
+} {
+  const normalizedRole = String(role || '').trim().toLowerCase()
+  if (normalizedRole === 'system') {
+    return {
+      label: 'system',
+      containerClassName: 'border-cyan-300/70 bg-cyan-50/70 dark:border-cyan-700/60 dark:bg-cyan-950/25',
+      badgeClassName: 'border-cyan-400/70 bg-cyan-100/80 text-cyan-900 dark:border-cyan-700 dark:bg-cyan-950 dark:text-cyan-100',
+    }
+  }
+  if (normalizedRole === 'user') {
+    return {
+      label: 'user',
+      containerClassName: 'border-emerald-300/70 bg-emerald-50/70 dark:border-emerald-700/60 dark:bg-emerald-950/25',
+      badgeClassName:
+        'border-emerald-400/70 bg-emerald-100/80 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-100',
+    }
+  }
+  if (normalizedRole === 'assistant') {
+    return {
+      label: 'assistant',
+      containerClassName: 'border-amber-300/70 bg-amber-50/70 dark:border-amber-700/60 dark:bg-amber-950/25',
+      badgeClassName:
+        'border-amber-400/70 bg-amber-100/80 text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100',
+    }
+  }
+  if (normalizedRole === 'tool') {
+    return {
+      label: 'tool',
+      containerClassName: 'border-violet-300/70 bg-violet-50/70 dark:border-violet-700/60 dark:bg-violet-950/25',
+      badgeClassName:
+        'border-violet-400/70 bg-violet-100/80 text-violet-900 dark:border-violet-700 dark:bg-violet-950 dark:text-violet-100',
+    }
+  }
+
+  return {
+    label: role || '未知角色',
+    containerClassName: 'bg-muted/30',
+    badgeClassName: 'bg-background/80',
+  }
 }
 
 function stringifyStructuredValue(value: unknown): string {
@@ -330,6 +376,7 @@ export function ReasoningProcessPage({
         return
       }
 
+      setJsonContent('')
       setContentLoading(true)
       try {
         const data = await getReasoningPromptFile(selected.json_path)
@@ -419,8 +466,12 @@ export function ReasoningProcessPage({
   }
 
   const selectedSessionInfo = selected ? sessionInfoByName.get(selected.session_id) : undefined
-  const selectedMetadataText = selected ? getReasoningMetadataText(selected) : ''
-  const selectedDurationText = selected ? formatDurationMs(selected.duration_ms) : ''
+  const selectedStructuredPrompt = selected?.json_path ? structuredPrompt : null
+  const selectedModelName = selected?.model_name || selectedStructuredPrompt?.metadata?.model_name || ''
+  const selectedDurationText = formatDurationMs(
+    selected?.duration_ms ?? selectedStructuredPrompt?.metadata?.duration_ms ?? null
+  )
+  const selectedMessageCount = selectedStructuredPrompt ? (selectedStructuredPrompt.messages?.length ?? 0) : null
   const renderRefreshButton = () => (
     <Button
       variant="outline"
@@ -687,233 +738,233 @@ export function ReasoningProcessPage({
           </div>
 
           <div className="bg-background flex min-h-0 flex-col overflow-hidden rounded-md border">
-            <div className="flex min-h-14 flex-shrink-0 flex-col gap-1 border-b px-4 py-3 md:flex-row md:items-center md:justify-between">
-              <div className="min-w-0">
-                <div className="truncate text-sm font-medium">
-                  {selected
-                    ? `${formatStageName(selected.stage)}/${getSessionDisplayName(
-                        selected.session_id,
-                        selectedSessionInfo,
-                        selected.session_display_name
-                      )}/${selected.stem}`
-                    : '未选择记录'}
-                </div>
-                <div className="text-muted-foreground text-xs">
-                  {selected
-                    ? `${formatSize(selected.size)} · ${formatTime(selected.timestamp, selected.modified_at)}`
-                    : '从左侧列表选择一条记录'}
-                </div>
-                {selectedMetadataText && (
-                  <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-                    {selected?.model_name && (
-                      <span className="inline-flex min-w-0 items-center gap-1">
-                        <Cpu className="h-3.5 w-3.5 shrink-0" />
-                        <span className="truncate">{selected.model_name}</span>
-                      </span>
-                    )}
-                    {selectedDurationText && (
-                      <span className="inline-flex items-center gap-1">
-                        <Timer className="h-3.5 w-3.5 shrink-0" />
-                        {selectedDurationText}
-                      </span>
-                    )}
-                  </div>
-                )}
-                {selected && selectedSessionInfo && (
-                  <div className="text-muted-foreground mt-1 truncate text-xs">
-                    {getSessionSubtitle(selectedSessionInfo)}
-                  </div>
-                )}
-              </div>
-              {selected && (
-                <div className="text-muted-foreground flex items-center gap-2 text-xs">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 gap-1.5"
-                    onClick={handleCopyPrompt}
-                    disabled={contentLoading || !(textContent || structuredPrompt?.text_dump || jsonContent)}
-                    title="复制完整 Prompt"
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                    复制
-                  </Button>
-                  {selected.text_path && (
-                    <span className="inline-flex items-center gap-1">
-                      <FileText className="h-3.5 w-3.5" />
-                      txt
-                    </span>
-                  )}
-                  {selected.json_path && (
-                    <span className="inline-flex items-center gap-1">
-                      <FileJson className="h-3.5 w-3.5" />
-                      json
-                    </span>
-                  )}
-                  {selected.html_path && (
-                    <span className="inline-flex items-center gap-1">
-                      <FileCode2 className="h-3.5 w-3.5" />
-                      html
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-
             <Tabs
               value={activePreview}
               onValueChange={(value) => setActivePreview(value as 'structured' | 'text' | 'html')}
-              className="flex min-h-0 flex-1 flex-col"
+              className="min-h-0 flex-1"
             >
-              <div className="flex flex-shrink-0 border-b px-3 py-2">
-                <TabsList>
-                  <TabsTrigger value="structured" disabled={!selected?.json_path}>
-                    <FileJson className="mr-1 h-4 w-4" />
-                    结构化
-                  </TabsTrigger>
-                  <TabsTrigger value="text" disabled={!selected?.text_path}>
-                    <FileText className="mr-1 h-4 w-4" />
-                    文本
-                  </TabsTrigger>
-                  <TabsTrigger value="html" disabled={!selected?.html_path}>
-                    <Code2 className="mr-1 h-4 w-4" />
-                    HTML
-                  </TabsTrigger>
-                </TabsList>
-              </div>
-
-              <TabsContent value="structured" className="m-0 min-h-0 flex-1 overflow-hidden">
-                <ScrollArea className="h-full">
-                  {contentLoading ? (
-                    <div className="flex min-h-full items-center justify-center p-4">
-                      <ThinkingIllustration />
-                    </div>
-                  ) : structuredPrompt ? (
-                    <div className="space-y-3 p-3">
-                      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                        <div className="rounded-md border p-3">
-                          <div className="text-muted-foreground text-xs">请求类型</div>
-                          <div className="mt-1 truncate text-sm font-medium">
-                            {structuredPrompt.request?.kind || selected?.stage || '-'}
-                          </div>
-                        </div>
-                        <div className="rounded-md border p-3">
-                          <div className="text-muted-foreground text-xs">模型</div>
-                          <div className="mt-1 truncate text-sm font-medium">
-                            {structuredPrompt.metadata?.model_name || selected?.model_name || '-'}
-                          </div>
-                        </div>
-                        <div className="rounded-md border p-3">
-                          <div className="text-muted-foreground text-xs">耗时</div>
-                          <div className="mt-1 text-sm font-medium">
-                            {formatDurationMs(
-                              structuredPrompt.metadata?.duration_ms ?? selected?.duration_ms ?? null
-                            ) || '-'}
-                          </div>
-                        </div>
-                        <div className="rounded-md border p-3">
-                          <div className="text-muted-foreground text-xs">消息数</div>
-                          <div className="mt-1 text-sm font-medium">
-                            {structuredPrompt.messages?.length ?? 0}
-                          </div>
-                        </div>
+              <ScrollArea className="h-full">
+                <div className="min-h-full">
+                  <div className="flex min-h-14 flex-col gap-3 border-b px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium">
+                        {selected
+                          ? `${formatStageName(selected.stage)}/${getSessionDisplayName(
+                              selected.session_id,
+                              selectedSessionInfo,
+                              selected.session_display_name
+                            )}/${selected.stem}`
+                          : '未选择记录'}
                       </div>
-
-                      {structuredPrompt.request?.selection_reason && (
-                        <div className="rounded-md border p-3">
-                          <div className="text-muted-foreground text-xs">选择原因</div>
-                          <pre className="text-foreground mt-2 whitespace-pre-wrap break-words text-sm">
-                            {structuredPrompt.request.selection_reason}
-                          </pre>
-                        </div>
-                      )}
-
-                      {structuredPrompt.output && (
-                        <div className="rounded-md border p-3">
-                          <Badge variant="secondary" className="mb-2">
-                            {structuredPrompt.output.title || '输出结果'}
-                          </Badge>
-                          <pre className="text-foreground font-mono text-xs leading-5 whitespace-pre-wrap">
-                            {structuredPrompt.output.content_text ||
-                              stringifyStructuredValue(structuredPrompt.output.content) ||
-                              '空输出'}
-                          </pre>
-                        </div>
-                      )}
-
-                      <div className="space-y-2">
-                        {(structuredPrompt.messages ?? []).map((message, index) => (
-                          <div key={`${message.index ?? index}-${message.role ?? 'unknown'}`} className="rounded-md border p-3">
-                            <div className="mb-2 flex flex-wrap items-center gap-2">
-                              <Badge variant="outline">#{message.index ?? index + 1}</Badge>
-                              <Badge variant="secondary">{message.role || 'unknown'}</Badge>
-                              {message.tool_call_id && (
-                                <span className="text-muted-foreground text-xs">
-                                  tool_call_id: {message.tool_call_id}
-                                </span>
-                              )}
-                            </div>
-                            <pre className="text-foreground font-mono text-xs leading-5 whitespace-pre-wrap">
-                              {message.content_text ||
-                                stringifyStructuredValue(message.content) ||
-                                '空内容'}
-                            </pre>
-                            {message.tool_calls && message.tool_calls.length > 0 && (
-                              <pre className="bg-muted/60 mt-3 rounded-md p-3 font-mono text-xs leading-5 whitespace-pre-wrap">
-                                {JSON.stringify(message.tool_calls, null, 2)}
-                              </pre>
-                            )}
-                          </div>
-                        ))}
+                      <div className="text-muted-foreground text-xs">
+                        {selected
+                          ? `${formatSize(selected.size)} · ${formatTime(selected.timestamp, selected.modified_at)}`
+                          : '从左侧列表选择一条记录'}
                       </div>
-
-                      {structuredPrompt.tool_definitions && structuredPrompt.tool_definitions.length > 0 && (
-                        <div className="rounded-md border p-3">
-                          <Badge variant="secondary" className="mb-2">
-                            工具定义
-                          </Badge>
-                          <pre className="text-foreground font-mono text-xs leading-5 whitespace-pre-wrap">
-                            {JSON.stringify(structuredPrompt.tool_definitions, null, 2)}
-                          </pre>
+                      {(selectedModelName ||
+                        selectedDurationText ||
+                        selectedMessageCount !== null) && (
+                        <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                          {selectedModelName && (
+                            <span className="inline-flex min-w-0 items-center gap-1">
+                              <Cpu className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate">{selectedModelName}</span>
+                            </span>
+                          )}
+                          {selectedDurationText && (
+                            <span className="inline-flex items-center gap-1">
+                              <Timer className="h-3.5 w-3.5 shrink-0" />
+                              {selectedDurationText}
+                            </span>
+                          )}
+                          {selectedMessageCount !== null && (
+                            <span className="inline-flex items-center gap-1">
+                              <MessageSquare className="h-3.5 w-3.5 shrink-0" />
+                              {selectedMessageCount} 条消息
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {selected && selectedSessionInfo && (
+                        <div className="text-muted-foreground mt-1 truncate text-xs">
+                          {getSessionSubtitle(selectedSessionInfo)}
                         </div>
                       )}
                     </div>
-                  ) : (
-                    <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
-                      没有结构化内容
-                    </div>
-                  )}
-                </ScrollArea>
-              </TabsContent>
-
-              <TabsContent value="text" className="m-0 min-h-0 flex-1 overflow-hidden">
-                <ScrollArea className="h-full">
-                  {contentLoading ? (
-                    <div className="flex min-h-full items-center justify-center p-4">
-                      <ThinkingIllustration />
-                    </div>
-                  ) : (
-                    <pre className="text-foreground min-h-full p-4 font-mono text-xs leading-5 break-words whitespace-pre-wrap">
-                      {textContent || '没有文本内容'}
-                    </pre>
-                  )}
-                </ScrollArea>
-              </TabsContent>
-
-              <TabsContent value="html" className="m-0 min-h-0 flex-1 overflow-hidden">
-                {selected?.html_path && htmlPreviewUrl ? (
-                  <iframe
-                    title="推理过程 HTML 预览"
-                    src={htmlPreviewUrl}
-                    sandbox=""
-                    className="h-full w-full border-0 bg-white"
-                  />
-                ) : (
-                  <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
-                    没有 HTML 预览
+                    {selected && (
+                      <div className="text-muted-foreground flex min-w-0 flex-wrap items-center gap-2 text-xs">
+                        <TabsList className="h-8 rounded-md">
+                          <TabsTrigger
+                            value="structured"
+                            disabled={!selected?.json_path}
+                            className="h-6 gap-1 px-2 text-xs"
+                          >
+                            <FileJson className="h-3.5 w-3.5" />
+                            结构化
+                          </TabsTrigger>
+                          <TabsTrigger
+                            value="text"
+                            disabled={!selected?.text_path}
+                            className="h-6 gap-1 px-2 text-xs"
+                          >
+                            <FileText className="h-3.5 w-3.5" />
+                            文本
+                          </TabsTrigger>
+                          <TabsTrigger
+                            value="html"
+                            disabled={!selected?.html_path}
+                            className="h-6 gap-1 px-2 text-xs"
+                          >
+                            <Code2 className="h-3.5 w-3.5" />
+                            HTML
+                          </TabsTrigger>
+                        </TabsList>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 gap-1.5"
+                          onClick={handleCopyPrompt}
+                          disabled={
+                            contentLoading ||
+                            !(textContent || structuredPrompt?.text_dump || jsonContent)
+                          }
+                          title="复制完整 Prompt"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                          复制
+                        </Button>
+                        {selected.text_path && (
+                          <span className="inline-flex items-center gap-1">
+                            <FileText className="h-3.5 w-3.5" />
+                            txt
+                          </span>
+                        )}
+                        {selected.json_path && (
+                          <span className="inline-flex items-center gap-1">
+                            <FileJson className="h-3.5 w-3.5" />
+                            json
+                          </span>
+                        )}
+                        {selected.html_path && (
+                          <span className="inline-flex items-center gap-1">
+                            <FileCode2 className="h-3.5 w-3.5" />
+                            html
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
-                )}
-              </TabsContent>
+
+                  <TabsContent value="structured" className="m-0">
+                    {contentLoading ? (
+                      <div className="flex min-h-[360px] items-center justify-center p-4">
+                        <ThinkingIllustration />
+                      </div>
+                    ) : structuredPrompt ? (
+                      <div className="space-y-3 p-3">
+                        {structuredPrompt.request?.selection_reason && (
+                          <div className="rounded-md border p-3">
+                            <div className="text-muted-foreground text-xs">选择原因</div>
+                            <pre className="text-foreground mt-2 text-sm break-words whitespace-pre-wrap">
+                              {structuredPrompt.request.selection_reason}
+                            </pre>
+                          </div>
+                        )}
+
+                        {structuredPrompt.output && (
+                          <div className="rounded-md border p-3">
+                            <Badge variant="secondary" className="mb-2">
+                              {structuredPrompt.output.title || '输出结果'}
+                            </Badge>
+                            <pre className="text-foreground font-mono text-xs leading-5 whitespace-pre-wrap">
+                              {structuredPrompt.output.content_text ||
+                                stringifyStructuredValue(structuredPrompt.output.content) ||
+                                '空输出'}
+                            </pre>
+                          </div>
+                        )}
+
+                        <div className="space-y-2">
+                          {(structuredPrompt.messages ?? []).map((message, index) => {
+                            const roleStyle = getStructuredPromptMessageRoleStyle(message.role)
+                            return (
+                              <div
+                                key={`${message.index ?? index}-${message.role ?? 'unknown'}`}
+                                className={cn('rounded-md border p-3', roleStyle.containerClassName)}
+                              >
+                                <div className="mb-2 flex flex-wrap items-center gap-2">
+                                  <Badge variant="outline">#{message.index ?? index + 1}</Badge>
+                                  <Badge variant="outline" className={roleStyle.badgeClassName}>
+                                    {roleStyle.label}
+                                  </Badge>
+                                  {message.tool_call_id && (
+                                    <span className="text-muted-foreground text-xs">
+                                      tool_call_id: {message.tool_call_id}
+                                    </span>
+                                  )}
+                                </div>
+                                <pre className="text-foreground font-mono text-xs leading-5 whitespace-pre-wrap">
+                                  {message.content_text ||
+                                    stringifyStructuredValue(message.content) ||
+                                    '空内容'}
+                                </pre>
+                                {message.tool_calls && message.tool_calls.length > 0 && (
+                                  <pre className="bg-background/60 mt-3 rounded-md border p-3 font-mono text-xs leading-5 whitespace-pre-wrap">
+                                    {JSON.stringify(message.tool_calls, null, 2)}
+                                  </pre>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+
+                        {structuredPrompt.tool_definitions &&
+                          structuredPrompt.tool_definitions.length > 0 && (
+                            <div className="rounded-md border p-3">
+                              <Badge variant="secondary" className="mb-2">
+                                工具定义
+                              </Badge>
+                              <pre className="text-foreground font-mono text-xs leading-5 whitespace-pre-wrap">
+                                {JSON.stringify(structuredPrompt.tool_definitions, null, 2)}
+                              </pre>
+                            </div>
+                          )}
+                      </div>
+                    ) : (
+                      <div className="text-muted-foreground flex min-h-[360px] items-center justify-center text-sm">
+                        没有结构化内容
+                      </div>
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="text" className="m-0">
+                    {contentLoading ? (
+                      <div className="flex min-h-[360px] items-center justify-center p-4">
+                        <ThinkingIllustration />
+                      </div>
+                    ) : (
+                      <pre className="text-foreground min-h-[360px] p-4 font-mono text-xs leading-5 break-words whitespace-pre-wrap">
+                        {textContent || '没有文本内容'}
+                      </pre>
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="html" className="m-0">
+                    {selected?.html_path && htmlPreviewUrl ? (
+                      <iframe
+                        title="推理过程 HTML 预览"
+                        src={htmlPreviewUrl}
+                        sandbox=""
+                        className="h-[70vh] min-h-[420px] w-full border-0 bg-white"
+                      />
+                    ) : (
+                      <div className="text-muted-foreground flex min-h-[360px] items-center justify-center text-sm">
+                        没有 HTML 预览
+                      </div>
+                    )}
+                  </TabsContent>
+                </div>
+              </ScrollArea>
             </Tabs>
           </div>
         </div>
