@@ -13,7 +13,6 @@ from rich.traceback import install
 from sqlmodel import select
 
 from src.common.data_models.image_data_model import MaiEmoji
-from src.common.data_models.llm_service_data_models import LLMGenerationOptions
 from src.common.database.database import get_db_session, get_db_session_manual
 from src.common.database.database_model import Images, ImageType
 from src.common.logger import get_logger
@@ -33,6 +32,7 @@ DATA_DIR = PROJECT_ROOT / "data"
 EmojiRegisterStatus = Literal["registered", "skipped", "failed"]
 EMOJI_DIR = DATA_DIR / "emoji"  # 表情包存储目录
 MAX_EMOJI_FOR_PROMPT = 20  # 最大允许的表情包描述数量于图片替换的 prompt 中
+BYTES_PER_MIB = 1024 * 1024
 
 
 def register_emoji_hook_specs(registry: HookSpecRegistry) -> list[HookSpec]:
@@ -236,6 +236,22 @@ def _is_vlm_task_configured() -> bool:
         return False
 
 
+def _get_max_collected_emoji_bytes() -> int:
+    """获取收集表情包的最大字节数；配置为 0 时不限制。"""
+
+    max_size_mb = float(global_config.emoji.max_emoji_size_mb)
+    if max_size_mb <= 0:
+        return 0
+    return int(max_size_mb * BYTES_PER_MIB)
+
+
+def _is_collected_emoji_size_allowed(size_bytes: int) -> bool:
+    """判断待收集表情包是否超过配置的大小上限。"""
+
+    max_size_bytes = _get_max_collected_emoji_bytes()
+    return max_size_bytes <= 0 or size_bytes <= max_size_bytes
+
+
 # TODO: 修改这个vlm为获取的vlm client，暂时使用这个VLM方法
 emoji_manager_vlm = LLMServiceClient(task_name="vlm", request_type="emoji.see")
 emoji_manager_emotion_judge_llm = LLMServiceClient(
@@ -357,6 +373,10 @@ class EmojiManager:
         emoji_hash: Optional[str] = None,
     ) -> MaiEmoji:
         """先缓存表情包文件与数据库记录，确保后续可按 hash 回填。"""
+        if not _is_collected_emoji_size_allowed(len(emoji_bytes)):
+            max_size_mb = global_config.emoji.max_emoji_size_mb
+            raise ValueError(f"表情包大小超过收集上限 {max_size_mb:g} MB，跳过缓存")
+
         hash_str = emoji_hash or hashlib.sha256(emoji_bytes).hexdigest()
 
         save_lock = self._emoji_save_locks.setdefault(hash_str, asyncio.Lock())
@@ -852,10 +872,7 @@ class EmojiManager:
         emoji_replace_prompt_template.add_context("description", new_emoji.description or "无描述")
         emoji_replace_prompt = await prompt_manager.render_prompt(emoji_replace_prompt_template)
 
-        decision_result = await emoji_manager_emotion_judge_llm.generate_response(
-            emoji_replace_prompt,
-            options=LLMGenerationOptions(max_tokens=600),
-        )
+        decision_result = await emoji_manager_emotion_judge_llm.generate_response(emoji_replace_prompt)
         decision = decision_result.response
         logger.info(f"[决策] 结果: {decision}")
 
@@ -1098,6 +1115,12 @@ class EmojiManager:
                         continue
                     resolved_file = emoji_file.absolute().resolve()
                     if resolved_file in known_paths:
+                        continue
+                    if not _is_collected_emoji_size_allowed(emoji_file.stat().st_size):
+                        logger.info(
+                            f"[emoji_maintenance] Emoji file exceeds size limit "
+                            f"{global_config.emoji.max_emoji_size_mb:g} MB, skipping: {emoji_file.name}"
+                        )
                         continue
                     try:
                         register_status = await self.register_emoji_by_filename(emoji_file)

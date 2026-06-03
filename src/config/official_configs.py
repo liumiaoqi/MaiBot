@@ -3071,6 +3071,22 @@ class EmojiConfig(ConfigBase):
     )
     """是否偷取表情包，让麦麦可以将一些表情包据为己有"""
 
+    max_emoji_size_mb: float = Field(
+        default=5.0,
+        ge=0.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "收集表情大小上限（MB）",
+                "en_US": "Collected emoji size limit (MB)",
+                "ja_JP": "収集する絵文字サイズ上限（MB）",
+            },
+            "x-widget": "input",
+            "x-icon": "file-warning",
+            "advanced": True,
+        },
+    )
+    """偷取/收集聊天表情包时允许保存的最大文件大小，0 表示不限制"""
+
     content_filtration: bool = Field(
         default=False,
         json_schema_extra={
