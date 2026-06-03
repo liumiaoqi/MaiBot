@@ -4,19 +4,16 @@ from __future__ import annotations
 
 from base64 import b64decode
 from dataclasses import dataclass
-from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Mapping
+from typing import Any, Dict, List, Mapping
 from urllib.parse import quote
 
 import hashlib
 import html
 import json
 
-from pydantic import BaseModel, Field as PydanticField
 from rich.console import Group, RenderableType
 from rich.panel import Panel
-from rich.pretty import Pretty
 from rich.text import Text
 
 from .display_utils import (
@@ -60,36 +57,10 @@ class PromptPreviewAccess:
 
 @dataclass(frozen=True)
 class PromptSectionResult:
-    """Prompt 面板及其可选 HTML 预览入口。"""
+    """Prompt 面板及其 HTML 预览入口。"""
 
     panel: Panel
-    preview_access: PromptPreviewAccess | None = None
-
-
-class PromptImageDisplayMode(str, Enum):
-    """图片在终端中的展示模式。"""
-
-    LEGACY = "legacy"
-    """不新增链接，仅保留原有的元信息展示。"""
-
-    PATH_LINK = "path_link"
-    """把图片落盘到 data 目录并输出可点击路径。"""
-
-
-class PromptImageDisplaySettings(BaseModel):
-    """图片展示参数。"""
-
-    display_mode: PromptImageDisplayMode = PydanticField(default=PromptImageDisplayMode.LEGACY)
-    """图片展示模式。"""
-
-
-
-@dataclass(slots=True)
-class _MessageRenderResult:
-    """可渲染结果与是否有工具调用信息。"""
-
-    message_panel: Panel
-    tool_call_panels: List[Panel]
+    preview_access: PromptPreviewAccess
 
 
 class PromptCLIVisualizer:
@@ -270,33 +241,6 @@ class PromptCLIVisualizer:
                 return None
         return build_file_uri(path), path
 
-    @classmethod
-    def _render_image_item(cls, image_format: str, image_base64: str, settings: PromptImageDisplaySettings) -> Panel:
-        normalized_format = cls._normalize_image_format(image_format)
-        approx_size = max(0, len(image_base64) * 3 // 4)
-        size_text = f"{approx_size / 1024:.1f} KB" if approx_size >= 1024 else f"{approx_size} B"
-
-        preview_parts: List[RenderableType] = [
-            Text(f"图片格式 image/{normalized_format}  {size_text}", style="magenta")
-        ]
-
-        if settings.display_mode == PromptImageDisplayMode.PATH_LINK:
-            path_result = cls._build_image_file_link(image_format, image_base64)
-            if path_result is not None:
-                file_uri, file_path = path_result
-                display_path = build_display_path(file_path)
-                preview_parts: List[RenderableType] = [
-                    Text(f"图片格式 image/{normalized_format}  {size_text} 路径：{display_path}", style="magenta")
-                ]
-                
-                preview_parts.append(Text.from_markup(f"[link={file_uri}]点击打开图片[/link]", style="cyan"))
-
-        return Panel(
-            Group(*preview_parts),
-            border_style="magenta",
-            padding=(0, 1),
-        )
-
     @staticmethod
     def _extract_image_pair(item: Any) -> tuple[str, str] | None:
         """兼容图片片段被序列化为 tuple 或 list 的两种形式。"""
@@ -344,38 +288,6 @@ class PromptCLIVisualizer:
         if isinstance(image_format, str) and isinstance(image_base64, str):
             return image_format, image_base64
         return None
-
-    @classmethod
-    def _render_message_content(cls, content: Any, settings: PromptImageDisplaySettings) -> RenderableType:
-        if isinstance(content, str):
-            return Text(content)
-
-        if isinstance(content, list):
-            parts: List[RenderableType] = []
-            for item in content:
-                if isinstance(item, str):
-                    parts.append(Text(item))
-                    continue
-                image_pair = cls._extract_image_pair(item)
-                if image_pair is not None:
-                    image_format, image_base64 = image_pair
-                    parts.append(cls._render_image_item(image_format, image_base64, settings))
-                    continue
-                image_dict_pair = cls._extract_image_dict_pair(item)
-                if image_dict_pair is not None:
-                    image_format, image_base64 = image_dict_pair
-                    parts.append(cls._render_image_item(image_format, image_base64, settings))
-                    continue
-                if isinstance(item, dict) and item.get("type") == "text" and isinstance(item.get("text"), str):
-                    parts.append(Text(item["text"]))
-                else:
-                    parts.append(Pretty(item, expand_all=True))
-            return Group(*parts) if parts else Text("")
-
-        if content is None:
-            return Text("")
-
-        return Pretty(content, expand_all=True)
 
     @classmethod
     def _serialize_message_content_for_dump(cls, content: Any) -> str:
@@ -495,19 +407,6 @@ class PromptCLIVisualizer:
             f"<pre>{html.escape(json.dumps(detail_payload, ensure_ascii=False, indent=2, default=str))}</pre>"
             "</div>"
             "</details>"
-        )
-
-    @classmethod
-    def _render_tool_call_panel(cls, tool_call: Any, index: int, parent_index: int) -> Panel:
-        title = Text.assemble(
-            Text(" 工具调用 ", style="bold white on magenta"),
-            Text(f"  #{parent_index}.{index}", style="muted"),
-        )
-        return Panel(
-            Pretty(cls.format_tool_call_for_display(tool_call), expand_all=True),
-            title=title,
-            border_style="magenta",
-            padding=(0, 1),
         )
 
     @classmethod
@@ -788,28 +687,26 @@ class PromptCLIVisualizer:
             category,
             {
                 ".html": viewer_html_text,
-                ".txt": prompt_dump_text,
                 ".json": structured_preview_text,
             },
         )
         viewer_html_path = saved_paths[".html"]
-        prompt_dump_path = saved_paths[".txt"]
         structured_path = saved_paths[".json"]
         body = cls._build_preview_access_body(
             viewer_label="html预览",
             viewer_path=viewer_html_path,
             viewer_link_text="在浏览器打开 Prompt",
-            dump_label="原始文本",
-            dump_path=prompt_dump_path,
-            dump_link_text="点击打开 Prompt 文本",
+            dump_label="结构化记录",
+            dump_path=structured_path,
+            dump_link_text="点击打开 JSON 记录",
         )
         return PromptPreviewAccess(
             body=body,
             viewer_path=viewer_html_path,
             viewer_uri=build_file_uri(viewer_html_path),
             viewer_web_uri=_build_prompt_preview_web_uri(viewer_html_path),
-            dump_path=prompt_dump_path,
-            dump_uri=build_file_uri(prompt_dump_path),
+            dump_path=structured_path,
+            dump_uri=build_file_uri(structured_path),
             structured_path=structured_path,
             structured_uri=build_file_uri(structured_path),
         )
@@ -1191,7 +1088,6 @@ class PromptCLIVisualizer:
         chat_id: str,
         request_kind: str,
         selection_reason: str,
-        image_display_mode: Literal["legacy", "path_link"] = "path_link",
         tool_definitions: list[dict[str, Any]] | None = None,
         output_content: Any | None = None,
         output_title: str = "输出结果",
@@ -1212,38 +1108,6 @@ class PromptCLIVisualizer:
         ).body
 
     @classmethod
-    def build_prompt_section(
-        cls,
-        messages: list[Any],
-        *,
-        category: str,
-        chat_id: str,
-        request_kind: str,
-        selection_reason: str,
-        image_display_mode: Literal["legacy", "path_link"] = "path_link",
-        folded: bool,
-        tool_definitions: list[dict[str, Any]] | None = None,
-        output_content: Any | None = None,
-        output_title: str = "输出结果",
-        metadata: Mapping[str, Any] | None = None,
-    ) -> Panel:
-        """构建用于嵌入结果面板中的 Prompt 区块。"""
-
-        return cls.build_prompt_section_result(
-            messages,
-            category=category,
-            chat_id=chat_id,
-            request_kind=request_kind,
-            selection_reason=selection_reason,
-            image_display_mode=image_display_mode,
-            folded=folded,
-            tool_definitions=tool_definitions,
-            output_content=output_content,
-            output_title=output_title,
-            metadata=metadata,
-        ).panel
-
-    @classmethod
     def build_prompt_section_result(
         cls,
         messages: list[Any],
@@ -1252,14 +1116,12 @@ class PromptCLIVisualizer:
         chat_id: str,
         request_kind: str,
         selection_reason: str,
-        image_display_mode: Literal["legacy", "path_link"] = "path_link",
-        folded: bool,
         tool_definitions: list[dict[str, Any]] | None = None,
         output_content: Any | None = None,
         output_title: str = "输出结果",
         metadata: Mapping[str, Any] | None = None,
     ) -> PromptSectionResult:
-        """构建 Prompt 面板，并在折叠模式下返回对应的 HTML 预览入口。"""
+        """构建默认折叠的 Prompt 面板，并返回对应的 HTML 预览入口。"""
 
         panel_title, panel_border_style = cls.get_request_panel_style(request_kind)
         preview_access = cls.build_prompt_preview_access(
@@ -1273,15 +1135,10 @@ class PromptCLIVisualizer:
             output_title=output_title,
             metadata=metadata,
         )
-        if folded:
-            prompt_renderable = preview_access.body
-        else:
-            ordered_panels = cls.build_prompt_panels(messages)
-            prompt_renderable = Group(*ordered_panels)
 
         return PromptSectionResult(
             panel=Panel(
-                prompt_renderable,
+                preview_access.body,
                 title=panel_title,
                 subtitle=selection_reason,
                 border_style=panel_border_style,
@@ -1460,128 +1317,37 @@ class PromptCLIVisualizer:
             output_dump_text = cls._serialize_message_content_for_dump(output_content)
             text_content = f"[{output_title}]\n\n{output_dump_text}\n\n{'=' * 80}\n\n{content}"
         text_content = cls._prepend_preview_metadata_dump(text_content, metadata)
+        structured_preview_text = json.dumps(
+            cls._build_structured_preview_payload(
+                [],
+                request_kind=request_kind,
+                selection_reason=subtitle,
+                tool_definitions=None,
+                output_content=output_content,
+                output_title=output_title,
+                metadata=metadata,
+                text_dump=text_content,
+            ),
+            ensure_ascii=False,
+            indent=2,
+            default=str,
+        )
         saved_paths = PromptPreviewLogger.save_preview_files(
             chat_id,
             category,
             {
                 ".html": html_content,
-                ".txt": text_content,
+                ".json": structured_preview_text,
             },
         )
         viewer_html_path = saved_paths[".html"]
-        text_dump_path = saved_paths[".txt"]
+        structured_path = saved_paths[".json"]
         body = cls._build_preview_access_body(
             viewer_label="富文本预览",
             viewer_path=viewer_html_path,
             viewer_link_text="点击在浏览器打开富文本 Prompt 视图",
-            dump_label="原始文本备份",
-            dump_path=text_dump_path,
-            dump_link_text="点击直接打开 Prompt 文本",
+            dump_label="结构化记录",
+            dump_path=structured_path,
+            dump_link_text="点击打开 JSON 记录",
         )
         return body
-
-    @classmethod
-    def build_text_section(
-        cls,
-        content: str,
-        *,
-        category: str,
-        chat_id: str,
-        request_kind: str,
-        subtitle: str,
-        folded: bool,
-        output_content: Any | None = None,
-        output_title: str = "输出结果",
-        metadata: Mapping[str, Any] | None = None,
-    ) -> Panel:
-        """构建文本型 Prompt 的嵌入区块。"""
-
-        panel_title, panel_border_style = cls.get_request_panel_style(request_kind)
-        if folded:
-            prompt_renderable = cls.build_text_access_panel(
-                content,
-                category=category,
-                chat_id=chat_id,
-                request_kind=request_kind,
-                subtitle=subtitle,
-                output_content=output_content,
-                output_title=output_title,
-                metadata=metadata,
-            )
-        else:
-            prompt_renderable = Text(content)
-
-        return Panel(
-            prompt_renderable,
-            title=panel_title,
-            subtitle=subtitle,
-            border_style=panel_border_style,
-            padding=(0, 1),
-        )
-
-    @classmethod
-    def _render_message_panel(cls, message: Any, index: int, settings: PromptImageDisplaySettings) -> _MessageRenderResult:
-        if isinstance(message, dict):
-            raw_role = message.get("role", "unknown")
-            content = message.get("content")
-            tool_call_id = message.get("tool_call_id")
-        else:
-            raw_role = getattr(message, "role", "unknown")
-            content = getattr(message, "content", None)
-            tool_call_id = getattr(message, "tool_call_id", None)
-
-        role = raw_role.value if hasattr(raw_role, "value") else str(raw_role)
-        title = Text.assemble(
-            Text(f" {cls._get_role_badge_label(role)} ", style=cls._get_role_badge_style(role)),
-            Text(f"  #{index}", style="muted"),
-        )
-
-        parts: List[RenderableType] = []
-        if content not in (None, "", []):
-            parts.append(cls._render_message_content(content, settings))
-
-        if tool_call_id:
-            parts.append(
-                Text.assemble(
-                    Text(" 工具调用ID ", style="bold magenta"),
-                    Text(" "),
-                    Text(str(tool_call_id), style="magenta"),
-                )
-            )
-
-        if not parts:
-            parts.append(Text("[空]", style="muted"))
-
-        message_panel = Panel(
-            Group(*parts),
-            title=title,
-            border_style="dim",
-            padding=(0, 1),
-        )
-
-        tool_call_panels: List[Panel] = []
-        tool_calls = getattr(message, "tool_calls", None)
-        if tool_calls:
-            for tool_call_index, tool_call in enumerate(tool_calls, start=1):
-                tool_call_panels.append(cls._render_tool_call_panel(tool_call, tool_call_index, index))
-
-        return _MessageRenderResult(message_panel=message_panel, tool_call_panels=tool_call_panels)
-
-    @classmethod
-    def build_prompt_panels(
-        cls,
-        messages: list[Any],
-        *,
-        image_display_mode: Literal["legacy", "path_link"] = "path_link",
-    ) -> List[Panel]:
-        """构建完整 prompt 可视化面板。"""
-        settings = PromptImageDisplaySettings(
-            display_mode=PromptImageDisplayMode(image_display_mode),
-        )
-
-        ordered_panels: List[Panel] = []
-        for index, message in enumerate(messages, start=1):
-            message_render_result = cls._render_message_panel(message, index, settings)
-            ordered_panels.append(message_render_result.message_panel)
-            ordered_panels.extend(message_render_result.tool_call_panels)
-        return ordered_panels

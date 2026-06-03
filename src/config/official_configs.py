@@ -3491,15 +3491,6 @@ class DebugConfig(ConfigBase):
     )
     """是否显示回复器推理"""
 
-    fold_maisaka_thinking: bool = Field(
-        default=True,
-        json_schema_extra={
-            "x-widget": "switch",
-            "x-icon": "minimize-2",
-        },
-    )
-    """是否折叠 Maisaka 的 prompt 展示入口"""
-
     show_jargon_prompt: bool = Field(
         default=False,
         json_schema_extra={

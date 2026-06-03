@@ -1068,14 +1068,12 @@ class MaisakaChatLoopService:
                 chat_id=self._session_id,
                 request_kind=request_kind,
                 selection_reason=prompt_selection_reason,
-                folded=global_config.debug.fold_maisaka_thinking,
                 tool_definitions=list(all_tools),
                 output_content="\n\n".join(output_parts).strip(),
                 metadata=prompt_metadata,
             )
             prompt_section = prompt_section_result.panel
-            if prompt_section_result.preview_access is not None:
-                prompt_html_uri = prompt_section_result.preview_access.viewer_web_uri
+            prompt_html_uri = prompt_section_result.preview_access.viewer_web_uri
 
         raw_message = AssistantMessage(
             content=final_response,
