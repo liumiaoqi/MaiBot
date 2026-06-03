@@ -20,6 +20,7 @@ export const STORAGE_KEYS = {
   LOG_AUTO_SCROLL: 'maibot-log-auto-scroll',
   LOG_FONT_SIZE: 'maibot-log-font-size',
   LOG_LINE_SPACING: 'maibot-log-line-spacing',
+  LOG_COLUMN_WIDTH_EXTRA: 'maibot-log-column-width-extra',
   DATA_SYNC_INTERVAL: 'maibot-data-sync-interval',
   WS_RECONNECT_INTERVAL: 'maibot-ws-reconnect-interval',
   WS_MAX_RECONNECT_ATTEMPTS: 'maibot-ws-max-reconnect-attempts',
@@ -43,6 +44,7 @@ export const DEFAULT_SETTINGS = {
   logAutoScroll: true,
   logFontSize: 'xs' as 'xs' | 'sm' | 'base',
   logLineSpacing: 4,
+  logColumnWidthExtra: 0,
   dataSyncInterval: 30, // 秒
   wsReconnectInterval: 3000, // 毫秒
   wsMaxReconnectAttempts: 10,
@@ -108,6 +110,7 @@ export function getAllSettings(): Settings {
     logAutoScroll: getSetting('logAutoScroll'),
     logFontSize: getSetting('logFontSize'),
     logLineSpacing: getSetting('logLineSpacing'),
+    logColumnWidthExtra: getSetting('logColumnWidthExtra'),
     dataSyncInterval: getSetting('dataSyncInterval'),
     wsReconnectInterval: getSetting('wsReconnectInterval'),
     wsMaxReconnectAttempts: getSetting('wsMaxReconnectAttempts'),
@@ -273,6 +276,7 @@ function getStorageKey(settingKey: keyof Settings): string {
     logAutoScroll: STORAGE_KEYS.LOG_AUTO_SCROLL,
     logFontSize: STORAGE_KEYS.LOG_FONT_SIZE,
     logLineSpacing: STORAGE_KEYS.LOG_LINE_SPACING,
+    logColumnWidthExtra: STORAGE_KEYS.LOG_COLUMN_WIDTH_EXTRA,
     dataSyncInterval: STORAGE_KEYS.DATA_SYNC_INTERVAL,
     wsReconnectInterval: STORAGE_KEYS.WS_RECONNECT_INTERVAL,
     wsMaxReconnectAttempts: STORAGE_KEYS.WS_MAX_RECONNECT_ATTEMPTS,
