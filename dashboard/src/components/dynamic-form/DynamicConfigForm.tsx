@@ -249,6 +249,7 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
             schema={field}
             nestedSchema={nestedSchema}
             parentValues={values}
+            advancedVisible={resolvedAdvancedVisible}
           />
         )
       }
@@ -262,6 +263,7 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
           schema={field}
           nestedSchema={nestedSchema}
           parentValues={values}
+          advancedVisible={resolvedAdvancedVisible}
         >
           <DynamicField
             schema={field}
@@ -454,6 +456,7 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
                   schema={nestedField ?? nestedSchema}
                   nestedSchema={nestedSchema}
                   parentValues={values}
+                  advancedVisible={resolvedAdvancedVisible}
                 />
               )
 
@@ -494,6 +497,7 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
                   schema={nestedField ?? nestedSchema}
                   nestedSchema={nestedSchema}
                   parentValues={values}
+                  advancedVisible={resolvedAdvancedVisible}
                 >
                   <DynamicConfigForm
                     schema={nestedSchema}

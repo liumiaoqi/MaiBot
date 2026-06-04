@@ -2854,7 +2854,7 @@ class ChatStreamGroup(ConfigBase):
 class ExpressionConfig(ConfigBase):
     """表达配置类"""
 
-    __ui_label__ = "表达与黑话"
+    __ui_label__ = "学习"
     __ui_icon__ = "pen-tool"
 
     expression_checked_only: bool = Field(
@@ -3015,7 +3015,7 @@ class VoiceConfig(ConfigBase):
 class EmojiConfig(ConfigBase):
     """表情包配置类"""
 
-    __ui_label__ = "表情包"
+    __ui_label__ = "表情"
     __ui_icon__ = "smile"
 
     emoji_send_num: int = Field(
@@ -3337,7 +3337,7 @@ class ResponseSplitterConfig(ConfigBase):
 class LogConfig(ConfigBase):
     """日志配置类"""
 
-    __ui_label__ = "调试与日志"
+    __ui_label__ = "调试"
     __ui_icon__ = "file-text"
 
     date_style: str = Field(
@@ -4412,7 +4412,7 @@ class MCPConfig(ConfigBase):
 class PluginConfig(ConfigBase):
     """插件管理配置类"""
 
-    __ui_label__ = "插件管理"
+    __ui_label__ = "插件"
     __ui_icon__ = "shield"
 
     permission: list[str] = Field(
@@ -4556,7 +4556,8 @@ class PluginRuntimeRenderConfig(ConfigBase):
 class PluginRuntimeConfig(ConfigBase):
     """插件运行时配置类"""
 
-    __ui_label__ = "插件运行时"
+    __ui_parent__ = "plugin"
+    __ui_label__ = "运行时"
     __ui_icon__ = "puzzle"
 
     enabled: bool = Field(

@@ -47,6 +47,14 @@
 # Webui规范
 涉及显示聊天流信息的，优先显示聊天流实际名称（群名称或 xxx的私聊），而不是session_id
 
+如果遇到 UI 高度/布局问题：
+对比展开前后 DOM，找新增元素和新增属性。
+查 data-dashboard-style 主题样式，尤其是 !important。
+查 computed style 的实际 height/min-height，而不是只看 Tailwind class。
+Radix 组件不随便移出上下文，像 TabsTrigger 必须留在 TabsList 里。
+
+修改完webui不用急着npm run build，这个应该手动来
+
 # 会话 ID 规范
 除聊天流创建/注册链路外，业务模块不应自行调用 `SessionUtils.calculate_session_id` 计算资源归属 ID。表达学习、黑话、记忆、WebUI、配置匹配等模块应通过 `chat_manager` 的内部接口，基于 platform、目标 ID 和聊天类型解析已存在的真实聊天流；如果解析不到真实 `ChatSession.session_id`，不要把自行计算的 fallback hash 写入数据库。
 
