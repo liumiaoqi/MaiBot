@@ -622,11 +622,7 @@ class MaisakaReasoningEngine:
                                     timing_tool_results,
                                     timing_tool_monitor_results,
                                 ) = await self._run_timing_gate(anchor_message)
-                                timing_elapsed_seconds = time.time() - timing_started_at
-                                if timing_action == "no_action":
-                                    await self._runtime._wait_for_timing_gate_non_continue_cooldown(
-                                        timing_elapsed_seconds
-                                    )
+                                self._runtime.record_timing_gate_action_result(timing_action)
                                 timing_duration_ms = (time.time() - timing_started_at) * 1000
                                 cycle_detail.time_records["timing_gate"] = timing_duration_ms / 1000
                                 await emit_timing_gate_result(
@@ -720,13 +716,6 @@ class MaisakaReasoningEngine:
                                 )
                                 cycle_detail.time_records["tool_calls"] = time.time() - tool_started_at
                                 if should_pause:
-                                    if (
-                                        pause_tool_name == "no_action"
-                                        and not self._is_independent_timing_gate_enabled()
-                                    ):
-                                        await self._runtime._wait_for_timing_gate_non_continue_cooldown(
-                                            time.time() - planner_started_at
-                                        )
                                     if pause_tool_name == "finish":
                                         cycle_end_reason = "finish"
                                         cycle_end_detail = "Planner 调用 finish，结束本轮思考并等待新消息。"

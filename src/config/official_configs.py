@@ -658,14 +658,14 @@ class ChatConfig(ConfigBase):
     )
     """planner如果遇到新消息，重新开始思考的次数"""
 
-    timing_gate_non_continue_cooldown_seconds: float = Field(
-        default=8,
+    timing_gate_no_action_backoff_base_seconds: float = Field(
+        default=15,
         ge=0,
         json_schema_extra={
             "label": {
-                "zh_CN": "Timing Gate 平滑",
-                "en_US": "Timing Gate non-continue cooldown",
-                "ja_JP": "Timing Gate 非 continue クールダウン",
+                "zh_CN": "Timing Gate 退避基准",
+                "en_US": "Timing Gate backoff base",
+                "ja_JP": "Timing Gate バックオフ基準",
             },
             "x-widget": "input",
             "x-icon": "timer",
@@ -673,7 +673,58 @@ class ChatConfig(ConfigBase):
             "advanced": False,
         },
     )
-    """这个值决定了Timing Gate判断的最低时间间隔"""
+    """Timing Gate 连续 no_action 后的退避基准秒数，0 表示不启用退避"""
+
+    timing_gate_no_action_backoff_cap_seconds: float = Field(
+        default=300,
+        ge=0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "Timing Gate 退避上限",
+                "en_US": "Timing Gate backoff cap",
+                "ja_JP": "Timing Gate バックオフ上限",
+            },
+            "x-widget": "input",
+            "x-icon": "timer-reset",
+            "x-description-display": "icon",
+            "advanced": True,
+        },
+    )
+    """Timing Gate 连续 no_action 退避秒数上限"""
+
+    timing_gate_no_action_backoff_start_count: int = Field(
+        default=2,
+        ge=1,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "Timing Gate 退避起点",
+                "en_US": "Timing Gate backoff start",
+                "ja_JP": "Timing Gate バックオフ開始",
+            },
+            "x-widget": "input",
+            "x-icon": "list-start",
+            "x-description-display": "icon",
+            "advanced": True,
+        },
+    )
+    """连续第几次 no_action 后开始退避"""
+
+    timing_gate_no_action_backoff_bypass_pending_count: int = Field(
+        default=6,
+        ge=0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "Timing Gate 退避绕过消息数",
+                "en_US": "Timing Gate backoff bypass messages",
+                "ja_JP": "Timing Gate バックオフ迂回メッセージ数",
+            },
+            "x-widget": "input",
+            "x-icon": "message-square-more",
+            "x-description-display": "icon",
+            "advanced": True,
+        },
+    )
+    """退避期间待处理消息达到该数量时直接绕过退避，0 表示不按消息数绕过"""
 
     group_chat_prompt: str = Field(
         default=(
