@@ -36,6 +36,11 @@ logger = get_logger("maisaka_runtime")
 class MaisakaFocusRuntimeMixin:
     """Focus-mode behavior mixed into the session runtime."""
 
+    def _is_focus_mode_active_for_current_chat(self) -> bool:
+        """Return whether focus mode applies to this runtime's chat."""
+
+        return focus_mode_manager.is_enabled_for_chat(is_group_chat=self.chat_stream.is_group_session)
+
     def _get_pending_attention_flags(self) -> tuple[bool, bool]:
         """Return whether pending messages contain @ or mention signals."""
 
@@ -87,7 +92,7 @@ class MaisakaFocusRuntimeMixin:
     def record_no_action_cycle_result(self, cycle_end_reason: str) -> None:
         """Track consecutive no_action cycles and release stale group focus."""
 
-        if not focus_mode_manager.is_enabled():
+        if not self._is_focus_mode_active_for_current_chat():
             self._consecutive_no_action_count = 0
             return
         if not self.chat_stream.is_group_session:
@@ -131,7 +136,10 @@ class MaisakaFocusRuntimeMixin:
         """Start a timer that wakes this focused chat when other chats stay unread."""
 
         self._cancel_focus_cooldown_timer_task()
-        if not self._running or not focus_mode_manager.can_decide(self.session_id):
+        if not self._running or not focus_mode_manager.can_decide(
+            self.session_id,
+            is_group_chat=self.chat_stream.is_group_session,
+        ):
             return
         self._focus_cooldown_timer_task = asyncio.create_task(self._run_focus_cooldown_timer())
 
@@ -140,7 +148,10 @@ class MaisakaFocusRuntimeMixin:
 
         try:
             await asyncio.sleep(focus_mode_manager.get_focus_cool_time())
-            if not self._running or not focus_mode_manager.can_decide(self.session_id):
+            if not self._running or not focus_mode_manager.can_decide(
+                self.session_id,
+                is_group_chat=self.chat_stream.is_group_session,
+            ):
                 return
 
             from src.chat.heart_flow.heartflow_manager import heartflow_manager
@@ -172,7 +183,7 @@ class MaisakaFocusRuntimeMixin:
     def _maybe_schedule_focus_cooldown_wakeup(self, *, trigger_session_id: str) -> None:
         """Wake one idle focused chat when other running chats have pending messages."""
 
-        if not focus_mode_manager.is_enabled():
+        if not self._is_focus_mode_active_for_current_chat():
             return
 
         from src.chat.heart_flow.heartflow_manager import heartflow_manager
@@ -189,7 +200,7 @@ class MaisakaFocusRuntimeMixin:
     def _maybe_schedule_focus_at_wakeup(self, *, trigger_session_id: str) -> None:
         """Wake one focused chat immediately when another running chat @mentions Maibot."""
 
-        if not focus_mode_manager.is_enabled():
+        if not self._is_focus_mode_active_for_current_chat():
             return
 
         from src.chat.heart_flow.heartflow_manager import heartflow_manager
@@ -263,7 +274,10 @@ class MaisakaFocusRuntimeMixin:
     ) -> bool:
         """Queue a proactive focus-mode wake-up turn."""
 
-        if self._focus_cooldown_wakeup_scheduled or not focus_mode_manager.can_decide(self.session_id):
+        if self._focus_cooldown_wakeup_scheduled or not focus_mode_manager.can_decide(
+            self.session_id,
+            is_group_chat=self.chat_stream.is_group_session,
+        ):
             return False
         if self._agent_state == self._STATE_RUNNING:
             return False
@@ -327,7 +341,10 @@ class MaisakaFocusRuntimeMixin:
     def build_focus_tail_user_messages(self) -> list[str]:
         """Build tail user messages injected at the end of focus-mode planner requests."""
 
-        if not focus_mode_manager.is_enabled() or not focus_mode_manager.can_decide(self.session_id):
+        if not self._is_focus_mode_active_for_current_chat() or not focus_mode_manager.can_decide(
+            self.session_id,
+            is_group_chat=self.chat_stream.is_group_session,
+        ):
             return []
         overview_message = self._build_focus_chat_overview_message()
         return [overview_message] if overview_message else []
@@ -523,7 +540,7 @@ class MaisakaFocusRuntimeMixin:
     ) -> tuple[bool, str, dict[str, Any], dict[str, Any]]:
         """Switch the current focus slot to another chat and copy context there."""
 
-        if not focus_mode_manager.is_enabled():
+        if not self._is_focus_mode_active_for_current_chat():
             return False, "focus_mode 未启用，不能切换聊天。", {}, {}
         if target_session.session_id == self.session_id:
             return False, "目标聊天就是当前聊天，不能切换到自身。", {}, {}

@@ -8,7 +8,7 @@ from typing import Any, Iterable, Optional
 
 import time
 
-from src.chat.message_receive.chat_manager import BotChatSession
+from src.chat.message_receive.chat_manager import BotChatSession, chat_manager
 from src.config.config import global_config
 
 FOCUS_SLOT_LIMIT = 1
@@ -36,6 +36,15 @@ class FocusModeManager:
 
         return bool(global_config.experimental.focus_mode)
 
+    def is_enabled_for_chat(self, *, is_group_chat: Optional[bool] = None) -> bool:
+        """Return whether focus mode applies to a specific chat type."""
+
+        if not self.is_enabled():
+            return False
+        if is_group_chat is False and not bool(global_config.experimental.focus_on_private):
+            return False
+        return True
+
     def get_focus_cool_time(self) -> float:
         """Return the focus wake-up cool time in seconds."""
 
@@ -50,10 +59,21 @@ class FocusModeManager:
             self._next_focus_blocked_session_id = ""
             return
 
+        self._focused_session_ids = [
+            session_id
+            for session_id in self._focused_session_ids
+            if self._is_session_id_focus_allowed(session_id)
+        ]
         if len(self._focused_session_ids) > FOCUS_SLOT_LIMIT:
             del self._focused_session_ids[FOCUS_SLOT_LIMIT:]
         if self._next_focus_blocked_session_id in self._focused_session_ids:
             self._next_focus_blocked_session_id = ""
+
+    def _is_session_id_focus_allowed(self, session_id: str) -> bool:
+        chat_session = chat_manager.get_session_by_session_id(str(session_id or "").strip())
+        if chat_session is None:
+            return True
+        return self.is_enabled_for_chat(is_group_chat=chat_session.is_group_session)
 
     def is_in_focus_set(self, session_id: str) -> bool:
         """Return whether a session is explicitly occupying a focus slot."""
@@ -62,22 +82,24 @@ class FocusModeManager:
         normalized_session_id = str(session_id or "").strip()
         return bool(normalized_session_id) and normalized_session_id in self._focused_session_ids
 
-    def can_decide(self, session_id: str) -> bool:
+    def can_decide(self, session_id: str, *, is_group_chat: Optional[bool] = None) -> bool:
         """Return whether the session may run Maisaka decision loops right now."""
 
-        if not self.is_enabled():
+        if not self.is_enabled_for_chat(is_group_chat=is_group_chat):
             self._normalize_state()
+            self.release_focus(session_id)
             return True
         return self.is_in_focus_set(session_id)
 
-    def try_enter_focus(self, session_id: str) -> bool:
+    def try_enter_focus(self, session_id: str, *, is_group_chat: Optional[bool] = None) -> bool:
         """Try to put a session into the single active focus slot."""
 
         normalized_session_id = str(session_id or "").strip()
         if not normalized_session_id:
             return False
-        if not self.is_enabled():
+        if not self.is_enabled_for_chat(is_group_chat=is_group_chat):
             self._normalize_state()
+            self.release_focus(normalized_session_id)
             return True
 
         self._normalize_state()

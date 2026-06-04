@@ -3,7 +3,6 @@
 from typing import Any, Optional
 
 from .context import BuiltinToolRuntimeContext
-from src.config.config import global_config
 from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
 
 
@@ -47,7 +46,7 @@ async def handle_tool(
     """Execute fetch_histroy."""
 
     del context
-    if not bool(global_config.experimental.focus_mode):
+    if not tool_ctx.runtime._is_focus_mode_active_for_current_chat():
         return tool_ctx.build_failure_result(invocation.tool_name, "focus_mode 未启用，fetch_histroy 不可用。")
 
     num = min(50, _coerce_positive_int(invocation.arguments.get("num"), 10))

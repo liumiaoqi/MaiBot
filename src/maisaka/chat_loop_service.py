@@ -716,11 +716,10 @@ class MaisakaChatLoopService:
         except Exception:
             return f"{self.personality_prompt}\n\nYou are a helpful AI assistant."
 
-    @staticmethod
-    def _get_chat_prompt_name() -> str:
+    def _get_chat_prompt_name(self) -> str:
         """根据独立 Timing Gate 配置选择 Planner 模板。"""
 
-        if focus_mode_manager.is_enabled():
+        if focus_mode_manager.is_enabled_for_chat(is_group_chat=self._is_group_chat):
             return "maisaka_chat_focus"
         if global_config.chat.enable_independent_timing_gate:
             return "maisaka_chat"
@@ -908,6 +907,7 @@ class MaisakaChatLoopService:
             request_kind=request_kind,
             enable_visual_message=enable_visual_message,
             max_context_size=max_context_size,
+            is_group_chat=self._is_group_chat,
         )
         built_messages = self._build_request_messages(
             selected_history,
@@ -1109,12 +1109,14 @@ class MaisakaChatLoopService:
         enable_visual_message: Optional[bool] = None,
         request_kind: str = "planner",
         max_context_size: Optional[int] = None,
+        is_group_chat: Optional[bool] = None,
     ) -> tuple[List[LLMContextMessage], str]:
         """选择LLM上下文消息"""
 
         filtered_history = MaisakaChatLoopService._filter_history_for_request_kind(
             chat_history,
             request_kind=request_kind,
+            is_focus_mode_active=focus_mode_manager.is_enabled_for_chat(is_group_chat=is_group_chat),
         )
         base_context_size = max(1, int(max_context_size or global_config.chat.max_context_size))
         effective_context_size = max(
@@ -1189,6 +1191,7 @@ class MaisakaChatLoopService:
         selected_history: List[LLMContextMessage],
         *,
         request_kind: str,
+        is_focus_mode_active: Optional[bool] = None,
     ) -> List[LLMContextMessage]:
         """按请求类型过滤不应暴露的历史工具链。"""
 
@@ -1247,7 +1250,9 @@ class MaisakaChatLoopService:
         if request_kind != "planner":
             return selected_history
 
-        if not global_config.chat.enable_independent_timing_gate or focus_mode_manager.is_enabled():
+        if is_focus_mode_active is None:
+            is_focus_mode_active = focus_mode_manager.is_enabled()
+        if not global_config.chat.enable_independent_timing_gate or is_focus_mode_active:
             return selected_history
 
         filtered_history: List[LLMContextMessage] = []

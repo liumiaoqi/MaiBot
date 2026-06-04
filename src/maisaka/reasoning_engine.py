@@ -170,11 +170,12 @@ class MaisakaReasoningEngine:
             **self._runtime._chat_loop_service.build_prompt_template_context(),
         )
 
-    @staticmethod
-    def _is_independent_timing_gate_enabled() -> bool:
+    def _is_independent_timing_gate_enabled(self) -> bool:
         """判断是否启用独立 Timing Gate。"""
 
-        return bool(global_config.chat.enable_independent_timing_gate) and not focus_mode_manager.is_enabled()
+        return bool(global_config.chat.enable_independent_timing_gate) and not focus_mode_manager.is_enabled_for_chat(
+            is_group_chat=self._runtime.chat_stream.is_group_session
+        )
 
     async def _build_action_tool_definitions(self) -> tuple[list[dict[str, Any]], str]:
         """构造 Action Loop 阶段可见的工具定义与 deferred tools 提示。"""
@@ -214,6 +215,7 @@ class MaisakaReasoningEngine:
             self._runtime._chat_history,
             request_kind="planner",
             max_context_size=self._runtime._max_context_size,
+            is_group_chat=self._runtime.chat_stream.is_group_session,
         )
         self._runtime.sync_discovered_deferred_tools_with_context(selected_history)
         discovered_deferred_tool_specs = self._runtime.get_discovered_deferred_tool_specs()
@@ -485,7 +487,10 @@ class MaisakaReasoningEngine:
         try:
             while self._runtime._running:
                 queued_trigger = await self._runtime._internal_turn_queue.get()
-                if not focus_mode_manager.can_decide(self._runtime.session_id):
+                if not focus_mode_manager.can_decide(
+                    self._runtime.session_id,
+                    is_group_chat=self._runtime.chat_stream.is_group_session,
+                ):
                     self._runtime._message_turn_scheduled = False
                     logger.debug(f"{self._runtime.log_prefix} 当前不在 focus 状态，忽略已排队的 Maisaka 触发")
                     continue

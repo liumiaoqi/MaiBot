@@ -3,7 +3,6 @@
 from typing import Optional
 
 from .context import BuiltinToolRuntimeContext
-from src.config.config import global_config
 from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
 
 
@@ -52,7 +51,7 @@ async def handle_tool(
     """Execute switch_chat."""
 
     del context
-    if not bool(global_config.experimental.focus_mode):
+    if not tool_ctx.runtime._is_focus_mode_active_for_current_chat():
         return tool_ctx.build_failure_result(invocation.tool_name, "focus_mode 未启用，switch_chat 不可用。")
 
     resolution = tool_ctx.runtime.resolve_running_focus_session_from_args(invocation.arguments)

@@ -158,6 +158,9 @@ def _is_builtin_tool_enabled_by_config(entry: BuiltinToolEntry) -> bool:
 def _is_builtin_tool_available(entry: BuiltinToolEntry, context: ToolAvailabilityContext) -> bool:
     """判断内置工具是否适用于当前聊天。"""
 
+    if entry.name in {"fetch_histroy", "switch_chat"}:
+        if context.is_group_chat is False and not bool(global_config.experimental.focus_on_private):
+            return False
     if entry.chat_scope == "all":
         return True
     if entry.chat_scope == "group":

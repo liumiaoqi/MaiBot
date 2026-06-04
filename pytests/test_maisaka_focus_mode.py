@@ -3,7 +3,8 @@ from types import SimpleNamespace
 import pytest
 
 from src.config.config import global_config
-from src.maisaka.builtin_tool import get_builtin_tools
+from src.core.tooling import ToolAvailabilityContext
+from src.maisaka.builtin_tool import get_all_builtin_tool_specs, get_builtin_tools
 from src.maisaka.builtin_tool.fetch_histroy import get_tool_spec as get_fetch_histroy_tool_spec
 from src.maisaka.focus import runtime_mixin as focus_runtime_mixin
 from src.maisaka.focus.manager import FocusModeManager
@@ -16,6 +17,11 @@ class _FakeFocusModeManager:
 
     @staticmethod
     def is_enabled() -> bool:
+        return True
+
+    @staticmethod
+    def is_enabled_for_chat(*, is_group_chat: bool | None = None) -> bool:
+        del is_group_chat
         return True
 
     def release_focus_and_block_next_entry(self, session_id: str) -> bool:
@@ -62,6 +68,36 @@ def test_fetch_histroy_tool_spec_only_accepts_num(monkeypatch: pytest.MonkeyPatc
     assert "fetch_new_message" not in tool_names
 
 
+def test_focus_tools_hidden_for_private_chat_when_focus_on_private_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(global_config.experimental, "focus_mode", True)
+    monkeypatch.setattr(global_config.experimental, "focus_on_private", False)
+
+    tool_names = {
+        tool_spec.name
+        for tool_spec in get_all_builtin_tool_specs(ToolAvailabilityContext(is_group_chat=False))
+    }
+
+    assert "fetch_histroy" not in tool_names
+    assert "switch_chat" not in tool_names
+
+
+def test_focus_tools_visible_for_private_chat_when_focus_on_private_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(global_config.experimental, "focus_mode", True)
+    monkeypatch.setattr(global_config.experimental, "focus_on_private", True)
+
+    tool_names = {
+        tool_spec.name
+        for tool_spec in get_all_builtin_tool_specs(ToolAvailabilityContext(is_group_chat=False))
+    }
+
+    assert "fetch_histroy" in tool_names
+    assert "switch_chat" in tool_names
+
+
 def test_fetch_histroy_selects_current_stream_messages_newest_first() -> None:
     runtime = _FetchHistoryRuntimeStub()
 
@@ -82,6 +118,25 @@ def test_focus_reentry_block_skips_same_session_until_another_enters(monkeypatch
     manager.release_focus("group-b")
 
     assert manager.try_enter_focus("group-a") is True
+
+
+def test_private_chat_does_not_enter_focus_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    manager = FocusModeManager()
+    monkeypatch.setattr(global_config.experimental, "focus_mode", True)
+    monkeypatch.setattr(global_config.experimental, "focus_on_private", False)
+
+    assert manager.try_enter_focus("private-a", is_group_chat=False) is True
+    assert manager.is_in_focus_set("private-a") is False
+    assert manager.can_decide("private-a", is_group_chat=False) is True
+
+
+def test_private_chat_can_enter_focus_when_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    manager = FocusModeManager()
+    monkeypatch.setattr(global_config.experimental, "focus_mode", True)
+    monkeypatch.setattr(global_config.experimental, "focus_on_private", True)
+
+    assert manager.try_enter_focus("private-a", is_group_chat=False) is True
+    assert manager.is_in_focus_set("private-a") is True
 
 
 def test_consecutive_no_action_releases_group_focus(monkeypatch: pytest.MonkeyPatch) -> None:

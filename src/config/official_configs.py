@@ -798,6 +798,21 @@ class ExperimentalConfig(ConfigBase):
     )
     """开启后仍正常创建聊天流，但同一时间只有一个 Maisaka 处于活跃关注状态，且忽略聊天频率控制"""
 
+    focus_on_private: bool = Field(
+        default=False,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "私聊启用 Focus",
+                "en_US": "Focus private chats",
+                "ja_JP": "私聊で Focus を有効化",
+            },
+            "x-widget": "switch",
+            "x-icon": "message-circle",
+            "advanced": True,
+        },
+    )
+    """关闭时，Focus 模式只作用于群聊；开启后，群聊和私聊都会进入 Focus。"""
+
     focus_cool_time: int = Field(
         default=120,
         ge=1,

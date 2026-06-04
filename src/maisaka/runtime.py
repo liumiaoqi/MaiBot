@@ -547,8 +547,11 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         self._prune_processed_message_cache()
         if self._is_reply_effect_tracking_enabled():
             asyncio.create_task(self._reply_effect_tracker.observe_user_message(message))
-        if focus_mode_manager.is_enabled():
-            can_enter_focus = focus_mode_manager.try_enter_focus(self.session_id)
+        if focus_mode_manager.is_enabled_for_chat(is_group_chat=self.chat_stream.is_group_session):
+            can_enter_focus = focus_mode_manager.try_enter_focus(
+                self.session_id,
+                is_group_chat=self.chat_stream.is_group_session,
+            )
             if not can_enter_focus and message.is_at:
                 self._maybe_schedule_focus_at_wakeup(trigger_session_id=self.session_id)
             else:
@@ -593,7 +596,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
 
     def _get_effective_reply_frequency(self) -> float:
         """返回当前会话生效的回复频率。"""
-        if focus_mode_manager.is_enabled():
+        if focus_mode_manager.is_enabled_for_chat(is_group_chat=self.chat_stream.is_group_session):
             return 1.0
 
         base_talk_value = self._get_base_reply_frequency()
@@ -908,7 +911,9 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
 
         trigger_reason = self._force_next_timing_reason or "@/提及消息"
         trigger_message_id = self._force_next_timing_message_id or "unknown"
-        if global_config.chat.enable_independent_timing_gate and not focus_mode_manager.is_enabled():
+        if global_config.chat.enable_independent_timing_gate and not focus_mode_manager.is_enabled_for_chat(
+            is_group_chat=self.chat_stream.is_group_session
+        ):
             reason = (
                 f"检测到新的{trigger_reason}（消息编号={trigger_message_id}），"
                 "本轮直接跳过 Timing Gate 并视作 continue。"
@@ -1019,6 +1024,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
             self._chat_history,
             request_kind=request_kind,
             max_context_size=context_message_limit,
+            is_group_chat=self.chat_stream.is_group_session,
         )
         sub_agent_history = self._drop_head_context_messages(
             selected_history,
@@ -1302,7 +1308,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
 
     def _schedule_message_turn(self) -> None:
         """为当前待处理消息安排一次内部 turn。"""
-        if not focus_mode_manager.can_decide(self.session_id):
+        if not focus_mode_manager.can_decide(self.session_id, is_group_chat=self.chat_stream.is_group_session):
             logger.debug(f"{self.log_prefix} 当前不在 focus 状态，跳过 Maisaka 决策调度")
             return
 
