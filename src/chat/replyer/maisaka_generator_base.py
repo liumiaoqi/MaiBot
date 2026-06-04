@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+﻿from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Literal, Optional, Tuple
@@ -38,7 +38,7 @@ from src.config.config import global_config
 from src.config.model_configs import ModelInfo
 from src.core.types import ActionInfo
 from src.llm_models.payload_content.message import Message, MessageBuilder, RoleType
-from src.maisaka.context_messages import (
+from src.maisaka.context.messages import (
     AssistantMessage,
     LLMContextMessage,
     ReferenceMessage,
@@ -47,9 +47,9 @@ from src.maisaka.context_messages import (
     build_llm_message_from_context,
 )
 from src.maisaka.display.prompt_cli_renderer import PromptCLIVisualizer
-from src.maisaka.message_adapter import parse_speaker_content
-from src.maisaka.planner_message_utils import extract_quote_ids_from_message_sequence
-from src.maisaka.visual_message_limiter import limit_latest_images_in_messages
+from src.maisaka.context.message_adapter import parse_speaker_content
+from src.maisaka.context.planner_messages import extract_quote_ids_from_message_sequence
+from src.maisaka.visual.message_limiter import limit_latest_images_in_messages
 from src.plugin_runtime.hook_payloads import deserialize_prompt_messages, serialize_prompt_messages
 
 from .maisaka_expression_selector import maisaka_expression_selector
@@ -266,7 +266,7 @@ class BaseMaisakaReplyGenerator:
         """构建 replyer 的最终输出格式说明。"""
 
         locale = BaseMaisakaReplyGenerator._get_prompt_locale()
-        if not getattr(global_config.chat, "enable_replyer_format_output", False):
+        if not global_config.experimental.enable_replyer_format_output:
             if locale.startswith("en"):
                 return (
                     "Please do not output any extra content (including unnecessary prefixes or suffixes, "
@@ -443,7 +443,7 @@ class BaseMaisakaReplyGenerator:
         return system_prompt
 
     def _build_reply_instruction(self) -> str:
-        if getattr(global_config.chat, "enable_replyer_format_output", False):
+        if global_config.experimental.enable_replyer_format_output:
             return self._build_replyer_output_instruction()
         return "请自然地回复。不要输出多余说明、括号、@ 或额外标记，只输出实际要发送的内容。"
 

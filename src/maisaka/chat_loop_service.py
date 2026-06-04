@@ -1,4 +1,4 @@
-"""Maisaka 对话循环服务。"""
+﻿"""Maisaka 对话循环服务。"""
 
 from dataclasses import dataclass
 from datetime import datetime
@@ -32,19 +32,20 @@ from src.plugin_runtime.hook_schema_utils import build_object_schema
 from src.plugin_runtime.host.hook_spec_registry import HookSpec, HookSpecRegistry
 from src.services.llm_service import LLMServiceClient
 
-from .builtin_tool import get_builtin_tools
-from .context_messages import (
+from src.maisaka.builtin_tool import get_builtin_tools
+from src.maisaka.context.messages import (
     AssistantMessage,
     LLMContextMessage,
     TIMING_GATE_INVALID_TOOL_HINT_SOURCE,
     ToolResultMessage,
     build_llm_message_from_context,
 )
-from .history_utils import drop_orphan_tool_results, normalize_tool_result_order
-from .mid_term_memory import is_mid_term_memory_message
-from .display.prompt_cli_renderer import PromptCLIVisualizer
-from .visual_message_limiter import limit_latest_images_in_messages
-from .visual_mode_utils import resolve_enable_visual_planner
+from src.maisaka.context.history import drop_orphan_tool_results, normalize_tool_result_order
+from src.maisaka.memory.mid_term import is_mid_term_memory_message
+from src.maisaka.display.prompt_cli_renderer import PromptCLIVisualizer
+from src.maisaka.focus import focus_mode_manager
+from src.maisaka.visual.message_limiter import limit_latest_images_in_messages
+from src.maisaka.visual.mode_utils import resolve_enable_visual_planner
 
 TIMING_GATE_TOOL_NAMES = {"continue", "no_action", "wait"}
 REQUEST_TYPE_BY_REQUEST_KIND = {
@@ -719,6 +720,8 @@ class MaisakaChatLoopService:
     def _get_chat_prompt_name() -> str:
         """根据独立 Timing Gate 配置选择 Planner 模板。"""
 
+        if focus_mode_manager.is_enabled():
+            return "maisaka_chat_focus"
         if global_config.chat.enable_independent_timing_gate:
             return "maisaka_chat"
         return "maisaka_chat_merged_timing"
@@ -753,14 +756,20 @@ class MaisakaChatLoopService:
             if private_chat_prompt := str(global_config.chat.private_chat_prompts or "").strip():
                 prompt_lines.append(f"通用注意事项：\n{private_chat_prompt}")
 
-        if self._session_id:
-            if chat_prompt := self._get_chat_prompt_for_chat(self._session_id, self._is_group_chat).strip():
-                prompt_lines.append(f"当前聊天额外注意事项：\n{chat_prompt}")
-
         if not prompt_lines:
             return ""
 
         return "在该聊天中的注意事项：\n" + "\n\n".join(prompt_lines) + "\n"
+
+    def _build_current_chat_attention_tail_message(self) -> str:
+        """构建追加到请求末尾的当前聊天专属注意事项。"""
+
+        if not self._session_id:
+            return ""
+        chat_prompt = self._get_chat_prompt_for_chat(self._session_id, self._is_group_chat).strip()
+        if not chat_prompt:
+            return ""
+        return f"当前聊天额外注意事项：\n{chat_prompt}"
 
     def _build_timing_gate_wait_rule(self) -> str:
         """构造 Timing Gate 中 wait 工具的场景说明。"""
@@ -818,6 +827,7 @@ class MaisakaChatLoopService:
         *,
         enable_visual_message: bool,
         injected_user_messages: Sequence[str] | None = None,
+        tail_user_messages: Sequence[str] | None = None,
         system_prompt: Optional[str] = None,
     ) -> List[Message]:
         """构造发给大模型的消息列表。
@@ -849,9 +859,12 @@ class MaisakaChatLoopService:
                 messages.append(llm_message)
 
         normalized_injected_messages: List[Message] = []
+        current_chat_attention = self._build_current_chat_attention_tail_message()
         final_user_messages = [
             *(injected_user_messages or []),
             self._build_current_time_user_message(),
+            *(tail_user_messages or []),
+            current_chat_attention,
         ]
         for injected_message in final_user_messages:
             normalized_message = str(injected_message or "").strip()
@@ -877,6 +890,8 @@ class MaisakaChatLoopService:
         request_kind: str = "planner",
         response_format: RespFormat | None = None,
         tool_definitions: Sequence[ToolDefinitionInput] | None = None,
+        max_context_size: Optional[int] = None,
+        tail_user_messages: Sequence[str] | None = None,
     ) -> ChatResponse:
         """执行一轮 Maisaka 规划器请求。
 
@@ -892,11 +907,13 @@ class MaisakaChatLoopService:
             chat_history,
             request_kind=request_kind,
             enable_visual_message=enable_visual_message,
+            max_context_size=max_context_size,
         )
         built_messages = self._build_request_messages(
             selected_history,
             enable_visual_message=enable_visual_message,
             injected_user_messages=injected_user_messages,
+            tail_user_messages=tail_user_messages,
         )
         if enable_visual_message:
             built_messages = limit_latest_images_in_messages(
@@ -1230,7 +1247,7 @@ class MaisakaChatLoopService:
         if request_kind != "planner":
             return selected_history
 
-        if not global_config.chat.enable_independent_timing_gate:
+        if not global_config.chat.enable_independent_timing_gate or focus_mode_manager.is_enabled():
             return selected_history
 
         filtered_history: List[LLMContextMessage] = []

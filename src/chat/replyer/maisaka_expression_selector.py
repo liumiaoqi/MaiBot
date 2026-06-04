@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+﻿from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
@@ -14,7 +14,7 @@ from src.common.logger import get_logger
 from src.common.utils.utils_config import ChatConfigUtils, ExpressionConfigUtils
 from src.config.config import global_config
 from src.learners.learner_utils_old import weighted_sample
-from src.maisaka.context_messages import LLMContextMessage
+from src.maisaka.context.messages import LLMContextMessage
 
 logger = get_logger("maisaka_expression_selector")
 

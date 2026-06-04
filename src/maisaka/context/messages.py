@@ -28,6 +28,9 @@ from src.llm_models.payload_content.tool_option import ToolCall
 
 FORWARD_PREVIEW_LIMIT = 4
 TIMING_GATE_INVALID_TOOL_HINT_SOURCE = "timing_gate_invalid_tool_hint"
+FOCUS_COOLDOWN_WAKEUP_SOURCE = "focus_cooldown_wakeup"
+FOCUS_AT_WAKEUP_SOURCE = "focus_at_wakeup"
+FOCUS_WAKEUP_SOURCE_KINDS = frozenset({FOCUS_COOLDOWN_WAKEUP_SOURCE, FOCUS_AT_WAKEUP_SOURCE})
 
 
 def _guess_image_format(image_bytes: bytes) -> Optional[str]:
@@ -217,7 +220,7 @@ def _render_expandable_dict_component(component: DictComponent) -> str:
     raw_type = str(component.data.get("type") or "").strip().lower()
     raw_payload = component.data.get("data", {})
     if raw_type == "mid_term_memory" and isinstance(raw_payload, dict):
-        from .mid_term_memory import build_mid_term_memory_full_text
+        from src.maisaka.memory.mid_term import build_mid_term_memory_full_text
 
         return build_mid_term_memory_full_text(raw_payload)
     if raw_type == "file" and isinstance(raw_payload, dict):
@@ -325,7 +328,7 @@ def _build_dict_preview_block(component: DictComponent) -> str:
     if raw_type == "mid_term_memory":
         raw_payload = component.data.get("data", {})
         if isinstance(raw_payload, dict):
-            from .mid_term_memory import build_mid_term_memory_preview_text
+            from src.maisaka.memory.mid_term import build_mid_term_memory_preview_text
 
             return build_mid_term_memory_preview_text(raw_payload)
         return "[消息类型]复杂消息"

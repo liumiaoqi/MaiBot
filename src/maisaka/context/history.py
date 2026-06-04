@@ -1,11 +1,11 @@
-"""Maisaka 历史消息处理辅助工具。"""
+﻿"""Maisaka 历史消息处理辅助工具。"""
 
 from typing import TYPE_CHECKING
 
 from src.common.data_models.message_component_data_model import MessageSequence, ReplyComponent, TextComponent
 
-from .context_messages import AssistantMessage, LLMContextMessage, SessionBackedMessage, ToolResultMessage
-from .message_adapter import build_visible_text_from_sequence, clone_message_sequence, format_speaker_content
+from src.maisaka.context.message_adapter import build_visible_text_from_sequence, clone_message_sequence, format_speaker_content
+from .messages import AssistantMessage, LLMContextMessage, SessionBackedMessage, ToolResultMessage
 
 if TYPE_CHECKING:
     from src.chat.message_receive.message import SessionMessage

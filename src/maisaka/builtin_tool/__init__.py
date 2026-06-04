@@ -16,6 +16,8 @@ from .continue_tool import get_tool_spec as get_continue_tool_spec
 from .continue_tool import handle_tool as handle_continue_tool
 from .finish import get_tool_spec as get_finish_tool_spec
 from .finish import handle_tool as handle_finish_tool
+from .fetch_new_message import get_tool_spec as get_fetch_new_message_tool_spec
+from .fetch_new_message import handle_tool as handle_fetch_new_message_tool
 from .get_content import get_tool_spec as get_get_content_tool_spec
 from .get_content import handle_tool as handle_get_content_tool
 from .no_action import get_tool_spec as get_no_action_tool_spec
@@ -34,6 +36,8 @@ from .send_emoji import get_tool_spec as get_send_emoji_tool_spec
 from .send_emoji import handle_tool as handle_send_emoji_tool
 from .send_image import get_tool_spec as get_send_image_tool_spec
 from .send_image import handle_tool as handle_send_image_tool
+from .switch_chat import get_tool_spec as get_switch_chat_tool_spec
+from .switch_chat import handle_tool as handle_switch_chat_tool
 from .tool_search import get_tool_spec as get_tool_search_tool_spec
 from .tool_search import handle_tool as handle_tool_search_tool
 from .view_complex_message import get_tool_spec as get_view_complex_message_tool_spec
@@ -111,6 +115,13 @@ BUILTIN_TOOL_ENTRIES: List[BuiltinToolEntry] = [
     BuiltinToolEntry("browser_content", get_browser_content_tool_spec, handle_browser_content_tool, stage="action"),
     BuiltinToolEntry("get_content", get_get_content_tool_spec, handle_get_content_tool, stage="action"),
     BuiltinToolEntry("tool_search", get_tool_search_tool_spec, handle_tool_search_tool, stage="action"),
+    BuiltinToolEntry(
+        "fetch_new_message",
+        get_fetch_new_message_tool_spec,
+        handle_fetch_new_message_tool,
+        stage="action",
+    ),
+    BuiltinToolEntry("switch_chat", get_switch_chat_tool_spec, handle_switch_chat_tool, stage="action"),
 ]
 
 
@@ -137,9 +148,10 @@ def _is_builtin_tool_enabled_by_config(entry: BuiltinToolEntry) -> bool:
     """根据全局配置判断内置工具是否应暴露。"""
 
     if entry.name in {"send_emoji", "send_image"}:
-        chat_config = getattr(global_config, "chat", None)
-        if bool(getattr(chat_config, "enable_replyer_format_output", False)):
+        if bool(global_config.experimental.enable_replyer_format_output):
             return False
+    if entry.name in {"fetch_new_message", "switch_chat"}:
+        return bool(global_config.experimental.focus_mode)
     return True
 
 

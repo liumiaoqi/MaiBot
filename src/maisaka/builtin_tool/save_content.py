@@ -1,9 +1,9 @@
-"""save_content 内置工具。"""
+﻿"""save_content 内置工具。"""
 
 from typing import Any, Optional
 
 from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
-from src.maisaka.favourite_storage import FavouriteStorageError, save_image_content, save_text_content
+from src.maisaka.favourite.storage import FavouriteStorageError, save_image_content, save_text_content
 
 from .context import BuiltinToolRuntimeContext
 from .send_image import _collect_message_images, _normalize_image_index

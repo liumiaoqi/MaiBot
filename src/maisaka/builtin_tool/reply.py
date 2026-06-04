@@ -1,4 +1,4 @@
-"""reply 内置工具。"""
+﻿"""reply 内置工具。"""
 
 from typing import Any, Optional
 
@@ -10,8 +10,8 @@ from src.common.data_models.reply_generation_data_models import ReplyGenerationR
 from src.common.logger import get_logger
 from src.config import config as config_module
 from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
-from src.maisaka.heuristic_memory_injector import merge_heuristic_memory_reference_for_replyer
-from src.maisaka.message_adapter import build_visible_text_from_sequence
+from src.maisaka.memory.heuristic_injector import merge_heuristic_memory_reference_for_replyer
+from src.maisaka.context.message_adapter import build_visible_text_from_sequence
 from src.services import send_service
 
 from .context import BuiltinToolRuntimeContext

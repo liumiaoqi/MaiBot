@@ -6,15 +6,16 @@ from math import ceil
 
 from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
 
-from .context_messages import (
+from .messages import (
     AssistantMessage,
     ComplexSessionMessage,
+    FOCUS_WAKEUP_SOURCE_KINDS,
     LLMContextMessage,
     SessionBackedMessage,
     ToolResultMessage,
 )
-from .history_utils import drop_leading_orphan_tool_results, drop_orphan_tool_results, normalize_tool_result_order
-from .mid_term_memory import is_mid_term_memory_message
+from .history import drop_leading_orphan_tool_results, drop_orphan_tool_results, normalize_tool_result_order
+from src.maisaka.memory.mid_term import is_mid_term_memory_message
 
 TRIM_TARGET_RATIO = 1.0
 TRIM_THRESHOLD_RATIO = 2.0
@@ -42,7 +43,12 @@ def process_chat_history_after_cycle(
 ) -> HistoryPostProcessResult:
     """在每轮结束后统一执行历史裁切与清理。"""
 
-    processed_history = list(chat_history)
+    processed_history = [
+        message
+        for message in chat_history
+        if message.source not in FOCUS_WAKEUP_SOURCE_KINDS
+    ]
+    one_shot_removed_count = len(chat_history) - len(processed_history)
     processed_history, normalized_removed_count, moved_tool_result_count = _normalize_history_structure(
         processed_history
     )
@@ -78,7 +84,7 @@ def process_chat_history_after_cycle(
         moved_tool_result_count += moved_after_trim_count
 
     remaining_context_count = sum(1 for message in processed_history if message.count_in_context)
-    removed_count = normalized_removed_count + optimized_removed_count + compact_removed_count
+    removed_count = one_shot_removed_count + normalized_removed_count + optimized_removed_count + compact_removed_count
     changed_count = removed_count + moved_tool_result_count
     return HistoryPostProcessResult(
         history=processed_history,

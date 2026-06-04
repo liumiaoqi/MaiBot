@@ -11,8 +11,8 @@ from src.common.database.database_model import Images, ImageType
 from src.common.logger import get_logger
 from src.config.config import config_manager
 
-from .context_messages import LLMContextMessage, SessionBackedMessage
-from .message_adapter import build_visible_text_from_sequence
+from src.maisaka.context.message_adapter import build_visible_text_from_sequence
+from src.maisaka.context.messages import LLMContextMessage, SessionBackedMessage
 
 logger = get_logger("maisaka_chat_history_visual_refresher")
 

@@ -1,9 +1,9 @@
-"""get_content 内置工具。"""
+﻿"""get_content 内置工具。"""
 
 from typing import Any, Optional
 
 from src.core.tooling import ToolContentItem, ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
-from src.maisaka.favourite_storage import (
+from src.maisaka.favourite.storage import (
     FavouriteStorageError,
     find_content_by_id,
     read_binary_item_base64,

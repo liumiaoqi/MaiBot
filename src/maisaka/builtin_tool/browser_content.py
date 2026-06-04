@@ -1,9 +1,9 @@
-"""browser_content 内置工具。"""
+﻿"""browser_content 内置工具。"""
 
 from typing import Any, Optional
 
 from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
-from src.maisaka.favourite_storage import FavouriteStorageError, browse_current_pool
+from src.maisaka.favourite.storage import FavouriteStorageError, browse_current_pool
 
 from .context import BuiltinToolRuntimeContext
 

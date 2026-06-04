@@ -65,6 +65,7 @@ const TOAST_DISPLAY_DELAY = 500
 const TAB_ORDER = [
   'bot',
   'chat',
+  'experimental',
   'expression',
   'a_memorix',
   'visual',
@@ -81,6 +82,7 @@ const TAB_ORDER = [
 const DEFAULT_VISIBLE_TAB_IDS = new Set([
   'bot',
   'chat',
+  'experimental',
   'expression',
   'a_memorix',
   'visual',
@@ -182,6 +184,7 @@ function BotConfigPageContent() {
   const [botConfig, setBotConfig] = useState<ConfigSectionData | null>(null)
   const [personalityConfig, setPersonalityConfig] = useState<ConfigSectionData | null>(null)
   const [chatConfig, setChatConfig] = useState<ConfigSectionData | null>(null)
+  const [experimentalConfig, setExperimentalConfig] = useState<ConfigSectionData | null>(null)
   const [expressionConfig, setExpressionConfig] = useState<ConfigSectionData | null>(null)
   const [jargonConfig, setJargonConfig] = useState<ConfigSectionData | null>(null)
   const [emojiConfig, setEmojiConfig] = useState<ConfigSectionData | null>(null)
@@ -280,6 +283,7 @@ function BotConfigPageContent() {
     setBotConfig((config.bot ?? {}) as ConfigSectionData)
     setPersonalityConfig((config.personality ?? {}) as ConfigSectionData)
     setChatConfig((config.chat ?? {}) as ConfigSectionData)
+    setExperimentalConfig((config.experimental ?? {}) as ConfigSectionData)
     setExpressionConfig((config.expression ?? {}) as ConfigSectionData)
     setJargonConfig((config.jargon ?? {}) as ConfigSectionData)
     setEmojiConfig((config.emoji ?? {}) as ConfigSectionData)
@@ -312,6 +316,7 @@ function BotConfigPageContent() {
       bot: botConfig,
       personality: personalityConfig,
       chat: chatConfig,
+      experimental: experimentalConfig,
       expression: expressionConfig,
       jargon: jargonConfig,
       emoji: emojiConfig,
@@ -337,6 +342,7 @@ function BotConfigPageContent() {
     botConfig,
     personalityConfig,
     chatConfig,
+    experimentalConfig,
     expressionConfig,
     jargonConfig,
     emojiConfig,
@@ -474,6 +480,7 @@ function BotConfigPageContent() {
   useConfigAutoSave(botConfig, 'bot', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(personalityConfig, 'personality', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(chatConfig, 'chat', initialLoadRef.current, triggerAutoSave)
+  useConfigAutoSave(experimentalConfig, 'experimental', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(expressionConfig, 'expression', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(jargonConfig, 'jargon', initialLoadRef.current, triggerAutoSave)
   useConfigAutoSave(emojiConfig, 'emoji', initialLoadRef.current, triggerAutoSave)
@@ -706,6 +713,7 @@ function BotConfigPageContent() {
       bot: botConfig,
       personality: personalityConfig,
       chat: chatConfig,
+      experimental: experimentalConfig,
       expression: expressionConfig,
       jargon: jargonConfig,
       emoji: emojiConfig,
@@ -731,6 +739,7 @@ function BotConfigPageContent() {
       botConfig,
       personalityConfig,
       chatConfig,
+      experimentalConfig,
       expressionConfig,
       jargonConfig,
       emojiConfig,
@@ -759,6 +768,7 @@ function BotConfigPageContent() {
       bot: setBotConfig,
       personality: setPersonalityConfig,
       chat: setChatConfig,
+      experimental: setExperimentalConfig,
       expression: setExpressionConfig,
       jargon: setJargonConfig,
       emoji: setEmojiConfig,

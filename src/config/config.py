@@ -23,6 +23,7 @@ from .official_configs import (
     DatabaseConfig,
     DebugConfig,
     EmojiConfig,
+    ExperimentalConfig,
     ExpressionConfig,
     FavouriteConfig,
     JargonConfig,
@@ -60,7 +61,7 @@ MODEL_CONFIG_PATH: Path = (CONFIG_DIR / "model_config.toml").resolve().absolute(
 LEGACY_ENV_PATH: Path = (PROJECT_ROOT / ".env").resolve().absolute()
 A_MEMORIX_LEGACY_CONFIG_PATH: Path = (CONFIG_DIR / "a_memorix.toml").resolve().absolute()
 MMC_VERSION: str = "1.0.0-rc.5"
-CONFIG_VERSION: str = "8.12.31"
+CONFIG_VERSION: str = "8.12.35"
 MODEL_CONFIG_VERSION: str = "1.17.3"
 
 logger = get_logger("config")
@@ -80,6 +81,9 @@ class Config(ConfigBase):
 
     chat: ChatConfig = Field(default_factory=ChatConfig)
     """聊天配置类"""
+
+    experimental: ExperimentalConfig = Field(default_factory=ExperimentalConfig)
+    """实验性功能配置类"""
 
     favourite: FavouriteConfig = Field(default_factory=FavouriteConfig)
     """麦麦收藏配置类"""

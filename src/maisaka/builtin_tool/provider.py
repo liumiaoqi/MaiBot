@@ -14,7 +14,7 @@ from src.core.tooling import (
     ToolSpec,
 )
 
-from .builtin_tool import get_all_builtin_tool_specs
+from . import get_all_builtin_tool_specs
 
 BuiltinToolHandler = Callable[[ToolInvocation, Optional[ToolExecutionContext]], Awaitable[ToolExecutionResult]]
 

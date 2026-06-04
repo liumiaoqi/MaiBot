@@ -320,21 +320,6 @@ async def _broadcast(event: str, data: Dict[str, Any]) -> None:
         from src.webui.routers.websocket.manager import websocket_manager
 
         data = _enrich_session_identity(data)
-        subscription_key = f"{MONITOR_DOMAIN}:{MONITOR_TOPIC}"
-        total_connections = len(websocket_manager.connections)
-        subscriber_count = sum(
-            1
-            for connection in websocket_manager.connections.values()
-            if subscription_key in connection.subscriptions
-        )
-# The above code is using the Python logging module to log a diagnostic message. It is logging
-# information about the `_broadcast` function, including the `manager_id`, `total_connections`,
-# `subscriber_count`, and `event` variables. The `logger.info()` function is used to log the message
-# at the INFO level.
-        # logger.info(
-        #     f"[诊断] _broadcast: manager_id={id(websocket_manager)} "
-        #     f"总连接={total_connections} 订阅者={subscriber_count} event={event}"
-        # )
         await websocket_manager.broadcast_to_topic(
             domain=MONITOR_DOMAIN,
             topic=MONITOR_TOPIC,

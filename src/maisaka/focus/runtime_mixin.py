@@ -1,0 +1,620 @@
+﻿"""Focus-mode helpers for the Maisaka runtime."""
+
+from __future__ import annotations
+
+from copy import deepcopy
+from datetime import datetime
+from html import escape
+from typing import Any, Literal, Optional, Sequence
+
+import asyncio
+import time
+
+from src.chat.message_receive.chat_manager import BotChatSession, chat_manager
+from src.chat.message_receive.message import SessionMessage
+from src.common.data_models.mai_message_data_model import MessageInfo
+from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
+from src.common.logger import get_logger
+from src.common.message_repository import find_messages
+from src.config.config import global_config
+
+from src.maisaka.context.messages import (
+    FOCUS_AT_WAKEUP_SOURCE,
+    FOCUS_COOLDOWN_WAKEUP_SOURCE,
+    FOCUS_WAKEUP_SOURCE_KINDS,
+    LLMContextMessage,
+    SessionBackedMessage,
+    ToolResultMessage,
+)
+from .manager import FocusTargetResolution, focus_mode_manager
+
+FOCUS_SWITCH_NEW_MESSAGE_LIMIT = 20
+FOCUS_NO_ACTION_STAGNATION_THRESHOLD = 10
+FOCUS_NO_ACTION_STAGNATION_SOURCE = "focus_no_action_stagnation"
+FOCUS_NO_ACTION_STAGNATION_TEXT = "长期没有感兴趣的内容，是否考虑去其他群看看"
+
+logger = get_logger("maisaka_runtime")
+
+
+class MaisakaFocusRuntimeMixin:
+    """Focus-mode behavior mixed into the session runtime."""
+
+    def _get_pending_attention_flags(self) -> tuple[bool, bool]:
+        """Return whether pending messages contain @ or mention signals."""
+
+        pending_messages = self.message_cache[self._last_processed_index :]
+        has_pending_at = any(message.is_at for message in pending_messages)
+        has_pending_mention = any(message.is_mentioned for message in pending_messages)
+        return has_pending_at, has_pending_mention
+
+    def _mark_focus_pending_messages_read(self) -> None:
+        """Refresh unread and attention flags after focus-mode manual reading."""
+
+        self._last_processed_index = len(self.message_cache)
+        self._message_turn_scheduled = False
+        self._message_debounce_required = False
+        self._force_next_timing_continue = False
+        self._force_next_timing_message_id = ""
+        self._force_next_timing_reason = ""
+        self._cancel_deferred_message_turn_task()
+        focus_mode_manager.mark_read(self.session_id)
+
+    async def build_session_messages_as_user_history(
+        self,
+        messages: Sequence[SessionMessage],
+        *,
+        source_kind: str = "user",
+        existing_history: Optional[Sequence[LLMContextMessage]] = None,
+    ) -> list[LLMContextMessage]:
+        """Build recalled real messages as normal planner user messages."""
+
+        existing_messages = self._chat_history if existing_history is None else existing_history
+        seen_message_ids = {
+            str(getattr(history_message, "message_id", "") or "").strip()
+            for history_message in existing_messages
+            if str(getattr(history_message, "message_id", "") or "").strip()
+        }
+        history_messages: list[LLMContextMessage] = []
+        for message in messages:
+            message_id = str(message.message_id or "").strip()
+            if not message_id or message_id in seen_message_ids:
+                continue
+            history_message = await self._reasoning_engine._build_history_message(message, source_kind=source_kind)
+            if history_message is None:
+                continue
+            history_messages.append(history_message)
+            seen_message_ids.add(message_id)
+
+        return history_messages
+
+    def record_no_action_cycle_result(self, cycle_end_reason: str) -> None:
+        """Track consecutive no_action cycles and add a focus-mode stagnation hint."""
+
+        if not focus_mode_manager.is_enabled():
+            self._consecutive_no_action_count = 0
+            return
+
+        if cycle_end_reason not in {"timing_no_action", "tool_pause:no_action"}:
+            self._consecutive_no_action_count = 0
+            return
+
+        self._consecutive_no_action_count += 1
+        if self._consecutive_no_action_count < FOCUS_NO_ACTION_STAGNATION_THRESHOLD:
+            return
+
+        self._consecutive_no_action_count = 0
+        self._append_no_action_stagnation_hint()
+
+    def _append_no_action_stagnation_hint(self) -> None:
+        """Append the focus-mode stagnation hint as a special user context message."""
+
+        hint_timestamp = datetime.now()
+        hint_message_id = f"focus_no_action_stagnation:{int(time.time() * 1000)}"
+        hint_text = (
+            f'<focus_no_action_stagnation consecutive_no_action_count="{FOCUS_NO_ACTION_STAGNATION_THRESHOLD}">\n'
+            f"{FOCUS_NO_ACTION_STAGNATION_TEXT}\n"
+            "</focus_no_action_stagnation>"
+        )
+        self._chat_history.append(
+            SessionBackedMessage(
+                raw_message=MessageSequence([TextComponent(hint_text)]),
+                visible_text=hint_text,
+                timestamp=hint_timestamp,
+                message_id=hint_message_id,
+                source_kind=FOCUS_NO_ACTION_STAGNATION_SOURCE,
+            )
+        )
+        logger.info(
+            f"{self.log_prefix} 连续 {FOCUS_NO_ACTION_STAGNATION_THRESHOLD} 次 no_action，"
+            "已插入 focus 模式停滞提示"
+        )
+
+    def _cancel_focus_cooldown_timer_task(self) -> None:
+        """Cancel the focus-mode cool-time timer."""
+
+        if self._focus_cooldown_timer_task is None:
+            return
+        self._focus_cooldown_timer_task.cancel()
+        self._focus_cooldown_timer_task = None
+
+    def _arm_focus_cooldown_timer(self) -> None:
+        """Start a timer that wakes this focused chat when other chats stay unread."""
+
+        self._cancel_focus_cooldown_timer_task()
+        if not self._running or not focus_mode_manager.can_decide(self.session_id):
+            return
+        self._focus_cooldown_timer_task = asyncio.create_task(self._run_focus_cooldown_timer())
+
+    async def _run_focus_cooldown_timer(self) -> None:
+        """Check focus cool-time once after the configured delay."""
+
+        try:
+            await asyncio.sleep(focus_mode_manager.get_focus_cool_time())
+            if not self._running or not focus_mode_manager.can_decide(self.session_id):
+                return
+
+            from src.chat.heart_flow.heartflow_manager import heartflow_manager
+
+            running_runtimes = list(heartflow_manager.heartflow_chat_list.values())
+            if self._select_focus_cooldown_wakeup_runtime(running_runtimes) is not self:
+                return
+            trigger_session_id = self._find_pending_other_focus_chat_id(running_runtimes, self.session_id)
+            if not trigger_session_id:
+                return
+            self._queue_focus_cooldown_wakeup(trigger_session_id=trigger_session_id)
+        except asyncio.CancelledError:
+            return
+        finally:
+            if self._focus_cooldown_timer_task is asyncio.current_task():
+                self._focus_cooldown_timer_task = None
+
+    def resolve_running_focus_session_from_args(self, arguments: dict[str, Any]) -> FocusTargetResolution:
+        """Resolve focus tool target from currently running heartflow chats."""
+
+        from src.chat.heart_flow.heartflow_manager import heartflow_manager
+
+        running_sessions = [
+            runtime.chat_stream
+            for runtime in heartflow_manager.heartflow_chat_list.values()
+        ]
+        return focus_mode_manager.resolve_session_from_args(arguments, running_sessions)
+
+    def _maybe_schedule_focus_cooldown_wakeup(self, *, trigger_session_id: str) -> None:
+        """Wake one idle focused chat when other running chats have pending messages."""
+
+        if not focus_mode_manager.is_enabled():
+            return
+
+        from src.chat.heart_flow.heartflow_manager import heartflow_manager
+
+        running_runtimes = list(heartflow_manager.heartflow_chat_list.values())
+        target_runtime = self._select_focus_cooldown_wakeup_runtime(
+            running_runtimes,
+            trigger_session_id=trigger_session_id,
+        )
+        if target_runtime is None:
+            return
+        target_runtime._queue_focus_cooldown_wakeup(trigger_session_id=trigger_session_id)
+
+    def _maybe_schedule_focus_at_wakeup(self, *, trigger_session_id: str) -> None:
+        """Wake one focused chat immediately when another running chat @mentions Maibot."""
+
+        if not focus_mode_manager.is_enabled():
+            return
+
+        from src.chat.heart_flow.heartflow_manager import heartflow_manager
+
+        running_runtimes = list(heartflow_manager.heartflow_chat_list.values())
+        target_runtime = self._select_focus_cooldown_wakeup_runtime(
+            running_runtimes,
+            trigger_session_id=trigger_session_id,
+            ignore_cool_time=True,
+        )
+        if target_runtime is None:
+            return
+        target_runtime._queue_focus_cooldown_wakeup(
+            trigger_session_id=trigger_session_id,
+            wakeup_reason="at",
+        )
+
+    @staticmethod
+    def _select_focus_cooldown_wakeup_runtime(
+        running_runtimes: Sequence[Any],
+        *,
+        trigger_session_id: str = "",
+        ignore_cool_time: bool = False,
+    ) -> Any | None:
+        now = time.time()
+        eligible_runtimes: list[tuple[float, Any]] = []
+        for runtime in running_runtimes:
+            if not focus_mode_manager.is_in_focus_set(runtime.session_id):
+                continue
+            if runtime._agent_state == runtime._STATE_RUNNING:
+                continue
+            if runtime._focus_cooldown_wakeup_scheduled:
+                continue
+            if runtime._proactive_anchor_message is not None:
+                continue
+            if runtime._message_turn_scheduled and runtime._has_pending_messages():
+                continue
+            if not ignore_cool_time and not focus_mode_manager.is_cycle_cool_time_elapsed(runtime.session_id, now=now):
+                continue
+            if not MaisakaFocusRuntimeMixin._find_pending_other_focus_chat_id(
+                running_runtimes,
+                runtime.session_id,
+            ):
+                continue
+
+            last_cycle_at = focus_mode_manager.get_last_cycle_at(runtime.session_id) or 0.0
+            eligible_runtimes.append((last_cycle_at, runtime))
+
+        if not eligible_runtimes:
+            return None
+        eligible_runtimes.sort(key=lambda item: (item[0], item[1].session_id != trigger_session_id))
+        return eligible_runtimes[0][1]
+
+    @staticmethod
+    def _find_pending_other_focus_chat_id(
+        running_runtimes: Sequence[Any],
+        focus_session_id: str,
+    ) -> str:
+        for runtime in running_runtimes:
+            if runtime.session_id == focus_session_id:
+                continue
+            if runtime._get_pending_message_count() > 0:
+                return runtime.session_id
+        return ""
+
+    def _queue_focus_cooldown_wakeup(
+        self,
+        *,
+        trigger_session_id: str,
+        wakeup_reason: Literal["cooldown", "at"] = "cooldown",
+    ) -> bool:
+        """Queue a proactive focus-mode wake-up turn."""
+
+        if self._focus_cooldown_wakeup_scheduled or not focus_mode_manager.can_decide(self.session_id):
+            return False
+        if self._agent_state == self._STATE_RUNNING:
+            return False
+
+        trigger_name = chat_manager.get_session_name(trigger_session_id) or trigger_session_id
+        bot_name = global_config.bot.nickname.strip()
+        wakeup_timestamp = datetime.now()
+        wakeup_id = f"focus_{wakeup_reason}:{int(time.time() * 1000)}"
+        if wakeup_reason == "at":
+            reason_text = (
+                f"{trigger_name} 有人 @ {bot_name}，已无视 focus_cool_time 强制触发一次 Focus 模式思考。"
+            )
+        else:
+            reason_text = (
+                f"Focus 模式冷却时间已到，且 {trigger_name} 有尚未进入 Maisaka 决策的新消息。"
+            )
+        wakeup_notice = (
+            f'<focus_cooldown_wakeup trigger_chat_id="{escape(trigger_session_id, quote=True)}" '
+            f'focus_cool_time="{focus_mode_manager.get_focus_cool_time():.0f}" '
+            f'reason="{escape(wakeup_reason, quote=True)}">\n'
+            f"{reason_text}\n"
+            "请结合最新的 focus_chat_overview 判断是否需要切换或处理其它聊天。\n"
+            "</focus_cooldown_wakeup>"
+        )
+        wakeup_message = SessionMessage(
+            message_id=wakeup_id,
+            timestamp=wakeup_timestamp,
+            platform=self.chat_stream.platform,
+        )
+        wakeup_message.session_id = self.session_id
+        wakeup_message.message_info = MessageInfo(
+            user_info=self._build_runtime_user_info(),
+            group_info=self._build_group_info(),
+            additional_config={},
+        )
+        wakeup_message.raw_message = MessageSequence([TextComponent(wakeup_notice)])
+        wakeup_message.processed_plain_text = wakeup_notice
+
+        self._chat_history.append(
+            SessionBackedMessage.from_session_message(
+                wakeup_message,
+                raw_message=wakeup_message.raw_message,
+                visible_text=wakeup_notice,
+                source_kind=FOCUS_AT_WAKEUP_SOURCE if wakeup_reason == "at" else FOCUS_COOLDOWN_WAKEUP_SOURCE,
+            )
+        )
+        self._proactive_anchor_message = wakeup_message
+        self._focus_cooldown_wakeup_scheduled = True
+        if self._agent_state == self._STATE_WAIT:
+            self._agent_state = self._STATE_RUNNING
+            self._pending_wait_tool_call_id = None
+            self._cancel_wait_timeout_task()
+        self._internal_turn_queue.put_nowait("proactive")
+        logger.info(
+            f"{self.log_prefix} focus_mode 强制唤醒已排队: "
+            f"trigger_session_id={trigger_session_id} reason={wakeup_reason} "
+            f"cool_time={focus_mode_manager.get_focus_cool_time():.0f}s"
+        )
+        return True
+
+    def build_focus_tail_user_messages(self) -> list[str]:
+        """Build tail user messages injected at the end of focus-mode planner requests."""
+
+        if not focus_mode_manager.is_enabled() or not focus_mode_manager.can_decide(self.session_id):
+            return []
+        overview_message = self._build_focus_chat_overview_message()
+        return [overview_message] if overview_message else []
+
+    def _build_focus_chat_overview_message(self) -> str:
+        """Build a focus-mode overview for currently running chat sessions."""
+
+        from src.chat.heart_flow.heartflow_manager import heartflow_manager
+
+        running_runtimes = sorted(
+            heartflow_manager.heartflow_chat_list.values(),
+            key=lambda runtime: runtime.chat_stream.last_active_timestamp
+            or runtime.chat_stream.created_timestamp,
+            reverse=True,
+        )
+        bot_name = global_config.bot.nickname.strip()
+        lines = [
+            f'<focus_chat_overview current_chat_id="{escape(self.session_id, quote=True)}">',
+            "以下是当前运行中已创建聊天的状态。未读数表示尚未阅读处理的消息数；"
+        ]
+        for chat_runtime in running_runtimes:
+            chat_session = chat_runtime.chat_stream
+            unread_count = chat_runtime._get_pending_message_count()
+            has_pending_at, has_pending_mention = chat_runtime._get_pending_attention_flags()
+            latest_messages = self._get_latest_messages_for_focus_overview(chat_session, chat_runtime)
+            chat_type = "group" if chat_session.is_group_session else "private"
+            target_id = chat_session.group_id if chat_session.is_group_session else chat_session.user_id
+            last_read_at = focus_mode_manager.get_last_read_at(chat_session.session_id)
+            chat_lines = [
+                f'  <chat chat_id="{escape(chat_session.session_id, quote=True)}" '
+                f'platform="{escape(chat_session.platform, quote=True)}" '
+                f'id="{escape(target_id or "", quote=True)}" '
+                f'type="{escape(chat_type, quote=True)}">',
+                f"    未读（未决策消息）消息数: {unread_count}",
+            ]
+            if has_pending_at:
+                chat_lines.append(f"    是否有人 @ {bot_name}: 是")
+            if has_pending_mention:
+                chat_lines.append(f"    是否有人提及{bot_name}: 是")
+            chat_lines.extend(
+                [
+                    "    最新一条消息:",
+                    *self._format_focus_latest_messages(latest_messages),
+                    f"    上次阅读时间: {self._format_focus_datetime(last_read_at)}",
+                    "  </chat>",
+                ]
+            )
+            lines.extend(chat_lines)
+        lines.append("</focus_chat_overview>")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _get_latest_messages_for_focus_overview(
+        chat_session: BotChatSession,
+        chat_runtime: Any | None,
+        limit: int = 1,
+    ) -> list[SessionMessage]:
+        """Return the latest known messages for a chat session."""
+
+        if chat_runtime is not None and chat_runtime.message_cache:
+            return chat_runtime.message_cache[-max(1, int(limit)) :]
+        if latest_message := chat_manager.last_messages.get(chat_session.session_id):
+            return [latest_message]
+        return []
+
+    @staticmethod
+    def _format_focus_datetime(value: Optional[datetime]) -> str:
+        if value is None:
+            return "未阅读"
+        return value.isoformat(timespec="seconds")
+
+    @staticmethod
+    def _format_focus_latest_messages(messages: Sequence[SessionMessage], max_length: int = 160) -> list[str]:
+        if not messages:
+            return ["      无"]
+
+        return [
+            f"      [{index}] {MaisakaFocusRuntimeMixin._format_focus_latest_message(message, max_length=max_length)}"
+            for index, message in enumerate(messages, start=1)
+        ]
+
+    @staticmethod
+    def _format_focus_latest_message(message: SessionMessage, max_length: int = 160) -> str:
+        user_info = message.message_info.user_info
+        speaker_name = user_info.user_cardname or user_info.user_nickname or user_info.user_id
+        text = str(message.processed_plain_text or "").strip()
+        if not text:
+            text = "[空消息]"
+        text = " ".join(text.split())
+        if len(text) > max_length:
+            text = f"{text[:max_length]}..."
+        return f"{message.timestamp.isoformat(timespec='seconds')} {speaker_name}: {text}"
+
+    def _get_focus_switch_new_messages(self, *, limit: int = FOCUS_SWITCH_NEW_MESSAGE_LIMIT) -> list[SessionMessage]:
+        """Return pending new messages shown automatically after switch_chat."""
+
+        safe_limit = max(1, int(limit))
+        pending_messages = self.message_cache[self._last_processed_index :]
+        if not pending_messages:
+            return []
+
+        unique_messages: list[SessionMessage] = []
+        seen_message_ids: set[str] = set()
+        for message in pending_messages:
+            message_id = str(message.message_id or "").strip()
+            if message_id:
+                if message_id in seen_message_ids:
+                    continue
+                seen_message_ids.add(message_id)
+            unique_messages.append(message)
+        return unique_messages[-safe_limit:]
+
+    async def build_focus_fetch_messages_result(
+        self,
+        target_session: BotChatSession,
+        *,
+        page: int,
+        num: int,
+    ) -> tuple[str, dict[str, Any], list[LLMContextMessage]]:
+        """Fetch latest messages for a focus-mode target chat."""
+
+        safe_page = max(1, int(page))
+        safe_num = min(50, max(1, int(num)))
+        fetch_limit = safe_page * safe_num
+        messages = await asyncio.to_thread(
+            find_messages,
+            session_id=target_session.session_id,
+            limit=fetch_limit,
+            limit_mode="latest",
+            filter_command=True,
+        )
+        end_index = max(0, len(messages) - (safe_page - 1) * safe_num)
+        start_index = max(0, end_index - safe_num)
+        page_messages = messages[start_index:end_index]
+        focus_mode_manager.mark_read(target_session.session_id)
+        post_history_messages = await self.build_session_messages_as_user_history(
+            page_messages,
+            source_kind="user",
+        )
+
+        chat_type = "group" if target_session.is_group_session else "private"
+        target_id = target_session.group_id if target_session.is_group_session else target_session.user_id
+        lines = [
+            f"已获取 chat_id={target_session.session_id} 的最新消息，这不是当前聊天。",
+            f"平台: {target_session.platform}",
+            f"id: {target_id or ''}",
+            f"类型: {chat_type}",
+            f"页: {safe_page}",
+            f"每页数量: {safe_num}",
+            f"召回消息数: {len(page_messages)}",
+            f"新增为普通 user message 的消息数: {len(post_history_messages)}",
+            "召回到的消息已按普通用户消息格式逐条加入上下文，可直接用各自 msg_id 引用。",
+        ]
+
+        structured_content = {
+            "chat_id": target_session.session_id,
+            "platform": target_session.platform,
+            "id": target_id or "",
+            "type": chat_type,
+            "page": safe_page,
+            "num": safe_num,
+            "messages": [
+                {
+                    "message_id": message.message_id,
+                    "timestamp": message.timestamp.isoformat(timespec="seconds"),
+                    "user_id": message.message_info.user_info.user_id,
+                    "user_name": (
+                        message.message_info.user_info.user_cardname
+                        or message.message_info.user_info.user_nickname
+                        or message.message_info.user_info.user_id
+                    ),
+                    "text": str(message.processed_plain_text or "").strip(),
+                }
+                for message in page_messages
+            ],
+        }
+        return "\n".join(lines), structured_content, post_history_messages
+
+    async def switch_focus_to_session(
+        self,
+        target_session: BotChatSession,
+        *,
+        tool_call_id: str,
+        tool_name: str,
+    ) -> tuple[bool, str, dict[str, Any], dict[str, Any]]:
+        """Switch the current focus slot to another chat and copy context there."""
+
+        if not focus_mode_manager.is_enabled():
+            return False, "focus_mode 未启用，不能切换聊天。", {}, {}
+        if target_session.session_id == self.session_id:
+            return False, "目标聊天就是当前聊天，不能切换到自身。", {}, {}
+
+        from src.chat.heart_flow.heartflow_manager import heartflow_manager
+
+        target_runtime = heartflow_manager.heartflow_chat_list.get(target_session.session_id)
+        if target_runtime is None:
+            return False, f"chat_id={target_session.session_id} 当前不是运行中已创建聊天，不能切换。", {}, {}
+
+        switch_error = focus_mode_manager.switch_focus(self.session_id, target_session.session_id)
+        if switch_error:
+            return False, switch_error, {}, {}
+
+        target_unread_count = target_runtime._get_pending_message_count()
+        switch_new_messages = target_runtime._get_focus_switch_new_messages(limit=FOCUS_SWITCH_NEW_MESSAGE_LIMIT)
+        copied_history = deepcopy(
+            [
+                message
+                for message in self._chat_history
+                if message.source not in FOCUS_WAKEUP_SOURCE_KINDS
+            ]
+        )
+        recent_context_messages = await target_runtime.build_session_messages_as_user_history(
+            switch_new_messages,
+            source_kind="user",
+            existing_history=copied_history,
+        )
+        result_content = (
+            f"已从 chat_id={self.session_id} 切换到 chat_id={target_session.session_id}。"
+            f"已按普通 user message 格式接入新聊天未读新消息 {len(recent_context_messages)} 条"
+            f"（未读 {target_unread_count} 条，最多自动接入 {FOCUS_SWITCH_NEW_MESSAGE_LIMIT} 条）。"
+        )
+        if tool_call_id:
+            copied_history.append(
+                ToolResultMessage(
+                    content=result_content,
+                    timestamp=datetime.now(),
+                    tool_call_id=tool_call_id,
+                    tool_name=tool_name,
+                )
+            )
+
+        target_runtime._mark_focus_pending_messages_read()
+        switch_timestamp = datetime.now()
+        switch_message_id = f"focus_switch:{int(time.time() * 1000)}"
+        switch_notice = (
+            f'<focus_switch from_chat_id="{escape(self.session_id, quote=True)}" '
+            f'to_chat_id="{escape(target_session.session_id, quote=True)}">\n'
+            f"已经切换到 chat_id={target_session.session_id}。"
+            "后续决策应以这个聊天为当前聊天；原聊天已经不在关注状态。\n"
+            f"下面已按普通 user message 格式接入这个聊天未读新消息 {len(recent_context_messages)} 条"
+            f"（未读 {target_unread_count} 条，最多 {FOCUS_SWITCH_NEW_MESSAGE_LIMIT} 条）。\n"
+            "</focus_switch>"
+        )
+        switch_anchor_message = SessionMessage(
+            message_id=switch_message_id,
+            timestamp=switch_timestamp,
+            platform=target_session.platform,
+        )
+        switch_anchor_message.session_id = target_session.session_id
+        switch_anchor_message.message_info = MessageInfo(
+            user_info=target_runtime._build_runtime_user_info(),
+            group_info=target_runtime._build_group_info(),
+            additional_config={},
+        )
+        switch_anchor_message.raw_message = MessageSequence([TextComponent(switch_notice)])
+        switch_anchor_message.processed_plain_text = switch_notice
+
+        copied_history.append(
+            SessionBackedMessage.from_session_message(
+                switch_anchor_message,
+                raw_message=switch_anchor_message.raw_message,
+                visible_text=switch_notice,
+                source_kind="focus_switch",
+            )
+        )
+        copied_history.extend(recent_context_messages)
+        target_runtime._chat_history = copied_history
+        target_runtime._message_turn_scheduled = False
+        target_runtime._message_debounce_required = False
+        target_runtime._proactive_anchor_message = switch_anchor_message
+        target_runtime._enter_stop_state()
+        target_runtime._internal_turn_queue.put_nowait("proactive")
+
+        self._enter_stop_state()
+        structured_content = {
+            "from_chat_id": self.session_id,
+            "to_chat_id": target_session.session_id,
+        }
+        metadata = {"pause_execution": True, "record_display_prompt": result_content}
+        return True, result_content, structured_content, metadata

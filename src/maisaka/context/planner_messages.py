@@ -1,4 +1,4 @@
-"""Maisaka 规划器消息构造工具。"""
+﻿"""Maisaka 规划器消息构造工具。"""
 
 from datetime import datetime
 from html import escape
@@ -11,8 +11,8 @@ from src.common.data_models.message_component_data_model import (
     TextComponent,
 )
 
-from .context_messages import SessionBackedMessage
-from .message_adapter import format_speaker_content
+from src.maisaka.context.message_adapter import format_speaker_content
+from .messages import SessionBackedMessage
 
 
 def build_planner_prefix(
@@ -21,6 +21,7 @@ def build_planner_prefix(
     user_name: str,
     group_card: str = "",
     message_id: Optional[str] = None,
+    chat_id: Optional[str] = None,
     quote_ids: Optional[Sequence[str]] = None,
     include_message_id: bool = True,
 ) -> str:
@@ -41,6 +42,10 @@ def build_planner_prefix(
     message_attrs: list[str] = []
     if include_message_id:
         message_attrs.append(f'msg_id="{escape(message_id or "", quote=True)}"')
+
+    normalized_chat_id = str(chat_id or "").strip()
+    if normalized_chat_id:
+        message_attrs.append(f'chat_id="{escape(normalized_chat_id, quote=True)}"')
 
     normalized_quote = _format_quote_ids(quote_ids)
     if normalized_quote:
@@ -110,6 +115,7 @@ def build_planner_user_prefix_from_session_message(message: SessionMessage) -> s
         user_name=user_name,
         group_card=user_info.user_cardname or "",
         message_id=message.message_id,
+        chat_id=message.session_id,
         quote_ids=extract_quote_ids_from_message_sequence(message.raw_message),
         include_message_id=not message.is_notify and bool(message.message_id),
     )
@@ -123,6 +129,7 @@ def build_session_backed_text_message(
     source_kind: str,
     group_card: str = "",
     message_id: Optional[str] = None,
+    chat_id: Optional[str] = None,
     quote_ids: Optional[Sequence[str]] = None,
     include_message_id: bool = True,
 ) -> SessionBackedMessage:
@@ -147,6 +154,7 @@ def build_session_backed_text_message(
         user_name=speaker_name,
         group_card=group_card,
         message_id=message_id,
+        chat_id=chat_id,
         quote_ids=quote_ids,
         include_message_id=include_message_id,
     )

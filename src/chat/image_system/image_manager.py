@@ -1,4 +1,4 @@
-from datetime import datetime
+﻿from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -198,7 +198,7 @@ class ImageManager:
             return
 
         try:
-            from src.maisaka.chat_history_visual_refresher import log_tracked_image_recognition_completed
+            from src.maisaka.visual.chat_history_refresher import log_tracked_image_recognition_completed
 
             log_tracked_image_recognition_completed(image_hash)
         except Exception as exc:

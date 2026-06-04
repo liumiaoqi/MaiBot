@@ -608,24 +608,6 @@ class ChatConfig(ConfigBase):
     )
     """开启后对回复时机判定更精确，可能消耗更多token"""
 
-    enable_replyer_format_output: bool = Field(
-        default=False,
-        json_schema_extra={
-            "label": {
-                "zh_CN": "Replyer 格式化输出",
-                "en_US": "Replyer formatted output",
-                "ja_JP": "Replyer フォーマット出力",
-            },
-            "x-widget": "switch",
-            "x-icon": "braces",
-            "advanced": True,
-        },
-    )
-    """
-    是否允许 replyer 输出 <text>、<at>、<emoji>、<image> 等格式化片段，
-    并在发送前解析为真实消息组件，可能会影响回复表现
-    """
-
     enable_reply_quote: bool = Field(
         default=True,
         json_schema_extra={
@@ -775,6 +757,65 @@ class ChatConfig(ConfigBase):
     """
     _wrap_思考频率规则列表，支持按聊天流/按日内时段配置。
     """
+
+
+class ExperimentalConfig(ConfigBase):
+    """实验性功能配置类"""
+
+    __ui_label__ = "实验性功能"
+    __ui_icon__ = "flask-conical"
+
+    enable_replyer_format_output: bool = Field(
+        default=False,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "Replyer 格式化输出",
+                "en_US": "Replyer formatted output",
+                "ja_JP": "Replyer フォーマット出力",
+            },
+            "x-widget": "switch",
+            "x-icon": "braces",
+            "advanced": True,
+        },
+    )
+    """
+    是否允许 replyer 输出 <text>、<at>、<emoji>、<image> 等格式化片段，
+    并在发送前解析为真实消息组件，可能会影响回复表现
+    """
+
+    focus_mode: bool = Field(
+        default=False,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "Focus 模式",
+                "en_US": "Focus mode",
+                "ja_JP": "Focus モード",
+            },
+            "x-widget": "switch",
+            "x-icon": "target",
+            "advanced": True,
+        },
+    )
+    """开启后仍正常创建聊天流，但同一时间只有一个 Maisaka 处于活跃关注状态，且忽略聊天频率控制"""
+
+    focus_cool_time: int = Field(
+        default=120,
+        ge=1,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "Focus 冷却时间",
+                "en_US": "Focus cool time",
+                "ja_JP": "Focus クールタイム",
+            },
+            "x-widget": "input",
+            "x-icon": "timer",
+            "x-layout": "inline-right",
+            "x-input-width": "12rem",
+            "x-row": "focus-cool-time",
+            "advanced": True,
+        },
+    )
+    """Focus 模式下关注聊天超过该秒数没有进入循环时，会被其他聊天的新消息唤醒一次"""
 
 
 class FavouriteConfig(ConfigBase):

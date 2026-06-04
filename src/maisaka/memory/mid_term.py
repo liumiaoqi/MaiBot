@@ -24,8 +24,8 @@ from src.llm_models.payload_content.message import (
     TextMessagePart,
 )
 
-from .context_messages import ComplexSessionMessage, LLMContextMessage, build_llm_message_from_context
-from .visual_message_limiter import limit_latest_images_in_messages
+from src.maisaka.context.messages import ComplexSessionMessage, LLMContextMessage, build_llm_message_from_context
+from src.maisaka.visual.message_limiter import limit_latest_images_in_messages
 
 MID_TERM_MEMORY_COMPONENT_TYPE = "mid_term_memory"
 MID_TERM_MEMORY_SOURCE_KIND = "mid_term_memory"

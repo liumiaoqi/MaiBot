@@ -38,6 +38,12 @@ export interface ChatConfig {
   }>
 }
 
+export interface ExperimentalConfig {
+  enable_replyer_format_output: boolean
+  focus_mode: boolean
+  focus_cool_time: number
+}
+
 export interface TargetItem {
   platform: string
   item_id: string
@@ -222,6 +228,7 @@ export interface AllBotConfigs {
   botConfig: BotConfig | null
   personalityConfig: PersonalityConfig | null
   chatConfig: ChatConfig | null
+  experimentalConfig: ExperimentalConfig | null
   expressionConfig: ExpressionConfig | null
   jargonConfig: JargonConfig | null
   emojiConfig: EmojiConfig | null
@@ -245,6 +252,7 @@ export type ConfigSectionName =
   | 'bot'
   | 'personality'
   | 'chat'
+  | 'experimental'
   | 'expression'
   | 'jargon'
   | 'emoji'

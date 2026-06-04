@@ -1,4 +1,4 @@
-"""会话级回复效果观察器。"""
+﻿"""会话级回复效果观察器。"""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import time
 import uuid
 
 from src.chat.message_receive.message import SessionMessage
-from src.maisaka.history_utils import build_session_message_visible_text
+from src.maisaka.context.history import build_session_message_visible_text
 
 from .image_utils import extract_visual_attachments_from_sequence
 from .judge import JudgeRunner, judge_reply_effect
