@@ -265,5 +265,6 @@ export type ConfigSectionName =
   | 'webui'
   | 'database'
   | 'mcp'
+  | 'plugin'
   | 'plugin_runtime'
   | 'a_memorix'

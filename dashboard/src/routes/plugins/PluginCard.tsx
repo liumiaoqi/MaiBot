@@ -55,6 +55,7 @@ export function PluginCard({
               pluginId={plugin.id}
               manifest={plugin.manifest}
               installed={plugin.installed}
+              marketplaceIconUrl={plugin.assets?.icon_64}
               className="h-9 w-9 rounded-md"
               iconClassName="h-4 w-4"
             />
