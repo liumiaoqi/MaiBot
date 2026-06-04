@@ -555,7 +555,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
                 self._maybe_schedule_focus_cooldown_wakeup(trigger_session_id=self.session_id)
             if not can_enter_focus:
                 logger.debug(
-                    f"{self.log_prefix} focus_mode 已启用且关注槽已满，"
+                    f"{self.log_prefix} focus_mode 已启用且当前会话未获得关注槽，"
                     f"仅缓存消息不进入 Maisaka 决策；消息编号={message.message_id}"
                 )
                 return

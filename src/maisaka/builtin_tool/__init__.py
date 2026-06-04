@@ -16,8 +16,8 @@ from .continue_tool import get_tool_spec as get_continue_tool_spec
 from .continue_tool import handle_tool as handle_continue_tool
 from .finish import get_tool_spec as get_finish_tool_spec
 from .finish import handle_tool as handle_finish_tool
-from .fetch_new_message import get_tool_spec as get_fetch_new_message_tool_spec
-from .fetch_new_message import handle_tool as handle_fetch_new_message_tool
+from .fetch_histroy import get_tool_spec as get_fetch_histroy_tool_spec
+from .fetch_histroy import handle_tool as handle_fetch_histroy_tool
 from .get_content import get_tool_spec as get_get_content_tool_spec
 from .get_content import handle_tool as handle_get_content_tool
 from .no_action import get_tool_spec as get_no_action_tool_spec
@@ -116,9 +116,9 @@ BUILTIN_TOOL_ENTRIES: List[BuiltinToolEntry] = [
     BuiltinToolEntry("get_content", get_get_content_tool_spec, handle_get_content_tool, stage="action"),
     BuiltinToolEntry("tool_search", get_tool_search_tool_spec, handle_tool_search_tool, stage="action"),
     BuiltinToolEntry(
-        "fetch_new_message",
-        get_fetch_new_message_tool_spec,
-        handle_fetch_new_message_tool,
+        "fetch_histroy",
+        get_fetch_histroy_tool_spec,
+        handle_fetch_histroy_tool,
         stage="action",
     ),
     BuiltinToolEntry("switch_chat", get_switch_chat_tool_spec, handle_switch_chat_tool, stage="action"),
@@ -150,7 +150,7 @@ def _is_builtin_tool_enabled_by_config(entry: BuiltinToolEntry) -> bool:
     if entry.name in {"send_emoji", "send_image"}:
         if bool(global_config.experimental.enable_replyer_format_output):
             return False
-    if entry.name in {"fetch_new_message", "switch_chat"}:
+    if entry.name in {"fetch_histroy", "switch_chat"}:
         return bool(global_config.experimental.focus_mode)
     return True
 

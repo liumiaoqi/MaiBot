@@ -27,6 +27,7 @@ class FocusModeManager:
 
     def __init__(self) -> None:
         self._focused_session_ids: list[str] = []
+        self._next_focus_blocked_session_id = ""
         self._last_cycle_at_by_session_id: dict[str, float] = {}
         self._last_read_at_by_session_id: dict[str, datetime] = {}
 
@@ -46,10 +47,13 @@ class FocusModeManager:
     def _normalize_state(self) -> None:
         if not self.is_enabled():
             self._focused_session_ids.clear()
+            self._next_focus_blocked_session_id = ""
             return
 
         if len(self._focused_session_ids) > FOCUS_SLOT_LIMIT:
             del self._focused_session_ids[FOCUS_SLOT_LIMIT:]
+        if self._next_focus_blocked_session_id in self._focused_session_ids:
+            self._next_focus_blocked_session_id = ""
 
     def is_in_focus_set(self, session_id: str) -> bool:
         """Return whether a session is explicitly occupying a focus slot."""
@@ -62,6 +66,7 @@ class FocusModeManager:
         """Return whether the session may run Maisaka decision loops right now."""
 
         if not self.is_enabled():
+            self._normalize_state()
             return True
         return self.is_in_focus_set(session_id)
 
@@ -72,15 +77,19 @@ class FocusModeManager:
         if not normalized_session_id:
             return False
         if not self.is_enabled():
+            self._normalize_state()
             return True
 
         self._normalize_state()
         if normalized_session_id in self._focused_session_ids:
             return True
+        if normalized_session_id == self._next_focus_blocked_session_id:
+            return False
         if len(self._focused_session_ids) >= FOCUS_SLOT_LIMIT:
             return False
 
         self._focused_session_ids.append(normalized_session_id)
+        self._next_focus_blocked_session_id = ""
         self._last_cycle_at_by_session_id[normalized_session_id] = time.time()
         return True
 
@@ -96,6 +105,23 @@ class FocusModeManager:
             if focused_session_id != normalized_session_id
         ]
         self._last_cycle_at_by_session_id.pop(normalized_session_id, None)
+
+    def release_focus_and_block_next_entry(self, session_id: str) -> bool:
+        """Remove a focused session and prevent it from claiming the next focus slot."""
+
+        normalized_session_id = str(session_id or "").strip()
+        if not normalized_session_id:
+            return False
+        if not self.is_enabled():
+            self.release_focus(normalized_session_id)
+            return False
+
+        self._normalize_state()
+        was_focused = normalized_session_id in self._focused_session_ids
+        self.release_focus(normalized_session_id)
+        if was_focused:
+            self._next_focus_blocked_session_id = normalized_session_id
+        return was_focused
 
     def switch_focus(self, from_session_id: str, to_session_id: str) -> str:
         """Move one focus slot from the current session to another existing session.
@@ -113,11 +139,14 @@ class FocusModeManager:
             return "缺少要切换到的 chat_id。"
         if normalized_to_session_id in self._focused_session_ids:
             return f"chat_id={normalized_to_session_id} 已经处于关注状态，不能切换到已关注聊天。"
+        if normalized_to_session_id == self._next_focus_blocked_session_id:
+            return f"chat_id={normalized_to_session_id} 刚因连续 no_action 退出 Focus，本次不能切换回该聊天。"
         if normalized_from_session_id not in self._focused_session_ids:
             return f"当前 chat_id={normalized_from_session_id} 不在关注状态，不能发起切换。"
 
         self.release_focus(normalized_from_session_id)
         self._focused_session_ids.append(normalized_to_session_id)
+        self._next_focus_blocked_session_id = ""
         self._last_cycle_at_by_session_id[normalized_to_session_id] = time.time()
         self._normalize_state()
         return ""

@@ -15,7 +15,6 @@ from src.chat.message_receive.message import SessionMessage
 from src.common.data_models.mai_message_data_model import MessageInfo
 from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
 from src.common.logger import get_logger
-from src.common.message_repository import find_messages
 from src.config.config import global_config
 
 from src.maisaka.context.messages import (
@@ -29,9 +28,7 @@ from src.maisaka.context.messages import (
 from .manager import FocusTargetResolution, focus_mode_manager
 
 FOCUS_SWITCH_NEW_MESSAGE_LIMIT = 20
-FOCUS_NO_ACTION_STAGNATION_THRESHOLD = 10
-FOCUS_NO_ACTION_STAGNATION_SOURCE = "focus_no_action_stagnation"
-FOCUS_NO_ACTION_STAGNATION_TEXT = "长期没有感兴趣的内容，是否考虑去其他群看看"
+FOCUS_NO_ACTION_EXIT_THRESHOLD = 5
 
 logger = get_logger("maisaka_runtime")
 
@@ -88,9 +85,12 @@ class MaisakaFocusRuntimeMixin:
         return history_messages
 
     def record_no_action_cycle_result(self, cycle_end_reason: str) -> None:
-        """Track consecutive no_action cycles and add a focus-mode stagnation hint."""
+        """Track consecutive no_action cycles and release stale group focus."""
 
         if not focus_mode_manager.is_enabled():
+            self._consecutive_no_action_count = 0
+            return
+        if not self.chat_stream.is_group_session:
             self._consecutive_no_action_count = 0
             return
 
@@ -99,34 +99,24 @@ class MaisakaFocusRuntimeMixin:
             return
 
         self._consecutive_no_action_count += 1
-        if self._consecutive_no_action_count < FOCUS_NO_ACTION_STAGNATION_THRESHOLD:
+        if self._consecutive_no_action_count < FOCUS_NO_ACTION_EXIT_THRESHOLD:
             return
 
         self._consecutive_no_action_count = 0
-        self._append_no_action_stagnation_hint()
+        self._exit_focus_after_consecutive_no_action()
 
-    def _append_no_action_stagnation_hint(self) -> None:
-        """Append the focus-mode stagnation hint as a special user context message."""
+    def _exit_focus_after_consecutive_no_action(self) -> None:
+        """Release the current group from focus after repeated no_action cycles."""
 
-        hint_timestamp = datetime.now()
-        hint_message_id = f"focus_no_action_stagnation:{int(time.time() * 1000)}"
-        hint_text = (
-            f'<focus_no_action_stagnation consecutive_no_action_count="{FOCUS_NO_ACTION_STAGNATION_THRESHOLD}">\n'
-            f"{FOCUS_NO_ACTION_STAGNATION_TEXT}\n"
-            "</focus_no_action_stagnation>"
-        )
-        self._chat_history.append(
-            SessionBackedMessage(
-                raw_message=MessageSequence([TextComponent(hint_text)]),
-                visible_text=hint_text,
-                timestamp=hint_timestamp,
-                message_id=hint_message_id,
-                source_kind=FOCUS_NO_ACTION_STAGNATION_SOURCE,
-            )
-        )
+        released = focus_mode_manager.release_focus_and_block_next_entry(self.session_id)
+        if not released:
+            return
+
+        self._cancel_focus_cooldown_timer_task()
+        self._focus_cooldown_wakeup_scheduled = False
         logger.info(
-            f"{self.log_prefix} 连续 {FOCUS_NO_ACTION_STAGNATION_THRESHOLD} 次 no_action，"
-            "已插入 focus 模式停滞提示"
+            f"{self.log_prefix} 连续 {FOCUS_NO_ACTION_EXIT_THRESHOLD} 次 no_action，"
+            "已退出当前群的 Focus，并阻止它立即重新进入"
         )
 
     def _cancel_focus_cooldown_timer_task(self) -> None:
@@ -450,54 +440,62 @@ class MaisakaFocusRuntimeMixin:
             unique_messages.append(message)
         return unique_messages[-safe_limit:]
 
-    async def build_focus_fetch_messages_result(
+    def _get_focus_fetch_history_messages(self, *, limit: int) -> list[SessionMessage]:
+        """Return current-chat messages that are in the stream but not in Maisaka history."""
+
+        safe_limit = min(50, max(1, int(limit)))
+        history_message_ids = {
+            str(getattr(history_message, "message_id", "") or "").strip()
+            for history_message in self._chat_history
+            if str(getattr(history_message, "message_id", "") or "").strip()
+        }
+        fetched_messages: list[SessionMessage] = []
+        seen_message_ids: set[str] = set()
+        for message in reversed(self.message_cache):
+            message_id = str(message.message_id or "").strip()
+            if not message_id:
+                continue
+            if message_id in history_message_ids or message_id in seen_message_ids:
+                continue
+            fetched_messages.append(message)
+            seen_message_ids.add(message_id)
+            if len(fetched_messages) >= safe_limit:
+                break
+        return fetched_messages
+
+    async def build_focus_fetch_history_result(
         self,
-        target_session: BotChatSession,
         *,
-        page: int,
         num: int,
     ) -> tuple[str, dict[str, Any], list[LLMContextMessage]]:
-        """Fetch latest messages for a focus-mode target chat."""
+        """Fetch current-chat stream messages that are not already in Maisaka history."""
 
-        safe_page = max(1, int(page))
         safe_num = min(50, max(1, int(num)))
-        fetch_limit = safe_page * safe_num
-        messages = await asyncio.to_thread(
-            find_messages,
-            session_id=target_session.session_id,
-            limit=fetch_limit,
-            limit_mode="latest",
-            filter_command=True,
-        )
-        end_index = max(0, len(messages) - (safe_page - 1) * safe_num)
-        start_index = max(0, end_index - safe_num)
-        page_messages = messages[start_index:end_index]
-        focus_mode_manager.mark_read(target_session.session_id)
+        fetched_messages = self._get_focus_fetch_history_messages(limit=safe_num)
         post_history_messages = await self.build_session_messages_as_user_history(
-            page_messages,
+            fetched_messages,
             source_kind="user",
         )
 
-        chat_type = "group" if target_session.is_group_session else "private"
-        target_id = target_session.group_id if target_session.is_group_session else target_session.user_id
+        chat_session = self.chat_stream
+        chat_type = "group" if chat_session.is_group_session else "private"
+        target_id = chat_session.group_id if chat_session.is_group_session else chat_session.user_id
         lines = [
-            f"已获取 chat_id={target_session.session_id} 的最新消息，这不是当前聊天。",
-            f"平台: {target_session.platform}",
+            f"已从当前聊天 chat_id={chat_session.session_id} 获取尚未进入 Maisaka 上下文的消息。",
+            f"平台: {chat_session.platform}",
             f"id: {target_id or ''}",
             f"类型: {chat_type}",
-            f"页: {safe_page}",
-            f"每页数量: {safe_num}",
-            f"召回消息数: {len(page_messages)}",
+            f"请求数量: {safe_num}",
+            f"召回消息数: {len(fetched_messages)}",
             f"新增为普通 user message 的消息数: {len(post_history_messages)}",
-            "召回到的消息已按普通用户消息格式逐条加入上下文，可直接用各自 msg_id 引用。",
+            "召回顺序为从新到旧；召回到的消息已按普通用户消息格式逐条加入上下文，可直接用各自 msg_id 引用。",
         ]
 
         structured_content = {
-            "chat_id": target_session.session_id,
-            "platform": target_session.platform,
+            "chat_id": chat_session.session_id,
+            "platform": chat_session.platform,
             "id": target_id or "",
             "type": chat_type,
-            "page": safe_page,
             "num": safe_num,
             "messages": [
                 {
@@ -511,7 +509,7 @@ class MaisakaFocusRuntimeMixin:
                     ),
                     "text": str(message.processed_plain_text or "").strip(),
                 }
-                for message in page_messages
+                for message in fetched_messages
             ],
         }
         return "\n".join(lines), structured_content, post_history_messages
@@ -573,10 +571,7 @@ class MaisakaFocusRuntimeMixin:
         switch_timestamp = datetime.now()
         switch_message_id = f"focus_switch:{int(time.time() * 1000)}"
         switch_notice = (
-            f'<focus_switch from_chat_id="{escape(self.session_id, quote=True)}" '
-            f'to_chat_id="{escape(target_session.session_id, quote=True)}">\n'
             f"已经切换到 chat_id={target_session.session_id}。"
-            "后续决策应以这个聊天为当前聊天；原聊天已经不在关注状态。\n"
             f"下面已按普通 user message 格式接入这个聊天未读新消息 {len(recent_context_messages)} 条"
             f"（未读 {target_unread_count} 条，最多 {FOCUS_SWITCH_NEW_MESSAGE_LIMIT} 条）。\n"
             "</focus_switch>"
