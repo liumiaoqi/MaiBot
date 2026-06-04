@@ -9,9 +9,12 @@ from typing import Any, Iterable, Optional
 import time
 
 from src.chat.message_receive.chat_manager import BotChatSession, chat_manager
+from src.common.utils.utils_config import ChatConfigUtils
 from src.config.config import global_config
 
 FOCUS_SLOT_LIMIT = 1
+FOCUS_GLOBAL_SCOPE_KEY = "__global__"
+FOCUS_ISOLATED_SCOPE_PREFIX = "session:"
 
 
 @dataclass(slots=True)
@@ -26,10 +29,14 @@ class FocusModeManager:
     """Track which chat sessions are currently allowed to make Maisaka decisions."""
 
     def __init__(self) -> None:
-        self._focused_session_ids: list[str] = []
-        self._next_focus_blocked_session_id = ""
+        self._focused_session_ids_by_scope: dict[str, list[str]] = {}
+        self._next_focus_blocked_session_id_by_scope: dict[str, str] = {}
         self._last_cycle_at_by_session_id: dict[str, float] = {}
         self._last_read_at_by_session_id: dict[str, datetime] = {}
+
+    @staticmethod
+    def _normalize_session_id(session_id: str) -> str:
+        return str(session_id or "").strip()
 
     def is_enabled(self) -> bool:
         """Return whether focus mode is enabled in the live chat config."""
@@ -53,96 +60,200 @@ class FocusModeManager:
         except (TypeError, ValueError):
             return 120.0
 
+    def _resolve_is_group_chat(self, session_id: str, is_group_chat: Optional[bool] = None) -> Optional[bool]:
+        if is_group_chat is not None:
+            return is_group_chat
+
+        chat_session = chat_manager.get_session_by_session_id(session_id)
+        if chat_session is None:
+            return None
+        return chat_session.is_group_session
+
+    def _is_focus_mode_active_for_session(
+        self,
+        session_id: str,
+        is_group_chat: Optional[bool] = None,
+    ) -> bool:
+        resolved_is_group_chat = self._resolve_is_group_chat(session_id, is_group_chat)
+        return self.is_enabled_for_chat(is_group_chat=resolved_is_group_chat)
+
+    @staticmethod
+    def _get_focus_group_targets(focus_group: Any) -> Iterable[Any]:
+        if isinstance(focus_group, dict):
+            return focus_group.get("targets") or []
+        return focus_group.targets
+
+    def _resolve_focus_scope_key(self, session_id: str, is_group_chat: Optional[bool] = None) -> str:
+        """Resolve the focus sharing scope for a chat session."""
+
+        normalized_session_id = self._normalize_session_id(session_id)
+        if not normalized_session_id:
+            return ""
+
+        focus_groups = list(global_config.experimental.focus_groups or [])
+        if not focus_groups:
+            return FOCUS_GLOBAL_SCOPE_KEY
+
+        resolved_is_group_chat = self._resolve_is_group_chat(normalized_session_id, is_group_chat)
+        for group_index, focus_group in enumerate(focus_groups):
+            for target_item in self._get_focus_group_targets(focus_group):
+                if ChatConfigUtils.target_matches_session_with_wildcards(
+                    target_item,
+                    normalized_session_id,
+                    resolved_is_group_chat,
+                ):
+                    return f"group:{group_index}"
+
+        return f"{FOCUS_ISOLATED_SCOPE_PREFIX}{normalized_session_id}"
+
+    def get_focus_scope_key(self, session_id: str) -> str:
+        """Return the focus sharing scope key for a session."""
+
+        return self._resolve_focus_scope_key(session_id)
+
+    def is_same_focus_scope(self, first_session_id: str, second_session_id: str) -> bool:
+        """Return whether two sessions share one focus slot."""
+
+        normalized_first_session_id = self._normalize_session_id(first_session_id)
+        normalized_second_session_id = self._normalize_session_id(second_session_id)
+        if not normalized_first_session_id or not normalized_second_session_id:
+            return False
+        return self._resolve_focus_scope_key(normalized_first_session_id) == self._resolve_focus_scope_key(
+            normalized_second_session_id
+        )
+
     def _normalize_state(self) -> None:
         if not self.is_enabled():
-            self._focused_session_ids.clear()
-            self._next_focus_blocked_session_id = ""
+            self._focused_session_ids_by_scope.clear()
+            self._next_focus_blocked_session_id_by_scope.clear()
             return
 
-        self._focused_session_ids = [
-            session_id
-            for session_id in self._focused_session_ids
-            if self._is_session_id_focus_allowed(session_id)
-        ]
-        if len(self._focused_session_ids) > FOCUS_SLOT_LIMIT:
-            del self._focused_session_ids[FOCUS_SLOT_LIMIT:]
-        if self._next_focus_blocked_session_id in self._focused_session_ids:
-            self._next_focus_blocked_session_id = ""
+        focused_session_ids: list[str] = []
+        seen_session_ids: set[str] = set()
+        for scope_session_ids in self._focused_session_ids_by_scope.values():
+            for session_id in scope_session_ids:
+                normalized_session_id = self._normalize_session_id(session_id)
+                if not normalized_session_id or normalized_session_id in seen_session_ids:
+                    continue
+                if not self._is_session_id_focus_allowed(normalized_session_id):
+                    continue
+                focused_session_ids.append(normalized_session_id)
+                seen_session_ids.add(normalized_session_id)
+
+        normalized_focused_session_ids_by_scope: dict[str, list[str]] = {}
+        for session_id in focused_session_ids:
+            scope_key = self._resolve_focus_scope_key(session_id)
+            scope_session_ids = normalized_focused_session_ids_by_scope.setdefault(scope_key, [])
+            if len(scope_session_ids) < FOCUS_SLOT_LIMIT:
+                scope_session_ids.append(session_id)
+        self._focused_session_ids_by_scope = normalized_focused_session_ids_by_scope
+
+        blocked_session_ids: list[str] = []
+        seen_blocked_session_ids: set[str] = set()
+        for session_id in self._next_focus_blocked_session_id_by_scope.values():
+            normalized_session_id = self._normalize_session_id(session_id)
+            if not normalized_session_id or normalized_session_id in seen_blocked_session_ids:
+                continue
+            if not self._is_session_id_focus_allowed(normalized_session_id):
+                continue
+            blocked_session_ids.append(normalized_session_id)
+            seen_blocked_session_ids.add(normalized_session_id)
+
+        normalized_blocked_session_id_by_scope: dict[str, str] = {}
+        for session_id in blocked_session_ids:
+            scope_key = self._resolve_focus_scope_key(session_id)
+            if session_id in self._focused_session_ids_by_scope.get(scope_key, []):
+                continue
+            if scope_key not in normalized_blocked_session_id_by_scope:
+                normalized_blocked_session_id_by_scope[scope_key] = session_id
+        self._next_focus_blocked_session_id_by_scope = normalized_blocked_session_id_by_scope
 
     def _is_session_id_focus_allowed(self, session_id: str) -> bool:
-        chat_session = chat_manager.get_session_by_session_id(str(session_id or "").strip())
-        if chat_session is None:
-            return True
-        return self.is_enabled_for_chat(is_group_chat=chat_session.is_group_session)
+        normalized_session_id = self._normalize_session_id(session_id)
+        if not normalized_session_id:
+            return False
+        return self._is_focus_mode_active_for_session(normalized_session_id)
 
     def is_in_focus_set(self, session_id: str) -> bool:
         """Return whether a session is explicitly occupying a focus slot."""
 
         self._normalize_state()
-        normalized_session_id = str(session_id or "").strip()
-        return bool(normalized_session_id) and normalized_session_id in self._focused_session_ids
+        normalized_session_id = self._normalize_session_id(session_id)
+        if not normalized_session_id:
+            return False
+        scope_key = self._resolve_focus_scope_key(normalized_session_id)
+        return normalized_session_id in self._focused_session_ids_by_scope.get(scope_key, [])
 
     def can_decide(self, session_id: str, *, is_group_chat: Optional[bool] = None) -> bool:
         """Return whether the session may run Maisaka decision loops right now."""
 
-        if not self.is_enabled_for_chat(is_group_chat=is_group_chat):
+        normalized_session_id = self._normalize_session_id(session_id)
+        if not self._is_focus_mode_active_for_session(normalized_session_id, is_group_chat):
             self._normalize_state()
-            self.release_focus(session_id)
+            self.release_focus(normalized_session_id)
             return True
-        return self.is_in_focus_set(session_id)
+        return self.is_in_focus_set(normalized_session_id)
 
     def try_enter_focus(self, session_id: str, *, is_group_chat: Optional[bool] = None) -> bool:
-        """Try to put a session into the single active focus slot."""
+        """Try to put a session into its focus group's active slot."""
 
-        normalized_session_id = str(session_id or "").strip()
+        normalized_session_id = self._normalize_session_id(session_id)
         if not normalized_session_id:
             return False
-        if not self.is_enabled_for_chat(is_group_chat=is_group_chat):
+        if not self._is_focus_mode_active_for_session(normalized_session_id, is_group_chat):
             self._normalize_state()
             self.release_focus(normalized_session_id)
             return True
 
         self._normalize_state()
-        if normalized_session_id in self._focused_session_ids:
+        scope_key = self._resolve_focus_scope_key(normalized_session_id, is_group_chat)
+        focused_session_ids = self._focused_session_ids_by_scope.setdefault(scope_key, [])
+        if normalized_session_id in focused_session_ids:
             return True
-        if normalized_session_id == self._next_focus_blocked_session_id:
+        if normalized_session_id == self._next_focus_blocked_session_id_by_scope.get(scope_key, ""):
             return False
-        if len(self._focused_session_ids) >= FOCUS_SLOT_LIMIT:
+        if len(focused_session_ids) >= FOCUS_SLOT_LIMIT:
             return False
 
-        self._focused_session_ids.append(normalized_session_id)
-        self._next_focus_blocked_session_id = ""
+        focused_session_ids.append(normalized_session_id)
+        self._next_focus_blocked_session_id_by_scope.pop(scope_key, None)
         self._last_cycle_at_by_session_id[normalized_session_id] = time.time()
         return True
 
     def release_focus(self, session_id: str) -> None:
         """Remove a session from the focus set."""
 
-        normalized_session_id = str(session_id or "").strip()
+        normalized_session_id = self._normalize_session_id(session_id)
         if not normalized_session_id:
             return
-        self._focused_session_ids = [
-            focused_session_id
-            for focused_session_id in self._focused_session_ids
-            if focused_session_id != normalized_session_id
-        ]
+        for scope_key in list(self._focused_session_ids_by_scope):
+            focused_session_ids = [
+                focused_session_id
+                for focused_session_id in self._focused_session_ids_by_scope[scope_key]
+                if focused_session_id != normalized_session_id
+            ]
+            if focused_session_ids:
+                self._focused_session_ids_by_scope[scope_key] = focused_session_ids
+            else:
+                del self._focused_session_ids_by_scope[scope_key]
         self._last_cycle_at_by_session_id.pop(normalized_session_id, None)
 
     def release_focus_and_block_next_entry(self, session_id: str) -> bool:
         """Remove a focused session and prevent it from claiming the next focus slot."""
 
-        normalized_session_id = str(session_id or "").strip()
+        normalized_session_id = self._normalize_session_id(session_id)
         if not normalized_session_id:
             return False
-        if not self.is_enabled():
+        if not self._is_focus_mode_active_for_session(normalized_session_id):
             self.release_focus(normalized_session_id)
             return False
 
         self._normalize_state()
-        was_focused = normalized_session_id in self._focused_session_ids
+        scope_key = self._resolve_focus_scope_key(normalized_session_id)
+        was_focused = normalized_session_id in self._focused_session_ids_by_scope.get(scope_key, [])
         self.release_focus(normalized_session_id)
         if was_focused:
-            self._next_focus_blocked_session_id = normalized_session_id
+            self._next_focus_blocked_session_id_by_scope[scope_key] = normalized_session_id
         return was_focused
 
     def switch_focus(self, from_session_id: str, to_session_id: str) -> str:
@@ -155,20 +266,32 @@ class FocusModeManager:
             return "focus_mode 未启用，不能切换关注聊天。"
 
         self._normalize_state()
-        normalized_from_session_id = str(from_session_id or "").strip()
-        normalized_to_session_id = str(to_session_id or "").strip()
+        normalized_from_session_id = self._normalize_session_id(from_session_id)
+        normalized_to_session_id = self._normalize_session_id(to_session_id)
         if not normalized_to_session_id:
             return "缺少要切换到的 chat_id。"
-        if normalized_to_session_id in self._focused_session_ids:
+        if not self._is_session_id_focus_allowed(normalized_to_session_id):
+            return f"chat_id={normalized_to_session_id} 不在当前 Focus 生效范围内，不能切换。"
+
+        from_scope_key = self._resolve_focus_scope_key(normalized_from_session_id)
+        to_scope_key = self._resolve_focus_scope_key(normalized_to_session_id)
+        if from_scope_key != to_scope_key:
+            return (
+                f"chat_id={normalized_to_session_id} 不在当前 Focus 互通组内，"
+                "不能通过 switch_chat 切换；它可以独立进入自己的 Focus。"
+            )
+
+        focused_session_ids = self._focused_session_ids_by_scope.get(from_scope_key, [])
+        if normalized_to_session_id in focused_session_ids:
             return f"chat_id={normalized_to_session_id} 已经处于关注状态，不能切换到已关注聊天。"
-        if normalized_to_session_id == self._next_focus_blocked_session_id:
+        if normalized_to_session_id == self._next_focus_blocked_session_id_by_scope.get(from_scope_key, ""):
             return f"chat_id={normalized_to_session_id} 刚因连续 no_action 退出 Focus，本次不能切换回该聊天。"
-        if normalized_from_session_id not in self._focused_session_ids:
+        if normalized_from_session_id not in focused_session_ids:
             return f"当前 chat_id={normalized_from_session_id} 不在关注状态，不能发起切换。"
 
         self.release_focus(normalized_from_session_id)
-        self._focused_session_ids.append(normalized_to_session_id)
-        self._next_focus_blocked_session_id = ""
+        self._focused_session_ids_by_scope.setdefault(from_scope_key, []).append(normalized_to_session_id)
+        self._next_focus_blocked_session_id_by_scope.pop(from_scope_key, None)
         self._last_cycle_at_by_session_id[normalized_to_session_id] = time.time()
         self._normalize_state()
         return ""

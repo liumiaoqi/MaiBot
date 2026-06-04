@@ -813,6 +813,21 @@ class ExperimentalConfig(ConfigBase):
     )
     """关闭时，Focus 模式只作用于群聊；开启后，群聊和私聊都会进入 Focus。"""
 
+    focus_groups: list["ChatStreamGroup"] = Field(
+        default_factory=list,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "Focus 互通组",
+                "en_US": "Focus sharing groups",
+                "ja_JP": "Focus 共有グループ",
+            },
+            "x-widget": "custom",
+            "x-icon": "users",
+            "advanced": True,
+        },
+    )
+    """_wrap_Focus 互通组；不配置时所有启用 Focus 的聊天共享一个 Focus；配置后只有同组聊天互通，不同组可同时 Focus。"""
+
     focus_cool_time: int = Field(
         default=120,
         ge=1,
@@ -2905,6 +2920,9 @@ class ChatStreamGroup(ConfigBase):
         },
     )
     """_wrap_互通聊天流"""
+
+
+ExperimentalConfig.model_rebuild()
 
 
 class ExpressionConfig(ConfigBase):

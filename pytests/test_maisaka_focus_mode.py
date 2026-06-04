@@ -2,7 +2,9 @@ from types import SimpleNamespace
 
 import pytest
 
+from src.chat.message_receive.chat_manager import BotChatSession, chat_manager
 from src.config.config import global_config
+from src.config.official_configs import ChatStreamGroup, TargetItem
 from src.core.tooling import ToolAvailabilityContext
 from src.maisaka.builtin_tool import get_all_builtin_tool_specs, get_builtin_tools
 from src.maisaka.builtin_tool.fetch_histroy import get_tool_spec as get_fetch_histroy_tool_spec
@@ -53,6 +55,19 @@ class _FetchHistoryRuntimeStub(MaisakaFocusRuntimeMixin):
         self._chat_history = [
             SimpleNamespace(message_id="m2"),
         ]
+
+
+def _build_group_session(session_id: str, group_id: str, *, platform: str = "test") -> BotChatSession:
+    return BotChatSession(session_id=session_id, platform=platform, group_id=group_id)
+
+
+def _build_focus_group(*group_ids: str, platform: str = "test") -> ChatStreamGroup:
+    return ChatStreamGroup(
+        targets=[
+            TargetItem(platform=platform, item_id=group_id, rule_type="group")
+            for group_id in group_ids
+        ]
+    )
 
 
 def test_fetch_histroy_tool_spec_only_accepts_num(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -109,6 +124,7 @@ def test_fetch_histroy_selects_current_stream_messages_newest_first() -> None:
 def test_focus_reentry_block_skips_same_session_until_another_enters(monkeypatch: pytest.MonkeyPatch) -> None:
     manager = FocusModeManager()
     monkeypatch.setattr(global_config.experimental, "focus_mode", True)
+    monkeypatch.setattr(global_config.experimental, "focus_groups", [])
 
     assert manager.try_enter_focus("group-a") is True
     assert manager.release_focus_and_block_next_entry("group-a") is True
@@ -137,6 +153,83 @@ def test_private_chat_can_enter_focus_when_enabled(monkeypatch: pytest.MonkeyPat
 
     assert manager.try_enter_focus("private-a", is_group_chat=False) is True
     assert manager.is_in_focus_set("private-a") is True
+
+
+def test_empty_focus_groups_share_one_global_focus(monkeypatch: pytest.MonkeyPatch) -> None:
+    manager = FocusModeManager()
+    monkeypatch.setattr(global_config.experimental, "focus_mode", True)
+    monkeypatch.setattr(global_config.experimental, "focus_groups", [])
+
+    assert manager.try_enter_focus("group-a", is_group_chat=True) is True
+    assert manager.try_enter_focus("group-b", is_group_chat=True) is False
+
+
+def test_focus_groups_allow_parallel_focus_slots(monkeypatch: pytest.MonkeyPatch) -> None:
+    manager = FocusModeManager()
+    sessions = {
+        "group-a": _build_group_session("group-a", "10001"),
+        "group-b": _build_group_session("group-b", "10002"),
+        "group-c": _build_group_session("group-c", "20001"),
+    }
+    monkeypatch.setattr(chat_manager, "sessions", sessions)
+    monkeypatch.setattr(global_config.experimental, "focus_mode", True)
+    monkeypatch.setattr(
+        global_config.experimental,
+        "focus_groups",
+        [
+            _build_focus_group("10001", "10002"),
+            _build_focus_group("20001"),
+        ],
+    )
+
+    assert manager.is_same_focus_scope("group-a", "group-b") is True
+    assert manager.is_same_focus_scope("group-a", "group-c") is False
+    assert manager.try_enter_focus("group-a", is_group_chat=True) is True
+    assert manager.try_enter_focus("group-b", is_group_chat=True) is False
+    assert manager.try_enter_focus("group-c", is_group_chat=True) is True
+    assert manager.is_in_focus_set("group-a") is True
+    assert manager.is_in_focus_set("group-c") is True
+
+
+def test_unmatched_focus_group_chats_are_isolated(monkeypatch: pytest.MonkeyPatch) -> None:
+    manager = FocusModeManager()
+    sessions = {
+        "group-a": _build_group_session("group-a", "10001"),
+        "group-x": _build_group_session("group-x", "90001"),
+        "group-y": _build_group_session("group-y", "90002"),
+    }
+    monkeypatch.setattr(chat_manager, "sessions", sessions)
+    monkeypatch.setattr(global_config.experimental, "focus_mode", True)
+    monkeypatch.setattr(global_config.experimental, "focus_groups", [_build_focus_group("10001")])
+
+    assert manager.is_same_focus_scope("group-x", "group-y") is False
+    assert manager.try_enter_focus("group-x", is_group_chat=True) is True
+    assert manager.try_enter_focus("group-y", is_group_chat=True) is True
+
+
+def test_switch_focus_rejects_cross_focus_group(monkeypatch: pytest.MonkeyPatch) -> None:
+    manager = FocusModeManager()
+    sessions = {
+        "group-a": _build_group_session("group-a", "10001"),
+        "group-c": _build_group_session("group-c", "20001"),
+    }
+    monkeypatch.setattr(chat_manager, "sessions", sessions)
+    monkeypatch.setattr(global_config.experimental, "focus_mode", True)
+    monkeypatch.setattr(
+        global_config.experimental,
+        "focus_groups",
+        [
+            _build_focus_group("10001"),
+            _build_focus_group("20001"),
+        ],
+    )
+
+    assert manager.try_enter_focus("group-a", is_group_chat=True) is True
+
+    switch_error = manager.switch_focus("group-a", "group-c")
+
+    assert "不在当前 Focus 互通组内" in switch_error
+    assert manager.try_enter_focus("group-c", is_group_chat=True) is True
 
 
 def test_consecutive_no_action_releases_group_focus(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -230,6 +230,10 @@ class MaisakaFocusRuntimeMixin:
         for runtime in running_runtimes:
             if not focus_mode_manager.is_in_focus_set(runtime.session_id):
                 continue
+            if not focus_mode_manager.is_enabled_for_chat(is_group_chat=runtime.chat_stream.is_group_session):
+                continue
+            if trigger_session_id and not focus_mode_manager.is_same_focus_scope(runtime.session_id, trigger_session_id):
+                continue
             if runtime._agent_state == runtime._STATE_RUNNING:
                 continue
             if runtime._focus_cooldown_wakeup_scheduled:
@@ -261,6 +265,10 @@ class MaisakaFocusRuntimeMixin:
     ) -> str:
         for runtime in running_runtimes:
             if runtime.session_id == focus_session_id:
+                continue
+            if not focus_mode_manager.is_enabled_for_chat(is_group_chat=runtime.chat_stream.is_group_session):
+                continue
+            if not focus_mode_manager.is_same_focus_scope(runtime.session_id, focus_session_id):
                 continue
             if runtime._get_pending_message_count() > 0:
                 return runtime.session_id
@@ -361,11 +369,17 @@ class MaisakaFocusRuntimeMixin:
             reverse=True,
         )
         bot_name = global_config.bot.nickname.strip()
+        focus_scope_key = focus_mode_manager.get_focus_scope_key(self.session_id)
         lines = [
-            f'<focus_chat_overview current_chat_id="{escape(self.session_id, quote=True)}">',
-            "以下是当前运行中已创建聊天的状态。未读数表示尚未阅读处理的消息数；"
+            f'<focus_chat_overview current_chat_id="{escape(self.session_id, quote=True)}" '
+            f'focus_scope="{escape(focus_scope_key, quote=True)}">',
+            "以下是当前其他聊天的状态。"
         ]
         for chat_runtime in running_runtimes:
+            if not focus_mode_manager.is_enabled_for_chat(is_group_chat=chat_runtime.chat_stream.is_group_session):
+                continue
+            if not focus_mode_manager.is_same_focus_scope(chat_runtime.session_id, self.session_id):
+                continue
             chat_session = chat_runtime.chat_stream
             unread_count = chat_runtime._get_pending_message_count()
             has_pending_at, has_pending_mention = chat_runtime._get_pending_attention_flags()
