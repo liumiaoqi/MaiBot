@@ -61,8 +61,10 @@ MAX_INTERNAL_ROUNDS = 10
 MAX_RETAINED_MESSAGE_CACHE_SIZE = 200
 CONTEXT_RESTORE_FILL_RATIO = 0.5
 EXTERNAL_MESSAGE_INTERVAL_SAMPLE_WINDOW_SECONDS = 1800.0
-# 低于该间隔的相邻外部消息视为同一阵「连发」抖动（同一个人连续敲几条短消息），
-# 不计入平均消息间隔统计，避免连发把平均间隔严重拉低、令空窗补偿过早触发。
+# 低于该间隔的相邻外部消息视为同一阵「连发」抖动，不计入平均消息间隔统计，
+# 避免连发把平均间隔严重拉低、令空窗补偿过早触发。
+# 注意：判定只看时间间隔、不区分发言者——同一人连续敲几条短消息是常见成因，
+# 但跨发言者的快速对答同样会被过滤。
 EXTERNAL_MESSAGE_BURST_INTERVAL_SECONDS = 5.0
 # 空窗补偿所用平均消息间隔的下限：即便统计值偏小也不会低于该值，
 # 限制「沉默时间」被折算成消息的速度，避免低活跃群聊里反复触发回复。
@@ -767,10 +769,17 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
 
         返回值会施加 ``IDLE_COMPENSATION_MIN_AVERAGE_INTERVAL_SECONDS`` 下限，
         避免统计值过小导致空窗补偿把沉默时间过快折算成消息、反复触发回复。
+
+        见过外部消息但暂无可用间隔样本时（如启动后只收到一阵全被 burst 过滤的连发、
+        或样本已因超出 30 分钟窗口而全部过期），回退到下限值作为保守估计，
+        确保空窗补偿与延迟自唤醒不会因返回 None 而失效、令待处理消息在
+        没有新消息到来时永久挂起；从未见过外部消息时仍返回 None。
         """
         self._prune_recent_external_message_intervals()
         if not self._recent_external_message_intervals:
-            return None
+            if self._last_external_message_received_at is None:
+                return None
+            return IDLE_COMPENSATION_MIN_AVERAGE_INTERVAL_SECONDS
 
         total_interval = sum(interval for _, interval in self._recent_external_message_intervals)
         average_interval = total_interval / len(self._recent_external_message_intervals)

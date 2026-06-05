@@ -79,6 +79,34 @@ def test_average_interval_preserves_large_value(monkeypatch: pytest.MonkeyPatch)
     assert runtime._get_recent_average_external_message_interval() == pytest.approx(60.0)
 
 
+def test_average_interval_none_without_any_external_message() -> None:
+    """从未见过外部消息时，平均间隔应返回 None（不启用空窗补偿）。"""
+    runtime = _make_runtime()
+    assert runtime._get_recent_average_external_message_interval() is None
+
+
+def test_average_interval_falls_back_when_only_burst_samples(monkeypatch: pytest.MonkeyPatch) -> None:
+    """只收到连发（无有效间隔样本）时，应回退到下限值而非 None，避免补偿与延迟调度失效。"""
+    monkeypatch.setattr(runtime_module, "is_bot_self", lambda *_: False)
+    runtime = _make_runtime()
+    # 全部间隔 2s，均被 burst 过滤跳过，样本队列为空
+    _record_series(runtime, [0.0, 2.0, 4.0])
+    assert not runtime._recent_external_message_intervals
+    assert runtime._get_recent_average_external_message_interval() == IDLE_COMPENSATION_MIN_AVERAGE_INTERVAL_SECONDS
+
+
+def test_idle_compensation_recovers_after_burst_only_traffic(monkeypatch: pytest.MonkeyPatch) -> None:
+    """启动后只收到一阵连发时，空窗补偿仍应在足够空窗后触发，待处理消息不得永久挂起。"""
+    monkeypatch.setattr(runtime_module, "is_bot_self", lambda *_: False)
+    runtime = _make_runtime()
+    # 一阵连发（间隔均 < 5s、无样本入队）后陷入长沉默
+    base = time.time() - 100000.0
+    message = _external_message()
+    for offset in [0.0, 2.0, 4.0]:
+        runtime._record_external_message_interval(message, base + offset)
+    assert runtime._should_trigger_message_turn_by_idle_compensation(pending_count=1, trigger_threshold=10) is True
+
+
 def test_idle_compensation_blocks_without_pending_message(monkeypatch: pytest.MonkeyPatch) -> None:
     """没有待处理消息时，纯空窗不应触发回复。"""
     monkeypatch.setattr(runtime_module, "is_bot_self", lambda *_: False)
