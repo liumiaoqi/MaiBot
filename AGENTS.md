@@ -51,6 +51,8 @@
 对比展开前后 DOM，找新增元素和新增属性。
 查 data-dashboard-style 主题样式，尤其是 !important。
 查 computed style 的实际 height/min-height，而不是只看 Tailwind class。
+如果遇到 UI 底纹、阴影、半透明、模糊或颜色叠加问题，先按 DOM 层级拆分父容器、触发器、内部装饰元素和伪元素，逐层查 computed style 的 background/background-color/background-image/backdrop-filter/box-shadow/opacity，不要只盯着截图中最显眼的子元素或只看 class。
+涉及 Tabs/TabsList/TabsTrigger、Radix 或 motion 动画指示器时，要先确认视觉效果来自 TabsList 容器、TabsTrigger 本体、内部 motion/span，还是父级 header/card/dialog 的 backdrop-filter 或主题覆盖，再做最小范围修改。
 Radix 组件不随便移出上下文，像 TabsTrigger 必须留在 TabsList 里。
 
 修改完webui不用急着npm run build，这个应该手动来
