@@ -50,7 +50,7 @@ BuiltinToolRawHandler = Callable[
     [BuiltinToolRuntimeContext, ToolInvocation, Optional[ToolExecutionContext]],
     Awaitable[ToolExecutionResult],
 ]
-BuiltinToolStage = Literal["timing", "action"]
+BuiltinToolStage = Literal["timing", "action", "both"]
 BuiltinToolVisibility = Literal["visible", "deferred", "hidden"]
 BuiltinToolChatScope = Literal["all", "group", "private"]
 
@@ -90,9 +90,9 @@ def _get_query_person_profile_tool_spec() -> ToolSpec:
 
 
 BUILTIN_TOOL_ENTRIES: List[BuiltinToolEntry] = [
-    BuiltinToolEntry("no_action", get_no_action_tool_spec, handle_no_action_tool, stage="timing"),
+    BuiltinToolEntry("no_action", get_no_action_tool_spec, handle_no_action_tool, stage="both"),
     BuiltinToolEntry("continue", get_continue_tool_spec, handle_continue_tool, stage="timing"),
-    BuiltinToolEntry("wait", get_wait_tool_spec, handle_wait_tool, stage="timing", chat_scope="private"),
+    BuiltinToolEntry("wait", get_wait_tool_spec, handle_wait_tool, stage="timing"),
     BuiltinToolEntry("finish", get_finish_tool_spec, handle_finish_tool, stage="action"),
     BuiltinToolEntry("reply", get_reply_tool_spec, handle_reply_tool, stage="action"),
     BuiltinToolEntry(
@@ -136,7 +136,7 @@ def _get_builtin_tool_entries(
     entries = BUILTIN_TOOL_ENTRIES
     entries = [entry for entry in entries if _is_builtin_tool_enabled_by_config(entry)]
     if stage is not None:
-        entries = [entry for entry in entries if entry.stage == stage]
+        entries = [entry for entry in entries if entry.stage in {stage, "both"}]
     if visibility is not None:
         entries = [entry for entry in entries if entry.visibility == visibility]
     if context is not None:
@@ -184,13 +184,7 @@ def get_builtin_tool_visibility(tool_spec: ToolSpec) -> BuiltinToolVisibility:
 def is_builtin_tool_in_action_stage(tool_spec: ToolSpec) -> bool:
     """判断内置工具是否属于 Action Loop 阶段。"""
 
-    return str(tool_spec.metadata.get("builtin_stage") or "").strip() == "action"
-
-
-def is_builtin_tool_in_timing_stage(tool_spec: ToolSpec) -> bool:
-    """判断内置工具是否属于 Timing Gate 阶段。"""
-
-    return str(tool_spec.metadata.get("builtin_stage") or "").strip() == "timing"
+    return str(tool_spec.metadata.get("builtin_stage") or "").strip() in {"action", "both"}
 
 
 def get_all_builtin_tool_specs(context: Optional[ToolAvailabilityContext] = None) -> List[ToolSpec]:

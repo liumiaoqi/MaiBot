@@ -23,10 +23,12 @@ from src.llm_models.payload_content.tool_option import ToolCall
 from src.services import database_service as database_api
 from src.services.memory_service import memory_service
 
-from src.maisaka.builtin_tool import build_builtin_tool_handlers as build_split_builtin_tool_handlers
-from src.maisaka.builtin_tool import get_builtin_tool_visibility, is_builtin_tool_in_action_stage
-from src.maisaka.builtin_tool import is_builtin_tool_in_timing_stage
-from src.maisaka.builtin_tool import get_timing_tools
+from src.maisaka.builtin_tool import (
+    build_builtin_tool_handlers as build_split_builtin_tool_handlers,
+    get_builtin_tool_visibility,
+    get_timing_tools,
+    is_builtin_tool_in_action_stage,
+)
 from .chat_loop_service import ChatResponse
 from src.maisaka.visual.chat_history_refresher import (
     has_pending_image_recognition,
@@ -38,6 +40,8 @@ from src.maisaka.context.messages import (
     AssistantMessage,
     ComplexSessionMessage,
     LLMContextMessage,
+    ReferenceMessage,
+    ReferenceMessageType,
     SessionBackedMessage,
     TIMING_GATE_INVALID_TOOL_HINT_SOURCE,
     ToolResultMessage,
@@ -68,7 +72,8 @@ logger = get_logger("maisaka_reasoning_engine")
 TIMING_GATE_CONTEXT_DROP_HEAD_RATIO = 0.7
 TIMING_GATE_MAX_ATTEMPTS = 3
 TIMING_GATE_TOOL_NAMES = {"continue", "no_action", "wait"}
-PLANNER_MERGED_TIMING_EXCLUDED_TOOL_NAMES = {"continue"}
+PLANNER_NO_TOOL_FINISH_THRESHOLD = 3
+PLANNER_NO_TOOL_HINT_DISPLAY_PREFIX = "[Planner 工具选择提示]"
 HISTORY_SILENT_TOOL_NAMES = {"finish"}
 HISTORY_DEFERRED_TOOL_RESULT_NAMES = {"wait"}
 TOOL_RESULT_MEDIA_SOURCE_KIND = "tool_result_media"
@@ -170,13 +175,6 @@ class MaisakaReasoningEngine:
             **self._runtime._chat_loop_service.build_prompt_template_context(),
         )
 
-    def _is_independent_timing_gate_enabled(self) -> bool:
-        """判断是否启用独立 Timing Gate。"""
-
-        return bool(global_config.chat.enable_independent_timing_gate) and not focus_mode_manager.is_enabled_for_chat(
-            is_group_chat=self._runtime.chat_stream.is_group_session
-        )
-
     async def _build_action_tool_definitions(self) -> tuple[list[dict[str, Any]], str]:
         """构造 Action Loop 阶段可见的工具定义与 deferred tools 提示。"""
 
@@ -187,17 +185,11 @@ class MaisakaReasoningEngine:
 
         availability_context = self._build_tool_availability_context()
         tool_specs = await self._runtime._tool_registry.list_tools(availability_context)
-        include_timing_tools = not self._is_independent_timing_gate_enabled()
         visible_builtin_tool_specs: list[ToolSpec] = []
         deferred_tool_specs: list[ToolSpec] = []
         for tool_spec in tool_specs:
             if tool_spec.provider_name == "maisaka_builtin":
-                is_merged_timing_tool = (
-                    include_timing_tools and is_builtin_tool_in_timing_stage(tool_spec)
-                    and tool_spec.name not in PLANNER_MERGED_TIMING_EXCLUDED_TOOL_NAMES
-                )
-                is_planner_tool = is_builtin_tool_in_action_stage(tool_spec) or is_merged_timing_tool
-                if not is_planner_tool:
+                if not is_builtin_tool_in_action_stage(tool_spec):
                     continue
                 visibility = get_builtin_tool_visibility(tool_spec)
                 if visibility == "visible":
@@ -444,6 +436,96 @@ class MaisakaReasoningEngine:
             [],
         )
 
+    @staticmethod
+    def _build_planner_no_tool_hint(attempt_count: int) -> str:
+        """构造 Planner 未选择工具时注入的重试提示。"""
+
+        if attempt_count <= 1:
+            return (
+                "你刚刚只输出了分析，但没有选择任何工具。Planner 每轮思考后必须调用至少一个当前可用工具："
+                "需要回复时调用 reply，需要先等待新消息时调用 no_action，需要结束本轮时调用 finish，"
+                "需要信息时调用查询或查看类工具。请重新思考，并在本轮选择一个工具。"
+            )
+
+        return (
+            "严厉提醒：这是你连续第二次没有调用工具。不要只输出分析文本；"
+            "你必须立刻调用一个当前可用工具。没有要回复或查询的内容，也必须调用 no_action 或 finish。"
+        )
+
+    @staticmethod
+    def _is_planner_no_tool_hint_message(message: LLMContextMessage) -> bool:
+        """判断是否为 Planner 无工具重试提示。"""
+
+        return (
+            isinstance(message, ReferenceMessage)
+            and message.reference_type == ReferenceMessageType.PLANNER_TOOL_HINT
+        )
+
+    def _clear_planner_no_tool_hints(self) -> None:
+        """移除已过期的 Planner 无工具重试提示。"""
+
+        self._runtime._chat_history = [
+            message
+            for message in self._runtime._chat_history
+            if not self._is_planner_no_tool_hint_message(message)
+        ]
+
+    def _insert_planner_no_tool_hint(self, attempt_count: int) -> None:
+        """在最新真实用户消息之后插入 Planner 工具选择提示。"""
+
+        self._clear_planner_no_tool_hints()
+        hint_message = ReferenceMessage(
+            content=self._build_planner_no_tool_hint(attempt_count),
+            timestamp=datetime.now(),
+            reference_type=ReferenceMessageType.PLANNER_TOOL_HINT,
+            remaining_uses_value=None,
+            display_prefix=PLANNER_NO_TOOL_HINT_DISPLAY_PREFIX,
+        )
+
+        insert_index = len(self._runtime._chat_history)
+        for index in range(len(self._runtime._chat_history) - 1, -1, -1):
+            message = self._runtime._chat_history[index]
+            if isinstance(message, SessionBackedMessage) and message.source_kind == "user":
+                insert_index = index + 1
+                break
+
+        self._runtime._chat_history.insert(insert_index, hint_message)
+
+    def _handle_planner_no_tool_retry(
+        self,
+        planner_no_tool_count: int,
+        planner_extra_lines: list[str],
+    ) -> tuple[int, str, str, bool]:
+        """处理 Planner 未调用工具时的递进提示与终止策略。"""
+
+        planner_no_tool_count += 1
+        if planner_no_tool_count >= PLANNER_NO_TOOL_FINISH_THRESHOLD:
+            self._clear_planner_no_tool_hints()
+            self._finish_planner_continuation()
+            self._runtime._enter_stop_state()
+            cycle_end_detail = (
+                f"Planner 连续 {PLANNER_NO_TOOL_FINISH_THRESHOLD} 次没有调用工具，"
+                "已视为 finish，结束本轮思考并等待新消息。"
+            )
+            planner_extra_lines.append(
+                f"状态：连续 {PLANNER_NO_TOOL_FINISH_THRESHOLD} 次未调用工具，已视为 finish"
+            )
+            return planner_no_tool_count, "finish", cycle_end_detail, True
+
+        self._insert_planner_no_tool_hint(planner_no_tool_count)
+        cycle_end_detail = (
+            f"Planner 第 {planner_no_tool_count} 次没有调用工具，"
+            "已插入工具选择提示并重试。"
+        )
+        planner_extra_lines.append(
+            f"状态：第 {planner_no_tool_count} 次未调用工具，已插入工具选择提示"
+        )
+        logger.warning(
+            f"{self._runtime.log_prefix} Planner 第 {planner_no_tool_count} 次未调用工具，"
+            "已插入工具选择提示并重试"
+        )
+        return planner_no_tool_count, "planner_missing_tool_retry", cycle_end_detail, False
+
     def _append_timing_gate_invalid_tool_hint(self, invalid_tool_text: str) -> None:
         """写入一条仅 Timing Gate 可见的非法工具提示，并保证最多保留最新一条。"""
 
@@ -472,6 +554,46 @@ class MaisakaReasoningEngine:
         """根据门控动作决定下一轮是否还需要重新执行 timing。"""
 
         return timing_action != "continue"
+
+    def _is_planner_continuation_active(self) -> bool:
+        """判断当前是否处于连续 Planner 状态。"""
+
+        is_active = getattr(self._runtime, "_is_planner_continuation_active", None)
+        if callable(is_active):
+            return bool(is_active())
+        return bool(getattr(self._runtime, "_planner_continuation_active", False))
+
+    def _start_planner_continuation(self) -> None:
+        """进入连续 Planner 状态。"""
+
+        start_continuation = getattr(self._runtime, "_start_planner_continuation", None)
+        if callable(start_continuation):
+            start_continuation()
+            return
+        setattr(self._runtime, "_planner_continuation_active", True)
+
+    def _finish_planner_continuation(self) -> None:
+        """结束连续 Planner 状态。"""
+
+        finish_continuation = getattr(self._runtime, "_finish_planner_continuation", None)
+        if callable(finish_continuation):
+            finish_continuation()
+            return
+        setattr(self._runtime, "_planner_continuation_active", False)
+
+    def _should_run_initial_timing_gate(self) -> bool:
+        """决定本批消息开始时是否需要先进入 Timing Gate。"""
+
+        if not self._is_planner_continuation_active():
+            return True
+
+        consume_force_continue = getattr(self._runtime, "_consume_force_next_timing_continue_reason", None)
+        if callable(consume_force_continue):
+            force_continue_reason = consume_force_continue()
+            if force_continue_reason:
+                logger.info(f"{self._runtime.log_prefix} {force_continue_reason}")
+        logger.info(f"{self._runtime.log_prefix} 连续 Planner 状态未结束，本轮跳过 Timing Gate")
+        return False
 
     @staticmethod
     def _should_retry_planner_after_interrupt(
@@ -558,15 +680,8 @@ class MaisakaReasoningEngine:
                     continue
 
                 try:
-                    timing_gate_required = self._is_independent_timing_gate_enabled()
-                    merged_timing_backoff_required = (
-                        not bool(global_config.chat.enable_independent_timing_gate)
-                        and not focus_mode_manager.is_enabled_for_chat(
-                            is_group_chat=self._runtime.chat_stream.is_group_session
-                        )
-                    )
-                    if not timing_gate_required:
-                        self._runtime._consume_force_next_timing_continue_reason()
+                    timing_gate_required = self._should_run_initial_timing_gate()
+                    planner_no_tool_count = 0
                     round_index = 0
                     while round_index < self._runtime._max_internal_rounds:
                         if round_index > 0 and self._runtime._has_pending_messages():
@@ -647,6 +762,7 @@ class MaisakaReasoningEngine:
                                 )
                                 timing_gate_required = self._mark_timing_gate_completed(timing_action)
                                 if timing_action != "continue":
+                                    self._finish_planner_continuation()
                                     if timing_action == "wait":
                                         cycle_end_reason = "timing_wait"
                                         cycle_end_detail = "Timing Gate 选择 wait，本轮不会进入 Planner，将在等待结束后继续。"
@@ -658,17 +774,13 @@ class MaisakaReasoningEngine:
                                         f"回合={round_index + 1} 动作={timing_action}"
                                     )
                                     break
-                            elif self._is_independent_timing_gate_enabled():
-                                logger.info(
-                                    f"{self._runtime.log_prefix} 跳过 Timing Gate，继续执行 Planner: "
-                                    f"回合={round_index + 1}"
-                                )
                             else:
-                                logger.debug(
-                                    f"{self._runtime.log_prefix} 独立时间感知关闭，节奏控制交由 Planner 执行: "
+                                logger.info(
+                                    f"{self._runtime.log_prefix} Timing Gate 已完成 continue，继续执行 Planner: "
                                     f"回合={round_index + 1}"
                                 )
 
+                            self._start_planner_continuation()
                             planner_started_at = time.time()
                             current_stage_started_at = planner_started_at
                             self._runtime._update_stage_status("Planner", "组织上下文并请求模型", round_text=round_text)
@@ -712,6 +824,8 @@ class MaisakaReasoningEngine:
                             tool_monitor_results = []
 
                             if response.tool_calls:
+                                planner_no_tool_count = 0
+                                self._clear_planner_no_tool_hints()
                                 tool_started_at = time.time()
                                 (
                                     should_pause,
@@ -724,18 +838,16 @@ class MaisakaReasoningEngine:
                                     anchor_message,
                                 )
                                 cycle_detail.time_records["tool_calls"] = time.time() - tool_started_at
-                                if merged_timing_backoff_required:
-                                    planner_action_name = (
-                                        pause_tool_name if should_pause and pause_tool_name else "continue"
-                                    )
-                                    self._runtime.record_no_action_decision_result(
-                                        planner_action_name,
-                                        source="planner",
-                                    )
+                                if pause_tool_name == "no_action":
+                                    self._runtime.record_no_action_decision_result("no_action", source="planner")
                                 if should_pause:
                                     if pause_tool_name == "finish":
+                                        self._finish_planner_continuation()
                                         cycle_end_reason = "finish"
-                                        cycle_end_detail = "Planner 调用 finish，结束本轮思考并等待新消息。"
+                                        cycle_end_detail = "Planner 调用 finish，结束连续 Planner 并等待新消息。"
+                                    elif pause_tool_name == "no_action":
+                                        cycle_end_reason = "tool_pause:no_action"
+                                        cycle_end_detail = "Planner 调用 no_action，保留连续 Planner 状态并等待新消息。"
                                     elif pause_tool_name:
                                         cycle_end_reason = f"tool_pause:{pause_tool_name}"
                                         cycle_end_detail = f"工具 {pause_tool_name} 要求暂停当前思考循环。"
@@ -747,17 +859,18 @@ class MaisakaReasoningEngine:
                                 cycle_end_detail = "Planner 工具执行完成，继续下一轮内部思考。"
                                 continue
 
-                            if merged_timing_backoff_required:
-                                planner_action_name = "content" if response.content else "empty"
-                                self._runtime.record_no_action_decision_result(
-                                    planner_action_name,
-                                    source="planner",
-                                )
-
-                            if not response.content:
-                                cycle_end_reason = "empty_planner_response"
-                                cycle_end_detail = "Planner 没有返回文本或工具调用，本轮思考结束。"
+                            (
+                                planner_no_tool_count,
+                                cycle_end_reason,
+                                cycle_end_detail,
+                                should_finish_after_no_tool,
+                            ) = self._handle_planner_no_tool_retry(
+                                planner_no_tool_count,
+                                planner_extra_lines,
+                            )
+                            if should_finish_after_no_tool:
                                 break
+                            continue
                         except ReqAbortException as exc:
                             planner_interrupted = True
                             cycle_end_reason = "planner_interrupted"

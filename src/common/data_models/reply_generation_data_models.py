@@ -143,7 +143,7 @@ def _format_selected_expression_line(expression: Dict[str, Any], fallback_id: Op
 
     prefix = f"{expression_id}：" if expression_id is not None else ""
     if situation and style:
-        return f"{prefix}当{situation}时，可以自然地用{style}这种表达习惯。"
+        return f"[{prefix}] {situation} -> {style}"
     if situation:
         return f"{prefix}{situation}"
     if style:

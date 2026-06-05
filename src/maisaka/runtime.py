@@ -124,6 +124,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         self._force_next_timing_continue = False
         self._force_next_timing_message_id = ""
         self._force_next_timing_reason = ""
+        self._planner_continuation_active = False
         self._planner_interrupt_flag: Optional[asyncio.Event] = None
         self._planner_interrupt_requested = False
         self._planner_interrupt_consecutive_count = 0
@@ -966,18 +967,10 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
 
         trigger_reason = self._force_next_timing_reason or "@/提及消息"
         trigger_message_id = self._force_next_timing_message_id or "unknown"
-        if global_config.chat.enable_independent_timing_gate and not focus_mode_manager.is_enabled_for_chat(
-            is_group_chat=self.chat_stream.is_group_session
-        ):
-            reason = (
-                f"检测到新的{trigger_reason}（消息编号={trigger_message_id}），"
-                "本轮直接跳过 Timing Gate 并视作 continue。"
-            )
-        else:
-            reason = (
-                f"检测到新的{trigger_reason}（消息编号={trigger_message_id}），"
-                "本轮直接交由 Planner 处理。"
-            )
+        reason = (
+            f"检测到新的{trigger_reason}（消息编号={trigger_message_id}），"
+            "本轮直接跳过 Timing Gate 并视作 continue。"
+        )
         logger.info(
             f"{self.log_prefix} 已结束本次强制 continue 状态；"
             f"触发原因={trigger_reason} "
@@ -998,6 +991,21 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         """判断是否已有 @/提及必回触发，需绕过普通频率阈值。"""
 
         return self._force_next_timing_continue
+
+    def _start_planner_continuation(self) -> None:
+        """标记已进入连续 Planner 状态。"""
+
+        self._planner_continuation_active = True
+
+    def _finish_planner_continuation(self) -> None:
+        """结束连续 Planner 状态。"""
+
+        self._planner_continuation_active = False
+
+    def _is_planner_continuation_active(self) -> bool:
+        """判断当前是否保持连续 Planner 状态。"""
+
+        return self._planner_continuation_active
 
     def _get_no_action_backoff_seconds(self) -> float:
         """按连续 no_action 次数计算下一次退避秒数。"""

@@ -48,6 +48,8 @@ from src.maisaka.visual.message_limiter import limit_latest_images_in_messages
 from src.maisaka.visual.mode_utils import resolve_enable_visual_planner
 
 TIMING_GATE_TOOL_NAMES = {"continue", "no_action", "wait"}
+PLANNER_FILTERED_TIMING_TOOL_NAMES = {"continue", "wait"}
+PLANNER_TOOL_HINT_SOURCE = "planner_tool_hint"
 REQUEST_TYPE_BY_REQUEST_KIND = {
     "planner": "maisaka_planner",
     "timing_gate": "maisaka_timing_gate",
@@ -707,13 +709,11 @@ class MaisakaChatLoopService:
             return f"{self.personality_prompt}\n\nYou are a helpful AI assistant."
 
     def _get_chat_prompt_name(self) -> str:
-        """根据独立 Timing Gate 配置选择 Planner 模板。"""
+        """选择当前聊天使用的 Planner 模板。"""
 
         if focus_mode_manager.is_enabled_for_chat(is_group_chat=self._is_group_chat):
             return "maisaka_chat_focus"
-        if global_config.chat.enable_independent_timing_gate:
-            return "maisaka_chat"
-        return "maisaka_chat_merged_timing"
+        return "maisaka_chat"
 
     def build_prompt_template_context(self, tools_section: str = "") -> dict[str, str]:
         """构造 Maisaka prompt 模板的公共渲染参数。"""
@@ -765,23 +765,11 @@ class MaisakaChatLoopService:
 
         locale = get_locale()
         if locale == "en-US":
-            if self._is_group_chat is True:
-                return ""
-            if self._is_group_chat is False:
-                return "- wait: wait for a fixed period, then judge again"
-            return "- wait: available only in private chats; if this is a group chat, do not call it"
+            return "- wait: wait for a fixed period, then judge again"
         if locale == "ja-JP":
-            if self._is_group_chat is True:
-                return ""
-            if self._is_group_chat is False:
-                return "- wait：一定時間待ってから再判断する"
-            return "- wait：個人チャットでのみ利用できます。現在がグループチャットなら呼び出さないでください"
+            return "- wait：一定時間待ってから再判断する"
 
-        if self._is_group_chat is True:
-            return ""
-        if self._is_group_chat is False:
-            return "- wait：固定再等待一段时间，时间到后再重新判断"
-        return "- wait：仅私聊可用；如果当前是群聊，不要调用"
+        return "- wait：固定再等待一段时间，时间到后再重新判断"
 
     @staticmethod
     def _get_chat_prompt_for_chat(chat_id: str, is_group_chat: Optional[bool]) -> str:
@@ -880,6 +868,7 @@ class MaisakaChatLoopService:
         response_format: RespFormat | None = None,
         tool_definitions: Sequence[ToolDefinitionInput] | None = None,
         max_context_size: Optional[int] = None,
+        system_prompt: Optional[str] = None,
         tail_user_messages: Sequence[str] | None = None,
     ) -> ChatResponse:
         """执行一轮 Maisaka 规划器请求。
@@ -904,6 +893,7 @@ class MaisakaChatLoopService:
             enable_visual_message=enable_visual_message,
             injected_user_messages=injected_user_messages,
             tail_user_messages=tail_user_messages,
+            system_prompt=system_prompt,
         )
         if enable_visual_message:
             built_messages = limit_latest_images_in_messages(
@@ -1106,7 +1096,6 @@ class MaisakaChatLoopService:
         filtered_history = MaisakaChatLoopService._filter_history_for_request_kind(
             chat_history,
             request_kind=request_kind,
-            is_focus_mode_active=focus_mode_manager.is_enabled_for_chat(is_group_chat=is_group_chat),
         )
         base_context_size = max(1, int(max_context_size or global_config.chat.max_context_size))
         effective_context_size = max(
@@ -1181,7 +1170,6 @@ class MaisakaChatLoopService:
         selected_history: List[LLMContextMessage],
         *,
         request_kind: str,
-        is_focus_mode_active: Optional[bool] = None,
     ) -> List[LLMContextMessage]:
         """按请求类型过滤不应暴露的历史工具链。"""
 
@@ -1195,6 +1183,9 @@ class MaisakaChatLoopService:
             }
             filtered_history: List[LLMContextMessage] = []
             for message in selected_history:
+                if message.source == PLANNER_TOOL_HINT_SOURCE:
+                    continue
+
                 if isinstance(message, ToolResultMessage):
                     if message.tool_name in TIMING_GATE_TOOL_NAMES or message.tool_call_id in allowed_tool_call_ids:
                         filtered_history.append(message)
@@ -1240,21 +1231,16 @@ class MaisakaChatLoopService:
         if request_kind != "planner":
             return selected_history
 
-        if is_focus_mode_active is None:
-            is_focus_mode_active = focus_mode_manager.is_enabled()
-        if not global_config.chat.enable_independent_timing_gate or is_focus_mode_active:
-            return selected_history
-
         filtered_history: List[LLMContextMessage] = []
         for message in selected_history:
-            if isinstance(message, ToolResultMessage) and message.tool_name in TIMING_GATE_TOOL_NAMES:
+            if isinstance(message, ToolResultMessage) and message.tool_name in PLANNER_FILTERED_TIMING_TOOL_NAMES:
                 continue
 
             if isinstance(message, AssistantMessage) and message.tool_calls:
                 kept_tool_calls = [
                     tool_call
                     for tool_call in message.tool_calls
-                    if tool_call.func_name not in TIMING_GATE_TOOL_NAMES
+                    if tool_call.func_name not in PLANNER_FILTERED_TIMING_TOOL_NAMES
                 ]
                 if not kept_tool_calls:
                     continue

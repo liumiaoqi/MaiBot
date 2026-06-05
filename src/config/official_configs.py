@@ -593,21 +593,6 @@ class ChatConfig(ConfigBase):
     )
     """最多保留多少条中期聊天摘要消息，超出后移除最早的摘要"""
 
-    enable_independent_timing_gate: bool = Field(
-        default=True,
-        json_schema_extra={
-            "label": {
-                "zh_CN": "独立时间感知",
-                "en_US": "Independent timing gate",
-                "ja_JP": "独立タイミング判断",
-            },
-            "x-widget": "switch",
-            "x-icon": "clock-3",
-            "x-description-display": "icon",
-        },
-    )
-    """开启后对回复时机判定更精确，可能消耗更多token"""
-
     enable_reply_quote: bool = Field(
         default=True,
         json_schema_extra={
