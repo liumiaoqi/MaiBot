@@ -248,17 +248,13 @@ def register_maisaka_hook_specs(registry: HookSpecRegistry) -> List[HookSpec]:
                             "type": "string",
                             "description": "本次 replyer 生成的回复理由。",
                         },
-                        "reference_info": {
-                            "type": "string",
-                            "description": "本次 replyer 生成使用的参考信息。",
-                        },
                         "selected_expression_ids": {
                             "type": "array",
                             "description": "本次 replyer 选中的表达方式编号列表。",
                         },
                         "reply_tool_args": {
                             "type": "object",
-                            "description": "reply 工具里除 msg_id、set_quote、reference_info 外透传给 replyer 的额外参数。",
+                            "description": "reply 工具里除 msg_id、set_quote 外透传给 replyer 的额外参数。",
                         },
                     },
                     required=[
@@ -272,7 +268,6 @@ def register_maisaka_hook_specs(registry: HookSpecRegistry) -> List[HookSpec]:
                         "max_retries",
                         "reply_message_id",
                         "reply_reason",
-                        "reference_info",
                         "selected_expression_ids",
                         "reply_tool_args",
                     ],
@@ -334,17 +329,13 @@ def register_maisaka_hook_specs(registry: HookSpecRegistry) -> List[HookSpec]:
                             "type": "string",
                             "description": "本次 replyer 生成的回复理由。",
                         },
-                        "reference_info": {
-                            "type": "string",
-                            "description": "本次 replyer 生成使用的参考信息。",
-                        },
                         "selected_expression_ids": {
                             "type": "array",
                             "description": "本次 replyer 选中的表达方式编号列表。",
                         },
                         "reply_tool_args": {
                             "type": "object",
-                            "description": "reply 工具里除 msg_id、set_quote、reference_info 外透传给 replyer 的额外参数。",
+                            "description": "reply 工具里除 msg_id、set_quote 外透传给 replyer 的额外参数。",
                         },
                     },
                     required=[
@@ -360,7 +351,6 @@ def register_maisaka_hook_specs(registry: HookSpecRegistry) -> List[HookSpec]:
                         "max_retries",
                         "reply_message_id",
                         "reply_reason",
-                        "reference_info",
                         "selected_expression_ids",
                         "reply_tool_args",
                     ],
@@ -416,7 +406,7 @@ def register_maisaka_hook_specs(registry: HookSpecRegistry) -> List[HookSpec]:
                         },
                         "reply_tool_args": {
                             "type": "object",
-                            "description": "reply 工具里除 msg_id、set_quote、reference_info 外透传给 replyer 的额外参数。",
+                            "description": "reply 工具里除 msg_id、set_quote 外透传给 replyer 的额外参数。",
                         },
                         "prompt_tokens": {
                             "type": "integer",

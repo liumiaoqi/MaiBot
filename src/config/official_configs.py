@@ -658,14 +658,14 @@ class ChatConfig(ConfigBase):
     )
     """planner如果遇到新消息，重新开始思考的次数"""
 
-    timing_gate_no_action_backoff_base_seconds: float = Field(
+    no_action_backoff_base_seconds: float = Field(
         default=15,
         ge=0,
         json_schema_extra={
             "label": {
-                "zh_CN": "Timing Gate 退避基准",
-                "en_US": "Timing Gate backoff base",
-                "ja_JP": "Timing Gate バックオフ基準",
+                "zh_CN": "no_action 退避基准",
+                "en_US": "no_action backoff base",
+                "ja_JP": "no_action バックオフ基準",
             },
             "x-widget": "input",
             "x-icon": "timer",
@@ -673,16 +673,16 @@ class ChatConfig(ConfigBase):
             "advanced": False,
         },
     )
-    """Timing Gate 连续 no_action 后的退避基准秒数，0 表示不启用退避"""
+    """连续 no_action 后的退避基准秒数，0 表示不启用退避"""
 
-    timing_gate_no_action_backoff_cap_seconds: float = Field(
+    no_action_backoff_cap_seconds: float = Field(
         default=300,
         ge=0,
         json_schema_extra={
             "label": {
-                "zh_CN": "Timing Gate 退避上限",
-                "en_US": "Timing Gate backoff cap",
-                "ja_JP": "Timing Gate バックオフ上限",
+                "zh_CN": "no_action 退避上限",
+                "en_US": "no_action backoff cap",
+                "ja_JP": "no_action バックオフ上限",
             },
             "x-widget": "input",
             "x-icon": "timer-reset",
@@ -690,16 +690,16 @@ class ChatConfig(ConfigBase):
             "advanced": True,
         },
     )
-    """Timing Gate 连续 no_action 退避秒数上限"""
+    """连续 no_action 退避秒数上限"""
 
-    timing_gate_no_action_backoff_start_count: int = Field(
+    no_action_backoff_start_count: int = Field(
         default=2,
         ge=1,
         json_schema_extra={
             "label": {
-                "zh_CN": "Timing Gate 退避起点",
-                "en_US": "Timing Gate backoff start",
-                "ja_JP": "Timing Gate バックオフ開始",
+                "zh_CN": "no_action 退避起点",
+                "en_US": "no_action backoff start",
+                "ja_JP": "no_action バックオフ開始",
             },
             "x-widget": "input",
             "x-icon": "list-start",
@@ -709,14 +709,14 @@ class ChatConfig(ConfigBase):
     )
     """连续第几次 no_action 后开始退避"""
 
-    timing_gate_no_action_backoff_bypass_pending_count: int = Field(
+    no_action_backoff_bypass_pending_count: int = Field(
         default=6,
         ge=0,
         json_schema_extra={
             "label": {
-                "zh_CN": "Timing Gate 退避绕过消息数",
-                "en_US": "Timing Gate backoff bypass messages",
-                "ja_JP": "Timing Gate バックオフ迂回メッセージ数",
+                "zh_CN": "no_action 退避绕过消息数",
+                "en_US": "no_action backoff bypass messages",
+                "ja_JP": "no_action バックオフ迂回メッセージ数",
             },
             "x-widget": "input",
             "x-icon": "message-square-more",

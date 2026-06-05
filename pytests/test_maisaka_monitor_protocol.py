@@ -425,7 +425,7 @@ async def test_reply_tool_puts_monitor_detail_into_metadata(monkeypatch: pytest.
 
 
 @pytest.mark.asyncio
-async def test_reply_tool_merges_heuristic_memory_reference(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_reply_tool_drops_legacy_reference_info_argument(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, Any] = {}
     fake_reply_result = ReplyGenerationResult(
         success=True,
@@ -441,11 +441,6 @@ async def test_reply_tool_merges_heuristic_memory_reference(monkeypatch: pytest.
 
     monkeypatch.setattr(reply_tool_module.replyer_manager, "get_replyer", lambda **kwargs: _FakeReplyer())
     monkeypatch.setattr(reply_tool_module, "render_cli_message", lambda text: text)
-    monkeypatch.setattr(
-        reply_tool_module,
-        "merge_heuristic_memory_reference_for_replyer",
-        lambda **kwargs: f"{kwargs['reference_info']}\n\n【启发式记忆-内部参考】\n1. 测试记忆".strip(),
-    )
 
     target_message = SimpleNamespace(
         message_id="msg-1",
@@ -477,8 +472,8 @@ async def test_reply_tool_merges_heuristic_memory_reference(monkeypatch: pytest.
     result = await reply_tool_module.handle_tool(tool_ctx, invocation)
 
     assert result.success is True
-    assert "已有参考" in captured["reference_info"]
-    assert "启发式记忆-内部参考" in captured["reference_info"]
+    assert "reference_info" not in captured
+    assert "reference_info" not in captured["reply_tool_args"]
 
 
 @pytest.mark.asyncio

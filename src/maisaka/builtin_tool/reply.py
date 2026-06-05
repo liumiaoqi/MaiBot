@@ -10,13 +10,13 @@ from src.common.data_models.reply_generation_data_models import ReplyGenerationR
 from src.common.logger import get_logger
 from src.config import config as config_module
 from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
-from src.maisaka.memory.heuristic_injector import merge_heuristic_memory_reference_for_replyer
 from src.maisaka.context.message_adapter import build_visible_text_from_sequence
 from src.services import send_service
 
 from .context import BuiltinToolRuntimeContext
 
 logger = get_logger("maisaka_builtin_reply")
+_REPLY_TOOL_INTERNAL_ARGUMENTS = {"msg_id", "set_quote", "reference_info"}
 
 
 async def _run_expression_selector(tool_ctx: BuiltinToolRuntimeContext, system_prompt: str) -> str:
@@ -45,11 +45,6 @@ def get_tool_spec() -> ToolSpec:
                 "set_quote": {
                     "type": "boolean",
                     "description": "以引用回复的方式发送这条回复，不用每句都引用。",
-                    "default": True,
-                },
-                "reference_info": {
-                    "type": "string",
-                    "description": "有助于回复的信息，之前搜集得到的事实性信息，记忆等，使用平文本格式。",
                     "default": True,
                 },
             },
@@ -105,16 +100,12 @@ async def handle_tool(
     """执行 reply 内置工具。"""
 
     latest_thought = context.reasoning if context is not None else invocation.reasoning
-    reference_info = merge_heuristic_memory_reference_for_replyer(
-        session_id=str(tool_ctx.runtime.session_id or ""),
-        reference_info=str(invocation.arguments.get("reference_info") or "").strip(),
-    )
     target_message_id = str(invocation.arguments.get("msg_id") or "").strip()
     set_quote = bool(invocation.arguments.get("set_quote", True))
     reply_tool_args = {
         key: value
         for key, value in dict(invocation.arguments or {}).items()
-        if key not in {"msg_id", "set_quote", "reference_info"}
+        if key not in _REPLY_TOOL_INTERNAL_ARGUMENTS
     }
     enable_reply_quote = bool(config_module.global_config.chat.enable_reply_quote)
     effective_set_quote = set_quote and enable_reply_quote
@@ -160,7 +151,6 @@ async def handle_tool(
     try:
         success, reply_result = await replyer.generate_reply_with_context(
             reply_reason=latest_thought,
-            reference_info=reference_info,
             stream_id=tool_ctx.runtime.session_id,
             reply_message=target_message,
             chat_history=replyer_chat_history,
@@ -295,7 +285,6 @@ async def handle_tool(
             reply_text=combined_reply_text,
             reply_segments=reply_segments,
             planner_reasoning=latest_thought,
-            reference_info=reference_info,
             tool_context={
                 "tool_name": invocation.tool_name,
                 "call_id": invocation.call_id,

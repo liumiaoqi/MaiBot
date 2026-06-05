@@ -128,8 +128,8 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         self._planner_interrupt_requested = False
         self._planner_interrupt_consecutive_count = 0
         self._consecutive_no_action_count = 0
-        self._timing_gate_no_action_backoff_count = 0
-        self._timing_gate_no_action_backoff_until = 0.0
+        self._no_action_backoff_count = 0
+        self._no_action_backoff_until = 0.0
         self._current_action_tool_names: set[str] = set()
         self.discovered_tool_names: set[str] = set()
         self.deferred_tool_specs_by_name: dict[str, ToolSpec] = {}
@@ -169,28 +169,28 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         return max(0, int(global_config.chat.planner_interrupt_max_consecutive_count))
 
     @property
-    def _timing_gate_no_action_backoff_base_seconds(self) -> float:
-        """返回当前实时生效的 Timing Gate no_action 退避基准秒数。"""
+    def _no_action_backoff_base_seconds(self) -> float:
+        """返回当前实时生效的 no_action 退避基准秒数。"""
 
-        return max(0.0, float(global_config.chat.timing_gate_no_action_backoff_base_seconds))
-
-    @property
-    def _timing_gate_no_action_backoff_cap_seconds(self) -> float:
-        """返回当前实时生效的 Timing Gate no_action 退避上限秒数。"""
-
-        return max(0.0, float(global_config.chat.timing_gate_no_action_backoff_cap_seconds))
+        return max(0.0, float(global_config.chat.no_action_backoff_base_seconds))
 
     @property
-    def _timing_gate_no_action_backoff_start_count(self) -> int:
+    def _no_action_backoff_cap_seconds(self) -> float:
+        """返回当前实时生效的 no_action 退避上限秒数。"""
+
+        return max(0.0, float(global_config.chat.no_action_backoff_cap_seconds))
+
+    @property
+    def _no_action_backoff_start_count(self) -> int:
         """返回连续第几次 no_action 后开始退避。"""
 
-        return max(1, int(global_config.chat.timing_gate_no_action_backoff_start_count))
+        return max(1, int(global_config.chat.no_action_backoff_start_count))
 
     @property
-    def _timing_gate_no_action_backoff_bypass_pending_count(self) -> int:
+    def _no_action_backoff_bypass_pending_count(self) -> int:
         """返回退避期间直接绕过所需的待处理消息数。"""
 
-        return max(0, int(global_config.chat.timing_gate_no_action_backoff_bypass_pending_count))
+        return max(0, int(global_config.chat.no_action_backoff_bypass_pending_count))
 
     @property
     def _enable_expression_use(self) -> bool:
@@ -666,7 +666,6 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         reply_text: str,
         reply_segments: list[str],
         planner_reasoning: str,
-        reference_info: str,
         tool_context: Optional[dict[str, Any]] = None,
         send_results: Optional[list[dict[str, Any]]] = None,
         reply_metadata: Optional[dict[str, Any]] = None,
@@ -694,7 +693,6 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
                 reply_text=reply_text,
                 reply_segments=reply_segments,
                 planner_reasoning=planner_reasoning,
-                reference_info=reference_info,
                 tool_context=tool_context,
                 send_results=send_results,
                 reply_metadata=enriched_reply_metadata,
@@ -946,7 +944,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         self._force_next_timing_continue = True
         self._force_next_timing_message_id = message.message_id
         self._force_next_timing_reason = trigger_reason
-        self._reset_timing_gate_no_action_backoff()
+        self._reset_no_action_backoff()
 
         if was_armed:
             logger.info(
@@ -1001,87 +999,83 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
 
         return self._force_next_timing_continue
 
-    def _get_timing_gate_no_action_backoff_seconds(self) -> float:
-        """按连续 no_action 次数计算下一次 Timing Gate 退避秒数。"""
+    def _get_no_action_backoff_seconds(self) -> float:
+        """按连续 no_action 次数计算下一次退避秒数。"""
 
-        base_seconds = self._timing_gate_no_action_backoff_base_seconds
-        cap_seconds = self._timing_gate_no_action_backoff_cap_seconds
+        base_seconds = self._no_action_backoff_base_seconds
+        cap_seconds = self._no_action_backoff_cap_seconds
         if base_seconds <= 0 or cap_seconds <= 0:
             return 0.0
 
-        start_count = self._timing_gate_no_action_backoff_start_count
-        no_action_count = self._timing_gate_no_action_backoff_count
+        start_count = self._no_action_backoff_start_count
+        no_action_count = self._no_action_backoff_count
         if no_action_count < start_count:
             return 0.0
 
         exponent = max(0, no_action_count - start_count)
         return min(cap_seconds, base_seconds * (2**exponent))
 
-    def _reset_timing_gate_no_action_backoff(self) -> None:
-        """清理 Timing Gate 连续 no_action 退避状态。"""
+    def _reset_no_action_backoff(self) -> None:
+        """清理连续 no_action 退避状态。"""
 
-        self._timing_gate_no_action_backoff_count = 0
-        self._timing_gate_no_action_backoff_until = 0.0
+        self._no_action_backoff_count = 0
+        self._no_action_backoff_until = 0.0
 
-    def record_timing_gate_action_result(self, timing_action: str) -> None:
-        """记录 Timing Gate 结果并维护 no_action 退避状态。"""
+    def record_no_action_decision_result(self, action_name: str, *, source: str = "planner") -> None:
+        """记录决策结果并维护 no_action 退避状态。"""
 
         if not self.chat_stream.is_group_session:
-            self._reset_timing_gate_no_action_backoff()
+            self._reset_no_action_backoff()
             return
 
-        if timing_action != "no_action":
-            self._reset_timing_gate_no_action_backoff()
+        normalized_action_name = str(action_name).strip()
+        if normalized_action_name != "no_action":
+            self._reset_no_action_backoff()
             return
 
-        self._timing_gate_no_action_backoff_count += 1
-        backoff_seconds = self._get_timing_gate_no_action_backoff_seconds()
+        self._no_action_backoff_count += 1
+        backoff_seconds = self._get_no_action_backoff_seconds()
         if backoff_seconds <= 0:
-            self._timing_gate_no_action_backoff_until = 0.0
+            self._no_action_backoff_until = 0.0
             return
 
-        self._timing_gate_no_action_backoff_until = time.time() + backoff_seconds
+        self._no_action_backoff_until = time.time() + backoff_seconds
         logger.info(
-            f"{self.log_prefix} Timing Gate 连续 no_action 退避已更新: "
-            f"连续次数={self._timing_gate_no_action_backoff_count} "
+            f"{self.log_prefix} 连续 no_action 退避已更新: "
+            f"来源={source} "
+            f"连续次数={self._no_action_backoff_count} "
             f"退避={backoff_seconds:.2f} 秒"
         )
 
-    def _should_delay_for_timing_gate_no_action_backoff(self, pending_count: int) -> bool:
-        """判断当前消息触发是否应被 Timing Gate no_action 退避延迟。"""
-
-        if not global_config.chat.enable_independent_timing_gate:
-            self._reset_timing_gate_no_action_backoff()
-            return False
+    def _should_delay_for_no_action_backoff(self, pending_count: int) -> bool:
+        """判断当前消息触发是否应被 no_action 退避延迟。"""
 
         if focus_mode_manager.is_enabled_for_chat(is_group_chat=self.chat_stream.is_group_session):
-            self._reset_timing_gate_no_action_backoff()
+            self._reset_no_action_backoff()
             return False
 
         if not self.chat_stream.is_group_session:
             return False
 
-        backoff_until = self._timing_gate_no_action_backoff_until
+        backoff_until = self._no_action_backoff_until
         if backoff_until <= 0:
             return False
 
         now = time.time()
         remaining_seconds = backoff_until - now
         if remaining_seconds <= 0:
-            self._timing_gate_no_action_backoff_until = 0.0
+            self._no_action_backoff_until = 0.0
             return False
 
-        bypass_pending_count = self._timing_gate_no_action_backoff_bypass_pending_count
+        bypass_pending_count = self._no_action_backoff_bypass_pending_count
         if bypass_pending_count > 0 and pending_count >= bypass_pending_count:
             logger.info(
-                f"{self.log_prefix} Timing Gate no_action 退避被待处理消息数绕过: "
+                f"{self.log_prefix} no_action 退避被待处理消息数绕过: "
                 f"待处理={pending_count} 阈值={bypass_pending_count}"
             )
             return False
 
-        logger.debug(
-            f"{self.log_prefix} Timing Gate no_action 退避中，延迟 {remaining_seconds:.2f} 秒后再检查"
-        )
+        logger.debug(f"{self.log_prefix} no_action 退避中，延迟 {remaining_seconds:.2f} 秒后再检查")
         self._cancel_deferred_message_turn_task()
         self._deferred_message_turn_task = asyncio.create_task(
             self._schedule_deferred_message_turn(remaining_seconds)
@@ -1466,7 +1460,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
             self._internal_turn_queue.put_nowait("message")
             return
 
-        if self._should_delay_for_timing_gate_no_action_backoff(pending_count):
+        if self._should_delay_for_no_action_backoff(pending_count):
             return
 
         trigger_threshold = self._get_message_trigger_threshold()
