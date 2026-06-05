@@ -7,7 +7,6 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ThinkingIllustration } from '@/components/ui/thinking-illustration'
 import { AlertCircle, AlertTriangle, CheckCircle2, Info, Loader2, Search, Settings2 } from 'lucide-react'
 
@@ -37,9 +36,7 @@ import {
 } from '@/lib/plugin-stats'
 
 import { InstallDialog } from './InstallDialog'
-import { InstalledTab } from './InstalledTab'
 import { MarketplaceTab } from './MarketplaceTab'
-import { UpdatesTab } from './UpdatesTab'
 import type { GitStatus, MaimaiVersion, MarketplaceSortKey, PluginInfo, PluginLoadProgress } from './types'
 import { getPluginType, PLUGIN_TYPE_OPTIONS } from './types'
 
@@ -61,7 +58,6 @@ function PluginsPageContent() {
   const [searchQuery, setSearchQuery] = useState('')
   const [pluginTypeFilter, setPluginTypeFilter] = useState('all')
   const [marketplaceSortBy, setMarketplaceSortBy] = useState<MarketplaceSortKey>('default')
-  const [activeTab, setActiveTab] = useState('all')  // all | installed | updates
   const [showCompatibleOnly, setShowCompatibleOnly] = useState(true)  // 默认只显示兼容的
   const [hideInstalledPlugins, setHideInstalledPlugins] = useState(false)
   const [plugins, setPlugins] = useState<PluginInfo[]>([])
@@ -691,11 +687,11 @@ function PluginsPageContent() {
   }
 
   // 过滤插件用于标签页统计
-  const getFilteredPluginCount = (tab: 'all' | 'installed' | 'updates') => {
+  const getFilteredPluginCount = () => {
     return plugins.filter(p => {
       if (!p.manifest) return false
-      if (tab === 'all' && p.source === 'local') return false
-      if (tab === 'all' && hideInstalledPlugins && p.installed) return false
+      if (p.source === 'local') return false
+      if (hideInstalledPlugins && p.installed) return false
       const matchesSearch = searchQuery === '' ||
         p.manifest.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.manifest.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -704,15 +700,8 @@ function PluginsPageContent() {
       const matchesCompatibility = !showCompatibleOnly || 
         !maimaiVersion || 
         checkPluginCompatibility(p)
-      
-      let matchesTab = true
-      if (tab === 'installed') {
-        matchesTab = p.installed === true
-      } else if (tab === 'updates') {
-        matchesTab = p.installed === true && needsUpdate(p)
-      }
-      
-      return matchesSearch && matchesType && matchesCompatibility && matchesTab
+
+      return matchesSearch && matchesType && matchesCompatibility
     }).length
   }
 
@@ -819,6 +808,10 @@ function PluginsPageContent() {
               </SelectContent>
             </Select>
 
+            <Badge variant="secondary" className="h-9 px-3 text-sm font-normal">
+              全部插件 {getFilteredPluginCount()}
+            </Badge>
+
             {/* 兼容性筛选 */}
             <div className="flex w-full flex-wrap items-center gap-x-2 gap-y-2 sm:w-auto sm:min-w-fit">
               <Checkbox
@@ -859,21 +852,6 @@ function PluginsPageContent() {
           </div>
         </Card>
 
-        {/* 标签页 */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="all">
-              全部插件 ({getFilteredPluginCount('all')})
-            </TabsTrigger>
-            <TabsTrigger value="installed">
-              已安装 ({getFilteredPluginCount('installed')})
-            </TabsTrigger>
-            <TabsTrigger value="updates">
-              可更新 ({getFilteredPluginCount('updates')})
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-
         {/* 加载错误显示 */}
         {loadProgress && loadProgress.stage === 'error' && loadProgress.error && (
           <Card className="border-destructive bg-destructive/10">
@@ -909,7 +887,7 @@ function PluginsPageContent() {
               </Button>
             </div>
           </Card>
-        ) : activeTab === 'all' ? (
+        ) : (
           <MarketplaceTab
             plugins={plugins}
             searchQuery={searchQuery}
@@ -929,43 +907,7 @@ function PluginsPageContent() {
             getStatusBadge={getStatusBadge}
             getIncompatibleReason={getIncompatibleReason}
           />
-        ) : activeTab === 'installed' ? (
-          <InstalledTab
-            plugins={plugins}
-            searchQuery={searchQuery}
-            pluginTypeFilter={pluginTypeFilter}
-            showCompatibleOnly={showCompatibleOnly}
-            gitStatus={gitStatus}
-            maimaiVersion={maimaiVersion}
-            pluginStats={pluginStats}
-            loadProgress={loadProgress}
-            onInstall={openInstallDialog}
-            onUpdate={handleUpdate}
-            onUninstall={handleUninstall}
-            checkPluginCompatibility={checkPluginCompatibility}
-            needsUpdate={needsUpdate}
-            getStatusBadge={getStatusBadge}
-            getIncompatibleReason={getIncompatibleReason}
-          />
-        ) : activeTab === 'updates' ? (
-          <UpdatesTab
-            plugins={plugins}
-            searchQuery={searchQuery}
-            pluginTypeFilter={pluginTypeFilter}
-            showCompatibleOnly={showCompatibleOnly}
-            gitStatus={gitStatus}
-            maimaiVersion={maimaiVersion}
-            pluginStats={pluginStats}
-            loadProgress={loadProgress}
-            onInstall={openInstallDialog}
-            onUpdate={handleUpdate}
-            onUninstall={handleUninstall}
-            checkPluginCompatibility={checkPluginCompatibility}
-            needsUpdate={needsUpdate}
-            getStatusBadge={getStatusBadge}
-            getIncompatibleReason={getIncompatibleReason}
-          />
-        ) : null}
+        )}
 
         {/* 安装对话框 */}
         <InstallDialog
