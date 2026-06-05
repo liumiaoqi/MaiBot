@@ -809,6 +809,8 @@ class MaisakaHeartFlowChatting:
         空窗折算量被限制在 ``trigger_threshold - 1`` 以内，确保至少要有一条真实新消息
         才可能触发，杜绝纯靠沉默累积反复唤醒回复。
         """
+        # 双保险（与下方折算封顶互为冗余）：纯沉默（pending_count == 0）一律不触发。
+        # 二者任一存在即可保证该不变量，重构时请勿因看似重复而删除其一。
         if pending_count < 1:
             return False
 
@@ -818,6 +820,8 @@ class MaisakaHeartFlowChatting:
 
         last_external_received_at = self._last_external_message_received_at or self._last_message_received_at
         idle_seconds = max(0.0, time.time() - last_external_received_at)
+        # 折算量封顶到 trigger_threshold - 1：与上方 pending_count 守卫互为冗余的双保险，
+        # 即便空窗无限长，纯沉默（pending_count == 0）也无法跨过阈值。
         idle_equivalent_count = min(
             idle_seconds / average_message_interval,
             float(max(0, trigger_threshold - 1)),

@@ -6,6 +6,7 @@ import time
 
 from src.maisaka import runtime as runtime_module
 from src.maisaka.runtime import (
+    EXTERNAL_MESSAGE_BURST_INTERVAL_SECONDS,
     IDLE_COMPENSATION_MIN_AVERAGE_INTERVAL_SECONDS,
     MaisakaHeartFlowChatting,
 )
@@ -46,6 +47,18 @@ def test_burst_intervals_excluded_from_interval_samples(monkeypatch: pytest.Monk
     recorded = [interval for _, interval in runtime._recent_external_message_intervals]
     assert len(recorded) == 1
     assert recorded == pytest.approx([8.0])
+
+
+def test_burst_boundary_interval_is_recorded(monkeypatch: pytest.MonkeyPatch) -> None:
+    """恰好等于 burst 阈值（5.0s）的间隔属边界外（严格 <），应被记录。"""
+    monkeypatch.setattr(runtime_module, "is_bot_self", lambda *_: False)
+    runtime = _make_runtime()
+    message = _external_message()
+    # 用精确时间戳构造恰好等于阈值的间隔，避免浮点误差落到阈值另一侧
+    runtime._record_external_message_interval(message, 1000.0)
+    runtime._record_external_message_interval(message, 1000.0 + EXTERNAL_MESSAGE_BURST_INTERVAL_SECONDS)
+    recorded = [interval for _, interval in runtime._recent_external_message_intervals]
+    assert recorded == pytest.approx([EXTERNAL_MESSAGE_BURST_INTERVAL_SECONDS])
 
 
 def test_average_interval_applies_floor(monkeypatch: pytest.MonkeyPatch) -> None:
