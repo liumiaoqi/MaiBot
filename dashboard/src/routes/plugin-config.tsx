@@ -36,6 +36,7 @@ import {
   Settings,
   Package,
   AlertCircle,
+  ArrowUp,
   CheckCircle2,
   RefreshCw,
   ChevronRight,
@@ -52,11 +53,13 @@ import {
   RotateCw,
   Code2,
   Layout,
+  Trash2,
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { RestartProvider, useRestart } from '@/lib/restart-context'
 import { RestartOverlay } from '@/components/restart-overlay'
 import {
+  fetchPluginList,
   getInstalledPlugins,
   getPluginConfigSchema,
   getPluginConfig,
@@ -65,12 +68,15 @@ import {
   updatePluginConfigRaw,
   resetPluginConfig,
   togglePlugin,
+  uninstallPlugin,
+  updatePlugin,
   type InstalledPlugin,
   type PluginConfigSchema,
   type ConfigFieldSchema,
   type ConfigSectionSchema,
   type ItemFieldDefinition,
 } from '@/lib/plugin-api'
+import type { PluginInfo } from '@/types/plugin'
 import { PluginIcon } from './plugins/PluginIcon'
 import { getPluginTypeLabel } from './plugins/types'
 
@@ -979,6 +985,21 @@ function getInitialPluginConfigTarget(): { pluginId: string | null; tabId: strin
   }
 }
 
+function comparePluginVersions(currentVersion: string, latestVersion: string): number {
+  const currentParts = currentVersion.trim().split('.').map(part => Number.parseInt(part, 10) || 0)
+  const latestParts = latestVersion.trim().split('.').map(part => Number.parseInt(part, 10) || 0)
+  const maxLength = Math.max(currentParts.length, latestParts.length)
+
+  for (let index = 0; index < maxLength; index++) {
+    const currentPart = currentParts[index] || 0
+    const latestPart = latestParts[index] || 0
+    if (latestPart > currentPart) return 1
+    if (latestPart < currentPart) return -1
+  }
+
+  return 0
+}
+
 export function PluginConfigPage() {
   return (
     <RestartProvider>
@@ -994,8 +1015,12 @@ function PluginConfigPageContent() {
   const [plugins, setPlugins] = useState<InstalledPlugin[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
+  const [showUpdateOnly, setShowUpdateOnly] = useState(false)
   const [selectedPlugin, setSelectedPlugin] = useState<InstalledPlugin | null>(null)
   const [selectedPluginTab, setSelectedPluginTab] = useState<string | undefined>(initialTarget.tabId ?? undefined)
+  const [actingPluginId, setActingPluginId] = useState<string | null>(null)
+  const [marketPluginsById, setMarketPluginsById] = useState<Record<string, PluginInfo>>({})
+  const [checkingUpdates, setCheckingUpdates] = useState(false)
 
   const openPluginConfig = (plugin: InstalledPlugin, tabId?: string | null) => {
     setSelectedPlugin(plugin)
@@ -1044,10 +1069,43 @@ function PluginConfigPageContent() {
     }
   }
 
+  const checkPluginUpdates = async () => {
+    setCheckingUpdates(true)
+    try {
+      const marketResult = await fetchPluginList()
+      if (!marketResult.success) {
+        console.warn('加载插件市场版本信息失败:', marketResult.error)
+        setMarketPluginsById({})
+        return
+      }
+
+      const nextMarketPluginsById: Record<string, PluginInfo> = {}
+      for (const marketPlugin of marketResult.data) {
+        nextMarketPluginsById[marketPlugin.id] = marketPlugin
+        if (marketPlugin.manifest.id) {
+          nextMarketPluginsById[marketPlugin.manifest.id] = marketPlugin
+        }
+      }
+      setMarketPluginsById(nextMarketPluginsById)
+    } catch (error) {
+      console.warn('加载插件市场版本信息失败:', error)
+      setMarketPluginsById({})
+    } finally {
+      setCheckingUpdates(false)
+    }
+  }
+
   useEffect(() => {
     loadPlugins()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    if (!loading) {
+      void checkPluginUpdates()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading])
 
   // 过滤插件
   const filteredPlugins = plugins.filter(plugin => {
@@ -1084,6 +1142,137 @@ function PluginConfigPageContent() {
     }
     return { dotClassName: 'bg-red-500 shadow-[0_0_0_3px_rgba(239,68,68,0.16)]', label: '加载失败' }
   }
+  const getPluginRepositoryUrl = (plugin: InstalledPlugin): string | undefined => {
+    const marketPlugin = marketPluginsById[plugin.id] || (plugin.manifest.id ? marketPluginsById[plugin.manifest.id] : undefined)
+    const urls = plugin.manifest.urls as { repository?: string } | undefined
+    return plugin.manifest.repository_url || urls?.repository || marketPlugin?.manifest.repository_url || marketPlugin?.manifest.urls?.repository
+  }
+  const getPluginUpdateState = (plugin: InstalledPlugin): { canUpdate: boolean; hasUpdate: boolean; title?: string } => {
+    if (checkingUpdates) {
+      return { canUpdate: false, hasUpdate: false, title: '正在检查更新' }
+    }
+
+    const marketPlugin = marketPluginsById[plugin.id] || (plugin.manifest.id ? marketPluginsById[plugin.manifest.id] : undefined)
+    if (!marketPlugin) {
+      return { canUpdate: false, hasUpdate: false, title: '插件市场中没有找到该插件，无法判断新版本' }
+    }
+
+    if (!getPluginRepositoryUrl(plugin)) {
+      return { canUpdate: false, hasUpdate: false, title: '插件清单中没有仓库地址，无法更新/升级' }
+    }
+
+    const currentVersion = plugin.manifest.version
+    const latestVersion = marketPlugin.manifest.version
+    if (comparePluginVersions(currentVersion, latestVersion) <= 0) {
+      return { canUpdate: false, hasUpdate: false, title: '当前已是最新版本' }
+    }
+
+    return { canUpdate: true, hasUpdate: true, title: `发现新版本 v${latestVersion}` }
+  }
+  const visiblePlugins = showUpdateOnly
+    ? uniqueFilteredPlugins.filter((plugin) => getPluginUpdateState(plugin).hasUpdate)
+    : uniqueFilteredPlugins
+
+  const stopPluginActionEvent = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+  }
+
+  const handleTogglePlugin = async (plugin: InstalledPlugin, event: React.MouseEvent<HTMLButtonElement>) => {
+    stopPluginActionEvent(event)
+    setActingPluginId(plugin.id)
+    try {
+      const toggleResult = await togglePlugin(plugin.id)
+      if (!toggleResult.success) {
+        toast({
+          title: '切换插件状态失败',
+          description: toggleResult.error,
+          variant: 'destructive'
+        })
+        return
+      }
+
+      toast({
+        title: toggleResult.data.enabled ? '插件已启动' : '插件已关闭',
+        description: toggleResult.data.message || `${plugin.manifest.name} 状态已更新`
+      })
+      await loadPlugins()
+    } catch (error) {
+      toast({
+        title: '切换插件状态失败',
+        description: error instanceof Error ? error.message : '未知错误',
+        variant: 'destructive'
+      })
+    } finally {
+      setActingPluginId(null)
+    }
+  }
+
+  const handleUpdatePlugin = async (plugin: InstalledPlugin, event: React.MouseEvent<HTMLButtonElement>) => {
+    stopPluginActionEvent(event)
+
+    const repositoryUrl = getPluginRepositoryUrl(plugin)
+    if (!repositoryUrl) {
+      return
+    }
+
+    setActingPluginId(plugin.id)
+    try {
+      const updateResult = await updatePlugin(plugin.id, repositoryUrl, 'main')
+      if (!updateResult.success) {
+        toast({
+          title: '更新插件失败',
+          description: updateResult.error,
+          variant: 'destructive'
+        })
+        return
+      }
+
+      toast({
+        title: '更新插件成功',
+        description: `${plugin.manifest.name} 已完成更新/升级`
+      })
+      await loadPlugins()
+    } catch (error) {
+      toast({
+        title: '更新插件失败',
+        description: error instanceof Error ? error.message : '未知错误',
+        variant: 'destructive'
+      })
+    } finally {
+      setActingPluginId(null)
+    }
+  }
+
+  const handleDeletePlugin = async (plugin: InstalledPlugin, event: React.MouseEvent<HTMLButtonElement>) => {
+    stopPluginActionEvent(event)
+    setActingPluginId(plugin.id)
+    try {
+      const uninstallResult = await uninstallPlugin(plugin.id)
+      if (!uninstallResult.success) {
+        toast({
+          title: '删除插件失败',
+          description: uninstallResult.error,
+          variant: 'destructive'
+        })
+        return
+      }
+
+      toast({
+        title: '删除插件成功',
+        description: `${plugin.manifest.name} 已删除`
+      })
+      await loadPlugins()
+    } catch (error) {
+      toast({
+        title: '删除插件失败',
+        description: error instanceof Error ? error.message : '未知错误',
+        variant: 'destructive'
+      })
+    } finally {
+      setActingPluginId(null)
+    }
+  }
 
   // 如果选中了插件，显示配置编辑器
   if (selectedPlugin) {
@@ -1106,15 +1295,32 @@ function PluginConfigPageContent() {
   return (
     <ScrollArea className="h-full">
       <div className="space-y-4 sm:space-y-6 p-4 sm:p-6">
-        {/* 标题 */}
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold">插件配置</h1>
-            <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base">
-              管理和配置已安装的插件
-            </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative min-w-0 flex-1 basis-72">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="搜索插件..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
           </div>
-          <Button variant="outline" size="sm" onClick={loadPlugins}>
+          <div className="flex h-9 items-center gap-2 rounded-md border px-3">
+            <Label htmlFor="show-update-only" className="cursor-pointer text-sm font-medium">
+              有更新
+            </Label>
+            <Switch
+              id="show-update-only"
+              checked={showUpdateOnly}
+              disabled={checkingUpdates}
+              onCheckedChange={setShowUpdateOnly}
+            />
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={loadPlugins}
+          >
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             刷新
           </Button>
@@ -1144,48 +1350,36 @@ function PluginConfigPageContent() {
           </CardContent>
         </Card>
 
-        {/* 搜索框 */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="搜索插件..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-
         {/* 插件列表 */}
         <Card>
-          <CardHeader>
-            <CardTitle>已安装的插件</CardTitle>
-            <CardDescription>点击插件查看和编辑配置</CardDescription>
-          </CardHeader>
           <CardContent>
             {loading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
-            ) : uniqueFilteredPlugins.length === 0 ? (
+            ) : visiblePlugins.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 space-y-4">
                 <Package className="h-16 w-16 text-muted-foreground/50" />
                 <div className="text-center space-y-2">
                   <p className="text-lg font-medium text-muted-foreground">
-                    {searchQuery ? '没有找到匹配的插件' : '暂无已安装的插件'}
+                    {showUpdateOnly ? '暂无可更新插件' : searchQuery ? '没有找到匹配的插件' : '暂无已安装的插件'}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    {searchQuery ? '尝试其他搜索关键词' : '前往插件市场安装插件'}
+                    {showUpdateOnly ? '当前已安装插件没有发现新版本' : searchQuery ? '尝试其他搜索关键词' : '前往插件市场安装插件'}
                   </p>
                 </div>
               </div>
             ) : (
               <div className="space-y-3">
-                {uniqueFilteredPlugins.map(plugin => {
+                {visiblePlugins.map(plugin => {
                   const statusMeta = getPluginStatusMeta(plugin)
+                  const pluginActing = actingPluginId === plugin.id
+                  const pluginDisabled = isPluginDisabled(plugin)
+                  const updateState = getPluginUpdateState(plugin)
                   return (
                   <div
                     key={plugin.id}
-                    className={`flex min-h-32 cursor-pointer flex-col justify-between gap-4 rounded-lg border p-5 transition-colors hover:bg-muted/50 sm:min-h-0 sm:flex-row sm:items-center sm:p-4 ${isPluginDisabled(plugin) ? 'opacity-70' : ''}`}
+                    className={`relative flex min-h-32 cursor-pointer flex-col justify-between gap-4 rounded-lg border p-5 transition-colors hover:bg-muted/50 sm:min-h-0 sm:flex-row sm:items-center sm:p-4 ${isPluginDisabled(plugin) ? 'opacity-70' : ''}`}
                     role="button"
                     tabIndex={0}
                     onClick={() => openPluginConfig(plugin)}
@@ -1215,9 +1409,60 @@ function PluginConfigPageContent() {
                         </p>
                       </div>
                     </div>
-                    <div className="flex flex-shrink-0 items-center justify-end gap-2 border-t pt-3 sm:border-t-0 sm:pt-0">
+                    <div className="grid grid-cols-2 gap-2 border-t pt-3 sm:flex sm:flex-shrink-0 sm:items-center sm:justify-end sm:border-t-0 sm:pt-0">
                       <Button variant="ghost" size="sm" className="min-w-24 sm:min-w-0">
                         <Settings className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={pluginActing}
+                        onClick={(event) => handleTogglePlugin(plugin, event)}
+                      >
+                        {pluginActing ? (
+                          <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Power className="mr-1 h-4 w-4" />
+                        )}
+                        {pluginDisabled ? '启动' : '关闭'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="relative h-9 w-9 p-0"
+                        disabled={pluginActing || !updateState.canUpdate}
+                        title={updateState.title}
+                        aria-label={updateState.title || '更新/升级'}
+                        onClick={(event) => handleUpdatePlugin(plugin, event)}
+                      >
+                        {updateState.hasUpdate && (
+                          <span
+                            className="absolute -right-1 -top-1 h-3 w-3 rounded-sm bg-yellow-400 ring-2 ring-background"
+                            aria-hidden="true"
+                          />
+                        )}
+                        {pluginActing ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : checkingUpdates ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <ArrowUp className="h-4 w-4" />
+                        )}
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="h-9 w-9 p-0"
+                        disabled={pluginActing}
+                        title="删除"
+                        aria-label="删除"
+                        onClick={(event) => handleDeletePlugin(plugin, event)}
+                      >
+                        {pluginActing ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
                       </Button>
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     </div>
