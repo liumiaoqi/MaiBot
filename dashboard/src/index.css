@@ -729,6 +729,11 @@
   box-shadow: none !important;
 }
 
+:root[data-dashboard-style='future-retro'] [data-dashboard-workspace-tabs='true'] {
+  background: transparent !important;
+  backdrop-filter: none !important;
+}
+
 :root[data-dashboard-style='future-retro'] [data-dashboard-tabs-trigger='true'] {
   height: 100% !important;
   min-height: 0 !important;

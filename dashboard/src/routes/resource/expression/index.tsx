@@ -761,18 +761,6 @@ export function ExpressionManagementPage() {
               </button>
               <button
                 type="button"
-                onClick={() => handleActiveViewChange('logs')}
-                className={`inline-flex h-10 flex-1 shrink-0 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:h-8 sm:flex-none ${
-                  activeView === 'logs'
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <FileClock className="h-4 w-4" />
-                <span>AI审核记录</span>
-              </button>
-              <button
-                type="button"
                 onClick={() => handleActiveViewChange('quick')}
                 className={`inline-flex h-10 flex-1 shrink-0 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:h-8 sm:flex-none ${
                   activeView === 'quick'
@@ -792,6 +780,14 @@ export function ExpressionManagementPage() {
           </div>
           {activeView === 'list' && (
             <div className="grid grid-cols-1 gap-2 sm:flex sm:items-center lg:justify-end">
+              <Button
+                variant="outline"
+                onClick={() => handleActiveViewChange('logs')}
+                className="h-10 justify-center gap-2 sm:h-9"
+              >
+                <FileClock className="h-4 w-4" />
+                AI审核记录
+              </Button>
               <Button
                 onClick={() => setIsCreateDialogOpen(true)}
                 className="h-10 justify-center gap-2 sm:h-9"
