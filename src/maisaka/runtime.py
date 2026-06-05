@@ -61,6 +61,12 @@ MAX_INTERNAL_ROUNDS = 10
 MAX_RETAINED_MESSAGE_CACHE_SIZE = 200
 CONTEXT_RESTORE_FILL_RATIO = 0.5
 EXTERNAL_MESSAGE_INTERVAL_SAMPLE_WINDOW_SECONDS = 1800.0
+# 低于该间隔的相邻外部消息视为同一阵「连发」抖动（同一个人连续敲几条短消息），
+# 不计入平均消息间隔统计，避免连发把平均间隔严重拉低、令空窗补偿过早触发。
+EXTERNAL_MESSAGE_BURST_INTERVAL_SECONDS = 5.0
+# 空窗补偿所用平均消息间隔的下限：即便统计值偏小也不会低于该值，
+# 限制「沉默时间」被折算成消息的速度，避免低活跃群聊里反复触发回复。
+IDLE_COMPENSATION_MIN_AVERAGE_INTERVAL_SECONDS = 30.0
 
 
 class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMixin):
@@ -757,13 +763,18 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
             self._recent_external_message_intervals.popleft()
 
     def _get_recent_average_external_message_interval(self) -> Optional[float]:
-        """获取最近 30 分钟外部消息的平均接收间隔。"""
+        """获取最近 30 分钟外部消息的平均接收间隔。
+
+        返回值会施加 ``IDLE_COMPENSATION_MIN_AVERAGE_INTERVAL_SECONDS`` 下限，
+        避免统计值过小导致空窗补偿把沉默时间过快折算成消息、反复触发回复。
+        """
         self._prune_recent_external_message_intervals()
         if not self._recent_external_message_intervals:
             return None
 
         total_interval = sum(interval for _, interval in self._recent_external_message_intervals)
-        return total_interval / len(self._recent_external_message_intervals)
+        average_interval = total_interval / len(self._recent_external_message_intervals)
+        return max(average_interval, IDLE_COMPENSATION_MIN_AVERAGE_INTERVAL_SECONDS)
 
     def _record_external_message_interval(self, message: SessionMessage, received_at: float) -> None:
         """记录最近外部消息之间的接收间隔，用于低频触发补偿。"""
@@ -778,7 +789,8 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
             return
 
         message_interval = max(0.0, received_at - previous_received_at)
-        if message_interval <= 0:
+        if message_interval < EXTERNAL_MESSAGE_BURST_INTERVAL_SECONDS:
+            # 连发抖动：同一阵内的短间隔不代表真实发言节奏，跳过以免拉低平均间隔。
             return
 
         self._recent_external_message_intervals.append((received_at, message_interval))
@@ -843,14 +855,29 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         pending_count: int,
         trigger_threshold: int,
     ) -> bool:
-        """在新消息不足阈值时，按空窗时间折算补齐触发条件。"""
+        """在新消息不足阈值时，按空窗时间折算补齐触发条件。
+
+        空窗折算量被限制在 ``trigger_threshold - 1`` 以内，确保至少要有一条真实新消息
+        才可能触发，杜绝纯靠沉默累积反复唤醒回复。
+        """
+        # 双保险（与下方折算封顶互为冗余）：纯沉默（pending_count == 0）一律不触发。
+        # 二者任一存在即可保证该不变量，重构时请勿因看似重复而删除其一。
+        if pending_count < 1:
+            return False
+
         average_message_interval = self._get_recent_average_external_message_interval()
         if average_message_interval is None or average_message_interval <= 0:
             return False
 
         last_external_received_at = self._last_external_message_received_at or self._last_message_received_at
         idle_seconds = max(0.0, time.time() - last_external_received_at)
-        equivalent_message_count = pending_count + idle_seconds / average_message_interval
+        # 折算量封顶到 trigger_threshold - 1：与上方 pending_count 守卫互为冗余的双保险，
+        # 即便空窗无限长，纯沉默（pending_count == 0）也无法跨过阈值。
+        idle_equivalent_count = min(
+            idle_seconds / average_message_interval,
+            float(max(0, trigger_threshold - 1)),
+        )
+        equivalent_message_count = pending_count + idle_equivalent_count
         return equivalent_message_count >= trigger_threshold
 
     def _cancel_deferred_message_turn_task(self) -> None:
