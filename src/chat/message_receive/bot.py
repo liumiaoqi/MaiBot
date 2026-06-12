@@ -12,8 +12,9 @@ from src.chat.heart_flow.heartflow_message_processor import HeartFCMessageReceiv
 from src.common.logger import get_logger
 from src.common.utils.utils_message import MessageUtils
 from src.common.utils.utils_session import SessionUtils
-from src.platform_io.route_key_factory import RouteKeyFactory
+from src.config.config import global_config
 from src.core.announcement_manager import global_announcement_manager
+from src.platform_io.route_key_factory import RouteKeyFactory
 from src.plugin_runtime.component_query import component_query_service
 from src.plugin_runtime.hook_payloads import deserialize_session_message, serialize_session_message
 from src.plugin_runtime.hook_schema_utils import build_object_schema
@@ -57,7 +58,7 @@ def register_chat_hook_specs(registry: HookSpecRegistry) -> List[HookSpec]:
                     },
                     required=["message"],
                 ),
-                default_timeout_ms=8000,
+                default_timeout_ms=0,
                 allow_abort=True,
                 allow_kwargs_mutation=True,
             ),
@@ -73,7 +74,7 @@ def register_chat_hook_specs(registry: HookSpecRegistry) -> List[HookSpec]:
                     },
                     required=["message"],
                 ),
-                default_timeout_ms=8000,
+                default_timeout_ms=0,
                 allow_abort=True,
                 allow_kwargs_mutation=True,
             ),
@@ -101,7 +102,7 @@ def register_chat_hook_specs(registry: HookSpecRegistry) -> List[HookSpec]:
                     },
                     required=["message", "command_name", "plugin_id", "matched_groups"],
                 ),
-                default_timeout_ms=5000,
+                default_timeout_ms=0,
                 allow_abort=True,
                 allow_kwargs_mutation=True,
             ),
@@ -153,7 +154,7 @@ def register_chat_hook_specs(registry: HookSpecRegistry) -> List[HookSpec]:
                         "continue_process",
                     ],
                 ),
-                default_timeout_ms=5000,
+                default_timeout_ms=0,
                 allow_abort=False,
                 allow_kwargs_mutation=True,
             ),
@@ -588,7 +589,7 @@ class ChatBot:
             # 入站主链优先保证消息尽快入队，避免图片、表情包、语音分析阻塞适配器超时。
             await message.process(
                 enable_heavy_media_analysis=False,
-                enable_voice_transcription=False,
+                enable_voice_transcription=global_config.voice.enable_asr,
             )
             after_process_result, message = await self._invoke_message_hook(
                 "chat.receive.after_process",

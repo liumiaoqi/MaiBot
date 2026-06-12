@@ -399,7 +399,7 @@ function SetupPageContent() {
   }
 
   return (
-    <div className="from-primary/5 via-background to-secondary/5 relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-gradient-to-br p-4 md:p-6">
+    <div className="from-primary/5 via-background to-secondary/5 relative flex h-full min-h-screen flex-col items-center justify-center overflow-y-auto overflow-x-hidden bg-gradient-to-br p-4 md:p-6">
       {/* 重启遮罩层 */}
       <RestartOverlay />
 
@@ -556,7 +556,10 @@ function SetupPageContent() {
                   </div>
 
                   {/* 表单内容 */}
-                  <ScrollArea className="h-[400px] md:h-[500px]">
+                  <ScrollArea
+                    className="h-[400px] md:h-[500px]"
+                    viewportClassName="overscroll-auto"
+                  >
                     <div className="pr-2">{renderStepForm()}</div>
                   </ScrollArea>
                 </div>

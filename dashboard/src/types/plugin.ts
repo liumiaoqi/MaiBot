@@ -19,13 +19,16 @@ export interface HostApplication {
 
 export type PluginType =
   | 'adapter'
-  | 'tool'
+  | 'chat'
+  | 'creative'
   | 'provider'
   | 'management'
-  | 'data'
+  | 'search'
+  | 'knowledge'
   | 'media'
   | 'game'
-  | 'integration'
+  | 'security'
+  | 'automation'
   | 'extension'
   | 'other'
 
@@ -38,6 +41,11 @@ export interface PluginDisplayIcon {
 
 export interface PluginDisplay {
   icon?: PluginDisplayIcon
+}
+
+export interface PluginAssets {
+  /** 插件市场缓存的 64x64 图标资源地址 */
+  icon_64?: string
 }
 
 export interface PluginManifest {
@@ -71,7 +79,7 @@ export interface PluginManifest {
   /** 插件关键词 */
   keywords: string[]
   /** 插件类型 */
-  plugin_type?: PluginType
+  plugin_type?: PluginType | string
   /** 插件展示元信息 */
   display?: PluginDisplay
   /** 插件默认语言 */
@@ -95,6 +103,8 @@ export interface PluginInfo {
   marketplace_order?: number
   /** 插件清单 */
   manifest: PluginManifest
+  /** 插件市场生成的派生资源 */
+  assets?: PluginAssets
   /** 下载量 */
   downloads: number
   /** 评分 (0-5) */
