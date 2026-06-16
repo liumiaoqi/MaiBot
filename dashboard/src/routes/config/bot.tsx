@@ -2,17 +2,6 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { parse as parseToml } from 'smol-toml'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { DashboardTabBar, DashboardTabTrigger } from '@/components/ui/dashboard-tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -34,7 +23,7 @@ import { fieldHooks } from '@/lib/field-hooks'
 import { RestartProvider, useRestart } from '@/lib/restart-context'
 import { cn } from '@/lib/utils'
 
-import { ChevronLeft, ChevronRight, Code2, Info, Layout, Power, RefreshCw, Save } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Code2, Info, Layout, RefreshCw, Save } from 'lucide-react'
 
 import type { ConfigSchema } from '@/types/config-schema'
 import {
@@ -42,7 +31,9 @@ import {
   AMemorixSharedMemoryGroupsHook,
   AMemorixRetrievalChatsHook,
   AMemorixRetrievalFilterMirrorHook,
+  BehaviorGroupsHook,
   BehaviorFocusGroupsHook,
+  BehaviorLearningListHook,
   BotPlatformAccountsHook,
   ChatPromptsHook,
   ChatTalkValueRulesHook,
@@ -299,7 +290,6 @@ function BotConfigPageContent() {
 
   /**
    * 构建完整的配置对象用于保存
-   * 抽取自 saveConfig 和 handleSaveAndRestart 中的重复逻辑
    */
   const buildFullConfig = useCallback(() => {
     return {
@@ -360,15 +350,7 @@ function BotConfigPageContent() {
   const loadSourceCode = useCallback(async () => {
     try {
       const result = await getBotConfigRaw()
-      if (!result.success) {
-        toast({
-          variant: 'destructive',
-          title: '加载失败',
-          description: result.error,
-        })
-        return
-      }
-      const raw = (result.data as unknown as Record<string, unknown>).content as string
+      const raw = (result as unknown as Record<string, unknown>).content as string
       // 将 TOML 基本字符串中的转义序列转换为实际字符以便在编辑器中正确显示
       // 使用正则表达式只处理双引号字符串内的转义序列，不影响单引号字符串
       const unescaped = raw.replace(/"([^"]*)"/g, (_match, content) => {
@@ -395,19 +377,20 @@ function BotConfigPageContent() {
   const loadConfig = useCallback(async () => {
     try {
       setLoading(true)
-      const [result, schemaResult] = await Promise.all([getBotConfigCached(), getBotConfigSchema()])
-      if (!result.success) {
+      // 用 allSettled：主配置为必需，schema 为可选，二者失败互不影响
+      const [result, schemaResult] = await Promise.allSettled([getBotConfigCached(), getBotConfigSchema()])
+      if (result.status !== 'fulfilled') {
         toast({
           title: '加载失败',
-          description: result.error,
+          description: result.reason instanceof Error ? result.reason.message : '加载配置失败',
           variant: 'destructive',
         })
         setLoading(false)
         return
       }
-      parseAndSetConfig(result.data)
-      if (schemaResult.success && schemaResult.data) {
-        setConfigSchema((schemaResult.data as unknown as Record<string, unknown>).schema as ConfigSchema)
+      parseAndSetConfig(result.value)
+      if (schemaResult.status === 'fulfilled' && schemaResult.value) {
+        setConfigSchema((schemaResult.value as unknown as Record<string, unknown>).schema as ConfigSchema)
       }
       setHasUnsavedChanges(false)
       initialLoadRef.current = false
@@ -437,6 +420,8 @@ function BotConfigPageContent() {
       ['chat.chat_prompts', ChatPromptsHook],
       ['chat.talk_value_rules', ChatTalkValueRulesHook],
       ['experimental.focus_groups', BehaviorFocusGroupsHook],
+      ['experimental.behavior_groups', BehaviorGroupsHook],
+      ['experimental.behavior_learning_list', BehaviorLearningListHook],
       ['expression.expression_groups', ExpressionGroupsHook],
       ['expression.learning_list', ExpressionLearningListHook],
       ['jargon.jargon_groups', JargonGroupsHook],
@@ -532,18 +517,7 @@ function BotConfigPageContent() {
         return
       }
       
-      const result = await updateBotConfigRaw(escapedSourceCode)
-      if (!result.success) {
-        setHasTomlError(true)
-        const errorMsg = result.error
-        setTomlErrorMessage(errorMsg)
-        toast({
-          variant: 'destructive',
-          title: '保存失败',
-          description: errorMsg,
-        })
-        return
-      }
+      await updateBotConfigRaw(escapedSourceCode)
       setHasUnsavedChanges(false)
       setHasTomlError(false)
       setTomlErrorMessage('')
@@ -585,15 +559,7 @@ function BotConfigPageContent() {
       // 切换回可视化时,直接重新加载配置但不显示全局 loading
       try {
         const result = await getBotConfig()
-        if (!result.success) {
-          toast({
-            title: '加载失败',
-            description: result.error,
-            variant: 'destructive',
-          })
-          return
-        }
-        parseAndSetConfig(result.data)
+        parseAndSetConfig(result)
         setHasUnsavedChanges(false)
       } catch (error) {
         console.error('加载配置失败:', error)
@@ -613,16 +579,7 @@ function BotConfigPageContent() {
       // 取消待处理的自动保存
       cancelPendingAutoSave()
       
-      const result = await updateBotConfig(buildFullConfig())
-      if (!result.success) {
-        toast({
-          title: '保存失败',
-          description: result.error,
-          variant: 'destructive',
-        })
-        setSaving(false)
-        return
-      }
+      await updateBotConfig(buildFullConfig())
       setHasUnsavedChanges(false)
       toast({
         title: '保存成功',
@@ -640,11 +597,6 @@ function BotConfigPageContent() {
     }
   }
 
-  // 重启麦麦
-  const handleRestart = async () => {
-    await triggerRestart()
-  }
-
   const handleReloadFromFile = async () => {
     cancelPendingAutoSave()
     await loadConfig()
@@ -658,6 +610,11 @@ function BotConfigPageContent() {
     })
   }
 
+  // 重启麦麦
+  const handleRestart = async () => {
+    await triggerRestart()
+  }
+
   // 保存并重启
   const handleSaveAndRestart = async () => {
     try {
@@ -665,16 +622,7 @@ function BotConfigPageContent() {
       // 取消待处理的自动保存
       cancelPendingAutoSave()
       
-      const result = await updateBotConfig(buildFullConfig())
-      if (!result.success) {
-        toast({
-          title: '保存失败',
-          description: result.error,
-          variant: 'destructive',
-        })
-        setSaving(false)
-        return
-      }
+      await updateBotConfig(buildFullConfig())
       setHasUnsavedChanges(false)
       toast({
         title: '保存成功',
@@ -694,6 +642,8 @@ function BotConfigPageContent() {
       setSaving(false)
     }
   }
+  // 保留给后续恢复重启入口或快捷操作复用；当前页面不渲染重启按钮。
+  void handleSaveAndRestart
 
   // 根据 schema 构建 tab 分组
   const tabGroups = useMemo(() => {
@@ -815,13 +765,13 @@ function BotConfigPageContent() {
                 onValueChange={(v) => handleModeChange(v as 'visual' | 'source')}
                 className="w-full min-w-0 sm:w-[14rem]"
               >
-                <TabsList className="grid h-9 w-full grid-cols-2">
-                  <TabsTrigger value="visual" className="px-2 text-xs">
-                    <Layout className="mr-1 h-3 w-3 sm:h-4 sm:w-4" />
+                <TabsList data-config-bot-mode-tabs="true" className="grid h-9 w-full grid-cols-2">
+                  <TabsTrigger value="visual" className="px-2 text-sm">
+                    <Layout className="mr-1 h-4 w-4" />
                     可视化
                   </TabsTrigger>
-                  <TabsTrigger value="source" className="px-2 text-xs">
-                    <Code2 className="mr-1 h-3 w-3 sm:h-4 sm:w-4" />
+                  <TabsTrigger value="source" className="px-2 text-sm">
+                    <Code2 className="mr-1 h-4 w-4" />
                     源代码
                   </TabsTrigger>
                 </TabsList>
@@ -831,10 +781,11 @@ function BotConfigPageContent() {
                 disabled={saving || autoSaving || isRestarting}
                 size="sm"
                 variant="outline"
-                className="h-9 min-w-0 flex-1 sm:w-24 sm:flex-none"
+                className="h-9 w-9 flex-none px-0"
+                aria-label="刷新"
+                title="刷新"
               >
-                <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
-                刷新
+                <RefreshCw className="h-4 w-4" />
               </Button>
               <Button
                 onClick={editMode === 'visual' ? saveConfig : saveSourceCode}
@@ -848,41 +799,6 @@ function BotConfigPageContent() {
                   {saving ? '保存中' : autoSaving ? '自动' : hasUnsavedChanges ? '保存' : '已保存'}
                 </span>
               </Button>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    disabled={saving || autoSaving || isRestarting}
-                    size="sm"
-                    className="h-9 min-w-0 flex-1 sm:w-28 sm:flex-none"
-                  >
-                    <Power className="h-4 w-4 flex-shrink-0" />
-                    <span className="ml-1 truncate text-xs sm:text-sm">
-                      {isRestarting ? '重启中' : hasUnsavedChanges ? '保存重启' : '重启'}
-                    </span>
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>确认重启麦麦？</AlertDialogTitle>
-                  <AlertDialogDescription asChild>
-                    <div>
-                      <p>
-                        {hasUnsavedChanges 
-                          ? '当前有未保存的配置更改。点击确认将先保存配置,然后重启麦麦使新配置生效。重启过程中麦麦将暂时离线。'
-                          : '即将重启麦麦主程序。重启过程中麦麦将暂时离线,配置将在重启后生效。'
-                        }
-                      </p>
-                    </div>
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>取消</AlertDialogCancel>
-                  <AlertDialogAction onClick={hasUnsavedChanges ? handleSaveAndRestart : handleRestart}>
-                    {hasUnsavedChanges ? '保存并重启' : '确认重启'}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
             </div>
           </div>
         </div>

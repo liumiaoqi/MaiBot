@@ -59,7 +59,6 @@
     "logs": "Mai Logs"
   },
   "chat": {
-    "defaultTab": "WebUI",
     "botNameFallback": "Mai",
     "userFallback": "User",
     "userNameFallback": "WebUI User",
@@ -107,7 +106,6 @@
       "offline": "Offline",
       "subtitle": "{{count}} conversations",
       "title": "Chats",
-      "webuiBadge": "WebUI",
       "virtualBadge": "Virtual",
       "profileTitle": "My identity",
       "editName": "Edit nickname",
@@ -236,8 +234,6 @@
       "resetSuccessDesc": "Theme has been reset to default",
       "enableAnimations": "Enable Animations",
       "enableAnimationsDesc": "Disabling this will turn off all transition animations and effects, improving performance",
-      "loginWavesBackground": "Login Page Wave Background",
-      "loginWavesBackgroundDesc": "Disabling this will use a solid color background on the login page, suitable for low-performance devices",
       "inheritParentBg": "Inherit Parent Background",
       "inheritParentBgDesc": "When enabled, uses the background config from the parent layer",
       "fontFamilyLabel": "Font Family",
@@ -262,8 +258,6 @@
       "shadowXl": "Extra Large",
       "blurLabel": "Blur Effect",
       "sidebarWidthLabel": "Sidebar Width",
-      "maxContentWidth": "Max Content Width",
-      "spacingUnit": "Spacing Unit",
       "animationSpeedLabel": "Animation Speed",
       "animationSpeedPlaceholder": "Select animation speed",
       "animationFast": "Fast (100ms)",
@@ -344,6 +338,9 @@
       "securityTip6": "System-generated Tokens are recommended for maximum security"
     },
     "other": {
+      "display": "Display",
+      "enableAvatarFetch": "Fetch and show user avatars",
+      "enableAvatarFetchDesc": "When disabled, chat and reasoning views stop requesting avatar images and use default avatars.",
       "performance": "Performance & Storage",
       "localStorage": "Local Storage Usage",
       "logCache": "Log Cache Size",
@@ -450,6 +447,9 @@
         "radix": "Unstyled accessible component primitives",
         "tailwind": "Utility-first CSS framework",
         "lucide": "Beautiful icon library",
+        "iconifyReact": "Unified icon rendering component",
+        "streamlineSharp": "Sharp icon set designed by Streamline, provided via Iconify, licensed under CC BY 4.0 with attribution retained",
+        "streamlineBlock": "Block icon set designed by Streamline, provided via Iconify, licensed under CC BY 4.0 with attribution retained",
         "tanstackRouter": "Type-safe routing library",
         "zustand": "Lightweight state management",
         "reactHookForm": "High-performance form library",
@@ -498,11 +498,6 @@
     "securityTipTitle": "Security Notice",
     "securityTip1": "Keep your Token safe and never share it with others",
     "securityTip2": "To reset the Token, go to System Settings after logging in",
-    "slowLink": "The interface feels laggy. What can I do?",
-    "disableAnimTitle": "Disable Background Animation",
-    "disableAnimDesc": "Background animation may cause lag on low-performance devices. Disabling it can significantly improve smoothness.",
-    "disableAnimDetail": "After disabling, the background will be a solid color, but all features remain fully functional. You can re-enable it anytime in System Settings.",
-    "disableAnimBtn": "Disable Animation",
     "verifyFailed": "Token verification failed. Please check and try again.",
     "connFailed": "Failed to connect to the server. Please check your network connection.",
     "switchToLight": "Switch to light mode",
@@ -642,11 +637,11 @@
         "multipleReplyStyle": {
           "label": "Alternate Reply Styles",
           "placeholder": "Enter one alternate reply style per line",
-          "description": "When this list is not empty, MaiBot may randomly replace the default reply style using the probability below"
+          "description": "When this list is not empty, MaiBot may randomly inject one of these styles as a one-time reply hint"
         },
         "multipleProbability": {
-          "label": "Alternate Style Probability",
-          "description": "The chance of randomly replacing the default reply style each time a reply is built"
+          "label": "Temporary Style Injection Probability",
+          "description": "The chance of injecting a one-time alternate style hint each time a reply is built"
         }
       },
       "emoji": {
@@ -971,8 +966,8 @@
       "costTrendDesc": "API call cost over time",
       "tokenUsage": "Token Usage",
       "tokenUsageDesc": "Token consumption over time",
-      "modelDistribution": "Model Request Distribution",
-      "modelDistributionDesc": "Usage share per model ({{count}} models)",
+      "modelDistribution": "Model Cost Distribution",
+      "modelDistributionDesc": "Cost share per model ({{count}} models)",
       "modelDetails": "Model Details",
       "modelDetailsDesc": "Requests, cost and performance",
       "recentActivity": "Recent Activity",
