@@ -3,9 +3,12 @@ import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import path from 'path'
 
+import { dashboardVersionDefine } from './app-version'
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [tailwindcss(), react()],
+  define: dashboardVersionDefine,
   server: {
     host: '127.0.0.1',
     port: 7999,
@@ -114,7 +117,6 @@ export default defineConfig({
             'clsx',
             'tailwind-merge',
             'class-variance-authority',
-            'axios',
           ],
           
           // 其他

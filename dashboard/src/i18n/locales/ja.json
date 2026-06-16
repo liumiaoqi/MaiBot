@@ -31,7 +31,7 @@
       "botMainConfig": "ボットメイン設定",
       "aiModelProvider": "AIモデルプロバイダー",
       "modelManagement": "モデル管理",
-      "promptManagement": "Prompt 管理",
+      "promptManagement": "Prompt管理",
       "promptGenerator": "人格生成器（テスト機能）",
       "adapterConfig": "アダプター設定",
       "emojiManagement": "絵文字管理",
@@ -59,7 +59,6 @@
     "logs": "麦麦ログ"
   },
   "chat": {
-    "defaultTab": "WebUI",
     "botNameFallback": "麦麦",
     "userFallback": "ユーザー",
     "userNameFallback": "WebUIユーザー",
@@ -107,7 +106,6 @@
       "offline": "オフライン",
       "subtitle": "{{count}} 件の会話",
       "title": "チャット",
-      "webuiBadge": "WebUI",
       "virtualBadge": "仮想",
       "profileTitle": "自分の身份",
       "editName": "ニックネームを編集",
@@ -236,8 +234,6 @@
       "resetSuccessDesc": "テーマがデフォルトにリセットされました",
       "enableAnimations": "アニメーションを有効にする",
       "enableAnimationsDesc": "無効にすると、すべてのトランジションアニメーションとエフェクトが無効化されパフォーマンスが向上します",
-      "loginWavesBackground": "ログインページのウェーブ背景",
-      "loginWavesBackgroundDesc": "無効にするとログインページが単色背景になります。低スペックのデバイスに適しています",
       "inheritParentBg": "上位背景を継承",
       "inheritParentBgDesc": "有効にすると上位レイヤーの背景設定を使用します",
       "fontFamilyLabel": "フォントファミリー",
@@ -262,8 +258,6 @@
       "shadowXl": "極強 (Extra Large)",
       "blurLabel": "ボカシ効果 (Blur)",
       "sidebarWidthLabel": "サイドバー幅 (Sidebar Width)",
-      "maxContentWidth": "コンテンツ最大幅 (Max Width)",
-      "spacingUnit": "基準間隔 (Spacing Unit)",
       "animationSpeedLabel": "アニメーション速度 (Speed)",
       "animationSpeedPlaceholder": "アニメーション速度を選択",
       "animationFast": "高速 (100ms)",
@@ -344,6 +338,9 @@
       "securityTip6": "最高のセキュリティのためにシステム生成の Token を推奨します"
     },
     "other": {
+      "display": "表示設定",
+      "enableAvatarFetch": "ユーザーアバターを取得して表示",
+      "enableAvatarFetchDesc": "無効にすると、チャットと推論過程ビューはアバター画像を要求せず、既定のアバターを表示します。",
       "performance": "パフォーマンス & ストレージ",
       "localStorage": "ローカルストレージ使用量",
       "logCache": "ログキャッシュサイズ",
@@ -450,6 +447,9 @@
         "radix": "スタイルなしのアクセシブルなコンポーネント",
         "tailwind": "ユーティリティファーストの CSS フレームワーク",
         "lucide": "美しいアイコンライブラリ",
+        "iconifyReact": "統一されたアイコン描画コンポーネント",
+        "streamlineSharp": "Streamline がデザインし、Iconify 経由で提供される Sharp アイコンセット。CC BY 4.0 ライセンスに基づき帰属表示を保持",
+        "streamlineBlock": "Streamline がデザインし、Iconify 経由で提供される Block アイコンセット。CC BY 4.0 ライセンスに基づき帰属表示を保持",
         "tanstackRouter": "型安全なルーティングライブラリ",
         "zustand": "軽量な状態管理ライブラリ",
         "reactHookForm": "高パフォーマンスなフォームライブラリ",
@@ -498,11 +498,6 @@
     "securityTipTitle": "セキュリティノート",
     "securityTip1": "Token を安全に保管し、他人に漏洩しないでください",
     "securityTip2": "Token をリセットするには、ログイン後にシステム設定へ進んでください",
-    "slowLink": "インターフェースが重いです。どうすればいいですか？",
-    "disableAnimTitle": "バックグラウンドアニメーションを無効にする",
-    "disableAnimDesc": "バックグラウンドアニメーションは低スペックのデバイスで遅延を引き起こす可能性があります。無効にすると滑らかさが大幅に向上します。",
-    "disableAnimDetail": "無効にすると背景が単色になりますが、機能には影響しません。システム設定からいつでも再有効化できます。",
-    "disableAnimBtn": "アニメーションを無効にする",
     "verifyFailed": "Token の検証に失敗しました。確認して再試行してください。",
     "connFailed": "サーバーへの接続に失敗しました。ネットワーク接続を確認してください。",
     "switchToLight": "ライトモードに切り替える",
@@ -642,11 +637,11 @@
         "multipleReplyStyle": {
           "label": "代替返信スタイル",
           "placeholder": "1行につき1つの代替返信スタイルを入力",
-          "description": "リストが空でない場合、MaiBot は下の確率でデフォルトの返信スタイルをランダムに置き換えます"
+          "description": "リストが空でない場合、MaiBot は下の確率で代替スタイルを一時的な返信ヒントとして注入します"
         },
         "multipleProbability": {
-          "label": "代替スタイルの発動確率",
-          "description": "返信を構築するたびに、代替返信スタイルでデフォルトを置き換える確率です"
+          "label": "一時スタイル注入確率",
+          "description": "返信を構築するたびに、一時的な代替スタイルヒントを注入する確率です"
         }
       },
       "emoji": {
@@ -971,8 +966,8 @@
       "costTrendDesc": "API呼び出しコストの変化",
       "tokenUsage": "トークン消費",
       "tokenUsageDesc": "トークン使用量の変化",
-      "modelDistribution": "モデルリクエスト分布",
-      "modelDistributionDesc": "各モデルの使用割合（{{count}}モデル）",
+      "modelDistribution": "モデルコスト分布",
+      "modelDistributionDesc": "各モデルのコスト割合（{{count}}モデル）",
       "modelDetails": "モデル詳細統計",
       "modelDetailsDesc": "リクエスト数、コスト、パフォーマンス",
       "recentActivity": "最近のアクティビティ",

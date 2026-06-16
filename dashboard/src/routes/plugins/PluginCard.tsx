@@ -1,4 +1,3 @@
-import { useNavigate } from '@tanstack/react-router'
 import { AlertCircle, CheckCircle2, Download, Loader2, RefreshCw, ThumbsUp, Trash2 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
@@ -8,7 +7,7 @@ import { Progress } from '@/components/ui/progress'
 
 import { PluginIcon } from './PluginIcon'
 import type { GitStatus, MaimaiVersion, PluginInfo, PluginLoadProgress, PluginStatsData } from './types'
-import { getPluginTypeLabel } from './types'
+import { getPluginProgressDetail, getPluginTypeLabel } from './types'
 
 interface PluginCardProps {
   plugin: PluginInfo
@@ -21,6 +20,7 @@ interface PluginCardProps {
   onLike: (plugin: PluginInfo) => void
   onUpdate: (plugin: PluginInfo) => void
   onUninstall: (plugin: PluginInfo) => void
+  onDetail: (plugin: PluginInfo) => void
   checkPluginCompatibility: (plugin: PluginInfo) => boolean
   needsUpdate: (plugin: PluginInfo) => boolean
   getStatusBadge: (plugin: PluginInfo) => React.JSX.Element | null
@@ -38,19 +38,23 @@ export function PluginCard({
   onLike,
   onUpdate,
   onUninstall,
+  onDetail,
   checkPluginCompatibility,
   needsUpdate,
   getStatusBadge,
   getIncompatibleReason,
 }: PluginCardProps) {
-  const navigate = useNavigate()
   const stats = [plugin.manifest?.id]
     .map(id => id ? pluginStats[id] : undefined)
     .find(Boolean)
   const likeCount = stats?.likes ?? 0
   const isLiked = stats?.liked === true
   const isLiking = likingPluginIds.has(plugin.manifest?.id || plugin.id)
-  const isInstalling = loadProgress?.operation === 'install' && loadProgress?.plugin_id === plugin.id
+  const isInstalling = loadProgress?.operation === 'install'
+    && loadProgress.stage === 'loading'
+    && loadProgress?.plugin_id === plugin.id
+  const isAnyPluginInstalling = loadProgress?.operation === 'install' && loadProgress.stage === 'loading'
+  const progressDetail = loadProgress ? getPluginProgressDetail(loadProgress) : null
 
   return (
     <Card
@@ -152,7 +156,7 @@ export function PluginCard({
             variant="outline"
             size="sm"
             className="w-full sm:w-auto"
-            onClick={() => navigate({ to: '/plugin-detail', search: { pluginId: plugin.id } })}
+            onClick={() => onDetail(plugin)}
           >
             查看详情
           </Button>
@@ -193,7 +197,7 @@ export function PluginCard({
               className="w-full px-0 sm:w-8"
               disabled={
                 !gitStatus?.installed || 
-                loadProgress?.operation === 'install' ||
+                isAnyPluginInstalling ||
                 (maimaiVersion !== null && !checkPluginCompatibility(plugin))
               }
               title={
@@ -282,6 +286,11 @@ export function PluginCard({
             }`}>
               {loadProgress.stage === 'error' ? (loadProgress.error || loadProgress.message || '操作失败') : loadProgress.message}
             </div>
+            {progressDetail && (
+              <div className="truncate text-xs text-muted-foreground">
+                {progressDetail}
+              </div>
+            )}
           </div>
         </div>
       )}
