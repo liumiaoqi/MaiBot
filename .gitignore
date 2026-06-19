@@ -284,6 +284,7 @@ OtherRes.txt
 logs
 
 .ruff_cache
+.codex-runtime/
 
 .vscode
 
@@ -376,3 +377,4 @@ agentlite/
 .arts/
 .codeartsdoer/
 .codemate
+/qwen_mai/
