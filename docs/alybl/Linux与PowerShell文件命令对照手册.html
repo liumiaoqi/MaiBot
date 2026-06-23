@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Linux 与 PowerShell 文件命令对照手册</title>
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #242834;
+  --border: #2e3345;
+  --text: #e0e4f0;
+  --text2: #8b92a8;
+  --accent: #5b8af5;
+  --accent2: #4a7ae0;
+  --linux: #f5a623;
+  --ps: #0ea5e9;
+  --tag-bg: #1e293b;
+  --hover: #2a2f3f;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+.container { max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+header {
+  text-align: center;
+  padding: 2.5rem 0 1.5rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2rem;
+}
+header h1 {
+  font-size: 1.8rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--linux), var(--ps));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+header p { color: var(--text2); margin-top: 0.5rem; font-size: 0.95rem; }
+
+.search-box {
+  display: flex;
+  justify-content: center;
+  margin: 1.5rem 0;
+}
+.search-box input {
+  width: 100%;
+  max-width: 500px;
+  padding: 0.7rem 1.2rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.search-box input:focus { border-color: var(--accent); }
+.search-box input::placeholder { color: var(--text2); }
+
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-bottom: 2rem;
+}
+.nav a {
+  padding: 0.35rem 0.9rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text2);
+  text-decoration: none;
+  font-size: 0.85rem;
+  transition: all 0.2s;
+}
+.nav a:hover, .nav a.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.section { margin-bottom: 2.5rem; }
+.section-title {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.section-title .icon { font-size: 1.2rem; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+thead { background: var(--surface2); }
+th {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+th:nth-child(2) { color: var(--linux); }
+th:nth-child(3) { color: var(--ps); }
+td {
+  padding: 0.65rem 1rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+td:first-child { color: var(--text2); font-size: 0.85rem; }
+tr:hover { background: var(--hover); }
+
+code {
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  background: var(--tag-bg);
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: #c9d1d9;
+  white-space: nowrap;
+}
+td:nth-child(2) code { color: var(--linux); }
+td:nth-child(3) code { color: var(--ps); }
+
+.tips {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+.tip-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.2rem;
+}
+.tip-card h3 {
+  font-size: 0.95rem;
+  margin-bottom: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.tip-card h3.linux-title { color: var(--linux); }
+.tip-card h3.ps-title { color: var(--ps); }
+.tip-card pre {
+  background: var(--bg);
+  padding: 0.8rem;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+.tip-card pre code {
+  background: none;
+  padding: 0;
+  color: #c9d1d9;
+}
+
+.no-result {
+  text-align: center;
+  padding: 3rem;
+  color: var(--text2);
+  font-size: 1rem;
+}
+
+footer {
+  text-align: center;
+  padding: 2rem 0;
+  border-top: 1px solid var(--border);
+  margin-top: 3rem;
+  color: var(--text2);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 768px) {
+  .container { padding: 1rem; }
+  .tips { grid-template-columns: 1fr; }
+  table { font-size: 0.8rem; }
+  td, th { padding: 0.5rem 0.6rem; }
+  code { font-size: 0.75rem; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+<header>
+  <h1>Linux 与 PowerShell 文件命令对照手册</h1>
+  <p>快速查找 Linux Bash 与 Windows PowerShell 的等效文件操作命令</p>
+</header>
+
+<div class="search-box">
+  <input type="text" id="searchInput" placeholder="搜索命令或功能..." oninput="filterTable()">
+</div>
+
+<div class="nav" id="navBar">
+  <a href="#sec-nav" class="active" onclick="scrollToSec('sec-nav')">目录导航</a>
+  <a href="#sec-file" onclick="scrollToSec('sec-file')">文件操作</a>
+  <a href="#sec-view" onclick="scrollToSec('sec-view')">文件查看</a>
+  <a href="#sec-search" onclick="scrollToSec('sec-search')">文件搜索</a>
+  <a href="#sec-perm" onclick="scrollToSec('sec-perm')">权限属性</a>
+  <a href="#sec-content" onclick="scrollToSec('sec-content')">内容处理</a>
+  <a href="#sec-archive" onclick="scrollToSec('sec-archive')">压缩解压</a>
+  <a href="#sec-disk" onclick="scrollToSec('sec-disk')">磁盘空间</a>
+  <a href="#sec-transfer" onclick="scrollToSec('sec-transfer')">文件传输</a>
+  <a href="#sec-pipe" onclick="scrollToSec('sec-pipe')">管道重定向</a>
+  <a href="#sec-tips" onclick="scrollToSec('sec-tips')">快捷技巧</a>
+</div>
+
+<!-- 目录导航 -->
+<div class="section" id="sec-nav">
+  <div class="section-title"><span class="icon">📂</span> 目录导航</div>
+  <table>
+    <thead><tr><th>功能</th><th>Linux (Bash)</th><th>PowerShell</th></tr></thead>
+    <tbody>
+      <tr><td>查看当前目录</td><td><code>pwd</code></td><td><code>Get-Location</code> (别名 <code>pwd</code>)</td></tr>
+      <tr><td>切换目录</td><td><code>cd /path/to/dir</code></td><td><code>Set-Location /path/to/dir</code> (别名 <code>cd</code>)</td></tr>
+      <tr><td>列出文件</td><td><code>ls -la</code></td><td><code>Get-ChildItem -Force</code> (别名 <code>ls</code>, <code>dir</code>)</td></tr>
+      <tr><td>列出指定扩展名</td><td><code>ls *.txt</code></td><td><code>Get-ChildItem *.txt</code></td></tr>
+      <tr><td>递归列出</td><td><code>ls -R</code></td><td><code>Get-ChildItem -Recurse</code></td></tr>
+      <tr><td>按时间排序</td><td><code>ls -lt</code></td><td><code>Get-ChildItem | Sort-Object LastWriteTime -Descending</code></td></tr>
+      <tr><td>按大小排序</td><td><code>ls -lS</code></td><td><code>Get-ChildItem | Sort-Object Length -Descending</code></td></tr>
+      <tr><td>树形显示</td><td><code>tree</code></td><td><code>tree</code> (CMD) 或 <code>Get-ChildItem -Recurse</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- 文件操作 -->
+<div class="section" id="sec-file">
+  <div class="section-title"><span class="icon">📝</span> 文件操作</div>
+  <table>
+    <thead><tr><th>功能</th><th>Linux (Bash)</th><th>PowerShell</th></tr></thead>
+    <tbody>
+      <tr><td>创建空文件</td><td><code>touch file.txt</code></td><td><code>New-Item file.txt -ItemType File</code></td></tr>
+      <tr><td>复制文件</td><td><code>cp src.txt dst.txt</code></td><td><code>Copy-Item src.txt dst.txt</code> (别名 <code>cp</code>)</td></tr>
+      <tr><td>复制目录</td><td><code>cp -r src/ dst/</code></td><td><code>Copy-Item -Recurse src/ dst/</code></td></tr>
+      <tr><td>移动/重命名</td><td><code>mv old.txt new.txt</code></td><td><code>Move-Item old.txt new.txt</code> (别名 <code>mv</code>)</td></tr>
+      <tr><td>删除文件</td><td><code>rm file.txt</code></td><td><code>Remove-Item file.txt</code> (别名 <code>rm</code>, <code>del</code>)</td></tr>
+      <tr><td>删除目录</td><td><code>rm -r dir/</code></td><td><code>Remove-Item -Recurse -Force dir/</code></td></tr>
+      <tr><td>删除前确认</td><td><code>rm -i file.txt</code></td><td><code>Remove-Item file.txt -Confirm</code></td></tr>
+      <tr><td>创建目录</td><td><code>mkdir -p a/b/c</code></td><td><code>New-Item -ItemType Directory -Path a/b/c</code> (别名 <code>mkdir</code>)</td></tr>
+      <tr><td>创建硬链接</td><td><code>ln src link</code></td><td><code>New-Item -ItemType HardLink -Path link -Target src</code></td></tr>
+      <tr><td>创建符号链接</td><td><code>ln -s src link</code></td><td><code>New-Item -ItemType SymbolicLink -Path link -Target src</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- 文件查看 -->
+<div class="section" id="sec-view">
+  <div class="section-title"><span class="icon">👁️</span> 文件查看</div>
+  <table>
+    <thead><tr><th>功能</th><th>Linux (Bash)</th><th>PowerShell</th></tr></thead>
+    <tbody>
+      <tr><td>查看全部内容</td><td><code>cat file.txt</code></td><td><code>Get-Content file.txt</code> (别名 <code>cat</code>)</td></tr>
+      <tr><td>查看前 N 行</td><td><code>head -n 20 file.txt</code></td><td><code>Get-Content file.txt -TotalCount 20</code> (别名 <code>head</code>)</td></tr>
+      <tr><td>查看后 N 行</td><td><code>tail -n 20 file.txt</code></td><td><code>Get-Content file.txt -Tail 20</code> (别名 <code>tail</code>)</td></tr>
+      <tr><td>实时跟踪</td><td><code>tail -f file.txt</code></td><td><code>Get-Content file.txt -Wait -Tail 20</code></td></tr>
+      <tr><td>分页查看</td><td><code>less file.txt</code></td><td><code>more file.txt</code> 或 <code>Out-Host -Paging</code></td></tr>
+      <tr><td>查看文件类型</td><td><code>file file.txt</code></td><td><code>Get-Item file.txt | Select-Object Extension</code></td></tr>
+      <tr><td>查看文件信息</td><td><code>stat file.txt</code></td><td><code>Get-Item file.txt | Format-List *</code></td></tr>
+      <tr><td>查看文件大小</td><td><code>du -sh file.txt</code></td><td><code>(Get-Item file.txt).Length / 1MB</code></td></tr>
+      <tr><td>十六进制查看</td><td><code>hexdump -C file.bin</code></td><td><code>Format-Hex file.bin</code></td></tr>
+      <tr><td>比较文件</td><td><code>diff a.txt b.txt</code></td><td><code>Compare-Object (Get-Content a.txt) (Get-Content b.txt)</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- 文件搜索 -->
+<div class="section" id="sec-search">
+  <div class="section-title"><span class="icon">🔍</span> 文件搜索</div>
+  <table>
+    <thead><tr><th>功能</th><th>Linux (Bash)</th><th>PowerShell</th></tr></thead>
+    <tbody>
+      <tr><td>按名称查找</td><td><code>find /path -name "*.txt"</code></td><td><code>Get-ChildItem -Path /path -Filter *.txt -Recurse</code></td></tr>
+      <tr><td>按内容搜索</td><td><code>grep -rn "pattern" /path</code></td><td><code>Select-String -Path /path/*.txt -Pattern "pattern" -Recurse</code></td></tr>
+      <tr><td>忽略大小写</td><td><code>grep -ri "pattern" /path</code></td><td><code>Select-String -Pattern "pattern" -SimpleMatch -CaseSensitive:$false</code></td></tr>
+      <tr><td>显示行号</td><td><code>grep -n "pattern" file</code></td><td><code>Select-String -Pattern "pattern" -Path file</code> (默认显示)</td></tr>
+      <tr><td>只显示文件名</td><td><code>grep -rl "pattern" /path</code></td><td><code>Get-ChildItem -Recurse | Select-String -Pattern "pattern" | Select-Object -Unique Path</code></td></tr>
+      <tr><td>按大小查找</td><td><code>find /path -size +100M</code></td><td><code>Get-ChildItem -Recurse | Where-Object { $_.Length -gt 100MB }</code></td></tr>
+      <tr><td>按时间查找</td><td><code>find /path -mtime -7</code></td><td><code>Get-ChildItem -Recurse | Where-Object { $_.LastWriteTime -gt (Get-Date).AddDays(-7) }</code></td></tr>
+      <tr><td>按权限查找</td><td><code>find /path -perm 755</code></td><td><code>Get-ChildItem -Recurse | Where-Object { $_.Mode -match "755" }</code></td></tr>
+      <tr><td>快速查找(locate)</td><td><code>locate file.txt</code></td><td>无等价物，用 <code>Get-ChildItem -Recurse</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- 权限属性 -->
+<div class="section" id="sec-perm">
+  <div class="section-title"><span class="icon">🔒</span> 权限与属性</div>
+  <table>
+    <thead><tr><th>功能</th><th>Linux (Bash)</th><th>PowerShell</th></tr></thead>
+    <tbody>
+      <tr><td>查看权限</td><td><code>ls -l file.txt</code></td><td><code>Get-Acl file.txt | Format-List</code></td></tr>
+      <tr><td>修改权限</td><td><code>chmod 755 file.txt</code></td><td><code>icacls file.txt /grant Everyone:F</code></td></tr>
+      <tr><td>递归修改权限</td><td><code>chmod -R 755 dir/</code></td><td><code>icacls dir/ /grant Everyone:F /T</code></td></tr>
+      <tr><td>修改所有者</td><td><code>chown user:group file</code></td><td><code>icacls file.txt /setowner "DOMAIN\User"</code></td></tr>
+      <tr><td>设置只读</td><td><code>chmod -w file.txt</code></td><td><code>Set-ItemProperty file.txt -Name IsReadOnly -Value $true</code></td></tr>
+      <tr><td>取消只读</td><td><code>chmod +w file.txt</code></td><td><code>Set-ItemProperty file.txt -Name IsReadOnly -Value $false</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- 内容处理 -->
+<div class="section" id="sec-content">
+  <div class="section-title"><span class="icon">✂️</span> 内容处理</div>
+  <table>
+    <thead><tr><th>功能</th><th>Linux (Bash)</th><th>PowerShell</th></tr></thead>
+    <tbody>
+      <tr><td>搜索替换</td><td><code>sed -i 's/old/new/g' file</code></td><td><code>(Get-Content file) -replace 'old','new' | Set-Content file</code></td></tr>
+      <tr><td>提取列</td><td><code>awk '{print $2}' file</code></td><td><code>Import-Csv file | Select-Object Column2</code></td></tr>
+      <tr><td>排序去重</td><td><code>sort file | uniq</code></td><td><code>Get-Content file | Sort-Object -Unique</code></td></tr>
+      <tr><td>统计行数</td><td><code>wc -l file.txt</code></td><td><code>(Get-Content file.txt).Count</code></td></tr>
+      <tr><td>统计字数</td><td><code>wc -w file.txt</code></td><td><code>((Get-Content file.txt) -split '\s+').Count</code></td></tr>
+      <tr><td>截取列</td><td><code>cut -d',' -f2 file.csv</code></td><td><code>Import-Csv file.csv | Select-Object Column2</code></td></tr>
+      <tr><td>合并文件</td><td><code>cat a.txt b.txt > c.txt</code></td><td><code>Get-Content a.txt,b.txt | Set-Content c.txt</code></td></tr>
+      <tr><td>反转行序</td><td><code>tac file.txt</code></td><td><code>Get-Content file.txt | Select-Object -Reverse</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- 压缩解压 -->
+<div class="section" id="sec-archive">
+  <div class="section-title"><span class="icon">📦</span> 压缩与解压</div>
+  <table>
+    <thead><tr><th>功能</th><th>Linux (Bash)</th><th>PowerShell</th></tr></thead>
+    <tbody>
+      <tr><td>压缩为 zip</td><td><code>zip -r archive.zip dir/</code></td><td><code>Compress-Archive -Path dir/ -DestinationPath archive.zip</code></td></tr>
+      <tr><td>解压 zip</td><td><code>unzip archive.zip</code></td><td><code>Expand-Archive -Path archive.zip -DestinationPath .</code></td></tr>
+      <tr><td>压缩为 tar.gz</td><td><code>tar -czf archive.tar.gz dir/</code></td><td><code>tar -czf archive.tar.gz dir/</code> (需 tar)</td></tr>
+      <tr><td>解压 tar.gz</td><td><code>tar -xzf archive.tar.gz</code></td><td><code>tar -xzf archive.tar.gz</code></td></tr>
+      <tr><td>压缩为 tar.bz2</td><td><code>tar -cjf archive.tar.bz2 dir/</code></td><td>无内置，用 7-Zip</td></tr>
+      <tr><td>查看 zip 内容</td><td><code>unzip -l archive.zip</code></td><td><code>[IO.Compression.ZipFile]::OpenRead('archive.zip').Entries</code></td></tr>
+      <tr><td>查看 tar 内容</td><td><code>tar -tf archive.tar.gz</code></td><td><code>tar -tf archive.tar.gz</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- 磁盘空间 -->
+<div class="section" id="sec-disk">
+  <div class="section-title"><span class="icon">💾</span> 磁盘与空间</div>
+  <table>
+    <thead><tr><th>功能</th><th>Linux (Bash)</th><th>PowerShell</th></tr></thead>
+    <tbody>
+      <tr><td>磁盘使用情况</td><td><code>df -h</code></td><td><code>Get-PSDrive -PSProvider FileSystem | Format-Table Name,Used,Free</code></td></tr>
+      <tr><td>目录大小</td><td><code>du -sh dir/</code></td><td><code>(Get-ChildItem -Recurse | Measure-Object Length -Sum).Sum / 1MB</code></td></tr>
+      <tr><td>子目录大小</td><td><code>du -h --max-depth=1 dir/</code></td><td><code>Get-ChildItem -Directory | ForEach-Object { ... }</code></td></tr>
+      <tr><td>文件系统类型</td><td><code>df -T</code></td><td><code>Get-Volume | Format-Table DriveLetter,FileSystem</code></td></tr>
+      <tr><td>挂载点</td><td><code>mount | grep /dev/</code></td><td><code>Get-PSDrive -PSProvider FileSystem</code></td></tr>
+      <tr><td>Inode 使用</td><td><code>df -i</code></td><td>无等价物</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- 文件传输 -->
+<div class="section" id="sec-transfer">
+  <div class="section-title"><span class="icon">📡</span> 文件传输</div>
+  <table>
+    <thead><tr><th>功能</th><th>Linux (Bash)</th><th>PowerShell</th></tr></thead>
+    <tbody>
+      <tr><td>SCP 上传</td><td><code>scp file user@host:/path</code></td><td><code>scp file user@host:/path</code></td></tr>
+      <tr><td>SCP 下载</td><td><code>scp user@host:/path/file .</code></td><td><code>scp user@host:/path/file .</code></td></tr>
+      <tr><td>SCP 目录</td><td><code>scp -r dir/ user@host:/path</code></td><td><code>scp -r dir/ user@host:/path</code></td></tr>
+      <tr><td>SFTP</td><td><code>sftp user@host</code></td><td><code>sftp user@host</code></td></tr>
+      <tr><td>rsync 同步</td><td><code>rsync -avz src/ user@host:/dst/</code></td><td>无内置，用 cwRsync 或 rclone</td></tr>
+      <tr><td>下载文件</td><td><code>wget URL</code></td><td><code>Invoke-WebRequest URL -OutFile file</code> (别名 <code>wget</code>)</td></tr>
+      <tr><td>下载文件(curl)</td><td><code>curl -O URL</code></td><td><code>Invoke-WebRequest URL -OutFile file</code> (别名 <code>curl</code>)</td></tr>
+      <tr><td>rclone 复制</td><td><code>rclone copy src remote:dst</code></td><td><code>rclone copy src remote:dst</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- 管道重定向 -->
+<div class="section" id="sec-pipe">
+  <div class="section-title"><span class="icon">🔀</span> 管道与重定向</div>
+  <table>
+    <thead><tr><th>功能</th><th>Linux (Bash)</th><th>PowerShell</th></tr></thead>
+    <tbody>
+      <tr><td>输出重定向</td><td><code>cmd > file.txt</code></td><td><code>cmd | Out-File file.txt</code> (别名 <code>></code>)</td></tr>
+      <tr><td>追加输出</td><td><code>cmd >> file.txt</code></td><td><code>cmd | Out-File file.txt -Append</code> (别名 <code>>></code>)</td></tr>
+      <tr><td>错误重定向</td><td><code>cmd 2> err.txt</code></td><td><code>cmd 2> err.txt</code></td></tr>
+      <tr><td>合并输出</td><td><code>cmd &> all.txt</code></td><td><code>cmd *> all.txt</code></td></tr>
+      <tr><td>管道</td><td><code>cmd1 | cmd2</code></td><td><code>cmd1 | cmd2</code></td></tr>
+      <tr><td>输入重定向</td><td><code>cmd < file.txt</code></td><td><code>Get-Content file.txt | cmd</code></td></tr>
+      <tr><td>Here Document</td><td><code>cat &lt;&lt;EOF > file</code></td><td><code>@"内容"@ | Out-File file</code></td></tr>
+      <tr><td>Tee</td><td><code>cmd | tee file.txt</code></td><td><code>cmd | Tee-Object -FilePath file.txt</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- 快捷技巧 -->
+<div class="section" id="sec-tips">
+  <div class="section-title"><span class="icon">⚡</span> 快捷技巧</div>
+  <div class="tips">
+    <div class="tip-card">
+      <h3 class="linux-title">🐧 Linux</h3>
+      <pre><code># 批量重命名
+for f in *.txt; do mv "$f" "${f%.txt}.md"; done
+
+# 查找并删除
+find . -name "*.tmp" -delete
+
+# 查找并执行
+find . -name "*.log" -exec gzip {} \;
+
+# 监控文件变化
+inotifywait -m /path/to/dir
+
+# 快速备份
+cp file.txt{,.bak}</code></pre>
+    </div>
+    <div class="tip-card">
+      <h3 class="ps-title">🪟 PowerShell</h3>
+      <pre><code># 批量重命名
+Get-ChildItem *.txt | Rename-Item -NewName {
+  $_.Name -replace '\.txt$','.md'
+}
+
+# 查找并删除
+Get-ChildItem -Recurse -Filter *.tmp | Remove-Item
+
+# 监控文件变化
+Get-Content file.txt -Wait -Tail 20
+
+# 快速备份
+Copy-Item file.txt file.txt.bak
+
+# 各扩展名文件数量
+Get-ChildItem -Recurse -File |
+  Group-Object Extension |
+  Sort-Object Count -Descending |
+  Format-Table Name, Count
+
+# 大文件 Top 10
+Get-ChildItem -Recurse -File |
+  Sort-Object Length -Descending |
+  Select-Object -First 10 FullName,
+    @{N='SizeMB';E={[math]::Round($_.Length/1MB,2)}}
+
+# 批量替换文件内容
+Get-ChildItem -Recurse -Filter *.toml |
+  ForEach-Object {
+    (Get-Content $_.FullName) -replace
+      'old_value','new_value' |
+      Set-Content $_.FullName
+  }</code></pre>
+    </div>
+  </div>
+</div>
+
+<footer>
+  Linux 与 PowerShell 文件命令对照手册 &middot; MaiBot 运维文档
+</footer>
+</div>
+
+<script>
+function filterTable() {
+  const query = document.getElementById('searchInput').value.toLowerCase();
+  const tables = document.querySelectorAll('table');
+  let anyVisible = false;
+  tables.forEach(table => {
+    const rows = table.querySelectorAll('tbody tr');
+    let sectionVisible = false;
+    rows.forEach(row => {
+      const text = row.textContent.toLowerCase();
+      if (!query || text.includes(query)) {
+        row.style.display = '';
+        sectionVisible = true;
+        anyVisible = true;
+      } else {
+        row.style.display = 'none';
+      }
+    });
+    const section = table.closest('.section');
+    if (section) {
+      section.style.display = sectionVisible || !query ? '' : 'none';
+    }
+  });
+}
+
+function scrollToSec(id) {
+  const el = document.getElementById(id);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  document.querySelectorAll('.nav a').forEach(a => a.classList.remove('active'));
+  event.target.classList.add('active');
+}
+
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const id = entry.target.id;
+      document.querySelectorAll('.nav a').forEach(a => {
+        a.classList.toggle('active', a.getAttribute('href') === '#' + id);
+      });
+    }
+  });
+}, { threshold: 0.3 });
+
+document.querySelectorAll('.section').forEach(s => observer.observe(s));
+</script>
+</body>
+</html>
