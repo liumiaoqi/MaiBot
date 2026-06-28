@@ -15,18 +15,18 @@
 
 ## 文件操作
 
-| 功能 | Linux (Bash) | PowerShell |
-|------|-------------|------------|
-| 创建空文件 | `touch file.txt` | `New-Item file.txt -ItemType File` |
-| 复制文件 | `cp src.txt dst.txt` | `Copy-Item src.txt dst.txt` (别名 `cp`) |
-| 复制目录 | `cp -r src/ dst/` | `Copy-Item -Recurse src/ dst/` |
-| 移动/重命名 | `mv old.txt new.txt` | `Move-Item old.txt new.txt` (别名 `mv`) |
-| 删除文件 | `rm file.txt` | `Remove-Item file.txt` (别名 `rm`, `del`) |
-| 删除目录 | `rm -r dir/` | `Remove-Item -Recurse -Force dir/` |
-| 删除前确认 | `rm -i file.txt` | `Remove-Item file.txt -Confirm` |
-| 创建目录 | `mkdir -p a/b/c` | `New-Item -ItemType Directory -Path a/b/c` (别名 `mkdir`) |
-| 创建硬链接 | `ln src link` | `New-Item -ItemType HardLink -Path link -Target src` |
-| 创建符号链接 | `ln -s src link` | `New-Item -ItemType SymbolicLink -Path link -Target src` |
+| 功能　　　　 | Linux (Bash)         | PowerShell　　　　　　　　　　　　　　　　　　　　　　　　|
+| --------------| ----------------------| -----------------------------------------------------------|
+| 创建空文件　 | `touch file.txt`     | `New-Item file.txt -ItemType File`　　　　　　　　　　　　|
+| 复制文件　　 | `cp src.txt dst.txt` | `Copy-Item src.txt dst.txt` (别名 `cp`)　　　　　　　　　 |
+| 复制目录　　 | `cp -r src/ dst/`    | `Copy-Item -Recurse src/ dst/`　　　　　　　　　　　　　　|
+| 移动/重命名　| `mv old.txt new.txt` | `Move-Item old.txt new.txt` (别名 `mv`)　　　　　　　　　 |
+| 删除文件　　 | `rm file.txt`        | `Remove-Item file.txt` (别名 `rm`, `del`)　　　　　　　　 |
+| 删除目录　　 | `rm -r dir/`         | `Remove-Item -Recurse -Force dir/`　　　　　　　　　　　　|
+| 删除前确认　 | `rm -i file.txt`     | `Remove-Item file.txt -Confirm`　　　　　　　　　　　　　 |
+| 创建目录　　 | `mkdir -p a/b/c`     | `New-Item -ItemType Directory -Path a/b/c` (别名 `mkdir`) |
+| 创建硬链接　 | `ln src link`        | `New-Item -ItemType HardLink -Path link -Target src`　　　|
+| 创建符号链接 | `ln -s src link`     | `New-Item -ItemType SymbolicLink -Path link -Target src`　|
 
 ## 文件查看
 

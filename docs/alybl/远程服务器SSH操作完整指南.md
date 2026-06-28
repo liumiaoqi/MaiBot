@@ -374,6 +374,7 @@ scp -i $env:USERPROFILE\.ssh\id_ed25519_wxr "本地文件" wxr-server:"远程路
 
 ```powershell
 scp -i $env:USERPROFILE\.ssh\id_ed25519_wxr wxr-server:"远程文件" "本地路径"
+scp -C WXR:C:/Users/admin/Desktop/file.zip D:\Downloads\
 ```
 
 ### 快速查看远程状态
