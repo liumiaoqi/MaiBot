@@ -77,6 +77,7 @@ class Message:
     tool_call_id: str | None = None
     tool_name: str | None = None
     tool_calls: List[ToolCall] | None = None
+    reasoning_content: str | None = None
 
     def __post_init__(self) -> None:
         """执行消息对象的基础校验。
@@ -139,6 +140,7 @@ class MessageBuilder:
         self.__tool_call_id: str | None = None
         self.__tool_name: str | None = None
         self.__tool_calls: List[ToolCall] | None = None
+        self.__reasoning_content: str | None = None
 
     def set_role(self, role: RoleType = RoleType.User) -> "MessageBuilder":
         """设置消息角色。
@@ -279,6 +281,18 @@ class MessageBuilder:
         self.__tool_calls = list(tool_calls)
         return self
 
+    def set_reasoning_content(self, reasoning_content: str | None) -> "MessageBuilder":
+        """设置助手消息的推理内容。
+
+        Args:
+            reasoning_content: 推理内容文本。
+
+        Returns:
+            MessageBuilder: 当前构建器实例。
+        """
+        self.__reasoning_content = reasoning_content
+        return self
+
     def build(self) -> Message:
         """构建消息对象。
 
@@ -291,4 +305,5 @@ class MessageBuilder:
             tool_call_id=self.__tool_call_id,
             tool_name=self.__tool_name,
             tool_calls=list(self.__tool_calls) if self.__tool_calls else None,
+            reasoning_content=self.__reasoning_content,
         )

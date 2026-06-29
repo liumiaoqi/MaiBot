@@ -140,6 +140,8 @@ def compress_messages(messages: list[Message], img_target_size: int = 1 * 1024 *
         message_builder = MessageBuilder().set_role(message.role)
         if message.role == RoleType.Assistant and message.tool_calls:
             message_builder.set_tool_calls(message.tool_calls)
+        if message.role == RoleType.Assistant and message.reasoning_content:
+            message_builder.set_reasoning_content(message.reasoning_content)
         if message.role == RoleType.Tool and message.tool_call_id:
             message_builder.set_tool_call_id(message.tool_call_id)
         if message.role == RoleType.Tool and message.tool_name:
