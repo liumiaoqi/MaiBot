@@ -539,6 +539,7 @@ def _truncate_message_text(message: Message, max_text_chars: int) -> Message:
         tool_call_id=message.tool_call_id,
         tool_name=message.tool_name,
         tool_calls=message.tool_calls,
+        reasoning_content=message.reasoning_content,
     )
 
 

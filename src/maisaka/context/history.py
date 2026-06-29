@@ -171,6 +171,7 @@ def drop_unanswered_tool_calls(
                         timestamp=message.timestamp,
                         tool_calls=kept_tool_calls,
                         source_kind=message.source_kind,
+                        reasoning_content=message.reasoning_content,
                     )
                 )
             continue
@@ -182,6 +183,7 @@ def drop_unanswered_tool_calls(
                     timestamp=message.timestamp,
                     tool_calls=[],
                     source_kind=message.source_kind,
+                    reasoning_content=message.reasoning_content,
                 )
             )
 
@@ -208,6 +210,7 @@ def _drop_all_tool_calls_without_results(
                     timestamp=message.timestamp,
                     tool_calls=[],
                     source_kind=message.source_kind,
+                    reasoning_content=message.reasoning_content,
                 )
             )
 
