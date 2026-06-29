@@ -416,7 +416,9 @@ class BaseMaisakaReplyGenerator:
         keywords_reaction_prompt: str = "",
     ) -> str:
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        sections: List[str] = [f"当前时间：{current_time}"]
+        weekday_names = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+        weekday = weekday_names[datetime.now().weekday()]
+        sections: List[str] = [f"当前时间：{current_time}（{weekday}）"]
         target_message_block = self._build_target_message_block(reply_message)
         if target_message_block:
             sections.append(target_message_block)

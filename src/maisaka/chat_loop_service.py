@@ -667,8 +667,10 @@ class MaisakaChatLoopService:
     @staticmethod
     def _build_current_time_user_message() -> str:
         """构建追加到请求末尾的当前时间消息。"""
-
-        return f"当前时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        now = datetime.now()
+        weekday_names = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+        weekday = weekday_names[now.weekday()]
+        return f"当前时间：{now.strftime('%Y-%m-%d %H:%M:%S')}（{weekday}）"
 
     def _build_group_chat_attention_block(self) -> str:
         """构建当前聊天场景下的额外注意事项块。"""
