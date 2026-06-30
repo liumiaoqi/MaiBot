@@ -14,6 +14,13 @@ from src.common.data_models.message_component_data_model import (
 from src.maisaka.context.message_adapter import format_speaker_content
 from .messages import SessionBackedMessage
 
+_WEEKDAY_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+
+
+def _format_weekday(timestamp: datetime) -> str:
+    """将时间戳格式化为星期几。"""
+    return _WEEKDAY_NAMES[timestamp.weekday()]
+
 
 def build_planner_prefix(
     *,
@@ -59,7 +66,8 @@ def build_planner_prefix(
 
     message_attrs.extend(
         [
-            f'time="{escape(timestamp.strftime("%H:%M:%S"), quote=True)}"',
+            f'time="{escape(timestamp.strftime("%m-%d %H:%M:%S"), quote=True)}"',
+            f'day="{escape(_format_weekday(timestamp), quote=True)}"',
             f'user="{escape(user_name, quote=True)}"',
         ]
     )
