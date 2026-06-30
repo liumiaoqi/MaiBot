@@ -32,6 +32,9 @@ services:
       - ./data/MaiMBot/logs:/MaiMBot/logs # 日志目录
 
       - ./depends-data:/MaiMBot/depends-data # 运行时资源文件
+      - ./src:/MaiMBot/src # 源码目录（宿主机修改即时生效，无需重建镜像）
+      - ./prompts:/MaiMBot/prompts # 提示词目录（宿主机修改即时生效，无需重建镜像）
+      - ./bot.py:/MaiMBot/bot.py:ro # 主入口脚本
       - site-packages:/MaiMBot/.venv # 持久化Python包（含插件依赖），镜像更新不丢失
       - hf-cache:/root/.cache/huggingface # 持久化HuggingFace模型缓存
     restart: always
