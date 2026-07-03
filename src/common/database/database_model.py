@@ -503,3 +503,4 @@ class ChatSession(SQLModel, table=True):
     platform: str = Field(index=True, max_length=100)  # 会话所在平台
     account_id: Optional[str] = Field(default=None, index=True, max_length=255, nullable=True)  # 平台账号 ID
     scope: Optional[str] = Field(default=None, index=True, max_length=255, nullable=True)  # 路由作用域
+    agent_id: Optional[str] = Field(default="silver_wolf", index=True, max_length=255, nullable=True)  # 绑定的智能体ID

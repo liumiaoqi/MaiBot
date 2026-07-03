@@ -5756,3 +5756,42 @@ class PluginRuntimeConfig(ConfigBase):
         },
     )
     """插件需要网页截图或渲染时使用的浏览器配置。"""
+
+
+class AgentSectionConfig(ConfigBase):
+    """智能体配置类"""
+
+    __ui_label__ = "智能体"
+    __ui_order__ = 50
+
+    _warp_default_agent_id: str = "默认智能体 ID，新会话未指定时使用此智能体"
+
+    default_agent_id: str = Field(
+        default="silver_wolf",
+        json_schema_extra={
+            "label": {
+                "zh_CN": "默认智能体",
+                "en_US": "Default Agent",
+                "ja_JP": "デフォルトエージェント",
+            },
+            "x-widget": "input",
+            "x-icon": "bot",
+        },
+    )
+    """新会话未绑定智能体时使用的默认智能体 ID。"""
+
+    _warp_agents_dir: str = "智能体配置文件目录，存放各智能体的 Markdown 配置"
+
+    agents_dir: str = Field(
+        default="agents",
+        json_schema_extra={
+            "label": {
+                "zh_CN": "配置目录",
+                "en_US": "Config Directory",
+                "ja_JP": "設定ディレクトリ",
+            },
+            "x-widget": "input",
+            "x-icon": "folder",
+        },
+    )
+    """智能体 Markdown 配置文件的存放目录。"""

@@ -17,6 +17,15 @@ class AgentRouter:
         self._session_bindings: dict[str, str] = {}
         self._group_bindings: dict[str, str] = {}
 
+    def _get_default_agent_id(self) -> str:
+        """从配置获取默认智能体ID"""
+        try:
+            from src.config.config import global_config
+
+            return global_config.agent.default_agent_id
+        except Exception:
+            return self._registry.get_default_agent().agent_id
+
     def resolve_agent(self, session_id: str, group_id: Optional[str] = None) -> AgentConfig:
         """解析会话应使用的智能体，优先级：会话绑定 → 群配置绑定 → 默认智能体"""
         agent_id = self._session_bindings.get(session_id)

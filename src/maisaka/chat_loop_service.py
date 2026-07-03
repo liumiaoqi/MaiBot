@@ -479,6 +479,7 @@ class MaisakaChatLoopService:
         session_id: Optional[str] = None,
         is_group_chat: Optional[bool] = None,
         model_task_name: str = "planner",
+        agent_id: Optional[str] = None,
     ) -> None:
         """初始化 Maisaka 对话循环服务。
 
@@ -486,10 +487,13 @@ class MaisakaChatLoopService:
             chat_system_prompt: 可选的系统提示词。
             session_id: 当前会话 ID，用于匹配会话级额外提示。
             is_group_chat: 当前会话是否为群聊。
+            model_task_name: 模型任务名。
+            agent_id: 当前会话绑定的智能体 ID。
         """
         self._model_task_name = model_task_name.strip() or "planner"
         self._is_group_chat = is_group_chat
         self._session_id = session_id or ""
+        self._agent_id = agent_id
         self._extra_tools: List[ToolOption] = []
         self._interrupt_flag: asyncio.Event | None = None
         self._tool_registry: ToolRegistry | None = None
@@ -612,7 +616,18 @@ class MaisakaChatLoopService:
         )
 
     def _build_personality_prompt(self) -> str:
-        """构造人格提示词。"""
+        """构造人格提示词，优先从智能体配置读取。"""
+
+        if self._agent_id:
+            try:
+                from src.maisaka.agent.registry import AgentConfigRegistry
+
+                registry = AgentConfigRegistry()
+                if registry.has_agent(self._agent_id):
+                    agent_config = registry.get_agent(self._agent_id)
+                    return agent_config.identity_prompt
+            except Exception:
+                pass
 
         try:
             bot_name = global_config.bot.nickname
@@ -656,6 +671,23 @@ class MaisakaChatLoopService:
     def build_prompt_template_context(self, tools_section: str = "") -> dict[str, str]:
         """构造 Maisaka prompt 模板的公共渲染参数。"""
 
+        agent_anti_mechanization = ""
+        agent_internal_relationships = ""
+        agent_favor_injection = ""
+
+        if self._agent_id:
+            try:
+                from src.maisaka.agent.registry import AgentConfigRegistry
+
+                registry = AgentConfigRegistry()
+                if registry.has_agent(self._agent_id):
+                    agent_config = registry.get_agent(self._agent_id)
+                    agent_anti_mechanization = agent_config.anti_mechanization_prompt
+                    agent_internal_relationships = agent_config.internal_relationships_prompt
+                    agent_favor_injection = agent_config.get_favor_injection()
+            except Exception:
+                pass
+
         return {
             "bot_name": global_config.bot.nickname,
             "file_tools_section": tools_section,
@@ -663,6 +695,9 @@ class MaisakaChatLoopService:
             "identity": self.personality_prompt,
             "planner_idle_focus_rule": self._build_planner_idle_focus_rule(),
             "query_memory_rule": self._build_query_memory_rule(),
+            "agent_anti_mechanization": agent_anti_mechanization,
+            "agent_internal_relationships": agent_internal_relationships,
+            "agent_favor_injection": agent_favor_injection,
         }
 
 

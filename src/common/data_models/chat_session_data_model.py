@@ -18,6 +18,7 @@ class MaiChatSession(BaseDatabaseDataModel[ChatSession]):
         group_name: Optional[str] = None,
         account_id: Optional[str] = None,
         scope: Optional[str] = None,
+        agent_id: Optional[str] = None,
         created_timestamp: Optional[datetime] = None,
         last_active_timestamp: Optional[datetime] = None,
     ):
@@ -30,6 +31,7 @@ class MaiChatSession(BaseDatabaseDataModel[ChatSession]):
         self.group_name: Optional[str] = group_name if self.group_id else None
         self.account_id: Optional[str] = account_id
         self.scope: Optional[str] = scope
+        self.agent_id: Optional[str] = agent_id or "silver_wolf"
         self.created_timestamp: datetime = created_timestamp or datetime.now()
         """会话创建时间，默认为当前时间"""
         self.last_active_timestamp: Optional[datetime] = last_active_timestamp
@@ -47,12 +49,13 @@ class MaiChatSession(BaseDatabaseDataModel[ChatSession]):
             session_id=db_record.session_id,
             platform=db_record.platform,
             user_id=db_record.user_id,
-            user_nickname=getattr(db_record, "user_nickname", None),
-            user_cardname=getattr(db_record, "user_cardname", None),
+            user_nickname=db_record.user_nickname,
+            user_cardname=db_record.user_cardname,
             group_id=db_record.group_id,
-            group_name=getattr(db_record, "group_name", None),
-            account_id=getattr(db_record, "account_id", None),
-            scope=getattr(db_record, "scope", None),
+            group_name=db_record.group_name,
+            account_id=db_record.account_id,
+            scope=db_record.scope,
+            agent_id=db_record.agent_id,
             created_timestamp=db_record.created_timestamp,
             last_active_timestamp=db_record.last_active_timestamp,
         )
@@ -68,6 +71,7 @@ class MaiChatSession(BaseDatabaseDataModel[ChatSession]):
             group_name=self.group_name,
             account_id=self.account_id,
             scope=self.scope,
+            agent_id=self.agent_id,
             created_timestamp=self.created_timestamp,
             last_active_timestamp=self.last_active_timestamp,
         )

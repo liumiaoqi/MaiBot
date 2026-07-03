@@ -39,6 +39,7 @@ from .v30_to_v31 import migrate_v30_to_v31
 from .v31_to_v32 import migrate_v31_to_v32
 from .v32_to_v33 import migrate_v32_to_v33
 from .v33_to_v34 import migrate_v33_to_v34
+from .v34_to_v35 import migrate_v34_to_v35
 from .version_store import SQLiteUserVersionStore
 
 EMPTY_SCHEMA_VERSION = 0
@@ -76,7 +77,8 @@ V31_SCHEMA_VERSION = 31
 V32_SCHEMA_VERSION = 32
 V33_SCHEMA_VERSION = 33
 V34_SCHEMA_VERSION = 34
-LATEST_SCHEMA_VERSION = 34
+V35_SCHEMA_VERSION = 35
+LATEST_SCHEMA_VERSION = 35
 
 _LEGACY_V1_EXCLUSIVE_TABLES = (
     "chat_streams",
@@ -662,6 +664,8 @@ class LatestSchemaVersionDetector(BaseSchemaVersionDetector):
         if not snapshot.has_column("jargons", "evidence_messages"):
             return None
         if snapshot.has_column("jargons", "raw_content"):
+            return None
+        if not snapshot.has_column("chat_sessions", "agent_id"):
             return None
         return LATEST_SCHEMA_VERSION
 
@@ -1789,6 +1793,13 @@ def build_default_migration_registry() -> MigrationRegistry:
                 name="v33_to_v34",
                 description="为黑话记录增加证据消息引用列。",
                 handler=migrate_v33_to_v34,
+            ),
+            MigrationStep(
+                version_from=V34_SCHEMA_VERSION,
+                version_to=V35_SCHEMA_VERSION,
+                name="v34_to_v35",
+                description="为 chat_sessions 增加智能体归属字段 agent_id。",
+                handler=migrate_v34_to_v35,
             ),
         ]
     )

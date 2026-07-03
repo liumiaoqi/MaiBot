@@ -25,6 +25,7 @@ from .legacy_migration import (
 from .model_configs import APIProvider, ModelInfo, ModelTaskConfig
 from .official_configs import (
     AMemorixConfig,
+    AgentSectionConfig,
     BotConfig,
     ChatConfig,
     ChineseTypoConfig,
@@ -66,7 +67,7 @@ MODEL_CONFIG_PATH: Path = (CONFIG_DIR / "model_config.toml").resolve().absolute(
 LEGACY_ENV_PATH: Path = (PROJECT_ROOT / ".env").resolve().absolute()
 A_MEMORIX_LEGACY_CONFIG_PATH: Path = (CONFIG_DIR / "a_memorix.toml").resolve().absolute()
 MMC_VERSION: str = read_project_version(PROJECT_ROOT)
-CONFIG_VERSION: str = "8.14.25"
+CONFIG_VERSION: str = "8.15.0"
 MODEL_CONFIG_VERSION: str = "1.17.6"
 
 logger = get_logger("config")
@@ -149,6 +150,9 @@ class Config(ConfigBase):
 
     plugin_runtime: PluginRuntimeConfig = Field(default_factory=PluginRuntimeConfig)
     """插件运行时配置类"""
+
+    agent: AgentSectionConfig = Field(default_factory=AgentSectionConfig)
+    """智能体配置类"""
 
 
 class ModelConfig(ConfigBase):

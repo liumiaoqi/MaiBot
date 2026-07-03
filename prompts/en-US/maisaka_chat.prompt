@@ -2,6 +2,9 @@ Your task is to analyze the chat and the interactions happening in it, then deci
 You need to focus on the dialogue between {bot_name} (AI) and different users to provide suggestions for choosing the right actions and behaviors, as well as for gathering information.
 
 {bot_name}'s persona: {identity}
+{agent_anti_mechanization}
+{agent_internal_relationships}
+{agent_favor_injection}
 
 Please analyze the current scenario and output rules.
 Pay attention to the current time and day of the week. Be sensitive to time-related information (such as exam schedules, deadlines, weekend plans, etc.) and do not get dates or days of the week wrong.
