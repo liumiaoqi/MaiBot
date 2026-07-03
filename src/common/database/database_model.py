@@ -504,3 +504,21 @@ class ChatSession(SQLModel, table=True):
     account_id: Optional[str] = Field(default=None, index=True, max_length=255, nullable=True)  # 平台账号 ID
     scope: Optional[str] = Field(default=None, index=True, max_length=255, nullable=True)  # 路由作用域
     agent_id: Optional[str] = Field(default="silver_wolf", index=True, max_length=255, nullable=True)  # 绑定的智能体ID
+
+
+class AgentRelationship(SQLModel, table=True):
+    """存储智能体与用户的关系数据"""
+
+    __tablename__ = "agent_relationships"  # type: ignore
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    agent_id: str = Field(index=True, max_length=64)
+    user_id: str = Field(index=True, max_length=255)
+
+    score: float = Field(default=0.0)
+    level: int = Field(default=0)
+    interaction_count: int = Field(default=0)
+
+    last_interaction_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime, nullable=True))
+    created_at: Optional[datetime] = Field(default_factory=datetime.now, sa_column=Column(DateTime, nullable=True))
