@@ -152,6 +152,8 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
             is_group_chat=self.chat_stream.is_group_session,
             agent_id=self.chat_stream.agent_id,
         )
+        self._emotion_manager: Optional[object] = None
+        self._init_emotion_manager()
         self._chat_history: list[LLMContextMessage] = []
         self.history_loop: list[CycleDetail] = []
 
@@ -1349,6 +1351,37 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         )
         self._tool_registry.register_provider(PluginToolProvider())
         self._chat_loop_service.set_tool_registry(self._tool_registry)
+
+    def _init_emotion_manager(self) -> None:
+        """根据当前智能体配置初始化情绪管理器。"""
+        agent_id = getattr(self.chat_stream, "agent_id", None)
+        if not agent_id:
+            return
+        try:
+            from src.maisaka.agent.emotion import EmotionManager
+            from src.maisaka.agent.registry import AgentConfigRegistry
+
+            registry = AgentConfigRegistry()
+            if registry.has_agent(agent_id):
+                agent_config = registry.get_agent(agent_id)
+                self._emotion_manager = EmotionManager(agent_config)
+                self._sync_emotion_to_prompt()
+        except Exception:
+            pass
+
+    def _sync_emotion_to_prompt(self) -> None:
+        """将当前情绪状态同步到 ChatLoopService 的提示词上下文。"""
+        if self._emotion_manager is None:
+            return
+        emotion_text = self._emotion_manager.state.to_prompt_text()
+        self._chat_loop_service.update_emotion_state_text(emotion_text)
+
+    def trigger_emotion(self, emotion_type: str, delta: float) -> None:
+        """触发情绪变化并同步到提示词。"""
+        if self._emotion_manager is None:
+            return
+        self._emotion_manager.apply_trigger(emotion_type, delta)
+        self._sync_emotion_to_prompt()
 
     async def run_sub_agent(
         self,
