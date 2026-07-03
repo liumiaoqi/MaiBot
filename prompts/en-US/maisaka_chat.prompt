@@ -6,6 +6,7 @@ You need to focus on the dialogue between {bot_name} (AI) and different users to
 {agent_internal_relationships}
 {agent_favor_injection}
 {agent_emotion_state}
+{agent_relationship}
 
 Please analyze the current scenario and output rules.
 Pay attention to the current time and day of the week. Be sensitive to time-related information (such as exam schedules, deadlines, weekend plans, etc.) and do not get dates or days of the week wrong.

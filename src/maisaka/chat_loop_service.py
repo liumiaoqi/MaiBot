@@ -495,6 +495,7 @@ class MaisakaChatLoopService:
         self._session_id = session_id or ""
         self._agent_id = agent_id
         self._emotion_state_text: str = ""
+        self._relationship_text: str = ""
         self._extra_tools: List[ToolOption] = []
         self._interrupt_flag: asyncio.Event | None = None
         self._tool_registry: ToolRegistry | None = None
@@ -704,11 +705,16 @@ class MaisakaChatLoopService:
             "agent_internal_relationships": agent_internal_relationships,
             "agent_favor_injection": agent_favor_injection,
             "agent_emotion_state": agent_emotion_state,
+            "agent_relationship": self._relationship_text,
         }
 
     def update_emotion_state_text(self, text: str) -> None:
         """更新当前情绪状态的提示词文本。"""
         self._emotion_state_text = text
+
+    def update_relationship_text(self, text: str) -> None:
+        """更新当前关系状态的提示词文本。"""
+        self._relationship_text = text
 
 
     @staticmethod

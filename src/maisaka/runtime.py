@@ -153,7 +153,9 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
             agent_id=self.chat_stream.agent_id,
         )
         self._emotion_manager: Optional[object] = None
+        self._relationship_manager: Optional[object] = None
         self._init_emotion_manager()
+        self._init_relationship_manager()
         self._chat_history: list[LLMContextMessage] = []
         self.history_loop: list[CycleDetail] = []
 
@@ -844,6 +846,12 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         self.message_cache.append(message)
         self._emit_monitor_message_ingested(message)
         self._prune_processed_message_cache()
+
+        user_id = message.message_info.user_info.user_id
+        if user_id:
+            message_length = len(message.visible_text) if message.visible_text else 0
+            self.update_relationship(user_id, is_positive=True, message_length=message_length)
+
         if self._is_reply_effect_tracking_enabled():
             asyncio.create_task(self._reply_effect_tracker.observe_user_message(message))
         if not self._should_continue_after_focus_gate(message):
@@ -1369,6 +1377,21 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         except Exception:
             pass
 
+    def _init_relationship_manager(self) -> None:
+        """初始化关系管理器。"""
+        agent_id = getattr(self.chat_stream, "agent_id", None)
+        if not agent_id:
+            return
+        try:
+            from src.maisaka.relationship.manager import RelationshipManager
+
+            rel_mgr = RelationshipManager()
+            if self._emotion_manager is not None:
+                rel_mgr.set_emotion_trigger_callback(self.trigger_emotion)
+            self._relationship_manager = rel_mgr
+        except Exception:
+            pass
+
     def _sync_emotion_to_prompt(self) -> None:
         """将当前情绪状态同步到 ChatLoopService 的提示词上下文。"""
         if self._emotion_manager is None:
@@ -1382,6 +1405,20 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
             return
         self._emotion_manager.apply_trigger(emotion_type, delta)
         self._sync_emotion_to_prompt()
+
+    def update_relationship(self, user_id: str, *, is_positive: bool = True, message_length: int = 0) -> None:
+        """更新与用户的关系并同步到提示词。"""
+        if self._relationship_manager is None:
+            return
+        agent_id = getattr(self.chat_stream, "agent_id", "") or ""
+        if not agent_id or not user_id:
+            return
+        snapshot = self._relationship_manager.update_interaction(
+            agent_id, user_id,
+            is_positive_emotion=is_positive,
+            message_length=message_length,
+        )
+        self._chat_loop_service.update_relationship_text(snapshot.to_prompt_text())
 
     async def run_sub_agent(
         self,
