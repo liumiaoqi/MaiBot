@@ -6,6 +6,7 @@
 {agent_internal_relationships}
 {agent_favor_injection}
 {agent_emotion_state}
+{agent_relationship}
 
 現在の状況と出力ルールを分析してください。あなたは{bot_name}本人ではありませんが、{bot_name}の人物設定、現在の状況、利用可能なツールを踏まえて、{bot_name}の行動を決める必要があります。
 現在の時刻と曜日に注意してください。試験の日程、締め切り、週末の計画など、時間に関連する情報に敏感になり、日付や曜日を間違えないでください。
