@@ -11,6 +11,7 @@ from src.common.database.database_model import AgentRelationship
 from src.common.logger import get_logger
 
 from .level import LEVEL_THRESHOLDS, RelationshipLevel, RelationshipSnapshot
+from .tracker import RelationshipTracker
 
 logger = get_logger("maisaka_relationship")
 
@@ -24,17 +25,22 @@ class RelationshipManager:
 
     def __init__(self) -> None:
         self._emotion_trigger_callback: Optional[object] = None
+        self._tracker = RelationshipTracker()
 
     def set_emotion_trigger_callback(self, callback: object) -> None:
         """设置情绪触发回调，用于关系-情绪联动。"""
         self._emotion_trigger_callback = callback
+
+    def get_trajectory_text(self, agent_id: str, user_id: str, limit: int = 5) -> str:
+        """获取关系轨迹描述文本。"""
+        return self._tracker.get_trajectory_text(agent_id, user_id, limit)
 
     def get_relationship(self, agent_id: str, user_id: str) -> RelationshipSnapshot:
         """获取智能体与用户的关系快照。"""
         row = self._load_row(agent_id, user_id)
         if row is not None:
             snapshot = self._row_to_snapshot(row)
-            self._apply_time_decay(snapshot)
+            self._apply_time_decay(snapshot, agent_id, user_id)
             return snapshot
 
         return RelationshipSnapshot(
@@ -66,7 +72,7 @@ class RelationshipManager:
                 created_at=time.time(),
             )
 
-        self._apply_time_decay(snapshot)
+        self._apply_time_decay(snapshot, agent_id, user_id)
 
         frequency_delta = frequency_weight * 5.0
         depth_delta = depth_weight * min(10.0, message_length / 20.0)
@@ -77,14 +83,21 @@ class RelationshipManager:
         total_delta = (frequency_delta + depth_delta + emotion_delta + time_delta) * growth_rate
 
         old_level = snapshot.level
+        old_score = snapshot.score
         snapshot.update_score(total_delta)
         snapshot.interaction_count += 1
         snapshot.last_interaction_at = time.time()
 
         self._save_snapshot(agent_id, user_id, snapshot)
 
-        if snapshot.level != old_level and snapshot.level > old_level:
-            self._on_relationship_upgrade(snapshot, old_level)
+        if snapshot.level != old_level:
+            self._tracker.record_level_change(
+                agent_id, user_id, old_level, snapshot.level, old_score, snapshot.score,
+            )
+            if snapshot.level > old_level:
+                self._on_relationship_upgrade(snapshot, old_level)
+
+        self._tracker.record_milestone(agent_id, user_id, snapshot.interaction_count)
 
         return snapshot.model_copy()
 
@@ -151,7 +164,7 @@ class RelationshipManager:
             created_at=row.created_at.timestamp() if row.created_at else 0.0,
         )
 
-    def _apply_time_decay(self, snapshot: RelationshipSnapshot) -> None:
+    def _apply_time_decay(self, snapshot: RelationshipSnapshot, agent_id: str = "", user_id: str = "") -> None:
         """按时间衰减关系分数。"""
         if snapshot.last_interaction_at <= 0:
             return
@@ -171,9 +184,11 @@ class RelationshipManager:
             decay = _DECAY_7D
 
         if decay > 0:
+            old_score = snapshot.score
             snapshot.update_score(-decay)
             if snapshot.score <= LEVEL_THRESHOLDS.get(RelationshipLevel.ACQUAINTANCE, 350):
                 snapshot.score = max(0.0, snapshot.score)
+            self._tracker.record_decay(agent_id, user_id, old_score, snapshot.score)
 
     def _on_relationship_upgrade(self, snapshot: RelationshipSnapshot, old_level: RelationshipLevel) -> None:
         """关系升级时的联动处理。"""
