@@ -1413,6 +1413,14 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         agent_id = getattr(self.chat_stream, "agent_id", "") or ""
         if not agent_id or not user_id:
             return
+
+        reasoning_content = getattr(self._reasoning_engine, "last_reasoning_content", "") or ""
+        if reasoning_content:
+            from src.maisaka.relationship.signal import extract_relationship_signal
+
+            signal = extract_relationship_signal(reasoning_content)
+            is_positive = signal.is_positive
+
         snapshot = self._relationship_manager.update_interaction(
             agent_id, user_id,
             is_positive_emotion=is_positive,
