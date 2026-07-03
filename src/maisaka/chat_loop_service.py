@@ -494,6 +494,7 @@ class MaisakaChatLoopService:
         self._is_group_chat = is_group_chat
         self._session_id = session_id or ""
         self._agent_id = agent_id
+        self._emotion_state_text: str = ""
         self._extra_tools: List[ToolOption] = []
         self._interrupt_flag: asyncio.Event | None = None
         self._tool_registry: ToolRegistry | None = None
@@ -674,6 +675,7 @@ class MaisakaChatLoopService:
         agent_anti_mechanization = ""
         agent_internal_relationships = ""
         agent_favor_injection = ""
+        agent_emotion_state = ""
 
         if self._agent_id:
             try:
@@ -688,6 +690,9 @@ class MaisakaChatLoopService:
             except Exception:
                 pass
 
+        if self._emotion_state_text:
+            agent_emotion_state = self._emotion_state_text
+
         return {
             "bot_name": global_config.bot.nickname,
             "file_tools_section": tools_section,
@@ -698,7 +703,12 @@ class MaisakaChatLoopService:
             "agent_anti_mechanization": agent_anti_mechanization,
             "agent_internal_relationships": agent_internal_relationships,
             "agent_favor_injection": agent_favor_injection,
+            "agent_emotion_state": agent_emotion_state,
         }
+
+    def update_emotion_state_text(self, text: str) -> None:
+        """更新当前情绪状态的提示词文本。"""
+        self._emotion_state_text = text
 
 
     @staticmethod
