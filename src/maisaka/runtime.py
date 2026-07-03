@@ -930,7 +930,24 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         )
         if talk_value <= 0:
             return 0.0
-        return max(0.0, talk_value * self._talk_frequency_adjust)
+
+        agent_modifier = self._get_agent_talk_value_modifier()
+        return max(0.0, talk_value * self._talk_frequency_adjust * agent_modifier)
+
+    def _get_agent_talk_value_modifier(self) -> float:
+        """从当前智能体配置获取回复频率修正倍率。"""
+        agent_id = getattr(self.chat_stream, "agent_id", None)
+        if not agent_id:
+            return 1.0
+        try:
+            from src.maisaka.agent.registry import AgentConfigRegistry
+
+            registry = AgentConfigRegistry()
+            if registry.has_agent(agent_id):
+                return registry.get_agent(agent_id).talk_value_modifier
+        except Exception:
+            pass
+        return 1.0
 
     @staticmethod
     def _format_reply_frequency_for_display(frequency: float) -> str:

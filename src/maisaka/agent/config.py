@@ -98,6 +98,10 @@ class AgentConfig(BaseModel):
     # 关系进展
     relationship_growth_rate: float = Field(default=1.0, ge=0.1, le=3.0, description="关系进展速率倍率")
 
+    # 回复频率差异化
+    talk_value_modifier: float = Field(default=1.0, ge=0.1, le=3.0, description="回复频率修正倍率，>1更活跃，<1更安静")
+    idle_backoff_modifier: float = Field(default=1.0, ge=0.1, le=3.0, description="空闲退避修正倍率，>1退避更快，<1退避更慢")
+
     # 群事件反应
     event_reaction_rules: list[EventReactionRule] = Field(default_factory=list, description="群事件反应规则")
 

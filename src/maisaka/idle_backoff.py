@@ -31,7 +31,25 @@ class IdleBackoffController:
             return 0.0
 
         exponent = max(0, self._count - start_count)
-        return min(cap_seconds, base_seconds * (2**exponent))
+        raw_backoff = min(cap_seconds, base_seconds * (2**exponent))
+
+        agent_modifier = self._get_agent_idle_backoff_modifier()
+        return min(cap_seconds, raw_backoff * agent_modifier)
+
+    def _get_agent_idle_backoff_modifier(self) -> float:
+        """从当前智能体配置获取空闲退避修正倍率。"""
+        agent_id = getattr(self._runtime.chat_stream, "agent_id", None)
+        if not agent_id:
+            return 1.0
+        try:
+            from src.maisaka.agent.registry import AgentConfigRegistry
+
+            registry = AgentConfigRegistry()
+            if registry.has_agent(agent_id):
+                return registry.get_agent(agent_id).idle_backoff_modifier
+        except Exception:
+            pass
+        return 1.0
 
     def reset(self) -> None:
         """清理连续空闲退避状态。"""
