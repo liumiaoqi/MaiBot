@@ -12,7 +12,14 @@ logger = logging.getLogger(__name__)
 class AgentConfigRegistry:
     """智能体配置注册表，管理所有已加载的智能体配置"""
 
-    def __init__(self, config_dir: str = "agents/") -> None:
+    def __init__(self, config_dir: Optional[str] = None) -> None:
+        if config_dir is None:
+            try:
+                from src.config.config import global_config
+
+                config_dir = global_config.agent.agents_dir
+            except Exception:
+                config_dir = "agents/"
         self._loader = AgentConfigLoader(config_dir)
         self._agents: dict[str, AgentConfig] = {}
         self._default_agent: Optional[AgentConfig] = None

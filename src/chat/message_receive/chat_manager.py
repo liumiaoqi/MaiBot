@@ -11,6 +11,8 @@ from src.common.database.database import get_db_session
 from src.common.database.database_model import ChatSession
 from src.common.logger import get_logger
 from src.common.utils.utils_session import SessionUtils
+from src.maisaka.agent.registry import AgentConfigRegistry
+from src.maisaka.agent.router import AgentRouter
 from src.platform_io.route_key_factory import RouteKeyFactory
 
 if TYPE_CHECKING:
@@ -45,6 +47,7 @@ class BotChatSession(MaiChatSession):
         group_name: Optional[str] = None,
         account_id: Optional[str] = None,
         scope: Optional[str] = None,
+        agent_id: Optional[str] = None,
         created_timestamp: Optional[datetime] = None,
         last_active_timestamp: Optional[datetime] = None,
     ):
@@ -61,6 +64,7 @@ class BotChatSession(MaiChatSession):
             group_name=group_name,
             account_id=account_id,
             scope=scope,
+            agent_id=agent_id,
             created_timestamp=created_timestamp,
             last_active_timestamp=last_active_timestamp,
         )
@@ -84,6 +88,7 @@ class ChatManager:
     def __init__(self) -> None:
         self.sessions: Dict[str, BotChatSession] = {}  # session_id -> BotChatSession
         self.last_messages: Dict[str, "SessionMessage"] = {}  # session_id -> SessionMessage
+        self._agent_router: Optional[AgentRouter] = None
 
     async def initialize(self):
         """初始化聊天管理器"""
@@ -92,6 +97,13 @@ class ChatManager:
             logger.debug(f"已加载 {len(self.sessions)} 个会话记录到内存中")
         except Exception as e:
             logger.error(f"初始化聊天管理器出现错误: {e}")
+
+    def _ensure_agent_router(self) -> AgentRouter:
+        """延迟初始化智能体路由器"""
+        if self._agent_router is None:
+            registry = AgentConfigRegistry()
+            self._agent_router = AgentRouter(registry)
+        return self._agent_router
 
     async def get_or_create_session(
         self,
@@ -158,6 +170,10 @@ class ChatManager:
             raise e
 
         # 都没有就创建新的
+        agent_id = self._ensure_agent_router().resolve_agent(
+            session_id=session_id,
+            group_id=group_id,
+        ).agent_id
         new_session = BotChatSession(
             session_id=session_id,
             platform=platform,
@@ -165,6 +181,7 @@ class ChatManager:
             group_id=group_id,
             account_id=account_id,
             scope=scope,
+            agent_id=agent_id,
         )
         self.sessions[new_session.session_id] = new_session
         if new_session.session_id in self.last_messages:
@@ -494,6 +511,7 @@ class ChatManager:
                 result.group_name = db_instance.group_name
                 result.account_id = db_instance.account_id
                 result.scope = db_instance.scope
+                result.agent_id = db_instance.agent_id
                 db_session.add(result)
             else:
                 db_session.add(db_instance)

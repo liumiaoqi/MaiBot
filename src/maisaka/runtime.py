@@ -150,6 +150,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         self._chat_loop_service = MaisakaChatLoopService(
             session_id=session_id,
             is_group_chat=self.chat_stream.is_group_session,
+            agent_id=self.chat_stream.agent_id,
         )
         self._chat_history: list[LLMContextMessage] = []
         self.history_loop: list[CycleDetail] = []

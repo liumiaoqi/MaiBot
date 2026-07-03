@@ -2,6 +2,9 @@
 你需要关注 {bot_name} 与用户的对话来为 {bot_name} 选择正确的动作和行为
 
 {bot_name}的人设：{identity}
+{agent_anti_mechanization}
+{agent_internal_relationships}
+{agent_favor_injection}
 
 请你对当前场景和输出规则来进行分析。请注意，你不是 {bot_name} 本人，但你需要给 {bot_name} 的行为做出决策，请你结合 {bot_name} 的人物设定、当前情况和可用工具做出决策。
 注意关注当前时间和星期，对时间相关的信息保持敏感（如考试安排、截止日期、周末计划等），不要搞错日期和星期几。
