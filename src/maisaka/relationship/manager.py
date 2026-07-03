@@ -3,27 +3,24 @@
 from __future__ import annotations
 
 import time
+from datetime import datetime
 from typing import Optional
 
+from src.common.database.database import get_db_session
+from src.common.database.database_model import AgentRelationship
 from src.common.logger import get_logger
 
 from .level import LEVEL_THRESHOLDS, RelationshipLevel, RelationshipSnapshot
 
 logger = get_logger("maisaka_relationship")
 
-_RELATIONSHIP_STORE: dict[str, RelationshipSnapshot] = {}
-
 _DECAY_7D = 10.0
 _DECAY_30D = 30.0
 _DECAY_90D = 50.0
 
 
-def _store_key(agent_id: str, user_id: str) -> str:
-    return f"{agent_id}:{user_id}"
-
-
 class RelationshipManager:
-    """管理智能体与用户的关系进展。"""
+    """管理智能体与用户的关系进展，数据持久化到数据库。"""
 
     def __init__(self) -> None:
         self._emotion_trigger_callback: Optional[object] = None
@@ -34,11 +31,11 @@ class RelationshipManager:
 
     def get_relationship(self, agent_id: str, user_id: str) -> RelationshipSnapshot:
         """获取智能体与用户的关系快照。"""
-        key = _store_key(agent_id, user_id)
-        snapshot = _RELATIONSHIP_STORE.get(key)
-        if snapshot is not None:
+        row = self._load_row(agent_id, user_id)
+        if row is not None:
+            snapshot = self._row_to_snapshot(row)
             self._apply_time_decay(snapshot)
-            return snapshot.model_copy()
+            return snapshot
 
         return RelationshipSnapshot(
             agent_id=agent_id,
@@ -59,9 +56,10 @@ class RelationshipManager:
         message_length: int = 0,
     ) -> RelationshipSnapshot:
         """更新互动记录并计算关系进展。"""
-        key = _store_key(agent_id, user_id)
-        snapshot = _RELATIONSHIP_STORE.get(key)
-        if snapshot is None:
+        row = self._load_row(agent_id, user_id)
+        if row is not None:
+            snapshot = self._row_to_snapshot(row)
+        else:
             snapshot = RelationshipSnapshot(
                 agent_id=agent_id,
                 user_id=user_id,
@@ -83,12 +81,75 @@ class RelationshipManager:
         snapshot.interaction_count += 1
         snapshot.last_interaction_at = time.time()
 
-        _RELATIONSHIP_STORE[key] = snapshot
+        self._save_snapshot(agent_id, user_id, snapshot)
 
         if snapshot.level != old_level and snapshot.level > old_level:
             self._on_relationship_upgrade(snapshot, old_level)
 
         return snapshot.model_copy()
+
+    @staticmethod
+    def _load_row(agent_id: str, user_id: str) -> Optional[AgentRelationship]:
+        """从数据库加载关系记录。"""
+        try:
+            with get_db_session() as session:
+                return (
+                    session.query(AgentRelationship)
+                    .filter(
+                        AgentRelationship.agent_id == agent_id,
+                        AgentRelationship.user_id == user_id,
+                    )
+                    .first()
+                )
+        except Exception:
+            logger.warning(f"加载关系记录失败: {agent_id} <-> {user_id}")
+            return None
+
+    @staticmethod
+    def _save_snapshot(agent_id: str, user_id: str, snapshot: RelationshipSnapshot) -> None:
+        """将关系快照持久化到数据库。"""
+        try:
+            with get_db_session() as session:
+                row = (
+                    session.query(AgentRelationship)
+                    .filter(
+                        AgentRelationship.agent_id == agent_id,
+                        AgentRelationship.user_id == user_id,
+                    )
+                    .first()
+                )
+                now = datetime.now()
+                if row is None:
+                    row = AgentRelationship(
+                        agent_id=agent_id,
+                        user_id=user_id,
+                        score=snapshot.score,
+                        level=snapshot.level,
+                        interaction_count=snapshot.interaction_count,
+                        last_interaction_at=now,
+                        created_at=now,
+                    )
+                    session.add(row)
+                else:
+                    row.score = snapshot.score
+                    row.level = snapshot.level
+                    row.interaction_count = snapshot.interaction_count
+                    row.last_interaction_at = now
+        except Exception:
+            logger.warning(f"保存关系记录失败: {agent_id} <-> {user_id}")
+
+    @staticmethod
+    def _row_to_snapshot(row: AgentRelationship) -> RelationshipSnapshot:
+        """将数据库行转换为关系快照。"""
+        return RelationshipSnapshot(
+            agent_id=row.agent_id,
+            user_id=row.user_id,
+            score=row.score,
+            level=RelationshipLevel(row.level),
+            interaction_count=row.interaction_count,
+            last_interaction_at=row.last_interaction_at.timestamp() if row.last_interaction_at else 0.0,
+            created_at=row.created_at.timestamp() if row.created_at else 0.0,
+        )
 
     def _apply_time_decay(self, snapshot: RelationshipSnapshot) -> None:
         """按时间衰减关系分数。"""
