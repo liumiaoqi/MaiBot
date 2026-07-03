@@ -29,6 +29,46 @@ class PersonProfileCandidate:
     source: str = ""
 
 
+def _filter_profile_by_agent_focus(profile_text: str, agent_id: str) -> str:
+    """根据智能体记忆焦点领域过滤画像段落，保留相关内容。"""
+    try:
+        from src.maisaka.agent.registry import AgentConfigRegistry
+
+        registry = AgentConfigRegistry()
+        if not registry.has_agent(agent_id):
+            return profile_text
+        focus_areas = registry.get_agent(agent_id).memory_focus_areas
+    except Exception:
+        return profile_text
+
+    if not focus_areas:
+        return profile_text
+
+    focus_lower = [area.lower() for area in focus_areas]
+    lines = profile_text.split("\n")
+    result_lines: list[str] = []
+    current_section: list[str] = []
+
+    for line in lines:
+        if line.startswith("## "):
+            if _section_matches_focus(current_section, focus_lower):
+                result_lines.extend(current_section)
+            current_section = [line]
+        else:
+            current_section.append(line)
+
+    if _section_matches_focus(current_section, focus_lower):
+        result_lines.extend(current_section)
+
+    return "\n".join(result_lines).strip() if result_lines else profile_text
+
+
+def _section_matches_focus(section_lines: list[str], focus_lower: list[str]) -> bool:
+    """检查一个画像段落是否与焦点领域相关。"""
+    section_text = "\n".join(section_lines).lower()
+    return any(area in section_text for area in focus_lower)
+
+
 def _clean_text(value: object) -> str:
     return str(value or "").strip()
 
@@ -217,6 +257,7 @@ async def build_person_profile_injection_messages(
     *,
     anchor_message: SessionMessage,
     pending_messages: Sequence[SessionMessage] | None = None,
+    agent_id: str = "",
 ) -> list[str]:
     """构造注入 planner 的一次性人物画像内部参考消息。"""
 
@@ -259,9 +300,15 @@ async def build_person_profile_injection_messages(
             continue
 
         display_name = _profile_display_name(candidate, payload)
+        truncated = _truncate_profile_text(profile_text)
+        if agent_id:
+            truncated = _filter_profile_by_agent_focus(truncated, agent_id)
+        if not truncated:
+            logger.debug(f"人物画像注入跳过(焦点过滤后为空): person_id={candidate.person_id!r}")
+            continue
         blocks.append(
             f"- {display_name}（person_id: {candidate.person_id}，来源: {candidate.source}）\n"
-            f"  {_truncate_profile_text(profile_text)}"
+            f"  {truncated}"
         )
 
     reference_block = _format_profile_reference_block(blocks)

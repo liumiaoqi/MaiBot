@@ -49,6 +49,7 @@ class HeuristicMemoryContext:
     recent_messages: list[SessionMessage]
     active_person_ids: set[str] = field(default_factory=set)
     total_message_count: int = 0
+    agent_id: str = ""
 
 
 class HeuristicMemoryInjector:
@@ -121,6 +122,7 @@ class HeuristicMemoryInjector:
             recent_messages=recent_messages,
             active_person_ids=self._collect_active_person_ids(recent_messages),
             total_message_count=total_message_count,
+            agent_id=getattr(session, "agent_id", "") or "",
         )
         try:
             impression = await self._build_chat_impression(context)
@@ -217,6 +219,8 @@ class HeuristicMemoryInjector:
             filtered.append(hit)
             if len(filtered) >= limit:
                 break
+
+        filtered = self._rerank_by_agent_focus(filtered, context)
         return filtered
 
     async def _resolve_hit_sources_by_hash(self, hits: Sequence[MemoryHit]) -> dict[str, str]:
@@ -256,6 +260,32 @@ class HeuristicMemoryInjector:
             return True
         source = str(hit.source or "").strip()
         return source.startswith(_SOURCE_CHAT_SUMMARY_PREFIX) or source.startswith(_SOURCE_PERSON_FACT_PREFIX)
+
+    def _rerank_by_agent_focus(self, hits: list[MemoryHit], context: HeuristicMemoryContext) -> list[MemoryHit]:
+        """根据当前智能体的记忆焦点领域对命中结果重新排序。"""
+        if not context.agent_id:
+            return hits
+
+        try:
+            from src.maisaka.agent.registry import AgentConfigRegistry
+
+            registry = AgentConfigRegistry()
+            if not registry.has_agent(context.agent_id):
+                return hits
+            focus_areas = registry.get_agent(context.agent_id).memory_focus_areas
+        except Exception:
+            return hits
+
+        if not focus_areas:
+            return hits
+
+        def _focus_score(hit: MemoryHit) -> int:
+            text = str(hit.content or "").lower()
+            return sum(1 for area in focus_areas if area.lower() in text)
+
+        scored = [(hit, _focus_score(hit)) for hit in hits]
+        scored.sort(key=lambda x: -x[1])
+        return [hit for hit, _ in scored]
 
     def _is_hit_allowed(
         self,

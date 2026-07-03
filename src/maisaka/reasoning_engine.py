@@ -494,6 +494,7 @@ class MaisakaReasoningEngine:
                 return await build_person_profile_injection_messages(
                     anchor_message=profile_message,
                     pending_messages=source_messages,
+                    agent_id=getattr(self._runtime.chat_stream, "agent_id", "") or "",
                 )
             except Exception as exc:
                 logger.debug(f"{self._runtime.log_prefix} 人物画像自动注入失败，已跳过: {exc}")
