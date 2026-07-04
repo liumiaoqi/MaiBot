@@ -54,7 +54,7 @@ export function ChatHeaderBar({
                 type="button"
                 className="focus-visible:outline-primary/60 rounded-full focus-visible:outline-2 focus-visible:outline-offset-2"
                 onClick={onAgentClick}
-                aria-label={`当前智能体: ${agentDisplayName || botDisplayName}`}
+                aria-label={t('agent.header.currentAgentLabel', { name: agentDisplayName || botDisplayName })}
               >
                 <span
                   className="inline-flex h-10 w-10 items-center justify-center rounded-full text-base font-medium text-white ring-1 ring-border/60 sm:h-11 sm:w-11"
@@ -65,7 +65,7 @@ export function ChatHeaderBar({
               </button>
             ) : (
               <Avatar className="h-10 w-10 ring-1 ring-border/60 sm:h-11 sm:w-11">
-                {botAvatarUrl && <AvatarImage src={botAvatarUrl} alt={`${botDisplayName} 的头像`} className="object-cover" />}
+                {botAvatarUrl && <AvatarImage src={botAvatarUrl} alt={t('agent.header.avatarAlt', { name: botDisplayName })} className="object-cover" />}
                 <AvatarFallback className="bg-primary-gradient text-primary-foreground">
                   <Bot className="h-5 w-5" />
                 </AvatarFallback>

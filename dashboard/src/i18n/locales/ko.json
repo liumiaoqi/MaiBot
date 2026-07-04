@@ -1165,6 +1165,64 @@
       "requestTrend": "시간별 요청 트렌드 차트, 최근 시간대별 요청 수 변화 표시",
       "costTrend": "API 비용 트렌드 차트, 최근 시간대별 API 호출 비용 변화 표시",
       "tokenUsage": "토큰 소비 트렌드 차트, 최근 시간대별 토큰 사용량 변화 표시"
+    },
+    "agentOverview": {
+      "title": "에이전트 개요",
+      "summary": "{{agents}} 에이전트 · {{active}} 활성 · {{sessions}} 세션",
+      "loading": "로딩 중..."
     }
+  },
+  "agent": {
+    "indicator": {
+      "default": "기본"
+    },
+    "selectPopover": {
+      "searchPlaceholder": "에이전트 검색...",
+      "noMatch": "일치하는 에이전트 없음"
+    },
+    "switcher": {
+      "title": "에이전트 전환",
+      "searchPlaceholder": "에이전트 검색...",
+      "noMatch": "일치하는 에이전트 없음",
+      "current": "현재"
+    },
+    "binding": {
+      "defaultName": "실버울프",
+      "switchFailed": "에이전트 전환 실패"
+    },
+    "header": {
+      "currentAgentLabel": "현재 에이전트: {{name}}",
+      "avatarAlt": "{{name}}의 아바타"
+    },
+    "chatManagement": {
+      "bindFailed": "에이전트 바인딩 실패",
+      "defaultName": "실버울프",
+      "allAgents": "전체 에이전트"
+    }
+  },
+  "emotion": {
+    "pageTitle": "감정 모니터",
+    "agentCount": "{{count}} 에이전트",
+    "backToOverview": "개요로 돌아가기",
+    "autoRefreshOff": "자동 새로고침 끄기",
+    "autoRefreshOn": "자동 새로고침 켜기 (30초)",
+    "dominantDistribution": "지배 감정 분포",
+    "dominantIntensity": "지배 감정 강도 {{value}}/100",
+    "radarTitle": "감정 레이더",
+    "intensityTitle": "감정 강도",
+    "behaviorParams": "감정 행동 매개변수",
+    "decayRate": "감쇠율",
+    "activityModifier": "활동도 수정",
+    "backoffModifier": "회피 수정",
+    "currentState": "현재 상태",
+    "baseline": "감정 기준선"
+  },
+  "chatManagement": {
+    "typeAll": "전체",
+    "typeGroup": "그룹",
+    "typePrivate": "개인",
+    "tabStreams": "채팅 스트림",
+    "tabGroups": "공유 그룹",
+    "searchPlaceholder": "이름, 플랫폼, 사용자, 그룹 ID 또는 세션 ID로 검색"
   }
 }
