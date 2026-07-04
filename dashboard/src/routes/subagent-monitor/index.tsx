@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Activity, RefreshCw, Zap } from 'lucide-react'
+import { Activity, RefreshCw } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
 import { Badge } from '@/components/ui/badge'
@@ -28,8 +28,7 @@ import {
   getAgentList,
   getSubAgentRecords,
   getSubAgentStats,
-  type SubAgentRecord,
-  type SubAgentStats,
+
 } from '@/lib/agent-api'
 
 import { cn } from '@/lib/utils'
@@ -84,7 +83,7 @@ function formatTokens(n: number): string {
 }
 
 export function SubAgentMonitorPage() {
-  const { toast } = useToast()
+
   const [filterType, setFilterType] = useState<string>('all')
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [filterAgent, setFilterAgent] = useState<string>('all')

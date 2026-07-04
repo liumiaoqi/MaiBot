@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Bot,
-  ChevronRight,
+
   Heart,
   Link2,
   MessageSquare,
@@ -51,11 +51,9 @@ import {
   reloadAgents,
   unbindSessionAgent,
   type AgentConfigInfo,
-  type EmotionStateInfo,
   type RelationshipInfo,
-  type SessionAgentInfo,
 } from '@/lib/agent-api'
-import { getChatStreams, type ChatStream } from '@/lib/chat-management-api'
+import { getChatStreams } from '@/lib/chat-management-api'
 
 import { cn } from '@/lib/utils'
 
@@ -107,7 +105,7 @@ function EmotionRadar({ emotions, emotionLabels }: { emotions: Record<string, nu
             strokeWidth={1}
           />
         ))}
-        {entries.map(([, val], i) => {
+        {entries.map(([, _val], i) => {
           const angle = (2 * Math.PI * i) / n - Math.PI / 2
           const x = center + radius * Math.cos(angle)
           const y = center + radius * Math.sin(angle)
@@ -139,7 +137,7 @@ function EmotionRadar({ emotions, emotionLabels }: { emotions: Record<string, nu
           stroke="currentColor"
           strokeWidth={2}
         />
-        {entries.map(([key, val], i) => {
+        {entries.map(([key, _val], i) => {
           const angle = (2 * Math.PI * i) / n - Math.PI / 2
           const lx = center + (radius + 14) * Math.cos(angle)
           const ly = center + (radius + 14) * Math.sin(angle)
@@ -289,7 +287,7 @@ function AgentCard({
 }
 
 export function AgentManagementPage() {
-  const { t } = useTranslation()
+
   const { toast } = useToast()
   const queryClient = useQueryClient()
 

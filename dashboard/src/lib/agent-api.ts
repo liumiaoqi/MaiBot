@@ -4,7 +4,7 @@
  * 请求样板（认证、解析、错误格式化）由 @/lib/http 的请求客户端承担；
  * 本文件只声明 endpoint、业务错误文案与响应体 success 标记的解包规则。
  */
-import { ApiError, backendApi, requireSuccess } from '@/lib/http'
+import { backendApi, requireSuccess } from '@/lib/http'
 
 const API_BASE = '/api/webui/agent'
 
@@ -334,7 +334,7 @@ export interface BatchBindResponse {
 
 export async function batchBindSessions(bindings: BatchBindItem[]): Promise<BatchBindResponse> {
   return backendApi.put<BatchBindResponse>(`${API_BASE}/binding/batch`, {
-    json: { bindings },
+    body: { bindings },
     errorMessage: '批量绑定智能体失败',
   })
 }

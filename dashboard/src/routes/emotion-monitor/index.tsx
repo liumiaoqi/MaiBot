@@ -7,11 +7,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
-import { useToast } from '@/hooks/use-toast'
 
 import {
   getAgentEmotion,
@@ -78,7 +75,7 @@ function EmotionRadarChart({
           strokeWidth={1}
         />
       ))}
-      {entries.map(([, val], i) => {
+      {entries.map(([, _val], i) => {
         const angle = (2 * Math.PI * i) / n - Math.PI / 2
         const x = center + radius * Math.cos(angle)
         const y = center + radius * Math.sin(angle)
@@ -270,31 +267,9 @@ function BaselineComparisonCard({
 
 export function EmotionMonitorPage() {
   const { t } = useTranslation()
-  const { toast } = useToast()
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'grid' | 'detail'>('grid')
   const [autoRefresh, setAutoRefresh] = useState(false)
-
-  const doRefresh = useCallback(() => {
-    allEmotionsQuery.refetch()
-    agentsQuery.refetch()
-    if (viewMode === 'detail' && selectedAgentId) {
-      singleEmotionQuery.refetch()
-    }
-  }, [allEmotionsQuery, agentsQuery, singleEmotionQuery, viewMode, selectedAgentId])
-
-  useEffect(() => {
-    if (!autoRefresh) return
-    const interval = setInterval(doRefresh, 30000)
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') doRefresh()
-    }
-    document.addEventListener('visibilitychange', onVisible)
-    return () => {
-      clearInterval(interval)
-      document.removeEventListener('visibilitychange', onVisible)
-    }
-  }, [autoRefresh, doRefresh])
 
   const agentsQuery = useQuery({
     queryKey: ['agents', 'list'],
@@ -325,6 +300,27 @@ export function EmotionMonitorPage() {
     queryFn: () => getAgentEmotion(selectedAgentId!),
     enabled: !!selectedAgentId && viewMode === 'detail',
   })
+
+  const doRefresh = useCallback(() => {
+    allEmotionsQuery.refetch()
+    agentsQuery.refetch()
+    if (viewMode === 'detail' && selectedAgentId) {
+      singleEmotionQuery.refetch()
+    }
+  }, [allEmotionsQuery, agentsQuery, singleEmotionQuery, viewMode, selectedAgentId])
+
+  useEffect(() => {
+    if (!autoRefresh) return
+    const interval = setInterval(doRefresh, 30000)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') doRefresh()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [autoRefresh, doRefresh])
 
   const agents = agentsQuery.data ?? []
   const allEmotions = allEmotionsQuery.data ?? {}

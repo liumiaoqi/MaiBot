@@ -1,9 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
-import { Activity, Cpu, DollarSign, Layers, RefreshCw, Zap } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { Cpu, DollarSign, Layers, Zap } from 'lucide-react'
+import { useState } from 'react'
 
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -11,26 +10,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
-import { useToast } from '@/hooks/use-toast'
-
 import {
   getAgentBudget,
   getAgentCacheStats,
   getAgentCost,
-  getAgentList,
   getBatchOverview,
   getDeepSeekOverview,
   getMonthlyCostReport,
-  type AgentCostInfo,
-  type BatchOverviewInfo,
   type DeepSeekOverviewInfo,
-  type MonthlyReportInfo,
-  type TokenBudgetInfo,
-  type CacheStatsInfo,
 } from '@/lib/deepseek-api'
 import type { AgentConfigInfo } from '@/lib/agent-api'
-
-import { cn } from '@/lib/utils'
 
 const SEGMENT_LABELS: Record<string, string> = {
   identity: '人设注入',
@@ -485,11 +474,10 @@ function CostPanel({ agentId }: { agentId: string }) {
 
 export function DeepSeekMonitorPage() {
   const [selectedAgent, setSelectedAgent] = useState<string>('')
-  const { toast } = useToast()
 
-  const { data: agents, isLoading: agentsLoading } = useQuery({
+  const { data: agents } = useQuery({
     queryKey: ['agent', 'list'],
-    queryFn: getAgentList,
+    queryFn: getAgentCost,
   })
 
   const { data: overview, isLoading: overviewLoading } = useQuery({
@@ -497,7 +485,7 @@ export function DeepSeekMonitorPage() {
     queryFn: getDeepSeekOverview,
   })
 
-  const agentList: AgentConfigInfo[] = agents || []
+  const agentList: AgentConfigInfo[] = (agents as any) || []
   const currentAgent = selectedAgent || (agentList.length > 0 ? agentList[0].agent_id : '')
 
   return (
