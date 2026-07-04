@@ -39,6 +39,12 @@ internal_relationships:
   mention_tendency: 0.2
   relationship_type: intimate
   target_agent_id: seele
+- anti_mechanization: ''
+  attitude: 抢零食互抢，谁也不让谁
+  interaction_style: 互抢
+  mention_tendency: 0.2
+  relationship_type: rival
+  target_agent_id: kiana
 is_default: false
 memory_focus_areas:
 - 布洛妮娅

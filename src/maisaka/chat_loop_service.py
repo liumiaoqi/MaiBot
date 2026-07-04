@@ -499,6 +499,8 @@ class MaisakaChatLoopService:
         self._agent_id = agent_id
         self._emotion_state_text: str = ""
         self._relationship_text: str = ""
+        self._current_user_id: str = ""
+        self._current_user_name: str = "用户"
         self._extra_tools: List[ToolOption] = []
         self._interrupt_flag: asyncio.Event | None = None
         self._tool_registry: ToolRegistry | None = None
@@ -700,7 +702,10 @@ class MaisakaChatLoopService:
                     agent_config = registry.get_agent(self._agent_id)
                     agent_anti_mechanization = agent_config.anti_mechanization_prompt
                     agent_internal_relationships = agent_config.internal_relationships_prompt
-                    agent_favor_injection = agent_config.get_favor_injection()
+                    agent_favor_injection = agent_config.get_favor_injection(
+                        user_name=self._current_user_name,
+                        is_owner=self._current_user_id in global_config.bot.owner_user_ids,
+                    )
             except Exception:
                 pass
 
@@ -728,6 +733,11 @@ class MaisakaChatLoopService:
     def update_relationship_text(self, text: str) -> None:
         """更新当前关系状态的提示词文本。"""
         self._relationship_text = text
+
+    def update_current_user(self, user_id: str, user_name: str) -> None:
+        """更新当前对话用户的身份信息，用于偏爱注入区分身份。"""
+        self._current_user_id = user_id
+        self._current_user_name = user_name
 
 
     @staticmethod
