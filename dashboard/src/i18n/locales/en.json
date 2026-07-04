@@ -54,7 +54,8 @@
       "subagentMonitor": "Sub-Agent Monitor",
       "chatManagement": "Chat Management",
       "localChat": "Local Chat",
-      "settings": "Settings"
+      "settings": "Settings",
+      "deepseekMonitor": "DeepSeek Optimizer"
     }
   },
   "workspace": {

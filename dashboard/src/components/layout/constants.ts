@@ -16,6 +16,7 @@ import {
   Store,
   Users,
   Wifi,
+  Zap,
 } from 'lucide-react'
 
 import { createStreamlineIcon } from '@/components/ui/streamline-menu-icon'
@@ -29,6 +30,7 @@ const AgentIcon = createStreamlineIcon('cyborg-remix', Bot)
 const EmotionMonitorIcon = createStreamlineIcon('love-heart-remix', Heart)
 const RelationshipIcon = createStreamlineIcon('user-sticker-square-remix', Users)
 const SubAgentIcon = createStreamlineIcon('layers-remix', Layers)
+const DeepSeekIcon = createStreamlineIcon('flash-remix', Zap)
 const BotConfigIcon = createStreamlineIcon('page-setting-remix', Settings)
 const ModelIcon = createStreamlineIcon('module-remix', Box)
 const PromptIcon = createStreamlineIcon('script-1-remix', FileText)
@@ -55,6 +57,7 @@ export const menuSections: MenuSection[] = [
       { icon: EmotionMonitorIcon, label: 'sidebar.menu.emotionMonitor', path: '/emotion-monitor' },
       { icon: RelationshipIcon, label: 'sidebar.menu.relationshipMonitor', path: '/relationship-monitor' },
       { icon: SubAgentIcon, label: 'sidebar.menu.subagentMonitor', path: '/subagent-monitor' },
+      { icon: DeepSeekIcon, label: 'sidebar.menu.deepseekMonitor', path: '/deepseek-monitor' },
       { icon: MonitorIcon, label: 'sidebar.menu.maisakaMonitor', path: '/planner-monitor' },
       { icon: ChatManagementIcon, label: 'sidebar.menu.chatManagement', path: '/chat-management' },
     ],

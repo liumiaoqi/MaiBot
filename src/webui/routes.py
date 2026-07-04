@@ -14,6 +14,7 @@ from src.webui.core import (
 from src.webui.dependencies import require_auth, verify_token_optional
 from src.webui.routers.avatar import router as avatar_router
 from src.webui.routers.agent import router as agent_router
+from src.webui.routers.deepseek import router as deepseek_router
 from src.webui.routers.behavior import router as behavior_router
 from src.webui.routers.config import router as config_router
 from src.webui.routers.emoji import router as emoji_router
@@ -36,6 +37,8 @@ router = APIRouter(prefix="/api/webui", tags=["WebUI"])
 
 # 注册智能体管理路由
 router.include_router(agent_router)
+# 注册 DeepSeek 优化面板路由
+router.include_router(deepseek_router)
 # 注册配置管理路由
 router.include_router(config_router)
 # 注册统计数据路由
