@@ -535,3 +535,78 @@ async def get_subagent_stats():
     except Exception as e:
         logger.error(f"获取子智能体统计失败: {e}")
         raise HTTPException(status_code=500, detail="获取子智能体统计失败") from e
+
+
+# ========== 插件迁移协调 API ==========
+
+
+class MigrationStateResponse(BaseModel):
+    plugin_id: str
+    plugin_name: str
+    current_phase: str
+    previous_phase: str
+    last_updated: float = 0.0
+    notes: str = ""
+
+
+class MigrationAdvanceResponse(BaseModel):
+    success: bool
+    plugin_id: str
+    current_phase: str
+    previous_phase: str
+
+
+@router.get("/migration/states", response_model=List[MigrationStateResponse])
+async def get_migration_states():
+    """获取所有插件的迁移状态。"""
+    from src.maisaka.migration import MigrationCoordinator
+
+    coordinator = MigrationCoordinator()
+    states = coordinator.get_all_states()
+    return [
+        MigrationStateResponse(
+            plugin_id=s.plugin_id,
+            plugin_name=s.plugin_name,
+            current_phase=s.current_phase.value,
+            previous_phase=s.previous_phase.value,
+            last_updated=s.last_updated,
+            notes=s.notes,
+        )
+        for s in states
+    ]
+
+
+@router.post("/migration/{plugin_id}/advance", response_model=MigrationAdvanceResponse)
+async def advance_migration(plugin_id: str):
+    """推进指定插件的迁移阶段。"""
+    from src.maisaka.migration import MigrationCoordinator
+
+    coordinator = MigrationCoordinator()
+    state = coordinator.advance(plugin_id)
+    if state is None:
+        raise HTTPException(status_code=404, detail=f"未找到插件: {plugin_id}")
+
+    return MigrationAdvanceResponse(
+        success=True,
+        plugin_id=state.plugin_id,
+        current_phase=state.current_phase.value,
+        previous_phase=state.previous_phase.value,
+    )
+
+
+@router.post("/migration/{plugin_id}/rollback", response_model=MigrationAdvanceResponse)
+async def rollback_migration(plugin_id: str):
+    """回退指定插件的迁移阶段。"""
+    from src.maisaka.migration import MigrationCoordinator
+
+    coordinator = MigrationCoordinator()
+    state = coordinator.rollback(plugin_id)
+    if state is None:
+        raise HTTPException(status_code=404, detail=f"未找到插件: {plugin_id}")
+
+    return MigrationAdvanceResponse(
+        success=True,
+        plugin_id=state.plugin_id,
+        current_phase=state.current_phase.value,
+        previous_phase=state.previous_phase.value,
+    )
