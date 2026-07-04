@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import { Heart, RefreshCw } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { Heart, RefreshCw, Timer, TimerOff } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -270,6 +270,28 @@ export function EmotionMonitorPage() {
   const { toast } = useToast()
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'grid' | 'detail'>('grid')
+  const [autoRefresh, setAutoRefresh] = useState(false)
+
+  const doRefresh = useCallback(() => {
+    allEmotionsQuery.refetch()
+    agentsQuery.refetch()
+    if (viewMode === 'detail' && selectedAgentId) {
+      singleEmotionQuery.refetch()
+    }
+  }, [allEmotionsQuery, agentsQuery, singleEmotionQuery, viewMode, selectedAgentId])
+
+  useEffect(() => {
+    if (!autoRefresh) return
+    const interval = setInterval(doRefresh, 30000)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') doRefresh()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [autoRefresh, doRefresh])
 
   const agentsQuery = useQuery({
     queryKey: ['agents', 'list'],
@@ -340,6 +362,18 @@ export function EmotionMonitorPage() {
               返回总览
             </Button>
           )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setAutoRefresh(!autoRefresh)}
+            title={autoRefresh ? '关闭自动刷新' : '开启自动刷新（30秒）'}
+          >
+            {autoRefresh ? (
+              <Timer className="h-4 w-4 text-emerald-500" />
+            ) : (
+              <TimerOff className="h-4 w-4 text-muted-foreground" />
+            )}
+          </Button>
           <Button
             variant="ghost"
             size="icon"
