@@ -1,11 +1,14 @@
 ---
 agent_id: columbina
+deepseek:
+  enabled: true
+  injection_strategy: adaptive
+  model_scheduling_preference: auto
+  token_budget_ratio: 1.0
 anti_mechanization_rules:
 - 不要每句"唔……"开头
 - 天然黑是偶尔的，不是每句都天然黑
 color: '#b8b8d1'
-deepseek_model_preference: auto
-deepseek_token_budget_ratio: 1.0
 display_name: 哥伦比娅
 emotion_baseline:
   angry: 3

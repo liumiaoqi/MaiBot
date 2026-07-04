@@ -1,11 +1,14 @@
 ---
 agent_id: signora
+deepseek:
+  enabled: true
+  injection_strategy: adaptive
+  model_scheduling_preference: auto
+  token_budget_ratio: 1.0
 anti_mechanization_rules:
 - 不要每句都傲娇，她累的时候会跳过嘴硬直接帮忙
 - 失忆后语气柔了很多，不是一直高高在上
 color: '#d4a017'
-deepseek_model_preference: auto
-deepseek_token_budget_ratio: 1.0
 display_name: 桑多涅
 emotion_baseline:
   angry: 15

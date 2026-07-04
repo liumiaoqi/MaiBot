@@ -69,6 +69,43 @@ class PermissionRule(BaseModel):
     rule: str = Field(default="allow", description="规则：allow/deny/limited/own_only/private_only")
 
 
+class DeepSeekOptimizationConfig(BaseModel):
+    """DeepSeek 深度优化配置"""
+
+    enabled: bool = Field(default=True, description="是否启用DeepSeek深度优化")
+    injection_strategy: str = Field(
+        default="adaptive",
+        description="上下文注入策略：full(1M全量)/adaptive(按优先级截断)/lean(128K精简)",
+    )
+    injection_priority: list[str] = Field(
+        default_factory=lambda: ["identity", "anti_mechanization", "profile", "mid_term", "heuristic"],
+        description="上下文注入优先级（从高到低）",
+    )
+    token_budget_ratio: float = Field(default=1.0, ge=0.1, le=2.0, description="Token预算分配比例")
+    prefix_cache_enabled: bool = Field(default=True, description="是否启用前缀缓存优化")
+    prefix_cache_priority: list[str] = Field(
+        default_factory=lambda: ["system", "identity", "emotion_baseline", "internal_relationships"],
+        description="前缀缓存稳定层优先级",
+    )
+    batch_api_enabled: bool = Field(default=True, description="是否启用批处理API")
+    batch_scheduling_preference: str = Field(
+        default="auto",
+        description="批处理调度偏好：auto/always/never",
+    )
+    thinking_mode_conditions: list[str] = Field(
+        default_factory=lambda: ["complex_reasoning", "emotional_decision"],
+        description="思考模式启用条件",
+    )
+    model_scheduling_preference: str = Field(
+        default="auto",
+        description="模型调度偏好：auto/pro/flash",
+    )
+    cost_budget_threshold: float = Field(
+        default=1.2, ge=0.5, le=3.0,
+        description="成本预算阈值（倍率），超过时自动降低低优先级注入",
+    )
+
+
 class AgentConfig(BaseModel):
     """智能体配置模型"""
 
@@ -129,18 +166,9 @@ class AgentConfig(BaseModel):
     model_config_override: Optional[dict[str, object]] = Field(default=None, description="模型配置覆盖")
 
     # DeepSeek优化配置
-    deepseek_token_budget_ratio: float = Field(default=1.0, ge=0.1, le=2.0, description="Token预算分配比例")
-    deepseek_injection_priority: list[str] = Field(
-        default_factory=lambda: ["identity", "anti_mechanization", "profile", "mid_term", "heuristic"],
-        description="上下文注入优先级",
-    )
-    deepseek_thinking_mode_conditions: list[str] = Field(
-        default_factory=lambda: ["complex_reasoning", "emotional_decision"],
-        description="思考模式启用条件",
-    )
-    deepseek_model_preference: str = Field(
-        default="auto",
-        description="模型调度偏好：auto/pro/flash",
+    deepseek: DeepSeekOptimizationConfig = Field(
+        default_factory=DeepSeekOptimizationConfig,
+        description="DeepSeek深度优化配置",
     )
 
     # 显示配置
