@@ -54,7 +54,8 @@
       "subagentMonitor": "서브에이전트 모니터",
       "chatManagement": "채팅 관리",
       "localChat": "로컬 채팅",
-      "settings": "설정"
+      "settings": "설정",
+      "deepseekMonitor": "DeepSeek 최적화"
     }
   },
   "workspace": {

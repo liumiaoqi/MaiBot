@@ -54,7 +54,8 @@
       "subagentMonitor": "子智能体监控",
       "chatManagement": "聊天管理",
       "localChat": "本地聊天室",
-      "settings": "系统设置"
+      "settings": "系统设置",
+      "deepseekMonitor": "DeepSeek优化"
     }
   },
   "workspace": {

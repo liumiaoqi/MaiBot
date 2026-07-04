@@ -213,6 +213,16 @@ const subagentMonitorRoute = createRoute({
   ),
 })
 
+// DeepSeek 优化面板路由
+const deepseekMonitorRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: '/deepseek-monitor',
+  component: lazyRouteComponent(
+    () => import('./routes/deepseek-monitor/index.tsx'),
+    'DeepSeekMonitorPage'
+  ),
+})
+
 // MaiSaka 聊天流监控路由
 const plannerMonitorRoute = createRoute({
   getParentRoute: () => protectedRoute,
@@ -397,6 +407,7 @@ const routeTree = rootRoute.addChildren([
     emotionMonitorRoute,
     relationshipMonitorRoute,
     subagentMonitorRoute,
+    deepseekMonitorRoute,
     plannerMonitorRoute,
     chatManagementRoute,
     chatRoute,
