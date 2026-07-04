@@ -2,6 +2,81 @@
 
 正式版更新日志见 [changelog.md](changelog.md)。
 
+# 1.0.0-rc.6
+
+## 用户感知功能
+
+### 多智能体架构
+- 新增13个独立智能体配置（agents/*.md），每个角色拥有独立的提示词、情绪基线、关系参数和活跃系数
+- 智能体路由器根据群聊/私聊场景自动选择对应智能体，agent_id全链路传递至LLM调用
+- 提示词模板新增智能体专属占位符：{agent_anti_mechanization}、{agent_internal_relationships}、{agent_favor_injection}、{agent_emotion_state}、{agent_relationship}
+
+### 情绪状态系统
+- 7维情绪模型（happy/sad/anxious/angry/calm/excited/lonely），每个智能体拥有独立情绪基线
+- 情绪触发与指数衰减机制，情绪自然趋向基线
+- 情绪状态注入提示词，影响回复风格
+
+### 关系进展系统
+- 4级关系等级（陌生人/熟人/朋友/挚友），基于交互频率和深度自动演进
+- 关系数据持久化存储，支持回溯查询
+- 关系状态注入提示词，影响亲密度表达
+
+### 时间感知服务
+- 时段识别、农历/节气计算，为智能体提供时间上下文
+- 智能体差异化活跃系数，不同角色在不同时段有不同活跃度
+
+### 主动对话引擎
+- 情绪+时间+关系综合评分决策，5分钟2次频率抑制
+- 基于情绪和人设的个性化主动内容生成
+
+### 群事件感知
+- 8类群事件解析与智能体个性化反应映射
+- 事件优先级管理：用户消息 > 主动对话 > 群事件
+
+### 跨聊上下文共享
+- 话题/参与者/氛围摘要，30分钟过期标记
+- 隐私控制，禁止跨智能体共享
+
+### DeepSeek深度优化
+- Token预算管理、前缀缓存、批处理调度、模型调度、成本追踪
+- 参数演化引擎，自适应调整LLM调用参数
+
+### 子智能体系统
+- Dream/Compaction子智能体：梦境整理与上下文压缩
+- Checkpoint-Writer/Fork子智能体：断点写入与上下文分叉
+- Distill子智能体：从重复交互模式提取行为资产
+- Goal驱动执行：4类Goal + max_react=3 + 30分钟超时
+
+### WebUI 新增页面
+- 智能体管理页面：13个智能体配置/情绪/关系管理（4Tab）
+- 情绪监控面板：13智能体情绪雷达图+柱状图+基线对比
+- 关系查看面板：等级分布+排行+智能体选择
+- DeepSeek优化面板：Token预算/前缀缓存/批处理/成本追踪
+- 子智能体监控面板：执行记录表+统计卡片+筛选器
+
+## 开发侧 / 修复
+
+### 数据库迁移
+- v34→v35：ChatSession新增agent_id字段
+- v35→v36：新增AgentRelationship表
+- v36→v37：新增SubAgentExecutionRecord表
+
+### 配置升级
+- 8.14.25→8.15.0：新增Agent段配置
+- 8.15.0→8.17.0：新增SubAgent段配置
+
+### 插件迁移
+- 5个插件（time-awareness、qq-user-memory、proactive-chat、group-event-sensor、cross-chat-context）标记为主程序替代
+- 迁移协调器支持三阶段推进/回退/持久化
+
+### Host能力注册
+- agent.emotion.get：获取智能体当前情绪状态
+- agent.relationship.get：获取智能体与用户关系
+
+### 修复
+- 修复EmotionManager API不一致：统一为 .state 属性和 .apply_trigger() 方法
+- 修复e2e测试中RelationshipManager和MigrationCoordinator API调用
+
 # 1.0.0-rc.5
 
 ## 用户感知功能
