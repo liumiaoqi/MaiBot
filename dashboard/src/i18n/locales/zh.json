@@ -1204,6 +1204,48 @@
       "bindFailed": "绑定智能体失败",
       "defaultName": "银狼",
       "allAgents": "全部智能体"
+    },
+    "commandCenter": {
+      "title": "智能体指挥中心",
+      "subtitle": "不做故事的结局，只做生命的序章",
+      "searchPlaceholder": "搜索智能体...",
+      "dashboard": "仪表盘",
+      "constellation": "星图",
+      "global": "全局态势"
+    },
+    "vitalSigns": {
+      "emotionPulse": {
+        "unavailable": "脉动暂不可感知"
+      },
+      "activity": {
+        "active": "活跃",
+        "quiet": "安静",
+        "dormant": "沉睡"
+      },
+      "warmth": {
+        "warm": "温暖",
+        "moderate": "温和",
+        "cold": "冷淡",
+        "unavailable": "温度暂不可感知"
+      },
+      "innerActivity": {
+        "introspecting": "内省中",
+        "quiet": "安静",
+        "unavailable": "活动暂不可感知"
+      },
+      "coreBadge": "核心",
+      "sessionCount": "{{count}} 个会话",
+      "relationshipCount": "{{count}} 条关系"
+    },
+    "constellation": {
+      "title": "智能体星图"
+    },
+    "globalSituation": {
+      "title": "全局态势感知"
+    },
+    "innerWorld": {
+      "back": "返回",
+      "placeholder": "内心世界 — 即将开启"
     }
   },
   "emotion": {

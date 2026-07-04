@@ -338,3 +338,78 @@ export async function batchBindSessions(bindings: BatchBindItem[]): Promise<Batc
     errorMessage: '批量绑定智能体失败',
   })
 }
+
+// ========== 批量查询 API ==========
+
+export interface BatchEmotionItem {
+  emotions: Record<string, number>
+  dominant_emotion: string
+  dominant_emotion_label: string
+  emotion_labels: Record<string, string>
+}
+
+export interface BatchRelationshipItem {
+  user_id: string
+  level: number
+  level_name: string
+  score: number
+  total_interactions: number
+}
+
+export interface BatchLatestSubAgentItem {
+  id: number
+  subagent_id: string
+  agent_id: string
+  subagent_type: string
+  status: string
+  completed_at: string | null
+  result_summary: string
+}
+
+interface BatchEmotionResponse {
+  success: boolean
+  data: Record<string, BatchEmotionItem>
+}
+
+interface BatchRelationshipResponse {
+  success: boolean
+  data: Record<string, BatchRelationshipItem[]>
+}
+
+interface BatchSessionCountResponse {
+  success: boolean
+  data: Record<string, number>
+}
+
+interface BatchLatestSubAgentResponse {
+  success: boolean
+  data: Record<string, BatchLatestSubAgentItem | null>
+}
+
+export async function getBatchEmotions(): Promise<Record<string, BatchEmotionItem>> {
+  const data = await backendApi.get<BatchEmotionResponse>(`${API_BASE}/batch/emotion`, {
+    errorMessage: '批量获取情绪状态失败',
+  })
+  return requireSuccess(data, '批量获取情绪状态失败').data
+}
+
+export async function getBatchRelationships(): Promise<Record<string, BatchRelationshipItem[]>> {
+  const data = await backendApi.get<BatchRelationshipResponse>(`${API_BASE}/batch/relationships`, {
+    errorMessage: '批量获取关系概览失败',
+  })
+  return requireSuccess(data, '批量获取关系概览失败').data
+}
+
+export async function getBatchSessionCounts(): Promise<Record<string, number>> {
+  const data = await backendApi.get<BatchSessionCountResponse>(`${API_BASE}/batch/sessions`, {
+    errorMessage: '批量获取会话数量失败',
+  })
+  return requireSuccess(data, '批量获取会话数量失败').data
+}
+
+export async function getBatchLatestSubAgentRecords(): Promise<Record<string, BatchLatestSubAgentItem | null>> {
+  const data = await backendApi.get<BatchLatestSubAgentResponse>(`${API_BASE}/batch/subagent-latest`, {
+    errorMessage: '批量获取子智能体记录失败',
+  })
+  return requireSuccess(data, '批量获取子智能体记录失败').data
+}

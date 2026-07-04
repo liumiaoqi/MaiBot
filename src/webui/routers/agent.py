@@ -596,6 +596,174 @@ async def get_subagent_stats():
         raise HTTPException(status_code=500, detail="获取子智能体统计失败") from e
 
 
+# ========== 批量查询 API ==========
+
+
+class BatchEmotionItem(BaseModel):
+    emotions: Dict[str, float] = Field(default_factory=dict)
+    dominant_emotion: str = "calm"
+    dominant_emotion_label: str = "平静"
+    emotion_labels: Dict[str, str] = Field(default_factory=dict)
+
+
+class BatchEmotionResponse(BaseModel):
+    success: bool
+    data: Dict[str, BatchEmotionItem] = Field(default_factory=dict)
+
+
+class RelationshipItem(BaseModel):
+    user_id: str
+    level: int
+    level_name: str
+    score: float
+    total_interactions: int
+
+
+class BatchRelationshipResponse(BaseModel):
+    success: bool
+    data: Dict[str, List[RelationshipItem]] = Field(default_factory=dict)
+
+
+class BatchSessionCountResponse(BaseModel):
+    success: bool
+    data: Dict[str, int] = Field(default_factory=dict)
+
+
+class BatchLatestSubAgentItem(BaseModel):
+    id: int
+    subagent_id: str
+    agent_id: str
+    subagent_type: str
+    status: str
+    completed_at: Optional[str] = None
+    result_summary: str = ""
+
+
+class BatchLatestSubAgentResponse(BaseModel):
+    success: bool
+    data: Dict[str, Optional[BatchLatestSubAgentItem]] = Field(default_factory=dict)
+
+
+@router.get("/batch/emotion", response_model=BatchEmotionResponse)
+async def batch_get_emotions():
+    """批量获取所有智能体的情绪状态"""
+    result: Dict[str, BatchEmotionItem] = {}
+    try:
+        registry = _get_registry()
+        agents = registry.list_agents()
+        for agent in agents:
+            try:
+                manager = EmotionManager(agent)
+                state = manager.state
+                dominant = state.get_dominant()
+                result[agent.agent_id] = BatchEmotionItem(
+                    emotions=state.emotions,
+                    dominant_emotion=dominant,
+                    dominant_emotion_label=EMOTION_LABELS_ZH.get(dominant, dominant),
+                    emotion_labels=EMOTION_LABELS_ZH,
+                )
+            except Exception as e:
+                logger.warning(f"批量获取情绪 — 智能体 {agent.agent_id} 失败: {e}")
+        return BatchEmotionResponse(success=True, data=result)
+    except Exception as e:
+        logger.error(f"批量获取情绪状态失败: {e}")
+        raise HTTPException(status_code=500, detail="批量获取情绪状态失败") from e
+
+
+@router.get("/batch/relationships", response_model=BatchRelationshipResponse)
+async def batch_get_relationships():
+    """批量获取所有智能体的关系概览"""
+    result: Dict[str, List[RelationshipItem]] = {}
+    try:
+        registry = _get_registry()
+        agents = registry.list_agents()
+        with get_db_session() as db:
+            for agent in agents:
+                try:
+                    rows = db.query(AgentRelationship).filter(
+                        AgentRelationship.agent_id == agent.agent_id
+                    ).all()
+                    items = []
+                    for row in rows:
+                        level = RelationshipLevel(row.level) if isinstance(row.level, int) else RelationshipLevel.from_score(row.score)
+                        items.append(RelationshipItem(
+                            user_id=row.user_id,
+                            level=level.value,
+                            level_name=level.label_zh(),
+                            score=row.score,
+                            total_interactions=row.interaction_count,
+                        ))
+                    result[agent.agent_id] = items
+                except Exception as e:
+                    logger.warning(f"批量获取关系 — 智能体 {agent.agent_id} 失败: {e}")
+                    result[agent.agent_id] = []
+        return BatchRelationshipResponse(success=True, data=result)
+    except Exception as e:
+        logger.error(f"批量获取关系概览失败: {e}")
+        raise HTTPException(status_code=500, detail="批量获取关系概览失败") from e
+
+
+@router.get("/batch/sessions", response_model=BatchSessionCountResponse)
+async def batch_get_session_counts():
+    """批量获取各智能体的已绑定会话数量"""
+    result: Dict[str, int] = {}
+    try:
+        registry = _get_registry()
+        agents = registry.list_agents()
+        agent_ids = [a.agent_id for a in agents]
+        with get_db_session() as db:
+            for aid in agent_ids:
+                try:
+                    count = db.query(ChatSession).filter(
+                        ChatSession.agent_id == aid
+                    ).count()
+                    result[aid] = count
+                except Exception as e:
+                    logger.warning(f"批量获取会话数 — 智能体 {aid} 失败: {e}")
+                    result[aid] = 0
+        return BatchSessionCountResponse(success=True, data=result)
+    except Exception as e:
+        logger.error(f"批量获取会话数量失败: {e}")
+        raise HTTPException(status_code=500, detail="批量获取会话数量失败") from e
+
+
+@router.get("/batch/subagent-latest", response_model=BatchLatestSubAgentResponse)
+async def batch_get_latest_subagent_records():
+    """批量获取各智能体最近一条子智能体执行记录"""
+    result: Dict[str, Optional[BatchLatestSubAgentItem]] = {}
+    try:
+        registry = _get_registry()
+        agents = registry.list_agents()
+        agent_ids = [a.agent_id for a in agents]
+        with get_db_session() as db:
+            for aid in agent_ids:
+                try:
+                    row = db.query(SubAgentExecutionRecord).filter(
+                        SubAgentExecutionRecord.agent_id == aid
+                    ).order_by(
+                        SubAgentExecutionRecord.completed_at.desc()
+                    ).first()
+                    if row:
+                        result[aid] = BatchLatestSubAgentItem(
+                            id=row.id,
+                            subagent_id=row.subagent_id,
+                            agent_id=row.agent_id,
+                            subagent_type=row.subagent_type,
+                            status=row.status,
+                            completed_at=row.completed_at.isoformat() if row.completed_at else None,
+                            result_summary=row.result_summary,
+                        )
+                    else:
+                        result[aid] = None
+                except Exception as e:
+                    logger.warning(f"批量获取子智能体记录 — 智能体 {aid} 失败: {e}")
+                    result[aid] = None
+        return BatchLatestSubAgentResponse(success=True, data=result)
+    except Exception as e:
+        logger.error(f"批量获取子智能体记录失败: {e}")
+        raise HTTPException(status_code=500, detail="批量获取子智能体记录失败") from e
+
+
 # ========== 插件迁移协调 API ==========
 
 
