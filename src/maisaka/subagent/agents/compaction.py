@@ -73,6 +73,7 @@ class CompactionResult:
     summary: Optional[CompactionSummary] = None
     duration_seconds: float = 0.0
     fallback_used: bool = False
+    batch_degraded: bool = False
     error_message: str = ""
 
     @property
@@ -102,10 +103,12 @@ class CompactionAgent:
         config: CompactionConfig,
         memory_service: Any = None,
         message_repository: Any = None,
+        batch_scheduler: Any = None,
     ) -> None:
         self._config = config
         self._memory_service = memory_service
         self._message_repository = message_repository
+        self._batch_scheduler = batch_scheduler
 
     @property
     def config(self) -> CompactionConfig:
@@ -243,6 +246,8 @@ class CompactionAgent:
     ) -> CompactionSummary:
         """生成结构化压缩摘要。
 
+        优先提交批处理 API（非实时任务，适合批处理），降级为实时 API。
+
         Args:
             messages: 待压缩的消息列表。
             level: 压缩级别。
@@ -250,6 +255,34 @@ class CompactionAgent:
         Returns:
             CompactionSummary: 结构化摘要。
         """
+        # 尝试提交批处理 API
+        batch_submitted = False
+        if self._batch_scheduler is not None:
+            try:
+                from src.maisaka.deepseek.batch_scheduler import (
+                    BatchTask,
+                    BatchTaskPriority,
+                    BatchTaskStatus,
+                    BatchTaskType,
+                )
+
+                task = BatchTask(
+                    task_type=BatchTaskType.COMPACTION_SUMMARY,
+                    priority=BatchTaskPriority.NORMAL,
+                    payload={"level": level, "message_count": len(messages)},
+                )
+                batch_status = self._batch_scheduler.submit_task(task)
+                batch_submitted = batch_status == BatchTaskStatus.PENDING
+                if not batch_submitted:
+                    logger.info(
+                        "Compaction 摘要生成批处理不可用，降级为实时API: L%d",
+                        level,
+                    )
+            except Exception as e:
+                logger.warning(
+                    "Compaction 批处理提交异常，降级为实时API: %s", e
+                )
+
         text_parts: list[str] = []
         for msg in messages:
             plain = getattr(msg, "processed_plain_text", None) or ""
@@ -267,6 +300,7 @@ class CompactionAgent:
             max_len = 500
 
         truncated = full_text[:max_len]
+        mode = "批处理" if batch_submitted else "实时API"
 
         return CompactionSummary(
             goal="压缩历史对话上下文",
