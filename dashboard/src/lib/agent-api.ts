@@ -366,6 +366,13 @@ export interface BatchLatestSubAgentItem {
   result_summary: string
 }
 
+export interface EmotionBehaviorRule {
+  emotion_type: string
+  intensity_threshold: number
+  behavior_tendency: string
+  reply_style_modifier: string
+}
+
 interface BatchEmotionResponse {
   success: boolean
   data: Record<string, BatchEmotionItem>
@@ -412,4 +419,18 @@ export async function getBatchLatestSubAgentRecords(): Promise<Record<string, Ba
     errorMessage: '批量获取子智能体记录失败',
   })
   return requireSuccess(data, '批量获取子智能体记录失败').data
+}
+
+interface EmotionBehaviorRulesResponse {
+  success: boolean
+  agent_id: string
+  rules: EmotionBehaviorRule[]
+}
+
+export async function getEmotionBehaviorRules(agentId: string): Promise<EmotionBehaviorRule[]> {
+  const data = await backendApi.get<EmotionBehaviorRulesResponse>(
+    `${API_BASE}/emotion-behavior-rules/${encodeURIComponent(agentId)}`,
+    { errorMessage: '获取情绪-行为映射规则失败' }
+  )
+  return requireSuccess(data, '获取情绪-行为映射规则失败').rules
 }

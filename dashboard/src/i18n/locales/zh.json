@@ -1245,7 +1245,69 @@
     },
     "innerWorld": {
       "back": "返回",
-      "placeholder": "内心世界 — 即将开启"
+      "placeholder": "内心世界 — 即将开启",
+      "loading": "加载中...",
+      "subView": {
+        "emotion": "情绪景观",
+        "relationship": "关系网络",
+        "memory": "记忆花园",
+        "timeline": "生命时间线",
+        "sessions": "活跃会话"
+      }
+    },
+    "emotionLandscape": {
+      "radarTitle": "情绪雷达",
+      "barTitle": "情绪强度",
+      "baselineShift": "基线偏移",
+      "behaviorTendency": "行为倾向",
+      "shiftUp": "上升",
+      "shiftDown": "下降",
+      "shiftStable": "稳定",
+      "unavailable": "情绪景观暂不可感知",
+      "deepMonitor": "深入观测 →"
+    },
+    "relationshipNetwork": {
+      "title": "关系网络",
+      "distribution": "关系等级分布",
+      "ranking": "关系排行",
+      "internalGraph": "内部关系",
+      "unavailable": "关系网络暂不可感知",
+      "deepMonitor": "深入观测 →"
+    },
+    "memoryGarden": {
+      "title": "记忆花园",
+      "focusAreas": "记忆焦点",
+      "innerActivity": "内在活动",
+      "noFocusAreas": "暂无特定焦点",
+      "dreamComplete": "完成了一次内省",
+      "unavailable": "活动记录暂不可用",
+      "deepMonitor": "深入观测 →"
+    },
+    "lifeTimeline": {
+      "title": "生命时间线",
+      "emotionShift": "情绪转向{{emotion}}",
+      "relationshipBreakthrough": "关系突破",
+      "memoryMilestone": "{{type}}完成",
+      "noEvents": "暂无近期事件",
+      "relationshipWarmUp": "与{{user}}的关系正在升温"
+    },
+    "lifeDefense": {
+      "title": "生命防线",
+      "description": "这些规则守护着角色的独特性，防止回应陷入机械化重复"
+    },
+    "collapsedParameters": {
+      "title": "底层参数",
+      "talkValueModifier": "活跃度修正",
+      "idleBackoffModifier": "空闲退避修正",
+      "relationshipGrowthRate": "关系进展速率",
+      "emotionDecayRate": "情绪衰减率"
+    },
+    "activeSessions": {
+      "title": "关联会话",
+      "bindSession": "绑定会话",
+      "unbind": "解绑",
+      "unbindConfirm": "确认解绑？",
+      "noSessions": "暂无关联会话"
     }
   },
   "emotion": {

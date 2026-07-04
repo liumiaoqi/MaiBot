@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 
+import { AnimatePresence, motion } from 'motion/react'
 import { RefreshCw, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -14,6 +15,7 @@ import { useViewSwitch } from '../hooks/useViewSwitch'
 import { deriveVitalSignsData } from '../utils/vital-signs'
 import { VitalSignsCard } from './VitalSignsCard'
 import { ViewSwitcher } from './ViewSwitcher'
+import { InnerWorldView } from './inner-world/InnerWorldView'
 
 export function CommandCenterLayout() {
   const { t } = useTranslation()
@@ -117,27 +119,28 @@ export function CommandCenterLayout() {
         </div>
       )}
 
-      {isInnerWorldOpen && selectedAgentId && (
-        <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm flex items-center justify-center">
-          <div className="w-full h-full max-w-4xl max-h-[80vh] rounded-lg border bg-card shadow-lg overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h2 className="text-lg font-semibold">
-                {vitalSignsList.find((v) => v.agentId === selectedAgentId)?.displayName ?? selectedAgentId}
-              </h2>
-              <Button variant="ghost" size="sm" onClick={exitInnerWorld}>
-                {t('agent.innerWorld.back')}
-              </Button>
-            </div>
-            <div className="flex-1 flex items-center justify-center p-8 text-muted-foreground">
-              <div className="text-center">
-                <span className="text-4xl block mb-2">🧠</span>
-                <p>{t('agent.innerWorld.placeholder')}</p>
-                <p className="text-xs mt-1">Phase 2</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {isInnerWorldOpen && selectedAgentId && (
+          <motion.div
+            key="inner-world-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm flex items-center justify-center"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="w-full h-full max-w-4xl max-h-[85vh] rounded-lg border bg-card shadow-lg overflow-hidden"
+            >
+              <InnerWorldView agentId={selectedAgentId} onBack={exitInnerWorld} />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
