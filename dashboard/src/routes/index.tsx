@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import { Link } from '@tanstack/react-router'
+import { useQuery } from '@tanstack/react-query'
 import {
   Activity,
   AlertCircle,
@@ -18,6 +19,7 @@ import {
   RefreshCw,
   Smile,
   TrendingUp,
+  Users,
   Zap,
 } from 'lucide-react'
 import { useCallback, useContext, useEffect, useState } from 'react'
@@ -36,6 +38,8 @@ import {
 } from 'recharts'
 
 import { ExpressionReviewer } from '@/components/expression-reviewer'
+import { AgentIndicator } from '@/components/agent/AgentIndicator'
+import { getAgentList, type AgentConfigInfo } from '@/lib/agent-api'
 import { RestartOverlay } from '@/components/restart-overlay'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -216,6 +220,25 @@ function formatStorageBytes(bytes: number): string {
   const unitIndex = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
   const value = bytes / 1024 ** unitIndex
   return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`
+}
+
+function AgentOverviewGrid() {
+  const { data: agents = [] } = useQuery({ queryKey: ['agent', 'list'], queryFn: getAgentList })
+  return (
+    <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7">
+      {agents.map((a: AgentConfigInfo) => (
+        <Link
+          key={a.agent_id}
+          to="/agents"
+          search={{ agent: a.agent_id }}
+          className="hover:bg-muted/50 flex flex-col items-center gap-1.5 rounded-lg p-2 transition-colors"
+        >
+          <AgentIndicator agent_id={a.agent_id} display_name={a.display_name} color={a.color} size="sm" showName={false} />
+          <span className="text-muted-foreground text-center text-[11px] leading-tight">{a.display_name}</span>
+        </Link>
+      ))}
+    </div>
+  )
 }
 
 function IndexPageContent() {
@@ -854,6 +877,30 @@ function IndexPageContent() {
                 </Link>
               </Button>
             </div>
+          </CardContent>
+        </Card>
+      ),
+    },
+    {
+      id: 'builtin:agent-overview',
+      title: '智能体总览',
+      width: 'wide',
+      source: 'builtin',
+      render: () => (
+        <Card className="h-full">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex h-5 items-center gap-2 text-sm font-medium leading-5">
+              <Users className="h-4 w-4" />
+              智能体总览
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-muted-foreground mb-3 text-xs">
+              {dashboardData?.agent_stats
+                ? `${dashboardData.agent_stats.total_agents}个智能体 · ${dashboardData.agent_stats.active_agents}个活跃 · ${dashboardData.agent_stats.total_active_sessions}个会话`
+                : '加载中...'}
+            </div>
+            <AgentOverviewGrid />
           </CardContent>
         </Card>
       ),
