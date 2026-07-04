@@ -127,8 +127,8 @@ def benchmark_emotion_computation() -> BenchmarkResult:
 
         start = time.perf_counter()
         for _ in range(100):
-            em.trigger_emotion("happy", 0.3)
-            state = em.get_current_state()
+            em.apply_trigger("happy", 0.3)
+            state = em.state
         elapsed = (time.perf_counter() - start) / 100 * 1000
 
         max_ms = max(max_ms, elapsed)

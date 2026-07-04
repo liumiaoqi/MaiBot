@@ -205,7 +205,7 @@ async def get_agent_emotion(agent_id: str):
             raise HTTPException(status_code=404, detail=f"智能体不存在: {agent_id}")
         config = registry.get_agent(agent_id)
         manager = EmotionManager(config)
-        state = manager.get_state()
+        state = manager.state
         dominant = state.get_dominant()
         return EmotionStateResponse(
             success=True,

@@ -97,7 +97,7 @@ class ProactiveEngine:
         emotion_state = None
         if emotion_manager is not None:
             try:
-                state = emotion_manager.get_current_state()
+                state = emotion_manager.state
                 emotion_state = state.emotions
             except Exception:
                 pass

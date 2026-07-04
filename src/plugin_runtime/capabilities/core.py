@@ -795,7 +795,7 @@ class RuntimeCoreCapabilityMixin:
             from src.maisaka.agent.emotion import EmotionManager
 
             em = EmotionManager(config)
-            state = em.get_current_state()
+            state = em.state
 
             return {
                 "success": True,
