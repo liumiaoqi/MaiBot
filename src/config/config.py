@@ -43,6 +43,7 @@ from .official_configs import (
     PersonalityConfig,
     PluginConfig,
     PluginRuntimeConfig,
+    PythonRuntimeSectionConfig,
     ResponsePostProcessConfig,
     ResponseSplitterConfig,
     TelemetryConfig,
@@ -67,7 +68,7 @@ MODEL_CONFIG_PATH: Path = (CONFIG_DIR / "model_config.toml").resolve().absolute(
 LEGACY_ENV_PATH: Path = (PROJECT_ROOT / ".env").resolve().absolute()
 A_MEMORIX_LEGACY_CONFIG_PATH: Path = (CONFIG_DIR / "a_memorix.toml").resolve().absolute()
 MMC_VERSION: str = read_project_version(PROJECT_ROOT)
-CONFIG_VERSION: str = "8.15.0"
+CONFIG_VERSION: str = "8.16.0"
 MODEL_CONFIG_VERSION: str = "1.17.6"
 
 logger = get_logger("config")
@@ -153,6 +154,9 @@ class Config(ConfigBase):
 
     agent: AgentSectionConfig = Field(default_factory=AgentSectionConfig)
     """智能体配置类"""
+
+    python_runtime: PythonRuntimeSectionConfig = Field(default_factory=PythonRuntimeSectionConfig)
+    """Python运行时配置类"""
 
 
 class ModelConfig(ConfigBase):

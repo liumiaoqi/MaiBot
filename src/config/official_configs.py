@@ -5795,3 +5795,42 @@ class AgentSectionConfig(ConfigBase):
         },
     )
     """智能体 Markdown 配置文件的存放目录。"""
+
+
+class PythonRuntimeSectionConfig(ConfigBase):
+    """Python 运行时配置类"""
+
+    __ui_label__ = "Python运行时"
+    __ui_order__ = 55
+
+    _warp_free_threaded: str = "启用自由线程模式（需 Python 3.14t 镜像）"
+
+    free_threaded: bool = Field(
+        default=False,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "自由线程模式",
+                "en_US": "Free-Threaded Mode",
+                "ja_JP": "フリースレッドモード",
+            },
+            "x-widget": "switch",
+            "x-icon": "cpu",
+        },
+    )
+    """启用 Python 3.14t 自由线程模式，禁用 GIL 以提升多线程并行性能。"""
+
+    _warp_gc_tuning_enabled: str = "启用 GC 调优（自动调整各代阈值）"
+
+    gc_tuning_enabled: bool = Field(
+        default=True,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "GC调优",
+                "en_US": "GC Tuning",
+                "ja_JP": "GCチューニング",
+            },
+            "x-widget": "switch",
+            "x-icon": "settings",
+        },
+    )
+    """启用 GC 调优，根据运行时内存分配模式自动调整各代阈值。"""
