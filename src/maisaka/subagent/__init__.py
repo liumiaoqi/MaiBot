@@ -1,5 +1,9 @@
 """子智能体调度系统。"""
 
+from .agents.compaction import CompactionAgent, CompactionLevel, CompactionResult, CompactionSummary
+from .agents.dream import DreamAgent, DreamResult
+from .config.compaction import CompactionConfig
+from .config.dream import DreamConfig
 from .interactive_gate import AskRequest, AskResponse, InteractiveGate
 from .lifecycle import SubAgentLifecycleManager
 from .models import (
@@ -18,7 +22,15 @@ from .scheduler import ConcurrencyLimitExceededError, SpawnTimeoutError, SubAgen
 __all__ = [
     "AskRequest",
     "AskResponse",
+    "CompactionAgent",
+    "CompactionConfig",
+    "CompactionLevel",
+    "CompactionResult",
+    "CompactionSummary",
     "ConcurrencyLimitExceededError",
+    "DreamAgent",
+    "DreamConfig",
+    "DreamResult",
     "InteractiveGate",
     "SpawnTimeoutError",
     "SubAgentHandle",
