@@ -27,6 +27,7 @@ class TimeBehaviorProfile(BaseModel):
 class ProactiveConfig(BaseModel):
     """主动对话配置"""
 
+    enabled: bool = Field(default=True, description="是否启用主动对话")
     max_frequency_per_hour: int = Field(default=1, ge=0, le=10, description="每小时最大主动对话次数")
     cooldown_seconds: int = Field(default=300, ge=0, description="主动对话冷却时间（秒）")
     trigger_threshold: float = Field(default=0.5, ge=0.0, le=1.0, description="主动对话触发阈值")
