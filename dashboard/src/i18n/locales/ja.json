@@ -51,6 +51,7 @@
       "agentManagement": "エージェント管理",
       "emotionMonitor": "感情モニター",
       "relationshipMonitor": "関係確認",
+      "subagentMonitor": "サブエージェント監視",
       "chatManagement": "チャット管理",
       "localChat": "ローカルチャット",
       "settings": "設定"

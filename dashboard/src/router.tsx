@@ -203,6 +203,16 @@ const relationshipMonitorRoute = createRoute({
   ),
 })
 
+// 子智能体监控路由
+const subagentMonitorRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: '/subagent-monitor',
+  component: lazyRouteComponent(
+    () => import('./routes/subagent-monitor/index.tsx'),
+    'SubAgentMonitorPage'
+  ),
+})
+
 // MaiSaka 聊天流监控路由
 const plannerMonitorRoute = createRoute({
   getParentRoute: () => protectedRoute,
@@ -386,6 +396,7 @@ const routeTree = rootRoute.addChildren([
     agentManagementRoute,
     emotionMonitorRoute,
     relationshipMonitorRoute,
+    subagentMonitorRoute,
     plannerMonitorRoute,
     chatManagementRoute,
     chatRoute,

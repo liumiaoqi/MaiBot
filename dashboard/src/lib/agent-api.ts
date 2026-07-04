@@ -220,3 +220,84 @@ export async function reloadAgents(): Promise<{ message: string; total: number }
   const checked = requireSuccess(data, '重新加载智能体配置失败')
   return { message: checked.message, total: checked.total }
 }
+
+// ========== 子智能体监控 API ==========
+
+export interface SubAgentRecord {
+  id: number
+  subagent_id: string
+  agent_id: string
+  subagent_type: string
+  session_id: string | null
+  lifecycle: string
+  status: string
+  trigger_type: string
+  trigger_reason: string
+  fork_context_captured: boolean
+  input_tokens: number
+  output_tokens: number
+  cache_hit_tokens: number
+  started_at: string | null
+  completed_at: string | null
+  error_message: string
+  result_summary: string
+}
+
+export interface SubAgentStats {
+  total_executions: number
+  by_type: Record<string, number>
+  by_status: Record<string, number>
+  total_input_tokens: number
+  total_output_tokens: number
+  total_cache_hit_tokens: number
+}
+
+interface SubAgentListResponse {
+  success: boolean
+  total: number
+  data: SubAgentRecord[]
+}
+
+interface SubAgentStatsResponse {
+  success: boolean
+  total_executions: number
+  by_type: Record<string, number>
+  by_status: Record<string, number>
+  total_input_tokens: number
+  total_output_tokens: number
+  total_cache_hit_tokens: number
+}
+
+export async function getSubAgentRecords(params?: {
+  agent_id?: string
+  subagent_type?: string
+  status?: string
+  limit?: number
+}): Promise<SubAgentRecord[]> {
+  const data = await backendApi.get<SubAgentListResponse>(`${API_BASE}/subagent/records`, {
+    query: {
+      agent_id: params?.agent_id || undefined,
+      subagent_type: params?.subagent_type || undefined,
+      status: params?.status || undefined,
+      limit: params?.limit || undefined,
+    },
+    errorMessage: '获取子智能体记录失败',
+  })
+  const checked = requireSuccess(data, '获取子智能体记录失败')
+  return checked.data
+}
+
+export async function getSubAgentStats(): Promise<SubAgentStats> {
+  const data = await backendApi.get<SubAgentStatsResponse>(`${API_BASE}/subagent/stats`, {
+    errorMessage: '获取子智能体统计失败',
+  })
+  const checked = requireSuccess(data, '获取子智能体统计失败')
+  return {
+    total_executions: checked.total_executions,
+    by_type: checked.by_type,
+    by_status: checked.by_status,
+    total_input_tokens: checked.total_input_tokens,
+    total_output_tokens: checked.total_output_tokens,
+    total_cache_hit_tokens: checked.total_cache_hit_tokens,
+  }
+}
