@@ -10,7 +10,6 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 
 import { Skeleton } from '@/components/ui/skeleton'
 
-import { useToast } from '@/hooks/use-toast'
 
 import {
   getAgentList,
@@ -247,15 +246,6 @@ export function RelationshipMonitorPage() {
     [allRelationships]
   )
 
-  const _overallDistribution = useMemo(() => {
-    const counts: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0 }
-    for (const rels of Object.values(allRelationships)) {
-      for (const rel of rels) {
-        counts[rel.level] = (counts[rel.level] || 0) + 1
-      }
-    }
-    return counts
-  }, [allRelationships])
 
   return (
     <div className="h-full flex flex-col">

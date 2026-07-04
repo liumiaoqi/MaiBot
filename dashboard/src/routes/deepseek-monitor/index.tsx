@@ -19,7 +19,7 @@ import {
   getMonthlyCostReport,
   type DeepSeekOverviewInfo,
 } from '@/lib/deepseek-api'
-import type { AgentConfigInfo } from '@/lib/agent-api'
+import { getAgentList, type AgentConfigInfo } from '@/lib/agent-api'
 
 const SEGMENT_LABELS: Record<string, string> = {
   identity: '人设注入',
@@ -477,7 +477,7 @@ export function DeepSeekMonitorPage() {
 
   const { data: agents } = useQuery({
     queryKey: ['agent', 'list'],
-    queryFn: getAgentCost,
+    queryFn: getAgentList,
   })
 
   const { data: overview, isLoading: overviewLoading } = useQuery({
