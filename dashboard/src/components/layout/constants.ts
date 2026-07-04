@@ -13,6 +13,7 @@ import {
   Settings,
   Smile,
   Store,
+  Users,
   Wifi,
 } from 'lucide-react'
 
@@ -25,6 +26,7 @@ const MonitorIcon = createStreamlineIcon('desktop-chat-remix', Activity)
 const ChatManagementIcon = createStreamlineIcon('chat-two-bubbles-oval-remix', MessageSquare)
 const AgentIcon = createStreamlineIcon('cyborg-remix', Bot)
 const EmotionMonitorIcon = createStreamlineIcon('love-heart-remix', Heart)
+const RelationshipIcon = createStreamlineIcon('user-sticker-square-remix', Users)
 const BotConfigIcon = createStreamlineIcon('page-setting-remix', Settings)
 const ModelIcon = createStreamlineIcon('module-remix', Box)
 const PromptIcon = createStreamlineIcon('script-1-remix', FileText)
@@ -49,6 +51,7 @@ export const menuSections: MenuSection[] = [
       },
       { icon: AgentIcon, label: 'sidebar.menu.agentManagement', path: '/agents' },
       { icon: EmotionMonitorIcon, label: 'sidebar.menu.emotionMonitor', path: '/emotion-monitor' },
+      { icon: RelationshipIcon, label: 'sidebar.menu.relationshipMonitor', path: '/relationship-monitor' },
       { icon: MonitorIcon, label: 'sidebar.menu.maisakaMonitor', path: '/planner-monitor' },
       { icon: ChatManagementIcon, label: 'sidebar.menu.chatManagement', path: '/chat-management' },
     ],

@@ -193,6 +193,16 @@ const emotionMonitorRoute = createRoute({
   ),
 })
 
+// 关系查看路由
+const relationshipMonitorRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: '/relationship-monitor',
+  component: lazyRouteComponent(
+    () => import('./routes/relationship-monitor/index.tsx'),
+    'RelationshipMonitorPage'
+  ),
+})
+
 // MaiSaka 聊天流监控路由
 const plannerMonitorRoute = createRoute({
   getParentRoute: () => protectedRoute,
@@ -375,6 +385,7 @@ const routeTree = rootRoute.addChildren([
     reasoningProcessRoute,
     agentManagementRoute,
     emotionMonitorRoute,
+    relationshipMonitorRoute,
     plannerMonitorRoute,
     chatManagementRoute,
     chatRoute,
