@@ -42,11 +42,11 @@ class PluginMigrationState:
 
 
 _MIGRATION_PLUGINS = [
-    {"plugin_id": "time-awareness", "plugin_name": "时间感知"},
-    {"plugin_id": "qq-user-memory", "plugin_name": "QQ用户记忆"},
-    {"plugin_id": "proactive-chat", "plugin_name": "主动对话"},
-    {"plugin_id": "group-event-sensor", "plugin_name": "群事件感知"},
-    {"plugin_id": "cross-chat-context", "plugin_name": "跨聊上下文"},
+    {"plugin_id": "time-awareness", "plugin_name": "时间感知", "superseded_by": "time_awareness模块"},
+    {"plugin_id": "qq-user-memory", "plugin_name": "QQ用户记忆", "superseded_by": "A_Memorix+relationship模块"},
+    {"plugin_id": "proactive-chat", "plugin_name": "主动对话", "superseded_by": "proactive模块"},
+    {"plugin_id": "group-event-sensor", "plugin_name": "群事件感知", "superseded_by": "event_sensor模块"},
+    {"plugin_id": "cross-chat-context", "plugin_name": "跨聊上下文", "superseded_by": "cross_chat模块"},
 ]
 
 _PHASE_ORDER = [
@@ -73,6 +73,9 @@ class MigrationCoordinator:
                 self._states[pid] = PluginMigrationState(
                     plugin_id=pid,
                     plugin_name=plugin_info["plugin_name"],
+                    current_phase=MigrationPhase.COMPLETED,
+                    previous_phase=MigrationPhase.REPLACEMENT,
+                    notes=f"功能已由主程序{plugin_info.get('superseded_by', '')}替代",
                 )
 
     def get_all_states(self) -> list[PluginMigrationState]:
