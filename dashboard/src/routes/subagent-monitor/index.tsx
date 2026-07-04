@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
+import { useRouterState } from '@tanstack/react-router'
 import { Activity, RefreshCw } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -83,6 +84,7 @@ function formatTokens(n: number): string {
 
 export function SubAgentMonitorPage() {
 
+  const search = useRouterState().location.search as Record<string, unknown>
   const [filterType, setFilterType] = useState<string>('all')
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [filterAgent, setFilterAgent] = useState<string>('all')
@@ -91,6 +93,17 @@ export function SubAgentMonitorPage() {
     queryKey: ['agents', 'list'],
     queryFn: getAgentList,
   })
+
+  const agents = agentsQuery.data ?? []
+
+  useEffect(() => {
+    const agentParam = typeof search.agent === 'string' ? search.agent : undefined
+    if (!agentParam) return
+    const found = agents.find((a) => a.agent_id === agentParam)
+    if (found) {
+      setFilterAgent(agentParam)
+    }
+  }, [search.agent, agents])
 
   const statsQuery = useQuery({
     queryKey: ['subagent', 'stats'],
@@ -110,7 +123,7 @@ export function SubAgentMonitorPage() {
 
   const stats = statsQuery.data
   const records = recordsQuery.data ?? []
-  const agents = agentsQuery.data ?? []
+
 
   const cacheHitRate = useMemo(() => {
     if (!stats || stats.total_input_tokens === 0) return 0

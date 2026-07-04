@@ -1206,6 +1206,127 @@
       "bindFailed": "Failed to bind agent",
       "defaultName": "Silver Wolf",
       "allAgents": "All Agents"
+    },
+    "commandCenter": {
+      "title": "Agent Command Center",
+      "subtitle": "Not the end of a story, but the prologue of life",
+      "searchPlaceholder": "Search agents...",
+      "dashboard": "Dashboard",
+      "constellation": "Constellation",
+      "global": "Global"
+    },
+    "vitalSigns": {
+      "emotionPulse": {
+        "unavailable": "Pulse unavailable"
+      },
+      "activity": {
+        "active": "Active",
+        "quiet": "Quiet",
+        "dormant": "Dormant"
+      },
+      "warmth": {
+        "warm": "Warm",
+        "moderate": "Moderate",
+        "cold": "Cold",
+        "unavailable": "Warmth unavailable"
+      },
+      "innerActivity": {
+        "introspecting": "Introspecting",
+        "quiet": "Quiet",
+        "unavailable": "Activity unavailable"
+      },
+      "coreBadge": "Core",
+      "sessionCount": "{{count}} sessions",
+      "relationshipCount": "{{count}} relationships"
+    },
+    "constellation": {
+      "title": "Agent Constellation",
+      "noRelationships": "No internal relationship data",
+      "mention": {
+        "close": "Close",
+        "moderate": "Moderate",
+        "distant": "Distant"
+      },
+      "tooltip": {
+        "relationshipType": "Relationship Type",
+        "attitude": "Attitude",
+        "interactionStyle": "Interaction Style"
+      }
+    },
+    "globalSituation": {
+      "title": "Global Situation",
+      "stats": "Group Overview",
+      "emotionDistribution": "Emotion Distribution",
+      "activityHeatmap": "Activity Heatmap",
+      "relationshipDynamics": "Relationship Dynamics",
+      "noChanges": "No significant relationship changes recently",
+      "nearBreakthrough": "Near breakthrough"
+    },
+    "innerWorld": {
+      "back": "Back",
+      "placeholder": "Inner World — Coming Soon",
+      "loading": "Loading...",
+      "subView": {
+        "emotion": "Emotion Landscape",
+        "relationship": "Relationship Network",
+        "memory": "Memory Garden",
+        "timeline": "Life Timeline",
+        "sessions": "Active Sessions"
+      }
+    },
+    "emotionLandscape": {
+      "radarTitle": "Emotion Radar",
+      "barTitle": "Emotion Intensity",
+      "baselineShift": "Baseline Shift",
+      "behaviorTendency": "Behavior Tendency",
+      "shiftUp": "Rising",
+      "shiftDown": "Falling",
+      "shiftStable": "Stable",
+      "unavailable": "Emotion landscape unavailable",
+      "deepMonitor": "Deep Monitor →"
+    },
+    "relationshipNetwork": {
+      "title": "Relationship Network",
+      "distribution": "Level Distribution",
+      "ranking": "Relationship Ranking",
+      "internalGraph": "Internal Relationships",
+      "unavailable": "Relationship network unavailable",
+      "deepMonitor": "Deep Monitor →"
+    },
+    "memoryGarden": {
+      "title": "Memory Garden",
+      "focusAreas": "Memory Focus",
+      "innerActivity": "Inner Activity",
+      "noFocusAreas": "No specific focus areas",
+      "dreamComplete": "Completed an introspection",
+      "unavailable": "Activity records unavailable",
+      "deepMonitor": "Deep Monitor →"
+    },
+    "lifeTimeline": {
+      "title": "Life Timeline",
+      "emotionShift": "Emotion shifted to {{emotion}}",
+      "relationshipBreakthrough": "Relationship breakthrough",
+      "memoryMilestone": "{{type}} completed",
+      "noEvents": "No recent events",
+      "relationshipWarmUp": "Relationship warming up with {{user}}"
+    },
+    "lifeDefense": {
+      "title": "Life Defense",
+      "description": "These rules guard the character's uniqueness, preventing responses from falling into mechanical repetition"
+    },
+    "collapsedParameters": {
+      "title": "Underlying Parameters",
+      "talkValueModifier": "Activity Modifier",
+      "idleBackoffModifier": "Idle Backoff Modifier",
+      "relationshipGrowthRate": "Relationship Growth Rate",
+      "emotionDecayRate": "Emotion Decay Rate"
+    },
+    "activeSessions": {
+      "title": "Linked Sessions",
+      "bindSession": "Bind Session",
+      "unbind": "Unbind",
+      "unbindConfirm": "Confirm unbind?",
+      "noSessions": "No linked sessions"
     }
   },
   "emotion": {

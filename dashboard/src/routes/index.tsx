@@ -39,7 +39,8 @@ import {
 
 import { ExpressionReviewer } from '@/components/expression-reviewer'
 import { AgentIndicator } from '@/components/agent/AgentIndicator'
-import { getAgentList, type AgentConfigInfo } from '@/lib/agent-api'
+import { getAgentList, getBatchEmotions, type AgentConfigInfo } from '@/lib/agent-api'
+import { EMOTION_COLORS } from '@/routes/agent/utils/emotion-constants'
 import { RestartOverlay } from '@/components/restart-overlay'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -224,19 +225,37 @@ function formatStorageBytes(bytes: number): string {
 
 function AgentOverviewGrid() {
   const { data: agents = [] } = useQuery({ queryKey: ['agent', 'list'], queryFn: getAgentList })
+  const { data: batchEmotions } = useQuery({
+    queryKey: ['agents', 'batch', 'emotions'],
+    queryFn: getBatchEmotions,
+    staleTime: 30000,
+  })
+
   return (
     <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7">
-      {agents.map((a: AgentConfigInfo) => (
-        <Link
-          key={a.agent_id}
-          to="/agents"
-          search={{ agent: a.agent_id }}
-          className="hover:bg-muted/50 flex flex-col items-center gap-1.5 rounded-lg p-2 transition-colors"
-        >
-          <AgentIndicator agent_id={a.agent_id} display_name={a.display_name} color={a.color} size="sm" showName={false} />
-          <span className="text-muted-foreground text-center text-[11px] leading-tight">{a.display_name}</span>
-        </Link>
-      ))}
+      {agents.map((a: AgentConfigInfo) => {
+        const emotion = batchEmotions?.[a.agent_id]
+        const emotionColor = emotion ? EMOTION_COLORS[emotion.dominant_emotion] : undefined
+        return (
+          <Link
+            key={a.agent_id}
+            to="/agents"
+            search={{ agent: a.agent_id }}
+            className="hover:bg-muted/50 flex flex-col items-center gap-1.5 rounded-lg p-2 transition-colors relative"
+          >
+            <div className="relative">
+              <AgentIndicator agent_id={a.agent_id} display_name={a.display_name} color={a.color} size="sm" showName={false} />
+              {emotionColor && (
+                <span
+                  className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-background"
+                  style={{ backgroundColor: emotionColor }}
+                />
+              )}
+            </div>
+            <span className="text-muted-foreground text-center text-[11px] leading-tight">{a.display_name}</span>
+          </Link>
+        )
+      })}
     </div>
   )
 }

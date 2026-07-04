@@ -1206,6 +1206,127 @@
       "bindFailed": "エージェントのバインドに失敗",
       "defaultName": "銀狼",
       "allAgents": "全エージェント"
+    },
+    "commandCenter": {
+      "title": "エージェント指揮センター",
+      "subtitle": "物語の結末ではなく、命の序章",
+      "searchPlaceholder": "エージェントを検索...",
+      "dashboard": "ダッシュボード",
+      "constellation": "コンステレーション",
+      "global": "グローバル"
+    },
+    "vitalSigns": {
+      "emotionPulse": {
+        "unavailable": "パルス感知不可"
+      },
+      "activity": {
+        "active": "アクティブ",
+        "quiet": "静穏",
+        "dormant": "休眠"
+      },
+      "warmth": {
+        "warm": "温かい",
+        "moderate": "穏やか",
+        "cold": "冷たい",
+        "unavailable": "温度感知不可"
+      },
+      "innerActivity": {
+        "introspecting": "内省中",
+        "quiet": "静穏",
+        "unavailable": "活動感知不可"
+      },
+      "coreBadge": "コア",
+      "sessionCount": "{{count}} セッション",
+      "relationshipCount": "{{count}} 関係"
+    },
+    "constellation": {
+      "title": "エージェント星図",
+      "noRelationships": "内部関係データなし",
+      "mention": {
+        "close": "緊密",
+        "moderate": "普通",
+        "distant": "疎遠"
+      },
+      "tooltip": {
+        "relationshipType": "関係タイプ",
+        "attitude": "態度",
+        "interactionStyle": "交流スタイル"
+      }
+    },
+    "globalSituation": {
+      "title": "グローバル状況認識",
+      "stats": "グループ概要",
+      "emotionDistribution": "感情分布",
+      "activityHeatmap": "活動ヒートマップ",
+      "relationshipDynamics": "関係ダイナミクス",
+      "noChanges": "最近の関係に大きな変化なし",
+      "nearBreakthrough": "ブレイクスルー間近"
+    },
+    "innerWorld": {
+      "back": "戻る",
+      "placeholder": "内なる世界 — 近日公開",
+      "loading": "読み込み中...",
+      "subView": {
+        "emotion": "感情ランドスケープ",
+        "relationship": "関係ネットワーク",
+        "memory": "記憶の庭",
+        "timeline": "ライフタイムライン",
+        "sessions": "アクティブセッション"
+      }
+    },
+    "emotionLandscape": {
+      "radarTitle": "感情レーダー",
+      "barTitle": "感情強度",
+      "baselineShift": "ベースラインシフト",
+      "behaviorTendency": "行動傾向",
+      "shiftUp": "上昇",
+      "shiftDown": "下降",
+      "shiftStable": "安定",
+      "unavailable": "感情ランドスケープ感知不可",
+      "deepMonitor": "詳細モニター →"
+    },
+    "relationshipNetwork": {
+      "title": "関係ネットワーク",
+      "distribution": "レベル分布",
+      "ranking": "関係ランキング",
+      "internalGraph": "内部関係",
+      "unavailable": "関係ネットワーク感知不可",
+      "deepMonitor": "詳細モニター →"
+    },
+    "memoryGarden": {
+      "title": "記憶の庭",
+      "focusAreas": "記憶フォーカス",
+      "innerActivity": "内なる活動",
+      "noFocusAreas": "フォーカスエリアなし",
+      "dreamComplete": "内省を完了",
+      "unavailable": "活動記録不可",
+      "deepMonitor": "詳細モニター →"
+    },
+    "lifeTimeline": {
+      "title": "ライフタイムライン",
+      "emotionShift": "感情が{{emotion}}に変化",
+      "relationshipBreakthrough": "関係のブレイクスルー",
+      "memoryMilestone": "{{type}}完了",
+      "noEvents": "最近のイベントなし",
+      "relationshipWarmUp": "{{user}}との関係が温まりつつある"
+    },
+    "lifeDefense": {
+      "title": "生命の防衛",
+      "description": "これらのルールはキャラクターの独自性を守り、機械的な繰り返しを防ぎます"
+    },
+    "collapsedParameters": {
+      "title": "基盤パラメータ",
+      "talkValueModifier": "活動度修正",
+      "idleBackoffModifier": "アイドル回避修正",
+      "relationshipGrowthRate": "関係成長率",
+      "emotionDecayRate": "感情減衰率"
+    },
+    "activeSessions": {
+      "title": "リンクセッション",
+      "bindSession": "セッションをバインド",
+      "unbind": "バインド解除",
+      "unbindConfirm": "バインド解除しますか？",
+      "noSessions": "リンクセッションなし"
     }
   },
   "emotion": {
