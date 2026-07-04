@@ -57,6 +57,23 @@ def is_webui_virtual_group(group_id: str) -> bool:
     return bool(group_id) and group_id.startswith(VIRTUAL_GROUP_ID_PREFIX)
 
 
+def _resolve_bot_agent_id(message: SessionMessage) -> str:
+    """从消息的 session_id 查找对应 ChatSession 的 agent_id。"""
+    from sqlmodel import select
+
+    from src.common.database.database_model import ChatSession as DBChatSession
+
+    try:
+        with get_db_session() as db:
+            statement = select(DBChatSession).filter_by(session_id=message.session_id).limit(1)
+            cs = db.exec(statement).first()
+            if cs and cs.agent_id:
+                return cs.agent_id
+    except Exception:
+        pass
+    return "silver_wolf"
+
+
 async def _send_message(message: SessionMessage, show_log: bool = True) -> bool:
     """执行统一的消息发送流程。
 
@@ -113,13 +130,14 @@ async def _send_message(message: SessionMessage, show_log: bool = True) -> bool:
                     "type": "bot_message",
                     "content": message.processed_plain_text,
                     "message_type": message_type,
-                    "segments": segments,  # 富文本消息段
+                    "segments": segments,
                     "timestamp": time.time(),
-                    "group_id": group_id,  # 包含群 ID 以便前端区分不同的聊天标签
+                    "group_id": group_id,
                     "sender": {
                         "name": global_config.bot.nickname,
                         "avatar": None,
                         "is_bot": True,
+                        "agent_id": _resolve_bot_agent_id(message),
                     },
                 },
                 user_id=target_user_id,

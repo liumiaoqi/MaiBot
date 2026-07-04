@@ -301,3 +301,40 @@ export async function getSubAgentStats(): Promise<SubAgentStats> {
     total_cache_hit_tokens: checked.total_cache_hit_tokens,
   }
 }
+
+export interface AgentIndicatorInfo {
+  agent_id: string
+  display_name: string
+  color: string
+}
+
+export interface AgentStatsInfo {
+  total_agents: number
+  active_agents: number
+  total_active_sessions: number
+}
+
+export interface BatchBindItem {
+  session_id: string
+  agent_id: string
+}
+
+export interface BatchBindError {
+  session_id: string
+  error: string
+}
+
+export interface BatchBindResponse {
+  success: boolean
+  total: number
+  succeeded: number
+  failed: number
+  errors: BatchBindError[]
+}
+
+export async function batchBindSessions(bindings: BatchBindItem[]): Promise<BatchBindResponse> {
+  return backendApi.put<BatchBindResponse>(`${API_BASE}/binding/batch`, {
+    json: { bindings },
+    errorMessage: '批量绑定智能体失败',
+  })
+}

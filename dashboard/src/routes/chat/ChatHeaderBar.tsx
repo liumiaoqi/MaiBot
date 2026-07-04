@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { AgentIndicator } from '@/components/agent/AgentIndicator'
 import { useResolvedAvatarUrl } from '@/lib/avatar-url'
 import { cn } from '@/lib/utils'
 
@@ -15,6 +16,10 @@ interface ChatHeaderBarProps {
   isConnecting: boolean
   isLoadingHistory: boolean
   onReconnect: () => void
+  onAgentClick?: () => void
+  agentId?: string
+  agentDisplayName?: string
+  agentColor?: string
 }
 
 /**
@@ -26,6 +31,10 @@ export function ChatHeaderBar({
   isConnecting,
   isLoadingHistory,
   onReconnect,
+  onAgentClick,
+  agentId,
+  agentDisplayName,
+  agentColor,
 }: ChatHeaderBarProps) {
   const { t } = useTranslation()
 
@@ -40,12 +49,28 @@ export function ChatHeaderBar({
         <div className="flex min-w-0 items-center gap-3">
           {/* 头像 + 在线状态指示点 */}
           <div className="relative shrink-0">
-            <Avatar className="h-10 w-10 ring-1 ring-border/60 sm:h-11 sm:w-11">
-              {botAvatarUrl && <AvatarImage src={botAvatarUrl} alt={`${botDisplayName} 的头像`} className="object-cover" />}
-              <AvatarFallback className="bg-primary-gradient text-primary-foreground">
-                <Bot className="h-5 w-5" />
-              </AvatarFallback>
-            </Avatar>
+            {agentId && agentColor ? (
+              <button
+                type="button"
+                className="focus-visible:outline-primary/60 rounded-full focus-visible:outline-2 focus-visible:outline-offset-2"
+                onClick={onAgentClick}
+                aria-label={`当前智能体: ${agentDisplayName || botDisplayName}`}
+              >
+                <span
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full text-base font-medium text-white ring-1 ring-border/60 sm:h-11 sm:w-11"
+                  style={{ backgroundColor: agentColor }}
+                >
+                  {(agentDisplayName || botDisplayName).charAt(0)}
+                </span>
+              </button>
+            ) : (
+              <Avatar className="h-10 w-10 ring-1 ring-border/60 sm:h-11 sm:w-11">
+                {botAvatarUrl && <AvatarImage src={botAvatarUrl} alt={`${botDisplayName} 的头像`} className="object-cover" />}
+                <AvatarFallback className="bg-primary-gradient text-primary-foreground">
+                  <Bot className="h-5 w-5" />
+                </AvatarFallback>
+              </Avatar>
+            )}
             <span
               aria-hidden="true"
               className={cn(
@@ -57,9 +82,23 @@ export function ChatHeaderBar({
 
           {/* 标题与副标题 */}
           <div className="min-w-0">
-            <h1 className="truncate text-sm font-semibold leading-tight sm:text-base">
-              {botDisplayName}
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="truncate text-sm font-semibold leading-tight sm:text-base">
+                {agentDisplayName || botDisplayName}
+              </h1>
+              {agentId && agentId !== 'silver_wolf' && (
+                <AgentIndicator
+                  agent_id={agentId}
+                  display_name={agentDisplayName || ''}
+                  color={agentColor || '#9b59b6'}
+                  size="sm"
+                  showName={false}
+                />
+              )}
+            </div>
+            {agentColor && (
+              <div className="mt-0.5 h-0.5 w-8 rounded-full" style={{ backgroundColor: agentColor }} />
+            )}
             <div className="text-muted-foreground mt-0.5 flex items-center gap-1.5 text-xs leading-tight">
               {connected ? (
                 <>

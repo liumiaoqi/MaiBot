@@ -6,6 +6,7 @@ import { chatWsClient } from '@/lib/chat-ws-client'
 import { ApiError, backendApi } from '@/lib/http'
 
 import { ChatComposer } from './ChatComposer'
+import { ChatHeaderBar } from './ChatHeaderBar'
 import { ChatTabBar } from './ChatTabBar'
 import { ChatWorkspaceSidebar } from './ChatWorkspaceSidebar'
 import { MessageList } from './MessageList'
@@ -29,6 +30,8 @@ import {
   saveVirtualTabs,
 } from './utils'
 import { VirtualIdentityDialog } from './VirtualIdentityDialog'
+import { useAgentBinding } from './useAgentBinding'
+import { AgentSwitcher } from '@/components/agent/AgentSwitcher'
 
 const MAX_CHAT_IMAGES = 8
 
@@ -138,6 +141,10 @@ export function ChatPage() {
 
   // 虚拟身份配置对话框状态
   const [showVirtualConfig, setShowVirtualConfig] = useState(false)
+  const [showAgentSwitcher, setShowAgentSwitcher] = useState(false)
+  const { currentAgent, currentAgentId, initFromSessionInfo, switchAgent } = useAgentBinding(
+    activeTab?.sessionInfo.session_id,
+  )
   const [platforms, setPlatforms] = useState<PlatformInfo[]>([])
   const [persons, setPersons] = useState<PersonInfo[]>([])
   const [isLoadingPlatforms, setIsLoadingPlatforms] = useState(false)
@@ -261,8 +268,12 @@ export function ChatPage() {
               user_name: data.user_name,
               bot_name: data.bot_name,
               bot_qq: data.bot_qq,
+              agent_id: data.agent_id,
             },
           })
+          if (data.agent_id) {
+            initFromSessionInfo(data.agent_id)
+          }
           break
 
         case 'system':
@@ -803,6 +814,13 @@ export function ChatPage() {
         onCreateVirtualTab={createVirtualTab}
       />
 
+      <AgentSwitcher
+        currentAgentId={currentAgentId}
+        onSelect={(agentId) => void switchAgent(agentId)}
+        open={showAgentSwitcher}
+        onOpenChange={setShowAgentSwitcher}
+      />
+
       {/* 桌面端：左侧会话侧边栏 */}
       <ChatWorkspaceSidebar
         className="hidden md:flex"
@@ -828,6 +846,18 @@ export function ChatPage() {
           />
         </div>
 
+        <ChatHeaderBar
+          activeTab={activeTab}
+          botDisplayName={activeTab?.sessionInfo.bot_name || t('chat.botNameFallback')}
+          isConnecting={activeTab?.isConnecting ?? false}
+          isLoadingHistory={isLoadingHistory}
+          onReconnect={() => {}}
+          onAgentClick={() => setShowAgentSwitcher(true)}
+          agentId={currentAgent.agent_id}
+          agentDisplayName={currentAgent.display_name}
+          agentColor={currentAgent.color}
+        />
+
         <MessageList
           messages={activeTab?.messages ?? []}
           isLoadingHistory={isLoadingHistory}
@@ -835,6 +865,8 @@ export function ChatPage() {
           botQq={activeTab?.sessionInfo.bot_qq}
           userName={userName}
           language={i18n.language}
+          currentAgentId={currentAgent.agent_id}
+          currentAgentColor={currentAgent.color}
         />
 
         <ChatComposer

@@ -849,7 +849,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
 
         user_id = message.message_info.user_info.user_id
         if user_id:
-            message_length = len(message.visible_text) if message.visible_text else 0
+            message_length = len(message.processed_plain_text) if message.processed_plain_text else 0
             self.update_relationship(user_id, is_positive=True, message_length=message_length)
 
         if self._is_reply_effect_tracking_enabled():

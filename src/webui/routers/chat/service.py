@@ -711,6 +711,31 @@ def resolve_initial_virtual_identity(
         return None
 
 
+def _resolve_agent_id_for_session(
+    virtual_config: Optional[VirtualIdentityConfig],
+    user_id: str,
+) -> Optional[str]:
+    """从虚拟身份或用户ID查找对应 ChatSession 的 agent_id。"""
+    from src.common.database.database import get_db_session
+    from src.common.database.database_model import ChatSession as DBChatSession
+
+    try:
+        with get_db_session() as db:
+            statement = select(DBChatSession)
+            if is_virtual_mode_enabled(virtual_config) and virtual_config and virtual_config.group_id:
+                statement = statement.filter_by(group_id=virtual_config.group_id).limit(1)
+            elif user_id and user_id != "webui_user":
+                statement = statement.filter_by(user_id=user_id).limit(1)
+            else:
+                return None
+            cs = db.exec(statement).first()
+            if cs and cs.agent_id:
+                return cs.agent_id
+    except Exception:
+        pass
+    return None
+
+
 def build_session_info_message(
     session_id: str,
     user_id: str,
@@ -731,7 +756,6 @@ def build_session_info_message(
         Dict[str, Any]: 会话信息消息。
     """
     normalized_client_info = normalize_chat_client_info(client_info)
-    # bot_qq 用于前端通过 WebUI 头像缓存接口加载机器人头像（qq_account == 0 表示未配置，不推送）。
     bot_qq_account = int(getattr(global_config.bot, "qq_account", 0) or 0)
     session_info_data: Dict[str, Any] = {
         "type": "session_info",
@@ -745,6 +769,10 @@ def build_session_info_message(
     }
     if bot_qq_account > 0:
         session_info_data["bot_qq"] = str(bot_qq_account)
+
+    agent_id = _resolve_agent_id_for_session(virtual_config, user_id)
+    if agent_id:
+        session_info_data["agent_id"] = agent_id
 
     if is_virtual_mode_enabled(virtual_config):
         assert virtual_config is not None
