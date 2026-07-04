@@ -68,6 +68,9 @@ PROMPT_PREVIEW_CATEGORY_BY_REQUEST_KIND = {
     "sub_agent": "sub_agent",
 }
 CONTEXT_SELECTION_CACHE_STABILITY_RATIO = 2.0
+PLANNER_FINAL_ASSISTANT_REMINDER_TEMPLATE = (
+    "我需要输出对{bot_name}发言的分析，视情况输出文本内容的分析，思考是否进行工具调用"
+)
 
 
 @dataclass(slots=True)
@@ -632,19 +635,23 @@ class MaisakaChatLoopService:
                 pass
 
         try:
-            bot_name = global_config.bot.nickname
-            if global_config.bot.alias_names:
-                bot_nickname = f"，也有人叫你{','.join(global_config.bot.alias_names)}"
-            else:
-                bot_nickname = ""
-
+            bot_name = global_config.bot.nickname.strip()
+            alias_names = [alias_name.strip() for alias_name in global_config.bot.alias_names if alias_name.strip()]
             prompt_personality = global_config.personality.personality.strip()
             if not prompt_personality:
                 prompt_personality = "是人类。"
 
-            return f"你的名字是{bot_name}{bot_nickname}。\n{prompt_personality}"
+            if prompt_personality.startswith("是"):
+                identity_line = f"{bot_name}{prompt_personality}"
+            else:
+                identity_line = f"{bot_name}是{prompt_personality}"
+
+            prompt_lines = [identity_line]
+            if alias_names:
+                prompt_lines.append(f"{bot_name}的昵称还有{','.join(alias_names)}")
+            return "\n".join(prompt_lines)
         except Exception:
-            return "你的名字是麦麦。\n是人类。"
+            return "麦麦是人类。"
 
     async def ensure_chat_prompt_loaded(self, tools_section: str = "") -> None:
         """确保主聊天提示词已经加载完成。
@@ -662,6 +669,12 @@ class MaisakaChatLoopService:
             return load_prompt(self._get_chat_prompt_name(), **self.build_prompt_template_context(tools_section))
         except Exception:
             return f"{self.personality_prompt}\n\nYou are a helpful AI assistant."
+
+    @staticmethod
+    def _build_planner_final_assistant_reminder() -> str:
+        """构造每轮 Planner 请求末尾的一次性 assistant 提醒。"""
+
+        return PLANNER_FINAL_ASSISTANT_REMINDER_TEMPLATE.format(bot_name=global_config.bot.nickname.strip())
 
     def _get_chat_prompt_name(self) -> str:
         """选择当前聊天使用的 Planner 模板。"""
@@ -718,12 +731,18 @@ class MaisakaChatLoopService:
 
 
     @staticmethod
+    def _build_time_user_message(timestamp: datetime) -> str:
+        """构建统一格式的时间提示消息。"""
+
+        weekday_names = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+        weekday = weekday_names[timestamp.weekday()]
+        return f"时间：{timestamp.strftime('%Y-%m-%d %H:%M:%S')}（{weekday}）"
+
+    @staticmethod
     def _build_current_time_user_message() -> str:
         """构建追加到请求末尾的当前时间消息。"""
-        now = datetime.now()
-        weekday_names = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
-        weekday = weekday_names[now.weekday()]
-        return f"当前时间：{now.strftime('%Y-%m-%d %H:%M:%S')}（{weekday}）"
+
+        return MaisakaChatLoopService._build_time_user_message(datetime.now())
 
     def _build_group_chat_attention_block(self) -> str:
         """构建当前聊天场景下的额外注意事项块。"""
@@ -815,8 +834,10 @@ class MaisakaChatLoopService:
         selected_history: List[LLMContextMessage],
         *,
         enable_visual_message: bool,
+        include_day_boundary_time_messages: bool = False,
         injected_user_messages: Sequence[str] | None = None,
         tail_user_messages: Sequence[str] | None = None,
+        final_assistant_message: str | None = None,
         system_prompt: Optional[str] = None,
     ) -> List[Message]:
         """构造发给大模型的消息列表。
@@ -839,13 +860,30 @@ class MaisakaChatLoopService:
         system_msg.add_text_content(resolved_system_prompt)
         messages.append(system_msg.build())
 
+        previous_context_timestamp: datetime | None = None
         for msg in selected_history:
             llm_message = build_llm_message_from_context(
                 msg,
                 enable_visual_message=enable_visual_message,
             )
-            if llm_message is not None:
-                messages.append(llm_message)
+            if llm_message is None:
+                continue
+
+            if (
+                include_day_boundary_time_messages
+                and previous_context_timestamp is not None
+                and previous_context_timestamp.date() != msg.timestamp.date()
+            ):
+                boundary_message = self._build_time_user_message(msg.timestamp)
+                messages.append(
+                    MessageBuilder()
+                    .set_role(RoleType.User)
+                    .add_text_content(boundary_message)
+                    .build()
+                )
+
+            messages.append(llm_message)
+            previous_context_timestamp = msg.timestamp
 
         normalized_injected_messages: List[Message] = []
         current_chat_attention = self._build_current_chat_attention_tail_message()
@@ -868,6 +906,15 @@ class MaisakaChatLoopService:
 
         if normalized_injected_messages:
             messages.extend(normalized_injected_messages)
+
+        normalized_final_assistant_message = str(final_assistant_message or "").strip()
+        if normalized_final_assistant_message:
+            messages.append(
+                MessageBuilder()
+                .set_role(RoleType.Assistant)
+                .add_text_content(normalized_final_assistant_message)
+                .build()
+            )
 
         return messages
 
@@ -903,8 +950,12 @@ class MaisakaChatLoopService:
         built_messages = self._build_request_messages(
             selected_history,
             enable_visual_message=enable_visual_message,
+            include_day_boundary_time_messages=request_kind == "planner",
             injected_user_messages=injected_user_messages,
             tail_user_messages=tail_user_messages,
+            final_assistant_message=(
+                self._build_planner_final_assistant_reminder() if request_kind == "planner" else None
+            ),
             system_prompt=system_prompt,
         )
         if enable_visual_message:
