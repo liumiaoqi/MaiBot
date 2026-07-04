@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useRouterState } from '@tanstack/react-router'
 import { Heart, RefreshCw, Timer, TimerOff } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -267,6 +268,7 @@ function BaselineComparisonCard({
 
 export function EmotionMonitorPage() {
   const { t } = useTranslation()
+  const search = useRouterState().location.search as Record<string, unknown>
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'grid' | 'detail'>('grid')
   const [autoRefresh, setAutoRefresh] = useState(false)
@@ -275,6 +277,18 @@ export function EmotionMonitorPage() {
     queryKey: ['agents', 'list'],
     queryFn: getAgentList,
   })
+
+  const agents = agentsQuery.data ?? []
+
+  useEffect(() => {
+    const agentParam = typeof search.agent === 'string' ? search.agent : undefined
+    if (!agentParam) return
+    const found = agents.find((a) => a.agent_id === agentParam)
+    if (found) {
+      setSelectedAgentId(agentParam)
+      setViewMode('detail')
+    }
+  }, [search.agent, agents])
 
   const allEmotionsQuery = useQuery({
     queryKey: ['agents', 'emotions', 'all'],
@@ -322,7 +336,7 @@ export function EmotionMonitorPage() {
     }
   }, [autoRefresh, doRefresh])
 
-  const agents = agentsQuery.data ?? []
+
   const allEmotions = allEmotionsQuery.data ?? {}
 
   const selectedAgent = useMemo(

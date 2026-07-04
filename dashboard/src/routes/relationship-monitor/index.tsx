@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
+import { useRouterState } from '@tanstack/react-router'
 import { RefreshCw, Users } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -201,12 +202,24 @@ function AgentRelationshipCard({
 
 export function RelationshipMonitorPage() {
 
+  const search = useRouterState().location.search as Record<string, unknown>
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
 
   const agentsQuery = useQuery({
     queryKey: ['agents', 'list'],
     queryFn: getAgentList,
   })
+
+  const agents = agentsQuery.data ?? []
+
+  useEffect(() => {
+    const agentParam = typeof search.agent === 'string' ? search.agent : undefined
+    if (!agentParam) return
+    const found = agents.find((a) => a.agent_id === agentParam)
+    if (found) {
+      setSelectedAgentId(agentParam)
+    }
+  }, [search.agent, agents])
 
   const allRelationshipsQuery = useQuery({
     queryKey: ['agents', 'relationships', 'all'],
@@ -233,7 +246,7 @@ export function RelationshipMonitorPage() {
     enabled: !!selectedAgentId,
   })
 
-  const agents = agentsQuery.data ?? []
+
   const allRelationships = allRelationshipsQuery.data ?? {}
   const selectedAgent = useMemo(
     () => agents.find((a) => a.agent_id === selectedAgentId),

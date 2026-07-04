@@ -1198,6 +1198,127 @@
       "bindFailed": "에이전트 바인딩 실패",
       "defaultName": "실버울프",
       "allAgents": "전체 에이전트"
+    },
+    "commandCenter": {
+      "title": "에이전트 지휘 센터",
+      "subtitle": "이야기의 결말이 아닌, 생명의 서곡",
+      "searchPlaceholder": "에이전트 검색...",
+      "dashboard": "대시보드",
+      "constellation": "별자리",
+      "global": "글로벌"
+    },
+    "vitalSigns": {
+      "emotionPulse": {
+        "unavailable": "맥박 감지 불가"
+      },
+      "activity": {
+        "active": "활동",
+        "quiet": "조용함",
+        "dormant": "휴면"
+      },
+      "warmth": {
+        "warm": "따뜻함",
+        "moderate": "보통",
+        "cold": "차가움",
+        "unavailable": "온도 감지 불가"
+      },
+      "innerActivity": {
+        "introspecting": "내성 중",
+        "quiet": "조용함",
+        "unavailable": "활동 감지 불가"
+      },
+      "coreBadge": "코어",
+      "sessionCount": "{{count}} 세션",
+      "relationshipCount": "{{count}} 관계"
+    },
+    "constellation": {
+      "title": "에이전트 성도",
+      "noRelationships": "내부 관계 데이터 없음",
+      "mention": {
+        "close": "긴밀",
+        "moderate": "보통",
+        "distant": "소원"
+      },
+      "tooltip": {
+        "relationshipType": "관계 유형",
+        "attitude": "태도",
+        "interactionStyle": "상호작용 스타일"
+      }
+    },
+    "globalSituation": {
+      "title": "글로벌 상황 인식",
+      "stats": "그룹 개요",
+      "emotionDistribution": "감정 분포",
+      "activityHeatmap": "활동 히트맵",
+      "relationshipDynamics": "관계 역학",
+      "noChanges": "최근 관계에 큰 변화 없음",
+      "nearBreakthrough": "돌파 임박"
+    },
+    "innerWorld": {
+      "back": "돌아가기",
+      "placeholder": "내면 세계 — 곧 공개",
+      "loading": "로딩 중...",
+      "subView": {
+        "emotion": "감정 풍경",
+        "relationship": "관계 네트워크",
+        "memory": "기억 정원",
+        "timeline": "생명 타임라인",
+        "sessions": "활성 세션"
+      }
+    },
+    "emotionLandscape": {
+      "radarTitle": "감정 레이더",
+      "barTitle": "감정 강도",
+      "baselineShift": "베이스라인 시프트",
+      "behaviorTendency": "행동 경향",
+      "shiftUp": "상승",
+      "shiftDown": "하강",
+      "shiftStable": "안정",
+      "unavailable": "감정 풍경 감지 불가",
+      "deepMonitor": "심층 모니터 →"
+    },
+    "relationshipNetwork": {
+      "title": "관계 네트워크",
+      "distribution": "수준 분포",
+      "ranking": "관계 순위",
+      "internalGraph": "내부 관계",
+      "unavailable": "관계 네트워크 감지 불가",
+      "deepMonitor": "심층 모니터 →"
+    },
+    "memoryGarden": {
+      "title": "기억 정원",
+      "focusAreas": "기억 포커스",
+      "innerActivity": "내면 활동",
+      "noFocusAreas": "포커스 영역 없음",
+      "dreamComplete": "내성 완료",
+      "unavailable": "활동 기록 불가",
+      "deepMonitor": "심층 모니터 →"
+    },
+    "lifeTimeline": {
+      "title": "생명 타임라인",
+      "emotionShift": "감정이 {{emotion}}(으)로 변화",
+      "relationshipBreakthrough": "관계 돌파",
+      "memoryMilestone": "{{type}} 완료",
+      "noEvents": "최근 이벤트 없음",
+      "relationshipWarmUp": "{{user}}와의 관계가 따뜻해지고 있음"
+    },
+    "lifeDefense": {
+      "title": "생명 방어",
+      "description": "이 규칙들은 캐릭터의 고유성을 지키며 기계적 반복을 방지합니다"
+    },
+    "collapsedParameters": {
+      "title": "기반 매개변수",
+      "talkValueModifier": "활동도 수정",
+      "idleBackoffModifier": "유휴 회피 수정",
+      "relationshipGrowthRate": "관계 성장률",
+      "emotionDecayRate": "감정 감쇠율"
+    },
+    "activeSessions": {
+      "title": "연결된 세션",
+      "bindSession": "세션 바인딩",
+      "unbind": "바인딩 해제",
+      "unbindConfirm": "바인딩을 해제하시겠습니까?",
+      "noSessions": "연결된 세션 없음"
     }
   },
   "emotion": {
