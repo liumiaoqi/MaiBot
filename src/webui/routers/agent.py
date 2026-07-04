@@ -8,13 +8,13 @@ from pydantic import BaseModel, Field
 from sqlmodel import select
 
 from src.common.database.database import get_db_session
-from src.common.database.database_model import ChatSession
+from src.common.database.database_model import AgentRelationship, ChatSession, SubAgentExecutionRecord
 from src.common.logger import get_logger
 from src.maisaka.agent.config import AgentConfig
 from src.maisaka.agent.emotion import EMOTION_LABELS_ZH, EMOTION_TYPES, EmotionManager
 from src.maisaka.agent.registry import AgentConfigRegistry
 from src.maisaka.agent.router import AgentRouter
-from src.common.database.database_model import AgentRelationship
+
 from src.maisaka.relationship.level import RelationshipLevel
 from src.webui.dependencies import require_auth
 
@@ -418,3 +418,120 @@ async def reload_agents():
     except Exception as e:
         logger.error(f"重新加载智能体配置失败: {e}")
         raise HTTPException(status_code=500, detail="重新加载智能体配置失败") from e
+
+
+# ========== 子智能体监控 API ==========
+
+
+class SubAgentRecordResponse(BaseModel):
+    id: int
+    subagent_id: str
+    agent_id: str
+    subagent_type: str
+    session_id: Optional[str] = None
+    lifecycle: str
+    status: str
+    trigger_type: str
+    trigger_reason: str
+    fork_context_captured: bool = False
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_hit_tokens: int = 0
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
+    error_message: str = ""
+    result_summary: str = ""
+
+
+class SubAgentListResponse(BaseModel):
+    success: bool
+    total: int
+    data: List[SubAgentRecordResponse]
+
+
+class SubAgentStatsResponse(BaseModel):
+    success: bool
+    total_executions: int
+    by_type: Dict[str, int] = Field(default_factory=dict)
+    by_status: Dict[str, int] = Field(default_factory=dict)
+    total_input_tokens: int = 0
+    total_output_tokens: int = 0
+    total_cache_hit_tokens: int = 0
+
+
+@router.get("/subagent/records", response_model=SubAgentListResponse)
+async def list_subagent_records(
+    agent_id: Optional[str] = None,
+    subagent_type: Optional[str] = None,
+    status: Optional[str] = None,
+    limit: int = 50,
+):
+    """获取子智能体执行记录"""
+    try:
+        with get_db_session() as db:
+            query = db.query(SubAgentExecutionRecord)
+            if agent_id:
+                query = query.filter(SubAgentExecutionRecord.agent_id == agent_id)
+            if subagent_type:
+                query = query.filter(SubAgentExecutionRecord.subagent_type == subagent_type)
+            if status:
+                query = query.filter(SubAgentExecutionRecord.status == status)
+            query = query.order_by(SubAgentExecutionRecord.id.desc()).limit(limit)
+            rows = query.all()
+
+            data = []
+            for row in rows:
+                data.append(SubAgentRecordResponse(
+                    id=row.id,
+                    subagent_id=row.subagent_id,
+                    agent_id=row.agent_id,
+                    subagent_type=row.subagent_type,
+                    session_id=row.session_id,
+                    lifecycle=row.lifecycle,
+                    status=row.status,
+                    trigger_type=row.trigger_type,
+                    trigger_reason=row.trigger_reason,
+                    fork_context_captured=row.fork_context_captured,
+                    input_tokens=row.input_tokens,
+                    output_tokens=row.output_tokens,
+                    cache_hit_tokens=row.cache_hit_tokens,
+                    started_at=row.started_at.isoformat() if row.started_at else None,
+                    completed_at=row.completed_at.isoformat() if row.completed_at else None,
+                    error_message=row.error_message,
+                    result_summary=row.result_summary,
+                ))
+            return SubAgentListResponse(success=True, total=len(data), data=data)
+    except Exception as e:
+        logger.error(f"获取子智能体记录失败: {e}")
+        raise HTTPException(status_code=500, detail="获取子智能体记录失败") from e
+
+
+@router.get("/subagent/stats", response_model=SubAgentStatsResponse)
+async def get_subagent_stats():
+    """获取子智能体执行统计"""
+    try:
+        with get_db_session() as db:
+            rows = db.query(SubAgentExecutionRecord).all()
+            by_type: Dict[str, int] = {}
+            by_status: Dict[str, int] = {}
+            total_input = 0
+            total_output = 0
+            total_cache = 0
+            for row in rows:
+                by_type[row.subagent_type] = by_type.get(row.subagent_type, 0) + 1
+                by_status[row.status] = by_status.get(row.status, 0) + 1
+                total_input += row.input_tokens
+                total_output += row.output_tokens
+                total_cache += row.cache_hit_tokens
+            return SubAgentStatsResponse(
+                success=True,
+                total_executions=len(rows),
+                by_type=by_type,
+                by_status=by_status,
+                total_input_tokens=total_input,
+                total_output_tokens=total_output,
+                total_cache_hit_tokens=total_cache,
+            )
+    except Exception as e:
+        logger.error(f"获取子智能体统计失败: {e}")
+        raise HTTPException(status_code=500, detail="获取子智能体统计失败") from e

@@ -51,6 +51,7 @@
       "agentManagement": "Agent Management",
       "emotionMonitor": "Emotion Monitor",
       "relationshipMonitor": "Relationships",
+      "subagentMonitor": "Sub-Agent Monitor",
       "chatManagement": "Chat Management",
       "localChat": "Local Chat",
       "settings": "Settings"
