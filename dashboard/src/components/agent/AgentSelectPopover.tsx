@@ -4,6 +4,7 @@ import { getAgentList, type AgentConfigInfo } from '@/lib/agent-api'
 import { AgentIndicator } from './AgentIndicator'
 import { cn } from '@/lib/utils'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 
 export interface AgentSelectPopoverProps {
   currentAgentId: string
@@ -18,6 +19,7 @@ export function AgentSelectPopover({
   children,
   className,
 }: AgentSelectPopoverProps) {
+  const { t } = useTranslation()
   const [search, setSearch] = useState('')
   const [open, setOpen] = useState(false)
 
@@ -51,13 +53,13 @@ export function AgentSelectPopover({
         >
           <input
             className="w-full rounded-sm border bg-background px-2 py-1.5 text-sm outline-none placeholder:text-muted-foreground mb-1"
-            placeholder="搜索智能体..."
+            placeholder={t('agent.selectPopover.searchPlaceholder')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
           <div className="max-h-60 overflow-y-auto">
             {filtered.length === 0 && (
-              <div className="px-2 py-4 text-center text-sm text-muted-foreground">无匹配智能体</div>
+              <div className="px-2 py-4 text-center text-sm text-muted-foreground">{t('agent.selectPopover.noMatch')}</div>
             )}
             {filtered.map((agent: AgentConfigInfo) => (
               <button

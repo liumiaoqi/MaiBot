@@ -1171,6 +1171,64 @@
       "requestTrend": "每小时请求量趋势图，显示最近若干小时的请求次数变化",
       "costTrend": "API花费趋势图，显示最近若干小时的API调用成本变化",
       "tokenUsage": "Token消耗趋势图，显示最近若干小时的Token使用量变化"
+    },
+    "agentOverview": {
+      "title": "智能体总览",
+      "summary": "{{agents}}个智能体 · {{active}}个活跃 · {{sessions}}个会话",
+      "loading": "加载中..."
     }
+  },
+  "agent": {
+    "indicator": {
+      "default": "默认"
+    },
+    "selectPopover": {
+      "searchPlaceholder": "搜索智能体...",
+      "noMatch": "无匹配智能体"
+    },
+    "switcher": {
+      "title": "切换智能体",
+      "searchPlaceholder": "搜索智能体...",
+      "noMatch": "无匹配智能体",
+      "current": "当前"
+    },
+    "binding": {
+      "defaultName": "银狼",
+      "switchFailed": "切换智能体失败"
+    },
+    "header": {
+      "currentAgentLabel": "当前智能体: {{name}}",
+      "avatarAlt": "{{name}} 的头像"
+    },
+    "chatManagement": {
+      "bindFailed": "绑定智能体失败",
+      "defaultName": "银狼",
+      "allAgents": "全部智能体"
+    }
+  },
+  "emotion": {
+    "pageTitle": "情绪监控",
+    "agentCount": "{{count}} 个智能体",
+    "backToOverview": "返回总览",
+    "autoRefreshOff": "关闭自动刷新",
+    "autoRefreshOn": "开启自动刷新（30秒）",
+    "dominantDistribution": "主导情绪分布",
+    "dominantIntensity": "主导情绪强度 {{value}}/100",
+    "radarTitle": "情绪雷达",
+    "intensityTitle": "情绪强度",
+    "behaviorParams": "情绪行为参数",
+    "decayRate": "衰减率",
+    "activityModifier": "活跃度修正",
+    "backoffModifier": "退避修正",
+    "currentState": "当前状态",
+    "baseline": "情绪基线"
+  },
+  "chatManagement": {
+    "typeAll": "全部",
+    "typeGroup": "群聊",
+    "typePrivate": "私聊",
+    "tabStreams": "聊天流",
+    "tabGroups": "共享组",
+    "searchPlaceholder": "搜索名称、平台、用户、群号或会话 ID"
   }
 }

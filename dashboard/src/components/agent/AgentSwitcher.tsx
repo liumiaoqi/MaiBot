@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { getAgentList, type AgentConfigInfo } from '@/lib/agent-api'
 import { AgentIndicator } from './AgentIndicator'
 import { cn } from '@/lib/utils'
+import { useTranslation } from 'react-i18next'
 
 export interface AgentSwitcherProps {
   currentAgentId: string
@@ -19,6 +20,7 @@ export function AgentSwitcher({
   open,
   onOpenChange,
 }: AgentSwitcherProps) {
+  const { t } = useTranslation()
   const [search, setSearch] = useState('')
 
   const { data: agents = [] } = useQuery({
@@ -38,7 +40,7 @@ export function AgentSwitcher({
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-lg border bg-background p-0 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95">
           <div className="flex items-center justify-between border-b px-4 py-3">
-            <Dialog.Title className="text-sm font-semibold">切换智能体</Dialog.Title>
+            <Dialog.Title className="text-sm font-semibold">{t('agent.switcher.title')}</Dialog.Title>
             <Dialog.Close className="rounded-sm opacity-70 hover:opacity-100">
               <X className="h-4 w-4" />
             </Dialog.Close>
@@ -46,14 +48,14 @@ export function AgentSwitcher({
           <div className="p-3">
             <input
               className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground"
-              placeholder="搜索智能体..."
+              placeholder={t('agent.switcher.searchPlaceholder')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
           <div className="max-h-72 overflow-y-auto px-2 pb-3">
             {filtered.length === 0 && (
-              <div className="py-6 text-center text-sm text-muted-foreground">无匹配智能体</div>
+              <div className="py-6 text-center text-sm text-muted-foreground">{t('agent.switcher.noMatch')}</div>
             )}
             {filtered.map((agent: AgentConfigInfo) => (
               <button
@@ -76,7 +78,7 @@ export function AgentSwitcher({
                 />
                 <span className="flex-1 text-left font-medium">{agent.display_name}</span>
                 {agent.agent_id === currentAgentId && (
-                  <span className="text-xs text-muted-foreground">当前</span>
+                  <span className="text-xs text-muted-foreground">{t('agent.switcher.current')}</span>
                 )}
               </button>
             ))}

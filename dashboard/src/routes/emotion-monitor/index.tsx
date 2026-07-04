@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Heart, RefreshCw, Timer, TimerOff } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -225,6 +226,7 @@ function BaselineComparisonCard({
   agent: AgentConfigInfo
   emotion: EmotionStateInfo
 }) {
+  const { t } = useTranslation()
   const baseline = Object.fromEntries(
     Object.entries(agent.emotion_baseline).map(([k, v]) => [k, v as number])
   )
@@ -245,7 +247,7 @@ function BaselineComparisonCard({
       <CardContent>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <p className="text-xs text-muted-foreground mb-2">当前状态</p>
+            <p className="text-xs text-muted-foreground mb-2">{t('emotion.currentState')}</p>
             <EmotionBarChart
               emotions={emotion.emotions}
               emotionLabels={emotion.emotion_labels}
@@ -253,7 +255,7 @@ function BaselineComparisonCard({
             />
           </div>
           <div>
-            <p className="text-xs text-muted-foreground mb-2">情绪基线</p>
+            <p className="text-xs text-muted-foreground mb-2">{t('emotion.baseline')}</p>
             <EmotionBarChart
               emotions={baseline}
               emotionLabels={emotion.emotion_labels}
@@ -267,6 +269,7 @@ function BaselineComparisonCard({
 }
 
 export function EmotionMonitorPage() {
+  const { t } = useTranslation()
   const { toast } = useToast()
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'grid' | 'detail'>('grid')
@@ -353,20 +356,20 @@ export function EmotionMonitorPage() {
       <div className="flex items-center justify-between p-4 border-b">
         <div className="flex items-center gap-2">
           <Heart className="h-5 w-5 text-primary" />
-          <h1 className="text-lg font-semibold">情绪监控</h1>
-          <Badge variant="outline">{agents.length} 个智能体</Badge>
+          <h1 className="text-lg font-semibold">{t('emotion.pageTitle')}</h1>
+          <Badge variant="outline">{t('emotion.agentCount', { count: agents.length })}</Badge>
         </div>
         <div className="flex items-center gap-2">
           {viewMode === 'detail' && selectedAgent && (
             <Button variant="outline" size="sm" onClick={() => setViewMode('grid')}>
-              返回总览
+              {t('emotion.backToOverview')}
             </Button>
           )}
           <Button
             variant="ghost"
             size="icon"
             onClick={() => setAutoRefresh(!autoRefresh)}
-            title={autoRefresh ? '关闭自动刷新' : '开启自动刷新（30秒）'}
+            title={autoRefresh ? t('emotion.autoRefreshOff') : t('emotion.autoRefreshOn')}
           >
             {autoRefresh ? (
               <Timer className="h-4 w-4 text-emerald-500" />
@@ -400,7 +403,7 @@ export function EmotionMonitorPage() {
               {dominantEmotionStats.length > 0 && (
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm">主导情绪分布</CardTitle>
+                    <CardTitle className="text-sm">{t('emotion.dominantDistribution')}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="flex flex-wrap gap-3">
@@ -478,13 +481,11 @@ export function EmotionMonitorPage() {
                       {singleEmotionQuery.data.dominant_emotion_label}
                     </Badge>
                     <span className="text-sm text-muted-foreground">
-                      主导情绪强度{' '}
-                      {Math.round(
-                        singleEmotionQuery.data.emotions[
-                          singleEmotionQuery.data.dominant_emotion
-                        ] ?? 0
-                      )}
-                      /100
+                      {t('emotion.dominantIntensity', { value: Math.round(
+                         singleEmotionQuery.data.emotions[
+                           singleEmotionQuery.data.dominant_emotion
+                         ] ?? 0
+                       ) })}
                     </span>
                   </div>
                 </div>
@@ -494,7 +495,7 @@ export function EmotionMonitorPage() {
               <div className="grid grid-cols-2 gap-6">
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm">情绪雷达</CardTitle>
+                    <CardTitle className="text-sm">{t('emotion.radarTitle')}</CardTitle>
                   </CardHeader>
                   <CardContent className="flex justify-center">
                     <EmotionRadarChart
@@ -507,7 +508,7 @@ export function EmotionMonitorPage() {
                 </Card>
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm">情绪强度</CardTitle>
+                    <CardTitle className="text-sm">{t('emotion.intensityTitle')}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <EmotionBarChart
@@ -527,20 +528,20 @@ export function EmotionMonitorPage() {
               {/* 行为参数 */}
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm">情绪行为参数</CardTitle>
+                  <CardTitle className="text-sm">{t('emotion.behaviorParams')}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-3 gap-4">
                     <div>
-                      <p className="text-xs text-muted-foreground">衰减率</p>
+                      <p className="text-xs text-muted-foreground">{t('emotion.decayRate')}</p>
                       <p className="text-lg font-semibold">{selectedAgent.emotion_decay_rate}/h</p>
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground">活跃度修正</p>
+                      <p className="text-xs text-muted-foreground">{t('emotion.activityModifier')}</p>
                       <p className="text-lg font-semibold">×{selectedAgent.talk_value_modifier.toFixed(1)}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground">退避修正</p>
+                      <p className="text-xs text-muted-foreground">{t('emotion.backoffModifier')}</p>
                       <p className="text-lg font-semibold">×{selectedAgent.idle_backoff_modifier.toFixed(1)}</p>
                     </div>
                   </div>

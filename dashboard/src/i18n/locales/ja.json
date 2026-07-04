@@ -1173,6 +1173,64 @@
       "requestTrend": "時間ごとのリクエスト数トレンドチャート、直近のリクエスト数変化を表示",
       "costTrend": "APIコストトレンドチャート、直近のAPI呼び出しコスト変化を表示",
       "tokenUsage": "Token消費トレンドチャート、直近のToken使用量変化を表示"
+    },
+    "agentOverview": {
+      "title": "エージェント概要",
+      "summary": "{{agents}}エージェント · {{active}}アクティブ · {{sessions}}セッション",
+      "loading": "読み込み中..."
     }
+  },
+  "agent": {
+    "indicator": {
+      "default": "デフォルト"
+    },
+    "selectPopover": {
+      "searchPlaceholder": "エージェントを検索...",
+      "noMatch": "一致するエージェントなし"
+    },
+    "switcher": {
+      "title": "エージェント切替",
+      "searchPlaceholder": "エージェントを検索...",
+      "noMatch": "一致するエージェントなし",
+      "current": "現在"
+    },
+    "binding": {
+      "defaultName": "銀狼",
+      "switchFailed": "エージェントの切替に失敗"
+    },
+    "header": {
+      "currentAgentLabel": "現在のエージェント: {{name}}",
+      "avatarAlt": "{{name}}のアバター"
+    },
+    "chatManagement": {
+      "bindFailed": "エージェントのバインドに失敗",
+      "defaultName": "銀狼",
+      "allAgents": "全エージェント"
+    }
+  },
+  "emotion": {
+    "pageTitle": "感情モニター",
+    "agentCount": "{{count}} エージェント",
+    "backToOverview": "概要に戻る",
+    "autoRefreshOff": "自動更新をオフ",
+    "autoRefreshOn": "自動更新をオン（30秒）",
+    "dominantDistribution": "支配的感情分布",
+    "dominantIntensity": "支配的感情強度 {{value}}/100",
+    "radarTitle": "感情レーダー",
+    "intensityTitle": "感情強度",
+    "behaviorParams": "感情行動パラメータ",
+    "decayRate": "減衰率",
+    "activityModifier": "活動度修正",
+    "backoffModifier": "回避修正",
+    "currentState": "現在の状態",
+    "baseline": "感情ベースライン"
+  },
+  "chatManagement": {
+    "typeAll": "すべて",
+    "typeGroup": "グループ",
+    "typePrivate": "プライベート",
+    "tabStreams": "チャットストリーム",
+    "tabGroups": "共有グループ",
+    "searchPlaceholder": "名前、プラットフォーム、ユーザー、グループID、セッションIDで検索"
   }
 }

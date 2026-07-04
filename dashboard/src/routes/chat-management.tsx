@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import type { CSSProperties, PointerEvent, ReactNode } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -1879,6 +1880,7 @@ function DeleteChatStreamDialog({
 }
 
 export function ChatManagementPage() {
+  const { t } = useTranslation()
   const [activeView, setActiveView] = useState<ChatManagementView>(() => {
     if (typeof window === 'undefined') {
       return 'streams'
@@ -1946,7 +1948,7 @@ export function ChatManagementPage() {
       await bindSessionAgent(sessionId, agentId)
       refetch()
     } catch (e: any) {
-      toast({ title: '绑定智能体失败', description: e?.message || String(e), variant: 'destructive' })
+      toast({ title: t('agent.chatManagement.bindFailed'), description: e?.message || String(e), variant: 'destructive' })
     }
   }
 
@@ -1961,15 +1963,15 @@ export function ChatManagementPage() {
       <header className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="bg-background grid w-full grid-cols-3 border-2 text-sm sm:w-auto">
           <div className="px-4 py-2">
-            <div className="text-muted-foreground">全部</div>
+            <div className="text-muted-foreground">{t('chatManagement.typeAll')}</div>
             <div className="text-lg leading-tight font-semibold">{chats.length}</div>
           </div>
           <div className="border-l-2 px-4 py-2">
-            <div className="text-muted-foreground">群聊</div>
+            <div className="text-muted-foreground">{t('chatManagement.typeGroup')}</div>
             <div className="text-lg leading-tight font-semibold">{groupCount}</div>
           </div>
           <div className="border-l-2 px-4 py-2">
-            <div className="text-muted-foreground">私聊</div>
+            <div className="text-muted-foreground">{t('chatManagement.typePrivate')}</div>
             <div className="text-lg leading-tight font-semibold">{privateCount}</div>
           </div>
         </div>
@@ -1979,10 +1981,10 @@ export function ChatManagementPage() {
         >
           <DashboardTabBar className="bg-background h-10 w-full border-2 sm:w-fit">
             <DashboardTabTrigger value="streams" className="h-8 px-4">
-              聊天流
+              {t('chatManagement.tabStreams')}
             </DashboardTabTrigger>
             <DashboardTabTrigger value="groups" className="h-8 px-4">
-              共享组
+              {t('chatManagement.tabGroups')}
             </DashboardTabTrigger>
           </DashboardTabBar>
         </Tabs>
@@ -1998,7 +2000,7 @@ export function ChatManagementPage() {
               <Input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="搜索名称、平台、用户、群号或会话 ID"
+                placeholder={t('chatManagement.searchPlaceholder')}
                 className="pl-9"
               />
             </div>
@@ -2009,13 +2011,13 @@ export function ChatManagementPage() {
               >
                 <DashboardTabBar className="bg-background h-10 w-full border-2 sm:w-fit">
                   <DashboardTabTrigger value="all" className="h-8 px-4">
-                    全部
+                    {t('chatManagement.typeAll')}
                   </DashboardTabTrigger>
                   <DashboardTabTrigger value="group" className="h-8 px-4">
-                    群聊
+                    {t('chatManagement.typeGroup')}
                   </DashboardTabTrigger>
                   <DashboardTabTrigger value="private" className="h-8 px-4">
-                    私聊
+                    {t('chatManagement.typePrivate')}
                   </DashboardTabTrigger>
                 </DashboardTabBar>
               </Tabs>
@@ -2024,7 +2026,7 @@ export function ChatManagementPage() {
                 value={agentFilter}
                 onChange={(e) => setAgentFilter(e.target.value)}
               >
-                <option value="all">全部智能体</option>
+                <option value="all">{t('agent.chatManagement.allAgents')}</option>
                 {agentList.map((a: AgentConfigInfo) => (
                   <option key={a.agent_id} value={a.agent_id}>{a.display_name}</option>
                 ))}

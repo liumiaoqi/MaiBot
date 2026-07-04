@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils'
+import { useTranslation } from 'react-i18next'
 
 export interface AgentIndicatorProps {
   agent_id: string
@@ -23,6 +24,7 @@ export function AgentIndicator({
   showName = true,
   className,
 }: AgentIndicatorProps) {
+  const { t } = useTranslation()
   const s = sizeMap[size]
   const isDefault = !agent_id || agent_id === 'silver_wolf'
   const initial = display_name.charAt(0)
@@ -42,7 +44,7 @@ export function AgentIndicator({
         <span className={cn('font-medium leading-none', s.name)}>
           {display_name}
           {isDefault && (
-            <span className="ml-1 text-[10px] text-muted-foreground font-normal">默认</span>
+            <span className="ml-1 text-[10px] text-muted-foreground font-normal">{t('agent.indicator.default')}</span>
           )}
         </span>
       )}

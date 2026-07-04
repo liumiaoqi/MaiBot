@@ -883,7 +883,7 @@ function IndexPageContent() {
     },
     {
       id: 'builtin:agent-overview',
-      title: '智能体总览',
+      title: t('home.agentOverview.title'),
       width: 'wide',
       source: 'builtin',
       render: () => (
@@ -891,14 +891,14 @@ function IndexPageContent() {
           <CardHeader className="pb-3">
             <CardTitle className="flex h-5 items-center gap-2 text-sm font-medium leading-5">
               <Users className="h-4 w-4" />
-              智能体总览
+              {t('home.agentOverview.title')}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-muted-foreground mb-3 text-xs">
               {dashboardData?.agent_stats
-                ? `${dashboardData.agent_stats.total_agents}个智能体 · ${dashboardData.agent_stats.active_agents}个活跃 · ${dashboardData.agent_stats.total_active_sessions}个会话`
-                : '加载中...'}
+                ? t('home.agentOverview.summary', { agents: dashboardData.agent_stats.total_agents, active: dashboardData.agent_stats.active_agents, sessions: dashboardData.agent_stats.total_active_sessions })
+                : t('home.agentOverview.loading')}
             </div>
             <AgentOverviewGrid />
           </CardContent>

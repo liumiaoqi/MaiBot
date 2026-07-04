@@ -1173,6 +1173,64 @@
       "requestTrend": "Hourly request trend chart showing request count changes over recent hours",
       "costTrend": "API cost trend chart showing API call cost changes over recent hours",
       "tokenUsage": "Token usage trend chart showing token consumption over recent hours"
+    },
+    "agentOverview": {
+      "title": "Agent Overview",
+      "summary": "{{agents}} agents · {{active}} active · {{sessions}} sessions",
+      "loading": "Loading..."
     }
+  },
+  "agent": {
+    "indicator": {
+      "default": "Default"
+    },
+    "selectPopover": {
+      "searchPlaceholder": "Search agents...",
+      "noMatch": "No matching agents"
+    },
+    "switcher": {
+      "title": "Switch Agent",
+      "searchPlaceholder": "Search agents...",
+      "noMatch": "No matching agents",
+      "current": "Current"
+    },
+    "binding": {
+      "defaultName": "Silver Wolf",
+      "switchFailed": "Failed to switch agent"
+    },
+    "header": {
+      "currentAgentLabel": "Current Agent: {{name}}",
+      "avatarAlt": "{{name}}'s avatar"
+    },
+    "chatManagement": {
+      "bindFailed": "Failed to bind agent",
+      "defaultName": "Silver Wolf",
+      "allAgents": "All Agents"
+    }
+  },
+  "emotion": {
+    "pageTitle": "Emotion Monitor",
+    "agentCount": "{{count}} agents",
+    "backToOverview": "Back to Overview",
+    "autoRefreshOff": "Disable Auto Refresh",
+    "autoRefreshOn": "Enable Auto Refresh (30s)",
+    "dominantDistribution": "Dominant Emotion Distribution",
+    "dominantIntensity": "Dominant Emotion Intensity {{value}}/100",
+    "radarTitle": "Emotion Radar",
+    "intensityTitle": "Emotion Intensity",
+    "behaviorParams": "Emotion Behavior Parameters",
+    "decayRate": "Decay Rate",
+    "activityModifier": "Activity Modifier",
+    "backoffModifier": "Backoff Modifier",
+    "currentState": "Current State",
+    "baseline": "Emotion Baseline"
+  },
+  "chatManagement": {
+    "typeAll": "All",
+    "typeGroup": "Group",
+    "typePrivate": "Private",
+    "tabStreams": "Chat Streams",
+    "tabGroups": "Shared Groups",
+    "searchPlaceholder": "Search by name, platform, user, group ID or session ID"
   }
 }
