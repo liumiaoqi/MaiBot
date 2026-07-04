@@ -5,6 +5,7 @@
 #    根因: Pydantic extra=forbid 导致 TOML 中 [a_memorix.retrieval.relation_vectorization] 被丢弃
 #    方案: 用 sed 在容器内原文件上精确注入缺失的类定义和字段引用
 
+
 ADAPTER_A="/MaiMBot/plugins/MaiBot-Napcat-Adapter"
 ADAPTER_B="/MaiMBot/plugins/maibot-team.napcat-adapter"
 

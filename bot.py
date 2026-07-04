@@ -14,6 +14,19 @@ import sys
 import time
 import traceback
 
+# 修复 Docker 容器内无 tzdata 导致 datetime.now() 返回 UTC 的问题
+# TZ 环境变量已设置但 C 库无法解析时区文件时，需要手动调用 tzset()
+# 如果 tzset() 仍无效（无 /usr/share/zoneinfo），则通过 os.environ 注入偏移
+_tz_env = os.environ.get("TZ", "")
+if _tz_env:
+    if hasattr(time, "tzset"):
+        time.tzset()
+    # 验证 tzset 是否生效：如果 timezone offset 仍为 0 且 TZ 含 "Shanghai"，则强制修正
+    if time.timezone == 0 and "Shanghai" in _tz_env:
+        os.environ["TZ"] = "CST-8"
+        if hasattr(time, "tzset"):
+            time.tzset()
+
 from src.common.i18n import set_locale, t, tn
 from src.common.logger import get_logger, initialize_logging, shutdown_logging
 from src.common.runtime_loop import set_main_loop
