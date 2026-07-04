@@ -1,0 +1,54 @@
+# Free-threaded Python 3.14t Docker image for MaiBot
+# Build: docker build -f Dockerfile.freethreaded -t maibot:freethreaded .
+# Verify: docker run --rm maibot:freethreaded python -c "import sys; print(sys._is_gil_enabled())"
+# Expected output: False
+
+FROM python:3.14.0a6-slim
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+# Proxy support
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG NO_PROXY
+ENV HTTP_PROXY=${HTTP_PROXY} \
+    HTTPS_PROXY=${HTTPS_PROXY} \
+    NO_PROXY=${NO_PROXY}
+
+# Working directory
+WORKDIR /MaiMBot
+
+ENV MAIBOT_LEGACY_0X_UPGRADE_CONFIRMED=1
+ENV PATH="/MaiMBot/.venv/bin:${PATH}"
+
+# Free-threaded mode indicator
+ENV PYTHON_FREE_THREADED=1
+
+# Copy dependency metadata
+COPY pyproject.toml uv.lock ./
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install runtime dependencies
+# Note: faiss-cpu and ahocorasick-rs are C-level incompatible with free-threaded Python.
+# They will be skipped; fallback implementations are used instead.
+RUN uv sync --frozen --no-dev --no-install-project || uv sync --no-dev --no-install-project
+
+# Install system libraries required by Playwright Chromium
+RUN python -m playwright install-deps chromium \
+    && rm -rf /var/lib/apt/lists/*
+
+# Verify free-threaded mode
+RUN python -c "import sys; assert not sys._is_gil_enabled(), 'Free-threaded mode not active'; print('Free-threaded Python 3.14t verified')"
+
+# Copy project source
+COPY . .
+
+RUN git clone --depth 1 --branch main https://github.com/Mai-with-u/MaiBot-Napcat-Adapter.git plugin-templates/MaiBot-Napcat-Adapter
+RUN sed -i 's/\r$//' docker-entrypoint.sh && chmod +x docker-entrypoint.sh
+
+EXPOSE 8000 8001
+
+ENTRYPOINT [ "./docker-entrypoint.sh" ]
