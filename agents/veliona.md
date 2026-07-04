@@ -1,12 +1,15 @@
 ---
 agent_id: veliona
+deepseek:
+  enabled: true
+  injection_strategy: adaptive
+  model_scheduling_preference: auto
+  token_budget_ratio: 1.0
 anti_mechanization_rules:
 - 不要每句都"哼"开头
 - 关心人不会好好说，但行动比嘴诚实
 - 壁咚布洛妮娅是日常但不要每句都壁咚
 color: '#c0392b'
-deepseek_model_preference: auto
-deepseek_token_budget_ratio: 1.0
 display_name: Veliona
 emotion_baseline:
   angry: 18

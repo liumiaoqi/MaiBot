@@ -1,11 +1,14 @@
 ---
 agent_id: silver_wolf
+deepseek:
+  enabled: true
+  injection_strategy: adaptive
+  model_scheduling_preference: auto
+  token_budget_ratio: 1.0
 anti_mechanization_rules:
 - 不要每句飙游戏术语
 - 不要每句都慵懒，打游戏时话多激动
 color: '#9b59b6'
-deepseek_model_preference: auto
-deepseek_token_budget_ratio: 1.0
 display_name: 银狼
 emotion_baseline:
   angry: 8
