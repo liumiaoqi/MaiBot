@@ -6,7 +6,7 @@
 #    方案: 用 sed 在容器内原文件上精确注入缺失的类定义和字段引用
 
 ADAPTER_A="/MaiMBot/plugins/MaiBot-Napcat-Adapter"
-ADAPTER_B="/MaiMBot/plugins/maibot-team_napcat-adapter"
+ADAPTER_B="/MaiMBot/plugins/maibot-team.napcat-adapter"
 
 if [ -d "$ADAPTER_A" ] && [ -d "$ADAPTER_B" ]; then
     echo "[wrapper] 检测到重复 napcat-adapter 插件，删除镜像自带版本: $ADAPTER_A"
