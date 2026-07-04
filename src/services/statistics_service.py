@@ -5,11 +5,12 @@ from sqlalchemy import desc, func, or_
 from sqlmodel import col, select
 
 from src.common.database.database import get_db_session
-from src.common.database.database_model import Messages, ModelUsage, OnlineTime, ToolRecord
+from src.common.database.database_model import ChatSession, Messages, ModelUsage, OnlineTime, ToolRecord
 from src.common.logger import get_logger
 from src.common.message_repository import count_messages
 from src.manager.local_store_manager import local_storage
-from src.webui.schemas.statistics import DashboardData, ModelStatistics, StatisticsSummary, TimeSeriesData
+from src.maisaka.agent.registry import AgentConfigRegistry
+from src.webui.schemas.statistics import AgentStatsInfo, DashboardData, ModelStatistics, StatisticsSummary, TimeSeriesData
 
 logger = get_logger("statistics_service")
 
@@ -41,6 +42,7 @@ def build_empty_dashboard_statistics() -> DashboardData:
         hourly_data=[],
         daily_data=[],
         recent_activity=[],
+        agent_stats=AgentStatsInfo(),
     )
 
 
@@ -54,6 +56,7 @@ async def compute_dashboard_statistics(hours: int = 24) -> DashboardData:
     hourly_data = await get_hourly_statistics(start_time, now)
     daily_data = await get_daily_statistics(start_time, now)
     recent_activity = await get_recent_activity(start_time=start_time, end_time=now, limit=10)
+    agent_stats = _compute_agent_stats()
 
     return DashboardData(
         summary=summary,
@@ -61,6 +64,7 @@ async def compute_dashboard_statistics(hours: int = 24) -> DashboardData:
         hourly_data=hourly_data,
         daily_data=daily_data,
         recent_activity=recent_activity,
+        agent_stats=agent_stats,
     )
 
 
@@ -214,6 +218,37 @@ def _is_empty_time_series_item(item: Any) -> bool:
         int(item.get("requests") or 0) == 0
         and float(item.get("cost") or 0.0) == 0.0
         and int(item.get("tokens") or 0) == 0
+    )
+
+
+def _compute_agent_stats() -> AgentStatsInfo:
+    """计算智能体统计信息。"""
+    try:
+        registry = AgentConfigRegistry()
+        registry.load()
+        all_agents = registry.list_agents()
+        total_agents = len(all_agents)
+    except Exception:
+        return AgentStatsInfo()
+
+    try:
+        with get_db_session() as db:
+            result = db.exec(
+                select(ChatSession.agent_id, func.count(ChatSession.id))
+                .group_by(ChatSession.agent_id)
+            ).all()
+            agent_session_counts: dict[str, int] = dict(result)
+            total_active_sessions = sum(agent_session_counts.values())
+            active_agent_ids = {aid for aid, cnt in agent_session_counts.items() if cnt > 0}
+            active_agents = len(active_agent_ids)
+    except Exception:
+        active_agents = 0
+        total_active_sessions = 0
+
+    return AgentStatsInfo(
+        total_agents=total_agents,
+        active_agents=active_agents,
+        total_active_sessions=total_active_sessions,
     )
 
 

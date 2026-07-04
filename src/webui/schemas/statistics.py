@@ -36,6 +36,14 @@ class TimeSeriesData(BaseModel):
     tokens: int = 0
 
 
+class AgentStatsInfo(BaseModel):
+    """智能体统计信息"""
+
+    total_agents: int = Field(0, description="智能体总数")
+    active_agents: int = Field(0, description="有活跃会话的智能体数量")
+    total_active_sessions: int = Field(0, description="活跃会话总数")
+
+
 class DashboardData(BaseModel):
     """仪表盘数据"""
 
@@ -44,3 +52,4 @@ class DashboardData(BaseModel):
     hourly_data: List[TimeSeriesData]
     daily_data: List[TimeSeriesData]
     recent_activity: List[Dict[str, Any]]
+    agent_stats: AgentStatsInfo = Field(default_factory=AgentStatsInfo)

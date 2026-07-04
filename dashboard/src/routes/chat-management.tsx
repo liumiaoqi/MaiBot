@@ -48,6 +48,9 @@ import {
 import { Tabs } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { useResolvedAvatarUrl } from '@/lib/avatar-url'
+import { AgentIndicator } from '@/components/agent/AgentIndicator'
+import { AgentSelectPopover } from '@/components/agent/AgentSelectPopover'
+import { bindSessionAgent } from '@/lib/agent-api'
 import {
   deleteChatStream,
   deleteChatStreamPrompt,
@@ -1927,6 +1930,17 @@ export function ChatManagementPage() {
     }
   }, [page, pageCount])
 
+  const { toast } = useToast()
+
+  const handleBindAgent = async (sessionId: string, agentId: string) => {
+    try {
+      await bindSessionAgent(sessionId, agentId)
+      refetch()
+    } catch (e: any) {
+      toast({ title: '绑定智能体失败', description: e?.message || String(e), variant: 'destructive' })
+    }
+  }
+
   const handleChatDeleted = (sessionId: string) => {
     if (selectedChat?.session_id === sessionId) {
       setSelectedChat(null)
@@ -2069,6 +2083,20 @@ export function ChatManagementPage() {
                                 value={chat.display_name}
                               />
                             </div>
+                            <AgentSelectPopover
+                              currentAgentId={chat.agent_id || 'silver_wolf'}
+                              onSelect={(agentId) => handleBindAgent(chat.session_id, agentId)}
+                            >
+                              <button className="shrink-0" type="button" onClick={(e) => e.stopPropagation()}>
+                                <AgentIndicator
+                                  agent_id={chat.agent_id || 'silver_wolf'}
+                                  display_name={chat.agent_display_name || '银狼'}
+                                  color={chat.agent_color || '#9b59b6'}
+                                  size="sm"
+                                  showName={false}
+                                />
+                              </button>
+                            </AgentSelectPopover>
                           </div>
                         </TableCell>
                         <TableCell className="text-muted-foreground px-2 font-mono text-xs">

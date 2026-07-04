@@ -16,6 +16,9 @@ export interface ChatStream {
   user_cardname: string | null
   group_id: string | null
   group_name: string | null
+  agent_id: string
+  agent_display_name: string
+  agent_color: string
   message_count: number
   expression_count: number
   jargon_count: number
@@ -161,9 +164,9 @@ interface UpdateChatPromptPayload {
   prompt: string
 }
 
-export async function getChatStreams(limit = 1000): Promise<ChatStream[]> {
+export async function getChatStreams(limit = 1000, agentId?: string): Promise<ChatStream[]> {
   const result = await backendApi.get<ChatStreamsResponse>('/api/chat/sessions', {
-    query: { limit },
+    query: { limit, agent_id: agentId || undefined },
   })
   return result.sessions ?? []
 }

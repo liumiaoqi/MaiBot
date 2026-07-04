@@ -15,20 +15,22 @@ interface MessageListProps {
   messages: ChatMessage[]
   isLoadingHistory: boolean
   botDisplayName: string
-  /** 机器人 QQ 号；存在时通过 WebUI 头像缓存接口加载 bot 头像。 */
   botQq?: string
   userName: string
   language: string
+  currentAgentId?: string
+  currentAgentColor?: string
 }
 
 interface BubbleAvatarProps {
   type: 'user' | 'bot'
   visible: boolean
-  /** bot 头像 URL（可选）；加载失败时自动 fallback 到默认 SVG 图标。 */
   imageUrl?: string
+  agentColor?: string
+  agentInitial?: string
 }
 
-function BubbleAvatar({ type, visible, imageUrl }: BubbleAvatarProps) {
+function BubbleAvatar({ type, visible, imageUrl, agentColor, agentInitial }: BubbleAvatarProps) {
   return (
     <div className="h-8 w-8 shrink-0 sm:h-9 sm:w-9">
       {visible && (
@@ -41,11 +43,16 @@ function BubbleAvatar({ type, visible, imageUrl }: BubbleAvatarProps) {
               'text-xs',
               type === 'user'
                 ? 'bg-secondary text-secondary-foreground'
-                : 'bg-primary-gradient text-primary-foreground'
+                : agentColor
+                  ? 'text-white'
+                  : 'bg-primary-gradient text-primary-foreground'
             )}
+            style={type === 'bot' && agentColor ? { backgroundColor: agentColor } : undefined}
           >
             {type === 'user' ? (
               <User className="h-4 w-4" />
+            ) : agentInitial ? (
+              agentInitial
             ) : (
               <Bot className="h-4 w-4" />
             )}
@@ -84,6 +91,8 @@ export function MessageList({
   botQq,
   userName,
   language,
+  currentAgentId,
+  currentAgentColor,
 }: MessageListProps) {
   const { t } = useTranslation()
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -198,14 +207,17 @@ export function MessageList({
 
             const isUser = message.type === 'user'
             const bubbleType: 'user' | 'bot' = isUser ? 'user' : 'bot'
+            const msgAgentId = message.sender?.agent_id || (isUser ? undefined : currentAgentId)
+            const msgAgentColor = isUser ? undefined : currentAgentColor
+            const msgAgentInitial = msgAgentColor && senderName ? senderName.charAt(0) : undefined
 
-            // 是否与上一条消息属于同一发送者（用于分组：仅首条显示头像 + 名字）
             const previous = messages[index - 1]
             const sameGroup =
               previous &&
               previous.type === message.type &&
               (previous.sender?.user_id ?? previous.sender?.name) ===
-                (message.sender?.user_id ?? message.sender?.name)
+                (message.sender?.user_id ?? message.sender?.name) &&
+              (previous.sender?.agent_id ?? '') === (message.sender?.agent_id ?? '')
 
             const senderName =
               message.sender?.name || (isUser ? userName : botDisplayName)
@@ -231,6 +243,8 @@ export function MessageList({
                   type={bubbleType}
                   visible={!sameGroup}
                   imageUrl={bubbleType === 'bot' ? botAvatarUrl : undefined}
+                  agentColor={msgAgentColor}
+                  agentInitial={msgAgentInitial}
                 />
 
                 <div

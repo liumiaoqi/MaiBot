@@ -84,6 +84,28 @@ class BindSessionRequest(BaseModel):
     agent_id: str = Field(..., description="要绑定的智能体ID")
 
 
+class BatchBindItem(BaseModel):
+    session_id: str = Field(..., description="会话ID")
+    agent_id: str = Field(..., description="要绑定的智能体ID")
+
+
+class BatchBindRequest(BaseModel):
+    bindings: List[BatchBindItem] = Field(..., description="批量绑定列表")
+
+
+class BatchBindError(BaseModel):
+    session_id: str
+    error: str
+
+
+class BatchBindResponse(BaseModel):
+    success: bool
+    total: int
+    succeeded: int
+    failed: int
+    errors: List[BatchBindError] = Field(default_factory=list)
+
+
 class BindGroupRequest(BaseModel):
     group_id: str = Field(..., description="群ID")
     agent_id: str = Field(..., description="要绑定的智能体ID")
@@ -319,6 +341,43 @@ async def unbind_session_agent(session_id: str):
     except Exception as e:
         logger.error(f"解除会话绑定失败: {e}")
         raise HTTPException(status_code=500, detail="解除会话绑定失败") from e
+
+
+@router.put("/binding/batch", response_model=BatchBindResponse)
+async def batch_bind_sessions(request: BatchBindRequest):
+    """批量绑定会话到指定智能体"""
+    registry = _get_registry()
+    agent_router = _get_router()
+    succeeded = 0
+    failed = 0
+    errors: list[BatchBindError] = []
+
+    for item in request.bindings:
+        try:
+            if not registry.has_agent(item.agent_id):
+                errors.append(BatchBindError(session_id=item.session_id, error=f"智能体 {item.agent_id} 不存在"))
+                failed += 1
+                continue
+            agent_router.bind_session(item.session_id, item.agent_id)
+            with get_db_session() as db:
+                statement = select(ChatSession).filter_by(session_id=item.session_id).limit(1)
+                db_session = db.exec(statement).first()
+                if db_session:
+                    db_session.agent_id = item.agent_id
+                    db.add(db_session)
+            succeeded += 1
+        except Exception as e:
+            errors.append(BatchBindError(session_id=item.session_id, error=str(e)))
+            failed += 1
+            logger.warning(f"批量绑定 — 会话 {item.session_id} 绑定失败: {e}")
+
+    return BatchBindResponse(
+        success=failed == 0,
+        total=len(request.bindings),
+        succeeded=succeeded,
+        failed=failed,
+        errors=errors,
+    )
 
 
 @router.get("/binding/group", response_model=GroupBindingsListResponse)

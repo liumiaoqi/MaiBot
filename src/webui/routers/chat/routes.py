@@ -36,6 +36,7 @@ from src.common.utils.utils_config import (
     JargonConfigUtils,
 )
 from src.config.config import BOT_CONFIG_PATH, config_manager, global_config
+from src.maisaka.agent.registry import AgentConfigRegistry
 from src.webui.dependencies import require_auth
 from src.webui.utils.toml_utils import save_toml_with_format
 
@@ -257,16 +258,37 @@ def _get_jargon_counts_by_session(session_ids: List[str]) -> Dict[str, int]:
     return counts
 
 
+def _build_agent_info_map(chat_sessions: List[ChatSession]) -> Dict[str, Dict[str, str]]:
+    """批量查询智能体信息，返回 agent_id → {display_name, color} 映射。"""
+    unique_agent_ids = {cs.agent_id or "silver_wolf" for cs in chat_sessions}
+    try:
+        registry = AgentConfigRegistry()
+        registry.load()
+        result: Dict[str, Dict[str, str]] = {}
+        for aid in unique_agent_ids:
+            try:
+                config = registry.get_agent(aid)
+                result[aid] = {"display_name": config.display_name, "color": config.color}
+            except Exception:
+                result[aid] = {"display_name": "银狼", "color": "#9b59b6"}
+        return result
+    except Exception:
+        return {aid: {"display_name": "银狼", "color": "#9b59b6"} for aid in unique_agent_ids}
+
+
 def _chat_session_to_response(
     chat_session: ChatSession,
     latest_message: Optional[Any],
     message_count: int,
     expression_count: int,
     jargon_count: int,
+    agent_info_map: Optional[Dict[str, Dict[str, str]]] = None,
 ) -> Dict[str, Any]:
     """将 ChatSession 转换为 WebUI 列表项。"""
 
     chat_type = _get_chat_type(chat_session)
+    agent_id = chat_session.agent_id or "silver_wolf"
+    info = (agent_info_map or {}).get(agent_id, {})
     return {
         "id": chat_session.id,
         "session_id": chat_session.session_id,
@@ -281,6 +303,9 @@ def _chat_session_to_response(
         "user_cardname": chat_session.user_cardname,
         "group_id": chat_session.group_id,
         "group_name": chat_session.group_name,
+        "agent_id": agent_id,
+        "agent_display_name": info.get("display_name", "银狼"),
+        "agent_color": info.get("color", "#9b59b6"),
         "message_count": message_count,
         "expression_count": expression_count,
         "jargon_count": jargon_count,
@@ -1111,6 +1136,7 @@ async def get_persons_by_platform(
 @router.get("/sessions")
 async def get_chat_sessions(
     limit: int = Query(default=200, ge=1, le=1000),
+    agent_id: Optional[str] = Query(default=None, description="按智能体ID筛选聊天流"),
 ) -> Dict[str, object]:
     """获取已存在的聊天流列表。"""
 
@@ -1124,6 +1150,8 @@ async def get_chat_sessions(
             )
             .limit(limit)
         )
+        if agent_id:
+            statement = statement.where(ChatSession.agent_id == agent_id)
         chat_sessions = session.exec(statement).all()
 
     session_ids = [chat_session.session_id for chat_session in chat_sessions if chat_session.session_id]
@@ -1136,6 +1164,9 @@ async def get_chat_sessions(
     message_counts = _get_message_counts_by_session(session_ids)
     expression_counts = _get_expression_counts_by_session(session_ids)
     jargon_counts = _get_jargon_counts_by_session(session_ids)
+
+    agent_info_map = _build_agent_info_map(chat_sessions)
+
     items = [
         _chat_session_to_response(
             chat_session=chat_session,
@@ -1143,6 +1174,7 @@ async def get_chat_sessions(
             message_count=message_counts.get(chat_session.session_id, 0),
             expression_count=expression_counts.get(chat_session.session_id, 0),
             jargon_count=jargon_counts.get(chat_session.session_id, 0),
+            agent_info_map=agent_info_map,
         )
         for chat_session in chat_sessions
     ]

@@ -50,6 +50,7 @@ export interface ChatTab {
     user_name?: string
     bot_name?: string
     bot_qq?: string
+    agent_id?: string
   }
 }
 
@@ -100,6 +101,7 @@ export interface ChatMessage {
     name: string
     user_id?: string
     is_bot?: boolean
+    agent_id?: string
   }
 }
 
@@ -132,10 +134,12 @@ export interface WsMessage {
   user_name?: string
   bot_name?: string
   bot_qq?: string
+  agent_id?: string
   sender?: {
     name: string
     user_id?: string
     is_bot?: boolean
+    agent_id?: string
   }
   images?: ChatIncomingImage[]
   // 历史消息列表（用于 type: 'history'）
