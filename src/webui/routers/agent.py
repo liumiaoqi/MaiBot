@@ -596,6 +596,47 @@ async def get_subagent_stats():
         raise HTTPException(status_code=500, detail="获取子智能体统计失败") from e
 
 
+# ========== 情绪-行为映射 API ==========
+
+
+class EmotionBehaviorRuleResponse(BaseModel):
+    emotion_type: str
+    intensity_threshold: int
+    behavior_tendency: str
+    reply_style_modifier: str
+
+
+class EmotionBehaviorRulesResponse(BaseModel):
+    success: bool
+    agent_id: str
+    rules: List[EmotionBehaviorRuleResponse] = Field(default_factory=list)
+
+
+@router.get("/emotion-behavior-rules/{agent_id}", response_model=EmotionBehaviorRulesResponse)
+async def get_emotion_behavior_rules(agent_id: str):
+    """获取智能体的情绪-行为映射规则"""
+    try:
+        registry = _get_registry()
+        if not registry.has_agent(agent_id):
+            raise HTTPException(status_code=404, detail=f"智能体不存在: {agent_id}")
+        config = registry.get_agent(agent_id)
+        rules = [
+            EmotionBehaviorRuleResponse(
+                emotion_type=rule.emotion_type,
+                intensity_threshold=rule.intensity_threshold,
+                behavior_tendency=rule.behavior_tendency,
+                reply_style_modifier=rule.reply_style_modifier,
+            )
+            for rule in config.emotion_behavior_map
+        ]
+        return EmotionBehaviorRulesResponse(success=True, agent_id=agent_id, rules=rules)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取情绪-行为映射规则失败: {e}")
+        raise HTTPException(status_code=500, detail="获取情绪-行为映射规则失败") from e
+
+
 # ========== 批量查询 API ==========
 
 
