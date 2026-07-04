@@ -91,7 +91,7 @@ export function MessageList({
   botQq,
   userName,
   language,
-  currentAgentId,
+
   currentAgentColor,
 }: MessageListProps) {
   const { t } = useTranslation()
