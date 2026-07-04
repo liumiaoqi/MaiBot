@@ -50,6 +50,10 @@ import { Textarea } from '@/components/ui/textarea'
 import { useResolvedAvatarUrl } from '@/lib/avatar-url'
 import { AgentIndicator } from '@/components/agent/AgentIndicator'
 import { AgentSelectPopover } from '@/components/agent/AgentSelectPopover'
+import { getAgentList, type AgentConfigInfo } from '@/lib/agent-api'
+import { bindSessionAgent } from '@/lib/agent-api'
+import {
+import { AgentSelectPopover } from '@/components/agent/AgentSelectPopover'
 import { bindSessionAgent } from '@/lib/agent-api'
 import {
   deleteChatStream,
@@ -1883,6 +1887,7 @@ export function ChatManagementPage() {
   })
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState<ChatTypeFilter>('all')
+  const [agentFilter, setAgentFilter] = useState<string>('all')
   const [page, setPage] = useState(1)
   const [selectedChat, setSelectedChat] = useState<ChatStream | null>(null)
   const [deletingChat, setDeletingChat] = useState<ChatStream | null>(null)
@@ -1901,11 +1906,15 @@ export function ChatManagementPage() {
     queryFn: () => getChatStreamDetail(selectedChat?.session_id ?? ''),
     enabled: Boolean(selectedChat?.session_id),
   })
+  const { data: agentList = [] } = useQuery({
+    queryKey: ['agent', 'list'],
+    queryFn: getAgentList,
+  })
 
   const filteredChats = useMemo(
     () =>
-      chats.filter((chat) => matchesTypeFilter(chat, typeFilter) && matchesSearch(chat, search)),
-    [chats, search, typeFilter]
+      chats.filter((chat) => matchesTypeFilter(chat, typeFilter) && matchesSearch(chat, search) && (agentFilter === 'all' || (chat.agent_id || 'silver_wolf') === agentFilter)),
+    [chats, search, typeFilter, agentFilter]
   )
   const pageCount = Math.max(1, Math.ceil(filteredChats.length / PAGE_SIZE))
   const currentPage = Math.min(page, pageCount)
@@ -1921,7 +1930,7 @@ export function ChatManagementPage() {
   useEffect(() => {
     const frameId = window.requestAnimationFrame(() => setPage(1))
     return () => window.cancelAnimationFrame(frameId)
-  }, [search, typeFilter])
+  }, [search, typeFilter, agentFilter])
 
   useEffect(() => {
     if (page > pageCount) {
@@ -2010,6 +2019,16 @@ export function ChatManagementPage() {
                   </DashboardTabTrigger>
                 </DashboardTabBar>
               </Tabs>
+              <select
+                className="border-input bg-background h-9 rounded-md border px-2 text-sm"
+                value={agentFilter}
+                onChange={(e) => setAgentFilter(e.target.value)}
+              >
+                <option value="all">全部智能体</option>
+                {agentList.map((a: AgentConfigInfo) => (
+                  <option key={a.agent_id} value={a.agent_id}>{a.display_name}</option>
+                ))}
+              </select>
               <Button
                 type="button"
                 variant="outline"

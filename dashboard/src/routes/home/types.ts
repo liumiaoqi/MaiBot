@@ -55,12 +55,19 @@ export interface RecentActivity {
   status: string
 }
 
+export interface AgentStatsInfo {
+  total_agents: number
+  active_agents: number
+  total_active_sessions: number
+}
+
 export interface DashboardData {
   summary: StatisticsSummary
   model_stats: ModelStatistics[]
   hourly_data: TimeSeriesData[]
   daily_data: TimeSeriesData[]
   recent_activity: RecentActivity[]
+  agent_stats?: AgentStatsInfo
 }
 
 export interface FeatureStatus {
