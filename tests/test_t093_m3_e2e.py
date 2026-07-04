@@ -63,7 +63,7 @@ async def verify_all() -> dict[str, bool]:
 
         for a in agents:
             em = EmotionManager(a)
-            state = em.get_current_state()
+            state = em.state
             assert state.dominant_emotion, f"{a.agent_id} 无主导情绪"
 
             mgr = RelationshipManager()
@@ -129,8 +129,8 @@ async def verify_all() -> dict[str, bool]:
             em = EmotionManager(a)
             start = time.perf_counter()
             for _ in range(100):
-                em.trigger_emotion("happy", 0.3)
-                em.get_current_state()
+                em.apply_trigger("happy", 0.3)
+                em.state
             elapsed = (time.perf_counter() - start) / 100 * 1000
             max_emotion_ms = max(max_emotion_ms, elapsed)
 
