@@ -5797,6 +5797,141 @@ class AgentSectionConfig(ConfigBase):
     """智能体 Markdown 配置文件的存放目录。"""
 
 
+class SubAgentSectionConfig(ConfigBase):
+    """子智能体配置类"""
+
+    __ui_label__ = "子智能体"
+    __ui_order__ = 52
+
+    _warp_dream_enabled: str = "启用 Dream 子智能体（记忆巩固）"
+
+    dream_enabled: bool = Field(
+        default=True,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "Dream记忆巩固",
+                "en_US": "Dream Consolidation",
+                "ja_JP": "Dream記憶統合",
+            },
+            "x-widget": "switch",
+            "x-icon": "moon",
+        },
+    )
+    """启用 Dream 子智能体，7天周期从对话轨迹提取持久知识。"""
+
+    _warp_dream_interval_days: str = "Dream 巩固周期（天）"
+
+    dream_interval_days: int = Field(
+        default=7,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "巩固周期(天)",
+                "en_US": "Interval (days)",
+                "ja_JP": "統合周期(日)",
+            },
+            "x-widget": "input",
+            "x-icon": "calendar",
+        },
+    )
+    """Dream 子智能体的巩固周期天数。"""
+
+    _warp_compaction_enabled: str = "启用 Compaction 子智能体（异步压缩）"
+
+    compaction_enabled: bool = Field(
+        default=True,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "Compaction异步压缩",
+                "en_US": "Compaction Compression",
+                "ja_JP": "Compaction非同期圧縮",
+            },
+            "x-widget": "switch",
+            "x-icon": "archive",
+        },
+    )
+    """启用 Compaction 子智能体，异步压缩长对话历史。"""
+
+    _warp_compaction_threshold_l1: str = "Compaction 一级压缩阈值（消息数）"
+
+    compaction_threshold_level_1: int = Field(
+        default=100,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "一级压缩阈值",
+                "en_US": "Level 1 Threshold",
+                "ja_JP": "レベル1閾値",
+            },
+            "x-widget": "input",
+            "x-icon": "gauge",
+        },
+    )
+    """消息数达到此阈值时触发一级压缩。"""
+
+    _warp_compaction_threshold_l2: str = "Compaction 二级压缩阈值（消息数）"
+
+    compaction_threshold_level_2: int = Field(
+        default=200,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "二级压缩阈值",
+                "en_US": "Level 2 Threshold",
+                "ja_JP": "レベル2閾値",
+            },
+            "x-widget": "input",
+            "x-icon": "gauge",
+        },
+    )
+    """消息数达到此阈值时触发二级压缩。"""
+
+    _warp_compaction_threshold_l3: str = "Compaction 三级压缩阈值（消息数）"
+
+    compaction_threshold_level_3: int = Field(
+        default=400,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "三级压缩阈值",
+                "en_US": "Level 3 Threshold",
+                "ja_JP": "レベル3閾値",
+            },
+            "x-widget": "input",
+            "x-icon": "gauge",
+        },
+    )
+    """消息数达到此阈值时触发三级压缩。"""
+
+    _warp_checkpoint_writer_enabled: str = "启用 Checkpoint-Writer 子智能体（状态快照）"
+
+    checkpoint_writer_enabled: bool = Field(
+        default=False,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "Checkpoint-Writer",
+                "en_US": "Checkpoint-Writer",
+                "ja_JP": "Checkpoint-Writer",
+            },
+            "x-widget": "switch",
+            "x-icon": "save",
+        },
+    )
+    """启用 Checkpoint-Writer 子智能体，定期写入状态快照。"""
+
+    _warp_checkpoint_writer_fork_enabled: str = "启用 Fork 模式（独立上下文派生）"
+
+    checkpoint_writer_fork_enabled: bool = Field(
+        default=False,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "Fork模式",
+                "en_US": "Fork Mode",
+                "ja_JP": "Forkモード",
+            },
+            "x-widget": "switch",
+            "x-icon": "git-branch",
+        },
+    )
+    """Checkpoint-Writer 的 Fork 模式，独立上下文派生子智能体。"""
+
+
 class PythonRuntimeSectionConfig(ConfigBase):
     """Python 运行时配置类"""
 

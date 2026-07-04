@@ -522,3 +522,30 @@ class AgentRelationship(SQLModel, table=True):
 
     last_interaction_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime, nullable=True))
     created_at: Optional[datetime] = Field(default_factory=datetime.now, sa_column=Column(DateTime, nullable=True))
+
+
+class SubAgentExecutionRecord(SQLModel, table=True):
+    """子智能体执行审计日志"""
+
+    __tablename__ = "subagent_execution_records"  # type: ignore
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    subagent_id: str = Field(index=True, max_length=64)
+    agent_id: str = Field(index=True, max_length=64)
+    subagent_type: str = Field(default="dream", max_length=32)
+    session_id: Optional[str] = Field(default=None, max_length=255, nullable=True)
+    lifecycle: str = Field(default="ephemeral", max_length=16)
+    status: str = Field(default="pending", max_length=16)
+    trigger_type: str = Field(default="auto", max_length=16)
+    trigger_reason: str = Field(default="")
+    fork_context_captured: bool = Field(default=False)
+    input_tokens: int = Field(default=0)
+    output_tokens: int = Field(default=0)
+    cache_hit_tokens: int = Field(default=0)
+
+    started_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime, nullable=True))
+    completed_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime, nullable=True))
+    error_message: str = Field(default="")
+    result_summary: str = Field(default="")
+    created_at: Optional[datetime] = Field(default_factory=datetime.now, sa_column=Column(DateTime, nullable=True))

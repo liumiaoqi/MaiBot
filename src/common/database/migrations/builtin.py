@@ -41,6 +41,7 @@ from .v32_to_v33 import migrate_v32_to_v33
 from .v33_to_v34 import migrate_v33_to_v34
 from .v34_to_v35 import migrate_v34_to_v35
 from .v35_to_v36 import migrate_v35_to_v36
+from .v36_to_v37 import migrate_v36_to_v37
 from .version_store import SQLiteUserVersionStore
 
 EMPTY_SCHEMA_VERSION = 0
@@ -80,7 +81,8 @@ V33_SCHEMA_VERSION = 33
 V34_SCHEMA_VERSION = 34
 V35_SCHEMA_VERSION = 35
 V36_SCHEMA_VERSION = 36
-LATEST_SCHEMA_VERSION = 36
+V37_SCHEMA_VERSION = 37
+LATEST_SCHEMA_VERSION = 37
 
 _LEGACY_V1_EXCLUSIVE_TABLES = (
     "chat_streams",
@@ -1811,6 +1813,13 @@ def build_default_migration_registry() -> MigrationRegistry:
                 name="v35_to_v36",
                 description="创建 agent_relationships 表用于存储智能体与用户的关系数据。",
                 handler=migrate_v35_to_v36,
+            ),
+            MigrationStep(
+                version_from=V36_SCHEMA_VERSION,
+                version_to=V37_SCHEMA_VERSION,
+                name="v36_to_v37",
+                description="创建 subagent_execution_records 表用于存储子智能体执行审计日志。",
+                handler=migrate_v36_to_v37,
             ),
         ]
     )
