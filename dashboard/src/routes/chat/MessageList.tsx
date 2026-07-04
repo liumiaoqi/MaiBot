@@ -207,8 +207,9 @@ export function MessageList({
 
             const isUser = message.type === 'user'
             const bubbleType: 'user' | 'bot' = isUser ? 'user' : 'bot'
-            const msgAgentId = message.sender?.agent_id || (isUser ? undefined : currentAgentId)
             const msgAgentColor = isUser ? undefined : currentAgentColor
+            const senderName =
+              message.sender?.name || (isUser ? userName : botDisplayName)
             const msgAgentInitial = msgAgentColor && senderName ? senderName.charAt(0) : undefined
 
             const previous = messages[index - 1]
@@ -218,9 +219,6 @@ export function MessageList({
               (previous.sender?.user_id ?? previous.sender?.name) ===
                 (message.sender?.user_id ?? message.sender?.name) &&
               (previous.sender?.agent_id ?? '') === (message.sender?.agent_id ?? '')
-
-            const senderName =
-              message.sender?.name || (isUser ? userName : botDisplayName)
 
             return (
               <div

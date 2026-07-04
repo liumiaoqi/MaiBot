@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+
 import { Skeleton } from '@/components/ui/skeleton'
 
 import { useToast } from '@/hooks/use-toast'
@@ -201,7 +201,7 @@ function AgentRelationshipCard({
 }
 
 export function RelationshipMonitorPage() {
-  const { toast } = useToast()
+
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
 
   const agentsQuery = useQuery({
@@ -247,7 +247,7 @@ export function RelationshipMonitorPage() {
     [allRelationships]
   )
 
-  const overallDistribution = useMemo(() => {
+  const _overallDistribution = useMemo(() => {
     const counts: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0 }
     for (const rels of Object.values(allRelationships)) {
       for (const rel of rels) {

@@ -43,6 +43,7 @@ export interface ChatTab {
   virtualConfig?: VirtualIdentityConfig
   messages: ChatMessage[]
   isConnected: boolean
+  isConnecting: boolean
   isTyping: boolean
   sessionInfo: {
     session_id?: string

@@ -100,6 +100,9 @@ const createChatStream = (index: number, chatType: 'group' | 'private'): ChatStr
     last_active_at: null,
     latest_message: '',
     latest_message_at: null,
+    agent_id: null,
+    agent_display_name: null,
+    agent_color: null,
   }
 }
 
