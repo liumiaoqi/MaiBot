@@ -21,6 +21,7 @@ from .models import (
     TriggerType,
     generate_subagent_id,
 )
+from .parallel import ParallelSubAgentExecutor, ThreadSafeStatusStore
 from .registry import SubAgentRegistry
 from .scheduler import ConcurrencyLimitExceededError, SpawnTimeoutError, SubAgentScheduler
 
@@ -48,6 +49,7 @@ __all__ = [
     "ForkContextCapturer",
     "InteractiveGate",
     "ModelRef",
+    "ParallelSubAgentExecutor",
     "PermissionRuleset",
     "SpawnTimeoutError",
     "SubAgentHandle",
@@ -59,6 +61,7 @@ __all__ = [
     "SubAgentStatus",
     "SubAgentRegistry",
     "SubAgentType",
+    "ThreadSafeStatusStore",
     "ToolDefinition",
     "TriggerType",
     "generate_subagent_id",
