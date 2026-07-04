@@ -46,6 +46,7 @@ class DreamResult:
     skipped_count: int = 0
     total_duration_seconds: float = 0.0
     error_message: str = ""
+    batch_degraded: bool = False
 
     @property
     def success(self) -> bool:
@@ -84,10 +85,12 @@ class DreamAgent:
         config: DreamConfig,
         memory_service: Any = None,
         message_repository: Any = None,
+        batch_scheduler: Any = None,
     ) -> None:
         self._config = config
         self._memory_service = memory_service
         self._message_repository = message_repository
+        self._batch_scheduler = batch_scheduler
 
     @property
     def config(self) -> DreamConfig:
@@ -236,7 +239,10 @@ class DreamAgent:
         status: SubAgentStatus,
         result: DreamResult,
     ) -> DreamPhaseResult:
-        """Phase 2: 提取候选持久知识。"""
+        """Phase 2: 提取候选持久知识。
+
+        优先提交批处理 API（50%成本折扣），降级为实时 API。
+        """
         phase0_data = next(
             (p.data for p in result.phases if p.phase == 0), {}
         )
@@ -248,6 +254,46 @@ class DreamAgent:
                 message="无对话轨迹，跳过提取",
                 data={"candidates": []},
             )
+
+        # 尝试提交批处理 API
+        batch_submitted = False
+        if self._batch_scheduler is not None:
+            try:
+                from src.maisaka.deepseek.batch_scheduler import (
+                    BatchTask,
+                    BatchTaskPriority,
+                    BatchTaskStatus,
+                    BatchTaskType,
+                )
+
+                task = BatchTask(
+                    agent_id=spec.agent_id,
+                    task_type=BatchTaskType.DREAM_CONSOLIDATION,
+                    priority=BatchTaskPriority.NORMAL,
+                    payload={
+                        "session_id": spec.session_id,
+                        "interval_days": self._config.interval_days,
+                        "message_count": message_count,
+                    },
+                )
+                batch_status = self._batch_scheduler.submit_task(task)
+                if batch_status == BatchTaskStatus.PENDING:
+                    batch_submitted = True
+                    logger.info(
+                        "Dream Phase2 知识提取已提交批处理: agent=%s",
+                        spec.agent_id,
+                    )
+                else:
+                    result.batch_degraded = True
+                    logger.info(
+                        "Dream Phase2 批处理不可用，降级为实时API: agent=%s",
+                        spec.agent_id,
+                    )
+            except Exception as e:
+                result.batch_degraded = True
+                logger.warning(
+                    "Dream Phase2 批处理提交异常，降级为实时API: %s", e
+                )
 
         candidates: list[dict[str, Any]] = []
         messages = phase0_data.get("messages", [])
@@ -263,10 +309,11 @@ class DreamAgent:
                 "timestamp": str(getattr(msg, "timestamp", "")),
             })
 
+        mode = "批处理" if batch_submitted else "实时API"
         return DreamPhaseResult(
             phase=2, success=True,
-            message=f"提取 {len(candidates)} 条候选知识",
-            data={"candidates": candidates},
+            message=f"提取 {len(candidates)} 条候选知识 (模式: {mode})",
+            data={"candidates": candidates, "batch_submitted": batch_submitted},
         )
 
     async def _phase3_verify(
