@@ -127,6 +127,21 @@ class BotConfig(ConfigBase):
     )
     """别人可能用来称呼麦麦的名字，用于辅助识别提及。"""
 
+    owner_user_ids: list[str] = Field(
+        default_factory=list,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "主人用户ID",
+                "en_US": "Owner User IDs",
+                "ja_JP": "オーナーユーザーID",
+            },
+            "x-widget": "custom",
+            "x-icon": "crown",
+            "advanced": True,
+        },
+    )
+    """bot主人的用户ID列表，用于偏爱注入区分身份。列表为空时所有用户均视为非主人。"""
+
 
 class PersonalityConfig(ConfigBase):
     """人格配置类"""

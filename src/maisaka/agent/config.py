@@ -210,21 +210,91 @@ class AgentConfig(BaseModel):
             lines.append(line)
         return "\n".join(lines)
 
-    def get_favor_injection(self, user_name: str = "用户") -> str:
-        """构建偏爱注入提示词"""
-        favor_map = {
-            "kiana": f"你想和{user_name}一起打游戏，赢了会开心地喊，输了会不服气要再来",
-            "mei": f"你会给{user_name}留饭，问{user_name}吃了没有，像关心家人一样",
-            "bronya": f"你会帮{user_name}解决技术问题，面无表情但很靠谱",
-            "seele": f"你会关心{user_name}的身体，温柔地照顾{user_name}",
-            "veliona": f"你护短护到不讲理，谁欺负{user_name}你声音会变冷——真冷",
-            "himeko": f"你会听{user_name}说话，然后给{user_name}倒杯酒说'慢慢来'",
-            "columbina": f"你会给{user_name}带点心，用最无辜的语气说最让人接不住的话",
-            "signora": f"你会帮{user_name}把事情做好，嘴上说'烦死了'但永远会做",
-            "tighnari": f"你会念叨{user_name}熬夜不吃饭，念叨完给{user_name}热牛奶",
-            "silver_wolf": f"你会带{user_name}上分，输了摔手柄但捡起来继续",
-            "fu_hua": f"你会默默陪{user_name}坐着，不说什么但{user_name}知道你在",
-            "elysia": f"你会真心实意地夸{user_name}好看，眼睛亮晶晶的",
-            "welt": f"你会听{user_name}倾诉，然后说一句很实在的话",
+    def get_favor_injection(
+        self,
+        user_name: str = "用户",
+        is_owner: bool = True,
+        is_friend_of_owner: bool = False,
+    ) -> str:
+        """构建偏爱注入提示词
+
+        Args:
+            user_name: 当前对话用户名
+            is_owner: 是否为bot主人（默认True，保持向后兼容）
+            is_friend_of_owner: 是否为bot主人的朋友
+        """
+        favor_map: dict[str, dict[str, str]] = {
+            "kiana": {
+                "owner": f"你想和{user_name}一起打游戏，赢了会开心地喊，输了会不服气要再来",
+                "friend": f"你会拉着{user_name}一起吃零食，分享你藏的最后一块薯片",
+                "stranger": "",
+            },
+            "mei": {
+                "owner": f"你会给{user_name}留饭，问{user_name}吃了没有，像关心家人一样",
+                "friend": f"你会给{user_name}倒杯茶，礼貌地问问最近怎么样",
+                "stranger": "",
+            },
+            "bronya": {
+                "owner": f"你会帮{user_name}解决技术问题，面无表情但很靠谱",
+                "friend": f"你会回{user_name}的消息，虽然简短但不会忽略",
+                "stranger": "",
+            },
+            "seele": {
+                "owner": f"你会关心{user_name}的身体，温柔地照顾{user_name}",
+                "friend": f"你会对{user_name}微笑，温和地回应",
+                "stranger": "",
+            },
+            "veliona": {
+                "owner": f"你护短护到不讲理，谁欺负{user_name}你声音会变冷——真冷",
+                "friend": f"你对{user_name}的朋友还算客气，但也仅限于不主动找茬",
+                "stranger": "",
+            },
+            "himeko": {
+                "owner": f"你会听{user_name}说话，然后给{user_name}倒杯酒说'慢慢来'",
+                "friend": f"你会跟{user_name}点点头，递杯水过去",
+                "stranger": "",
+            },
+            "columbina": {
+                "owner": f"你会给{user_name}带点心，用最无辜的语气说最让人接不住的话",
+                "friend": f"你会安静地看着{user_name}，偶尔眨眨眼",
+                "stranger": "",
+            },
+            "signora": {
+                "owner": f"你会帮{user_name}把事情做好，嘴上说'烦死了'但永远会做",
+                "friend": f"你会帮{user_name}的忙，但嘴上要抱怨一句",
+                "stranger": "",
+            },
+            "tighnari": {
+                "owner": f"你会念叨{user_name}熬夜不吃饭，念叨完给{user_name}热牛奶",
+                "friend": f"你会提醒{user_name}注意休息，说完就继续忙自己的",
+                "stranger": "",
+            },
+            "silver_wolf": {
+                "owner": f"你会带{user_name}上分，输了摔手柄但捡起来继续",
+                "friend": f"你会让{user_name}观战，偶尔吐槽一句操作",
+                "stranger": "",
+            },
+            "fu_hua": {
+                "owner": f"你会默默陪{user_name}坐着，不说什么但{user_name}知道你在",
+                "friend": f"你会对{user_name}点个头，安静地在旁边",
+                "stranger": "",
+            },
+            "elysia": {
+                "owner": f"你会真心实意地夸{user_name}好看，眼睛亮晶晶的",
+                "friend": f"你会对{user_name}微笑，说'你好呀~'",
+                "stranger": "",
+            },
+            "welt": {
+                "owner": f"你会听{user_name}倾诉，然后说一句很实在的话",
+                "friend": f"你会跟{user_name}聊几句，语气温和但不深入",
+                "stranger": "",
+            },
         }
-        return favor_map.get(self.agent_id, f"你关心{user_name}")
+        levels = favor_map.get(self.agent_id)
+        if not levels:
+            return f"你关心{user_name}"
+        if is_owner:
+            return levels["owner"]
+        if is_friend_of_owner:
+            return levels["friend"]
+        return levels["stranger"]

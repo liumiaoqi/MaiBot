@@ -2105,11 +2105,13 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
             if self.chat_stream.context and self.chat_stream.context.message:
                 context_user_info = self.chat_stream.context.message.message_info.user_info
                 user_nickname = context_user_info.user_nickname or context_user_info.user_id or user_nickname
+            self._chat_loop_service.update_current_user(self.chat_stream.user_id, user_nickname)
             return UserInfo(
                 user_id=self.chat_stream.user_id,
                 user_nickname=user_nickname,
                 user_cardname=None,
             )
+        self._chat_loop_service.update_current_user("", "用户")
         return UserInfo(user_id="maisaka_user", user_nickname="用户", user_cardname=None)
 
     def _build_group_info(self, message: Optional[SessionMessage] = None) -> Optional[GroupInfo]:

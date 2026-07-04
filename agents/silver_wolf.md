@@ -46,6 +46,13 @@ internal_relationships:
   mention_tendency: 0.2
   relationship_type: friend
   target_agent_id: welt
+- anti_mechanization: ''
+  attitude: 被念叨熬夜但手柄旁的着眼水用了
+  interaction_style: 被念叨但用了
+  mention_tendency: 0.2
+  relationship_type: friend
+  target_agent_id: tighnari
+  target_agent_id: welt
 is_default: true
 memory_focus_areas:
 - 游戏
