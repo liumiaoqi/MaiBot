@@ -1,5 +1,5 @@
 # Stage 1: Extract Python 3.14 runtime from official image
-FROM python:3.14-slim-bookworm AS python-builder
+FROM python:3.14-slim AS python-builder
 
 # Stage 2: Build on Ubuntu 26.04 LTS
 FROM ubuntu:26.04
