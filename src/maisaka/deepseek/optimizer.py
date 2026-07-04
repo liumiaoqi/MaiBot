@@ -35,21 +35,63 @@ class ContextSegment:
 
 
 class DeepSeekOptimizer:
-    """DeepSeek 长上下文注入策略优化器。"""
+    """DeepSeek 长上下文注入策略优化器。
+
+    配置开关：
+    - deepseek.enabled = false 时回退到通用 LLM 调用模式（lean策略）
+    - 非 DeepSeek 模型自动禁用 DeepSeek 专有优化
+    """
+
+    DEEPSEEK_MODEL_PREFIXES = ("deepseek",)
 
     def __init__(self) -> None:
         self._budget_manager = TokenBudgetManager()
 
-    def select_strategy(self, agent_id: str, model_context_window: int) -> str:
-        """根据模型上下文窗口容量自动选择注入策略。"""
+    @classmethod
+    def is_deepseek_model(cls, model_id: str) -> bool:
+        """判断模型是否为 DeepSeek 系列。"""
+        return any(model_id.lower().startswith(p) for p in cls.DEEPSEEK_MODEL_PREFIXES)
+
+    @classmethod
+    def is_deepseek_enabled(cls, agent_id: str, model_id: str = "") -> bool:
+        """判断智能体是否启用了 DeepSeek 深度优化。
+
+        条件：
+        1. 智能体级 deepseek.enabled = True
+        2. 模型为 DeepSeek 系列（如果提供了 model_id）
+        """
+        if model_id and not cls.is_deepseek_model(model_id):
+            return False
+
+        try:
+            from src.maisaka.agent.registry import AgentConfigRegistry
+
+            registry = AgentConfigRegistry()
+            if registry.has_agent(agent_id):
+                return registry.get_agent(agent_id).deepseek.enabled
+        except Exception:
+            pass
+        return False
+
+    def select_strategy(self, agent_id: str, model_context_window: int, model_id: str = "") -> str:
+        """根据模型上下文窗口容量自动选择注入策略。
+
+        非 DeepSeek 模型或 deepseek.enabled=false 时回退到 lean。
+        """
+        if not self.is_deepseek_enabled(agent_id, model_id):
+            logger.debug(
+                "DeepSeek 优化未启用: agent=%s model=%s，回退到 lean 策略",
+                agent_id,
+                model_id or "unknown",
+            )
+            return "lean"
+
         try:
             from src.maisaka.agent.registry import AgentConfigRegistry
 
             registry = AgentConfigRegistry()
             if registry.has_agent(agent_id):
                 config = registry.get_agent(agent_id).deepseek
-                if not config.enabled:
-                    return "lean"
                 return config.injection_strategy
         except Exception:
             pass
@@ -66,9 +108,13 @@ class DeepSeekOptimizer:
         segments: list[ContextSegment],
         model_context_window: int = 128000,
         reserved_output_tokens: int = 4096,
+        model_id: str = "",
     ) -> list[ContextSegment]:
-        """根据注入策略优化上下文段列表，返回截断后的段列表。"""
-        strategy = self.select_strategy(agent_id, model_context_window)
+        """根据注入策略优化上下文段列表，返回截断后的段列表。
+
+        非 DeepSeek 模型或 deepseek.enabled=false 时使用 lean 策略。
+        """
+        strategy = self.select_strategy(agent_id, model_context_window, model_id)
 
         if strategy == "full":
             return self._full_injection(agent_id, segments, model_context_window, reserved_output_tokens)
