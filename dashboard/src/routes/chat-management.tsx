@@ -54,9 +54,7 @@ import { AgentSelectPopover } from '@/components/agent/AgentSelectPopover'
 import { getAgentList, type AgentConfigInfo } from '@/lib/agent-api'
 import { bindSessionAgent } from '@/lib/agent-api'
 import {
-import { AgentSelectPopover } from '@/components/agent/AgentSelectPopover'
-import { bindSessionAgent } from '@/lib/agent-api'
-import {
+
   deleteChatStream,
   deleteChatStreamPrompt,
   deleteChatStreamTalkFrequency,
