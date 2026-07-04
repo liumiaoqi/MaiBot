@@ -1,0 +1,222 @@
+/**
+ * 智能体管理 API
+ *
+ * 请求样板（认证、解析、错误格式化）由 @/lib/http 的请求客户端承担；
+ * 本文件只声明 endpoint、业务错误文案与响应体 success 标记的解包规则。
+ */
+import { ApiError, backendApi, requireSuccess } from '@/lib/http'
+
+const API_BASE = '/api/webui/agent'
+
+export interface InternalRelationship {
+  target_agent_id: string
+  relationship_type: string
+  attitude: string
+  interaction_style: string
+  mention_tendency: number
+  anti_mechanization: string
+}
+
+export interface AgentConfigInfo {
+  agent_id: string
+  display_name: string
+  personality: string
+  reply_style: string
+  is_default: boolean
+  color: string
+  emotion_baseline: Record<string, number>
+  emotion_decay_rate: number
+  relationship_growth_rate: number
+  talk_value_modifier: number
+  idle_backoff_modifier: number
+  memory_focus_areas: string[]
+  internal_relationships: InternalRelationship[]
+  anti_mechanization_rules: string[]
+}
+
+export interface EmotionStateInfo {
+  agent_id: string
+  emotions: Record<string, number>
+  dominant_emotion: string
+  dominant_emotion_label: string
+  emotion_labels: Record<string, string>
+}
+
+export interface RelationshipInfo {
+  user_id: string
+  level: number
+  level_name: string
+  score: number
+  total_interactions: number
+}
+
+export interface SessionAgentInfo {
+  session_id: string
+  display_name: string
+  agent_id: string
+  agent_display_name: string
+}
+
+interface AgentListResponse {
+  success: boolean
+  total: number
+  data: AgentConfigInfo[]
+}
+
+interface AgentDetailResponse {
+  success: boolean
+  data: AgentConfigInfo
+}
+
+interface EmotionStateResponse {
+  success: boolean
+  agent_id: string
+  emotions: Record<string, number>
+  dominant_emotion: string
+  dominant_emotion_label: string
+  emotion_labels: Record<string, string>
+}
+
+interface RelationshipSummaryResponse {
+  success: boolean
+  agent_id: string
+  relationships: RelationshipInfo[]
+}
+
+interface SessionBindingResponse {
+  success: boolean
+  session_id: string
+  agent_id: string | null
+  display_name: string | null
+}
+
+interface GroupBindingResponse {
+  success: boolean
+  group_id: string
+  agent_id: string
+  display_name: string | null
+}
+
+interface GroupBindingsListResponse {
+  success: boolean
+  bindings: Record<string, string>
+}
+
+interface SessionsByAgentResponse {
+  success: boolean
+  agent_id: string
+  sessions: SessionAgentInfo[]
+}
+
+interface ReloadResponse {
+  success: boolean
+  message: string
+  total: number
+}
+
+export async function getAgentList(): Promise<AgentConfigInfo[]> {
+  const data = await backendApi.get<AgentListResponse>(`${API_BASE}/list`, {
+    errorMessage: '获取智能体列表失败',
+  })
+  const checked = requireSuccess(data, '获取智能体列表失败')
+  return checked.data
+}
+
+export async function getAgentDetail(agentId: string): Promise<AgentConfigInfo> {
+  const data = await backendApi.get<AgentDetailResponse>(`${API_BASE}/${encodeURIComponent(agentId)}`, {
+    errorMessage: '获取智能体详情失败',
+  })
+  return requireSuccess(data, '获取智能体详情失败').data
+}
+
+export async function getAgentEmotion(agentId: string): Promise<EmotionStateInfo> {
+  const data = await backendApi.get<EmotionStateResponse>(`${API_BASE}/emotion/${encodeURIComponent(agentId)}`, {
+    errorMessage: '获取智能体情绪状态失败',
+  })
+  const checked = requireSuccess(data, '获取智能体情绪状态失败')
+  return {
+    agent_id: checked.agent_id,
+    emotions: checked.emotions,
+    dominant_emotion: checked.dominant_emotion,
+    dominant_emotion_label: checked.dominant_emotion_label,
+    emotion_labels: checked.emotion_labels,
+  }
+}
+
+export async function getAgentRelationships(agentId: string): Promise<RelationshipInfo[]> {
+  const data = await backendApi.get<RelationshipSummaryResponse>(
+    `${API_BASE}/relationship/${encodeURIComponent(agentId)}`,
+    { errorMessage: '获取智能体关系概览失败' }
+  )
+  const checked = requireSuccess(data, '获取智能体关系概览失败')
+  return checked.relationships
+}
+
+export async function getSessionBinding(sessionId: string): Promise<SessionBindingResponse> {
+  const data = await backendApi.get<SessionBindingResponse>(
+    `${API_BASE}/binding/session/${encodeURIComponent(sessionId)}`,
+    { errorMessage: '获取会话绑定失败' }
+  )
+  return requireSuccess(data, '获取会话绑定失败')
+}
+
+export async function bindSessionAgent(
+  sessionId: string,
+  agentId: string
+): Promise<SessionBindingResponse> {
+  const data = await backendApi.put<SessionBindingResponse>(
+    `${API_BASE}/binding/session/${encodeURIComponent(sessionId)}`,
+    { body: { agent_id: agentId }, errorMessage: '绑定会话智能体失败' }
+  )
+  return requireSuccess(data, '绑定会话智能体失败')
+}
+
+export async function unbindSessionAgent(sessionId: string): Promise<void> {
+  const data = await backendApi.delete<SessionBindingResponse>(
+    `${API_BASE}/binding/session/${encodeURIComponent(sessionId)}`,
+    { errorMessage: '解除会话绑定失败' }
+  )
+  requireSuccess(data, '解除会话绑定失败')
+}
+
+export async function getGroupBindings(): Promise<Record<string, string>> {
+  const data = await backendApi.get<GroupBindingsListResponse>(`${API_BASE}/binding/group`, {
+    errorMessage: '获取群绑定列表失败',
+  })
+  return requireSuccess(data, '获取群绑定列表失败').bindings
+}
+
+export async function bindGroupAgent(
+  groupId: string,
+  agentId: string
+): Promise<GroupBindingResponse> {
+  const data = await backendApi.put<GroupBindingResponse>(`${API_BASE}/binding/group`, {
+    body: { group_id: groupId, agent_id: agentId },
+    errorMessage: '绑定群智能体失败',
+  })
+  return requireSuccess(data, '绑定群智能体失败')
+}
+
+export async function unbindGroupAgent(groupId: string): Promise<void> {
+  const data = await backendApi.delete<GroupBindingResponse>(
+    `${API_BASE}/binding/group/${encodeURIComponent(groupId)}`,
+    { errorMessage: '解除群绑定失败' }
+  )
+  requireSuccess(data, '解除群绑定失败')
+}
+
+export async function getSessionsByAgent(agentId: string): Promise<SessionAgentInfo[]> {
+  const data = await backendApi.get<SessionsByAgentResponse>(
+    `${API_BASE}/sessions/${encodeURIComponent(agentId)}`,
+    { errorMessage: '获取智能体会话列表失败' }
+  )
+  return requireSuccess(data, '获取智能体会话列表失败').sessions
+}
+
+export async function reloadAgents(): Promise<{ message: string; total: number }> {
+  const data = await backendApi.post<ReloadResponse>(`${API_BASE}/reload`, {
+    errorMessage: '重新加载智能体配置失败',
+  })
+  const checked = requireSuccess(data, '重新加载智能体配置失败')
+  return { message: checked.message, total: checked.total }
+}
