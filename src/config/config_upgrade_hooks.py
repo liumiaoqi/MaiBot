@@ -401,6 +401,74 @@ def _first_existing_bool(item: dict[str, Any], keys: tuple[str, ...], default: b
     return default
 
 
+def _add_agent_section_config(data: dict[str, Any]) -> list[str]:
+    """8.15.0: 添加智能体配置段（agent section）。"""
+    if "agent" in data:
+        return []
+    changed = set_nested_config_value(
+        data,
+        ("agent", "default_agent_id"),
+        "silver_wolf",
+        force=False,
+    )
+    changed |= set_nested_config_value(
+        data,
+        ("agent", "agents_dir"),
+        "agents",
+        force=False,
+    )
+    return ["agent"] if changed else []
+
+
+def _add_subagent_section_config(data: dict[str, Any]) -> list[str]:
+    """8.17.0: 添加子智能体配置段（subagent section）。"""
+    if "subagent" in data:
+        return []
+    changed = set_nested_config_value(
+        data,
+        ("subagent", "dream_enabled"),
+        True,
+        force=False,
+    )
+    changed |= set_nested_config_value(
+        data,
+        ("subagent", "dream_interval_days"),
+        7,
+        force=False,
+    )
+    changed |= set_nested_config_value(
+        data,
+        ("subagent", "compaction_enabled"),
+        True,
+        force=False,
+    )
+    changed |= set_nested_config_value(
+        data,
+        ("subagent", "compaction_threshold_level_1"),
+        100,
+        force=False,
+    )
+    changed |= set_nested_config_value(
+        data,
+        ("subagent", "compaction_threshold_level_2"),
+        200,
+        force=False,
+    )
+    changed |= set_nested_config_value(
+        data,
+        ("subagent", "compaction_threshold_level_3"),
+        400,
+        force=False,
+    )
+    changed |= set_nested_config_value(
+        data,
+        ("subagent", "checkpoint_writer_enabled"),
+        False,
+        force=False,
+    )
+    return ["subagent"] if changed else []
+
+
 BOT_CONFIG_UPGRADE_HOOKS: tuple[ConfigUpgradeHook, ...] = (
     ConfigUpgradeHook(
         target_version="8.10.11",
@@ -436,6 +504,16 @@ BOT_CONFIG_UPGRADE_HOOKS: tuple[ConfigUpgradeHook, ...] = (
         target_version="8.14.19",
         config_names=("bot_config.toml",),
         migrate=_split_chat_config_sections,
+    ),
+    ConfigUpgradeHook(
+        target_version="8.15.0",
+        config_names=("bot_config.toml",),
+        migrate=_add_agent_section_config,
+    ),
+    ConfigUpgradeHook(
+        target_version="8.17.0",
+        config_names=("bot_config.toml",),
+        migrate=_add_subagent_section_config,
     ),
 )
 MODEL_CONFIG_UPGRADE_HOOKS: tuple[ConfigUpgradeHook, ...] = ()
