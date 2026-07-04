@@ -1,4 +1,4 @@
-﻿from datetime import datetime
+from datetime import datetime
 from typing import Any, Dict, List
 
 import base64
@@ -774,3 +774,66 @@ class RuntimeCoreCapabilityMixin:
             return {"success": True, "value": config}
         except Exception as exc:
             return {"success": False, "value": {}, "error": str(exc)}
+
+    async def _cap_agent_emotion_get(self, plugin_id: str, capability: str, args: Dict[str, Any]) -> Any:
+        """获取指定智能体的当前情绪快照。"""
+        del capability
+
+        agent_id = str(args.get("agent_id") or "").strip()
+        if not agent_id:
+            return {"success": False, "error": "缺少必要参数 agent_id"}
+
+        try:
+            from src.maisaka.agent.registry import AgentConfigRegistry
+
+            registry = AgentConfigRegistry()
+            if not registry.has_agent(agent_id):
+                return {"success": False, "error": f"未找到智能体: {agent_id}"}
+
+            config = registry.get_agent(agent_id)
+
+            from src.maisaka.agent.emotion import EmotionManager
+
+            em = EmotionManager(config)
+            state = em.get_current_state()
+
+            return {
+                "success": True,
+                "agent_id": agent_id,
+                "emotions": state.emotions,
+                "dominant_emotion": state.dominant_emotion,
+                "dominant_emotion_label": state.dominant_emotion_label,
+            }
+        except Exception as exc:
+            logger.error(f"[cap.agent.emotion.get] 执行失败: {exc}", exc_info=True)
+            return {"success": False, "error": str(exc)}
+
+    async def _cap_agent_relationship_get(self, plugin_id: str, capability: str, args: Dict[str, Any]) -> Any:
+        """获取指定智能体与指定用户的关系等级。"""
+        del capability
+
+        agent_id = str(args.get("agent_id") or "").strip()
+        user_id = str(args.get("user_id") or "").strip()
+        if not agent_id:
+            return {"success": False, "error": "缺少必要参数 agent_id"}
+        if not user_id:
+            return {"success": False, "error": "缺少必要参数 user_id"}
+
+        try:
+            from src.maisaka.relationship.manager import RelationshipManager
+            from src.maisaka.relationship.level import RelationshipLevel
+
+            mgr = RelationshipManager()
+            snapshot = mgr.evaluate(agent_id, user_id, interaction_score=0.0)
+
+            return {
+                "success": True,
+                "agent_id": agent_id,
+                "user_id": user_id,
+                "level": snapshot.level,
+                "level_name": RelationshipLevel.get_name(snapshot.level),
+                "score": snapshot.score,
+            }
+        except Exception as exc:
+            logger.error(f"[cap.agent.relationship.get] 执行失败: {exc}", exc_info=True)
+            return {"success": False, "error": str(exc)}
