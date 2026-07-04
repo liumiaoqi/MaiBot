@@ -1238,10 +1238,27 @@
       "relationshipCount": "{{count}} 条关系"
     },
     "constellation": {
-      "title": "智能体星图"
+      "title": "智能体星图",
+      "noRelationships": "暂无内部关系数据",
+      "mention": {
+        "close": "紧密",
+        "moderate": "一般",
+        "distant": "疏远"
+      },
+      "tooltip": {
+        "relationshipType": "关系类型",
+        "attitude": "态度",
+        "interactionStyle": "互动风格"
+      }
     },
     "globalSituation": {
-      "title": "全局态势感知"
+      "title": "全局态势感知",
+      "stats": "群体概览",
+      "emotionDistribution": "群体情绪分布",
+      "activityHeatmap": "活跃度热力图",
+      "relationshipDynamics": "关系动态流",
+      "noChanges": "近期关系平稳，无显著变化",
+      "nearBreakthrough": "即将突破"
     },
     "innerWorld": {
       "back": "返回",

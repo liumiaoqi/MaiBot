@@ -13,9 +13,12 @@ import { useAgentNavigation } from '../hooks/useAgentNavigation'
 import { useBatchAgentData } from '../hooks/useBatchAgentData'
 import { useViewSwitch } from '../hooks/useViewSwitch'
 import { deriveVitalSignsData } from '../utils/vital-signs'
+import { deriveConstellationData } from '../utils/constellation'
 import { VitalSignsCard } from './VitalSignsCard'
 import { ViewSwitcher } from './ViewSwitcher'
 import { InnerWorldView } from './inner-world/InnerWorldView'
+import { AgentConstellation } from './constellation/AgentConstellation'
+import { GlobalSituationView } from './global-situation/GlobalSituationView'
 
 export function CommandCenterLayout() {
   const { t } = useTranslation()
@@ -45,6 +48,11 @@ export function CommandCenterLayout() {
         return vs.agentId.toLowerCase().includes(q) || vs.displayName.toLowerCase().includes(q)
       })
   }, [agents, emotions, relationships, sessionCounts, latestSubAgentRecords, searchQuery])
+
+  const constellationData = useMemo(() =>
+    deriveConstellationData(agents, emotions, sessionCounts),
+    [agents, emotions, sessionCounts]
+  )
 
   return (
     <div className="flex flex-col h-full">
@@ -100,23 +108,16 @@ export function CommandCenterLayout() {
       )}
 
       {currentView === 'constellation' && (
-        <div className="flex-1 flex items-center justify-center text-muted-foreground">
-          <div className="text-center">
-            <span className="text-4xl block mb-2">🌌</span>
-            <p>{t('agent.constellation.title')}</p>
-            <p className="text-xs mt-1">Phase 3</p>
-          </div>
-        </div>
+        <AgentConstellation
+          data={constellationData}
+          selectedAgentId={selectedAgentId}
+          onNodeClick={(id) => setSelectedAgentId(id)}
+          onNodeDoubleClick={(id) => setSelectedAgentId(id)}
+        />
       )}
 
       {currentView === 'global' && (
-        <div className="flex-1 flex items-center justify-center text-muted-foreground">
-          <div className="text-center">
-            <span className="text-4xl block mb-2">🌍</span>
-            <p>{t('agent.globalSituation.title')}</p>
-            <p className="text-xs mt-1">Phase 3</p>
-          </div>
-        </div>
+        <GlobalSituationView />
       )}
 
       <AnimatePresence>
