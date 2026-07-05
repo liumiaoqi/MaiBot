@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Heart, Link2, Leaf, Clock, Users, MessageCircle } from 'lucide-react'
+import { Activity, Heart, Link2, Leaf, Clock, Users, MessageCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 
@@ -22,6 +22,7 @@ import { CollapsedParameters } from './CollapsedParameters'
 import { UnbindConfirmDialog } from './UnbindConfirmDialog'
 import { BindSessionDialog } from './BindSessionDialog'
 import { MonologuePanel } from './MonologuePanel'
+import { AutonomyLogPanel } from '../AutonomyLogPanel'
 
 interface InnerWorldViewProps {
   agentId: string
@@ -127,6 +128,10 @@ export function InnerWorldView({ agentId, onBack }: InnerWorldViewProps) {
                 <MessageCircle className="h-3.5 w-3.5 mr-1" />
                 {t('agent.monologue.panel.title')}
               </TabsTrigger>
+              <TabsTrigger value="autonomy">
+                <Activity className="h-3.5 w-3.5 mr-1" />
+                {t('agent.innerWorld.subView.autonomy')}
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="emotion">
@@ -177,6 +182,10 @@ export function InnerWorldView({ agentId, onBack }: InnerWorldViewProps) {
 
             <TabsContent value="monologue">
               <MonologuePanel agentId={agentId} />
+            </TabsContent>
+
+            <TabsContent value="autonomy">
+              <AutonomyLogPanel agentId={agentId} />
             </TabsContent>
           </Tabs>
 
