@@ -155,6 +155,23 @@ class InteractionEngine:
             except Exception as e:
                 logger.debug("[agent_interaction] 回声检测异常，静默截断: %s", e)
 
+            # 非阻塞：发布交互信号到自主性架构
+            try:
+                from src.maisaka.agent_autonomy.event_bus import AutonomyEventBus, InteractionSignalEvent
+
+                signal = InteractionSignalEvent(
+                    initiator_agent_id=initiator_id,
+                    target_agent_id=target_id,
+                    interaction_type=evaluation.interaction_type,
+                    trigger_reason=evaluation.trigger_reason,
+                    emotion_effects=emotion_effects,
+                    relationship_effect=effect.relationship_delta,
+                    event_id=event_id,
+                )
+                AutonomyEventBus.get_instance().emit_sync("interaction_signal", signal)
+            except Exception:
+                pass
+
             return result
 
         except Exception as e:

@@ -612,3 +612,154 @@ export async function getInteractionHotspots(): Promise<{ pair: string; count: n
   )
   return data.hotspots ?? []
 }
+
+// ========== 智能体自主性 API ==========
+
+export interface ActiveAgentItem {
+  agent_id: string
+  is_primary: boolean
+  activation_reason: string
+  activated_at: string | null
+  last_spoke_at: string | null
+}
+
+export interface BehaviorIntentItem {
+  intent_id: string
+  agent_id: string
+  intent_type: string
+  intent_strength: number
+  intent_source: string
+  source_description: string
+  status: string
+  created_at: string | null
+}
+
+export interface InterjectionEventItem {
+  event_id: string
+  agent_id: string
+  primary_agent_id: string
+  interjection_type: string
+  trigger_reason: string
+  intent_strength: number
+  content_summary: string
+  created_at: string | null
+}
+
+export interface SpeakerChangeItem {
+  record_id: string
+  from_agent_id: string
+  to_agent_id: string
+  change_type: string
+  change_reason: string
+  created_at: string | null
+}
+
+interface ActiveAgentsResponse {
+  success: boolean
+  session_id: string
+  data: ActiveAgentItem[]
+}
+
+interface PrimaryAgentResponse {
+  success: boolean
+  session_id: string
+  agent_id: string | null
+  activation_reason: string
+  activated_at: string | null
+}
+
+interface SwitchSpeakerResponse {
+  success: boolean
+  session_id: string
+  from_agent_id: string
+  to_agent_id: string
+}
+
+interface TriggerInterjectionResponse {
+  success: boolean
+  session_id: string
+  agent_id: string
+  error: string
+}
+
+interface BehaviorIntentsResponse {
+  success: boolean
+  session_id: string
+  data: BehaviorIntentItem[]
+}
+
+interface InterjectionEventsResponse {
+  success: boolean
+  session_id: string
+  data: InterjectionEventItem[]
+}
+
+interface SpeakerChangesResponse {
+  success: boolean
+  session_id: string
+  data: SpeakerChangeItem[]
+}
+
+export async function getActiveAgents(sessionId: string): Promise<ActiveAgentItem[]> {
+  const data = await backendApi.get<ActiveAgentsResponse>(
+    `${API_BASE}/autonomy/active/${encodeURIComponent(sessionId)}`,
+    { errorMessage: '获取活跃智能体列表失败' }
+  )
+  return requireSuccess(data, '获取活跃智能体列表失败').data
+}
+
+export async function getPrimaryAgent(sessionId: string): Promise<PrimaryAgentResponse> {
+  const data = await backendApi.get<PrimaryAgentResponse>(
+    `${API_BASE}/autonomy/primary/${encodeURIComponent(sessionId)}`,
+    { errorMessage: '获取主发言智能体失败' }
+  )
+  return requireSuccess(data, '获取主发言智能体失败')
+}
+
+export async function switchSpeaker(
+  sessionId: string,
+  targetAgentId: string,
+  reason = 'manual_switch'
+): Promise<SwitchSpeakerResponse> {
+  const data = await backendApi.post<SwitchSpeakerResponse>(
+    `${API_BASE}/autonomy/switch-speaker`,
+    { body: { session_id: sessionId, target_agent_id: targetAgentId, reason }, errorMessage: '切换主发言智能体失败' }
+  )
+  return data
+}
+
+export async function triggerInterjection(
+  sessionId: string,
+  agentId: string,
+  reason = 'manual_trigger'
+): Promise<TriggerInterjectionResponse> {
+  const data = await backendApi.post<TriggerInterjectionResponse>(
+    `${API_BASE}/autonomy/trigger-interjection`,
+    { body: { session_id: sessionId, agent_id: agentId, reason }, errorMessage: '手动触发插话失败' }
+  )
+  return data
+}
+
+export async function getBehaviorIntents(sessionId: string, limit = 50): Promise<BehaviorIntentItem[]> {
+  const data = await backendApi.get<BehaviorIntentsResponse>(
+    `${API_BASE}/autonomy/intents/${encodeURIComponent(sessionId)}?limit=${limit}`,
+    { errorMessage: '获取行为意图列表失败' }
+  )
+  return requireSuccess(data, '获取行为意图列表失败').data
+}
+
+export async function getInterjectionEvents(sessionId: string, limit = 50): Promise<InterjectionEventItem[]> {
+  const data = await backendApi.get<InterjectionEventsResponse>(
+    `${API_BASE}/autonomy/interjection-events/${encodeURIComponent(sessionId)}?limit=${limit}`,
+    { errorMessage: '获取插话事件列表失败' }
+  )
+  return requireSuccess(data, '获取插话事件列表失败').data
+}
+
+export async function getSpeakerChanges(sessionId: string, limit = 50): Promise<SpeakerChangeItem[]> {
+  const data = await backendApi.get<SpeakerChangesResponse>(
+    `${API_BASE}/autonomy/speaker-changes/${encodeURIComponent(sessionId)}?limit=${limit}`,
+    { errorMessage: '获取发言权变更记录失败' }
+  )
+  return requireSuccess(data, '获取发言权变更记录失败').data
+}

@@ -8,6 +8,7 @@ from src.maisaka.agent_autonomy.inner_need import InnerNeed, InnerNeedEngine, Ba
 from src.maisaka.agent_autonomy.behavior_intent import BehaviorIntent, BehaviorIntentEngine, BaseIntentSource
 from src.maisaka.agent_autonomy.interjection_cooldown import InterjectionCooldownManager
 from src.maisaka.agent_autonomy.interjection_scheduler import InterjectionScheduler
+from src.maisaka.agent_autonomy.event_bus import AutonomyEventBus, InteractionSignalEvent, InterjectionMentionEvent
 
 __all__ = [
     "AutonomousAgent",
@@ -24,4 +25,7 @@ __all__ = [
     "BaseIntentSource",
     "InterjectionCooldownManager",
     "InterjectionScheduler",
+    "AutonomyEventBus",
+    "InteractionSignalEvent",
+    "InterjectionMentionEvent",
 ]
