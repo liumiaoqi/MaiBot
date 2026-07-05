@@ -11,6 +11,7 @@ from src.maisaka.agent_autonomy.behavior_intent import BehaviorIntent
 from src.maisaka.agent_autonomy.event_bus import AutonomyEventBus, InteractionSignalEvent, InterjectionMentionEvent
 from src.maisaka.agent_autonomy.interjection_cooldown import InterjectionCooldownManager
 from src.maisaka.agent_autonomy.interjection_scheduler import InterjectionScheduler
+from src.maisaka.agent_autonomy.orchestrator_strategy import BaseOrchestratorStrategy, DefaultOrchestratorStrategy, create_strategy
 from src.maisaka.agent_autonomy.bridge.chat_loop_adapter import ChatLoopServiceAdapter
 
 logger = get_logger("agent_autonomy.orchestrator")
@@ -48,6 +49,23 @@ class AgentOrchestrator:
 
         # 待处理的行为意图：agent_id -> list[BehaviorIntent]
         self._pending_intents: dict[str, list[BehaviorIntent]] = {}
+
+        # 编排策略
+        strategy_name = getattr(self._config, "orchestrator_strategy", "default")
+        try:
+            self._strategy: BaseOrchestratorStrategy = create_strategy(strategy_name)
+        except ValueError:
+            logger.warning(
+                f"[agent_autonomy] 未知编排策略: {strategy_name}，使用默认策略"
+            )
+            self._strategy = DefaultOrchestratorStrategy()
+
+        # 上下文切换缓存：agent_id -> prompt_context
+        self._context_cache: dict[str, dict[str, str]] = {}
+
+        # 并发控制
+        max_concurrent = self._strategy.get_max_concurrent_interjections()
+        self._interjection_semaphore = asyncio.Semaphore(max_concurrent)
 
         # 订阅交互信号事件
         self._subscribe_events()
@@ -381,15 +399,20 @@ class AgentOrchestrator:
             )
 
     async def _collect_behavior_intents(self) -> None:
-        """收集活跃智能体（排除主发言）的行为意图。"""
+        """并行收集活跃智能体（排除主发言）的行为意图。"""
+        tasks: list[tuple[str, asyncio.Task]] = []
         for agent_id, agent in list(self._active_agents.items()):
             if agent_id == self._primary_agent_id:
                 continue
-
-            try:
-                intents = await agent.produce_behavior_intents(
+            tasks.append((agent_id, asyncio.create_task(
+                agent.produce_behavior_intents(
                     intent_threshold=self._config.interjection_intent_threshold,
                 )
+            )))
+
+        for agent_id, task in tasks:
+            try:
+                intents = await task
                 for intent in intents:
                     self.report_intent(agent_id, intent)
                     self._persist_behavior_intent(agent_id, intent)
@@ -400,7 +423,7 @@ class AgentOrchestrator:
                 )
 
     async def _schedule_interjections(self) -> None:
-        """基于行为意图调度插话。"""
+        """基于行为意图调度插话（使用可配置策略）。"""
         # 收集所有待处理意图
         all_intents: list[tuple[str, BehaviorIntent]] = []
         for agent_id, intents in self._pending_intents.items():
@@ -410,50 +433,51 @@ class AgentOrchestrator:
         if not all_intents:
             return
 
-        # 调度
+        # 使用策略调度
         active_ids = list(self._active_agents.keys())
         primary_id = self._primary_agent_id or ""
 
-        scheduled = self._interjection_scheduler.schedule_with_session(
+        decisions = self._strategy.schedule_interjections(
             pending_intents=all_intents,
             active_agent_ids=active_ids,
             primary_agent_id=primary_id,
             session_id=self._session_id,
+            cooldown_manager=self._cooldown_manager,
         )
 
-        # 执行调度
-        for item in scheduled:
-            if not item.scheduled:
+        # 执行调度决策
+        for decision in decisions:
+            if not decision.scheduled:
                 logger.debug(
-                    f"[agent_autonomy] 插话跳过: agent={item.agent_id} "
-                    f"reason={item.skip_reason}"
+                    f"[agent_autonomy] 插话跳过: agent={decision.agent_id} "
+                    f"reason={decision.skip_reason}"
                 )
                 continue
 
             logger.info(
-                f"[agent_autonomy] agent={item.agent_id} type=interjection "
-                f"reason={item.intent.source_description} "
-                f"strength={item.intent.intent_strength:.1f} "
+                f"[agent_autonomy] agent={decision.agent_id} type=interjection "
+                f"reason={decision.intent.source_description} "
+                f"strength={decision.intent.intent_strength:.1f} "
                 f"session={self._session_name}"
             )
 
             # 记录插话冷却
-            self._cooldown_manager.record_interjection(self._session_id, item.agent_id)
+            self._cooldown_manager.record_interjection(self._session_id, decision.agent_id)
 
             # 持久化插话事件
-            event_id = f"ij:{item.agent_id}:{format(int(time.time()), 'x')}:{format(hash(item.intent), 'x')[:6]}"
+            event_id = f"ij:{decision.agent_id}:{format(int(time.time()), 'x')}:{format(hash(decision.intent), 'x')[:6]}"
             self._activity_store.save_interjection_event(
                 event_id=event_id,
-                agent_id=item.agent_id,
+                agent_id=decision.agent_id,
                 session_id=self._session_id,
                 primary_agent_id=primary_id,
-                interjection_type=item.intent.intent_source,
-                trigger_reason=item.intent.source_description,
-                intent_strength=item.intent.intent_strength,
+                interjection_type=decision.intent.intent_source,
+                trigger_reason=decision.intent.source_description,
+                intent_strength=decision.intent.intent_strength,
             )
 
             # 插话反哺：检查插话内容是否提及其他智能体
-            self._check_interjection_mention(item.agent_id, item.intent.source_description)
+            self._check_interjection_mention(decision.agent_id, decision.intent.source_description)
 
         # 清空已处理的意图
         self._pending_intents.clear()
@@ -516,3 +540,48 @@ class AgentOrchestrator:
             asyncio.get_event_loop().create_task(
                 self.deactivate_agent(agent_id, "timeout")
             )
+
+    def get_cached_context(self, agent_id: str) -> dict[str, str] | None:
+        """获取智能体的缓存提示词上下文。"""
+        return self._context_cache.get(agent_id)
+
+    def update_cached_context(self, agent_id: str, context: dict[str, str]) -> None:
+        """更新智能体的缓存提示词上下文。"""
+        self._context_cache[agent_id] = context
+
+    def invalidate_cached_context(self, agent_id: str) -> None:
+        """使智能体的缓存提示词上下文失效。"""
+        self._context_cache.pop(agent_id, None)
+
+    def cleanup_expired_intents(self) -> int:
+        """清理过期的行为意图记录。"""
+        now = datetime.now()
+        cleaned = 0
+        try:
+            from src.common.database.database import get_db_session
+            from src.common.database.database_model import AgentAutonomyBehaviorIntent
+
+            with get_db_session() as session:
+                expired = (
+                    session.query(AgentAutonomyBehaviorIntent)
+                    .filter(
+                        AgentAutonomyBehaviorIntent.expired_at.isnot(None),
+                        AgentAutonomyBehaviorIntent.expired_at < now,
+                        AgentAutonomyBehaviorIntent.status == "pending",
+                    )
+                    .all()
+                )
+                for intent in expired:
+                    intent.status = "expired"
+                    cleaned += 1
+                if cleaned > 0:
+                    session.commit()
+        except Exception as exc:
+            logger.warning(f"[agent_autonomy] 清理过期意图异常: error={exc}")
+
+        if cleaned > 0:
+            logger.debug(
+                f"[agent_autonomy] 清理过期行为意图: count={cleaned} "
+                f"session={self._session_name}"
+            )
+        return cleaned
