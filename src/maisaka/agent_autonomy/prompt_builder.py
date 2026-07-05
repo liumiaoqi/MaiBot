@@ -1,7 +1,7 @@
 from typing import Any, Callable
 
 from src.common.logger import get_logger
-from src.common.prompt import load_prompt
+from src.common.prompt_i18n import load_prompt
 from src.config.config import global_config
 
 logger = get_logger("agent_autonomy.prompt_builder")
