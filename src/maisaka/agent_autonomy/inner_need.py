@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from src.common.logger import get_logger
+from src.maisaka.agent_autonomy.autonomy_logger import AutonomyEventType, AutonomyLogger
 
 logger = get_logger("agent_autonomy.inner_need")
 
@@ -178,6 +179,7 @@ class InnerNeedEngine:
 
     def __init__(self) -> None:
         self._calculators: dict[str, BaseNeedCalculator] = {}
+        self._autonomy_logger = AutonomyLogger.get()
 
     def register_calculator(self, need_type: str, calculator: BaseNeedCalculator) -> None:
         """注册内在需求计算器。"""
@@ -210,4 +212,16 @@ class InnerNeedEngine:
 
         valid_needs = [n for n in all_needs if n.is_valid()]
         valid_needs.sort(key=lambda n: n.strength, reverse=True)
+
+        if valid_needs:
+            need_summary = ", ".join(
+                f"{n.need_type}({n.strength:.0f})" for n in valid_needs[:3]
+            )
+            self._autonomy_logger.log(
+                agent_id,
+                AutonomyEventType.INNER_NEED,
+                f"评估结果: {need_summary}",
+                level="debug",
+            )
+
         return valid_needs

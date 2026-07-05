@@ -1437,6 +1437,19 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
                 f"embodied={autonomy_config.embodied_planner_enabled} "
                 f"orchestrator=True"
             )
+
+            # 尝试恢复该会话的已有智能体关联
+            try:
+                from src.maisaka.agent_autonomy.session_recovery import SessionRecoveryService
+
+                recovery = SessionRecoveryService()
+                import asyncio
+                asyncio.create_task(recovery.recover_all(self._chat_manager))
+            except Exception as recovery_exc:
+                logger.debug(
+                    f"[agent_autonomy] 会话恢复跳过: {recovery_exc}"
+                )
+
         except Exception as exc:
             logger.warning(f"[agent_autonomy] 自主性架构初始化失败，将使用默认模式: {exc}")
 

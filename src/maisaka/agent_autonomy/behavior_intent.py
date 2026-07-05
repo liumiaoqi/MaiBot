@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from src.common.logger import get_logger
+from src.maisaka.agent_autonomy.autonomy_logger import AutonomyEventType, AutonomyLogger
 from src.maisaka.agent_autonomy.inner_need import InnerNeed, InnerNeedEngine
 
 logger = get_logger("agent_autonomy.behavior_intent")
@@ -247,6 +248,7 @@ class BehaviorIntentEngine:
         self._inner_need_engine = inner_need_engine
         self._sources: dict[str, BaseIntentSource] = {}
         self._intent_types: set[str] = set(self.BUILTIN_INTENT_TYPES)
+        self._autonomy_logger = AutonomyLogger.get()
 
     def register_source(self, source_type: str, source: BaseIntentSource) -> None:
         """注册行为意图来源。"""
@@ -318,6 +320,16 @@ class BehaviorIntentEngine:
             logger.debug(
                 f"[agent_autonomy] agent={agent_id} intent={intent.intent_type} "
                 f"strength={intent.intent_strength:.1f} source={intent.intent_source}"
+            )
+
+        if result:
+            intent_summary = ", ".join(
+                f"{i.intent_type}({i.intent_strength:.1f})" for i in result[:3]
+            )
+            self._autonomy_logger.log(
+                agent_id,
+                AutonomyEventType.BEHAVIOR_INTENT,
+                f"产生意图: {intent_summary}",
             )
 
         return result

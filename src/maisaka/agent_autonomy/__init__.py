@@ -4,6 +4,8 @@ from src.maisaka.agent_autonomy.prompt_builder import EmbodiedPlannerPromptBuild
 from src.maisaka.agent_autonomy.expression_organ import ExpressionOrgan
 from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
 from src.maisaka.agent_autonomy.activity_store import AgentActivityStore
+from src.maisaka.agent_autonomy.autonomy_logger import AutonomyLogger, AutonomyEventType, AutonomyEventSubscriber
+from src.maisaka.agent_autonomy.session_recovery import SessionRecoveryService
 from src.maisaka.agent_autonomy.inner_need import InnerNeed, InnerNeedEngine, BaseNeedCalculator
 from src.maisaka.agent_autonomy.behavior_intent import BehaviorIntent, BehaviorIntentEngine, BaseIntentSource
 from src.maisaka.agent_autonomy.interjection_cooldown import InterjectionCooldownManager
@@ -26,6 +28,10 @@ __all__ = [
     "ExpressionOrgan",
     "AgentOrchestrator",
     "AgentActivityStore",
+    "AutonomyLogger",
+    "AutonomyEventType",
+    "AutonomyEventSubscriber",
+    "SessionRecoveryService",
     "InnerNeed",
     "InnerNeedEngine",
     "BaseNeedCalculator",
