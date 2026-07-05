@@ -1242,16 +1242,34 @@
     "constellation": {
       "title": "Agent Constellation",
       "noRelationships": "No internal relationship data",
+      "dataIncomplete": "Not perceivable",
+      "legend": {
+        "active": "Active",
+        "quiet": "Quiet",
+        "dormant": "Dormant"
+      },
       "mention": {
         "close": "Close",
         "moderate": "Moderate",
-        "distant": "Distant"
+        "distant": "Distant",
+        "mentioned": "Mentioned",
+        "mentions": "Mentions",
+        "by": "Mentioned by {{name}}",
+        "of": "Mentions {{name}}"
       },
       "tooltip": {
         "relationshipType": "Relationship Type",
         "attitude": "Attitude",
-        "interactionStyle": "Interaction Style"
-      }
+        "interactionStyle": "Interaction Style",
+        "relationship": "Relationship",
+        "noData": "No relationship data",
+        "closeness": "Closeness",
+        "trust": "Trust",
+        "mentionCount": "Mention count"
+      },
+      "selectedAgent": "Selected: {{name}}",
+      "noSelection": "Click a node to view details",
+      "hoverHint": "Hover to view relationships"
     },
     "globalSituation": {
       "title": "Global Situation",

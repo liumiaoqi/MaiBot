@@ -1240,16 +1240,34 @@
     "constellation": {
       "title": "智能体星图",
       "noRelationships": "暂无内部关系数据",
+      "dataIncomplete": "暂不可感知",
+      "legend": {
+        "active": "活跃",
+        "quiet": "安静",
+        "dormant": "沉睡"
+      },
       "mention": {
         "close": "紧密",
         "moderate": "一般",
-        "distant": "疏远"
+        "distant": "疏远",
+        "mentioned": "被提及",
+        "mentions": "提及",
+        "by": "被 {{name}} 提及",
+        "of": "提及 {{name}}"
       },
       "tooltip": {
         "relationshipType": "关系类型",
         "attitude": "态度",
-        "interactionStyle": "互动风格"
-      }
+        "interactionStyle": "互动风格",
+        "relationship": "关系",
+        "noData": "暂无关系数据",
+        "closeness": "亲密度",
+        "trust": "信任度",
+        "mentionCount": "提及次数"
+      },
+      "selectedAgent": "已选择：{{name}}",
+      "noSelection": "点击节点查看详情",
+      "hoverHint": "悬停查看关系"
     },
     "globalSituation": {
       "title": "全局态势感知",
