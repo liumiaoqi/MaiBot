@@ -51,6 +51,8 @@ class BuiltinToolRuntimeContext:
     ) -> None:
         self.engine = engine
         self.runtime = runtime
+        self.current_agent_id: str = ""
+        self.is_multi_agent_active: bool = False
 
     @staticmethod
     def build_success_result(

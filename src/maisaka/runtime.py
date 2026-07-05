@@ -214,6 +214,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         # 智能体自主性架构
         self._autonomous_agent: Optional[object] = None
         self._chat_loop_adapter: Optional[object] = None
+        self._agent_orchestrator: Optional[object] = None
         self._init_agent_autonomy()
         self._monitor_visual_refresh_keys: set[tuple[str, str]] = set()
         self._tool_registry = ToolRegistry()
@@ -1414,6 +1415,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
 
             from src.maisaka.agent_autonomy.agent import AutonomousAgent
             from src.maisaka.agent_autonomy.bridge.chat_loop_adapter import ChatLoopServiceAdapter
+            from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
 
             self._autonomous_agent = AutonomousAgent(agent_id)
             self._chat_loop_adapter = ChatLoopServiceAdapter(self._chat_loop_service)
@@ -1422,9 +1424,18 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
                 self._chat_loop_service._use_embodied_prompt = True
                 self._chat_loop_adapter.switch_to_embodied_prompt()
 
+            # 创建 Orchestrator
+            session_name = getattr(self, "session_name", self.session_id)
+            self._agent_orchestrator = AgentOrchestrator(
+                session_id=self.session_id,
+                session_name=session_name,
+                chat_loop_adapter=self._chat_loop_adapter,
+            )
+
             logger.info(
                 f"[agent_autonomy] 自主性架构已启用: agent={agent_id} "
-                f"embodied={autonomy_config.embodied_planner_enabled}"
+                f"embodied={autonomy_config.embodied_planner_enabled} "
+                f"orchestrator=True"
             )
         except Exception as exc:
             logger.warning(f"[agent_autonomy] 自主性架构初始化失败，将使用默认模式: {exc}")

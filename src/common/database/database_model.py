@@ -629,3 +629,93 @@ class AgentInteractionRelationship(SQLModel, table=True):
     __table_args__ = (
         UniqueConstraint("agent_id", "target_agent_id", name="uq_agent_interaction_relationships_pair"),
     )
+
+
+class AgentAutonomyActivity(SQLModel, table=True):
+    """智能体自主性——活跃状态"""
+
+    __tablename__ = "agent_autonomy_activities"  # type: ignore
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    session_id: str = Field(index=True, max_length=255)
+    agent_id: str = Field(index=True, max_length=64)
+    is_primary: bool = Field(default=False)
+    activation_reason: str = Field(default="session_create", max_length=32)
+    activated_at: Optional[datetime] = Field(default_factory=datetime.now, sa_column=Column(DateTime, nullable=True))
+    last_spoke_at: Optional[datetime] = Field(default_factory=datetime.now, sa_column=Column(DateTime, nullable=True))
+    exit_reason: str = Field(default="", max_length=32)
+    exited_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime, nullable=True))
+
+    __table_args__ = (
+        Index("ix_agent_autonomy_activities_session", "session_id"),
+        Index("ix_agent_autonomy_activities_agent", "agent_id"),
+        Index("ix_agent_autonomy_activities_activated", "activated_at"),
+    )
+
+
+class AgentAutonomyBehaviorIntent(SQLModel, table=True):
+    """智能体自主性——行为意图记录"""
+
+    __tablename__ = "agent_autonomy_behavior_intents"  # type: ignore
+
+    intent_id: str = Field(primary_key=True, max_length=128)
+    agent_id: str = Field(index=True, max_length=64)
+    session_id: str = Field(index=True, max_length=255)
+    intent_type: str = Field(index=True, max_length=32)
+    intent_strength: float = Field(default=0.0)
+    intent_source: str = Field(index=True, max_length=32)
+    source_description: str = Field(default="", max_length=500)
+    status: str = Field(default="pending", max_length=16)
+    created_at: Optional[datetime] = Field(default_factory=datetime.now, sa_column=Column(DateTime, nullable=True))
+    dispatched_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime, nullable=True))
+    expired_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime, nullable=True))
+
+    __table_args__ = (
+        Index("ix_agent_autonomy_intents_agent_created", "agent_id", "created_at"),
+        Index("ix_agent_autonomy_intents_session_created", "session_id", "created_at"),
+        Index("ix_agent_autonomy_intents_type", "intent_type"),
+        Index("ix_agent_autonomy_intents_status", "status"),
+        Index("ix_agent_autonomy_intents_created", "created_at"),
+    )
+
+
+class AgentAutonomyInterjectionEvent(SQLModel, table=True):
+    """智能体自主性——插话事件"""
+
+    __tablename__ = "agent_autonomy_interjection_events"  # type: ignore
+
+    event_id: str = Field(primary_key=True, max_length=128)
+    agent_id: str = Field(index=True, max_length=64)
+    session_id: str = Field(index=True, max_length=255)
+    primary_agent_id: str = Field(default="", max_length=64)
+    interjection_type: str = Field(index=True, max_length=32)
+    trigger_reason: str = Field(default="", max_length=500)
+    intent_strength: float = Field(default=0.0)
+    content_summary: str = Field(default="", max_length=500)
+    created_at: Optional[datetime] = Field(default_factory=datetime.now, sa_column=Column(DateTime, nullable=True))
+
+    __table_args__ = (
+        Index("ix_agent_autonomy_ij_agent_created", "agent_id", "created_at"),
+        Index("ix_agent_autonomy_ij_session_created", "session_id", "created_at"),
+        Index("ix_agent_autonomy_ij_type", "interjection_type"),
+        Index("ix_agent_autonomy_ij_created", "created_at"),
+    )
+
+
+class AgentAutonomySpeakerChangeRecord(SQLModel, table=True):
+    """智能体自主性——发言权变更记录"""
+
+    __tablename__ = "agent_autonomy_speaker_change_records"  # type: ignore
+
+    record_id: str = Field(primary_key=True, max_length=128)
+    session_id: str = Field(index=True, max_length=255)
+    from_agent_id: str = Field(default="", max_length=64)
+    to_agent_id: str = Field(default="", max_length=64)
+    change_type: str = Field(default="session_create", max_length=32)
+    change_reason: str = Field(default="", max_length=500)
+    created_at: Optional[datetime] = Field(default_factory=datetime.now, sa_column=Column(DateTime, nullable=True))
+
+    __table_args__ = (
+        Index("ix_agent_autonomy_sc_session_created", "session_id", "created_at"),
+        Index("ix_agent_autonomy_sc_created", "created_at"),
+    )
