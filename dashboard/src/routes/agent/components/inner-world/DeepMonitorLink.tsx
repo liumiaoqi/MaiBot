@@ -1,5 +1,6 @@
 import { ExternalLink } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { Link } from '@tanstack/react-router'
 
 interface DeepMonitorLinkProps {
   agentId: string
@@ -16,15 +17,15 @@ export function DeepMonitorLink({ agentId, target }: DeepMonitorLinkProps) {
   const { t } = useTranslation()
 
   const route = TARGET_ROUTES[target]
-  const url = `${route}?agent=${encodeURIComponent(agentId)}`
 
   return (
-    <a
-      href={url}
+    <Link
+      to={route}
+      search={{ agent: agentId }}
       className="flex items-center gap-1.5 text-sm text-primary hover:underline mt-2"
     >
       <ExternalLink className="h-3.5 w-3.5" />
       {t('agent.emotionLandscape.deepMonitor')}
-    </a>
+    </Link>
   )
 }

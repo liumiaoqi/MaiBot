@@ -39,6 +39,7 @@ services:
       - ./prompts:/MaiMBot/prompts # 提示词目录（宿主机修改即时生效，无需重建镜像）
       - ./agents:/MaiMBot/agents # 智能体配置目录（Markdown Frontmatter格式）
 
+      - ./pyproject.toml:/MaiMBot/pyproject.toml:ro # 主程序版本号（宿主机更新即时反映）
       - ./bot.py:/MaiMBot/bot.py:ro # 主入口脚本
       - ./dashboard/dist:/MaiMBot/dashboard/dist:ro # WebUI构建产物（宿主机npm run build后即时生效）
       - site-packages:/MaiMBot/.venv # 持久化Python包（含插件依赖），镜像更新不丢失

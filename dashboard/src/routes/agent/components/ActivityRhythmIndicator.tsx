@@ -20,13 +20,15 @@ export function ActivityRhythmIndicator({ data }: ActivityRhythmIndicatorProps) 
   const isActive = data.status === 'active'
   const isQuiet = data.status === 'quiet'
 
+  const isDormant = data.status === 'dormant'
+
   const spring = useSpring({
-    from: { opacity: isActive ? 0.4 : isQuiet ? 0.2 : 0.6 },
-    to: { opacity: isActive ? 1.0 : isQuiet ? 0.5 : 0.6 },
-    loop: isActive || isQuiet,
+    from: { opacity: isDormant ? 1.0 : isActive ? 0.4 : 0.2 },
+    to: { opacity: isDormant ? 1.0 : isActive ? 1.0 : 0.5 },
+    loop: !isDormant && (isActive || isQuiet),
     config: { duration: isActive ? 1500 : 2500 },
-    reverse: isActive || isQuiet,
-    immediate: data.status === 'dormant',
+    reverse: !isDormant && (isActive || isQuiet),
+    immediate: isDormant,
   })
 
   return (

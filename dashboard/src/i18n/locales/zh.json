@@ -1258,7 +1258,18 @@
       "activityHeatmap": "活跃度热力图",
       "relationshipDynamics": "关系动态流",
       "noChanges": "近期关系平稳，无显著变化",
-      "nearBreakthrough": "即将突破"
+      "nearBreakthrough": "即将突破",
+      "statsDetail": {
+        "totalAgents": "{{count}} 个生命体",
+        "activeAgents": "{{count}} 个活跃",
+        "totalRelationships": "{{count}} 条纽带",
+        "avgScore": "均温 {{score}}"
+      },
+      "heatmapLegend": {
+        "active": "活跃",
+        "quiet": "安静",
+        "dormant": "沉睡"
+      }
     },
     "innerWorld": {
       "back": "返回",
@@ -1306,7 +1317,8 @@
       "relationshipBreakthrough": "关系突破",
       "memoryMilestone": "{{type}}完成",
       "noEvents": "暂无近期事件",
-      "relationshipWarmUp": "与{{user}}的关系正在升温"
+      "relationshipWarmUp": "与{{user}}的关系正在升温",
+      "currentStatus": "当前状态"
     },
     "lifeDefense": {
       "title": "生命防线",
@@ -1324,6 +1336,16 @@
       "bindSession": "绑定会话",
       "unbind": "解绑",
       "unbindConfirm": "确认解绑？",
+      "unbindConfirmDesc": "即将解除与「{{name}}」的绑定，解绑后该会话将不再由此智能体回应。",
+      "unbindFailed": "解除绑定失败",
+      "bindFailed": "绑定失败",
+      "loadFailed": "加载失败",
+      "retry": "重试",
+      "boundStatus": "已绑定",
+      "selectSession": "选择会话",
+      "noAvailableSessions": "暂无可绑定的会话",
+      "confirm": "确认",
+      "cancel": "取消",
       "noSessions": "暂无关联会话"
     }
   },

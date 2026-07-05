@@ -1,10 +1,13 @@
-
+import { useState } from 'react'
 import { Heart, Link2, Leaf, Clock, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { useToast } from '@/hooks/use-toast'
 
+import { bindSessionAgent, unbindSessionAgent } from '@/lib/agent-api'
 import { useInnerWorldData } from '../../hooks/useInnerWorldData'
 import { deriveVitalSignsData } from '../../utils/vital-signs'
 import { useBatchAgentData } from '../../hooks/useBatchAgentData'
@@ -16,6 +19,8 @@ import { LifeTimeline } from './LifeTimeline'
 import { ActiveSessions } from './ActiveSessions'
 import { LifeDefensePanel } from './LifeDefensePanel'
 import { CollapsedParameters } from './CollapsedParameters'
+import { UnbindConfirmDialog } from './UnbindConfirmDialog'
+import { BindSessionDialog } from './BindSessionDialog'
 
 interface InnerWorldViewProps {
   agentId: string
@@ -24,11 +29,46 @@ interface InnerWorldViewProps {
 
 export function InnerWorldView({ agentId, onBack }: InnerWorldViewProps) {
   const { t } = useTranslation()
+  const { toast } = useToast()
+  const queryClient = useQueryClient()
   const { emotions, relationships, sessionCounts, latestSubAgentRecords, agents } = useBatchAgentData()
   const innerData = useInnerWorldData(agentId)
 
+  const [unbindConfirmOpen, setUnbindConfirmOpen] = useState(false)
+  const [pendingUnbindSessionId, setPendingUnbindSessionId] = useState<string | null>(null)
+  const [bindDialogOpen, setBindDialogOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState<string>('emotion')
+
   const agent = innerData.agent
   const agentConfig = agents.find((a) => a.agent_id === agentId)
+
+  const boundSessionIds = innerData.sessions.map((s) => s.session_id)
+
+  const unbindMutation = useMutation({
+    mutationFn: (sessionId: string) => unbindSessionAgent(sessionId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['agents', 'sessions', agentId] })
+      queryClient.invalidateQueries({ queryKey: ['agents', 'batch-sessions'] })
+      setUnbindConfirmOpen(false)
+      setPendingUnbindSessionId(null)
+    },
+    onError: () => {
+      toast({ title: t('agent.activeSessions.unbindFailed'), variant: 'destructive' })
+    },
+  })
+
+  const bindMutation = useMutation({
+    mutationFn: (sessionId: string) => bindSessionAgent(sessionId, agentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['agents', 'sessions', agentId] })
+      queryClient.invalidateQueries({ queryKey: ['agents', 'batch-sessions'] })
+    },
+    onError: () => {
+      toast({ title: t('agent.activeSessions.bindFailed'), variant: 'destructive' })
+    },
+  })
+
+  const isBinding = unbindMutation.isPending || bindMutation.isPending
 
   const vitalSigns = agentConfig
     ? deriveVitalSignsData(
@@ -40,7 +80,7 @@ export function InnerWorldView({ agentId, onBack }: InnerWorldViewProps) {
       )
     : null
 
-  if (innerData.isLoading || !agent) {
+  if (innerData.isCoreLoading || !agent) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground">
         {t('agent.innerWorld.loading')}
@@ -60,7 +100,7 @@ export function InnerWorldView({ agentId, onBack }: InnerWorldViewProps) {
 
       <ScrollArea className="flex-1">
         <div className="p-4">
-          <Tabs defaultValue="emotion">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="mb-4">
               <TabsTrigger value="emotion">
                 <Heart className="h-3.5 w-3.5 mr-1" />
@@ -120,9 +160,12 @@ export function InnerWorldView({ agentId, onBack }: InnerWorldViewProps) {
             <TabsContent value="sessions">
               <ActiveSessions
                 sessions={innerData.sessions}
-                onUnbind={() => {}}
-                onBindClick={() => {}}
-                isUnbinding={false}
+                onUnbind={(sessionId) => {
+                  setPendingUnbindSessionId(sessionId)
+                  setUnbindConfirmOpen(true)
+                }}
+                onBindClick={() => setBindDialogOpen(true)}
+                isUnbinding={isBinding}
               />
             </TabsContent>
           </Tabs>
@@ -138,6 +181,27 @@ export function InnerWorldView({ agentId, onBack }: InnerWorldViewProps) {
           </div>
         </div>
       </ScrollArea>
+
+      <UnbindConfirmDialog
+        open={unbindConfirmOpen}
+        onOpenChange={setUnbindConfirmOpen}
+        onConfirm={() => {
+          if (pendingUnbindSessionId) {
+            unbindMutation.mutate(pendingUnbindSessionId)
+          }
+        }}
+        sessionName={
+          innerData.sessions.find((s) => s.session_id === pendingUnbindSessionId)?.display_name ?? ''
+        }
+      />
+
+      <BindSessionDialog
+        open={bindDialogOpen}
+        onOpenChange={setBindDialogOpen}
+        onSelect={(sessionId) => bindMutation.mutate(sessionId)}
+        agentId={agentId}
+        boundSessionIds={boundSessionIds}
+      />
     </div>
   )
 }

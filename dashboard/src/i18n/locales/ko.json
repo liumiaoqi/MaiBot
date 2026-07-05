@@ -1252,7 +1252,18 @@
       "activityHeatmap": "활동 히트맵",
       "relationshipDynamics": "관계 역학",
       "noChanges": "최근 관계에 큰 변화 없음",
-      "nearBreakthrough": "돌파 임박"
+      "nearBreakthrough": "돌파 임박",
+      "statsDetail": {
+        "totalAgents": "{{count}} 개체",
+        "activeAgents": "{{count}} 활성",
+        "totalRelationships": "{{count}} 유대",
+        "avgScore": "평균 온도 {{score}}"
+      },
+      "heatmapLegend": {
+        "active": "활성",
+        "quiet": "조용함",
+        "dormant": "휴면"
+      }
     },
     "innerWorld": {
       "back": "돌아가기",
@@ -1300,7 +1311,8 @@
       "relationshipBreakthrough": "관계 돌파",
       "memoryMilestone": "{{type}} 완료",
       "noEvents": "최근 이벤트 없음",
-      "relationshipWarmUp": "{{user}}와의 관계가 따뜻해지고 있음"
+      "relationshipWarmUp": "{{user}}와의 관계가 따뜻해지고 있음",
+      "currentStatus": "현재 상태"
     },
     "lifeDefense": {
       "title": "생명 방어",
@@ -1318,6 +1330,16 @@
       "bindSession": "세션 바인딩",
       "unbind": "바인딩 해제",
       "unbindConfirm": "바인딩을 해제하시겠습니까?",
+      "unbindConfirmDesc": "\"{{name}}\"과의 바인딩을 해제합니다. 해제 후 이 세션은 이 에이전트가 응답하지 않습니다.",
+      "unbindFailed": "바인딩 해제 실패",
+      "bindFailed": "바인딩 실패",
+      "loadFailed": "로딩 실패",
+      "retry": "재시도",
+      "boundStatus": "바인딩됨",
+      "selectSession": "세션 선택",
+      "noAvailableSessions": "사용 가능한 세션 없음",
+      "confirm": "확인",
+      "cancel": "취소",
       "noSessions": "연결된 세션 없음"
     }
   },

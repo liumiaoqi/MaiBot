@@ -30,6 +30,14 @@ export function ActivityHeatmap({ vitalSignsList }: ActivityHeatmapProps) {
           </div>
         ))}
       </div>
+      <div className="flex items-center gap-4 mt-2">
+        {(['active', 'quiet', 'dormant'] as const).map((status) => (
+          <div key={status} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: STATUS_COLORS[status] }} />
+            <span>{t(`agent.globalSituation.heatmapLegend.${status}`)}</span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
