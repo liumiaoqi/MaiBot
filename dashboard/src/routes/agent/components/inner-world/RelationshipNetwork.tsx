@@ -3,16 +3,18 @@ import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
-import type { RelationshipInfo, InternalRelationship } from '@/lib/agent-api'
+import type { RelationshipInfo, InternalRelationship, AgentConfigInfo } from '@/lib/agent-api'
 import { DeepMonitorLink } from './DeepMonitorLink'
+import { InternalRelationshipGraph } from './InternalRelationshipGraph'
 
 interface RelationshipNetworkProps {
   agentId: string
   relationships: RelationshipInfo[]
   internalRelationships: InternalRelationship[]
+  agents: AgentConfigInfo[]
 }
 
-const REL_TYPE_COLORS: Record<string, string> = {
+export const REL_TYPE_COLORS: Record<string, string> = {
   romantic: '#ef4444',
   family: '#f97316',
   mentor: '#3b82f6',
@@ -20,7 +22,7 @@ const REL_TYPE_COLORS: Record<string, string> = {
   rival: '#94a3b8',
 }
 
-export function RelationshipNetwork({ agentId, relationships, internalRelationships }: RelationshipNetworkProps) {
+export function RelationshipNetwork({ agentId, relationships, internalRelationships, agents }: RelationshipNetworkProps) {
   const { t } = useTranslation()
 
   if (relationships.length === 0 && internalRelationships.length === 0) {
@@ -85,20 +87,11 @@ export function RelationshipNetwork({ agentId, relationships, internalRelationsh
             <CardTitle className="text-sm">{t('agent.relationshipNetwork.internalGraph')}</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              {internalRelationships.map((rel) => (
-                <div key={rel.target_agent_id} className="flex items-center gap-2 text-sm">
-                  <span
-                    className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: REL_TYPE_COLORS[rel.relationship_type] || '#94a3b8' }}
-                  />
-                  <span className="font-medium">{rel.target_agent_id}</span>
-                  <span className="text-muted-foreground">{rel.relationship_type}</span>
-                  <span className="text-muted-foreground">—</span>
-                  <span>{rel.attitude}</span>
-                </div>
-              ))}
-            </div>
+            <InternalRelationshipGraph
+              agentId={agentId}
+              internalRelationships={internalRelationships}
+              agents={agents}
+            />
           </CardContent>
         </Card>
       )}

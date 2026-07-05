@@ -113,6 +113,9 @@ export function CommandCenterLayout() {
           selectedAgentId={selectedAgentId}
           onNodeClick={(id) => setSelectedAgentId(id)}
           onNodeDoubleClick={(id) => setSelectedAgentId(id)}
+          emotions={emotions}
+          sessionCounts={sessionCounts}
+          agents={agents}
         />
       )}
 

@@ -138,6 +138,7 @@ export function InnerWorldView({ agentId, onBack }: InnerWorldViewProps) {
                 agentId={agentId}
                 relationships={innerData.relationships}
                 internalRelationships={agent.internal_relationships}
+                agents={agents}
               />
             </TabsContent>
 

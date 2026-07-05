@@ -1234,16 +1234,34 @@
     "constellation": {
       "title": "에이전트 성도",
       "noRelationships": "내부 관계 데이터 없음",
+      "dataIncomplete": "인식 불가",
+      "legend": {
+        "active": "활성",
+        "quiet": "조용함",
+        "dormant": "휴면"
+      },
       "mention": {
         "close": "긴밀",
         "moderate": "보통",
-        "distant": "소원"
+        "distant": "소원",
+        "mentioned": "언급됨",
+        "mentions": "언급",
+        "by": "{{name}}에 의해 언급됨",
+        "of": "{{name}} 언급"
       },
       "tooltip": {
         "relationshipType": "관계 유형",
         "attitude": "태도",
-        "interactionStyle": "상호작용 스타일"
-      }
+        "interactionStyle": "상호작용 스타일",
+        "relationship": "관계",
+        "noData": "관계 데이터 없음",
+        "closeness": "친밀도",
+        "trust": "신뢰도",
+        "mentionCount": "언급 횟수"
+      },
+      "selectedAgent": "선택됨: {{name}}",
+      "noSelection": "노드를 클릭하여 상세 보기",
+      "hoverHint": "호버하여 관계 보기"
     },
     "globalSituation": {
       "title": "글로벌 상황 인식",

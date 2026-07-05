@@ -1242,16 +1242,34 @@
     "constellation": {
       "title": "エージェント星図",
       "noRelationships": "内部関係データなし",
+      "dataIncomplete": "感知不可",
+      "legend": {
+        "active": "アクティブ",
+        "quiet": "静穏",
+        "dormant": "休眠"
+      },
       "mention": {
         "close": "緊密",
         "moderate": "普通",
-        "distant": "疎遠"
+        "distant": "疎遠",
+        "mentioned": "言及された",
+        "mentions": "言及",
+        "by": "{{name}}に言及された",
+        "of": "{{name}}に言及"
       },
       "tooltip": {
         "relationshipType": "関係タイプ",
         "attitude": "態度",
-        "interactionStyle": "交流スタイル"
-      }
+        "interactionStyle": "交流スタイル",
+        "relationship": "関係",
+        "noData": "関係データなし",
+        "closeness": "親密さ",
+        "trust": "信頼度",
+        "mentionCount": "言及回数"
+      },
+      "selectedAgent": "選択済み：{{name}}",
+      "noSelection": "ノードをクリックして詳細を表示",
+      "hoverHint": "ホバーして関係を表示"
     },
     "globalSituation": {
       "title": "グローバル状況認識",

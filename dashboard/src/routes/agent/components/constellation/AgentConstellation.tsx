@@ -1,14 +1,17 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 
-import ReactFlow, { useNodesState, useEdgesState, Background, type Node, type Edge } from 'reactflow'
+import ReactFlow, { useNodesState, useEdgesState, Background, type Node, type Edge, type NodeMouseHandler, type EdgeMouseHandler } from 'reactflow'
 import dagre from 'dagre'
 import { useTranslation } from 'react-i18next'
 
 import 'reactflow/dist/style.css'
 
-import type { ConstellationData } from '../../utils/constellation'
+import type { ConstellationData, ConstellationNode as ConstellationNodeData, ConstellationEdge as ConstellationEdgeData } from '../../utils/constellation'
 import { ConstellationNodeComponent } from './ConstellationNode'
 import { ConstellationEdgeComponent } from './ConstellationEdge'
+import { NodeDetailPopover } from './NodeDetailPopover'
+import { RelationshipTooltip } from './RelationshipTooltip'
+import type { BatchEmotionItem, AgentConfigInfo } from '@/lib/agent-api'
 
 const nodeTypes = { constellation: ConstellationNodeComponent }
 const edgeTypes = { constellation: ConstellationEdgeComponent as any }
@@ -43,10 +46,26 @@ interface AgentConstellationProps {
   selectedAgentId: string | null
   onNodeClick: (agentId: string) => void
   onNodeDoubleClick: (agentId: string) => void
+  emotions: Record<string, BatchEmotionItem>
+  sessionCounts: Record<string, number>
+  agents: AgentConfigInfo[]
 }
 
-export function AgentConstellation({ data, onNodeClick, onNodeDoubleClick }: AgentConstellationProps) {
+export function AgentConstellation({
+  data,
+  selectedAgentId,
+  onNodeClick,
+  onNodeDoubleClick,
+  emotions,
+  sessionCounts,
+  agents,
+}: AgentConstellationProps) {
   const { t } = useTranslation()
+
+  const [highlightedNodeId, setHighlightedNodeId] = useState<string | null>(null)
+  const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null)
+  const [popoverPosition, setPopoverPosition] = useState<{ x: number; y: number } | null>(null)
+  const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null)
 
   const initialNodes: Node[] = useMemo(() =>
     data.nodes.map((n) => ({
@@ -74,16 +93,83 @@ export function AgentConstellation({ data, onNodeClick, onNodeDoubleClick }: Age
     [initialNodes, initialEdges]
   )
 
-  const [nodes, , onNodesChange] = useNodesState(layoutedNodes)
-  const [edges, , onEdgesChange] = useEdgesState(layoutedEdges)
+  const activeHighlight = highlightedNodeId
 
-  const handleNodeClick = useCallback((_: any, node: Node) => {
+  const highlightedNodes = useMemo(() => {
+    if (!activeHighlight) return layoutedNodes
+    const connectedEdges = layoutedEdges.filter(
+      (e) => e.source === activeHighlight || e.target === activeHighlight
+    )
+    const connectedNodeIds = new Set([
+      activeHighlight,
+      ...connectedEdges.map((e) => e.source),
+      ...connectedEdges.map((e) => e.target),
+    ])
+    return layoutedNodes.map((node) => ({
+      ...node,
+      style: {
+        opacity: connectedNodeIds.has(node.id) ? 1 : 0.4,
+      },
+    }))
+  }, [layoutedNodes, layoutedEdges, activeHighlight])
+
+  const highlightedEdges = useMemo(() => {
+    if (!activeHighlight) return layoutedEdges
+    const relatedEdges = layoutedEdges.filter(
+      (e) => e.source === activeHighlight || e.target === activeHighlight
+    )
+    const relatedIds = new Set(relatedEdges.map((e) => e.id))
+    return layoutedEdges.map((edge) => ({
+      ...edge,
+      style: {
+        opacity: relatedIds.has(edge.id) ? 1 : 0.2,
+      },
+    }))
+  }, [layoutedEdges, activeHighlight])
+
+  const [nodes, , onNodesChange] = useNodesState(highlightedNodes)
+  const [edges, , onEdgesChange] = useEdgesState(highlightedEdges)
+
+  const handleNodeClick: NodeMouseHandler = useCallback((_: any, node: Node) => {
+    setHighlightedNodeId(node.id)
+    setHoveredEdgeId(null)
     onNodeClick(node.id)
   }, [onNodeClick])
 
   const handleNodeDoubleClick = useCallback((_: any, node: Node) => {
     onNodeDoubleClick(node.id)
   }, [onNodeDoubleClick])
+
+  const handlePaneClick = useCallback(() => {
+    setHighlightedNodeId(null)
+    setPopoverPosition(null)
+  }, [])
+
+  const handleEdgeMouseEnter: EdgeMouseHandler = useCallback((_: any, edge: Edge) => {
+    setHoveredEdgeId(edge.id)
+  }, [])
+
+  const handleEdgeMouseLeave: EdgeMouseHandler = useCallback(() => {
+    setHoveredEdgeId(null)
+    setTooltipPosition(null)
+  }, [])
+
+  const handleEdgeMouseMove = useCallback((event: React.MouseEvent) => {
+    setTooltipPosition({ x: event.clientX, y: event.clientY })
+  }, [])
+
+  const handleNodeMouseEnter = useCallback((event: React.MouseEvent) => {
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+    setPopoverPosition({ x: rect.right + 8, y: rect.top })
+  }, [])
+
+  const selectedNodeData: ConstellationNodeData | undefined = highlightedNodeId
+    ? data.nodes.find((n) => n.id === highlightedNodeId)
+    : undefined
+
+  const hoveredEdgeData: ConstellationEdgeData | undefined = hoveredEdgeId
+    ? data.edges.find((e) => e.id === hoveredEdgeId)
+    : undefined
 
   if (data.nodes.length === 0) {
     return (
@@ -94,7 +180,7 @@ export function AgentConstellation({ data, onNodeClick, onNodeDoubleClick }: Age
   }
 
   return (
-    <div className="flex-1 h-full">
+    <div className="flex-1 h-full relative">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -102,6 +188,10 @@ export function AgentConstellation({ data, onNodeClick, onNodeDoubleClick }: Age
         onEdgesChange={onEdgesChange}
         onNodeClick={handleNodeClick}
         onNodeDoubleClick={handleNodeDoubleClick}
+        onPaneClick={handlePaneClick}
+        onEdgeMouseEnter={handleEdgeMouseEnter}
+        onEdgeMouseLeave={handleEdgeMouseLeave}
+        onEdgeMouseMove={handleEdgeMouseMove}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         fitView
@@ -111,6 +201,29 @@ export function AgentConstellation({ data, onNodeClick, onNodeDoubleClick }: Age
       >
         <Background color="hsl(var(--border))" gap={20} size={1} />
       </ReactFlow>
+
+      {selectedNodeData && popoverPosition && (
+        <div
+          className="absolute z-50 pointer-events-none"
+          style={{ left: popoverPosition.x, top: popoverPosition.y }}
+        >
+          <NodeDetailPopover
+            data={selectedNodeData}
+            emotion={emotions[selectedNodeData.id]}
+            sessionCount={sessionCounts[selectedNodeData.id] ?? 0}
+            talkValueModifier={agents.find((a) => a.agent_id === selectedNodeData.id)?.talk_value_modifier ?? 1.0}
+          />
+        </div>
+      )}
+
+      {hoveredEdgeData && tooltipPosition && (
+        <div
+          className="absolute z-50 pointer-events-none"
+          style={{ left: tooltipPosition.x + 12, top: tooltipPosition.y + 12 }}
+        >
+          <RelationshipTooltip data={hoveredEdgeData} />
+        </div>
+      )}
     </div>
   )
 }
