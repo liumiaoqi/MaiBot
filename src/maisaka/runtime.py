@@ -210,6 +210,11 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         self._planner_continuation_active = False
         self._planner_interrupt = PlannerInterruptController()
         self._monitor_session_start_task: Optional[asyncio.Task[None]] = None
+
+        # 智能体自主性架构
+        self._autonomous_agent: Optional[object] = None
+        self._chat_loop_adapter: Optional[object] = None
+        self._init_agent_autonomy()
         self._monitor_visual_refresh_keys: set[tuple[str, str]] = set()
         self._tool_registry = ToolRegistry()
         self._reply_effect_tracker = ReplyEffectTracker(
@@ -1393,6 +1398,36 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
             self._relationship_manager = rel_mgr
         except Exception:
             pass
+
+    def _init_agent_autonomy(self) -> None:
+        """根据配置初始化智能体自主性架构。"""
+        try:
+            from src.config.config import global_config
+
+            autonomy_config = global_config.agent_autonomy
+            if not autonomy_config.enabled:
+                return
+
+            agent_id = getattr(self.chat_stream, "agent_id", None)
+            if not agent_id:
+                return
+
+            from src.maisaka.agent_autonomy.agent import AutonomousAgent
+            from src.maisaka.agent_autonomy.bridge.chat_loop_adapter import ChatLoopServiceAdapter
+
+            self._autonomous_agent = AutonomousAgent(agent_id)
+            self._chat_loop_adapter = ChatLoopServiceAdapter(self._chat_loop_service)
+
+            if autonomy_config.embodied_planner_enabled:
+                self._chat_loop_service._use_embodied_prompt = True
+                self._chat_loop_adapter.switch_to_embodied_prompt()
+
+            logger.info(
+                f"[agent_autonomy] 自主性架构已启用: agent={agent_id} "
+                f"embodied={autonomy_config.embodied_planner_enabled}"
+            )
+        except Exception as exc:
+            logger.warning(f"[agent_autonomy] 自主性架构初始化失败，将使用默认模式: {exc}")
 
     def _sync_emotion_to_prompt(self) -> None:
         """将当前情绪状态同步到 ChatLoopService 的提示词上下文。"""

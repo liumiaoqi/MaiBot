@@ -507,6 +507,7 @@ class MaisakaChatLoopService:
         self._custom_chat_system_prompt = chat_system_prompt
         self._prompt_load_lock = asyncio.Lock()
         self._llm_chat_clients: dict[str, LLMServiceClient] = {}
+        self._use_embodied_prompt: bool = False
 
     @property
     def personality_prompt(self) -> str:
@@ -683,6 +684,8 @@ class MaisakaChatLoopService:
 
         if focus_mode_manager.is_enabled_for_session(self._session_id, is_group_chat=self._is_group_chat):
             return "maisaka_chat_focus"
+        if self._use_embodied_prompt:
+            return "maisaka_chat_embodied"
         return "maisaka_chat"
 
     def build_prompt_template_context(self, tools_section: str = "") -> dict[str, str]:
