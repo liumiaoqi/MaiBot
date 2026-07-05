@@ -549,3 +549,83 @@ class SubAgentExecutionRecord(SQLModel, table=True):
     error_message: str = Field(default="")
     result_summary: str = Field(default="")
     created_at: Optional[datetime] = Field(default_factory=datetime.now, sa_column=Column(DateTime, nullable=True))
+
+
+class InteractionEvent(SQLModel, table=True):
+    """智能体间交互事件"""
+
+    __tablename__ = "agent_interaction_events"  # type: ignore
+
+    event_id: str = Field(primary_key=True, max_length=128)
+    initiator_agent_id: str = Field(index=True, max_length=64)
+    target_agent_id: str = Field(index=True, max_length=64)
+    interaction_type: str = Field(index=True, max_length=32)
+    trigger_reason: str = Field(default="", max_length=500)
+    content_summary: str = Field(default="", max_length=500)
+    emotion_effects: str = Field(default="{}")
+    relationship_effect: float = Field(default=0.0)
+    memory_write_status: str = Field(default="skipped", max_length=16)
+    echo_depth: int = Field(default=0)
+    echo_parent_event_id: str = Field(default="", max_length=128)
+    metadata: str = Field(default="{}")
+    created_at: Optional[datetime] = Field(default_factory=datetime.now, sa_column=Column(DateTime, nullable=True))
+
+    __table_args__ = (
+        Index("ix_agent_interaction_events_initiator_created", "initiator_agent_id", "created_at"),
+        Index("ix_agent_interaction_events_target_created", "target_agent_id", "created_at"),
+        Index("ix_agent_interaction_events_type", "interaction_type"),
+        Index("ix_agent_interaction_events_created", "created_at"),
+    )
+
+
+class InteractionCooldown(SQLModel, table=True):
+    """智能体间交互冷却状态"""
+
+    __tablename__ = "agent_interaction_cooldowns"  # type: ignore
+
+    agent_pair_key: str = Field(primary_key=True, max_length=129)
+    last_interaction_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime, nullable=True))
+    interaction_count_hourly: int = Field(default=0)
+    interaction_count_daily: int = Field(default=0)
+    hourly_reset_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime, nullable=True))
+    daily_reset_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime, nullable=True))
+
+
+class InnerMonologueEvent(SQLModel, table=True):
+    """智能体内心独白事件"""
+
+    __tablename__ = "agent_inner_monologue_events"  # type: ignore
+
+    monologue_id: str = Field(primary_key=True, max_length=128)
+    agent_id: str = Field(index=True, max_length=64)
+    emotion_snapshot: str = Field(default="{}")
+    content: str = Field(default="", max_length=1000)
+    self_emotion_effect: str = Field(default="{}")
+    memory_references: str = Field(default="[]")
+    created_at: Optional[datetime] = Field(default_factory=datetime.now, sa_column=Column(DateTime, nullable=True))
+
+    __table_args__ = (
+        Index("ix_agent_inner_monologue_events_agent_created", "agent_id", "created_at"),
+        Index("ix_agent_inner_monologue_events_created", "created_at"),
+    )
+
+
+class AgentInteractionRelationship(SQLModel, table=True):
+    """智能体间交互关系（动态，区别于静态的 InternalRelationship 配置）"""
+
+    __tablename__ = "agent_interaction_relationships"  # type: ignore
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    agent_id: str = Field(index=True, max_length=64)
+    target_agent_id: str = Field(index=True, max_length=64)
+    score: float = Field(default=0.0)
+    relationship_type: str = Field(default="", max_length=32)
+    attitude: str = Field(default="", max_length=64)
+    interaction_count: int = Field(default=0)
+    last_interaction_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime, nullable=True))
+    created_at: Optional[datetime] = Field(default_factory=datetime.now, sa_column=Column(DateTime, nullable=True))
+    updated_at: Optional[datetime] = Field(default_factory=datetime.now, sa_column=Column(DateTime, nullable=True))
+
+    __table_args__ = (
+        UniqueConstraint("agent_id", "target_agent_id", name="uq_agent_interaction_relationships_pair"),
+    )
