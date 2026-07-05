@@ -862,6 +862,125 @@ async def advance_migration(plugin_id: str):
     )
 
 
+# ── 智能体间交互事件 API ──
+
+
+class InteractionEventResponse(BaseModel):
+    event_id: str
+    initiator_agent_id: str
+    target_agent_id: str
+    interaction_type: str
+    trigger_reason: str
+    content_summary: str
+    emotion_effects: str
+    relationship_effect: float
+    memory_write_status: str
+    echo_depth: int
+    echo_parent_event_id: str
+    metadata: str
+    created_at: Optional[str] = None
+
+
+@router.get("/interactions/recent", response_model=List[InteractionEventResponse])
+async def get_recent_interactions(limit: int = 20):
+    """获取最近的智能体间交互事件。"""
+    from src.maisaka.agent_interaction.event_store import InteractionEventStore
+
+    store = InteractionEventStore()
+    events = await store.get_recent_events(limit=limit)
+    return [
+        InteractionEventResponse(
+            event_id=e.event_id,
+            initiator_agent_id=e.initiator_agent_id,
+            target_agent_id=e.target_agent_id,
+            interaction_type=e.interaction_type,
+            trigger_reason=e.trigger_reason,
+            content_summary=e.content_summary,
+            emotion_effects=e.emotion_effects,
+            relationship_effect=e.relationship_effect,
+            memory_write_status=e.memory_write_status,
+            echo_depth=e.echo_depth,
+            echo_parent_event_id=e.echo_parent_event_id,
+            metadata=e.metadata,
+            created_at=e.created_at.isoformat() if e.created_at else None,
+        )
+        for e in events
+    ]
+
+
+@router.get("/interactions/{event_id}", response_model=InteractionEventResponse)
+async def get_interaction_detail(event_id: str):
+    """获取指定交互事件的详情。"""
+    from src.maisaka.agent_interaction.event_store import InteractionEventStore
+
+    store = InteractionEventStore()
+    event = await store.get_event(event_id)
+    if event is None:
+        raise HTTPException(status_code=404, detail=f"交互事件不存在: {event_id}")
+    return InteractionEventResponse(
+        event_id=event.event_id,
+        initiator_agent_id=event.initiator_agent_id,
+        target_agent_id=event.target_agent_id,
+        interaction_type=event.interaction_type,
+        trigger_reason=event.trigger_reason,
+        content_summary=event.content_summary,
+        emotion_effects=event.emotion_effects,
+        relationship_effect=event.relationship_effect,
+        memory_write_status=event.memory_write_status,
+        echo_depth=event.echo_depth,
+        echo_parent_event_id=event.echo_parent_event_id,
+        metadata=event.metadata,
+        created_at=event.created_at.isoformat() if event.created_at else None,
+    )
+
+
+@router.get("/interactions/history", response_model=List[InteractionEventResponse])
+async def query_interaction_history(
+    agent_id: str = "",
+    target_agent_id: str = "",
+    interaction_type: str = "",
+    time_start: Optional[str] = None,
+    time_end: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+):
+    """按条件查询智能体间交互历史。"""
+    from datetime import datetime as dt
+
+    from src.maisaka.agent_interaction.event_store import InteractionEventStore
+
+    store = InteractionEventStore()
+    ts = dt.fromisoformat(time_start) if time_start else None
+    te = dt.fromisoformat(time_end) if time_end else None
+    events = await store.query_events(
+        agent_id=agent_id,
+        target_agent_id=target_agent_id,
+        interaction_type=interaction_type,
+        time_start=ts,
+        time_end=te,
+        limit=limit,
+        offset=offset,
+    )
+    return [
+        InteractionEventResponse(
+            event_id=e.event_id,
+            initiator_agent_id=e.initiator_agent_id,
+            target_agent_id=e.target_agent_id,
+            interaction_type=e.interaction_type,
+            trigger_reason=e.trigger_reason,
+            content_summary=e.content_summary,
+            emotion_effects=e.emotion_effects,
+            relationship_effect=e.relationship_effect,
+            memory_write_status=e.memory_write_status,
+            echo_depth=e.echo_depth,
+            echo_parent_event_id=e.echo_parent_event_id,
+            metadata=e.metadata,
+            created_at=e.created_at.isoformat() if e.created_at else None,
+        )
+        for e in events
+    ]
+
+
 @router.post("/migration/{plugin_id}/rollback", response_model=MigrationAdvanceResponse)
 async def rollback_migration(plugin_id: str):
     """回退指定插件的迁移阶段。"""
