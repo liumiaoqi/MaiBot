@@ -1367,7 +1367,14 @@
       "noAvailableSessions": "利用可能なセッションなし",
       "confirm": "確認",
       "cancel": "キャンセル",
-      "noSessions": "リンクセッションなし"
+      "noSessions": "リンクセッションなし",
+      "active": "アクティブ",
+      "boundInactive": "バインド済み",
+      "primary": "メイン",
+      "cohabitants": "同居エージェント",
+      "unbindSpecific": "エージェント解除",
+      "unbindAll": "全て解除",
+      "lastSpokeAt": "最終発言"
     },
     "interaction": {
       "stream": {

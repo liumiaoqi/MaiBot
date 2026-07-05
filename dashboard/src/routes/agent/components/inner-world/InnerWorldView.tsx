@@ -175,6 +175,9 @@ export function InnerWorldView({ agentId, onBack }: InnerWorldViewProps) {
                   setPendingUnbindSessionId(sessionId)
                   setUnbindConfirmOpen(true)
                 }}
+                onUnbindSpecific={(sessionId, targetAgentId) => {
+                  unbindMutation.mutate(sessionId)
+                }}
                 onBindClick={() => setBindDialogOpen(true)}
                 isUnbinding={isBinding}
               />

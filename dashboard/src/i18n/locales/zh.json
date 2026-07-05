@@ -1365,7 +1365,14 @@
       "noAvailableSessions": "暂无可绑定的会话",
       "confirm": "确认",
       "cancel": "取消",
-      "noSessions": "暂无关联会话"
+      "noSessions": "暂无关联会话",
+      "active": "活跃",
+      "boundInactive": "已绑定",
+      "primary": "主发言",
+      "cohabitants": "共居智能体",
+      "unbindSpecific": "解绑智能体",
+      "unbindAll": "全部解绑",
+      "lastSpokeAt": "最近发言"
     },
     "interaction": {
       "stream": {

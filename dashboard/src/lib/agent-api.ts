@@ -50,11 +50,22 @@ export interface RelationshipInfo {
   total_interactions: number
 }
 
+export interface CohabitantInfo {
+  agent_id: string
+  display_name: string
+  is_primary: boolean
+  status: 'active' | 'bound_inactive'
+}
+
 export interface SessionAgentInfo {
   session_id: string
   display_name: string
   agent_id: string
   agent_display_name: string
+  status: 'active' | 'bound_inactive'
+  is_primary: boolean
+  last_spoke_at: string | null
+  cohabitants: CohabitantInfo[]
 }
 
 interface AgentListResponse {
@@ -177,6 +188,17 @@ export async function unbindSessionAgent(sessionId: string): Promise<void> {
     { errorMessage: '解除会话绑定失败' }
   )
   requireSuccess(data, '解除会话绑定失败')
+}
+
+export async function unbindSessionSpecificAgent(
+  sessionId: string,
+  agentId: string
+): Promise<void> {
+  const data = await backendApi.delete<SessionBindingResponse>(
+    `${API_BASE}/binding/session/${encodeURIComponent(sessionId)}/${encodeURIComponent(agentId)}`,
+    { errorMessage: '解除指定智能体绑定失败' }
+  )
+  requireSuccess(data, '解除指定智能体绑定失败')
 }
 
 export async function getGroupBindings(): Promise<Record<string, string>> {
