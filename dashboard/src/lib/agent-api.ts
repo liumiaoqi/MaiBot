@@ -763,3 +763,42 @@ export async function getSpeakerChanges(sessionId: string, limit = 50): Promise<
   )
   return requireSuccess(data, '获取发言权变更记录失败').data
 }
+
+export interface AutonomyLogItem {
+  agent_id: string
+  event_type: string
+  detail: string
+  timestamp: string
+  session_id: string
+  log_level: string
+}
+
+export interface AutonomyLogResponse {
+  items: AutonomyLogItem[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export async function getAutonomyLogs(params?: {
+  agent_id?: string
+  event_type?: string
+  start_time?: string
+  end_time?: string
+  page?: number
+  page_size?: number
+}): Promise<AutonomyLogResponse> {
+  const searchParams = new URLSearchParams()
+  if (params?.agent_id) searchParams.set('agent_id', params.agent_id)
+  if (params?.event_type) searchParams.set('event_type', params.event_type)
+  if (params?.start_time) searchParams.set('start_time', params.start_time)
+  if (params?.end_time) searchParams.set('end_time', params.end_time)
+  if (params?.page) searchParams.set('page', String(params.page))
+  if (params?.page_size) searchParams.set('page_size', String(params.page_size))
+
+  const query = searchParams.toString()
+  return backendApi.get<AutonomyLogResponse>(
+    `${API_BASE}/autonomy-logs${query ? `?${query}` : ''}`,
+    { errorMessage: '获取自主性日志失败' }
+  )
+}
