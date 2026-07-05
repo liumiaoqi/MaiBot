@@ -93,5 +93,7 @@
   "startup.webui_static_dir_missing": "❌ WebUI static directory does not exist",
   "startup.webui_static_dir_missing_with_path": "❌ WebUI static directory does not exist: {static_path}",
   "startup.webui_static_files_configured": "✅ WebUI static file service configured: {static_path}",
-  "startup.worker_dir_set": "Working directory set to: {script_dir}"
+  "startup.worker_dir_set": "Working directory set to: {script_dir}",
+  "startup.agent_interaction_started": "Agent interaction scheduler started",
+  "startup.agent_interaction_failed": "Agent interaction scheduler failed to start: {error}"
 }

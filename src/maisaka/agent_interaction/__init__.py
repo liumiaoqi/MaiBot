@@ -8,6 +8,7 @@ from src.maisaka.agent_interaction.models import (
     InteractionEventCreate,
     InteractionEventRead,
 )
+from src.maisaka.agent_interaction.scheduler import InteractionScheduler
 from src.maisaka.agent_interaction.trigger_base import BaseTrigger, TriggerEvaluation, TriggerRegistry
 from src.maisaka.agent_interaction.triggers import (
     EmotionDrivenTrigger,
@@ -32,6 +33,7 @@ __all__ = [
     "InteractionEventCreate",
     "InteractionEventRead",
     "InteractionResult",
+    "InteractionScheduler",
     "MentionPropagationTrigger",
     "TimeAwarenessTrigger",
     "TriggerEvaluation",

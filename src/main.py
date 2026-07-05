@@ -53,6 +53,7 @@ class MainSystem:
         self.server: Server | None = None
         self.webui_server: ThreadedWebUIServer | None = None  # 独立线程中的 WebUI 服务器
         self._message_handlers_registered = False
+        self._interaction_scheduler: Any | None = None
 
     def _ensure_message_server(self) -> None:
         """按需初始化消息 API，避免阻塞主启动链路的早期阶段。"""
@@ -197,6 +198,23 @@ class MainSystem:
         await async_task_manager.add_task(TelemetryHeartBeatTask())
         await async_task_manager.add_task(TelemetryStatsUploadTask())
 
+        # 启动智能体交互调度器
+        try:
+            from src.maisaka.agent_interaction.bootstrap import build_interaction_scheduler
+            from src.maisaka.agent_interaction.relationship_manager import AgentRelationshipManager
+
+            scheduler = build_interaction_scheduler()
+            if scheduler is not None:
+                # 初始化关系数据
+                relationship_mgr = AgentRelationshipManager()
+                await relationship_mgr.initialize_from_config()
+                # 启动定时调度
+                await scheduler.start()
+                self._interaction_scheduler = scheduler
+                logger.info(t("startup.agent_interaction_started"))
+        except Exception as e:
+            logger.warning(t("startup.agent_interaction_failed", error=e))
+
         try:
             init_time = int(1000 * (time.time() - init_start_time))
             logger.info(t("startup.initialization_completed_cycles", init_time=init_time))
@@ -244,6 +262,8 @@ async def main() -> None:
         await system.initialize()
         await system.schedule_tasks()
     finally:
+        if system._interaction_scheduler is not None:
+            await system._interaction_scheduler.stop()
         if system.webui_server:
             await system.webui_server.shutdown()
         from src.A_memorix.host_service import a_memorix_host_service

@@ -93,5 +93,7 @@
   "startup.webui_static_dir_missing": "❌ WebUI 静态文件目录不存在",
   "startup.webui_static_dir_missing_with_path": "❌ WebUI 静态文件目录不存在: {static_path}",
   "startup.webui_static_files_configured": "✅ WebUI 静态文件服务已配置: {static_path}",
-  "startup.worker_dir_set": "已设置工作目录为: {script_dir}"
+  "startup.worker_dir_set": "已设置工作目录为: {script_dir}",
+  "startup.agent_interaction_started": "智能体交互调度器已启动",
+  "startup.agent_interaction_failed": "智能体交互调度器启动失败: {error}"
 }
