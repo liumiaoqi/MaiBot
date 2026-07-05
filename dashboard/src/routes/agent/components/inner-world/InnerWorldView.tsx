@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Heart, Link2, Leaf, Clock, Users } from 'lucide-react'
+import { Heart, Link2, Leaf, Clock, Users, MessageCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 
@@ -21,6 +21,7 @@ import { LifeDefensePanel } from './LifeDefensePanel'
 import { CollapsedParameters } from './CollapsedParameters'
 import { UnbindConfirmDialog } from './UnbindConfirmDialog'
 import { BindSessionDialog } from './BindSessionDialog'
+import { MonologuePanel } from './MonologuePanel'
 
 interface InnerWorldViewProps {
   agentId: string
@@ -122,6 +123,10 @@ export function InnerWorldView({ agentId, onBack }: InnerWorldViewProps) {
                 <Link2 className="h-3.5 w-3.5 mr-1" />
                 {t('agent.innerWorld.subView.sessions')}
               </TabsTrigger>
+              <TabsTrigger value="monologue">
+                <MessageCircle className="h-3.5 w-3.5 mr-1" />
+                {t('agent.monologue.panel.title')}
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="emotion">
@@ -168,6 +173,10 @@ export function InnerWorldView({ agentId, onBack }: InnerWorldViewProps) {
                 onBindClick={() => setBindDialogOpen(true)}
                 isUnbinding={isBinding}
               />
+            </TabsContent>
+
+            <TabsContent value="monologue">
+              <MonologuePanel agentId={agentId} />
             </TabsContent>
           </Tabs>
 

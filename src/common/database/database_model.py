@@ -567,7 +567,7 @@ class InteractionEvent(SQLModel, table=True):
     memory_write_status: str = Field(default="skipped", max_length=16)
     echo_depth: int = Field(default=0)
     echo_parent_event_id: str = Field(default="", max_length=128)
-    metadata: str = Field(default="{}")
+    event_metadata: str = Field(default="{}")
     created_at: Optional[datetime] = Field(default_factory=datetime.now, sa_column=Column(DateTime, nullable=True))
 
     __table_args__ = (

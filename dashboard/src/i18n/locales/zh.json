@@ -1365,6 +1365,86 @@
       "confirm": "确认",
       "cancel": "取消",
       "noSessions": "暂无关联会话"
+    },
+    "interaction": {
+      "stream": {
+        "title": "交互流",
+        "empty": "暂无交互活动",
+        "refreshInterval": "30秒自动刷新"
+      },
+      "detail": {
+        "triggerReason": "触发原因",
+        "emotionEffect": "情绪影响",
+        "relationshipEffect": "关系影响",
+        "memoryStatus": "记忆写入",
+        "echoDepth": "回声深度"
+      },
+      "hotspot": {
+        "label": "热点",
+        "count": "24小时内交互超过5次的智能体对"
+      },
+      "typeLabels": {
+        "emotion_driven": "情绪驱动",
+        "time_awareness": "时间感知",
+        "mention_propagation": "提及传递",
+        "event_ripple": "事件涟漪",
+        "inner_need": "内部需求",
+        "memory_driven": "记忆驱动",
+        "inner_monologue": "内心独白"
+      },
+      "memoryStatus": {
+        "success": "成功",
+        "failed": "失败",
+        "skipped": "跳过"
+      },
+      "manualTrigger": {
+        "title": "手动触发交互",
+        "initiator": "发起方",
+        "target": "接收方",
+        "type": "交互类型",
+        "reason": "触发原因",
+        "submit": "触发",
+        "success": "交互触发成功",
+        "failed": "交互触发失败"
+      },
+      "config": {
+        "title": "交互触发配置",
+        "basic": {
+          "title": "基础配置",
+          "enabled": "启用交互活化",
+          "cooldownMinutes": "冷却时间（分钟）",
+          "maxPerHour": "每小时最大交互次数",
+          "maxPerDay": "每天最大交互次数"
+        },
+        "echo": {
+          "title": "回声配置",
+          "enabled": "启用回声传播",
+          "maxDepth": "最大回声深度",
+          "decayRatio": "回声衰减比例"
+        },
+        "monologue": {
+          "title": "内心独白配置",
+          "enabled": "启用内心独白",
+          "minInterval": "最小间隔（分钟）",
+          "idleThreshold": "空闲阈值（分钟）",
+          "emotionThreshold": "情绪强度阈值"
+        }
+      }
+    },
+    "monologue": {
+      "panel": {
+        "title": "内心世界",
+        "empty": "内心世界暂无涟漪"
+      },
+      "content": {
+        "label": "独白内容"
+      },
+      "emotionSnapshot": {
+        "label": "情绪快照"
+      },
+      "selfEffect": {
+        "label": "自我影响"
+      }
     }
   },
   "emotion": {

@@ -1367,6 +1367,86 @@
       "confirm": "Confirm",
       "cancel": "Cancel",
       "noSessions": "No linked sessions"
+    },
+    "interaction": {
+      "stream": {
+        "title": "Interaction Stream",
+        "empty": "No interaction activity",
+        "refreshInterval": "Auto refresh every 30s"
+      },
+      "detail": {
+        "triggerReason": "Trigger Reason",
+        "emotionEffect": "Emotion Effect",
+        "relationshipEffect": "Relationship Effect",
+        "memoryStatus": "Memory Write",
+        "echoDepth": "Echo Depth"
+      },
+      "hotspot": {
+        "label": "Hotspot",
+        "count": "Agent pairs with 5+ interactions in 24h"
+      },
+      "typeLabels": {
+        "emotion_driven": "Emotion Driven",
+        "time_awareness": "Time Awareness",
+        "mention_propagation": "Mention Propagation",
+        "event_ripple": "Event Ripple",
+        "inner_need": "Inner Need",
+        "memory_driven": "Memory Driven",
+        "inner_monologue": "Inner Monologue"
+      },
+      "memoryStatus": {
+        "success": "Success",
+        "failed": "Failed",
+        "skipped": "Skipped"
+      },
+      "manualTrigger": {
+        "title": "Manual Trigger Interaction",
+        "initiator": "Initiator",
+        "target": "Target",
+        "type": "Interaction Type",
+        "reason": "Trigger Reason",
+        "submit": "Trigger",
+        "success": "Interaction triggered successfully",
+        "failed": "Interaction trigger failed"
+      },
+      "config": {
+        "title": "Interaction Trigger Config",
+        "basic": {
+          "title": "Basic Config",
+          "enabled": "Enable Interaction",
+          "cooldownMinutes": "Cooldown (minutes)",
+          "maxPerHour": "Max per hour",
+          "maxPerDay": "Max per day"
+        },
+        "echo": {
+          "title": "Echo Config",
+          "enabled": "Enable Echo",
+          "maxDepth": "Max Echo Depth",
+          "decayRatio": "Echo Decay Ratio"
+        },
+        "monologue": {
+          "title": "Monologue Config",
+          "enabled": "Enable Monologue",
+          "minInterval": "Min Interval (minutes)",
+          "idleThreshold": "Idle Threshold (minutes)",
+          "emotionThreshold": "Emotion Intensity Threshold"
+        }
+      }
+    },
+    "monologue": {
+      "panel": {
+        "title": "Inner World",
+        "empty": "No ripples in the inner world"
+      },
+      "content": {
+        "label": "Monologue Content"
+      },
+      "emotionSnapshot": {
+        "label": "Emotion Snapshot"
+      },
+      "selfEffect": {
+        "label": "Self Effect"
+      }
     }
   },
   "emotion": {

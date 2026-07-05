@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 
 import { AnimatePresence, motion } from 'motion/react'
-import { RefreshCw, Search } from 'lucide-react'
+import { RefreshCw, Search, Zap } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -19,6 +19,9 @@ import { ViewSwitcher } from './ViewSwitcher'
 import { InnerWorldView } from './inner-world/InnerWorldView'
 import { AgentConstellation } from './constellation/AgentConstellation'
 import { GlobalSituationView } from './global-situation/GlobalSituationView'
+import { InteractionStream } from './InteractionStream'
+import { InteractionConfigPanel } from './InteractionConfigPanel'
+import { ManualTriggerDialog } from './ManualTriggerDialog'
 
 export function CommandCenterLayout() {
   const { t } = useTranslation()
@@ -29,6 +32,8 @@ export function CommandCenterLayout() {
   const { currentView, switchView } = useViewSwitch()
 
   const [searchQuery, setSearchQuery] = useState('')
+  const [triggerDialogOpen, setTriggerDialogOpen] = useState(false)
+  const [showConfig, setShowConfig] = useState(false)
 
   const vitalSignsList = useMemo(() => {
     if (!agents.length) return []
@@ -120,8 +125,37 @@ export function CommandCenterLayout() {
       )}
 
       {currentView === 'global' && (
-        <GlobalSituationView />
+        <div className="flex flex-1 overflow-hidden">
+          <div className="flex-1 overflow-auto">
+            <GlobalSituationView />
+          </div>
+          <div className="w-80 border-l shrink-0 overflow-auto p-3 space-y-4">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs gap-1"
+                onClick={() => setTriggerDialogOpen(true)}
+              >
+                <Zap className="h-3 w-3" />
+                {t('agent.interaction.manualTrigger.title')}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => setShowConfig(!showConfig)}
+              >
+                ⚙
+              </Button>
+            </div>
+            {showConfig && <InteractionConfigPanel />}
+            <InteractionStream />
+          </div>
+        </div>
       )}
+
+      <ManualTriggerDialog open={triggerDialogOpen} onOpenChange={setTriggerDialogOpen} />}
 
       <AnimatePresence>
         {isInnerWorldOpen && selectedAgentId && (

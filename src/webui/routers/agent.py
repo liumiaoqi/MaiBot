@@ -11,7 +11,7 @@ from src.common.database.database import get_db_session
 from src.common.database.database_model import AgentRelationship, ChatSession, SubAgentExecutionRecord
 from src.common.logger import get_logger
 from src.maisaka.agent.config import AgentConfig
-from src.maisaka.agent.emotion import EMOTION_LABELS_ZH, EMOTION_TYPES, EmotionManager
+from src.maisaka.agent.emotion import EMOTION_LABELS_ZH, EmotionManager
 from src.maisaka.agent.registry import AgentConfigRegistry
 from src.maisaka.agent.router import AgentRouter
 
@@ -862,6 +862,84 @@ async def advance_migration(plugin_id: str):
     )
 
 
+# ---- 内心独白 API ----
+
+
+class MonologueEventResponse(BaseModel):
+    monologue_id: str
+    agent_id: str
+    emotion_snapshot: str
+    content: str
+    self_emotion_effect: str
+    memory_references: str
+    created_at: Optional[str] = None
+
+
+@router.get("/monologue/{agent_id}", response_model=List[MonologueEventResponse])
+async def get_monologue_events(agent_id: str, limit: int = 10):
+    """获取智能体内心独白列表。"""
+    from src.common.database.database_model import InnerMonologueEvent
+
+    with get_db_session() as session:
+        stmt = (
+            select(InnerMonologueEvent)
+            .where(InnerMonologueEvent.agent_id == agent_id)
+            .order_by(InnerMonologueEvent.created_at.desc())
+            .limit(limit)
+        )
+        result = session.execute(stmt)
+        rows = result.scalars().all()
+        return [
+            MonologueEventResponse(
+                monologue_id=r.monologue_id,
+                agent_id=r.agent_id,
+                emotion_snapshot=r.emotion_snapshot,
+                content=r.content,
+                self_emotion_effect=r.self_emotion_effect,
+                memory_references=r.memory_references,
+                created_at=r.created_at.isoformat() if r.created_at else None,
+            )
+            for r in rows
+        ]
+
+
+# ---- 智能体画像 API ----
+
+
+class AgentProfileResponse(BaseModel):
+    observer_agent_id: str
+    target_agent_id: str
+    summary: str
+    traits: List[str] = []
+    interaction_count: int = 0
+    emotion_tendency: str = ""
+    refresh_status: str = "pending"
+
+
+@router.get("/profile/{observer_id}/{target_id}", response_model=AgentProfileResponse)
+async def get_agent_profile(observer_id: str, target_id: str):
+    """获取智能体画像。"""
+    from src.maisaka.agent_interaction.memory.adapter import AgentMemoryAdapter
+    from src.maisaka.agent_interaction.memory.profile import AgentProfileService
+    from src.maisaka.agent_interaction.event_store import InteractionEventStore
+
+    adapter = AgentMemoryAdapter()
+    store = InteractionEventStore()
+    service = AgentProfileService(adapter, store)
+
+    profile = await service.get_profile(observer_id, target_id)
+
+    return AgentProfileResponse(
+        observer_agent_id=profile.observer_agent_id,
+        target_agent_id=profile.target_agent_id,
+        summary=profile.summary,
+        traits=profile.traits,
+        interaction_count=profile.interaction_count,
+        emotion_tendency=profile.emotion_tendency,
+        refresh_status=profile.refresh_status,
+    )
+
+
 # ── 智能体间交互事件 API ──
 
 
@@ -907,31 +985,6 @@ async def get_recent_interactions(limit: int = 20):
         for e in events
     ]
 
-
-@router.get("/interactions/{event_id}", response_model=InteractionEventResponse)
-async def get_interaction_detail(event_id: str):
-    """获取指定交互事件的详情。"""
-    from src.maisaka.agent_interaction.event_store import InteractionEventStore
-
-    store = InteractionEventStore()
-    event = await store.get_event(event_id)
-    if event is None:
-        raise HTTPException(status_code=404, detail=f"交互事件不存在: {event_id}")
-    return InteractionEventResponse(
-        event_id=event.event_id,
-        initiator_agent_id=event.initiator_agent_id,
-        target_agent_id=event.target_agent_id,
-        interaction_type=event.interaction_type,
-        trigger_reason=event.trigger_reason,
-        content_summary=event.content_summary,
-        emotion_effects=event.emotion_effects,
-        relationship_effect=event.relationship_effect,
-        memory_write_status=event.memory_write_status,
-        echo_depth=event.echo_depth,
-        echo_parent_event_id=event.echo_parent_event_id,
-        metadata=event.metadata,
-        created_at=event.created_at.isoformat() if event.created_at else None,
-    )
 
 
 @router.get("/interactions/history", response_model=List[InteractionEventResponse])
@@ -981,19 +1034,145 @@ async def query_interaction_history(
     ]
 
 
-@router.post("/migration/{plugin_id}/rollback", response_model=MigrationAdvanceResponse)
-async def rollback_migration(plugin_id: str):
-    """回退指定插件的迁移阶段。"""
-    from src.maisaka.migration import MigrationCoordinator
+# ---- 交互触发管理 API ----
 
-    coordinator = MigrationCoordinator()
-    state = coordinator.rollback(plugin_id)
-    if state is None:
-        raise HTTPException(status_code=404, detail=f"未找到插件: {plugin_id}")
 
-    return MigrationAdvanceResponse(
-        success=True,
-        plugin_id=state.plugin_id,
-        current_phase=state.current_phase.value,
-        previous_phase=state.previous_phase.value,
+class ManualTriggerRequest(BaseModel):
+    initiator_id: str
+    target_id: str
+    interaction_type: str
+    reason: str = ""
+
+
+class ManualTriggerResponse(BaseModel):
+    success: bool
+    event_id: str = ""
+    error: str = ""
+
+
+class InteractionConfigResponse(BaseModel):
+    enabled: bool = True
+    cooldown_minutes: int = 30
+    max_interactions_per_hour: int = 2
+    max_interactions_per_day: int = 8
+    echo_enabled: bool = True
+    echo_max_depth: int = 3
+    echo_decay_ratio: float = 0.5
+    monologue_enabled: bool = True
+    monologue_min_interval_minutes: int = 15
+    monologue_idle_threshold_minutes: int = 30
+    monologue_emotion_intensity_threshold: int = 40
+
+
+@router.post("/interactions/trigger", response_model=ManualTriggerResponse)
+async def manual_trigger_interaction(req: ManualTriggerRequest):
+    """管理员手动触发交互。"""
+    from src.maisaka.agent_interaction.engine import InteractionEngine
+    from src.maisaka.agent_interaction.emotion_registry import AgentEmotionManagerRegistry
+    from src.maisaka.agent_interaction.relationship_manager import AgentRelationshipManager
+    from src.maisaka.agent_interaction.event_store import InteractionEventStore
+
+    engine = InteractionEngine(
+        emotion_registry=AgentEmotionManagerRegistry(),
+        relationship_manager=AgentRelationshipManager(),
+        event_store=InteractionEventStore(),
+    )
+    result = await engine.execute_manual(
+        initiator_id=req.initiator_id,
+        target_id=req.target_id,
+        interaction_type=req.interaction_type,
+        reason=req.reason,
+    )
+    return ManualTriggerResponse(
+        success=result.success,
+        event_id=result.event_id,
+        error=result.error,
+    )
+
+
+@router.get("/interactions/config", response_model=InteractionConfigResponse)
+async def get_interaction_config():
+    """获取交互触发配置。"""
+    from src.maisaka.agent_interaction.config.trigger_config import InteractionTriggerConfig
+    from src.config.config import global_config
+
+    cfg = getattr(global_config, "agent_interaction", None)
+    if cfg is not None:
+        trigger_cfg = getattr(cfg, "trigger", None)
+        if trigger_cfg is not None:
+            return InteractionConfigResponse(
+                enabled=trigger_cfg.enabled,
+                cooldown_minutes=trigger_cfg.cooldown_minutes,
+                max_interactions_per_hour=trigger_cfg.max_interactions_per_hour,
+                max_interactions_per_day=trigger_cfg.max_interactions_per_day,
+                echo_enabled=trigger_cfg.echo_enabled,
+                echo_max_depth=trigger_cfg.echo_max_depth,
+                echo_decay_ratio=trigger_cfg.echo_decay_ratio,
+                monologue_enabled=trigger_cfg.monologue_enabled,
+                monologue_min_interval_minutes=trigger_cfg.monologue_min_interval_minutes,
+                monologue_idle_threshold_minutes=trigger_cfg.monologue_idle_threshold_minutes,
+                monologue_emotion_intensity_threshold=trigger_cfg.monologue_emotion_intensity_threshold,
+            )
+    default = InteractionTriggerConfig()
+    return InteractionConfigResponse(
+        enabled=default.enabled,
+        cooldown_minutes=default.cooldown_minutes,
+        max_interactions_per_hour=default.max_interactions_per_hour,
+        max_interactions_per_day=default.max_interactions_per_day,
+        echo_enabled=default.echo_enabled,
+        echo_max_depth=default.echo_max_depth,
+        echo_decay_ratio=default.echo_decay_ratio,
+        monologue_enabled=default.monologue_enabled,
+        monologue_min_interval_minutes=default.monologue_min_interval_minutes,
+        monologue_idle_threshold_minutes=default.monologue_idle_threshold_minutes,
+        monologue_emotion_intensity_threshold=default.monologue_emotion_intensity_threshold,
+    )
+
+
+@router.get("/interactions/hotspots")
+async def get_interaction_hotspots():
+    """获取交互热点对（24小时内交互超过5次的智能体对）。"""
+    from src.maisaka.agent_interaction.event_store import InteractionEventStore
+    from datetime import datetime, timedelta
+
+    store = InteractionEventStore()
+    time_start = datetime.now() - timedelta(hours=24)
+    events = await store.query_events(time_start=time_start, limit=200)
+
+    pair_counts: dict[str, int] = {}
+    for e in events:
+        key = f"{e.initiator_agent_id}:{e.target_agent_id}"
+        pair_counts[key] = pair_counts.get(key, 0) + 1
+
+    hotspots = [
+        {"pair": pair, "count": count}
+        for pair, count in pair_counts.items()
+        if count >= 5
+    ]
+    return {"hotspots": hotspots}
+
+
+@router.get("/interactions/{event_id}", response_model=InteractionEventResponse)
+async def get_interaction_detail(event_id: str):
+    """获取指定交互事件的详情。"""
+    from src.maisaka.agent_interaction.event_store import InteractionEventStore
+
+    store = InteractionEventStore()
+    event = await store.get_event(event_id)
+    if event is None:
+        raise HTTPException(status_code=404, detail=f"交互事件不存在: {event_id}")
+    return InteractionEventResponse(
+        event_id=event.event_id,
+        initiator_agent_id=event.initiator_agent_id,
+        target_agent_id=event.target_agent_id,
+        interaction_type=event.interaction_type,
+        trigger_reason=event.trigger_reason,
+        content_summary=event.content_summary,
+        emotion_effects=event.emotion_effects,
+        relationship_effect=event.relationship_effect,
+        memory_write_status=event.memory_write_status,
+        echo_depth=event.echo_depth,
+        echo_parent_event_id=event.echo_parent_event_id,
+        metadata=event.event_metadata,
+        created_at=event.created_at.isoformat() if event.created_at else None,
     )

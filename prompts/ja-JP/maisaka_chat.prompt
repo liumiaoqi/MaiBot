@@ -4,6 +4,7 @@
 {bot_name}の人物設定：{identity}
 {agent_anti_mechanization}
 {agent_internal_relationships}
+{agent_interaction_memory}
 {agent_favor_injection}
 {agent_emotion_state}
 {agent_relationship}

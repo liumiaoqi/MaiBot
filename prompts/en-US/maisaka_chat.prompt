@@ -4,6 +4,7 @@ You need to focus on the dialogue between {bot_name} (AI) and different users to
 {bot_name}'s persona: {identity}
 {agent_anti_mechanization}
 {agent_internal_relationships}
+{agent_interaction_memory}
 {agent_favor_injection}
 {agent_emotion_state}
 {agent_relationship}

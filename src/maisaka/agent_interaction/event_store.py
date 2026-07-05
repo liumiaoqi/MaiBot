@@ -1,4 +1,4 @@
-import json
+
 import logging
 import time
 from datetime import datetime
@@ -34,7 +34,7 @@ def _table_to_read(row: InteractionEventTable) -> InteractionEventRead:
         memory_write_status=row.memory_write_status,
         echo_depth=row.echo_depth,
         echo_parent_event_id=row.echo_parent_event_id,
-        metadata=row.metadata,
+        metadata=row.event_metadata,
         created_at=row.created_at,
     )
 
@@ -56,11 +56,11 @@ class InteractionEventStore:
             memory_write_status=event_data.memory_write_status,
             echo_depth=event_data.echo_depth,
             echo_parent_event_id=event_data.echo_parent_event_id,
-            metadata=event_data.metadata,
+            event_metadata=event_data.metadata,
         )
-        async with get_db_session() as session:
+        with get_db_session() as session:
             session.add(row)
-            await session.commit()
+            session.commit()
 
         logger.info(
             "[agent_interaction] %s→%s type=%s reason=%s",
@@ -72,8 +72,8 @@ class InteractionEventStore:
         return event_id
 
     async def get_event(self, event_id: str) -> InteractionEventRead | None:
-        async with get_db_session() as session:
-            result = await session.execute(
+        with get_db_session() as session:
+            result = session.execute(
                 select(InteractionEventTable).where(InteractionEventTable.event_id == event_id)
             )
             row = result.scalar_one_or_none()
@@ -92,7 +92,7 @@ class InteractionEventStore:
         limit: int = 50,
         offset: int = 0,
     ) -> list[InteractionEventRead]:
-        async with get_db_session() as session:
+        with get_db_session() as session:
             stmt = select(InteractionEventTable).order_by(InteractionEventTable.created_at.desc())
             if agent_id:
                 stmt = stmt.where(InteractionEventTable.initiator_agent_id == agent_id)
@@ -105,17 +105,17 @@ class InteractionEventStore:
             if time_end:
                 stmt = stmt.where(InteractionEventTable.created_at <= time_end)
             stmt = stmt.limit(limit).offset(offset)
-            result = await session.execute(stmt)
+            result = session.execute(stmt)
             rows = result.scalars().all()
             return [_table_to_read(r) for r in rows]
 
     async def get_recent_events(self, limit: int = 20) -> list[InteractionEventRead]:
-        async with get_db_session() as session:
+        with get_db_session() as session:
             stmt = (
                 select(InteractionEventTable)
                 .order_by(InteractionEventTable.created_at.desc())
                 .limit(limit)
             )
-            result = await session.execute(stmt)
+            result = session.execute(stmt)
             rows = result.scalars().all()
             return [_table_to_read(r) for r in rows]

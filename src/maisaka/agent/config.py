@@ -79,13 +79,13 @@ class DeepSeekOptimizationConfig(BaseModel):
         description="上下文注入策略：full(1M全量)/adaptive(按优先级截断)/lean(128K精简)",
     )
     injection_priority: list[str] = Field(
-        default_factory=lambda: ["identity", "anti_mechanization", "profile", "mid_term", "heuristic"],
+        default_factory=lambda: ["identity", "anti_mechanization", "interaction_memory", "profile", "mid_term", "heuristic"],
         description="上下文注入优先级（从高到低）",
     )
     token_budget_ratio: float = Field(default=1.0, ge=0.1, le=2.0, description="Token预算分配比例")
     prefix_cache_enabled: bool = Field(default=True, description="是否启用前缀缓存优化")
     prefix_cache_priority: list[str] = Field(
-        default_factory=lambda: ["system", "identity", "emotion_baseline", "internal_relationships"],
+        default_factory=lambda: ["system", "identity", "emotion_baseline", "internal_relationships", "interaction_memory"],
         description="前缀缓存稳定层优先级",
     )
     batch_api_enabled: bool = Field(default=True, description="是否启用批处理API")
