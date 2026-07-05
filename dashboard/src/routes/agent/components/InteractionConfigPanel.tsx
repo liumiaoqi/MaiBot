@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { getInteractionConfig, type InteractionConfigResponse } from '@/lib/agent-api'
+import { getInteractionConfig } from '@/lib/agent-api'
 
 export function InteractionConfigPanel() {
   const { t } = useTranslation()

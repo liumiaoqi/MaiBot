@@ -53,7 +53,7 @@ interface AgentConstellationProps {
 
 export function AgentConstellation({
   data,
-  selectedAgentId,
+  selectedAgentId: _selectedAgentId,
   onNodeClick,
   onNodeDoubleClick,
   emotions,
@@ -158,10 +158,6 @@ export function AgentConstellation({
     setTooltipPosition({ x: event.clientX, y: event.clientY })
   }, [])
 
-  const handleNodeMouseEnter = useCallback((event: React.MouseEvent) => {
-    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
-    setPopoverPosition({ x: rect.right + 8, y: rect.top })
-  }, [])
 
   const selectedNodeData: ConstellationNodeData | undefined = highlightedNodeId
     ? data.nodes.find((n) => n.id === highlightedNodeId)
