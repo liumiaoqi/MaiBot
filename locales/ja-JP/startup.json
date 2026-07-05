@@ -93,5 +93,7 @@
   "startup.webui_static_dir_missing": "❌ WebUI の静的ディレクトリが存在しません",
   "startup.webui_static_dir_missing_with_path": "❌ WebUI の静的ディレクトリが存在しません: {static_path}",
   "startup.webui_static_files_configured": "✅ WebUI の静的ファイル配信を設定しました: {static_path}",
-  "startup.worker_dir_set": "作業ディレクトリを設定しました: {script_dir}"
+  "startup.worker_dir_set": "作業ディレクトリを設定しました: {script_dir}",
+  "startup.agent_interaction_started": "エージェント相互作用スケジューラーが起動しました",
+  "startup.agent_interaction_failed": "エージェント相互作用スケジューラーの起動に失敗しました: {error}"
 }

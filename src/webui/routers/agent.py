@@ -1093,39 +1093,21 @@ async def manual_trigger_interaction(req: ManualTriggerRequest):
 @router.get("/interactions/config", response_model=InteractionConfigResponse)
 async def get_interaction_config():
     """获取交互触发配置。"""
-    from src.maisaka.agent_interaction.config.trigger_config import InteractionTriggerConfig
     from src.config.config import global_config
 
-    cfg = getattr(global_config, "agent_interaction", None)
-    if cfg is not None:
-        trigger_cfg = getattr(cfg, "trigger", None)
-        if trigger_cfg is not None:
-            return InteractionConfigResponse(
-                enabled=trigger_cfg.enabled,
-                cooldown_minutes=trigger_cfg.cooldown_minutes,
-                max_interactions_per_hour=trigger_cfg.max_interactions_per_hour,
-                max_interactions_per_day=trigger_cfg.max_interactions_per_day,
-                echo_enabled=trigger_cfg.echo_enabled,
-                echo_max_depth=trigger_cfg.echo_max_depth,
-                echo_decay_ratio=trigger_cfg.echo_decay_ratio,
-                monologue_enabled=trigger_cfg.monologue_enabled,
-                monologue_min_interval_minutes=trigger_cfg.monologue_min_interval_minutes,
-                monologue_idle_threshold_minutes=trigger_cfg.monologue_idle_threshold_minutes,
-                monologue_emotion_intensity_threshold=trigger_cfg.monologue_emotion_intensity_threshold,
-            )
-    default = InteractionTriggerConfig()
+    cfg = global_config.agent_interaction
     return InteractionConfigResponse(
-        enabled=default.enabled,
-        cooldown_minutes=default.cooldown_minutes,
-        max_interactions_per_hour=default.max_interactions_per_hour,
-        max_interactions_per_day=default.max_interactions_per_day,
-        echo_enabled=default.echo_enabled,
-        echo_max_depth=default.echo_max_depth,
-        echo_decay_ratio=default.echo_decay_ratio,
-        monologue_enabled=default.monologue_enabled,
-        monologue_min_interval_minutes=default.monologue_min_interval_minutes,
-        monologue_idle_threshold_minutes=default.monologue_idle_threshold_minutes,
-        monologue_emotion_intensity_threshold=default.monologue_emotion_intensity_threshold,
+        enabled=cfg.enabled,
+        cooldown_minutes=cfg.cooldown_minutes,
+        max_interactions_per_hour=cfg.max_interactions_per_hour,
+        max_interactions_per_day=cfg.max_interactions_per_day,
+        echo_enabled=cfg.echo_enabled,
+        echo_max_depth=cfg.echo_max_depth,
+        echo_decay_ratio=cfg.echo_decay_ratio,
+        monologue_enabled=cfg.monologue_enabled,
+        monologue_min_interval_minutes=cfg.monologue_min_interval_minutes,
+        monologue_idle_threshold_minutes=cfg.monologue_idle_threshold_minutes,
+        monologue_emotion_intensity_threshold=cfg.monologue_emotion_intensity_threshold,
     )
 
 

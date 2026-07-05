@@ -6107,3 +6107,200 @@ class PythonRuntimeSectionConfig(ConfigBase):
         },
     )
     """启用 GC 调优，根据运行时内存分配模式自动调整各代阈值。"""
+
+
+class AgentInteractionSectionConfig(ConfigBase):
+    """智能体交互活化配置类"""
+
+    __ui_label__ = "智能体交互"
+    __ui_order__ = 51
+    __ui_advanced__ = True
+
+    enabled: bool = Field(
+        default=False,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "启用智能体交互",
+                "en_US": "Enable agent interaction",
+                "ja_JP": "エージェント相互作用を有効化",
+            },
+            "x-widget": "switch",
+            "x-icon": "users",
+        },
+    )
+    """启用后，智能体之间会根据情绪、时间、关系等信号自动产生交互。"""
+
+    evaluation_interval_seconds: int = Field(
+        default=300,
+        ge=60,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "评估间隔（秒）",
+                "en_US": "Evaluation interval (seconds)",
+                "ja_JP": "評価間隔（秒）",
+            },
+            "x-widget": "input",
+            "x-icon": "clock",
+        },
+    )
+    """调度器遍历所有智能体评估交互触发的间隔秒数。"""
+
+    cooldown_minutes: int = Field(
+        default=30,
+        ge=5,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "冷却时间（分钟）",
+                "en_US": "Cooldown (minutes)",
+                "ja_JP": "クールダウン（分）",
+            },
+            "x-widget": "input",
+            "x-icon": "timer",
+        },
+    )
+    """同一对智能体两次交互之间的最短冷却时间。"""
+
+    max_interactions_per_hour: int = Field(
+        default=2,
+        ge=1,
+        le=10,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "每小时最大交互数",
+                "en_US": "Max interactions per hour",
+                "ja_JP": "1時間あたり最大相互作用数",
+            },
+            "x-widget": "input",
+            "x-icon": "gauge",
+        },
+    )
+    """同一对智能体每小时最多允许的交互次数。"""
+
+    max_interactions_per_day: int = Field(
+        default=8,
+        ge=1,
+        le=20,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "每天最大交互数",
+                "en_US": "Max interactions per day",
+                "ja_JP": "1日あたり最大相互作用数",
+            },
+            "x-widget": "input",
+            "x-icon": "calendar",
+        },
+    )
+    """同一对智能体每天最多允许的交互次数。"""
+
+    echo_enabled: bool = Field(
+        default=True,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "启用交互回声",
+                "en_US": "Enable interaction echo",
+                "ja_JP": "相互作用エコーを有効化",
+            },
+            "x-widget": "switch",
+            "x-icon": "repeat",
+            "advanced": True,
+        },
+    )
+    """交互事件是否触发回声传播。"""
+
+    echo_max_depth: int = Field(
+        default=3,
+        ge=1,
+        le=5,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "回声最大深度",
+                "en_US": "Echo max depth",
+                "ja_JP": "エコー最大深度",
+            },
+            "x-widget": "input",
+            "x-icon": "layers",
+            "advanced": True,
+        },
+    )
+    """回声传播的最大链式深度。"""
+
+    echo_decay_ratio: float = Field(
+        default=0.5,
+        ge=0.1,
+        le=1.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "回声衰减比",
+                "en_US": "Echo decay ratio",
+                "ja_JP": "エコー減衰比",
+            },
+            "x-widget": "slider",
+            "x-icon": "trending-down",
+            "step": 0.1,
+            "advanced": True,
+        },
+    )
+    """回声传播时影响量的衰减比例。"""
+
+    monologue_enabled: bool = Field(
+        default=True,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "启用内心独白",
+                "en_US": "Enable inner monologue",
+                "ja_JP": "内なる独白を有効化",
+            },
+            "x-widget": "switch",
+            "x-icon": "message-circle",
+        },
+    )
+    """智能体空闲且情绪强烈时是否触发内心独白。"""
+
+    monologue_min_interval_minutes: int = Field(
+        default=15,
+        ge=5,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "独白最小间隔（分钟）",
+                "en_US": "Monologue min interval (min)",
+                "ja_JP": "独白最小間隔（分）",
+            },
+            "x-widget": "input",
+            "x-icon": "timer",
+            "advanced": True,
+        },
+    )
+    """同一智能体两次内心独白之间的最短间隔。"""
+
+    monologue_idle_threshold_minutes: int = Field(
+        default=30,
+        ge=10,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "独白空闲阈值（分钟）",
+                "en_US": "Monologue idle threshold (min)",
+                "ja_JP": "独白アイドル閾値（分）",
+            },
+            "x-widget": "input",
+            "x-icon": "hourglass",
+            "advanced": True,
+        },
+    )
+    """智能体空闲多久后才可能触发内心独白。"""
+
+    monologue_emotion_intensity_threshold: int = Field(
+        default=40,
+        ge=0,
+        le=100,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "独白情绪强度阈值",
+                "en_US": "Monologue emotion threshold",
+                "ja_JP": "独白感情強度閾値",
+            },
+            "x-widget": "input",
+            "x-icon": "heart",
+            "advanced": True,
+        },
+    )
+    """主导情绪强度超过此阈值时才可能触发内心独白。"""
