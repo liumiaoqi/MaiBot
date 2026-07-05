@@ -1,4 +1,4 @@
-import { EMOTION_COLORS, EMOTION_ICONS } from '@/routes/agent/utils/emotion-constants'
+import { EMOTION_ICONS } from '@/routes/agent/utils/emotion-constants'
 
 interface EmotionRadarChartProps {
   emotions: Record<string, number>

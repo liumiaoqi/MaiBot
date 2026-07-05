@@ -1,5 +1,4 @@
 import { ArrowLeft } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 
@@ -13,7 +12,6 @@ interface IdentityHeaderProps {
 }
 
 export function IdentityHeader({ vitalSigns, personality, onBack }: IdentityHeaderProps) {
-  const { t } = useTranslation()
 
   return (
     <div className="flex items-start gap-4 p-4 border-b">

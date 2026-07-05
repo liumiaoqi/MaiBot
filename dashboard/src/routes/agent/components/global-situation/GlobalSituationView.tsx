@@ -1,5 +1,3 @@
-import { useTranslation } from 'react-i18next'
-
 import { useBatchAgentData } from '../../hooks/useBatchAgentData'
 import { deriveVitalSignsData } from '../../utils/vital-signs'
 import { EmotionDonutChart } from './EmotionDonutChart'
@@ -8,7 +6,6 @@ import { RelationshipDynamicsFlow } from './RelationshipDynamicsFlow'
 import { GroupStatsBar } from './GroupStatsBar'
 
 export function GlobalSituationView() {
-  const { t } = useTranslation()
   const { agents, emotions, relationships, sessionCounts, latestSubAgentRecords } = useBatchAgentData()
 
   const vitalSignsList = agents.map((agent) =>

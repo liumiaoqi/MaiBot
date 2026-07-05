@@ -1,4 +1,3 @@
-import { useState } from 'react'
 
 import { Heart, Link2, Leaf, Clock, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'

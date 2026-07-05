@@ -1,5 +1,3 @@
-import { useTranslation } from 'react-i18next'
-
 import type { ConstellationNode as ConstellationNodeData } from '../../utils/constellation'
 import { EmotionPulse } from '../EmotionPulse'
 import { ActivityRhythmIndicator } from '../ActivityRhythmIndicator'
@@ -14,7 +12,6 @@ interface NodeDetailPopoverProps {
 }
 
 export function NodeDetailPopover({ data, emotion, sessionCount, talkValueModifier }: NodeDetailPopoverProps) {
-  const { t } = useTranslation()
 
   const emotionPulse = deriveEmotionPulseData(emotion ?? null)
   const activityRhythm = deriveActivityRhythmData(
