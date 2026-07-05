@@ -13,7 +13,7 @@ export function EmotionPulse({ data }: EmotionPulseProps) {
   const { t } = useTranslation()
 
   const intensity = data?.intensity ?? 0
-  const scaleRange = 1.0 + intensity / 200
+  const scaleRange = Math.min(1.0 + intensity / 200, 1.2)
   const duration = Math.max(800, 2000 - intensity / 100 * 1000)
 
   const spring = useSpring({

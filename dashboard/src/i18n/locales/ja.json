@@ -1260,7 +1260,18 @@
       "activityHeatmap": "活動ヒートマップ",
       "relationshipDynamics": "関係ダイナミクス",
       "noChanges": "最近の関係に大きな変化なし",
-      "nearBreakthrough": "ブレイクスルー間近"
+      "nearBreakthrough": "ブレイクスルー間近",
+      "statsDetail": {
+        "totalAgents": "{{count}} 体の生命",
+        "activeAgents": "{{count}} 体がアクティブ",
+        "totalRelationships": "{{count}} 本の絆",
+        "avgScore": "平均温度 {{score}}"
+      },
+      "heatmapLegend": {
+        "active": "アクティブ",
+        "quiet": "静穏",
+        "dormant": "休眠"
+      }
     },
     "innerWorld": {
       "back": "戻る",
@@ -1308,7 +1319,8 @@
       "relationshipBreakthrough": "関係のブレイクスルー",
       "memoryMilestone": "{{type}}完了",
       "noEvents": "最近のイベントなし",
-      "relationshipWarmUp": "{{user}}との関係が温まりつつある"
+      "relationshipWarmUp": "{{user}}との関係が温まりつつある",
+      "currentStatus": "現在の状態"
     },
     "lifeDefense": {
       "title": "生命の防衛",
@@ -1326,6 +1338,16 @@
       "bindSession": "セッションをバインド",
       "unbind": "バインド解除",
       "unbindConfirm": "バインド解除しますか？",
+      "unbindConfirmDesc": "「{{name}}」とのバインドを解除します。解除後、このセッションはこのエージェントによって応答されなくなります。",
+      "unbindFailed": "バインド解除に失敗しました",
+      "bindFailed": "バインドに失敗しました",
+      "loadFailed": "読み込み失敗",
+      "retry": "再試行",
+      "boundStatus": "バインド済み",
+      "selectSession": "セッションを選択",
+      "noAvailableSessions": "利用可能なセッションなし",
+      "confirm": "確認",
+      "cancel": "キャンセル",
       "noSessions": "リンクセッションなし"
     }
   },

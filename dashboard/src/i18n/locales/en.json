@@ -1260,7 +1260,18 @@
       "activityHeatmap": "Activity Heatmap",
       "relationshipDynamics": "Relationship Dynamics",
       "noChanges": "No significant relationship changes recently",
-      "nearBreakthrough": "Near breakthrough"
+      "nearBreakthrough": "Near breakthrough",
+      "statsDetail": {
+        "totalAgents": "{{count}} entities",
+        "activeAgents": "{{count}} active",
+        "totalRelationships": "{{count}} bonds",
+        "avgScore": "Avg warmth {{score}}"
+      },
+      "heatmapLegend": {
+        "active": "Active",
+        "quiet": "Quiet",
+        "dormant": "Dormant"
+      }
     },
     "innerWorld": {
       "back": "Back",
@@ -1308,7 +1319,8 @@
       "relationshipBreakthrough": "Relationship breakthrough",
       "memoryMilestone": "{{type}} completed",
       "noEvents": "No recent events",
-      "relationshipWarmUp": "Relationship warming up with {{user}}"
+      "relationshipWarmUp": "Relationship warming up with {{user}}",
+      "currentStatus": "Current status"
     },
     "lifeDefense": {
       "title": "Life Defense",
@@ -1326,6 +1338,16 @@
       "bindSession": "Bind Session",
       "unbind": "Unbind",
       "unbindConfirm": "Confirm unbind?",
+      "unbindConfirmDesc": "Unbinding from \"{{name}}\". This session will no longer be responded to by this agent.",
+      "unbindFailed": "Failed to unbind",
+      "bindFailed": "Failed to bind",
+      "loadFailed": "Load failed",
+      "retry": "Retry",
+      "boundStatus": "Bound",
+      "selectSession": "Select Session",
+      "noAvailableSessions": "No available sessions",
+      "confirm": "Confirm",
+      "cancel": "Cancel",
       "noSessions": "No linked sessions"
     }
   },

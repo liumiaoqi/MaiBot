@@ -135,7 +135,7 @@ export function CommandCenterLayout() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="w-full h-full max-w-4xl max-h-[85vh] rounded-lg border bg-card shadow-lg overflow-hidden"
+              className="w-full h-full max-w-full md:max-w-5xl max-h-[85vh] rounded-lg border bg-card shadow-lg overflow-hidden"
             >
               <InnerWorldView agentId={selectedAgentId} onBack={exitInnerWorld} />
             </motion.div>

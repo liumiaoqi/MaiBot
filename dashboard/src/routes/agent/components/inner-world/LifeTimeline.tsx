@@ -24,7 +24,7 @@ export function LifeTimeline({ emotion, relationships, subAgentRecords }: LifeTi
   if (emotion) {
     events.push({
       type: 'emotion_shift',
-      timestamp: new Date().toISOString(),
+      timestamp: 'current',
       description: t('agent.lifeTimeline.emotionShift', { emotion: emotion.dominant_emotion_label }),
       icon: '💫',
     })
@@ -39,7 +39,7 @@ export function LifeTimeline({ emotion, relationships, subAgentRecords }: LifeTi
   nearBreakthrough.forEach((rel) => {
     events.push({
       type: 'relationship_breakthrough',
-      timestamp: new Date().toISOString(),
+      timestamp: 'current',
       description: t('agent.lifeTimeline.relationshipWarmUp', { user: rel.user_id }),
       icon: '🔥',
     })
@@ -57,7 +57,11 @@ export function LifeTimeline({ emotion, relationships, subAgentRecords }: LifeTi
       })
     })
 
-  events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+  events.sort((a, b) => {
+    const ta = a.timestamp === 'current' ? Date.now() : new Date(a.timestamp).getTime()
+    const tb = b.timestamp === 'current' ? Date.now() : new Date(b.timestamp).getTime()
+    return tb - ta
+  })
 
   if (events.length === 0) {
     return (
@@ -76,7 +80,9 @@ export function LifeTimeline({ emotion, relationships, subAgentRecords }: LifeTi
             <span className="text-muted-foreground">{event.description}</span>
           </div>
           <span className="text-xs text-muted-foreground shrink-0">
-            {new Date(event.timestamp).toLocaleString()}
+            {event.timestamp === 'current'
+              ? t('agent.lifeTimeline.currentStatus')
+              : new Date(event.timestamp).toLocaleString()}
           </span>
         </div>
       ))}

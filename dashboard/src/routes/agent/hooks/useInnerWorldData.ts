@@ -23,6 +23,8 @@ export interface InnerWorldData {
   subAgentRecords: SubAgentRecord[]
   emotionBehaviorRules: EmotionBehaviorRule[]
   isLoading: boolean
+  isCoreLoading: boolean
+  isAuxLoading: boolean
   error: Error | null
 }
 
@@ -65,7 +67,14 @@ export function useInnerWorldData(agentId: string | null) {
     enabled,
   })
 
-  const isLoading = agentQuery.isLoading || emotionQuery.isLoading
+  const isCoreLoading = agentQuery.isLoading
+  const isAuxLoading =
+    emotionQuery.isLoading ||
+    relationshipQuery.isLoading ||
+    sessionsQuery.isLoading ||
+    subAgentQuery.isLoading ||
+    behaviorRulesQuery.isLoading
+  const isLoading = isCoreLoading || isAuxLoading
 
   return {
     agent: agentQuery.data ?? null,
@@ -75,6 +84,8 @@ export function useInnerWorldData(agentId: string | null) {
     subAgentRecords: subAgentQuery.data ?? [],
     emotionBehaviorRules: behaviorRulesQuery.data ?? [],
     isLoading,
+    isCoreLoading,
+    isAuxLoading,
     error: agentQuery.error ?? emotionQuery.error,
   }
 }

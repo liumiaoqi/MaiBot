@@ -38,7 +38,7 @@ export function EmotionBaselineShift({ emotions, baseline, emotionLabels }: Emot
             <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
               <div
                 className={`h-full rounded-full ${barColor}`}
-                style={{ width: `${Math.min(Math.abs(delta), 100)}%` }}
+                style={{ width: `${Math.abs(delta) >= 5 ? Math.max(Math.min(Math.abs(delta), 100), 10) : Math.min(Math.abs(delta), 100)}%` }}
               />
             </div>
             <span className="text-xs text-muted-foreground w-4">{arrow}</span>

@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+
 import type { VitalSignsData } from '../../utils/vital-signs'
 import type { BatchRelationshipItem } from '@/lib/agent-api'
 
@@ -7,6 +9,7 @@ interface GroupStatsBarProps {
 }
 
 export function GroupStatsBar({ vitalSignsList, relationships }: GroupStatsBarProps) {
+  const { t } = useTranslation()
 
   const totalAgents = vitalSignsList.length
   const activeAgents = vitalSignsList.filter((v) => v.activityRhythm.status === 'active').length
@@ -17,13 +20,13 @@ export function GroupStatsBar({ vitalSignsList, relationships }: GroupStatsBarPr
 
   return (
     <div className="flex items-center gap-4 text-sm text-muted-foreground">
-      <span>{totalAgents} 个生命体</span>
+      <span>{t('agent.globalSituation.stats.totalAgents', { count: totalAgents })}</span>
       <span>·</span>
-      <span>{activeAgents} 个活跃</span>
+      <span>{t('agent.globalSituation.stats.activeAgents', { count: activeAgents })}</span>
       <span>·</span>
-      <span>{totalRelationships} 条纽带</span>
+      <span>{t('agent.globalSituation.stats.totalRelationships', { count: totalRelationships })}</span>
       <span>·</span>
-      <span>均温 {avgScore}</span>
+      <span>{t('agent.globalSituation.stats.avgScore', { score: avgScore })}</span>
     </div>
   )
 }

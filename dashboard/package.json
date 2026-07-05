@@ -1,7 +1,7 @@
 {
   "name": "maibot-dashboard",
   "private": true,
-  "version": "1.5.4",
+  "version": "1.6.0",
   "type": "module",
   "main": "./out/main/index.js",
   "scripts": {
@@ -153,6 +153,7 @@
     "react-day-picker": "^9.12.0",
     "react-dom": "^19.2.1",
     "react-i18next": "^16.5.4",
+    "react-is": "^19.2.7",
     "react-joyride": "3.0.0-7",
     "react-markdown": "^10.1.0",
     "reactflow": "^11.11.4",
