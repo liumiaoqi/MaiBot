@@ -24,6 +24,27 @@ class AgentActivityStore:
                 .all()
             )
 
+    def get_sessions_by_agent(self, agent_id: str) -> list[AgentAutonomyActivity]:
+        """查询智能体关联的所有Activity记录（含活跃和已退出）。"""
+        with get_db_session() as session:
+            return list(
+                session.query(AgentAutonomyActivity)
+                .filter(AgentAutonomyActivity.agent_id == agent_id)
+                .all()
+            )
+
+    def get_active_sessions_by_agent(self, agent_id: str) -> list[AgentAutonomyActivity]:
+        """查询智能体的活跃（未退出）Activity记录。"""
+        with get_db_session() as session:
+            return list(
+                session.query(AgentAutonomyActivity)
+                .filter(
+                    AgentAutonomyActivity.agent_id == agent_id,
+                    AgentAutonomyActivity.exited_at.is_(None),
+                )
+                .all()
+            )
+
     def save_activity(
         self,
         session_id: str,
