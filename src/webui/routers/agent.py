@@ -306,7 +306,7 @@ async def get_session_binding(session_id: str):
 
 @router.put("/binding/session/{session_id}", response_model=SessionBindingResponse)
 async def bind_session_agent(session_id: str, request: BindSessionRequest):
-    """绑定会话到指定智能体"""
+    """绑定会话到指定智能体（双写：内存路由器 + 数据库 + Activity）"""
     try:
         agent_router = _get_agent_router()
         try:
@@ -314,12 +314,40 @@ async def bind_session_agent(session_id: str, request: BindSessionRequest):
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
-        with get_db_session() as db:
-            statement = select(ChatSession).filter_by(session_id=session_id).limit(1)
-            db_session = db.exec(statement).first()
-            if db_session:
-                db_session.agent_id = request.agent_id
-                db.add(db_session)
+        primary_agent = agent_router.get_session_primary_agent(session_id)
+        try:
+            with get_db_session() as db:
+                statement = select(ChatSession).filter_by(session_id=session_id).limit(1)
+                db_session = db.exec(statement).first()
+                if db_session:
+                    db_session.agent_id = primary_agent
+                    db.add(db_session)
+        except Exception as db_exc:
+            agent_router.unbind_session(session_id, request.agent_id)
+            logger.error(f"绑定写入数据库失败，已回滚内存绑定: session={session_id}, agent={request.agent_id}, error={db_exc}")
+            raise HTTPException(status_code=500, detail="绑定写入数据库失败") from db_exc
+
+        is_primary = (primary_agent == request.agent_id)
+        try:
+            from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
+
+            orchestrator = AgentOrchestrator.get_by_session(session_id)
+            if orchestrator is not None:
+                orchestrator.activate_agent(request.agent_id, "manual_binding", is_primary=is_primary)
+        except Exception as orch_exc:
+            logger.warning(f"绑定触发Orchestrator激活失败（不影响绑定结果）: session={session_id}, agent={request.agent_id}, error={orch_exc}")
+
+        try:
+            from src.maisaka.agent_autonomy.activity_store import AgentActivityStore
+
+            AgentActivityStore().save_activity(
+                session_id=session_id,
+                agent_id=request.agent_id,
+                is_primary=is_primary,
+                activation_reason="manual_binding",
+            )
+        except Exception as act_exc:
+            logger.warning(f"绑定写入Activity记录失败（不影响绑定结果）: session={session_id}, agent={request.agent_id}, error={act_exc}")
 
         registry = _get_registry()
         config = registry.get_agent(request.agent_id)
@@ -338,19 +366,88 @@ async def bind_session_agent(session_id: str, request: BindSessionRequest):
 
 @router.delete("/binding/session/{session_id}", response_model=SessionBindingResponse)
 async def unbind_session_agent(session_id: str):
-    """解除会话的智能体绑定"""
+    """解除会话的所有智能体绑定（四清：内存+数据库+Orchestrator退场+Activity关闭）"""
     try:
         agent_router = _get_agent_router()
+        all_agents = agent_router.get_session_all_agents(session_id)
+
+        for aid in all_agents:
+            try:
+                from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
+
+                orchestrator = AgentOrchestrator.get_by_session(session_id)
+                if orchestrator is not None and aid in orchestrator._active_agents:
+                    orchestrator.deactivate_agent(aid, "manual_unbind")
+            except Exception as orch_exc:
+                logger.warning(f"解绑时Orchestrator退场失败（继续清除）: session={session_id}, agent={aid}, error={orch_exc}")
+
+            try:
+                from src.maisaka.agent_autonomy.activity_store import AgentActivityStore
+
+                AgentActivityStore().deactivate(session_id, aid, "manual_unbind")
+            except Exception as act_exc:
+                logger.warning(f"解绑时Activity关闭失败（继续清除）: session={session_id}, agent={aid}, error={act_exc}")
+
         agent_router.unbind_session(session_id)
+
+        with get_db_session() as db:
+            statement = select(ChatSession).filter_by(session_id=session_id).limit(1)
+            db_session = db.exec(statement).first()
+            if db_session:
+                db_session.agent_id = None
+                db.add(db_session)
+
         return SessionBindingResponse(success=True, session_id=session_id)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"解除会话绑定失败: {e}")
         raise HTTPException(status_code=500, detail="解除会话绑定失败") from e
 
 
+@router.delete("/binding/session/{session_id}/{agent_id}", response_model=SessionBindingResponse)
+async def unbind_session_specific_agent(session_id: str, agent_id: str):
+    """解除会话中指定智能体的绑定（多智能体场景下精确解绑）"""
+    try:
+        agent_router = _get_agent_router()
+
+        try:
+            from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
+
+            orchestrator = AgentOrchestrator.get_by_session(session_id)
+            if orchestrator is not None and agent_id in orchestrator._active_agents:
+                orchestrator.deactivate_agent(agent_id, "manual_unbind")
+        except Exception as orch_exc:
+            logger.warning(f"解绑时Orchestrator退场失败（继续清除）: session={session_id}, agent={agent_id}, error={orch_exc}")
+
+        try:
+            from src.maisaka.agent_autonomy.activity_store import AgentActivityStore
+
+            AgentActivityStore().deactivate(session_id, agent_id, "manual_unbind")
+        except Exception as act_exc:
+            logger.warning(f"解绑时Activity关闭失败（继续清除）: session={session_id}, agent={agent_id}, error={act_exc}")
+
+        agent_router.unbind_session(session_id, agent_id)
+
+        remaining_primary = agent_router.get_session_primary_agent(session_id)
+        with get_db_session() as db:
+            statement = select(ChatSession).filter_by(session_id=session_id).limit(1)
+            db_session = db.exec(statement).first()
+            if db_session:
+                db_session.agent_id = remaining_primary
+                db.add(db_session)
+
+        return SessionBindingResponse(success=True, session_id=session_id, agent_id=agent_id)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"解除指定智能体绑定失败: {e}")
+        raise HTTPException(status_code=500, detail="解除指定智能体绑定失败") from e
+
+
 @router.put("/binding/batch", response_model=BatchBindResponse)
 async def batch_bind_sessions(request: BatchBindRequest):
-    """批量绑定会话到指定智能体"""
+    """批量绑定会话到指定智能体（双写：内存路由器 + 数据库 + Activity）"""
     registry = _get_registry()
     agent_router = _get_agent_router()
     succeeded = 0
@@ -364,12 +461,37 @@ async def batch_bind_sessions(request: BatchBindRequest):
                 failed += 1
                 continue
             agent_router.bind_session(item.session_id, item.agent_id)
+
+            primary_agent = agent_router.get_session_primary_agent(item.session_id)
             with get_db_session() as db:
                 statement = select(ChatSession).filter_by(session_id=item.session_id).limit(1)
                 db_session = db.exec(statement).first()
                 if db_session:
-                    db_session.agent_id = item.agent_id
+                    db_session.agent_id = primary_agent
                     db.add(db_session)
+
+            is_primary = (primary_agent == item.agent_id)
+            try:
+                from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
+
+                orchestrator = AgentOrchestrator.get_by_session(item.session_id)
+                if orchestrator is not None:
+                    orchestrator.activate_agent(item.agent_id, "manual_binding", is_primary=is_primary)
+            except Exception as orch_exc:
+                logger.warning(f"批量绑定触发Orchestrator激活失败: session={item.session_id}, agent={item.agent_id}, error={orch_exc}")
+
+            try:
+                from src.maisaka.agent_autonomy.activity_store import AgentActivityStore
+
+                AgentActivityStore().save_activity(
+                    session_id=item.session_id,
+                    agent_id=item.agent_id,
+                    is_primary=is_primary,
+                    activation_reason="manual_binding",
+                )
+            except Exception as act_exc:
+                logger.warning(f"批量绑定写入Activity记录失败: session={item.session_id}, agent={item.agent_id}, error={act_exc}")
+
             succeeded += 1
         except Exception as e:
             errors.append(BatchBindError(session_id=item.session_id, error=str(e)))
