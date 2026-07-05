@@ -15,6 +15,15 @@ logger = get_logger("agent_autonomy.activity_store")
 class AgentActivityStore:
     """智能体活跃状态持久化。"""
 
+    def get_all_active_sessions(self) -> list[AgentAutonomyActivity]:
+        """查询所有未退出的活跃记录（用于重启恢复）。"""
+        with get_db_session() as session:
+            return list(
+                session.query(AgentAutonomyActivity)
+                .filter(AgentAutonomyActivity.exited_at.is_(None))
+                .all()
+            )
+
     def save_activity(
         self,
         session_id: str,

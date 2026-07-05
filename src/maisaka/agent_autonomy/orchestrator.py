@@ -7,6 +7,7 @@ from src.common.logger import get_logger
 from src.config.config import global_config
 from src.maisaka.agent_autonomy.agent import AutonomousAgent
 from src.maisaka.agent_autonomy.activity_store import AgentActivityStore
+from src.maisaka.agent_autonomy.autonomy_logger import AutonomyEventType, AutonomyLogger, AutonomyEventSubscriber
 from src.maisaka.agent_autonomy.behavior_intent import BehaviorIntent
 from src.maisaka.agent_autonomy.event_bus import AutonomyEventBus, InteractionSignalEvent, InterjectionMentionEvent
 from src.maisaka.agent_autonomy.interjection_cooldown import InterjectionCooldownManager
@@ -42,6 +43,7 @@ class AgentOrchestrator:
         self._primary_agent_id: str | None = None
         self._degraded = False
         self._reply_semaphore = asyncio.Semaphore(2)
+        self._autonomy_logger = AutonomyLogger.get()
 
         # 插话调度
         self._cooldown_manager = InterjectionCooldownManager()
@@ -69,6 +71,10 @@ class AgentOrchestrator:
 
         # 订阅交互信号事件
         self._subscribe_events()
+
+        # 启动自主性事件日志订阅
+        self._event_subscriber = AutonomyEventSubscriber()
+        self._event_subscriber.subscribe_all()
 
         # 注册到全局注册表
         AgentOrchestrator._registry[session_id] = self
@@ -228,6 +234,13 @@ class AgentOrchestrator:
                 f"session={self._session_name} reason={reason} "
                 f"is_primary={is_primary}"
             )
+            self._autonomy_logger.log(
+                agent_id,
+                AutonomyEventType.ORCHESTRATION,
+                f"加入会话(原因={reason}, 主发言={is_primary})",
+                session_id=self._session_id,
+            )
+            )
             return True
         except Exception as exc:
             logger.error(
@@ -235,6 +248,28 @@ class AgentOrchestrator:
                 f"error={exc}"
             )
             return False
+
+    def restore_agent(self, agent_id: str, is_primary: bool = False) -> None:
+        """从数据库恢复智能体到编排器（不触发事件、不记录 activity）。
+
+        用于重启时恢复会话关联，区别于 activate_agent()。
+        """
+        if agent_id in self._active_agents:
+            return
+
+        agent = AutonomousAgent(agent_id)
+        self._active_agents[agent_id] = agent
+
+        if is_primary:
+            self._primary_agent_id = agent_id
+
+        self._autonomy_logger.log(
+            agent_id,
+            AutonomyEventType.ORCHESTRATION,
+            f"恢复会话关联(主发言={is_primary})",
+            session_id=self._session_id,
+            level="debug",
+        )
 
     async def deactivate_agent(self, agent_id: str, reason: str) -> None:
         """退场一个活跃智能体。"""
@@ -292,6 +327,12 @@ class AgentOrchestrator:
             f"[agent_autonomy] speaker_change from={from_agent_id} "
             f"to={target_agent_id} reason={reason} "
             f"session={self._session_name}"
+        )
+        self._autonomy_logger.log(
+            target_agent_id,
+            AutonomyEventType.ORCHESTRATION,
+            f"发言权变更(来自={from_agent_id}, 原因={reason})",
+            session_id=self._session_id,
         )
         return True
 

@@ -1,4 +1,5 @@
 from src.common.logger import get_logger
+from src.maisaka.agent_autonomy.autonomy_logger import AutonomyEventType, AutonomyLogger
 
 logger = get_logger("agent_autonomy.expression_organ")
 
@@ -10,6 +11,7 @@ class ExpressionOrgan:
         self._agent_id = agent_id
         self._speaker_tag_format = speaker_tag_format
         self._agent_display_name: str | None = None
+        self._autonomy_logger = AutonomyLogger.get()
 
     @property
     def agent_id(self) -> str:
@@ -48,6 +50,11 @@ class ExpressionOrgan:
         if not self.should_show_speaker_tag(is_multi_agent_active):
             return content
         tag = self.build_speaker_tag()
+        self._autonomy_logger.log(
+            self._agent_id,
+            AutonomyEventType.EXPRESSION,
+            f"添加发言标记: {tag}",
+        )
         return f"{tag}{content}"
 
     def _get_agent_display_name(self) -> str:
