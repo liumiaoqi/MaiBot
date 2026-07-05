@@ -102,10 +102,15 @@ class ChatManager:
         self._restore_orchestrator_from_db()
 
     def _restore_bindings_from_db(self) -> None:
-        """从数据库恢复会话-智能体绑定关系到内存路由器"""
+        """从数据库恢复会话-智能体绑定关系到内存路由器。
+
+        两阶段恢复：
+        1. 从 ChatSession.agent_id 恢复主发言智能体
+        2. 从 AgentAutonomyActivity 恢复所有共居智能体（含手动绑定）
+        """
         from sqlmodel import select as sqlmodel_select
 
-        from src.common.database.database_model import ChatSession
+        from src.common.database.database_model import AgentAutonomyActivity, ChatSession
 
         router = self._ensure_agent_router()
         registry = AgentConfigRegistry()
@@ -125,7 +130,26 @@ class ChatManager:
                 except Exception as e:
                     logger.warning(f"启动恢复绑定失败：session={session.session_id}, agent={session.agent_id}, error={e}")
 
-        logger.info(f"启动恢复绑定完成：恢复={restored}, 跳过={skipped}")
+        cohabitant_restored = 0
+        with get_db_session() as db:
+            statement = sqlmodel_select(AgentAutonomyActivity).filter(
+                AgentAutonomyActivity.exited_at.is_(None),
+                AgentAutonomyActivity.activation_reason == "manual_binding",
+            )
+            for activity in db.exec(statement):
+                all_agents = router.get_session_all_agents(activity.session_id)
+                if activity.agent_id in all_agents:
+                    continue
+                if not registry.has_agent(activity.agent_id):
+                    logger.warning(f"启动恢复共居绑定跳过：智能体不存在 session={activity.session_id}, agent={activity.agent_id}")
+                    continue
+                try:
+                    router.bind_session(activity.session_id, activity.agent_id)
+                    cohabitant_restored += 1
+                except Exception as e:
+                    logger.warning(f"启动恢复共居绑定失败：session={activity.session_id}, agent={activity.agent_id}, error={e}")
+
+        logger.info(f"启动恢复绑定完成：主发言={restored}, 共居={cohabitant_restored}, 跳过={skipped}")
 
     def _restore_orchestrator_from_db(self) -> None:
         """从数据库恢复 Orchestrator 活跃状态"""
