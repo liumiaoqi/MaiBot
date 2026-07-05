@@ -105,6 +105,11 @@ class ChatManager:
             self._agent_router = AgentRouter(registry)
         return self._agent_router
 
+    @property
+    def agent_router(self) -> AgentRouter:
+        """获取智能体路由器单例，供外部模块访问"""
+        return self._ensure_agent_router()
+
     async def get_or_create_session(
         self,
         platform: str,
