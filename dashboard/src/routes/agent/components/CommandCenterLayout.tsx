@@ -155,7 +155,7 @@ export function CommandCenterLayout() {
         </div>
       )}
 
-      <ManualTriggerDialog open={triggerDialogOpen} onOpenChange={setTriggerDialogOpen} />}
+      <ManualTriggerDialog open={triggerDialogOpen} onOpenChange={setTriggerDialogOpen} />
 
       <AnimatePresence>
         {isInnerWorldOpen && selectedAgentId && (
@@ -165,14 +165,16 @@ export function CommandCenterLayout() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm flex items-center justify-center"
+            className="fixed inset-0 z-50 flex items-center justify-center"
+            style={{ backgroundColor: 'hsl(var(--card))' }}
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="w-full h-full max-w-full md:max-w-5xl max-h-[85vh] rounded-lg border bg-card shadow-lg overflow-hidden"
+              className="w-full h-full max-w-full md:max-w-5xl max-h-[85vh] rounded-lg border shadow-lg overflow-hidden"
+              style={{ backgroundColor: 'hsl(var(--card))' }}
             >
               <InnerWorldView agentId={selectedAgentId} onBack={exitInnerWorld} />
             </motion.div>

@@ -1,6 +1,6 @@
 import { Component, type ReactNode } from 'react'
 import { useMemo, useState, useCallback } from 'react'
-import { useTranslation } from 'react-i18next'
+
 
 import ReactFlow, { useNodesState, useEdgesState, Background, type Node, type Edge, type EdgeMouseHandler } from 'reactflow'
 import dagre from 'dagre'
@@ -82,7 +82,7 @@ function InternalRelationshipGraphInner({
   agents,
   hotspotPairs,
 }: InternalRelationshipGraphProps) {
-  const { t } = useTranslation()
+
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null)
   const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null)
 
@@ -250,7 +250,7 @@ class InternalRelationshipGraphErrorBoundary extends Component<
 }
 
 export function InternalRelationshipGraph(props: InternalRelationshipGraphProps) {
-  const { t } = useTranslation()
+
 
   const fallback = (
     <div className="space-y-2">
