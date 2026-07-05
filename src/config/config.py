@@ -25,6 +25,7 @@ from .legacy_migration import (
 from .model_configs import APIProvider, ModelInfo, ModelTaskConfig
 from .official_configs import (
     AMemorixConfig,
+    AgentAutonomySectionConfig,
     AgentInteractionSectionConfig,
     AgentSectionConfig,
     BotConfig,
@@ -70,7 +71,7 @@ MODEL_CONFIG_PATH: Path = (CONFIG_DIR / "model_config.toml").resolve().absolute(
 LEGACY_ENV_PATH: Path = (PROJECT_ROOT / ".env").resolve().absolute()
 A_MEMORIX_LEGACY_CONFIG_PATH: Path = (CONFIG_DIR / "a_memorix.toml").resolve().absolute()
 MMC_VERSION: str = read_project_version(PROJECT_ROOT)
-CONFIG_VERSION: str = "8.18.0"
+CONFIG_VERSION: str = "8.19.0"
 MODEL_CONFIG_VERSION: str = "1.17.6"
 
 logger = get_logger("config")
@@ -165,6 +166,9 @@ class Config(ConfigBase):
 
     agent_interaction: AgentInteractionSectionConfig = Field(default_factory=AgentInteractionSectionConfig)
     """智能体交互活化配置类"""
+
+    agent_autonomy: AgentAutonomySectionConfig = Field(default_factory=AgentAutonomySectionConfig)
+    """智能体自主性架构配置类"""
 
 
 class ModelConfig(ConfigBase):

@@ -6304,3 +6304,213 @@ class AgentInteractionSectionConfig(ConfigBase):
         },
     )
     """主导情绪强度超过此阈值时才可能触发内心独白。"""
+
+
+class AgentAutonomySectionConfig(ConfigBase):
+    """智能体自主性架构配置类"""
+
+    __ui_label__ = "智能体自主性"
+    __ui_order__ = 52
+    __ui_advanced__ = True
+
+    enabled: bool = Field(
+        default=False,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "启用智能体自主性",
+                "en_US": "Enable agent autonomy",
+                "ja_JP": "エージェント自律性を有効化",
+            },
+            "x-widget": "switch",
+            "x-icon": "brain",
+        },
+    )
+    """启用后，智能体将以角色内部视角思考，拥有内在需求和行为意图。"""
+
+    max_active_agents: int = Field(
+        default=3,
+        ge=2,
+        le=5,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "最大活跃智能体数",
+                "en_US": "Max active agents",
+                "ja_JP": "最大アクティブエージェント数",
+            },
+            "x-widget": "input",
+            "x-icon": "users",
+        },
+    )
+    """同一会话中同时活跃的智能体数量上限。"""
+
+    auto_exit_timeout_minutes: int = Field(
+        default=60,
+        ge=10,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "超时退场时间（分钟）",
+                "en_US": "Auto exit timeout (min)",
+                "ja_JP": "タイムアウト退出時間（分）",
+            },
+            "x-widget": "input",
+            "x-icon": "timer",
+        },
+    )
+    """活跃智能体超过此时间未发言则自动退场。"""
+
+    interjection_enabled: bool = Field(
+        default=True,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "启用插话机制",
+                "en_US": "Enable interjection",
+                "ja_JP": "割り込み機能を有効化",
+            },
+            "x-widget": "switch",
+            "x-icon": "message-circle",
+        },
+    )
+    """非主发言智能体可基于行为意图自主决定插话。"""
+
+    interjection_intent_threshold: float = Field(
+        default=60.0,
+        ge=0.0,
+        le=100.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "插话意图阈值",
+                "en_US": "Interjection intent threshold",
+                "ja_JP": "割り込み意図閾値",
+            },
+            "x-widget": "input",
+            "x-icon": "gauge",
+        },
+    )
+    """行为意图强度达到此阈值才可能触发插话。"""
+
+    interjection_cooldown_minutes: int = Field(
+        default=5,
+        ge=1,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "插话冷却时间（分钟）",
+                "en_US": "Interjection cooldown (min)",
+                "ja_JP": "割り込みクールダウン（分）",
+            },
+            "x-widget": "input",
+            "x-icon": "timer",
+            "advanced": True,
+        },
+    )
+    """同一智能体两次插话之间的最短冷却时间。"""
+
+    max_interjections_per_hour: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "每小时最大插话次数",
+                "en_US": "Max interjections per hour",
+                "ja_JP": "1時間あたり最大割り込み数",
+            },
+            "x-widget": "input",
+            "x-icon": "gauge",
+            "advanced": True,
+        },
+    )
+    """同一智能体每小时最多允许的插话次数。"""
+
+    max_interjections_per_session_per_hour: int = Field(
+        default=6,
+        ge=1,
+        le=20,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "会话每小时最大插话总数",
+                "en_US": "Max session interjections per hour",
+                "ja_JP": "セッション1時間あたり最大割り込み総数",
+            },
+            "x-widget": "input",
+            "x-icon": "gauge",
+            "advanced": True,
+        },
+    )
+    """同一会话每小时所有智能体的插话总次数上限。"""
+
+    interaction_signal_intent_bonus: float = Field(
+        default=40.0,
+        ge=0.0,
+        le=50.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "交互信号意图加成",
+                "en_US": "Interaction signal intent bonus",
+                "ja_JP": "相互作用シグナル意図ボーナス",
+            },
+            "x-widget": "input",
+            "x-icon": "zap",
+            "advanced": True,
+        },
+    )
+    """交互信号对行为意图的额外加成强度。"""
+
+    embodied_planner_enabled: bool = Field(
+        default=True,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "启用思维器官角色化",
+                "en_US": "Enable embodied planner",
+                "ja_JP": "具現化プランナーを有効化",
+            },
+            "x-widget": "switch",
+            "x-icon": "sparkles",
+        },
+    )
+    """启用后 Planner 将以角色内部视角思考，而非旁观者视角。"""
+
+    speaker_tag_format: str = Field(
+        default="【{agent_name}】",
+        json_schema_extra={
+            "label": {
+                "zh_CN": "发言标记格式",
+                "en_US": "Speaker tag format",
+                "ja_JP": "発言タグ形式",
+            },
+            "x-widget": "input",
+            "x-icon": "tag",
+            "advanced": True,
+        },
+    )
+    """多智能体发言时的标记格式，支持 {agent_name} 和 {agent_id} 占位符。"""
+
+    orchestrator_strategy: str = Field(
+        default="default",
+        json_schema_extra={
+            "label": {
+                "zh_CN": "编排策略",
+                "en_US": "Orchestrator strategy",
+                "ja_JP": "オーケストレーター戦略",
+            },
+            "x-widget": "input",
+            "x-icon": "settings",
+            "advanced": True,
+        },
+    )
+    """Orchestrator 的调度策略名称，可通过注册机制扩展。"""
+
+    intent_expiry_seconds: int = Field(
+        default=300,
+        ge=60,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "行为意图过期时间（秒）",
+                "en_US": "Intent expiry (seconds)",
+                "ja_JP": "意図有効期限（秒）",
+            },
+            "x-widget": "input",
+            "x-icon": "timer",
+            "advanced": True,
+        },
+    )
+    """行为意图超过此时间后自动失效。"""
