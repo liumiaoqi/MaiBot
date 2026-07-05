@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 
 import ReactFlow, { useNodesState, useEdgesState, Background, type Node, type Edge } from 'reactflow'
 import dagre from 'dagre'
@@ -11,7 +11,7 @@ import { ConstellationNodeComponent } from './ConstellationNode'
 import { ConstellationEdgeComponent } from './ConstellationEdge'
 
 const nodeTypes = { constellation: ConstellationNodeComponent }
-const edgeTypes = { constellation: ConstellationEdgeComponent }
+const edgeTypes = { constellation: ConstellationEdgeComponent as any }
 
 function layoutWithDagre(nodes: Node[], edges: Edge[]): { nodes: Node[]; edges: Edge[] } {
   const g = new dagre.graphlib.Graph()
@@ -45,7 +45,7 @@ interface AgentConstellationProps {
   onNodeDoubleClick: (agentId: string) => void
 }
 
-export function AgentConstellation({ data, selectedAgentId, onNodeClick, onNodeDoubleClick }: AgentConstellationProps) {
+export function AgentConstellation({ data, onNodeClick, onNodeDoubleClick }: AgentConstellationProps) {
   const { t } = useTranslation()
 
   const initialNodes: Node[] = useMemo(() =>
@@ -74,8 +74,8 @@ export function AgentConstellation({ data, selectedAgentId, onNodeClick, onNodeD
     [initialNodes, initialEdges]
   )
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(layoutedNodes)
-  const [edges, setEdges, onEdgesChange] = useEdgesState(layoutedEdges)
+  const [nodes, , onNodesChange] = useNodesState(layoutedNodes)
+  const [edges, , onEdgesChange] = useEdgesState(layoutedEdges)
 
   const handleNodeClick = useCallback((_: any, node: Node) => {
     onNodeClick(node.id)

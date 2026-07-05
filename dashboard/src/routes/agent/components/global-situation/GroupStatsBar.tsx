@@ -1,5 +1,3 @@
-import { useTranslation } from 'react-i18next'
-
 import type { VitalSignsData } from '../../utils/vital-signs'
 import type { BatchRelationshipItem } from '@/lib/agent-api'
 
@@ -9,7 +7,6 @@ interface GroupStatsBarProps {
 }
 
 export function GroupStatsBar({ vitalSignsList, relationships }: GroupStatsBarProps) {
-  const { t } = useTranslation()
 
   const totalAgents = vitalSignsList.length
   const activeAgents = vitalSignsList.filter((v) => v.activityRhythm.status === 'active').length

@@ -22,7 +22,7 @@ export function EmotionBaselineShift({ emotions, baseline, emotionLabels }: Emot
       {shifts.map(({ key, delta, label }) => {
         const isUp = delta > 5
         const isDown = delta < -5
-        const isStable = !isUp && !isDown
+
         const barColor = isUp ? 'bg-green-500' : isDown ? 'bg-red-500' : 'bg-muted-foreground/30'
         const arrow = isUp ? '↑' : isDown ? '↓' : '→'
         const shiftLabel = isUp
