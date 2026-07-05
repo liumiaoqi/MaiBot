@@ -1367,7 +1367,14 @@
       "noAvailableSessions": "No available sessions",
       "confirm": "Confirm",
       "cancel": "Cancel",
-      "noSessions": "No linked sessions"
+      "noSessions": "No linked sessions",
+      "active": "Active",
+      "boundInactive": "Bound",
+      "primary": "Primary",
+      "cohabitants": "Cohabitants",
+      "unbindSpecific": "Unbind Agent",
+      "unbindAll": "Unbind All",
+      "lastSpokeAt": "Last spoke"
     },
     "interaction": {
       "stream": {
