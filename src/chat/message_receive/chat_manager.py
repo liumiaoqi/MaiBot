@@ -98,6 +98,61 @@ class ChatManager:
         except Exception as e:
             logger.error(f"初始化聊天管理器出现错误: {e}")
 
+        self._restore_bindings_from_db()
+        self._restore_orchestrator_from_db()
+
+    def _restore_bindings_from_db(self) -> None:
+        """从数据库恢复会话-智能体绑定关系到内存路由器"""
+        from sqlmodel import select as sqlmodel_select
+
+        from src.common.database.database_model import ChatSession
+
+        router = self._ensure_agent_router()
+        registry = AgentConfigRegistry()
+        restored = 0
+        skipped = 0
+
+        with get_db_session() as db:
+            statement = sqlmodel_select(ChatSession).filter(ChatSession.agent_id.isnot(None))
+            for session in db.exec(statement):
+                if not registry.has_agent(session.agent_id):
+                    logger.warning(f"启动恢复绑定跳过：智能体不存在 session={session.session_id}, agent={session.agent_id}")
+                    skipped += 1
+                    continue
+                try:
+                    router.bind_session(session.session_id, session.agent_id)
+                    restored += 1
+                except Exception as e:
+                    logger.warning(f"启动恢复绑定失败：session={session.session_id}, agent={session.agent_id}, error={e}")
+
+        logger.info(f"启动恢复绑定完成：恢复={restored}, 跳过={skipped}")
+
+    def _restore_orchestrator_from_db(self) -> None:
+        """从数据库恢复 Orchestrator 活跃状态"""
+        from src.maisaka.agent_autonomy.activity_store import AgentActivityStore
+        from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
+
+        activity_store = AgentActivityStore()
+        active_records = activity_store.get_all_active_sessions()
+
+        session_groups: dict[str, list] = {}
+        for record in active_records:
+            session_groups.setdefault(record.session_id, []).append(record)
+
+        restored_agents = 0
+        for session_id, records in session_groups.items():
+            orchestrator = AgentOrchestrator.get_by_session(session_id)
+            if orchestrator is None:
+                continue
+            for record in records:
+                try:
+                    orchestrator.restore_agent(record.agent_id, is_primary=record.is_primary)
+                    restored_agents += 1
+                except Exception as e:
+                    logger.warning(f"启动恢复Orchestrator失败：session={session_id}, agent={record.agent_id}, error={e}")
+
+        logger.info(f"启动恢复Orchestrator完成：恢复智能体={restored_agents}")
+
     def _ensure_agent_router(self) -> AgentRouter:
         """延迟初始化智能体路由器"""
         if self._agent_router is None:

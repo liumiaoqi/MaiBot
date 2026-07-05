@@ -128,11 +128,22 @@ class GroupBindingsListResponse(BaseModel):
     bindings: Dict[str, str]
 
 
+class CohabitantInfo(BaseModel):
+    agent_id: str
+    display_name: str
+    is_primary: bool = False
+    status: str = "bound_inactive"
+
+
 class SessionAgentInfo(BaseModel):
     session_id: str
     display_name: str
     agent_id: str
     agent_display_name: str
+    status: str = "bound_inactive"
+    is_primary: bool = False
+    last_spoke_at: Optional[str] = None
+    cohabitants: List[CohabitantInfo] = Field(default_factory=list)
 
 
 class SessionsByAgentResponse(BaseModel):
@@ -560,22 +571,59 @@ async def unbind_group_agent(group_id: str):
 
 @router.get("/sessions/{agent_id}", response_model=SessionsByAgentResponse)
 async def get_sessions_by_agent(agent_id: str):
-    """获取使用指定智能体的所有会话"""
+    """获取使用指定智能体的所有会话（联合查询 ChatSession + Activity，精确展示活跃状态）"""
     try:
         registry = _get_registry()
         if not registry.has_agent(agent_id):
             raise HTTPException(status_code=404, detail=f"智能体不存在: {agent_id}")
         config = registry.get_agent(agent_id)
 
+        from src.maisaka.agent_autonomy.activity_store import AgentActivityStore
+
+        activity_store = AgentActivityStore()
+        active_activities = activity_store.get_active_sessions_by_agent(agent_id)
+        active_session_ids = {a.session_id for a in active_activities}
+        activity_map = {a.session_id: a for a in active_activities}
+
+        agent_router = _get_agent_router()
+
         sessions = []
         with get_db_session() as db:
             statement = select(ChatSession).filter_by(agent_id=agent_id)
             for s in db.exec(statement):
+                is_active = s.session_id in active_session_ids
+                status = "active" if is_active else "bound_inactive"
+                activity = activity_map.get(s.session_id)
+                last_spoke = None
+                if activity and activity.last_spoke_at:
+                    last_spoke = activity.last_spoke_at.isoformat()
+
+                is_primary = (agent_router.get_session_primary_agent(s.session_id) == agent_id)
+
+                all_agents = agent_router.get_session_all_agents(s.session_id)
+                cohabitants = []
+                for other_id in all_agents:
+                    if other_id == agent_id:
+                        continue
+                    other_config = registry.get_agent(other_id) if registry.has_agent(other_id) else None
+                    other_primary = (agent_router.get_session_primary_agent(s.session_id) == other_id)
+                    other_status = "active"
+                    cohabitants.append(CohabitantInfo(
+                        agent_id=other_id,
+                        display_name=other_config.display_name if other_config else other_id,
+                        is_primary=other_primary,
+                        status=other_status,
+                    ))
+
                 sessions.append(SessionAgentInfo(
                     session_id=s.session_id,
                     display_name=s.group_name or s.user_nickname or s.session_id,
                     agent_id=agent_id,
                     agent_display_name=config.display_name,
+                    status=status,
+                    is_primary=is_primary,
+                    last_spoke_at=last_spoke,
+                    cohabitants=cohabitants,
                 ))
         return SessionsByAgentResponse(
             success=True,
