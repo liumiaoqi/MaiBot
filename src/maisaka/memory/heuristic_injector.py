@@ -317,6 +317,10 @@ class HeuristicMemoryInjector:
             source_session_id = self._resolve_source_session_id(source=source, chat_id=chat_id)
             return self._is_chat_memory_allowed(source_session_id, context.session)
 
+        # 智能体交互记忆：检查当前智能体是否为参与方
+        if chat_id.startswith("agent_interaction:"):
+            return self._is_agent_interaction_memory_allowed(chat_id, context)
+
         if chat_id:
             return self._is_chat_memory_allowed(chat_id, context.session)
         return False
@@ -349,6 +353,25 @@ class HeuristicMemoryInjector:
         if not source_session.is_group_session and current_session.is_group_session:
             return bool(getattr(config, "heuristic_memory_private_to_group_enabled", False))
         return True
+
+    @staticmethod
+    def _is_agent_interaction_memory_allowed(chat_id: str, context: HeuristicMemoryContext) -> bool:
+        """检查智能体交互记忆是否允许注入。
+
+        仅当当前智能体是交互记忆的参与方时允许。
+        chat_id 格式：agent_interaction:{agent_a}:{agent_b}
+        """
+        agent_id = context.agent_id
+        if not agent_id:
+            return False
+        # 从 chat_id 中解析两个参与方
+        prefix = "agent_interaction:"
+        if not chat_id.startswith(prefix):
+            return False
+        parts = chat_id[len(prefix):].split(":")
+        if len(parts) != 2:
+            return False
+        return agent_id in (parts[0], parts[1])
 
     @staticmethod
     def _collect_active_person_ids(messages: Sequence[SessionMessage]) -> set[str]:

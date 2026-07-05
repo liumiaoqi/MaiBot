@@ -692,6 +692,7 @@ class MaisakaChatLoopService:
         agent_internal_relationships = ""
         agent_favor_injection = ""
         agent_emotion_state = ""
+        agent_interaction_memory = ""
 
         if self._agent_id:
             try:
@@ -705,6 +706,10 @@ class MaisakaChatLoopService:
                     agent_favor_injection = agent_config.get_favor_injection(
                         user_name=self._current_user_name,
                         is_owner=self._current_user_id in global_config.bot.owner_user_ids,
+                    )
+                    # 获取智能体交互动态记忆
+                    agent_interaction_memory = self._build_agent_interaction_memory(
+                        self._agent_id, agent_config
                     )
             except Exception:
                 pass
@@ -721,6 +726,7 @@ class MaisakaChatLoopService:
             "query_memory_rule": self._build_query_memory_rule(),
             "agent_anti_mechanization": agent_anti_mechanization,
             "agent_internal_relationships": agent_internal_relationships,
+            "agent_interaction_memory": agent_interaction_memory,
             "agent_favor_injection": agent_favor_injection,
             "agent_emotion_state": agent_emotion_state,
             "agent_relationship": self._relationship_text,
@@ -738,6 +744,44 @@ class MaisakaChatLoopService:
         """更新当前对话用户的身份信息，用于偏爱注入区分身份。"""
         self._current_user_id = user_id
         self._current_user_name = user_name
+
+    @staticmethod
+    def _build_agent_interaction_memory(agent_id: str, agent_config: Any) -> str:
+        """构建智能体交互动态记忆提示词。"""
+        if not agent_config.internal_relationships:
+            return ""
+        try:
+            from src.maisaka.agent_interaction.memory.profile import AgentProfileService
+            from src.maisaka.agent_interaction.memory.adapter import AgentMemoryAdapter
+            from src.maisaka.agent_interaction.event_store import InteractionEventStore
+            import asyncio
+
+            adapter = AgentMemoryAdapter()
+            store = InteractionEventStore()
+            service = AgentProfileService(adapter, store)
+
+            loop = None
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+
+            if loop is not None and loop.is_running():
+                return ""
+
+            results: list[str] = []
+            for rel in agent_config.internal_relationships:
+                profile = asyncio.run(service.get_profile(agent_id, rel.target_agent_id))
+                text = profile.to_prompt_text()
+                if text:
+                    display_name = rel.target_agent_id
+                    results.append(f"- 与{display_name}：{text}")
+
+            if not results:
+                return ""
+            return "## 最近的交互动态\n" + "\n".join(results)
+        except Exception:
+            return ""
 
 
     @staticmethod

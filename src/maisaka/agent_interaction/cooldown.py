@@ -61,9 +61,9 @@ class InteractionCooldownManager:
             row.interaction_count_daily = 1
             row.daily_reset_at = now + timedelta(days=1)
 
-        async with get_db_session() as session:
+        with get_db_session() as session:
             session.add(row)
-            await session.commit()
+            session.commit()
 
     async def get_cooldown_remaining(self, agent_pair_key: str, cooldown_minutes: int = 30) -> float:
         row = await self._get_or_create(agent_pair_key)
@@ -74,8 +74,8 @@ class InteractionCooldownManager:
         return max(0.0, remaining)
 
     async def _get_or_create(self, agent_pair_key: str) -> InteractionCooldownTable:
-        async with get_db_session() as session:
-            result = await session.execute(
+        with get_db_session() as session:
+            result = session.execute(
                 select(InteractionCooldownTable).where(
                     InteractionCooldownTable.agent_pair_key == agent_pair_key
                 )
@@ -88,6 +88,6 @@ class InteractionCooldownManager:
                     interaction_count_daily=0,
                 )
                 session.add(row)
-                await session.commit()
-                await session.refresh(row)
+                session.commit()
+                session.refresh(row)
             return row

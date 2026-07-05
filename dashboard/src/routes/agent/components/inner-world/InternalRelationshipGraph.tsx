@@ -80,6 +80,7 @@ function InternalRelationshipGraphInner({
   agentId,
   internalRelationships,
   agents,
+  hotspotPairs,
 }: InternalRelationshipGraphProps) {
   const { t } = useTranslation()
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null)
@@ -126,24 +127,33 @@ function InternalRelationshipGraphInner({
   }, [agentId, internalRelationships, agentMap])
 
   const initialEdges: Edge[] = useMemo(() =>
-    internalRelationships.map((rel) => ({
-      id: `${agentId}-${rel.target_agent_id}`,
-      source: agentId,
-      target: rel.target_agent_id,
-      animated: rel.mention_tendency >= 0.7,
-      style: {
-        stroke: REL_TYPE_COLORS[rel.relationship_type] || '#94a3b8',
-        strokeWidth: Math.round(rel.mention_tendency * 3 + 1),
-      },
-      data: {
-        relationshipType: rel.relationship_type,
-        attitude: rel.attitude,
-        interactionStyle: rel.interaction_style,
-        mentionTendency: rel.mention_tendency,
-        color: REL_TYPE_COLORS[rel.relationship_type] || '#94a3b8',
-      } satisfies InternalRelEdgeData,
-    })),
-    [agentId, internalRelationships],
+    internalRelationships.map((rel) => {
+      const pairKey = `${agentId}:${rel.target_agent_id}`
+      const reversePairKey = `${rel.target_agent_id}:${agentId}`
+      const isHotspot = hotspotPairs?.has(pairKey) || hotspotPairs?.has(reversePairKey) || false
+      const baseColor = REL_TYPE_COLORS[rel.relationship_type] || '#94a3b8'
+      return {
+        id: `${agentId}-${rel.target_agent_id}`,
+        source: agentId,
+        target: rel.target_agent_id,
+        animated: isHotspot || rel.mention_tendency >= 0.7,
+        style: {
+          stroke: isHotspot ? '#f97316' : baseColor,
+          strokeWidth: isHotspot
+            ? Math.round(rel.mention_tendency * 3 + 3)
+            : Math.round(rel.mention_tendency * 3 + 1),
+        },
+        data: {
+          relationshipType: rel.relationship_type,
+          attitude: rel.attitude,
+          interactionStyle: rel.interaction_style,
+          mentionTendency: rel.mention_tendency,
+          color: isHotspot ? '#f97316' : baseColor,
+          isHotspot,
+        } satisfies InternalRelEdgeData & { isHotspot: boolean },
+      }
+    }),
+    [agentId, internalRelationships, hotspotPairs],
   )
 
   const { nodes: layoutedNodes, edges: layoutedEdges } = useMemo(
@@ -167,8 +177,8 @@ function InternalRelationshipGraphInner({
     setTooltipPosition({ x: event.clientX, y: event.clientY })
   }, [])
 
-  const hoveredEdgeData: InternalRelEdgeData | undefined = hoveredEdgeId
-    ? edges.find((e) => e.id === hoveredEdgeId)?.data as InternalRelEdgeData | undefined
+  const hoveredEdgeData: (InternalRelEdgeData & { isHotspot?: boolean }) | undefined = hoveredEdgeId
+    ? edges.find((e) => e.id === hoveredEdgeId)?.data as (InternalRelEdgeData & { isHotspot?: boolean }) | undefined
     : undefined
 
   return (
@@ -199,8 +209,11 @@ function InternalRelationshipGraphInner({
           style={{ left: tooltipPosition.x + 12, top: tooltipPosition.y + 12 }}
         >
           <div className="bg-popover text-popover-foreground rounded-lg border shadow-md p-2.5 text-xs space-y-1">
-            <div className="font-medium" style={{ color: hoveredEdgeData.color }}>
+            <div className="font-medium flex items-center gap-1" style={{ color: hoveredEdgeData.color }}>
               {hoveredEdgeData.relationshipType}
+              {hoveredEdgeData.isHotspot && (
+                <span className="text-orange-400">🔥</span>
+              )}
             </div>
             <div className="text-muted-foreground">{hoveredEdgeData.attitude}</div>
             {hoveredEdgeData.interactionStyle && (
@@ -217,6 +230,7 @@ interface InternalRelationshipGraphProps {
   agentId: string
   internalRelationships: InternalRelationship[]
   agents: AgentConfigInfo[]
+  hotspotPairs?: Set<string>
 }
 
 class InternalRelationshipGraphErrorBoundary extends Component<

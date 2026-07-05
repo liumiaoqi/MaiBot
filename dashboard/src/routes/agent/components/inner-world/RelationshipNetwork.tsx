@@ -1,9 +1,12 @@
+import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { useMemo } from 'react'
 
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 import type { RelationshipInfo, InternalRelationship, AgentConfigInfo } from '@/lib/agent-api'
+import { getInteractionHotspots } from '@/lib/agent-api'
 import { DeepMonitorLink } from './DeepMonitorLink'
 import { InternalRelationshipGraph } from './InternalRelationshipGraph'
 
@@ -24,6 +27,22 @@ export const REL_TYPE_COLORS: Record<string, string> = {
 
 export function RelationshipNetwork({ agentId, relationships, internalRelationships, agents }: RelationshipNetworkProps) {
   const { t } = useTranslation()
+
+  const { data: hotspots = [] } = useQuery({
+    queryKey: ['agent', 'interactions', 'hotspots'],
+    queryFn: getInteractionHotspots,
+    refetchInterval: 60_000,
+  })
+
+  const hotspotPairs = useMemo(() => {
+    const set = new Set<string>()
+    for (const h of hotspots) {
+      set.add(h.pair)
+      const [a, b] = h.pair.split(':')
+      if (a && b) set.add(`${b}:${a}`)
+    }
+    return set
+  }, [hotspots])
 
   if (relationships.length === 0 && internalRelationships.length === 0) {
     return (
@@ -91,6 +110,7 @@ export function RelationshipNetwork({ agentId, relationships, internalRelationsh
               agentId={agentId}
               internalRelationships={internalRelationships}
               agents={agents}
+              hotspotPairs={hotspotPairs}
             />
           </CardContent>
         </Card>

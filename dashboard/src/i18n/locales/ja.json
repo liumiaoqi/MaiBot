@@ -1367,6 +1367,86 @@
       "confirm": "確認",
       "cancel": "キャンセル",
       "noSessions": "リンクセッションなし"
+    },
+    "interaction": {
+      "stream": {
+        "title": "インタラクションストリーム",
+        "empty": "インタラクション活動なし",
+        "refreshInterval": "30秒自動更新"
+      },
+      "detail": {
+        "triggerReason": "トリガー理由",
+        "emotionEffect": "感情効果",
+        "relationshipEffect": "関係効果",
+        "memoryStatus": "メモリ書き込み",
+        "echoDepth": "エコー深度"
+      },
+      "hotspot": {
+        "label": "ホットスポット",
+        "count": "24時間以内に5回以上相互作用したエージェントペア"
+      },
+      "typeLabels": {
+        "emotion_driven": "感情駆動",
+        "time_awareness": "時間認識",
+        "mention_propagation": "言及伝播",
+        "event_ripple": "イベント波紋",
+        "inner_need": "内発的需要",
+        "memory_driven": "記憶駆動",
+        "inner_monologue": "内なる独白"
+      },
+      "memoryStatus": {
+        "success": "成功",
+        "failed": "失敗",
+        "skipped": "スキップ"
+      },
+      "manualTrigger": {
+        "title": "手動トリガー",
+        "initiator": "発信者",
+        "target": "対象",
+        "type": "インタラクション種別",
+        "reason": "トリガー理由",
+        "submit": "トリガー",
+        "success": "インタラクショントリガー成功",
+        "failed": "インタラクショントリガー失敗"
+      },
+      "config": {
+        "title": "インタラクション設定",
+        "basic": {
+          "title": "基本設定",
+          "enabled": "インタラクション有効化",
+          "cooldownMinutes": "クールダウン（分）",
+          "maxPerHour": "1時間あたり最大回数",
+          "maxPerDay": "1日あたり最大回数"
+        },
+        "echo": {
+          "title": "エコー設定",
+          "enabled": "エコー伝播有効化",
+          "maxDepth": "最大エコー深度",
+          "decayRatio": "エコー減衰比"
+        },
+        "monologue": {
+          "title": "独白設定",
+          "enabled": "独白有効化",
+          "minInterval": "最小間隔（分）",
+          "idleThreshold": "アイドル閾値（分）",
+          "emotionThreshold": "感情強度閾値"
+        }
+      }
+    },
+    "monologue": {
+      "panel": {
+        "title": "内なる世界",
+        "empty": "内なる世界に波紋なし"
+      },
+      "content": {
+        "label": "独白内容"
+      },
+      "emotionSnapshot": {
+        "label": "感情スナップショット"
+      },
+      "selfEffect": {
+        "label": "自己効果"
+      }
     }
   },
   "emotion": {

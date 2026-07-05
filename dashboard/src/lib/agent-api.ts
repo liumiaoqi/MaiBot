@@ -434,3 +434,181 @@ export async function getEmotionBehaviorRules(agentId: string): Promise<EmotionB
   )
   return requireSuccess(data, '获取情绪-行为映射规则失败').rules
 }
+
+// ---- 交互活化 API ----
+
+export interface InteractionEventResponse {
+  event_id: string
+  initiator_agent_id: string
+  target_agent_id: string
+  interaction_type: string
+  trigger_reason: string
+  content_summary: string
+  emotion_effects: string
+  relationship_effect: number
+  memory_write_status: string
+  echo_depth: number
+  echo_parent_event_id: string
+  metadata: string
+  created_at: string | null
+}
+
+export interface InnerMonologueEventResponse {
+  monologue_id: string
+  agent_id: string
+  emotion_snapshot: string
+  content: string
+  self_emotion_effect: string
+  memory_references: string
+  created_at: string | null
+}
+
+export interface AgentProfileResponse {
+  observer_agent_id: string
+  target_agent_id: string
+  summary: string
+  traits: string[]
+  interaction_count: number
+  emotion_tendency: string
+  refresh_status: string
+}
+
+export interface InteractionHistoryParams {
+  agent_id?: string
+  target_agent_id?: string
+  interaction_type?: string
+  time_start?: string
+  time_end?: string
+  limit?: number
+  offset?: number
+}
+
+export interface InteractionConfigResponse {
+  enabled: boolean
+  cooldown_minutes: number
+  max_interactions_per_hour: number
+  max_interactions_per_day: number
+  echo_enabled: boolean
+  echo_max_depth: number
+  echo_decay_ratio: number
+  monologue_enabled: boolean
+  monologue_min_interval_minutes: number
+  monologue_idle_threshold_minutes: number
+  monologue_emotion_intensity_threshold: number
+}
+
+interface InteractionListResponse {
+  success: boolean
+  data: InteractionEventResponse[]
+}
+
+interface MonologueListResponse {
+  success: boolean
+  data: InnerMonologueEventResponse[]
+}
+
+interface ProfileResponse {
+  success: boolean
+  data: AgentProfileResponse
+}
+
+interface ConfigResponse {
+  success: boolean
+  data: InteractionConfigResponse
+}
+
+interface ManualTriggerResponse {
+  success: boolean
+  event_id: string
+  error: string
+}
+
+interface HotspotsResponse {
+  hotspots: { pair: string; count: number }[]
+}
+
+export async function getRecentInteractions(limit = 20): Promise<InteractionEventResponse[]> {
+  const data = await backendApi.get<InteractionListResponse>(
+    `${API_BASE}/interactions/recent?limit=${limit}`,
+    { errorMessage: '获取最近交互事件失败' }
+  )
+  return requireSuccess(data, '获取最近交互事件失败').data
+}
+
+export async function getInteractionDetail(eventId: string): Promise<InteractionEventResponse> {
+  const data = await backendApi.get<InteractionEventResponse>(
+    `${API_BASE}/interactions/${encodeURIComponent(eventId)}`,
+    { errorMessage: '获取交互事件详情失败' }
+  )
+  return data
+}
+
+export async function getInteractionHistory(
+  params: InteractionHistoryParams = {}
+): Promise<InteractionEventResponse[]> {
+  const query = new URLSearchParams()
+  if (params.agent_id) query.set('agent_id', params.agent_id)
+  if (params.target_agent_id) query.set('target_agent_id', params.target_agent_id)
+  if (params.interaction_type) query.set('interaction_type', params.interaction_type)
+  if (params.time_start) query.set('time_start', params.time_start)
+  if (params.time_end) query.set('time_end', params.time_end)
+  if (params.limit) query.set('limit', String(params.limit))
+  if (params.offset) query.set('offset', String(params.offset))
+  const qs = query.toString()
+  const data = await backendApi.get<InteractionListResponse>(
+    `${API_BASE}/interactions/history${qs ? `?${qs}` : ''}`,
+    { errorMessage: '获取交互历史失败' }
+  )
+  return requireSuccess(data, '获取交互历史失败').data
+}
+
+export async function getAgentMonologues(
+  agentId: string,
+  limit = 10
+): Promise<InnerMonologueEventResponse[]> {
+  const data = await backendApi.get<MonologueListResponse>(
+    `${API_BASE}/monologue/${encodeURIComponent(agentId)}?limit=${limit}`,
+    { errorMessage: '获取内心独白失败' }
+  )
+  return requireSuccess(data, '获取内心独白失败').data
+}
+
+export async function getAgentProfile(
+  observerId: string,
+  targetId: string
+): Promise<AgentProfileResponse> {
+  const data = await backendApi.get<ProfileResponse>(
+    `${API_BASE}/profile/${encodeURIComponent(observerId)}/${encodeURIComponent(targetId)}`,
+    { errorMessage: '获取智能体画像失败' }
+  )
+  return requireSuccess(data, '获取智能体画像失败').data
+}
+
+export async function getInteractionConfig(): Promise<InteractionConfigResponse> {
+  const data = await backendApi.get<ConfigResponse>(
+    `${API_BASE}/interactions/config`,
+    { errorMessage: '获取交互配置失败' }
+  )
+  return requireSuccess(data, '获取交互配置失败').data
+}
+
+export async function manualTriggerInteraction(req: {
+  initiator_id: string
+  target_id: string
+  interaction_type: string
+  reason: string
+}): Promise<ManualTriggerResponse> {
+  const data = await backendApi.post<ManualTriggerResponse>(
+    `${API_BASE}/interactions/trigger`,
+    { body: req, errorMessage: '手动触发交互失败' }
+  )
+  return data
+}
+
+export async function getInteractionHotspots(): Promise<{ pair: string; count: number }[]> {
+  const data = await backendApi.get<HotspotsResponse>(
+    `${API_BASE}/interactions/hotspots`,
+    { errorMessage: '获取交互热点失败' }
+  )
+  return data.hotspots ?? []
+}
