@@ -235,15 +235,34 @@ class InteractionSignalIntentSource(BaseIntentSource):
 
 
 class BehaviorIntentEngine:
-    """行为意图引擎——智能体自主产生行为意图的核心。"""
+    """行为意图引擎——智能体自主产生行为意图的核心。
+
+    支持动态注册意图类型和意图来源。
+    """
+
+    # 内置意图类型
+    BUILTIN_INTENT_TYPES = {"want_to_speak", "want_to_interject"}
 
     def __init__(self, inner_need_engine: InnerNeedEngine) -> None:
         self._inner_need_engine = inner_need_engine
         self._sources: dict[str, BaseIntentSource] = {}
+        self._intent_types: set[str] = set(self.BUILTIN_INTENT_TYPES)
 
     def register_source(self, source_type: str, source: BaseIntentSource) -> None:
         """注册行为意图来源。"""
         self._sources[source_type] = source
+
+    def register_intent_type(self, intent_type: str) -> None:
+        """注册自定义意图类型。"""
+        self._intent_types.add(intent_type)
+
+    def get_registered_intent_types(self) -> set[str]:
+        """获取所有已注册的意图类型。"""
+        return set(self._intent_types)
+
+    def is_valid_intent_type(self, intent_type: str) -> bool:
+        """检查意图类型是否已注册。"""
+        return intent_type in self._intent_types
 
     async def produce_intents(
         self,

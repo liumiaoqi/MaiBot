@@ -9,6 +9,15 @@ from src.maisaka.agent_autonomy.behavior_intent import BehaviorIntent, BehaviorI
 from src.maisaka.agent_autonomy.interjection_cooldown import InterjectionCooldownManager
 from src.maisaka.agent_autonomy.interjection_scheduler import InterjectionScheduler
 from src.maisaka.agent_autonomy.event_bus import AutonomyEventBus, InteractionSignalEvent, InterjectionMentionEvent
+from src.maisaka.agent_autonomy.orchestrator_strategy import (
+    BaseOrchestratorStrategy,
+    DefaultOrchestratorStrategy,
+    ConservativeOrchestratorStrategy,
+    InterjectionDecision,
+    register_strategy,
+    create_strategy,
+    list_strategies,
+)
 
 __all__ = [
     "AutonomousAgent",
@@ -28,4 +37,11 @@ __all__ = [
     "AutonomyEventBus",
     "InteractionSignalEvent",
     "InterjectionMentionEvent",
+    "BaseOrchestratorStrategy",
+    "DefaultOrchestratorStrategy",
+    "ConservativeOrchestratorStrategy",
+    "InterjectionDecision",
+    "register_strategy",
+    "create_strategy",
+    "list_strategies",
 ]

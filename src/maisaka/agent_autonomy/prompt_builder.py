@@ -1,16 +1,26 @@
+from typing import Any, Callable
+
 from src.common.logger import get_logger
 from src.common.prompt import load_prompt
 from src.config.config import global_config
 
 logger = get_logger("agent_autonomy.prompt_builder")
 
+# 动态数据源类型：接收 agent_id，返回人设字符串
+DynamicIdentityProvider = Callable[[str], str | None]
+
 
 class EmbodiedPlannerPromptBuilder:
-    """角色化 Planner 提示词构建器——从旁观者视角变为角色内部视角。"""
+    """角色化 Planner 提示词构建器——从旁观者视角变为角色内部视角。
+
+    支持动态数据源：可通过 register_identity_provider 注入动态人设提供者，
+    使 {identity} 占位符可被运行时数据替换，为未来的动态性格引擎预留接口。
+    """
 
     def __init__(self, agent_id: str) -> None:
         self._agent_id = agent_id
         self._degraded = False
+        self._identity_providers: list[DynamicIdentityProvider] = []
 
     @property
     def agent_id(self) -> str:
@@ -19,6 +29,14 @@ class EmbodiedPlannerPromptBuilder:
     @property
     def is_degraded(self) -> bool:
         return self._degraded
+
+    def register_identity_provider(self, provider: DynamicIdentityProvider) -> None:
+        """注册动态人设数据源。
+
+        动态数据源按注册顺序依次调用，第一个返回非 None 的结果将替换
+        默认的 identity_prompt。这为未来的动态性格引擎预留了接口。
+        """
+        self._identity_providers.append(provider)
 
     def build_system_prompt(self, tools_section: str = "") -> str:
         """构建角色化系统提示词。
@@ -57,11 +75,22 @@ class EmbodiedPlannerPromptBuilder:
 
         复用 MaisakaChatLoopService.build_prompt_template_context() 的 slot 结构，
         但 identity/emotion/relationship/memory 均为该智能体的独立数据。
+
+        动态数据源优先：如果注册了 identity_provider 且返回非 None，
+        则使用动态数据源替换默认的 identity_prompt。
         """
         from src.maisaka.agent.registry import AgentConfigRegistry
 
         registry = AgentConfigRegistry()
         agent_config = registry.get_agent(self._agent_id)
+
+        # 动态数据源优先
+        identity_prompt = agent_config.identity_prompt
+        for provider in self._identity_providers:
+            dynamic_identity = provider(self._agent_id)
+            if dynamic_identity is not None:
+                identity_prompt = dynamic_identity
+                break
 
         agent_anti_mechanization = agent_config.anti_mechanization_prompt
         agent_internal_relationships = agent_config.internal_relationships_prompt
@@ -77,7 +106,7 @@ class EmbodiedPlannerPromptBuilder:
             "bot_name": self._get_agent_display_name(),
             "file_tools_section": tools_section,
             "group_chat_attention_block": "",
-            "identity": agent_config.identity_prompt,
+            "identity": identity_prompt,
             "planner_idle_focus_rule": "",
             "query_memory_rule": "",
             "agent_anti_mechanization": agent_anti_mechanization,
