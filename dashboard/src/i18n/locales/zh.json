@@ -1445,6 +1445,43 @@
       "selfEffect": {
         "label": "自我影响"
       }
+    },
+    "autonomy": {
+      "title": "智能体自主性",
+      "activeAgents": "活跃智能体",
+      "primarySpeaker": "主发言",
+      "switchSpeaker": "切换主发言",
+      "triggerInterjection": "触发插话",
+      "behaviorIntents": "行为意图",
+      "interjectionEvents": "插话事件",
+      "speakerChanges": "发言权变更",
+      "noActiveAgents": "暂无活跃智能体",
+      "noIntents": "暂无行为意图",
+      "noInterjections": "暂无插话事件",
+      "noSpeakerChanges": "暂无发言权变更",
+      "intentType": {
+        "want_to_speak": "想要发言",
+        "want_to_interject": "想要插话"
+      },
+      "intentSource": {
+        "inner_need_driven": "内在需求驱动",
+        "emotion_driven": "情绪驱动",
+        "topic_relevance_driven": "话题相关驱动",
+        "relationship_driven": "关系驱动",
+        "interaction_signal_driven": "交互信号驱动",
+        "manual_trigger": "手动触发"
+      },
+      "changeType": {
+        "manual_switch": "手动切换",
+        "agent_exit": "智能体退场",
+        "interjection": "插话",
+        "session_create": "会话创建"
+      },
+      "strength": "强度",
+      "source": "来源",
+      "reason": "原因",
+      "from": "从",
+      "to": "到"
     }
   },
   "emotion": {

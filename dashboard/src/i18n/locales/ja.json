@@ -1447,6 +1447,43 @@
       "selfEffect": {
         "label": "自己効果"
       }
+    },
+    "autonomy": {
+      "title": "エージェント自律性",
+      "activeAgents": "アクティブエージェント",
+      "primarySpeaker": "メイン発言者",
+      "switchSpeaker": "発言者切替",
+      "triggerInterjection": "割り込みトリガー",
+      "behaviorIntents": "行動意図",
+      "interjectionEvents": "割り込みイベント",
+      "speakerChanges": "発言権変更",
+      "noActiveAgents": "アクティブエージェントなし",
+      "noIntents": "行動意図なし",
+      "noInterjections": "割り込みイベントなし",
+      "noSpeakerChanges": "発言権変更なし",
+      "intentType": {
+        "want_to_speak": "発話希望",
+        "want_to_interject": "割り込み希望"
+      },
+      "intentSource": {
+        "inner_need_driven": "内発的欲求駆動",
+        "emotion_driven": "感情駆動",
+        "topic_relevance_driven": "話題関連駆動",
+        "relationship_driven": "関係駆動",
+        "interaction_signal_driven": "相互作用シグナル駆動",
+        "manual_trigger": "手動トリガー"
+      },
+      "changeType": {
+        "manual_switch": "手動切替",
+        "agent_exit": "エージェント退出",
+        "interjection": "割り込み",
+        "session_create": "セッション作成"
+      },
+      "strength": "強度",
+      "source": "ソース",
+      "reason": "理由",
+      "from": "から",
+      "to": "へ"
     }
   },
   "emotion": {

@@ -1158,3 +1158,288 @@ async def get_interaction_detail(event_id: str):
         metadata=event.event_metadata,
         created_at=event.created_at.isoformat() if event.created_at else None,
     )
+
+
+# ========== 智能体自主性 API ==========
+
+
+class ActiveAgentItem(BaseModel):
+    agent_id: str
+    is_primary: bool = False
+    activation_reason: str = ""
+    activated_at: Optional[str] = None
+    last_spoke_at: Optional[str] = None
+
+
+class ActiveAgentsResponse(BaseModel):
+    success: bool
+    session_id: str
+    data: List[ActiveAgentItem] = Field(default_factory=list)
+
+
+class PrimaryAgentResponse(BaseModel):
+    success: bool
+    session_id: str
+    agent_id: Optional[str] = None
+    activation_reason: str = ""
+    activated_at: Optional[str] = None
+
+
+class SwitchSpeakerRequest(BaseModel):
+    session_id: str = Field(..., description="会话ID")
+    target_agent_id: str = Field(..., description="目标智能体ID")
+    reason: str = "manual_switch"
+
+
+class SwitchSpeakerResponse(BaseModel):
+    success: bool
+    session_id: str
+    from_agent_id: str = ""
+    to_agent_id: str = ""
+
+
+class TriggerInterjectionRequest(BaseModel):
+    session_id: str = Field(..., description="会话ID")
+    agent_id: str = Field(..., description="插话智能体ID")
+    reason: str = "manual_trigger"
+
+
+class TriggerInterjectionResponse(BaseModel):
+    success: bool
+    session_id: str
+    agent_id: str = ""
+    error: str = ""
+
+
+class BehaviorIntentItem(BaseModel):
+    intent_id: str
+    agent_id: str
+    intent_type: str
+    intent_strength: float
+    intent_source: str
+    source_description: str
+    status: str
+    created_at: Optional[str] = None
+
+
+class BehaviorIntentsResponse(BaseModel):
+    success: bool
+    session_id: str
+    data: List[BehaviorIntentItem] = Field(default_factory=list)
+
+
+class InterjectionEventItem(BaseModel):
+    event_id: str
+    agent_id: str
+    primary_agent_id: str
+    interjection_type: str
+    trigger_reason: str
+    intent_strength: float
+    content_summary: str
+    created_at: Optional[str] = None
+
+
+class InterjectionEventsResponse(BaseModel):
+    success: bool
+    session_id: str
+    data: List[InterjectionEventItem] = Field(default_factory=list)
+
+
+class SpeakerChangeItem(BaseModel):
+    record_id: str
+    from_agent_id: str
+    to_agent_id: str
+    change_type: str
+    change_reason: str
+    created_at: Optional[str] = None
+
+
+class SpeakerChangesResponse(BaseModel):
+    success: bool
+    session_id: str
+    data: List[SpeakerChangeItem] = Field(default_factory=list)
+
+
+@router.get("/autonomy/active/{session_id}", response_model=ActiveAgentsResponse)
+async def get_active_agents(session_id: str):
+    """获取会话的活跃智能体列表。"""
+    from src.maisaka.agent_autonomy.activity_store import AgentActivityStore
+
+    store = AgentActivityStore()
+    activities = store.get_active_agents(session_id)
+    return ActiveAgentsResponse(
+        success=True,
+        session_id=session_id,
+        data=[
+            ActiveAgentItem(
+                agent_id=a.agent_id,
+                is_primary=a.is_primary,
+                activation_reason=a.activation_reason,
+                activated_at=a.activated_at.isoformat() if a.activated_at else None,
+                last_spoke_at=a.last_spoke_at.isoformat() if a.last_spoke_at else None,
+            )
+            for a in activities
+        ],
+    )
+
+
+@router.get("/autonomy/primary/{session_id}", response_model=PrimaryAgentResponse)
+async def get_primary_agent(session_id: str):
+    """获取会话的主发言智能体。"""
+    from src.maisaka.agent_autonomy.activity_store import AgentActivityStore
+
+    store = AgentActivityStore()
+    primary = store.get_primary_agent(session_id)
+    return PrimaryAgentResponse(
+        success=True,
+        session_id=session_id,
+        agent_id=primary.agent_id if primary else None,
+        activation_reason=primary.activation_reason if primary else "",
+        activated_at=primary.activated_at.isoformat() if primary and primary.activated_at else None,
+    )
+
+
+@router.post("/autonomy/switch-speaker", response_model=SwitchSpeakerResponse)
+async def switch_speaker(req: SwitchSpeakerRequest):
+    """切换主发言智能体。"""
+    from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
+
+    orchestrator = AgentOrchestrator.get_by_session(req.session_id)
+    if orchestrator is None:
+        raise HTTPException(status_code=404, detail="未找到该会话的自主性编排器")
+
+    from_id = orchestrator.get_primary_agent()
+    from_agent_id = from_id.agent_id if from_id else ""
+
+    success = await orchestrator.switch_primary_speaker(
+        target_agent_id=req.target_agent_id,
+        reason=req.reason,
+    )
+    return SwitchSpeakerResponse(
+        success=success,
+        session_id=req.session_id,
+        from_agent_id=from_agent_id,
+        to_agent_id=req.target_agent_id if success else "",
+    )
+
+
+@router.post("/autonomy/trigger-interjection", response_model=TriggerInterjectionResponse)
+async def trigger_interjection(req: TriggerInterjectionRequest):
+    """手动触发插话。"""
+    from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
+
+    orchestrator = AgentOrchestrator.get_by_session(req.session_id)
+    if orchestrator is None:
+        raise HTTPException(status_code=404, detail="未找到该会话的自主性编排器")
+
+    if req.agent_id not in [a.agent_id for a in orchestrator.get_active_agents()]:
+        await orchestrator.activate_agent(req.agent_id, "manual_interjection")
+
+    from src.maisaka.agent_autonomy.behavior_intent import BehaviorIntent
+    intent = BehaviorIntent(
+        intent_type="want_to_interject",
+        intent_strength=100.0,
+        intent_source="manual_trigger",
+        source_description=f"手动触发: {req.reason}",
+    )
+    orchestrator.report_intent(req.agent_id, intent)
+
+    return TriggerInterjectionResponse(
+        success=True,
+        session_id=req.session_id,
+        agent_id=req.agent_id,
+    )
+
+
+@router.get("/autonomy/intents/{session_id}", response_model=BehaviorIntentsResponse)
+async def get_behavior_intents(session_id: str, limit: int = 50):
+    """获取会话的行为意图列表。"""
+    from src.common.database.database_model import AgentAutonomyBehaviorIntent
+
+    with get_db_session() as db:
+        rows = (
+            db.query(AgentAutonomyBehaviorIntent)
+            .filter(AgentAutonomyBehaviorIntent.session_id == session_id)
+            .order_by(AgentAutonomyBehaviorIntent.created_at.desc())
+            .limit(limit)
+            .all()
+        )
+        return BehaviorIntentsResponse(
+            success=True,
+            session_id=session_id,
+            data=[
+                BehaviorIntentItem(
+                    intent_id=r.intent_id,
+                    agent_id=r.agent_id,
+                    intent_type=r.intent_type,
+                    intent_strength=r.intent_strength,
+                    intent_source=r.intent_source,
+                    source_description=r.source_description,
+                    status=r.status,
+                    created_at=r.created_at.isoformat() if r.created_at else None,
+                )
+                for r in rows
+            ],
+        )
+
+
+@router.get("/autonomy/interjection-events/{session_id}", response_model=InterjectionEventsResponse)
+async def get_interjection_events(session_id: str, limit: int = 50):
+    """获取会话的插话事件列表。"""
+    from src.common.database.database_model import AgentAutonomyInterjectionEvent
+
+    with get_db_session() as db:
+        rows = (
+            db.query(AgentAutonomyInterjectionEvent)
+            .filter(AgentAutonomyInterjectionEvent.session_id == session_id)
+            .order_by(AgentAutonomyInterjectionEvent.created_at.desc())
+            .limit(limit)
+            .all()
+        )
+        return InterjectionEventsResponse(
+            success=True,
+            session_id=session_id,
+            data=[
+                InterjectionEventItem(
+                    event_id=r.event_id,
+                    agent_id=r.agent_id,
+                    primary_agent_id=r.primary_agent_id,
+                    interjection_type=r.interjection_type,
+                    trigger_reason=r.trigger_reason,
+                    intent_strength=r.intent_strength,
+                    content_summary=r.content_summary,
+                    created_at=r.created_at.isoformat() if r.created_at else None,
+                )
+                for r in rows
+            ],
+        )
+
+
+@router.get("/autonomy/speaker-changes/{session_id}", response_model=SpeakerChangesResponse)
+async def get_speaker_changes(session_id: str, limit: int = 50):
+    """获取会话的发言权变更记录。"""
+    from src.common.database.database_model import AgentAutonomySpeakerChangeRecord
+
+    with get_db_session() as db:
+        rows = (
+            db.query(AgentAutonomySpeakerChangeRecord)
+            .filter(AgentAutonomySpeakerChangeRecord.session_id == session_id)
+            .order_by(AgentAutonomySpeakerChangeRecord.created_at.desc())
+            .limit(limit)
+            .all()
+        )
+        return SpeakerChangesResponse(
+            success=True,
+            session_id=session_id,
+            data=[
+                SpeakerChangeItem(
+                    record_id=r.record_id,
+                    from_agent_id=r.from_agent_id,
+                    to_agent_id=r.to_agent_id,
+                    change_type=r.change_type,
+                    change_reason=r.change_reason,
+                    created_at=r.created_at.isoformat() if r.created_at else None,
+                )
+                for r in rows
+            ],
+        )

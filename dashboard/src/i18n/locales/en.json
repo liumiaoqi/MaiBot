@@ -1447,6 +1447,43 @@
       "selfEffect": {
         "label": "Self Effect"
       }
+    },
+    "autonomy": {
+      "title": "Agent Autonomy",
+      "activeAgents": "Active Agents",
+      "primarySpeaker": "Primary Speaker",
+      "switchSpeaker": "Switch Speaker",
+      "triggerInterjection": "Trigger Interjection",
+      "behaviorIntents": "Behavior Intents",
+      "interjectionEvents": "Interjection Events",
+      "speakerChanges": "Speaker Changes",
+      "noActiveAgents": "No active agents",
+      "noIntents": "No behavior intents",
+      "noInterjections": "No interjection events",
+      "noSpeakerChanges": "No speaker changes",
+      "intentType": {
+        "want_to_speak": "Want to Speak",
+        "want_to_interject": "Want to Interject"
+      },
+      "intentSource": {
+        "inner_need_driven": "Inner Need Driven",
+        "emotion_driven": "Emotion Driven",
+        "topic_relevance_driven": "Topic Relevance Driven",
+        "relationship_driven": "Relationship Driven",
+        "interaction_signal_driven": "Interaction Signal Driven",
+        "manual_trigger": "Manual Trigger"
+      },
+      "changeType": {
+        "manual_switch": "Manual Switch",
+        "agent_exit": "Agent Exit",
+        "interjection": "Interjection",
+        "session_create": "Session Create"
+      },
+      "strength": "Strength",
+      "source": "Source",
+      "reason": "Reason",
+      "from": "From",
+      "to": "To"
     }
   },
   "emotion": {
