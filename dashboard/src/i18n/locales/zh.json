@@ -1298,7 +1298,8 @@
         "relationship": "关系网络",
         "memory": "记忆花园",
         "timeline": "生命时间线",
-        "sessions": "活跃会话"
+        "sessions": "活跃会话",
+        "autonomy": "自主日志"
       }
     },
     "emotionLandscape": {
@@ -1482,6 +1483,20 @@
       "reason": "原因",
       "from": "从",
       "to": "到"
+    },
+    "autonomyLogs": {
+      "title": "自主行为日志",
+      "allTypes": "全部类型",
+      "thinking": "思维活动",
+      "expression": "表达意图",
+      "innerNeed": "内在需求",
+      "behaviorIntent": "行为意图",
+      "interjection": "插话事件",
+      "orchestration": "编排调度",
+      "empty": "暂无自主行为记录",
+      "total": "共 {{count}} 条",
+      "prev": "上一页",
+      "next": "下一页"
     }
   },
   "emotion": {

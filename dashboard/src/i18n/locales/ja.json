@@ -1300,7 +1300,8 @@
         "relationship": "関係ネットワーク",
         "memory": "記憶の庭",
         "timeline": "ライフタイムライン",
-        "sessions": "アクティブセッション"
+        "sessions": "アクティブセッション",
+        "autonomy": "自律ログ"
       }
     },
     "emotionLandscape": {
@@ -1484,6 +1485,20 @@
       "reason": "理由",
       "from": "から",
       "to": "へ"
+    },
+    "autonomyLogs": {
+      "title": "自律行動ログ",
+      "allTypes": "すべての種別",
+      "thinking": "思考活動",
+      "expression": "表現意図",
+      "innerNeed": "内発的需要",
+      "behaviorIntent": "行動意図",
+      "interjection": "割り込みイベント",
+      "orchestration": "オーケストレーション",
+      "empty": "自律行動記録なし",
+      "total": "全 {{count}} 件",
+      "prev": "前へ",
+      "next": "次へ"
     }
   },
   "emotion": {

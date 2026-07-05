@@ -1300,7 +1300,8 @@
         "relationship": "Relationship Network",
         "memory": "Memory Garden",
         "timeline": "Life Timeline",
-        "sessions": "Active Sessions"
+        "sessions": "Active Sessions",
+        "autonomy": "Autonomy Logs"
       }
     },
     "emotionLandscape": {
@@ -1484,6 +1485,20 @@
       "reason": "Reason",
       "from": "From",
       "to": "To"
+    },
+    "autonomyLogs": {
+      "title": "Autonomy Logs",
+      "allTypes": "All Types",
+      "thinking": "Thinking",
+      "expression": "Expression",
+      "innerNeed": "Inner Need",
+      "behaviorIntent": "Behavior Intent",
+      "interjection": "Interjection",
+      "orchestration": "Orchestration",
+      "empty": "No autonomy logs yet",
+      "total": "{{count}} total",
+      "prev": "Prev",
+      "next": "Next"
     }
   },
   "emotion": {
