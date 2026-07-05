@@ -1,10 +1,14 @@
 import { memo } from 'react'
 
-import { BaseEdge, getSmoothStepPath } from 'reactflow'
+import { BaseEdge, getSmoothStepPath, type EdgeProps } from 'reactflow'
 
 import type { ConstellationEdge as ConstellationEdgeData } from '../../utils/constellation'
 
-export const ConstellationEdgeComponent = memo(({
+type ConstellationEdgeProps = EdgeProps & {
+  data: ConstellationEdgeData
+}
+
+function ConstellationEdgeInner({
   id,
   sourceX,
   sourceY,
@@ -13,16 +17,7 @@ export const ConstellationEdgeComponent = memo(({
   sourcePosition,
   targetPosition,
   data,
-}: {
-  id: string
-  sourceX: number
-  sourceY: number
-  targetX: number
-  targetY: number
-  sourcePosition: any
-  targetPosition: any
-  data: ConstellationEdgeData
-}) {
+}: ConstellationEdgeProps) {
   const [edgePath] = getSmoothStepPath({
     sourceX,
     sourceY,
@@ -43,6 +38,8 @@ export const ConstellationEdgeComponent = memo(({
       }}
     />
   )
-})
+}
+
+export const ConstellationEdgeComponent = memo(ConstellationEdgeInner)
 
 ConstellationEdgeComponent.displayName = 'ConstellationEdge'
