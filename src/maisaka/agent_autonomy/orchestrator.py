@@ -240,7 +240,7 @@ class AgentOrchestrator:
                 f"加入会话(原因={reason}, 主发言={is_primary})",
                 session_id=self._session_id,
             )
-            )
+
             return True
         except Exception as exc:
             logger.error(
