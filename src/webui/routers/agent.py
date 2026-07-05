@@ -27,8 +27,13 @@ def _get_registry() -> AgentConfigRegistry:
     return AgentConfigRegistry()
 
 
-def _get_router() -> AgentRouter:
-    return AgentRouter(_get_registry())
+def _get_agent_router() -> AgentRouter:
+    """获取 ChatManager 持有的智能体路由器单例"""
+    from src.chat.message_receive.chat_manager import chat_manager
+
+    if chat_manager._agent_router is None:
+        raise HTTPException(status_code=503, detail="ChatManager 尚未初始化，智能体路由器不可用")
+    return chat_manager.agent_router
 
 
 class EmotionBaselineResponse(BaseModel):
@@ -281,7 +286,7 @@ async def get_agent_relationships(agent_id: str):
 async def get_session_binding(session_id: str):
     """获取会话绑定的智能体"""
     try:
-        agent_router = _get_router()
+        agent_router = _get_agent_router()
         agent_id = agent_router.get_session_binding(session_id)
         display_name = None
         if agent_id:
@@ -303,7 +308,7 @@ async def get_session_binding(session_id: str):
 async def bind_session_agent(session_id: str, request: BindSessionRequest):
     """绑定会话到指定智能体"""
     try:
-        agent_router = _get_router()
+        agent_router = _get_agent_router()
         try:
             agent_router.bind_session(session_id, request.agent_id)
         except ValueError as e:
@@ -335,7 +340,7 @@ async def bind_session_agent(session_id: str, request: BindSessionRequest):
 async def unbind_session_agent(session_id: str):
     """解除会话的智能体绑定"""
     try:
-        agent_router = _get_router()
+        agent_router = _get_agent_router()
         agent_router.unbind_session(session_id)
         return SessionBindingResponse(success=True, session_id=session_id)
     except Exception as e:
@@ -347,7 +352,7 @@ async def unbind_session_agent(session_id: str):
 async def batch_bind_sessions(request: BatchBindRequest):
     """批量绑定会话到指定智能体"""
     registry = _get_registry()
-    agent_router = _get_router()
+    agent_router = _get_agent_router()
     succeeded = 0
     failed = 0
     errors: list[BatchBindError] = []
@@ -384,7 +389,7 @@ async def batch_bind_sessions(request: BatchBindRequest):
 async def list_group_bindings():
     """列出所有群-智能体绑定"""
     try:
-        agent_router = _get_router()
+        agent_router = _get_agent_router()
         return GroupBindingsListResponse(
             success=True,
             bindings=agent_router.list_group_bindings(),
@@ -398,7 +403,7 @@ async def list_group_bindings():
 async def bind_group_agent(request: BindGroupRequest):
     """绑定群到指定智能体"""
     try:
-        agent_router = _get_router()
+        agent_router = _get_agent_router()
         try:
             agent_router.bind_group(request.group_id, request.agent_id)
         except ValueError as e:
@@ -423,7 +428,7 @@ async def bind_group_agent(request: BindGroupRequest):
 async def unbind_group_agent(group_id: str):
     """解除群的智能体绑定"""
     try:
-        agent_router = _get_router()
+        agent_router = _get_agent_router()
         agent_router.unbind_group(group_id)
         return GroupBindingResponse(success=True, group_id=group_id, agent_id="")
     except Exception as e:
