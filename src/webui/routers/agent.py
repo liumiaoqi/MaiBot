@@ -1443,3 +1443,115 @@ async def get_speaker_changes(session_id: str, limit: int = 50):
                 for r in rows
             ],
         )
+
+
+class AutonomyLogItem(BaseModel):
+    agent_id: str = ""
+    event_type: str = ""
+    detail: str = ""
+    timestamp: str = ""
+    session_id: str = ""
+    log_level: str = "info"
+
+
+class AutonomyLogResponse(BaseModel):
+    items: List[AutonomyLogItem] = Field(default_factory=list)
+    total: int = 0
+    page: int = 1
+    page_size: int = 50
+
+
+@router.get("/autonomy-logs", response_model=AutonomyLogResponse)
+async def get_autonomy_logs(
+    agent_id: Optional[str] = None,
+    event_type: Optional[str] = None,
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 50,
+):
+    """查询智能体自主性活动日志。"""
+    import json
+    from pathlib import Path
+
+    log_dir = Path("logs")
+    if not log_dir.exists():
+        return AutonomyLogResponse()
+
+    log_files = sorted(log_dir.glob("app_*.log.jsonl"), key=lambda f: f.stat().st_mtime, reverse=True)
+    if not log_files:
+        return AutonomyLogResponse()
+
+    max_lines = 5000
+    all_items: list[AutonomyLogItem] = []
+
+    for log_file in log_files[:3]:
+        try:
+            with open(log_file, "r", encoding="utf-8", errors="ignore") as f:
+                lines = f.readlines()[-max_lines:]
+        except Exception:
+            continue
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            event = entry.get("event", "")
+            if not isinstance(event, str) or "[Autonomy:" not in event:
+                continue
+
+            item = _parse_autonomy_log(entry, event)
+            if item is None:
+                continue
+
+            if agent_id and item.agent_id != agent_id:
+                continue
+            if event_type and item.event_type != event_type:
+                continue
+            if start_time and item.timestamp < start_time:
+                continue
+            if end_time and item.timestamp > end_time:
+                continue
+
+            all_items.append(item)
+
+    all_items.sort(key=lambda x: x.timestamp, reverse=True)
+
+    total = len(all_items)
+    start = (page - 1) * page_size
+    end = start + page_size
+    items = all_items[start:end]
+
+    return AutonomyLogResponse(items=items, total=total, page=page, page_size=page_size)
+
+
+def _parse_autonomy_log(entry: dict, event: str) -> Optional[AutonomyLogItem]:
+    """解析 [Autonomy:{agent_id}] {event_type}: {detail} 格式日志。"""
+    import re
+
+    match = re.match(r"\[Autonomy:(\S+?)\]\s+(\S+?):\s+(.*)", event)
+    if not match:
+        return None
+
+    agent_id = match.group(1)
+    event_type = match.group(2)
+    detail = match.group(3)
+
+    timestamp = entry.get("timestamp", "")
+    if isinstance(timestamp, (int, float)):
+        from datetime import datetime
+        timestamp = datetime.fromtimestamp(timestamp).isoformat()
+
+    return AutonomyLogItem(
+        agent_id=agent_id,
+        event_type=event_type,
+        detail=detail,
+        timestamp=str(timestamp),
+        session_id="",
+        log_level=entry.get("level", "info"),
+    )
