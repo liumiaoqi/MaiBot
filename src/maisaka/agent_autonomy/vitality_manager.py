@@ -82,10 +82,9 @@ class VitalityManager:
     def sync_standby_agents(self, session_id: str) -> None:
         """同步待命列表：将绑定但非活跃且非待命的智能体加入待命。"""
         try:
-            from src.chat.message_receive.chat_manager import ChatManager
+            from src.chat.message_receive.chat_manager import chat_manager
 
-            chat_manager = ChatManager.get_instance()
-            if chat_manager is None or chat_manager.agent_router is None:
+            if chat_manager is None or chat_manager._agent_router is None:
                 return
 
             agent_router = chat_manager.agent_router
