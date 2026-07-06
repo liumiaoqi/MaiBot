@@ -41,7 +41,7 @@ class SessionRecoveryService:
         sessions: dict[str, list[Any]] = {}
         for record in active_records:
             # 验证 ChatSession 仍存在
-            chat_session = chat_manager.get_session_by_session_id(record.session_id)
+            chat_session = chat_manager.get_existing_session_by_session_id(record.session_id)
             if chat_session is None:
                 self._activity_store.deactivate(
                     record.session_id, record.agent_id, "session_deleted"
@@ -62,11 +62,20 @@ class SessionRecoveryService:
             try:
                 orch = AgentOrchestrator.get_by_session(session_id)
                 if orch is None:
-                    logger.debug(
-                        f"[agent_autonomy] 跳过恢复(Orchestrator不存在): "
-                        f"session={session_id}"
-                    )
-                    continue
+                    chat_session = chat_manager.get_existing_session_by_session_id(session_id)
+                    if chat_session is None:
+                        logger.debug(
+                            f"[agent_autonomy] 跳过恢复(ChatSession不存在): "
+                            f"session={session_id}"
+                        )
+                        continue
+
+                    from src.maisaka.agent_autonomy.bridge.chat_loop_adapter import ChatLoopServiceAdapter
+
+                    session_name = getattr(chat_session, "group_name", None) or getattr(chat_session, "user_nickname", None) or session_id
+                    adapter = ChatLoopServiceAdapter(session_id)
+                    orch = AgentOrchestrator(session_id, session_name, adapter)
+                    AgentOrchestrator._registry[session_id] = orch
 
                 for record in records:
                     # 待命状态的智能体恢复到待命列表

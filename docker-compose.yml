@@ -1,6 +1,7 @@
 services:
   core:
     container_name: maim-bot-core
+    pull_policy: never
     #### prod ####
     image: maibot:ubuntu-migration
     #image: sengokucola/maibot:latest
