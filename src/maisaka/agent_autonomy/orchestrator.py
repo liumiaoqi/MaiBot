@@ -418,8 +418,8 @@ class AgentOrchestrator:
             self._vitality_manager.sync_standby_agents(self._session_id)
 
             # 发布环境感知事件
-            content = message.raw_message or message.content or ""
-            sender_id = message.user_id or ""
+            content = message.processed_plain_text or ""
+            sender_id = message.message_info.user_info.user_id if message.message_info else ""
             session_message_event = SessionMessageEvent(
                 session_id=self._session_id,
                 sender_type="user",
