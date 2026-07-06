@@ -89,7 +89,7 @@ class EmbodiedPlannerPromptBuilder:
         """
         from src.maisaka.agent.registry import AgentConfigRegistry
 
-        registry = AgentConfigRegistry()
+        registry = AgentConfigRegistry.get_instance()
         agent_config = registry.get_agent(self._agent_id)
 
         # 动态数据源优先
@@ -195,7 +195,7 @@ class EmbodiedPlannerPromptBuilder:
         try:
             from src.maisaka.agent.registry import AgentConfigRegistry
 
-            registry = AgentConfigRegistry()
+            registry = AgentConfigRegistry.get_instance()
             if registry.has_agent(self._agent_id):
                 agent_config = registry.get_agent(self._agent_id)
                 return agent_config.display_name or self._agent_id

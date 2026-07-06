@@ -12,6 +12,8 @@ logger = logging.getLogger(__name__)
 class AgentConfigRegistry:
     """智能体配置注册表，管理所有已加载的智能体配置"""
 
+    _instance: Optional["AgentConfigRegistry"] = None
+
     def __init__(self, config_dir: Optional[str] = None) -> None:
         if config_dir is None:
             try:
@@ -24,6 +26,13 @@ class AgentConfigRegistry:
         self._agents: dict[str, AgentConfig] = {}
         self._default_agent: Optional[AgentConfig] = None
         self._loaded = False
+
+    @classmethod
+    def get_instance(cls) -> "AgentConfigRegistry":
+        """获取全局单例"""
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
 
     def load(self) -> None:
         """加载所有智能体配置"""

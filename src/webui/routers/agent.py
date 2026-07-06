@@ -24,7 +24,7 @@ router = APIRouter(prefix="/agent", tags=["Agent"], dependencies=[Depends(requir
 
 
 def _get_registry() -> AgentConfigRegistry:
-    return AgentConfigRegistry()
+    return AgentConfigRegistry.get_instance()
 
 
 def _get_agent_router() -> AgentRouter:
