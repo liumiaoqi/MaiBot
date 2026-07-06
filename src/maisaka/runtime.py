@@ -847,17 +847,24 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
             self._ensure_background_tasks_running()
         received_at = time.time()
         self._last_message_received_at = received_at
-        self._record_external_message_interval(message, received_at)
-        self._update_message_trigger_state(message)
-        self.message_cache.append(message)
-        self._emit_monitor_message_ingested(message)
-        self._prune_processed_message_cache()
+
+        is_ambient_notice = self._is_ambient_notice(message)
+
+        if not is_ambient_notice:
+            self._record_external_message_interval(message, received_at)
+            self._update_message_trigger_state(message)
+            self.message_cache.append(message)
+            self._emit_monitor_message_ingested(message)
+            self._prune_processed_message_cache()
 
         if self._agent_orchestrator is not None:
             try:
                 asyncio.create_task(self._agent_orchestrator.handle_message(message))
             except Exception as exc:
                 logger.debug(f"[agent_autonomy] handle_message 调度异常: {exc}")
+
+        if is_ambient_notice:
+            return
 
         user_id = message.message_info.user_info.user_id
         if user_id:
@@ -1213,6 +1220,26 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
             return
         finally:
             self._deferred_message_turn_task = None
+
+    _AMBIENT_NOTICE_SUBTYPES = frozenset({
+        "input_status",
+        "group_ban",
+        "group_increase",
+        "group_decrease",
+        "group_name",
+        "group_upload",
+        "group_msg_emoji_like",
+    })
+
+    def _is_ambient_notice(self, message: SessionMessage) -> bool:
+        """判断消息是否为纯环境感知通知（不触发Planner）。"""
+        if not message.is_notify:
+            return False
+        additional_config = message.message_info.additional_config
+        if not isinstance(additional_config, dict):
+            return False
+        sub_type = additional_config.get("napcat_notice_sub_type", "")
+        return bool(sub_type and sub_type in self._AMBIENT_NOTICE_SUBTYPES)
 
     def _update_message_trigger_state(self, message: SessionMessage) -> None:
         """补齐消息中的 @/提及 标记，并在命中时启用强制触发。"""
