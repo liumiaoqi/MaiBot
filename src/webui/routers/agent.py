@@ -242,7 +242,11 @@ async def get_agent_emotion(agent_id: str):
         if not registry.has_agent(agent_id):
             raise HTTPException(status_code=404, detail=f"智能体不存在: {agent_id}")
         config = registry.get_agent(agent_id)
-        manager = EmotionManager(config)
+        from src.maisaka.agent_interaction.emotion_registry import AgentEmotionManagerRegistry
+        emotion_registry = AgentEmotionManagerRegistry()
+        manager = emotion_registry.get_emotion_manager(agent_id)
+        if manager is None:
+            manager = EmotionManager(config)
         state = manager.state
         dominant = state.get_dominant()
         return EmotionStateResponse(
@@ -869,7 +873,11 @@ async def batch_get_emotions():
         agents = registry.list_agents()
         for agent in agents:
             try:
-                manager = EmotionManager(agent)
+                from src.maisaka.agent_interaction.emotion_registry import AgentEmotionManagerRegistry
+                emotion_registry = AgentEmotionManagerRegistry()
+                manager = emotion_registry.get_emotion_manager(agent.agent_id)
+                if manager is None:
+                    manager = EmotionManager(agent)
                 state = manager.state
                 dominant = state.get_dominant()
                 result[agent.agent_id] = BatchEmotionItem(

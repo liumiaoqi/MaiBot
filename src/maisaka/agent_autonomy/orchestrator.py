@@ -71,6 +71,7 @@ class AgentOrchestrator:
         # 生命力管理
         self._vitality_manager = VitalityManager(self)
         self._vitality_tick_scheduler = VitalityTickScheduler(self._vitality_manager)
+        self._vitality_tick_scheduler.start()
 
         # 状态互知
         self._visibility_rule = StateVisibilityRule()
@@ -264,6 +265,11 @@ class AgentOrchestrator:
                 activation_reason=reason,
             )
 
+            # 同步到 AgentRouter
+            from src.chat.message_receive.chat_manager import chat_manager
+            if chat_manager._agent_router is not None:
+                chat_manager.agent_router.bind_session(self._session_id, agent_id)
+
             logger.info(
                 f"[agent_autonomy] agent={agent_id} action=activate "
                 f"session={self._session_name} reason={reason} "
@@ -319,6 +325,11 @@ class AgentOrchestrator:
         self._pending_intents.pop(agent_id, None)
         self._activity_store.deactivate(self._session_id, agent_id, reason)
 
+        # 同步解绑 AgentRouter
+        from src.chat.message_receive.chat_manager import chat_manager
+        if chat_manager._agent_router is not None:
+            chat_manager.agent_router.unbind_session(self._session_id, agent_id)
+
         if self._primary_agent_id == agent_id:
             if self._active_agents:
                 new_primary = next(iter(self._active_agents))
@@ -361,6 +372,16 @@ class AgentOrchestrator:
         )
 
         self._chat_loop_adapter.switch_agent_context(target_agent_id)
+
+        # 同步 ChatSession.agent_id
+        from src.common.database.database import get_db_session
+        from src.common.database.database_model import ChatSession
+        with get_db_session() as db:
+            chat_session = db.query(ChatSession).filter(
+                ChatSession.session_id == self._session_id
+            ).first()
+            if chat_session is not None:
+                chat_session.agent_id = target_agent_id
 
         logger.info(
             f"[agent_autonomy] speaker_change from={from_agent_id} "
