@@ -849,6 +849,8 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         self._last_message_received_at = received_at
 
         is_ambient_notice = self._is_ambient_notice(message)
+        if is_ambient_notice:
+            logger.info(f"{self.log_prefix} [ambient_notice] 通知消息不触发Planner: subtype={getattr(message.message_info.additional_config, 'get', lambda *a: '')('napcat_notice_sub_type', '')}")
 
         if not is_ambient_notice:
             self._record_external_message_interval(message, received_at)
