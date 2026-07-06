@@ -844,12 +844,11 @@ export interface SessionVitalityResponse {
 }
 
 export async function fetchSessionVitality(sessionId: string): Promise<SessionVitalityResponse> {
-  return requireSuccess(
-    backendApi.get<SessionVitalityResponse>(
-      `${API_BASE}/vitality?session_id=${encodeURIComponent(sessionId)}`,
-      { errorMessage: '获取生命力状态失败' }
-    )
+  const data = await backendApi.get<SessionVitalityResponse>(
+    `${API_BASE}/vitality?session_id=${encodeURIComponent(sessionId)}`,
+    { errorMessage: '获取生命力状态失败' }
   )
+  return requireSuccess(data, '获取生命力状态失败')
 }
 
 export interface CohabitantEntryItem {
@@ -869,10 +868,9 @@ export interface StateAwarenessResponse {
 }
 
 export async function fetchStateAwareness(sessionId: string): Promise<StateAwarenessResponse> {
-  return requireSuccess(
-    backendApi.get<StateAwarenessResponse>(
-      `${API_BASE}/state-awareness?session_id=${encodeURIComponent(sessionId)}`,
-      { errorMessage: '获取状态互知数据失败' }
-    )
+  const data = await backendApi.get<StateAwarenessResponse>(
+    `${API_BASE}/state-awareness?session_id=${encodeURIComponent(sessionId)}`,
+    { errorMessage: '获取状态互知数据失败' }
   )
+  return requireSuccess(data, '获取状态互知数据失败')
 }
