@@ -83,7 +83,7 @@ class MonologueEngine:
         self._emotion_registry = emotion_registry
         self._monologue_trigger = monologue_trigger
         self._memory_adapter = memory_adapter
-        self._config_registry = AgentConfigRegistry()
+        self._config_registry = AgentConfigRegistry.get_instance()
 
     async def execute(self, agent_id: str) -> MonologueResult:
         """执行内心独白。"""

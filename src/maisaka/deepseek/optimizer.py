@@ -66,7 +66,7 @@ class DeepSeekOptimizer:
         try:
             from src.maisaka.agent.registry import AgentConfigRegistry
 
-            registry = AgentConfigRegistry()
+            registry = AgentConfigRegistry.get_instance()
             if registry.has_agent(agent_id):
                 return registry.get_agent(agent_id).deepseek.enabled
         except Exception:
@@ -89,7 +89,7 @@ class DeepSeekOptimizer:
         try:
             from src.maisaka.agent.registry import AgentConfigRegistry
 
-            registry = AgentConfigRegistry()
+            registry = AgentConfigRegistry.get_instance()
             if registry.has_agent(agent_id):
                 config = registry.get_agent(agent_id).deepseek
                 return config.injection_strategy
@@ -218,7 +218,7 @@ class DeepSeekOptimizer:
         try:
             from src.maisaka.agent.registry import AgentConfigRegistry
 
-            registry = AgentConfigRegistry()
+            registry = AgentConfigRegistry.get_instance()
             if registry.has_agent(agent_id):
                 return registry.get_agent(agent_id).deepseek.injection_priority
         except Exception:

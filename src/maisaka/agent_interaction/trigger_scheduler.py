@@ -56,7 +56,7 @@ class InteractionTrigger:
         self._cooldown_manager = cooldown_manager
         self._trigger_registry = trigger_registry or TriggerRegistry()
         self._trigger_threshold = trigger_threshold
-        self._config_registry = AgentConfigRegistry()
+        self._config_registry = AgentConfigRegistry.get_instance()
         self._time_service = TimeAwarenessService()
 
     @property

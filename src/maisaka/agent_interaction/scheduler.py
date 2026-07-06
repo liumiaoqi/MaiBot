@@ -31,7 +31,7 @@ class InteractionScheduler:
     ) -> None:
         self._trigger = trigger
         self._interval = evaluation_interval_seconds
-        self._config_registry = AgentConfigRegistry()
+        self._config_registry = AgentConfigRegistry.get_instance()
         self._task: asyncio.Task | None = None
         self._running = False
 
