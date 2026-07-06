@@ -9,11 +9,17 @@ from src.maisaka.agent_autonomy.agent import AutonomousAgent
 from src.maisaka.agent_autonomy.activity_store import AgentActivityStore
 from src.maisaka.agent_autonomy.autonomy_logger import AutonomyEventType, AutonomyLogger, AutonomyEventSubscriber
 from src.maisaka.agent_autonomy.behavior_intent import BehaviorIntent
-from src.maisaka.agent_autonomy.event_bus import AutonomyEventBus, InteractionSignalEvent, InterjectionMentionEvent
+from src.maisaka.agent_autonomy.event_bus import AutonomyEventBus, InterjectionMentionEvent, SessionMessageEvent
 from src.maisaka.agent_autonomy.interjection_cooldown import InterjectionCooldownManager
 from src.maisaka.agent_autonomy.interjection_scheduler import InterjectionScheduler
 from src.maisaka.agent_autonomy.orchestrator_strategy import BaseOrchestratorStrategy, DefaultOrchestratorStrategy, create_strategy
 from src.maisaka.agent_autonomy.bridge.chat_loop_adapter import ChatLoopServiceAdapter
+from src.maisaka.agent_autonomy.vitality_manager import VitalityManager
+from src.maisaka.agent_autonomy.ambient_awareness import AmbientAwarenessProcessor
+from src.maisaka.agent_autonomy.vitality_tick import VitalityTickScheduler
+from src.maisaka.agent_autonomy.state_awareness.rule_engine import StateAwareRuleEngine
+from src.maisaka.agent_autonomy.state_awareness.summary_generator import CohabitantStateSummaryGenerator
+from src.maisaka.agent_autonomy.state_awareness.visibility_rule import StateVisibilityRule
 
 logger = get_logger("agent_autonomy.orchestrator")
 
@@ -62,6 +68,24 @@ class AgentOrchestrator:
             )
             self._strategy = DefaultOrchestratorStrategy()
 
+        # 生命力管理
+        self._vitality_manager = VitalityManager(self)
+        self._vitality_tick_scheduler = VitalityTickScheduler(self._vitality_manager)
+
+        # 状态互知
+        self._visibility_rule = StateVisibilityRule()
+        self._rule_engine = StateAwareRuleEngine(
+            self._vitality_manager, self._visibility_rule
+        )
+        self._summary_generator = CohabitantStateSummaryGenerator(
+            self._vitality_manager, self, self._visibility_rule
+        )
+
+        # 环境感知（注入规则引擎）
+        self._ambient_awareness = AmbientAwarenessProcessor(
+            self._vitality_manager, self._rule_engine
+        )
+
         # 上下文切换缓存：agent_id -> prompt_context
         self._context_cache: dict[str, dict[str, str]] = {}
 
@@ -84,6 +108,8 @@ class AgentOrchestrator:
         bus = AutonomyEventBus.get_instance()
         bus.subscribe("interaction_signal", self._on_interaction_signal)
         bus.subscribe("interjection_mention", self._on_interjection_mention)
+        bus.subscribe("session_message", self._ambient_awareness.on_session_message)
+        bus.subscribe("agent_speak", self._ambient_awareness.on_agent_speak)
 
     async def _on_interaction_signal(self, event: Any) -> None:
         """交互信号事件处理器。"""
@@ -218,6 +244,13 @@ class AgentOrchestrator:
             agent = AutonomousAgent(agent_id)
             self._active_agents[agent_id] = agent
 
+            # 注入共居状态摘要生成器到 PromptBuilder
+            if self._config.state_awareness_enabled:
+                try:
+                    agent._prompt_builder.set_summary_generator(self._summary_generator)
+                except Exception:
+                    pass
+
             is_primary = self._primary_agent_id is None
             if is_primary:
                 self._primary_agent_id = agent_id
@@ -259,6 +292,13 @@ class AgentOrchestrator:
 
         agent = AutonomousAgent(agent_id)
         self._active_agents[agent_id] = agent
+
+        # 注入共居状态摘要生成器
+        if self._config.state_awareness_enabled:
+            try:
+                agent._prompt_builder.set_summary_generator(self._summary_generator)
+            except Exception:
+                pass
 
         if is_primary:
             self._primary_agent_id = agent_id
@@ -354,6 +394,21 @@ class AgentOrchestrator:
                     f"session={self._session_name}"
                 )
 
+            # 同步待命智能体列表
+            self._vitality_manager.sync_standby_agents(self._session_id)
+
+            # 发布环境感知事件
+            content = getattr(message, "raw_message", "") or getattr(message, "content", "") or ""
+            sender_id = getattr(message, "user_id", "") or ""
+            session_message_event = SessionMessageEvent(
+                session_id=self._session_id,
+                sender_type="user",
+                sender_id=sender_id,
+                content=str(content),
+                timestamp=datetime.now().isoformat(),
+            )
+            AutonomyEventBus.get_instance().emit_sync("session_message", session_message_event)
+
             # 收集活跃智能体的行为意图
             if self._config.interjection_enabled:
                 await self._collect_behavior_intents()
@@ -381,6 +436,15 @@ class AgentOrchestrator:
             if not target_agent_id:
                 return
 
+            # 如果目标智能体不活跃也不在待命列表，先唤醒为待命
+            if (
+                target_agent_id not in self._active_agents
+                and not self._vitality_manager.registry.contains(target_agent_id, self._session_id)
+            ):
+                self._vitality_manager.add_to_standby(
+                    target_agent_id, self._session_id, "interaction_signal"
+                )
+
             # 如果目标智能体不活跃，尝试激活
             if target_agent_id not in self._active_agents:
                 await self.activate_agent(target_agent_id, "interaction_signal")
@@ -388,9 +452,10 @@ class AgentOrchestrator:
             # 通知目标智能体交互信号到达，由其自主决定是否产生行为意图
             agent = self._active_agents.get(target_agent_id)
             if agent is not None:
+                cohabitation_params = self._vitality_manager.get_cohabitation_params(self._session_id)
                 intents = await agent.produce_behavior_intents(
                     interaction_signals=[event],
-                    intent_threshold=self._config.interjection_intent_threshold,
+                    intent_threshold=cohabitation_params.intent_threshold,
                 )
                 for intent in intents:
                     self.report_intent(target_agent_id, intent)
@@ -441,13 +506,36 @@ class AgentOrchestrator:
 
     async def _collect_behavior_intents(self) -> None:
         """并行收集活跃智能体（排除主发言）的行为意图。"""
+        # 获取动态插话参数
+        cohabitation_params = self._vitality_manager.get_cohabitation_params(self._session_id)
+        dynamic_threshold = cohabitation_params.intent_threshold
+
+        # 感知规则引擎调整阈值
+        if self._config.state_awareness_enabled:
+            try:
+                rule_result = self._rule_engine.evaluate_for_interjection(self._session_id)
+                dynamic_threshold += rule_result.intent_threshold_adjustment
+                dynamic_threshold = max(
+                    dynamic_threshold,
+                    self._config.interjection_threshold_minimum,
+                )
+                if rule_result.triggered_rules:
+                    logger.debug(
+                        f"[agent_autonomy] 感知规则触发: "
+                        f"rules={rule_result.triggered_rules} "
+                        f"adjustment={rule_result.intent_threshold_adjustment:.1f} "
+                        f"session={self._session_name}"
+                    )
+            except Exception as exc:
+                logger.warning(f"[agent_autonomy] 感知规则评估异常: error={exc}")
+
         tasks: list[tuple[str, asyncio.Task]] = []
         for agent_id, agent in list(self._active_agents.items()):
             if agent_id == self._primary_agent_id:
                 continue
             tasks.append((agent_id, asyncio.create_task(
                 agent.produce_behavior_intents(
-                    intent_threshold=self._config.interjection_intent_threshold,
+                    intent_threshold=dynamic_threshold,
                 )
             )))
 
@@ -464,7 +552,7 @@ class AgentOrchestrator:
                 )
 
     async def _schedule_interjections(self) -> None:
-        """基于行为意图调度插话（使用可配置策略）。"""
+        """基于行为意图调度插话（使用可配置策略 + 动态共居参数）。"""
         # 收集所有待处理意图
         all_intents: list[tuple[str, BehaviorIntent]] = []
         for agent_id, intents in self._pending_intents.items():
@@ -473,6 +561,9 @@ class AgentOrchestrator:
 
         if not all_intents:
             return
+
+        # 获取动态冷却参数
+        cohabitation_params = self._vitality_manager.get_cohabitation_params(self._session_id)
 
         # 使用策略调度
         active_ids = list(self._active_agents.keys())
@@ -484,6 +575,8 @@ class AgentOrchestrator:
             primary_agent_id=primary_id,
             session_id=self._session_id,
             cooldown_manager=self._cooldown_manager,
+            override_cooldown=cohabitation_params.cooldown_minutes,
+            override_max_per_hour=cohabitation_params.max_interjections_per_hour,
         )
 
         # 执行调度决策
@@ -558,11 +651,11 @@ class AgentOrchestrator:
             )
 
     def _check_timeout_exit(self) -> None:
-        """检查活跃智能体是否超时需要退场。"""
+        """检查活跃智能体是否超时需要退场。非主发言超时后回落为待命。"""
         timeout_minutes = self._config.auto_exit_timeout_minutes
         now = datetime.now()
 
-        agents_to_exit: list[str] = []
+        agents_to_fallback: list[str] = []
         for agent_id in list(self._active_agents.keys()):
             if agent_id == self._primary_agent_id:
                 continue
@@ -571,15 +664,20 @@ class AgentOrchestrator:
                 if activity.agent_id == agent_id and activity.last_spoke_at:
                     elapsed = (now - activity.last_spoke_at).total_seconds() / 60
                     if elapsed >= timeout_minutes:
-                        agents_to_exit.append(agent_id)
+                        agents_to_fallback.append(agent_id)
 
-        for agent_id in agents_to_exit:
+        for agent_id in agents_to_fallback:
             logger.info(
-                f"[agent_autonomy] agent={agent_id} action=timeout_exit "
+                f"[agent_autonomy] agent={agent_id} action=timeout_fallback "
                 f"session={self._session_name}"
             )
+            # 先加入待命列表
+            self._vitality_manager.add_to_standby(
+                agent_id, self._session_id, "timeout_fallback"
+            )
+            # 从活跃列表移除（使用 fallback_to_standby reason 触发回落逻辑）
             asyncio.get_event_loop().create_task(
-                self.deactivate_agent(agent_id, "timeout")
+                self.deactivate_agent(agent_id, "fallback_to_standby")
             )
 
     def get_cached_context(self, agent_id: str) -> dict[str, str] | None:

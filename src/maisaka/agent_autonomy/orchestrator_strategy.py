@@ -46,6 +46,8 @@ class BaseOrchestratorStrategy(ABC):
         primary_agent_id: str,
         session_id: str,
         cooldown_manager: Any,
+        override_cooldown: float | None = None,
+        override_max_per_hour: int | None = None,
     ) -> list[InterjectionDecision]:
         """根据策略调度插话。"""
         ...
@@ -66,6 +68,8 @@ class DefaultOrchestratorStrategy(BaseOrchestratorStrategy):
         primary_agent_id: str,
         session_id: str,
         cooldown_manager: Any,
+        override_cooldown: float | None = None,
+        override_max_per_hour: int | None = None,
     ) -> list[InterjectionDecision]:
         sorted_intents = sorted(
             pending_intents,
@@ -93,7 +97,11 @@ class DefaultOrchestratorStrategy(BaseOrchestratorStrategy):
                 ))
                 continue
 
-            if not cooldown_manager.can_interject(session_id, agent_id):
+            if not cooldown_manager.can_interject(
+                session_id, agent_id,
+                override_cooldown=override_cooldown,
+                override_max_per_hour=override_max_per_hour,
+            ):
                 decisions.append(InterjectionDecision(
                     agent_id=agent_id,
                     intent=intent,
@@ -127,6 +135,8 @@ class ConservativeOrchestratorStrategy(BaseOrchestratorStrategy):
         primary_agent_id: str,
         session_id: str,
         cooldown_manager: Any,
+        override_cooldown: float | None = None,
+        override_max_per_hour: int | None = None,
     ) -> list[InterjectionDecision]:
         sorted_intents = sorted(
             pending_intents,
@@ -156,7 +166,11 @@ class ConservativeOrchestratorStrategy(BaseOrchestratorStrategy):
                 ))
                 continue
 
-            if not cooldown_manager.can_interject(session_id, agent_id):
+            if not cooldown_manager.can_interject(
+                session_id, agent_id,
+                override_cooldown=override_cooldown,
+                override_max_per_hour=override_max_per_hour,
+            ):
                 decisions.append(InterjectionDecision(
                     agent_id=agent_id,
                     intent=intent,

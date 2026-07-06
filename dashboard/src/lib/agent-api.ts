@@ -54,7 +54,8 @@ export interface CohabitantInfo {
   agent_id: string
   display_name: string
   is_primary: boolean
-  status: 'active' | 'bound_inactive'
+  status: 'active' | 'standby' | 'dormant' | 'bound_inactive'
+  vitality_value?: number
 }
 
 export interface SessionAgentInfo {
@@ -62,10 +63,11 @@ export interface SessionAgentInfo {
   display_name: string
   agent_id: string
   agent_display_name: string
-  status: 'active' | 'bound_inactive'
+  status: 'active' | 'standby' | 'dormant' | 'bound_inactive'
   is_primary: boolean
   last_spoke_at: string | null
   cohabitants: CohabitantInfo[]
+  vitality_value?: number
 }
 
 interface AgentListResponse {
@@ -822,5 +824,55 @@ export async function getAutonomyLogs(params?: {
   return backendApi.get<AutonomyLogResponse>(
     `${API_BASE}/autonomy-logs${query ? `?${query}` : ''}`,
     { errorMessage: '获取自主性日志失败' }
+  )
+}
+
+export interface VitalityAgentItem {
+  agent_id: string
+  display_name: string
+  state: 'active' | 'standby' | 'dormant'
+  vitality_value: number
+  last_stimulus_at: string | null
+}
+
+export interface SessionVitalityResponse {
+  success: boolean
+  session_id: string
+  active_agents: VitalityAgentItem[]
+  standby_agents: VitalityAgentItem[]
+  dormant_agents: VitalityAgentItem[]
+}
+
+export async function fetchSessionVitality(sessionId: string): Promise<SessionVitalityResponse> {
+  return requireSuccess(
+    backendApi.get<SessionVitalityResponse>(
+      `${API_BASE}/vitality?session_id=${encodeURIComponent(sessionId)}`,
+      { errorMessage: '获取生命力状态失败' }
+    )
+  )
+}
+
+export interface CohabitantEntryItem {
+  agent_id: string
+  display_name: string
+  state: string
+  vitality_level: string
+  emotion_tendency: string
+}
+
+export interface StateAwarenessResponse {
+  success: boolean
+  session_id: string
+  cohabitant_entries: CohabitantEntryItem[]
+  summary_preview: string
+  active_rules: Array<{ rule_name: string; active: boolean }>
+}
+
+export async function fetchStateAwareness(sessionId: string): Promise<StateAwarenessResponse> {
+  return requireSuccess(
+    backendApi.get<StateAwarenessResponse>(
+      `${API_BASE}/state-awareness?session_id=${encodeURIComponent(sessionId)}`,
+      { errorMessage: '获取状态互知数据失败' }
+    )
   )
 }

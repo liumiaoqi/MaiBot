@@ -6514,3 +6514,471 @@ class AgentAutonomySectionConfig(ConfigBase):
         },
     )
     """行为意图超过此时间后自动失效。"""
+
+    vitality_base_value: float = Field(
+        default=30.0,
+        ge=0.0,
+        le=100.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "待命初始化生命力基准值",
+                "en_US": "Standby initial vitality base value",
+                "ja_JP": "待機初期バイタリティ基準値",
+            },
+            "x-widget": "input",
+            "x-icon": "heart",
+            "advanced": True,
+        },
+    )
+    """智能体进入待命状态时的初始生命力值。"""
+
+    vitality_activation_threshold: float = Field(
+        default=70.0,
+        ge=30.0,
+        le=100.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "待命→活跃激活阈值",
+                "en_US": "Standby to active activation threshold",
+                "ja_JP": "待機→アクティブ活性化閾値",
+            },
+            "x-widget": "input",
+            "x-icon": "gauge",
+            "advanced": True,
+        },
+    )
+    """生命力达到此阈值时待命智能体自动跃迁为活跃。"""
+
+    vitality_decay_per_minute: float = Field(
+        default=2.0,
+        ge=0.0,
+        le=10.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "每分钟生命力衰减值",
+                "en_US": "Vitality decay per minute",
+                "ja_JP": "1分あたりバイタリティ減衰値",
+            },
+            "x-widget": "input",
+            "x-icon": "trending-down",
+            "advanced": True,
+        },
+    )
+    """待命智能体每分钟自然衰减的生命力值。"""
+
+    vitality_stimulus_message: float = Field(
+        default=5.0,
+        ge=0.0,
+        le=30.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "消息感知生命力增长值",
+                "en_US": "Message stimulus vitality gain",
+                "ja_JP": "メッセージ刺激バイタリティ増加値",
+            },
+            "x-widget": "input",
+            "x-icon": "message-square",
+            "advanced": True,
+        },
+    )
+    """待命智能体感知到消息时增加的生命力值。"""
+
+    vitality_stimulus_mention: float = Field(
+        default=20.0,
+        ge=0.0,
+        le=50.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "提及感知生命力增长值",
+                "en_US": "Mention stimulus vitality gain",
+                "ja_JP": "言及刺激バイタリティ増加値",
+            },
+            "x-widget": "input",
+            "x-icon": "at-sign",
+            "advanced": True,
+        },
+    )
+    """待命智能体被直接提及时增加的生命力值。"""
+
+    vitality_stimulus_topic: float = Field(
+        default=10.0,
+        ge=0.0,
+        le=30.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "话题相关生命力增长值",
+                "en_US": "Topic relevance vitality gain",
+                "ja_JP": "トピック関連バイタリティ増加値",
+            },
+            "x-widget": "input",
+            "x-icon": "hash",
+            "advanced": True,
+        },
+    )
+    """待命智能体感知到话题相关时增加的生命力值。"""
+
+    vitality_tick_interval_seconds: int = Field(
+        default=60,
+        ge=30,
+        le=300,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "心跳间隔秒数",
+                "en_US": "Vitality tick interval (seconds)",
+                "ja_JP": "バイタリティティック間隔（秒）",
+            },
+            "x-widget": "input",
+            "x-icon": "clock",
+            "advanced": True,
+        },
+    )
+    """生命力心跳评估的间隔秒数。"""
+
+    fallback_exit_timeout_minutes: int = Field(
+        default=120,
+        ge=30,
+        le=1440,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "回落退场时间（分钟）",
+                "en_US": "Fallback exit timeout (min)",
+                "ja_JP": "フォールバック退出時間（分）",
+            },
+            "x-widget": "input",
+            "x-icon": "timer",
+            "advanced": True,
+        },
+    )
+    """待命智能体超过此时间且生命力为0时退场为沉睡。"""
+
+    cohabitation_threshold_reduction: float = Field(
+        default=10.0,
+        ge=0.0,
+        le=30.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "共居插话阈值降低基础值",
+                "en_US": "Cohabitation interjection threshold reduction",
+                "ja_JP": "同居割り込み閾値低減基礎値",
+            },
+            "x-widget": "input",
+            "x-icon": "minus-circle",
+            "advanced": True,
+        },
+    )
+    """共居智能体数量≥3时，插话阈值降低的基础值。"""
+
+    cohabitation_cooldown_reduction_minutes: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=3.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "共居冷却缩短基础值（分钟）",
+                "en_US": "Cohabitation cooldown reduction (min)",
+                "ja_JP": "同居クールダウン短縮基礎値（分）",
+            },
+            "x-widget": "input",
+            "x-icon": "minus-circle",
+            "advanced": True,
+        },
+    )
+    """共居智能体数量≥3时，冷却时间缩短的基础值。"""
+
+    interjection_threshold_minimum: float = Field(
+        default=20.0,
+        ge=10.0,
+        le=40.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "插话阈值最低限制",
+                "en_US": "Interjection threshold minimum",
+                "ja_JP": "割り込み閾値最低制限",
+            },
+            "x-widget": "input",
+            "x-icon": "shield",
+            "advanced": True,
+        },
+    )
+    """动态插话阈值的最低下限。"""
+
+    interjection_cooldown_minimum_minutes: float = Field(
+        default=1.0,
+        ge=0.5,
+        le=3.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "冷却时间最低限制（分钟）",
+                "en_US": "Interjection cooldown minimum (min)",
+                "ja_JP": "クールダウン最低制限（分）",
+            },
+            "x-widget": "input",
+            "x-icon": "shield",
+            "advanced": True,
+        },
+    )
+    """动态冷却时间的最低下限。"""
+
+    # 状态感知规则参数
+    companion_vitality_threshold_adjustment: float = Field(
+        default=5.0,
+        ge=0.0,
+        le=20.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "同伴生命力影响阈值调整",
+                "en_US": "Companion vitality threshold adjustment",
+                "ja_JP": "同僚バイタリティ影響閾値調整",
+            },
+            "x-widget": "input",
+            "x-icon": "sliders",
+            "advanced": True,
+        },
+    )
+    """同伴生命力高时活跃智能体插话阈值的调整幅度。"""
+
+    companion_vitality_trigger_threshold: float = Field(
+        default=60.0,
+        ge=30.0,
+        le=100.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "同伴生命力影响触发阈值",
+                "en_US": "Companion vitality trigger threshold",
+                "ja_JP": "同僚バイタリティ影響トリガー閾値",
+            },
+            "x-widget": "input",
+            "x-icon": "gauge",
+            "advanced": True,
+        },
+    )
+    """待命智能体生命力达到此阈值时触发同伴生命力影响规则。"""
+
+    companion_emotion_infection_bonus: float = Field(
+        default=2.0,
+        ge=0.0,
+        le=10.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "同伴情绪感染增强",
+                "en_US": "Companion emotion infection bonus",
+                "ja_JP": "同僚感情感染ボーナス",
+            },
+            "x-widget": "input",
+            "x-icon": "zap",
+            "advanced": True,
+        },
+    )
+    """发言智能体情绪强烈时，待命智能体感染强度的额外增加。"""
+
+    companion_emotion_infection_trigger: float = Field(
+        default=80.0,
+        ge=50.0,
+        le=100.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "同伴情绪感染触发阈值",
+                "en_US": "Companion emotion infection trigger",
+                "ja_JP": "同僚感情感染トリガー閾値",
+            },
+            "x-widget": "input",
+            "x-icon": "gauge",
+            "advanced": True,
+        },
+    )
+    """发言智能体情绪强度达到此阈值时触发感染增强规则。"""
+
+    companion_sad_response_threshold_adjustment: float = Field(
+        default=5.0,
+        ge=0.0,
+        le=20.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "同伴低落响应阈值调整",
+                "en_US": "Companion sad response threshold adjustment",
+                "ja_JP": "同僚落込応答閾値調整",
+            },
+            "x-widget": "input",
+            "x-icon": "sliders",
+            "advanced": True,
+        },
+    )
+    """活跃智能体情绪低落时其他智能体插话阈值的降低幅度。"""
+
+    companion_sad_trigger_threshold: float = Field(
+        default=50.0,
+        ge=20.0,
+        le=80.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "同伴低落响应触发阈值",
+                "en_US": "Companion sad response trigger threshold",
+                "ja_JP": "同僚落込応答トリガー閾値",
+            },
+            "x-widget": "input",
+            "x-icon": "gauge",
+            "advanced": True,
+        },
+    )
+    """活跃智能体情绪强度达到此阈值时触发低落响应规则。"""
+
+    companion_mention_vitality_bonus: float = Field(
+        default=5.0,
+        ge=0.0,
+        le=20.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "同伴提及生命力加成",
+                "en_US": "Companion mention vitality bonus",
+                "ja_JP": "同僚言及バイタリティボーナス",
+            },
+            "x-widget": "input",
+            "x-icon": "zap",
+            "advanced": True,
+        },
+    )
+    """活跃智能体提及待命智能体时的额外生命力加成。"""
+
+    # 状态可见性规则参数
+    active_visible_to_active: bool = Field(
+        default=True,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "活跃对活跃可见",
+                "en_US": "Active visible to active",
+                "ja_JP": "アクティブからアクティブ可視",
+            },
+            "x-widget": "switch",
+            "x-icon": "eye",
+            "advanced": True,
+        },
+    )
+    """活跃智能体对活跃智能体是否可见。"""
+
+    standby_visible_to_active: bool = Field(
+        default=True,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "待命对活跃可见",
+                "en_US": "Standby visible to active",
+                "ja_JP": "待機からアクティブ可視",
+            },
+            "x-widget": "switch",
+            "x-icon": "eye",
+            "advanced": True,
+        },
+    )
+    """待命智能体对活跃智能体是否可见。"""
+
+    standby_emotion_visible_to_active: bool = Field(
+        default=False,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "待命情绪对活跃可见",
+                "en_US": "Standby emotion visible to active",
+                "ja_JP": "待機感情からアクティブ可視",
+            },
+            "x-widget": "switch",
+            "x-icon": "eye-off",
+            "advanced": True,
+        },
+    )
+    """待命智能体的情绪是否对活跃智能体可见。"""
+
+    dormant_visible_to_any: bool = Field(
+        default=False,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "沉睡对任何智能体可见",
+                "en_US": "Dormant visible to any agent",
+                "ja_JP": "休眠から全エージェント可視",
+            },
+            "x-widget": "switch",
+            "x-icon": "eye-off",
+            "advanced": True,
+        },
+    )
+    """沉睡智能体是否对任何智能体可见。"""
+
+    vitality_level_high_threshold: float = Field(
+        default=60.0,
+        ge=30.0,
+        le=100.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "生命力「高」等级阈值",
+                "en_US": "Vitality 'high' level threshold",
+                "ja_JP": "バイタリティ「高」レベル閾値",
+            },
+            "x-widget": "input",
+            "x-icon": "gauge",
+            "advanced": True,
+        },
+    )
+    """生命力值达到此阈值映射为"高"等级。"""
+
+    vitality_level_low_threshold: float = Field(
+        default=30.0,
+        ge=0.0,
+        le=60.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "生命力「低」等级阈值",
+                "en_US": "Vitality 'low' level threshold",
+                "ja_JP": "バイタリティ「低」レベル閾値",
+            },
+            "x-widget": "input",
+            "x-icon": "gauge",
+            "advanced": True,
+        },
+    )
+    """生命力值低于此阈值映射为"低"等级。"""
+
+    emotion_tendency_threshold: float = Field(
+        default=50.0,
+        ge=20.0,
+        le=80.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "情绪倾向描述强度阈值",
+                "en_US": "Emotion tendency description threshold",
+                "ja_JP": "感情傾向記述強度閾値",
+            },
+            "x-widget": "input",
+            "x-icon": "gauge",
+            "advanced": True,
+        },
+    )
+    """情绪强度达到此阈值时才生成倾向描述。"""
+
+    max_summary_length: int = Field(
+        default=500,
+        ge=100,
+        le=1000,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "共居状态摘要最大长度",
+                "en_US": "Max cohabitant summary length",
+                "ja_JP": "同居状態サマリ最大長",
+            },
+            "x-widget": "input",
+            "x-icon": "text-cursor",
+            "advanced": True,
+        },
+    )
+    """共居状态摘要文本的最大字符数。"""
+
+    state_awareness_enabled: bool = Field(
+        default=True,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "启用状态互知",
+                "en_US": "Enable state awareness",
+                "ja_JP": "状態認識を有効化",
+            },
+            "x-widget": "switch",
+            "x-icon": "brain",
+            "advanced": True,
+        },
+    )
+    """启用后，智能体可感知共居智能体的状态信息。"""

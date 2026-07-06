@@ -646,10 +646,19 @@ class AgentAutonomyActivity(SQLModel, table=True):
     exit_reason: str = Field(default="", max_length=32)
     exited_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime, nullable=True))
 
+    # 生命力与三态状态字段
+    vitality_value: float = Field(default=0.0)
+    state: str = Field(default="active", max_length=16)
+    last_stimulus_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime, nullable=True))
+    activated_to_active_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime, nullable=True))
+    fallback_to_standby_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime, nullable=True))
+    inner_need_summary: str = Field(default="", max_length=500)
+
     __table_args__ = (
         Index("ix_agent_autonomy_activities_session", "session_id"),
         Index("ix_agent_autonomy_activities_agent", "agent_id"),
         Index("ix_agent_autonomy_activities_activated", "activated_at"),
+        Index("ix_agent_autonomy_activities_state", "state"),
     )
 
 

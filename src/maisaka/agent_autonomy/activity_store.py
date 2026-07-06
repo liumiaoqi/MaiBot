@@ -108,7 +108,10 @@ class AgentActivityStore:
                 session.commit()
 
     def deactivate(self, session_id: str, agent_id: str, reason: str) -> None:
-        """记录智能体退场。"""
+        """记录智能体退场。当 reason 为 fallback_to_standby 时执行回落逻辑。"""
+        if reason == "fallback_to_standby":
+            self.fallback_to_standby(session_id, agent_id, 0.0)
+            return
         with get_db_session() as session:
             activity = (
                 session.query(AgentAutonomyActivity)
@@ -233,3 +236,152 @@ class AgentActivityStore:
             session.add(intent)
             session.commit()
             return intent_id
+
+    def save_standby_activity(
+        self,
+        session_id: str,
+        agent_id: str,
+        vitality_value: float,
+        activation_reason: str = "standby_enter",
+    ) -> str:
+        """保存待命状态记录。"""
+        with get_db_session() as session:
+            activity = AgentAutonomyActivity(
+                session_id=session_id,
+                agent_id=agent_id,
+                activation_reason=activation_reason,
+                activated_at=datetime.now(),
+                last_spoke_at=datetime.now(),
+                vitality_value=vitality_value,
+                state="standby",
+                last_stimulus_at=datetime.now(),
+            )
+            session.add(activity)
+            session.commit()
+            return f"activity:{session_id}:{agent_id}"
+
+    def update_vitality(
+        self,
+        session_id: str,
+        agent_id: str,
+        vitality_value: float,
+        inner_need_summary: str = "",
+    ) -> None:
+        """更新生命力和内在需求摘要。"""
+        with get_db_session() as session:
+            activity = (
+                session.query(AgentAutonomyActivity)
+                .filter(
+                    AgentAutonomyActivity.session_id == session_id,
+                    AgentAutonomyActivity.agent_id == agent_id,
+                    AgentAutonomyActivity.exited_at.is_(None),
+                )
+                .first()
+            )
+            if activity is not None:
+                activity.vitality_value = max(0.0, min(100.0, vitality_value))
+                if inner_need_summary:
+                    activity.inner_need_summary = inner_need_summary[:500]
+                session.commit()
+
+    def update_stimulus_time(self, session_id: str, agent_id: str) -> None:
+        """更新最近环境刺激时间。"""
+        with get_db_session() as session:
+            activity = (
+                session.query(AgentAutonomyActivity)
+                .filter(
+                    AgentAutonomyActivity.session_id == session_id,
+                    AgentAutonomyActivity.agent_id == agent_id,
+                    AgentAutonomyActivity.exited_at.is_(None),
+                )
+                .first()
+            )
+            if activity is not None:
+                activity.last_stimulus_at = datetime.now()
+                session.commit()
+
+    def fallback_to_standby(
+        self,
+        session_id: str,
+        agent_id: str,
+        vitality_value: float,
+    ) -> None:
+        """活跃→待命回落（不设置 exited_at）。"""
+        with get_db_session() as session:
+            activity = (
+                session.query(AgentAutonomyActivity)
+                .filter(
+                    AgentAutonomyActivity.session_id == session_id,
+                    AgentAutonomyActivity.agent_id == agent_id,
+                    AgentAutonomyActivity.exited_at.is_(None),
+                )
+                .first()
+            )
+            if activity is not None:
+                activity.state = "standby"
+                activity.fallback_to_standby_at = datetime.now()
+                activity.vitality_value = max(0.0, min(100.0, vitality_value))
+                activity.exit_reason = "fallback_to_standby"
+                session.commit()
+
+    def activate_from_standby(self, session_id: str, agent_id: str) -> None:
+        """待命→活跃跃迁。"""
+        with get_db_session() as session:
+            activity = (
+                session.query(AgentAutonomyActivity)
+                .filter(
+                    AgentAutonomyActivity.session_id == session_id,
+                    AgentAutonomyActivity.agent_id == agent_id,
+                    AgentAutonomyActivity.exited_at.is_(None),
+                    AgentAutonomyActivity.state == "standby",
+                )
+                .first()
+            )
+            if activity is not None:
+                activity.state = "active"
+                activity.activated_to_active_at = datetime.now()
+                session.commit()
+
+    def get_standby_agents(self, session_id: str) -> list[AgentAutonomyActivity]:
+        """获取会话的待命智能体列表。"""
+        with get_db_session() as session:
+            return list(
+                session.query(AgentAutonomyActivity)
+                .filter(
+                    AgentAutonomyActivity.session_id == session_id,
+                    AgentAutonomyActivity.state == "standby",
+                    AgentAutonomyActivity.exited_at.is_(None),
+                )
+                .all()
+            )
+
+    def get_all_standby_sessions(self) -> list[AgentAutonomyActivity]:
+        """获取所有未退出的待命记录（用于重启恢复）。"""
+        with get_db_session() as session:
+            return list(
+                session.query(AgentAutonomyActivity)
+                .filter(
+                    AgentAutonomyActivity.state == "standby",
+                    AgentAutonomyActivity.exited_at.is_(None),
+                )
+                .all()
+            )
+
+    def exit_standby(self, session_id: str, agent_id: str, reason: str) -> None:
+        """待命→沉睡退场。"""
+        with get_db_session() as session:
+            activity = (
+                session.query(AgentAutonomyActivity)
+                .filter(
+                    AgentAutonomyActivity.session_id == session_id,
+                    AgentAutonomyActivity.agent_id == agent_id,
+                    AgentAutonomyActivity.exited_at.is_(None),
+                    AgentAutonomyActivity.state == "standby",
+                )
+                .first()
+            )
+            if activity is not None:
+                activity.state = "dormant"
+                activity.exit_reason = reason
+                activity.exited_at = datetime.now()
+                session.commit()

@@ -23,6 +23,7 @@ import { UnbindConfirmDialog } from './UnbindConfirmDialog'
 import { BindSessionDialog } from './BindSessionDialog'
 import { MonologuePanel } from './MonologuePanel'
 import { AutonomyLogPanel } from '../AutonomyLogPanel'
+import { StateAwarenessPanel } from '../StateAwarenessPanel'
 
 interface InnerWorldViewProps {
   agentId: string
@@ -188,7 +189,12 @@ export function InnerWorldView({ agentId, onBack }: InnerWorldViewProps) {
             </TabsContent>
 
             <TabsContent value="autonomy">
-              <AutonomyLogPanel agentId={agentId} />
+              <div className="space-y-4">
+                <AutonomyLogPanel agentId={agentId} />
+                <StateAwarenessPanel
+                  sessionId={innerData.sessions.length > 0 ? innerData.sessions[0].session_id : null}
+                />
+              </div>
             </TabsContent>
           </Tabs>
 

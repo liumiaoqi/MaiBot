@@ -1730,3 +1730,157 @@ def _parse_autonomy_log(entry: dict, event: str) -> Optional[AutonomyLogItem]:
         session_id="",
         log_level=entry.get("level", "info"),
     )
+
+
+class VitalityAgentItem(BaseModel):
+    agent_id: str
+    display_name: str = ""
+    state: str = "active"
+    vitality_value: float = 0.0
+    last_stimulus_at: Optional[str] = None
+
+
+class SessionVitalityResponse(BaseModel):
+    success: bool
+    session_id: str
+    active_agents: List[VitalityAgentItem] = Field(default_factory=list)
+    standby_agents: List[VitalityAgentItem] = Field(default_factory=list)
+    dormant_agents: List[VitalityAgentItem] = Field(default_factory=list)
+
+
+@router.get("/vitality", response_model=SessionVitalityResponse)
+async def get_session_vitality(session_id: str):
+    """查询会话智能体生命力状态（三态分类）。"""
+    from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
+    from src.maisaka.agent.registry import AgentConfigRegistry
+
+    registry = AgentConfigRegistry()
+    orch = AgentOrchestrator.get_by_session(session_id)
+
+    active_items: list[VitalityAgentItem] = []
+    standby_items: list[VitalityAgentItem] = []
+    dormant_items: list[VitalityAgentItem] = []
+
+    def _get_display_name(agent_id: str) -> str:
+        try:
+            agent = registry.get_agent(agent_id)
+            return agent.display_name
+        except Exception:
+            return agent_id
+
+    # 活跃智能体
+    if orch is not None:
+        for agent in orch.get_active_agents():
+            active_items.append(VitalityAgentItem(
+                agent_id=agent.agent_id,
+                display_name=_get_display_name(agent.agent_id),
+                state="active",
+                vitality_value=100.0,
+            ))
+
+        # 待命智能体
+        for info in orch._vitality_manager.get_standby_agents(session_id):
+            standby_items.append(VitalityAgentItem(
+                agent_id=info.agent_id,
+                display_name=_get_display_name(info.agent_id),
+                state="standby",
+                vitality_value=info.vitality_value,
+                last_stimulus_at=info.last_stimulus_at.isoformat() if info.last_stimulus_at else None,
+            ))
+
+    # 沉睡智能体：绑定但非活跃且非待命
+    try:
+        agent_router = _get_agent_router()
+        bound_agents = agent_router.get_session_all_agents(session_id)
+        active_ids = {item.agent_id for item in active_items}
+        standby_ids = {item.agent_id for item in standby_items}
+        for agent_id in bound_agents:
+            if agent_id not in active_ids and agent_id not in standby_ids:
+                dormant_items.append(VitalityAgentItem(
+                    agent_id=agent_id,
+                    display_name=_get_display_name(agent_id),
+                    state="dormant",
+                    vitality_value=0.0,
+                ))
+    except Exception:
+        pass
+
+    return SessionVitalityResponse(
+        success=True,
+        session_id=session_id,
+        active_agents=active_items,
+        standby_agents=standby_items,
+        dormant_agents=dormant_items,
+    )
+
+
+# ========== 状态互知 API ==========
+
+
+class CohabitantEntryItem(BaseModel):
+    agent_id: str
+    display_name: str
+    state: str
+    vitality_level: str
+    emotion_tendency: str = ""
+
+
+class StateAwarenessResponse(BaseModel):
+    success: bool
+    session_id: str
+    cohabitant_entries: List[CohabitantEntryItem] = Field(default_factory=list)
+    summary_preview: str = ""
+    active_rules: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+@router.get("/state-awareness", response_model=StateAwarenessResponse)
+async def get_state_awareness(session_id: str):
+    """查询会话智能体感知关系和摘要预览。"""
+    from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
+
+    orch = AgentOrchestrator.get_by_session(session_id)
+    if orch is None:
+        return StateAwarenessResponse(success=True, session_id=session_id)
+
+    try:
+        preview = orch._summary_generator.generate_preview(session_id)
+    except Exception as exc:
+        logger.warning(f"状态互知预览生成失败: session={session_id} error={exc}")
+        preview = {"cohabitant_entries": [], "summary_texts": {}}
+
+    entries = [
+        CohabitantEntryItem(
+            agent_id=e.get("agent_id", ""),
+            display_name=e.get("display_name", ""),
+            state=e.get("state", ""),
+            vitality_level=e.get("vitality_level", ""),
+            emotion_tendency=e.get("emotion_tendency", ""),
+        )
+        for e in preview.get("cohabitant_entries", [])
+    ]
+
+    summary_texts = preview.get("summary_texts", {})
+    summary_preview = ""
+    if summary_texts:
+        first_observer = next(iter(summary_texts), "")
+        summary_preview = summary_texts.get(first_observer, "")
+
+    active_rules: list[Dict[str, Any]] = []
+    try:
+        from src.config.config import global_config
+
+        cfg = global_config.agent_autonomy
+        if cfg.state_awareness_enabled:
+            rule_result = orch._rule_engine.evaluate_for_interjection(session_id)
+            for rule_name in rule_result.triggered_rules:
+                active_rules.append({"rule_name": rule_name, "active": True})
+    except Exception:
+        pass
+
+    return StateAwarenessResponse(
+        success=True,
+        session_id=session_id,
+        cohabitant_entries=entries,
+        summary_preview=summary_preview,
+        active_rules=active_rules,
+    )

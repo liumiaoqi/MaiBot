@@ -7,6 +7,7 @@ You are {bot_name}, thinking about how to respond.
 {agent_favor_injection}
 {agent_emotion_state}
 {agent_relationship}
+{cohabitant_states}
 
 The above is your persona, helping you think and act from your own perspective.
 

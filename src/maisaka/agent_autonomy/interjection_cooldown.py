@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Any
 
 from src.common.logger import get_logger
 from src.config.config import global_config
@@ -22,23 +21,31 @@ class InterjectionCooldownManager:
         # session_id -> [interjection_times]
         self._session_history: dict[str, list[datetime]] = {}
 
-    def can_interject(self, session_id: str, agent_id: str) -> bool:
-        """检查智能体是否可以插话。"""
+    def can_interject(
+        self,
+        session_id: str,
+        agent_id: str,
+        override_cooldown: float | None = None,
+        override_max_per_hour: int | None = None,
+    ) -> bool:
+        """检查智能体是否可以插话。支持动态覆盖参数。"""
         config = global_config.agent_autonomy
 
         # 检查冷却时间
         key = (session_id, agent_id)
         last_time = self._last_interjection.get(key)
         if last_time is not None:
-            cooldown = timedelta(minutes=config.interjection_cooldown_minutes)
+            cooldown_minutes = override_cooldown if override_cooldown is not None else config.interjection_cooldown_minutes
+            cooldown = timedelta(minutes=cooldown_minutes)
             if datetime.now() - last_time < cooldown:
                 return False
 
         # 检查智能体频率限制
+        max_per_hour = override_max_per_hour if override_max_per_hour is not None else config.max_interjections_per_hour
         history = self._interjection_history.get(key, [])
         cutoff = datetime.now() - timedelta(hours=1)
         recent_count = sum(1 for t in history if t >= cutoff)
-        if recent_count >= config.max_interjections_per_hour:
+        if recent_count >= max_per_hour:
             return False
 
         # 检查会话频率限制

@@ -40,6 +40,41 @@ class InterjectionMentionEvent:
     content_summary: str = ""
 
 
+@dataclass
+class SessionMessageEvent:
+    """会话消息事件——用户或智能体发送消息时发布。"""
+
+    session_id: str = ""
+    sender_type: str = ""
+    sender_id: str = ""
+    content: str = ""
+    timestamp: str = ""
+
+
+@dataclass
+class AgentSpeakEvent:
+    """智能体发言事件——智能体完成发言后发布。"""
+
+    session_id: str = ""
+    agent_id: str = ""
+    content_summary: str = ""
+    emotion_type: str = ""
+    emotion_intensity: float = 0.0
+
+
+@dataclass
+class AgentStateChangeEvent:
+    """智能体状态变更事件——状态跃迁时发布。"""
+
+    agent_id: str = ""
+    session_id: str = ""
+    from_state: str = ""
+    to_state: str = ""
+    trigger_reason: str = ""
+    vitality_at_change: float = 0.0
+    timestamp: str = ""
+
+
 class AutonomyEventBus:
     """自主性架构内部事件总线。"""
 
