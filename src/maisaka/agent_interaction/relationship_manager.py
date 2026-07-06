@@ -28,7 +28,7 @@ class AgentRelationshipManager:
     """智能体间交互关系管理"""
 
     def __init__(self) -> None:
-        self._registry = AgentConfigRegistry()
+        self._registry = AgentConfigRegistry.get_instance()
 
     async def initialize_from_config(self) -> None:
         agents = self._registry.list_agents()

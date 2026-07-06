@@ -126,7 +126,7 @@ class PrefixCacheManager:
         try:
             from src.maisaka.agent.registry import AgentConfigRegistry
 
-            registry = AgentConfigRegistry()
+            registry = AgentConfigRegistry.get_instance()
             if registry.has_agent(agent_id):
                 return registry.get_agent(agent_id).deepseek.prefix_cache_enabled
         except Exception:

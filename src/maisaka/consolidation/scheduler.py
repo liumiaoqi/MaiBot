@@ -128,7 +128,7 @@ class ConsolidationScheduler:
         try:
             from src.maisaka.agent.registry import AgentConfigRegistry
 
-            registry = AgentConfigRegistry()
+            registry = AgentConfigRegistry.get_instance()
             agents = registry.list_agents()
 
             for agent_config in agents:

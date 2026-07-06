@@ -34,7 +34,7 @@ def _filter_profile_by_agent_focus(profile_text: str, agent_id: str) -> str:
     try:
         from src.maisaka.agent.registry import AgentConfigRegistry
 
-        registry = AgentConfigRegistry()
+        registry = AgentConfigRegistry.get_instance()
         if not registry.has_agent(agent_id):
             return profile_text
         focus_areas = registry.get_agent(agent_id).memory_focus_areas

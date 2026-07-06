@@ -181,6 +181,6 @@ class CohabitantStateSummaryGenerator:
     def _get_display_name(self, agent_id: str) -> str:
         """获取智能体显示名称。"""
         from src.maisaka.agent.registry import AgentConfigRegistry
-        registry = AgentConfigRegistry()
+        registry = AgentConfigRegistry.get_instance()
         agent = registry.get_agent(agent_id)
         return agent.display_name

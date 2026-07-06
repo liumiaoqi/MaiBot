@@ -8,7 +8,7 @@ class AgentEmotionManagerRegistry:
 
     def __init__(self) -> None:
         self._managers: dict[str, EmotionManager] = {}
-        self._registry = AgentConfigRegistry()
+        self._registry = AgentConfigRegistry.get_instance()
 
     def get_emotion_manager(self, agent_id: str) -> EmotionManager:
         if agent_id not in self._managers:

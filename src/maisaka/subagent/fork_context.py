@@ -170,7 +170,7 @@ class ForkContextCapturer:
         try:
             from src.maisaka.agent.registry import AgentConfigRegistry
 
-            registry = AgentConfigRegistry()
+            registry = AgentConfigRegistry.get_instance()
             if not registry.has_agent(agent_id):
                 return {}
 
@@ -193,7 +193,7 @@ class ForkContextCapturer:
         try:
             from src.maisaka.agent.registry import AgentConfigRegistry
 
-            registry = AgentConfigRegistry()
+            registry = AgentConfigRegistry.get_instance()
             if not registry.has_agent(agent_id):
                 return PermissionRuleset()
 

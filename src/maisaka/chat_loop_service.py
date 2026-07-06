@@ -630,7 +630,7 @@ class MaisakaChatLoopService:
             try:
                 from src.maisaka.agent.registry import AgentConfigRegistry
 
-                registry = AgentConfigRegistry()
+                registry = AgentConfigRegistry.get_instance()
                 if registry.has_agent(self._agent_id):
                     agent_config = registry.get_agent(self._agent_id)
                     return agent_config.identity_prompt
@@ -701,7 +701,7 @@ class MaisakaChatLoopService:
             try:
                 from src.maisaka.agent.registry import AgentConfigRegistry
 
-                registry = AgentConfigRegistry()
+                registry = AgentConfigRegistry.get_instance()
                 if registry.has_agent(self._agent_id):
                     agent_config = registry.get_agent(self._agent_id)
                     agent_anti_mechanization = agent_config.anti_mechanization_prompt
