@@ -1376,6 +1376,24 @@
       "unbindAll": "Unbind All",
       "lastSpokeAt": "Last spoke"
     },
+    "vitality": {
+      "active": "Active",
+      "standby": "Standby",
+      "dormant": "Dormant",
+      "value": "Vitality",
+      "lastStimulus": "Last stimulus"
+    },
+    "stateAwareness": {
+      "title": "State Awareness",
+      "summaryPreview": "Summary Preview",
+      "activeRules": "Active Rules",
+      "noData": "No awareness data",
+      "vitalityLevel": {
+        "high": "High",
+        "medium": "Medium",
+        "low": "Low"
+      }
+    },
     "interaction": {
       "stream": {
         "title": "Interaction Stream",

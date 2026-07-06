@@ -1376,6 +1376,24 @@
       "unbindAll": "全て解除",
       "lastSpokeAt": "最終発言"
     },
+    "vitality": {
+      "active": "アクティブ",
+      "standby": "待機",
+      "dormant": "休眠",
+      "value": "バイタリティ",
+      "lastStimulus": "最終刺激"
+    },
+    "stateAwareness": {
+      "title": "状態相互認識",
+      "summaryPreview": "サマリープレビュー",
+      "activeRules": "有効ルール",
+      "noData": "認識データなし",
+      "vitalityLevel": {
+        "high": "高",
+        "medium": "中",
+        "low": "低"
+      }
+    },
     "interaction": {
       "stream": {
         "title": "インタラクションストリーム",

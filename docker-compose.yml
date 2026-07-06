@@ -22,8 +22,8 @@ services:
 #      - PRIVACY_AGREE=91e5db7659c560bc3545e63859b6ebc0 # 同意隐私条款
     ports:
       - "18001:8001" # webui端口
-      - "18121:8121" # QQ用户记忆插件WebUI端口
-      - "28001:28001" # 主动对话插件WebUI端口
+#      - "18121:8121" # QQ用户记忆插件WebUI端口
+#      - "28001:28001" # 主动对话插件WebUI端口
 #      - "8000:8000"
     volumes:
       # 监听地址和端口会用于生成或迁移 ./docker-config/mmc/bot_config.toml 的 maim_message 与 webui 配置段

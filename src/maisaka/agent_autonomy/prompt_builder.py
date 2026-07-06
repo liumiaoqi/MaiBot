@@ -1,8 +1,11 @@
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
 
 from src.common.logger import get_logger
 from src.common.prompt_i18n import load_prompt
 from src.config.config import global_config
+
+if TYPE_CHECKING:
+    from src.maisaka.agent_autonomy.state_awareness.summary_generator import CohabitantStateSummaryGenerator
 
 logger = get_logger("agent_autonomy.prompt_builder")
 
@@ -21,6 +24,7 @@ class EmbodiedPlannerPromptBuilder:
         self._agent_id = agent_id
         self._degraded = False
         self._identity_providers: list[DynamicIdentityProvider] = []
+        self._summary_generator: CohabitantStateSummaryGenerator | None = None
 
     @property
     def agent_id(self) -> str:
@@ -29,6 +33,10 @@ class EmbodiedPlannerPromptBuilder:
     @property
     def is_degraded(self) -> bool:
         return self._degraded
+
+    def set_summary_generator(self, generator: CohabitantStateSummaryGenerator) -> None:
+        """注入共居状态摘要生成器。"""
+        self._summary_generator = generator
 
     def register_identity_provider(self, provider: DynamicIdentityProvider) -> None:
         """注册动态人设数据源。
@@ -115,7 +123,30 @@ class EmbodiedPlannerPromptBuilder:
             "agent_favor_injection": agent_favor_injection,
             "agent_emotion_state": "",
             "agent_relationship": "",
+            "cohabitant_states": self._build_cohabitant_states(),
         }
+
+    def _build_cohabitant_states(self) -> str:
+        """构建共居状态摘要文本。"""
+        if not global_config.agent_autonomy.state_awareness_enabled:
+            return ""
+
+        if self._summary_generator is None:
+            return ""
+
+        try:
+            from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
+
+            for session_id, orch in AgentOrchestrator._registry.items():
+                if orch._active_agents and self._agent_id in orch._active_agents:
+                    return self._summary_generator.generate(session_id, self._agent_id)
+        except Exception as exc:
+            logger.warning(
+                f"[agent_autonomy] 共居状态摘要构建失败: "
+                f"agent={self._agent_id} error={exc}"
+            )
+
+        return ""
 
     def _build_fallback_prompt(self, tools_section: str) -> str:
         """降级为旁观者模式的提示词。"""

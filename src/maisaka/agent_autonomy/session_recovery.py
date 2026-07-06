@@ -23,7 +23,7 @@ class SessionRecoveryService:
         self._autonomy_logger = AutonomyLogger.get()
 
     async def recover_all(self, chat_manager: Any) -> dict[str, list[str]]:
-        """恢复所有活跃会话的智能体关联。
+        """恢复所有活跃会话的智能体关联（含待命状态恢复）。
 
         Args:
             chat_manager: ChatManager 实例，用于验证 ChatSession 存在性
@@ -62,8 +62,6 @@ class SessionRecoveryService:
             try:
                 orch = AgentOrchestrator.get_by_session(session_id)
                 if orch is None:
-                    # Orchestrator 不存在，说明该会话尚未在当前进程中创建
-                    # 会在该会话的 Runtime 初始化时自动创建
                     logger.debug(
                         f"[agent_autonomy] 跳过恢复(Orchestrator不存在): "
                         f"session={session_id}"
@@ -71,7 +69,17 @@ class SessionRecoveryService:
                     continue
 
                 for record in records:
-                    orch.restore_agent(record.agent_id, record.is_primary)
+                    # 待命状态的智能体恢复到待命列表
+                    if getattr(record, "state", "active") == "standby":
+                        orch._vitality_manager.add_to_standby(
+                            record.agent_id,
+                            session_id,
+                            "session_recovery",
+                            initial_vitality=getattr(record, "vitality_value", None),
+                        )
+                    else:
+                        orch.restore_agent(record.agent_id, record.is_primary)
+
                     if session_id not in recovered:
                         recovered[session_id] = []
                     recovered[session_id].append(record.agent_id)

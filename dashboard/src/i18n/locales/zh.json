@@ -1374,6 +1374,24 @@
       "unbindAll": "全部解绑",
       "lastSpokeAt": "最近发言"
     },
+    "vitality": {
+      "active": "活跃",
+      "standby": "待命",
+      "dormant": "沉睡",
+      "value": "生命力",
+      "lastStimulus": "最近刺激"
+    },
+    "stateAwareness": {
+      "title": "状态互知",
+      "summaryPreview": "摘要预览",
+      "activeRules": "生效规则",
+      "noData": "暂无感知数据",
+      "vitalityLevel": {
+        "high": "高",
+        "medium": "中",
+        "low": "低"
+      }
+    },
     "interaction": {
       "stream": {
         "title": "交互流",
