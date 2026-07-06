@@ -853,6 +853,12 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         self._emit_monitor_message_ingested(message)
         self._prune_processed_message_cache()
 
+        if self._agent_orchestrator is not None:
+            try:
+                asyncio.create_task(self._agent_orchestrator.handle_message(message))
+            except Exception as exc:
+                logger.debug(f"[agent_autonomy] handle_message 调度异常: {exc}")
+
         user_id = message.message_info.user_info.user_id
         if user_id:
             message_length = len(message.processed_plain_text) if message.processed_plain_text else 0
@@ -1409,7 +1415,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
             if not autonomy_config.enabled:
                 return
 
-            agent_id = getattr(self.chat_stream, "agent_id", None)
+            agent_id = self.chat_stream.agent_id
             if not agent_id:
                 return
 
@@ -1425,7 +1431,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
                 self._chat_loop_adapter.switch_to_embodied_prompt()
 
             # 创建 Orchestrator
-            session_name = getattr(self, "session_name", self.session_id)
+            session_name = self.session_name
             self._agent_orchestrator = AgentOrchestrator(
                 session_id=self.session_id,
                 session_name=session_name,

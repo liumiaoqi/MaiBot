@@ -62,19 +62,11 @@ class SessionRecoveryService:
             try:
                 orch = AgentOrchestrator.get_by_session(session_id)
                 if orch is None:
-                    chat_session = chat_manager.get_existing_session_by_session_id(session_id)
-                    if chat_session is None:
-                        logger.debug(
-                            f"[agent_autonomy] 跳过恢复(ChatSession不存在): "
-                            f"session={session_id}"
-                        )
-                        continue
-
-                    from src.maisaka.agent_autonomy.bridge.chat_loop_adapter import ChatLoopServiceAdapter
-
-                    session_name = chat_session.group_name or chat_session.user_nickname or session_id
-                    adapter = ChatLoopServiceAdapter(session_id)
-                    orch = AgentOrchestrator(session_id, session_name, adapter)
+                    logger.debug(
+                        f"[agent_autonomy] 跳过恢复(无Orchestrator实例，等待runtime初始化): "
+                        f"session={session_id}"
+                    )
+                    continue
 
 
                 for record in records:
