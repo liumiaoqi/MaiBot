@@ -337,9 +337,8 @@ class VitalityManager:
         """计算共居插话动态参数。"""
         config = self._config
         try:
-            from src.chat.message_receive.chat_manager import ChatManager
+            from src.chat.message_receive.chat_manager import chat_manager
 
-            chat_manager = ChatManager.get_instance()
             if chat_manager is None or chat_manager.agent_router is None:
                 return CohabitationParams(
                     intent_threshold=config.interjection_intent_threshold,
