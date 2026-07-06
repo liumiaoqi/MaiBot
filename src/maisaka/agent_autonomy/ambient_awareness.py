@@ -51,15 +51,11 @@ class AmbientAwarenessProcessor:
                 # 检查提及
                 if self.check_mention(content, info.agent_id):
                     delta += stimulus_mention
-                    # 同伴提及加成：活跃智能体提及时额外加成
                     if self._rule_engine is not None and event.sender_type == "agent":
-                        try:
-                            mention_bonus = self._rule_engine.evaluate_for_mention(
-                                session_id, "agent"
-                            )
-                            delta += mention_bonus
-                        except Exception:
-                            pass
+                        mention_bonus = self._rule_engine.evaluate_for_mention(
+                            session_id, "agent"
+                        )
+                        delta += mention_bonus
                     # 即时跃迁检查
                     await self._vitality_manager.check_instant_activation(
                         info.agent_id, session_id
@@ -92,7 +88,7 @@ class AmbientAwarenessProcessor:
             return
 
         # 仅强烈情绪触发感染
-        if event.emotion_intensity < 60:
+        if event.emotion_intensity < self._config.companion_emotion_infection_trigger:
             return
 
         for info in standby_agents:
@@ -103,56 +99,38 @@ class AmbientAwarenessProcessor:
 
                 agent = AutonomousAgent(info.agent_id)
                 if agent.emotion_manager is not None:
-                    infection_strength = 3.0
+                    infection_strength = self._config.vitality_stimulus_mention
                     if self._rule_engine is not None:
-                        try:
-                            bonus = self._rule_engine.evaluate_for_infection(
-                                session_id, event.emotion_intensity
-                            )
-                            infection_strength += bonus
-                        except Exception:
-                            pass
+                        bonus = self._rule_engine.evaluate_for_infection(
+                            session_id, event.emotion_intensity
+                        )
+                        infection_strength += bonus
                     agent.emotion_manager.apply_trigger(event.emotion_type, infection_strength)
             except Exception as exc:
                 logger.debug(
                     f"[ambient] 情绪感染异常: agent={info.agent_id} error={exc}"
                 )
 
-    def extract_message_summary(self, content: str, max_length: int = 200) -> str:
-        """提取消息摘要（截取，不调用 LLM）。"""
-        if not content:
-            return ""
-        content = content.strip()
-        if len(content) <= max_length:
-            return content
-        return content[:max_length]
-
     def check_mention(self, content: str, agent_id: str) -> bool:
         """检查消息是否提及指定智能体（匹配 display_name）。"""
         if not content:
             return False
 
-        try:
-            from src.maisaka.agent.registry import AgentConfigRegistry
+        from src.maisaka.agent.registry import AgentConfigRegistry
 
-            registry = AgentConfigRegistry.get_instance()
-            if registry is None:
-                return False
+        registry = AgentConfigRegistry.get_instance()
+        if registry is None:
+            return False
 
-            agent_config = registry.get_agent(agent_id)
-            display_name = agent_config.display_name
+        agent_config = registry.get_agent(agent_id)
+        display_name = agent_config.display_name
 
-            # 直接匹配显示名
-            if display_name and display_name in content:
-                return True
+        if display_name and display_name in content:
+            return True
 
-            # 匹配 agent_id（下划线转空格）
-            id_as_name = agent_id.replace("_", " ")
-            if id_as_name in content.lower():
-                return True
-
-        except Exception:
-            pass
+        id_as_name = agent_id.replace("_", " ")
+        if id_as_name in content.lower():
+            return True
 
         return False
 
@@ -161,28 +139,22 @@ class AmbientAwarenessProcessor:
         if not content:
             return []
 
+        from src.maisaka.agent.registry import AgentConfigRegistry
+
+        registry = AgentConfigRegistry.get_instance()
+        if registry is None:
+            return []
+
+        agent_config = registry.get_agent(agent_id)
+        personality = agent_config.personality
+
+        if not personality:
+            return []
+
         matched: list[str] = []
-
-        try:
-            from src.maisaka.agent.registry import AgentConfigRegistry
-
-            registry = AgentConfigRegistry.get_instance()
-            if registry is None:
-                return []
-
-            agent_config = registry.get_agent(agent_id)
-            personality = agent_config.personality
-
-            if not personality:
-                return []
-
-            # 从 personality 中提取关键词（简单分词，取2-4字词）
-            keywords = set(re.findall(r"[\u4e00-\u9fff]{2,4}", personality))
-            for kw in keywords:
-                if kw in content:
-                    matched.append(kw)
-
-        except Exception:
-            pass
+        keywords = set(re.findall(r"[\u4e00-\u9fff]{2,4}", personality))
+        for kw in keywords:
+            if kw in content:
+                matched.append(kw)
 
         return matched

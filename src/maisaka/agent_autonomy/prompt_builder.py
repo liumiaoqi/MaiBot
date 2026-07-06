@@ -134,17 +134,11 @@ class EmbodiedPlannerPromptBuilder:
         if self._summary_generator is None:
             return ""
 
-        try:
-            from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
+        from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
 
-            for session_id, orch in AgentOrchestrator._registry.items():
-                if orch._active_agents and self._agent_id in orch._active_agents:
-                    return self._summary_generator.generate(session_id, self._agent_id)
-        except Exception as exc:
-            logger.warning(
-                f"[agent_autonomy] 共居状态摘要构建失败: "
-                f"agent={self._agent_id} error={exc}"
-            )
+        for orch in AgentOrchestrator._registry.values():
+            if self._agent_id in orch._active_agents:
+                return self._summary_generator.generate(orch.session_id, self._agent_id)
 
         return ""
 
@@ -155,7 +149,7 @@ class EmbodiedPlannerPromptBuilder:
             context["bot_name"] = global_config.bot.nickname
             return load_prompt("maisaka_chat", **context)
         except Exception:
-            return f"You are a helpful AI assistant.\n\n{tools_section}"
+            return f"你是一个有用的AI助手。\n\n{tools_section}"
 
     @staticmethod
     def _build_agent_interaction_memory(agent_id: str, agent_config: object) -> str:
@@ -166,7 +160,7 @@ class EmbodiedPlannerPromptBuilder:
             from src.maisaka.agent_interaction.event_store import InteractionEventStore
             import asyncio
 
-            if not getattr(agent_config, "internal_relationships", None):
+            if not agent_config.internal_relationships:
                 return ""
 
             adapter = AgentMemoryAdapter()

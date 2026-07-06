@@ -251,7 +251,7 @@ class AgentActivityStore:
                 agent_id=agent_id,
                 activation_reason=activation_reason,
                 activated_at=datetime.now(),
-                last_spoke_at=datetime.now(),
+                last_spoke_at=None,
                 vitality_value=vitality_value,
                 state="standby",
                 last_stimulus_at=datetime.now(),
@@ -266,8 +266,9 @@ class AgentActivityStore:
         agent_id: str,
         vitality_value: float,
         inner_need_summary: str = "",
+        update_stimulus: bool = False,
     ) -> None:
-        """更新生命力和内在需求摘要。"""
+        """更新生命力和内在需求摘要，可选同时更新刺激时间。"""
         with get_db_session() as session:
             activity = (
                 session.query(AgentAutonomyActivity)
@@ -282,6 +283,8 @@ class AgentActivityStore:
                 activity.vitality_value = max(0.0, min(100.0, vitality_value))
                 if inner_need_summary:
                     activity.inner_need_summary = inner_need_summary[:500]
+                if update_stimulus:
+                    activity.last_stimulus_at = datetime.now()
                 session.commit()
 
     def update_stimulus_time(self, session_id: str, agent_id: str) -> None:

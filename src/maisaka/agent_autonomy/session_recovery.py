@@ -72,19 +72,19 @@ class SessionRecoveryService:
 
                     from src.maisaka.agent_autonomy.bridge.chat_loop_adapter import ChatLoopServiceAdapter
 
-                    session_name = getattr(chat_session, "group_name", None) or getattr(chat_session, "user_nickname", None) or session_id
+                    session_name = chat_session.group_name or chat_session.user_nickname or session_id
                     adapter = ChatLoopServiceAdapter(session_id)
                     orch = AgentOrchestrator(session_id, session_name, adapter)
-                    AgentOrchestrator._registry[session_id] = orch
+
 
                 for record in records:
                     # 待命状态的智能体恢复到待命列表
-                    if getattr(record, "state", "active") == "standby":
+                    if record.state == "standby":
                         orch._vitality_manager.add_to_standby(
                             record.agent_id,
                             session_id,
                             "session_recovery",
-                            initial_vitality=getattr(record, "vitality_value", None),
+                            initial_vitality=record.vitality_value,
                         )
                     else:
                         orch.restore_agent(record.agent_id, record.is_primary)

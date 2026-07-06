@@ -38,6 +38,17 @@ class VitalityManager:
         self._config = global_config.agent_autonomy
         self._tick_lock = asyncio.Lock()
 
+        from src.maisaka.agent_autonomy.inner_need import (
+            EmotionNeedCalculator,
+            InnerNeedEngine,
+            MemoryNeedCalculator,
+            TimeNeedCalculator,
+        )
+        self._inner_need_engine = InnerNeedEngine()
+        self._inner_need_engine.register_calculator("emotion", EmotionNeedCalculator())
+        self._inner_need_engine.register_calculator("memory", MemoryNeedCalculator())
+        self._inner_need_engine.register_calculator("time", TimeNeedCalculator())
+
     @property
     def registry(self) -> StandbyAgentRegistry:
         return self._registry
@@ -155,9 +166,8 @@ class VitalityManager:
         info.last_stimulus_at = datetime.now()
         self._registry.update_vitality(agent_id, session_id, new_value)
         self._activity_store.update_vitality(
-            session_id, agent_id, new_value, info.inner_need_summary
+            session_id, agent_id, new_value, info.inner_need_summary, update_stimulus=True
         )
-        self._activity_store.update_stimulus_time(session_id, agent_id)
 
         if delta != 0:
             logger.debug(
@@ -238,25 +248,12 @@ class VitalityManager:
         # 内在需求加成
         inner_need_bonus = 0.0
         try:
-            from src.maisaka.agent_autonomy.inner_need import InnerNeedEngine
             from src.maisaka.agent_autonomy.agent import AutonomousAgent
 
-            agent = self._orchestrator._active_agents.get(agent_id)
-            if agent is None:
-                agent = AutonomousAgent(agent_id)
-
-            engine = InnerNeedEngine()
-            from src.maisaka.agent_autonomy.inner_need import (
-                EmotionNeedCalculator,
-                MemoryNeedCalculator,
-                TimeNeedCalculator,
-            )
-            engine.register_calculator("emotion", EmotionNeedCalculator())
-            engine.register_calculator("memory", MemoryNeedCalculator())
-            engine.register_calculator("time", TimeNeedCalculator())
+            agent = self._orchestrator._active_agents.get(agent_id) or AutonomousAgent(agent_id)
 
             time_context = {"hour": now.hour, "night_active": False}
-            needs = await engine.evaluate(
+            needs = await self._inner_need_engine.evaluate(
                 agent_id=agent_id,
                 emotion_state=agent.emotion_manager.state if agent.emotion_manager else None,
                 time_context=time_context,
@@ -273,13 +270,13 @@ class VitalityManager:
         # 情绪加成
         emotion_bonus = 0.0
         try:
-            agent = self._orchestrator._active_agents.get(agent_id)
-            if agent is None:
-                agent = AutonomousAgent(agent_id)
+            from src.maisaka.agent_autonomy.agent import AutonomousAgent
+
+            agent = self._orchestrator._active_agents.get(agent_id) or AutonomousAgent(agent_id)
             if agent.emotion_manager is not None:
                 intensity = agent.emotion_manager.state.get_dominant_intensity()
                 emotion_bonus = min(intensity / 10.0, 10.0)
-        except Exception:
+        except (AttributeError, TypeError):
             pass
 
         # 时间衰减
