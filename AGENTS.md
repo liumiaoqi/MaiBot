@@ -92,6 +92,17 @@ https://github.com/Mai-with-u/maibot-plugin-sdk/blob/main/docs/guide.md
 # 如何提交maibot插件
 https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 
+# 智能体自主性架构原则
+
+1. **智能体决策权原则**：外部系统（bot.py、HeartFlow、ChatManager等消息链路模块）不应替智能体做业务决策。消息是否需要回复、是否触发Planner，应由智能体自身的规则引擎决定，而非在链路中硬编码过滤或分流。消息链路保持透明，智能体是消息的最终消费者和决策者。
+
+2. **通知消息处理原则**：`is_notify=True`的通知消息应到达智能体（通过Orchestrator），由智能体自主分类处理：
+   - 纯环境信号（如input_status）→ 规则引擎判定不触发Planner，仅调整生命力/环境上下文
+   - 可能需要回应的通知（如poke、入群）→ 规则引擎判定触发Planner，智能体自主决定是否回复
+   - 分类规则可配置，但决策权在智能体，不在链路层
+
+3. **规则引擎优先原则**：待命状态的环境感知必须是纯规则计算，不调用LLM。能用规则判断的决策（如"用户正在输入不需要回复"），不应交给Planner推理。规则调整参数而非替智能体决策——规则决定"是否触发Planner"，Planner决定"如何回应"。
+
 # changelog编写
 建议分为两部分，一部分是用户感知功能侧，一部分是开发侧（包含修复和插件sdk,api改动）。最好一个功能一行，按模块分。
 一般不写入changelog的内容：

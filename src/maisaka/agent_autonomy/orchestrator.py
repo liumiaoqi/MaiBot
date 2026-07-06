@@ -396,12 +396,44 @@ class AgentOrchestrator:
         )
         return True
 
+    AMBIENT_NOTICE_SUBTYPES = frozenset({
+        "input_status",
+        "group_ban",
+        "group_increase",
+        "group_decrease",
+        "group_name",
+        "group_upload",
+        "group_msg_emoji_like",
+    })
+
+    def _classify_notice(self, message: Any) -> str | None:
+        """分类通知消息，返回通知子类型或None。
+
+        纯环境信号返回子类型名，可能需要回应的通知返回None（走完整链路）。
+        """
+        if not getattr(message, "is_notify", False):
+            return None
+        additional_config = getattr(
+            getattr(getattr(message, "message_info", None), "additional_config", None),
+            "get",
+            lambda *a: None,
+        )("napcat_notice_sub_type", "")
+        if additional_config and additional_config in self.AMBIENT_NOTICE_SUBTYPES:
+            return additional_config
+        return None
+
     async def handle_message(self, message: Any) -> None:
         """处理用户消息，编排主发言智能体回复。"""
         if self._degraded:
             return
 
+        notice_subtype = self._classify_notice(message)
+        if notice_subtype is not None:
+            self._handle_ambient_notice(message, notice_subtype)
+            return
+
         try:
+
             if self._primary_agent_id is None:
                 agent_id = self._chat_loop_adapter.current_agent_id
                 if agent_id:
@@ -445,6 +477,27 @@ class AgentOrchestrator:
                 f"session={self._session_name} error={exc}"
             )
             self._degraded = True
+
+    def _handle_ambient_notice(self, message: Any, notice_subtype: str) -> None:
+        """处理纯环境感知通知：更新待命智能体生命力，不触发Planner。"""
+        try:
+            self._vitality_manager.sync_standby_agents(self._session_id)
+
+            sender_id = message.message_info.user_info.user_id if message.message_info else ""
+            ambient_stimulus = 1.0
+
+            for info in self._vitality_manager.get_standby_agents(self._session_id):
+                self._vitality_manager.update_vitality(
+                    info.agent_id, self._session_id, ambient_stimulus,
+                    reason=f"ambient_notice:{notice_subtype}",
+                )
+
+            logger.debug(
+                f"[agent_autonomy] ambient_notice: subtype={notice_subtype} "
+                f"session={self._session_name} sender={sender_id}"
+            )
+        except Exception as exc:
+            logger.debug(f"[agent_autonomy] ambient_notice处理异常: {exc}")
 
     async def handle_interaction_signal(self, event: Any) -> None:
         """处理 agent-interaction-alive 的交互信号。"""
