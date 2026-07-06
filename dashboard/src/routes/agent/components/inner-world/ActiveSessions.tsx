@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Progress } from '@/components/ui/progress'
+
 
 import type { SessionAgentInfo } from '@/lib/agent-api'
 
@@ -16,7 +16,7 @@ interface ActiveSessionsProps {
 }
 
 function VitalityBar({ value }: { value: number }) {
-  const { t } = useTranslation()
+
   const clamped = Math.max(0, Math.min(100, value))
   let barColor = 'bg-gray-400'
   if (clamped >= 60) barColor = 'bg-green-500'
