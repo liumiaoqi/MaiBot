@@ -59,7 +59,7 @@ class AgentOrchestrator:
         self._pending_intents: dict[str, list[BehaviorIntent]] = {}
 
         # 编排策略
-        strategy_name = getattr(self._config, "orchestrator_strategy", "default")
+        strategy_name = self._config.orchestrator_strategy
         try:
             self._strategy: BaseOrchestratorStrategy = create_strategy(strategy_name)
         except ValueError:
@@ -85,6 +85,9 @@ class AgentOrchestrator:
         self._ambient_awareness = AmbientAwarenessProcessor(
             self._vitality_manager, self._rule_engine
         )
+
+        # 交互引擎（插话反哺用）
+        self._interaction_engine: InteractionEngine | None = None
 
         # 上下文切换缓存：agent_id -> prompt_context
         self._context_cache: dict[str, dict[str, str]] = {}
@@ -116,15 +119,15 @@ class AgentOrchestrator:
         if self._degraded:
             return
 
-        target_agent_id = getattr(event, "target_agent_id", None)
+        target_agent_id = event.target_agent_id
         if not target_agent_id:
             return
 
         logger.debug(
             f"[agent_autonomy] 收到交互信号: "
-            f"initiator={getattr(event, 'initiator_agent_id', '')} "
+            f"initiator={event.initiator_agent_id} "
             f"target={target_agent_id} "
-            f"type={getattr(event, 'interaction_type', '')} "
+            f"type={event.interaction_type} "
             f"session={self._session_name}"
         )
 
@@ -132,8 +135,8 @@ class AgentOrchestrator:
 
     async def _on_interjection_mention(self, event: Any) -> None:
         """插话提及事件处理器——插话反哺交互系统。"""
-        mentioned_agent_id = getattr(event, "mentioned_agent_id", None)
-        speaker_agent_id = getattr(event, "speaker_agent_id", None)
+        mentioned_agent_id = event.mentioned_agent_id
+        speaker_agent_id = event.speaker_agent_id
         if not mentioned_agent_id or not speaker_agent_id:
             return
 
@@ -160,20 +163,22 @@ class AgentOrchestrator:
 
         # 产生提及传递信号写入交互系统
         try:
-            from src.maisaka.agent_interaction.engine import InteractionEngine
-            from src.maisaka.agent_interaction.emotion_registry import AgentEmotionManagerRegistry
-            from src.maisaka.agent_interaction.event_store import InteractionEventStore
-            from src.maisaka.agent_interaction.relationship_manager import AgentRelationshipManager
-            from src.maisaka.agent_interaction.trigger_base import TriggerEvaluation
+            if self._interaction_engine is None:
+                from src.maisaka.agent_interaction.engine import InteractionEngine
+                from src.maisaka.agent_interaction.emotion_registry import AgentEmotionManagerRegistry
+                from src.maisaka.agent_interaction.event_store import InteractionEventStore
+                from src.maisaka.agent_interaction.relationship_manager import AgentRelationshipManager
 
-            emotion_registry = AgentEmotionManagerRegistry()
-            relationship_manager = AgentRelationshipManager()
-            event_store = InteractionEventStore()
-            engine = InteractionEngine(
-                emotion_registry=emotion_registry,
-                relationship_manager=relationship_manager,
-                event_store=event_store,
-            )
+                emotion_registry = AgentEmotionManagerRegistry()
+                relationship_manager = AgentRelationshipManager()
+                event_store = InteractionEventStore()
+                self._interaction_engine = InteractionEngine(
+                    emotion_registry=emotion_registry,
+                    relationship_manager=relationship_manager,
+                    event_store=event_store,
+                )
+
+            from src.maisaka.agent_interaction.trigger_base import TriggerEvaluation
 
             evaluation = TriggerEvaluation(
                 should_trigger=True,
@@ -181,10 +186,10 @@ class AgentOrchestrator:
                 initiator_agent_id=speaker_agent_id,
                 target_agent_id=mentioned_agent_id,
                 interaction_type="mention_propagation",
-                trigger_reason=f"插话提及传递: {getattr(event, 'content_summary', '')}",
+                trigger_reason=f"插话提及传递: {event.content_summary}",
                 metadata={"source": "interjection_mention"},
             )
-            result = await engine.execute(evaluation)
+            result = await self._interaction_engine.execute(evaluation)
             if result.success:
                 logger.info(
                     f"[agent_autonomy] 插话反哺交互成功: "
@@ -246,10 +251,7 @@ class AgentOrchestrator:
 
             # 注入共居状态摘要生成器到 PromptBuilder
             if self._config.state_awareness_enabled:
-                try:
-                    agent._prompt_builder.set_summary_generator(self._summary_generator)
-                except Exception:
-                    pass
+                agent._prompt_builder.set_summary_generator(self._summary_generator)
 
             is_primary = self._primary_agent_id is None
             if is_primary:
@@ -295,10 +297,7 @@ class AgentOrchestrator:
 
         # 注入共居状态摘要生成器
         if self._config.state_awareness_enabled:
-            try:
-                agent._prompt_builder.set_summary_generator(self._summary_generator)
-            except Exception:
-                pass
+            agent._prompt_builder.set_summary_generator(self._summary_generator)
 
         if is_primary:
             self._primary_agent_id = agent_id
@@ -398,8 +397,8 @@ class AgentOrchestrator:
             self._vitality_manager.sync_standby_agents(self._session_id)
 
             # 发布环境感知事件
-            content = getattr(message, "raw_message", "") or getattr(message, "content", "") or ""
-            sender_id = getattr(message, "user_id", "") or ""
+            content = message.raw_message or message.content or ""
+            sender_id = message.user_id or ""
             session_message_event = SessionMessageEvent(
                 session_id=self._session_id,
                 sender_type="user",
@@ -432,7 +431,7 @@ class AgentOrchestrator:
             return
 
         try:
-            target_agent_id = getattr(event, "target_agent_id", None)
+            target_agent_id = event.target_agent_id
             if not target_agent_id:
                 return
 

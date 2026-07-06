@@ -6,13 +6,20 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from src.common.logger import get_logger
-from src.config.config import global_config
 from src.maisaka.agent_autonomy.state_awareness.visibility_rule import StateVisibilityRule
 
 if TYPE_CHECKING:
     from src.maisaka.agent_autonomy.vitality_manager import VitalityManager
 
 logger = get_logger("agent_autonomy.rule_engine")
+
+_COMPANION_VITALITY_THRESHOLD_ADJUSTMENT = 5.0
+_COMPANION_VITALITY_TRIGGER_THRESHOLD = 60.0
+_COMPANION_EMOTION_INFECTION_BONUS = 2.0
+_COMPANION_EMOTION_INFECTION_TRIGGER = 80.0
+_COMPANION_SAD_RESPONSE_THRESHOLD_ADJUSTMENT = 5.0
+_COMPANION_SAD_TRIGGER_THRESHOLD = 50.0
+_COMPANION_MENTION_VITALITY_BONUS = 5.0
 
 
 @dataclass
@@ -35,41 +42,33 @@ class StateAwareRuleEngine:
     ) -> None:
         self._vitality_manager = vitality_manager
         self._visibility_rule = visibility_rule
-        self._config = global_config.agent_autonomy
 
     def evaluate_for_interjection(self, session_id: str) -> RuleEvaluationResult:
         """评估插话相关的感知规则（规则1+规则3）。"""
         result = RuleEvaluationResult()
 
-        try:
-            # 规则1：同伴生命力影响
-            standby_agents = self._vitality_manager.get_standby_agents(session_id)
-            high_vitality_count = sum(
-                1 for info in standby_agents
-                if info.vitality_value >= self._config.companion_vitality_trigger_threshold
-            )
-            if high_vitality_count > 0:
-                result.intent_threshold_adjustment += self._config.companion_vitality_threshold_adjustment
-                result.triggered_rules.append("companion_vitality_influence")
+        # 规则1：同伴生命力影响
+        standby_agents = self._vitality_manager.get_standby_agents(session_id)
+        high_vitality_count = sum(
+            1 for info in standby_agents
+            if info.vitality_value >= _COMPANION_VITALITY_TRIGGER_THRESHOLD
+        )
+        if high_vitality_count > 0:
+            result.intent_threshold_adjustment += _COMPANION_VITALITY_THRESHOLD_ADJUSTMENT
+            result.triggered_rules.append("companion_vitality_influence")
 
-            # 规则3：同伴低落响应
-            from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
-            orch = AgentOrchestrator.get_by_session(session_id)
-            if orch is not None:
-                for agent in orch.get_active_agents():
-                    try:
-                        if agent.emotion_manager is not None:
-                            state = agent.emotion_manager.state
-                            if state.dominant_emotion in ("sad", "lonely"):
-                                if state.get_dominant_intensity() >= self._config.companion_sad_trigger_threshold:
-                                    result.intent_threshold_adjustment -= self._config.companion_sad_response_threshold_adjustment
-                                    result.triggered_rules.append("companion_sad_response")
-                                    break
-                    except Exception:
-                        continue
-
-        except Exception as exc:
-            logger.warning(f"[rule_engine] 插话规则评估异常: error={exc}")
+        # 规则3：同伴低落响应
+        from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
+        orch = AgentOrchestrator.get_by_session(session_id)
+        if orch is not None:
+            for agent in orch.get_active_agents():
+                if agent.emotion_manager is not None:
+                    state = agent.emotion_manager.state
+                    if state.dominant_emotion in ("sad", "lonely"):
+                        if state.get_dominant_intensity() >= _COMPANION_SAD_TRIGGER_THRESHOLD:
+                            result.intent_threshold_adjustment -= _COMPANION_SAD_RESPONSE_THRESHOLD_ADJUSTMENT
+                            result.triggered_rules.append("companion_sad_response")
+                            break
 
         return result
 
@@ -77,18 +76,12 @@ class StateAwareRuleEngine:
         self, session_id: str, speaker_emotion_intensity: float
     ) -> float:
         """评估情绪感染增强规则（规则2）。"""
-        try:
-            if speaker_emotion_intensity >= self._config.companion_emotion_infection_trigger:
-                return self._config.companion_emotion_infection_bonus
-        except Exception as exc:
-            logger.debug(f"[rule_engine] 感染规则评估异常: error={exc}")
+        if speaker_emotion_intensity >= _COMPANION_EMOTION_INFECTION_TRIGGER:
+            return _COMPANION_EMOTION_INFECTION_BONUS
         return 0.0
 
     def evaluate_for_mention(self, session_id: str, mention_source_type: str) -> float:
         """评估同伴提及加成规则（规则4）。"""
-        try:
-            if mention_source_type == "agent":
-                return self._config.companion_mention_vitality_bonus
-        except Exception as exc:
-            logger.debug(f"[rule_engine] 提及规则评估异常: error={exc}")
+        if mention_source_type == "agent":
+            return _COMPANION_MENTION_VITALITY_BONUS
         return 0.0
