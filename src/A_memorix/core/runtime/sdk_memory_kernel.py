@@ -235,6 +235,8 @@ class SDKMemoryKernel:
         self._feedback_classifier: Optional[LLMServiceClient] = None
         self._fuzzy_modify_planner: Optional[LLMServiceClient] = None
         self._session_info_port: Optional[Any] = None
+        self._feedback_config: Optional[Any] = None
+        self._fuzzy_modify_config: Optional[Any] = None
 
     def _cfg(self, key: str, default: Any = None) -> Any:
         current: Any = self.config
@@ -642,27 +644,43 @@ class SDKMemoryKernel:
         }
 
     def _embedding_fallback_enabled(self) -> bool:
+        if self._embedding_health_service is not None:
+            return self._embedding_health_service.config.embedding_fallback_enabled
         return bool(self._cfg("embedding.fallback.enabled", True))
 
     def _allow_metadata_only_write(self) -> bool:
+        if self._embedding_health_service is not None:
+            return self._embedding_health_service.config.allow_metadata_only_write
         return bool(self._cfg("embedding.fallback.allow_metadata_only_write", True))
 
     def _embedding_probe_interval_seconds(self) -> float:
+        if self._embedding_health_service is not None:
+            return self._embedding_health_service.config.embedding_probe_interval_seconds
         return max(10.0, float(self._cfg("embedding.fallback.probe_interval_seconds", 180) or 180))
 
     def _paragraph_vector_backfill_enabled(self) -> bool:
+        if self._embedding_health_service is not None:
+            return self._embedding_health_service.config.paragraph_vector_backfill_enabled
         return bool(self._cfg("embedding.paragraph_vector_backfill.enabled", True))
 
     def _paragraph_vector_backfill_interval_seconds(self) -> float:
+        if self._embedding_health_service is not None:
+            return self._embedding_health_service.config.paragraph_vector_backfill_interval_seconds
         return max(10.0, float(self._cfg("embedding.paragraph_vector_backfill.interval_seconds", 60) or 60))
 
     def _paragraph_vector_backfill_batch_size(self) -> int:
+        if self._embedding_health_service is not None:
+            return self._embedding_health_service.config.paragraph_vector_backfill_batch_size
         return max(1, int(self._cfg("embedding.paragraph_vector_backfill.batch_size", 64) or 64))
 
     def _paragraph_vector_backfill_max_retry(self) -> int:
+        if self._embedding_health_service is not None:
+            return self._embedding_health_service.config.paragraph_vector_backfill_max_retry
         return max(1, int(self._cfg("embedding.paragraph_vector_backfill.max_retry", 5) or 5))
 
     def _vector_pool_mode(self) -> str:
+        if self._embedding_health_service is not None:
+            return self._embedding_health_service.config.mode
         mode = str(self._cfg("retrieval.vector_pools.mode", "dual") or "dual").strip().lower()
         return mode if mode in {"single", "dual"} else "single"
 
@@ -2177,12 +2195,16 @@ class SDKMemoryKernel:
         self.embedding_dimension = int(provisional_dimension)
 
         from .config.vector_pool_config import VectorPoolConfig
+        from .config.feedback_config import FeedbackConfig
+        from .config.fuzzy_modify_config import FuzzyModifyConfig
         from .services.embedding_health import EmbeddingHealthService
         from .services.background_scheduler import BackgroundTaskScheduler
         self._embedding_health_service = EmbeddingHealthService(
             vector_pool_config=VectorPoolConfig.from_config(self.config),
         )
         self._background_scheduler = BackgroundTaskScheduler()
+        self._feedback_config = FeedbackConfig.from_global_config()
+        self._fuzzy_modify_config = FuzzyModifyConfig.from_global_config()
 
         matrix_format = str(self._cfg("graph.sparse_matrix_format", "csr") or "csr").strip().lower()
         graph_format = SparseMatrixFormat.CSC if matrix_format == "csc" else SparseMatrixFormat.CSR
@@ -5074,83 +5096,83 @@ class SDKMemoryKernel:
             payload = None
         return payload if isinstance(payload, dict) else {}
 
-    @staticmethod
-    def _feedback_cfg_enabled() -> bool:
-        memory_cfg = global_config.a_memorix.integration
-        return bool(getattr(memory_cfg, "feedback_correction_enabled", False))
+    def _feedback_cfg_enabled(self) -> bool:
+        if self._feedback_config is not None:
+            return self._feedback_config.enabled
+        return bool(getattr(global_config.a_memorix.integration, "feedback_correction_enabled", False))
 
-    @staticmethod
-    def _feedback_cfg_window_hours() -> float:
-        memory_cfg = global_config.a_memorix.integration
-        return max(0.1, float(getattr(memory_cfg, "feedback_correction_window_hours", 12.0) or 12.0))
+    def _feedback_cfg_window_hours(self) -> float:
+        if self._feedback_config is not None:
+            return self._feedback_config.window_hours
+        return max(0.1, float(getattr(global_config.a_memorix.integration, "feedback_correction_window_hours", 12.0) or 12.0))
 
-    @staticmethod
-    def _feedback_cfg_check_interval_seconds() -> float:
-        memory_cfg = global_config.a_memorix.integration
-        minutes = max(1, int(getattr(memory_cfg, "feedback_correction_check_interval_minutes", 30) or 30))
+    def _feedback_cfg_check_interval_seconds(self) -> float:
+        if self._feedback_config is not None:
+            return self._feedback_config.check_interval_seconds
+        minutes = max(1, int(getattr(global_config.a_memorix.integration, "feedback_correction_check_interval_minutes", 30) or 30))
         return float(minutes) * 60.0
 
-    @staticmethod
-    def _feedback_cfg_batch_size() -> int:
-        memory_cfg = global_config.a_memorix.integration
-        return max(1, int(getattr(memory_cfg, "feedback_correction_batch_size", 20) or 20))
+    def _feedback_cfg_batch_size(self) -> int:
+        if self._feedback_config is not None:
+            return self._feedback_config.batch_size
+        return max(1, int(getattr(global_config.a_memorix.integration, "feedback_correction_batch_size", 20) or 20))
 
-    @staticmethod
-    def _feedback_cfg_auto_apply_threshold() -> float:
-        memory_cfg = global_config.a_memorix.integration
-        value = float(getattr(memory_cfg, "feedback_correction_auto_apply_threshold", 0.85) or 0.85)
+    def _feedback_cfg_auto_apply_threshold(self) -> float:
+        if self._feedback_config is not None:
+            return self._feedback_config.auto_apply_threshold
+        value = float(getattr(global_config.a_memorix.integration, "feedback_correction_auto_apply_threshold", 0.85) or 0.85)
         return min(1.0, max(0.0, value))
 
-    @staticmethod
-    def _feedback_cfg_max_messages() -> int:
-        memory_cfg = global_config.a_memorix.integration
-        return max(1, int(getattr(memory_cfg, "feedback_correction_max_feedback_messages", 30) or 30))
+    def _feedback_cfg_max_messages(self) -> int:
+        if self._feedback_config is not None:
+            return self._feedback_config.max_messages
+        return max(1, int(getattr(global_config.a_memorix.integration, "feedback_correction_max_feedback_messages", 30) or 30))
 
-    @staticmethod
-    def _feedback_cfg_prefilter_enabled() -> bool:
-        memory_cfg = global_config.a_memorix.integration
-        return bool(getattr(memory_cfg, "feedback_correction_prefilter_enabled", True))
+    def _feedback_cfg_prefilter_enabled(self) -> bool:
+        if self._feedback_config is not None:
+            return self._feedback_config.prefilter_enabled
+        return bool(getattr(global_config.a_memorix.integration, "feedback_correction_prefilter_enabled", True))
 
-    @staticmethod
-    def _feedback_cfg_paragraph_mark_enabled() -> bool:
-        memory_cfg = global_config.a_memorix.integration
-        return bool(getattr(memory_cfg, "feedback_correction_paragraph_mark_enabled", True))
+    def _feedback_cfg_paragraph_mark_enabled(self) -> bool:
+        if self._feedback_config is not None:
+            return self._feedback_config.paragraph_mark_enabled
+        return bool(getattr(global_config.a_memorix.integration, "feedback_correction_paragraph_mark_enabled", True))
 
-    @staticmethod
-    def _feedback_cfg_paragraph_hard_filter_enabled() -> bool:
-        memory_cfg = global_config.a_memorix.integration
-        return bool(getattr(memory_cfg, "feedback_correction_paragraph_hard_filter_enabled", True))
+    def _feedback_cfg_paragraph_hard_filter_enabled(self) -> bool:
+        if self._feedback_config is not None:
+            return self._feedback_config.paragraph_hard_filter_enabled
+        return bool(getattr(global_config.a_memorix.integration, "feedback_correction_paragraph_hard_filter_enabled", True))
 
-    @staticmethod
-    def _feedback_cfg_profile_refresh_enabled() -> bool:
-        memory_cfg = global_config.a_memorix.integration
-        return bool(getattr(memory_cfg, "feedback_correction_profile_refresh_enabled", True))
+    def _feedback_cfg_profile_refresh_enabled(self) -> bool:
+        if self._feedback_config is not None:
+            return self._feedback_config.profile_refresh_enabled
+        return bool(getattr(global_config.a_memorix.integration, "feedback_correction_profile_refresh_enabled", True))
 
-    @staticmethod
-    def _feedback_cfg_profile_force_refresh_on_read() -> bool:
-        memory_cfg = global_config.a_memorix.integration
-        return bool(getattr(memory_cfg, "feedback_correction_profile_force_refresh_on_read", True))
+    def _feedback_cfg_profile_force_refresh_on_read(self) -> bool:
+        if self._feedback_config is not None:
+            return self._feedback_config.profile_force_refresh_on_read
+        return bool(getattr(global_config.a_memorix.integration, "feedback_correction_profile_force_refresh_on_read", True))
 
-    @staticmethod
-    def _feedback_cfg_episode_rebuild_enabled() -> bool:
-        memory_cfg = global_config.a_memorix.integration
-        return bool(getattr(memory_cfg, "feedback_correction_episode_rebuild_enabled", True))
+    def _feedback_cfg_episode_rebuild_enabled(self) -> bool:
+        if self._feedback_config is not None:
+            return self._feedback_config.episode_rebuild_enabled
+        return bool(getattr(global_config.a_memorix.integration, "feedback_correction_episode_rebuild_enabled", True))
 
-    @staticmethod
-    def _feedback_cfg_episode_query_block_enabled() -> bool:
-        memory_cfg = global_config.a_memorix.integration
-        return bool(getattr(memory_cfg, "feedback_correction_episode_query_block_enabled", True))
+    def _feedback_cfg_episode_query_block_enabled(self) -> bool:
+        if self._feedback_config is not None:
+            return self._feedback_config.episode_query_block_enabled
+        return bool(getattr(global_config.a_memorix.integration, "feedback_correction_episode_query_block_enabled", True))
 
-    @staticmethod
-    def _feedback_cfg_reconcile_interval_seconds() -> float:
-        memory_cfg = global_config.a_memorix.integration
-        minutes = max(1, int(getattr(memory_cfg, "feedback_correction_reconcile_interval_minutes", 5) or 5))
+    def _feedback_cfg_reconcile_interval_seconds(self) -> float:
+        if self._feedback_config is not None:
+            return self._feedback_config.reconcile_interval_seconds
+        minutes = max(1, int(getattr(global_config.a_memorix.integration, "feedback_correction_reconcile_interval_minutes", 5) or 5))
         return float(minutes) * 60.0
 
-    @staticmethod
-    def _feedback_cfg_reconcile_batch_size() -> int:
-        memory_cfg = global_config.a_memorix.integration
-        return max(1, int(getattr(memory_cfg, "feedback_correction_reconcile_batch_size", 20) or 20))
+    def _feedback_cfg_reconcile_batch_size(self) -> int:
+        if self._feedback_config is not None:
+            return self._feedback_config.reconcile_batch_size
+        return max(1, int(getattr(global_config.a_memorix.integration, "feedback_correction_reconcile_batch_size", 20) or 20))
 
     def _should_auto_enqueue_episode(self, *, source_type: str) -> bool:
         if not bool(self._cfg("episode.enabled", True)):
@@ -5210,9 +5232,10 @@ class SDKMemoryKernel:
             max_retry=self._person_profile_refresh_max_retry(),
         )
 
-    @classmethod
-    def _feedback_cfg_window_label(cls) -> str:
-        hours = cls._feedback_cfg_window_hours()
+    def _feedback_cfg_window_label(self) -> str:
+        if self._feedback_config is not None:
+            return self._feedback_config.window_label
+        hours = self._feedback_cfg_window_hours()
         if abs(hours - round(hours)) < 1e-9:
             return f"{int(round(hours))}h"
         return f"{hours:.2f}h"
@@ -9008,35 +9031,35 @@ class SDKMemoryKernel:
         }
         return aliases.get(token, token or "person_profile")
 
-    @staticmethod
-    def _fuzzy_modify_cfg_enabled() -> bool:
-        memory_cfg = global_config.a_memorix.integration
-        return bool(getattr(memory_cfg, "fuzzy_modify_enabled", True))
+    def _fuzzy_modify_cfg_enabled(self) -> bool:
+        if self._fuzzy_modify_config is not None:
+            return self._fuzzy_modify_config.enabled
+        return bool(getattr(global_config.a_memorix.integration, "fuzzy_modify_enabled", True))
 
-    @staticmethod
-    def _fuzzy_modify_cfg_auto_execute_enabled() -> bool:
-        memory_cfg = global_config.a_memorix.integration
-        return bool(getattr(memory_cfg, "fuzzy_modify_auto_execute_enabled", False))
+    def _fuzzy_modify_cfg_auto_execute_enabled(self) -> bool:
+        if self._fuzzy_modify_config is not None:
+            return self._fuzzy_modify_config.auto_execute_enabled
+        return bool(getattr(global_config.a_memorix.integration, "fuzzy_modify_auto_execute_enabled", False))
 
-    @staticmethod
-    def _fuzzy_modify_cfg_confirm_threshold() -> float:
-        memory_cfg = global_config.a_memorix.integration
-        return float(getattr(memory_cfg, "fuzzy_modify_confirm_threshold", 0.85) or 0.85)
+    def _fuzzy_modify_cfg_confirm_threshold(self) -> float:
+        if self._fuzzy_modify_config is not None:
+            return self._fuzzy_modify_config.confirm_threshold
+        return float(getattr(global_config.a_memorix.integration, "fuzzy_modify_confirm_threshold", 0.85) or 0.85)
 
-    @staticmethod
-    def _fuzzy_modify_cfg_candidate_limit() -> int:
-        memory_cfg = global_config.a_memorix.integration
-        return max(1, int(getattr(memory_cfg, "fuzzy_modify_candidate_limit", 20) or 20))
+    def _fuzzy_modify_cfg_candidate_limit(self) -> int:
+        if self._fuzzy_modify_config is not None:
+            return self._fuzzy_modify_config.candidate_limit
+        return max(1, int(getattr(global_config.a_memorix.integration, "fuzzy_modify_candidate_limit", 20) or 20))
 
-    @staticmethod
-    def _fuzzy_modify_cfg_max_targets() -> int:
-        memory_cfg = global_config.a_memorix.integration
-        return max(1, int(getattr(memory_cfg, "fuzzy_modify_max_targets", 5) or 5))
+    def _fuzzy_modify_cfg_max_targets(self) -> int:
+        if self._fuzzy_modify_config is not None:
+            return self._fuzzy_modify_config.max_targets
+        return max(1, int(getattr(global_config.a_memorix.integration, "fuzzy_modify_max_targets", 5) or 5))
 
-    @staticmethod
-    def _fuzzy_modify_cfg_allow_global_scope() -> bool:
-        memory_cfg = global_config.a_memorix.integration
-        return bool(getattr(memory_cfg, "fuzzy_modify_allow_global_scope", False))
+    def _fuzzy_modify_cfg_allow_global_scope(self) -> bool:
+        if self._fuzzy_modify_config is not None:
+            return self._fuzzy_modify_config.allow_global_scope
+        return bool(getattr(global_config.a_memorix.integration, "fuzzy_modify_allow_global_scope", False))
 
     def _adjust_relation_confidence(self, hashes: List[str], *, delta: float) -> Dict[str, float]:
         assert self.metadata_store
