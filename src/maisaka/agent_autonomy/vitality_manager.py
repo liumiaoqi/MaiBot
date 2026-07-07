@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 from src.common.logger import get_logger
 from src.config.config import global_config
+from src.core.protocols import AgentRoutingService
 from src.maisaka.agent_autonomy.activity_store import AgentActivityStore
 from src.maisaka.agent_autonomy.event_bus import AgentStateChangeEvent, AutonomyEventBus
 from src.maisaka.agent_autonomy.standby_registry import StandbyAgentInfo, StandbyAgentRegistry
@@ -31,8 +32,9 @@ class CohabitationParams:
 class VitalityManager:
     """生命力管理器——负责待命智能体的生命力计算、跃迁判定与共居参数。"""
 
-    def __init__(self, orchestrator: AgentOrchestrator) -> None:
+    def __init__(self, orchestrator: AgentOrchestrator, routing_service: AgentRoutingService | None = None) -> None:
         self._orchestrator = orchestrator
+        self._routing_service = routing_service or self._get_default_routing_service()
         self._registry = StandbyAgentRegistry()
         self._activity_store = AgentActivityStore()
         self._config = global_config.agent_autonomy
@@ -48,6 +50,11 @@ class VitalityManager:
         self._inner_need_engine.register_calculator("emotion", EmotionNeedCalculator())
         self._inner_need_engine.register_calculator("memory", MemoryNeedCalculator())
         self._inner_need_engine.register_calculator("time", TimeNeedCalculator())
+
+    @staticmethod
+    def _get_default_routing_service() -> AgentRoutingService:
+        from src.core.adapters.routing_adapter import ChatManagerRoutingAdapter
+        return ChatManagerRoutingAdapter()
 
     @property
     def registry(self) -> StandbyAgentRegistry:
@@ -86,17 +93,11 @@ class VitalityManager:
         这是智能体自主性的核心——所有角色都应该"活着"。
         """
         try:
-            from src.chat.message_receive.chat_manager import chat_manager
-
-            if chat_manager is None or chat_manager._agent_router is None:
-                return
-
-            agent_router = chat_manager.agent_router
-            bound_agents = agent_router.get_session_all_agents(session_id)
+            bound_agents = self._routing_service.get_session_all_agents(session_id)
 
             if not bound_agents:
                 from src.maisaka.agent.registry import AgentConfigRegistry
-                bound_agents = [a.agent_id for a in AgentConfigRegistry.get_instance().list_agents()]
+                bound_agents = frozenset(a.agent_id for a in AgentConfigRegistry.get_instance().list_agents())
 
             active_ids = set(self._orchestrator._active_agents.keys())
             standby_ids = {
@@ -337,18 +338,7 @@ class VitalityManager:
         """计算共居插话动态参数。"""
         config = self._config
         try:
-            from src.chat.message_receive.chat_manager import chat_manager
-
-            if chat_manager is None or chat_manager.agent_router is None:
-                return CohabitationParams(
-                    intent_threshold=config.interjection_intent_threshold,
-                    cooldown_minutes=float(config.interjection_cooldown_minutes),
-                    max_interjections_per_hour=config.max_interjections_per_hour,
-                )
-
-            bound_count = len(
-                chat_manager.agent_router.get_session_all_agents(session_id)
-            )
+            bound_count = len(self._routing_service.get_session_all_agents(session_id))
         except Exception:
             bound_count = 1
 

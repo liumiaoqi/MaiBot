@@ -24,6 +24,8 @@ from src.common.logger import get_logger
 from src.common.message_repository import find_messages
 from src.common.utils.utils_config import BehaviorConfigUtils, ChatConfigUtils, ExpressionConfigUtils, JargonConfigUtils
 from src.config.config import global_config
+from src.core.protocols import NoticeClassifier
+from src.core.types import NoticeKind
 from src.core.tooling import ToolRegistry, ToolSpec
 from src.learners.behavior_learner import BehaviorLearner
 from src.learners.expression_learner import ExpressionLearner
@@ -215,6 +217,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         self._autonomous_agent: Optional[object] = None
         self._chat_loop_adapter: Optional[object] = None
         self._agent_orchestrator: Optional[object] = None
+        self._notice_classifier: NoticeClassifier = self._get_default_notice_classifier()
         self._init_agent_autonomy()
         self._monitor_visual_refresh_keys: set[tuple[str, str]] = set()
         self._tool_registry = ToolRegistry()
@@ -850,7 +853,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
 
         is_ambient_notice = self._is_ambient_notice(message)
         if is_ambient_notice:
-            logger.info(f"{self.log_prefix} [ambient_notice] 通知消息不触发Planner: subtype={getattr(message.message_info.additional_config, 'get', lambda *a: '')('napcat_notice_sub_type', '')}")
+            logger.info(f"{self.log_prefix} [ambient_notice] 通知消息不触发Planner")
 
         if not is_ambient_notice:
             self._record_external_message_interval(message, received_at)
@@ -1223,25 +1226,17 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         finally:
             self._deferred_message_turn_task = None
 
-    _AMBIENT_NOTICE_SUBTYPES = frozenset({
-        "input_status",
-        "group_ban",
-        "group_increase",
-        "group_decrease",
-        "group_name",
-        "group_upload",
-        "group_msg_emoji_like",
-    })
+    @staticmethod
+    def _get_default_notice_classifier() -> NoticeClassifier:
+        from src.core.adapters.notice_classifier import NapCatNoticeClassifier
+        return NapCatNoticeClassifier()
 
     def _is_ambient_notice(self, message: SessionMessage) -> bool:
         """判断消息是否为纯环境感知通知（不触发Planner）。"""
         if not message.is_notify:
             return False
-        additional_config = message.message_info.additional_config
-        if not isinstance(additional_config, dict):
-            return False
-        sub_type = additional_config.get("napcat_notice_sub_type", "")
-        return bool(sub_type and sub_type in self._AMBIENT_NOTICE_SUBTYPES)
+        kind = self._notice_classifier.classify(message)
+        return kind in (NoticeKind.AMBIENT, NoticeKind.INPUT_STATUS)
 
     def _update_message_trigger_state(self, message: SessionMessage) -> None:
         """补齐消息中的 @/提及 标记，并在命中时启用强制触发。"""

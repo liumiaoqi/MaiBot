@@ -1,5 +1,10 @@
+from __future__ import annotations
+
+from typing import Any, Optional
+
 from src.common.logger import get_logger
 from src.config.config import global_config
+from src.core.protocols import ChatRuntime
 
 logger = get_logger("agent_autonomy.chat_loop_adapter")
 
@@ -7,12 +12,12 @@ logger = get_logger("agent_autonomy.chat_loop_adapter")
 class ChatLoopServiceAdapter:
     """对话循环服务适配器，支持运行时切换 agent_id 和提示词上下文。"""
 
-    def __init__(self, chat_loop_service: "MaisakaChatLoopService") -> None:
+    def __init__(self, chat_loop_service: ChatRuntime) -> None:
         self._chat_loop_service = chat_loop_service
         self._use_embodied_prompt = False
 
     @property
-    def chat_loop_service(self) -> "MaisakaChatLoopService":
+    def chat_loop_service(self) -> ChatRuntime:
         return self._chat_loop_service
 
     @property
@@ -73,3 +78,19 @@ class ChatLoopServiceAdapter:
         if self._use_embodied_prompt:
             return "maisaka_chat_embodied"
         return self._chat_loop_service._get_chat_prompt_name()
+
+    async def enqueue_proactive_task(
+        self,
+        *,
+        plugin_id: str,
+        intent: str,
+        reason: str = "",
+        metadata: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any] | None:
+        """代理 enqueue_proactive_task，让管家/提醒等核心模块触发 Planner。"""
+        return await self._chat_loop_service.enqueue_proactive_task(
+            plugin_id=plugin_id,
+            intent=intent,
+            reason=reason,
+            metadata=metadata,
+        )

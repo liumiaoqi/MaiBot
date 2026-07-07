@@ -5,9 +5,8 @@ import asyncio
 import time
 import traceback
 
-from src.chat.message_receive.chat_manager import chat_manager
 from src.common.logger import get_logger
-from src.maisaka.runtime import MaisakaHeartFlowChatting
+from src.core.protocols import ChatRuntime
 
 logger = get_logger("heartflow")
 
@@ -19,12 +18,12 @@ class HeartflowManager:
     """管理 session 级别的 Maisaka 心流实例。"""
 
     def __init__(self) -> None:
-        self.heartflow_chat_list: OrderedDict[str, MaisakaHeartFlowChatting] = OrderedDict()
+        self.heartflow_chat_list: OrderedDict[str, ChatRuntime] = OrderedDict()
         self._chat_create_locks: Dict[str, asyncio.Lock] = {}
         self._chat_last_active_at: Dict[str, float] = {}
 
-    async def get_or_create_heartflow_chat(self, session_id: str) -> MaisakaHeartFlowChatting:
-        """获取或创建指定会话对应的 Maisaka runtime。"""
+    async def get_or_create_heartflow_chat(self, session_id: str) -> ChatRuntime:
+        """获取或创建指定会话对应的运行时实例。"""
         try:
             if chat := self.heartflow_chat_list.get(session_id):
                 self._touch_chat(session_id)
@@ -35,6 +34,9 @@ class HeartflowManager:
                 if chat := self.heartflow_chat_list.get(session_id):
                     self._touch_chat(session_id)
                     return chat
+
+                from src.chat.message_receive.chat_manager import chat_manager
+                from src.maisaka.runtime import MaisakaHeartFlowChatting
 
                 chat_session = chat_manager.get_session_by_session_id(session_id)
                 if not chat_session:

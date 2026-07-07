@@ -1,9 +1,12 @@
 from dataclasses import dataclass, field, fields
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TypedDict
 
 import copy
+import time
 import warnings
+
+from datetime import datetime
 
 from maim_message import Seg
 
@@ -418,3 +421,182 @@ class MaiMessages:
             )
         self.llm_response_reasoning = new_reasoning
         self._modify_flags.modify_llm_response_reasoning = True
+
+
+# ============================================================================
+# 核心架构变革 — 新增数据模型
+# ============================================================================
+
+
+class NoticeKind(Enum):
+    """平台无关的通知分类枚举。"""
+
+    AMBIENT = "ambient"
+    """环境信号（如输入状态），不触发 Planner"""
+
+    INTERACTION = "interaction"
+    """交互信号（如戳一戳），可能触发 Planner"""
+
+    INPUT_STATUS = "input_status"
+    """用户正在输入，纯环境感知"""
+
+    UNKNOWN = "unknown"
+    """非通知消息或未知类型"""
+
+
+@dataclass(frozen=True, slots=True)
+class CoreMessage:
+    """平台无关的核心消息 — 核心只关心这些字段。"""
+
+    session_id: str
+    """消息所属会话 ID"""
+
+    plain_text: str
+    """消息纯文本内容"""
+
+    is_notify: bool
+    """是否为通知消息"""
+
+    notice_kind: NoticeKind = NoticeKind.UNKNOWN
+    """通知分类（仅 is_notify=True 时有意义）"""
+
+    sender_id: str = ""
+    """发送者 ID"""
+
+    sender_name: str = ""
+    """发送者展示名称"""
+
+    platform: str = ""
+    """来源平台标识"""
+
+    timestamp: Optional[datetime] = None
+    """消息时间戳"""
+
+    additional_data: Dict[str, Any] = field(default_factory=dict, hash=False)
+    """平台特定附加数据（核心不解析此字段）"""
+
+
+@dataclass(frozen=True, slots=True)
+class SessionInfo:
+    """不可变会话快照 — SessionRepository 返回此数据类。"""
+
+    session_id: str
+    """会话唯一标识"""
+
+    session_name: str
+    """会话展示名称"""
+
+    platform: str
+    """平台标识"""
+
+    is_group_session: bool
+    """是否为群聊"""
+
+    group_id: str = ""
+    """群 ID（仅群聊）"""
+
+    group_name: str = ""
+    """群名称（仅群聊）"""
+
+    user_id: str = ""
+    """用户 ID（仅私聊）"""
+
+    user_nickname: str = ""
+    """用户昵称（仅私聊）"""
+
+    primary_agent_id: str = ""
+    """主发言智能体 ID"""
+
+    cohabitant_agent_ids: frozenset[str] = frozenset()
+    """共居智能体 ID 列表（不可变集合）"""
+
+
+@dataclass(frozen=True, slots=True)
+class ThinkContext:
+    """思考上下文 — 智能体思考时需要的所有输入。"""
+
+    messages: tuple[CoreMessage, ...]
+    """待处理的消息序列（不可变）"""
+
+    emotion_state_text: str = ""
+    """当前情绪状态描述（自然语言）"""
+
+    relationship_text: str = ""
+    """当前关系描述（自然语言）"""
+
+    memory_snippets: tuple[str, ...] = ()
+    """记忆片段（不可变）"""
+
+    cohabitant_summary: str = ""
+    """共居智能体状态摘要（自然语言）"""
+
+    trigger_reason: str = ""
+    """触发思考的原因（user_message / inner_need / butler_interjection / reminder）"""
+
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    """附加元数据"""
+
+
+class ThinkAction(Enum):
+    """思考动作类型。"""
+
+    REPLY = "reply"
+    TOOL_CALL = "tool_call"
+    SILENT = "silent"
+    ERROR = "error"
+
+
+@dataclass(slots=True)
+class ThinkResult:
+    """思考结果 — 智能体思考后产生的输出。"""
+
+    action: ThinkAction = ThinkAction.SILENT
+    """思考动作类型"""
+
+    text: str = ""
+    """回复文本（action=REPLY 时有值）"""
+
+    tool_calls: List[dict[str, Any]] = field(default_factory=list)
+    """工具调用（action=TOOL_CALL 时有值）"""
+
+    emotion_type: str = ""
+    """情绪类型（用于情绪感染）"""
+
+    emotion_intensity: float = 0.0
+    """情绪强度"""
+
+    error_message: str = ""
+    """错误信息（action=ERROR 时有值）"""
+
+    thinking_time_ms: int = 0
+    """思考耗时（毫秒）"""
+
+
+# ============================================================================
+# 从 heartFC_utils 迁移的公共数据模型
+# ============================================================================
+
+
+class CyclePlanInfo(TypedDict): ...  # TODO: 根据实际需要补充字段
+
+
+class CycleActionInfo(TypedDict): ...  # TODO: 根据实际需要补充字段
+
+
+@dataclass
+class CycleDetail:
+    """循环信息记录类"""
+
+    cycle_id: int
+    thinking_id: str = ""
+    """思考ID"""
+    start_time: float = field(default_factory=time.time)
+    """开始时间，单位为秒"""
+    end_time: Optional[float] = None
+    """结束时间，单位为秒，None表示未结束"""
+    time_records: Dict[str, float] = field(default_factory=dict)
+    """计时器记录，key为计时器名称，value为用时，单位为秒"""
+    loop_plan_info: Optional[CyclePlanInfo] = None
+    """循环计划记录"""
+    loop_action_info: Optional[CycleActionInfo] = None
+    """循环Action调用记录"""
