@@ -14,7 +14,7 @@ import pickle
 import shutil
 import time
 
-from src.chat.message_receive.chat_manager import chat_manager
+
 from src.common.logger import get_logger
 from src.common.prompt_i18n import load_prompt
 from src.config.config import global_config
@@ -7705,10 +7705,11 @@ class SDKMemoryKernel:
         group_id = ""
         user_id = ""
         if stream_token:
-            session = chat_manager.get_existing_session_by_session_id(stream_token)
+            from src.chat.message_receive.chat_manager import chat_manager as _cm
+            session = _cm.get_existing_session_by_session_id(stream_token)
             if session is not None:
-                group_id = str(getattr(session, "group_id", "") or "").strip()
-                user_id = str(getattr(session, "user_id", "") or "").strip()
+                group_id = session.group_id or ""
+                user_id = session.user_id or ""
         return {
             "kind": str(kind or "").strip(),
             "stream_id": stream_token,

@@ -6,10 +6,10 @@ from dataclasses import dataclass
 from typing import Sequence
 
 from src.chat.message_receive.message import SessionMessage
-from src.A_memorix.core.utils.profile_text import build_profile_injection_text
 from src.common.data_models.message_component_data_model import AtComponent, ReplyComponent
 from src.common.logger import get_logger
 from src.config.config import global_config
+from src.core.protocols import MemoryServicePort
 from src.person_info.person_info import resolve_person_id_for_memory
 from src.services.memory_service import memory_service
 
@@ -17,6 +17,11 @@ logger = get_logger("maisaka_person_profile_injector")
 
 PROFILE_QUERY_LIMIT = 4
 PROFILE_TEXT_MAX_CHARS = 900
+
+
+def _get_default_memory_port() -> MemoryServicePort:
+    from src.core.adapters.memory_service import AMemorixMemoryServicePort
+    return AMemorixMemoryServicePort()
 
 
 @dataclass(frozen=True)
@@ -258,12 +263,15 @@ async def build_person_profile_injection_messages(
     anchor_message: SessionMessage,
     pending_messages: Sequence[SessionMessage] | None = None,
     agent_id: str = "",
+    memory_service_port: MemoryServicePort | None = None,
 ) -> list[str]:
     """构造注入 planner 的一次性人物画像内部参考消息。"""
 
     integration_config = global_config.a_memorix.integration
     if not bool(getattr(integration_config, "enable_person_profile_injection", True)):
         return []
+
+    _memory_port = memory_service_port or _get_default_memory_port()
 
     try:
         max_profiles = int(getattr(integration_config, "person_profile_injection_max_profiles", 3) or 3)
@@ -294,7 +302,7 @@ async def build_person_profile_injection_messages(
             logger.debug(f"人物画像注入跳过: person_id={candidate.person_id!r} error={error}")
             continue
 
-        profile_text = build_profile_injection_text(_extract_profile_text(payload))
+        profile_text = await _memory_port.build_profile_injection_text(_extract_profile_text(payload))
         if not profile_text:
             logger.debug(f"人物画像注入跳过空画像: person_id={candidate.person_id!r}")
             continue
