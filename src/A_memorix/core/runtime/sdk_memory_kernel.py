@@ -211,6 +211,7 @@ class SDKMemoryKernel:
         self._v5_memory_service: Optional[Any] = None
         self._hit_filter_service: Optional[Any] = None
         self._search_service: Optional[Any] = None
+        self._ingest_service: Optional[Any] = None
 
     def _cfg(self, key: str, default: Any = None) -> Any:
         current: Any = self.config
@@ -2021,6 +2022,32 @@ class SDKMemoryKernel:
             get_config_value=self._cfg,
         )
 
+        from .services.ingest import IngestService
+        self._ingest_service = IngestService(
+            get_metadata_store=lambda: self.metadata_store,
+            get_vector_store=lambda: self.vector_store,
+            get_graph_store=lambda: self.graph_store,
+            get_embedding_manager=lambda: self.embedding_manager,
+            get_relation_write_service=lambda: self.relation_write_service,
+            get_summary_importer=lambda: self.summary_importer,
+            get_episode_service=lambda: self.episode_service,
+            is_chat_filtered=self._is_chat_filtered,
+            cfg=self._cfg,
+            tokens=self._tokens,
+            merge_tokens=self._merge_tokens,
+            time_meta=self._time_meta,
+            resolve_knowledge_type=self._resolve_knowledge_type,
+            write_paragraph_vector_or_enqueue=self._write_paragraph_vector_or_enqueue,
+            ensure_entity_vector=self._ensure_entity_vector,
+            should_auto_enqueue_episode=self._should_auto_enqueue_episode,
+            persist=self._persist,
+            mark_person_active=self._mark_person_active,
+            enqueue_person_profile_refresh=self._enqueue_person_profile_refresh,
+            optional_int=self._optional_int,
+            background_scheduler=self._background_scheduler,
+            argument_tokens=self._argument_tokens,
+        )
+
         self._initialized = True
         await self._start_background_tasks()
 
@@ -2083,38 +2110,14 @@ class SDKMemoryKernel:
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         await self.initialize()
-        assert self.summary_importer
-        import_result = await self.summary_importer.import_from_stream(
-            stream_id=str(chat_id or "").strip(),
+        return await self._ingest_service.summarize_chat_stream(
+            chat_id=chat_id,
             context_length=context_length,
             include_personality=include_personality,
             time_end=time_end,
             metadata=metadata,
         )
-        success = bool(getattr(import_result, "success", False))
-        detail = str(getattr(import_result, "detail", "") or "")
-        paragraph_hash = str(getattr(import_result, "paragraph_hash", "") or "").strip()
-        source = (
-            str(getattr(import_result, "source", "") or "").strip()
-            or self._build_source("chat_summary", chat_id, [])
-        )
-        stored_ids: List[str] = []
-        episode_pending_ids: List[str] = []
-        if success:
-            if not paragraph_hash:
-                raise RuntimeError("聊天摘要导入成功但未返回 paragraph_hash，无法执行 Episode 增量入队")
-            assert self.metadata_store is not None
-            if self._should_auto_enqueue_episode(source_type="chat_summary"):
-                self.metadata_store.enqueue_episode_pending(paragraph_hash, source=source)
-                episode_pending_ids.append(paragraph_hash)
-            stored_ids.append(paragraph_hash)
-            self._persist()
-        payload = {"success": success, "detail": detail}
-        if stored_ids:
-            payload["stored_ids"] = stored_ids
-        if episode_pending_ids:
-            payload["episode_pending_ids"] = episode_pending_ids
-        return payload
+
 
     async def ingest_summary(
         self,
@@ -2131,52 +2134,21 @@ class SDKMemoryKernel:
         user_id: str = "",
         group_id: str = "",
     ) -> Dict[str, Any]:
-        external_token = str(external_id or "").strip() or compute_hash(f"chat_summary:{chat_id}:{text}")
-        if self._is_chat_filtered(
-            respect_filter=respect_filter,
-            stream_id=chat_id,
-            group_id=group_id,
-            user_id=user_id,
-        ):
-            return {
-                "success": True,
-                "stored_ids": [],
-                "skipped_ids": [external_token],
-                "detail": "chat_filtered",
-            }
-
-        summary_meta = coerce_metadata_dict(metadata)
-        summary_meta.setdefault("kind", "chat_summary")
-        if not str(text or "").strip() or bool(summary_meta.get("generate_from_chat", False)):
-            result = await self.summarize_chat_stream(
-                chat_id=chat_id,
-                context_length=self._optional_int(summary_meta.get("context_length")),
-                include_personality=summary_meta.get("include_personality"),
-                time_end=time_end,
-                metadata={
-                    **summary_meta,
-                    "external_id": external_token,
-                    "chat_id": str(chat_id or "").strip(),
-                    "source_type": "chat_summary",
-                },
-            )
-            result.setdefault("external_id", external_id)
-            result.setdefault("chat_id", chat_id)
-            return result
-        return await self.ingest_text(
+        await self.initialize()
+        return await self._ingest_service.ingest_summary(
             external_id=external_id,
-            source_type="chat_summary",
-            text=text,
             chat_id=chat_id,
+            text=text,
             participants=participants,
             time_start=time_start,
             time_end=time_end,
             tags=tags,
-            metadata=summary_meta,
+            metadata=metadata,
             respect_filter=respect_filter,
             user_id=user_id,
             group_id=group_id,
         )
+
 
     async def ingest_text(
         self,
@@ -2198,175 +2170,31 @@ class SDKMemoryKernel:
         user_id: str = "",
         group_id: str = "",
     ) -> Dict[str, Any]:
-        content = normalize_text(text)
-        external_token = str(external_id or "").strip() or compute_hash(f"{source_type}:{chat_id}:{content}")
-        if self._is_chat_filtered(
-            respect_filter=respect_filter,
-            stream_id=chat_id,
-            group_id=group_id,
-            user_id=user_id,
-        ):
-            return {
-                "success": True,
-                "stored_ids": [],
-                "skipped_ids": [external_token],
-                "detail": "chat_filtered",
-            }
-
         await self.initialize()
-        assert self.metadata_store is not None
-        assert self.vector_store is not None
-        assert self.graph_store is not None
-        assert self.embedding_manager is not None
-        assert self.relation_write_service is not None
-
-        if not content:
-            return {"stored_ids": [], "skipped_ids": [external_token], "reason": "empty_text"}
-
-        existing_ref = self.metadata_store.get_external_memory_ref(external_token)
-        if existing_ref:
-            return {
-                "stored_ids": [],
-                "skipped_ids": [str(existing_ref.get("paragraph_hash", "") or "")],
-                "reason": "exists",
-            }
-
-        person_tokens = self._tokens(person_ids)
-        participant_tokens = self._tokens(participants)
-        entity_tokens = self._merge_tokens(entities, person_tokens, participant_tokens)
-        source = self._build_source(source_type, chat_id, person_tokens)
-        paragraph_meta = coerce_metadata_dict(metadata)
-        paragraph_meta.update(
-            {
-                "external_id": external_token,
-                "source_type": str(source_type or "").strip(),
-                "chat_id": str(chat_id or "").strip(),
-                "person_ids": person_tokens,
-                "participants": participant_tokens,
-                "tags": self._tokens(tags),
-            }
-        )
-        warnings: List[str] = []
-
-        paragraph_hash = self.metadata_store.add_paragraph(
-            content=content,
-            source=source,
-            metadata=paragraph_meta,
-            knowledge_type=self._resolve_knowledge_type(source_type),
-            time_meta=self._time_meta(timestamp, time_start, time_end),
-        )
-        vector_result = await self._write_paragraph_vector_or_enqueue(
-            paragraph_hash=paragraph_hash,
-            content=content,
-            context="ingest_text",
-        )
-        warning = str(vector_result.get("warning", "") or "").strip()
-        if warning:
-            warnings.append(warning)
-
-        for name in entity_tokens:
-            entity_hash = self.metadata_store.add_entity(name=name, source_paragraph=paragraph_hash)
-            await self._ensure_entity_vector({"hash": entity_hash, "name": name})
-
-        stored_relations: List[str] = []
-        for row in [dict(item) for item in (relations or []) if isinstance(item, dict)]:
-            subject = str(row.get("subject", "") or "").strip()
-            predicate = str(row.get("predicate", "") or "").strip()
-            obj = str(row.get("object", "") or "").strip()
-            if not (subject and predicate and obj):
-                continue
-            result = await self.relation_write_service.upsert_relation_with_vector(
-                subject=subject,
-                predicate=predicate,
-                obj=obj,
-                confidence=float(row.get("confidence", 1.0) or 1.0),
-                source_paragraph=paragraph_hash,
-                metadata=row.get("metadata") if isinstance(row.get("metadata"), dict) else {"external_id": external_token, "source_type": source_type},
-                write_vector=self.relation_vectors_enabled,
-            )
-            self.metadata_store.link_paragraph_relation(paragraph_hash, result.hash_value)
-            stored_relations.append(result.hash_value)
-
-        self.metadata_store.upsert_external_memory_ref(
-            external_id=external_token,
-            paragraph_hash=paragraph_hash,
+        return await self._ingest_service.ingest_text(
+            external_id=external_id,
             source_type=source_type,
-            metadata={"chat_id": chat_id, "person_ids": person_tokens},
+            text=text,
+            chat_id=chat_id,
+            person_ids=person_ids,
+            participants=participants,
+            timestamp=timestamp,
+            time_start=time_start,
+            time_end=time_end,
+            tags=tags,
+            metadata=metadata,
+            entities=entities,
+            relations=relations,
+            respect_filter=respect_filter,
+            user_id=user_id,
+            group_id=group_id,
         )
-        if self._should_auto_enqueue_episode(source_type=source_type):
-            self.metadata_store.enqueue_episode_pending(paragraph_hash, source=source)
-        self._persist()
-        for person_id in person_tokens:
-            self._mark_person_active(person_id)
-            self._enqueue_person_profile_refresh(person_id, reason=str(source_type or "ingest_text"))
-        payload = {"stored_ids": [paragraph_hash, *stored_relations], "skipped_ids": []}
-        if warnings:
-            payload["warnings"] = warnings
-            payload["detail"] = "vector_degraded_write"
-        return payload
+
 
     async def process_episode_pending_batch(self, *, limit: int = 20, max_retry: int = 3) -> Dict[str, Any]:
         await self.initialize()
-        assert self.metadata_store is not None
-        assert self.episode_service is not None
+        return await self._ingest_service.process_episode_pending_batch(limit=limit, max_retry=max_retry)
 
-        pending_rows = self.metadata_store.fetch_episode_pending_batch(limit=max(1, int(limit)), max_retry=max(1, int(max_retry)))
-        if not pending_rows:
-            return {"processed": 0, "episode_count": 0, "fallback_count": 0, "failed": 0}
-
-        source_to_hashes: Dict[str, List[str]] = {}
-        pending_hashes = [str(row.get("paragraph_hash", "") or "").strip() for row in pending_rows if str(row.get("paragraph_hash", "") or "").strip()]
-        for row in pending_rows:
-            paragraph_hash = str(row.get("paragraph_hash", "") or "").strip()
-            source = str(row.get("source", "") or "").strip()
-            if not paragraph_hash or not source:
-                continue
-            source_to_hashes.setdefault(source, []).append(paragraph_hash)
-
-        if pending_hashes:
-            self.metadata_store.mark_episode_pending_running(pending_hashes)
-
-        result = await self.episode_service.process_pending_rows(pending_rows)
-        done_hashes = [str(item or "").strip() for item in result.get("done_hashes", []) if str(item or "").strip()]
-        failed_hashes = {
-            str(hash_value or "").strip(): str(error or "").strip()
-            for hash_value, error in (result.get("failed_hashes", {}) or {}).items()
-            if str(hash_value or "").strip()
-        }
-
-        if done_hashes:
-            self.metadata_store.mark_episode_pending_done(done_hashes)
-        for hash_value, error in failed_hashes.items():
-            self.metadata_store.mark_episode_pending_failed(hash_value, error)
-
-        untouched = [hash_value for hash_value in pending_hashes if hash_value not in set(done_hashes) and hash_value not in failed_hashes]
-        for hash_value in untouched:
-            self.metadata_store.mark_episode_pending_failed(hash_value, "episode processing finished without explicit status")
-
-        for source, paragraph_hashes in source_to_hashes.items():
-            counts = self.metadata_store.get_episode_pending_status_counts(source)
-            if counts.get("failed", 0) > 0:
-                source_error = next(
-                    (
-                        failed_hashes.get(hash_value)
-                        for hash_value in paragraph_hashes
-                        if failed_hashes.get(hash_value)
-                    ),
-                    "episode pending source contains failed rows",
-                )
-                self.metadata_store.mark_episode_source_failed(source, str(source_error or "episode pending source contains failed rows"))
-            elif counts.get("pending", 0) == 0 and counts.get("running", 0) == 0:
-                self.metadata_store.mark_episode_source_done(source)
-
-        self._persist()
-        return {
-            "processed": len(done_hashes) + len(failed_hashes),
-            "episode_count": int(result.get("episode_count") or 0),
-            "fallback_count": int(result.get("fallback_count") or 0),
-            "failed": len(failed_hashes) + len(untouched),
-            "group_count": int(result.get("group_count") or 0),
-            "missing_count": int(result.get("missing_count") or 0),
-        }
 
     async def search_memory(self, request: KernelSearchRequest) -> Dict[str, Any]:
         await self.initialize()
@@ -2775,7 +2603,7 @@ class SDKMemoryKernel:
     async def _start_background_tasks(self) -> None:
         registrations = {
             "auto_save": self._auto_save_loop,
-            "episode_pending": self._episode_pending_loop,
+            "episode_pending": self._ingest_service.episode_pending_loop,
             "embedding_probe": self._embedding_probe_loop,
             "paragraph_vector_backfill": self._paragraph_vector_backfill_loop,
             "memory_maintenance": self._memory_maintenance_loop,
@@ -2959,25 +2787,6 @@ class SDKMemoryKernel:
             raise
         except Exception as exc:
             logger.warning(f"auto_save loop 异常: {exc}")
-
-    async def _episode_pending_loop(self) -> None:
-        try:
-            while not self._background_scheduler.stopping:
-                await asyncio.sleep(60.0)
-                if self._background_scheduler.stopping:
-                    break
-                if not bool(self._cfg("episode.enabled", True)):
-                    continue
-                if not bool(self._cfg("episode.generation_enabled", True)):
-                    continue
-                await self.process_episode_pending_batch(
-                    limit=max(1, int(self._cfg("episode.pending_batch_size", 50) or 50)),
-                    max_retry=max(1, int(self._cfg("episode.pending_max_retry", 3) or 3)),
-                )
-        except asyncio.CancelledError:
-            raise
-        except Exception as exc:
-            logger.warning(f"episode_pending loop 异常: {exc}")
 
     async def _embedding_probe_loop(self) -> None:
         try:
@@ -3770,15 +3579,6 @@ class SDKMemoryKernel:
                 seen.add(item)
                 merged.append(item)
         return merged
-
-    @staticmethod
-    def _build_source(source_type: str, chat_id: str, person_ids: Sequence[str]) -> str:
-        clean_type = str(source_type or "").strip() or "memory"
-        if clean_type == "chat_summary" and chat_id:
-            return f"chat_summary:{chat_id}"
-        if clean_type == "person_fact" and person_ids:
-            return f"person_fact:{person_ids[0]}"
-        return f"{clean_type}:{chat_id}" if chat_id else clean_type
 
     @staticmethod
     def _chat_source(chat_id: str) -> Optional[str]:
