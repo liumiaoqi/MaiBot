@@ -1,6 +1,8 @@
-from typing import Any
+from typing import Any, Optional
 
 from src.common.logger import get_logger
+from src.core.protocols import ThinkingOrgan as ThinkingOrganProtocol
+from src.core.protocols import ThinkingOrganFactory
 from src.maisaka.agent_autonomy.prompt_builder import EmbodiedPlannerPromptBuilder
 from src.maisaka.agent_autonomy.thinking_organ import ThinkingOrgan
 from src.maisaka.agent_autonomy.inner_need import InnerNeed, InnerNeedEngine
@@ -24,10 +26,14 @@ logger = get_logger("agent_autonomy.agent")
 class AutonomousAgent:
     """自主智能体——拥有思维器官、表达器官、内在需求和行为意图的自主主体。"""
 
-    def __init__(self, agent_id: str) -> None:
+    def __init__(self, agent_id: str, thinking_organ_factory: ThinkingOrganFactory | None = None) -> None:
         self._agent_id = agent_id
         self._prompt_builder = EmbodiedPlannerPromptBuilder(agent_id)
-        self._thinking_organ = ThinkingOrgan(agent_id, self._prompt_builder)
+
+        if thinking_organ_factory is not None:
+            self._thinking_organ = thinking_organ_factory.create(agent_id, "")
+        else:
+            self._thinking_organ = ThinkingOrgan(agent_id, self._prompt_builder)
         self._expression_organ = None
         self._emotion_manager = None
         self._relationship_manager = None
@@ -96,7 +102,7 @@ class AutonomousAgent:
         return self._agent_config
 
     @property
-    def thinking_organ(self) -> ThinkingOrgan:
+    def thinking_organ(self) -> ThinkingOrganProtocol:
         return self._thinking_organ
 
     @property
