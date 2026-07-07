@@ -219,6 +219,7 @@ class SDKMemoryKernel:
         self._session_info_port: Optional[Any] = None
         self._feedback_config: Optional[Any] = None
         self._fuzzy_modify_config: Optional[Any] = None
+        self._admin_handlers: Dict[str, Any] = {}
 
     def _cfg(self, key: str, default: Any = None) -> Any:
         current: Any = self.config
@@ -2376,6 +2377,23 @@ class SDKMemoryKernel:
 
         self._mark_startup_self_check_deferred()
 
+        from .admin import (
+            GraphAdminHandler, ParagraphAdminHandler, RelationAdminHandler,
+            RuntimeAdminHandler, ImportAdminHandler, TuningAdminHandler,
+            V5AdminHandler, DeleteAdminHandler, CorrectionAdminHandler,
+        )
+        self._admin_handlers = {
+            "graph": GraphAdminHandler(self),
+            "paragraph": ParagraphAdminHandler(self),
+            "relation": RelationAdminHandler(self),
+            "runtime": RuntimeAdminHandler(self),
+            "import": ImportAdminHandler(self),
+            "tuning": TuningAdminHandler(self),
+            "v5": V5AdminHandler(self),
+            "delete": DeleteAdminHandler(self),
+            "correction": CorrectionAdminHandler(self),
+        }
+
         self._initialized = True
         await self._start_background_tasks()
 
@@ -3231,6 +3249,9 @@ class SDKMemoryKernel:
         )
 
     async def memory_graph_admin(self, *, action: str, **kwargs) -> Dict[str, Any]:
+        handler = self._admin_handlers.get("graph")
+        if handler is not None:
+            return await handler.handle(action, **kwargs)
         await self.initialize()
         assert self.metadata_store is not None
         assert self.graph_store is not None
@@ -3707,6 +3728,9 @@ class SDKMemoryKernel:
         return {"success": False, "error": f"不支持的 runtime action: {act}"}
 
     async def memory_import_admin(self, *, action: str, **kwargs) -> Dict[str, Any]:
+        handler = self._admin_handlers.get("import")
+        if handler is not None:
+            return await handler.handle(action, **kwargs)
         await self.initialize()
         manager = self.import_task_manager
         if manager is None:
@@ -3764,6 +3788,9 @@ class SDKMemoryKernel:
         return {"success": False, "error": f"不支持的 import action: {act}"}
 
     async def memory_tuning_admin(self, *, action: str, **kwargs) -> Dict[str, Any]:
+        handler = self._admin_handlers.get("tuning")
+        if handler is not None:
+            return await handler.handle(action, **kwargs)
         await self.initialize()
         manager = self.retrieval_tuning_manager
         if manager is None:
@@ -3848,6 +3875,9 @@ class SDKMemoryKernel:
         return {"success": False, "error": f"不支持的 tuning action: {act}"}
 
     async def memory_v5_admin(self, *, action: str, **kwargs) -> Dict[str, Any]:
+        handler = self._admin_handlers.get("v5")
+        if handler is not None:
+            return await handler.handle(action, **kwargs)
         await self.initialize()
         assert self.metadata_store
 
@@ -3899,6 +3929,9 @@ class SDKMemoryKernel:
         return {"success": bool(result.get("success", False)), "operation": operation, **result}
 
     async def memory_delete_admin(self, *, action: str, **kwargs) -> Dict[str, Any]:
+        handler = self._admin_handlers.get("delete")
+        if handler is not None:
+            return await handler.handle(action, **kwargs)
         await self.initialize()
         act = str(action or "").strip().lower()
         mode = str(kwargs.get("mode", "") or "").strip().lower()
@@ -3957,6 +3990,9 @@ class SDKMemoryKernel:
         return {"success": False, "error": f"不支持的 delete action: {act}"}
 
     async def memory_correction_admin(self, *, action: str, **kwargs) -> Dict[str, Any]:
+        handler = self._admin_handlers.get("correction")
+        if handler is not None:
+            return await handler.handle(action, **kwargs)
         await self.initialize()
         assert self.metadata_store is not None
 
@@ -4002,6 +4038,9 @@ class SDKMemoryKernel:
         return {"success": False, "error": f"不支持的记忆修正操作: {act}"}
 
     async def memory_fuzzy_modify_admin(self, *, action: str, **kwargs) -> Dict[str, Any]:
+        handler = self._admin_handlers.get("correction")
+        if handler is not None:
+            return await handler.handle(action, **kwargs)
         return await self.memory_correction_admin(action=action, **kwargs)
 
     def get_import_task_manager(self) -> Optional[ImportTaskManager]:
