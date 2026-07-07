@@ -2048,6 +2048,19 @@ class SDKMemoryKernel:
             argument_tokens=self._argument_tokens,
         )
 
+        from .services.maintenance import MaintenanceService
+        self._maintenance_service = MaintenanceService(
+            get_metadata_store=lambda: self.metadata_store,
+            get_graph_store=lambda: self.graph_store,
+            cfg=self._cfg,
+            persist=self._persist,
+            rebuild_graph_from_metadata=self._rebuild_graph_from_metadata,
+            resolve_relation_hashes=self._resolve_relation_hashes,
+            resolve_deleted_relation_hashes=self._resolve_deleted_relation_hashes,
+            delete_vectors_by_type=self._delete_vectors_by_type,
+            background_scheduler=self._background_scheduler,
+        )
+
         self._initialized = True
         await self._start_background_tasks()
 
