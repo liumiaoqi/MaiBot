@@ -8,6 +8,9 @@ from .tuning import TuningAdminHandler
 from .v5 import V5AdminHandler
 from .delete import DeleteAdminHandler
 from .correction import CorrectionAdminHandler
+from .profile import ProfileAdminHandler
+from .feedback import FeedbackAdminHandler
+from .episode import EpisodeAdminHandler
 
 __all__ = [
     "BaseAdminHandler",
@@ -20,4 +23,7 @@ __all__ = [
     "V5AdminHandler",
     "DeleteAdminHandler",
     "CorrectionAdminHandler",
+    "ProfileAdminHandler",
+    "FeedbackAdminHandler",
+    "EpisodeAdminHandler",
 ]

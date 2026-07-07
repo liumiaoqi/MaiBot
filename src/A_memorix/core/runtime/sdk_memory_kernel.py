@@ -1879,6 +1879,7 @@ class SDKMemoryKernel:
             GraphAdminHandler, ParagraphAdminHandler, RelationAdminHandler,
             RuntimeAdminHandler, ImportAdminHandler, TuningAdminHandler,
             V5AdminHandler, DeleteAdminHandler, CorrectionAdminHandler,
+            ProfileAdminHandler, FeedbackAdminHandler, EpisodeAdminHandler,
         )
         self._admin_handlers = {
             "graph": GraphAdminHandler(self),
@@ -1890,6 +1891,9 @@ class SDKMemoryKernel:
             "v5": V5AdminHandler(self),
             "delete": DeleteAdminHandler(self),
             "correction": CorrectionAdminHandler(self),
+            "profile": ProfileAdminHandler(self),
+            "feedback": FeedbackAdminHandler(self),
+            "episode": EpisodeAdminHandler(self),
         }
 
         from .services.delete import DeleteService
@@ -2819,295 +2823,16 @@ class SDKMemoryKernel:
         return {"success": False, "error": f"不支持的 source action: {act}"}
 
     async def memory_episode_admin(self, *, action: str, **kwargs) -> Dict[str, Any]:
-        await self.initialize()
-        assert self.metadata_store
-
-        act = str(action or "").strip().lower()
-        if act in {"query", "list"}:
-            items = self.metadata_store.query_episodes(
-                query=str(kwargs.get("query", "") or "").strip(),
-                time_from=self._optional_float(kwargs.get("time_start", kwargs.get("time_from"))),
-                time_to=self._optional_float(kwargs.get("time_end", kwargs.get("time_to"))),
-                person=str(kwargs.get("person_id", "") or kwargs.get("person", "") or "").strip() or None,
-                source=str(kwargs.get("source", "") or "").strip() or None,
-                limit=max(1, int(kwargs.get("limit", 20) or 20)),
-            )
-            return {"success": True, "items": items, "count": len(items)}
-
-        if act == "get":
-            episode_id = str(kwargs.get("episode_id", "") or "").strip()
-            if not episode_id:
-                return {"success": False, "error": "episode_id 不能为空"}
-            episode = self.metadata_store.get_episode_by_id(episode_id)
-            if episode is None:
-                return {"success": False, "error": "episode 不存在"}
-            episode["paragraphs"] = self.metadata_store.get_episode_paragraphs(
-                episode_id,
-                limit=max(1, int(kwargs.get("paragraph_limit", 100) or 100)),
-            )
-            return {"success": True, "episode": episode}
-
-        if act == "status":
-            summary = self.metadata_store.get_episode_source_rebuild_summary(
-                failed_limit=max(1, int(kwargs.get("limit", 20) or 20))
-            )
-            summary["pending_queue"] = self.metadata_store.query(
-                "SELECT COUNT(*) AS c FROM episode_pending_paragraphs WHERE status IN ('pending', 'running', 'failed')"
-            )[0]["c"]
-            return {"success": True, **summary}
-
-        if act == "rebuild":
-            sources = self._tokens(kwargs.get("sources"))
-            if not sources:
-                source = str(kwargs.get("source", "") or "").strip()
-                if source:
-                    sources = [source]
-            if not sources and bool(kwargs.get("all", False)):
-                sources = self.metadata_store.list_episode_sources_for_rebuild()
-                if not sources:
-                    sources = [str(row.get("source", "") or "").strip() for row in self.metadata_store.get_all_sources()]
-            if not sources:
-                return {"success": False, "error": "未提供可重建的 source"}
-            result = await self.rebuild_episodes_for_sources(sources)
-            return {"success": len(result.get("failures", [])) == 0, **result}
-
-        if act == "process_pending":
-            result = await self.process_episode_pending_batch(
-                limit=max(1, int(kwargs.get("limit", 20) or 20)),
-                max_retry=max(1, int(kwargs.get("max_retry", 3) or 3)),
-            )
-            return {"success": True, **result}
-
-        return {"success": False, "error": f"不支持的 episode action: {act}"}
+        return await self._admin_handlers["episode"].handle(action, **kwargs)
 
     async def memory_profile_admin(self, *, action: str, **kwargs) -> Dict[str, Any]:
-        await self.initialize()
-        assert self.metadata_store is not None
-        assert self.person_profile_service is not None
-
-        act = str(action or "").strip().lower()
-        if act == "query":
-            profile = await self._query_person_profile_with_feedback_refresh(
-                person_id=str(kwargs.get("person_id", "") or "").strip(),
-                person_keyword=str(kwargs.get("person_keyword", "") or kwargs.get("keyword", "") or "").strip(),
-                limit=max(1, int(kwargs.get("limit", kwargs.get("top_k", 12)) or 12)),
-                force_refresh=bool(kwargs.get("force_refresh", False)),
-                source_note="sdk_memory_kernel.memory_profile_admin.query",
-            )
-            return profile if isinstance(profile, dict) else {"success": False, "error": "invalid profile payload"}
-
-        if act == "evidence":
-            return await self._profile_evidence_admin(
-                person_id=str(kwargs.get("person_id", "") or "").strip(),
-                person_keyword=str(kwargs.get("person_keyword", "") or kwargs.get("keyword", "") or "").strip(),
-                limit=max(1, int(kwargs.get("limit", kwargs.get("top_k", 12)) or 12)),
-                force_refresh=bool(kwargs.get("force_refresh", False)),
-            )
-
-        if act == "correct_evidence":
-            return await self._profile_correct_evidence_admin(
-                person_id=str(kwargs.get("person_id", "") or "").strip(),
-                person_keyword=str(kwargs.get("person_keyword", "") or kwargs.get("keyword", "") or "").strip(),
-                evidence_type=str(kwargs.get("evidence_type", "") or "").strip(),
-                hash_value=str(kwargs.get("hash", "") or kwargs.get("hash_value", "") or "").strip(),
-                requested_by=str(kwargs.get("requested_by", "") or "webui").strip(),
-                reason=str(kwargs.get("reason", "") or "profile_evidence_correction").strip(),
-                refresh=bool(kwargs.get("refresh", True)),
-                limit=max(1, int(kwargs.get("limit", kwargs.get("top_k", 12)) or 12)),
-            )
-
-        if act == "status":
-            summary = self.metadata_store.get_person_profile_refresh_summary(
-                failed_limit=max(1, int(kwargs.get("limit", 20) or 20))
-            )
-            return {"success": True, **summary}
-
-        if act == "process_pending":
-            result = await self._process_feedback_profile_refresh_batch(
-                limit=max(1, int(kwargs.get("limit", self._feedback_cfg_reconcile_batch_size()) or self._feedback_cfg_reconcile_batch_size()))
-            )
-            return {"success": True, **result}
-
-        if act == "list":
-            limit = max(1, int(kwargs.get("limit", 50) or 50))
-            rows = self.metadata_store.query(
-                """
-                SELECT s.person_id, s.profile_version, s.profile_text, s.updated_at, s.expires_at, s.source_note
-                FROM person_profile_snapshots s
-                JOIN (
-                    SELECT person_id, MAX(profile_version) AS max_version
-                    FROM person_profile_snapshots
-                    GROUP BY person_id
-                ) latest
-                  ON latest.person_id = s.person_id
-                 AND latest.max_version = s.profile_version
-                ORDER BY s.updated_at DESC
-                LIMIT ?
-                """,
-                (limit,),
-            )
-            items = []
-            for row in rows:
-                person_id = str(row.get("person_id", "") or "").strip()
-                override = self.metadata_store.get_person_profile_override(person_id)
-                items.append(
-                    {
-                        "person_id": person_id,
-                        "profile_version": int(row.get("profile_version", 0) or 0),
-                        "profile_text": str(row.get("profile_text", "") or ""),
-                        "updated_at": row.get("updated_at"),
-                        "expires_at": row.get("expires_at"),
-                        "source_note": str(row.get("source_note", "") or ""),
-                        "has_manual_override": bool(override),
-                        "manual_override": override,
-                    }
-                )
-            return {"success": True, "items": items, "count": len(items)}
-
-        if act == "set_override":
-            person_id = str(kwargs.get("person_id", "") or "").strip()
-            override = self.metadata_store.set_person_profile_override(
-                person_id=person_id,
-                override_text=str(kwargs.get("override_text", "") or kwargs.get("text", "") or ""),
-                updated_by=str(kwargs.get("updated_by", "") or ""),
-                source=str(kwargs.get("source", "") or "memory_profile_admin"),
-            )
-            return {"success": True, "override": override}
-
-        if act == "delete_override":
-            person_id = str(kwargs.get("person_id", "") or "").strip()
-            deleted = self.metadata_store.delete_person_profile_override(person_id)
-            return {"success": bool(deleted), "deleted": bool(deleted), "person_id": person_id}
-
-        return {"success": False, "error": f"不支持的 profile action: {act}"}
+        return await self._admin_handlers["profile"].handle(action, **kwargs)
 
     async def memory_feedback_admin(self, *, action: str, **kwargs) -> Dict[str, Any]:
-        await self.initialize()
-        assert self.metadata_store is not None
-
-        act = str(action or "").strip().lower()
-        if act == "list":
-            items = self.metadata_store.list_feedback_tasks(
-                limit=max(1, int(kwargs.get("limit", 50) or 50)),
-                statuses=self._tokens(kwargs.get("status") or kwargs.get("statuses")),
-                rollback_statuses=self._tokens(kwargs.get("rollback_status") or kwargs.get("rollback_statuses")),
-                query=str(kwargs.get("query", "") or "").strip(),
-            )
-            return {
-                "success": True,
-                "items": [self._build_feedback_task_summary(task) for task in items],
-                "count": len(items),
-            }
-
-        if act == "get":
-            task = self.metadata_store.get_feedback_task_by_id(int(kwargs.get("task_id", 0) or 0))
-            if task is None:
-                return {"success": False, "error": "反馈纠错任务不存在"}
-            return {"success": True, "task": self._build_feedback_task_detail(task)}
-
-        if act == "rollback":
-            return await self._rollback_feedback_task(
-                task_id=int(kwargs.get("task_id", 0) or 0),
-                requested_by=str(kwargs.get("requested_by", "") or "").strip(),
-                reason=str(kwargs.get("reason", "") or "").strip(),
-            )
-
-        return {"success": False, "error": f"不支持的 feedback action: {act}"}
+        return await self._admin_handlers["feedback"].handle(action, **kwargs)
 
     async def memory_runtime_admin(self, *, action: str, **kwargs) -> Dict[str, Any]:
-        await self.initialize()
-        act = str(action or "").strip().lower()
-
-        if act == "save":
-            self._persist()
-            return {"success": True, "saved": True, "data_dir": str(self.data_dir)}
-
-        if act == "get_config":
-            degraded = self._embedding_degraded_snapshot()
-            backfill_counts = self._paragraph_vector_backfill_counts()
-            rebuild_status = self._vector_rebuild_status()
-            vector_pools_status = self._vector_pools_status()
-            return {
-                "success": True,
-                "config": self.config,
-                "data_dir": str(self.data_dir),
-                "embedding_dimension": int(rebuild_status["embedding_dimension"]),
-                "stored_vector_dimension": int(rebuild_status["stored_vector_dimension"]),
-                "vector_rebuild_required": bool(rebuild_status["vector_rebuild_required"]),
-                "vector_rebuild_message": str(rebuild_status["message"]),
-                "embedding_fingerprint": rebuild_status.get("embedding_fingerprint") or {},
-                "stored_embedding_fingerprint": rebuild_status.get("stored_embedding_fingerprint") or {},
-                "embedding_fingerprint_status": str(rebuild_status.get("embedding_fingerprint_status") or "unknown"),
-                "auto_save": bool(self._cfg("advanced.enable_auto_save", True)),
-                "relation_vectors_enabled": bool(self.relation_vectors_enabled),
-                "vector_pools": vector_pools_status,
-                "vector_pools_ready": bool(vector_pools_status.get("ready", False)),
-                "vector_pools_effective_mode": str(vector_pools_status.get("effective_mode", "single")),
-                "runtime_ready": self.is_runtime_ready(),
-                "embedding_degraded": bool(degraded.get("active", False)),
-                "embedding_degraded_reason": str(degraded.get("reason", "") or ""),
-                "embedding_degraded_since": degraded.get("since"),
-                "embedding_last_check": degraded.get("last_check"),
-                "paragraph_vector_backfill_pending": int(backfill_counts.get("pending", 0) or 0),
-                "paragraph_vector_backfill_running": int(backfill_counts.get("running", 0) or 0),
-                "paragraph_vector_backfill_failed": int(backfill_counts.get("failed", 0) or 0),
-                "paragraph_vector_backfill_done": int(backfill_counts.get("done", 0) or 0),
-            }
-
-        if act in {"self_check", "refresh_self_check"}:
-            report = await self._refresh_runtime_self_check(
-                sample_text=str(kwargs.get("sample_text", "") or "A_Memorix runtime self check")
-            )
-            checked_at = float(report.get("checked_at") or time.time())
-            dimension_mismatch = self._apply_self_check_dimension_result(report)
-            if dimension_mismatch:
-                self._set_embedding_degraded(active=True, reason=dimension_mismatch, checked_at=checked_at)
-            elif bool(report.get("ok", False)):
-                self._set_embedding_degraded(active=False, checked_at=checked_at)
-            elif self._embedding_fallback_enabled():
-                self._set_embedding_degraded(
-                    active=True,
-                    reason=str(report.get("message", "runtime self-check failed") or "runtime self-check failed"),
-                    checked_at=checked_at,
-                )
-            return {"success": bool(report.get("ok", False)), "report": report}
-
-        if act == "set_auto_save":
-            enabled = bool(kwargs.get("enabled", False))
-            self._set_cfg("advanced.enable_auto_save", enabled)
-            return {"success": True, "auto_save": enabled}
-
-        if act == "recover_embedding":
-            result = await self._recover_embedding_once(
-                sample_text=str(kwargs.get("sample_text", "") or "A_Memorix runtime self check")
-            )
-            result["embedding_degraded"] = self._is_embedding_degraded()
-            result["embedding_state"] = self._embedding_degraded_snapshot()
-            result["backfill_counts"] = self._paragraph_vector_backfill_counts()
-            return result
-
-        if act == "rebuild_all_vectors":
-            include_relations = kwargs.get("include_relations")
-            result = await self._rebuild_all_vectors(
-                batch_size=self._optional_int(kwargs.get("batch_size")),
-                include_relations=include_relations if isinstance(include_relations, bool) else None,
-                dry_run=bool(kwargs.get("dry_run", False)),
-            )
-            result["embedding_degraded"] = self._is_embedding_degraded()
-            result["backfill_counts"] = self._paragraph_vector_backfill_counts()
-            return result
-
-        if act == "paragraph_backfill_once":
-            result = await self._run_paragraph_backfill_once(
-                limit=self._optional_int(kwargs.get("limit")),
-                max_retry=self._optional_int(kwargs.get("max_retry")),
-                trigger="manual",
-            )
-            result["embedding_degraded"] = self._is_embedding_degraded()
-            result["backfill_counts"] = self._paragraph_vector_backfill_counts()
-            return result
-
-        return {"success": False, "error": f"不支持的 runtime action: {act}"}
+        return await self._admin_handlers["runtime"].handle(action, **kwargs)
 
     async def memory_import_admin(self, *, action: str, **kwargs) -> Dict[str, Any]:
         return await self._admin_handlers["import"].handle(action, **kwargs)
