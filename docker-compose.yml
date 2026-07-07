@@ -39,6 +39,7 @@ services:
       - ./src:/MaiMBot/src # 源码目录（宿主机修改即时生效，无需重建镜像）
       - ./prompts:/MaiMBot/prompts # 提示词目录（宿主机修改即时生效，无需重建镜像）
       - ./agents:/MaiMBot/agents # 智能体配置目录（Markdown Frontmatter格式）
+      - ./lab:/MaiMBot/lab # 实验性原型（宿主机修改即时生效，无需重建镜像）
 
       - ./pyproject.toml:/MaiMBot/pyproject.toml:ro # 主程序版本号（宿主机更新即时反映）
       - ./bot.py:/MaiMBot/bot.py:ro # 主入口脚本

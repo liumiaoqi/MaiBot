@@ -228,19 +228,13 @@ class SDKMemoryKernel:
             "finished_at": None,
             "updated_at": None,
         }
-        self._background_tasks: Dict[str, asyncio.Task] = {}
-        self._background_lock = asyncio.Lock()
-        self._background_stopping = False
+        self._background_scheduler: Optional[Any] = None
         self._active_person_timestamps: Dict[str, float] = {}
-        self._embedding_degraded: Dict[str, Any] = {
-            "active": False,
-            "reason": "",
-            "since": None,
-            "last_check": None,
-        }
+        self._embedding_health_service: Optional[Any] = None
         self._current_effective_filter_cache: Dict[str, Any] = {"checked_at": 0.0, "needed": False}
         self._feedback_classifier: Optional[LLMServiceClient] = None
         self._fuzzy_modify_planner: Optional[LLMServiceClient] = None
+        self._session_info_port: Optional[Any] = None
 
     def _cfg(self, key: str, default: Any = None) -> Any:
         current: Any = self.config
@@ -1015,43 +1009,19 @@ class SDKMemoryKernel:
         return deleted
 
     def _is_embedding_degraded(self) -> bool:
-        return bool(self._embedding_degraded.get("active", False))
+        if self._embedding_health_service is None:
+            return False
+        return self._embedding_health_service.is_degraded
 
     def _embedding_degraded_snapshot(self) -> Dict[str, Any]:
-        return {
-            "active": bool(self._embedding_degraded.get("active", False)),
-            "reason": str(self._embedding_degraded.get("reason", "") or ""),
-            "since": self._embedding_degraded.get("since"),
-            "last_check": self._embedding_degraded.get("last_check"),
-        }
+        if self._embedding_health_service is None:
+            return {"active": False, "reason": "", "since": None, "last_check": None}
+        return self._embedding_health_service.snapshot()
 
     def _set_embedding_degraded(self, *, active: bool, reason: str = "", checked_at: Optional[float] = None) -> None:
-        now = float(checked_at or time.time())
-        prev = self._embedding_degraded_snapshot()
-        if active:
-            since = prev.get("since") if bool(prev.get("active", False)) else now
-            self._embedding_degraded = {
-                "active": True,
-                "reason": str(reason or "").strip(),
-                "since": since,
-                "last_check": now,
-            }
-        else:
-            self._embedding_degraded = {
-                "active": False,
-                "reason": "",
-                "since": None,
-                "last_check": now,
-            }
-        if bool(prev.get("active", False)) != bool(active):
-            if active:
-                logger.warning(
-                    "embedding 进入降级态，将启用 sparse-only 与 metadata-only 写入回退: "
-                    f"reason={self._embedding_degraded.get('reason', '')}"
-                )
-            else:
-                logger.info("embedding 已恢复，退出降级态")
-        self._apply_runtime_sparse_mode()
+        if self._embedding_health_service is not None:
+            self._embedding_health_service.set_degraded(active=active, reason=reason, checked_at=checked_at)
+            self._apply_runtime_sparse_mode()
 
     def _apply_runtime_sparse_mode(self) -> None:
         retriever = self.retriever
@@ -1074,7 +1044,8 @@ class SDKMemoryKernel:
         )
         self._runtime_facade._runtime_self_check_report = dict(report)
         checked_at = float(report.get("checked_at") or time.time())
-        self._embedding_degraded["last_check"] = checked_at
+        if self._embedding_health_service is not None:
+            self._embedding_health_service.update_last_check(checked_at)
         return report
 
     def _mark_startup_self_check_deferred(self) -> None:
@@ -1085,24 +1056,17 @@ class SDKMemoryKernel:
         )
         requested_dimension = self._current_embedding_status_dimension()
         vector_store_dimension = int(getattr(self.vector_store, "dimension", 0) or 0)
-        degraded = self._embedding_degraded_snapshot()
-        is_degraded = bool(degraded.get("active", False))
-        self._runtime_facade._runtime_self_check_report = {
-            "ok": not is_degraded,
-            "code": "startup_self_check_deferred_degraded" if is_degraded else "startup_self_check_deferred",
-            "message": str(degraded.get("reason", "") or "").strip()
-            or "启动阶段已跳过真实 embedding encode 自检，将由后台探测或手动 self_check 执行",
-            "configured_dimension": configured_dimension,
-            "requested_dimension": requested_dimension,
-            "vector_store_dimension": vector_store_dimension,
-            "detected_dimension": requested_dimension,
-            "encoded_dimension": 0,
-            "elapsed_ms": 0.0,
-            "sample_text": "",
-            "checked_at": None,
-        }
+        if self._embedding_health_service is not None:
+            self._embedding_health_service.mark_startup_self_check_deferred(
+                configured_dimension=configured_dimension,
+                requested_dimension=requested_dimension,
+                vector_store_dimension=vector_store_dimension,
+            )
+            self._runtime_facade._runtime_self_check_report = self._embedding_health_service.runtime_self_check_report
 
     def _is_startup_self_check_deferred(self) -> bool:
+        if self._embedding_health_service is not None:
+            return self._embedding_health_service.is_startup_self_check_deferred()
         report = self._runtime_facade._runtime_self_check_report
         code = str(report.get("code", "") or "") if isinstance(report, dict) else ""
         return code in {"startup_self_check_deferred", "startup_self_check_deferred_degraded"}
@@ -2212,6 +2176,14 @@ class SDKMemoryKernel:
         provisional_dimension = stored_dimension or self.embedding_dimension
         self.embedding_dimension = int(provisional_dimension)
 
+        from .config.vector_pool_config import VectorPoolConfig
+        from .services.embedding_health import EmbeddingHealthService
+        from .services.background_scheduler import BackgroundTaskScheduler
+        self._embedding_health_service = EmbeddingHealthService(
+            vector_pool_config=VectorPoolConfig.from_config(self.config),
+        )
+        self._background_scheduler = BackgroundTaskScheduler()
+
         matrix_format = str(self._cfg("graph.sparse_matrix_format", "csr") or "csr").strip().lower()
         graph_format = SparseMatrixFormat.CSC if matrix_format == "csc" else SparseMatrixFormat.CSR
 
@@ -2315,14 +2287,8 @@ class SDKMemoryKernel:
             self._initialized = False
             self._request_dedup_tasks.clear()
             self._runtime_facade._runtime_self_check_report = {}
-            self._background_tasks.clear()
             self._active_person_timestamps.clear()
-            self._embedding_degraded = {
-                "active": False,
-                "reason": "",
-                "since": None,
-                "last_check": None,
-            }
+
 
     async def execute_request_with_dedup(
         self,
@@ -3036,7 +3002,7 @@ class SDKMemoryKernel:
             self._dual_vector_pools_config_enabled()
             and not self._dual_vector_pools_enabled()
             and not self._dual_vector_auto_migration_attempted
-            and not self._background_stopping
+            and not self._background_scheduler.stopping
         )
 
     def _normalize_dual_vector_auto_migration_progress(
@@ -3995,32 +3961,30 @@ class SDKMemoryKernel:
             self.sparse_index.ensure_loaded()
 
     async def _start_background_tasks(self) -> None:
-        async with self._background_lock:
-            self._background_stopping = False
-            self._ensure_background_task("auto_save", self._auto_save_loop)
-            self._ensure_background_task("episode_pending", self._episode_pending_loop)
-            self._ensure_background_task("embedding_probe", self._embedding_probe_loop)
-            self._ensure_background_task("paragraph_vector_backfill", self._paragraph_vector_backfill_loop)
-            self._ensure_background_task("memory_maintenance", self._memory_maintenance_loop)
-            self._ensure_background_task("person_profile_refresh", self._person_profile_refresh_loop)
-            self._ensure_background_task("person_profile_refresh_queue", self._person_profile_refresh_queue_loop)
-            self._ensure_background_task("feedback_correction", self._feedback_correction_loop)
-            self._ensure_background_task("feedback_correction_reconcile", self._feedback_correction_reconcile_loop)
-            if self._should_start_dual_vector_auto_migration():
-                self._ensure_background_task("dual_vector_auto_migration", self._dual_vector_auto_migration_loop)
+        registrations = {
+            "auto_save": self._auto_save_loop,
+            "episode_pending": self._episode_pending_loop,
+            "embedding_probe": self._embedding_probe_loop,
+            "paragraph_vector_backfill": self._paragraph_vector_backfill_loop,
+            "memory_maintenance": self._memory_maintenance_loop,
+            "person_profile_refresh": self._person_profile_refresh_loop,
+            "person_profile_refresh_queue": self._person_profile_refresh_queue_loop,
+            "feedback_correction": self._feedback_correction_loop,
+            "feedback_correction_reconcile": self._feedback_correction_reconcile_loop,
+        }
+        if self._should_start_dual_vector_auto_migration():
+            registrations["dual_vector_auto_migration"] = self._dual_vector_auto_migration_loop
+        await self._background_scheduler.start_all(registrations)
 
     def _ensure_background_task(
         self,
         name: str,
         factory: Callable[[], Coroutine[Any, Any, None]],
     ) -> None:
-        task = self._background_tasks.get(name)
-        if task is not None and not task.done():
-            return
-        self._background_tasks[name] = asyncio.create_task(factory(), name=f"A_Memorix.{name}")
+        self._background_scheduler.ensure_task(name, factory)
 
     async def _sleep_background(self, seconds: float) -> None:
-        await asyncio.sleep(max(0.0, float(seconds or 0.0)))
+        await self._background_scheduler.sleep(seconds)
 
     async def _dual_vector_auto_migration_loop(self) -> None:
         if not self._should_start_dual_vector_auto_migration():
@@ -4047,7 +4011,7 @@ class SDKMemoryKernel:
         )
         try:
             await self._sleep_background(DUAL_VECTOR_AUTO_MIGRATION_INITIAL_DELAY_SECONDS)
-            if self._background_stopping or self._dual_vector_pools_enabled():
+            if self._background_scheduler.stopping or self._dual_vector_pools_enabled():
                 finished_at = time.time()
                 success = self._dual_vector_pools_enabled()
                 progress = self._normalize_dual_vector_auto_migration_progress(
@@ -4071,7 +4035,7 @@ class SDKMemoryKernel:
             retry_delays = [0.0, *DUAL_VECTOR_AUTO_MIGRATION_LOCK_RETRY_DELAYS_SECONDS]
             result: Dict[str, Any] = {}
             for index, delay in enumerate(retry_delays):
-                if self._background_stopping or self._dual_vector_pools_enabled():
+                if self._background_scheduler.stopping or self._dual_vector_pools_enabled():
                     break
                 if delay > 0:
                     self._update_dual_vector_auto_migration_stage("retry_delay", retry_index=index, delay_seconds=delay)
@@ -4168,26 +4132,14 @@ class SDKMemoryKernel:
             )
 
     async def _stop_background_tasks(self) -> None:
-        async with self._background_lock:
-            self._background_stopping = True
-            tasks = [task for task in self._background_tasks.values() if task is not None and not task.done()]
-            for task in tasks:
-                task.cancel()
-            for task in tasks:
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
-                except Exception as exc:
-                    logger.warning(f"后台任务退出异常: {exc}")
-            self._background_tasks.clear()
+        await self._background_scheduler.stop_all()
 
     async def _auto_save_loop(self) -> None:
         try:
-            while not self._background_stopping:
+            while not self._background_scheduler.stopping:
                 interval_minutes = max(1.0, float(self._cfg("advanced.auto_save_interval_minutes", 5) or 5))
                 await asyncio.sleep(interval_minutes * 60.0)
-                if self._background_stopping:
+                if self._background_scheduler.stopping:
                     break
                 if bool(self._cfg("advanced.enable_auto_save", True)):
                     self._persist()
@@ -4198,9 +4150,9 @@ class SDKMemoryKernel:
 
     async def _episode_pending_loop(self) -> None:
         try:
-            while not self._background_stopping:
+            while not self._background_scheduler.stopping:
                 await asyncio.sleep(60.0)
-                if self._background_stopping:
+                if self._background_scheduler.stopping:
                     break
                 if not bool(self._cfg("episode.enabled", True)):
                     continue
@@ -4217,9 +4169,9 @@ class SDKMemoryKernel:
 
     async def _embedding_probe_loop(self) -> None:
         try:
-            while not self._background_stopping:
+            while not self._background_scheduler.stopping:
                 await asyncio.sleep(self._embedding_probe_interval_seconds())
-                if self._background_stopping:
+                if self._background_scheduler.stopping:
                     break
                 startup_deferred = self._is_startup_self_check_deferred()
                 if not self._embedding_fallback_enabled() and not startup_deferred:
@@ -4237,9 +4189,9 @@ class SDKMemoryKernel:
 
     async def _paragraph_vector_backfill_loop(self) -> None:
         try:
-            while not self._background_stopping:
+            while not self._background_scheduler.stopping:
                 await asyncio.sleep(self._paragraph_vector_backfill_interval_seconds())
-                if self._background_stopping:
+                if self._background_scheduler.stopping:
                     break
                 if not self._paragraph_vector_backfill_enabled():
                     continue
@@ -4257,10 +4209,10 @@ class SDKMemoryKernel:
 
     async def _person_profile_refresh_loop(self) -> None:
         try:
-            while not self._background_stopping:
+            while not self._background_scheduler.stopping:
                 interval_minutes = max(1.0, float(self._cfg("person_profile.refresh_interval_minutes", 30) or 30))
                 await asyncio.sleep(max(60.0, interval_minutes * 60.0))
-                if self._background_stopping:
+                if self._background_scheduler.stopping:
                     break
                 if not bool(self._cfg("person_profile.enabled", True)):
                     continue
@@ -4290,9 +4242,9 @@ class SDKMemoryKernel:
 
     async def _person_profile_refresh_queue_loop(self) -> None:
         try:
-            while not self._background_stopping:
+            while not self._background_scheduler.stopping:
                 await asyncio.sleep(self._person_profile_refresh_queue_interval_seconds())
-                if self._background_stopping:
+                if self._background_scheduler.stopping:
                     break
                 if not bool(self._cfg("person_profile.enabled", True)):
                     continue
@@ -5029,9 +4981,9 @@ class SDKMemoryKernel:
 
     async def _feedback_correction_reconcile_loop(self) -> None:
         try:
-            while not self._background_stopping:
+            while not self._background_scheduler.stopping:
                 await asyncio.sleep(self._feedback_cfg_reconcile_interval_seconds())
-                if self._background_stopping:
+                if self._background_scheduler.stopping:
                     break
                 if self.metadata_store is None or not self._feedback_cfg_enabled():
                     continue
@@ -6065,7 +6017,7 @@ class SDKMemoryKernel:
 
     async def _feedback_correction_loop(self) -> None:
         try:
-            while not self._background_stopping:
+            while not self._background_scheduler.stopping:
                 interval_seconds = self._feedback_cfg_check_interval_seconds()
                 if not self._feedback_cfg_enabled():
                     await asyncio.sleep(interval_seconds)
@@ -6081,7 +6033,7 @@ class SDKMemoryKernel:
                     await asyncio.sleep(interval_seconds)
                     continue
                 for task in tasks:
-                    if self._background_stopping:
+                    if self._background_scheduler.stopping:
                         break
                     if not isinstance(task, dict):
                         continue
@@ -6094,10 +6046,10 @@ class SDKMemoryKernel:
 
     async def _memory_maintenance_loop(self) -> None:
         try:
-            while not self._background_stopping:
+            while not self._background_scheduler.stopping:
                 interval_hours = max(1.0 / 60.0, float(self._cfg("memory.base_decay_interval_hours", 1.0) or 1.0))
                 await asyncio.sleep(max(60.0, interval_hours * 3600.0))
-                if self._background_stopping:
+                if self._background_scheduler.stopping:
                     break
                 if not bool(self._cfg("memory.enabled", True)):
                     continue
@@ -7699,17 +7651,15 @@ class SDKMemoryKernel:
                 return token[len(prefix):].strip()
         return ""
 
-    @staticmethod
-    def _retrieval_filter_context(*, kind: str, stream_id: str) -> Dict[str, str]:
+    def _retrieval_filter_context(self, *, kind: str, stream_id: str) -> Dict[str, str]:
         stream_token = str(stream_id or "").strip()
         group_id = ""
         user_id = ""
-        if stream_token:
-            from src.chat.message_receive.chat_manager import chat_manager as _cm
-            session = _cm.get_existing_session_by_session_id(stream_token)
-            if session is not None:
-                group_id = session.group_id or ""
-                user_id = session.user_id or ""
+        if stream_token and self._session_info_port is not None:
+            info = self._session_info_port.get_session_info(stream_token)
+            if info is not None:
+                group_id = info.group_id or ""
+                user_id = info.user_id or ""
         return {
             "kind": str(kind or "").strip(),
             "stream_id": stream_token,

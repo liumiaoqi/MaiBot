@@ -67,15 +67,14 @@ WebUI 开发服务固定起到 7999 端口。
 除聊天流创建/注册链路外，业务模块不应自行调用 `SessionUtils.calculate_session_id` 计算资源归属 ID。表达学习、黑话、记忆、WebUI、配置匹配等模块应通过 `chat_manager` 的内部接口，基于 platform、目标 ID 和聊天类型解析已存在的真实聊天流；如果解析不到真实 `ChatSession.session_id`，不要把自行计算的 fallback hash 写入数据库。
 
 # 关于 A_memorix 修改
-如果修改涉及 `src/A_memorix`，请先阅读 `src/A_memorix/MODIFICATION_POLICY.md`。
+A_Memorix 是 MaiBot 的核心记忆子系统，可以自由修改。修改约束仅来自 MaiBot 自身架构原则（核心隔离、Protocol 接口契约），详见 `src/A_memorix/MODIFICATION_POLICY.md`。
 
-# prompt模板、
+# prompt模板
 涉及对prompt模板的修改，要同步修改英文和日文的文件，对齐到中文
 
 默认原则：
-1. `src/A_memorix` 的实现层改动应优先遵守 `src/A_memorix/MODIFICATION_POLICY.md` 中的归属约束。
-2. 不要提交无边界的 `ruff`、格式化、导入整理或大面积实现整理。
-3. 本地实验目录或依赖其运行的测试，除非明确说明并确认，否则不要进入共享历史。
+1. 不要提交无边界的 `ruff`、格式化、导入整理或大面积实现整理。
+2. 本地实验目录或依赖其运行的测试，除非明确说明并确认，否则不要进入共享历史。
 
 # maibot插件开发文档
 https://github.com/Mai-with-u/maibot-plugin-sdk/blob/main/docs/guide.md
