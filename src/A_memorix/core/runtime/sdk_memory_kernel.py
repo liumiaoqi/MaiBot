@@ -209,25 +209,7 @@ class SDKMemoryKernel:
         self._vector_rebuild_lock = asyncio.Lock()
         self._vector_persist_blocked_until_rebuild = False
         self._vector_rebuild_source_dimension: Optional[int] = None
-        self._dual_vector_pools_ready = False
-        self._dual_vector_auto_migration_attempted = False
-        self._dual_vector_auto_migration_status: Dict[str, Any] = {
-            "running": False,
-            "attempted": False,
-            "success": False,
-            "stage": "idle",
-            "progress": {
-                "total": 0,
-                "processed": 0,
-                "percent": 0.0,
-                "elapsed_seconds": 0.0,
-                "estimated_remaining_seconds": None,
-            },
-            "last_error": "",
-            "started_at": None,
-            "finished_at": None,
-            "updated_at": None,
-        }
+        self._vector_pool_manager: Optional[Any] = None
         self._background_scheduler: Optional[Any] = None
         self._active_person_timestamps: Dict[str, float] = {}
         self._embedding_health_service: Optional[Any] = None
@@ -449,6 +431,8 @@ class SDKMemoryKernel:
         return not self.is_chat_enabled(stream_token, group_token, user_token)
 
     def _stored_vector_dimension(self, store: Optional[VectorStore] = None) -> Optional[int]:
+        if self._vector_pool_manager is not None:
+            return self._vector_pool_manager.stored_vector_dimension(store)
         ready_manifest = (
             self._read_dual_vector_ready_manifest()
             if store is None and self._dual_vector_pools_config_enabled()
@@ -479,6 +463,8 @@ class SDKMemoryKernel:
 
     @staticmethod
     def _normalize_embedding_fingerprint(value: Any) -> Optional[Dict[str, Any]]:
+        from .services.vector_pool import VectorPoolManager
+        return VectorPoolManager.normalize_embedding_fingerprint(value)
         if not isinstance(value, dict):
             return None
         hash_value = str(value.get("hash", "") or "").strip()
@@ -489,6 +475,8 @@ class SDKMemoryKernel:
         return payload
 
     def _current_embedding_status_dimension(self) -> int:
+        if self._vector_pool_manager is not None:
+            return self._vector_pool_manager.current_embedding_status_dimension()
         manager = self.embedding_manager
         getter = getattr(manager, "get_requested_dimension", None)
         if callable(getter):
@@ -507,6 +495,8 @@ class SDKMemoryKernel:
         return max(1, int(self._cfg("embedding.dimension", self.embedding_dimension) or self.embedding_dimension))
 
     def _current_embedding_fingerprint(self, *, dimension: Optional[int] = None) -> Optional[Dict[str, Any]]:
+        if self._vector_pool_manager is not None:
+            return self._vector_pool_manager.current_embedding_fingerprint(dimension=dimension)
         manager = self.embedding_manager
         getter = getattr(manager, "get_embedding_fingerprint", None)
         if not callable(getter):
@@ -519,6 +509,8 @@ class SDKMemoryKernel:
             return None
 
     def _stored_embedding_fingerprint(self, store: Optional[VectorStore] = None) -> Optional[Dict[str, Any]]:
+        if self._vector_pool_manager is not None:
+            return self._vector_pool_manager.stored_embedding_fingerprint(store)
         ready_manifest = (
             self._read_dual_vector_ready_manifest()
             if store is None and self._dual_vector_pools_config_enabled()
@@ -546,6 +538,8 @@ class SDKMemoryKernel:
         return self._normalize_embedding_fingerprint(meta.get("embedding_fingerprint"))
 
     def _stamp_missing_embedding_fingerprint_if_dimension_matches(self, store: Optional[VectorStore]) -> bool:
+        if self._vector_pool_manager is not None:
+            return self._vector_pool_manager.stamp_missing_embedding_fingerprint_if_dimension_matches(store)
         if store is None:
             return False
         stored_dimension = self._stored_vector_dimension(store)
@@ -573,6 +567,8 @@ class SDKMemoryKernel:
         *,
         has_stored_vectors: bool,
     ) -> str:
+        from .services.vector_pool import VectorPoolManager
+        return VectorPoolManager.embedding_fingerprint_status(current, stored, has_stored_vectors=has_stored_vectors)
         if not has_stored_vectors:
             return "none"
         if current is None:
@@ -582,6 +578,8 @@ class SDKMemoryKernel:
         return "matched" if str(current.get("hash", "")) == str(stored.get("hash", "")) else "mismatched"
 
     def _stored_vectors_compatible_with_current_embedding(self, store: Optional[VectorStore] = None) -> bool:
+        if self._vector_pool_manager is not None:
+            return self._vector_pool_manager.stored_vectors_compatible_with_current_embedding(store)
         current = self._current_embedding_fingerprint()
         stored = self._stored_embedding_fingerprint(store)
         if current is None:
@@ -596,6 +594,8 @@ class SDKMemoryKernel:
         return str(current.get("hash", "") or "") == str(stored.get("hash", "") or "")
 
     def _vector_mismatch_error(self, *, stored_dimension: int, detected_dimension: int) -> str:
+        if self._vector_pool_manager is not None:
+            return self._vector_pool_manager.vector_mismatch_error(stored_dimension=stored_dimension, detected_dimension=detected_dimension)
         return (
             "检测到现有向量库与当前 embedding 输出维度不一致："
             f"stored={stored_dimension}, encoded={detected_dimension}。"
@@ -604,6 +604,12 @@ class SDKMemoryKernel:
         )
 
     def _vector_rebuild_status(self) -> Dict[str, Any]:
+        if self._vector_pool_manager is not None:
+            return self._vector_pool_manager.vector_rebuild_status(
+                vector_rebuild_lock_locked=self._vector_rebuild_lock.locked(),
+                vector_persist_blocked=self._vector_persist_blocked_until_rebuild,
+                vector_rebuild_source_dimension=self._vector_rebuild_source_dimension,
+            )
         if self.vector_store is not None and not self._vector_rebuild_lock.locked():
             self._stamp_missing_embedding_fingerprint_if_dimension_matches(self.vector_store)
         stored_dimension = self._stored_vector_dimension()
@@ -679,30 +685,46 @@ class SDKMemoryKernel:
         return max(1, int(self._cfg("embedding.paragraph_vector_backfill.max_retry", 5) or 5))
 
     def _vector_pool_mode(self) -> str:
+        if self._vector_pool_manager is not None:
+            return self._vector_pool_manager.config.mode
         if self._embedding_health_service is not None:
             return self._embedding_health_service.config.mode
         mode = str(self._cfg("retrieval.vector_pools.mode", "dual") or "dual").strip().lower()
         return mode if mode in {"single", "dual"} else "single"
 
     def _dual_vector_pools_config_enabled(self) -> bool:
+        if self._vector_pool_manager is not None:
+            return self._vector_pool_manager.config.config_enabled
         return self._vector_pool_mode() == "dual"
 
     def _dual_vector_pools_enabled(self) -> bool:
-        return self._dual_vector_pools_config_enabled() and self._dual_vector_pools_ready
+        if self._vector_pool_manager is not None:
+            return self._vector_pool_manager.dual_pools_enabled
+        return self._dual_vector_pools_config_enabled() and self._vector_pool_manager.dual_pools_ready
 
     def _vectors_root(self) -> Path:
+        if self._vector_pool_manager is not None:
+            return self._vector_pool_manager.vectors_root()
         return self.data_dir / "vectors"
 
     def _paragraph_vector_dir(self) -> Path:
+        if self._vector_pool_manager is not None:
+            return self._vector_pool_manager.paragraph_vector_dir()
         return self._vectors_root() / "paragraph"
 
     def _graph_vector_dir(self) -> Path:
+        if self._vector_pool_manager is not None:
+            return self._vector_pool_manager.graph_vector_dir()
         return self._vectors_root() / "graph"
 
     def _dual_vector_ready_manifest_path(self) -> Path:
+        if self._vector_pool_manager is not None:
+            return self._vector_pool_manager.dual_vector_ready_manifest_path()
         return self._vectors_root() / "dual_ready.json"
 
     def _read_dual_vector_ready_manifest(self) -> Optional[Dict[str, Any]]:
+        if self._vector_pool_manager is not None:
+            return self._vector_pool_manager.read_dual_vector_ready_manifest()
         path = self._dual_vector_ready_manifest_path()
         if not path.exists():
             return None
@@ -714,6 +736,8 @@ class SDKMemoryKernel:
         return payload if isinstance(payload, dict) else None
 
     def _dual_vector_ready(self, *, expected_dimension: Optional[int] = None) -> bool:
+        if self._vector_pool_manager is not None:
+            return self._vector_pool_manager.dual_vector_ready(expected_dimension=expected_dimension)
         manifest = self._read_dual_vector_ready_manifest()
         if not manifest or manifest.get("status") != "ready":
             return False
@@ -749,6 +773,8 @@ class SDKMemoryKernel:
         stats: Dict[str, Dict[str, int]],
         migration_stats: Dict[str, Dict[str, int]],
     ) -> None:
+        if self._vector_pool_manager is not None:
+            return self._vector_pool_manager.write_dual_vector_ready_manifest(stats=stats, migration_stats=migration_stats)
         current_dimension = self._current_embedding_status_dimension()
         embedding_fingerprint = self._current_embedding_fingerprint(dimension=current_dimension)
         payload = {
@@ -772,12 +798,19 @@ class SDKMemoryKernel:
         tmp_path.replace(path)
 
     def _remove_dual_vector_ready_manifest(self) -> None:
+        if self._vector_pool_manager is not None:
+            return self._vector_pool_manager.remove_dual_vector_ready_manifest()
         try:
             self._dual_vector_ready_manifest_path().unlink(missing_ok=True)
         except Exception as exc:
             logger.warning(f"删除双池 ready manifest 失败: {exc}")
 
     def _refresh_dual_vector_ready_manifest_from_stores(self) -> None:
+        if self._vector_pool_manager is not None:
+            self._vector_pool_manager.paragraph_vector_store = self.paragraph_vector_store
+            self._vector_pool_manager.graph_vector_store = self.graph_vector_store
+            self._vector_pool_manager.metadata_store = self.metadata_store
+            return self._vector_pool_manager.refresh_dual_vector_ready_manifest_from_stores()
         paragraph_count = int(getattr(self.paragraph_vector_store, "num_vectors", 0) or 0)
         graph_count = int(getattr(self.graph_vector_store, "num_vectors", 0) or 0)
         entity_count = graph_count
@@ -802,6 +835,9 @@ class SDKMemoryKernel:
         self._write_dual_vector_ready_manifest(stats=stats, migration_stats=migration_stats)
 
     def _clear_legacy_single_vector_files_after_dual_ready(self) -> None:
+        if self._vector_pool_manager is not None:
+            self._vector_pool_manager.vector_store = self.vector_store
+            return self._vector_pool_manager.clear_legacy_single_vector_files_after_dual_ready()
         root = self._vectors_root()
         for filename in ("vectors.bin", "vectors_ids.bin", "vectors.index", "vectors_metadata.pkl"):
             try:
@@ -812,6 +848,8 @@ class SDKMemoryKernel:
             self.vector_store = self._make_vector_store(root)
 
     def _prepare_dual_vector_build_dirs(self) -> tuple[Path, Path, Path]:
+        if self._vector_pool_manager is not None:
+            return self._vector_pool_manager.prepare_dual_vector_build_dirs()
         build_root = self._vectors_root() / f"dual_build_{int(time.time() * 1000)}"
         if build_root.exists():
             shutil.rmtree(build_root, ignore_errors=True)
@@ -822,6 +860,8 @@ class SDKMemoryKernel:
         return build_root, paragraph_dir, graph_dir
 
     def _activate_dual_vector_build_dirs(self, build_root: Path) -> None:
+        if self._vector_pool_manager is not None:
+            return self._vector_pool_manager.activate_dual_vector_build_dirs(build_root)
         paragraph_src = build_root / "paragraph"
         graph_src = build_root / "graph"
         if not paragraph_src.exists() or not graph_src.exists():
@@ -854,6 +894,8 @@ class SDKMemoryKernel:
             raise
 
     def _cleanup_stale_dual_vector_build_dirs(self) -> None:
+        if self._vector_pool_manager is not None:
+            return self._vector_pool_manager.cleanup_stale_dual_vector_build_dirs()
         vectors_root = self._vectors_root()
         if not vectors_root.exists():
             return
@@ -864,6 +906,8 @@ class SDKMemoryKernel:
                 shutil.rmtree(child, ignore_errors=True)
 
     def _make_vector_store(self, data_dir: Path, *, dimension: Optional[int] = None) -> VectorStore:
+        if self._vector_pool_manager is not None:
+            return self._vector_pool_manager.make_vector_store(data_dir, dimension=dimension)
         return VectorStore(
             dimension=max(1, int(dimension or self.embedding_dimension)),
             quantization_type=QuantizationType.INT8,
@@ -871,18 +915,30 @@ class SDKMemoryKernel:
         )
 
     def _save_vector_store(self, store: Optional[VectorStore]) -> None:
+        if self._vector_pool_manager is not None:
+            return self._vector_pool_manager.save_vector_store(store)
         if store is None:
             return
         store.save(embedding_fingerprint=self._current_embedding_fingerprint())
 
     def _reload_dual_vector_stores_from_disk(self) -> bool:
+        if self._vector_pool_manager is not None:
+            self._vector_pool_manager.vector_store = self.vector_store
+            self._vector_pool_manager.paragraph_vector_store = self.paragraph_vector_store
+            self._vector_pool_manager.graph_vector_store = self.graph_vector_store
+            self._vector_pool_manager.metadata_store = self.metadata_store
+            result = self._vector_pool_manager.reload_dual_vector_stores_from_disk()
+            self.vector_store = self._vector_pool_manager.vector_store
+            self.paragraph_vector_store = self._vector_pool_manager.paragraph_vector_store
+            self.graph_vector_store = self._vector_pool_manager.graph_vector_store
+            return result
         current_dimension = self._current_embedding_status_dimension()
         if not self._dual_vector_ready(expected_dimension=current_dimension):
             self._try_recover_dual_ready_manifest()
         if not self._dual_vector_ready(expected_dimension=current_dimension):
             self.paragraph_vector_store = self._make_vector_store(self._paragraph_vector_dir())
             self.graph_vector_store = self._make_vector_store(self._graph_vector_dir())
-            self._dual_vector_pools_ready = False
+            self._vector_pool_manager.dual_pools_ready = False
             return False
         try:
             paragraph_store = self._make_vector_store(self._paragraph_vector_dir())
@@ -895,14 +951,17 @@ class SDKMemoryKernel:
                 graph_store.warmup_index(force_train=True)
         except Exception as exc:
             logger.warning(f"加载双池向量失败，将暂时回退单池: {exc}")
-            self._dual_vector_pools_ready = False
+            self._vector_pool_manager.dual_pools_ready = False
             return False
         self.paragraph_vector_store = paragraph_store
         self.graph_vector_store = graph_store
-        self._dual_vector_pools_ready = True
+        self._vector_pool_manager.dual_pools_ready = True
         return True
 
     def _try_recover_dual_ready_manifest(self) -> bool:
+        if self._vector_pool_manager is not None:
+            self._vector_pool_manager.metadata_store = self.metadata_store
+            return self._vector_pool_manager.try_recover_dual_ready_manifest()
         if not self._dual_vector_pools_config_enabled() or self.metadata_store is None:
             return False
         if self._dual_vector_ready_manifest_path().exists():
@@ -959,6 +1018,8 @@ class SDKMemoryKernel:
         return True
 
     def _drop_dual_build_root(self, build_root: Optional[Path]) -> None:
+        if self._vector_pool_manager is not None:
+            return self._vector_pool_manager.drop_dual_build_root(build_root)
         if build_root is None:
             return
         try:
@@ -986,14 +1047,20 @@ class SDKMemoryKernel:
 
     @staticmethod
     def _graph_vector_id(item_type: str, hash_value: str) -> str:
+        from .services.vector_pool import VectorPoolManager
+        return VectorPoolManager.graph_vector_id(item_type, hash_value)
         return f"{str(item_type or '').strip()}:{str(hash_value or '').strip()}"
 
     def _paragraph_store(self) -> Optional[VectorStore]:
+        if self._vector_pool_manager is not None:
+            return self._vector_pool_manager.paragraph_store()
         if self._dual_vector_pools_enabled():
             return self.paragraph_vector_store or self.vector_store
         return self.vector_store
 
     def _graph_vector_store(self) -> Optional[VectorStore]:
+        if self._vector_pool_manager is not None:
+            return self._vector_pool_manager.graph_vector_store_resolved()
         if self._dual_vector_pools_enabled():
             return self.graph_vector_store or self.vector_store
         return self.vector_store
@@ -1005,6 +1072,13 @@ class SDKMemoryKernel:
         entity_hashes: Sequence[str] = (),
         relation_hashes: Sequence[str] = (),
     ) -> int:
+        if self._vector_pool_manager is not None:
+            return self._vector_pool_manager.delete_vectors_by_type(
+                paragraph_hashes=paragraph_hashes,
+                entity_hashes=entity_hashes,
+                relation_hashes=relation_hashes,
+                merge_tokens_fn=self._merge_tokens,
+            )
         deleted = 0
         legacy_ids = self._merge_tokens(paragraph_hashes, entity_hashes, relation_hashes)
         if self.vector_store is not None and legacy_ids:
@@ -1296,6 +1370,9 @@ class SDKMemoryKernel:
         }
 
     def _count_vector_rebuild_targets(self) -> Dict[str, int]:
+        if self._vector_pool_manager is not None:
+            self._vector_pool_manager.metadata_store = self.metadata_store
+            return self._vector_pool_manager.count_vector_rebuild_targets()
         if self.metadata_store is None:
             return {"paragraphs": 0, "entities": 0, "relations": 0}
         paragraph_where = self._active_row_filter_sql("paragraphs")
@@ -1804,7 +1881,7 @@ class SDKMemoryKernel:
             except Exception as exc:
                 logger.warning(f"加载旧单池向量用于双池迁移失败，将回退 embedding 重建: {exc}")
         if not dual_mode:
-            self._dual_vector_pools_ready = False
+            self._vector_pool_manager.dual_pools_ready = False
             self._remove_dual_vector_ready_manifest()
             self.vector_store = self._make_vector_store(self._vectors_root())
             self.vector_store.clear()
@@ -2048,7 +2125,7 @@ class SDKMemoryKernel:
                         self._clear_legacy_single_vector_files_after_dual_ready()
                 except Exception as exc:
                     activation_ok = False
-                    self._dual_vector_pools_ready = False
+                    self._vector_pool_manager.dual_pools_ready = False
                     errors.append(f"dual_pool_activation:{str(exc)[:500]}")
                     logger.warning(f"双池临时构建目录切换失败，保留原有向量池: {exc}")
                     self._drop_dual_build_root(dual_build_root)
@@ -2206,15 +2283,24 @@ class SDKMemoryKernel:
         self._feedback_config = FeedbackConfig.from_global_config()
         self._fuzzy_modify_config = FuzzyModifyConfig.from_global_config()
 
+        from .services.vector_pool import VectorPoolManager
+        self._vector_pool_manager = VectorPoolManager(
+            config=VectorPoolConfig.from_config(self.config),
+            data_dir=self.data_dir,
+            embedding_dimension=self.embedding_dimension,
+            embedding_manager=self.embedding_manager,
+            relation_vectors_enabled=self.relation_vectors_enabled,
+        )
+
         matrix_format = str(self._cfg("graph.sparse_matrix_format", "csr") or "csr").strip().lower()
         graph_format = SparseMatrixFormat.CSC if matrix_format == "csc" else SparseMatrixFormat.CSR
 
-        self.vector_store = self._make_vector_store(self._vectors_root(), dimension=provisional_dimension)
-        self.paragraph_vector_store = self._make_vector_store(
+        self.vector_store = self._vector_pool_manager.make_vector_store(self._vectors_root(), dimension=provisional_dimension)
+        self.paragraph_vector_store = self._vector_pool_manager.make_vector_store(
             self._paragraph_vector_dir(),
             dimension=provisional_dimension,
         )
-        self.graph_vector_store = self._make_vector_store(
+        self.graph_vector_store = self._vector_pool_manager.make_vector_store(
             self._graph_vector_dir(),
             dimension=provisional_dimension,
         )
@@ -2251,11 +2337,18 @@ class SDKMemoryKernel:
         if not skip_vector_load and self.vector_store.has_data():
             self.vector_store.load()
             self.vector_store.warmup_index(force_train=True)
-        self._dual_vector_pools_ready = False
+        self._vector_pool_manager.dual_pools_ready = False
         if self._dual_vector_pools_config_enabled():
-            self._cleanup_stale_dual_vector_build_dirs()
-            if not self._reload_dual_vector_stores_from_disk():
+            self._vector_pool_manager.cleanup_stale_dual_vector_build_dirs()
+            self._vector_pool_manager.vector_store = self.vector_store
+            self._vector_pool_manager.paragraph_vector_store = self.paragraph_vector_store
+            self._vector_pool_manager.graph_vector_store = self.graph_vector_store
+            self._vector_pool_manager.metadata_store = self.metadata_store
+            if not self._vector_pool_manager.reload_dual_vector_stores_from_disk():
                 logger.warning("双池配置已开启，但 ready manifest 不可用，当前按单池检索与写入运行")
+            self.vector_store = self._vector_pool_manager.vector_store
+            self.paragraph_vector_store = self._vector_pool_manager.paragraph_vector_store
+            self.graph_vector_store = self._vector_pool_manager.graph_vector_store
 
         self._refresh_relation_write_service()
 
@@ -2986,6 +3079,8 @@ class SDKMemoryKernel:
 
     @staticmethod
     def _vector_store_snapshot(store: Optional[VectorStore]) -> Dict[str, Any]:
+        from .services.vector_pool import VectorPoolManager
+        return VectorPoolManager.vector_store_snapshot(store)
         if store is None:
             return {
                 "available": False,
@@ -3006,6 +3101,8 @@ class SDKMemoryKernel:
         }
 
     def _vector_pools_status(self) -> Dict[str, Any]:
+        if self._vector_pool_manager is not None:
+            return self._vector_pool_manager.vector_pools_status()
         configured_mode = self._vector_pool_mode()
         ready = self._dual_vector_pools_enabled()
         return {
@@ -3016,14 +3113,18 @@ class SDKMemoryKernel:
             "paragraph_pool": self._vector_store_snapshot(self.paragraph_vector_store),
             "graph_pool": self._vector_store_snapshot(self.graph_vector_store),
             "ready_manifest": str(self._dual_vector_ready_manifest_path()),
-            "auto_migration": dict(self._dual_vector_auto_migration_status),
+            "auto_migration": dict(self._vector_pool_manager._dual_vector_auto_migration_status),
         }
 
     def _should_start_dual_vector_auto_migration(self) -> bool:
+        if self._vector_pool_manager is not None:
+            return self._vector_pool_manager.should_start_dual_vector_auto_migration(
+                background_stopping=self._background_scheduler.stopping,
+            )
         return (
             self._dual_vector_pools_config_enabled()
             and not self._dual_vector_pools_enabled()
-            and not self._dual_vector_auto_migration_attempted
+            and not self._vector_pool_manager.auto_migration_attempted
             and not self._background_scheduler.stopping
         )
 
@@ -3036,9 +3137,13 @@ class SDKMemoryKernel:
         completed: bool = False,
         success: bool = False,
     ) -> Dict[str, Any]:
+        if self._vector_pool_manager is not None:
+            return self._vector_pool_manager.normalize_dual_vector_auto_migration_progress(
+                progress, now=now, explicit_processed=explicit_processed, completed=completed, success=success,
+            )
         payload: Dict[str, Any] = dict(progress or {})
         now_ts = float(now if now is not None else time.time())
-        started_at = self._dual_vector_auto_migration_status.get("started_at")
+        started_at = self._vector_pool_manager._dual_vector_auto_migration_status.get("started_at")
         elapsed_seconds = 0.0
         if isinstance(started_at, (int, float)):
             elapsed_seconds = max(0.0, now_ts - float(started_at))
@@ -3104,18 +3209,20 @@ class SDKMemoryKernel:
         return payload
 
     def _update_dual_vector_auto_migration_stage(self, stage: str, **progress: Any) -> None:
-        if not bool(self._dual_vector_auto_migration_status.get("running", False)):
+        if self._vector_pool_manager is not None:
+            return self._vector_pool_manager.update_dual_vector_auto_migration_stage(stage, **progress)
+        if not bool(self._vector_pool_manager._dual_vector_auto_migration_status.get("running", False)):
             return
         now_ts = time.time()
         explicit_processed = "processed" in progress
-        payload = dict(self._dual_vector_auto_migration_status.get("progress") or {})
+        payload = dict(self._vector_pool_manager._dual_vector_auto_migration_status.get("progress") or {})
         payload.update(progress)
         payload = self._normalize_dual_vector_auto_migration_progress(
             payload,
             now=now_ts,
             explicit_processed=explicit_processed,
         )
-        self._dual_vector_auto_migration_status.update(
+        self._vector_pool_manager._dual_vector_auto_migration_status.update(
             {
                 "stage": str(stage or "unknown"),
                 "progress": payload,
@@ -4012,9 +4119,9 @@ class SDKMemoryKernel:
         if not self._should_start_dual_vector_auto_migration():
             return
 
-        self._dual_vector_auto_migration_attempted = True
+        self._vector_pool_manager.auto_migration_attempted = True
         started_at = time.time()
-        self._dual_vector_auto_migration_status.update(
+        self._vector_pool_manager._dual_vector_auto_migration_status.update(
             {
                 "running": True,
                 "attempted": True,
@@ -4037,12 +4144,12 @@ class SDKMemoryKernel:
                 finished_at = time.time()
                 success = self._dual_vector_pools_enabled()
                 progress = self._normalize_dual_vector_auto_migration_progress(
-                    self._dual_vector_auto_migration_status.get("progress"),
+                    self._vector_pool_manager._dual_vector_auto_migration_status.get("progress"),
                     now=finished_at,
                     completed=True,
                     success=success,
                 )
-                self._dual_vector_auto_migration_status.update(
+                self._vector_pool_manager._dual_vector_auto_migration_status.update(
                     {
                         "running": False,
                         "success": success,
@@ -4093,7 +4200,7 @@ class SDKMemoryKernel:
                 logger.info("双池后台自动迁移完成，已切换到双池检索")
             finished_at = time.time()
             progress = {
-                **dict(self._dual_vector_auto_migration_status.get("progress") or {}),
+                **dict(self._vector_pool_manager._dual_vector_auto_migration_status.get("progress") or {}),
                 "result": result,
             }
             progress = self._normalize_dual_vector_auto_migration_progress(
@@ -4102,7 +4209,7 @@ class SDKMemoryKernel:
                 completed=True,
                 success=success,
             )
-            self._dual_vector_auto_migration_status.update(
+            self._vector_pool_manager._dual_vector_auto_migration_status.update(
                 {
                     "running": False,
                     "success": success,
@@ -4116,12 +4223,12 @@ class SDKMemoryKernel:
         except asyncio.CancelledError:
             finished_at = time.time()
             progress = self._normalize_dual_vector_auto_migration_progress(
-                self._dual_vector_auto_migration_status.get("progress"),
+                self._vector_pool_manager._dual_vector_auto_migration_status.get("progress"),
                 now=finished_at,
                 completed=True,
                 success=False,
             )
-            self._dual_vector_auto_migration_status.update(
+            self._vector_pool_manager._dual_vector_auto_migration_status.update(
                 {
                     "running": False,
                     "stage": "cancelled",
@@ -4136,12 +4243,12 @@ class SDKMemoryKernel:
             logger.warning(f"双池后台自动迁移异常，继续使用单池: {exc}")
             finished_at = time.time()
             progress = self._normalize_dual_vector_auto_migration_progress(
-                self._dual_vector_auto_migration_status.get("progress"),
+                self._vector_pool_manager._dual_vector_auto_migration_status.get("progress"),
                 now=finished_at,
                 completed=True,
                 success=False,
             )
-            self._dual_vector_auto_migration_status.update(
+            self._vector_pool_manager._dual_vector_auto_migration_status.update(
                 {
                     "running": False,
                     "success": False,
