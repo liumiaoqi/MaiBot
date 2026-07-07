@@ -5,8 +5,8 @@ from typing import Any
 
 from src.common.logger import get_logger
 from src.config.config import global_config
-from src.core.protocols import AgentRoutingService, NoticeClassifier
-from src.core.types import NoticeKind
+from src.core.protocols import AgentRoutingService, NoticeClassifier, ThinkingOrganFactory
+from src.core.types import CoreMessage, NoticeKind, ThinkAction, ThinkContext, ThinkResult
 from src.maisaka.agent_autonomy.agent import AutonomousAgent
 from src.maisaka.agent_autonomy.activity_store import AgentActivityStore
 from src.maisaka.agent_autonomy.autonomy_logger import AutonomyEventType, AutonomyLogger, AutonomyEventSubscriber
@@ -46,6 +46,11 @@ class AgentOrchestrator:
         from src.core.adapters.notice_classifier import NapCatNoticeClassifier
         return NapCatNoticeClassifier()
 
+    @staticmethod
+    def _get_default_thinking_organ_factory() -> ThinkingOrganFactory:
+        from src.maisaka.agent_autonomy.thinking_organ_factory import ThinkingOrganFactory
+        return ThinkingOrganFactory()
+
     def __init__(
         self,
         session_id: str,
@@ -53,12 +58,14 @@ class AgentOrchestrator:
         chat_loop_adapter: ChatLoopServiceAdapter,
         routing_service: AgentRoutingService | None = None,
         notice_classifier: NoticeClassifier | None = None,
+        thinking_organ_factory: ThinkingOrganFactory | None = None,
     ) -> None:
         self._session_id = session_id
         self._session_name = session_name
         self._chat_loop_adapter = chat_loop_adapter
         self._routing_service = routing_service or self._get_default_routing_service()
         self._notice_classifier = notice_classifier or self._get_default_notice_classifier()
+        self._thinking_organ_factory = thinking_organ_factory or self._get_default_thinking_organ_factory()
         self._config = global_config.agent_autonomy
         self._activity_store = AgentActivityStore()
 
@@ -106,6 +113,10 @@ class AgentOrchestrator:
 
         # 管家系统（过滤+协调+提醒）
         self._butler: Butler | None = None
+
+        # 并行思考调度器
+        from src.maisaka.agent_autonomy.parallel_think import ParallelThinkScheduler
+        self._think_scheduler = ParallelThinkScheduler(max_concurrent=2)
 
 
         # 提醒心跳检查
@@ -230,7 +241,7 @@ class AgentOrchestrator:
 
 
     async def _trigger_interjection_for(self, agent_id: str, context: str) -> None:
-        """管家协调的插话——直接触发 Planner，不走意图系统。
+        """管家协调的插话——直接触发目标智能体的 ThinkingOrgan。
 
         管家已经做了三层过滤，不需要策略再过滤。
         """
@@ -239,17 +250,36 @@ class AgentOrchestrator:
             if not activated:
                 return
 
+        agent = self._active_agents.get(agent_id)
+        if agent is None:
+            return
+
         logger.info(
             f"[agent_autonomy] 管家插话执行: agent={agent_id} "
             f"session={self._session_name}"
         )
 
-        await self._chat_loop_adapter.enqueue_proactive_task(
-            plugin_id="maisaka_butler",
-            intent=f"管家协调你插话，话题：{context[:80]}",
-            reason="butler_interjection",
-            metadata={"agent_id": agent_id, "source": "butler"},
+        think_context = ThinkContext(
+            messages=(CoreMessage(session_id=self._session_id, plain_text=context, is_notify=False),),
+            trigger_reason="butler_interjection",
         )
+        task = self._think_scheduler.schedule(agent_id, agent.thinking_organ, think_context)
+        result = await task
+
+        if result.action == ThinkAction.REPLY and result.text:
+            from src.maisaka.message_port import get_message_port
+            port = get_message_port()
+            if port is not None:
+                await port.send(
+                    session_id=self._session_id,
+                    text=result.text,
+                    agent_id=agent_id,
+                    source="butler_interjection",
+                )
+                logger.info(
+                    f"[agent_autonomy] 管家插话发送: agent={agent_id} "
+                    f"text_len={len(result.text)} session={self._session_name}"
+                )
 
         self._cooldown_manager.record_interjection(self._session_id, agent_id)
 
@@ -261,7 +291,7 @@ class AgentOrchestrator:
         logger.info(f"[agent_autonomy] 提醒心跳启动: session={self._session_name}")
 
     async def _reminder_tick_loop(self) -> None:
-        """周期性检查到期提醒，通过 Planner 让智能体用角色语气说话。"""
+        """周期性检查到期提醒，直接触发主智能体的 ThinkingOrgan。"""
         while True:
             try:
                 await asyncio.sleep(30)
@@ -273,17 +303,38 @@ class AgentOrchestrator:
                         f"[agent_autonomy] 提醒触发: agent={reminder.agent_id} "
                         f"context={reminder.context} session={self._session_name}"
                     )
-                    intent_prefix = "提醒" if reminder.is_direct else "关心"
-                    await self._chat_loop_adapter.enqueue_proactive_task(
-                        plugin_id="maisaka_reminder",
-                        intent=f"{intent_prefix}：{reminder.context}",
-                        reason=f"定时提醒触发({reminder.reminder_id})",
-                        metadata={
-                            "reminder_id": reminder.reminder_id,
-                            "is_direct": reminder.is_direct,
-                            "agent_id": reminder.agent_id,
-                        },
+
+                    agent = self._active_agents.get(reminder.agent_id)
+                    if agent is None:
+                        if self._primary_agent_id:
+                            agent = self._active_agents.get(self._primary_agent_id)
+                    if agent is None:
+                        continue
+
+                    think_context = ThinkContext(
+                        messages=(CoreMessage(session_id=self._session_id, plain_text=reminder.context, is_notify=False),),
+                        trigger_reason="reminder",
+                        metadata={"reminder_id": reminder.reminder_id, "is_direct": reminder.is_direct},
                     )
+                    task = self._think_scheduler.schedule_proactive(
+                        reminder.agent_id, agent.thinking_organ, "reminder", think_context,
+                    )
+                    result = await task
+
+                    if result.action == ThinkAction.REPLY and result.text:
+                        from src.maisaka.message_port import get_message_port
+                        port = get_message_port()
+                        if port is not None:
+                            await port.send(
+                                session_id=self._session_id,
+                                text=result.text,
+                                agent_id=reminder.agent_id,
+                                source="reminder",
+                            )
+                            logger.info(
+                                f"[agent_autonomy] 提醒发送: agent={reminder.agent_id} "
+                                f"text_len={len(result.text)} session={self._session_name}"
+                            )
             except asyncio.CancelledError:
                 break
             except Exception as exc:
