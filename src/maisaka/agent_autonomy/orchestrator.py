@@ -5,6 +5,8 @@ from typing import Any
 
 from src.common.logger import get_logger
 from src.config.config import global_config
+from src.core.protocols import AgentRoutingService, NoticeClassifier
+from src.core.types import NoticeKind
 from src.maisaka.agent_autonomy.agent import AutonomousAgent
 from src.maisaka.agent_autonomy.activity_store import AgentActivityStore
 from src.maisaka.agent_autonomy.autonomy_logger import AutonomyEventType, AutonomyLogger, AutonomyEventSubscriber
@@ -20,6 +22,7 @@ from src.maisaka.agent_autonomy.vitality_tick import VitalityTickScheduler
 from src.maisaka.agent_autonomy.state_awareness.rule_engine import StateAwareRuleEngine
 from src.maisaka.agent_autonomy.state_awareness.summary_generator import CohabitantStateSummaryGenerator
 from src.maisaka.agent_autonomy.state_awareness.visibility_rule import StateVisibilityRule
+from src.maisaka.agent_autonomy.butler import Butler
 
 logger = get_logger("agent_autonomy.orchestrator")
 
@@ -33,15 +36,29 @@ class AgentOrchestrator:
     # 类级别注册表：session_id -> AgentOrchestrator
     _registry: dict[str, "AgentOrchestrator"] = {}
 
+    @staticmethod
+    def _get_default_routing_service() -> AgentRoutingService:
+        from src.core.adapters.routing_adapter import ChatManagerRoutingAdapter
+        return ChatManagerRoutingAdapter()
+
+    @staticmethod
+    def _get_default_notice_classifier() -> NoticeClassifier:
+        from src.core.adapters.notice_classifier import NapCatNoticeClassifier
+        return NapCatNoticeClassifier()
+
     def __init__(
         self,
         session_id: str,
         session_name: str,
         chat_loop_adapter: ChatLoopServiceAdapter,
+        routing_service: AgentRoutingService | None = None,
+        notice_classifier: NoticeClassifier | None = None,
     ) -> None:
         self._session_id = session_id
         self._session_name = session_name
         self._chat_loop_adapter = chat_loop_adapter
+        self._routing_service = routing_service or self._get_default_routing_service()
+        self._notice_classifier = notice_classifier or self._get_default_notice_classifier()
         self._config = global_config.agent_autonomy
         self._activity_store = AgentActivityStore()
 
@@ -87,6 +104,13 @@ class AgentOrchestrator:
             self._vitality_manager, self._rule_engine
         )
 
+        # 管家系统（过滤+协调+提醒）
+        self._butler: Butler | None = None
+
+
+        # 提醒心跳检查
+        self._reminder_tick_task: asyncio.Task | None = None
+
         # 交互引擎（插话反哺用）
         self._interaction_engine: InteractionEngine | None = None
 
@@ -104,6 +128,7 @@ class AgentOrchestrator:
         self._event_subscriber = AutonomyEventSubscriber()
         self._event_subscriber.subscribe_all()
 
+
         # 注册到全局注册表
         AgentOrchestrator._registry[session_id] = self
 
@@ -114,6 +139,7 @@ class AgentOrchestrator:
         bus.subscribe("interjection_mention", self._on_interjection_mention)
         bus.subscribe("session_message", self._ambient_awareness.on_session_message)
         bus.subscribe("agent_speak", self._ambient_awareness.on_agent_speak)
+
 
     async def _on_interaction_signal(self, event: Any) -> None:
         """交互信号事件处理器。"""
@@ -202,6 +228,67 @@ class AgentOrchestrator:
                 f"[agent_autonomy] 插话反哺交互失败: error={exc}"
             )
 
+
+    async def _trigger_interjection_for(self, agent_id: str, context: str) -> None:
+        """管家协调的插话——直接触发 Planner，不走意图系统。
+
+        管家已经做了三层过滤，不需要策略再过滤。
+        """
+        if agent_id not in self._active_agents:
+            activated = await self.activate_agent(agent_id, "butler_interjection")
+            if not activated:
+                return
+
+        logger.info(
+            f"[agent_autonomy] 管家插话执行: agent={agent_id} "
+            f"session={self._session_name}"
+        )
+
+        await self._chat_loop_adapter.enqueue_proactive_task(
+            plugin_id="maisaka_butler",
+            intent=f"管家协调你插话，话题：{context[:80]}",
+            reason="butler_interjection",
+            metadata={"agent_id": agent_id, "source": "butler"},
+        )
+
+        self._cooldown_manager.record_interjection(self._session_id, agent_id)
+
+    def _start_reminder_tick(self) -> None:
+        """启动提醒心跳检查。"""
+        if self._reminder_tick_task is not None:
+            return
+        self._reminder_tick_task = asyncio.create_task(self._reminder_tick_loop())
+        logger.info(f"[agent_autonomy] 提醒心跳启动: session={self._session_name}")
+
+    async def _reminder_tick_loop(self) -> None:
+        """周期性检查到期提醒，通过 Planner 让智能体用角色语气说话。"""
+        while True:
+            try:
+                await asyncio.sleep(30)
+                if self._butler is None:
+                    continue
+                due_reminders = self._butler.check_reminders()
+                for reminder in due_reminders:
+                    logger.info(
+                        f"[agent_autonomy] 提醒触发: agent={reminder.agent_id} "
+                        f"context={reminder.context} session={self._session_name}"
+                    )
+                    intent_prefix = "提醒" if reminder.is_direct else "关心"
+                    await self._chat_loop_adapter.enqueue_proactive_task(
+                        plugin_id="maisaka_reminder",
+                        intent=f"{intent_prefix}：{reminder.context}",
+                        reason=f"定时提醒触发({reminder.reminder_id})",
+                        metadata={
+                            "reminder_id": reminder.reminder_id,
+                            "is_direct": reminder.is_direct,
+                            "agent_id": reminder.agent_id,
+                        },
+                    )
+            except asyncio.CancelledError:
+                break
+            except Exception as exc:
+                logger.warning(f"[agent_autonomy] 提醒心跳异常: error={exc}")
+
     @property
     def session_id(self) -> str:
         return self._session_id
@@ -257,6 +344,12 @@ class AgentOrchestrator:
             is_primary = self._primary_agent_id is None
             if is_primary:
                 self._primary_agent_id = agent_id
+                self._butler = Butler(
+                    primary_agent_id=agent_id,
+                    session_id=self._session_id,
+                )
+                self._butler.reminder_manager.load_session(self._session_id)
+                self._start_reminder_tick()
 
             self._activity_store.save_activity(
                 session_id=self._session_id,
@@ -266,9 +359,7 @@ class AgentOrchestrator:
             )
 
             # 同步到 AgentRouter
-            from src.chat.message_receive.chat_manager import chat_manager
-            if chat_manager._agent_router is not None:
-                chat_manager.agent_router.bind_session(self._session_id, agent_id)
+            self._routing_service.bind_session(self._session_id, agent_id)
 
             logger.info(
                 f"[agent_autonomy] agent={agent_id} action=activate "
@@ -326,9 +417,7 @@ class AgentOrchestrator:
         self._activity_store.deactivate(self._session_id, agent_id, reason)
 
         # 同步解绑 AgentRouter
-        from src.chat.message_receive.chat_manager import chat_manager
-        if chat_manager._agent_router is not None:
-            chat_manager.agent_router.unbind_session(self._session_id, agent_id)
+        self._routing_service.unbind_session(self._session_id, agent_id)
 
         if self._primary_agent_id == agent_id:
             if self._active_agents:
@@ -396,40 +485,18 @@ class AgentOrchestrator:
         )
         return True
 
-    AMBIENT_NOTICE_SUBTYPES = frozenset({
-        "input_status",
-        "group_ban",
-        "group_increase",
-        "group_decrease",
-        "group_name",
-        "group_upload",
-        "group_msg_emoji_like",
-    })
-
-    def _classify_notice(self, message: Any) -> str | None:
-        """分类通知消息，返回通知子类型或None。
-
-        纯环境信号返回子类型名，可能需要回应的通知返回None（走完整链路）。
-        """
-        if not getattr(message, "is_notify", False):
-            return None
-        additional_config = getattr(
-            getattr(getattr(message, "message_info", None), "additional_config", None),
-            "get",
-            lambda *a: None,
-        )("napcat_notice_sub_type", "")
-        if additional_config and additional_config in self.AMBIENT_NOTICE_SUBTYPES:
-            return additional_config
-        return None
+    def _classify_notice(self, message: Any) -> NoticeKind:
+        """分类通知消息，返回 NoticeKind 枚举值。"""
+        return self._notice_classifier.classify(message)
 
     async def handle_message(self, message: Any) -> None:
         """处理用户消息，编排主发言智能体回复。"""
         if self._degraded:
             return
 
-        notice_subtype = self._classify_notice(message)
-        if notice_subtype is not None:
-            self._handle_ambient_notice(message, notice_subtype)
+        notice_kind = self._classify_notice(message)
+        if notice_kind in (NoticeKind.AMBIENT, NoticeKind.INPUT_STATUS):
+            self._handle_ambient_notice(message, notice_kind)
             return
 
         try:
@@ -452,6 +519,24 @@ class AgentOrchestrator:
             # 发布环境感知事件
             content = message.processed_plain_text or ""
             sender_id = message.message_info.user_info.user_id if message.message_info else ""
+
+
+            # 管家：尝试从用户消息中创建提醒
+            if self._butler is not None and content:
+                try:
+                    reminder = await self._butler.try_create_reminder(
+                        text=content,
+                        agent_id=self._primary_agent_id or "",
+                    )
+                    if reminder is not None:
+                        logger.info(
+                            f"[agent_autonomy] 管家创建提醒: "
+                            f"agent={reminder.agent_id} time={reminder.trigger_time} "
+                            f"context={reminder.context}"
+                        )
+                except Exception as exc:
+                    logger.warning(f"[agent_autonomy] 管家提醒创建异常: error={exc}")
+
             session_message_event = SessionMessageEvent(
                 session_id=self._session_id,
                 sender_type="user",
@@ -469,6 +554,22 @@ class AgentOrchestrator:
             if self._config.interjection_enabled:
                 await self._schedule_interjections()
 
+            # 管家插话决策（基于用户消息，补充现有插话机制）
+            if self._butler is not None and content:
+                try:
+                    candidates = await self._butler.decide_interjection(content, "")
+                    for c in candidates:
+                        logger.info(
+                            f"[agent_autonomy] 管家插话候选: agent={c.agent_id} "
+                            f"name={c.display_name} mentioned={c.is_mentioned} "
+                            f"session={self._session_name}"
+                        )
+                        self._butler.mark_interjected(c.agent_id)
+                        await self._trigger_interjection_for(c.agent_id, content)
+                except Exception as exc:
+                    logger.warning(f"[agent_autonomy] 管家插话决策异常: error={exc}")
+
+
             self._check_timeout_exit()
 
         except Exception as exc:
@@ -478,7 +579,7 @@ class AgentOrchestrator:
             )
             self._degraded = True
 
-    def _handle_ambient_notice(self, message: Any, notice_subtype: str) -> None:
+    def _handle_ambient_notice(self, message: Any, notice_kind: NoticeKind) -> None:
         """处理纯环境感知通知：更新待命智能体生命力，不触发Planner。"""
         try:
             self._vitality_manager.sync_standby_agents(self._session_id)
@@ -489,11 +590,11 @@ class AgentOrchestrator:
             for info in self._vitality_manager.get_standby_agents(self._session_id):
                 self._vitality_manager.update_vitality(
                     info.agent_id, self._session_id, ambient_stimulus,
-                    reason=f"ambient_notice:{notice_subtype}",
+                    reason=f"ambient_notice:{notice_kind.value}",
                 )
 
             logger.debug(
-                f"[agent_autonomy] ambient_notice: subtype={notice_subtype} "
+                f"[agent_autonomy] ambient_notice: kind={notice_kind.value} "
                 f"session={self._session_name} sender={sender_id}"
             )
         except Exception as exc:
