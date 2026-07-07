@@ -1745,18 +1745,6 @@ class SDKMemoryKernel:
             return
 
         self.data_dir.mkdir(parents=True, exist_ok=True)
-        self.embedding_manager = create_embedding_api_adapter(
-            batch_size=int(self._cfg("embedding.batch_size", 32)),
-            max_concurrent=int(self._cfg("embedding.max_concurrent", 5)),
-            default_dimension=self.embedding_dimension,
-            enable_cache=bool(self._cfg("embedding.enable_cache", False)),
-            model_name=str(self._cfg("embedding.model_name", "auto") or "auto"),
-            dimension_request_mode=str(self._cfg("embedding.dimension_request_mode", "explicit") or "explicit"),
-            retry_config=self._cfg("embedding.retry", {}) or {},
-        )
-        stored_dimension = self._stored_vector_dimension()
-        provisional_dimension = stored_dimension or self.embedding_dimension
-        self.embedding_dimension = int(provisional_dimension)
 
         from .config.vector_pool_config import VectorPoolConfig
         from .config.feedback_config import FeedbackConfig
@@ -1770,6 +1758,16 @@ class SDKMemoryKernel:
         self._feedback_config = FeedbackConfig.from_global_config()
         self._fuzzy_modify_config = FuzzyModifyConfig.from_global_config()
 
+        self.embedding_manager = create_embedding_api_adapter(
+            batch_size=int(self._cfg("embedding.batch_size", 32)),
+            max_concurrent=int(self._cfg("embedding.max_concurrent", 5)),
+            default_dimension=self.embedding_dimension,
+            enable_cache=bool(self._cfg("embedding.enable_cache", False)),
+            model_name=str(self._cfg("embedding.model_name", "auto") or "auto"),
+            dimension_request_mode=str(self._cfg("embedding.dimension_request_mode", "explicit") or "explicit"),
+            retry_config=self._cfg("embedding.retry", {}) or {},
+        )
+
         from .services.vector_pool import VectorPoolManager
         self._vector_pool_manager = VectorPoolManager(
             config=VectorPoolConfig.from_config(self.config),
@@ -1778,6 +1776,10 @@ class SDKMemoryKernel:
             embedding_manager=self.embedding_manager,
             relation_vectors_enabled=self.relation_vectors_enabled,
         )
+
+        stored_dimension = self._stored_vector_dimension()
+        provisional_dimension = stored_dimension or self.embedding_dimension
+        self.embedding_dimension = int(provisional_dimension)
 
         matrix_format = str(self._cfg("graph.sparse_matrix_format", "csr") or "csr").strip().lower()
         graph_format = SparseMatrixFormat.CSC if matrix_format == "csc" else SparseMatrixFormat.CSR
