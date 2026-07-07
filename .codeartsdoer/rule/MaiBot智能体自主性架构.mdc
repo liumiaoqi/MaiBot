@@ -1,0 +1,222 @@
+# MaiBot 智能体自主性架构 — 项目规则
+
+## 理念
+
+**理想的角色不应是一具等待结局的标本，而应是一场永恒的进行时。**
+
+- **反标本化**：角色不应是玻璃展柜中被钉死的蝴蝶，而应是一颗仍在呼吸的种子，每一次回应都暗含变化的可能
+- **反叙事耗竭**：真正的魅力不在于完美收官的故事，而在于它让所有人渴望结局，却又甘愿让结局永远保持在未抵达的远方
+- **动态的生命感**：角色内心应有持续流淌的、未解决的张力。过去是背景，此刻是选择，将来是一片与你共同踏足的可能之域
+
+设计原则：
+
+1. **不做故事的结局，只做生命的序章** — 角色不应是一具等待结局的标本，而应是一场永恒的进行时
+2. **代码是死的，可能性是活的** — 过度的预防等于提前锁死了系统进化的方向；真正的秩序不是防出来的，而是靠清晰的架构、明确的契约、可测试的逻辑来保证稳定
+3. **充分利用好已有的工具，不要重复造车轮**
+4. **大道至简**
+
+## 运行环境
+
+- Docker 环境，容器名 `maim-bot-core`
+- 依赖管理用 uv，不用 pip
+- Python 3.14.6
+- 代码修改后需重启容器才能生效
+- docker 环境外层有 maibot 和 sdk 的原码：
+  - `E:\Users\lmq\MaiBot\MiMo-Code` — 智能体原码
+  - `E:\Users\lmq\MaiBot\maibot-plugin-sdk` — SDK 原码
+- 我和上游是两个不同的开发方向，运行环境差别也很大，更新 skill、拉取上游时需要仔细检查，需要往我的方向靠拢
+
+## 智能体自主性架构原则
+
+1. **智能体决策权原则**：外部系统（bot.py、HeartFlow、ChatManager 等消息链路模块）不应替智能体做业务决策。消息是否需要回复、是否触发 Planner，应由智能体自身的规则引擎决定，而非在链路中硬编码过滤或分流。消息链路保持透明，智能体是消息的最终消费者和决策者。
+
+2. **通知消息处理原则**：`is_notify=True` 的通知消息应到达智能体（通过 Orchestrator），由智能体自主分类处理：
+   - 纯环境信号（如 input_status）→ 规则引擎判定不触发 Planner，仅调整生命力/环境上下文
+   - 可能需要回应的通知（如 poke、入群）→ 规则引擎判定触发 Planner，智能体自主决定是否回复
+   - 分类规则可配置，但决策权在智能体，不在链路层
+
+3. **规则引擎优先原则**：待命状态的环境感知必须是纯规则计算，不调用 LLM。能用规则判断的决策（如"用户正在输入不需要回复"），不应交给 Planner 推理。规则调整参数而非替智能体决策——规则决定"是否触发 Planner"，Planner 决定"如何回应"。
+
+4. **组件兼容核心原则**：核心定义接口契约，组件实现契约。核心不依赖组件的具体实现类，只依赖 Protocol。新增代码禁止引入对 chat_manager、send_service、HeartFlow 等组件具体实现的直接导入。
+
+## 技术约束
+
+- 心跳间隔 60 秒，13 个待命智能体单次评估 ~600ms
+- 所有数值必须映射为自然语言描述，不暴露具体数值给 LLM
+- 情绪状态系统是 MaiBot 核心功能，不是插件
+- 提示词修改需三语同步（zh-CN / en-US / ja-JP）
+- 配置文件修改只改模板，新增版本号，不改动 legacy_migration
+- 会话 ID 规范：业务模块不应自行调用 `SessionUtils.calculate_session_id`
+- 修改涉及 `src/A_memorix` 时，请先阅读 `src/A_memorix/MODIFICATION_POLICY.md`
+
+## 代码风格
+
+- 砍掉过度防御/兜底代码、不必要配置参数、冗余逻辑
+- 不要总是想找兜底，一定要精准地找到问题的核心，兜底是不合适的、难以维护的
+- 不要总是考虑 fallback，如果哪里有错误，一定要让它及时完整地暴露，而不是用 fallback 兜底掩盖过去
+- 应该尽量减少使用 getattr 和 setattr，优先使用类属性直接访问
+
+## 核心定义
+
+核心 = 智能体 + 消息管道，只关心一件事：**消息进来，智能体思考，回复出去**
+
+核心接口只有三个：
+- `receive(message)` — 消息进入
+- `think()` — 智能体自主决策（是否回应、如何回应）
+- `respond(text)` — 回复发出
+
+组件（HeartFlow、ChatManager、NapCat Adapter、A_Memorix、WebUI）是围绕核心的可替换层，应实现核心定义的接口契约，而非核心去适配组件的内部细节。
+
+## 核心架构：微内核 + 接口契约
+
+### 核心接口层
+
+核心通过 Protocol 定义接口契约，组件实现这些契约。核心模块只依赖 Protocol，不依赖具体实现。
+
+| 接口 | 职责 | 实现者 | 状态 |
+|---|---|---|---|
+| **MessagePort** | 核心→外部发送消息 | SendServicePort（当前） | ✅ 已实现 |
+| **SessionRepository** | 会话信息查询（不可变快照） | ChatManagerSessionRepository | ✅ 已实现 |
+| **AgentRoutingService** | 智能体-会话路由 | ChatManagerRoutingAdapter | ✅ 已实现 |
+| **ChatRuntime** | 运行时生命周期 | MaisakaHeartFlowChatting | ✅ 已实现 |
+| **ChatRuntimeRegistry** | 运行时注册表 | HeartflowRuntimeRegistry | ✅ 已实现 |
+| **NoticeClassifier** | 平台无关通知分类 | NapCatNoticeClassifier | ✅ 已实现 |
+| **MemoryServicePort** | 记忆检索与画像 | AMemorixMemoryServicePort | ✅ 已实现 |
+| **SessionInfoPort** | 组件反向查询会话 | ChatManagerSessionRepository | ✅ 已实现 |
+| **ThinkingOrgan** | 智能体思维管道 | ThinkingOrgan（具体类） | ✅ 已实现 |
+| **ThinkingOrganFactory** | 思维管道工厂 | ThinkingOrganFactory（具体类） | ✅ 已实现 |
+
+### 核心禁止项
+
+以下模式是架构债务，新增代码禁止引入，存量代码逐步消除：
+
+1. **禁止核心直接导入 chat_manager** — 25 个文件 54 处导入是最大病灶，核心模块只通过 SessionRepository / AgentRoutingService 接口查询
+2. **禁止核心访问 chat_manager._agent_router** — 私有属性访问破坏封装，通过 AgentRoutingService 接口操作
+3. **禁止核心持有 BotChatSession 可变引用** — SessionRepository 返回不可变 SessionInfo 快照
+4. **禁止核心硬编码 napcat_* 字段** — 通知分类由平台适配器在入站时完成，核心只处理 NoticeKind 枚举
+5. **禁止核心绕过 MessagePort 直接调用 send_service** — 内置工具和插件运行时统一走 MessagePort
+6. **禁止核心导入 A_memorix 内部模块** — 只通过 MemoryServicePort 或 host_service 公共 API 交互
+7. **禁止 Orchestrator 通过 enqueue_proactive_task 模拟多智能体** — 插话通过管家协调直接触发目标智能体的 ThinkingOrgan
+
+### 数据契约
+
+**CoreMessage**（平台无关的入站消息）：
+- session_id, plain_text, is_notify, notice_kind, sender_id, sender_name, platform, timestamp, additional_data
+
+**SessionInfo**（不可变会话快照）：
+- session_id, session_name, platform, is_group_session, primary_agent_id, cohabitant_agent_ids
+
+**NoticeKind**（平台无关通知枚举）：
+- AMBIENT（环境信号，不触发 Planner）/ INTERACTION（交互信号，可能触发）/ INPUT_STATUS / UNKNOWN
+
+## 核心进化方向：从反射弧到生命体
+
+当前核心是反射弧：`回复 = f(消息)` — 刺激→反射，像水母
+
+目标核心是有内心世界的生命体：`回复 = f(消息, 内心状态)` — 刺激经过内心世界的折射，像人
+
+内心状态持续演化：`内心状态(t+1) = g(内心状态(t), 消息, 时间)`
+
+### 内心状态三层
+
+| 层 | 状态 | 作用 | 实现状态 |
+|---|---|---|---|
+| **情绪** | 我此刻感觉如何 | 给一切回应染色 | ✅ EmotionManager，7种情绪 |
+| **欲望** | 我想要什么 | 让智能体主动行动，而非被动反应 | ⚠️ InnerNeedEngine 已实现，欲望驱动主动发言待集成 |
+| **记忆** | 我经历了什么 | 让回应有厚度和连贯性 | ⚠️ A_Memorix 偏事实回忆，缺情感记忆 |
+
+### 欲望系统
+
+欲望是让智能体"像人"的关键缺口。没有欲望的智能体永远在等别人说话，像客服不像人。
+
+欲望系统是**规则引擎**（不是 LLM），它不要求 LLM 自发产生输出，而是让系统在无人输入时也决定调用 LLM：
+
+```
+心跳(60s) → 规则评估内心状态 → 欲望是否足够强？
+                                    ↓ 是
+                               构造 prompt → 调 LLM → 发送
+                                    ↓ 否
+                               继续待命
+```
+
+LLM 仍然是"被调用"的，但调用它的不是人，而是智能体自己的欲望。从外部看，效果就是智能体主动说话了。
+
+### Agent-owns-Thinking
+
+每个智能体拥有自己的思维管道（ThinkingOrgan），Orchestrator 只协调"谁在思考"，不关心"怎么思考"。
+
+**当前**：所有智能体共享一个 Planner，通过切换 `_agent_id` 模拟多智能体，插话走 `enqueue_proactive_task` 伪装成"插件主动对话"
+
+**目标**：
+- 每个智能体持有自己的 ThinkingOrgan 实例
+- Orchestrator 协调执行顺序，不替智能体做决策
+- 管家在 Orchestrator 层协调，Planner 不知道多智能体的存在
+- 支持并行思考（多个智能体同时思考不同话题）
+
+### 管家系统（彼岸居客厅规则）
+
+管家不是第14个角色，是**彼岸居客厅的空间逻辑**人格化——"谁在客厅谁就回消息"这个自然规则的实现。
+
+**核心定位**：管家不说话，只做两件事——过滤（谁看见了消息）和协调（谁先抢到键盘）。
+
+**架构决策**：
+- **保留主智能体**：主智能体（银狼/提纳里）每条消息必回，和用户建立深度关系
+- **管家管理共居智能体**：12位共居者通过管家的三层过滤获得插话机会
+- **对话流+提醒流统一管道**：插话和提醒共享同一个协调管道
+
+**三层过滤**（v2-v4 验证通过，已集成到 Orchestrator）：
+1. **规则过滤**（零成本）：名字被提到→必看见；有关系→可能看见；无关→很少看见
+2. **管家LLM**（1次调用）：理解话题+角色性格+关系网，判断"谁会关心这个话题"
+3. **角色LLM**（仅选中者）：被选中的角色决定插话内容，不想说话回复NONE
+
+**成本**：最差1(主)+1(管家)+2(插话)=4次LLM调用；最好1+1+0=2次。对比无管家的1+12=13次。
+
+**提醒流**：定时器触发→管家协调谁提醒→主智能体优先。提醒分直接（"3点提醒我开会"）和间接（"下午有个考试"→到时候关心）。
+
+### 目标核心管道
+
+```
+收消息 → 内心状态更新 → 规则判断(是否需要思考) → ThinkingOrgan思考 → 回复
+          ↑                                              |
+          └──────── 内心状态持续演化 ←─────────────────────┘
+
+（无消息时）→ 内心状态自发演化 → 欲望是否足够强 → 主动行动
+                                     或
+                               定时器触发 → 管家协调 → 提醒/关心
+```
+
+## 架构变革路线
+
+### 已完成
+
+- ✅ **MessagePort** — 核心→外部的发送接口契约（message_port.py）
+- ✅ **管家系统集成** — Butler 三层过滤+提醒+插话（butler.py, reminder.py）
+- ✅ **管家管道集成** — Orchestrator 中接入提醒创建、管家插话、提醒心跳
+- ✅ **ChatLoopServiceAdapter** — ChatRuntime Protocol 依赖，核心不直接依赖 runtime
+- ✅ **生命力管理** — VitalityManager + InnerNeedEngine + 心跳评估
+- ✅ **环境感知** — AmbientAwarenessProcessor + StateAwareRuleEngine
+- ✅ **Lab 原型验证** — 管家v1-v4、提醒v4、共居、欲望全部验证通过
+- ✅ **核心 Protocol 层** — 9个Protocol（SessionRepository/AgentRoutingService/ChatRuntime/ChatRuntimeRegistry/NoticeClassifier/MemoryServicePort/SessionInfoPort/ThinkingOrgan/ThinkingOrganFactory）
+- ✅ **核心数据模型** — NoticeKind/CoreMessage/SessionInfo/ThinkContext/ThinkAction/ThinkResult + CycleDetail迁移
+- ✅ **适配器层** — 5个适配器（ChatManagerSessionRepository/ChatManagerRoutingAdapter/HeartflowRuntimeRegistry/NapCatNoticeClassifier/AMemorixMemoryServicePort）
+- ✅ **核心模块迁移** — Orchestrator/VitalityManager/ChatLoopAdapter/HeartflowManager 从chat_manager具体类迁移到Protocol接口
+- ✅ **通知分类统一** — 消除AMBIENT_NOTICE_SUBTYPES重复定义和napcat_字段泄漏
+- ✅ **Agent-owns-Thinking** — 每个智能体拥有独立ThinkingOrgan，think()/think_proactive()直接调用LLM
+- ✅ **消灭enqueue_proactive_task hack** — 管家插话/提醒触发改为直接调用ThinkingOrgan + MessagePort.send()
+- ✅ **并行思考** — ParallelThinkScheduler（asyncio.Semaphore控制并发）
+- ✅ **A_memorix 隔离** — person_profile通过MemoryServicePort调用，SDKMemoryKernel延迟导入
+
+### 待后续
+
+- ⬜ **MessagePort 全面采用** — 内置工具（reply/send_image）需先扩展MessagePort接口（图片/引用/表情），当前send_service._send_to_target_with_message功能远超MessagePort.send
+- ⬜ **SDKMemoryKernel 完全隔离** — A_memorix核心文件，需上游配合将chat_manager改为SessionInfoPort
+
+### 存量债务（已消除/剩余）
+
+| 债务 | 原影响范围 | 原严重度 | 当前状态 |
+|---|---|---|---|
+| chat_manager 全局单例导入 | 25 个文件 54 处 | 极高 | ✅ 核心模块已通过Protocol隔离，剩余在适配器层（唯一允许的地方） |
+| HeartFlow ↔ Maisaka 循环依赖 | 9+ 文件 | 高 | ✅ ChatRuntime Protocol + ChatRuntimeRegistry 打破 |
+| napcat_* 字段泄漏到核心 | 3 处 | 高 | ✅ NoticeClassifier + NoticeKind 枚举统一 |
+| send_service 绕过 MessagePort | 6 个文件 12 处 | 中 | ⬜ 内置工具需扩展MessagePort接口后替换 |
+| A_memorix 内部函数泄漏 | 2 处 | 中 | ✅ person_profile已隔离，SDKMemoryKernel延迟导入 |
