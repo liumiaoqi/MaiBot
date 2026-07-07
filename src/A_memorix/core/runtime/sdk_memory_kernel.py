@@ -432,134 +432,24 @@ class SDKMemoryKernel:
         return not self.is_chat_enabled(stream_token, group_token, user_token)
 
     def _stored_vector_dimension(self, store: Optional[VectorStore] = None) -> Optional[int]:
-        if self._vector_pool_manager is not None:
-            return self._vector_pool_manager.stored_vector_dimension(store)
-        ready_manifest = (
-            self._read_dual_vector_ready_manifest()
-            if store is None and self._dual_vector_pools_config_enabled()
-            else None
-        )
-        if ready_manifest is not None:
-            try:
-                manifest_dimension = int(ready_manifest.get("dimension") or 0)
-            except Exception:
-                manifest_dimension = 0
-            if manifest_dimension > 0:
-                return manifest_dimension
-        vector_dir = Path(store.data_dir) if store is not None and store.data_dir is not None else self._vectors_root()
-        meta_path = vector_dir / "vectors_metadata.pkl"
-        if not meta_path.exists():
-            return None
-        try:
-            with open(meta_path, "rb") as handle:
-                meta = pickle.load(handle)
-        except Exception as exc:
-            logger.warning(f"读取向量元数据失败，将回退到 runtime self-check: {exc}")
-            return None
-        try:
-            value = int(meta.get("dimension") or 0)
-        except Exception:
-            return None
-        return value if value > 0 else None
+        return self._vector_pool_manager.stored_vector_dimension(store)
 
     @staticmethod
     def _normalize_embedding_fingerprint(value: Any) -> Optional[Dict[str, Any]]:
         from .services.vector_pool import VectorPoolManager
         return VectorPoolManager.normalize_embedding_fingerprint(value)
-        if not isinstance(value, dict):
-            return None
-        hash_value = str(value.get("hash", "") or "").strip()
-        if not hash_value:
-            return None
-        payload = dict(value)
-        payload["hash"] = hash_value
-        return payload
 
     def _current_embedding_status_dimension(self) -> int:
-        if self._vector_pool_manager is not None:
-            return self._vector_pool_manager.current_embedding_status_dimension()
-        manager = self.embedding_manager
-        getter = getattr(manager, "get_requested_dimension", None)
-        if callable(getter):
-            try:
-                requested_dimension = int(getter())
-            except Exception:
-                requested_dimension = 0
-            if requested_dimension > 0:
-                return requested_dimension
-        try:
-            default_dimension = int(getattr(manager, "default_dimension", 0) or 0)
-        except Exception:
-            default_dimension = 0
-        if default_dimension > 0:
-            return default_dimension
-        return max(1, int(self._cfg("embedding.dimension", self.embedding_dimension) or self.embedding_dimension))
+        return self._vector_pool_manager.current_embedding_status_dimension()
 
     def _current_embedding_fingerprint(self, *, dimension: Optional[int] = None) -> Optional[Dict[str, Any]]:
-        if self._vector_pool_manager is not None:
-            return self._vector_pool_manager.current_embedding_fingerprint(dimension=dimension)
-        manager = self.embedding_manager
-        getter = getattr(manager, "get_embedding_fingerprint", None)
-        if not callable(getter):
-            return None
-        try:
-            effective_dimension = int(dimension or self._current_embedding_status_dimension())
-            return self._normalize_embedding_fingerprint(getter(dimension=effective_dimension))
-        except Exception as exc:
-            logger.warning(f"生成 embedding 指纹失败: {exc}")
-            return None
+        return self._vector_pool_manager.current_embedding_fingerprint(dimension=dimension)
 
     def _stored_embedding_fingerprint(self, store: Optional[VectorStore] = None) -> Optional[Dict[str, Any]]:
-        if self._vector_pool_manager is not None:
-            return self._vector_pool_manager.stored_embedding_fingerprint(store)
-        ready_manifest = (
-            self._read_dual_vector_ready_manifest()
-            if store is None and self._dual_vector_pools_config_enabled()
-            else None
-        )
-        if ready_manifest is not None:
-            manifest_fingerprint = self._normalize_embedding_fingerprint(
-                ready_manifest.get("embedding_fingerprint")
-            )
-            if manifest_fingerprint is not None:
-                return manifest_fingerprint
-
-        vector_dir = Path(store.data_dir) if store is not None and store.data_dir is not None else self._vectors_root()
-        meta_path = vector_dir / "vectors_metadata.pkl"
-        if not meta_path.exists():
-            return None
-        try:
-            with open(meta_path, "rb") as handle:
-                meta = pickle.load(handle)
-        except Exception as exc:
-            logger.warning(f"读取向量指纹元数据失败: {exc}")
-            return None
-        if not isinstance(meta, dict):
-            return None
-        return self._normalize_embedding_fingerprint(meta.get("embedding_fingerprint"))
+        return self._vector_pool_manager.stored_embedding_fingerprint(store)
 
     def _stamp_missing_embedding_fingerprint_if_dimension_matches(self, store: Optional[VectorStore]) -> bool:
-        if self._vector_pool_manager is not None:
-            return self._vector_pool_manager.stamp_missing_embedding_fingerprint_if_dimension_matches(store)
-        if store is None:
-            return False
-        stored_dimension = self._stored_vector_dimension(store)
-        current_dimension = self._current_embedding_status_dimension()
-        if stored_dimension is None or int(stored_dimension) != int(current_dimension):
-            return False
-        current_fingerprint = self._current_embedding_fingerprint(dimension=current_dimension)
-        if current_fingerprint is None:
-            return False
-        stored_fingerprint = self._stored_embedding_fingerprint(store)
-        if stored_fingerprint is not None:
-            return False
-        store.save(embedding_fingerprint=current_fingerprint)
-        logger.warning("旧向量库缺少 embedding 指纹且维度匹配，已写入当前模型指纹以复用旧向量")
-        stamped_fingerprint = self._stored_embedding_fingerprint(store)
-        return (
-            stamped_fingerprint is not None
-            and str(stamped_fingerprint.get("hash", "") or "") == str(current_fingerprint.get("hash", "") or "")
-        )
+        return self._vector_pool_manager.stamp_missing_embedding_fingerprint_if_dimension_matches(store)
 
     @staticmethod
     def _embedding_fingerprint_status(
@@ -570,203 +460,67 @@ class SDKMemoryKernel:
     ) -> str:
         from .services.vector_pool import VectorPoolManager
         return VectorPoolManager.embedding_fingerprint_status(current, stored, has_stored_vectors=has_stored_vectors)
-        if not has_stored_vectors:
-            return "none"
-        if current is None:
-            return "unknown"
-        if stored is None:
-            return "missing"
-        return "matched" if str(current.get("hash", "")) == str(stored.get("hash", "")) else "mismatched"
 
     def _stored_vectors_compatible_with_current_embedding(self, store: Optional[VectorStore] = None) -> bool:
-        if self._vector_pool_manager is not None:
-            return self._vector_pool_manager.stored_vectors_compatible_with_current_embedding(store)
-        current = self._current_embedding_fingerprint()
-        stored = self._stored_embedding_fingerprint(store)
-        if current is None:
-            return False
-        if stored is None:
-            stamped = self._stamp_missing_embedding_fingerprint_if_dimension_matches(store or self.vector_store)
-            if not stamped:
-                return False
-            stored = self._stored_embedding_fingerprint(store)
-            if stored is None:
-                return False
-        return str(current.get("hash", "") or "") == str(stored.get("hash", "") or "")
+        return self._vector_pool_manager.stored_vectors_compatible_with_current_embedding(store)
 
     def _vector_mismatch_error(self, *, stored_dimension: int, detected_dimension: int) -> str:
-        if self._vector_pool_manager is not None:
-            return self._vector_pool_manager.vector_mismatch_error(stored_dimension=stored_dimension, detected_dimension=detected_dimension)
-        return (
-            "检测到现有向量库与当前 embedding 输出维度不一致："
-            f"stored={stored_dimension}, encoded={detected_dimension}。"
-            " 当前版本不会兼容 hash 时代或其他维度的旧向量，请改回原 embedding 配置，"
-            "或执行重嵌入/重建向量。"
-        )
+        return self._vector_pool_manager.vector_mismatch_error(stored_dimension=stored_dimension, detected_dimension=detected_dimension)
 
     def _vector_rebuild_status(self) -> Dict[str, Any]:
-        if self._vector_pool_manager is not None:
-            return self._vector_pool_manager.vector_rebuild_status(
-                vector_rebuild_lock_locked=self._vector_rebuild_lock.locked(),
-                vector_persist_blocked=self._vector_persist_blocked_until_rebuild,
-                vector_rebuild_source_dimension=self._vector_rebuild_source_dimension,
-            )
-        if self.vector_store is not None and not self._vector_rebuild_lock.locked():
-            self._stamp_missing_embedding_fingerprint_if_dimension_matches(self.vector_store)
-        stored_dimension = self._stored_vector_dimension()
-        if self._vector_persist_blocked_until_rebuild and self._vector_rebuild_source_dimension is not None:
-            stored_dimension = int(self._vector_rebuild_source_dimension)
-        current_dimension = self._current_embedding_status_dimension()
-        dimension_rebuild_required = stored_dimension is not None and stored_dimension != current_dimension
-        current_fingerprint = self._current_embedding_fingerprint()
-        stored_fingerprint = self._stored_embedding_fingerprint()
-        fingerprint_status = self._embedding_fingerprint_status(
-            current_fingerprint,
-            stored_fingerprint,
-            has_stored_vectors=stored_dimension is not None,
+        return self._vector_pool_manager.vector_rebuild_status(
+            vector_rebuild_lock_locked=self._vector_rebuild_lock.locked(),
+            vector_persist_blocked=self._vector_persist_blocked_until_rebuild,
+            vector_rebuild_source_dimension=self._vector_rebuild_source_dimension,
         )
-        fingerprint_rebuild_required = fingerprint_status in {"missing", "mismatched"}
-        rebuild_required = dimension_rebuild_required or fingerprint_rebuild_required
-        if dimension_rebuild_required:
-            message = self._vector_mismatch_error(
-                stored_dimension=int(stored_dimension or 0),
-                detected_dimension=current_dimension,
-            )
-        elif fingerprint_status == "mismatched":
-            message = "检测到 embedding 模型指纹与现有向量库不一致，请重建向量。"
-        elif fingerprint_status == "missing":
-            message = "现有向量库缺少 embedding 模型指纹，无法确认模型一致性，建议重建向量。"
-        elif fingerprint_status == "unknown":
-            message = "当前 embedding 模型指纹不可用，无法确认向量库模型一致性。"
-        else:
-            message = ""
-        return {
-            "stored_vector_dimension": int(stored_dimension or 0),
-            "embedding_dimension": current_dimension,
-            "vector_rebuild_required": bool(rebuild_required),
-            "message": message,
-            "embedding_fingerprint": current_fingerprint or {},
-            "stored_embedding_fingerprint": stored_fingerprint or {},
-            "embedding_fingerprint_status": fingerprint_status,
-        }
 
     def _embedding_fallback_enabled(self) -> bool:
-        if self._embedding_health_service is not None:
-            return self._embedding_health_service.config.embedding_fallback_enabled
-        return bool(self._cfg("embedding.fallback.enabled", True))
+        return self._embedding_health_service.config.embedding_fallback_enabled
 
     def _allow_metadata_only_write(self) -> bool:
-        if self._embedding_health_service is not None:
-            return self._embedding_health_service.config.allow_metadata_only_write
-        return bool(self._cfg("embedding.fallback.allow_metadata_only_write", True))
+        return self._embedding_health_service.config.allow_metadata_only_write
 
     def _embedding_probe_interval_seconds(self) -> float:
-        if self._embedding_health_service is not None:
-            return self._embedding_health_service.config.embedding_probe_interval_seconds
-        return max(10.0, float(self._cfg("embedding.fallback.probe_interval_seconds", 180) or 180))
+        return self._embedding_health_service.config.embedding_probe_interval_seconds
 
     def _paragraph_vector_backfill_enabled(self) -> bool:
-        if self._embedding_health_service is not None:
-            return self._embedding_health_service.config.paragraph_vector_backfill_enabled
-        return bool(self._cfg("embedding.paragraph_vector_backfill.enabled", True))
+        return self._embedding_health_service.config.paragraph_vector_backfill_enabled
 
     def _paragraph_vector_backfill_interval_seconds(self) -> float:
-        if self._embedding_health_service is not None:
-            return self._embedding_health_service.config.paragraph_vector_backfill_interval_seconds
-        return max(10.0, float(self._cfg("embedding.paragraph_vector_backfill.interval_seconds", 60) or 60))
+        return self._embedding_health_service.config.paragraph_vector_backfill_interval_seconds
 
     def _paragraph_vector_backfill_batch_size(self) -> int:
-        if self._embedding_health_service is not None:
-            return self._embedding_health_service.config.paragraph_vector_backfill_batch_size
-        return max(1, int(self._cfg("embedding.paragraph_vector_backfill.batch_size", 64) or 64))
+        return self._embedding_health_service.config.paragraph_vector_backfill_batch_size
 
     def _paragraph_vector_backfill_max_retry(self) -> int:
-        if self._embedding_health_service is not None:
-            return self._embedding_health_service.config.paragraph_vector_backfill_max_retry
-        return max(1, int(self._cfg("embedding.paragraph_vector_backfill.max_retry", 5) or 5))
+        return self._embedding_health_service.config.paragraph_vector_backfill_max_retry
 
     def _vector_pool_mode(self) -> str:
-        if self._vector_pool_manager is not None:
-            return self._vector_pool_manager.config.mode
-        if self._embedding_health_service is not None:
-            return self._embedding_health_service.config.mode
-        mode = str(self._cfg("retrieval.vector_pools.mode", "dual") or "dual").strip().lower()
-        return mode if mode in {"single", "dual"} else "single"
+        return self._vector_pool_manager.config.mode
 
     def _dual_vector_pools_config_enabled(self) -> bool:
-        if self._vector_pool_manager is not None:
-            return self._vector_pool_manager.config.config_enabled
-        return self._vector_pool_mode() == "dual"
+        return self._vector_pool_manager.config.config_enabled
 
     def _dual_vector_pools_enabled(self) -> bool:
-        if self._vector_pool_manager is not None:
-            return self._vector_pool_manager.dual_pools_enabled
-        return self._dual_vector_pools_config_enabled() and self._vector_pool_manager.dual_pools_ready
+        return self._vector_pool_manager.dual_pools_enabled
 
     def _vectors_root(self) -> Path:
-        if self._vector_pool_manager is not None:
-            return self._vector_pool_manager.vectors_root()
-        return self.data_dir / "vectors"
+        return self._vector_pool_manager.vectors_root()
 
     def _paragraph_vector_dir(self) -> Path:
-        if self._vector_pool_manager is not None:
-            return self._vector_pool_manager.paragraph_vector_dir()
-        return self._vectors_root() / "paragraph"
+        return self._vector_pool_manager.paragraph_vector_dir()
 
     def _graph_vector_dir(self) -> Path:
-        if self._vector_pool_manager is not None:
-            return self._vector_pool_manager.graph_vector_dir()
-        return self._vectors_root() / "graph"
+        return self._vector_pool_manager.graph_vector_dir()
 
     def _dual_vector_ready_manifest_path(self) -> Path:
-        if self._vector_pool_manager is not None:
-            return self._vector_pool_manager.dual_vector_ready_manifest_path()
-        return self._vectors_root() / "dual_ready.json"
+        return self._vector_pool_manager.dual_vector_ready_manifest_path()
 
     def _read_dual_vector_ready_manifest(self) -> Optional[Dict[str, Any]]:
-        if self._vector_pool_manager is not None:
-            return self._vector_pool_manager.read_dual_vector_ready_manifest()
-        path = self._dual_vector_ready_manifest_path()
-        if not path.exists():
-            return None
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except Exception as exc:
-            logger.warning(f"读取双池 ready manifest 失败: {exc}")
-            return None
-        return payload if isinstance(payload, dict) else None
+        return self._vector_pool_manager.read_dual_vector_ready_manifest()
 
     def _dual_vector_ready(self, *, expected_dimension: Optional[int] = None) -> bool:
-        if self._vector_pool_manager is not None:
-            return self._vector_pool_manager.dual_vector_ready(expected_dimension=expected_dimension)
-        manifest = self._read_dual_vector_ready_manifest()
-        if not manifest or manifest.get("status") != "ready":
-            return False
-        dimension = int(expected_dimension or self._current_embedding_status_dimension() or 0)
-        manifest_dimension = int(manifest.get("dimension", 0) or 0)
-        if dimension > 0 and manifest_dimension not in {0, dimension}:
-            logger.warning(
-                "双池 ready manifest 维度不匹配: "
-                f"manifest={manifest_dimension}, expected={dimension}"
-            )
-            return False
-        paragraph_count = int(manifest.get("paragraph_vectors", 0) or 0)
-        graph_count = int(manifest.get("graph_vectors", 0) or 0)
-        if paragraph_count < 0 or graph_count < 0:
-            return False
-        current_fingerprint = self._current_embedding_fingerprint()
-        manifest_fingerprint = self._normalize_embedding_fingerprint(manifest.get("embedding_fingerprint"))
-        if current_fingerprint is None or manifest_fingerprint is None:
-            logger.warning("双池 ready manifest 缺少可校验 embedding 指纹，保持单池降级")
-            return False
-        if str(current_fingerprint.get("hash", "") or "") != str(manifest_fingerprint.get("hash", "") or ""):
-            logger.warning(
-                "双池 ready manifest embedding 指纹不匹配，保持单池降级: "
-                f"manifest={manifest_fingerprint.get('hash', '')}, "
-                f"current={current_fingerprint.get('hash', '')}"
-            )
-            return False
-        return self._paragraph_vector_dir().exists() and self._graph_vector_dir().exists()
+        return self._vector_pool_manager.dual_vector_ready(expected_dimension=expected_dimension)
 
     def _write_dual_vector_ready_manifest(
         self,
@@ -774,259 +528,53 @@ class SDKMemoryKernel:
         stats: Dict[str, Dict[str, int]],
         migration_stats: Dict[str, Dict[str, int]],
     ) -> None:
-        if self._vector_pool_manager is not None:
-            return self._vector_pool_manager.write_dual_vector_ready_manifest(stats=stats, migration_stats=migration_stats)
-        current_dimension = self._current_embedding_status_dimension()
-        embedding_fingerprint = self._current_embedding_fingerprint(dimension=current_dimension)
-        payload = {
-            "status": "ready",
-            "version": 1,
-            "mode": "dual",
-            "dimension": int(current_dimension),
-            "created_at": time.time(),
-            "paragraph_vectors": int(stats.get("paragraphs", {}).get("done", 0) or 0),
-            "graph_vectors": int(stats.get("entities", {}).get("done", 0) or 0)
-            + int(stats.get("relations", {}).get("done", 0) or 0),
-            "stats": stats,
-            "migration": migration_stats,
-        }
-        if embedding_fingerprint is not None:
-            payload["embedding_fingerprint"] = embedding_fingerprint
-        path = self._dual_vector_ready_manifest_path()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = path.with_suffix(".json.tmp")
-        tmp_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-        tmp_path.replace(path)
+        return self._vector_pool_manager.write_dual_vector_ready_manifest(stats=stats, migration_stats=migration_stats)
 
     def _remove_dual_vector_ready_manifest(self) -> None:
-        if self._vector_pool_manager is not None:
-            return self._vector_pool_manager.remove_dual_vector_ready_manifest()
-        try:
-            self._dual_vector_ready_manifest_path().unlink(missing_ok=True)
-        except Exception as exc:
-            logger.warning(f"删除双池 ready manifest 失败: {exc}")
+        return self._vector_pool_manager.remove_dual_vector_ready_manifest()
 
     def _refresh_dual_vector_ready_manifest_from_stores(self) -> None:
-        if self._vector_pool_manager is not None:
-            self._vector_pool_manager.paragraph_vector_store = self.paragraph_vector_store
-            self._vector_pool_manager.graph_vector_store = self.graph_vector_store
-            self._vector_pool_manager.metadata_store = self.metadata_store
-            return self._vector_pool_manager.refresh_dual_vector_ready_manifest_from_stores()
-        paragraph_count = int(getattr(self.paragraph_vector_store, "num_vectors", 0) or 0)
-        graph_count = int(getattr(self.graph_vector_store, "num_vectors", 0) or 0)
-        entity_count = graph_count
-        relation_count = 0
-        if self.metadata_store is not None:
-            try:
-                target_counts = self._count_vector_rebuild_targets()
-                entity_count = min(graph_count, int(target_counts.get("entities", 0) or 0))
-                relation_count = max(0, graph_count - entity_count)
-            except Exception as exc:
-                logger.warning(f"刷新双池 ready manifest 统计失败，使用向量池计数: {exc}")
-        stats = {
-            "paragraphs": {"done": paragraph_count, "failed": 0},
-            "entities": {"done": entity_count, "failed": 0},
-            "relations": {"done": relation_count, "failed": 0},
-        }
-        migration_stats = {
-            "paragraphs": {"copied": 0, "encoded": 0, "missing": 0},
-            "entities": {"copied": 0, "encoded": 0, "missing": 0},
-            "relations": {"copied": 0, "encoded": 0, "missing": 0},
-        }
-        self._write_dual_vector_ready_manifest(stats=stats, migration_stats=migration_stats)
+        self._vector_pool_manager.paragraph_vector_store = self.paragraph_vector_store
+        self._vector_pool_manager.graph_vector_store = self.graph_vector_store
+        self._vector_pool_manager.metadata_store = self.metadata_store
+        return self._vector_pool_manager.refresh_dual_vector_ready_manifest_from_stores()
 
     def _clear_legacy_single_vector_files_after_dual_ready(self) -> None:
-        if self._vector_pool_manager is not None:
-            self._vector_pool_manager.vector_store = self.vector_store
-            return self._vector_pool_manager.clear_legacy_single_vector_files_after_dual_ready()
-        root = self._vectors_root()
-        for filename in ("vectors.bin", "vectors_ids.bin", "vectors.index", "vectors_metadata.pkl"):
-            try:
-                (root / filename).unlink(missing_ok=True)
-            except Exception as exc:
-                logger.warning(f"清理旧单池向量文件失败: file={filename}, error={exc}")
-        if self.vector_store is not None:
-            self.vector_store = self._make_vector_store(root)
+        self._vector_pool_manager.vector_store = self.vector_store
+        return self._vector_pool_manager.clear_legacy_single_vector_files_after_dual_ready()
 
     def _prepare_dual_vector_build_dirs(self) -> tuple[Path, Path, Path]:
-        if self._vector_pool_manager is not None:
-            return self._vector_pool_manager.prepare_dual_vector_build_dirs()
-        build_root = self._vectors_root() / f"dual_build_{int(time.time() * 1000)}"
-        if build_root.exists():
-            shutil.rmtree(build_root, ignore_errors=True)
-        paragraph_dir = build_root / "paragraph"
-        graph_dir = build_root / "graph"
-        paragraph_dir.mkdir(parents=True, exist_ok=True)
-        graph_dir.mkdir(parents=True, exist_ok=True)
-        return build_root, paragraph_dir, graph_dir
+        return self._vector_pool_manager.prepare_dual_vector_build_dirs()
 
     def _activate_dual_vector_build_dirs(self, build_root: Path) -> None:
-        if self._vector_pool_manager is not None:
-            return self._vector_pool_manager.activate_dual_vector_build_dirs(build_root)
-        paragraph_src = build_root / "paragraph"
-        graph_src = build_root / "graph"
-        if not paragraph_src.exists() or not graph_src.exists():
-            raise RuntimeError("dual vector build dirs missing")
-
-        backup_root = self._vectors_root() / f"dual_backup_{int(time.time() * 1000)}"
-        backup_paragraph = backup_root / "paragraph"
-        backup_graph = backup_root / "graph"
-        backup_root.mkdir(parents=True, exist_ok=True)
-        paragraph_dst = self._paragraph_vector_dir()
-        graph_dst = self._graph_vector_dir()
-        try:
-            if paragraph_dst.exists():
-                shutil.move(str(paragraph_dst), str(backup_paragraph))
-            if graph_dst.exists():
-                shutil.move(str(graph_dst), str(backup_graph))
-            shutil.move(str(paragraph_src), str(paragraph_dst))
-            shutil.move(str(graph_src), str(graph_dst))
-            shutil.rmtree(build_root, ignore_errors=True)
-            shutil.rmtree(backup_root, ignore_errors=True)
-        except Exception:
-            if paragraph_dst.exists():
-                shutil.rmtree(paragraph_dst, ignore_errors=True)
-            if graph_dst.exists():
-                shutil.rmtree(graph_dst, ignore_errors=True)
-            if backup_paragraph.exists():
-                shutil.move(str(backup_paragraph), str(paragraph_dst))
-            if backup_graph.exists():
-                shutil.move(str(backup_graph), str(graph_dst))
-            raise
+        return self._vector_pool_manager.activate_dual_vector_build_dirs(build_root)
 
     def _cleanup_stale_dual_vector_build_dirs(self) -> None:
-        if self._vector_pool_manager is not None:
-            return self._vector_pool_manager.cleanup_stale_dual_vector_build_dirs()
-        vectors_root = self._vectors_root()
-        if not vectors_root.exists():
-            return
-        for child in vectors_root.iterdir():
-            if child.is_dir() and child.name.startswith("dual_build_"):
-                shutil.rmtree(child, ignore_errors=True)
-            elif child.is_dir() and child.name.startswith("dual_backup_"):
-                shutil.rmtree(child, ignore_errors=True)
+        return self._vector_pool_manager.cleanup_stale_dual_vector_build_dirs()
 
     def _make_vector_store(self, data_dir: Path, *, dimension: Optional[int] = None) -> VectorStore:
-        if self._vector_pool_manager is not None:
-            return self._vector_pool_manager.make_vector_store(data_dir, dimension=dimension)
-        return VectorStore(
-            dimension=max(1, int(dimension or self.embedding_dimension)),
-            quantization_type=QuantizationType.INT8,
-            data_dir=data_dir,
-        )
+        return self._vector_pool_manager.make_vector_store(data_dir, dimension=dimension)
 
     def _save_vector_store(self, store: Optional[VectorStore]) -> None:
-        if self._vector_pool_manager is not None:
-            return self._vector_pool_manager.save_vector_store(store)
-        if store is None:
-            return
-        store.save(embedding_fingerprint=self._current_embedding_fingerprint())
+        return self._vector_pool_manager.save_vector_store(store)
 
     def _reload_dual_vector_stores_from_disk(self) -> bool:
-        if self._vector_pool_manager is not None:
-            self._vector_pool_manager.vector_store = self.vector_store
-            self._vector_pool_manager.paragraph_vector_store = self.paragraph_vector_store
-            self._vector_pool_manager.graph_vector_store = self.graph_vector_store
-            self._vector_pool_manager.metadata_store = self.metadata_store
-            result = self._vector_pool_manager.reload_dual_vector_stores_from_disk()
-            self.vector_store = self._vector_pool_manager.vector_store
-            self.paragraph_vector_store = self._vector_pool_manager.paragraph_vector_store
-            self.graph_vector_store = self._vector_pool_manager.graph_vector_store
-            return result
-        current_dimension = self._current_embedding_status_dimension()
-        if not self._dual_vector_ready(expected_dimension=current_dimension):
-            self._try_recover_dual_ready_manifest()
-        if not self._dual_vector_ready(expected_dimension=current_dimension):
-            self.paragraph_vector_store = self._make_vector_store(self._paragraph_vector_dir())
-            self.graph_vector_store = self._make_vector_store(self._graph_vector_dir())
-            self._vector_pool_manager.dual_pools_ready = False
-            return False
-        try:
-            paragraph_store = self._make_vector_store(self._paragraph_vector_dir())
-            graph_store = self._make_vector_store(self._graph_vector_dir())
-            if paragraph_store.has_data():
-                paragraph_store.load()
-                paragraph_store.warmup_index(force_train=True)
-            if graph_store.has_data():
-                graph_store.load()
-                graph_store.warmup_index(force_train=True)
-        except Exception as exc:
-            logger.warning(f"加载双池向量失败，将暂时回退单池: {exc}")
-            self._vector_pool_manager.dual_pools_ready = False
-            return False
-        self.paragraph_vector_store = paragraph_store
-        self.graph_vector_store = graph_store
-        self._vector_pool_manager.dual_pools_ready = True
-        return True
+        self._vector_pool_manager.vector_store = self.vector_store
+        self._vector_pool_manager.paragraph_vector_store = self.paragraph_vector_store
+        self._vector_pool_manager.graph_vector_store = self.graph_vector_store
+        self._vector_pool_manager.metadata_store = self.metadata_store
+        result = self._vector_pool_manager.reload_dual_vector_stores_from_disk()
+        self.vector_store = self._vector_pool_manager.vector_store
+        self.paragraph_vector_store = self._vector_pool_manager.paragraph_vector_store
+        self.graph_vector_store = self._vector_pool_manager.graph_vector_store
+        return result
 
     def _try_recover_dual_ready_manifest(self) -> bool:
-        if self._vector_pool_manager is not None:
-            self._vector_pool_manager.metadata_store = self.metadata_store
-            return self._vector_pool_manager.try_recover_dual_ready_manifest()
-        if not self._dual_vector_pools_config_enabled() or self.metadata_store is None:
-            return False
-        if self._dual_vector_ready_manifest_path().exists():
-            return False
-        paragraph_dir = self._paragraph_vector_dir()
-        graph_dir = self._graph_vector_dir()
-        if not paragraph_dir.exists() or not graph_dir.exists():
-            return False
-        paragraph_store = self._make_vector_store(paragraph_dir)
-        graph_store = self._make_vector_store(graph_dir)
-        if not paragraph_store.has_data() or not graph_store.has_data():
-            return False
-        try:
-            if paragraph_store.has_data():
-                paragraph_store.load()
-            if graph_store.has_data():
-                graph_store.load()
-        except Exception as exc:
-            logger.warning(f"双池 ready manifest 自愈失败，加载向量池异常: {exc}")
-            return False
-
-        if (
-            not self._stored_vectors_compatible_with_current_embedding(paragraph_store)
-            or not self._stored_vectors_compatible_with_current_embedding(graph_store)
-        ):
-            logger.warning("双池 ready manifest 缺失且向量池指纹无法确认或不匹配，保持单池降级")
-            return False
-
-        counts = self._count_vector_rebuild_targets()
-        expected_paragraphs = int(counts.get("paragraphs", 0) or 0)
-        expected_graph = int(counts.get("entities", 0) or 0)
-        if bool(self.relation_vectors_enabled):
-            expected_graph += int(counts.get("relations", 0) or 0)
-        if paragraph_store.num_vectors != expected_paragraphs or graph_store.num_vectors != expected_graph:
-            logger.warning(
-                "双池 ready manifest 缺失且向量数量不匹配，保持单池降级: "
-                f"paragraph={paragraph_store.num_vectors}/{expected_paragraphs}, "
-                f"graph={graph_store.num_vectors}/{expected_graph}"
-            )
-            return False
-
-        stats = {
-            "paragraphs": {"done": expected_paragraphs, "failed": 0},
-            "entities": {"done": int(counts.get("entities", 0) or 0), "failed": 0},
-            "relations": {"done": int(counts.get("relations", 0) or 0) if bool(self.relation_vectors_enabled) else 0, "failed": 0},
-        }
-        migration_stats = {
-            "paragraphs": {"copied": 0, "encoded": 0, "missing": 0},
-            "entities": {"copied": 0, "encoded": 0, "missing": 0},
-            "relations": {"copied": 0, "encoded": 0, "missing": 0},
-        }
-        self._write_dual_vector_ready_manifest(stats=stats, migration_stats=migration_stats)
-        logger.warning("检测到双池目录完整但 ready manifest 缺失，已自动重建 manifest")
-        return True
+        self._vector_pool_manager.metadata_store = self.metadata_store
+        return self._vector_pool_manager.try_recover_dual_ready_manifest()
 
     def _drop_dual_build_root(self, build_root: Optional[Path]) -> None:
-        if self._vector_pool_manager is not None:
-            return self._vector_pool_manager.drop_dual_build_root(build_root)
-        if build_root is None:
-            return
-        try:
-            shutil.rmtree(build_root, ignore_errors=True)
-        except Exception as exc:
-            logger.warning(f"清理双池临时构建目录失败: {exc}")
+        return self._vector_pool_manager.drop_dual_build_root(build_root)
 
     def _refresh_relation_write_service(self) -> None:
         if (
@@ -1050,21 +598,12 @@ class SDKMemoryKernel:
     def _graph_vector_id(item_type: str, hash_value: str) -> str:
         from .services.vector_pool import VectorPoolManager
         return VectorPoolManager.graph_vector_id(item_type, hash_value)
-        return f"{str(item_type or '').strip()}:{str(hash_value or '').strip()}"
 
     def _paragraph_store(self) -> Optional[VectorStore]:
-        if self._vector_pool_manager is not None:
-            return self._vector_pool_manager.paragraph_store()
-        if self._dual_vector_pools_enabled():
-            return self.paragraph_vector_store or self.vector_store
-        return self.vector_store
+        return self._vector_pool_manager.paragraph_store()
 
     def _graph_vector_store(self) -> Optional[VectorStore]:
-        if self._vector_pool_manager is not None:
-            return self._vector_pool_manager.graph_vector_store_resolved()
-        if self._dual_vector_pools_enabled():
-            return self.graph_vector_store or self.vector_store
-        return self.vector_store
+        return self._vector_pool_manager.graph_vector_store_resolved()
 
     def _delete_vectors_by_type(
         self,
@@ -1073,48 +612,22 @@ class SDKMemoryKernel:
         entity_hashes: Sequence[str] = (),
         relation_hashes: Sequence[str] = (),
     ) -> int:
-        if self._vector_pool_manager is not None:
-            return self._vector_pool_manager.delete_vectors_by_type(
-                paragraph_hashes=paragraph_hashes,
-                entity_hashes=entity_hashes,
-                relation_hashes=relation_hashes,
-                merge_tokens_fn=self._merge_tokens,
-            )
-        deleted = 0
-        legacy_ids = self._merge_tokens(paragraph_hashes, entity_hashes, relation_hashes)
-        if self.vector_store is not None and legacy_ids:
-            deleted += int(self.vector_store.delete(legacy_ids) or 0)
-        if not self._dual_vector_pools_enabled():
-            return deleted
-        paragraph_ids = self._merge_tokens(paragraph_hashes)
-        if self.paragraph_vector_store is not None and paragraph_ids:
-            deleted += int(self.paragraph_vector_store.delete(paragraph_ids) or 0)
-        graph_ids = [
-            self._graph_vector_id("entity", hash_value)
-            for hash_value in self._merge_tokens(entity_hashes)
-        ]
-        graph_ids.extend(
-            self._graph_vector_id("relation", hash_value)
-            for hash_value in self._merge_tokens(relation_hashes)
+        return self._vector_pool_manager.delete_vectors_by_type(
+            paragraph_hashes=paragraph_hashes,
+            entity_hashes=entity_hashes,
+            relation_hashes=relation_hashes,
+            merge_tokens_fn=self._merge_tokens,
         )
-        if self.graph_vector_store is not None and graph_ids:
-            deleted += int(self.graph_vector_store.delete(graph_ids) or 0)
-        return deleted
 
     def _is_embedding_degraded(self) -> bool:
-        if self._embedding_health_service is None:
-            return False
         return self._embedding_health_service.is_degraded
 
     def _embedding_degraded_snapshot(self) -> Dict[str, Any]:
-        if self._embedding_health_service is None:
-            return {"active": False, "reason": "", "since": None, "last_check": None}
         return self._embedding_health_service.snapshot()
 
     def _set_embedding_degraded(self, *, active: bool, reason: str = "", checked_at: Optional[float] = None) -> None:
-        if self._embedding_health_service is not None:
-            self._embedding_health_service.set_degraded(active=active, reason=reason, checked_at=checked_at)
-            self._apply_runtime_sparse_mode()
+        self._embedding_health_service.set_degraded(active=active, reason=reason, checked_at=checked_at)
+        self._apply_runtime_sparse_mode()
 
     def _apply_runtime_sparse_mode(self) -> None:
         retriever = self.retriever
@@ -1137,9 +650,7 @@ class SDKMemoryKernel:
         )
         self._runtime_facade._runtime_self_check_report = dict(report)
         checked_at = float(report.get("checked_at") or time.time())
-        if self._embedding_health_service is not None:
-            self._embedding_health_service.update_last_check(checked_at)
-        return report
+        self._embedding_health_service.update_last_check(checked_at)
 
     def _mark_startup_self_check_deferred(self) -> None:
         """记录启动阶段跳过真实 embedding encode 自检，避免阻塞主启动流程。"""
@@ -1149,20 +660,15 @@ class SDKMemoryKernel:
         )
         requested_dimension = self._current_embedding_status_dimension()
         vector_store_dimension = int(getattr(self.vector_store, "dimension", 0) or 0)
-        if self._embedding_health_service is not None:
-            self._embedding_health_service.mark_startup_self_check_deferred(
-                configured_dimension=configured_dimension,
-                requested_dimension=requested_dimension,
-                vector_store_dimension=vector_store_dimension,
-            )
-            self._runtime_facade._runtime_self_check_report = self._embedding_health_service.runtime_self_check_report
+        self._embedding_health_service.mark_startup_self_check_deferred(
+            configured_dimension=configured_dimension,
+            requested_dimension=requested_dimension,
+            vector_store_dimension=vector_store_dimension,
+        )
+        self._runtime_facade._runtime_self_check_report = self._embedding_health_service.runtime_self_check_report
 
     def _is_startup_self_check_deferred(self) -> bool:
-        if self._embedding_health_service is not None:
-            return self._embedding_health_service.is_startup_self_check_deferred()
-        report = self._runtime_facade._runtime_self_check_report
-        code = str(report.get("code", "") or "") if isinstance(report, dict) else ""
-        return code in {"startup_self_check_deferred", "startup_self_check_deferred_degraded"}
+        return self._embedding_health_service.is_startup_self_check_deferred()
 
     @staticmethod
     def _self_check_effective_dimension(report: Dict[str, Any]) -> int:
@@ -1371,28 +877,8 @@ class SDKMemoryKernel:
         }
 
     def _count_vector_rebuild_targets(self) -> Dict[str, int]:
-        if self._vector_pool_manager is not None:
-            self._vector_pool_manager.metadata_store = self.metadata_store
-            return self._vector_pool_manager.count_vector_rebuild_targets()
-        if self.metadata_store is None:
-            return {"paragraphs": 0, "entities": 0, "relations": 0}
-        paragraph_where = self._active_row_filter_sql("paragraphs")
-        entity_where = self._active_row_filter_sql("entities")
-        relation_where = self._active_row_filter_sql("relations")
-        rows = self.metadata_store.query(
-            f"""
-            SELECT
-                (SELECT COUNT(*) FROM paragraphs WHERE {paragraph_where}) AS paragraphs,
-                (SELECT COUNT(*) FROM entities WHERE {entity_where}) AS entities,
-                (SELECT COUNT(*) FROM relations WHERE {relation_where}) AS relations
-            """
-        )
-        row = rows[0] if rows else {}
-        return {
-            "paragraphs": int(row.get("paragraphs", 0) or 0),
-            "entities": int(row.get("entities", 0) or 0),
-            "relations": int(row.get("relations", 0) or 0),
-        }
+        self._vector_pool_manager.metadata_store = self.metadata_store
+        return self._vector_pool_manager.count_vector_rebuild_targets()
 
     def _table_has_column(self, table: str, column: str) -> bool:
         if self.metadata_store is None:
@@ -3099,51 +2585,13 @@ class SDKMemoryKernel:
     def _vector_store_snapshot(store: Optional[VectorStore]) -> Dict[str, Any]:
         from .services.vector_pool import VectorPoolManager
         return VectorPoolManager.vector_store_snapshot(store)
-        if store is None:
-            return {
-                "available": False,
-                "dimension": 0,
-                "num_vectors": 0,
-                "has_data": False,
-            }
-        has_data = False
-        try:
-            has_data = bool(store.has_data())
-        except Exception:
-            has_data = False
-        return {
-            "available": True,
-            "dimension": int(getattr(store, "dimension", 0) or 0),
-            "num_vectors": int(getattr(store, "num_vectors", 0) or 0),
-            "has_data": has_data,
-        }
 
     def _vector_pools_status(self) -> Dict[str, Any]:
-        if self._vector_pool_manager is not None:
-            return self._vector_pool_manager.vector_pools_status()
-        configured_mode = self._vector_pool_mode()
-        ready = self._dual_vector_pools_enabled()
-        return {
-            "configured_mode": configured_mode,
-            "effective_mode": "dual" if configured_mode == "dual" and ready else "single",
-            "ready": ready,
-            "single_pool": self._vector_store_snapshot(self.vector_store),
-            "paragraph_pool": self._vector_store_snapshot(self.paragraph_vector_store),
-            "graph_pool": self._vector_store_snapshot(self.graph_vector_store),
-            "ready_manifest": str(self._dual_vector_ready_manifest_path()),
-            "auto_migration": dict(self._vector_pool_manager._dual_vector_auto_migration_status),
-        }
+        return self._vector_pool_manager.vector_pools_status()
 
     def _should_start_dual_vector_auto_migration(self) -> bool:
-        if self._vector_pool_manager is not None:
-            return self._vector_pool_manager.should_start_dual_vector_auto_migration(
-                background_stopping=self._background_scheduler.stopping,
-            )
-        return (
-            self._dual_vector_pools_config_enabled()
-            and not self._dual_vector_pools_enabled()
-            and not self._vector_pool_manager.auto_migration_attempted
-            and not self._background_scheduler.stopping
+        return self._vector_pool_manager.should_start_dual_vector_auto_migration(
+            background_stopping=self._background_scheduler.stopping,
         )
 
     def _normalize_dual_vector_auto_migration_progress(
@@ -3155,16 +2603,9 @@ class SDKMemoryKernel:
         completed: bool = False,
         success: bool = False,
     ) -> Dict[str, Any]:
-        if self._vector_pool_manager is not None:
-            return self._vector_pool_manager.normalize_dual_vector_auto_migration_progress(
-                progress, now=now, explicit_processed=explicit_processed, completed=completed, success=success,
-            )
-        payload: Dict[str, Any] = dict(progress or {})
-        now_ts = float(now if now is not None else time.time())
-        started_at = self._vector_pool_manager._dual_vector_auto_migration_status.get("started_at")
-        elapsed_seconds = 0.0
-        if isinstance(started_at, (int, float)):
-            elapsed_seconds = max(0.0, now_ts - float(started_at))
+        return self._vector_pool_manager.normalize_dual_vector_auto_migration_progress(
+            progress, now=now, explicit_processed=explicit_processed, completed=completed, success=success,
+        )
 
         def _coerce_non_negative_int(value: Any, default: int = 0) -> int:
             try:
@@ -3227,26 +2668,7 @@ class SDKMemoryKernel:
         return payload
 
     def _update_dual_vector_auto_migration_stage(self, stage: str, **progress: Any) -> None:
-        if self._vector_pool_manager is not None:
-            return self._vector_pool_manager.update_dual_vector_auto_migration_stage(stage, **progress)
-        if not bool(self._vector_pool_manager._dual_vector_auto_migration_status.get("running", False)):
-            return
-        now_ts = time.time()
-        explicit_processed = "processed" in progress
-        payload = dict(self._vector_pool_manager._dual_vector_auto_migration_status.get("progress") or {})
-        payload.update(progress)
-        payload = self._normalize_dual_vector_auto_migration_progress(
-            payload,
-            now=now_ts,
-            explicit_processed=explicit_processed,
-        )
-        self._vector_pool_manager._dual_vector_auto_migration_status.update(
-            {
-                "stage": str(stage or "unknown"),
-                "progress": payload,
-                "updated_at": now_ts,
-            }
-        )
+        return self._vector_pool_manager.update_dual_vector_auto_migration_stage(stage, **progress)
 
     async def memory_graph_admin(self, *, action: str, **kwargs) -> Dict[str, Any]:
         handler = self._admin_handlers.get("graph")
@@ -5243,82 +4665,49 @@ class SDKMemoryKernel:
         return payload if isinstance(payload, dict) else {}
 
     def _feedback_cfg_enabled(self) -> bool:
-        if self._feedback_config is not None:
-            return self._feedback_config.enabled
-        return bool(getattr(global_config.a_memorix.integration, "feedback_correction_enabled", False))
+        return self._feedback_config.enabled
 
     def _feedback_cfg_window_hours(self) -> float:
-        if self._feedback_config is not None:
-            return self._feedback_config.window_hours
-        return max(0.1, float(getattr(global_config.a_memorix.integration, "feedback_correction_window_hours", 12.0) or 12.0))
+        return self._feedback_config.window_hours
 
     def _feedback_cfg_check_interval_seconds(self) -> float:
-        if self._feedback_config is not None:
-            return self._feedback_config.check_interval_seconds
-        minutes = max(1, int(getattr(global_config.a_memorix.integration, "feedback_correction_check_interval_minutes", 30) or 30))
-        return float(minutes) * 60.0
+        return self._feedback_config.check_interval_seconds
 
     def _feedback_cfg_batch_size(self) -> int:
-        if self._feedback_config is not None:
-            return self._feedback_config.batch_size
-        return max(1, int(getattr(global_config.a_memorix.integration, "feedback_correction_batch_size", 20) or 20))
+        return self._feedback_config.batch_size
 
     def _feedback_cfg_auto_apply_threshold(self) -> float:
-        if self._feedback_config is not None:
-            return self._feedback_config.auto_apply_threshold
-        value = float(getattr(global_config.a_memorix.integration, "feedback_correction_auto_apply_threshold", 0.85) or 0.85)
-        return min(1.0, max(0.0, value))
+        return self._feedback_config.auto_apply_threshold
 
     def _feedback_cfg_max_messages(self) -> int:
-        if self._feedback_config is not None:
-            return self._feedback_config.max_messages
-        return max(1, int(getattr(global_config.a_memorix.integration, "feedback_correction_max_feedback_messages", 30) or 30))
+        return self._feedback_config.max_messages
 
     def _feedback_cfg_prefilter_enabled(self) -> bool:
-        if self._feedback_config is not None:
-            return self._feedback_config.prefilter_enabled
-        return bool(getattr(global_config.a_memorix.integration, "feedback_correction_prefilter_enabled", True))
+        return self._feedback_config.prefilter_enabled
 
     def _feedback_cfg_paragraph_mark_enabled(self) -> bool:
-        if self._feedback_config is not None:
-            return self._feedback_config.paragraph_mark_enabled
-        return bool(getattr(global_config.a_memorix.integration, "feedback_correction_paragraph_mark_enabled", True))
+        return self._feedback_config.paragraph_mark_enabled
 
     def _feedback_cfg_paragraph_hard_filter_enabled(self) -> bool:
-        if self._feedback_config is not None:
-            return self._feedback_config.paragraph_hard_filter_enabled
-        return bool(getattr(global_config.a_memorix.integration, "feedback_correction_paragraph_hard_filter_enabled", True))
+        return self._feedback_config.paragraph_hard_filter_enabled
 
     def _feedback_cfg_profile_refresh_enabled(self) -> bool:
-        if self._feedback_config is not None:
-            return self._feedback_config.profile_refresh_enabled
-        return bool(getattr(global_config.a_memorix.integration, "feedback_correction_profile_refresh_enabled", True))
+        return self._feedback_config.profile_refresh_enabled
 
     def _feedback_cfg_profile_force_refresh_on_read(self) -> bool:
-        if self._feedback_config is not None:
-            return self._feedback_config.profile_force_refresh_on_read
-        return bool(getattr(global_config.a_memorix.integration, "feedback_correction_profile_force_refresh_on_read", True))
+        return self._feedback_config.profile_force_refresh_on_read
 
     def _feedback_cfg_episode_rebuild_enabled(self) -> bool:
-        if self._feedback_config is not None:
-            return self._feedback_config.episode_rebuild_enabled
-        return bool(getattr(global_config.a_memorix.integration, "feedback_correction_episode_rebuild_enabled", True))
+        return self._feedback_config.episode_rebuild_enabled
 
     def _feedback_cfg_episode_query_block_enabled(self) -> bool:
-        if self._feedback_config is not None:
-            return self._feedback_config.episode_query_block_enabled
-        return bool(getattr(global_config.a_memorix.integration, "feedback_correction_episode_query_block_enabled", True))
+        return self._feedback_config.episode_query_block_enabled
 
     def _feedback_cfg_reconcile_interval_seconds(self) -> float:
-        if self._feedback_config is not None:
-            return self._feedback_config.reconcile_interval_seconds
-        minutes = max(1, int(getattr(global_config.a_memorix.integration, "feedback_correction_reconcile_interval_minutes", 5) or 5))
-        return float(minutes) * 60.0
+        return self._feedback_config.reconcile_interval_seconds
 
     def _feedback_cfg_reconcile_batch_size(self) -> int:
-        if self._feedback_config is not None:
-            return self._feedback_config.reconcile_batch_size
-        return max(1, int(getattr(global_config.a_memorix.integration, "feedback_correction_reconcile_batch_size", 20) or 20))
+        return self._feedback_config.reconcile_batch_size
 
     def _should_auto_enqueue_episode(self, *, source_type: str) -> bool:
         if not bool(self._cfg("episode.enabled", True)):
@@ -5379,12 +4768,7 @@ class SDKMemoryKernel:
         )
 
     def _feedback_cfg_window_label(self) -> str:
-        if self._feedback_config is not None:
-            return self._feedback_config.window_label
-        hours = self._feedback_cfg_window_hours()
-        if abs(hours - round(hours)) < 1e-9:
-            return f"{int(round(hours))}h"
-        return f"{hours:.2f}h"
+        return self._feedback_config.window_label
 
     async def enqueue_feedback_task(
         self,
@@ -9178,34 +8562,22 @@ class SDKMemoryKernel:
         return aliases.get(token, token or "person_profile")
 
     def _fuzzy_modify_cfg_enabled(self) -> bool:
-        if self._fuzzy_modify_config is not None:
-            return self._fuzzy_modify_config.enabled
-        return bool(getattr(global_config.a_memorix.integration, "fuzzy_modify_enabled", True))
+        return self._fuzzy_modify_config.enabled
 
     def _fuzzy_modify_cfg_auto_execute_enabled(self) -> bool:
-        if self._fuzzy_modify_config is not None:
-            return self._fuzzy_modify_config.auto_execute_enabled
-        return bool(getattr(global_config.a_memorix.integration, "fuzzy_modify_auto_execute_enabled", False))
+        return self._fuzzy_modify_config.auto_execute_enabled
 
     def _fuzzy_modify_cfg_confirm_threshold(self) -> float:
-        if self._fuzzy_modify_config is not None:
-            return self._fuzzy_modify_config.confirm_threshold
-        return float(getattr(global_config.a_memorix.integration, "fuzzy_modify_confirm_threshold", 0.85) or 0.85)
+        return self._fuzzy_modify_config.confirm_threshold
 
     def _fuzzy_modify_cfg_candidate_limit(self) -> int:
-        if self._fuzzy_modify_config is not None:
-            return self._fuzzy_modify_config.candidate_limit
-        return max(1, int(getattr(global_config.a_memorix.integration, "fuzzy_modify_candidate_limit", 20) or 20))
+        return self._fuzzy_modify_config.candidate_limit
 
     def _fuzzy_modify_cfg_max_targets(self) -> int:
-        if self._fuzzy_modify_config is not None:
-            return self._fuzzy_modify_config.max_targets
-        return max(1, int(getattr(global_config.a_memorix.integration, "fuzzy_modify_max_targets", 5) or 5))
+        return self._fuzzy_modify_config.max_targets
 
     def _fuzzy_modify_cfg_allow_global_scope(self) -> bool:
-        if self._fuzzy_modify_config is not None:
-            return self._fuzzy_modify_config.allow_global_scope
-        return bool(getattr(global_config.a_memorix.integration, "fuzzy_modify_allow_global_scope", False))
+        return self._fuzzy_modify_config.allow_global_scope
 
     def _adjust_relation_confidence(self, hashes: List[str], *, delta: float) -> Dict[str, float]:
         assert self.metadata_store
