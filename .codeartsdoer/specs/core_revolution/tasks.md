@@ -443,3 +443,628 @@
 - **验收标准**：所有端到端场景验证通过
 - **影响文件**：无（验证任务）
 - **优先级**：高
+
+---
+
+## 阶段 7：SDKMemoryKernel 革命性重构
+
+> **设计哲学**：面对 9650 行的 God Class，不是用持续打补丁的方式去助长它的混乱，而是用革命的手段去扬弃它。保留精华（记忆检索、人物画像、关系图谱的核心能力），抛弃糟粕（God Class、过度防御、字符串分发、代理层冗余）。
+>
+> **目标**：SDKMemoryKernel 从 9650 行 → ≤800 行薄协调层；9 个功能域服务拆分到 `services/`；11 个 Admin Handler 拆分到 `admin/`；3 个配置数据类拆分到 `config/`；删除 `_KernelRuntimeFacade`、47 处 `getattr`、466 处 `or ""` 兜底。
+>
+> **5 阶段迁移**：7A 基础设施 → 7B 功能域提取 → 7C Admin Handler → 7D Kernel 瘦身清理 → 7E 验证
+>
+> **核心约束**：
+> - 外部 API 签名不变（`host_service` / `plugin.py` 的调用方式不变）
+> - 子模块不反向持有 `SDKMemoryKernel` 引用
+> - 不引入新的循环依赖
+> - 数据目录结构和持久化格式不变
+
+---
+
+### 阶段 7A：基础设施 — 配置数据类 + Admin Handler 基类 + 服务包
+
+> 无破坏性，只新增定义和空包，不修改存量代码。
+
+#### TASK-7A-01: 创建 config/ 包及 FeedbackConfig 数据类
+
+- [ ] 创建 `src/A_memorix/core/runtime/config/__init__.py`（空包或导出配置类）
+- [ ] 创建 `src/A_memorix/core/runtime/config/feedback_config.py`，实现 `FeedbackConfig`：
+  - `@dataclass(frozen=True)` 不可变数据类
+  - 字段：`enabled`、`window_hours`、`check_interval_seconds`、`batch_size`、`auto_apply_threshold`、`max_messages`、`prefilter_enabled`、`paragraph_mark_enabled`、`paragraph_hard_filter_enabled`、`profile_refresh_enabled`、`profile_force_refresh_on_read`、`episode_rebuild_enabled`、`episode_query_block_enabled`、`reconcile_interval_seconds`、`reconcile_batch_size`
+  - `@classmethod from_global_config(cls) -> FeedbackConfig` — 从 `global_config.a_memorix.integration` 一次性读取所有配置，替代 15+ 处 `getattr` 模式
+- **需求ID**：REQ-CLEANUP-007、REQ-CLEANUP-004
+- **依赖**：无
+- **验收标准**：`from src.A_memorix.core.runtime.config.feedback_config import FeedbackConfig` 导入成功；`FeedbackConfig.from_global_config()` 返回有效配置实例；`FeedbackConfig(enabled=True).enabled` 为 True
+- **影响文件**：`src/A_memorix/core/runtime/config/__init__.py`（新增）、`src/A_memorix/core/runtime/config/feedback_config.py`（新增）
+- **优先级**：极高
+- **复杂度**：中
+
+#### TASK-7A-02: 创建 FuzzyModifyConfig 数据类
+
+- [ ] 创建 `src/A_memorix/core/runtime/config/fuzzy_modify_config.py`，实现 `FuzzyModifyConfig`：
+  - `@dataclass(frozen=True)` 不可变数据类
+  - 字段：`enabled`、`auto_execute_enabled`、`confirm_threshold`、`candidate_limit`、`max_targets`、`allow_global_scope`
+  - `@classmethod from_global_config(cls) -> FuzzyModifyConfig` — 从 `global_config.a_memorix.integration` 一次性读取
+- **需求ID**：REQ-CLEANUP-007、REQ-CLEANUP-004
+- **依赖**：TASK-7A-01（同包结构已建立）
+- **验收标准**：`from src.A_memorix.core.runtime.config.fuzzy_modify_config import FuzzyModifyConfig` 导入成功；`FuzzyModifyConfig.from_global_config()` 返回有效配置实例
+- **影响文件**：`src/A_memorix/core/runtime/config/fuzzy_modify_config.py`（新增）
+- **优先级**：高
+- **复杂度**：低
+
+#### TASK-7A-03: 创建 VectorPoolConfig 数据类
+
+- [ ] 创建 `src/A_memorix/core/runtime/config/vector_pool_config.py`，实现 `VectorPoolConfig`：
+  - `@dataclass(frozen=True)` 不可变数据类
+  - 字段：`mode`、`config_enabled`、`embedding_fallback_enabled`、`allow_metadata_only_write`、`embedding_probe_interval_seconds`、`paragraph_vector_backfill_enabled`、`paragraph_vector_backfill_interval_seconds`、`paragraph_vector_backfill_batch_size`、`paragraph_vector_backfill_max_retry`
+  - `@classmethod from_global_config(cls) -> VectorPoolConfig` — 从 `global_config.a_memorix.integration` 一次性读取
+- **需求ID**：REQ-CLEANUP-007、REQ-CLEANUP-004
+- **依赖**：TASK-7A-01
+- **验收标准**：`from src.A_memorix.core.runtime.config.vector_pool_config import VectorPoolConfig` 导入成功；`VectorPoolConfig.from_global_config()` 返回有效配置实例
+- **影响文件**：`src/A_memorix/core/runtime/config/vector_pool_config.py`（新增）
+- **优先级**：高
+- **复杂度**：低
+
+#### TASK-7A-04: 创建 admin/ 包及 BaseAdminHandler
+
+- [ ] 创建 `src/A_memorix/core/runtime/admin/__init__.py`（空包或导出 Handler 类）
+- [ ] 创建 `src/A_memorix/core/runtime/admin/base.py`，实现 `BaseAdminHandler`：
+  - `async def handle(self, action: str, **kwargs) -> Dict[str, Any]` — 抽象方法，子类重写实现分发逻辑
+  - 不支持的 action 返回 `{"success": False, "error": f"不支持的 {domain} action: {act}"}`
+  - 提供公共工具方法：`_str_action(action) -> str`（标准化 action 字符串）、`_require_initialized()`（检查依赖是否就绪）
+- **需求ID**：REQ-CLEANUP-003
+- **依赖**：无
+- **验收标准**：`from src.A_memorix.core.runtime.admin.base import BaseAdminHandler` 导入成功；`BaseAdminHandler()` 可实例化
+- **影响文件**：`src/A_memorix/core/runtime/admin/__init__.py`（新增）、`src/A_memorix/core/runtime/admin/base.py`（新增）
+- **优先级**：高
+- **复杂度**：低
+
+#### TASK-7A-05: 创建 services/ 包
+
+- [ ] 创建 `src/A_memorix/core/runtime/services/__init__.py`（空包，后续逐步导出服务类）
+- **需求ID**：REQ-CLEANUP-001、REQ-CLEANUP-002
+- **依赖**：无
+- **验收标准**：`from src.A_memorix.core.runtime.services import ...` 导入路径可用
+- **影响文件**：`src/A_memorix/core/runtime/services/__init__.py`（新增）
+- **优先级**：高
+- **复杂度**：极低
+
+#### TASK-7A-06: 阶段 7A 验证
+
+- [ ] 执行以下验证：
+  - `from src.A_memorix.core.runtime.config.feedback_config import FeedbackConfig` — 导入成功
+  - `from src.A_memorix.core.runtime.config.fuzzy_modify_config import FuzzyModifyConfig` — 导入成功
+  - `from src.A_memorix.core.runtime.config.vector_pool_config import VectorPoolConfig` — 导入成功
+  - `from src.A_memorix.core.runtime.admin.base import BaseAdminHandler` — 导入成功
+  - `from src.A_memorix.core.runtime.services import ...` — 包路径可用
+  - `FeedbackConfig.from_global_config()` — 返回有效配置
+  - 容器内重启后 A_memorix 功能正常（未修改存量代码）
+- **需求ID**：REQ-CLEANUP-007
+- **依赖**：TASK-7A-01、TASK-7A-02、TASK-7A-03、TASK-7A-04、TASK-7A-05
+- **验收标准**：上述所有检查通过；容器重启后功能正常
+- **影响文件**：无（验证任务）
+- **优先级**：高
+- **复杂度**：低
+
+---
+
+### 阶段 7B：功能域提取 — 逐个提取独立服务
+
+> 按依赖关系从底层到上层逐个提取。每个服务提取后，Kernel 中原方法先改为委托调用，确认功能正常。
+> **提取原则**：一次只提取一个功能域，提取后立即验证。
+
+#### TASK-7B-01: 提取 EmbeddingHealthService（最小依赖，~150 行）
+
+- [ ] 创建 `src/A_memorix/core/runtime/services/embedding_health.py`，实现 `EmbeddingHealthService`：
+  - 从 SDKMemoryKernel 提取以下方法：`_is_embedding_degraded`、`_embedding_degraded_snapshot`、`_set_embedding_degraded`、`_refresh_runtime_self_check`
+  - 构造函数注入：`embedding_manager`、`vector_pool_config: VectorPoolConfig`
+  - 持有 `_embedding_degraded: Dict[str, Any]` 状态
+  - 对外暴露 `is_degraded` 属性、`snapshot() -> Dict`、`set_degraded(reason)`、`refresh_self_check()` 方法
+- [ ] 在 `SDKMemoryKernel.__init__` 中创建 `self._embedding_health_service = EmbeddingHealthService(...)` 实例
+- [ ] 将 Kernel 中原方法改为委托：`def _is_embedding_degraded(self) -> bool: return self._embedding_health_service.is_degraded`
+- **需求ID**：REQ-CLEANUP-001、REQ-CLEANUP-002
+- **依赖**：TASK-7A-03（VectorPoolConfig）、TASK-7A-05（services 包）
+- **验收标准**：`from src.A_memorix.core.runtime.services.embedding_health import EmbeddingHealthService` 导入成功；Kernel 中 `_is_embedding_degraded` 委托到服务；容器重启后 Embedding 降级检测功能正常
+- **影响文件**：`src/A_memorix/core/runtime/services/embedding_health.py`（新增）、`src/A_memorix/core/runtime/sdk_memory_kernel.py`（修改 — 委托模式）
+- **优先级**：极高
+- **复杂度**：低
+
+#### TASK-7B-02: 提取 VectorPoolManager（依赖 EmbeddingHealthService，~800 行）
+
+- [ ] 创建 `src/A_memorix/core/runtime/services/vector_pool.py`，实现 `VectorPoolManager`：
+  - 从 SDKMemoryKernel 提取以下方法：`_dual_vector_pools_enabled`、`_dual_vector_pools_config_enabled`、`_dual_vector_ready_manifest_path`、`_dual_vector_ready`、`_stored_vector_dimension`、`_embedding_fingerprint_status`、`_vector_mismatch_error`、`_vector_rebuild_status`、`_vector_pool_mode`、`_vector_store_snapshot`、`_vector_pools_status`、`_dual_vector_auto_migration_loop`、`_embedding_fallback_enabled`、`_allow_metadata_only_write`、`_paragraph_vector_backfill_enabled`
+  - 构造函数注入：`config: Dict[str, Any]`、`data_dir: Path`、`embedding_dimension: int`、`embedding_manager`、`vector_store`、`paragraph_vector_store`、`graph_vector_store`、`embedding_health_service: EmbeddingHealthService`、`vector_pool_config: VectorPoolConfig`
+  - 持有双池状态：`_dual_vector_pools_ready`、`_dual_vector_auto_migration_*`、`_vector_rebuild_lock`、`_vector_persist_blocked_until_rebuild`
+  - 对外暴露 `dual_pools_enabled`、`dual_pools_ready`、`persist()`、`reload_dual_vector_stores_from_disk()`、`vector_rebuild_status()`、`vector_pools_status()` 等方法
+- [ ] 在 `SDKMemoryKernel.__init__` 中创建 `self._vector_pool_manager = VectorPoolManager(...)` 实例
+- [ ] 将 Kernel 中原方法改为委托调用
+- **需求ID**：REQ-CLEANUP-001、REQ-CLEANUP-002
+- **依赖**：TASK-7B-01（EmbeddingHealthService）、TASK-7A-03（VectorPoolConfig）
+- **验收标准**：`from src.A_memorix.core.runtime.services.vector_pool import VectorPoolManager` 导入成功；Kernel 中向量池相关方法委托到服务；容器重启后双池配置和向量持久化功能正常
+- **影响文件**：`src/A_memorix/core/runtime/services/vector_pool.py`（新增）、`src/A_memorix/core/runtime/sdk_memory_kernel.py`（修改 — 委托模式）
+- **优先级**：极高
+- **复杂度**：高
+
+#### TASK-7B-03: 提取 ParagraphBackfillService（依赖 VectorPoolManager，~200 行）
+
+- [ ] 创建 `src/A_memorix/core/runtime/services/paragraph_backfill.py`，实现 `ParagraphBackfillService`：
+  - 从 SDKMemoryKernel 提取以下方法：`_enqueue_paragraph_vector_backfill`、`_write_paragraph_vector_or_enqueue`、`_run_paragraph_backfill_once`
+  - 构造函数注入：`metadata_store`、`vector_pool_manager: VectorPoolManager`、`embedding_health_service: EmbeddingHealthService`、`vector_pool_config: VectorPoolConfig`
+  - 持有回填队列状态
+  - 对外暴露 `enqueue(paragraph_hash, error)`、`write_or_enqueue(paragraph_hash, content, context)`、`run_once()` 方法
+- [ ] 在 `SDKMemoryKernel.__init__` 中创建 `self._paragraph_backfill_service = ParagraphBackfillService(...)` 实例
+- [ ] 将 Kernel 中原方法改为委托调用
+- **需求ID**：REQ-CLEANUP-001、REQ-CLEANUP-002
+- **依赖**：TASK-7B-01、TASK-7B-02
+- **验收标准**：`from src.A_memorix.core.runtime.services.paragraph_backfill import ParagraphBackfillService` 导入成功；Kernel 中段落回填方法委托到服务；容器重启后段落向量回填功能正常
+- **影响文件**：`src/A_memorix/core/runtime/services/paragraph_backfill.py`（新增）、`src/A_memorix/core/runtime/sdk_memory_kernel.py`（修改 — 委托模式）
+- **优先级**：高
+- **复杂度**：中
+
+#### TASK-7B-04: 提取 VectorRebuildService（依赖 VectorPoolManager + ParagraphBackfillService，~600 行）
+
+- [ ] 创建 `src/A_memorix/core/runtime/services/vector_rebuild.py`，实现 `VectorRebuildService`：
+  - 从 SDKMemoryKernel 提取以下方法：`_rebuild_all_vectors`、`_rebuild_all_vectors_locked`、`_encode_and_add_rebuild_vectors` 及相关辅助方法
+  - 构造函数注入：`metadata_store`、`vector_pool_manager: VectorPoolManager`、`embedding_health_service: EmbeddingHealthService`、`paragraph_backfill_service: ParagraphBackfillService`
+  - 使用 `vector_pool_manager._vector_rebuild_lock` 保证互斥
+  - 对外暴露 `rebuild_all()` 方法
+- [ ] 在 `SDKMemoryKernel.__init__` 中创建 `self._vector_rebuild_service = VectorRebuildService(...)` 实例
+- [ ] 将 Kernel 中原方法改为委托调用
+- **需求ID**：REQ-CLEANUP-001、REQ-CLEANUP-002
+- **依赖**：TASK-7B-02、TASK-7B-03
+- **验收标准**：`from src.A_memorix.core.runtime.services.vector_rebuild import VectorRebuildService` 导入成功；Kernel 中向量重建方法委托到服务；容器重启后向量重建功能正常
+- **影响文件**：`src/A_memorix/core/runtime/services/vector_rebuild.py`（新增）、`src/A_memorix/core/runtime/sdk_memory_kernel.py`（修改 — 委托模式）
+- **优先级**：高
+- **复杂度**：高
+
+#### TASK-7B-05: 提取 MemoryMaintenanceService（依赖 GraphStore + MetadataStore，~200 行）
+
+- [ ] 创建 `src/A_memorix/core/runtime/services/memory_maintenance.py`，实现 `MemoryMaintenanceService`：
+  - 从 SDKMemoryKernel 提取以下方法：`_memory_maintenance_loop`、`_process_freeze_and_prune`、`_orphan_gc_phase`
+  - 构造函数注入：`graph_store`、`metadata_store`、`vector_pool_manager: VectorPoolManager`
+  - 对外暴露 `run_maintenance_cycle()`、`process_freeze_and_prune()`、`orphan_gc()` 方法
+- [ ] 在 `SDKMemoryKernel.__init__` 中创建 `self._memory_maintenance_service = MemoryMaintenanceService(...)` 实例
+- [ ] 将 Kernel 中原方法改为委托调用
+- **需求ID**：REQ-CLEANUP-001、REQ-CLEANUP-002
+- **依赖**：TASK-7B-02
+- **验收标准**：`from src.A_memorix.core.runtime.services.memory_maintenance import MemoryMaintenanceService` 导入成功；Kernel 中记忆维护方法委托到服务；容器重启后记忆衰减/冻结/修剪功能正常
+- **影响文件**：`src/A_memorix/core/runtime/services/memory_maintenance.py`（新增）、`src/A_memorix/core/runtime/sdk_memory_kernel.py`（修改 — 委托模式）
+- **优先级**：高
+- **复杂度**：中
+
+#### TASK-7B-06: 提取 GraphOperations（依赖 GraphStore + MetadataStore，~500 行）
+
+- [ ] 创建 `src/A_memorix/core/runtime/services/graph_operations.py`，实现 `GraphOperations`：
+  - 从 SDKMemoryKernel 提取以下方法：`_serialize_graph`、`_search_graph`、`_build_graph_node_detail`、`_build_evidence_graph`、`_rename_node`、`_update_edge_weight`
+  - 构造函数注入：`graph_store`、`metadata_store`、`relation_write_service`
+  - 对外暴露 `serialize_graph()`、`search_graph()`、`build_node_detail()`、`build_evidence_graph()`、`rename_node()`、`update_edge_weight()` 方法
+- [ ] 在 `SDKMemoryKernel.__init__` 中创建 `self._graph_operations = GraphOperations(...)` 实例
+- [ ] 将 Kernel 中原方法改为委托调用
+- **需求ID**：REQ-CLEANUP-001、REQ-CLEANUP-002
+- **依赖**：无（仅依赖存储层）
+- **验收标准**：`from src.A_memorix.core.runtime.services.graph_operations import GraphOperations` 导入成功；Kernel 中图操作方法委托到服务；容器重启后图序列化/搜索功能正常
+- **影响文件**：`src/A_memorix/core/runtime/services/graph_operations.py`（新增）、`src/A_memorix/core/runtime/sdk_memory_kernel.py`（修改 — 委托模式）
+- **优先级**：高
+- **复杂度**：中
+
+#### TASK-7B-07: 提取 BackgroundTaskScheduler（独立，~400 行调度逻辑）
+
+- [ ] 创建 `src/A_memorix/core/runtime/services/background_scheduler.py`，实现 `BackgroundTaskScheduler`：
+  - 从 SDKMemoryKernel 提取以下方法：`_start_background_tasks`、`_stop_background_tasks`、`_ensure_background_task` 及 `_background_tasks` / `_background_lock` / `_background_stopping` 状态
+  - 构造函数：`__init__()` — 初始化 `_tasks: Dict[str, asyncio.Task]`、`_lock: asyncio.Lock`、`_stopping: bool`
+  - 对外暴露 `register(name, factory)`、`ensure_task(name, factory)`、`start_all()`、`stop_all()`、`stopping` 属性
+  - Kernel 在 `initialize()` 中调用 `scheduler.register(...)` 注册 9 个后台循环
+  - Kernel 在 `shutdown()` 中调用 `scheduler.stop_all()`
+- [ ] 在 `SDKMemoryKernel.__init__` 中创建 `self._background_scheduler = BackgroundTaskScheduler()` 实例
+- [ ] 将 Kernel 中后台任务管理方法改为委托调用
+- **需求ID**：REQ-CLEANUP-001、REQ-CLEANUP-002
+- **依赖**：TASK-7A-05
+- **验收标准**：`from src.A_memorix.core.runtime.services.background_scheduler import BackgroundTaskScheduler` 导入成功；Kernel 中后台任务启停委托到调度器；容器重启后所有后台循环正常启动
+- **影响文件**：`src/A_memorix/core/runtime/services/background_scheduler.py`（新增）、`src/A_memorix/core/runtime/sdk_memory_kernel.py`（修改 — 委托模式）
+- **优先级**：极高
+- **复杂度**：中
+
+#### TASK-7B-08: 提取 FeedbackCorrectionService（最大块，~2000 行）
+
+- [ ] 创建 `src/A_memorix/core/runtime/services/feedback_correction.py`，实现 `FeedbackCorrectionService`：
+  - 从 SDKMemoryKernel 提取以下方法（32 个）：`_feedback_correction_loop`、`_feedback_correction_reconcile_loop`、`_process_feedback_task`、`_apply_feedback_decision`、`_rollback_feedback_task`、`_enqueue_feedback_episode_rebuilds`、`_enqueue_feedback_profile_refreshes`、`_process_feedback_profile_refresh_batch`、`_process_feedback_episode_rebuild_batch`、`_feedback_contains_signal`、`_feedback_noise`、`_feedback_signal_tokens`、`_feedback_affected_counts`、`_feedback_apply_result_status`、`_feedback_cfg_window_label`、15+ 个 `_feedback_cfg_*` 静态方法
+  - 构造函数注入：`config: FeedbackConfig`、`metadata_store`、`graph_store`、`vector_pool_manager: VectorPoolManager`、`embedding_health_service: EmbeddingHealthService`、`session_info_port`
+  - 配置读取从 15+ 个 `_feedback_cfg_*` 静态方法改为 `self.config.xxx` 直接属性访问
+  - 持有 `_feedback_classifier: Optional[LLMServiceClient]` 延迟初始化
+  - 对外暴露 `process_feedback_task()`、`apply_feedback_correction()`、`rollback_feedback_task()`、`feedback_correction_loop()`、`feedback_correction_reconcile_loop()`、`feedback_contains_signal()`、`feedback_noise()`、`build_feedback_task_summary()`、`build_feedback_task_detail()` 方法
+- [ ] 在 `SDKMemoryKernel.__init__` 中创建 `self._feedback_correction_service = FeedbackCorrectionService(...)` 实例
+- [ ] 将 Kernel 中原方法改为委托调用
+- [ ] 删除 Kernel 中 15+ 个 `_feedback_cfg_*` 静态方法（已合并为 `FeedbackConfig`）
+- **需求ID**：REQ-CLEANUP-001、REQ-CLEANUP-002、REQ-CLEANUP-004、REQ-CLEANUP-007
+- **依赖**：TASK-7A-01（FeedbackConfig）、TASK-7B-01、TASK-7B-02、TASK-7B-07
+- **验收标准**：`from src.A_memorix.core.runtime.services.feedback_correction import FeedbackCorrectionService` 导入成功；Kernel 中反馈纠错方法委托到服务；`_feedback_cfg_*` 静态方法已删除；容器重启后反馈纠错功能正常
+- **影响文件**：`src/A_memorix/core/runtime/services/feedback_correction.py`（新增）、`src/A_memorix/core/runtime/sdk_memory_kernel.py`（修改 — 委托模式 + 删除 `_feedback_cfg_*`）
+- **优先级**：极高
+- **复杂度**：极高
+
+#### TASK-7B-09: 提取 FuzzyModifyService（~1000 行）
+
+- [ ] 创建 `src/A_memorix/core/runtime/services/fuzzy_modify.py`，实现 `FuzzyModifyService`：
+  - 从 SDKMemoryKernel 提取以下方法：`_preview_fuzzy_modify_action`、`_execute_fuzzy_modify_action`、`_rollback_fuzzy_modify_action`、`_apply_fuzzy_modify_plan`、`_build_fuzzy_modify_paragraph_cascade`、`_execute_fuzzy_modify_paragraph_cascade`、`_mark_fuzzy_modify_target_superseded`、6 个 `_fuzzy_modify_cfg_*` 静态方法
+  - 构造函数注入：`config: FuzzyModifyConfig`、`metadata_store`、`graph_store`、`vector_pool_manager: VectorPoolManager`、`embedding_health_service: EmbeddingHealthService`、`llm_client: Optional[LLMServiceClient]`
+  - 配置读取从 6 个 `_fuzzy_modify_cfg_*` 静态方法改为 `self.config.xxx` 直接属性访问
+  - 持有 `_fuzzy_modify_planner: Optional[LLMServiceClient]` 延迟初始化
+  - 对外暴露 `preview_action()`、`execute_action()`、`rollback_action()`、`apply_plan()` 方法
+- [ ] 在 `SDKMemoryKernel.__init__` 中创建 `self._fuzzy_modify_service = FuzzyModifyService(...)` 实例
+- [ ] 将 Kernel 中原方法改为委托调用
+- [ ] 删除 Kernel 中 6 个 `_fuzzy_modify_cfg_*` 静态方法（已合并为 `FuzzyModifyConfig`）
+- **需求ID**：REQ-CLEANUP-001、REQ-CLEANUP-002、REQ-CLEANUP-004、REQ-CLEANUP-007
+- **依赖**：TASK-7A-02（FuzzyModifyConfig）、TASK-7B-01、TASK-7B-02
+- **验收标准**：`from src.A_memorix.core.runtime.services.fuzzy_modify import FuzzyModifyService` 导入成功；Kernel 中模糊修改方法委托到服务；`_fuzzy_modify_cfg_*` 静态方法已删除；容器重启后模糊修改功能正常
+- **影响文件**：`src/A_memorix/core/runtime/services/fuzzy_modify.py`（新增）、`src/A_memorix/core/runtime/sdk_memory_kernel.py`（修改 — 委托模式 + 删除 `_fuzzy_modify_cfg_*`）
+- **优先级**：高
+- **复杂度**：高
+
+#### TASK-7B-10: 阶段 7B 验证
+
+- [ ] 执行以下验证：
+  - **服务导入检查**：所有 9 个服务类均可从 `src/A_memorix/core/runtime/services/` 导入
+  - **委托模式检查**：Kernel 中对应方法改为委托调用，行为等价
+  - **服务隔离检查**：`rg "from ..sdk_memory_kernel import SDKMemoryKernel" src/A_memorix/core/runtime/services/` — 应为 0 匹配
+  - **配置合并检查**：`rg "_feedback_cfg_" src/A_memorix/core/runtime/sdk_memory_kernel.py` — 应为 0 匹配；`rg "_fuzzy_modify_cfg_" src/A_memorix/core/runtime/sdk_memory_kernel.py` — 应为 0 匹配
+  - **容器验证**：重启容器后所有功能正常（记忆检索、向量重建、反馈纠错、模糊修改、记忆维护）
+- **需求ID**：REQ-CLEANUP-001、REQ-CLEANUP-002、REQ-CLEANUP-009
+- **依赖**：TASK-7B-01 ~ TASK-7B-09
+- **验收标准**：上述所有检查通过；容器重启后功能正常
+- **影响文件**：无（验证任务）
+- **优先级**：极高
+- **复杂度**：低
+
+---
+
+### 阶段 7C：Admin Handler 提取 — 逐个提取 Admin 分发
+
+> 每个 Admin Handler 从 Kernel 的 `memory_*_admin` 方法中提取分发逻辑。提取后 Kernel 的 `memory_*_admin` 方法退化为委托 Handler。
+
+#### TASK-7C-01: 提取 GraphAdminHandler
+
+- [ ] 创建 `src/A_memorix/core/runtime/admin/graph_admin.py`，实现 `GraphAdminHandler(BaseAdminHandler)`：
+  - 从 `SDKMemoryKernel.memory_graph_admin`（行 3139-3281，8 个 action）提取分发逻辑
+  - 构造函数注入：`graph_ops: GraphOperations`、`metadata_store`、`relation_write_service`、`relation_vectors_enabled: bool`
+  - `handle(action, **kwargs)` 内部 if/elif 分发到：`get_graph`、`search`、`node_detail`、`evidence_graph`、`rename_node`、`update_edge_weight`、`delete_node`、`add_edge`
+- [ ] 在 `SDKMemoryKernel.__init__` 中创建 `self._graph_admin_handler = GraphAdminHandler(...)` 实例
+- [ ] 将 `memory_graph_admin` 改为：`return await self._graph_admin_handler.handle(action, **kwargs)`
+- **需求ID**：REQ-CLEANUP-003
+- **依赖**：TASK-7A-04（BaseAdminHandler）、TASK-7B-06（GraphOperations）
+- **验收标准**：`from src.A_memorix.core.runtime.admin.graph_admin import GraphAdminHandler` 导入成功；`memory_graph_admin` 委托到 Handler；容器重启后图管理 Admin API 功能正常
+- **影响文件**：`src/A_memorix/core/runtime/admin/graph_admin.py`（新增）、`src/A_memorix/core/runtime/sdk_memory_kernel.py`（修改 — 委托模式）
+- **优先级**：高
+- **复杂度**：中
+
+#### TASK-7C-02: 提取 SourceAdminHandler
+
+- [ ] 创建 `src/A_memorix/core/runtime/admin/source_admin.py`，实现 `SourceAdminHandler(BaseAdminHandler)`：
+  - 从 `SDKMemoryKernel.memory_source_admin`（行 3283-3322，3 个 action）提取分发逻辑
+  - 构造函数注入：`metadata_store`
+  - `handle(action, **kwargs)` 内部 if/elif 分发到：`list`、`detail`、`delete`
+- [ ] 在 `SDKMemoryKernel.__init__` 中创建 `self._source_admin_handler = SourceAdminHandler(...)` 实例
+- [ ] 将 `memory_source_admin` 改为委托
+- **需求ID**：REQ-CLEANUP-003
+- **依赖**：TASK-7A-04
+- **验收标准**：`from src.A_memorix.core.runtime.admin.source_admin import SourceAdminHandler` 导入成功；`memory_source_admin` 委托到 Handler；容器重启后来源管理 Admin API 功能正常
+- **影响文件**：`src/A_memorix/core/runtime/admin/source_admin.py`（新增）、`src/A_memorix/core/runtime/sdk_memory_kernel.py`（修改 — 委托模式）
+- **优先级**：中
+- **复杂度**：低
+
+#### TASK-7C-03: 提取 EpisodeAdminHandler
+
+- [ ] 创建 `src/A_memorix/core/runtime/admin/episode_admin.py`，实现 `EpisodeAdminHandler(BaseAdminHandler)`：
+  - 从 `SDKMemoryKernel.memory_episode_admin`（行 3324-3385，4+ 个 action）提取分发逻辑
+  - 构造函数注入：`metadata_store`、`episode_service`
+  - `handle(action, **kwargs)` 内部 if/elif 分发到：`list`、`detail`、`rebuild`、`query_block_status`
+- [ ] 在 `SDKMemoryKernel.__init__` 中创建 `self._episode_admin_handler = EpisodeAdminHandler(...)` 实例
+- [ ] 将 `memory_episode_admin` 改为委托
+- **需求ID**：REQ-CLEANUP-003
+- **依赖**：TASK-7A-04
+- **验收标准**：`from src.A_memorix.core.runtime.admin.episode_admin import EpisodeAdminHandler` 导入成功；`memory_episode_admin` 委托到 Handler；容器重启后 Episode 管理 Admin API 功能正常
+- **影响文件**：`src/A_memorix/core/runtime/admin/episode_admin.py`（新增）、`src/A_memorix/core/runtime/sdk_memory_kernel.py`（修改 — 委托模式）
+- **优先级**：中
+- **复杂度**：低
+
+#### TASK-7C-04: 提取 ProfileAdminHandler
+
+- [ ] 创建 `src/A_memorix/core/runtime/admin/profile_admin.py`，实现 `ProfileAdminHandler(BaseAdminHandler)`：
+  - 从 `SDKMemoryKernel.memory_profile_admin`（行 3386-3486，5+ 个 action）提取分发逻辑
+  - 构造函数注入：`metadata_store`、`person_profile_service`
+  - `handle(action, **kwargs)` 内部 if/elif 分发到：`get`、`list`、`refresh`、`delete`、`force_refresh`
+- [ ] 在 `SDKMemoryKernel.__init__` 中创建 `self._profile_admin_handler = ProfileAdminHandler(...)` 实例
+- [ ] 将 `memory_profile_admin` 改为委托
+- **需求ID**：REQ-CLEANUP-003
+- **依赖**：TASK-7A-04
+- **验收标准**：`from src.A_memorix.core.runtime.admin.profile_admin import ProfileAdminHandler` 导入成功；`memory_profile_admin` 委托到 Handler；容器重启后人物画像管理 Admin API 功能正常
+- **影响文件**：`src/A_memorix/core/runtime/admin/profile_admin.py`（新增）、`src/A_memorix/core/runtime/sdk_memory_kernel.py`（修改 — 委托模式）
+- **优先级**：中
+- **复杂度**：低
+
+#### TASK-7C-05: 提取 FeedbackAdminHandler
+
+- [ ] 创建 `src/A_memorix/core/runtime/admin/feedback_admin.py`，实现 `FeedbackAdminHandler(BaseAdminHandler)`：
+  - 从 `SDKMemoryKernel.memory_feedback_admin`（行 3487-3518，3 个 action）提取分发逻辑
+  - 构造函数注入：`metadata_store`、`feedback_correction_service: FeedbackCorrectionService`
+  - `handle(action, **kwargs)` 内部 if/elif 分发到：`list`、`detail`、`rollback`
+- [ ] 在 `SDKMemoryKernel.__init__` 中创建 `self._feedback_admin_handler = FeedbackAdminHandler(...)` 实例
+- [ ] 将 `memory_feedback_admin` 改为委托
+- **需求ID**：REQ-CLEANUP-003
+- **依赖**：TASK-7A-04、TASK-7B-08（FeedbackCorrectionService）
+- **验收标准**：`from src.A_memorix.core.runtime.admin.feedback_admin import FeedbackAdminHandler` 导入成功；`memory_feedback_admin` 委托到 Handler；容器重启后反馈纠错管理 Admin API 功能正常
+- **影响文件**：`src/A_memorix/core/runtime/admin/feedback_admin.py`（新增）、`src/A_memorix/core/runtime/sdk_memory_kernel.py`（修改 — 委托模式）
+- **优先级**：中
+- **复杂度**：低
+
+#### TASK-7C-06: 提取 RuntimeAdminHandler
+
+- [ ] 创建 `src/A_memorix/core/runtime/admin/runtime_admin.py`，实现 `RuntimeAdminHandler(BaseAdminHandler)`：
+  - 从 `SDKMemoryKernel.memory_runtime_admin`（行 3520-3613，7 个 action）提取分发逻辑
+  - 构造函数注入：`vector_pool_manager: VectorPoolManager`、`embedding_health_service: EmbeddingHealthService`、`paragraph_backfill_service: ParagraphBackfillService`、`metadata_store`
+  - `handle(action, **kwargs)` 内部 if/elif 分发到：`status`、`vector_rebuild`、`embedding_self_check`、`backfill_status`、`backfill_trigger`、`vector_pools_status`、`persist`
+- [ ] 在 `SDKMemoryKernel.__init__` 中创建 `self._runtime_admin_handler = RuntimeAdminHandler(...)` 实例
+- [ ] 将 `memory_runtime_admin` 改为委托
+- **需求ID**：REQ-CLEANUP-003
+- **依赖**：TASK-7A-04、TASK-7B-01、TASK-7B-02、TASK-7B-03
+- **验收标准**：`from src.A_memorix.core.runtime.admin.runtime_admin import RuntimeAdminHandler` 导入成功；`memory_runtime_admin` 委托到 Handler；容器重启后运行时管理 Admin API 功能正常
+- **影响文件**：`src/A_memorix/core/runtime/admin/runtime_admin.py`（新增）、`src/A_memorix/core/runtime/sdk_memory_kernel.py`（修改 — 委托模式）
+- **优先级**：中
+- **复杂度**：中
+
+#### TASK-7C-07: 提取 ImportAdminHandler
+
+- [ ] 创建 `src/A_memorix/core/runtime/admin/import_admin.py`，实现 `ImportAdminHandler(BaseAdminHandler)`：
+  - 从 `SDKMemoryKernel.memory_import_admin`（行 3615-3670，12+ 个 action）提取分发逻辑
+  - 构造函数注入：`import_task_manager: ImportTaskManager`
+  - `handle(action, **kwargs)` 内部 if/elif 分发到：`start`、`status`、`cancel`、`list`、`detail`、`retry`、`delete` 等 12+ 个 action
+- [ ] 在 `SDKMemoryKernel.__init__` 中创建 `self._import_admin_handler = ImportAdminHandler(...)` 实例
+- [ ] 将 `memory_import_admin` 改为委托
+- **需求ID**：REQ-CLEANUP-003
+- **依赖**：TASK-7A-04
+- **验收标准**：`from src.A_memorix.core.runtime.admin.import_admin import ImportAdminHandler` 导入成功；`memory_import_admin` 委托到 Handler；容器重启后导入管理 Admin API 功能正常
+- **影响文件**：`src/A_memorix/core/runtime/admin/import_admin.py`（新增）、`src/A_memorix/core/runtime/sdk_memory_kernel.py`（修改 — 委托模式）
+- **优先级**：中
+- **复杂度**：中
+
+#### TASK-7C-08: 提取 TuningAdminHandler
+
+- [ ] 创建 `src/A_memorix/core/runtime/admin/tuning_admin.py`，实现 `TuningAdminHandler(BaseAdminHandler)`：
+  - 从 `SDKMemoryKernel.memory_tuning_admin`（行 3672-3755，5+ 个 action）提取分发逻辑
+  - 构造函数注入：`retrieval_tuning_manager: RetrievalTuningManager`
+  - `handle(action, **kwargs)` 内部 if/elif 分发到：`get_profile`、`set_profile`、`reset_profile`、`list_profiles`、`validate`
+- [ ] 在 `SDKMemoryKernel.__init__` 中创建 `self._tuning_admin_handler = TuningAdminHandler(...)` 实例
+- [ ] 将 `memory_tuning_admin` 改为委托
+- **需求ID**：REQ-CLEANUP-003
+- **依赖**：TASK-7A-04
+- **验收标准**：`from src.A_memorix.core.runtime.admin.tuning_admin import TuningAdminHandler` 导入成功；`memory_tuning_admin` 委托到 Handler；容器重启后调优管理 Admin API 功能正常
+- **影响文件**：`src/A_memorix/core/runtime/admin/tuning_admin.py`（新增）、`src/A_memorix/core/runtime/sdk_memory_kernel.py`（修改 — 委托模式）
+- **优先级**：中
+- **复杂度**：低
+
+#### TASK-7C-09: 提取 V5AdminHandler
+
+- [ ] 创建 `src/A_memorix/core/runtime/admin/v5_admin.py`，实现 `V5AdminHandler(BaseAdminHandler)`：
+  - 从 `SDKMemoryKernel.memory_v5_admin`（行 3756-3806，4+ 个 action）提取分发逻辑
+  - 构造函数注入：`metadata_store`
+  - `handle(action, **kwargs)` 内部 if/elif 分发到：`migrate`、`status`、`rollback`、`verify`
+- [ ] 在 `SDKMemoryKernel.__init__` 中创建 `self._v5_admin_handler = V5AdminHandler(...)` 实例
+- [ ] 将 `memory_v5_admin` 改为委托
+- **需求ID**：REQ-CLEANUP-003
+- **依赖**：TASK-7A-04
+- **验收标准**：`from src.A_memorix.core.runtime.admin.v5_admin import V5AdminHandler` 导入成功；`memory_v5_admin` 委托到 Handler；容器重启后 V5 管理 Admin API 功能正常
+- **影响文件**：`src/A_memorix/core/runtime/admin/v5_admin.py`（新增）、`src/A_memorix/core/runtime/sdk_memory_kernel.py`（修改 — 委托模式）
+- **优先级**：中
+- **复杂度**：低
+
+#### TASK-7C-10: 提取 DeleteAdminHandler
+
+- [ ] 创建 `src/A_memorix/core/runtime/admin/delete_admin.py`，实现 `DeleteAdminHandler(BaseAdminHandler)`：
+  - 从 `SDKMemoryKernel.memory_delete_admin`（行 3807-3864，4+ 个 action）提取分发逻辑
+  - 构造函数注入：`metadata_store`、`graph_store`
+  - `handle(action, **kwargs)` 内部 if/elif 分发到：`paragraph`、`entity`、`relation`、`source`
+- [ ] 在 `SDKMemoryKernel.__init__` 中创建 `self._delete_admin_handler = DeleteAdminHandler(...)` 实例
+- [ ] 将 `memory_delete_admin` 改为委托
+- **需求ID**：REQ-CLEANUP-003
+- **依赖**：TASK-7A-04
+- **验收标准**：`from src.A_memorix.core.runtime.admin.delete_admin import DeleteAdminHandler` 导入成功；`memory_delete_admin` 委托到 Handler；容器重启后删除管理 Admin API 功能正常
+- **影响文件**：`src/A_memorix/core/runtime/admin/delete_admin.py`（新增）、`src/A_memorix/core/runtime/sdk_memory_kernel.py`（修改 — 委托模式）
+- **优先级**：中
+- **复杂度**：低
+
+#### TASK-7C-11: 提取 CorrectionAdminHandler（含 fuzzy_modify 兼容入口）
+
+- [ ] 创建 `src/A_memorix/core/runtime/admin/correction_admin.py`，实现 `CorrectionAdminHandler(BaseAdminHandler)`：
+  - 从 `SDKMemoryKernel.memory_correction_admin`（行 3865-3908，5 个 action）+ `memory_fuzzy_modify_admin`（行 3910-3911，1 个委托）提取分发逻辑
+  - 构造函数注入：`fuzzy_modify_service: FuzzyModifyService`、`metadata_store`
+  - `handle(action, **kwargs)` 内部 if/elif 分发到：`preview`、`execute`、`rollback`、`plan_detail`、`cancel`
+  - 兼容 `memory_fuzzy_modify_admin` 的 action（直接委托到本 Handler）
+- [ ] 在 `SDKMemoryKernel.__init__` 中创建 `self._correction_admin_handler = CorrectionAdminHandler(...)` 实例
+- [ ] 将 `memory_correction_admin` 和 `memory_fuzzy_modify_admin` 改为委托
+- **需求ID**：REQ-CLEANUP-003
+- **依赖**：TASK-7A-04、TASK-7B-09（FuzzyModifyService）
+- **验收标准**：`from src.A_memorix.core.runtime.admin.correction_admin import CorrectionAdminHandler` 导入成功；`memory_correction_admin` 和 `memory_fuzzy_modify_admin` 委托到 Handler；容器重启后修正/模糊修改管理 Admin API 功能正常
+- **影响文件**：`src/A_memorix/core/runtime/admin/correction_admin.py`（新增）、`src/A_memorix/core/runtime/sdk_memory_kernel.py`（修改 — 委托模式）
+- **优先级**：中
+- **复杂度**：低
+
+#### TASK-7C-12: 阶段 7C 验证
+
+- [ ] 执行以下验证：
+  - **Handler 导入检查**：所有 11 个 Handler 类均可从 `src/A_memorix/core/runtime/admin/` 导入
+  - **委托模式检查**：所有 `memory_*_admin` 方法退化为委托 Handler
+  - **Handler 隔离检查**：`rg "from ..sdk_memory_kernel import SDKMemoryKernel" src/A_memorix/core/runtime/admin/` — 应为 0 匹配
+  - **Admin API 功能验证**：通过 WebUI 或直接调用验证所有 Admin API 功能正常
+  - **容器验证**：重启容器后所有 Admin API 功能正常
+- **需求ID**：REQ-CLEANUP-003
+- **依赖**：TASK-7C-01 ~ TASK-7C-11
+- **验收标准**：上述所有检查通过；容器重启后 Admin API 功能正常
+- **影响文件**：无（验证任务）
+- **优先级**：高
+- **复杂度**：低
+
+---
+
+### 阶段 7D：Kernel 瘦身 + 清理
+
+> 在功能域服务和 Admin Handler 全部提取完成后，对 Kernel 进行瘦身和清理：删除代理层、消除 getattr、消除过度防御、确认 Kernel 行数 ≤ 800。
+
+#### TASK-7D-01: 删除 _KernelRuntimeFacade（ImportTaskManager / RetrievalTuningManager 改为构造函数注入）
+
+- [ ] 修改 `src/A_memorix/core/utils/web_import_manager.py`（`ImportTaskManager`）：
+  - 构造函数从接收 `facade: _KernelRuntimeFacade` 改为接收具体依赖：`metadata_store`、`vector_store`、`embedding_manager`、`sparse_index`、`config: Dict[str, Any]` 等
+  - 删除对 `facade.get_config()`、`facade.is_runtime_ready()`、`facade.is_chat_enabled()` 等代理方法的调用
+  - 改为直接使用注入的依赖
+- [ ] 修改 `src/A_memorix/core/utils/retrieval_tuning_manager.py`（`RetrievalTuningManager`）：
+  - 构造函数从接收 `facade` 改为接收具体依赖
+  - 删除对 `facade` 代理方法的调用
+- [ ] 修改 `src/A_memorix/core/utils/summary_importer.py`（`SummaryImporter`）：
+  - 删除对 `plugin_instance.get_config()`、`plugin_instance._dual_vector_pools_enabled()`、`plugin_instance.write_paragraph_vector_or_enqueue()` 的 `getattr` 调用
+  - 改为通过构造函数注入所需依赖
+- [ ] 修改 `src/A_memorix/core/runtime/search_runtime_initializer.py`：
+  - 删除对 `plugin_instance._dual_vector_pools_enabled` 的 `getattr` 调用
+  - 改为通过构造函数注入 `vector_pool_manager: VectorPoolManager`
+- [ ] 修改 `src/A_memorix/core/utils/search_execution_service.py`：
+  - 删除对 `plugin_instance` 的 `getattr` 调用链（`is_chat_enabled`、`reinforce_access`、`execute_request_with_dedup`）
+  - 改为通过构造函数注入所需依赖
+- [ ] 在 `SDKMemoryKernel` 中：
+  - 删除 `_KernelRuntimeFacade` 类定义（行 73-174）
+  - 删除 `self._runtime_facade = _KernelRuntimeFacade(self)`
+  - 修改 `initialize()` 中创建 `ImportTaskManager` / `RetrievalTuningManager` 的代码，改为注入具体依赖
+  - 修改 `_build_runtime_config` 中的 `"plugin_instance": self._runtime_facade` 引用
+- **需求ID**：REQ-CLEANUP-006
+- **依赖**：TASK-7B-02（VectorPoolManager）、TASK-7B-07（BackgroundTaskScheduler）
+- **验收标准**：`rg "_KernelRuntimeFacade" src/A_memorix/core/runtime/sdk_memory_kernel.py` — 应为 0 匹配；`rg "plugin_instance" src/A_memorix/core/runtime/sdk_memory_kernel.py` — 应为 0 匹配或仅保留非 Facade 用途；容器重启后导入/调优/摘要功能正常
+- **影响文件**：`src/A_memorix/core/runtime/sdk_memory_kernel.py`（修改 — 删除 Facade）、`src/A_memorix/core/utils/web_import_manager.py`（修改）、`src/A_memorix/core/utils/retrieval_tuning_manager.py`（修改）、`src/A_memorix/core/utils/summary_importer.py`（修改）、`src/A_memorix/core/runtime/search_runtime_initializer.py`（修改）、`src/A_memorix/core/utils/search_execution_service.py`（修改）
+- **优先级**：极高
+- **复杂度**：高
+
+#### TASK-7D-02: 消除 getattr（52 → ≤5）
+
+- [ ] 对 `sdk_memory_kernel.py` 中剩余的 `getattr` 调用逐一审查和消除：
+  - 对 `global_config.a_memorix.integration` 的 getattr 访问 → 已由 `FeedbackConfig` / `FuzzyModifyConfig` / `VectorPoolConfig` 替代，确认已消除
+  - 对已知接口的 getattr（如 `store.dimension`、`store.num_vectors`）→ 替换为直接属性访问
+  - 对动态能力检测的 getattr（如 `encode_batch`、`iter_vectors_by_ids`）→ 通过 Protocol 接口统一，消除运行时能力探测
+  - 对 `plugin_instance` 的 getattr → 已在 TASK-7D-01 中消除
+- [ ] 对 `services/` 和 `admin/` 中新提取的代码中的 `getattr` 进行同步消除
+- [ ] 仅保留真正需要动态检测的场景（≤5 处），并添加注释说明保留原因
+- **需求ID**：REQ-CLEANUP-004
+- **依赖**：TASK-7D-01、TASK-7B-08（FeedbackCorrectionService 配置合并）、TASK-7B-09（FuzzyModifyService 配置合并）
+- **验收标准**：`rg "getattr" src/A_memorix/core/runtime/sdk_memory_kernel.py` — 匹配数 ≤ 5；`rg "getattr" src/A_memorix/core/runtime/services/` — 匹配数 ≤ 3；每个保留的 `getattr` 有注释说明原因
+- **影响文件**：`src/A_memorix/core/runtime/sdk_memory_kernel.py`（修改）、`src/A_memorix/core/runtime/services/*.py`（修改）、`src/A_memorix/core/runtime/admin/*.py`（修改）
+- **优先级**：高
+- **复杂度**：高
+
+#### TASK-7D-03: 消除过度防御（618 处 `or ""` → ≤150）
+
+- [ ] 对 `sdk_memory_kernel.py` 中的 `or ""` 模式逐一审查和消除：
+  - 对已知类型为 str 的变量（函数参数有类型注解、配置值已知为字符串），删除 `or ""` 兜底
+  - 对 `dict.get(key, "")` 已提供默认值的调用，删除后续的 `or ""`
+  - 对 `str(x or "").strip()` 链式调用，当 x 已知为 str 时简化为 `x.strip()`
+  - 对 `int(x or 0)`、`float(x or 0.0)` 等数值兜底，当 x 已知为数值类型时删除兜底
+- [ ] 对 `services/` 和 `admin/` 中新提取的代码同步消除 `or ""`
+- [ ] 仅保留真正可能为 None 的场景（≤150 处），对删除的兜底添加简要注释说明"类型注解保证非 None"
+- **需求ID**：REQ-CLEANUP-005
+- **依赖**：TASK-7D-01、TASK-7D-02
+- **验收标准**：`rg 'or ""' src/A_memorix/core/runtime/sdk_memory_kernel.py` — 匹配数 ≤ 150；容器重启后无新增 AttributeError
+- **影响文件**：`src/A_memorix/core/runtime/sdk_memory_kernel.py`（修改）、`src/A_memorix/core/runtime/services/*.py`（修改）、`src/A_memorix/core/runtime/admin/*.py`（修改）
+- **优先级**：高
+- **复杂度**：高
+
+#### TASK-7D-04: Kernel 公共方法改为委托服务 + 删除已委托方法
+
+- [ ] 审查 `sdk_memory_kernel.py` 中所有公共方法：
+  - 确认所有已提取到服务的方法在 Kernel 中改为委托调用
+  - 对于外部无直接调用的委托方法，删除方法定义，外部调用改为通过服务实例
+  - 对于外部有直接调用的委托方法（如 `host_service` 调用的 `search_memory`、`ingest_text` 等），保留委托方法作为公共 API
+- [ ] 确认 Kernel 的 `initialize()` 方法正确创建和注入所有服务实例
+- [ ] 确认 Kernel 的 `shutdown()` 方法正确委托到 `BackgroundTaskScheduler.stop_all()` 和各服务的清理逻辑
+- **需求ID**：REQ-CLEANUP-001、REQ-CLEANUP-002
+- **依赖**：TASK-7B-01 ~ TASK-7B-09、TASK-7C-01 ~ TASK-7C-11
+- **验收标准**：Kernel 中所有业务逻辑方法改为委托调用或已删除；`host_service` 调用的公共 API 签名不变；容器重启后功能正常
+- **影响文件**：`src/A_memorix/core/runtime/sdk_memory_kernel.py`（修改）
+- **优先级**：极高
+- **复杂度**：中
+
+#### TASK-7D-05: 验证 Kernel 行数 ≤ 800
+
+- [ ] 统计 `sdk_memory_kernel.py` 的代码行数
+- [ ] 如果行数 > 800，识别剩余的大块逻辑，评估是否需要进一步提取
+- [ ] 确认 Kernel 仅保留：`__init__`（创建服务实例）、`initialize()`（初始化存储层和服务）、`shutdown()`（委托到调度器和服务）、公共 API 委托方法（`search_memory`、`ingest_text`、`get_person_profile`、`maintain_memory`、`memory_stats`、`memory_*_admin`）、`_cfg` / `_set_cfg` 配置读取
+- **需求ID**：REQ-CLEANUP-001
+- **依赖**：TASK-7D-01、TASK-7D-02、TASK-7D-03、TASK-7D-04
+- **验收标准**：`(Get-Content src/A_memorix/core/runtime/sdk_memory_kernel.py | Measure-Object -Line).Lines` ≤ 800
+- **影响文件**：`src/A_memorix/core/runtime/sdk_memory_kernel.py`（确认）
+- **优先级**：极高
+- **复杂度**：中
+
+---
+
+### 阶段 7E：验证 — 全量功能回归
+
+> 最终验证确保重构后所有功能正常，核心隔离合规。
+
+#### TASK-7E-01: 核心隔离合规验证
+
+- [ ] 执行以下核心隔离检查：
+  - `rg "from src.chat.message_receive.chat_manager import" src/A_memorix/` — 应为 0 匹配
+  - `rg "from src.services.send_service import" src/A_memorix/` — 应为 0 匹配
+  - `rg "from ..sdk_memory_kernel import SDKMemoryKernel" src/A_memorix/core/runtime/services/ src/A_memorix/core/runtime/admin/` — 应为 0 匹配
+  - `rg "_KernelRuntimeFacade" src/A_memorix/core/runtime/sdk_memory_kernel.py` — 应为 0 匹配
+- **需求ID**：REQ-CLEANUP-008、REQ-CLEANUP-009
+- **依赖**：TASK-7D-01 ~ TASK-7D-05
+- **验收标准**：上述所有检查通过
+- **影响文件**：无（验证任务）
+- **优先级**：极高
+- **复杂度**：低
+
+#### TASK-7E-02: 代码质量验证
+
+- [ ] 执行以下代码质量检查：
+  - `rg "getattr" src/A_memorix/core/runtime/sdk_memory_kernel.py` — 匹配数 ≤ 5
+  - `rg 'or ""' src/A_memorix/core/runtime/sdk_memory_kernel.py` — 匹配数 ≤ 150
+  - `(Get-Content src/A_memorix/core/runtime/sdk_memory_kernel.py | Measure-Object -Line).Lines` — ≤ 800
+  - `rg "_feedback_cfg_" src/A_memorix/core/runtime/sdk_memory_kernel.py` — 应为 0 匹配
+  - `rg "_fuzzy_modify_cfg_" src/A_memorix/core/runtime/sdk_memory_kernel.py` — 应为 0 匹配
+  - `rg "_dual_vector_pools_enabled" src/A_memorix/core/runtime/sdk_memory_kernel.py` — 应为 0 匹配（已移入 VectorPoolManager）
+  - `rg "_embedding_fallback_enabled" src/A_memorix/core/runtime/sdk_memory_kernel.py` — 应为 0 匹配（已移入 VectorPoolConfig）
+- **需求ID**：REQ-CLEANUP-001、REQ-CLEANUP-004、REQ-CLEANUP-005、REQ-CLEANUP-007
+- **依赖**：TASK-7E-01
+- **验收标准**：上述所有检查通过
+- **影响文件**：无（验证任务）
+- **优先级**：高
+- **复杂度**：低
+
+#### TASK-7E-03: 外部 API 兼容性验证
+
+- [ ] 验证以下外部调用方式不变：
+  - `host_service.invoke()` 调用 `kernel.search_memory()` / `kernel.ingest_text()` / `kernel.ingest_summary()` / `kernel.get_person_profile()` / `kernel.maintain_memory()` / `kernel.memory_stats()` / `kernel.enqueue_feedback_task()` / `kernel.memory_*_admin()` — 签名和行为不变
+  - `AMemorixMemoryServicePort` 调用 `kernel.search_memory()` / `kernel.get_person_profile()` — 签名和行为不变
+  - `plugin.py` 调用方式不变
+- **需求ID**：REQ-CLEANUP-009
+- **依赖**：TASK-7E-01
+- **验收标准**：所有外部调用方式不变；返回值结构不变
+- **影响文件**：无（验证任务）
+- **优先级**：极高
+- **复杂度**：低
+
+#### TASK-7E-04: 端到端功能回归验证
+
+- [ ] 在容器内执行端到端功能验证：
+  - 记忆检索 → `search_memory()` 返回正确结果
+  - 文本摄入 → `ingest_text()` 正确写入 metadata + 向量 + 实体 + 关系
+  - 摘要导入 → `ingest_summary()` 正确导入
+  - 人物画像 → `get_person_profile()` 返回正确画像
+  - 记忆维护 → 衰减/冻结/修剪/孤立 GC 正常运行
+  - 反馈纠错 → 信号检测/分类器调用/纠错应用/回退执行正常
+  - 模糊修改 → 预览/执行/回滚正常
+  - 向量重建 → 全量重建/双池迁移正常
+  - Admin API → 所有 `memory_*_admin` 操作正常
+  - WebUI 管理 → 所有管理界面操作正常
+  - 后台循环 → 9 个后台循环正常启动和运行
+- **需求ID**：REQ-CLEANUP-009
+- **依赖**：TASK-7E-01、TASK-7E-02、TASK-7E-03
+- **验收标准**：所有端到端场景验证通过；无功能回归
+- **影响文件**：无（验证任务）
+- **优先级**：极高
+- **复杂度**：中

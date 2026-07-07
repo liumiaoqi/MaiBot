@@ -67,7 +67,16 @@ class AMemorixPlugin(MaiBotPlugin):
         if self._kernel is None:
             self._kernel = SDKMemoryKernel(plugin_root=self._plugin_root, config=self._plugin_config)
             await self._kernel.initialize()
+            self._inject_session_info_port(self._kernel)
         return self._kernel
+
+    @staticmethod
+    def _inject_session_info_port(kernel: SDKMemoryKernel) -> None:
+        from src.core.adapters.session_repository import ChatManagerSessionRepository
+        from src.core.adapters.routing_adapter import ChatManagerRoutingAdapter
+
+        routing_service = ChatManagerRoutingAdapter()
+        kernel._session_info_port = ChatManagerSessionRepository(routing_service)
 
     async def _dispatch_admin_tool(self, method_name: str, action: str, **kwargs):
         kernel = await self._get_kernel()
