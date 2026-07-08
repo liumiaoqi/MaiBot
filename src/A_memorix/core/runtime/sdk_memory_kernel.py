@@ -34,7 +34,7 @@ from ..utils.metadata import coerce_metadata_dict
 from ..utils.person_profile_service import PersonProfileService
 from ..utils.relation_write_service import RelationWriteService
 from ..utils.retrieval_tuning_manager import RetrievalTuningManager
-from ..utils.runtime_self_check import run_embedding_runtime_self_check
+
 from ..utils.search_execution_service import SearchExecutionRequest, SearchExecutionResult, SearchExecutionService
 from ..utils.summary_importer import SummaryImporter
 from ..utils.time_parser import format_timestamp, parse_query_datetime_to_timestamp
@@ -110,6 +110,7 @@ class SDKMemoryKernel:
         self._ingest_service: Optional[Any] = None
         self._vector_rebuild_service: Optional[Any] = None
         self._dual_vector_migration_service: Optional[Any] = None
+        self._embedding_recovery_service: Optional[Any] = None
 
     def get_config(self, key: str, default: Any = None) -> Any:
         return self._cfg(key, default)
@@ -409,77 +410,29 @@ class SDKMemoryKernel:
         )
 
     def _set_embedding_degraded(self, *, active: bool, reason: str = "", checked_at: Optional[float] = None) -> None:
-        self._embedding_health_service.set_degraded(active=active, reason=reason, checked_at=checked_at)
-        self._apply_runtime_sparse_mode()
+        if self._embedding_recovery_service is not None:
+            self._embedding_recovery_service.set_embedding_degraded(active=active, reason=reason, checked_at=checked_at)
+        else:
+            self._embedding_health_service.set_degraded(active=active, reason=reason, checked_at=checked_at)
 
     def _apply_runtime_sparse_mode(self) -> None:
-        retriever = self.retriever
-        if retriever is None:
-            return
-        setter = getattr(retriever, "set_runtime_sparse_only", None)
-        if not callable(setter):
-            return
-        try:
-            setter(self._embedding_health_service.is_degraded)
-        except Exception as exc:
-            logger.warning(f"设置 retriever sparse-only 运行时状态失败: {exc}")
+        if self._embedding_recovery_service is not None:
+            self._embedding_recovery_service.apply_runtime_sparse_mode()
 
     async def _refresh_runtime_self_check(self, *, sample_text: str = "A_Memorix runtime self check") -> Dict[str, Any]:
-        report = await run_embedding_runtime_self_check(
-            config=self._build_runtime_config(),
-            vector_store=self.vector_store,
-            embedding_manager=self.embedding_manager,
-            sample_text=sample_text,
-        )
-        self._runtime_self_check_report = dict(report)
-        checked_at = float(report.get("checked_at") or time.time())
-        self._embedding_health_service.update_last_check(checked_at)
+        return await self._embedding_recovery_service.refresh_runtime_self_check(sample_text=sample_text)
 
     def _mark_startup_self_check_deferred(self) -> None:
-        """记录启动阶段跳过真实 embedding encode 自检，避免阻塞主启动流程。"""
-        configured_dimension = max(
-            1,
-            int(self._cfg("embedding.dimension", self.embedding_dimension) or self.embedding_dimension),
-        )
-        requested_dimension = self._vector_pool_manager.current_embedding_status_dimension()
-        vector_store_dimension = int(self.vector_store.dimension if self.vector_store is not None else 0)
-        self._embedding_health_service.mark_startup_self_check_deferred(
-            configured_dimension=configured_dimension,
-            requested_dimension=requested_dimension,
-            vector_store_dimension=vector_store_dimension,
-        )
-        self._runtime_self_check_report = self._embedding_health_service.runtime_self_check_report
+        self._embedding_recovery_service.mark_startup_self_check_deferred()
 
 
     @staticmethod
     def _self_check_effective_dimension(report: Dict[str, Any]) -> int:
-        for key in ("encoded_dimension", "detected_dimension", "requested_dimension"):
-            try:
-                value = int(report.get(key, 0) or 0)
-            except Exception:
-                value = 0
-            if value > 0:
-                return value
-        return 0
+        from .services.embedding_recovery import EmbeddingRecoveryService
+        return EmbeddingRecoveryService.self_check_effective_dimension(report)
 
     def _apply_self_check_dimension_result(self, report: Dict[str, Any]) -> str:
-        detected_dimension = self._self_check_effective_dimension(report)
-        if detected_dimension <= 0:
-            return ""
-
-        self.embedding_dimension = int(detected_dimension)
-        vector_dimension = int(self.vector_store.dimension if self.vector_store is not None else 0)
-        if vector_dimension <= 0 or vector_dimension == detected_dimension:
-            return ""
-
-        stored_dimension = self._vector_pool_manager.stored_vector_dimension() or vector_dimension
-        message = self._vector_pool_manager.vector_mismatch_error(
-            stored_dimension=int(stored_dimension),
-            detected_dimension=int(detected_dimension),
-        )
-        self._vector_persist_blocked_until_rebuild = True
-        self._vector_rebuild_source_dimension = int(stored_dimension)
-        return message
+        return self._embedding_recovery_service.apply_self_check_dimension_result(report)
 
     async def reinforce_access(self, relation_hashes: Sequence[str]) -> None:
         if self.metadata_store is None:
@@ -491,15 +444,7 @@ class SDKMemoryKernel:
         self._last_maintenance_at = time.time()
 
     def enqueue_paragraph_vector_backfill(self, paragraph_hash: str, *, error: str = "") -> None:
-        if self.metadata_store is None:
-            return
-        try:
-            self.metadata_store.enqueue_paragraph_vector_backfill(
-                paragraph_hash,
-                error=str(error or ""),
-            )
-        except Exception as exc:
-            logger.warning(f"登记 paragraph 向量回填任务失败: {exc}")
+        self._embedding_recovery_service.enqueue_paragraph_vector_backfill(paragraph_hash, error=error)
 
     async def write_paragraph_vector_or_enqueue(
         self,
@@ -508,88 +453,12 @@ class SDKMemoryKernel:
         content: str,
         context: str = "",
     ) -> Dict[str, Any]:
-        token = str(paragraph_hash or "").strip()
-        text = str(content or "").strip()
-        if not token or not text:
-            return {
-                "success": False,
-                "vector_written": False,
-                "queued": False,
-                "warning": "",
-                "detail": "invalid_paragraph_input",
-            }
-
-        allow_metadata_only = self._embedding_health_service.config.allow_metadata_only_write
-
-        target_store = self._vector_pool_manager.paragraph_store()
-        if target_store is None or self.embedding_manager is None:
-            if not allow_metadata_only:
-                raise RuntimeError("向量写入依赖未初始化")
-            self.enqueue_paragraph_vector_backfill(token, error="vector_runtime_components_missing")
-            return {
-                "success": True,
-                "vector_written": False,
-                "queued": True,
-                "warning": "vector_degraded_write",
-                "detail": "vector_runtime_components_missing",
-            }
-
-        if self._embedding_health_service.is_degraded:
-            if not allow_metadata_only:
-                raise RuntimeError("embedding 处于降级态，metadata-only 写入已禁用")
-            self.enqueue_paragraph_vector_backfill(token, error="embedding_degraded")
-            return {
-                "success": True,
-                "vector_written": False,
-                "queued": True,
-                "warning": "vector_degraded_write",
-                "detail": "embedding_degraded",
-            }
-
-        if token in target_store:
-            return {
-                "success": True,
-                "vector_written": True,
-                "queued": False,
-                "warning": "",
-                "detail": "vector_already_exists",
-            }
-
-        try:
-            embedding = await self.embedding_manager.encode(text)
-            if getattr(embedding, "ndim", 1) == 1:
-                embedding = embedding.reshape(1, -1)
-            target_store.add(vectors=embedding, ids=[token])
-            return {
-                "success": True,
-                "vector_written": True,
-                "queued": False,
-                "warning": "",
-                "detail": "",
-            }
-        except Exception as exc:
-            error_text = str(exc)
-            if self._embedding_health_service.config.embedding_fallback_enabled:
-                self._set_embedding_degraded(active=True, reason=error_text[:500], checked_at=time.time())
-            if not allow_metadata_only:
-                raise
-            self.enqueue_paragraph_vector_backfill(token, error=error_text)
-            return {
-                "success": True,
-                "vector_written": False,
-                "queued": True,
-                "warning": "vector_degraded_write",
-                "detail": f"{str(context or 'paragraph')} vector write failed: {error_text}",
-            }
+        return await self._embedding_recovery_service.write_paragraph_vector_or_enqueue(
+            paragraph_hash=paragraph_hash, content=content, context=context,
+        )
 
     def _paragraph_vector_backfill_counts(self) -> Dict[str, int]:
-        if self.metadata_store is None:
-            return {"pending": 0, "running": 0, "failed": 0, "done": 0}
-        try:
-            return self.metadata_store.get_paragraph_vector_backfill_status_counts()
-        except Exception as exc:
-            logger.warning(f"读取 paragraph 回填状态失败: {exc}")
-            return {"pending": 0, "running": 0, "failed": 0, "done": 0}
+        return self._embedding_recovery_service.paragraph_vector_backfill_counts()
 
     async def _run_paragraph_backfill_once(
         self,
@@ -598,73 +467,9 @@ class SDKMemoryKernel:
         max_retry: Optional[int] = None,
         trigger: str = "manual",
     ) -> Dict[str, Any]:
-        target_store = self._vector_pool_manager.paragraph_store()
-        if self.metadata_store is None or target_store is None or self.embedding_manager is None:
-            return {"success": False, "processed": 0, "done": 0, "failed": 0, "trigger": trigger}
-        if self._embedding_health_service.is_degraded:
-            return {
-                "success": False,
-                "processed": 0,
-                "done": 0,
-                "failed": 0,
-                "trigger": trigger,
-                "detail": "embedding_degraded",
-            }
-
-        safe_limit = max(1, int(limit or self._embedding_health_service.config.paragraph_vector_backfill_batch_size))
-        safe_retry = max(1, int(max_retry or self._embedding_health_service.config.paragraph_vector_backfill_max_retry))
-        rows = self.metadata_store.fetch_paragraph_vector_backfill_batch(limit=safe_limit, max_retry=safe_retry)
-        if not rows:
-            return {"success": True, "processed": 0, "done": 0, "failed": 0, "trigger": trigger}
-
-        pending_hashes = [
-            str(row.get("paragraph_hash", "") or "").strip()
-            for row in rows
-            if str(row.get("paragraph_hash", "") or "").strip()
-        ]
-        if pending_hashes:
-            self.metadata_store.mark_paragraph_vector_backfill_running(pending_hashes)
-
-        done_hashes: List[str] = []
-        encode_items: List[tuple[str, str]] = []
-        paragraph_map = self.metadata_store.get_paragraphs_by_hashes(pending_hashes)
-        for paragraph_hash in pending_hashes:
-            if paragraph_hash in target_store:
-                done_hashes.append(paragraph_hash)
-                continue
-            paragraph = paragraph_map.get(paragraph_hash)
-            if paragraph is None:
-                done_hashes.append(paragraph_hash)
-                continue
-            content = str(paragraph.get("content", "") or "").strip()
-            if not content:
-                done_hashes.append(paragraph_hash)
-                continue
-            encode_items.append((paragraph_hash, content))
-
-        done_count, failed_count, last_error, encoded_done_hashes, failed_hashes = await self._encode_and_add_rebuild_vectors(
-            items=encode_items,
-            batch_size=safe_limit,
-            vector_store=target_store,
+        return await self._embedding_recovery_service.run_paragraph_backfill_once(
+            limit=limit, max_retry=max_retry, trigger=trigger,
         )
-        del done_count
-        done_hashes.extend(encoded_done_hashes)
-        for paragraph_hash in failed_hashes:
-            self.metadata_store.mark_paragraph_vector_backfill_failed(paragraph_hash, last_error)
-        if failed_hashes and self._embedding_health_service.config.embedding_fallback_enabled:
-            self._set_embedding_degraded(active=True, reason=last_error[:500], checked_at=time.time())
-
-        if done_hashes:
-            self.metadata_store.mark_paragraph_vector_backfill_done(done_hashes)
-            self._persist()
-
-        return {
-            "success": failed_count == 0,
-            "processed": len(done_hashes) + failed_count,
-            "done": len(done_hashes),
-            "failed": failed_count,
-            "trigger": trigger,
-        }
 
     def _count_vector_rebuild_targets(self) -> Dict[str, int]:
         self._vector_pool_manager.metadata_store = self.metadata_store
@@ -751,50 +556,7 @@ class SDKMemoryKernel:
         return await self._vector_rebuild_service._detect_current_embedding_dimension_for_rebuild()
 
     async def _recover_embedding_once(self, *, sample_text: str = "A_Memorix runtime self check") -> Dict[str, Any]:
-        report = await self._refresh_runtime_self_check(sample_text=sample_text)
-        checked_at = float(report.get("checked_at") or time.time())
-        ok = bool(report.get("ok", False))
-        dimension_mismatch = self._apply_self_check_dimension_result(report)
-        if dimension_mismatch:
-            self._set_embedding_degraded(active=True, reason=dimension_mismatch, checked_at=checked_at)
-            return {
-                "success": False,
-                "recovered": False,
-                "report": report,
-                "detail": "dimension_mismatch",
-            }
-
-        if ok:
-            self._set_embedding_degraded(active=False, checked_at=checked_at)
-            backfill_result: Dict[str, Any] = {}
-            if self._embedding_health_service.config.paragraph_vector_backfill_enabled:
-                backfill_result = await self._run_paragraph_backfill_once(
-                    limit=self._embedding_health_service.config.paragraph_vector_backfill_batch_size,
-                    max_retry=self._embedding_health_service.config.paragraph_vector_backfill_max_retry,
-                    trigger="embedding_recovered",
-                )
-            return {
-                "success": True,
-                "recovered": True,
-                "report": report,
-                "backfill": backfill_result,
-            }
-
-        reason = str(report.get("message", "runtime self-check failed") or "runtime self-check failed")
-        if self._embedding_health_service.config.embedding_fallback_enabled:
-            self._set_embedding_degraded(active=True, reason=reason, checked_at=checked_at)
-            return {
-                "success": False,
-                "recovered": False,
-                "report": report,
-                "detail": "still_degraded",
-            }
-        return {
-            "success": False,
-            "recovered": False,
-            "report": report,
-            "detail": "fallback_disabled",
-        }
+        return await self._embedding_recovery_service.recover_embedding_once(sample_text=sample_text)
 
     async def initialize(self) -> None:
         if self._initialized:
@@ -919,6 +681,31 @@ class SDKMemoryKernel:
         self.retrieval_tuning_manager = RetrievalTuningManager(
             self,
             import_write_blocked_provider=self.import_task_manager.is_write_blocked,
+        )
+
+        from .services.embedding_recovery import EmbeddingRecoveryService
+        self._embedding_recovery_service = EmbeddingRecoveryService(
+            embedding_health_service=self._embedding_health_service,
+            vector_pool_manager=self._vector_pool_manager,
+            cfg=self._cfg,
+            build_runtime_config=self._build_runtime_config,
+            refresh_runtime_dependents=lambda: None,
+            persist=self._persist,
+            encode_and_add_rebuild_vectors=lambda *a, **kw: self._vector_rebuild_service._encode_and_add_rebuild_vectors(*a, **kw),
+            metadata_store_getter=lambda: self.metadata_store,
+            embedding_manager_getter=lambda: self.embedding_manager,
+            vector_store_getter=lambda: self.vector_store,
+            paragraph_vector_store_getter=lambda: self.paragraph_vector_store,
+            embedding_dimension_getter=lambda: self.embedding_dimension,
+            embedding_dimension_setter=lambda v: setattr(self, 'embedding_dimension', v),
+            vector_persist_blocked_getter=lambda: self._vector_persist_blocked_until_rebuild,
+            vector_persist_blocked_setter=lambda v: setattr(self, '_vector_persist_blocked_until_rebuild', v),
+            vector_rebuild_source_dimension_getter=lambda: self._vector_rebuild_source_dimension,
+            vector_rebuild_source_dimension_setter=lambda v: setattr(self, '_vector_rebuild_source_dimension', v),
+            background_scheduler=self._background_scheduler,
+            vector_rebuild_status_getter=self._vector_rebuild_status,
+            runtime_self_check_report_setter=lambda v: setattr(self, '_runtime_self_check_report', v),
+            retriever_getter=lambda: self.retriever,
         )
 
         self._mark_startup_self_check_deferred()
@@ -1196,6 +983,7 @@ class SDKMemoryKernel:
             graph_vector_store_setter=lambda v: setattr(self, 'graph_vector_store', v),
         )
 
+
         self._initialized = True
 
         from ..connectionist.memory_field import MemoryField
@@ -1226,6 +1014,8 @@ class SDKMemoryKernel:
             self._initialized = False
             self._request_dedup_tasks.clear()
             self._runtime_self_check_report = {}
+            if self._embedding_recovery_service is not None:
+                self._embedding_recovery_service._runtime_self_check_report = {}
             self._active_person_timestamps.clear()
 
 
@@ -1621,44 +1411,10 @@ class SDKMemoryKernel:
             logger.warning(f"auto_save loop 异常: {exc}")
 
     async def _embedding_probe_loop(self) -> None:
-        try:
-            while not self._background_scheduler.stopping:
-                await asyncio.sleep(self._embedding_health_service.config.embedding_probe_interval_seconds)
-                if self._background_scheduler.stopping:
-                    break
-                startup_deferred = self._embedding_health_service.is_startup_self_check_deferred
-                if not self._embedding_health_service.config.embedding_fallback_enabled and not startup_deferred:
-                    continue
-                if not self._embedding_health_service.is_degraded and not startup_deferred:
-                    continue
-                try:
-                    await self._recover_embedding_once()
-                except Exception as exc:
-                    logger.warning(f"embedding 恢复探测失败: {exc}")
-        except asyncio.CancelledError:
-            raise
-        except Exception as exc:
-            logger.warning(f"embedding_probe loop 异常: {exc}")
+        await self._embedding_recovery_service.embedding_probe_loop()
 
     async def _paragraph_vector_backfill_loop(self) -> None:
-        try:
-            while not self._background_scheduler.stopping:
-                await asyncio.sleep(self._embedding_health_service.config.paragraph_vector_backfill_interval_seconds)
-                if self._background_scheduler.stopping:
-                    break
-                if not self._embedding_health_service.config.paragraph_vector_backfill_enabled:
-                    continue
-                if self._embedding_health_service.is_degraded:
-                    continue
-                await self._run_paragraph_backfill_once(
-                    limit=self._embedding_health_service.config.paragraph_vector_backfill_batch_size,
-                    max_retry=self._embedding_health_service.config.paragraph_vector_backfill_max_retry,
-                    trigger="loop",
-                )
-        except asyncio.CancelledError:
-            raise
-        except Exception as exc:
-            logger.warning(f"paragraph_vector_backfill loop 异常: {exc}")
+        await self._embedding_recovery_service.paragraph_vector_backfill_loop()
 
     async def _person_profile_refresh_loop(self) -> None:
         try:
