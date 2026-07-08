@@ -78,8 +78,26 @@ class AMemorixPlugin(MaiBotPlugin):
         routing_service = ChatManagerRoutingAdapter()
         kernel._session_info_port = ChatManagerSessionRepository(routing_service)
 
+    _ADMIN_HANDLER_MAP = {
+        "memory_graph_admin": "graph",
+        "memory_source_admin": "source",
+        "memory_episode_admin": "episode",
+        "memory_profile_admin": "profile",
+        "memory_feedback_admin": "feedback",
+        "memory_runtime_admin": "runtime",
+        "memory_import_admin": "import",
+        "memory_tuning_admin": "tuning",
+        "memory_v5_admin": "v5",
+        "memory_delete_admin": "delete",
+        "memory_correction_admin": "correction",
+        "memory_fuzzy_modify_admin": "correction",
+    }
+
     async def _dispatch_admin_tool(self, method_name: str, action: str, **kwargs):
         kernel = await self._get_kernel()
+        handler_key = self._ADMIN_HANDLER_MAP.get(method_name)
+        if handler_key and handler_key in kernel._admin_handlers:
+            return await kernel._admin_handlers[handler_key].handle(action, **kwargs)
         handler = getattr(kernel, method_name)
         return await handler(action=action, **kwargs)
 
