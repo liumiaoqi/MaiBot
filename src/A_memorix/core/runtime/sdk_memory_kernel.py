@@ -324,16 +324,12 @@ class SDKMemoryKernel:
             return False
         return not self.is_chat_enabled(stream_token, group_token, user_token)
 
-    def _stored_vector_dimension(self, store: Optional[VectorStore] = None) -> Optional[int]:
-        return self._vector_pool_manager.stored_vector_dimension(store)
 
     @staticmethod
     def _normalize_embedding_fingerprint(value: Any) -> Optional[Dict[str, Any]]:
         from .services.vector_pool import VectorPoolManager
         return VectorPoolManager.normalize_embedding_fingerprint(value)
 
-    def _current_embedding_status_dimension(self) -> int:
-        return self._vector_pool_manager.current_embedding_status_dimension()
 
 
     @staticmethod
@@ -346,11 +342,6 @@ class SDKMemoryKernel:
         from .services.vector_pool import VectorPoolManager
         return VectorPoolManager.embedding_fingerprint_status(current, stored, has_stored_vectors=has_stored_vectors)
 
-    def _stored_vectors_compatible_with_current_embedding(self, store: Optional[VectorStore] = None) -> bool:
-        return self._vector_pool_manager.stored_vectors_compatible_with_current_embedding(store)
-
-    def _vector_mismatch_error(self, *, stored_dimension: int, detected_dimension: int) -> str:
-        return self._vector_pool_manager.vector_mismatch_error(stored_dimension=stored_dimension, detected_dimension=detected_dimension)
 
     def _vector_rebuild_status(self) -> Dict[str, Any]:
         return self._vector_pool_manager.vector_rebuild_status(
@@ -369,20 +360,9 @@ class SDKMemoryKernel:
     def _vector_pool_mode(self) -> str:
         return self._vector_pool_manager.config.mode
 
-    def _dual_vector_pools_config_enabled(self) -> bool:
-        return self._vector_pool_manager.config.config_enabled
 
     def _dual_vector_pools_enabled(self) -> bool:
         return self._vector_pool_manager.dual_pools_enabled
-
-    def _vectors_root(self) -> Path:
-        return self._vector_pool_manager.vectors_root()
-
-    def _paragraph_vector_dir(self) -> Path:
-        return self._vector_pool_manager.paragraph_vector_dir()
-
-    def _graph_vector_dir(self) -> Path:
-        return self._vector_pool_manager.graph_vector_dir()
 
 
     def _write_dual_vector_ready_manifest(
@@ -393,10 +373,7 @@ class SDKMemoryKernel:
     ) -> None:
         return self._vector_pool_manager.write_dual_vector_ready_manifest(stats=stats, migration_stats=migration_stats)
 
-    def _remove_dual_vector_ready_manifest(self) -> None:
-        return self._vector_pool_manager.remove_dual_vector_ready_manifest()
-
-    def _refresh_dual_vector_ready_manifest_from_stores(self) -> None:
+    def _clear_legacy_single_vector_files_after_dual_ready(self) -> None:
         self._vector_pool_manager.paragraph_vector_store = self.paragraph_vector_store
         self._vector_pool_manager.graph_vector_store = self.graph_vector_store
         self._vector_pool_manager.metadata_store = self.metadata_store
@@ -406,18 +383,6 @@ class SDKMemoryKernel:
         self._vector_pool_manager.vector_store = self.vector_store
         return self._vector_pool_manager.clear_legacy_single_vector_files_after_dual_ready()
 
-    def _prepare_dual_vector_build_dirs(self) -> tuple[Path, Path, Path]:
-        return self._vector_pool_manager.prepare_dual_vector_build_dirs()
-
-    def _activate_dual_vector_build_dirs(self, build_root: Path) -> None:
-        return self._vector_pool_manager.activate_dual_vector_build_dirs(build_root)
-
-
-    def _make_vector_store(self, data_dir: Path, *, dimension: Optional[int] = None) -> VectorStore:
-        return self._vector_pool_manager.make_vector_store(data_dir, dimension=dimension)
-
-    def _save_vector_store(self, store: Optional[VectorStore]) -> None:
-        return self._vector_pool_manager.save_vector_store(store)
 
     def _reload_dual_vector_stores_from_disk(self) -> bool:
         self._vector_pool_manager.vector_store = self.vector_store
@@ -431,8 +396,6 @@ class SDKMemoryKernel:
         return result
 
 
-    def _drop_dual_build_root(self, build_root: Optional[Path]) -> None:
-        return self._vector_pool_manager.drop_dual_build_root(build_root)
 
     def _refresh_relation_write_service(self) -> None:
         if (
@@ -457,8 +420,6 @@ class SDKMemoryKernel:
         from .services.vector_pool import VectorPoolManager
         return VectorPoolManager.graph_vector_id(item_type, hash_value)
 
-    def _paragraph_store(self) -> Optional[VectorStore]:
-        return self._vector_pool_manager.paragraph_store()
 
     def _graph_vector_store(self) -> Optional[VectorStore]:
         return self._vector_pool_manager.graph_vector_store_resolved()
@@ -516,7 +477,7 @@ class SDKMemoryKernel:
             1,
             int(self._cfg("embedding.dimension", self.embedding_dimension) or self.embedding_dimension),
         )
-        requested_dimension = self._current_embedding_status_dimension()
+        requested_dimension = self._vector_pool_manager.current_embedding_status_dimension()
         vector_store_dimension = int(self.vector_store.dimension if self.vector_store is not None else 0)
         self._embedding_health_service.mark_startup_self_check_deferred(
             configured_dimension=configured_dimension,
@@ -549,8 +510,8 @@ class SDKMemoryKernel:
         if vector_dimension <= 0 or vector_dimension == detected_dimension:
             return ""
 
-        stored_dimension = self._stored_vector_dimension() or vector_dimension
-        message = self._vector_mismatch_error(
+        stored_dimension = self._vector_pool_manager.stored_vector_dimension() or vector_dimension
+        message = self._vector_pool_manager.vector_mismatch_error(
             stored_dimension=int(stored_dimension),
             detected_dimension=int(detected_dimension),
         )
@@ -598,7 +559,7 @@ class SDKMemoryKernel:
 
         allow_metadata_only = self._allow_metadata_only_write()
 
-        target_store = self._paragraph_store()
+        target_store = self._vector_pool_manager.paragraph_store()
         if target_store is None or self.embedding_manager is None:
             if not allow_metadata_only:
                 raise RuntimeError("向量写入依赖未初始化")
@@ -675,7 +636,7 @@ class SDKMemoryKernel:
         max_retry: Optional[int] = None,
         trigger: str = "manual",
     ) -> Dict[str, Any]:
-        target_store = self._paragraph_store()
+        target_store = self._vector_pool_manager.paragraph_store()
         if self.metadata_store is None or target_store is None or self.embedding_manager is None:
             return {"success": False, "processed": 0, "done": 0, "failed": 0, "trigger": trigger}
         if self._is_embedding_degraded():
@@ -785,7 +746,7 @@ class SDKMemoryKernel:
         }
         errors: List[str] = []
         source_store = self.vector_store
-        if source_store is not None and not self._stored_vectors_compatible_with_current_embedding(source_store):
+        if source_store is not None and not self._vector_pool_manager.stored_vectors_compatible_with_current_embedding(source_store):
             source_store = None
         if source_store is not None and source_store.has_data():
             try:
@@ -935,10 +896,13 @@ class SDKMemoryKernel:
                 checked_at=time.time(),
             )
         if self.paragraph_vector_store is not None:
-            self._save_vector_store(self.paragraph_vector_store)
+            self._vector_pool_manager.save_vector_store(self.paragraph_vector_store)
         if self.graph_vector_store is not None:
-            self._save_vector_store(self.graph_vector_store)
-        self._refresh_dual_vector_ready_manifest_from_stores()
+            self._vector_pool_manager.save_vector_store(self.graph_vector_store)
+        self._vector_pool_manager.paragraph_vector_store = self.paragraph_vector_store
+        self._vector_pool_manager.graph_vector_store = self.graph_vector_store
+        self._vector_pool_manager.metadata_store = self.metadata_store
+        self._vector_pool_manager.refresh_dual_vector_ready_manifest_from_stores()
         return {
             "success": failed_total == 0,
             "stats": stats,
@@ -1208,7 +1172,7 @@ class SDKMemoryKernel:
             checked_at=started,
         )
 
-        dual_mode = self._dual_vector_pools_config_enabled()
+        dual_mode = self._vector_pool_manager.config.config_enabled
         legacy_source_store = self.vector_store if dual_mode else None
         self._update_dual_vector_auto_migration_stage(
             "prepare_rebuild",
@@ -1217,7 +1181,7 @@ class SDKMemoryKernel:
             counts=dict(target_counts),
             legacy_source_available=legacy_source_store is not None,
         )
-        if legacy_source_store is not None and not self._stored_vectors_compatible_with_current_embedding(
+        if legacy_source_store is not None and not self._vector_pool_manager.stored_vectors_compatible_with_current_embedding(
             legacy_source_store
         ):
             legacy_source_store = None
@@ -1236,16 +1200,16 @@ class SDKMemoryKernel:
                 logger.warning(f"加载旧单池向量用于双池迁移失败，将回退 embedding 重建: {exc}")
         if not dual_mode:
             self._vector_pool_manager.dual_pools_ready = False
-            self._remove_dual_vector_ready_manifest()
-            self.vector_store = self._make_vector_store(self._vectors_root())
+            self._vector_pool_manager.remove_dual_vector_ready_manifest()
+            self.vector_store = self._vector_pool_manager.make_vector_store(self._vector_pool_manager.vectors_root())
             self.vector_store.clear()
-            self.paragraph_vector_store = self._make_vector_store(self._paragraph_vector_dir())
-            self.graph_vector_store = self._make_vector_store(self._graph_vector_dir())
+            self.paragraph_vector_store = self._vector_pool_manager.make_vector_store(self._vector_pool_manager.paragraph_vector_dir())
+            self.graph_vector_store = self._vector_pool_manager.make_vector_store(self._vector_pool_manager.graph_vector_dir())
             self._refresh_relation_write_service()
         else:
-            dual_build_root, paragraph_data_dir, graph_data_dir = self._prepare_dual_vector_build_dirs()
-            build_paragraph_vector_store = self._make_vector_store(paragraph_data_dir)
-            build_graph_vector_store = self._make_vector_store(graph_data_dir)
+            dual_build_root, paragraph_data_dir, graph_data_dir = self._vector_pool_manager.prepare_dual_vector_build_dirs()
+            build_paragraph_vector_store = self._vector_pool_manager.make_vector_store(paragraph_data_dir)
+            build_graph_vector_store = self._vector_pool_manager.make_vector_store(graph_data_dir)
         stats = {
             "paragraphs": {"done": 0, "failed": 0},
             "entities": {"done": 0, "failed": 0},
@@ -1452,14 +1416,14 @@ class SDKMemoryKernel:
                         self._update_dual_vector_auto_migration_stage("paragraph_pool_warmup")
                         build_paragraph_vector_store.warmup_index(force_train=True)
                         self._update_dual_vector_auto_migration_stage("paragraph_pool_save")
-                        self._save_vector_store(build_paragraph_vector_store)
+                        self._vector_pool_manager.save_vector_store(build_paragraph_vector_store)
                     if build_graph_vector_store is not None:
                         self._update_dual_vector_auto_migration_stage("graph_pool_warmup")
                         build_graph_vector_store.warmup_index(force_train=True)
                         self._update_dual_vector_auto_migration_stage("graph_pool_save")
-                        self._save_vector_store(build_graph_vector_store)
+                        self._vector_pool_manager.save_vector_store(build_graph_vector_store)
                     self._update_dual_vector_auto_migration_stage("activate_dirs")
-                    self._activate_dual_vector_build_dirs(dual_build_root)
+                    self._vector_pool_manager.activate_dual_vector_build_dirs(dual_build_root)
                     self._update_dual_vector_auto_migration_stage("write_manifest")
                     self._write_dual_vector_ready_manifest(stats=stats, migration_stats=migration_stats)
                     self._update_dual_vector_auto_migration_stage("reload_dual_stores")
@@ -1482,7 +1446,7 @@ class SDKMemoryKernel:
                     self._vector_pool_manager.dual_pools_ready = False
                     errors.append(f"dual_pool_activation:{str(exc)[:500]}")
                     logger.warning(f"双池临时构建目录切换失败，保留原有向量池: {exc}")
-                    self._drop_dual_build_root(dual_build_root)
+                    self._vector_pool_manager.drop_dual_build_root(dual_build_root)
                     self._reload_dual_vector_stores_from_disk()
             else:
                 activation_ok = False
@@ -1492,14 +1456,14 @@ class SDKMemoryKernel:
                         f"paragraph={actual_paragraph_vectors}/{expected_paragraph_vectors}, "
                         f"graph={actual_graph_vectors}/{expected_graph_vectors}"
                     )
-                self._drop_dual_build_root(dual_build_root)
+                self._vector_pool_manager.drop_dual_build_root(dual_build_root)
                 self._reload_dual_vector_stores_from_disk()
             self._refresh_relation_write_service()
         else:
             self._update_dual_vector_auto_migration_stage("single_pool_warmup")
             self.vector_store.warmup_index(force_train=True)
-            self.paragraph_vector_store = self._make_vector_store(self._paragraph_vector_dir())
-            self.graph_vector_store = self._make_vector_store(self._graph_vector_dir())
+            self.paragraph_vector_store = self._vector_pool_manager.make_vector_store(self._vector_pool_manager.paragraph_vector_dir())
+            self.graph_vector_store = self._vector_pool_manager.make_vector_store(self._vector_pool_manager.graph_vector_dir())
             self._refresh_relation_write_service()
         self._update_dual_vector_auto_migration_stage("runtime_rebuild")
         self._runtime_bundle = build_search_runtime(
@@ -1644,20 +1608,20 @@ class SDKMemoryKernel:
             relation_vectors_enabled=self.relation_vectors_enabled,
         )
 
-        stored_dimension = self._stored_vector_dimension()
+        stored_dimension = self._vector_pool_manager.stored_vector_dimension()
         provisional_dimension = stored_dimension or self.embedding_dimension
         self.embedding_dimension = int(provisional_dimension)
 
         matrix_format = str(self._cfg("graph.sparse_matrix_format", "csr") or "csr").strip().lower()
         graph_format = SparseMatrixFormat.CSC if matrix_format == "csc" else SparseMatrixFormat.CSR
 
-        self.vector_store = self._vector_pool_manager.make_vector_store(self._vectors_root(), dimension=provisional_dimension)
+        self.vector_store = self._vector_pool_manager.make_vector_store(self._vector_pool_manager.vectors_root(), dimension=provisional_dimension)
         self.paragraph_vector_store = self._vector_pool_manager.make_vector_store(
-            self._paragraph_vector_dir(),
+            self._vector_pool_manager.paragraph_vector_dir(),
             dimension=provisional_dimension,
         )
         self.graph_vector_store = self._vector_pool_manager.make_vector_store(
-            self._graph_vector_dir(),
+            self._vector_pool_manager.graph_vector_dir(),
             dimension=provisional_dimension,
         )
         self.graph_store = GraphStore(matrix_format=graph_format, data_dir=self.data_dir / "graph")
@@ -1694,7 +1658,7 @@ class SDKMemoryKernel:
             self.vector_store.load()
             self.vector_store.warmup_index(force_train=True)
         self._vector_pool_manager.dual_pools_ready = False
-        if self._dual_vector_pools_config_enabled():
+        if self._vector_pool_manager.config.config_enabled:
             self._vector_pool_manager.cleanup_stale_dual_vector_build_dirs()
             self._vector_pool_manager.vector_store = self.vector_store
             self._vector_pool_manager.paragraph_vector_store = self.paragraph_vector_store
@@ -1879,8 +1843,8 @@ class SDKMemoryKernel:
             chat_source=self._chat_source,
             chat_filter_config_allows=self._chat_filter_config_allows,
             session_info_port=self._session_info_port,
-            feedback_cfg_paragraph_hard_filter_enabled=self._feedback_cfg_paragraph_hard_filter_enabled,
-            feedback_cfg_episode_query_block_enabled=self._feedback_cfg_episode_query_block_enabled,
+            feedback_cfg_paragraph_hard_filter_enabled=self._feedback_config.paragraph_hard_filter_enabled,
+            feedback_cfg_episode_query_block_enabled=self._feedback_config.episode_query_block_enabled,
             current_effective_filter_cache=lambda: self._current_effective_filter_cache,
             update_effective_filter_cache=lambda v: setattr(self, '_current_effective_filter_cache', v),
         )
@@ -2396,12 +2360,12 @@ class SDKMemoryKernel:
             if rebuild_required:
                 logger.debug("检测到向量库需要重建，跳过向量库持久化以保留重建提示")
             else:
-                self._save_vector_store(self.vector_store)
+                self._vector_pool_manager.save_vector_store(self.vector_store)
         if self._dual_vector_pools_enabled() and not rebuild_required:
             if self.paragraph_vector_store is not None:
-                self._save_vector_store(self.paragraph_vector_store)
+                self._vector_pool_manager.save_vector_store(self.paragraph_vector_store)
             if self.graph_vector_store is not None:
-                self._save_vector_store(self.graph_vector_store)
+                self._vector_pool_manager.save_vector_store(self.graph_vector_store)
         if self.graph_store is not None:
             self.graph_store.save()
         if self.sparse_index is not None and self.sparse_index.config.enabled:
@@ -2828,50 +2792,6 @@ class SDKMemoryKernel:
             payload = None
         return payload if isinstance(payload, dict) else {}
 
-    def _feedback_cfg_enabled(self) -> bool:
-        return self._feedback_config.enabled
-
-    def _feedback_cfg_window_hours(self) -> float:
-        return self._feedback_config.window_hours
-
-    def _feedback_cfg_check_interval_seconds(self) -> float:
-        return self._feedback_config.check_interval_seconds
-
-    def _feedback_cfg_batch_size(self) -> int:
-        return self._feedback_config.batch_size
-
-    def _feedback_cfg_auto_apply_threshold(self) -> float:
-        return self._feedback_config.auto_apply_threshold
-
-    def _feedback_cfg_max_messages(self) -> int:
-        return self._feedback_config.max_messages
-
-    def _feedback_cfg_prefilter_enabled(self) -> bool:
-        return self._feedback_config.prefilter_enabled
-
-    def _feedback_cfg_paragraph_mark_enabled(self) -> bool:
-        return self._feedback_config.paragraph_mark_enabled
-
-    def _feedback_cfg_paragraph_hard_filter_enabled(self) -> bool:
-        return self._feedback_config.paragraph_hard_filter_enabled
-
-    def _feedback_cfg_profile_refresh_enabled(self) -> bool:
-        return self._feedback_config.profile_refresh_enabled
-
-    def _feedback_cfg_profile_force_refresh_on_read(self) -> bool:
-        return self._feedback_config.profile_force_refresh_on_read
-
-    def _feedback_cfg_episode_rebuild_enabled(self) -> bool:
-        return self._feedback_config.episode_rebuild_enabled
-
-    def _feedback_cfg_episode_query_block_enabled(self) -> bool:
-        return self._feedback_config.episode_query_block_enabled
-
-    def _feedback_cfg_reconcile_interval_seconds(self) -> float:
-        return self._feedback_config.reconcile_interval_seconds
-
-    def _feedback_cfg_reconcile_batch_size(self) -> int:
-        return self._feedback_config.reconcile_batch_size
 
     def _should_auto_enqueue_episode(self, *, source_type: str) -> bool:
         if not bool(self._cfg("episode.enabled", True)):
@@ -2931,8 +2851,6 @@ class SDKMemoryKernel:
             max_retry=self._person_profile_refresh_max_retry(),
         )
 
-    def _feedback_cfg_window_label(self) -> str:
-        return self._feedback_config.window_label
 
     async def enqueue_feedback_task(
         self,
@@ -3447,7 +3365,7 @@ class SDKMemoryKernel:
         return await self._ensure_vector_for_text(
             item_hash=str(paragraph.get("hash", "") or ""),
             text=str(paragraph.get("content", "") or ""),
-            vector_store=self._paragraph_store(),
+            vector_store=self._vector_pool_manager.paragraph_store(),
         )
 
     async def _ensure_entity_vector(self, entity: Dict[str, Any]) -> bool:
