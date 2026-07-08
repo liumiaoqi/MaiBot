@@ -92,6 +92,7 @@ class KernelInitializer:
             ensure_paragraph_vector=kernel._ensure_paragraph_vector,
             ensure_relation_vector=kernel._ensure_relation_vector,
             optional_float=kernel._optional_float,
+            import_task_manager_getter=lambda: kernel.import_task_manager,
         )
 
     @staticmethod
@@ -323,3 +324,19 @@ class KernelInitializer:
         KernelInitializer.init_maintenance_service(kernel)
         KernelInitializer.init_vector_rebuild_service(kernel)
         KernelInitializer.init_dual_vector_migration_service(kernel)
+        KernelInitializer.init_vector_ensure_service(kernel)
+
+    @staticmethod
+    def init_vector_ensure_service(kernel: SDKMemoryKernel) -> None:
+        from .vector_ensure import VectorEnsureService
+        kernel._vector_ensure_service = VectorEnsureService(
+            embedding_manager_getter=lambda: kernel.embedding_manager,
+            vector_store_getter=lambda: kernel.vector_store,
+            paragraph_vector_store_getter=lambda: kernel.paragraph_vector_store,
+            graph_vector_store_getter=lambda: kernel.graph_vector_store,
+            relation_vectors_enabled_getter=lambda: kernel.relation_vectors_enabled,
+            dual_vector_pools_enabled=kernel._dual_vector_pools_enabled,
+            graph_vector_id=kernel._graph_vector_id,
+            relation_write_service_getter=lambda: kernel.relation_write_service,
+            vector_pool_manager=kernel._vector_pool_manager,
+        )

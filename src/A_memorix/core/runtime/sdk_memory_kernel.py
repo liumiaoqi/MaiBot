@@ -112,6 +112,7 @@ class SDKMemoryKernel:
         self._dual_vector_migration_service: Optional[Any] = None
         self._embedding_recovery_service: Optional[Any] = None
         self._person_profile_facade: Optional[Any] = None
+        self._vector_ensure_service: Optional[Any] = None
 
     def get_config(self, key: str, default: Any = None) -> Any:
         return self._cfg(key, default)
@@ -246,17 +247,7 @@ class SDKMemoryKernel:
         )
 
     def is_chat_enabled(self, stream_id: str, group_id: str | None = None, user_id: str | None = None) -> bool:
-        filter_config = self._cfg("filter", {}) or {}
-        if not isinstance(filter_config, dict) or not filter_config:
-            return True
-
-        return self._chat_filter_config_allows(
-            filter_config,
-            stream_id=stream_id,
-            group_id=group_id,
-            user_id=user_id,
-            default_when_empty=True,
-        )
+        return self._hit_filter_service.is_chat_enabled(stream_id, group_id, user_id)
 
     @staticmethod
     def _chat_filter_config_allows(
@@ -267,46 +258,10 @@ class SDKMemoryKernel:
         user_id: str = "",
         default_when_empty: bool = True,
     ) -> bool:
-        if not bool(filter_config.get("enabled", True)):
-            return True
-
-        mode = str(filter_config.get("mode", "blacklist") or "blacklist").strip().lower()
-        patterns = filter_config.get("chats") or []
-        if not isinstance(patterns, list):
-            patterns = []
-
-        if not patterns:
-            return bool(default_when_empty) if mode == "blacklist" else False
-
-        stream_token = str(stream_id or "").strip()
-        group_token = str(group_id or "").strip()
-        user_token = str(user_id or "").strip()
-        candidates = {token for token in (stream_token, group_token, user_token) if token}
-
-        matched = False
-        for raw_pattern in patterns:
-            pattern = str(raw_pattern or "").strip()
-            if not pattern:
-                continue
-            if ":" in pattern:
-                prefix, value = pattern.split(":", 1)
-                prefix = prefix.strip().lower()
-                value = value.strip()
-                if prefix == "group" and value and value == group_token:
-                    matched = True
-                elif prefix in {"user", "private"} and value and value == user_token:
-                    matched = True
-                elif prefix == "stream" and value and value == stream_token:
-                    matched = True
-            elif pattern in candidates:
-                matched = True
-
-            if matched:
-                break
-
-        if mode == "blacklist":
-            return not matched
-        return matched
+        from .services.hit_filter import HitFilterService
+        return HitFilterService.chat_filter_config_allows(
+            filter_config, stream_id=stream_id, group_id=group_id, user_id=user_id, default_when_empty=default_when_empty,
+        )
 
     def _is_chat_filtered(
         self,
@@ -316,15 +271,9 @@ class SDKMemoryKernel:
         group_id: str = "",
         user_id: str = "",
     ) -> bool:
-        if not bool(respect_filter):
-            return False
-
-        stream_token = str(stream_id or "").strip()
-        group_token = str(group_id or "").strip()
-        user_token = str(user_id or "").strip()
-        if not (stream_token or group_token or user_token):
-            return False
-        return not self.is_chat_enabled(stream_token, group_token, user_token)
+        return self._hit_filter_service.is_chat_filtered(
+            respect_filter=respect_filter, stream_id=stream_id, group_id=group_id, user_id=user_id,
+        )
 
 
     @staticmethod
@@ -1257,65 +1206,16 @@ class SDKMemoryKernel:
         text: str,
         vector_store: Optional[VectorStore] = None,
     ) -> bool:
-        target_store = vector_store or self.vector_store
-        if target_store is None or self.embedding_manager is None:
-            return False
-        token = str(item_hash or "").strip()
-        content = str(text or "").strip()
-        if not token or not content:
-            return False
-        embedding = await self.embedding_manager.encode([content])
-        if getattr(embedding, "ndim", 1) == 1:
-            embedding = embedding.reshape(1, -1)
-        if getattr(embedding, "size", 0) <= 0:
-            return False
-        try:
-            target_store.add(embedding, [token])
-            return True
-        except Exception as exc:
-            logger.warning(f"重建向量失败: {exc}")
-            return False
+        return await self._vector_ensure_service.ensure_vector_for_text(item_hash=item_hash, text=text, vector_store=vector_store)
 
     async def _ensure_relation_vector(self, relation: Dict[str, Any]) -> bool:
-        if not bool(self.relation_vectors_enabled):
-            return False
-        relation_service = self.relation_write_service
-        if relation_service is not None:
-            result = await relation_service.ensure_relation_vector(
-                hash_value=str(relation.get("hash", "") or ""),
-                subject=str(relation.get("subject", "") or "").strip(),
-                predicate=str(relation.get("predicate", "") or "").strip(),
-                obj=str(relation.get("object", "") or "").strip(),
-                typed_id=self._dual_vector_pools_enabled(),
-            )
-            return bool(result.vector_written or result.vector_already_exists)
-        return await self._ensure_vector_for_text(
-            item_hash=str(relation.get("hash", "") or ""),
-            text=RelationWriteService.build_relation_vector_text(
-                str(relation.get("subject", "") or "").strip(),
-                str(relation.get("predicate", "") or "").strip(),
-                str(relation.get("object", "") or "").strip(),
-            ),
-        )
+        return await self._vector_ensure_service.ensure_relation_vector(relation)
 
     async def _ensure_paragraph_vector(self, paragraph: Dict[str, Any]) -> bool:
-        return await self._ensure_vector_for_text(
-            item_hash=str(paragraph.get("hash", "") or ""),
-            text=str(paragraph.get("content", "") or ""),
-            vector_store=self._vector_pool_manager.paragraph_store(),
-        )
+        return await self._vector_ensure_service.ensure_paragraph_vector(paragraph)
 
     async def _ensure_entity_vector(self, entity: Dict[str, Any]) -> bool:
-        if self._dual_vector_pools_enabled():
-            return await self._ensure_vector_for_text(
-                item_hash=self._graph_vector_id("entity", str(entity.get("hash", "") or "")),
-                text=str(entity.get("name", "") or ""),
-                vector_store=self._graph_vector_store(),
-            )
-        return await self._ensure_vector_for_text(
-            item_hash=str(entity.get("hash", "") or ""),
-            text=str(entity.get("name", "") or ""),
-        )
+        return await self._vector_ensure_service.ensure_entity_vector(entity)
 
     async def _restore_relation_hashes(
         self,
@@ -1325,37 +1225,9 @@ class SDKMemoryKernel:
         rebuild_graph: bool = True,
         persist: bool = True,
     ) -> Dict[str, Any]:
-        assert self.metadata_store
-        restored: List[str] = []
-        failures: List[Dict[str, str]] = []
-        conn = self.metadata_store.get_connection()
-        cursor = conn.cursor()
-        payload_map = payloads or {}
-        for hash_value in [str(item or "").strip() for item in hashes if str(item or "").strip()]:
-            relation = self.metadata_store.restore_relation(hash_value)
-            if relation is None:
-                relation = self.metadata_store.get_relation(hash_value)
-            if relation is None:
-                failures.append({"hash": hash_value, "error": "relation 不存在"})
-                continue
-            payload = payload_map.get(hash_value) if isinstance(payload_map.get(hash_value), dict) else {}
-            paragraph_hashes = self._tokens(payload.get("paragraph_hashes"))
-            for paragraph_hash in paragraph_hashes:
-                cursor.execute(
-                    """
-                    INSERT OR IGNORE INTO paragraph_relations (paragraph_hash, relation_hash)
-                    VALUES (?, ?)
-                    """,
-                    (paragraph_hash, hash_value),
-                )
-            await self._ensure_relation_vector({**relation, "hash": hash_value})
-            restored.append(hash_value)
-        conn.commit()
-        if restored and rebuild_graph:
-            self._graph_ops_service.rebuild_graph_from_metadata()
-        if restored and persist:
-            self._persist()
-        return {"restored_hashes": restored, "restored_count": len(restored), "failures": failures}
+        return await self._delete_service.restore_relation_hashes(
+            hashes, payloads=payloads, rebuild_graph=rebuild_graph, persist=persist,
+        )
 
     @staticmethod
     def _selector_dict(selector: Any) -> Dict[str, Any]:
@@ -1373,61 +1245,11 @@ class SDKMemoryKernel:
 
 
     def _relation_has_remaining_paragraphs(self, relation_hash: str, removing_hashes: Sequence[str]) -> bool:
-        assert self.metadata_store
-        excluded = [str(item or "").strip() for item in removing_hashes if str(item or "").strip()]
-        conn = self.metadata_store.get_connection()
-        cursor = conn.cursor()
-        if excluded:
-            placeholders = ",".join(["?"] * len(excluded))
-            cursor.execute(
-                f"""
-                SELECT p.hash, p.metadata
-                FROM paragraph_relations pr
-                JOIN paragraphs p ON p.hash = pr.paragraph_hash
-                WHERE pr.relation_hash = ?
-                  AND pr.paragraph_hash NOT IN ({placeholders})
-                  AND (p.is_deleted IS NULL OR p.is_deleted = 0)
-                """,
-                tuple([relation_hash] + excluded),
-            )
-        else:
-            cursor.execute(
-                """
-                SELECT p.hash, p.metadata
-                FROM paragraph_relations pr
-                JOIN paragraphs p ON p.hash = pr.paragraph_hash
-                WHERE pr.relation_hash = ?
-                  AND (p.is_deleted IS NULL OR p.is_deleted = 0)
-                """,
-                (relation_hash,),
-            )
-        now = time.time()
-        for row in cursor.fetchall():
-            paragraph = self.metadata_store._row_to_dict(row, "paragraph")
-            metadata = coerce_metadata_dict(paragraph.get("metadata"))
-            memory_change = metadata.get("memory_change") if isinstance(metadata.get("memory_change"), dict) else {}
-            valid_to = self._optional_float(memory_change.get("valid_to"))
-            if valid_to is None or valid_to > now:
-                return True
-        return False
+        return self._delete_service.relation_has_remaining_paragraphs(relation_hash, removing_hashes)
 
 
     async def _invalidate_import_manifest_for_sources(self, result: Dict[str, Any]) -> None:
-        if not isinstance(result, dict) or not result.get("success"):
-            return
-        manager = self.import_task_manager
-        if manager is None:
-            return
-        sources = self._tokens(result.get("sources"))
-        if not sources:
-            return
-        try:
-            manifest_result = await manager.invalidate_manifest_for_sources(sources)
-        except Exception as exc:
-            logger.warning(f"删除来源后清理导入清单失败: sources={sources}, err={exc}")
-            result["manifest_invalidation"] = {"success": False, "error": str(exc), "sources": sources}
-            return
-        result["manifest_invalidation"] = manifest_result
+        await self._delete_service.invalidate_import_manifest_for_sources(result)
 
     @staticmethod
     def _optional_float(value: Any) -> Optional[float]:
