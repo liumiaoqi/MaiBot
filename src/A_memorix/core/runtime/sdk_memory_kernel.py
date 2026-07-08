@@ -1818,7 +1818,7 @@ class SDKMemoryKernel:
         self._graph_ops_service = GraphOpsService(
             metadata_store=self.metadata_store,
             graph_store=self.graph_store,
-            load_paragraph_stale_marks=self._load_paragraph_stale_marks,
+            load_paragraph_stale_marks=self._hit_filter_service.load_paragraph_stale_marks,
             persist_callback=self._persist,
             rebuild_graph_callback=lambda: {"node_count": 0, "edge_count": 0},
         )
@@ -2132,7 +2132,7 @@ class SDKMemoryKernel:
                     }
                 )
 
-        evidence = self._filter_user_visible_hits(evidence)
+        evidence = self._hit_filter_service.filter_user_visible_hits(evidence)
         text = str(profile.get("profile_text", "") or "").strip()
         traits = [line.strip("- ").strip() for line in text.splitlines() if line.strip()][:8]
         return {
@@ -2575,16 +2575,6 @@ class SDKMemoryKernel:
     @staticmethod
     def _relation_status_is_inactive(status: Optional[Dict[str, Any]]) -> bool:
         return HitFilterService.relation_status_is_inactive(status)
-
-    def _load_paragraph_stale_marks(
-        self,
-        paragraph_hashes: Sequence[str],
-    ) -> tuple[Dict[str, List[Dict[str, Any]]], Dict[str, Dict[str, Any]]]:
-        return self._hit_filter_service.load_paragraph_stale_marks(paragraph_hashes)
-
-
-    def _filter_user_visible_hits(self, hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        return self._hit_filter_service.filter_user_visible_hits(hits)
 
 
     def _current_effective_filter_store_check_needed(self, hits: List[Dict[str, Any]]) -> bool:
