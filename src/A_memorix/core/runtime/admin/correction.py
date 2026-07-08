@@ -23,18 +23,18 @@ class CorrectionAdminHandler(BaseAdminHandler):
 
         act = self._str_action(action)
         if act in {"preview", "plan"}:
-            return await self._kernel._preview_fuzzy_modify_action(
+            return await self._kernel._fuzzy_modify_service.preview_fuzzy_modify_action(
                 request_text=str(kwargs.get("request_text", "") or kwargs.get("text", "") or "").strip(),
                 scope=str(kwargs.get("scope", "") or "person_profile").strip(),
                 person_id=str(kwargs.get("person_id", "") or "").strip(),
                 person_keyword=str(kwargs.get("person_keyword", "") or kwargs.get("keyword", "") or "").strip(),
                 chat_id=str(kwargs.get("chat_id", "") or "").strip(),
-                limit=max(1, int(kwargs.get("limit", self._kernel._fuzzy_modify_cfg_candidate_limit()) or self._kernel._fuzzy_modify_cfg_candidate_limit())),
+                limit=max(1, int(kwargs.get("limit", self._kernel._fuzzy_modify_config.candidate_limit) or self._kernel._fuzzy_modify_config.candidate_limit)),
                 requested_by=str(kwargs.get("requested_by", "") or "webui").strip(),
                 reason=str(kwargs.get("reason", "") or "").strip(),
             )
         if act == "execute":
-            return await self._kernel._execute_fuzzy_modify_action(
+            return await self._kernel._fuzzy_modify_service.execute_fuzzy_modify_action(
                 plan_id=str(kwargs.get("plan_id", "") or "").strip(),
                 confirmed=bool(kwargs.get("confirmed", False)),
                 requested_by=str(kwargs.get("requested_by", "") or "webui").strip(),
@@ -55,7 +55,7 @@ class CorrectionAdminHandler(BaseAdminHandler):
             )
             return {"success": True, "items": items, "count": len(items)}
         if act == "rollback":
-            return await self._kernel._rollback_fuzzy_modify_action(
+            return await self._kernel._fuzzy_modify_service.rollback_fuzzy_modify_action(
                 plan_id=str(kwargs.get("plan_id", "") or "").strip(),
                 requested_by=str(kwargs.get("requested_by", "") or "webui").strip(),
                 reason=str(kwargs.get("reason", "") or "").strip(),

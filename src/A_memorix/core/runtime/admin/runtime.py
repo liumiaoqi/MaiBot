@@ -26,7 +26,7 @@ class RuntimeAdminHandler(BaseAdminHandler):
             return {"success": True, "saved": True, "data_dir": str(self._kernel.data_dir)}
 
         if act == "get_config":
-            degraded = self._kernel._embedding_degraded_snapshot()
+            degraded = self._kernel._embedding_health_service.snapshot()
             backfill_counts = self._kernel._paragraph_vector_backfill_counts()
             rebuild_status = self._kernel._vector_rebuild_status()
             vector_pools_status = self._kernel._vector_pools_status()
@@ -61,17 +61,17 @@ class RuntimeAdminHandler(BaseAdminHandler):
             return self._kernel._vector_pools_status()
 
         if act in {"self_check", "refresh_self_check"}:
-            report = await self._kernel._refresh_runtime_self_check(
+            report = await self._kernel._embedding_health_service.refresh_self_check(
                 sample_text=str(kwargs.get("sample_text", "") or "A_Memorix runtime self check")
             )
             checked_at = float(report.get("checked_at") or time.time())
             dimension_mismatch = self._kernel._apply_self_check_dimension_result(report)
             if dimension_mismatch:
-                self._kernel._set_embedding_degraded(active=True, reason=dimension_mismatch, checked_at=checked_at)
+                self._kernel._embedding_health_service.set_degraded(active=True, reason=dimension_mismatch, checked_at=checked_at)
             elif bool(report.get("ok", False)):
-                self._kernel._set_embedding_degraded(active=False, checked_at=checked_at)
-            elif self._kernel._embedding_fallback_enabled():
-                self._kernel._set_embedding_degraded(
+                self._kernel._embedding_health_service.set_degraded(active=False, checked_at=checked_at)
+            elif self._kernel._embedding_health_service.config.embedding_fallback_enabled:
+                self._kernel._embedding_health_service.set_degraded(
                     active=True,
                     reason=str(report.get("message", "runtime self-check failed") or "runtime self-check failed"),
                     checked_at=checked_at,
@@ -87,8 +87,8 @@ class RuntimeAdminHandler(BaseAdminHandler):
             result = await self._kernel._recover_embedding_once(
                 sample_text=str(kwargs.get("sample_text", "") or "A_Memorix runtime self check")
             )
-            result["embedding_degraded"] = self._kernel._is_embedding_degraded()
-            result["embedding_state"] = self._kernel._embedding_degraded_snapshot()
+            result["embedding_degraded"] = self._kernel._embedding_health_service.is_degraded
+            result["embedding_state"] = self._kernel._embedding_health_service.snapshot()
             result["backfill_counts"] = self._kernel._paragraph_vector_backfill_counts()
             return result
 
@@ -99,7 +99,7 @@ class RuntimeAdminHandler(BaseAdminHandler):
                 include_relations=include_relations if isinstance(include_relations, bool) else None,
                 dry_run=bool(kwargs.get("dry_run", False)),
             )
-            result["embedding_degraded"] = self._kernel._is_embedding_degraded()
+            result["embedding_degraded"] = self._kernel._embedding_health_service.is_degraded
             result["backfill_counts"] = self._kernel._paragraph_vector_backfill_counts()
             return result
 
@@ -109,7 +109,7 @@ class RuntimeAdminHandler(BaseAdminHandler):
                 max_retry=self._kernel._optional_int(kwargs.get("max_retry")),
                 trigger="manual",
             )
-            result["embedding_degraded"] = self._kernel._is_embedding_degraded()
+            result["embedding_degraded"] = self._kernel._embedding_health_service.is_degraded
             result["backfill_counts"] = self._kernel._paragraph_vector_backfill_counts()
             return result
 

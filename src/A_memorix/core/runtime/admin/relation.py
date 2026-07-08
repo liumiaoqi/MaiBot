@@ -27,7 +27,7 @@ class RelationAdminHandler(BaseAdminHandler):
             hashes = self._kernel._resolve_relation_hashes(target)
             if not hashes:
                 return {"success": False, "error": "未命中关系"}
-            result = self._kernel._apply_v5_relation_action(
+            result = self._kernel._v5_memory_service.apply_v5_relation_action(
                 action="status",
                 hashes=hashes,
                 strength=float(kwargs.get("strength", 1.0) or 1.0),
