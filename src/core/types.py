@@ -521,6 +521,12 @@ class ThinkContext:
     emotion_state_text: str = ""
     """当前情绪状态描述（自然语言）"""
 
+    inner_voice_text: str = ""
+    """内心声音文本（由 InnerVoiceGenerator 生成）"""
+
+    memory_personality_params: Dict[str, Any] | None = None
+    """记忆性格参数（dict 形式，避免核心层依赖 maisaka 模块）"""
+
     relationship_text: str = ""
     """当前关系描述（自然语言）"""
 

@@ -388,3 +388,39 @@ class AgentActivityStore:
                 activity.exit_reason = reason
                 activity.exited_at = datetime.now()
                 session.commit()
+
+    def update_lifecycle_state(
+        self, session_id: str, agent_id: str, state: str, reason: str = ""
+    ) -> bool:
+        """更新智能体的生命周期状态字段。"""
+        with get_db_session() as session:
+            activity = (
+                session.query(AgentAutonomyActivity)
+                .filter(
+                    AgentAutonomyActivity.session_id == session_id,
+                    AgentAutonomyActivity.agent_id == agent_id,
+                    AgentAutonomyActivity.exited_at.is_(None),
+                )
+                .first()
+            )
+            if activity is None:
+                return False
+            activity.state = state
+            if reason:
+                activity.exit_reason = reason
+            session.commit()
+            return True
+
+    def get_lifecycle_state(self, session_id: str, agent_id: str) -> str | None:
+        """查询智能体的当前生命周期状态。"""
+        with get_db_session() as session:
+            activity = (
+                session.query(AgentAutonomyActivity)
+                .filter(
+                    AgentAutonomyActivity.session_id == session_id,
+                    AgentAutonomyActivity.agent_id == agent_id,
+                    AgentAutonomyActivity.exited_at.is_(None),
+                )
+                .first()
+            )
+            return getattr(activity, "state", None) if activity else None

@@ -19,6 +19,7 @@ from src.maisaka.agent_autonomy.behavior_intent import (
     RelationshipIntentSource,
     InteractionSignalIntentSource,
 )
+from src.maisaka.agent_autonomy.inner_world import InnerWorld, InnerWorldSnapshot
 
 logger = get_logger("agent_autonomy.agent")
 
@@ -39,6 +40,7 @@ class AutonomousAgent:
         self._relationship_manager = None
         self._memory_adapter = None
         self._agent_config = None
+        self._inner_world: InnerWorld | None = None
 
         self._init_components()
         self._init_engines()
@@ -61,23 +63,34 @@ class AutonomousAgent:
 
             emotion_registry = AgentEmotionManagerRegistry()
             self._emotion_manager = emotion_registry.get_emotion_manager(self._agent_id)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("情绪管理器初始化失败: agent=%s error=%s", self._agent_id, exc)
 
         try:
             from src.maisaka.agent_interaction.relationship_manager import AgentRelationshipManager
 
             rel_manager = AgentRelationshipManager()
             self._relationship_manager = rel_manager
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("关系管理器初始化失败: agent=%s error=%s", self._agent_id, exc)
 
         try:
             from src.maisaka.agent_interaction.memory.adapter import AgentMemoryAdapter
 
             self._memory_adapter = AgentMemoryAdapter()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("记忆适配器初始化失败: agent=%s error=%s", self._agent_id, exc)
+
+        if self._agent_config is not None:
+            try:
+                self._inner_world = InnerWorld(self._agent_id, self._agent_config)
+            except Exception as exc:
+                logger.warning("内心世界初始化失败: agent=%s error=%s", self._agent_id, exc)
+
+            try:
+                self._set_memory_personality()
+            except Exception as exc:
+                logger.warning("记忆性格传递失败: agent=%s error=%s", self._agent_id, exc)
 
     def _init_engines(self) -> None:
         """初始化内在需求引擎和行为意图引擎。"""
@@ -128,6 +141,48 @@ class AutonomousAgent:
     @property
     def memory_adapter(self) -> object | None:
         return self._memory_adapter
+
+    @property
+    def inner_world(self) -> InnerWorld | None:
+        return self._inner_world
+
+    def get_inner_world_snapshot(self) -> InnerWorldSnapshot | None:
+        """获取内心世界状态快照。"""
+        if self._inner_world is not None:
+            return self._inner_world.get_state_snapshot()
+        return None
+
+    def refresh_config(self) -> None:
+        """从 AgentConfigRegistry 重新加载配置。"""
+        try:
+            from src.maisaka.agent.registry import AgentConfigRegistry
+
+            registry = AgentConfigRegistry.get_instance()
+            if registry.has_agent(self._agent_id):
+                self._agent_config = registry.get_agent(self._agent_id)
+                if self._inner_world is not None and self._agent_config is not None:
+                    self._inner_world = InnerWorld(self._agent_id, self._agent_config)
+                self._set_memory_personality()
+        except Exception as exc:
+            logger.warning("配置刷新失败: agent=%s error=%s", self._agent_id, exc)
+
+    def _set_memory_personality(self) -> None:
+        """将记忆性格参数传递给 A_memorix。"""
+        if self._agent_config is None:
+            return
+        try:
+            import asyncio
+            from src.core.adapters.memory_service import AMemorixMemoryServicePort
+
+            port = AMemorixMemoryServicePort()
+            params = self._agent_config.memory_personality.model_dump()
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(port.set_memory_personality(self._agent_id, params))
+            except RuntimeError:
+                asyncio.run(port.set_memory_personality(self._agent_id, params))
+        except Exception as exc:
+            logger.debug("记忆性格传递跳过: agent=%s error=%s", self._agent_id, exc)
 
     def get_emotion_state(self) -> Any | None:
         """获取当前情绪状态快照。"""

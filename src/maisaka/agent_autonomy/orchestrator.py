@@ -14,6 +14,7 @@ from src.maisaka.agent_autonomy.behavior_intent import BehaviorIntent
 from src.maisaka.agent_autonomy.event_bus import AutonomyEventBus, InterjectionMentionEvent, SessionMessageEvent
 from src.maisaka.agent_autonomy.interjection_cooldown import InterjectionCooldownManager
 from src.maisaka.agent_autonomy.interjection_scheduler import InterjectionScheduler
+from src.maisaka.agent_autonomy.lifecycle import AgentLifecycleManager, AgentLifecycleState
 from src.maisaka.agent_autonomy.orchestrator_strategy import BaseOrchestratorStrategy, DefaultOrchestratorStrategy, create_strategy
 from src.maisaka.agent_autonomy.bridge.chat_loop_adapter import ChatLoopServiceAdapter
 from src.maisaka.agent_autonomy.vitality_manager import VitalityManager
@@ -68,6 +69,7 @@ class AgentOrchestrator:
         self._thinking_organ_factory = thinking_organ_factory or self._get_default_thinking_organ_factory()
         self._config = global_config.agent_autonomy
         self._activity_store = AgentActivityStore()
+        self._lifecycle_manager = AgentLifecycleManager(self._activity_store)
 
         self._active_agents: dict[str, AutonomousAgent] = {}
         self._primary_agent_id: str | None = None
@@ -259,7 +261,8 @@ class AgentOrchestrator:
             f"session={self._session_name}"
         )
 
-        think_context = ThinkContext(
+        think_context = self._build_think_context(
+            agent=agent,
             messages=(CoreMessage(session_id=self._session_id, plain_text=context, is_notify=False),),
             trigger_reason="butler_interjection",
         )
@@ -311,7 +314,8 @@ class AgentOrchestrator:
                     if agent is None:
                         continue
 
-                    think_context = ThinkContext(
+                    think_context = self._build_think_context(
+                        agent=agent,
                         messages=(CoreMessage(session_id=self._session_id, plain_text=reminder.context, is_notify=False),),
                         trigger_reason="reminder",
                         metadata={"reminder_id": reminder.reminder_id, "is_direct": reminder.is_direct},
@@ -409,6 +413,10 @@ class AgentOrchestrator:
                 activation_reason=reason,
             )
 
+            self._lifecycle_manager.transition(
+                agent_id, self._session_id, AgentLifecycleState.ACTIVE, reason
+            )
+
             # 同步到 AgentRouter
             self._routing_service.bind_session(self._session_id, agent_id)
 
@@ -463,9 +471,17 @@ class AgentOrchestrator:
         if agent_id not in self._active_agents:
             return
 
+        self._lifecycle_manager.transition(
+            agent_id, self._session_id, AgentLifecycleState.EXITING, reason
+        )
+
         del self._active_agents[agent_id]
         self._pending_intents.pop(agent_id, None)
         self._activity_store.deactivate(self._session_id, agent_id, reason)
+
+        self._lifecycle_manager.transition(
+            agent_id, self._session_id, AgentLifecycleState.DESTROYED, reason
+        )
 
         # 同步解绑 AgentRouter
         self._routing_service.unbind_session(self._session_id, agent_id)
@@ -949,3 +965,30 @@ class AgentOrchestrator:
                 f"session={self._session_name}"
             )
         return cleaned
+
+    def _build_think_context(
+        self,
+        agent: AutonomousAgent,
+        messages: tuple[CoreMessage, ...],
+        trigger_reason: str = "",
+        metadata: dict[str, Any] | None = None,
+    ) -> ThinkContext:
+        """构建 ThinkContext，自动填充内心世界数据。"""
+        inner_voice_text = ""
+        emotion_state_text = ""
+        memory_personality_params: dict[str, Any] | None = None
+
+        snapshot = agent.get_inner_world_snapshot()
+        if snapshot is not None:
+            inner_voice_text = snapshot.inner_voice_text
+            emotion_state_text = snapshot.emotion_state_text
+            memory_personality_params = snapshot.memory_personality_params.model_dump()
+
+        return ThinkContext(
+            messages=messages,
+            emotion_state_text=emotion_state_text,
+            inner_voice_text=inner_voice_text,
+            memory_personality_params=memory_personality_params,
+            trigger_reason=trigger_reason,
+            metadata=metadata or {},
+        )

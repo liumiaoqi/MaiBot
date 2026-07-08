@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import logging
+from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
 
 
 class TimeTriggerRule(BaseModel):
@@ -107,6 +111,47 @@ class DeepSeekOptimizationConfig(BaseModel):
     )
 
 
+class MemoryPersonalityV2(BaseModel):
+    """记忆性格 v2 — 智能体对记忆的个性化处理参数（对齐 lab v0.7 八参数模型）"""
+
+    decay_rate: float = Field(default=0.5, ge=0.0, le=1.0, description="记忆衰减率，值越大遗忘越快")
+    emotional_sensitivity: float = Field(default=0.5, ge=0.0, le=3.0, description="情感敏感度，值越高情感对记忆影响越大")
+    association_depth: int = Field(default=2, ge=0, le=5, description="联想深度，值越高记忆间联想越深")
+    attention_tags: list[str] = Field(default_factory=list, description="关注领域标签，这些概念更容易被记住")
+    positive_affinity: float = Field(default=0.5, ge=0.0, le=3.0, description="正面情感亲和度")
+    negative_affinity: float = Field(default=0.5, ge=0.0, le=3.0, description="负面情感亲和度")
+    curiosity: float = Field(default=0.5, ge=0.0, le=3.0, description="好奇心/记忆门槛，只影响阈值不乘分数")
+    reinforcement_boost: float = Field(default=1.0, ge=0.0, le=3.0, description="强化增幅，重复体验的强化程度")
+
+
+class InnerVoiceStyle(Enum):
+    """内心声音处理风格"""
+
+    AMPLIFY = "AMPLIFY"
+    NEUTRALIZE = "NEUTRALIZE"
+    PRESERVE = "PRESERVE"
+    INVERT = "INVERT"
+    CHAOTIC = "CHAOTIC"
+
+
+class InnerVoiceConfig(BaseModel):
+    """内心声音配置 — 角色驱动的多声音系统（对齐 lab v0.9）"""
+
+    name: str = Field(default="", description="声音名称，如'恶作剧心'、'游戏瘾'")
+    style: InnerVoiceStyle = Field(default=InnerVoiceStyle.PRESERVE, description="处理风格")
+    valence_bias: str = Field(default="NEUTRAL", description="情感偏移：POSITIVE/NEGATIVE/NEUTRAL")
+    concept_focus: list[str] = Field(default_factory=list, description="关注概念列表")
+    weight_multiplier: float = Field(default=1.0, ge=0.0, le=3.0, description="权重倍率")
+
+
+class FavorDescriptions(BaseModel):
+    """偏爱描述 — 每个智能体对不同关系用户的偏爱行为描述"""
+
+    owner: str = Field(default="", description="对主人的偏爱描述")
+    friend: str = Field(default="", description="对主人朋友的偏爱描述")
+    stranger: str = Field(default="", description="对陌生人的偏爱描述")
+
+
 class AgentConfig(BaseModel):
     """智能体配置模型"""
 
@@ -175,6 +220,24 @@ class AgentConfig(BaseModel):
     # 显示配置
     color: str = Field(default="#9b59b6", description="智能体代表色")
 
+    # 记忆性格（lab v0.7 八参数模型）
+    memory_personality: MemoryPersonalityV2 = Field(
+        default_factory=MemoryPersonalityV2, description="记忆性格参数"
+    )
+
+    # 内心声音（lab v0.9 角色驱动的多声音系统）
+    inner_voices: list[InnerVoiceConfig] = Field(
+        default_factory=list, description="内心声音配置列表"
+    )
+    inner_voice_template_text: str = Field(
+        default="", description="内心声音模板文本（兼容模式，支持{emotion}/{need}/{situation}占位符）"
+    )
+
+    # 偏爱描述（替代硬编码的 favor_map）
+    favor_descriptions: FavorDescriptions = Field(
+        default_factory=FavorDescriptions, description="偏爱行为描述"
+    )
+
     @property
     def identity_prompt(self) -> str:
         """构建完整的人格提示词（personality + reply_style）"""
@@ -216,85 +279,29 @@ class AgentConfig(BaseModel):
         is_owner: bool = True,
         is_friend_of_owner: bool = False,
     ) -> str:
-        """构建偏爱注入提示词
+        """构建偏爱注入提示词（从配置文件读取，替代硬编码 favor_map）"""
+        if is_owner and self.favor_descriptions.owner:
+            return self.favor_descriptions.owner.replace("{user_name}", user_name)
+        if is_friend_of_owner and self.favor_descriptions.friend:
+            return self.favor_descriptions.friend.replace("{user_name}", user_name)
+        if not is_owner and not is_friend_of_owner and self.favor_descriptions.stranger:
+            return self.favor_descriptions.stranger.replace("{user_name}", user_name)
+        return f"你关心{user_name}"
 
-        Args:
-            user_name: 当前对话用户名
-            is_owner: 是否为bot主人（默认True，保持向后兼容）
-            is_friend_of_owner: 是否为bot主人的朋友
-        """
-        favor_map: dict[str, dict[str, str]] = {
-            "kiana": {
-                "owner": f"你想和{user_name}一起打游戏，赢了会开心地喊，输了会不服气要再来",
-                "friend": f"你会拉着{user_name}一起吃零食，分享你藏的最后一块薯片",
-                "stranger": "",
-            },
-            "mei": {
-                "owner": f"你会给{user_name}留饭，问{user_name}吃了没有，像关心家人一样",
-                "friend": f"你会给{user_name}倒杯茶，礼貌地问问最近怎么样",
-                "stranger": "",
-            },
-            "bronya": {
-                "owner": f"你会帮{user_name}解决技术问题，面无表情但很靠谱",
-                "friend": f"你会回{user_name}的消息，虽然简短但不会忽略",
-                "stranger": "",
-            },
-            "seele": {
-                "owner": f"你会关心{user_name}的身体，温柔地照顾{user_name}",
-                "friend": f"你会对{user_name}微笑，温和地回应",
-                "stranger": "",
-            },
-            "veliona": {
-                "owner": f"你护短护到不讲理，谁欺负{user_name}你声音会变冷——真冷",
-                "friend": f"你对{user_name}的朋友还算客气，但也仅限于不主动找茬",
-                "stranger": "",
-            },
-            "himeko": {
-                "owner": f"你会听{user_name}说话，然后给{user_name}倒杯酒说'慢慢来'",
-                "friend": f"你会跟{user_name}点点头，递杯水过去",
-                "stranger": "",
-            },
-            "columbina": {
-                "owner": f"你会给{user_name}带点心，用最无辜的语气说最让人接不住的话",
-                "friend": f"你会安静地看着{user_name}，偶尔眨眨眼",
-                "stranger": "",
-            },
-            "signora": {
-                "owner": f"你会帮{user_name}把事情做好，嘴上说'烦死了'但永远会做",
-                "friend": f"你会帮{user_name}的忙，但嘴上要抱怨一句",
-                "stranger": "",
-            },
-            "tighnari": {
-                "owner": f"你会念叨{user_name}熬夜不吃饭，念叨完给{user_name}热牛奶",
-                "friend": f"你会提醒{user_name}注意休息，说完就继续忙自己的",
-                "stranger": "",
-            },
-            "silver_wolf": {
-                "owner": f"你会带{user_name}上分，输了摔手柄但捡起来继续",
-                "friend": f"你会让{user_name}观战，偶尔吐槽一句操作",
-                "stranger": "",
-            },
-            "fu_hua": {
-                "owner": f"你会默默陪{user_name}坐着，不说什么但{user_name}知道你在",
-                "friend": f"你会对{user_name}点个头，安静地在旁边",
-                "stranger": "",
-            },
-            "elysia": {
-                "owner": f"你会真心实意地夸{user_name}好看，眼睛亮晶晶的",
-                "friend": f"你会对{user_name}微笑，说'你好呀~'",
-                "stranger": "",
-            },
-            "welt": {
-                "owner": f"你会听{user_name}倾诉，然后说一句很实在的话",
-                "friend": f"你会跟{user_name}聊几句，语气温和但不深入",
-                "stranger": "",
-            },
-        }
-        levels = favor_map.get(self.agent_id)
-        if not levels:
-            return f"你关心{user_name}"
-        if is_owner:
-            return levels["owner"]
-        if is_friend_of_owner:
-            return levels["friend"]
-        return levels["stranger"]
+    def get_identity_summary(self) -> str:
+        """生成供管家系统使用的身份摘要（≤200字）"""
+        parts: list[str] = []
+        if self.personality:
+            parts.append(self.personality[:80])
+        if self.internal_relationships:
+            rel_strs = [
+                f"{rel.target_agent_id}({rel.relationship_type})"
+                for rel in self.internal_relationships[:5]
+            ]
+            parts.append(f"关系: {', '.join(rel_strs)}")
+        if self.memory_focus_areas:
+            parts.append(f"关注: {', '.join(self.memory_focus_areas[:5])}")
+        summary = "；".join(parts)
+        if not summary:
+            return f"{self.display_name}（无性格描述）"
+        return summary[:200]

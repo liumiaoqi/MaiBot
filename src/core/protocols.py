@@ -215,6 +215,14 @@ class MemoryServicePort(Protocol):
             格式化后的注入文本
         """
 
+    async def set_memory_personality(self, agent_id: str, params: dict[str, Any]) -> None:
+        """设置智能体记忆性格参数。
+
+        Args:
+            agent_id: 智能体 ID
+            params: 记忆性格参数字典
+        """
+
 
 @runtime_checkable
 class SessionInfoPort(Protocol):

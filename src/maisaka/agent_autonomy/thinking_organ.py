@@ -85,6 +85,8 @@ class ThinkingOrgan:
                     user_parts.append(f"{prefix}{msg.plain_text}")
 
             context_parts = []
+            if context.inner_voice_text:
+                context_parts.append(f"内心声音：{context.inner_voice_text}")
             if context.emotion_state_text:
                 context_parts.append(f"当前情绪：{context.emotion_state_text}")
             if context.relationship_text:
@@ -148,6 +150,8 @@ class ThinkingOrgan:
             personality_prompt = self.build_personality_prompt()
 
             context_parts = []
+            if context.inner_voice_text:
+                context_parts.append(f"内心声音：{context.inner_voice_text}")
             if context.emotion_state_text:
                 context_parts.append(f"当前情绪：{context.emotion_state_text}")
             if context.relationship_text:
