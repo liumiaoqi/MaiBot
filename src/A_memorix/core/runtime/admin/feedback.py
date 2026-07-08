@@ -24,7 +24,7 @@ class FeedbackAdminHandler(BaseAdminHandler):
             )
             return {
                 "success": True,
-                "items": [self._kernel._build_feedback_task_summary(task) for task in items],
+                "items": [self._kernel._feedback_correction_service._build_feedback_task_summary(task) for task in items],
                 "count": len(items),
             }
 
@@ -32,10 +32,10 @@ class FeedbackAdminHandler(BaseAdminHandler):
             task = self._kernel.metadata_store.get_feedback_task_by_id(int(kwargs.get("task_id", 0) or 0))
             if task is None:
                 return {"success": False, "error": "反馈纠错任务不存在"}
-            return {"success": True, "task": self._kernel._build_feedback_task_detail(task)}
+            return {"success": True, "task": self._kernel._feedback_correction_service._build_feedback_task_detail(task)}
 
         if act == "rollback":
-            return await self._kernel._rollback_feedback_task(
+            return await self._kernel._feedback_correction_service._rollback_feedback_task(
                 task_id=int(kwargs.get("task_id", 0) or 0),
                 requested_by=str(kwargs.get("requested_by", "") or "").strip(),
                 reason=str(kwargs.get("reason", "") or "").strip(),

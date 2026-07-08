@@ -17,7 +17,7 @@ class ProfileAdminHandler(BaseAdminHandler):
 
         act = self._str_action(action)
         if act == "query":
-            profile = await self._kernel._query_person_profile_with_feedback_refresh(
+            profile = await self._kernel._feedback_correction_service._query_person_profile_with_feedback_refresh(
                 person_id=str(kwargs.get("person_id", "") or "").strip(),
                 person_keyword=str(kwargs.get("person_keyword", "") or kwargs.get("keyword", "") or "").strip(),
                 limit=max(1, int(kwargs.get("limit", kwargs.get("top_k", 12)) or 12)),
@@ -27,7 +27,7 @@ class ProfileAdminHandler(BaseAdminHandler):
             return profile if isinstance(profile, dict) else {"success": False, "error": "invalid profile payload"}
 
         if act == "evidence":
-            return await self._kernel._profile_evidence_admin(
+            return await self._kernel._profile_evidence_service.profile_evidence_admin(
                 person_id=str(kwargs.get("person_id", "") or "").strip(),
                 person_keyword=str(kwargs.get("person_keyword", "") or kwargs.get("keyword", "") or "").strip(),
                 limit=max(1, int(kwargs.get("limit", kwargs.get("top_k", 12)) or 12)),
@@ -35,7 +35,7 @@ class ProfileAdminHandler(BaseAdminHandler):
             )
 
         if act == "correct_evidence":
-            return await self._kernel._profile_correct_evidence_admin(
+            return await self._kernel._profile_evidence_service.profile_correct_evidence_admin(
                 person_id=str(kwargs.get("person_id", "") or "").strip(),
                 person_keyword=str(kwargs.get("person_keyword", "") or kwargs.get("keyword", "") or "").strip(),
                 evidence_type=str(kwargs.get("evidence_type", "") or "").strip(),
@@ -53,7 +53,7 @@ class ProfileAdminHandler(BaseAdminHandler):
             return {"success": True, **summary}
 
         if act == "process_pending":
-            result = await self._kernel._process_feedback_profile_refresh_batch(
+            result = await self._kernel._feedback_correction_service._process_feedback_profile_refresh_batch(
                 limit=max(1, int(kwargs.get("limit", self._kernel._feedback_config.reconcile_batch_size) or self._kernel._feedback_config.reconcile_batch_size))
             )
             return {"success": True, **result}

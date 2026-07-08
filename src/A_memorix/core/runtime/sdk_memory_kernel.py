@@ -1809,7 +1809,7 @@ class SDKMemoryKernel:
             person_profile_service=self.person_profile_service,
             tokens=self._tokens,
             trim_text=self._trim_text,
-            query_person_profile_with_feedback_refresh=self._query_person_profile_with_feedback_refresh,
+            query_person_profile_with_feedback_refresh=self._feedback_correction_service._query_person_profile_with_feedback_refresh,
             execute_delete_action=self._execute_delete_action,
             invalidate_import_manifest_for_sources=self._invalidate_import_manifest_for_sources,
         )
