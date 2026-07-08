@@ -561,3 +561,30 @@ class EpisodeService:
             "group_count": len(groups),
             "paragraph_count": len(paragraphs),
         }
+
+    @staticmethod
+    async def rebuild_episodes_for_sources_standalone(kernel: Any, sources: Any) -> Dict[str, Any]:
+        from ..runtime.services.kernel_utils import tokens
+        await kernel.initialize()
+        assert kernel.metadata_store is not None
+        assert kernel.episode_service is not None
+
+        items: List[Dict[str, Any]] = []
+        failures: List[Dict[str, str]] = []
+        for source in tokens(sources):
+            kernel.metadata_store.mark_episode_source_running(source)
+            try:
+                result = await kernel.episode_service.rebuild_source(source)
+                kernel.metadata_store.mark_episode_source_done(source)
+                items.append(result)
+            except Exception as exc:
+                err = str(exc)[:500]
+                kernel.metadata_store.mark_episode_source_failed(source, err)
+                failures.append({"source": source, "error": err})
+        kernel._persist()
+        return {
+            "rebuilt": len(items),
+            "items": items,
+            "failures": failures,
+            "sources": [str(item.get("source", "") or "") for item in items] or tokens(sources),
+        }

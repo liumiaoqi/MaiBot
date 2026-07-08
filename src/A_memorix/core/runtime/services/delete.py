@@ -992,4 +992,31 @@ class DeleteService:
             logger.warning(f"删除来源后清理导入清单失败: sources={sources}, err={exc}")
             result["manifest_invalidation"] = {"success": False, "error": str(exc), "sources": sources}
             return
+
+    @staticmethod
+    def resolve_relation_hashes(metadata_store: Any, target: str) -> List[str]:
+        assert metadata_store
+        token = str(target or "").strip()
+        if not token:
+            return []
+        if len(token) == 64 and all(ch in "0123456789abcdef" for ch in token.lower()):
+            return [token]
+        hashes = metadata_store.search_relation_hashes_by_text(token, limit=10)
+        if hashes:
+            return hashes
+        return [
+            str(row.get("hash", "") or "")
+            for row in metadata_store.get_relations(subject=token)[:10]
+            if str(row.get("hash", "")).strip()
+        ]
+
+    @staticmethod
+    def resolve_deleted_relation_hashes(metadata_store: Any, target: str) -> List[str]:
+        assert metadata_store
+        token = str(target or "").strip()
+        if not token:
+            return []
+        if len(token) == 64 and all(ch in "0123456789abcdef" for ch in token.lower()):
+            return [token]
+        return metadata_store.search_deleted_relation_hashes_by_text(token, limit=10)
         result["manifest_invalidation"] = manifest_result
