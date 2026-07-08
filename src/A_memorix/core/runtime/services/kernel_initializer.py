@@ -14,6 +14,137 @@ class KernelInitializer:
     """Kernel.initialize() 中服务创建逻辑的提取。"""
 
     @staticmethod
+    def init_core_storage(kernel: SDKMemoryKernel) -> None:
+        from ..config.vector_pool_config import VectorPoolConfig
+        from ..config.feedback_config import FeedbackConfig
+        from ..config.fuzzy_modify_config import FuzzyModifyConfig
+        from .embedding_health import EmbeddingHealthService
+        from .background_scheduler import BackgroundTaskScheduler
+        from ...storage import GraphStore, MetadataStore
+        from ...retrieval import SparseBM25Index, SparseBM25Config
+        from ...embedding import create_embedding_api_adapter
+        from .vector_pool import VectorPoolManager
+        from ...storage import SparseMatrixFormat
+
+        kernel.data_dir.mkdir(parents=True, exist_ok=True)
+
+        kernel._embedding_health_service = EmbeddingHealthService(
+            vector_pool_config=VectorPoolConfig.from_config(kernel.config),
+        )
+        kernel._background_scheduler = BackgroundTaskScheduler()
+        kernel._feedback_config = FeedbackConfig.from_global_config()
+        kernel._fuzzy_modify_config = FuzzyModifyConfig.from_global_config()
+
+        kernel.embedding_manager = create_embedding_api_adapter(
+            batch_size=int(kernel._cfg("embedding.batch_size", 32)),
+            max_concurrent=int(kernel._cfg("embedding.max_concurrent", 5)),
+            default_dimension=kernel.embedding_dimension,
+            enable_cache=bool(kernel._cfg("embedding.enable_cache", False)),
+            model_name=str(kernel._cfg("embedding.model_name", "auto") or "auto"),
+            dimension_request_mode=str(kernel._cfg("embedding.dimension_request_mode", "explicit") or "explicit"),
+            retry_config=kernel._cfg("embedding.retry", {}) or {},
+        )
+
+        kernel._vector_pool_manager = VectorPoolManager(
+            config=VectorPoolConfig.from_config(kernel.config),
+            data_dir=kernel.data_dir,
+            embedding_dimension=kernel.embedding_dimension,
+            embedding_manager=kernel.embedding_manager,
+            relation_vectors_enabled=kernel.relation_vectors_enabled,
+        )
+
+        stored_dimension = kernel._vector_pool_manager.stored_vector_dimension()
+        provisional_dimension = stored_dimension or kernel.embedding_dimension
+        kernel.embedding_dimension = int(provisional_dimension)
+
+        matrix_format = str(kernel._cfg("graph.sparse_matrix_format", "csr") or "csr").strip().lower()
+        graph_format = SparseMatrixFormat.CSC if matrix_format == "csc" else SparseMatrixFormat.CSR
+
+        kernel.vector_store = kernel._vector_pool_manager.make_vector_store(kernel._vector_pool_manager.vectors_root(), dimension=provisional_dimension)
+        kernel.paragraph_vector_store = kernel._vector_pool_manager.make_vector_store(
+            kernel._vector_pool_manager.paragraph_vector_dir(),
+            dimension=provisional_dimension,
+        )
+        kernel.graph_vector_store = kernel._vector_pool_manager.make_vector_store(
+            kernel._vector_pool_manager.graph_vector_dir(),
+            dimension=provisional_dimension,
+        )
+        kernel.graph_store = GraphStore(matrix_format=graph_format, data_dir=kernel.data_dir / "graph")
+        kernel.metadata_store = MetadataStore(data_dir=kernel.data_dir / "metadata")
+        kernel.metadata_store.connect()
+
+        if kernel.graph_store.has_data():
+            kernel.graph_store.load()
+
+        sparse_cfg_raw = kernel._cfg("retrieval.sparse", {}) or {}
+        try:
+            sparse_cfg = SparseBM25Config(**sparse_cfg_raw)
+        except Exception as exc:
+            logger.warning(f"sparse 配置非法，回退默认: {exc}")
+            sparse_cfg = SparseBM25Config()
+        kernel.sparse_index = SparseBM25Index(metadata_store=kernel.metadata_store, config=sparse_cfg)
+        if kernel.sparse_index.config.enabled:
+            warmup_summary = kernel.sparse_index.warmup()
+            if warmup_summary.get("ok"):
+                logger.info(
+                    "[sdk] 稀疏索引预热完成: "
+                    f"backend={warmup_summary.get('backend')}, "
+                    f"docs={warmup_summary.get('doc_count')}, "
+                    f"duration_ms={float(warmup_summary.get('duration_ms', 0.0)):.2f}"
+                )
+            else:
+                logger.warning(
+                    "[sdk] 稀疏索引预热失败，后续检索将按需重试: "
+                    f"{warmup_summary.get('error', 'unknown')}"
+                )
+
+        if kernel.vector_store.has_data():
+            kernel.vector_store.load()
+            kernel.vector_store.warmup_index(force_train=True)
+        kernel._vector_pool_manager.dual_pools_ready = False
+        if kernel._vector_pool_manager.config.config_enabled:
+            kernel._vector_pool_manager.cleanup_stale_dual_vector_build_dirs()
+            kernel._vector_pool_manager.vector_store = kernel.vector_store
+            kernel._vector_pool_manager.paragraph_vector_store = kernel.paragraph_vector_store
+            kernel._vector_pool_manager.graph_vector_store = kernel.graph_vector_store
+            kernel._vector_pool_manager.metadata_store = kernel.metadata_store
+            if not kernel._vector_pool_manager.reload_dual_vector_stores_from_disk():
+                logger.warning("双池配置已开启，但 ready manifest 不可用，当前按单池检索与写入运行")
+            kernel.vector_store = kernel._vector_pool_manager.vector_store
+            kernel.paragraph_vector_store = kernel._vector_pool_manager.paragraph_vector_store
+            kernel.graph_vector_store = kernel._vector_pool_manager.graph_vector_store
+
+    @staticmethod
+    def init_search_runtime(kernel: SDKMemoryKernel) -> None:
+        from ..search_runtime_initializer import build_search_runtime
+        from ...utils.web_import_manager import ImportTaskManager
+        from ...utils.retrieval_tuning_manager import RetrievalTuningManager
+
+        kernel._refresh_relation_write_service()
+
+        runtime_config = kernel._build_runtime_config()
+        kernel._runtime_bundle = build_search_runtime(
+            plugin_config=runtime_config,
+            logger_obj=logger,
+            owner_tag="sdk_kernel",
+            log_prefix="[sdk]",
+        )
+        if not kernel._runtime_bundle.ready:
+            raise RuntimeError(kernel._runtime_bundle.error or "检索运行时初始化失败")
+
+        kernel.retriever = kernel._runtime_bundle.retriever
+        kernel.threshold_filter = kernel._runtime_bundle.threshold_filter
+        kernel.sparse_index = kernel._runtime_bundle.sparse_index or kernel.sparse_index
+        kernel._apply_runtime_sparse_mode()
+
+        kernel._refresh_runtime_dependents(preserve_managers=True)
+        kernel.import_task_manager = ImportTaskManager(kernel)
+        kernel.retrieval_tuning_manager = RetrievalTuningManager(
+            kernel,
+            import_write_blocked_provider=kernel.import_task_manager.is_write_blocked,
+        )
+
+    @staticmethod
     def init_admin_handlers(kernel: SDKMemoryKernel) -> None:
         from ..admin import (
             GraphAdminHandler, ParagraphAdminHandler, RelationAdminHandler,
