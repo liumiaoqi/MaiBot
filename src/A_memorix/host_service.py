@@ -210,7 +210,7 @@ class AMemorixHostService:
             )
 
         if component_name == "enqueue_feedback_task":
-            return await kernel.enqueue_feedback_task(
+            return await kernel._feedback_correction_service.enqueue_feedback_task(
                 query_tool_id=str(payload.get("query_tool_id", "") or ""),
                 session_id=str(payload.get("session_id", "") or ""),
                 query_timestamp=payload.get("query_timestamp"),

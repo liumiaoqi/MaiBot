@@ -41,9 +41,9 @@ class DeleteAdminHandler(BaseAdminHandler):
         requested_by = str(kwargs.get("requested_by", "") or "").strip()
 
         if act == "preview":
-            return await self._kernel._preview_delete_action(mode=mode, selector=selector)
+            return await self._kernel._delete_service.preview_delete_action(mode=mode, selector=selector)
         if act == "execute":
-            result = await self._kernel._execute_delete_action(
+            result = await self._kernel._delete_service.execute_delete_action(
                 mode=mode,
                 selector=selector,
                 requested_by=requested_by,
@@ -52,7 +52,7 @@ class DeleteAdminHandler(BaseAdminHandler):
             await self._kernel._invalidate_import_manifest_for_sources(result)
             return result
         if act == "restore":
-            return await self._kernel._restore_delete_action(
+            return await self._kernel._delete_service.restore_delete_action(
                 mode=mode,
                 selector=selector,
                 operation_id=str(kwargs.get("operation_id", "") or "").strip(),
@@ -69,7 +69,7 @@ class DeleteAdminHandler(BaseAdminHandler):
             )
             return {"success": True, "items": items, "count": len(items)}
         if act == "purge":
-            return await self._kernel._purge_deleted_memory(
+            return await self._kernel._delete_service.purge_deleted_memory(
                 grace_hours=self._kernel._optional_float(kwargs.get("grace_hours")),
                 limit=max(1, int(kwargs.get("limit", 1000) or 1000)),
             )

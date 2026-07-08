@@ -53,7 +53,6 @@ DUAL_VECTOR_AUTO_MIGRATION_INITIAL_DELAY_SECONDS = 5.0
 DUAL_VECTOR_AUTO_MIGRATION_LOCK_RETRY_DELAYS_SECONDS = (2.0, 5.0, 10.0)
 
 
-
 class SDKMemoryKernel:
     def __init__(self, *, plugin_root: Path, config: Optional[Dict[str, Any]] = None) -> None:
         self.plugin_root = Path(plugin_root).resolve()
@@ -331,7 +330,6 @@ class SDKMemoryKernel:
         return VectorPoolManager.normalize_embedding_fingerprint(value)
 
 
-
     @staticmethod
     def _embedding_fingerprint_status(
         current: Optional[Dict[str, Any]],
@@ -349,13 +347,6 @@ class SDKMemoryKernel:
             vector_persist_blocked=self._vector_persist_blocked_until_rebuild,
             vector_rebuild_source_dimension=self._vector_rebuild_source_dimension,
         )
-
-    def _embedding_fallback_enabled(self) -> bool:
-        return self._embedding_health_service.config.embedding_fallback_enabled
-
-    def _allow_metadata_only_write(self) -> bool:
-        return self._embedding_health_service.config.allow_metadata_only_write
-
 
     def _vector_pool_mode(self) -> str:
         return self._vector_pool_manager.config.mode
@@ -394,7 +385,6 @@ class SDKMemoryKernel:
         self.paragraph_vector_store = self._vector_pool_manager.paragraph_vector_store
         self.graph_vector_store = self._vector_pool_manager.graph_vector_store
         return result
-
 
 
     def _refresh_relation_write_service(self) -> None:
@@ -438,12 +428,6 @@ class SDKMemoryKernel:
             merge_tokens_fn=self._merge_tokens,
         )
 
-    def _is_embedding_degraded(self) -> bool:
-        return self._embedding_health_service.is_degraded
-
-    def _embedding_degraded_snapshot(self) -> Dict[str, Any]:
-        return self._embedding_health_service.snapshot()
-
     def _set_embedding_degraded(self, *, active: bool, reason: str = "", checked_at: Optional[float] = None) -> None:
         self._embedding_health_service.set_degraded(active=active, reason=reason, checked_at=checked_at)
         self._apply_runtime_sparse_mode()
@@ -456,7 +440,7 @@ class SDKMemoryKernel:
         if not callable(setter):
             return
         try:
-            setter(self._is_embedding_degraded())
+            setter(self._embedding_health_service.is_degraded)
         except Exception as exc:
             logger.warning(f"设置 retriever sparse-only 运行时状态失败: {exc}")
 
@@ -486,8 +470,6 @@ class SDKMemoryKernel:
         )
         self._runtime_self_check_report = self._embedding_health_service.runtime_self_check_report
 
-    def _is_startup_self_check_deferred(self) -> bool:
-        return self._embedding_health_service.is_startup_self_check_deferred()
 
     @staticmethod
     def _self_check_effective_dimension(report: Dict[str, Any]) -> int:
@@ -557,7 +539,7 @@ class SDKMemoryKernel:
                 "detail": "invalid_paragraph_input",
             }
 
-        allow_metadata_only = self._allow_metadata_only_write()
+        allow_metadata_only = self._embedding_health_service.config.allow_metadata_only_write
 
         target_store = self._vector_pool_manager.paragraph_store()
         if target_store is None or self.embedding_manager is None:
@@ -572,7 +554,7 @@ class SDKMemoryKernel:
                 "detail": "vector_runtime_components_missing",
             }
 
-        if self._is_embedding_degraded():
+        if self._embedding_health_service.is_degraded:
             if not allow_metadata_only:
                 raise RuntimeError("embedding 处于降级态，metadata-only 写入已禁用")
             self.enqueue_paragraph_vector_backfill(token, error="embedding_degraded")
@@ -607,7 +589,7 @@ class SDKMemoryKernel:
             }
         except Exception as exc:
             error_text = str(exc)
-            if self._embedding_fallback_enabled():
+            if self._embedding_health_service.config.embedding_fallback_enabled:
                 self._set_embedding_degraded(active=True, reason=error_text[:500], checked_at=time.time())
             if not allow_metadata_only:
                 raise
@@ -639,7 +621,7 @@ class SDKMemoryKernel:
         target_store = self._vector_pool_manager.paragraph_store()
         if self.metadata_store is None or target_store is None or self.embedding_manager is None:
             return {"success": False, "processed": 0, "done": 0, "failed": 0, "trigger": trigger}
-        if self._is_embedding_degraded():
+        if self._embedding_health_service.is_degraded:
             return {
                 "success": False,
                 "processed": 0,
@@ -689,7 +671,7 @@ class SDKMemoryKernel:
         done_hashes.extend(encoded_done_hashes)
         for paragraph_hash in failed_hashes:
             self.metadata_store.mark_paragraph_vector_backfill_failed(paragraph_hash, last_error)
-        if failed_hashes and self._embedding_fallback_enabled():
+        if failed_hashes and self._embedding_health_service.config.embedding_fallback_enabled:
             self._set_embedding_degraded(active=True, reason=last_error[:500], checked_at=time.time())
 
         if done_hashes:
@@ -1554,7 +1536,7 @@ class SDKMemoryKernel:
             }
 
         reason = str(report.get("message", "runtime self-check failed") or "runtime self-check failed")
-        if self._embedding_fallback_enabled():
+        if self._embedding_health_service.config.embedding_fallback_enabled:
             self._set_embedding_degraded(active=True, reason=reason, checked_at=checked_at)
             return {
                 "success": False,
@@ -1727,11 +1709,11 @@ class SDKMemoryKernel:
             tokens=self._tokens,
             selector_dict=self._selector_dict,
             persist=self._persist,
-            rebuild_graph_from_metadata=self._rebuild_graph_from_metadata,
+            rebuild_graph_from_metadata=self._graph_ops_service.rebuild_graph_from_metadata,
             delete_vectors_by_type=self._delete_vectors_by_type,
             cfg=self._cfg,
-            format_relation_text=self._format_relation_text,
-            trim_text=self._trim_text,
+            format_relation_text=GraphOpsService._format_relation_text,
+            trim_text=GraphOpsService._trim_text,
             resolve_relation_hashes=self._resolve_relation_hashes,
             resolve_deleted_relation_hashes=self._resolve_deleted_relation_hashes,
             resolve_source_targets=self._resolve_source_targets,
@@ -1753,12 +1735,12 @@ class SDKMemoryKernel:
             argument_tokens=self._argument_tokens,
             merge_argument_tokens=self._merge_argument_tokens,
             optional_float=self._optional_float,
-            trim_text=self._trim_text,
+            trim_text=GraphOpsService._trim_text,
             safe_json_loads=self._safe_json_loads,
             persist=self._persist,
-            rebuild_graph_from_metadata=self._rebuild_graph_from_metadata,
+            rebuild_graph_from_metadata=self._graph_ops_service.rebuild_graph_from_metadata,
             relation_has_remaining_paragraphs=self._relation_has_remaining_paragraphs,
-            execute_delete_action=self._execute_delete_action,
+            execute_delete_action=self._delete_service.execute_delete_action,
             search_memory=lambda request_text, limit, scope, person_id, chat_id: self.search_memory(
                 KernelSearchRequest(
                     query=request_text,
@@ -1771,7 +1753,7 @@ class SDKMemoryKernel:
             ),
             ingest_text=self.ingest_text,
             refresh_person_profile=self.refresh_person_profile,
-            profile_evidence_admin=self._profile_evidence_admin,
+            profile_evidence_admin=self._profile_evidence_service.profile_evidence_admin,
             person_profile_service=self.person_profile_service,
             invalidate_filter_cache=lambda: setattr(self, '_current_effective_filter_cache', {"checked_at": 0.0, "needed": True}),
         )
@@ -1788,13 +1770,13 @@ class SDKMemoryKernel:
             merge_tokens=self._merge_tokens,
             argument_tokens=self._argument_tokens,
             persist=self._persist,
-            rebuild_graph_from_metadata=self._rebuild_graph_from_metadata,
+            rebuild_graph_from_metadata=self._graph_ops_service.rebuild_graph_from_metadata,
             cfg=self._cfg,
             safe_json_loads=self._safe_json_loads,
             chat_source=self._chat_source,
-            format_relation_text=self._format_relation_text,
-            load_paragraph_rows=self._load_paragraph_rows,
-            query_relation_rows_by_hashes=self._query_relation_rows_by_hashes,
+            format_relation_text=GraphOpsService._format_relation_text,
+            load_paragraph_rows=self._graph_ops_service.load_paragraph_rows,
+            query_relation_rows_by_hashes=self._graph_ops_service.query_relation_rows_by_hashes,
             apply_v5_relation_action=self._apply_v5_relation_action,
             ingest_text=self.ingest_text,
             refresh_person_profile=self.refresh_person_profile,
@@ -1808,9 +1790,9 @@ class SDKMemoryKernel:
             metadata_store=self.metadata_store,
             person_profile_service=self.person_profile_service,
             tokens=self._tokens,
-            trim_text=self._trim_text,
+            trim_text=GraphOpsService._trim_text,
             query_person_profile_with_feedback_refresh=self._feedback_correction_service._query_person_profile_with_feedback_refresh,
-            execute_delete_action=self._execute_delete_action,
+            execute_delete_action=self._delete_service.execute_delete_action,
             invalidate_import_manifest_for_sources=self._invalidate_import_manifest_for_sources,
         )
 
@@ -1830,7 +1812,7 @@ class SDKMemoryKernel:
             cfg=self._cfg,
             resolve_relation_hashes=self._resolve_relation_hashes,
             resolve_deleted_relation_hashes=self._resolve_deleted_relation_hashes,
-            rebuild_graph_from_metadata=self._rebuild_graph_from_metadata,
+            rebuild_graph_from_metadata=self._graph_ops_service.rebuild_graph_from_metadata,
             persist_callback=self._persist,
             last_maintenance_at_getter=lambda: self._last_maintenance_at,
             last_maintenance_at_setter=lambda v: setattr(self, '_last_maintenance_at', v),
@@ -1877,7 +1859,7 @@ class SDKMemoryKernel:
             tokens=self._tokens,
             merge_tokens=self._merge_tokens,
             time_meta=self._time_meta,
-            resolve_knowledge_type=self._resolve_knowledge_type,
+            resolve_knowledge_type=HitFilterService.resolve_knowledge_type,
             write_paragraph_vector_or_enqueue=self.write_paragraph_vector_or_enqueue,
             ensure_entity_vector=self._ensure_entity_vector,
             should_auto_enqueue_episode=self._should_auto_enqueue_episode,
@@ -1895,7 +1877,7 @@ class SDKMemoryKernel:
             get_graph_store=lambda: self.graph_store,
             cfg=self._cfg,
             persist=self._persist,
-            rebuild_graph_from_metadata=self._rebuild_graph_from_metadata,
+            rebuild_graph_from_metadata=self._graph_ops_service.rebuild_graph_from_metadata,
             resolve_relation_hashes=self._resolve_relation_hashes,
             resolve_deleted_relation_hashes=self._resolve_deleted_relation_hashes,
             delete_vectors_by_type=self._delete_vectors_by_type,
@@ -2066,23 +2048,6 @@ class SDKMemoryKernel:
             "has_manual_override": False,
         }
 
-    async def _query_person_profile_with_feedback_refresh(
-        self,
-        *,
-        person_id: str = "",
-        person_keyword: str = "",
-        limit: int = 10,
-        force_refresh: bool = False,
-        source_note: str,
-    ) -> Dict[str, Any]:
-        return await self._feedback_correction_service._query_person_profile_with_feedback_refresh(
-            person_id=person_id,
-            person_keyword=person_keyword,
-            limit=limit,
-            force_refresh=force_refresh,
-            source_note=source_note,
-        )
-
     def _build_person_profile_response(
         self,
         profile: Dict[str, Any],
@@ -2151,7 +2116,7 @@ class SDKMemoryKernel:
         assert self.metadata_store is not None
         assert self.person_profile_service is not None
         self._mark_person_active(person_id)
-        profile = await self._query_person_profile_with_feedback_refresh(
+        profile = await self._feedback_correction_service._query_person_profile_with_feedback_refresh(
             person_id=person_id,
             limit=max(4, int(limit or 10)),
             source_note="sdk_memory_kernel.get_person_profile",
@@ -2489,10 +2454,10 @@ class SDKMemoryKernel:
                 await asyncio.sleep(self._embedding_health_service.config.embedding_probe_interval_seconds)
                 if self._background_scheduler.stopping:
                     break
-                startup_deferred = self._is_startup_self_check_deferred()
-                if not self._embedding_fallback_enabled() and not startup_deferred:
+                startup_deferred = self._embedding_health_service.is_startup_self_check_deferred
+                if not self._embedding_health_service.config.embedding_fallback_enabled and not startup_deferred:
                     continue
-                if not self._is_embedding_degraded() and not startup_deferred:
+                if not self._embedding_health_service.is_degraded and not startup_deferred:
                     continue
                 try:
                     await self._recover_embedding_once()
@@ -2511,7 +2476,7 @@ class SDKMemoryKernel:
                     break
                 if not self._embedding_health_service.config.paragraph_vector_backfill_enabled:
                     continue
-                if self._is_embedding_degraded():
+                if self._embedding_health_service.is_degraded:
                     continue
                 await self._run_paragraph_backfill_once(
                     limit=self._embedding_health_service.config.paragraph_vector_backfill_batch_size,
@@ -2571,131 +2536,6 @@ class SDKMemoryKernel:
             raise
         except Exception as exc:
             logger.warning(f"person_profile_refresh_queue loop 异常: {exc}")
-
-    @staticmethod
-    def _relation_status_is_inactive(status: Optional[Dict[str, Any]]) -> bool:
-        return HitFilterService.relation_status_is_inactive(status)
-
-
-    def _current_effective_filter_store_check_needed(self, hits: List[Dict[str, Any]]) -> bool:
-        return self._hit_filter_service._current_effective_filter_store_check_needed(hits)
-
-    def _filter_hits_by_memory_change_metadata(self, hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        return self._hit_filter_service._filter_hits_by_memory_change_metadata(hits)
-
-    def _resolve_feedback_related_person_ids(
-        self,
-        *,
-        old_relation_rows: Sequence[Dict[str, Any]],
-        corrected_relations: Sequence[Dict[str, Any]],
-    ) -> List[str]:
-        return self._feedback_correction_service._resolve_feedback_related_person_ids(
-            old_relation_rows=old_relation_rows,
-            corrected_relations=corrected_relations,
-        )
-
-    def _mark_feedback_stale_paragraphs(
-        self,
-        *,
-        task_id: int,
-        query_tool_id: str,
-        relation_hashes: Sequence[str],
-        reason: str,
-    ) -> Dict[str, List[str]]:
-        return self._feedback_correction_service._mark_feedback_stale_paragraphs(
-            task_id=task_id,
-            query_tool_id=query_tool_id,
-            relation_hashes=relation_hashes,
-            reason=reason,
-        )
-
-    def _enqueue_feedback_episode_rebuilds(
-        self,
-        *,
-        paragraph_hashes: Sequence[str],
-        session_id: str,
-        include_correction_source: bool,
-    ) -> List[str]:
-        return self._feedback_correction_service._enqueue_feedback_episode_rebuilds(
-            paragraph_hashes=paragraph_hashes,
-            session_id=session_id,
-            include_correction_source=include_correction_source,
-        )
-
-    def _enqueue_feedback_profile_refreshes(
-        self,
-        *,
-        person_ids: Sequence[str],
-        query_tool_id: str,
-    ) -> List[str]:
-        return self._feedback_correction_service._enqueue_feedback_profile_refreshes(
-            person_ids=person_ids,
-            query_tool_id=query_tool_id,
-        )
-
-    @staticmethod
-    def _feedback_affected_counts(task: Dict[str, Any]) -> Dict[str, int]:
-        return FeedbackCorrectionService._feedback_affected_counts(task)
-
-    def _build_feedback_rollback_plan_summary(self, rollback_plan: Dict[str, Any]) -> Dict[str, Any]:
-        return self._feedback_correction_service._build_feedback_rollback_plan_summary(rollback_plan)
-
-    def _build_feedback_task_summary(self, task: Dict[str, Any]) -> Dict[str, Any]:
-        return self._feedback_correction_service._build_feedback_task_summary(task)
-
-    def _build_feedback_task_detail(self, task: Dict[str, Any]) -> Dict[str, Any]:
-        return self._feedback_correction_service._build_feedback_task_detail(task)
-
-    def _soft_delete_feedback_correction_paragraphs(self, paragraph_hashes: Sequence[str]) -> Dict[str, Any]:
-        return self._feedback_correction_service._soft_delete_feedback_correction_paragraphs(paragraph_hashes)
-
-    async def _rollback_feedback_task(
-        self,
-        *,
-        task_id: int,
-        requested_by: str,
-        reason: str,
-    ) -> Dict[str, Any]:
-        return await self._feedback_correction_service._rollback_feedback_task(
-            task_id=task_id,
-            requested_by=requested_by,
-            reason=reason,
-        )
-
-    async def _process_feedback_profile_refresh_batch(
-        self,
-        *,
-        limit: int,
-        debounce_seconds: float = 0.0,
-        retry_backoff_seconds: float = 0.0,
-        max_retry: Optional[int] = None,
-    ) -> Dict[str, Any]:
-        return await self._feedback_correction_service._process_feedback_profile_refresh_batch(
-            limit=limit,
-            debounce_seconds=debounce_seconds,
-            retry_backoff_seconds=retry_backoff_seconds,
-            max_retry=max_retry,
-        )
-
-    async def _process_feedback_episode_rebuild_batch(self, *, limit: int) -> Dict[str, Any]:
-        return await self._feedback_correction_service._process_feedback_episode_rebuild_batch(limit=limit)
-
-
-    @staticmethod
-    def _coerce_datetime(value: Any) -> Optional[datetime]:
-        return FeedbackCorrectionService._coerce_datetime(value)
-
-    @staticmethod
-    def _feedback_signal_tokens() -> tuple[str, ...]:
-        return FeedbackCorrectionService._feedback_signal_tokens()
-
-    @classmethod
-    def _feedback_contains_signal(cls, text: str) -> bool:
-        return FeedbackCorrectionService._feedback_contains_signal(text)
-
-    @staticmethod
-    def _feedback_noise(text: str) -> bool:
-        return FeedbackCorrectionService._feedback_noise(text)
 
     @staticmethod
     def _safe_json_loads(raw: Any) -> Dict[str, Any]:
@@ -2764,7 +2604,7 @@ class SDKMemoryKernel:
         return int(request.get("retry_count", 0) or 0) < self._person_profile_refresh_max_retry()
 
     async def _process_person_profile_refresh_queue_batch(self, *, limit: int) -> Dict[str, Any]:
-        return await self._process_feedback_profile_refresh_batch(
+        return await self._feedback_correction_service._process_feedback_profile_refresh_batch(
             limit=limit,
             debounce_seconds=self._person_profile_refresh_debounce_seconds(),
             retry_backoff_seconds=self._person_profile_refresh_retry_backoff_seconds(),
@@ -2772,231 +2612,11 @@ class SDKMemoryKernel:
         )
 
 
-    async def enqueue_feedback_task(
-        self,
-        *,
-        query_tool_id: str,
-        session_id: str,
-        query_timestamp: Any = None,
-        structured_content: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
-        return await self._feedback_correction_service.enqueue_feedback_task(
-            query_tool_id=query_tool_id,
-            session_id=session_id,
-            query_timestamp=query_timestamp,
-            structured_content=structured_content,
-        )
-
-    @staticmethod
-    def _extract_feedback_messages(
-        *,
-        session_id: str,
-        query_time: datetime,
-        due_time: datetime,
-        max_messages: int,
-    ) -> List[str]:
-        return FeedbackCorrectionService._extract_feedback_messages(
-            session_id=session_id,
-            query_time=query_time,
-            due_time=due_time,
-            max_messages=max_messages,
-        )
-
-    def _build_feedback_hit_briefs(self, hits: List[Dict[str, Any]], *, limit: int = 12) -> List[Dict[str, Any]]:
-        return self._feedback_correction_service._build_feedback_hit_briefs(hits, limit=limit)
-
-    @staticmethod
-    def _should_invoke_feedback_classifier(feedback_messages: List[str]) -> bool:
-        return FeedbackCorrectionService._should_invoke_feedback_classifier(feedback_messages)
-
-    async def _classify_feedback(
-        self,
-        *,
-        query_tool_id: str,
-        query_text: str,
-        hit_briefs: List[Dict[str, Any]],
-        feedback_messages: List[str],
-    ) -> Dict[str, Any]:
-        return await self._feedback_correction_service._classify_feedback(
-            query_tool_id=query_tool_id,
-            query_text=query_text,
-            hit_briefs=hit_briefs,
-            feedback_messages=feedback_messages,
-        )
-
-    @staticmethod
-    def _normalize_feedback_decision(
-        payload: Dict[str, Any],
-        *,
-        hit_hashes: Sequence[str],
-    ) -> Dict[str, Any]:
-        return FeedbackCorrectionService._normalize_feedback_decision(payload, hit_hashes=hit_hashes)
-
-    @staticmethod
-    def _feedback_apply_result_status(apply_result: Dict[str, Any]) -> str:
-        return FeedbackCorrectionService._feedback_apply_result_status(apply_result)
-
-    def _restore_feedback_relations_from_snapshots(
-        self,
-        *,
-        task_id: int,
-        query_tool_id: str,
-        relation_hashes: Sequence[str],
-        snapshots: Dict[str, Dict[str, Any]],
-        current_statuses: Optional[Dict[str, Dict[str, Any]]] = None,
-        reason: str,
-    ) -> Dict[str, List[str]]:
-        return self._feedback_correction_service._restore_feedback_relations_from_snapshots(
-            task_id=task_id,
-            query_tool_id=query_tool_id,
-            relation_hashes=relation_hashes,
-            snapshots=snapshots,
-            current_statuses=current_statuses,
-            reason=reason,
-        )
-
-    async def _ingest_feedback_relations(
-        self,
-        *,
-        query_tool_id: str,
-        session_id: str,
-        relation_hashes: List[str],
-        corrected_relations: List[Dict[str, Any]],
-    ) -> Dict[str, Any]:
-        return await self._feedback_correction_service._ingest_feedback_relations(
-            query_tool_id=query_tool_id,
-            session_id=session_id,
-            relation_hashes=relation_hashes,
-            corrected_relations=corrected_relations,
-        )
-
-    async def _apply_feedback_decision(
-        self,
-        *,
-        task_id: int,
-        query_tool_id: str,
-        session_id: str,
-        decision: Dict[str, Any],
-        hit_map: Dict[str, Dict[str, Any]],
-    ) -> Dict[str, Any]:
-        return await self._feedback_correction_service._apply_feedback_decision(
-            task_id=task_id,
-            query_tool_id=query_tool_id,
-            session_id=session_id,
-            decision=decision,
-            hit_map=hit_map,
-        )
-
-    def _resolve_feedback_relation_hashes(
-        self,
-        *,
-        target_hashes: Sequence[str],
-        hit_map: Dict[str, Dict[str, Any]],
-    ) -> List[str]:
-        return self._feedback_correction_service._resolve_feedback_relation_hashes(
-            target_hashes=target_hashes,
-            hit_map=hit_map,
-        )
-
-    async def _process_feedback_task(self, task: Dict[str, Any]) -> None:
-        await self._feedback_correction_service._process_feedback_task(task)
-
-
     def _mark_person_active(self, person_id: str) -> None:
         token = str(person_id or "").strip()
         if not token:
             return
         self._active_person_timestamps[token] = time.time()
-
-    def _serialize_graph(self, *, limit: int = 200) -> Dict[str, Any]:
-        return self._graph_ops_service.serialize_graph(limit=limit)
-
-    @staticmethod
-    def _graph_search_match_rank(value: str, keyword: str) -> Optional[int]:
-        return GraphOpsService._graph_search_match_rank(value, keyword)
-
-    @classmethod
-    def _pick_graph_search_match(cls, fields, keyword):
-        return GraphOpsService._pick_graph_search_match(fields, keyword)
-
-    def _search_graph(self, *, query: str, limit: int) -> Dict[str, Any]:
-        return self._graph_ops_service.search_graph(query=query, limit=limit)
-
-    @staticmethod
-    def _dedupe_strings(values: Iterable[Any]) -> List[str]:
-        return GraphOpsService._dedupe_strings(values)
-
-    @staticmethod
-    def _build_graph_edge_label(predicates: Sequence[str]) -> str:
-        return GraphOpsService._build_graph_edge_label(predicates)
-
-    @staticmethod
-    def _trim_text(value: str, limit: int = 220) -> str:
-        return GraphOpsService._trim_text(value, limit=limit)
-
-    @staticmethod
-    def _format_relation_text(subject: Any, predicate: Any, obj: Any) -> str:
-        return GraphOpsService._format_relation_text(subject, predicate, obj)
-
-    def _query_relation_rows_by_hashes(
-        self,
-        relation_hashes: Sequence[str],
-        *,
-        include_inactive: bool = False,
-    ) -> List[Dict[str, Any]]:
-        return self._graph_ops_service.query_relation_rows_by_hashes(relation_hashes, include_inactive=include_inactive)
-
-
-    def _load_paragraph_rows(self, paragraph_hashes: Sequence[str]) -> List[Dict[str, Any]]:
-        return self._graph_ops_service.load_paragraph_rows(paragraph_hashes)
-
-
-    @staticmethod
-    def _evidence_entity_node_id(name: str) -> str:
-        return GraphOpsService._evidence_entity_node_id(name)
-
-    @staticmethod
-    def _evidence_relation_node_id(hash_value: str) -> str:
-        return GraphOpsService._evidence_relation_node_id(hash_value)
-
-    @staticmethod
-    def _evidence_paragraph_node_id(hash_value: str) -> str:
-        return GraphOpsService._evidence_paragraph_node_id(hash_value)
-
-
-    def _build_graph_node_detail(
-        self,
-        *,
-        node_id: str,
-        relation_limit: int,
-        paragraph_limit: int,
-        evidence_node_limit: int,
-    ) -> Dict[str, Any]:
-        return self._graph_ops_service.build_graph_node_detail(
-            node_id=node_id,
-            relation_limit=relation_limit,
-            paragraph_limit=paragraph_limit,
-            evidence_node_limit=evidence_node_limit,
-        )
-
-    def _build_graph_edge_detail(
-        self,
-        *,
-        source: str,
-        target: str,
-        paragraph_limit: int,
-        evidence_node_limit: int,
-    ) -> Dict[str, Any]:
-        return self._graph_ops_service.build_graph_edge_detail(
-            source=source,
-            target=target,
-            paragraph_limit=paragraph_limit,
-            evidence_node_limit=evidence_node_limit,
-        )
-
-    def _rebuild_graph_from_metadata(self) -> Dict[str, int]:
-        return self._graph_ops_service.rebuild_graph_from_metadata()
-
 
     @staticmethod
     def _tokens(values: Optional[Iterable[Any]]) -> List[str]:
@@ -3053,81 +2673,6 @@ class SDKMemoryKernel:
             allowed_chat_ids.add(clean_chat_id)
         return allowed_chat_ids
 
-    @classmethod
-    def _paragraph_matches_chat_scope(cls, paragraph: Optional[Dict[str, Any]], allowed_chat_ids: set[str]) -> bool:
-        return HitFilterService.paragraph_matches_chat_scope(paragraph, allowed_chat_ids)
-
-    @classmethod
-    def _hit_metadata_matches_chat_scope(cls, hit: Dict[str, Any], allowed_chat_ids: set[str]) -> Optional[bool]:
-        return HitFilterService._hit_metadata_matches_chat_scope(hit, allowed_chat_ids)
-
-    @staticmethod
-    def _extend_chat_scope_ids(tokens: set[str], value: Any) -> None:
-        HitFilterService._extend_chat_scope_ids(tokens, value)
-
-    @classmethod
-    def _metadata_chat_scope_ids(cls, metadata: Dict[str, Any]) -> set[str]:
-        return HitFilterService._metadata_chat_scope_ids(metadata)
-
-
-    def _has_enabled_retrieval_type_filter(self) -> bool:
-        return self._hit_filter_service._has_enabled_retrieval_type_filter()
-
-    def _retrieval_type_filter_root(self) -> Dict[str, Any]:
-        return self._hit_filter_service._retrieval_type_filter_root()
-
-    def _retrieval_type_filter_config(self, kind: str) -> Dict[str, Any]:
-        return self._hit_filter_service._retrieval_type_filter_config(kind)
-
-    def _retrieval_filter_contexts_for_hit(
-        self,
-        hit: Dict[str, Any],
-        *,
-        paragraph_map: Dict[str, Dict[str, Any]],
-        relation_paragraph_map: Dict[str, List[Dict[str, Any]]],
-    ) -> List[Dict[str, str]]:
-        return self._hit_filter_service._retrieval_filter_contexts_for_hit(hit, paragraph_map=paragraph_map, relation_paragraph_map=relation_paragraph_map)
-
-    def _retrieval_filter_context_from_hit(self, hit: Dict[str, Any]) -> Dict[str, str]:
-        return self._hit_filter_service._retrieval_filter_context_from_hit(hit)
-
-    def _retrieval_filter_context_from_paragraph(self, paragraph: Dict[str, Any]) -> Dict[str, str]:
-        return self._hit_filter_service._retrieval_filter_context_from_paragraph(paragraph)
-
-    @staticmethod
-    def _retrieval_filter_kind(*, hit_type: str, source_type: str, source: str) -> str:
-        return HitFilterService._retrieval_filter_kind(hit_type=hit_type, source_type=source_type, source=source)
-
-    @staticmethod
-    def _source_stream_id(source: str) -> str:
-        return HitFilterService._source_stream_id(source)
-
-    def _retrieval_filter_context(self, *, kind: str, stream_id: str) -> Dict[str, str]:
-        return self._hit_filter_service._retrieval_filter_context(kind=kind, stream_id=stream_id)
-
-    def _current_retrieval_filter_context(
-        self,
-        *,
-        stream_id: str,
-        group_id: str,
-        user_id: str,
-    ) -> Dict[str, str]:
-        return self._hit_filter_service._current_retrieval_filter_context(stream_id=stream_id, group_id=group_id, user_id=user_id)
-
-    @staticmethod
-    def _retrieval_filter_context_is_current_source(
-        context: Dict[str, str],
-        current_context: Dict[str, str],
-    ) -> bool:
-        return HitFilterService._retrieval_filter_context_is_current_source(context, current_context)
-
-    def _retrieval_filter_context_allowed(self, context: Dict[str, str]) -> bool:
-        return self._hit_filter_service._retrieval_filter_context_allowed(context)
-
-    @staticmethod
-    def _resolve_knowledge_type(source_type: str) -> str:
-        return HitFilterService.resolve_knowledge_type(source_type)
-
     @staticmethod
     def _time_meta(timestamp: Optional[float], time_start: Optional[float], time_end: Optional[float]) -> Dict[str, Any]:
         payload: Dict[str, Any] = {}
@@ -3167,71 +2712,6 @@ class SDKMemoryKernel:
         if len(token) == 64 and all(ch in "0123456789abcdef" for ch in token.lower()):
             return [token]
         return self.metadata_store.search_deleted_relation_hashes_by_text(token, limit=10)
-
-    def _memory_v5_status(self, *, target: str = "", limit: int = 50) -> Dict[str, Any]:
-        return self._v5_memory_service.memory_v5_status(target=target, limit=limit)
-
-    async def _preview_fuzzy_modify_action(self, **kwargs) -> Dict[str, Any]:
-        return await self._fuzzy_modify_service.preview_fuzzy_modify_action(**kwargs)
-
-    async def _execute_fuzzy_modify_action(self, **kwargs) -> Dict[str, Any]:
-        return await self._fuzzy_modify_service.execute_fuzzy_modify_action(**kwargs)
-
-    async def _rollback_fuzzy_modify_action(self, **kwargs) -> Dict[str, Any]:
-        return await self._fuzzy_modify_service.rollback_fuzzy_modify_action(**kwargs)
-
-    async def _collect_fuzzy_modify_candidates(self, **kwargs) -> List[Dict[str, Any]]:
-        return await self._fuzzy_modify_service._collect_fuzzy_modify_candidates(**kwargs)
-
-    def _is_fuzzy_modify_candidate_mutable(self, candidate: Dict[str, Any], raw_item: Dict[str, Any]) -> bool:
-        return self._fuzzy_modify_service._is_fuzzy_modify_candidate_mutable(candidate, raw_item)
-
-    async def _build_fuzzy_modify_llm_plan(self, **kwargs) -> Dict[str, Any]:
-        return await self._fuzzy_modify_service._build_fuzzy_modify_llm_plan(**kwargs)
-
-    def _normalize_fuzzy_modify_plan(self, payload: Dict[str, Any], **kwargs) -> Dict[str, Any]:
-        return self._fuzzy_modify_service._normalize_fuzzy_modify_plan(payload, **kwargs)
-
-    def _normalize_fuzzy_modify_candidate(self, item: Dict[str, Any]) -> Dict[str, Any]:
-        return self._fuzzy_modify_service._normalize_fuzzy_modify_candidate(item)
-
-    @staticmethod
-    def _normalize_fuzzy_modify_relations(value: Any) -> List[Dict[str, Any]]:
-        return FuzzyModifyService._normalize_fuzzy_modify_relations(value)
-
-    def _build_fuzzy_modify_cascade_preview(self, *, operations: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
-        return self._fuzzy_modify_service._build_fuzzy_modify_cascade_preview(operations=operations)
-
-    def _build_fuzzy_modify_paragraph_cascade(self, **kwargs) -> Dict[str, List[Dict[str, Any]]]:
-        return self._fuzzy_modify_service._build_fuzzy_modify_paragraph_cascade(**kwargs)
-
-    @staticmethod
-    def _fuzzy_modify_stale_source_operation_id(*, plan_id: str, paragraph_hash: str, relation_hash: str) -> str:
-        return FuzzyModifyService._fuzzy_modify_stale_source_operation_id(plan_id=plan_id, paragraph_hash=paragraph_hash, relation_hash=relation_hash)
-
-    def _execute_fuzzy_modify_paragraph_cascade(self, **kwargs) -> Dict[str, Any]:
-        return self._fuzzy_modify_service._execute_fuzzy_modify_paragraph_cascade(**kwargs)
-
-    async def _apply_fuzzy_modify_plan(self, **kwargs) -> Dict[str, Any]:
-        return await self._fuzzy_modify_service._apply_fuzzy_modify_plan(**kwargs)
-
-    def _mark_fuzzy_modify_target_superseded(self, **kwargs) -> Dict[str, Any]:
-        return self._fuzzy_modify_service._mark_fuzzy_modify_target_superseded(**kwargs)
-
-    @staticmethod
-    def _normalize_fuzzy_modify_scope(scope: str) -> str:
-        return FuzzyModifyService._normalize_fuzzy_modify_scope(scope)
-
-
-    def _fuzzy_modify_cfg_candidate_limit(self) -> int:
-        return self._fuzzy_modify_config.candidate_limit
-
-
-    def _adjust_relation_confidence(self, hashes: List[str], *, delta: float) -> Dict[str, float]:
-        return self._v5_memory_service.adjust_relation_confidence(hashes, delta=delta)
-
-    def _apply_v5_relation_action(self, *, action: str, hashes: List[str], strength: float = 1.0) -> Dict[str, Any]:
-        return self._v5_memory_service.apply_v5_relation_action(action=action, hashes=hashes, strength=strength)
 
     async def _ensure_vector_for_text(
         self,
@@ -3335,74 +2815,10 @@ class SDKMemoryKernel:
             restored.append(hash_value)
         conn.commit()
         if restored and rebuild_graph:
-            self._rebuild_graph_from_metadata()
+            self._graph_ops_service.rebuild_graph_from_metadata()
         if restored and persist:
             self._persist()
         return {"restored_hashes": restored, "restored_count": len(restored), "failures": failures}
-
-    @staticmethod
-    def _profile_evidence_type_from_source(source: str, metadata: Optional[Dict[str, Any]] = None) -> str:
-        return ProfileEvidenceService._profile_evidence_type_from_source(source, metadata)
-
-    @staticmethod
-    def _profile_relation_content(relation: Dict[str, Any]) -> str:
-        return ProfileEvidenceService._profile_relation_content(relation)
-
-    def _build_profile_relation_evidence_item(self, relation: Dict[str, Any], *, index: int) -> Dict[str, Any]:
-        return self._profile_evidence_service._build_profile_relation_evidence_item(relation, index=index)
-
-    def _build_profile_paragraph_evidence_item(
-        self,
-        item: Dict[str, Any],
-        *,
-        index: int,
-        fallback_hash: str = "",
-    ) -> Dict[str, Any]:
-        return self._profile_evidence_service._build_profile_paragraph_evidence_item(item, index=index, fallback_hash=fallback_hash)
-
-    def _build_profile_evidence_items(self, profile: Dict[str, Any]) -> List[Dict[str, Any]]:
-        return self._profile_evidence_service._build_profile_evidence_items(profile)
-
-    def _profile_evidence_response(self, profile: Dict[str, Any], *, requested_person_id: str, limit: int) -> Dict[str, Any]:
-        return self._profile_evidence_service._profile_evidence_response(profile, requested_person_id=requested_person_id, limit=limit)
-
-    async def _profile_evidence_admin(
-        self,
-        *,
-        person_id: str = "",
-        person_keyword: str = "",
-        limit: int = 12,
-        force_refresh: bool = False,
-    ) -> Dict[str, Any]:
-        return await self._profile_evidence_service.profile_evidence_admin(
-            person_id=person_id,
-            person_keyword=person_keyword,
-            limit=limit,
-            force_refresh=force_refresh,
-        )
-
-    async def _profile_correct_evidence_admin(
-        self,
-        *,
-        person_id: str = "",
-        person_keyword: str = "",
-        evidence_type: str,
-        hash_value: str,
-        requested_by: str = "webui",
-        reason: str = "profile_evidence_correction",
-        refresh: bool = True,
-        limit: int = 12,
-    ) -> Dict[str, Any]:
-        return await self._profile_evidence_service.profile_correct_evidence_admin(
-            person_id=person_id,
-            person_keyword=person_keyword,
-            evidence_type=evidence_type,
-            hash_value=hash_value,
-            requested_by=requested_by,
-            reason=reason,
-            refresh=refresh,
-            limit=limit,
-        )
 
     @staticmethod
     def _selector_dict(selector: Any) -> Dict[str, Any]:
@@ -3418,9 +2834,6 @@ class SDKMemoryKernel:
         raw = self._selector_dict(selector)
         return self._merge_tokens(raw.get("sources"), [raw.get("source")], [raw.get("query")], raw.get("items"))
 
-
-    def _snapshot_entity_item(self, hash_value: str) -> Optional[Dict[str, Any]]:
-        return self._delete_service.snapshot_entity_item(hash_value)
 
     def _relation_has_remaining_paragraphs(self, relation_hash: str, removing_hashes: Sequence[str]) -> bool:
         assert self.metadata_store
@@ -3462,19 +2875,6 @@ class SDKMemoryKernel:
         return False
 
 
-    async def _preview_delete_action(self, *, mode: str, selector: Any) -> Dict[str, Any]:
-        return await self._delete_service.preview_delete_action(mode=mode, selector=selector)
-
-    async def _execute_delete_action(
-        self,
-        *,
-        mode: str,
-        selector: Any,
-        requested_by: str = "",
-        reason: str = "",
-    ) -> Dict[str, Any]:
-        return await self._delete_service.execute_delete_action(mode=mode, selector=selector, requested_by=requested_by, reason=reason)
-
     async def _invalidate_import_manifest_for_sources(self, result: Dict[str, Any]) -> None:
         if not isinstance(result, dict) or not result.get("success"):
             return
@@ -3491,21 +2891,6 @@ class SDKMemoryKernel:
             result["manifest_invalidation"] = {"success": False, "error": str(exc), "sources": sources}
             return
         result["manifest_invalidation"] = manifest_result
-
-    async def _restore_delete_action(
-        self,
-        *,
-        mode: str,
-        selector: Any,
-        operation_id: str = "",
-        requested_by: str = "",
-        reason: str = "",
-    ) -> Dict[str, Any]:
-        return await self._delete_service.restore_delete_action(mode=mode, selector=selector, operation_id=operation_id, requested_by=requested_by, reason=reason)
-
-
-    async def _purge_deleted_memory(self, *, grace_hours: Optional[float], limit: int) -> Dict[str, Any]:
-        return await self._delete_service.purge_deleted_memory(grace_hours=grace_hours, limit=limit)
 
     @staticmethod
     def _optional_float(value: Any) -> Optional[float]:

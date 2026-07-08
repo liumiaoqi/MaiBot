@@ -32,7 +32,7 @@ class ParagraphAdminHandler(BaseAdminHandler):
             paragraph_hash = str(kwargs.get("hash", "") or kwargs.get("id", "") or "").strip()
             if not paragraph_hash:
                 return {"success": False, "error": "hash 不能为空"}
-            result = await self._kernel._execute_delete_action(
+            result = await self._kernel._delete_service.execute_delete_action(
                 mode="paragraph",
                 selector={"query": paragraph_hash},
                 requested_by=str(kwargs.get("requested_by", "") or "paragraph_admin"),
@@ -43,7 +43,7 @@ class ParagraphAdminHandler(BaseAdminHandler):
             hashes = [str(h).strip() for h in (kwargs.get("hashes") or []) if str(h).strip()]
             if not hashes:
                 return {"success": False, "error": "hashes 不能为空"}
-            result = await self._kernel._execute_delete_action(
+            result = await self._kernel._delete_service.execute_delete_action(
                 mode="paragraph",
                 selector={"query": "", "hashes": hashes},
                 requested_by=str(kwargs.get("requested_by", "") or "paragraph_admin"),

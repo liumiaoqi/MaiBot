@@ -39,7 +39,7 @@ class SourceAdminHandler(BaseAdminHandler):
 
     async def _delete_source(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
         source = str(kwargs.get("source", "") or "").strip()
-        result = await self._kernel._execute_delete_action(
+        result = await self._kernel._delete_service.execute_delete_action(
             mode="source",
             selector={"sources": [source]},
             requested_by=str(kwargs.get("requested_by", "") or "memory_source_admin"),
@@ -49,7 +49,7 @@ class SourceAdminHandler(BaseAdminHandler):
         return result
 
     async def _batch_delete_sources(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
-        result = await self._kernel._execute_delete_action(
+        result = await self._kernel._delete_service.execute_delete_action(
             mode="source",
             selector={"sources": list(kwargs.get("sources") or [])},
             requested_by=str(kwargs.get("requested_by", "") or "memory_source_admin"),
