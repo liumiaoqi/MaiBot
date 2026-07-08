@@ -471,3 +471,210 @@ class KernelInitializer:
             relation_write_service_getter=lambda: kernel.relation_write_service,
             vector_pool_manager=kernel._vector_pool_manager,
         )
+
+    @staticmethod
+    def build_runtime_config(kernel: SDKMemoryKernel, base_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        runtime_config = dict(base_config if isinstance(base_config, dict) else kernel.config)
+        runtime_cfg = runtime_config.get("runtime")
+        runtime_config["runtime"] = dict(runtime_cfg) if isinstance(runtime_cfg, dict) else {}
+        runtime_config["runtime"]["vector_pools_ready"] = kernel._dual_vector_pools_enabled()
+        runtime_config.update(
+            {
+                "vector_store": kernel.vector_store,
+                "paragraph_vector_store": kernel.paragraph_vector_store or kernel.vector_store,
+                "graph_vector_store": kernel.graph_vector_store or kernel.vector_store,
+                "graph_store": kernel.graph_store,
+                "metadata_store": kernel.metadata_store,
+                "embedding_manager": kernel.embedding_manager,
+                "sparse_index": kernel.sparse_index,
+                "relation_write_service": kernel.relation_write_service,
+                "plugin_instance": kernel,
+            }
+        )
+        return runtime_config
+
+    @staticmethod
+    def merge_runtime_config_patch(base: Dict[str, Any], patch: Dict[str, Any]) -> Dict[str, Any]:
+        import copy
+        merged = copy.deepcopy(base)
+        for key, value in (patch or {}).items():
+            if isinstance(value, dict) and isinstance(merged.get(key), dict):
+                merged[key] = KernelInitializer.merge_runtime_config_patch(merged[key], value)
+            else:
+                merged[key] = copy.deepcopy(value)
+        return merged
+
+    @staticmethod
+    def refresh_relation_write_service(kernel: SDKMemoryKernel) -> None:
+        from ...utils.relation_write_service import RelationWriteService
+        if (
+            kernel.metadata_store is None
+            or kernel.graph_store is None
+            or kernel.vector_store is None
+            or kernel.embedding_manager is None
+        ):
+            kernel.relation_write_service = None
+            return
+        kernel.relation_write_service = RelationWriteService(
+            metadata_store=kernel.metadata_store,
+            graph_store=kernel.graph_store,
+            vector_store=kernel.vector_store,
+            graph_vector_store=kernel._graph_vector_store(),
+            embedding_manager=kernel.embedding_manager,
+            use_typed_relation_ids=kernel._dual_vector_pools_enabled(),
+        )
+
+    @staticmethod
+    def refresh_runtime_dependents(kernel: SDKMemoryKernel, *, preserve_managers: bool = True) -> None:
+        from ...utils.episode_retrieval_service import EpisodeRetrievalService
+        from ...utils.aggregate_query_service import AggregateQueryService
+        from ...utils.person_profile_service import PersonProfileService
+        from ...utils.episode_segmentation_service import EpisodeSegmentationService
+        from ...utils.episode_service import EpisodeService
+        from ...utils.summary_importer import SummaryImporter
+        from ...utils.web_import_manager import ImportTaskManager
+        from ...utils.retrieval_tuning_manager import RetrievalTuningManager
+        if (
+            kernel.metadata_store is None
+            or kernel.graph_store is None
+            or kernel.vector_store is None
+            or kernel.embedding_manager is None
+            or kernel.retriever is None
+        ):
+            return
+
+        runtime_config = KernelInitializer.build_runtime_config(kernel)
+        kernel.episode_retriever = EpisodeRetrievalService(metadata_store=kernel.metadata_store, retriever=kernel.retriever)
+        kernel.aggregate_query_service = AggregateQueryService(plugin_config=runtime_config)
+        kernel.person_profile_service = PersonProfileService(
+            metadata_store=kernel.metadata_store,
+            graph_store=kernel.graph_store,
+            vector_store=kernel.vector_store,
+            paragraph_vector_store=kernel.paragraph_vector_store or kernel.vector_store,
+            graph_vector_store=kernel.graph_vector_store or kernel.vector_store,
+            embedding_manager=kernel.embedding_manager,
+            sparse_index=kernel.sparse_index,
+            plugin_config=runtime_config,
+            retriever=kernel.retriever,
+        )
+        kernel.episode_segmentation_service = EpisodeSegmentationService(plugin_config=runtime_config)
+        kernel.episode_service = EpisodeService(
+            metadata_store=kernel.metadata_store,
+            plugin_config=runtime_config,
+            segmentation_service=kernel.episode_segmentation_service,
+        )
+        kernel.summary_importer = SummaryImporter(
+            vector_store=kernel.vector_store,
+            graph_store=kernel.graph_store,
+            metadata_store=kernel.metadata_store,
+            embedding_manager=kernel.embedding_manager,
+            plugin_config=runtime_config,
+        )
+        if not preserve_managers:
+            kernel.import_task_manager = ImportTaskManager(kernel)
+            kernel.retrieval_tuning_manager = RetrievalTuningManager(
+                kernel,
+                import_write_blocked_provider=kernel.import_task_manager.is_write_blocked,
+            )
+
+    @staticmethod
+    async def apply_retrieval_tuning_profile(
+        kernel: SDKMemoryKernel, profile: Dict[str, Any], *, validate: bool = True,
+    ) -> Dict[str, Any]:
+        from ..search_runtime_initializer import build_search_runtime
+        if not isinstance(profile, dict):
+            return {
+                "success": False,
+                "runtime_rebuilt": False,
+                "validation_passed": False,
+                "error": "profile 必须是字典",
+            }
+
+        next_config = KernelInitializer.merge_runtime_config_patch(kernel.config, profile)
+        runtime_bundle = build_search_runtime(
+            plugin_config=KernelInitializer.build_runtime_config(kernel, next_config),
+            logger_obj=logger,
+            owner_tag="sdk_kernel_tuning_apply",
+            log_prefix="[sdk]",
+        )
+        if validate and not runtime_bundle.ready:
+            return {
+                "success": False,
+                "runtime_rebuilt": False,
+                "validation_passed": False,
+                "error": runtime_bundle.error or "检索运行时热重建失败",
+            }
+        if runtime_bundle.ready:
+            kernel.config.clear()
+            kernel.config.update(next_config)
+            kernel._runtime_bundle = runtime_bundle
+            kernel.retriever = runtime_bundle.retriever
+            kernel.threshold_filter = runtime_bundle.threshold_filter
+            kernel.sparse_index = runtime_bundle.sparse_index or kernel.sparse_index
+            KernelInitializer.refresh_runtime_dependents(kernel, preserve_managers=True)
+            kernel._apply_runtime_sparse_mode()
+            return {
+                "success": True,
+                "runtime_rebuilt": True,
+                "validation_passed": True,
+                "error": "",
+            }
+        return {
+            "success": False,
+            "runtime_rebuilt": False,
+            "validation_passed": False,
+            "error": runtime_bundle.error or "检索运行时热重建失败",
+        }
+
+    @staticmethod
+    async def start_background_tasks(kernel: SDKMemoryKernel) -> None:
+        registrations = {
+            "auto_save": kernel._auto_save_loop,
+            "episode_pending": kernel._ingest_service.episode_pending_loop,
+            "embedding_probe": kernel._embedding_probe_loop,
+            "paragraph_vector_backfill": kernel._paragraph_vector_backfill_loop,
+            "memory_maintenance": kernel._maintenance_service.memory_maintenance_loop,
+            "person_profile_refresh": kernel._person_profile_refresh_loop,
+            "person_profile_refresh_queue": kernel._person_profile_refresh_queue_loop,
+            "feedback_correction": kernel._feedback_correction_service._feedback_correction_loop,
+            "feedback_correction_reconcile": kernel._feedback_correction_service._feedback_correction_reconcile_loop,
+        }
+        if kernel._should_start_dual_vector_auto_migration():
+            registrations["dual_vector_auto_migration"] = kernel._dual_vector_auto_migration_loop
+        await kernel._background_scheduler.start_all(registrations)
+
+    @staticmethod
+    async def auto_save_loop(kernel: SDKMemoryKernel) -> None:
+        import asyncio
+        try:
+            while not kernel._background_scheduler.stopping:
+                interval_minutes = max(1.0, float(kernel._cfg("advanced.auto_save_interval_minutes", 5) or 5))
+                await asyncio.sleep(interval_minutes * 60.0)
+                if kernel._background_scheduler.stopping:
+                    break
+                if bool(kernel._cfg("advanced.enable_auto_save", True)):
+                    kernel._persist()
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.warning(f"auto_save loop 异常: {exc}")
+
+    @staticmethod
+    def persist(kernel: SDKMemoryKernel, *, force_vectors: bool = False) -> None:
+        rebuild_required = False if force_vectors else bool(
+            kernel._vector_rebuild_status().get("vector_rebuild_required", False)
+        )
+        if kernel.vector_store is not None and not kernel._dual_vector_pools_enabled():
+            if rebuild_required:
+                logger.debug("检测到向量库需要重建，跳过向量库持久化以保留重建提示")
+            else:
+                kernel._vector_pool_manager.save_vector_store(kernel.vector_store)
+        if kernel._dual_vector_pools_enabled() and not rebuild_required:
+            if kernel.paragraph_vector_store is not None:
+                kernel._vector_pool_manager.save_vector_store(kernel.paragraph_vector_store)
+            if kernel.graph_vector_store is not None:
+                kernel._vector_pool_manager.save_vector_store(kernel.graph_vector_store)
+        if kernel.graph_store is not None:
+            kernel.graph_store.save()
+        if kernel.sparse_index is not None and kernel.sparse_index.config.enabled:
+            kernel.sparse_index.ensure_loaded()

@@ -121,3 +121,34 @@ class RuntimeAdminHandler(BaseAdminHandler):
             return {"success": True, "processed": result}
 
         return self._unsupported("runtime", act)
+
+    @staticmethod
+    def memory_stats(kernel: Any) -> Dict[str, Any]:
+        assert kernel.metadata_store
+        stats = kernel.metadata_store.get_statistics()
+        episodes = kernel.metadata_store.query("SELECT COUNT(*) AS c FROM episodes")[0]["c"]
+        profiles = kernel.metadata_store.query("SELECT COUNT(*) AS c FROM person_profile_snapshots")[0]["c"]
+        pending = kernel.metadata_store.query(
+            "SELECT COUNT(*) AS c FROM episode_pending_paragraphs WHERE status IN ('pending', 'running', 'failed')"
+        )[0]["c"]
+        backfill = kernel._paragraph_vector_backfill_counts()
+        episode_rebuild_summary = kernel.metadata_store.get_episode_source_rebuild_summary()
+        episode_rebuild_counts = episode_rebuild_summary.get("counts", {}) if isinstance(episode_rebuild_summary, dict) else {}
+        return {
+            "paragraphs": int(stats.get("paragraph_count", 0) or 0),
+            "relations": int(stats.get("relation_count", 0) or 0),
+            "episodes": int(episodes or 0),
+            "profiles": int(profiles or 0),
+            "episode_pending": int(pending or 0),
+            "stale_paragraph_marks": int(stats.get("stale_paragraph_mark_count", 0) or 0),
+            "profile_refresh_pending": int(stats.get("person_profile_refresh_pending_count", 0) or 0),
+            "profile_refresh_failed": int(stats.get("person_profile_refresh_failed_count", 0) or 0),
+            "episode_rebuild_pending": int(
+                (episode_rebuild_counts.get("pending", 0) or 0)
+                + (episode_rebuild_counts.get("running", 0) or 0)
+                + (episode_rebuild_counts.get("failed", 0) or 0)
+            ),
+            "paragraph_vector_backfill_pending": int(backfill.get("pending", 0) or 0),
+            "paragraph_vector_backfill_failed": int(backfill.get("failed", 0) or 0),
+            "last_maintenance_at": kernel._last_maintenance_at,
+        }
