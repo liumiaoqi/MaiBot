@@ -111,6 +111,7 @@ class SDKMemoryKernel:
         self._vector_rebuild_service: Optional[Any] = None
         self._dual_vector_migration_service: Optional[Any] = None
         self._embedding_recovery_service: Optional[Any] = None
+        self._person_profile_facade: Optional[Any] = None
 
     def get_config(self, key: str, default: Any = None) -> Any:
         return self._cfg(key, default)
@@ -710,6 +711,18 @@ class SDKMemoryKernel:
 
         self._mark_startup_self_check_deferred()
 
+        from .services.person_profile_facade import PersonProfileFacade
+        self._person_profile_facade = PersonProfileFacade(
+            cfg=self._cfg,
+            metadata_store_getter=lambda: self.metadata_store,
+            person_profile_service_getter=lambda: self.person_profile_service,
+            feedback_correction_service_getter=lambda: self._feedback_correction_service,
+            hit_filter_service_getter=lambda: self._hit_filter_service,
+            active_person_timestamps=self._active_person_timestamps,
+            background_scheduler=self._background_scheduler,
+            initialize=self.initialize,
+        )
+
         from .admin import (
             GraphAdminHandler, ParagraphAdminHandler, RelationAdminHandler,
             RuntimeAdminHandler, ImportAdminHandler, TuningAdminHandler,
@@ -1144,15 +1157,8 @@ class SDKMemoryKernel:
 
     @staticmethod
     def _empty_person_profile_response(*, person_id: str = "", person_name: str = "") -> Dict[str, Any]:
-        return {
-            "summary": "",
-            "traits": [],
-            "evidence": [],
-            "person_id": str(person_id or "").strip(),
-            "person_name": str(person_name or "").strip(),
-            "profile_source": "",
-            "has_manual_override": False,
-        }
+        from .services.person_profile_facade import PersonProfileFacade
+        return PersonProfileFacade.empty_person_profile_response(person_id=person_id, person_name=person_name)
 
     def _build_person_profile_response(
         self,
@@ -1161,86 +1167,15 @@ class SDKMemoryKernel:
         requested_person_id: str,
         limit: int,
     ) -> Dict[str, Any]:
-        assert self.metadata_store is not None
-        if not bool(profile.get("success")):
-            return self._empty_person_profile_response(
-                person_id=str(profile.get("person_id", "") or requested_person_id),
-                person_name=str(profile.get("person_name", "") or ""),
-            )
-
-        evidence: List[Dict[str, Any]] = []
-        evidence_limit = max(1, int(limit or 10))
-        for hash_value in profile.get("evidence_ids", [])[:evidence_limit]:
-            paragraph = self.metadata_store.get_paragraph(hash_value)
-            if paragraph is not None:
-                evidence.append(
-                    {
-                        "hash": hash_value,
-                        "content": str(paragraph.get("content", "") or "")[:220],
-                        "metadata": paragraph.get("metadata", {}) or {},
-                        "type": "paragraph",
-                    }
-                )
-                continue
-
-            relation = self.metadata_store.get_relation(hash_value)
-            if relation is not None:
-                evidence.append(
-                    {
-                        "hash": hash_value,
-                        "content": " ".join(
-                            [
-                                str(relation.get("subject", "") or "").strip(),
-                                str(relation.get("predicate", "") or "").strip(),
-                                str(relation.get("object", "") or "").strip(),
-                            ]
-                        ).strip(),
-                        "metadata": {
-                            "confidence": relation.get("confidence"),
-                            "source_paragraph": relation.get("source_paragraph"),
-                        },
-                        "type": "relation",
-                    }
-                )
-
-        evidence = self._hit_filter_service.filter_user_visible_hits(evidence)
-        text = str(profile.get("profile_text", "") or "").strip()
-        traits = [line.strip("- ").strip() for line in text.splitlines() if line.strip()][:8]
-        return {
-            "summary": text,
-            "traits": traits,
-            "evidence": evidence,
-            "person_id": str(profile.get("person_id", "") or requested_person_id),
-            "person_name": str(profile.get("person_name", "") or ""),
-            "profile_source": str(profile.get("profile_source", "") or "auto_snapshot"),
-            "has_manual_override": bool(profile.get("has_manual_override", False)),
-        }
+        return self._person_profile_facade.build_person_profile_response(
+            profile, requested_person_id=requested_person_id, limit=limit,
+        )
 
     async def get_person_profile(self, *, person_id: str, chat_id: str = "", limit: int = 10) -> Dict[str, Any]:
-        del chat_id
-        await self.initialize()
-        assert self.metadata_store is not None
-        assert self.person_profile_service is not None
-        self._mark_person_active(person_id)
-        profile = await self._feedback_correction_service._query_person_profile_with_feedback_refresh(
-            person_id=person_id,
-            limit=max(4, int(limit or 10)),
-            source_note="sdk_memory_kernel.get_person_profile",
-        )
-        return self._build_person_profile_response(profile, requested_person_id=person_id, limit=limit)
+        return await self._person_profile_facade.get_person_profile(person_id=person_id, chat_id=chat_id, limit=limit)
 
     async def refresh_person_profile(self, person_id: str, limit: int = 10, *, mark_active: bool = True) -> Dict[str, Any]:
-        await self.initialize()
-        assert self.person_profile_service
-        if mark_active:
-            self._mark_person_active(person_id)
-        profile = await self.person_profile_service.query_person_profile(
-            person_id=person_id,
-            top_k=max(4, int(limit or 10)),
-            force_refresh=True,
-            source_note="sdk_memory_kernel.refresh_person_profile",
-        )
-        return profile if isinstance(profile, dict) else {}
+        return await self._person_profile_facade.refresh_person_profile(person_id, limit, mark_active=mark_active)
 
     async def maintain_memory(
         self,
@@ -1417,53 +1352,10 @@ class SDKMemoryKernel:
         await self._embedding_recovery_service.paragraph_vector_backfill_loop()
 
     async def _person_profile_refresh_loop(self) -> None:
-        try:
-            while not self._background_scheduler.stopping:
-                interval_minutes = max(1.0, float(self._cfg("person_profile.refresh_interval_minutes", 30) or 30))
-                await asyncio.sleep(max(60.0, interval_minutes * 60.0))
-                if self._background_scheduler.stopping:
-                    break
-                if not bool(self._cfg("person_profile.enabled", True)):
-                    continue
-                active_window_hours = max(1.0, float(self._cfg("person_profile.active_window_hours", 72.0) or 72.0))
-                max_refresh = max(1, int(self._cfg("person_profile.max_refresh_per_cycle", 50) or 50))
-                cutoff = time.time() - active_window_hours * 3600.0
-                candidates = [
-                    person_id
-                    for person_id, seen_at in sorted(
-                        self._active_person_timestamps.items(),
-                        key=lambda item: item[1],
-                        reverse=True,
-                    )
-                    if seen_at >= cutoff
-                ][:max_refresh]
-                for person_id in candidates:
-                    try:
-                        if self._has_pending_person_profile_refresh(person_id):
-                            continue
-                        await self.refresh_person_profile(person_id, limit=max(4, int(self._cfg("person_profile.top_k_evidence", 12) or 12)), mark_active=False)
-                    except Exception as exc:
-                        logger.warning(f"刷新人物画像失败: {exc}")
-        except asyncio.CancelledError:
-            raise
-        except Exception as exc:
-            logger.warning(f"person_profile_refresh loop 异常: {exc}")
+        await self._person_profile_facade.person_profile_refresh_loop()
 
     async def _person_profile_refresh_queue_loop(self) -> None:
-        try:
-            while not self._background_scheduler.stopping:
-                await asyncio.sleep(self._person_profile_refresh_queue_interval_seconds())
-                if self._background_scheduler.stopping:
-                    break
-                if not bool(self._cfg("person_profile.enabled", True)):
-                    continue
-                await self._process_person_profile_refresh_queue_batch(
-                    limit=self._person_profile_refresh_queue_batch_size()
-                )
-        except asyncio.CancelledError:
-            raise
-        except Exception as exc:
-            logger.warning(f"person_profile_refresh_queue loop 异常: {exc}")
+        await self._person_profile_facade.person_profile_refresh_queue_loop()
 
     @staticmethod
     def _safe_json_loads(raw: Any) -> Dict[str, Any]:
@@ -1495,56 +1387,32 @@ class SDKMemoryKernel:
         return normalized_source_type not in disabled_types
 
     def _person_profile_refresh_queue_interval_seconds(self) -> float:
-        return max(1.0, float(self._cfg("person_profile.refresh_queue_interval_seconds", 60) or 60))
+        return self._person_profile_facade._queue_interval_seconds()
 
     def _person_profile_refresh_queue_batch_size(self) -> int:
-        return max(1, int(self._cfg("person_profile.refresh_queue_batch_size", 10) or 10))
+        return self._person_profile_facade._queue_batch_size()
 
     def _person_profile_refresh_debounce_seconds(self) -> float:
-        return max(0.0, float(self._cfg("person_profile.refresh_debounce_seconds", 120) or 0))
+        return self._person_profile_facade._debounce_seconds()
 
     def _person_profile_refresh_retry_backoff_seconds(self) -> float:
-        return max(0.0, float(self._cfg("person_profile.refresh_retry_backoff_seconds", 300) or 0))
+        return self._person_profile_facade._retry_backoff_seconds()
 
     def _person_profile_refresh_max_retry(self) -> int:
-        return max(0, int(self._cfg("person_profile.max_retry", 3) or 0))
+        return self._person_profile_facade._max_retry()
 
     def _enqueue_person_profile_refresh(self, person_id: str, *, reason: str = "") -> bool:
-        if self.metadata_store is None or not bool(self._cfg("person_profile.enabled", True)):
-            return False
-        payload = self.metadata_store.enqueue_person_profile_refresh(
-            person_id=person_id,
-            reason=str(reason or "").strip() or "memory_ingest",
-        )
-        return isinstance(payload, dict)
+        return self._person_profile_facade.enqueue_person_profile_refresh(person_id, reason=reason)
 
     def _has_pending_person_profile_refresh(self, person_id: str) -> bool:
-        if self.metadata_store is None:
-            return False
-        request = self.metadata_store.get_person_profile_refresh_request(person_id)
-        if not isinstance(request, dict):
-            return False
-        status = str(request.get("status", "") or "").strip().lower()
-        if status in {"pending", "running"}:
-            return True
-        if status != "failed":
-            return False
-        return int(request.get("retry_count", 0) or 0) < self._person_profile_refresh_max_retry()
+        return self._person_profile_facade.has_pending_person_profile_refresh(person_id)
 
     async def _process_person_profile_refresh_queue_batch(self, *, limit: int) -> Dict[str, Any]:
-        return await self._feedback_correction_service._process_feedback_profile_refresh_batch(
-            limit=limit,
-            debounce_seconds=self._person_profile_refresh_debounce_seconds(),
-            retry_backoff_seconds=self._person_profile_refresh_retry_backoff_seconds(),
-            max_retry=self._person_profile_refresh_max_retry(),
-        )
+        return await self._person_profile_facade.process_person_profile_refresh_queue_batch(limit=limit)
 
 
     def _mark_person_active(self, person_id: str) -> None:
-        token = str(person_id or "").strip()
-        if not token:
-            return
-        self._active_person_timestamps[token] = time.time()
+        self._person_profile_facade.mark_person_active(person_id)
 
     @staticmethod
     def _tokens(values: Optional[Iterable[Any]]) -> List[str]:
