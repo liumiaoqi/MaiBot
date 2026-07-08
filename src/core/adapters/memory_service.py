@@ -43,11 +43,17 @@ class AMemorixMemoryServicePort:
         return build_profile_injection_text(raw_text)
 
     async def set_memory_personality(self, agent_id: str, params: dict[str, Any]) -> None:
-        """将智能体记忆性格参数传递给 A_memorix。"""
+        """将智能体记忆性格参数传递给 A_memorix 连接主义记忆系统。"""
         try:
             from src.services.memory_service import memory_service
 
-            await memory_service.set_personality(agent_id=agent_id, params=params)
+            await memory_service.invoke(
+                "register_agent",
+                {
+                    "agent_id": agent_id,
+                    **params,
+                },
+            )
         except Exception as exc:
             logger.warning(
                 "[memory_port] 设置记忆性格失败: agent=%s error=%s", agent_id, exc

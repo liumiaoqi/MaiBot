@@ -3065,6 +3065,38 @@ class AMemorixPersonProfileConfig(ConfigBase):
     """人物画像证据分类模型温度"""
 
 
+class AMemorixConnectionistConfig(ConfigBase):
+    """连接主义记忆系统配置"""
+
+    enabled: bool = Field(
+        default=False,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "启用连接主义记忆",
+                "en_US": "Enable connectionist memory",
+                "ja_JP": "コネクショニスト記憶を有効化",
+            },
+            "x-widget": "switch",
+            "x-icon": "brain",
+        },
+    )
+    """启用连接主义记忆系统（痕迹网络+激活扩散）"""
+
+    phase: str = Field(
+        default="legacy_only",
+        json_schema_extra={
+            "label": {
+                "zh_CN": "迁移阶段",
+                "en_US": "Migration phase",
+                "ja_JP": "移行フェーズ",
+            },
+            "x-widget": "select",
+            "x-options": ["legacy_only", "dual_write", "dual_read", "data_migration", "new_independent"],
+        },
+    )
+    """迁移阶段：legacy_only / dual_write / dual_read / data_migration / new_independent"""
+
+
 class AMemorixMemoryEvolutionConfig(ConfigBase):
     """A_Memorix 记忆演化配置"""
 
@@ -3668,6 +3700,18 @@ class AMemorixConfig(ConfigBase):
         },
     )
     """记忆演化配置"""
+
+    connectionist: AMemorixConnectionistConfig = Field(
+        default_factory=AMemorixConnectionistConfig,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "连接主义记忆",
+                "en_US": "Connectionist memory",
+                "ja_JP": "コネクショニスト記憶",
+            },
+        },
+    )
+    """连接主义记忆系统配置"""
 
     advanced: AMemorixAdvancedConfig = Field(
         default_factory=AMemorixAdvancedConfig,
