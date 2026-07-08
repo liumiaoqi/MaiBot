@@ -53,108 +53,6 @@ DUAL_VECTOR_AUTO_MIGRATION_INITIAL_DELAY_SECONDS = 5.0
 DUAL_VECTOR_AUTO_MIGRATION_LOCK_RETRY_DELAYS_SECONDS = (2.0, 5.0, 10.0)
 
 
-class _KernelRuntimeFacade:
-    def __init__(self, kernel: "SDKMemoryKernel") -> None:
-        self._kernel = kernel
-        self.config = kernel.config
-        self._plugin_config = kernel.config
-        self._runtime_self_check_report: Dict[str, Any] = {}
-
-    def get_config(self, key: str, default: Any = None) -> Any:
-        return self._kernel._cfg(key, default)
-
-    def is_runtime_ready(self) -> bool:
-        return self._kernel.is_runtime_ready()
-
-    def is_chat_enabled(self, stream_id: str, group_id: str | None = None, user_id: str | None = None) -> bool:
-        return self._kernel.is_chat_enabled(stream_id=stream_id, group_id=group_id, user_id=user_id)
-
-    async def reinforce_access(self, relation_hashes: Sequence[str]) -> None:
-        if self._kernel.metadata_store is None:
-            return
-        hashes = [str(item or "").strip() for item in relation_hashes if str(item or "").strip()]
-        if not hashes:
-            return
-        self._kernel.metadata_store.reinforce_relations(hashes)
-        self._kernel._last_maintenance_at = time.time()
-
-    async def execute_request_with_dedup(
-        self,
-        request_key: str,
-        executor: Callable[[], Coroutine[Any, Any, Dict[str, Any]]],
-    ) -> tuple[bool, Dict[str, Any]]:
-        return await self._kernel.execute_request_with_dedup(request_key, executor)
-
-    async def apply_retrieval_tuning_profile(
-        self,
-        profile: Dict[str, Any],
-        *,
-        validate: bool = True,
-    ) -> Dict[str, Any]:
-        return await self._kernel.apply_retrieval_tuning_profile(profile, validate=validate)
-
-    @property
-    def vector_store(self) -> Optional[VectorStore]:
-        return self._kernel.vector_store
-
-    @property
-    def paragraph_vector_store(self) -> Optional[VectorStore]:
-        return self._kernel.paragraph_vector_store
-
-    @property
-    def graph_vector_store(self) -> Optional[VectorStore]:
-        return self._kernel.graph_vector_store
-
-    @property
-    def graph_store(self) -> Optional[GraphStore]:
-        return self._kernel.graph_store
-
-    @property
-    def metadata_store(self) -> Optional[MetadataStore]:
-        return self._kernel.metadata_store
-
-    @property
-    def embedding_manager(self):
-        return self._kernel.embedding_manager
-
-    @property
-    def sparse_index(self):
-        return self._kernel.sparse_index
-
-    @property
-    def relation_write_service(self) -> Optional[RelationWriteService]:
-        return self._kernel.relation_write_service
-
-    def is_embedding_degraded(self) -> bool:
-        return self._kernel._is_embedding_degraded()
-
-    def _dual_vector_pools_enabled(self) -> bool:
-        return self._kernel._dual_vector_pools_enabled()
-
-    def allow_metadata_only_write(self) -> bool:
-        return self._kernel._allow_metadata_only_write()
-
-    async def write_paragraph_vector_or_enqueue(
-        self,
-        *,
-        paragraph_hash: str,
-        content: str,
-        context: str = "",
-    ) -> Dict[str, Any]:
-        return await self._kernel._write_paragraph_vector_or_enqueue(
-            paragraph_hash=paragraph_hash,
-            content=content,
-            context=context,
-        )
-
-    def enqueue_paragraph_vector_backfill(
-        self,
-        paragraph_hash: str,
-        *,
-        error: str = "",
-    ) -> None:
-        self._kernel._enqueue_paragraph_vector_backfill(paragraph_hash, error=error)
-
 
 class SDKMemoryKernel:
     def __init__(self, *, plugin_root: Path, config: Optional[Dict[str, Any]] = None) -> None:
@@ -185,7 +83,7 @@ class SDKMemoryKernel:
         self.import_task_manager: Optional[ImportTaskManager] = None
         self.retrieval_tuning_manager: Optional[RetrievalTuningManager] = None
         self._runtime_bundle: Optional[SearchRuntimeBundle] = None
-        self._runtime_facade = _KernelRuntimeFacade(self)
+        self._runtime_self_check_report: Dict[str, Any] = {}
         self._initialized = False
         self._last_maintenance_at: Optional[float] = None
         self._request_dedup_tasks: Dict[str, asyncio.Task] = {}
@@ -212,6 +110,9 @@ class SDKMemoryKernel:
         self._hit_filter_service: Optional[Any] = None
         self._search_service: Optional[Any] = None
         self._ingest_service: Optional[Any] = None
+
+    def get_config(self, key: str, default: Any = None) -> Any:
+        return self._cfg(key, default)
 
     def _cfg(self, key: str, default: Any = None) -> Any:
         current: Any = self.config
@@ -267,7 +168,7 @@ class SDKMemoryKernel:
                 "embedding_manager": self.embedding_manager,
                 "sparse_index": self.sparse_index,
                 "relation_write_service": self.relation_write_service,
-                "plugin_instance": self._runtime_facade,
+                "plugin_instance": self,
             }
         )
         return runtime_config
@@ -434,14 +335,6 @@ class SDKMemoryKernel:
     def _current_embedding_status_dimension(self) -> int:
         return self._vector_pool_manager.current_embedding_status_dimension()
 
-    def _current_embedding_fingerprint(self, *, dimension: Optional[int] = None) -> Optional[Dict[str, Any]]:
-        return self._vector_pool_manager.current_embedding_fingerprint(dimension=dimension)
-
-    def _stored_embedding_fingerprint(self, store: Optional[VectorStore] = None) -> Optional[Dict[str, Any]]:
-        return self._vector_pool_manager.stored_embedding_fingerprint(store)
-
-    def _stamp_missing_embedding_fingerprint_if_dimension_matches(self, store: Optional[VectorStore]) -> bool:
-        return self._vector_pool_manager.stamp_missing_embedding_fingerprint_if_dimension_matches(store)
 
     @staticmethod
     def _embedding_fingerprint_status(
@@ -472,20 +365,6 @@ class SDKMemoryKernel:
     def _allow_metadata_only_write(self) -> bool:
         return self._embedding_health_service.config.allow_metadata_only_write
 
-    def _embedding_probe_interval_seconds(self) -> float:
-        return self._embedding_health_service.config.embedding_probe_interval_seconds
-
-    def _paragraph_vector_backfill_enabled(self) -> bool:
-        return self._embedding_health_service.config.paragraph_vector_backfill_enabled
-
-    def _paragraph_vector_backfill_interval_seconds(self) -> float:
-        return self._embedding_health_service.config.paragraph_vector_backfill_interval_seconds
-
-    def _paragraph_vector_backfill_batch_size(self) -> int:
-        return self._embedding_health_service.config.paragraph_vector_backfill_batch_size
-
-    def _paragraph_vector_backfill_max_retry(self) -> int:
-        return self._embedding_health_service.config.paragraph_vector_backfill_max_retry
 
     def _vector_pool_mode(self) -> str:
         return self._vector_pool_manager.config.mode
@@ -505,14 +384,6 @@ class SDKMemoryKernel:
     def _graph_vector_dir(self) -> Path:
         return self._vector_pool_manager.graph_vector_dir()
 
-    def _dual_vector_ready_manifest_path(self) -> Path:
-        return self._vector_pool_manager.dual_vector_ready_manifest_path()
-
-    def _read_dual_vector_ready_manifest(self) -> Optional[Dict[str, Any]]:
-        return self._vector_pool_manager.read_dual_vector_ready_manifest()
-
-    def _dual_vector_ready(self, *, expected_dimension: Optional[int] = None) -> bool:
-        return self._vector_pool_manager.dual_vector_ready(expected_dimension=expected_dimension)
 
     def _write_dual_vector_ready_manifest(
         self,
@@ -541,8 +412,6 @@ class SDKMemoryKernel:
     def _activate_dual_vector_build_dirs(self, build_root: Path) -> None:
         return self._vector_pool_manager.activate_dual_vector_build_dirs(build_root)
 
-    def _cleanup_stale_dual_vector_build_dirs(self) -> None:
-        return self._vector_pool_manager.cleanup_stale_dual_vector_build_dirs()
 
     def _make_vector_store(self, data_dir: Path, *, dimension: Optional[int] = None) -> VectorStore:
         return self._vector_pool_manager.make_vector_store(data_dir, dimension=dimension)
@@ -561,9 +430,6 @@ class SDKMemoryKernel:
         self.graph_vector_store = self._vector_pool_manager.graph_vector_store
         return result
 
-    def _try_recover_dual_ready_manifest(self) -> bool:
-        self._vector_pool_manager.metadata_store = self.metadata_store
-        return self._vector_pool_manager.try_recover_dual_ready_manifest()
 
     def _drop_dual_build_root(self, build_root: Optional[Path]) -> None:
         return self._vector_pool_manager.drop_dual_build_root(build_root)
@@ -640,7 +506,7 @@ class SDKMemoryKernel:
             embedding_manager=self.embedding_manager,
             sample_text=sample_text,
         )
-        self._runtime_facade._runtime_self_check_report = dict(report)
+        self._runtime_self_check_report = dict(report)
         checked_at = float(report.get("checked_at") or time.time())
         self._embedding_health_service.update_last_check(checked_at)
 
@@ -651,13 +517,13 @@ class SDKMemoryKernel:
             int(self._cfg("embedding.dimension", self.embedding_dimension) or self.embedding_dimension),
         )
         requested_dimension = self._current_embedding_status_dimension()
-        vector_store_dimension = int(getattr(self.vector_store, "dimension", 0) or 0)
+        vector_store_dimension = int(self.vector_store.dimension if self.vector_store is not None else 0)
         self._embedding_health_service.mark_startup_self_check_deferred(
             configured_dimension=configured_dimension,
             requested_dimension=requested_dimension,
             vector_store_dimension=vector_store_dimension,
         )
-        self._runtime_facade._runtime_self_check_report = self._embedding_health_service.runtime_self_check_report
+        self._runtime_self_check_report = self._embedding_health_service.runtime_self_check_report
 
     def _is_startup_self_check_deferred(self) -> bool:
         return self._embedding_health_service.is_startup_self_check_deferred()
@@ -679,7 +545,7 @@ class SDKMemoryKernel:
             return ""
 
         self.embedding_dimension = int(detected_dimension)
-        vector_dimension = int(getattr(self.vector_store, "dimension", 0) or 0)
+        vector_dimension = int(self.vector_store.dimension if self.vector_store is not None else 0)
         if vector_dimension <= 0 or vector_dimension == detected_dimension:
             return ""
 
@@ -692,7 +558,16 @@ class SDKMemoryKernel:
         self._vector_rebuild_source_dimension = int(stored_dimension)
         return message
 
-    def _enqueue_paragraph_vector_backfill(self, paragraph_hash: str, *, error: str = "") -> None:
+    async def reinforce_access(self, relation_hashes: Sequence[str]) -> None:
+        if self.metadata_store is None:
+            return
+        hashes = [str(item or "").strip() for item in relation_hashes if str(item or "").strip()]
+        if not hashes:
+            return
+        self.metadata_store.reinforce_relations(hashes)
+        self._last_maintenance_at = time.time()
+
+    def enqueue_paragraph_vector_backfill(self, paragraph_hash: str, *, error: str = "") -> None:
         if self.metadata_store is None:
             return
         try:
@@ -703,7 +578,7 @@ class SDKMemoryKernel:
         except Exception as exc:
             logger.warning(f"登记 paragraph 向量回填任务失败: {exc}")
 
-    async def _write_paragraph_vector_or_enqueue(
+    async def write_paragraph_vector_or_enqueue(
         self,
         *,
         paragraph_hash: str,
@@ -727,7 +602,7 @@ class SDKMemoryKernel:
         if target_store is None or self.embedding_manager is None:
             if not allow_metadata_only:
                 raise RuntimeError("向量写入依赖未初始化")
-            self._enqueue_paragraph_vector_backfill(token, error="vector_runtime_components_missing")
+            self.enqueue_paragraph_vector_backfill(token, error="vector_runtime_components_missing")
             return {
                 "success": True,
                 "vector_written": False,
@@ -739,7 +614,7 @@ class SDKMemoryKernel:
         if self._is_embedding_degraded():
             if not allow_metadata_only:
                 raise RuntimeError("embedding 处于降级态，metadata-only 写入已禁用")
-            self._enqueue_paragraph_vector_backfill(token, error="embedding_degraded")
+            self.enqueue_paragraph_vector_backfill(token, error="embedding_degraded")
             return {
                 "success": True,
                 "vector_written": False,
@@ -775,7 +650,7 @@ class SDKMemoryKernel:
                 self._set_embedding_degraded(active=True, reason=error_text[:500], checked_at=time.time())
             if not allow_metadata_only:
                 raise
-            self._enqueue_paragraph_vector_backfill(token, error=error_text)
+            self.enqueue_paragraph_vector_backfill(token, error=error_text)
             return {
                 "success": True,
                 "vector_written": False,
@@ -813,8 +688,8 @@ class SDKMemoryKernel:
                 "detail": "embedding_degraded",
             }
 
-        safe_limit = max(1, int(limit or self._paragraph_vector_backfill_batch_size()))
-        safe_retry = max(1, int(max_retry or self._paragraph_vector_backfill_max_retry()))
+        safe_limit = max(1, int(limit or self._embedding_health_service.config.paragraph_vector_backfill_batch_size))
+        safe_retry = max(1, int(max_retry or self._embedding_health_service.config.paragraph_vector_backfill_max_retry))
         rows = self.metadata_store.fetch_paragraph_vector_backfill_batch(limit=safe_limit, max_retry=safe_retry)
         if not rows:
             return {"success": True, "processed": 0, "done": 0, "failed": 0, "trigger": trigger}
@@ -1110,9 +985,9 @@ class SDKMemoryKernel:
             plugin_config=runtime_config,
         )
         if not preserve_managers:
-            self.import_task_manager = ImportTaskManager(self._runtime_facade)
+            self.import_task_manager = ImportTaskManager(self)
             self.retrieval_tuning_manager = RetrievalTuningManager(
-                self._runtime_facade,
+                self,
                 import_write_blocked_provider=self.import_task_manager.is_write_blocked,
             )
 
@@ -1701,10 +1576,10 @@ class SDKMemoryKernel:
         if ok:
             self._set_embedding_degraded(active=False, checked_at=checked_at)
             backfill_result: Dict[str, Any] = {}
-            if self._paragraph_vector_backfill_enabled():
+            if self._embedding_health_service.config.paragraph_vector_backfill_enabled:
                 backfill_result = await self._run_paragraph_backfill_once(
-                    limit=self._paragraph_vector_backfill_batch_size(),
-                    max_retry=self._paragraph_vector_backfill_max_retry(),
+                    limit=self._embedding_health_service.config.paragraph_vector_backfill_batch_size,
+                    max_retry=self._embedding_health_service.config.paragraph_vector_backfill_max_retry,
                     trigger="embedding_recovered",
                 )
             return {
@@ -1800,7 +1675,7 @@ class SDKMemoryKernel:
             logger.warning(f"sparse 配置非法，回退默认: {exc}")
             sparse_cfg = SparseBM25Config()
         self.sparse_index = SparseBM25Index(metadata_store=self.metadata_store, config=sparse_cfg)
-        if getattr(self.sparse_index.config, "enabled", False):
+        if self.sparse_index.config.enabled:
             warmup_summary = self.sparse_index.warmup()
             if warmup_summary.get("ok"):
                 logger.info(
@@ -1849,9 +1724,9 @@ class SDKMemoryKernel:
         self._apply_runtime_sparse_mode()
 
         self._refresh_runtime_dependents(preserve_managers=True)
-        self.import_task_manager = ImportTaskManager(self._runtime_facade)
+        self.import_task_manager = ImportTaskManager(self)
         self.retrieval_tuning_manager = RetrievalTuningManager(
-            self._runtime_facade,
+            self,
             import_write_blocked_provider=self.import_task_manager.is_write_blocked,
         )
 
@@ -2037,7 +1912,7 @@ class SDKMemoryKernel:
             merge_tokens=self._merge_tokens,
             time_meta=self._time_meta,
             resolve_knowledge_type=self._resolve_knowledge_type,
-            write_paragraph_vector_or_enqueue=self._write_paragraph_vector_or_enqueue,
+            write_paragraph_vector_or_enqueue=self.write_paragraph_vector_or_enqueue,
             ensure_entity_vector=self._ensure_entity_vector,
             should_auto_enqueue_episode=self._should_auto_enqueue_episode,
             persist=self._persist,
@@ -2086,7 +1961,7 @@ class SDKMemoryKernel:
                 self.metadata_store.close()
             self._initialized = False
             self._request_dedup_tasks.clear()
-            self._runtime_facade._runtime_self_check_report = {}
+            self._runtime_self_check_report = {}
             self._active_person_timestamps.clear()
 
 
@@ -2430,65 +2305,6 @@ class SDKMemoryKernel:
             progress, now=now, explicit_processed=explicit_processed, completed=completed, success=success,
         )
 
-        def _coerce_non_negative_int(value: Any, default: int = 0) -> int:
-            try:
-                number = int(float(value))
-            except (TypeError, ValueError):
-                return default
-            return max(0, number)
-
-        total = _coerce_non_negative_int(payload.get("total"), 0)
-        if total <= 0:
-            counts = payload.get("counts")
-            if isinstance(counts, dict):
-                total = sum(
-                    _coerce_non_negative_int(counts.get(key), 0)
-                    for key in ("paragraphs", "entities", "relations")
-                )
-
-        processed_keys = (
-            "paragraph_done",
-            "paragraph_failed",
-            "entity_done",
-            "entity_failed",
-            "relation_done",
-            "relation_failed",
-        )
-        if explicit_processed:
-            processed = _coerce_non_negative_int(payload.get("processed"), 0)
-        elif any(key in payload for key in processed_keys):
-            processed = sum(_coerce_non_negative_int(payload.get(key), 0) for key in processed_keys)
-        else:
-            processed = _coerce_non_negative_int(payload.get("processed"), 0)
-        if total > 0:
-            processed = min(processed, total)
-
-        if completed and success:
-            if total > 0:
-                processed = total
-            percent = 100.0
-        elif total > 0:
-            percent = min(99.5, max(0.0, (float(processed) / float(total)) * 100.0))
-        else:
-            percent = 0.0
-
-        estimated_remaining_seconds: Optional[int] = None
-        if not completed and total > 0 and 0 < processed < total and elapsed_seconds > 0.0:
-            rate = float(processed) / elapsed_seconds
-            if rate > 0.0:
-                remaining = (float(total) - float(processed)) / rate
-                estimated_remaining_seconds = max(0, int(remaining + 0.999))
-
-        payload.update(
-            {
-                "total": int(total),
-                "processed": int(processed),
-                "percent": round(percent, 2),
-                "elapsed_seconds": round(elapsed_seconds, 3),
-                "estimated_remaining_seconds": estimated_remaining_seconds,
-            }
-        )
-        return payload
 
     def _update_dual_vector_auto_migration_stage(self, stage: str, **progress: Any) -> None:
         return self._vector_pool_manager.update_dual_vector_auto_migration_stage(stage, **progress)
@@ -2588,7 +2404,7 @@ class SDKMemoryKernel:
                 self._save_vector_store(self.graph_vector_store)
         if self.graph_store is not None:
             self.graph_store.save()
-        if self.sparse_index is not None and getattr(self.sparse_index.config, "enabled", False):
+        if self.sparse_index is not None and self.sparse_index.config.enabled:
             self.sparse_index.ensure_loaded()
 
     async def _start_background_tasks(self) -> None:
@@ -2607,12 +2423,6 @@ class SDKMemoryKernel:
             registrations["dual_vector_auto_migration"] = self._dual_vector_auto_migration_loop
         await self._background_scheduler.start_all(registrations)
 
-    def _ensure_background_task(
-        self,
-        name: str,
-        factory: Callable[[], Coroutine[Any, Any, None]],
-    ) -> None:
-        self._background_scheduler.ensure_task(name, factory)
 
     async def _sleep_background(self, seconds: float) -> None:
         await self._background_scheduler.sleep(seconds)
@@ -2782,7 +2592,7 @@ class SDKMemoryKernel:
     async def _embedding_probe_loop(self) -> None:
         try:
             while not self._background_scheduler.stopping:
-                await asyncio.sleep(self._embedding_probe_interval_seconds())
+                await asyncio.sleep(self._embedding_health_service.config.embedding_probe_interval_seconds)
                 if self._background_scheduler.stopping:
                     break
                 startup_deferred = self._is_startup_self_check_deferred()
@@ -2802,16 +2612,16 @@ class SDKMemoryKernel:
     async def _paragraph_vector_backfill_loop(self) -> None:
         try:
             while not self._background_scheduler.stopping:
-                await asyncio.sleep(self._paragraph_vector_backfill_interval_seconds())
+                await asyncio.sleep(self._embedding_health_service.config.paragraph_vector_backfill_interval_seconds)
                 if self._background_scheduler.stopping:
                     break
-                if not self._paragraph_vector_backfill_enabled():
+                if not self._embedding_health_service.config.paragraph_vector_backfill_enabled:
                     continue
                 if self._is_embedding_degraded():
                     continue
                 await self._run_paragraph_backfill_once(
-                    limit=self._paragraph_vector_backfill_batch_size(),
-                    max_retry=self._paragraph_vector_backfill_max_retry(),
+                    limit=self._embedding_health_service.config.paragraph_vector_backfill_batch_size,
+                    max_retry=self._embedding_health_service.config.paragraph_vector_backfill_max_retry,
                     trigger="loop",
                 )
         except asyncio.CancelledError:
@@ -2878,27 +2688,10 @@ class SDKMemoryKernel:
     ) -> tuple[Dict[str, List[Dict[str, Any]]], Dict[str, Dict[str, Any]]]:
         return self._hit_filter_service.load_paragraph_stale_marks(paragraph_hashes)
 
-    def _paragraph_hidden_by_stale_marks(
-        self,
-        paragraph_hash: str,
-        *,
-        marks_by_paragraph: Optional[Dict[str, List[Dict[str, Any]]]] = None,
-        relation_status_map: Optional[Dict[str, Dict[str, Any]]] = None,
-    ) -> bool:
-        return self._hit_filter_service.paragraph_hidden_by_stale_marks(
-            paragraph_hash,
-            marks_by_paragraph=marks_by_paragraph,
-            relation_status_map=relation_status_map,
-        )
-
-    def _filter_episode_hits(self, hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        return self._hit_filter_service.filter_episode_hits(hits)
 
     def _filter_user_visible_hits(self, hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         return self._hit_filter_service.filter_user_visible_hits(hits)
 
-    def _filter_current_effective_hits(self, hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        return self._hit_filter_service.filter_current_effective_hits(hits)
 
     def _current_effective_filter_store_check_needed(self, hits: List[Dict[str, Any]]) -> bool:
         return self._hit_filter_service._current_effective_filter_store_check_needed(hits)
@@ -3003,8 +2796,6 @@ class SDKMemoryKernel:
     async def _process_feedback_episode_rebuild_batch(self, *, limit: int) -> Dict[str, Any]:
         return await self._feedback_correction_service._process_feedback_episode_rebuild_batch(limit=limit)
 
-    async def _feedback_correction_reconcile_loop(self) -> None:
-        await self._feedback_correction_service._feedback_correction_reconcile_loop()
 
     @staticmethod
     def _coerce_datetime(value: Any) -> Optional[datetime]:
@@ -3272,8 +3063,6 @@ class SDKMemoryKernel:
     async def _process_feedback_task(self, task: Dict[str, Any]) -> None:
         await self._feedback_correction_service._process_feedback_task(task)
 
-    async def _feedback_correction_loop(self) -> None:
-        await self._feedback_correction_service._feedback_correction_loop()
 
     def _mark_person_active(self, person_id: str) -> None:
         token = str(person_id or "").strip()
@@ -3319,28 +3108,10 @@ class SDKMemoryKernel:
     ) -> List[Dict[str, Any]]:
         return self._graph_ops_service.query_relation_rows_by_hashes(relation_hashes, include_inactive=include_inactive)
 
-    def _query_distinct_paragraph_hashes_for_relations(
-        self,
-        relation_hashes: Sequence[str],
-        *,
-        limit: Optional[int] = None,
-    ) -> List[str]:
-        return self._graph_ops_service.query_distinct_paragraph_hashes_for_relations(relation_hashes, limit=limit)
 
     def _load_paragraph_rows(self, paragraph_hashes: Sequence[str]) -> List[Dict[str, Any]]:
         return self._graph_ops_service.load_paragraph_rows(paragraph_hashes)
 
-    def _resolve_graph_node_name(self, node_id: str) -> str:
-        return self._graph_ops_service.resolve_graph_node_name(node_id)
-
-    def _get_related_relation_rows_for_entity(self, entity_name: str, *, limit: int) -> List[Dict[str, Any]]:
-        return self._graph_ops_service.get_related_relation_rows_for_entity(entity_name, limit=limit)
-
-    def _build_relation_summary(self, row: Dict[str, Any], paragraph_hashes: Optional[Sequence[str]] = None) -> Dict[str, Any]:
-        return self._graph_ops_service.build_relation_summary(row, paragraph_hashes=paragraph_hashes)
-
-    def _build_paragraph_summary(self, row: Dict[str, Any]) -> Dict[str, Any]:
-        return self._graph_ops_service.build_paragraph_summary(row)
 
     @staticmethod
     def _evidence_entity_node_id(name: str) -> str:
@@ -3354,20 +3125,6 @@ class SDKMemoryKernel:
     def _evidence_paragraph_node_id(hash_value: str) -> str:
         return GraphOpsService._evidence_paragraph_node_id(hash_value)
 
-    def _build_evidence_graph(
-        self,
-        *,
-        focus_entities: Sequence[str],
-        relation_rows: Sequence[Dict[str, Any]],
-        paragraph_rows: Sequence[Dict[str, Any]],
-        node_limit: int,
-    ) -> Dict[str, Any]:
-        return self._graph_ops_service.build_evidence_graph(
-            focus_entities=focus_entities,
-            relation_rows=relation_rows,
-            paragraph_rows=paragraph_rows,
-            node_limit=node_limit,
-        )
 
     def _build_graph_node_detail(
         self,
@@ -3402,23 +3159,6 @@ class SDKMemoryKernel:
     def _rebuild_graph_from_metadata(self) -> Dict[str, int]:
         return self._graph_ops_service.rebuild_graph_from_metadata()
 
-    def _rename_node(self, old_name: str, new_name: str) -> Dict[str, Any]:
-        return self._graph_ops_service.rename_node(old_name, new_name)
-
-    def _update_edge_weight(
-        self,
-        *,
-        relation_hash: str,
-        subject: str,
-        obj: str,
-        weight: float,
-    ) -> Dict[str, Any]:
-        return self._graph_ops_service.update_edge_weight(
-            relation_hash=relation_hash,
-            subject=subject,
-            obj=obj,
-            weight=weight,
-        )
 
     @staticmethod
     def _tokens(values: Optional[Iterable[Any]]) -> List[str]:
@@ -3491,28 +3231,6 @@ class SDKMemoryKernel:
     def _metadata_chat_scope_ids(cls, metadata: Dict[str, Any]) -> set[str]:
         return HitFilterService._metadata_chat_scope_ids(metadata)
 
-    def _filter_hits_by_chat_scope(
-        self,
-        hits: List[Dict[str, Any]],
-        chat_id: str,
-        shared_chat_ids: Sequence[str] = (),
-    ) -> List[Dict[str, Any]]:
-        return self._hit_filter_service.filter_hits_by_chat_scope(hits, chat_id, shared_chat_ids)
-
-    def _filter_hits_by_retrieval_type_scope(
-        self,
-        hits: List[Dict[str, Any]],
-        *,
-        current_stream_id: str = "",
-        current_group_id: str = "",
-        current_user_id: str = "",
-    ) -> List[Dict[str, Any]]:
-        return self._hit_filter_service.filter_hits_by_retrieval_type_scope(
-            hits,
-            current_stream_id=current_stream_id,
-            current_group_id=current_group_id,
-            current_user_id=current_user_id,
-        )
 
     def _has_enabled_retrieval_type_filter(self) -> bool:
         return self._hit_filter_service._has_enabled_retrieval_type_filter()
@@ -3586,8 +3304,6 @@ class SDKMemoryKernel:
             payload["time_confidence"] = 0.95
         return payload
 
-    def _filter_active_relation_hits(self, hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        return self._hit_filter_service.filter_active_relation_hits(hits)
 
     def _resolve_relation_hashes(self, target: str) -> List[str]:
         assert self.metadata_store
@@ -3668,23 +3384,10 @@ class SDKMemoryKernel:
     def _normalize_fuzzy_modify_scope(scope: str) -> str:
         return FuzzyModifyService._normalize_fuzzy_modify_scope(scope)
 
-    def _fuzzy_modify_cfg_enabled(self) -> bool:
-        return self._fuzzy_modify_config.enabled
-
-    def _fuzzy_modify_cfg_auto_execute_enabled(self) -> bool:
-        return self._fuzzy_modify_config.auto_execute_enabled
-
-    def _fuzzy_modify_cfg_confirm_threshold(self) -> float:
-        return self._fuzzy_modify_config.confirm_threshold
 
     def _fuzzy_modify_cfg_candidate_limit(self) -> int:
         return self._fuzzy_modify_config.candidate_limit
 
-    def _fuzzy_modify_cfg_max_targets(self) -> int:
-        return self._fuzzy_modify_config.max_targets
-
-    def _fuzzy_modify_cfg_allow_global_scope(self) -> bool:
-        return self._fuzzy_modify_config.allow_global_scope
 
     def _adjust_relation_confidence(self, hashes: List[str], *, delta: float) -> Dict[str, float]:
         return self._v5_memory_service.adjust_relation_confidence(hashes, delta=delta)
@@ -3872,21 +3575,11 @@ class SDKMemoryKernel:
         token = str(selector or "").strip()
         return {"query": token} if token else {}
 
-    def _resolve_paragraph_targets(self, selector: Any, *, include_deleted: bool = False) -> List[Dict[str, Any]]:
-        return self._delete_service.resolve_paragraph_targets(selector, include_deleted=include_deleted)
-
-    def _resolve_entity_targets(self, selector: Any, *, include_deleted: bool = False) -> List[Dict[str, Any]]:
-        return self._delete_service.resolve_entity_targets(selector, include_deleted=include_deleted)
 
     def _resolve_source_targets(self, selector: Any) -> List[str]:
         raw = self._selector_dict(selector)
         return self._merge_tokens(raw.get("sources"), [raw.get("source")], [raw.get("query")], raw.get("items"))
 
-    def _snapshot_relation_item(self, hash_value: str) -> Optional[Dict[str, Any]]:
-        return self._delete_service.snapshot_relation_item(hash_value)
-
-    def _snapshot_paragraph_item(self, hash_value: str) -> Optional[Dict[str, Any]]:
-        return self._delete_service.snapshot_paragraph_item(hash_value)
 
     def _snapshot_entity_item(self, hash_value: str) -> Optional[Dict[str, Any]]:
         return self._delete_service.snapshot_entity_item(hash_value)
@@ -3930,42 +3623,6 @@ class SDKMemoryKernel:
                 return True
         return False
 
-    def _build_delete_preview_item(self, item: Dict[str, Any]) -> Dict[str, Any]:
-        return self._delete_service.build_delete_preview_item(item)
-
-    def _build_standard_delete_result(
-        self,
-        *,
-        mode: str,
-        operation_id: str = "",
-        counts: Optional[Dict[str, Any]] = None,
-        sources: Optional[Sequence[str]] = None,
-        deleted_entity_count: int = 0,
-        deleted_relation_count: int = 0,
-        deleted_paragraph_count: int = 0,
-        deleted_source_count: int = 0,
-        deleted_vector_count: int = 0,
-        requested_source_count: int = 0,
-        matched_source_count: int = 0,
-        error: str = "",
-    ) -> Dict[str, Any]:
-        return self._delete_service.build_standard_delete_result(
-            mode=mode,
-            operation_id=operation_id,
-            counts=counts,
-            sources=sources,
-            deleted_entity_count=deleted_entity_count,
-            deleted_relation_count=deleted_relation_count,
-            deleted_paragraph_count=deleted_paragraph_count,
-            deleted_source_count=deleted_source_count,
-            deleted_vector_count=deleted_vector_count,
-            requested_source_count=requested_source_count,
-            matched_source_count=matched_source_count,
-            error=error,
-        )
-
-    async def _build_delete_plan(self, *, mode: str, selector: Any) -> Dict[str, Any]:
-        return await self._delete_service.build_delete_plan(mode=mode, selector=selector)
 
     async def _preview_delete_action(self, *, mode: str, selector: Any) -> Dict[str, Any]:
         return await self._delete_service.preview_delete_action(mode=mode, selector=selector)
@@ -4008,8 +3665,6 @@ class SDKMemoryKernel:
     ) -> Dict[str, Any]:
         return await self._delete_service.restore_delete_action(mode=mode, selector=selector, operation_id=operation_id, requested_by=requested_by, reason=reason)
 
-    async def _restore_delete_operation(self, operation: Dict[str, Any]) -> Dict[str, Any]:
-        return await self._delete_service.restore_delete_operation(operation)
 
     async def _purge_deleted_memory(self, *, grace_hours: Optional[float], limit: int) -> Dict[str, Any]:
         return await self._delete_service.purge_deleted_memory(grace_hours=grace_hours, limit=limit)
