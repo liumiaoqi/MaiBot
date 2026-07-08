@@ -275,24 +275,25 @@ class AMemorixHostService:
         if component_name == "memory_stats":
             return kernel.memory_stats()
 
-        admin_action_names = {
-            "memory_graph_admin",
-            "memory_source_admin",
-            "memory_episode_admin",
-            "memory_profile_admin",
-            "memory_feedback_admin",
-            "memory_runtime_admin",
-            "memory_import_admin",
-            "memory_tuning_admin",
-            "memory_v5_admin",
-            "memory_delete_admin",
-            "memory_correction_admin",
-            "memory_fuzzy_modify_admin",
+        _ADMIN_HANDLER_MAP = {
+            "memory_graph_admin": "graph",
+            "memory_source_admin": "source",
+            "memory_episode_admin": "episode",
+            "memory_profile_admin": "profile",
+            "memory_feedback_admin": "feedback",
+            "memory_runtime_admin": "runtime",
+            "memory_import_admin": "import",
+            "memory_tuning_admin": "tuning",
+            "memory_v5_admin": "v5",
+            "memory_delete_admin": "delete",
+            "memory_correction_admin": "correction",
+            "memory_fuzzy_modify_admin": "correction",
         }
-        if component_name in admin_action_names:
+        handler_key = _ADMIN_HANDLER_MAP.get(component_name)
+        if handler_key is not None:
             kwargs = dict(payload)
             action = str(kwargs.pop("action", "") or "")
-            return await getattr(kernel, component_name)(action=action, **kwargs)
+            return await kernel._admin_handlers[handler_key].handle(action, **kwargs)
 
         raise RuntimeError(f"不支持的 A_Memorix 调用: {component_name}")
 

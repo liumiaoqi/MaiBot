@@ -11,6 +11,7 @@ from .correction import CorrectionAdminHandler
 from .profile import ProfileAdminHandler
 from .feedback import FeedbackAdminHandler
 from .episode import EpisodeAdminHandler
+from .source import SourceAdminHandler
 
 __all__ = [
     "BaseAdminHandler",
@@ -26,4 +27,5 @@ __all__ = [
     "ProfileAdminHandler",
     "FeedbackAdminHandler",
     "EpisodeAdminHandler",
+    "SourceAdminHandler",
 ]
