@@ -275,6 +275,88 @@ class AMemorixHostService:
         if component_name == "memory_stats":
             return kernel.memory_stats()
 
+        if component_name == "observe":
+            from .core.connectionist.enums import Valence
+
+            valence = Valence.NEUTRAL
+            valence_str = str(payload.get("valence", "") or "").strip()
+            if valence_str:
+                try:
+                    valence = Valence(valence_str)
+                except ValueError:
+                    pass
+            return await kernel._memory_field.observe(
+                text=str(payload.get("text", "") or ""),
+                valence=valence,
+                timestamp=payload.get("timestamp"),
+                source_id=str(payload.get("source_id", "") or ""),
+                session_id=str(payload.get("session_id", "") or ""),
+            )
+
+        if component_name == "recall":
+            seeds = payload.get("seeds") if isinstance(payload.get("seeds"), list) else []
+            return kernel._memory_field.recall(
+                seeds=[str(s) for s in seeds],
+                agent_id=str(payload.get("agent_id", "") or ""),
+                min_weight=float(payload.get("min_weight", 0.05) or 0.05),
+                max_results=int(payload.get("max_results", 20) or 20),
+            )
+
+        if component_name == "derive_profile":
+            return await kernel._memory_field.derive_profile(
+                subject=str(payload.get("subject", "") or ""),
+                observer=str(payload.get("observer", "") or ""),
+                now=payload.get("now"),
+            )
+
+        if component_name == "reflect":
+            return await kernel._memory_field.reflect(
+                subject=str(payload.get("subject", "") or ""),
+                agent_id=str(payload.get("agent_id", "") or ""),
+            )
+
+        if component_name == "register_agent":
+            from .core.connectionist.enums import VoiceStyle
+            from .core.connectionist.models import InnerVoice, MemoryPersonalityV2
+
+            personality = MemoryPersonalityV2(
+                decay_rate=float(payload.get("decay_rate", 1.0) or 1.0),
+                emotional_sensitivity=float(payload.get("emotional_sensitivity", 1.0) or 1.0),
+                association_depth=int(payload.get("association_depth", 2) or 2),
+                reinforcement_boost=float(payload.get("reinforcement_boost", 0.3) or 0.3),
+                attention_tags=frozenset(payload.get("attention_tags") if isinstance(payload.get("attention_tags"), list) else []),
+                positive_affinity=float(payload.get("positive_affinity", 1.0) or 1.0),
+                negative_affinity=float(payload.get("negative_affinity", 1.0) or 1.0),
+                curiosity=float(payload.get("curiosity", 1.0) or 1.0),
+            )
+            voices_data = payload.get("voices") if isinstance(payload.get("voices"), list) else []
+            voices = []
+            for v in voices_data:
+                if isinstance(v, dict):
+                    style_str = str(v.get("style", "preserve") or "preserve")
+                    try:
+                        style = VoiceStyle(style_str)
+                    except ValueError:
+                        style = VoiceStyle.PRESERVE
+                    voices.append(
+                        InnerVoice(
+                            name=str(v.get("name", "") or ""),
+                            style=style,
+                            focus_concepts=frozenset(v.get("focus_concepts") if isinstance(v.get("focus_concepts"), list) else []),
+                            weight_multiplier=float(v.get("weight_multiplier", 1.0) or 1.0),
+                            description=str(v.get("description", "") or ""),
+                        )
+                    )
+            kernel._memory_field.register_agent(
+                agent_id=str(payload.get("agent_id", "") or ""),
+                personality=personality,
+                voices=voices,
+            )
+            return {"success": True}
+
+        if component_name == "connectionist_stats":
+            return kernel._memory_field.memory_stats()
+
         _ADMIN_HANDLER_MAP = {
             "memory_graph_admin": "graph",
             "memory_source_admin": "source",

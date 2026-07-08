@@ -26,15 +26,20 @@
 ## 变量规范
 1. 当确定某个变量/实例是某种类型的时候（优先按照类型注解确定，除非你分析出类型注解是错误的），可以不必使用`or`进行fallback。
     - 例如，`bot_nickname = (global_config.bot.nickname or "").strip()` 可以改为 `bot_nickname = global_config.bot.nickname.strip()`，前提是我们确定`global_config.bot.nickname`一定是一个字符串。
+2. `or ""` 兜底消除进度：当前 SDKMemoryKernel 中 87 处（已低于 ≤150 目标）。合理豁免场景：外部数据源返回值可能为 None（如 `dict.get(key, "") or ""` 中 dict.get 已提供默认值时可删除；`str(x or "").strip()` 在 x 已知为 str 时可简化为 `x.strip()`）。
 
 ## 类属性使用规范
 1. 应该尽量减少使用getattr和setattr方法，除非是在对一个动态类进行处理或者使用Monkeypatch完成Pytest
 2. 在重构代码时，如果遇到getattr和setattr，应该尝试检查这个类实例是否有这个属性，如果有，则直接替换为类属性访问写法。
     - 举例：`v = getattr(instance, "value", "")` 在检查到`instance`有`value`属性后应该改为`v = instance.value`
+3. getattr 消除进度：当前 SDKMemoryKernel 中 8 处（目标 ≤5）。保留场景判定标准：对动态能力检测的 getattr（如 `encode_batch`、`iter_vectors_by_ids`）通过 Protocol 接口统一后消除；对已知接口的 getattr 替换为直接属性访问。
 
 ## debug规范
 1. 不要总是想找兜底，一定要精准的找到问题的核心，然后提出建议，兜底是不合适，难以维护的。
 2. 不要总是考虑fallback，如果哪里有错误，一定要让他及时完整的暴露，而不是用fall_back兜底掩盖过去
+3. 区分"不兜底"与"不写入脏数据"：
+    - **不兜底**：当确定某个值应该存在时，直接使用，不用 `or ""` / `or None` 掩盖可能的错误。错误应完整暴露。
+    - **不写入脏数据**：当某个值确实可能不存在（如外部数据源返回 None），不应强行计算一个 fallback 值写入数据库，而应跳过或报错。这不是"兜底"，而是"拒绝脏数据"。
 
 # 运行/调试/构建/测试/依赖
 优先使用uv
@@ -64,10 +69,17 @@ Radix 组件不随便移出上下文，像 TabsTrigger 必须留在 TabsList 里
 WebUI 开发服务固定起到 7999 端口。
 
 # 会话 ID 规范
-除聊天流创建/注册链路外，业务模块不应自行调用 `SessionUtils.calculate_session_id` 计算资源归属 ID。表达学习、黑话、记忆、WebUI、配置匹配等模块应通过 `chat_manager` 的内部接口，基于 platform、目标 ID 和聊天类型解析已存在的真实聊天流；如果解析不到真实 `ChatSession.session_id`，不要把自行计算的 fallback hash 写入数据库。
+除聊天流创建/注册链路外，业务模块不应自行调用 `SessionUtils.calculate_session_id` 计算资源归属 ID。表达学习、黑话、记忆、WebUI、配置匹配等模块应通过 `SessionRepository` Protocol 接口查询已存在的真实聊天流；如果查询不到真实 `ChatSession.session_id`，不应强行计算 fallback hash 写入数据库——这是拒绝脏数据，不是兜底。
 
 # 关于 A_memorix 修改
 A_Memorix 是 MaiBot 的核心记忆子系统，可以自由修改。修改约束仅来自 MaiBot 自身架构原则（核心隔离、Protocol 接口契约），详见 `src/A_memorix/MODIFICATION_POLICY.md`。
+
+当前重构进展：SDKMemoryKernel 已从 9650 行瘦身至 2911 行；`services/` 目录已提取 14 个服务文件；`admin/` 目录已提取 13 个 Admin Handler；`_KernelRuntimeFacade` 已删除；`host_service` 直接访问服务实例。
+
+当前约束：子模块不反向持有 SDKMemoryKernel 引用；外部 API 签名不变；不引入新的循环依赖。
+
+# 架构债务追踪
+重大架构变更（新增/删除 Protocol、消除架构债务、核心模块迁移）完成后，应同步更新 AGENTS.md 和 tasks.md 中的相关描述，确保规则性文件与代码实际状态一致。
 
 # prompt模板
 涉及对prompt模板的修改，要同步修改英文和日文的文件，对齐到中文
@@ -101,6 +113,62 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
    - 分类规则可配置，但决策权在智能体，不在链路层
 
 3. **规则引擎优先原则**：待命状态的环境感知必须是纯规则计算，不调用LLM。能用规则判断的决策（如"用户正在输入不需要回复"），不应交给Planner推理。规则调整参数而非替智能体决策——规则决定"是否触发Planner"，Planner决定"如何回应"。
+
+4. **组件兼容核心原则**：核心定义接口契约，组件实现契约。核心不依赖组件的具体实现类，只依赖 Protocol。新增代码禁止引入对 chat_manager、send_service、HeartFlow 等组件具体实现的直接导入。
+
+5. **记忆是连接而非对象原则**：记忆不是带标签的标本，而是概念之间的激活模式。新记忆 = 新连接，遗忘 = 连接衰减，回忆 = 重新激活模式。
+
+6. **主智能体-子智能体协作原则**：主智能体是用户的"哲学守护者"，子智能体是"代码专家"。分工不可避免，但必须防止两者孤立甚至对立：
+   - **原则随任务传递**：主智能体分派编码任务时，必须同时传递完成该任务所需遵循的特定原则（从 AGENTS.md 和会话上下文中提取），而非只传递"做什么"
+   - **审核双重标准**：主智能体审核子智能体产出时，不仅审核代码正确性，更审核是否违背用户的根本原则（核心禁止项、代码风格、架构约束）
+   - **禁止自动推进流程**：不得在用户未明确表示"进入下一阶段"时自动推进 SSD 流程；不得主动询问"有什么代码任务"——等待用户发起
+   - **上下文压缩后优先恢复原则**：压缩后丢失的首先是"为什么"，恢复时应优先从 AGENTS.md 重新加载核心原则，而非仅恢复任务状态
+
+## 核心禁止项
+
+1. 禁止核心直接导入 chat_manager
+2. 禁止核心访问 chat_manager._agent_router
+3. 禁止核心持有 BotChatSession 可变引用
+4. 禁止核心硬编码 napcat_* 字段
+5. 禁止核心绕过 MessagePort 直接调用 send_service
+6. 禁止核心导入 A_memorix 内部模块
+7. 禁止 Orchestrator 通过 enqueue_proactive_task 模拟多智能体
+
+# 核心架构
+
+## 微内核 + 接口契约
+
+核心模块（智能体 + 消息管道）不依赖组件具体实现，只通过 Protocol 接口交互。适配器层（`src/core/adapters/`）是唯一允许导入组件具体类的地方。
+
+### 核心接口层
+
+| Protocol | 职责 | 实现者 |
+|----------|------|--------|
+| SessionRepository | 会话查询 | ChatManagerSessionRepository |
+| AgentRoutingService | 智能体路由 | ChatManagerRoutingAdapter |
+| ChatRuntime | 运行时接口 | MaisakaHeartFlowChatting |
+| ChatRuntimeRegistry | 运行时注册表 | HeartflowRuntimeRegistry |
+| NoticeClassifier | 通知分类 | NapCatNoticeClassifier |
+| MemoryServicePort | 记忆服务 | AMemorixMemoryServicePort |
+| SessionInfoPort | 会话信息反查 | ChatManagerSessionInfoPort |
+| ThinkingOrgan | 思维管道 | ThinkingOrgan（agent_autonomy） |
+| ThinkingOrganFactory | 思维管道工厂 | ThinkingOrganFactory |
+
+## 内心状态三层
+
+- **情绪层**：当前情绪状态，由环境刺激和内部驱动共同决定
+- **欲望层**：内在需求（表达欲、社交欲、好奇心），驱动主动行为
+- **记忆层**：通过 MemoryServicePort 访问，记忆是连接而非对象
+
+## Agent-owns-Thinking
+
+每个智能体拥有自己的思维管道（ThinkingOrgan），Orchestrator 只协调"谁在思考"，不关心"怎么思考"。共居智能体可并行思考（ParallelThinkScheduler）。
+
+## 管家系统
+
+- **三层过滤**：相关性 → 时机 → 价值，决定是否触发插话
+- **提醒流**：到时提醒通过 ThinkingOrgan.think_proactive() 触发，不走 enqueue_proactive_task
+- **插话流**：通过 ThinkingOrgan.think() 触发，结果通过 MessagePort.send() 发出
 
 # changelog编写
 建议分为两部分，一部分是用户感知功能侧，一部分是开发侧（包含修复和插件sdk,api改动）。最好一个功能一行，按模块分。
