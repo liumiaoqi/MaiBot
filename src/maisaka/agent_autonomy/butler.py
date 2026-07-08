@@ -91,11 +91,14 @@ class Butler:
                     "attitude": rel.attitude,
                 })
 
+            focus_areas = list(agent.memory_personality.attention_tags) if agent.memory_personality.attention_tags else []
+
             self._resident_briefs.append({
                 "id": agent.agent_id,
                 "name": agent.display_name,
-                "personality_summary": (agent.personality or "")[:80],
+                "identity_summary": agent.get_identity_summary(),
                 "relationships": rels,
+                "focus_areas": focus_areas,
             })
             self._resident_ids.append(agent.agent_id)
 
@@ -127,6 +130,12 @@ class Butler:
                 for r in brief["relationships"]
             )
 
+            focus_matched = False
+            focus_areas = brief.get("focus_areas", [])
+            if focus_areas:
+                all_text_lower = all_text.lower()
+                focus_matched = any(area.lower() in all_text_lower for area in focus_areas)
+
             if is_mentioned:
                 candidates.append(InterjectionCandidate(
                     agent_id=aid,
@@ -135,11 +144,20 @@ class Butler:
                     has_relation=has_relation,
                 ))
             elif has_relation and random.random() < 0.5:
+                prob = 0.5 + (0.3 if focus_matched else 0.0)
+                if random.random() < prob:
+                    candidates.append(InterjectionCandidate(
+                        agent_id=aid,
+                        display_name=brief["name"],
+                        is_mentioned=False,
+                        has_relation=True,
+                    ))
+            elif focus_matched and random.random() < 0.4:
                 candidates.append(InterjectionCandidate(
                     agent_id=aid,
                     display_name=brief["name"],
                     is_mentioned=False,
-                    has_relation=True,
+                    has_relation=has_relation,
                 ))
             elif random.random() < 0.1:
                 candidates.append(InterjectionCandidate(
@@ -181,7 +199,9 @@ class Butler:
             "可能感兴趣的角色：\n"
         )
         for i, brief in enumerate(agent_list):
-            prompt += f"\n{i+1}. {brief['name']}（{brief['id']}）：{brief['personality_summary']}"
+            prompt += f"\n{i+1}. {brief['name']}（{brief['id']}）：{brief['identity_summary']}"
+            if brief.get("focus_areas"):
+                prompt += f"\n   关注领域：{'、'.join(brief['focus_areas'])}"
             if brief["relationships"]:
                 rel_str = "，".join(
                     f"与{r['target']}({r['type']})：{r['attitude']}"

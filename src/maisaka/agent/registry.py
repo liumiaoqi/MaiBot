@@ -99,3 +99,16 @@ class AgentConfigRegistry:
         if not self._loaded:
             self.load()
         return agent_id in self._agents
+
+    def reload_agent(self, agent_id: str) -> bool:
+        """重新加载指定智能体配置，不影响其他智能体"""
+        if agent_id not in self._agents:
+            logger.warning("智能体不存在，无法重载: %s", agent_id)
+            return False
+        config = self._loader.reload(agent_id)
+        if config is None:
+            logger.warning("智能体重载失败: %s", agent_id)
+            return False
+        self._agents[agent_id] = config
+        logger.info("智能体配置已重载: %s", agent_id)
+        return True
