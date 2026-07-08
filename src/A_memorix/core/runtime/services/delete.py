@@ -38,6 +38,7 @@ class DeleteService:
         ensure_paragraph_vector: Callable[[Dict[str, Any]], Coroutine[Any, Any, bool]],
         ensure_relation_vector: Callable[[Dict[str, Any]], Coroutine[Any, Any, bool]],
         optional_float: Callable[[Any], Optional[float]],
+        import_task_manager_getter: Callable[[], Any] = lambda: None,
     ) -> None:
         self.metadata_store = metadata_store
         self.graph_store = graph_store
@@ -59,6 +60,7 @@ class DeleteService:
         self._ensure_paragraph_vector = ensure_paragraph_vector
         self._ensure_relation_vector = ensure_relation_vector
         self._optional_float = optional_float
+        self._import_task_manager_getter = import_task_manager_getter
 
     # ── 快照方法（从 Kernel 一起迁移） ──────────────────────────
 
@@ -893,3 +895,101 @@ class DeleteService:
             "deleted_source_count": len(deleted_sources),
             "deleted_paragraph_count": deleted_paragraphs,
         }
+
+    async def restore_relation_hashes(
+        self,
+        hashes: List[str],
+        *,
+        payloads: Optional[Dict[str, Dict[str, Any]]] = None,
+        rebuild_graph: bool = True,
+        persist: bool = True,
+    ) -> Dict[str, Any]:
+        assert self.metadata_store
+        restored: List[str] = []
+        failures: List[Dict[str, str]] = []
+        conn = self.metadata_store.get_connection()
+        cursor = conn.cursor()
+        payload_map = payloads or {}
+        for hash_value in [str(item or "").strip() for item in hashes if str(item or "").strip()]:
+            relation = self.metadata_store.restore_relation(hash_value)
+            if relation is None:
+                relation = self.metadata_store.get_relation(hash_value)
+            if relation is None:
+                failures.append({"hash": hash_value, "error": "relation 不存在"})
+                continue
+            payload = payload_map.get(hash_value) if isinstance(payload_map.get(hash_value), dict) else {}
+            paragraph_hashes = self._tokens(payload.get("paragraph_hashes"))
+            for paragraph_hash in paragraph_hashes:
+                cursor.execute(
+                    """
+                    INSERT OR IGNORE INTO paragraph_relations (paragraph_hash, relation_hash)
+                    VALUES (?, ?)
+                    """,
+                    (paragraph_hash, hash_value),
+                )
+            await self._ensure_relation_vector({**relation, "hash": hash_value})
+            restored.append(hash_value)
+        conn.commit()
+        if restored and rebuild_graph:
+            self._rebuild_graph_from_metadata()
+        if restored and persist:
+            self._persist()
+        return {"restored_hashes": restored, "restored_count": len(restored), "failures": failures}
+
+    def relation_has_remaining_paragraphs(self, relation_hash: str, removing_hashes: Sequence[str]) -> bool:
+        from src.A_memorix.core.storage.metadata_store import coerce_metadata_dict
+        assert self.metadata_store
+        excluded = [str(item or "").strip() for item in removing_hashes if str(item or "").strip()]
+        conn = self.metadata_store.get_connection()
+        cursor = conn.cursor()
+        if excluded:
+            placeholders = ",".join(["?"] * len(excluded))
+            cursor.execute(
+                f"""
+                SELECT p.hash, p.metadata
+                FROM paragraph_relations pr
+                JOIN paragraphs p ON p.hash = pr.paragraph_hash
+                WHERE pr.relation_hash = ?
+                  AND pr.paragraph_hash NOT IN ({placeholders})
+                  AND (p.is_deleted IS NULL OR p.is_deleted = 0)
+                """,
+                tuple([relation_hash] + excluded),
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT p.hash, p.metadata
+                FROM paragraph_relations pr
+                JOIN paragraphs p ON p.hash = pr.paragraph_hash
+                WHERE pr.relation_hash = ?
+                  AND (p.is_deleted IS NULL OR p.is_deleted = 0)
+                """,
+                (relation_hash,),
+            )
+        import time
+        now = time.time()
+        for row in cursor.fetchall():
+            paragraph = self.metadata_store._row_to_dict(row, "paragraph")
+            metadata = coerce_metadata_dict(paragraph.get("metadata"))
+            memory_change = metadata.get("memory_change") if isinstance(metadata.get("memory_change"), dict) else {}
+            valid_to = self._optional_float(memory_change.get("valid_to"))
+            if valid_to is None or valid_to > now:
+                return True
+        return False
+
+    async def invalidate_import_manifest_for_sources(self, result: Dict[str, Any]) -> None:
+        if not isinstance(result, dict) or not result.get("success"):
+            return
+        manager = self._import_task_manager_getter()
+        if manager is None:
+            return
+        sources = self._tokens(result.get("sources"))
+        if not sources:
+            return
+        try:
+            manifest_result = await manager.invalidate_manifest_for_sources(sources)
+        except Exception as exc:
+            logger.warning(f"删除来源后清理导入清单失败: sources={sources}, err={exc}")
+            result["manifest_invalidation"] = {"success": False, "error": str(exc), "sources": sources}
+            return
+        result["manifest_invalidation"] = manifest_result
