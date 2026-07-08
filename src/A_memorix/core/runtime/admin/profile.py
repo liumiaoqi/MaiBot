@@ -54,7 +54,7 @@ class ProfileAdminHandler(BaseAdminHandler):
 
         if act == "process_pending":
             result = await self._kernel._process_feedback_profile_refresh_batch(
-                limit=max(1, int(kwargs.get("limit", self._kernel._feedback_cfg_reconcile_batch_size()) or self._kernel._feedback_cfg_reconcile_batch_size()))
+                limit=max(1, int(kwargs.get("limit", self._kernel._feedback_config.reconcile_batch_size) or self._kernel._feedback_config.reconcile_batch_size))
             )
             return {"success": True, **result}
 
