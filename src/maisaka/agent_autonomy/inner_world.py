@@ -23,17 +23,23 @@ class InnerWorldSnapshot:
 class InnerWorld:
     """内心世界门面——统一管理情绪/欲望/记忆性格三层。"""
 
-    def __init__(self, agent_id: str, agent_config: AgentConfig) -> None:
+    def __init__(
+        self,
+        agent_id: str,
+        agent_config: AgentConfig,
+        inner_need_engine: Any | None = None,
+    ) -> None:
         self._agent_id = agent_id
         self._agent_config = agent_config
         self._memory_personality = agent_config.memory_personality
 
         self._emotion_manager: Any | None = None
-        self._inner_need_engine: Any | None = None
+        self._inner_need_engine: Any | None = inner_need_engine
         self._voice_generator: InnerVoiceGenerator | None = None
 
         self._init_emotion()
-        self._init_desire()
+        if self._inner_need_engine is None:
+            self._init_desire()
         self._init_voice_generator()
 
     def _init_emotion(self) -> None:
@@ -83,6 +89,20 @@ class InnerWorld:
             except Exception:
                 emotion_text = "心情平静"
 
+        if self._inner_need_engine is not None:
+            try:
+                needs = self._inner_need_engine.evaluate(
+                    agent_id=self._agent_id,
+                    emotion_state=self._emotion_manager.state if self._emotion_manager else None,
+                    time_context=None,
+                )
+                if needs:
+                    desire_summary = "、".join(
+                        f"{n.description}" for n in needs[:3] if n.description
+                    )
+            except Exception:
+                desire_summary = ""
+
         if self._voice_generator is not None:
             try:
                 inner_voice = self._voice_generator.generate(
@@ -102,11 +122,26 @@ class InnerWorld:
 
     def generate_inner_voice(self) -> str:
         """纯规则生成内心声音文本。"""
+        desire_summary = ""
+        if self._inner_need_engine is not None:
+            try:
+                needs = self._inner_need_engine.evaluate(
+                    agent_id=self._agent_id,
+                    emotion_state=self._emotion_manager.state if self._emotion_manager else None,
+                    time_context=None,
+                )
+                if needs:
+                    desire_summary = "、".join(
+                        f"{n.description}" for n in needs[:3] if n.description
+                    )
+            except Exception:
+                desire_summary = ""
+
         if self._voice_generator is None:
             return "心里闪过一个念头..."
         return self._voice_generator.generate(
             emotion_state=self._emotion_manager.state if self._emotion_manager else None,
-            desire_summary="",
+            desire_summary=desire_summary,
             memory_personality=self._memory_personality,
         )
 
@@ -120,7 +155,11 @@ class InnerWorld:
 
     async def update_on_tick(self, time_context: dict[str, Any] | None = None) -> None:
         """心跳时触发情绪衰减和欲望评估。"""
-        pass
+        if self._emotion_manager is not None:
+            try:
+                self._emotion_manager.apply_decay()
+            except Exception as exc:
+                logger.debug("情绪衰减跳过: agent=%s error=%s", self._agent_id, exc)
 
     @property
     def emotion_manager(self) -> Any | None:
