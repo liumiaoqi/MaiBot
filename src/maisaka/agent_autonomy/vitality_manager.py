@@ -40,16 +40,6 @@ class VitalityManager:
         self._config = global_config.agent_autonomy
         self._tick_lock = asyncio.Lock()
 
-        from src.maisaka.agent_autonomy.inner_need import (
-            EmotionNeedCalculator,
-            InnerNeedEngine,
-            MemoryNeedCalculator,
-            TimeNeedCalculator,
-        )
-        self._inner_need_engine = InnerNeedEngine()
-        self._inner_need_engine.register_calculator("emotion", EmotionNeedCalculator())
-        self._inner_need_engine.register_calculator("memory", MemoryNeedCalculator())
-        self._inner_need_engine.register_calculator("time", TimeNeedCalculator())
 
     @staticmethod
     def _get_default_routing_service() -> AgentRoutingService:
@@ -259,7 +249,7 @@ class VitalityManager:
             agent = self._orchestrator._active_agents.get(agent_id) or AutonomousAgent(agent_id)
 
             time_context = {"hour": now.hour, "night_active": False}
-            needs = await self._inner_need_engine.evaluate(
+            needs = await agent.inner_need_engine.evaluate(
                 agent_id=agent_id,
                 emotion_state=agent.emotion_manager.state if agent.emotion_manager else None,
                 time_context=time_context,
@@ -313,6 +303,9 @@ class VitalityManager:
                     f"vitality={new_vitality:.1f} session={session_id}"
                 )
                 self._emit_state_change(agent_id, session_id, "standby", "active", "vitality_activation", new_vitality)
+
+                # 欲望驱动主动发言：跃迁后检查是否应该主动开口
+                await self._try_proactive_speech(agent_id, session_id, info.inner_need_summary)
                 return
 
         # 退场判定：待命超时且生命力为0
@@ -368,3 +361,63 @@ class VitalityManager:
             cooldown_minutes=dynamic_cooldown,
             max_interjections_per_hour=dynamic_max,
         )
+
+    async def _try_proactive_speech(
+        self,
+        agent_id: str,
+        session_id: str,
+        inner_need_summary: str,
+    ) -> None:
+        """欲望驱动主动发言：跃迁后检查冷却并触发 think_proactive。"""
+        cooldown_manager = self._orchestrator._cooldown_manager
+
+        if not cooldown_manager.can_speak_proactively(session_id, agent_id):
+            logger.debug(
+                f"[vitality] agent={agent_id} proactive_speech=skipped "
+                f"reason=cooldown session={session_id}"
+            )
+            return
+
+        agent = self._orchestrator._active_agents.get(agent_id)
+        if agent is None or agent.thinking_organ is None:
+            return
+
+        try:
+            from src.core.types import ThinkContext
+            from src.core.message_port_registry import get_message_port
+
+            think_context = ThinkContext(
+                messages=[],
+                emotion_state_text=agent.emotion_manager.state.to_prompt_text() if agent.emotion_manager else "",
+                relationship_text="",
+                memory_snippets="",
+                cohabitant_summary="",
+                trigger_reason=f"inner_need:{inner_need_summary or 'vitality_activation'}",
+                metadata={"proactive_reason": "inner_need"},
+            )
+
+            result = await agent.thinking_organ.think_proactive("inner_need", think_context)
+
+            if result.action.value == "reply" and result.text:
+                port = get_message_port()
+                await port.send(
+                    session_id=session_id,
+                    text=result.text,
+                    agent_id=agent_id,
+                    source="proactive_desire",
+                )
+                cooldown_manager.record_proactive_speech(session_id, agent_id)
+                logger.info(
+                    f"[vitality] agent={agent_id} proactive_speech=sent "
+                    f"reason=inner_need session={session_id}"
+                )
+            else:
+                logger.debug(
+                    f"[vitality] agent={agent_id} proactive_speech=silent "
+                    f"action={result.action.value} session={session_id}"
+                )
+        except Exception as exc:
+            logger.warning(
+                f"[vitality] agent={agent_id} proactive_speech=failed "
+                f"error={exc} session={session_id}"
+            )

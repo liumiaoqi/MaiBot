@@ -1,4 +1,4 @@
-"""插话冷却管理器——按智能体+会话管理插话冷却时间和频率限制。"""
+"""发言冷却管理器——按智能体+会话管理插话和主动发言的冷却时间与频率限制。"""
 
 from __future__ import annotations
 
@@ -11,10 +11,10 @@ logger = get_logger("agent_autonomy.interjection_cooldown")
 
 
 class InterjectionCooldownManager:
-    """插话冷却管理器。"""
+    """发言冷却管理器——同时管理插话和主动发言的冷却与频率。"""
 
     def __init__(self) -> None:
-        # (session_id, agent_id) -> last_interjection_at
+        # (session_id, agent_id) -> last_speak_at（插话或主动发言）
         self._last_interjection: dict[tuple[str, str], datetime] = {}
         # (session_id, agent_id) -> [interjection_times]
         self._interjection_history: dict[tuple[str, str], list[datetime]] = {}
@@ -89,3 +89,22 @@ class InterjectionCooldownManager:
         history = self._session_history.get(session_id, [])
         cutoff = datetime.now() - timedelta(hours=hours)
         return sum(1 for t in history if t >= cutoff)
+
+    def can_speak_proactively(
+        self,
+        session_id: str,
+        agent_id: str,
+        cooldown_minutes: float | None = None,
+        max_per_hour: int | None = None,
+    ) -> bool:
+        """检查智能体是否可以主动发言（复用插话冷却逻辑）。"""
+        return self.can_interject(
+            session_id,
+            agent_id,
+            override_cooldown=cooldown_minutes,
+            override_max_per_hour=max_per_hour,
+        )
+
+    def record_proactive_speech(self, session_id: str, agent_id: str) -> None:
+        """记录一次主动发言（复用插话记录逻辑，确保冷却共享）。"""
+        self.record_interjection(session_id, agent_id)

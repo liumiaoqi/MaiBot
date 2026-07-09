@@ -41,9 +41,10 @@ class AutonomousAgent:
         self._memory_adapter = None
         self._agent_config = None
         self._inner_world: InnerWorld | None = None
+        self._inner_need_engine: InnerNeedEngine | None = None
 
-        self._init_components()
         self._init_engines()
+        self._init_components()
 
     def _init_components(self) -> None:
         """初始化智能体的各个组件。"""
@@ -83,7 +84,9 @@ class AutonomousAgent:
 
         if self._agent_config is not None:
             try:
-                self._inner_world = InnerWorld(self._agent_id, self._agent_config)
+                self._inner_world = InnerWorld(
+                    self._agent_id, self._agent_config, inner_need_engine=self._inner_need_engine
+                )
             except Exception as exc:
                 logger.warning("内心世界初始化失败: agent=%s error=%s", self._agent_id, exc)
 
@@ -161,7 +164,9 @@ class AutonomousAgent:
             if registry.has_agent(self._agent_id):
                 self._agent_config = registry.get_agent(self._agent_id)
                 if self._inner_world is not None and self._agent_config is not None:
-                    self._inner_world = InnerWorld(self._agent_id, self._agent_config)
+                    self._inner_world = InnerWorld(
+                        self._agent_id, self._agent_config, inner_need_engine=self._inner_need_engine
+                    )
                 self._set_memory_personality()
         except Exception as exc:
             logger.warning("配置刷新失败: agent=%s error=%s", self._agent_id, exc)
