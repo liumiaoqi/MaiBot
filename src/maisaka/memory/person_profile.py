@@ -11,7 +11,7 @@ from src.common.logger import get_logger
 from src.config.config import global_config
 from src.core.protocols import MemoryServicePort
 from src.person_info.person_info import resolve_person_id_for_memory
-from src.services.memory_service import memory_service
+
 
 logger = get_logger("maisaka_person_profile_injector")
 
@@ -288,18 +288,16 @@ async def build_person_profile_injection_messages(
     blocks: list[str] = []
     for candidate in candidates:
         try:
-            payload = await memory_service.profile_admin(
-                action="query",
-                person_id=candidate.person_id,
+            payload = await _memory_port.get_person_profile(
+                candidate.person_id,
                 limit=PROFILE_QUERY_LIMIT,
             )
         except Exception as exc:
             logger.debug(f"查询人物画像注入内容失败: person_id={candidate.person_id!r} err={exc}")
             continue
 
-        if not isinstance(payload, dict) or not bool(payload.get("success")):
-            error = payload.get("error") if isinstance(payload, dict) else "invalid_payload"
-            logger.debug(f"人物画像注入跳过: person_id={candidate.person_id!r} error={error}")
+        if payload is None:
+            logger.debug(f"人物画像注入跳过: person_id={candidate.person_id!r} error=not_found")
             continue
 
         profile_text = await _memory_port.build_profile_injection_text(_extract_profile_text(payload))
