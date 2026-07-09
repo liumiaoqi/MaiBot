@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 from time import time
 from typing import Any, Sequence
 
-from src.chat.message_receive.chat_manager import BotChatSession
 from src.chat.message_receive.message import SessionMessage
 from src.common.data_models.message_component_data_model import AtComponent, ReplyComponent
 from src.common.logger import get_logger
@@ -14,7 +13,7 @@ from src.common.message_repository import count_messages, find_messages
 from src.common.prompt_i18n import load_prompt
 from src.config.config import global_config
 from src.core.session_port_registry import get_existing_session_info, get_session_name
-from src.core.types import MemoryHit
+from src.core.types import MemoryHit, SessionInfo
 from src.person_info.person_info import get_person_id
 from src.services.llm_service import LLMServiceClient
 
@@ -46,7 +45,7 @@ class HeuristicMemoryRecallState:
 class HeuristicMemoryContext:
     """一次启发式记忆召回的上下文。"""
 
-    session: BotChatSession
+    session: SessionInfo
     recent_messages: list[SessionMessage]
     active_person_ids: set[str] = field(default_factory=set)
     total_message_count: int = 0
@@ -114,30 +113,30 @@ class HeuristicMemoryInjector:
                 _get_int_config(config, "heuristic_memory_recall_min_new_messages", 60),
             ),
         ):
-            self.clear_session_reference(session.session_id)
+            self.clear_session_reference(session_info.session_id)
             return ""
 
         recent_messages = find_messages(
-            session_id=session.session_id,
+            session_id=session_info.session_id,
             limit=window_size,
             limit_mode="latest",
             filter_command=True,
         )
         if len(recent_messages) < window_size:
-            self.clear_session_reference(session.session_id)
+            self.clear_session_reference(session_info.session_id)
             return ""
 
         context = HeuristicMemoryContext(
-            session=session,
+            session=session_info,
             recent_messages=recent_messages,
             active_person_ids=self._collect_active_person_ids(recent_messages),
             total_message_count=total_message_count,
-            agent_id=getattr(session, "agent_id", "") or "",
+            agent_id=session_info.primary_agent_id,
         )
         try:
             impression = await self._build_chat_impression(context)
             if not impression:
-                self.clear_session_reference(session.session_id)
+                self.clear_session_reference(session_info.session_id)
                 return ""
             hits = await self._search_related_memory(impression, context)
             reference = self._format_reference(
@@ -145,7 +144,7 @@ class HeuristicMemoryInjector:
                 max_chars=max(100, _get_int_config(config, "heuristic_memory_recall_max_chars", 900)),
             )
         except Exception as exc:
-            self.clear_session_reference(session.session_id)
+            self.clear_session_reference(session_info.session_id)
             logger.debug(f"启发式记忆自然拉起失败，已跳过: {exc}", exc_info=True)
             return ""
 
@@ -155,7 +154,7 @@ class HeuristicMemoryInjector:
         state.cache_expires_at = now + cache_ttl if cache_ttl > 0 else 0.0
         if reference:
             logger.info(
-                f"启发式记忆自然拉起成功: session_id={session.session_id} "
+                f"启发式记忆自然拉起成功: session_id={session_info.session_id} "
                 f"hits={len(hits)} total_messages={total_message_count}"
             )
         return reference
@@ -343,7 +342,7 @@ class HeuristicMemoryInjector:
             return source[len(_SOURCE_CHAT_SUMMARY_PREFIX):].strip()
         return ""
 
-    def _is_chat_memory_allowed(self, source_session_id: str, current_session: BotChatSession) -> bool:
+    def _is_chat_memory_allowed(self, source_session_id: str, current_session: SessionInfo) -> bool:
         clean_source_session_id = str(source_session_id or "").strip()
         if not clean_source_session_id:
             return False
@@ -405,7 +404,7 @@ class HeuristicMemoryInjector:
         return person_ids
 
     @staticmethod
-    def _format_chat_identity(session: BotChatSession) -> str:
+    def _format_chat_identity(session: SessionInfo) -> str:
         chat_type = "group" if session.is_group_session else "private"
         display_name = get_session_name(session.session_id)
         parts = [
