@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any, Optional
 from typing import Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    from src.core.types import AgentConfig, MemorySearchResult, MemoryWriteResult, NoticeKind, SessionInfo, ThinkContext, ThinkResult
+    from src.core.types import AgentConfig, MemorySearchResult, MemoryWriteResult, NoticeKind, SendMessageResult, SessionInfo, ThinkContext, ThinkResult
 
 
 @runtime_checkable
@@ -470,4 +470,132 @@ class MessagePort(Protocol):
 
         Returns:
             是否发送成功
+        """
+
+    async def send_reply(
+        self,
+        session_id: str,
+        text: str,
+        *,
+        reply_to: str,
+        agent_id: str = "",
+        source: str = "core",
+    ) -> SendMessageResult:
+        """发送带引用的文本回复。
+
+        Args:
+            session_id: 目标会话 ID
+            text: 回复文本
+            reply_to: 被回复消息的 ID
+            agent_id: 发言智能体 ID
+            source: 消息来源标识
+
+        Returns:
+            SendMessageResult 包含发送结果和消息 ID
+        """
+
+    async def send_image(
+        self,
+        session_id: str,
+        image_base64: str,
+        *,
+        agent_id: str = "",
+        source: str = "core",
+    ) -> SendMessageResult:
+        """发送 Base64 编码的图片消息。
+
+        Args:
+            session_id: 目标会话 ID
+            image_base64: Base64 编码的图片数据
+            agent_id: 发言智能体 ID
+            source: 消息来源标识
+
+        Returns:
+            SendMessageResult 包含发送结果
+        """
+
+    async def send_emoji(
+        self,
+        session_id: str,
+        emoji_base64: str,
+        *,
+        reply_to: str = "",
+        agent_id: str = "",
+        source: str = "core",
+    ) -> SendMessageResult:
+        """发送 Base64 编码的表情消息，可选附带引用。
+
+        Args:
+            session_id: 目标会话 ID
+            emoji_base64: Base64 编码的表情数据
+            reply_to: 被回复消息的 ID（可选）
+            agent_id: 发言智能体 ID
+            source: 消息来源标识
+
+        Returns:
+            SendMessageResult 包含发送结果和消息 ID
+        """
+
+    async def send_hybrid(
+        self,
+        session_id: str,
+        segments: list[dict[str, Any]],
+        *,
+        reply_to: str = "",
+        agent_id: str = "",
+        source: str = "core",
+    ) -> SendMessageResult:
+        """发送混合消息（包含多种组件的消息序列）。
+
+        Args:
+            session_id: 目标会话 ID
+            segments: 消息组件列表，每项为 {"type": "text/image/emoji/at", ...}
+            reply_to: 被回复消息的 ID（可选）
+            agent_id: 发言智能体 ID
+            source: 消息来源标识
+
+        Returns:
+            SendMessageResult 包含发送结果
+        """
+
+    async def send_forward(
+        self,
+        session_id: str,
+        messages: list[dict[str, Any]],
+        *,
+        agent_id: str = "",
+        source: str = "core",
+    ) -> SendMessageResult:
+        """发送合并转发消息。
+
+        Args:
+            session_id: 目标会话 ID
+            messages: 转发节点列表，每项包含 user_id/user_nickname/content 等
+            agent_id: 发言智能体 ID
+            source: 消息来源标识
+
+        Returns:
+            SendMessageResult 包含发送结果
+        """
+
+    async def send_custom(
+        self,
+        session_id: str,
+        message_type: str,
+        content: Any,
+        *,
+        agent_id: str = "",
+        source: str = "core",
+    ) -> SendMessageResult:
+        """发送自定义类型消息。
+
+        Args:
+            session_id: 目标会话 ID
+            message_type: 自定义消息类型（如 "command"）
+            content: 消息内容
+            agent_id: 发言智能体 ID
+            source: 消息来源标识
+
+        Returns:
+            SendMessageResult 包含发送结果
         """

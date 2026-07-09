@@ -1,13 +1,13 @@
-﻿"""图片发送内置动作。"""
+"""图片发送内置动作。"""
 
 from base64 import b64encode
 from typing import Any, Optional
 
 from src.common.data_models.message_component_data_model import ImageComponent, MessageSequence
 from src.common.logger import get_logger
+from src.core.message_port_registry import get_message_port
 from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
 from src.maisaka.context.messages import SessionBackedMessage
-from src.services import send_service
 
 from .context import BuiltinToolRuntimeContext
 
@@ -161,12 +161,13 @@ async def handle_tool(
 
     image_base64 = b64encode(images[image_index].binary_data).decode("utf-8")
     source_label = f"{target_message_id} 的第 {image_index} 张图片"
-    success = await send_service.image_to_stream(
+    port = get_message_port()
+    result = await port.send_image(
+        session_id=tool_ctx.runtime.session_id,
         image_base64=image_base64,
-        stream_id=tool_ctx.runtime.session_id,
-        sync_to_maisaka_history=True,
-        maisaka_source_kind="send_image",
+        source="send_image",
     )
+    success = result.success
     if not success:
         return tool_ctx.build_failure_result(
             invocation.tool_name,
