@@ -1072,3 +1072,74 @@
 - **影响文件**：无（验证任务）
 - **优先级**：极高
 - **复杂度**：中
+
+---
+
+## 阶段 8：组件兼容核心 — 存量架构债务消除
+
+> 核心原则：核心定义接口契约，组件实现契约。新增代码禁止引入对 chat_manager、send_service、HeartFlow 等组件具体实现的直接导入。
+>
+> 已完成 6/8 项，剩余 2 项需更大范围设计决策。
+
+### TASK-8-01: 消除 maisaka 外围直接导入 chat_manager ✅
+
+- [x] 新增 `src/core/session_port_registry.py` — 全局 SessionInfoPort 注册点
+- [x] `SessionInfoPort` Protocol 新增 `get_existing_session_info`
+- [x] 消除 6 个 maisaka 文件的 `chat_manager` 单例导入
+- **验收标准**：`rg "from src.chat.message_receive.chat_manager import" src/maisaka/` 为 0 匹配（适配器除外）
+
+### TASK-8-02: 消除 maisaka 持有 BotChatSession 可变引用 ✅
+
+- [x] `runtime.py`: `self.chat_stream` 属性迁移到 `self._session_info`
+- [x] `FocusTargetResolution.session` → `session_info: SessionInfo`
+- [x] `SessionInfo` 新增 `created_timestamp`/`last_active_timestamp`
+- [x] `ChatManagerSessionRepository` 提取 `_build_session_info` 辅助方法
+- [x] 29 处 → 6 处残留（`.context` 访问和 `heuristic_injector` 方法参数）
+- **验收标准**：`rg "BotChatSession" src/maisaka/` 匹配数大幅减少
+
+### TASK-8-03: chat_loop_adapter 访问私有属性 ✅
+
+- [x] `ChatLoopServiceAdapter` 不再访问私有属性，改用公共接口
+- [x] `ChatRuntime` Protocol 新增 `agent_id`/`get_prompt_template_name`
+- [x] `MaisakaChatLoopService` 实现公共属性
+
+### TASK-8-04: A_memorix 内部模块泄漏到适配器 ✅
+
+- [x] `build_profile_injection_text` 改通过 `host_service` 公共 API
+- [x] 适配器不再直接导入 `A_memorix` 内部模块
+
+### TASK-8-05: memory_service 绕过 MemoryServicePort ✅
+
+- [x] `person_profile.py` 迁移到 `_memory_port.get_person_profile()`
+- [x] `heuristic_injector.py` 迁移到 `self.memory_port.search()` / `self.memory_port.delete_admin()`
+- [x] `adapter.py` 迁移到 `self.memory_port.search()` / `ingest_text()` / `maintain_memory()`
+- [x] `query_memory.py` 迁移到 `tool_ctx.memory_port.search()`
+- [x] `query_person_profile.py` 迁移到 `tool_ctx.memory_port.profile_admin()`
+- [x] `tool_post_execution.py` 迁移到 `_memory_port.enqueue_feedback_task()`
+- [x] `MemoryServicePort` Protocol 扩展：search 完整签名 + ingest_text/maintain_memory/delete_admin/profile_admin/enqueue_feedback_task
+- [x] `MemoryHit`/`MemorySearchResult`/`MemoryWriteResult` 迁移到 `src/core/types.py`
+- [x] `AMemorixMemoryServicePort` 适配器实现所有新方法
+- [x] `BuiltinToolRuntimeContext` 新增 `memory_port` 属性
+- **验收标准**：`rg "from src.services.memory_service import" src/maisaka/` 为 0 匹配
+
+### TASK-8-06: MessagePort 定义位置迁移 ✅
+
+- [x] `MessagePort` Protocol 定义已在 `src/core/protocols.py`
+- [x] `SendServicePort` 实现迁移到 `src/core/adapters/message_port.py`
+- [x] 注册点迁移到 `src/core/message_port_registry.py`
+- [x] 旧位置 `src/maisaka/message_port.py` 保留向后兼容重导出
+- [x] `butler.py` 和 `orchestrator.py` 导入路径更新
+- **验收标准**：`rg "from src.maisaka.message_port import" src/` 为 0 匹配（重导出文件除外）
+
+### TASK-8-07: 内置工具绕过 MessagePort（暂搁）
+
+- `reply.py` 调用 `send_service._send_to_target_with_message`（私有方法）
+- `send_image.py` 调用 `send_service.image_to_stream`
+- 需先扩展 MessagePort 接口（send_message/send_image 等）
+- **优先级**：低，需更大范围设计
+
+### TASK-8-08: enqueue_proactive_task 接口残留（暂搁）
+
+- 仍有 5 处引用
+- 需更大范围重构（涉及插件主动对话场景）
+- **优先级**：低

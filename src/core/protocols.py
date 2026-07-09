@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any, Optional
 from typing import Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    from src.core.types import AgentConfig, NoticeKind, SessionInfo, ThinkContext, ThinkResult
+    from src.core.types import AgentConfig, MemorySearchResult, MemoryWriteResult, NoticeKind, SessionInfo, ThinkContext, ThinkResult
 
 
 @runtime_checkable
@@ -193,16 +193,36 @@ class NoticeClassifier(Protocol):
 class MemoryServicePort(Protocol):
     """记忆服务接口 — 核心通过此接口访问 A_memorix。"""
 
-    async def search(self, query: str, session_id: str, *, limit: int = 5) -> list[dict[str, Any]]:
+    async def search(
+        self,
+        query: str,
+        *,
+        limit: int = 5,
+        mode: str = "search",
+        chat_id: str = "",
+        person_id: str = "",
+        time_start: str | float | None = None,
+        time_end: str | float | None = None,
+        respect_filter: bool = True,
+        user_id: str = "",
+        group_id: str = "",
+    ) -> MemorySearchResult:
         """检索记忆。
 
         Args:
             query: 检索查询
-            session_id: 会话 ID
             limit: 返回结果上限
+            mode: 检索模式（search/time/hybrid/episode/aggregate）
+            chat_id: 聊天流 ID
+            person_id: 人物 ID
+            time_start: 时间范围起点
+            time_end: 时间范围终点
+            respect_filter: 是否遵守过滤规则
+            user_id: 用户 ID
+            group_id: 群组 ID
 
         Returns:
-            记忆结果列表
+            MemorySearchResult 检索结果
         """
 
     async def get_person_profile(self, person_id: str, *, limit: int = 4) -> Optional[dict[str, Any]]:
@@ -214,6 +234,115 @@ class MemoryServicePort(Protocol):
 
         Returns:
             画像数据字典，不存在时返回 None
+        """
+
+    async def profile_admin(self, *, action: str, **kwargs: Any) -> dict[str, Any]:
+        """画像管理操作。
+
+        Args:
+            action: 操作类型（query/update/delete）
+            **kwargs: 操作参数（person_id/person_keyword/limit 等）
+
+        Returns:
+            操作结果字典
+        """
+
+    async def ingest_text(
+        self,
+        *,
+        external_id: str,
+        source_type: str,
+        text: str,
+        chat_id: str = "",
+        person_ids: Optional[list[str]] = None,
+        participants: Optional[list[str]] = None,
+        timestamp: Optional[float] = None,
+        time_start: Optional[float] = None,
+        time_end: Optional[float] = None,
+        tags: Optional[list[str]] = None,
+        metadata: Optional[dict[str, Any]] = None,
+        entities: Optional[list[str]] = None,
+        relations: Optional[list[dict[str, Any]]] = None,
+        respect_filter: bool = True,
+        user_id: str = "",
+        group_id: str = "",
+    ) -> MemoryWriteResult:
+        """摄入文本到记忆系统。
+
+        Args:
+            external_id: 外部标识 ID
+            source_type: 来源类型
+            text: 文本内容
+            chat_id: 聊天流 ID
+            person_ids: 关联人物 ID 列表
+            participants: 参与者列表
+            timestamp: 时间戳
+            time_start: 时间范围起点
+            time_end: 时间范围终点
+            tags: 标签列表
+            metadata: 元数据字典
+            entities: 实体列表
+            relations: 关系列表
+            respect_filter: 是否遵守过滤规则
+            user_id: 用户 ID
+            group_id: 群组 ID
+
+        Returns:
+            MemoryWriteResult 写入结果
+        """
+
+    async def maintain_memory(
+        self,
+        *,
+        action: str,
+        target: str = "",
+        hours: Optional[float] = None,
+        reason: str = "",
+        limit: int = 50,
+    ) -> MemoryWriteResult:
+        """记忆维护操作（衰减/强化/冻结/恢复/保护）。
+
+        Args:
+            action: 操作类型（decay/reinforce/freeze/restore/protect）
+            target: 目标标识
+            hours: 时间参数（小时）
+            reason: 操作原因
+            limit: 批量操作上限
+
+        Returns:
+            MemoryWriteResult 操作结果
+        """
+
+    async def delete_admin(self, *, action: str, timeout_ms: int = 120000, **kwargs: Any) -> dict[str, Any]:
+        """删除管理操作（preview/confirm/cancel）。
+
+        Args:
+            action: 操作类型（preview/confirm/cancel）
+            timeout_ms: 超时时间（毫秒）
+            **kwargs: 操作参数（selector 等）
+
+        Returns:
+            操作结果字典
+        """
+
+    async def enqueue_feedback_task(
+        self,
+        *,
+        query_tool_id: str,
+        session_id: str,
+        query_timestamp: Any = None,
+        structured_content: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
+        """反馈纠错任务入队。
+
+        Args:
+            query_tool_id: 查询工具调用 ID
+            session_id: 会话 ID
+            query_timestamp: 查询时间戳
+            structured_content: 结构化内容
+
+        Returns:
+            入队结果字典
         """
 
     async def build_profile_injection_text(self, raw_text: str) -> str:
@@ -311,4 +440,34 @@ class ThinkingOrganFactory(Protocol):
 
         Returns:
             ThinkingOrgan 实例
+        """
+
+
+@runtime_checkable
+class MessagePort(Protocol):
+    """核心消息端口协议 — 组件实现此接口。
+
+    send: 核心 → 外部（回复、提醒、插话、主动发言）
+    核心模块（管家、提醒、Orchestrator）只通过此接口发消息，
+    不直接依赖 send_service / chat_manager / NapCat。
+    """
+
+    async def send(
+        self,
+        session_id: str,
+        text: str,
+        *,
+        agent_id: str = "",
+        source: str = "core",
+    ) -> bool:
+        """向指定会话发送文本消息。
+
+        Args:
+            session_id: 目标会话 ID
+            text: 消息文本
+            agent_id: 发言智能体 ID（用于日志和路由）
+            source: 消息来源标识（reply/interjection/reminder/proactive）
+
+        Returns:
+            是否发送成功
         """

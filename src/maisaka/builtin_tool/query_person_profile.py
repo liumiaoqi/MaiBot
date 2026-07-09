@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Dict, Optional
 
 from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
-from src.services.memory_service import memory_service
+
 
 from .context import BuiltinToolRuntimeContext
 
@@ -105,13 +105,13 @@ async def handle_tool(
     limit = _normalize_limit(invocation.arguments.get("limit"))
     try:
         if person_id:
-            payload = await memory_service.profile_admin(
+            payload = await tool_ctx.memory_port.profile_admin(
                 action="query",
                 person_id=person_id,
                 limit=limit,
             )
         else:
-            payload = await memory_service.profile_admin(
+            payload = await tool_ctx.memory_port.profile_admin(
                 action="query",
                 person_keyword=person_name,
                 limit=limit,

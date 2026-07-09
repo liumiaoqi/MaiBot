@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 from src.common.logger import get_logger
 from src.core.tooling import ToolExecutionResult, ToolInvocation
 from src.maisaka.utils.tool_record_payload import normalize_tool_record_value
-from src.services.memory_service import memory_service
+
 
 logger = get_logger("maisaka_tool_post_execution")
 
@@ -59,8 +59,10 @@ async def _enqueue_memory_feedback_task(
         return
 
     try:
+        from src.core.adapters.memory_service import AMemorixMemoryServicePort
+        _memory_port = AMemorixMemoryServicePort()
         normalized_structured_content = normalize_tool_record_value(result.structured_content)
-        enqueue_payload = await memory_service.enqueue_feedback_task(
+        enqueue_payload = await _memory_port.enqueue_feedback_task(
             query_tool_id=str(saved_record.get("tool_id") or invocation.call_id or "").strip(),
             session_id=str(saved_record.get("session_id") or chat_stream.session_id or "").strip(),
             query_timestamp=saved_record.get("timestamp"),
