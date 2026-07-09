@@ -510,6 +510,12 @@ class SessionInfo:
     cohabitant_agent_ids: frozenset[str] = frozenset()
     """共居智能体 ID 列表（不可变集合）"""
 
+    created_timestamp: Optional[datetime] = None
+    """会话创建时间"""
+
+    last_active_timestamp: Optional[datetime] = None
+    """会话最后活跃时间"""
+
 
 @dataclass(frozen=True, slots=True)
 class ThinkContext:

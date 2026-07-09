@@ -25,7 +25,7 @@ from src.common.message_repository import find_messages
 from src.common.utils.utils_config import BehaviorConfigUtils, ChatConfigUtils, ExpressionConfigUtils, JargonConfigUtils
 from src.config.config import global_config
 from src.core.protocols import NoticeClassifier
-from src.core.session_port_registry import get_session_name
+from src.core.session_port_registry import get_existing_session_info, get_session_name
 from src.core.types import NoticeKind
 from src.core.tooling import ToolRegistry, ToolSpec
 from src.learners.behavior_learner import BehaviorLearner
@@ -149,13 +149,18 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
             raise ValueError(f"未找到会话 {session_id} 对应的 Maisaka 运行时")
         self.chat_stream: BotChatSession = chat_stream
 
+        session_info = get_existing_session_info(session_id)
+        if session_info is None:
+            raise ValueError(f"未找到会话 {session_id} 对应的 SessionInfo")
+        self._session_info = session_info
+
         session_name = get_session_name(session_id)
         self.session_name = session_name
         self.log_prefix = f"[{session_name}]"
         self._chat_loop_service = MaisakaChatLoopService(
             session_id=session_id,
-            is_group_chat=self.chat_stream.is_group_session,
-            agent_id=self.chat_stream.agent_id,
+            is_group_chat=self._session_info.is_group_session,
+            agent_id=self._session_info.primary_agent_id,
         )
         self._emotion_manager: Optional[object] = None
         self._relationship_manager: Optional[object] = None
@@ -239,7 +244,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
 
         configured_context_size = (
             global_config.chat.max_context_size
-            if self.chat_stream.is_group_session
+            if self._session_info.is_group_session
             else global_config.chat.max_private_context_size
         )
         return max(1, int(configured_context_size))
@@ -279,10 +284,10 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
                 emit_session_start(
                     session_id=self.session_id,
                     session_name=self.session_name,
-                    is_group_chat=self.chat_stream.is_group_session,
-                    group_id=self.chat_stream.group_id,
-                    user_id=self.chat_stream.user_id,
-                    platform=self.chat_stream.platform,
+                    is_group_chat=self._session_info.is_group_session,
+                    group_id=self._session_info.group_id,
+                    user_id=self._session_info.user_id,
+                    platform=self._session_info.platform,
                 )
             )
         except RuntimeError:
@@ -662,7 +667,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         message = SessionMessage(
             message_id=task_id,
             timestamp=datetime.now(),
-            platform=self.chat_stream.platform,
+            platform=self._session_info.platform,
         )
         message.session_id = self.session_id
         message.message_info = MessageInfo(
@@ -899,7 +904,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
             logger.info(f"{self.log_prefix} 收到 @ 消息，已解除连续空闲退出 Focus 后的重新进入限制")
         can_enter_focus = focus_mode_manager.try_enter_focus(
             self.session_id,
-            is_group_chat=self.chat_stream.is_group_session,
+            is_group_chat=self._session_info.is_group_session,
         )
         if not can_enter_focus and message.is_at:
             self._maybe_schedule_focus_at_wakeup(trigger_session_id=self.session_id)
@@ -964,7 +969,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         talk_value = float(
             ChatConfigUtils.get_talk_value(
                 self.session_id,
-                is_group_chat=self.chat_stream.is_group_session,
+                is_group_chat=self._session_info.is_group_session,
             )
         )
         if talk_value <= 0:
@@ -996,7 +1001,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
 
     def _get_base_reply_frequency(self) -> float:
         """返回当前会话类型对应的基础回复频率。"""
-        if self.chat_stream.is_group_session:
+        if self._session_info.is_group_session:
             return float(global_config.chat.reply_timing.talk_value)
         return float(global_config.chat.reply_timing.private_talk_value)
 
@@ -1442,7 +1447,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
             if not autonomy_config.enabled:
                 return
 
-            agent_id = self.chat_stream.agent_id
+            agent_id = self._session_info.primary_agent_id
             if not agent_id:
                 return
 
@@ -1543,7 +1548,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
             self._chat_history,
             request_kind=request_kind,
             max_context_size=context_message_limit,
-            is_group_chat=self.chat_stream.is_group_session,
+            is_group_chat=self._session_info.is_group_session,
         )
         sub_agent_history = self._drop_head_context_messages(
             selected_history,
@@ -1556,7 +1561,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         sub_agent = MaisakaChatLoopService(
             chat_system_prompt=system_prompt,
             session_id=self.session_id,
-            is_group_chat=self.chat_stream.is_group_session,
+            is_group_chat=self._session_info.is_group_session,
             model_task_name=model_task_name,
         )
         sub_agent.set_interrupt_flag(interrupt_flag)
@@ -2194,14 +2199,14 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         )
 
     def _build_runtime_user_info(self) -> UserInfo:
-        if self.chat_stream.user_id:
+        if self._session_info.user_id:
             user_nickname = "用户"
             if self.chat_stream.context and self.chat_stream.context.message:
                 context_user_info = self.chat_stream.context.message.message_info.user_info
                 user_nickname = context_user_info.user_nickname or context_user_info.user_id or user_nickname
-            self._chat_loop_service.update_current_user(self.chat_stream.user_id, user_nickname)
+            self._chat_loop_service.update_current_user(self._session_info.user_id, user_nickname)
             return UserInfo(
-                user_id=self.chat_stream.user_id,
+                user_id=self._session_info.user_id,
                 user_nickname=user_nickname,
                 user_cardname=None,
             )
