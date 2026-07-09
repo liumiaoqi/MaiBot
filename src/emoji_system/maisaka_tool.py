@@ -2,15 +2,14 @@
 
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Optional, TYPE_CHECKING
+from typing import Any, Optional
 
-from src.chat.message_receive.chat_manager import chat_manager
 from src.cli.maisaka_cli_sender import CLI_PLATFORM_NAME, render_cli_message
 from src.common.data_models.image_data_model import MaiEmoji
 from src.common.logger import get_logger
 from src.common.utils.image_path import resolve_stored_image_path
 from src.common.utils.utils_image import ImageUtils
-from src.services import send_service
+from src.core.message_port_registry import get_message_port
 
 from .emoji_manager import (
     _normalize_emoji_tag_text,
@@ -20,8 +19,6 @@ from .emoji_manager import (
 
 logger = get_logger("emoji_maisaka_tool")
 
-if TYPE_CHECKING:
-    from src.chat.message_receive.message import SessionMessage
 
 EmojiSelector = Callable[
     [str, str, Sequence[str] | None, int],
@@ -40,7 +37,7 @@ class MaisakaEmojiSendResult:
     emotions: list[str] = field(default_factory=list)
     requested_emotion: str = ""
     matched_emotion: str = ""
-    sent_message: Optional["SessionMessage"] = None
+    sent_message_id: str = ""
 
 
 def _get_runtime_manager() -> Any:
@@ -222,9 +219,12 @@ async def send_emoji_for_maisaka(
         )
 
     try:
-        target_session = chat_manager.get_session_by_session_id(stream_id)
-        sent_message = None
-        if target_session is not None and target_session.platform == CLI_PLATFORM_NAME:
+        from src.core.session_port_registry import get_session_info_port
+
+        session_info = get_session_info_port().get_session_info(stream_id)
+        is_cli = session_info is not None and session_info.platform == CLI_PLATFORM_NAME
+        sent_message_id = ""
+        if is_cli:
             preview_message = (
                 f"已发送表情包：{selected_emoji.description.strip()}"
                 if selected_emoji.description.strip()
@@ -235,16 +235,14 @@ async def send_emoji_for_maisaka(
             sent = True
         else:
             record_usage_locally = False
-            sent_message = await send_service.emoji_to_stream_with_message(
+            port = get_message_port()
+            result = await port.send_emoji(
+                session_id=stream_id,
                 emoji_base64=emoji_base64,
-                stream_id=stream_id,
-                storage_message=True,
-                set_reply=False,
-                reply_message=None,
-                sync_to_maisaka_history=True,
-                maisaka_source_kind="guided_reply",
+                source="guided_reply",
             )
-            sent = sent_message is not None
+            sent = result.success
+            sent_message_id = result.message_id
     except Exception as exc:
         return MaisakaEmojiSendResult(
             success=False,
@@ -282,5 +280,5 @@ async def send_emoji_for_maisaka(
         emotions=emotions,
         requested_emotion=normalized_requested_emotion,
         matched_emotion=matched_emotion,
-        sent_message=sent_message,
+        sent_message_id=sent_message_id,
     )

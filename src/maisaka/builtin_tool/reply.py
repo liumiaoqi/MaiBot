@@ -1,4 +1,4 @@
-﻿"""reply 内置工具。"""
+"""reply 内置工具。"""
 
 from typing import Any, Optional
 import traceback
@@ -6,16 +6,33 @@ import traceback
 from src.chat.replyer.replyer_manager import replyer_manager
 from src.cli.maisaka_cli_sender import CLI_PLATFORM_NAME, render_cli_message
 from src.common.data_models.reply_generation_data_models import ReplyGenerationResult, build_reply_monitor_detail
+from src.common.data_models.message_component_data_model import EmojiComponent, ImageComponent, TextComponent
 from src.common.logger import get_logger
 from src.config import config as config_module
+from src.core.message_port_registry import get_message_port
 from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
 from src.maisaka.context.message_adapter import build_visible_text_from_sequence
-from src.services import send_service
 
 from .context import BuiltinToolRuntimeContext
 
 logger = get_logger("maisaka_builtin_reply")
 _REPLY_TOOL_INTERNAL_ARGUMENTS = {"msg_id", "set_quote"}
+
+
+def _message_sequence_to_segments(message_sequence: Any) -> list[dict[str, Any]]:
+    """将 MessageSequence 转换为 MessagePort.send_hybrid() 需要的 segments 格式。"""
+    segments = []
+    for component in getattr(message_sequence, "components", []):
+        if isinstance(component, TextComponent):
+            segments.append({"type": "text", "data": component.text})
+        elif isinstance(component, ImageComponent):
+            segments.append({"type": "image", "binary_data_base64": component.binary_data_base64})
+        elif isinstance(component, EmojiComponent):
+            segments.append({"type": "emoji", "binary_data_base64": component.binary_data_base64})
+        else:
+            data = getattr(component, "data", None) or getattr(component, "text", "")
+            segments.append({"type": "text", "data": str(data)})
+    return segments
 
 
 def _use_expression_intent() -> bool:
@@ -326,21 +343,19 @@ async def handle_tool(
                 )
             sent = True
         else:
+            port = get_message_port()
             for index, reply_sequence in enumerate(reply_sequences):
                 segment = reply_segments[index]
                 segment_set_quote = effective_set_quote if index == 0 else False
-                sent_message = await send_service._send_to_target_with_message(
-                    message_sequence=reply_sequence,
-                    stream_id=tool_ctx.runtime.session_id,
-                    processed_plain_text=segment,
-                    set_reply=segment_set_quote,
-                    reply_message=target_message,
-                    selected_expressions=reply_result.selected_expression_ids or None,
-                    typing=index > 0,
-                    sync_to_maisaka_history=True,
-                    maisaka_source_kind="guided_reply",
+                segments = _message_sequence_to_segments(reply_sequence)
+                reply_to = target_message_id if segment_set_quote else ""
+                result = await port.send_hybrid(
+                    session_id=tool_ctx.runtime.session_id,
+                    segments=segments,
+                    reply_to=reply_to,
+                    source="guided_reply",
                 )
-                sent = sent_message is not None
+                sent = result.success
                 if not sent:
                     send_results.append(
                         _build_send_result(
@@ -351,7 +366,7 @@ async def handle_tool(
                         )
                     )
                     break
-                sent_message_id = str(getattr(sent_message, "message_id", "") or "").strip()
+                sent_message_id = result.message_id
                 if sent_message_id:
                     sent_message_ids.append(sent_message_id)
                 send_results.append(

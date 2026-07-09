@@ -669,6 +669,23 @@ class MemorySearchResult:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class SendMessageResult:
+    """消息发送结果 — MessagePort 扩展方法的统一返回类型。"""
+
+    success: bool
+    message_id: str = ""
+    error: str = ""
+
+    @classmethod
+    def ok(cls, message_id: str = "") -> SendMessageResult:
+        return cls(success=True, message_id=message_id)
+
+    @classmethod
+    def failed(cls, error: str = "") -> SendMessageResult:
+        return cls(success=False, error=error)
+
+
 @dataclass
 class MemoryWriteResult:
     """记忆写入结果。"""

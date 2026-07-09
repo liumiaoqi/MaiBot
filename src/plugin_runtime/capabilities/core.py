@@ -261,24 +261,20 @@ class RuntimeCoreCapabilityMixin:
             Any: 能力执行结果。
         """
         del plugin_id, capability
-        from src.services import send_service as send_api
+        from src.core.message_port_registry import get_message_port
 
         text = str(args.get("text", ""))
         stream_id = str(args.get("stream_id", ""))
-        sync_to_maisaka_history = bool(args.get("sync_to_maisaka_history", False))
         maisaka_source_kind = str(args.get("maisaka_source_kind", "plugin_send") or "plugin_send")
         if not text or not stream_id:
             return {"success": False, "error": "缺少必要参数 text 或 stream_id"}
 
         try:
-            result = await send_api.text_to_stream(
+            port = get_message_port()
+            result = await port.send(
+                session_id=stream_id,
                 text=text,
-                stream_id=stream_id,
-                typing=bool(args.get("typing", False)),
-                set_reply=bool(args.get("set_reply", False)),
-                storage_message=bool(args.get("storage_message", True)),
-                sync_to_maisaka_history=sync_to_maisaka_history,
-                maisaka_source_kind=maisaka_source_kind,
+                source=maisaka_source_kind,
             )
             return {"success": result}
         except Exception as exc:
@@ -286,69 +282,47 @@ class RuntimeCoreCapabilityMixin:
             return {"success": False, "error": str(exc)}
 
     async def _cap_send_emoji(self, plugin_id: str, capability: str, args: Dict[str, Any]) -> Any:
-        """向指定流发送表情图片。
-
-        Args:
-            plugin_id: 插件标识。
-            capability: 能力名称。
-            args: 能力调用参数。
-
-        Returns:
-            Any: 能力执行结果。
-        """
+        """向指定流发送表情图片。"""
         del plugin_id, capability
-        from src.services import send_service as send_api
+        from src.core.message_port_registry import get_message_port
 
         emoji_base64 = str(args.get("emoji_base64", ""))
         stream_id = str(args.get("stream_id", ""))
-        sync_to_maisaka_history = bool(args.get("sync_to_maisaka_history", False))
         maisaka_source_kind = str(args.get("maisaka_source_kind", "plugin_send") or "plugin_send")
         if not emoji_base64 or not stream_id:
             return {"success": False, "error": "缺少必要参数 emoji_base64 或 stream_id"}
 
         try:
-            result = await send_api.emoji_to_stream(
+            port = get_message_port()
+            result = await port.send_emoji(
+                session_id=stream_id,
                 emoji_base64=emoji_base64,
-                stream_id=stream_id,
-                storage_message=bool(args.get("storage_message", True)),
-                sync_to_maisaka_history=sync_to_maisaka_history,
-                maisaka_source_kind=maisaka_source_kind,
+                source=maisaka_source_kind,
             )
-            return {"success": result}
+            return {"success": result.success}
         except Exception as exc:
             logger.error(f"[cap.send.emoji] 执行失败: {exc}", exc_info=True)
             return {"success": False, "error": str(exc)}
 
     async def _cap_send_image(self, plugin_id: str, capability: str, args: Dict[str, Any]) -> Any:
-        """向指定流发送图片。
-
-        Args:
-            plugin_id: 插件标识。
-            capability: 能力名称。
-            args: 能力调用参数。
-
-        Returns:
-            Any: 能力执行结果。
-        """
+        """向指定流发送图片。"""
         del plugin_id, capability
-        from src.services import send_service as send_api
+        from src.core.message_port_registry import get_message_port
 
         image_base64 = str(args.get("image_base64", ""))
         stream_id = str(args.get("stream_id", ""))
-        sync_to_maisaka_history = bool(args.get("sync_to_maisaka_history", False))
         maisaka_source_kind = str(args.get("maisaka_source_kind", "plugin_send") or "plugin_send")
         if not image_base64 or not stream_id:
             return {"success": False, "error": "缺少必要参数 image_base64 或 stream_id"}
 
         try:
-            result = await send_api.image_to_stream(
+            port = get_message_port()
+            result = await port.send_image(
+                session_id=stream_id,
                 image_base64=image_base64,
-                stream_id=stream_id,
-                storage_message=bool(args.get("storage_message", True)),
-                sync_to_maisaka_history=sync_to_maisaka_history,
-                maisaka_source_kind=maisaka_source_kind,
+                source=maisaka_source_kind,
             )
-            return {"success": result}
+            return {"success": result.success}
         except Exception as exc:
             logger.error(f"[cap.send.image] 执行失败: {exc}", exc_info=True)
             return {"success": False, "error": str(exc)}
@@ -386,29 +360,22 @@ class RuntimeCoreCapabilityMixin:
         """向指定流发送图文混合消息。"""
 
         del plugin_id, capability
-        from src.plugin_runtime.host.message_utils import PluginMessageUtils
-        from src.services import send_service as send_api
+        from src.core.message_port_registry import get_message_port
 
         stream_id = str(args.get("stream_id", ""))
         segments = self._normalize_plugin_segments(args.get("segments") or args.get("parts"))
-        sync_to_maisaka_history = bool(args.get("sync_to_maisaka_history", False))
         maisaka_source_kind = str(args.get("maisaka_source_kind", "plugin_send") or "plugin_send")
         if not segments or not stream_id:
             return {"success": False, "error": "缺少必要参数 segments 或 stream_id"}
 
         try:
-            message_sequence = PluginMessageUtils._message_sequence_from_dict(segments)
-            result = await send_api.custom_reply_set_to_stream(
-                reply_set=message_sequence,
-                stream_id=stream_id,
-                processed_plain_text=str(args.get("processed_plain_text", "")),
-                typing=bool(args.get("typing", False)),
-                storage_message=bool(args.get("storage_message", True)),
-                show_log=bool(args.get("show_log", True)),
-                sync_to_maisaka_history=sync_to_maisaka_history,
-                maisaka_source_kind=maisaka_source_kind,
+            port = get_message_port()
+            result = await port.send_hybrid(
+                session_id=stream_id,
+                segments=segments,
+                source=maisaka_source_kind,
             )
-            return {"success": result}
+            return {"success": result.success}
         except Exception as exc:
             logger.error(f"[cap.send.hybrid] 执行失败: {exc}", exc_info=True)
             return {"success": False, "error": str(exc)}
@@ -417,12 +384,10 @@ class RuntimeCoreCapabilityMixin:
         """向指定流发送转发消息。"""
 
         del plugin_id, capability
-        from src.plugin_runtime.host.message_utils import PluginMessageUtils
-        from src.services import send_service as send_api
+        from src.core.message_port_registry import get_message_port
 
         stream_id = str(args.get("stream_id", ""))
         messages = args.get("messages")
-        sync_to_maisaka_history = bool(args.get("sync_to_maisaka_history", False))
         maisaka_source_kind = str(args.get("maisaka_source_kind", "plugin_send") or "plugin_send")
         if not isinstance(messages, list) or not messages or not stream_id:
             return {"success": False, "error": "缺少必要参数 messages 或 stream_id"}
@@ -449,96 +414,64 @@ class RuntimeCoreCapabilityMixin:
             return {"success": False, "error": "messages 中缺少有效的转发节点"}
 
         try:
-            message_sequence = PluginMessageUtils._message_sequence_from_dict(
-                [{"type": "forward", "data": forward_nodes}]
+            port = get_message_port()
+            result = await port.send_forward(
+                session_id=stream_id,
+                messages=forward_nodes,
+                source=maisaka_source_kind,
             )
-            result = await send_api.custom_reply_set_to_stream(
-                reply_set=message_sequence,
-                stream_id=stream_id,
-                processed_plain_text=str(args.get("processed_plain_text", "[转发消息]")),
-                typing=bool(args.get("typing", False)),
-                storage_message=bool(args.get("storage_message", True)),
-                show_log=bool(args.get("show_log", True)),
-                sync_to_maisaka_history=sync_to_maisaka_history,
-                maisaka_source_kind=maisaka_source_kind,
-            )
-            return {"success": result}
+            return {"success": result.success}
         except Exception as exc:
             logger.error(f"[cap.send.forward] 执行失败: {exc}", exc_info=True)
             return {"success": False, "error": str(exc)}
 
     async def _cap_send_command(self, plugin_id: str, capability: str, args: Dict[str, Any]) -> Any:
-        """向指定流发送命令消息。
-
-        Args:
-            plugin_id: 插件标识。
-            capability: 能力名称。
-            args: 能力调用参数。
-
-        Returns:
-            Any: 能力执行结果。
-        """
+        """向指定流发送命令消息。"""
         del plugin_id, capability
-        from src.services import send_service as send_api
+        from src.core.message_port_registry import get_message_port
 
         command = str(args.get("command", ""))
         stream_id = str(args.get("stream_id", ""))
-        sync_to_maisaka_history = bool(args.get("sync_to_maisaka_history", False))
         maisaka_source_kind = str(args.get("maisaka_source_kind", "plugin_send") or "plugin_send")
         if not command or not stream_id:
             return {"success": False, "error": "缺少必要参数 command 或 stream_id"}
 
         try:
-            result = await send_api.custom_to_stream(
+            port = get_message_port()
+            result = await port.send_custom(
+                session_id=stream_id,
                 message_type="command",
                 content=command,
-                stream_id=stream_id,
-                storage_message=bool(args.get("storage_message", True)),
-                processed_plain_text=str(args.get("processed_plain_text", "")),
-                sync_to_maisaka_history=sync_to_maisaka_history,
-                maisaka_source_kind=maisaka_source_kind,
+                source=maisaka_source_kind,
             )
-            return {"success": result}
+            return {"success": result.success}
         except Exception as exc:
             logger.error(f"[cap.send.command] 执行失败: {exc}", exc_info=True)
             return {"success": False, "error": str(exc)}
 
     async def _cap_send_custom(self, plugin_id: str, capability: str, args: Dict[str, Any]) -> Any:
-        """向指定流发送自定义消息。
-
-        Args:
-            plugin_id: 插件标识。
-            capability: 能力名称。
-            args: 能力调用参数。
-
-        Returns:
-            Any: 能力执行结果。
-        """
+        """向指定流发送自定义消息。"""
         del plugin_id, capability
-        from src.services import send_service as send_api
+        from src.core.message_port_registry import get_message_port
 
         message_type = str(args.get("message_type", "") or args.get("custom_type", ""))
         content = args.get("content")
         if content is None:
             content = args.get("data", "")
         stream_id = str(args.get("stream_id", ""))
-        sync_to_maisaka_history = bool(args.get("sync_to_maisaka_history", False))
         maisaka_source_kind = str(args.get("maisaka_source_kind", "plugin_send") or "plugin_send")
         if not message_type or not stream_id:
             return {"success": False, "error": "缺少必要参数 message_type 或 stream_id"}
 
         try:
-            result = await send_api.custom_to_stream(
+            port = get_message_port()
+            result = await port.send_custom(
+                session_id=stream_id,
                 message_type=message_type,
                 content=content,
-                stream_id=stream_id,
-                processed_plain_text=str(args.get("processed_plain_text", "")),
-                typing=bool(args.get("typing", False)),
-                storage_message=bool(args.get("storage_message", True)),
-                sync_to_maisaka_history=sync_to_maisaka_history,
-                maisaka_source_kind=maisaka_source_kind,
+                source=maisaka_source_kind,
             )
-            return {"success": result}
+            return {"success": result.success}
         except Exception as exc:
             logger.error(f"[cap.send.custom] 执行失败: {exc}", exc_info=True)
             return {"success": False, "error": str(exc)}
