@@ -31,18 +31,7 @@ class AMemorixMemoryServicePort:
         from src.services.memory_service import memory_service
 
         try:
-            return await memory_service.search(
-                query=query,
-                limit=limit,
-                mode=mode,
-                chat_id=chat_id,
-                person_id=person_id,
-                time_start=time_start,
-                time_end=time_end,
-                respect_filter=respect_filter,
-                user_id=user_id,
-                group_id=group_id,
-            )
+            return await memory_service.migration_search(query, agent_id=person_id)
         except Exception as exc:
             logger.warning(f"[memory_port] 搜索失败: query={query} error={exc}")
             return MemorySearchResult(success=False, error=str(exc))
@@ -51,9 +40,9 @@ class AMemorixMemoryServicePort:
         from src.services.memory_service import memory_service
 
         try:
-            result = await memory_service.profile_admin(action="query", person_id=person_id, limit=limit)
-            if isinstance(result, dict) and result.get("success"):
-                return result
+            result = await memory_service.migration_get_person_profile(person_id, limit=limit)
+            if result and (result.summary or result.evidence):
+                return result.to_dict()
             return None
         except Exception as exc:
             logger.debug(f"[memory_port] 画像查询失败: person_id={person_id} error={exc}")
@@ -91,10 +80,10 @@ class AMemorixMemoryServicePort:
         from src.services.memory_service import memory_service
 
         try:
-            return await memory_service.ingest_text(
+            return await memory_service.migration_ingest_text(
+                text=text,
                 external_id=external_id,
                 source_type=source_type,
-                text=text,
                 chat_id=chat_id,
                 person_ids=person_ids,
                 participants=participants,
@@ -165,7 +154,7 @@ class AMemorixMemoryServicePort:
     async def build_profile_injection_text(self, raw_text: str) -> str:
         from src.services.memory_service import memory_service
 
-        return memory_service.build_profile_injection_text(raw_text)
+        return await memory_service.migration_build_profile_injection_text(raw_text)
 
     async def set_memory_personality(self, agent_id: str, params: dict[str, Any]) -> None:
         """将智能体记忆性格参数传递给 A_memorix 连接主义记忆系统。"""

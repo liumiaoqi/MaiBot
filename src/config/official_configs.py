@@ -3065,6 +3065,187 @@ class AMemorixPersonProfileConfig(ConfigBase):
     """人物画像证据分类模型温度"""
 
 
+class MemoryPersonalityV2Config(ConfigBase):
+    """连接主义记忆性格配置"""
+
+    decay_rate: float = Field(
+        default=1.0,
+        ge=0.1,
+        le=5.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "衰减率",
+                "en_US": "Decay rate",
+                "ja_JP": "減衰率",
+            },
+        },
+    )
+    """记忆痕迹的衰减速率，越高遗忘越快"""
+
+    emotional_sensitivity: float = Field(
+        default=1.0,
+        ge=0.1,
+        le=3.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "情感敏感度",
+                "en_US": "Emotional sensitivity",
+                "ja_JP": "感情感度",
+            },
+        },
+    )
+    """对情感信息的敏感程度，越高情感记忆越强"""
+
+    association_depth: int = Field(
+        default=2,
+        ge=1,
+        le=4,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "联想深度",
+                "en_US": "Association depth",
+                "ja_JP": "連想深度",
+            },
+        },
+    )
+    """激活扩散的最大跳数，越高回忆范围越广"""
+
+    reinforcement_boost: float = Field(
+        default=0.3,
+        ge=0.1,
+        le=0.5,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "强化增益",
+                "en_US": "Reinforcement boost",
+                "ja_JP": "強化ブースト",
+            },
+        },
+    )
+    """重复体验时的连接强度增益"""
+
+    attention_tags: list[str] = Field(
+        default_factory=list,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "关注领域",
+                "en_US": "Attention tags",
+                "ja_JP": "注目タグ",
+            },
+        },
+    )
+    """智能体特别关注的领域标签"""
+
+    positive_affinity: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=3.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "正向亲和",
+                "en_US": "Positive affinity",
+                "ja_JP": "ポジティブ親和性",
+            },
+        },
+    )
+    """对正向情感记忆的偏好系数"""
+
+    negative_affinity: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=3.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "负向亲和",
+                "en_US": "Negative affinity",
+                "ja_JP": "ネガティブ親和性",
+            },
+        },
+    )
+    """对负向情感记忆的偏好系数"""
+
+    curiosity: float = Field(
+        default=1.0,
+        ge=0.5,
+        le=2.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "好奇心",
+                "en_US": "Curiosity",
+                "ja_JP": "好奇心",
+            },
+        },
+    )
+    """对新信息的探索倾向"""
+
+
+class InnerVoiceItemConfig(ConfigBase):
+    """内心声音配置项"""
+
+    name: str = Field(
+        json_schema_extra={
+            "label": {
+                "zh_CN": "声音名称",
+                "en_US": "Voice name",
+                "ja_JP": "声の名前",
+            },
+        },
+    )
+    """内心声音的名称"""
+
+    style: str = Field(
+        default="preserve",
+        json_schema_extra={
+            "label": {
+                "zh_CN": "处理风格",
+                "en_US": "Processing style",
+                "ja_JP": "処理スタイル",
+            },
+            "x-widget": "select",
+            "x-options": ["amplify", "neutralize", "preserve", "invert", "chaotic"],
+        },
+    )
+    """内心声音的处理风格：amplify/neutralize/preserve/invert/chaotic"""
+
+    focus_concepts: list[str] = Field(
+        default_factory=list,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "聚焦概念",
+                "en_US": "Focus concepts",
+                "ja_JP": "フォーカス概念",
+            },
+        },
+    )
+    """该声音特别关注的概念列表"""
+
+    weight_multiplier: float = Field(
+        default=1.0,
+        ge=0.1,
+        le=2.0,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "权重倍率",
+                "en_US": "Weight multiplier",
+                "ja_JP": "ウェイト倍率",
+            },
+        },
+    )
+    """该声音产生的痕迹权重倍率"""
+
+    description: str = Field(
+        default="",
+        json_schema_extra={
+            "label": {
+                "zh_CN": "描述",
+                "en_US": "Description",
+                "ja_JP": "説明",
+            },
+        },
+    )
+    """内心声音的描述"""
+
+
 class AMemorixConnectionistConfig(ConfigBase):
     """连接主义记忆系统配置"""
 
@@ -3095,6 +3276,30 @@ class AMemorixConnectionistConfig(ConfigBase):
         },
     )
     """迁移阶段：legacy_only / dual_write / dual_read / data_migration / new_independent"""
+
+    personality: dict[str, MemoryPersonalityV2Config] = Field(
+        default_factory=dict,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "记忆性格",
+                "en_US": "Memory personality",
+                "ja_JP": "記憶パーソナリティ",
+            },
+        },
+    )
+    """各智能体的记忆性格配置，键为 agent_id"""
+
+    inner_voices: dict[str, list[InnerVoiceItemConfig]] = Field(
+        default_factory=dict,
+        json_schema_extra={
+            "label": {
+                "zh_CN": "内心声音",
+                "en_US": "Inner voices",
+                "ja_JP": "内なる声",
+            },
+        },
+    )
+    """各智能体的内心声音配置，键为 agent_id"""
 
 
 class AMemorixMemoryEvolutionConfig(ConfigBase):

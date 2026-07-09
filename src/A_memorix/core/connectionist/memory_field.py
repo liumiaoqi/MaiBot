@@ -27,7 +27,7 @@ class MemoryField:
         self._trace_store = TraceStore(data_dir)
         self._concept_index = ConceptIndex(data_dir)
         self._personality_registry = PersonalityRegistry()
-        self._llm_extractor = LLMConceptExtractor()
+        self._llm_extractor = LLMConceptExtractor(concept_index=self._concept_index)
         self._salience_evaluator = SalienceEvaluator()
         self._voice_processor = InnerVoiceProcessor()
         self._spreading_activation = SpreadingActivation(self._trace_store, self._concept_index)

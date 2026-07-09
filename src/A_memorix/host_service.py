@@ -264,18 +264,32 @@ class AMemorixHostService:
             )
 
         if component_name == "maintain_memory":
-            return await kernel.maintain_memory(
+            result = await kernel.maintain_memory(
                 action=str(payload.get("action", "") or ""),
                 target=str(payload.get("target", "") or ""),
                 hours=payload.get("hours"),
                 reason=str(payload.get("reason", "") or ""),
                 limit=max(1, int(payload.get("limit", 50) or 50)),
             )
+            action = str(payload.get("action", "") or "")
+            migration_adapter = kernel._migration_adapter
+            if action == "decay" and migration_adapter and migration_adapter.should_observe():
+                hours = float(payload.get("hours") or 1.0) if payload.get("hours") else 1.0
+                decay_result = await kernel._memory_field.granular_decay(elapsed_hours=hours)
+                result["connectionist_decay"] = {
+                    "traces_processed": decay_result.traces_processed,
+                    "traces_consolidated": decay_result.traces_consolidated,
+                }
+            return result
 
         if component_name == "memory_stats":
             return kernel.memory_stats()
 
         if component_name == "observe":
+            migration_adapter = kernel._migration_adapter
+            if migration_adapter and not migration_adapter.should_observe():
+                from .core.connectionist.models import ObserveResult
+                return ObserveResult(text=str(payload.get("text", "") or ""))
             from .core.connectionist.enums import Valence
 
             valence = Valence.NEUTRAL
@@ -294,6 +308,9 @@ class AMemorixHostService:
             )
 
         if component_name == "recall":
+            migration_adapter = kernel._migration_adapter
+            if migration_adapter and not migration_adapter.should_recall():
+                return []
             seeds = payload.get("seeds") if isinstance(payload.get("seeds"), list) else []
             return kernel._memory_field.recall(
                 seeds=[str(s) for s in seeds],
@@ -303,6 +320,10 @@ class AMemorixHostService:
             )
 
         if component_name == "derive_profile":
+            migration_adapter = kernel._migration_adapter
+            if migration_adapter and not migration_adapter.should_recall():
+                from .core.connectionist.models import ProfileView
+                return ProfileView(subject=str(payload.get("subject", "") or ""))
             return await kernel._memory_field.derive_profile(
                 subject=str(payload.get("subject", "") or ""),
                 observer=str(payload.get("observer", "") or ""),
@@ -310,6 +331,10 @@ class AMemorixHostService:
             )
 
         if component_name == "reflect":
+            migration_adapter = kernel._migration_adapter
+            if migration_adapter and not migration_adapter.should_recall():
+                from .core.connectionist.models import ReflectResult
+                return ReflectResult()
             return await kernel._memory_field.reflect(
                 subject=str(payload.get("subject", "") or ""),
                 agent_id=str(payload.get("agent_id", "") or ""),
@@ -356,6 +381,41 @@ class AMemorixHostService:
 
         if component_name == "connectionist_stats":
             return kernel._memory_field.memory_stats()
+
+        if component_name == "migration_status":
+            migration_adapter = kernel._migration_adapter
+            if migration_adapter is None:
+                return {"phase": "unknown", "can_advance": False}
+            return {
+                "phase": migration_adapter.phase.value,
+                "can_advance": migration_adapter.can_advance(),
+            }
+
+        if component_name == "migration_search":
+            return await kernel._migration_router.search(
+                query=str(payload.get("query", "") or ""),
+                agent_id=str(payload.get("agent_id", "") or ""),
+                **{k: v for k, v in payload.items() if k not in {"query", "agent_id"}},
+            )
+
+        if component_name == "migration_get_person_profile":
+            return await kernel._migration_router.get_person_profile(
+                person_id=str(payload.get("person_id", "") or ""),
+                agent_id=str(payload.get("agent_id", "") or ""),
+                limit=int(payload.get("limit", 4) or 4),
+            )
+
+        if component_name == "migration_ingest_text":
+            return await kernel._migration_router.ingest_text(
+                text=str(payload.get("text", "") or ""),
+                **{k: v for k, v in payload.items() if k != "text"},
+            )
+
+        if component_name == "migration_build_profile_injection_text":
+            return await kernel._migration_router.build_profile_injection_text(
+                raw_text=str(payload.get("raw_text", "") or ""),
+                agent_id=str(payload.get("agent_id", "") or ""),
+            )
 
         if component_name == "metadata_get_paragraphs_by_source":
             source = str(payload.get("source", "") or "")
@@ -430,7 +490,71 @@ class AMemorixHostService:
                 self._kernel = kernel
                 set_runtime_kernel(kernel)
                 self._inject_session_info_port(kernel)
+                self._register_agents_from_config(kernel)
             return self._kernel
+
+    def _register_agents_from_config(self, kernel: SDKMemoryKernel) -> None:
+        from .core.connectionist.enums import VoiceStyle
+        from .core.connectionist.models import InnerVoice, MemoryPersonalityV2
+
+        config = self._read_config()
+        connectionist_config = config.get("connectionist", {})
+        personality_config = connectionist_config.get("personality", {})
+        inner_voices_config = connectionist_config.get("inner_voices", {})
+
+        if not personality_config:
+            logger.info("未配置连接主义记忆性格，所有智能体将使用默认性格")
+            return
+
+        for agent_id, p_cfg in personality_config.items():
+            if not isinstance(p_cfg, dict):
+                continue
+            try:
+                personality = MemoryPersonalityV2(
+                    decay_rate=float(p_cfg.get("decay_rate", 1.0)),
+                    emotional_sensitivity=float(p_cfg.get("emotional_sensitivity", 1.0)),
+                    association_depth=int(p_cfg.get("association_depth", 2)),
+                    reinforcement_boost=float(p_cfg.get("reinforcement_boost", 0.3)),
+                    attention_tags=frozenset(p_cfg.get("attention_tags", [])),
+                    positive_affinity=float(p_cfg.get("positive_affinity", 1.0)),
+                    negative_affinity=float(p_cfg.get("negative_affinity", 1.0)),
+                    curiosity=float(p_cfg.get("curiosity", 1.0)),
+                )
+            except Exception as exc:
+                raise ValueError(f"智能体 {agent_id} 的记忆性格配置无效: {exc}") from exc
+
+            voices: list[InnerVoice] = []
+            voice_list = inner_voices_config.get(agent_id, [])
+            if isinstance(voice_list, list):
+                for v_cfg in voice_list:
+                    if not isinstance(v_cfg, dict):
+                        continue
+                    style_str = str(v_cfg.get("style", "preserve")).strip()
+                    try:
+                        style = VoiceStyle(style_str)
+                    except ValueError:
+                        style = VoiceStyle.PRESERVE
+                    voices.append(InnerVoice(
+                        name=str(v_cfg.get("name", "")),
+                        style=style,
+                        focus_concepts=frozenset(v_cfg.get("focus_concepts", [])),
+                        weight_multiplier=float(v_cfg.get("weight_multiplier", 1.0)),
+                        description=str(v_cfg.get("description", "")),
+                    ))
+
+            kernel._memory_field.register_agent(agent_id, personality, voices)
+            logger.info(f"已注册智能体记忆性格: {agent_id} (voices={len(voices)})")
+
+        phase_str = connectionist_config.get("phase", "legacy_only")
+        if kernel._migration_adapter is not None:
+            from .core.migration.migration_adapter import MigrationPhase
+            try:
+                phase = MigrationPhase(phase_str)
+            except ValueError:
+                logger.warning(f"无效的迁移阶段配置: {phase_str}，使用默认 LEGACY_ONLY")
+                phase = MigrationPhase.LEGACY_ONLY
+            kernel._migration_adapter.set_phase(phase)
+            logger.info(f"迁移阶段已设置: {phase.value}")
 
     @staticmethod
     def _inject_session_info_port(kernel: SDKMemoryKernel) -> None:
@@ -587,6 +711,17 @@ class AMemorixHostService:
 
         if component_name == "metadata_query":
             return []
+
+        if component_name in {"observe", "recall", "derive_profile", "reflect",
+                               "register_agent", "connectionist_stats", "migration_status",
+                               "migration_search", "migration_get_person_profile",
+                               "migration_ingest_text", "migration_build_profile_injection_text"}:
+            return {
+                "success": False,
+                "disabled": True,
+                "reason": reason,
+                "error": message,
+            }
 
         return {
             "success": False,

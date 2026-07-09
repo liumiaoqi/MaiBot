@@ -32,10 +32,11 @@ _CONCEPT_EXTRACTION_PROMPT = """你是一个概念提取器。从以下文本中
 
 
 class LLMConceptExtractor:
-    """LLM 语义概念提取器"""
+    """LLM 语义概念提取器，LLM 失败时降级到 jieba 分词"""
 
-    def __init__(self, task_name: str = "utils") -> None:
+    def __init__(self, task_name: str = "utils", concept_index=None) -> None:
         self._llm = LLMServiceClient(task_name=task_name)
+        self._concept_index = concept_index
 
     async def extract(self, text: str) -> ExtractionResult:
         if not text or not text.strip():
@@ -50,8 +51,8 @@ class LLMConceptExtractor:
                 return ExtractionResult()
             return self._parse_response(content)
         except Exception as e:
-            logger.error(f"LLM 概念提取失败，跳过本次 observe: {e}")
-            return ExtractionResult()
+            logger.warning(f"LLM 概念提取失败，降级到 jieba: {e}")
+            return await self._fallback_extract(text)
 
     def _parse_response(self, content: str) -> ExtractionResult:
         try:
@@ -98,3 +99,15 @@ class LLMConceptExtractor:
             valence=valence,
             summary=data.get("summary", ""),
         )
+
+    async def _fallback_extract(self, text: str) -> ExtractionResult:
+        if self._concept_index is None:
+            logger.error("无 ConceptIndex，jieba 降级不可用，返回空结果")
+            return ExtractionResult()
+        from .semantic_concept_extractor import SemanticConceptExtractor
+        extractor = SemanticConceptExtractor(self._concept_index)
+        try:
+            return await extractor.extract(text)
+        except Exception as e:
+            logger.error(f"jieba 降级提取也失败: {e}")
+            return ExtractionResult()
