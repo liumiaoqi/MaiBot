@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from src.A_memorix.host_service import a_memorix_host_service
+
 from src.common.logger import get_logger
 from src.core.types import MemoryHit, MemorySearchResult, MemoryWriteResult
 
@@ -33,8 +33,12 @@ class PersonProfileResult:
 
 
 class MemoryService:
+    def _get_host_service(self) -> Any:
+        from src.A_memorix.host_service import a_memorix_host_service
+        return a_memorix_host_service
+
     async def _invoke(self, component_name: str, args: Optional[Dict[str, Any]] = None, *, timeout_ms: int = 30000) -> Any:
-        response = await a_memorix_host_service.invoke(
+        response = await self._get_host_service().invoke(
             component_name,
             args or {},
             timeout_ms=max(1000, int(timeout_ms or 30000)),
@@ -426,6 +430,60 @@ class MemoryService:
 
     async def protect_memory(self, *, target: str, hours: float | None = None) -> MemoryWriteResult:
         return await self.maintain_memory(action="protect", target=target, hours=hours)
+
+    async def get_paragraphs_by_source(self, source: str) -> List[Dict[str, Any]]:
+        """按来源查询段落元数据，替代直接访问 kernel.metadata_store。"""
+        clean_source = str(source or "").strip()
+        if not clean_source:
+            return []
+        try:
+            payload = await self._invoke(
+                "metadata_get_paragraphs_by_source",
+                {"source": clean_source},
+            )
+            return payload if isinstance(payload, list) else []
+        except Exception as exc:
+            logger.warning(f"按来源查询段落失败: {exc}")
+            return []
+
+    async def query_metadata(self, sql: str, params: tuple = ()) -> List[Dict[str, Any]]:
+        """只读 SQL 查询元数据存储，替代直接访问 kernel.metadata_store.query()。"""
+        clean_sql = str(sql or "").strip()
+        if not clean_sql:
+            return []
+        try:
+            payload = await self._invoke(
+                "metadata_query",
+                {"sql": clean_sql, "params": list(params)},
+            )
+            return payload if isinstance(payload, list) else []
+        except Exception as exc:
+            logger.warning(f"元数据查询失败: {exc}")
+            return []
+
+    def get_config_schema(self) -> Dict[str, Any]:
+        return self._get_host_service().get_config_schema()
+
+    def get_config(self) -> Dict[str, Any]:
+        return self._get_host_service().get_config()
+
+    def get_config_path(self) -> Any:
+        return self._get_host_service().get_config_path()
+
+    def get_raw_config_with_meta(self) -> Dict[str, Any]:
+        return self._get_host_service().get_raw_config_with_meta()
+
+    async def update_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        return await self._get_host_service().update_config(config)
+
+    async def update_raw_config(self, raw_config: str) -> Dict[str, Any]:
+        return await self._get_host_service().update_raw_config(raw_config)
+
+    @staticmethod
+    def build_profile_injection_text(raw_text: str) -> str:
+        from src.A_memorix.host_service import a_memorix_host_service
+
+        return a_memorix_host_service.build_profile_injection_text(raw_text)
 
 
 memory_service = MemoryService()

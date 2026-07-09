@@ -163,9 +163,9 @@ class AMemorixMemoryServicePort:
             return {"success": False, "queued": False, "reason": str(exc)}
 
     async def build_profile_injection_text(self, raw_text: str) -> str:
-        from src.A_memorix.host_service import a_memorix_host_service
+        from src.services.memory_service import memory_service
 
-        return a_memorix_host_service.build_profile_injection_text(raw_text)
+        return memory_service.build_profile_injection_text(raw_text)
 
     async def set_memory_personality(self, agent_id: str, params: dict[str, Any]) -> None:
         """将智能体记忆性格参数传递给 A_memorix 连接主义记忆系统。"""

@@ -13,8 +13,7 @@ from pydantic import BaseModel, Field
 from sqlmodel import col, select
 import tomlkit
 
-from src.A_memorix.host_service import a_memorix_host_service
-from src.A_memorix.runtime_registry import get_runtime_kernel
+
 from src.chat.message_receive.chat_manager import chat_manager as _chat_manager
 from src.common.database.database import get_db_session
 from src.common.database.database_model import ChatSession, Messages, PersonInfo
@@ -694,10 +693,10 @@ def _paragraph_jump_target(paragraph_hash: str) -> dict[str, Any]:
     return {"tab": "graph", "params": {"paragraph_hash": token}}
 
 
-def _delete_jump_target_for_paragraph(paragraph_hash: str, source: str = "") -> dict[str, Any]:
+async def _delete_jump_target_for_paragraph(paragraph_hash: str, source: str = "") -> dict[str, Any]:
     token = str(paragraph_hash or "").strip()
     if token:
-        rows = _query_memory_rows(
+        rows = await _query_memory_rows(
             """
             SELECT operation_id
             FROM delete_operation_items
@@ -720,19 +719,8 @@ def _delete_jump_target_for_paragraph(paragraph_hash: str, source: str = "") -> 
     return {"tab": "delete", "params": params}
 
 
-def _get_memory_metadata_store() -> Any:
-    kernel = get_runtime_kernel()
-    return getattr(kernel, "metadata_store", None) if kernel is not None else None
-
-
-def _query_memory_rows(sql: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
-    metadata_store = _get_memory_metadata_store()
-    if metadata_store is None or not hasattr(metadata_store, "query"):
-        return []
-    try:
-        return list(metadata_store.query(sql, params))
-    except Exception:
-        return []
+async def _query_memory_rows(sql: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
+    return await memory_service.query_metadata(sql, params)
 
 
 def _timeline_query_limit(limit: int, multiplier: int, minimum: int) -> Optional[int]:
@@ -747,7 +735,7 @@ def _append_limit(sql: str, limit: Optional[int]) -> str:
     return f"{sql}\n        LIMIT ?"
 
 
-def _timeline_paragraph_events(
+async def _timeline_paragraph_events(
     *,
     chat: MemoryTimelineChat,
     time_start: Optional[float],
@@ -756,7 +744,7 @@ def _timeline_paragraph_events(
     limit: int,
 ) -> list[MemoryTimelineEvent]:
     query_limit = _timeline_query_limit(limit, 5, 200)
-    rows = _query_memory_rows(
+    rows = await _query_memory_rows(
         _append_limit(
             """
         SELECT hash, content, created_at, updated_at, metadata, source, is_deleted, deleted_at
@@ -781,7 +769,7 @@ def _timeline_paragraph_events(
         deleted_at = _safe_float(row.get("deleted_at"))
         is_deleted = bool(int(row.get("is_deleted") or 0))
         paragraph_jump_target = (
-            _delete_jump_target_for_paragraph(paragraph_hash, source)
+            await _delete_jump_target_for_paragraph(paragraph_hash, source)
             if is_deleted
             else _paragraph_jump_target(paragraph_hash)
         )
@@ -835,13 +823,13 @@ def _timeline_paragraph_events(
                     source=source,
                     attribution=attribution,
                     metadata={"paragraph_hash": paragraph_hash},
-                    jump_target=_delete_jump_target_for_paragraph(paragraph_hash, source),
+                    jump_target=await _delete_jump_target_for_paragraph(paragraph_hash, source),
                 )
             )
     return [event for event in events if _types_match(event, accepted_types)]
 
 
-def _timeline_episode_events(
+async def _timeline_episode_events(
     *,
     chat: MemoryTimelineChat,
     time_start: Optional[float],
@@ -854,7 +842,7 @@ def _timeline_episode_events(
         return []
     placeholders = ",".join("?" for _ in sources)
     query_limit = _timeline_query_limit(limit, 3, 100)
-    rows = _query_memory_rows(
+    rows = await _query_memory_rows(
         _append_limit(
             f"""
         SELECT episode_id, source, title, summary, paragraph_count, created_at, updated_at, event_time_start, event_time_end
@@ -937,7 +925,7 @@ def _feedback_person_ids(task: dict[str, Any]) -> list[str]:
     return normalized
 
 
-def _timeline_feedback_events(
+async def _timeline_feedback_events(
     *,
     chat: MemoryTimelineChat,
     time_start: Optional[float],
@@ -946,7 +934,7 @@ def _timeline_feedback_events(
     limit: int,
 ) -> list[MemoryTimelineEvent]:
     query_limit = _timeline_query_limit(limit, 3, 100)
-    rows = _query_memory_rows(
+    rows = await _query_memory_rows(
         _append_limit(
             """
         SELECT *
@@ -1025,7 +1013,7 @@ def _timeline_feedback_events(
     return [event for event in events if _types_match(event, accepted_types)]
 
 
-def _operation_payload_matches_chat(value: Any, chat_id: str) -> bool:
+async def _operation_payload_matches_chat(value: Any, chat_id: str) -> bool:
     if isinstance(value, dict):
         if _metadata_matches_chat(value, chat_id):
             return True
@@ -1034,21 +1022,27 @@ def _operation_payload_matches_chat(value: Any, chat_id: str) -> bool:
             return True
         paragraph_hash = str(value.get("paragraph_hash") or value.get("item_hash") or value.get("hash") or "").strip()
         if paragraph_hash:
-            rows = _query_memory_rows(
+            rows = await _query_memory_rows(
                 "SELECT hash, metadata, source FROM paragraphs WHERE hash = ? LIMIT 1",
                 (paragraph_hash,),
             )
             if rows and _paragraph_matches_chat(rows[0], chat_id)[0]:
                 return True
-        return any(_operation_payload_matches_chat(item, chat_id) for item in value.values())
+        for item in value.values():
+            if await _operation_payload_matches_chat(item, chat_id):
+                return True
+        return False
     if isinstance(value, list):
-        return any(_operation_payload_matches_chat(item, chat_id) for item in value)
+        for item in value:
+            if await _operation_payload_matches_chat(item, chat_id):
+                return True
+        return False
     if isinstance(value, str):
         return _source_matches_chat(value, chat_id)
     return False
 
 
-def _timeline_delete_events(
+async def _timeline_delete_events(
     *,
     chat: MemoryTimelineChat,
     time_start: Optional[float],
@@ -1057,7 +1051,7 @@ def _timeline_delete_events(
     limit: int,
 ) -> list[MemoryTimelineEvent]:
     query_limit = _timeline_query_limit(limit, 4, 200)
-    rows = _query_memory_rows(
+    rows = await _query_memory_rows(
         _append_limit(
             """
         SELECT operation_id, mode, selector, reason, requested_by, status, created_at, restored_at, summary_json
@@ -1073,7 +1067,7 @@ def _timeline_delete_events(
     items_by_operation: dict[str, list[dict[str, Any]]] = {operation_id: [] for operation_id in operation_ids}
     if operation_ids:
         placeholders = ",".join("?" for _ in operation_ids)
-        item_rows = _query_memory_rows(
+        item_rows = await _query_memory_rows(
             f"""
             SELECT operation_id, item_type, item_hash, item_key, payload_json, created_at
             FROM delete_operation_items
@@ -1101,10 +1095,12 @@ def _timeline_delete_events(
         ]
         summary_payload = _decode_json_payload(row.get("summary_json"), {})
         selector_payload = _decode_json_payload(row.get("selector"), row.get("selector"))
-        if not any(
-            _operation_payload_matches_chat(candidate, chat.chat_id)
-            for candidate in (summary_payload, selector_payload, decoded_items)
-        ):
+        matched = False
+        for candidate in (summary_payload, selector_payload, decoded_items):
+            if await _operation_payload_matches_chat(candidate, chat.chat_id):
+                matched = True
+                break
+        if not matched:
             continue
         item_count = max(1, len(decoded_items))
         created_at = _safe_float(row.get("created_at"))
@@ -1148,7 +1144,7 @@ def _timeline_delete_events(
     return [event for event in events if _types_match(event, accepted_types)]
 
 
-def _timeline_profile_events(
+async def _timeline_profile_events(
     *,
     chat: MemoryTimelineChat,
     time_start: Optional[float],
@@ -1157,7 +1153,7 @@ def _timeline_profile_events(
     limit: int,
 ) -> list[MemoryTimelineEvent]:
     query_limit = _timeline_query_limit(limit, 3, 100)
-    rows = _query_memory_rows(
+    rows = await _query_memory_rows(
         _append_limit(
             """
         SELECT DISTINCT pps.person_id, pps.profile_version, pps.updated_at, pps.source_note
@@ -1177,7 +1173,7 @@ def _timeline_profile_events(
     paragraphs_by_person: dict[str, list[dict[str, Any]]] = {person_id: [] for person_id in person_ids}
     if person_ids:
         placeholders = ",".join("?" for _ in person_ids)
-        paragraph_rows = _query_memory_rows(
+        paragraph_rows = await _query_memory_rows(
             f"""
             SELECT pe.entity_hash, e.name AS entity_name, p.hash, p.metadata, p.source
             FROM paragraph_entities pe
@@ -1221,7 +1217,7 @@ def _timeline_profile_events(
             )
         )
     override_limit = _timeline_query_limit(limit, 1, 100)
-    override_rows = _query_memory_rows(
+    override_rows = await _query_memory_rows(
         _append_limit(
             """
         SELECT person_id, updated_at, updated_by, source
@@ -1258,7 +1254,7 @@ def _timeline_profile_events(
     return [event for event in events if _types_match(event, accepted_types)]
 
 
-def _timeline_maintenance_events(
+async def _timeline_maintenance_events(
     *,
     chat: MemoryTimelineChat,
     time_start: Optional[float],
@@ -1267,7 +1263,7 @@ def _timeline_maintenance_events(
     limit: int,
 ) -> list[MemoryTimelineEvent]:
     query_limit = _timeline_query_limit(limit, 4, 200)
-    rows = _query_memory_rows(
+    rows = await _query_memory_rows(
         _append_limit(
             """
         SELECT r.hash, r.subject, r.predicate, r.object, r.source_paragraph, r.last_reinforced,
@@ -1362,7 +1358,7 @@ async def _memory_timeline(
     bound_events: list[MemoryTimelineEvent] = []
     for collector in collectors:
         bound_events.extend(
-            collector(
+            await collector(
                 chat=chat,
                 time_start=None,
                 time_end=None,
@@ -1378,7 +1374,7 @@ async def _memory_timeline(
     events: list[MemoryTimelineEvent] = []
     for collector in collectors:
         events.extend(
-            collector(
+            await collector(
                 chat=chat,
                 time_start=time_start,
                 time_end=time_end,
@@ -1531,7 +1527,7 @@ async def _graph_get_paragraph_detail(paragraph_hash: str, evidence_node_limit: 
     token = str(paragraph_hash or "").strip()
     if not token:
         raise HTTPException(status_code=400, detail="paragraph_hash 不能为空")
-    rows = _query_memory_rows(
+    rows = await _query_memory_rows(
         """
         SELECT hash, content, source, created_at, updated_at, metadata, is_deleted, deleted_at
         FROM paragraphs
@@ -1549,7 +1545,7 @@ async def _graph_get_paragraph_detail(paragraph_hash: str, evidence_node_limit: 
 
     entity_rows = [
         dict(row)
-        for row in _query_memory_rows(
+        for row in await _query_memory_rows(
             """
             SELECT e.hash, e.name, pe.mention_count
             FROM paragraph_entities pe
@@ -1562,7 +1558,7 @@ async def _graph_get_paragraph_detail(paragraph_hash: str, evidence_node_limit: 
     ]
     relation_rows = [
         dict(row)
-        for row in _query_memory_rows(
+        for row in await _query_memory_rows(
             """
             SELECT r.hash, r.subject, r.predicate, r.object, r.confidence
             FROM paragraph_relations pr
@@ -2043,32 +2039,32 @@ async def _runtime_rebuild_vectors(payload: VectorRebuildRequest) -> dict:
 async def _memory_config_schema() -> dict:
     return {
         "success": True,
-        "schema": a_memorix_host_service.get_config_schema(),
-        "path": str(a_memorix_host_service.get_config_path()),
+        "schema": memory_service.get_config_schema(),
+        "path": str(memory_service.get_config_path()),
     }
 
 
 async def _memory_config_get() -> dict:
     return {
         "success": True,
-        "config": a_memorix_host_service.get_config(),
-        "path": str(a_memorix_host_service.get_config_path()),
+        "config": memory_service.get_config(),
+        "path": str(memory_service.get_config_path()),
     }
 
 
 async def _memory_config_get_raw() -> dict:
-    raw_payload = a_memorix_host_service.get_raw_config_with_meta()
+    raw_payload = memory_service.get_raw_config_with_meta()
     return {
         "success": True,
         "config": str(raw_payload.get("config", "") or ""),
         "exists": bool(raw_payload.get("exists", False)),
         "using_default": bool(raw_payload.get("using_default", False)),
-        "path": str(a_memorix_host_service.get_config_path()),
+        "path": str(memory_service.get_config_path()),
     }
 
 
 async def _memory_config_update(payload: MemoryConfigUpdateRequest) -> dict:
-    return await a_memorix_host_service.update_config(payload.config)
+    return await memory_service.update_config(payload.config)
 
 
 async def _memory_config_update_raw(payload: MemoryRawConfigUpdateRequest) -> dict:
@@ -2076,7 +2072,7 @@ async def _memory_config_update_raw(payload: MemoryRawConfigUpdateRequest) -> di
         tomlkit.loads(payload.config)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"TOML 格式错误: {exc}") from exc
-    return await a_memorix_host_service.update_raw_config(payload.config)
+    return await memory_service.update_raw_config(payload.config)
 
 
 async def _maintenance_recycle_bin(limit: int) -> dict:
@@ -2350,7 +2346,7 @@ async def _tuning_apply_best(task_id: str, payload: TuningApplyBestRequest | Non
         return result
 
     try:
-        persist_payload = await a_memorix_host_service.update_config(runtime_config)
+        persist_payload = await memory_service.update_config(runtime_config)
     except Exception as exc:
         result["persisted"] = False
         result["persist_error"] = f"persist_failed: {exc}"

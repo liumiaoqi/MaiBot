@@ -130,7 +130,9 @@ class MainSystem:
         await _wait_for_plugin_runners_spawned(plugin_runtime_manager, plugin_runtime_task)
 
         from src.A_memorix.host_service import a_memorix_host_service
+        from src.common.service_registry import service_registry
 
+        service_registry.register("a_memorix_host_service", a_memorix_host_service)
         a_memorix_host_service.register_config_reload_callback()
         a_memorix_task = asyncio.create_task(a_memorix_host_service.start(), name="a_memorix_start")
 
@@ -273,14 +275,15 @@ async def main() -> None:
             await system._interaction_scheduler.stop()
         if system.webui_server:
             await system.webui_server.shutdown()
-        from src.A_memorix.host_service import a_memorix_host_service
+        from src.common.service_registry import service_registry
         from src.emoji_system.emoji_manager import emoji_manager
         from src.plugin_runtime.integration import get_plugin_runtime_manager
         from src.services.memory_flow_service import memory_automation_service
 
         emoji_manager.shutdown()
         await memory_automation_service.shutdown()
-        await a_memorix_host_service.stop()
+        if service_registry.has("a_memorix_host_service"):
+            await service_registry.get("a_memorix_host_service").stop()
         await get_plugin_runtime_manager().bridge_event("on_stop")
         await get_plugin_runtime_manager().stop()
         await async_task_manager.stop_and_wait_all_tasks()
