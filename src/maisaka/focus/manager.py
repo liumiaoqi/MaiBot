@@ -11,6 +11,7 @@ import time
 from src.common.utils.utils_config import ChatConfigUtils
 from src.config.config import global_config
 from src.core.session_port_registry import get_session_info
+from src.core.types import SessionInfo
 
 FOCUS_SLOT_LIMIT = 1
 FOCUS_GLOBAL_SCOPE_KEY = "__global__"
@@ -21,7 +22,7 @@ FOCUS_ISOLATED_SCOPE_PREFIX = "session:"
 class FocusTargetResolution:
     """Resolved chat target for focus-mode tools."""
 
-    session: Optional[BotChatSession]
+    session_info: Optional[SessionInfo]
     error: str = ""
 
 
@@ -393,22 +394,22 @@ class FocusModeManager:
     def resolve_session_from_args(
         self,
         arguments: dict[str, Any],
-        available_sessions: Iterable[BotChatSession],
+        available_session_infos: Iterable[SessionInfo],
     ) -> FocusTargetResolution:
         """Resolve tool arguments to a currently running chat session."""
 
         session_by_id = {
-            session.session_id: session
-            for session in available_sessions
-            if str(session.session_id or "").strip()
+            info.session_id: info
+            for info in available_session_infos
+            if str(info.session_id or "").strip()
         }
 
         chat_id = str(arguments.get("chat_id") or arguments.get("session_id") or "").strip()
         if chat_id:
-            session = session_by_id.get(chat_id)
-            if session is None:
+            info = session_by_id.get(chat_id)
+            if info is None:
                 return FocusTargetResolution(None, f"未找到 chat_id={chat_id} 对应的运行中已创建聊天。")
-            return FocusTargetResolution(session)
+            return FocusTargetResolution(info)
 
         platform = str(arguments.get("platform") or "").strip()
         target_id = str(
@@ -421,22 +422,22 @@ class FocusModeManager:
         if not platform or not target_id or chat_type not in {"group", "private"}:
             return FocusTargetResolution(None, "需要提供 chat_id，或提供 platform、id、type(group/private) 组合。")
 
-        matched_sessions: list[BotChatSession] = []
-        for session in session_by_id.values():
-            if str(session.platform or "").strip() != platform:
+        matched_infos: list[SessionInfo] = []
+        for info in session_by_id.values():
+            if str(info.platform or "").strip() != platform:
                 continue
-            session_target_id = session.group_id if chat_type == "group" else session.user_id
-            if str(session_target_id or "").strip() == target_id:
-                matched_sessions.append(session)
-        if not matched_sessions:
+            info_target_id = info.group_id if chat_type == "group" else info.user_id
+            if str(info_target_id or "").strip() == target_id:
+                matched_infos.append(info)
+        if not matched_infos:
             return FocusTargetResolution(
                 None,
                 f"未找到 platform={platform} id={target_id} type={chat_type} 对应的运行中已创建聊天。",
             )
-        if len(matched_sessions) > 1:
-            matched_ids = ", ".join(session.session_id for session in matched_sessions)
+        if len(matched_infos) > 1:
+            matched_ids = ", ".join(info.session_id for info in matched_infos)
             return FocusTargetResolution(None, f"匹配到多个聊天，请改用 chat_id 指定：{matched_ids}")
-        return FocusTargetResolution(matched_sessions[0])
+        return FocusTargetResolution(matched_infos[0])
 
 
 focus_mode_manager = FocusModeManager()

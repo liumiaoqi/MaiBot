@@ -10,13 +10,13 @@ from typing import Any, Literal, Optional, Sequence
 import asyncio
 import time
 
-from src.chat.message_receive.chat_manager import BotChatSession
 from src.chat.message_receive.message import SessionMessage
 from src.common.data_models.mai_message_data_model import MessageInfo
 from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
 from src.common.logger import get_logger
 from src.config.config import global_config
 from src.core.session_port_registry import get_last_message, get_session_name
+from src.core.types import SessionInfo
 
 from src.maisaka.context.messages import (
     FOCUS_AT_WAKEUP_SOURCE,
@@ -44,7 +44,7 @@ class MaisakaFocusRuntimeMixin:
 
         return focus_mode_manager.is_enabled_for_session(
             self.session_id,
-            is_group_chat=self.chat_stream.is_group_session,
+            is_group_chat=self._session_info.is_group_session,
         )
 
     def _get_pending_attention_flags(self) -> tuple[bool, bool]:
@@ -99,7 +99,7 @@ class MaisakaFocusRuntimeMixin:
         if not self._is_focus_mode_active_for_current_chat():
             self._consecutive_idle_count = 0
             return
-        if not self.chat_stream.is_group_session:
+        if not self._session_info.is_group_session:
             self._consecutive_idle_count = 0
             return
 
@@ -142,7 +142,7 @@ class MaisakaFocusRuntimeMixin:
         self._cancel_focus_cooldown_timer_task()
         if not self._running or not focus_mode_manager.can_decide(
             self.session_id,
-            is_group_chat=self.chat_stream.is_group_session,
+            is_group_chat=self._session_info.is_group_session,
         ):
             return
         self._focus_cooldown_timer_task = asyncio.create_task(self._run_focus_cooldown_timer())
@@ -154,7 +154,7 @@ class MaisakaFocusRuntimeMixin:
             await asyncio.sleep(focus_mode_manager.get_focus_cool_time())
             if not self._running or not focus_mode_manager.can_decide(
                 self.session_id,
-                is_group_chat=self.chat_stream.is_group_session,
+                is_group_chat=self._session_info.is_group_session,
             ):
                 return
 
@@ -178,11 +178,12 @@ class MaisakaFocusRuntimeMixin:
 
         from src.chat.heart_flow.heartflow_manager import heartflow_manager
 
-        running_sessions = [
-            runtime.chat_stream
+        running_session_infos = [
+            runtime._session_info
             for runtime in heartflow_manager.heartflow_chat_list.values()
+            if runtime._session_info is not None
         ]
-        return focus_mode_manager.resolve_session_from_args(arguments, running_sessions)
+        return focus_mode_manager.resolve_session_from_args(arguments, running_session_infos)
 
     def _maybe_schedule_focus_cooldown_wakeup(self, *, trigger_session_id: str) -> None:
         """Wake one idle focused chat when other running chats have pending messages."""
@@ -236,7 +237,7 @@ class MaisakaFocusRuntimeMixin:
                 continue
             if not focus_mode_manager.is_enabled_for_session(
                 runtime.session_id,
-                is_group_chat=runtime.chat_stream.is_group_session,
+                is_group_chat=runtime._session_info.is_group_session,
             ):
                 continue
             if trigger_session_id and not focus_mode_manager.is_same_focus_scope(runtime.session_id, trigger_session_id):
@@ -275,7 +276,7 @@ class MaisakaFocusRuntimeMixin:
                 continue
             if not focus_mode_manager.is_enabled_for_session(
                 runtime.session_id,
-                is_group_chat=runtime.chat_stream.is_group_session,
+                is_group_chat=runtime._session_info.is_group_session,
             ):
                 continue
             if not focus_mode_manager.is_same_focus_scope(runtime.session_id, focus_session_id):
@@ -294,7 +295,7 @@ class MaisakaFocusRuntimeMixin:
 
         if self._focus_cooldown_wakeup_scheduled or not focus_mode_manager.can_decide(
             self.session_id,
-            is_group_chat=self.chat_stream.is_group_session,
+            is_group_chat=self._session_info.is_group_session,
         ):
             return False
         if self._agent_state == self._STATE_RUNNING:
@@ -323,7 +324,7 @@ class MaisakaFocusRuntimeMixin:
         wakeup_message = SessionMessage(
             message_id=wakeup_id,
             timestamp=wakeup_timestamp,
-            platform=self.chat_stream.platform,
+            platform=self._session_info.platform,
         )
         wakeup_message.session_id = self.session_id
         wakeup_message.message_info = MessageInfo(
@@ -356,7 +357,7 @@ class MaisakaFocusRuntimeMixin:
 
         if not self._is_focus_mode_active_for_current_chat() or not focus_mode_manager.can_decide(
             self.session_id,
-            is_group_chat=self.chat_stream.is_group_session,
+            is_group_chat=self._session_info.is_group_session,
         ):
             return []
         return self._build_focus_chat_event_messages()
@@ -368,8 +369,8 @@ class MaisakaFocusRuntimeMixin:
 
         running_runtimes = sorted(
             heartflow_manager.heartflow_chat_list.values(),
-            key=lambda runtime: runtime.chat_stream.last_active_timestamp
-            or runtime.chat_stream.created_timestamp,
+            key=lambda runtime: runtime._session_info.last_active_timestamp
+            or runtime._session_info.created_timestamp,
             reverse=True,
         )
         bot_name = global_config.bot.nickname.strip()
@@ -402,16 +403,16 @@ class MaisakaFocusRuntimeMixin:
         for chat_runtime in running_runtimes:
             if not focus_mode_manager.is_enabled_for_session(
                 chat_runtime.session_id,
-                is_group_chat=chat_runtime.chat_stream.is_group_session,
+                is_group_chat=chat_runtime._session_info.is_group_session,
             ):
                 continue
             if not focus_mode_manager.is_same_focus_scope(chat_runtime.session_id, self.session_id):
                 continue
-            chat_session = chat_runtime.chat_stream
+            chat_session_info = chat_runtime._session_info
             unread_count = chat_runtime._get_pending_message_count()
             has_pending_at, has_pending_mention = chat_runtime._get_pending_attention_flags()
-            latest_messages = self._get_latest_messages_for_focus_overview(chat_session, chat_runtime)
-            chat_attrs = self._build_focus_event_chat_attrs(chat_session, unread_count)
+            latest_messages = self._get_latest_messages_for_focus_overview(chat_session_info, chat_runtime)
+            chat_attrs = self._build_focus_event_chat_attrs(chat_session_info, unread_count)
 
             if has_pending_at:
                 append_event(
@@ -455,12 +456,12 @@ class MaisakaFocusRuntimeMixin:
         return event_messages
 
     @staticmethod
-    def _build_focus_event_chat_attrs(chat_session: BotChatSession, unread_count: int) -> list[str]:
-        chat_type = "group" if chat_session.is_group_session else "private"
-        target_id = chat_session.group_id if chat_session.is_group_session else chat_session.user_id
+    def _build_focus_event_chat_attrs(chat_session_info: SessionInfo, unread_count: int) -> list[str]:
+        chat_type = "group" if chat_session_info.is_group_session else "private"
+        target_id = chat_session_info.group_id if chat_session_info.is_group_session else chat_session_info.user_id
         return [
-            f'chat_id="{escape(chat_session.session_id, quote=True)}"',
-            f'platform="{escape(chat_session.platform, quote=True)}"',
+            f'chat_id="{escape(chat_session_info.session_id, quote=True)}"',
+            f'platform="{escape(chat_session_info.platform, quote=True)}"',
             f'id="{escape(target_id or "", quote=True)}"',
             f'type="{escape(chat_type, quote=True)}"',
             f'unread_count="{unread_count}"',
@@ -509,7 +510,7 @@ class MaisakaFocusRuntimeMixin:
 
     @staticmethod
     def _get_latest_messages_for_focus_overview(
-        chat_session: BotChatSession,
+        chat_session_info: SessionInfo,
         chat_runtime: Any | None,
         limit: int = 1,
     ) -> list[SessionMessage]:
@@ -517,7 +518,7 @@ class MaisakaFocusRuntimeMixin:
 
         if chat_runtime is not None and chat_runtime.message_cache:
             return chat_runtime.message_cache[-max(1, int(limit)) :]
-        if latest_message := get_last_message(chat_session.session_id):
+        if latest_message := get_last_message(chat_session_info.session_id):
             return [latest_message]
         return []
 
@@ -605,12 +606,12 @@ class MaisakaFocusRuntimeMixin:
             source_kind="user",
         )
 
-        chat_session = self.chat_stream
-        chat_type = "group" if chat_session.is_group_session else "private"
-        target_id = chat_session.group_id if chat_session.is_group_session else chat_session.user_id
+        chat_session_info = self._session_info
+        chat_type = "group" if chat_session_info.is_group_session else "private"
+        target_id = chat_session_info.group_id if chat_session_info.is_group_session else chat_session_info.user_id
         lines = [
-            f"已从当前聊天 chat_id={chat_session.session_id} 获取尚未进入 Maisaka 上下文的消息。",
-            f"平台: {chat_session.platform}",
+            f"已从当前聊天 chat_id={chat_session_info.session_id} 获取尚未进入 Maisaka 上下文的消息。",
+            f"平台: {chat_session_info.platform}",
             f"id: {target_id or ''}",
             f"类型: {chat_type}",
             f"请求数量: {safe_num}",
@@ -620,8 +621,8 @@ class MaisakaFocusRuntimeMixin:
         ]
 
         structured_content = {
-            "chat_id": chat_session.session_id,
-            "platform": chat_session.platform,
+            "chat_id": chat_session_info.session_id,
+            "platform": chat_session_info.platform,
             "id": target_id or "",
             "type": chat_type,
             "num": safe_num,
@@ -644,7 +645,7 @@ class MaisakaFocusRuntimeMixin:
 
     async def switch_focus_to_session(
         self,
-        target_session: BotChatSession,
+        target_session_info: SessionInfo,
         *,
         tool_call_id: str,
         tool_name: str,
@@ -653,16 +654,16 @@ class MaisakaFocusRuntimeMixin:
 
         if not self._is_focus_mode_active_for_current_chat():
             return False, "focus_mode 未启用，不能切换聊天。", {}, {}
-        if target_session.session_id == self.session_id:
+        if target_session_info.session_id == self.session_id:
             return False, "目标聊天就是当前聊天，不能切换到自身。", {}, {}
 
         from src.chat.heart_flow.heartflow_manager import heartflow_manager
 
-        target_runtime = heartflow_manager.heartflow_chat_list.get(target_session.session_id)
+        target_runtime = heartflow_manager.heartflow_chat_list.get(target_session_info.session_id)
         if target_runtime is None:
-            return False, f"chat_id={target_session.session_id} 当前不是运行中已创建聊天，不能切换。", {}, {}
+            return False, f"chat_id={target_session_info.session_id} 当前不是运行中已创建聊天，不能切换。", {}, {}
 
-        switch_error = focus_mode_manager.switch_focus(self.session_id, target_session.session_id)
+        switch_error = focus_mode_manager.switch_focus(self.session_id, target_session_info.session_id)
         if switch_error:
             return False, switch_error, {}, {}
 

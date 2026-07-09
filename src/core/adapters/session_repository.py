@@ -25,12 +25,7 @@ class ChatManagerSessionRepository:
 
         return chat_manager
 
-    async def get_session(self, session_id: str) -> Optional[SessionInfo]:
-        chat_manager = self._ensure_chat_manager()
-        session = chat_manager.get_session_by_session_id(session_id)
-        if session is None:
-            return None
-
+    def _build_session_info(self, session, chat_manager, session_id: str) -> SessionInfo:
         primary_agent_id = self._routing_service.get_primary_agent(session_id) or ""
         cohabitant_ids = self._routing_service.get_session_all_agents(session_id) - {primary_agent_id}
 
@@ -45,7 +40,16 @@ class ChatManagerSessionRepository:
             user_nickname=session.user_nickname or "",
             primary_agent_id=primary_agent_id,
             cohabitant_agent_ids=cohabitant_ids,
+            created_timestamp=getattr(session, "created_timestamp", None),
+            last_active_timestamp=getattr(session, "last_active_timestamp", None),
         )
+
+    async def get_session(self, session_id: str) -> Optional[SessionInfo]:
+        chat_manager = self._ensure_chat_manager()
+        session = chat_manager.get_session_by_session_id(session_id)
+        if session is None:
+            return None
+        return self._build_session_info(session, chat_manager, session_id)
 
     def get_session_info(self, session_id: str) -> Optional[SessionInfo]:
         """同步版本 — 供 SessionInfoPort Protocol 使用（仅内存缓存）。"""
@@ -53,22 +57,7 @@ class ChatManagerSessionRepository:
         session = chat_manager.get_session_by_session_id(session_id)
         if session is None:
             return None
-
-        primary_agent_id = self._routing_service.get_primary_agent(session_id) or ""
-        cohabitant_ids = self._routing_service.get_session_all_agents(session_id) - {primary_agent_id}
-
-        return SessionInfo(
-            session_id=session.session_id,
-            session_name=chat_manager.get_session_name(session_id) or session.session_id,
-            platform=session.platform,
-            is_group_session=session.is_group_session,
-            group_id=session.group_id or "",
-            group_name=session.group_name or "",
-            user_id=session.user_id or "",
-            user_nickname=session.user_nickname or "",
-            primary_agent_id=primary_agent_id,
-            cohabitant_agent_ids=cohabitant_ids,
-        )
+        return self._build_session_info(session, chat_manager, session_id)
 
     def get_existing_session_info(self, session_id: str) -> Optional[SessionInfo]:
         """同步版本 — 内存未命中时从数据库加载。"""
@@ -76,22 +65,7 @@ class ChatManagerSessionRepository:
         session = chat_manager.get_existing_session_by_session_id(session_id)
         if session is None:
             return None
-
-        primary_agent_id = self._routing_service.get_primary_agent(session_id) or ""
-        cohabitant_ids = self._routing_service.get_session_all_agents(session_id) - {primary_agent_id}
-
-        return SessionInfo(
-            session_id=session.session_id,
-            session_name=chat_manager.get_session_name(session_id) or session.session_id,
-            platform=session.platform,
-            is_group_session=session.is_group_session,
-            group_id=session.group_id or "",
-            group_name=session.group_name or "",
-            user_id=session.user_id or "",
-            user_nickname=session.user_nickname or "",
-            primary_agent_id=primary_agent_id,
-            cohabitant_agent_ids=cohabitant_ids,
-        )
+        return self._build_session_info(session, chat_manager, session_id)
 
     async def get_session_name(self, session_id: str) -> str:
         chat_manager = self._ensure_chat_manager()
