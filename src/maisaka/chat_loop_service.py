@@ -515,6 +515,20 @@ class MaisakaChatLoopService:
 
         return self._build_personality_prompt()
 
+    @property
+    def agent_id(self) -> str:
+        """当前活跃智能体 ID。"""
+        return self._agent_id or ""
+
+    @agent_id.setter
+    def agent_id(self, value: str) -> None:
+        """设置当前活跃智能体 ID。"""
+        self._agent_id = value
+
+    def get_prompt_template_name(self) -> str:
+        """获取当前应使用的提示词模板名。"""
+        return self._get_chat_prompt_name()
+
     @staticmethod
     def _resolve_llm_request_type(request_kind: str) -> str:
         """根据 Maisaka 请求类型解析 LLM 统计口径。"""

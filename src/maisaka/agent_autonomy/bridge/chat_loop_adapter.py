@@ -22,7 +22,7 @@ class ChatLoopServiceAdapter:
 
     @property
     def current_agent_id(self) -> str:
-        return self._chat_loop_service._agent_id or ""
+        return self._chat_loop_service.agent_id
 
     def switch_agent_context(self, agent_id: str) -> None:
         """切换当前活跃的智能体上下文。
@@ -30,8 +30,8 @@ class ChatLoopServiceAdapter:
         切换后，personality_prompt、build_prompt_template_context()
         等方法将返回目标智能体的上下文。
         """
-        old_agent_id = self._chat_loop_service._agent_id
-        self._chat_loop_service._agent_id = agent_id
+        old_agent_id = self._chat_loop_service.agent_id
+        self._chat_loop_service.agent_id = agent_id
 
         # 更新情绪状态文本
         try:
@@ -77,7 +77,7 @@ class ChatLoopServiceAdapter:
         """获取当前应使用的提示词模板名。"""
         if self._use_embodied_prompt:
             return "maisaka_chat_embodied"
-        return self._chat_loop_service._get_chat_prompt_name()
+        return self._chat_loop_service.get_prompt_template_name()
 
     async def enqueue_proactive_task(
         self,

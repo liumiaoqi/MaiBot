@@ -38,9 +38,9 @@ class AMemorixMemoryServicePort:
             return None
 
     async def build_profile_injection_text(self, raw_text: str) -> str:
-        from src.A_memorix.core.utils.profile_text import build_profile_injection_text
+        from src.A_memorix.host_service import a_memorix_host_service
 
-        return build_profile_injection_text(raw_text)
+        return a_memorix_host_service.build_profile_injection_text(raw_text)
 
     async def set_memory_personality(self, agent_id: str, params: dict[str, Any]) -> None:
         """将智能体记忆性格参数传递给 A_memorix 连接主义记忆系统。"""

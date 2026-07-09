@@ -9,7 +9,7 @@ import json
 import time
 
 from src.chat.heart_flow.heartFC_utils import CycleDetail
-from src.chat.message_receive.chat_manager import BotChatSession, chat_manager
+from src.chat.message_receive.chat_manager import BotChatSession
 from src.chat.message_receive.message import SessionMessage
 from src.chat.replyer.expression_vector_index import expression_vector_index
 from src.chat.utils.utils import get_bot_account, is_bot_self, is_mentioned_bot_in_message
@@ -25,6 +25,7 @@ from src.common.message_repository import find_messages
 from src.common.utils.utils_config import BehaviorConfigUtils, ChatConfigUtils, ExpressionConfigUtils, JargonConfigUtils
 from src.config.config import global_config
 from src.core.protocols import NoticeClassifier
+from src.core.session_port_registry import get_session_name
 from src.core.types import NoticeKind
 from src.core.tooling import ToolRegistry, ToolSpec
 from src.learners.behavior_learner import BehaviorLearner
@@ -141,12 +142,14 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
 
     def __init__(self, session_id: str):
         self.session_id = session_id
+        from src.chat.message_receive.chat_manager import chat_manager
+
         chat_stream = chat_manager.get_session_by_session_id(session_id)
         if chat_stream is None:
             raise ValueError(f"未找到会话 {session_id} 对应的 Maisaka 运行时")
         self.chat_stream: BotChatSession = chat_stream
 
-        session_name = chat_manager.get_session_name(session_id) or session_id
+        session_name = get_session_name(session_id)
         self.session_name = session_name
         self.log_prefix = f"[{session_name}]"
         self._chat_loop_service = MaisakaChatLoopService(
@@ -1474,7 +1477,9 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
 
                 recovery = SessionRecoveryService()
                 import asyncio
-                asyncio.create_task(recovery.recover_all(self._chat_manager))
+                from src.chat.message_receive.chat_manager import chat_manager as _cm
+
+                asyncio.create_task(recovery.recover_all(_cm))
             except Exception as recovery_exc:
                 logger.debug(
                     f"[agent_autonomy] 会话恢复跳过: {recovery_exc}"
