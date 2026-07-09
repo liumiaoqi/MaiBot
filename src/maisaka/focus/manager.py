@@ -8,9 +8,9 @@ from typing import Any, Iterable, Optional
 
 import time
 
-from src.chat.message_receive.chat_manager import BotChatSession, chat_manager
 from src.common.utils.utils_config import ChatConfigUtils
 from src.config.config import global_config
+from src.core.session_port_registry import get_session_info
 
 FOCUS_SLOT_LIMIT = 1
 FOCUS_GLOBAL_SCOPE_KEY = "__global__"
@@ -69,10 +69,10 @@ class FocusModeManager:
         if is_group_chat is not None:
             return is_group_chat
 
-        chat_session = chat_manager.get_session_by_session_id(session_id)
-        if chat_session is None:
+        info = get_session_info(session_id)
+        if info is None:
             return None
-        return chat_session.is_group_session
+        return info.is_group_session
 
     def _is_focus_mode_active_for_session(
         self,

@@ -170,6 +170,13 @@ class MainSystem:
         await chat_manager.initialize()
         asyncio.create_task(chat_manager.regularly_save_sessions())
 
+        # 注册全局 SessionInfoPort，让 maisaka 外围模块通过 Protocol 查询会话信息
+        from src.core.adapters.routing_adapter import ChatManagerRoutingAdapter
+        from src.core.adapters.session_repository import ChatManagerSessionRepository
+        from src.core.session_port_registry import register_session_info_port
+
+        register_session_info_port(ChatManagerSessionRepository(ChatManagerRoutingAdapter()))
+
         logger.info(t("startup.chat_manager_initialized"))
         await memory_automation_service.start()
 

@@ -181,23 +181,19 @@ def _enrich_session_identity(data: Dict[str, Any]) -> Dict[str, Any]:
     if not session_id:
         return data
 
-    try:
-        from src.chat.message_receive.chat_manager import chat_manager
+    from src.core.session_port_registry import get_session_info, get_session_name
 
-        chat_stream = chat_manager.get_session_by_session_id(str(session_id))
-    except Exception:
+    info = get_session_info(str(session_id))
+    if info is None:
         return data
 
-    if chat_stream is None:
-        return data
-
-    session_name = chat_manager.get_session_name(str(session_id))
+    session_name = get_session_name(str(session_id))
     if session_name:
         data.setdefault("session_name", session_name)
-    data.setdefault("is_group_chat", chat_stream.is_group_session)
-    data.setdefault("group_id", chat_stream.group_id)
-    data.setdefault("user_id", chat_stream.user_id)
-    data.setdefault("platform", chat_stream.platform)
+    data.setdefault("is_group_chat", info.is_group_session)
+    data.setdefault("group_id", info.group_id)
+    data.setdefault("user_id", info.user_id)
+    data.setdefault("platform", info.platform)
     return data
 
 

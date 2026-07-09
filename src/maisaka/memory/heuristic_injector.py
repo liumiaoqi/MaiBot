@@ -6,13 +6,14 @@ from dataclasses import dataclass, field
 from time import time
 from typing import Any, Sequence
 
-from src.chat.message_receive.chat_manager import BotChatSession, chat_manager
+from src.chat.message_receive.chat_manager import BotChatSession
 from src.chat.message_receive.message import SessionMessage
 from src.common.data_models.message_component_data_model import AtComponent, ReplyComponent
 from src.common.logger import get_logger
 from src.common.message_repository import count_messages, find_messages
 from src.common.prompt_i18n import load_prompt
 from src.config.config import global_config
+from src.core.session_port_registry import get_existing_session_info, get_session_name
 from src.person_info.person_info import get_person_id
 from src.services.llm_service import LLMServiceClient
 from src.services.memory_service import MemoryHit, memory_service
@@ -74,18 +75,18 @@ class HeuristicMemoryInjector:
             self.clear_session_reference(session_id)
             return ""
 
-        session = chat_manager.get_existing_session_by_session_id(session_id)
-        if session is None:
+        session_info = get_existing_session_info(session_id)
+        if session_info is None:
             logger.debug(f"启发式记忆跳过：无法解析真实聊天流 session_id={session_id!r}")
             return ""
 
         window_size = max(1, int(getattr(config, "heuristic_memory_recall_window_size", 20) or 20))
-        total_message_count = count_messages(session_id=session.session_id)
+        total_message_count = count_messages(session_id=session_info.session_id)
         if total_message_count < window_size:
-            self.clear_session_reference(session.session_id)
+            self.clear_session_reference(session_info.session_id)
             return ""
 
-        state = self._states.setdefault(session.session_id, HeuristicMemoryRecallState())
+        state = self._states.setdefault(session_info.session_id, HeuristicMemoryRecallState())
         now = time()
         cache_ttl = max(0, _get_int_config(config, "heuristic_memory_recall_cache_ttl_seconds", 300))
         if state.cached_reference and cache_ttl > 0 and now < state.cache_expires_at:
@@ -344,13 +345,13 @@ class HeuristicMemoryInjector:
         if not bool(getattr(config, "heuristic_memory_cross_chat_enabled", False)):
             return False
 
-        source_session = chat_manager.get_existing_session_by_session_id(clean_source_session_id)
-        if source_session is None:
+        source_info = get_existing_session_info(clean_source_session_id)
+        if source_info is None:
             return False
 
-        if source_session.is_group_session and not current_session.is_group_session:
+        if source_info.is_group_session and not current_session.is_group_session:
             return bool(getattr(config, "heuristic_memory_group_to_private_enabled", False))
-        if not source_session.is_group_session and current_session.is_group_session:
+        if not source_info.is_group_session and current_session.is_group_session:
             return bool(getattr(config, "heuristic_memory_private_to_group_enabled", False))
         return True
 
@@ -397,7 +398,7 @@ class HeuristicMemoryInjector:
     @staticmethod
     def _format_chat_identity(session: BotChatSession) -> str:
         chat_type = "group" if session.is_group_session else "private"
-        display_name = chat_manager.get_session_name(session.session_id) or session.session_id
+        display_name = get_session_name(session.session_id)
         parts = [
             f"chat_type: {chat_type}",
             f"display_name: {display_name}",

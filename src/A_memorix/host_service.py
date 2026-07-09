@@ -567,5 +567,15 @@ class AMemorixHostService:
         self._kernel = None
         set_runtime_kernel(None)
 
+    @staticmethod
+    def build_profile_injection_text(raw_text: str) -> str:
+        """公共 API — 从结构化画像段落构建紧凑注入文本。
+
+        适配器层应通过此方法调用，而非直接导入 A_memorix.core.utils 内部模块。
+        """
+        from src.A_memorix.core.utils.profile_text import build_profile_injection_text
+
+        return build_profile_injection_text(raw_text)
+
 
 a_memorix_host_service = AMemorixHostService()

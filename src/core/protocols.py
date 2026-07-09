@@ -108,6 +108,17 @@ class ChatRuntime(Protocol):
     def session_name(self) -> str:
         """运行时所属会话展示名称。"""
 
+    @property
+    def agent_id(self) -> str:
+        """当前活跃智能体 ID。"""
+
+    @agent_id.setter
+    def agent_id(self, value: str) -> None:
+        """设置当前活跃智能体 ID。"""
+
+    def get_prompt_template_name(self) -> str:
+        """获取当前应使用的提示词模板名。"""
+
     async def enqueue_proactive_task(
         self,
         *,
@@ -229,7 +240,17 @@ class SessionInfoPort(Protocol):
     """会话信息查询接口 — 供组件反向查询会话信息。"""
 
     def get_session_info(self, session_id: str) -> Optional[SessionInfo]:
-        """查询会话信息。
+        """查询会话信息（仅内存缓存）。
+
+        Args:
+            session_id: 会话 ID
+
+        Returns:
+            SessionInfo 快照，不存在时返回 None
+        """
+
+    def get_existing_session_info(self, session_id: str) -> Optional[SessionInfo]:
+        """查询会话信息（内存未命中时从数据库加载）。
 
         Args:
             session_id: 会话 ID

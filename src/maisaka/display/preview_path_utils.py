@@ -7,7 +7,7 @@ from urllib.parse import quote
 
 import re
 
-from src.chat.message_receive.chat_manager import chat_manager
+from src.core.session_port_registry import get_session_info
 
 
 REPO_ROOT = Path(__file__).parent.parent.parent.parent.absolute().resolve()
@@ -30,13 +30,13 @@ def normalize_platform_name(platform: str) -> str:
 
 
 def build_preview_chat_dir_name(chat_id: str) -> str:
-    session = chat_manager.get_session_by_session_id(chat_id)
-    if session is not None:
-        platform = normalize_platform_name(session.platform)
-        if session.is_group_session and session.group_id:
-            return f"{platform}_group_{normalize_preview_name(session.group_id)}"
-        if session.user_id:
-            return f"{platform}_private_{normalize_preview_name(session.user_id)}"
+    info = get_session_info(chat_id)
+    if info is not None:
+        platform = normalize_platform_name(info.platform)
+        if info.is_group_session and info.group_id:
+            return f"{platform}_group_{normalize_preview_name(info.group_id)}"
+        if info.user_id:
+            return f"{platform}_private_{normalize_preview_name(info.user_id)}"
 
     normalized_chat_id = normalize_preview_name(chat_id)
     if normalized_chat_id != "unknown":

@@ -10,12 +10,13 @@ from typing import Any, Literal, Optional, Sequence
 import asyncio
 import time
 
-from src.chat.message_receive.chat_manager import BotChatSession, chat_manager
+from src.chat.message_receive.chat_manager import BotChatSession
 from src.chat.message_receive.message import SessionMessage
 from src.common.data_models.mai_message_data_model import MessageInfo
 from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
 from src.common.logger import get_logger
 from src.config.config import global_config
+from src.core.session_port_registry import get_last_message, get_session_name
 
 from src.maisaka.context.messages import (
     FOCUS_AT_WAKEUP_SOURCE,
@@ -299,7 +300,7 @@ class MaisakaFocusRuntimeMixin:
         if self._agent_state == self._STATE_RUNNING:
             return False
 
-        trigger_name = chat_manager.get_session_name(trigger_session_id) or trigger_session_id
+        trigger_name = get_session_name(trigger_session_id)
         bot_name = global_config.bot.nickname.strip()
         wakeup_timestamp = datetime.now()
         wakeup_id = f"focus_{wakeup_reason}:{int(time.time() * 1000)}"
@@ -516,7 +517,7 @@ class MaisakaFocusRuntimeMixin:
 
         if chat_runtime is not None and chat_runtime.message_cache:
             return chat_runtime.message_cache[-max(1, int(limit)) :]
-        if latest_message := chat_manager.last_messages.get(chat_session.session_id):
+        if latest_message := get_last_message(chat_session.session_id):
             return [latest_message]
         return []
 
