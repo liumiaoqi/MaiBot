@@ -485,5 +485,29 @@ class MemoryService:
 
         return a_memorix_host_service.build_profile_injection_text(raw_text)
 
+    async def migration_search(self, query: str, *, agent_id: str = "", **kwargs) -> MemorySearchResult:
+        payload = {"query": query, "agent_id": agent_id, **kwargs}
+        result = await self._invoke("migration_search", payload)
+        if isinstance(result, MemorySearchResult):
+            return result
+        return self._coerce_search_result(result)
+
+    async def migration_get_person_profile(self, person_id: str, *, agent_id: str = "", limit: int = 4) -> PersonProfileResult:
+        payload = {"person_id": person_id, "agent_id": agent_id, "limit": limit}
+        result = await self._invoke("migration_get_person_profile", payload)
+        return self._coerce_profile_result(result)
+
+    async def migration_ingest_text(self, text: str, **kwargs) -> MemoryWriteResult:
+        payload = {"text": text, **kwargs}
+        result = await self._invoke("migration_ingest_text", payload)
+        if isinstance(result, MemoryWriteResult):
+            return result
+        return self._coerce_write_result(result)
+
+    async def migration_build_profile_injection_text(self, raw_text: str, *, agent_id: str = "") -> str:
+        payload = {"raw_text": raw_text, "agent_id": agent_id}
+        result = await self._invoke("migration_build_profile_injection_text", payload)
+        return str(result) if result else ""
+
 
 memory_service = MemoryService()

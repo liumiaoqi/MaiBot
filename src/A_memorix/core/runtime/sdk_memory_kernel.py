@@ -95,6 +95,8 @@ class SDKMemoryKernel:
         self._feedback_correction_service: Optional[Any] = None
         self._profile_evidence_service: Optional[Any] = None
         self._memory_field: Optional[Any] = None
+        self._migration_adapter: Optional[Any] = None
+        self._migration_router: Optional[Any] = None
         self._graph_ops_service: Optional[Any] = None
         self._v5_memory_service: Optional[Any] = None
         self._hit_filter_service: Optional[Any] = None
@@ -389,6 +391,15 @@ class SDKMemoryKernel:
 
         from ..connectionist.memory_field import MemoryField
         self._memory_field = MemoryField(self.data_dir)
+
+        from ..migration.migration_adapter import MigrationAdapter, MigrationPhase
+        self._migration_adapter = MigrationAdapter(self._memory_field)
+
+        from ..migration.migration_router import MigrationRouter
+        from ..migration.translator import ConnectionistTranslator
+        self._migration_router = MigrationRouter(
+            self._migration_adapter, self._memory_field, self, ConnectionistTranslator()
+        )
 
         await self._start_background_tasks()
 
