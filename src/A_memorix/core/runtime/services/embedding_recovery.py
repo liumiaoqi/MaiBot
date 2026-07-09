@@ -83,7 +83,7 @@ class EmbeddingRecoveryService:
             logger.warning(f"设置 retriever sparse-only 运行时状态失败: {exc}")
 
     async def refresh_runtime_self_check(self, *, sample_text: str = "A_Memorix runtime self check") -> Dict[str, Any]:
-        from ..utils.runtime_self_check import run_embedding_runtime_self_check
+        from ...utils.runtime_self_check import run_embedding_runtime_self_check
         report = await run_embedding_runtime_self_check(
             config=self._build_runtime_config(),
             vector_store=self._get_vector_store(),
