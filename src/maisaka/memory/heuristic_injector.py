@@ -14,9 +14,9 @@ from src.common.message_repository import count_messages, find_messages
 from src.common.prompt_i18n import load_prompt
 from src.config.config import global_config
 from src.core.session_port_registry import get_existing_session_info, get_session_name
+from src.core.types import MemoryHit
 from src.person_info.person_info import get_person_id
 from src.services.llm_service import LLMServiceClient
-from src.services.memory_service import MemoryHit, memory_service
 
 logger = get_logger("maisaka_heuristic_memory")
 
@@ -62,6 +62,15 @@ class HeuristicMemoryInjector:
             task_name="utils",
             request_type="heuristic_memory_impression",
         )
+        self._memory_port: Any = None
+
+    @property
+    def memory_port(self) -> Any:
+        """获取 MemoryServicePort 实例（延迟初始化）。"""
+        if self._memory_port is None:
+            from src.core.adapters.memory_service import AMemorixMemoryServicePort
+            self._memory_port = AMemorixMemoryServicePort()
+        return self._memory_port
 
     async def build_injection_message(
         self,
@@ -193,7 +202,7 @@ class HeuristicMemoryInjector:
         limit = max(1, int(getattr(config, "heuristic_memory_recall_limit", 3) or 3))
         search_limit = max(limit * 4, limit)
         cross_chat_enabled = bool(getattr(config, "heuristic_memory_cross_chat_enabled", False))
-        result = await memory_service.search(
+        result = await self.memory_port.search(
             impression,
             limit=min(20, search_limit),
             mode="search",
@@ -230,7 +239,7 @@ class HeuristicMemoryInjector:
             return {}
 
         try:
-            payload = await memory_service.delete_admin(
+            payload = await self.memory_port.delete_admin(
                 action="preview",
                 mode="paragraph",
                 selector={"hashes": paragraph_hashes},

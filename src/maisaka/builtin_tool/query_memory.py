@@ -7,9 +7,9 @@ from typing import Any, Dict, Optional, Tuple
 from src.common.logger import get_logger
 from src.config.config import global_config
 from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
+from src.core.types import MemorySearchResult
 from src.maisaka.utils.tool_post_execution import with_memory_feedback_task
 from src.person_info.person_info import resolve_person_id_for_memory
-from src.services.memory_service import MemorySearchResult, memory_service
 
 from .context import BuiltinToolRuntimeContext
 
@@ -231,7 +231,7 @@ async def handle_tool(
         f"mode={mode} query={clean_query!r} person_name={person_name!r} person_id={person_id!r}"
     )
     try:
-        result = await memory_service.search(
+        result = await tool_ctx.memory_port.search(
             clean_query,
             limit=limit,
             mode=mode,
@@ -268,7 +268,7 @@ async def handle_tool(
             f"query={fallback_query!r} original_mode={mode} person_id={person_id!r}"
         )
         try:
-            fallback_result = await memory_service.search(
+            fallback_result = await tool_ctx.memory_port.search(
                 fallback_query,
                 limit=limit,
                 mode="search",

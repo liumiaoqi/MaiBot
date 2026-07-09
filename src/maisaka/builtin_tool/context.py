@@ -53,6 +53,15 @@ class BuiltinToolRuntimeContext:
         self.runtime = runtime
         self.current_agent_id: str = ""
         self.is_multi_agent_active: bool = False
+        self._memory_port: Optional[Any] = None
+
+    @property
+    def memory_port(self) -> Any:
+        """获取 MemoryServicePort 实例（延迟初始化）。"""
+        if self._memory_port is None:
+            from src.core.adapters.memory_service import AMemorixMemoryServicePort
+            self._memory_port = AMemorixMemoryServicePort()
+        return self._memory_port
 
     @staticmethod
     def build_success_result(

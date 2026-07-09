@@ -270,7 +270,7 @@ class AgentOrchestrator:
         result = await task
 
         if result.action == ThinkAction.REPLY and result.text:
-            from src.maisaka.message_port import get_message_port
+            from src.core.message_port_registry import get_message_port
             port = get_message_port()
             if port is not None:
                 await port.send(
@@ -326,7 +326,7 @@ class AgentOrchestrator:
                     result = await task
 
                     if result.action == ThinkAction.REPLY and result.text:
-                        from src.maisaka.message_port import get_message_port
+                        from src.core.message_port_registry import get_message_port
                         port = get_message_port()
                         if port is not None:
                             await port.send(

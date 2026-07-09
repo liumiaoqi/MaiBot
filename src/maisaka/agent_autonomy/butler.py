@@ -22,7 +22,8 @@ from src.common.logger import get_logger
 from src.maisaka.agent.config import AgentConfig, InternalRelationship
 from src.maisaka.agent.registry import AgentConfigRegistry
 from src.maisaka.agent_autonomy.reminder import ReminderManager, Reminder
-from src.maisaka.message_port import MessagePort, get_message_port
+from src.core.message_port_registry import get_message_port
+from src.core.protocols import MessagePort
 
 logger = get_logger("agent_autonomy.butler")
 

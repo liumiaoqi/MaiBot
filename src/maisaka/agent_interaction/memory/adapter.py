@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import time
 
-from src.services.memory_service import MemorySearchResult, MemoryWriteResult, memory_service
+from src.core.types import MemorySearchResult, MemoryWriteResult
 
 logger = logging.getLogger(__name__)
 
@@ -21,9 +21,20 @@ _PERSON_ID_PREFIX = "agent"
 class AgentMemoryAdapter:
     """智能体交互记忆适配器。
 
-    通过语义映射复用 MemoryService 接口，
+    通过语义映射复用 MemoryServicePort 接口，
     将智能体间交互记忆与用户记忆隔离。
     """
+
+    def __init__(self) -> None:
+        self._memory_port: Any = None
+
+    @property
+    def memory_port(self) -> Any:
+        """获取 MemoryServicePort 实例（延迟初始化）。"""
+        if self._memory_port is None:
+            from src.core.adapters.memory_service import AMemorixMemoryServicePort
+            self._memory_port = AMemorixMemoryServicePort()
+        return self._memory_port
 
     @staticmethod
     def build_chat_id(agent_a_id: str, agent_b_id: str) -> str:
@@ -134,7 +145,7 @@ class AgentMemoryAdapter:
         if not query:
             query = f"与{target_agent_id}的交互"
 
-        return await memory_service.search(
+        return await self.memory_port.search(
             query=query,
             chat_id=chat_id,
             person_id=person_id,
@@ -155,7 +166,7 @@ class AgentMemoryAdapter:
         timestamp: float,
     ) -> MemoryWriteResult:
         """写入单条交互记忆。"""
-        return await memory_service.ingest_text(
+        return await self.memory_port.ingest_text(
             external_id=external_id,
             source_type="agent_interaction",
             text=text,
@@ -209,7 +220,7 @@ class AgentMemoryAdapter:
             if not content:
                 continue
 
-            await memory_service.ingest_text(
+            await self.memory_port.ingest_text(
                 external_id=f"propagated:{hit.hash_value or hit.episode_id}",
                 source_type="agent_interaction_propagated",
                 text=content,
@@ -240,7 +251,7 @@ class AgentMemoryAdapter:
     ) -> None:
         """记忆衰减：超过 decay_days 未被引用的交互记忆检索权重衰减。"""
         try:
-            await memory_service.maintain_memory(
+            await self.memory_port.maintain_memory(
                 action="decay",
                 target=self.build_chat_id(agent_id, target_agent_id),
                 hours=decay_days * 24,
@@ -258,7 +269,7 @@ class AgentMemoryAdapter:
         """记忆强化：被引用的旧记忆权重恢复，频繁交互时最近记忆权重+20%。"""
         try:
             target = content_hash or self.build_chat_id(agent_id, target_agent_id)
-            await memory_service.reinforce_memory(target=target)
+            await self.memory_port.maintain_memory(action="reinforce", target=target)
         except Exception as e:
             logger.debug("[agent_interaction] 记忆强化失败: %s", e)
 

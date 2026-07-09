@@ -612,3 +612,75 @@ class CycleDetail:
     """循环计划记录"""
     loop_action_info: Optional[CycleActionInfo] = None
     """循环Action调用记录"""
+
+
+@dataclass
+class MemoryHit:
+    """记忆检索命中项。"""
+    content: str
+    score: float = 0.0
+    hit_type: str = ""
+    source: str = ""
+    hash_value: str = ""
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    episode_id: str = ""
+    title: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "content": self.content,
+            "score": self.score,
+            "type": self.hit_type,
+            "source": self.source,
+            "hash": self.hash_value,
+            "metadata": self.metadata,
+            "episode_id": self.episode_id,
+            "title": self.title,
+        }
+
+
+@dataclass
+class MemorySearchResult:
+    """记忆检索结果。"""
+    summary: str = ""
+    hits: List[MemoryHit] = field(default_factory=list)
+    filtered: bool = False
+    success: bool = True
+    error: str = ""
+
+    def to_text(self, limit: int = 5, *, truncate_content: bool = True, max_content_chars: int = 160) -> str:
+        if not self.hits:
+            return ""
+        lines = []
+        for index, item in enumerate(self.hits[: max(1, int(limit))], start=1):
+            content = item.content.strip().replace("\n", " ")
+            if truncate_content and len(content) > max_content_chars:
+                content = content[:max_content_chars] + "..."
+            lines.append(f"{index}. {content}")
+        return "\n".join(lines)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "success": self.success,
+            "error": self.error,
+            "summary": self.summary,
+            "hits": [item.to_dict() for item in self.hits],
+            "filtered": self.filtered,
+        }
+
+
+@dataclass
+class MemoryWriteResult:
+    """记忆写入结果。"""
+    success: bool
+    stored_ids: List[str] = field(default_factory=list)
+    skipped_ids: List[str] = field(default_factory=list)
+    detail: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "success": self.success,
+            "stored_ids": self.stored_ids,
+            "skipped_ids": self.skipped_ids,
+            "detail": self.detail,
+        }

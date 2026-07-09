@@ -5,6 +5,7 @@
 """
 
 from src.core.adapters.memory_service import AMemorixMemoryServicePort
+from src.core.adapters.message_port import SendServicePort
 from src.core.adapters.notice_classifier import NapCatNoticeClassifier
 from src.core.adapters.routing_adapter import ChatManagerRoutingAdapter
 from src.core.adapters.runtime_registry import HeartflowRuntimeRegistry
@@ -12,8 +13,8 @@ from src.core.adapters.session_repository import ChatManagerSessionRepository
 
 __all__ = [
     "AMemorixMemoryServicePort",
-    "ChatManagerRoutingAdapter",
     "ChatManagerSessionRepository",
     "HeartflowRuntimeRegistry",
     "NapCatNoticeClassifier",
+    "SendServicePort",
 ]
