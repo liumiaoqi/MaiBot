@@ -357,6 +357,40 @@ class AMemorixHostService:
         if component_name == "connectionist_stats":
             return kernel._memory_field.memory_stats()
 
+        if component_name == "metadata_get_paragraphs_by_source":
+            source = str(payload.get("source", "") or "")
+            if not source:
+                return []
+            metadata_store = getattr(kernel, "metadata_store", None)
+            if metadata_store is None:
+                return []
+            paragraphs = metadata_store.get_paragraphs_by_source(source)
+            if not paragraphs:
+                return []
+            return [
+                {
+                    "hash": getattr(p, "hash", ""),
+                    "source": getattr(p, "source", ""),
+                    "content": getattr(p, "content", ""),
+                    "metadata": getattr(p, "metadata", {}),
+                    "created_at": str(getattr(p, "created_at", "")),
+                }
+                for p in paragraphs
+            ]
+
+        if component_name == "metadata_query":
+            sql = str(payload.get("sql", "") or "").strip()
+            params = payload.get("params", ())
+            if not sql:
+                return []
+            if not sql.upper().startswith("SELECT"):
+                raise ValueError("metadata_query 仅支持只读查询")
+            metadata_store = getattr(kernel, "metadata_store", None)
+            if metadata_store is None:
+                return []
+            rows = metadata_store.query(sql, tuple(params) if not isinstance(params, tuple) else params)
+            return [dict(row) for row in rows] if rows else []
+
         _ADMIN_HANDLER_MAP = {
             "memory_graph_admin": "graph",
             "memory_source_admin": "source",
@@ -547,6 +581,12 @@ class AMemorixHostService:
                 "disabled": True,
                 "reason": reason,
             }
+
+        if component_name == "metadata_get_paragraphs_by_source":
+            return []
+
+        if component_name == "metadata_query":
+            return []
 
         return {
             "success": False,
