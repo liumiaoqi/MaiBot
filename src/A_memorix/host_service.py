@@ -421,7 +421,7 @@ class AMemorixHostService:
             source = payload.get("source", "")
             if not source:
                 return []
-            metadata_store = getattr(kernel, "metadata_store", None)
+            metadata_store = kernel.metadata_store
             if metadata_store is None:
                 return []
             paragraphs = metadata_store.get_paragraphs_by_source(source)
@@ -429,11 +429,11 @@ class AMemorixHostService:
                 return []
             return [
                 {
-                    "hash": getattr(p, "hash", ""),
-                    "source": getattr(p, "source", ""),
-                    "content": getattr(p, "content", ""),
-                    "metadata": getattr(p, "metadata", {}),
-                    "created_at": str(getattr(p, "created_at", "")),
+                    "hash": p.get("hash", ""),
+                    "source": p.get("source", ""),
+                    "content": p.get("content", ""),
+                    "metadata": p.get("metadata", {}),
+                    "created_at": str(p.get("created_at", "")),
                 }
                 for p in paragraphs
             ]
@@ -445,7 +445,7 @@ class AMemorixHostService:
                 return []
             if not sql.upper().startswith("SELECT"):
                 raise ValueError("metadata_query 仅支持只读查询")
-            metadata_store = getattr(kernel, "metadata_store", None)
+            metadata_store = kernel.metadata_store
             if metadata_store is None:
                 return []
             rows = metadata_store.query(sql, tuple(params) if not isinstance(params, tuple) else params)
@@ -734,10 +734,9 @@ class AMemorixHostService:
     async def _shutdown_locked(self) -> None:
         if self._kernel is None:
             return
-        shutdown = getattr(self._kernel, "shutdown", None)
-        if callable(shutdown):
-            await shutdown()
-        else:
+        try:
+            await self._kernel.shutdown()
+        except Exception:
             self._kernel.close()
         self._kernel = None
         set_runtime_kernel(None)
