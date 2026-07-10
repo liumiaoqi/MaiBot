@@ -109,21 +109,21 @@ class MemoryService:
                 metadata["rank"] = item.get("rank")
             hits.append(
                 MemoryHit(
-                    content=str(item.get("content", "") or ""),
+                    content=item.get("content", ""),
                     score=float(item.get("score", 0.0) or 0.0),
-                    hit_type=str(item.get("type", "") or ""),
-                    source=str(item.get("source", "") or ""),
-                    hash_value=str(item.get("hash", "") or ""),
+                    hit_type=item.get("type", ""),
+                    source=item.get("source", ""),
+                    hash_value=item.get("hash", ""),
                     metadata=metadata,
-                    episode_id=str(item.get("episode_id", "") or ""),
-                    title=str(item.get("title", "") or ""),
+                    episode_id=item.get("episode_id", ""),
+                    title=item.get("title", ""),
                 )
             )
         success_raw = payload.get("success")
-        error = str(payload.get("error", "") or "")
+        error = payload.get("error", "")
         success = (not bool(error)) if success_raw is None else bool(success_raw)
         return MemorySearchResult(
-            summary=str(payload.get("summary", "") or ""),
+            summary=payload.get("summary", ""),
             hits=hits,
             filtered=bool(payload.get("filtered", False)),
             success=success,
@@ -135,7 +135,7 @@ class MemoryService:
         if not isinstance(payload, dict):
             return PersonProfileResult()
         return PersonProfileResult(
-            summary=str(payload.get("summary", "") or ""),
+            summary=payload.get("summary", ""),
             traits=[str(item) for item in (payload.get("traits") or []) if str(item).strip()],
             evidence=[item for item in (payload.get("evidence") or []) if isinstance(item, dict)],
         )
@@ -318,7 +318,7 @@ class MemoryService:
             )
             if not isinstance(payload, dict):
                 return MemoryWriteResult(success=False, detail="invalid_payload")
-            return MemoryWriteResult(success=bool(payload.get("success")), detail=str(payload.get("detail", "") or ""))
+            return MemoryWriteResult(success=bool(payload.get("success")), detail=payload.get("detail", ""))
         except Exception as exc:
             logger.warning(f"记忆维护失败: {exc}")
             return MemoryWriteResult(success=False, detail=str(exc))
