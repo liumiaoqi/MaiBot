@@ -32,7 +32,7 @@
 1. 应该尽量减少使用getattr和setattr方法，除非是在对一个动态类进行处理或者使用Monkeypatch完成Pytest
 2. 在重构代码时，如果遇到getattr和setattr，应该尝试检查这个类实例是否有这个属性，如果有，则直接替换为类属性访问写法。
     - 举例：`v = getattr(instance, "value", "")` 在检查到`instance`有`value`属性后应该改为`v = instance.value`
-3. getattr 消除进度：当前 SDKMemoryKernel 中 8 处（目标 ≤5）。保留场景判定标准：对动态能力检测的 getattr（如 `encode_batch`、`iter_vectors_by_ids`）通过 Protocol 接口统一后消除；对已知接口的 getattr 替换为直接属性访问。host_service/plugin.py 中 `_inject_session_info_port` 延迟导入已消除（改为注册点注入）。
+3. getattr 消除进度：SDKMemoryKernel 中 8→0 处（✅ 已完成）。retrieval_tuning_manager 22→3（保留：动态 LLM task_config、搜索结果 hash_value）。web_import_manager 15→5（保留：numpy ndim、动态属性名循环、上传对象、LLM task_config）。plugin.py 3→1（保留：动态方法分派）。新增 SDKMemoryKernel.is_embedding_degraded() 方法暴露降级状态。保留场景判定标准：对动态能力检测的 getattr（如 `encode_batch`、`iter_vectors_by_ids`）通过 Protocol 接口统一后消除；对已知接口的 getattr 替换为直接属性访问；对动态外部对象（LLM task_config、numpy 数组、上传对象）的 getattr 合理保留。
 
 ## debug规范
 1. 不要总是想找兜底，一定要精准的找到问题的核心，然后提出建议，兜底是不合适，难以维护的。

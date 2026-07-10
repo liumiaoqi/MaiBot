@@ -43,11 +43,7 @@ class AMemorixPlugin(MaiBotPlugin):
 
     async def on_unload(self):
         if self._kernel is not None:
-            shutdown = getattr(self._kernel, "shutdown", None)
-            if callable(shutdown):
-                await shutdown()
-            else:
-                self._kernel.close()
+            await self._kernel.shutdown()
             self._kernel = None
 
     async def on_config_update(self, scope: str, config_data: dict[str, Any], version: str) -> None:
@@ -56,11 +52,7 @@ class AMemorixPlugin(MaiBotPlugin):
             self.set_plugin_config(config_data if isinstance(config_data, dict) else {})
             return
         if scope in {"bot", "model"} and self._kernel is not None:
-            shutdown = getattr(self._kernel, "shutdown", None)
-            if callable(shutdown):
-                await shutdown()
-            else:
-                self._kernel.close()
+            await self._kernel.shutdown()
             self._kernel = None
 
     async def _get_kernel(self) -> SDKMemoryKernel:

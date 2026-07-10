@@ -10,7 +10,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple
 import asyncio
 import hashlib
 import json
@@ -55,6 +55,9 @@ from ..utils.model_routing import (
 from ..utils.relation_write_service import RelationWriteService
 from ..utils.runtime_self_check import ensure_runtime_self_check
 from ..utils.time_parser import normalize_time_meta
+
+if TYPE_CHECKING:
+    from ..runtime.sdk_memory_kernel import SDKMemoryKernel
 
 logger = get_logger("A_Memorix.WebImportManager")
 
@@ -386,7 +389,7 @@ class ImportTaskRecord:
 
 
 class ImportTaskManager:
-    def __init__(self, plugin: Any):
+    def __init__(self, plugin: SDKMemoryKernel):
         self.plugin = plugin
         self._lock = asyncio.Lock()
         self._storage_lock = asyncio.Lock()
@@ -457,20 +460,17 @@ class ImportTaskManager:
         return mode if mode in {"single", "dual"} else "single"
 
     def _dual_vector_pools_enabled(self) -> bool:
-        checker = getattr(self.plugin, "_dual_vector_pools_enabled", None)
-        if callable(checker):
-            return bool(checker())
-        return self._vector_pool_mode() == "dual"
+        return self.plugin._dual_vector_pools_enabled()
 
     def _paragraph_vector_store(self) -> Any:
         if self._dual_vector_pools_enabled():
-            return getattr(self.plugin, "paragraph_vector_store", None) or getattr(self.plugin, "vector_store", None)
-        return getattr(self.plugin, "vector_store", None)
+            return self.plugin.paragraph_vector_store or self.plugin.vector_store
+        return self.plugin.vector_store
 
     def _graph_vector_store(self) -> Any:
         if self._dual_vector_pools_enabled():
-            return getattr(self.plugin, "graph_vector_store", None) or getattr(self.plugin, "vector_store", None)
-        return getattr(self.plugin, "vector_store", None)
+            return self.plugin.graph_vector_store or self.plugin.vector_store
+        return self.plugin.vector_store
 
     def _graph_vector_id(self, target_type: str, hash_value: str) -> str:
         token = str(hash_value or "").strip()
@@ -483,12 +483,12 @@ class ImportTaskManager:
         if self._dual_vector_pools_enabled():
             stores.extend(
                 [
-                    getattr(self.plugin, "paragraph_vector_store", None),
-                    getattr(self.plugin, "graph_vector_store", None),
+                    self.plugin.paragraph_vector_store,
+                    self.plugin.graph_vector_store,
                 ]
             )
         else:
-            stores.append(getattr(self.plugin, "vector_store", None))
+            stores.append(self.plugin.vector_store)
 
         seen: Set[int] = set()
         unique_stores: List[Any] = []
@@ -517,24 +517,16 @@ class ImportTaskManager:
         return bool(self._cfg("embedding.fallback.allow_metadata_only_write", True))
 
     def _is_embedding_degraded(self) -> bool:
-        checker = getattr(self.plugin, "is_embedding_degraded", None)
-        if callable(checker):
-            try:
-                return bool(checker())
-            except Exception:
-                return False
-        return False
+        return self.plugin.is_embedding_degraded()
 
     def _enqueue_paragraph_backfill(self, paragraph_hash: str, *, error: str = "") -> None:
         if not paragraph_hash:
             return
-        enqueue = getattr(self.plugin, "enqueue_paragraph_vector_backfill", None)
-        if callable(enqueue):
-            try:
-                enqueue(paragraph_hash, error=error)
-                return
-            except Exception as exc:
-                logger.warning(f"回填入队失败（runtime facade）: {exc}")
+        try:
+            self.plugin.enqueue_paragraph_vector_backfill(paragraph_hash, error=error)
+            return
+        except Exception as exc:
+            logger.warning(f"回填入队失败（runtime facade）: {exc}")
         try:
             self.plugin.metadata_store.enqueue_paragraph_vector_backfill(paragraph_hash, error=error)
         except Exception as exc:
@@ -976,7 +968,7 @@ class ImportTaskManager:
         return normalized
 
     def _default_sources_for_file(self, file_record: ImportFileRecord) -> List[str]:
-        imported_sources = getattr(file_record, "imported_sources", None)
+        imported_sources = file_record.imported_sources
         if imported_sources:
             return self._dedupe_sources(imported_sources)
         if file_record.source_path:
@@ -1004,7 +996,7 @@ class ImportTaskManager:
         return self._dedupe_sources(sources)
 
     def _source_has_live_paragraphs(self, source: str) -> bool:
-        metadata_store = getattr(self.plugin, "metadata_store", None)
+        metadata_store = self.plugin.metadata_store
         if metadata_store is None:
             return False
 
@@ -1063,7 +1055,7 @@ class ImportTaskManager:
             "name": file_record.name,
             "source_path": file_record.source_path or "",
             "source_kind": file_record.source_kind,
-            "sources": self._dedupe_sources(getattr(file_record, "imported_sources", []) or self._default_sources_for_file(file_record)),
+            "sources": self._dedupe_sources(file_record.imported_sources or self._default_sources_for_file(file_record)),
         }
         self._save_manifest(manifest)
 
@@ -1351,15 +1343,14 @@ class ImportTaskManager:
         def _collect_missing() -> List[str]:
             missing_local: List[str] = []
             for attr in required_attrs:
-                if getattr(self.plugin, attr, None) is None:
+                if getattr(self.plugin, attr) is None:
                     missing_local.append(attr)
             return missing_local
 
         missing = _collect_missing()
         if missing:
             raise ValueError(f"导入依赖未初始化: {', '.join(missing)}")
-        ready_checker = getattr(self.plugin, "is_runtime_ready", None)
-        if callable(ready_checker) and not ready_checker():
+        if not self.plugin.is_runtime_ready():
             raise ValueError("插件运行时未就绪，请先完成 on_enable 初始化")
 
     def _scan_files(
@@ -3500,7 +3491,7 @@ class ImportTaskManager:
         source_text = str(source or "").strip()
         if not source_text:
             return
-        imported_sources = getattr(file_record, "imported_sources", None)
+        imported_sources = file_record.imported_sources
         if imported_sources is None:
             imported_sources = []
             setattr(file_record, "imported_sources", imported_sources)
