@@ -15,7 +15,7 @@ import uuid
 from collections import Counter, deque
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 from src.common.logger import get_logger
 
@@ -29,6 +29,9 @@ from .model_routing import (
     resolve_text_generation_model_selector,
 )
 from .search_execution_service import SearchExecutionRequest, SearchExecutionService
+
+if TYPE_CHECKING:
+    from ..runtime.sdk_memory_kernel import SDKMemoryKernel
 
 try:
     from src.services import llm_service as llm_api
@@ -275,7 +278,7 @@ class RetrievalTuningTaskRecord:
 class RetrievalTuningManager:
     def __init__(
         self,
-        plugin: Any,
+        plugin: SDKMemoryKernel,
         *,
         import_write_blocked_provider: Optional[Callable[[], bool]] = None,
     ):
@@ -296,10 +299,7 @@ class RetrievalTuningManager:
         self._artifacts_root.mkdir(parents=True, exist_ok=True)
 
     def _cfg(self, key: str, default: Any = None) -> Any:
-        getter = getattr(self.plugin, "get_config", None)
-        if callable(getter):
-            return getter(key, default)
-        return default
+        return self.plugin.get_config(key, default)
 
     def _is_enabled(self) -> bool:
         return bool(self._cfg("web.tuning.enabled", True))
@@ -348,19 +348,22 @@ class RetrievalTuningManager:
         }
 
     def _ensure_ready(self) -> None:
-        required = ("metadata_store", "vector_store", "graph_store", "embedding_manager")
-        missing = [x for x in required if getattr(self.plugin, x, None) is None]
-        if missing:
-            raise ValueError(f"调优依赖未初始化: {', '.join(missing)}")
-        checker = getattr(self.plugin, "is_runtime_ready", None)
-        if callable(checker) and not checker():
+        if self.plugin.metadata_store is None:
+            raise ValueError("调优依赖未初始化: metadata_store")
+        if self.plugin.vector_store is None:
+            raise ValueError("调优依赖未初始化: vector_store")
+        if self.plugin.graph_store is None:
+            raise ValueError("调优依赖未初始化: graph_store")
+        if self.plugin.embedding_manager is None:
+            raise ValueError("调优依赖未初始化: embedding_manager")
+        if not self.plugin.is_runtime_ready():
             raise ValueError("插件运行时未就绪")
         provider = self._import_write_blocked_provider
         if provider is not None and bool(provider()):
             raise ValueError("导入任务运行中，当前禁止启动检索调优")
 
     def get_profile_snapshot(self) -> Dict[str, Any]:
-        cfg = getattr(self.plugin, "config", {}) or {}
+        cfg = self.plugin.config or {}
         profile = {
             "retrieval": {
                 "top_k_paragraphs": _nested_get(cfg, "retrieval.top_k_paragraphs", 20),
@@ -571,30 +574,18 @@ class RetrievalTuningManager:
         return self._normalize_profile(profile or self.get_profile_snapshot())
 
     async def _apply_profile_to_runtime(self, normalized: Dict[str, Any], *, validate: bool = True) -> Dict[str, Any]:
-        applier = getattr(self.plugin, "apply_retrieval_tuning_profile", None)
-        if callable(applier):
-            result = applier(normalized, validate=validate)
-            if inspect.isawaitable(result):
-                result = await result
-            if not isinstance(result, dict):
-                raise RuntimeError("运行时热重建返回值非法")
-            if not bool(result.get("success", True)):
-                raise RuntimeError(str(result.get("error") or "运行时热重建失败"))
-            return {
-                "runtime_rebuilt": bool(result.get("runtime_rebuilt", False)),
-                "validation_passed": bool(result.get("validation_passed", True)),
-                "apply_error": str(result.get("error", "") or ""),
-            }
-
-        if not isinstance(getattr(self.plugin, "config", None), dict):
-            raise RuntimeError("插件 config 不可写")
-        for key, value in normalized.items():
-            _nested_set(self.plugin.config, key, value)
-        plugin_cfg = getattr(self.plugin, "_plugin_config", None)
-        if isinstance(plugin_cfg, dict):
-            for key, value in normalized.items():
-                _nested_set(plugin_cfg, key, value)
-        return {"runtime_rebuilt": False, "validation_passed": True, "apply_error": ""}
+        result = self.plugin.apply_retrieval_tuning_profile(normalized, validate=validate)
+        if inspect.isawaitable(result):
+            result = await result
+        if not isinstance(result, dict):
+            raise RuntimeError("运行时热重建返回值非法")
+        if not bool(result.get("success", True)):
+            raise RuntimeError(str(result.get("error") or "运行时热重建失败"))
+        return {
+            "runtime_rebuilt": bool(result.get("runtime_rebuilt", False)),
+            "validation_passed": bool(result.get("validation_passed", True)),
+            "apply_error": str(result.get("error", "") or ""),
+        }
 
     async def apply_profile(self, profile: Dict[str, Any], *, reason: str = "manual", validate: bool = True) -> Dict[str, Any]:
         normalized = self._normalize_profile(profile)
@@ -1345,7 +1336,7 @@ class RetrievalTuningManager:
                     task.updated_at = task.finished_at
 
     async def _build_query_set(self, *, sample_size: int, seed: int, llm_enabled: bool) -> Tuple[List[RetrievalQueryCase], Dict[str, Any]]:
-        store = getattr(self.plugin, "metadata_store", None)
+        store = self.plugin.metadata_store
         if store is None:
             return [], {"error": "metadata_store_unavailable"}
 
@@ -1902,7 +1893,7 @@ class RetrievalTuningManager:
         }
 
     def _build_runtime_config(self, normalized_profile: Dict[str, Any], *, evaluation_mode: str = "stable") -> Dict[str, Any]:
-        raw_base = getattr(self.plugin, "config", {}) or {}
+        raw_base = self.plugin.config or {}
         if isinstance(raw_base, dict):
             base = {
                 key: value
@@ -1913,19 +1904,16 @@ class RetrievalTuningManager:
             base = {}
         merged = _deep_merge(base, normalized_profile)
         if str(evaluation_mode or "stable").strip().lower() == "stable":
-            # stable 模式优先稳定性，避免并发访问共享 SQLite/Faiss 导致长时阻塞。
             _nested_set(merged, "retrieval.enable_parallel", False)
-            # stable 模式关闭 PPR，保留可重复评估口径。
             _nested_set(merged, "retrieval.enable_ppr", False)
-        merged["vector_store"] = getattr(self.plugin, "vector_store", None)
-        merged["paragraph_vector_store"] = getattr(self.plugin, "paragraph_vector_store", None)
-        merged["graph_vector_store"] = getattr(self.plugin, "graph_vector_store", None)
-        merged["graph_store"] = getattr(self.plugin, "graph_store", None)
-        merged["metadata_store"] = getattr(self.plugin, "metadata_store", None)
-        merged["embedding_manager"] = getattr(self.plugin, "embedding_manager", None)
-        merged["sparse_index"] = getattr(self.plugin, "sparse_index", None)
-        checker = getattr(self.plugin, "_dual_vector_pools_enabled", None)
-        vector_pools_ready = bool(checker()) if callable(checker) else False
+        merged["vector_store"] = self.plugin.vector_store
+        merged["paragraph_vector_store"] = self.plugin.paragraph_vector_store
+        merged["graph_vector_store"] = self.plugin.graph_vector_store
+        merged["graph_store"] = self.plugin.graph_store
+        merged["metadata_store"] = self.plugin.metadata_store
+        merged["embedding_manager"] = self.plugin.embedding_manager
+        merged["sparse_index"] = self.plugin.sparse_index
+        vector_pools_ready = self.plugin._dual_vector_pools_enabled()
         runtime_cfg = merged.get("runtime")
         merged["runtime"] = dict(runtime_cfg) if isinstance(runtime_cfg, dict) else {}
         merged["runtime"]["vector_pools_ready"] = vector_pools_ready
@@ -2077,16 +2065,16 @@ class RetrievalTuningManager:
                 failed_predicates.update([str(case.metadata.get("predicate") or "__unknown__")])
                 continue
 
-            elapsed_total += float(getattr(execution, "elapsed_ms", 0.0) or 0.0)
+            elapsed_total += execution.elapsed_ms
 
-            if not bool(getattr(execution, "success", False)):
+            if not execution.success:
                 empty_count += 1
                 category_stats[cat]["empty"] += 1
                 text_failed.append(case.case_id)
                 failed_predicates.update([str(case.metadata.get("predicate") or "__unknown__")])
                 continue
 
-            hashes = [str(getattr(x, "hash_value", "") or "") for x in (getattr(execution, "results", None) or [])]
+            hashes = [str(getattr(x, "hash_value", "") or "") for x in (execution.results or [])]
             if not hashes:
                 empty_count += 1
                 category_stats[cat]["empty"] += 1

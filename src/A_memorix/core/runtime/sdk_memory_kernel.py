@@ -145,6 +145,12 @@ class SDKMemoryKernel:
             and self.retriever is not None
         )
 
+    def is_embedding_degraded(self) -> bool:
+
+        if self._embedding_health_service is not None:
+            return self._embedding_health_service.is_degraded
+        return False
+
     def is_chat_enabled(self, stream_id: str, group_id: str | None = None, user_id: str | None = None) -> bool:
         return self._hit_filter_service.is_chat_enabled(stream_id, group_id, user_id)
 
