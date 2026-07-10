@@ -198,7 +198,7 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 
 # 记忆系统范式迁移进展
 
-当前阶段：**LEGACY_ONLY**（第1-4批编码完成，第5-6批待运行时验证）
+当前阶段：**DUAL_WRITE**（第1-4批编码完成，DUAL_WRITE 运行时验证通过，第5-6批待长期验证后推进）
 
 ## 迁移架构
 
