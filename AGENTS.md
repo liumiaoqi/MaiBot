@@ -153,6 +153,8 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 | SessionInfoPort | 会话信息反查 | ChatManagerSessionInfoPort |
 | ThinkingOrgan | 思维管道 | ThinkingOrgan（agent_autonomy） |
 | ThinkingOrganFactory | 思维管道工厂 | ThinkingOrganFactory |
+| MessagePort | 消息发送（旧，7个碎片化方法） | SendServicePort |
+| MessagePortV2 | 统一消息发送（1个方法 send_message） | BridgedMessagePortV2 |
 
 ## 内心状态三层
 
@@ -168,7 +170,35 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 
 - **三层过滤**：相关性 → 时机 → 价值，决定是否触发插话
 - **提醒流**：到时提醒通过 ThinkingOrgan.think_proactive() 触发，不走 enqueue_proactive_task
-- **插话流**：通过 ThinkingOrgan.think() 触发，结果通过 MessagePort.send() 发出
+- **插话流**：通过 ThinkingOrgan.think() 触发，结果通过 MessagePortV2.send_message() 发出
+
+# 回复系统迁移进展
+
+当前阶段：**阶段1+2+4已完成**，阶段3（直通实现）和阶段5（旧方法移除）待后续
+
+## 迁移架构
+
+- **MessagePortV2**：统一消息端口协议，1个方法 `send_message(session_id, message, *, reply_to_id, agent_id, source)`
+- **BridgedMessagePortV2**：桥接适配器，MessageSequence 直通 custom_reply_set_to_stream
+- **segments_to_message_sequence**：模块级工具函数，dict → MessageSequence 转换（供插件运行时使用）
+
+## 已完成
+
+- ✅ 阶段1：新 Protocol + 桥接适配器（零风险引入）
+- ✅ 阶段2：reply.py 迁移（删除 _message_sequence_to_segments，消除 dict 序列化层）
+- ✅ 阶段4：所有调用方迁移（butler/orchestrator/vitality_manager/emoji/send_image/plugin_runtime）
+
+## 消除的 bug
+
+1. dict 序列化丢失 content/binary_data → 消除（MessageSequence 直传）
+2. _resolve_reply_message 全表扫描 → 消除（简化查找）
+3. set_reply=bool(reply_to) 误判 → 消除（基于 reply_message is not None）
+
+## 待完成
+
+- ⬜ 阶段3：直通实现（BridgedMessagePortV2 不再桥接旧 send_service，直接对接 Platform IO）
+- ⬜ 阶段5：旧 MessagePort Protocol 移除（需 plugin_runtime send_command/send_custom 先迁移）
+- ⬜ plugin_runtime send_command/send_custom 仍用旧 get_message_port()（走 _custom_to_stream 路径）
 
 # 记忆系统范式迁移进展
 

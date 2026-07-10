@@ -369,7 +369,7 @@ class RuntimeCoreCapabilityMixin:
         """向指定流发送图文混合消息。"""
 
         del plugin_id, capability
-        from src.core.adapters.message_port import SendServicePort
+
         from src.core.message_port_registry import get_message_port_v2
 
         stream_id = str(args.get("stream_id", ""))
@@ -379,8 +379,8 @@ class RuntimeCoreCapabilityMixin:
             return {"success": False, "error": "缺少必要参数 segments 或 stream_id"}
 
         try:
-            port_adapter = SendServicePort()
-            message = port_adapter._segments_to_message_sequence(segments)
+            from src.core.adapters.message_port_v2 import segments_to_message_sequence
+            message = segments_to_message_sequence(segments)
             port = get_message_port_v2()
             result = await port.send_message(
                 session_id=stream_id,

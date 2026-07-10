@@ -66,40 +66,9 @@ class SendServicePort:
         return None
 
     def _segments_to_message_sequence(self, segments: list[dict[str, Any]]) -> Any:
-        """将 segments 列表转换为 MessageSequence。
-
-        遍历 segments，按 type 字段构建对应 Component。
-        """
-        import base64
-
-        from src.common.data_models.message_component_data_model import (
-            EmojiComponent,
-            ImageComponent,
-            MessageSequence,
-            TextComponent,
-        )
-
-        components = []
-        for seg in segments:
-            seg_type = seg.get("type", "text")
-            if seg_type == "text":
-                components.append(TextComponent(text=seg.get("data", "")))
-            elif seg_type == "image":
-                b64 = seg.get("binary_data_base64", "")
-                binary_data = base64.b64decode(b64) if b64 else b""
-                hash_str = seg.get("hash", "")
-                components.append(ImageComponent(binary_hash=hash_str, binary_data=binary_data))
-            elif seg_type == "emoji":
-                b64 = seg.get("binary_data_base64", "")
-                binary_data = base64.b64decode(b64) if b64 else b""
-                hash_str = seg.get("hash", "")
-                components.append(EmojiComponent(binary_hash=hash_str, binary_data=binary_data))
-            else:
-                from src.services.send_service import _build_message_sequence_from_custom_message
-
-                ms = _build_message_sequence_from_custom_message(seg_type, seg.get("data", seg.get("content", "")))
-                components.extend(ms.components)
-        return MessageSequence(components=components)
+        """将 segments 列表转换为 MessageSequence。"""
+        from src.core.adapters.message_port_v2 import segments_to_message_sequence
+        return segments_to_message_sequence(segments)
 
     def _forward_nodes_to_message_sequence(self, messages: list[dict[str, Any]]) -> Any:
         """将转发节点列表转换为 MessageSequence。"""
