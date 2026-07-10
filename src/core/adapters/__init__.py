@@ -4,15 +4,16 @@
 核心模块只依赖 Protocol，不直接导入组件。
 """
 
+from src.core.adapters.chat_manager_adapter import ChatManagerAdapter
 from src.core.adapters.memory_service import AMemorixMemoryServicePort
 from src.core.adapters.notice_classifier import NapCatNoticeClassifier
 from src.core.adapters.routing_adapter import ChatManagerRoutingAdapter
 from src.core.adapters.runtime_registry import HeartflowRuntimeRegistry
-from src.core.adapters.session_repository import ChatManagerSessionRepository
 
 __all__ = [
     "AMemorixMemoryServicePort",
-    "ChatManagerSessionRepository",
+    "ChatManagerAdapter",
+    "ChatManagerRoutingAdapter",
     "HeartflowRuntimeRegistry",
     "NapCatNoticeClassifier",
 ]

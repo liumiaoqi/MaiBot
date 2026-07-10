@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlmodel import Session, col, select
 
+from src.core.session_port_registry import get_session_name as _get_session_name_via_port, get_session_query_port
 from src.common.data_models.llm_service_data_models import LLMServiceRequest
 from src.common.database.database import get_db_session
 from src.common.database.database_model import ChatSession, Messages
@@ -461,10 +462,6 @@ def _parse_session_directory_name(name: str) -> tuple[str, str, str] | None:
     return None
 
 
-def _get_chat_manager() -> Any:
-    from src.chat.message_receive.chat_manager import chat_manager
-
-    return chat_manager
 
 
 def _session_sort_key(session: Any) -> float:
@@ -520,8 +517,8 @@ def _get_chat_name_from_session_record(chat_session: Any | ChatSession) -> str:
 
 
 def _get_chat_display_name(chat_session: Any, db_session: Session) -> str:
-    chat_manager = _get_chat_manager()
-    if name := chat_manager.get_session_name(chat_session.session_id):
+    name = _get_session_name_via_port(chat_session.session_id)
+    if name != chat_session.session_id:
         return name
     session_record_name = _get_chat_name_from_session_record(chat_session)
     if session_record_name != chat_session.session_id:
@@ -575,9 +572,10 @@ def _load_session_candidates_by_target(
     if not target_keys:
         return candidates_by_key
 
-    chat_manager = _get_chat_manager()
-    for session in chat_manager.sessions.values():
-        _add_session_candidate(candidates_by_key, seen_session_ids_by_key, session)
+    query_port = get_session_query_port()
+    if query_port is not None:
+        for session_info in query_port.list_sessions():
+            _add_session_candidate(candidates_by_key, seen_session_ids_by_key, session_info)
 
     platforms = sorted({platform for platform, _chat_type, _target_id in target_keys})
     if not platforms:

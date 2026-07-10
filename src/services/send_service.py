@@ -18,8 +18,11 @@ import time
 import traceback
 from datetime import datetime
 
-from src.chat.message_receive.chat_manager import BotChatSession
-from src.chat.message_receive.chat_manager import chat_manager as _chat_manager
+from src.common.logger import get_logger
+from src.common.utils.utils_message import MessageUtils
+from src.config.config import global_config
+from src.core.session_port_registry import get_session_info_port, get_session_query_port
+from src.core.types import SendMessageResult, SessionInfo
 from src.chat.message_receive.message import SessionMessage
 from src.chat.utils.utils import calculate_typing_time, get_bot_account
 from src.common.data_models.mai_message_data_model import GroupInfo, MaiMessage, MessageInfo, UserInfo
@@ -249,42 +252,32 @@ async def _invoke_send_hook(
     return hook_result, mutated_message
 
 
-def _inherit_platform_io_route_metadata(target_stream: BotChatSession) -> Dict[str, object]:
-    """从目标会话继承 Platform IO 路由元数据。
+def _inherit_platform_io_route_metadata(
+    route_metadata: Dict[str, object],
+    session_info: SessionInfo,
+) -> Dict[str, object]:
+    """从路由元数据和会话信息继承 Platform IO 路由辅助字段。
 
     Args:
-        target_stream: 当前消息要发送到的会话对象。
+        route_metadata: 通过 SessionQueryPort.get_route_metadata() 获取的路由元数据。
+        session_info: 会话信息快照。
 
     Returns:
         Dict[str, object]: 可安全透传到出站消息 ``additional_config`` 中的
         路由辅助字段。
     """
-    inherited_metadata: Dict[str, object] = {}
+    inherited_metadata: Dict[str, object] = dict(route_metadata)
 
-    context_message = target_stream.context.message if target_stream.context else None
-    if context_message is not None:
-        additional_config = context_message.message_info.additional_config
-        if isinstance(additional_config, dict):
-            for key in (*RouteKeyFactory.ACCOUNT_ID_KEYS, *RouteKeyFactory.SCOPE_KEYS):
-                value = additional_config.get(key)
-                if value is None:
-                    continue
-                normalized_value = str(value).strip()
-                if normalized_value:
-                    inherited_metadata[key] = value
-
-    # 当目标会话没有可继承的上下文消息时，至少补齐当前平台账号，
-    # 让按 ``platform + account_id`` 绑定的路由仍有机会命中。
     if not RouteKeyFactory.extract_components(inherited_metadata)[0]:
-        bot_account = get_bot_account(target_stream.platform)
+        bot_account = get_bot_account(session_info.platform)
         if bot_account:
             inherited_metadata["platform_io_account_id"] = bot_account
 
-    if target_stream.group_id and (normalized_group_id := str(target_stream.group_id).strip()):
-        inherited_metadata["platform_io_target_group_id"] = normalized_group_id
+    if session_info.group_id:
+        inherited_metadata["platform_io_target_group_id"] = session_info.group_id
 
-    if target_stream.user_id and (normalized_user_id := str(target_stream.user_id).strip()):
-        inherited_metadata["platform_io_target_user_id"] = normalized_user_id
+    if session_info.user_id:
+        inherited_metadata["platform_io_target_user_id"] = session_info.user_id
 
     return inherited_metadata
 
@@ -534,14 +527,16 @@ def _build_outbound_session_message(
         Optional[SessionMessage]: 构建成功时返回内部消息对象；若目标会话或
         机器人账号不存在，则返回 ``None``。
     """
-    target_stream = _chat_manager.get_session_by_session_id(stream_id)
-    if target_stream is None:
+    info_port = get_session_info_port()
+    query_port = get_session_query_port()
+    session_info = info_port.get_session_info(stream_id) if info_port else None
+    if session_info is None:
         logger.error(f"[SendService] 未找到聊天流: {stream_id}")
         return None
 
-    bot_user_id = get_bot_account(target_stream.platform)
+    bot_user_id = get_bot_account(session_info.platform)
     if not bot_user_id:
-        logger.error(f"[SendService] 平台 {target_stream.platform} 未配置机器人账号，无法发送消息")
+        logger.error(f"[SendService] 平台 {session_info.platform} 未配置机器人账号，无法发送消息")
         return None
 
     current_time = time.time()
@@ -549,29 +544,27 @@ def _build_outbound_session_message(
     anchor_message = reply_message.deepcopy() if reply_message is not None else None
 
     group_info: Optional[GroupInfo] = None
-    if target_stream.group_id:
-        group_name = str(target_stream.group_name or "").strip()
-        if (
-            not group_name
-            and target_stream.context
-            and target_stream.context.message
-            and target_stream.context.message.message_info.group_info
-        ):
-            group_name = target_stream.context.message.message_info.group_info.group_name
+    if session_info.group_id:
+        group_name = session_info.group_name
+        if not group_name:
+            last_msg = query_port.get_last_message(stream_id) if query_port else None
+            if last_msg is not None and last_msg.message_info.group_info:
+                group_name = last_msg.message_info.group_info.group_name
         if group_name:
             group_info = GroupInfo(
-                group_id=target_stream.group_id,
+                group_id=session_info.group_id,
                 group_name=group_name,
             )
 
-    additional_config: Dict[str, object] = _inherit_platform_io_route_metadata(target_stream)
+    route_metadata = query_port.get_route_metadata(stream_id) if query_port else {}
+    additional_config: Dict[str, object] = _inherit_platform_io_route_metadata(route_metadata, session_info)
     if selected_expressions is not None:
         additional_config["selected_expressions"] = selected_expressions
 
     outbound_message = SessionMessage(
         message_id=message_id,
         timestamp=datetime.fromtimestamp(current_time),
-        platform=target_stream.platform,
+        platform=session_info.platform,
     )
     outbound_message.message_info = MessageInfo(
         user_info=UserInfo(
@@ -582,7 +575,7 @@ def _build_outbound_session_message(
         additional_config=additional_config,
     )
     outbound_message.raw_message = _clone_message_sequence(message_sequence)
-    outbound_message.session_id = target_stream.session_id
+    outbound_message.session_id = session_info.session_id
     outbound_message.processed_plain_text = processed_plain_text.strip() or _build_processed_plain_text(
         outbound_message
     )
@@ -1376,22 +1369,25 @@ async def custom_reply_set_to_stream(
 def _resolve_reply_message_in_send_service(reply_to_id: str) -> Optional[MaiMessage]:
     """在 send_service 内部查找被引用消息。
 
-    send_service 已持有 chat_manager 引用，无需延迟导入。
+    通过 SessionQueryPort 查找，不再直接导入 chat_manager。
     """
     if not reply_to_id:
         return None
 
-    if "_" in reply_to_id:
-        session = _chat_manager.get_session_by_session_id(reply_to_id.rsplit("_", 1)[0])
-        if session is not None and session.context and session.context.message:
-            if session.context.message.message_id == reply_to_id:
-                return session.context.message
+    query_port = get_session_query_port()
+    if query_port is None:
+        return None
 
-    for session in _chat_manager.sessions.values():
-        if not session.context or not session.context.message:
-            continue
-        if session.context.message.message_id == reply_to_id:
-            return session.context.message
+    if "_" in reply_to_id:
+        session_id_prefix = reply_to_id.rsplit("_", 1)[0]
+        last_msg = query_port.get_last_message(session_id_prefix)
+        if last_msg is not None and last_msg.message_id == reply_to_id:
+            return last_msg
+
+    for session_info in query_port.list_sessions():
+        last_msg = query_port.get_last_message(session_info.session_id)
+        if last_msg is not None and last_msg.message_id == reply_to_id:
+            return last_msg
     return None
 
 

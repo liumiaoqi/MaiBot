@@ -132,14 +132,14 @@ class JargonLearner:
     def _get_session_display_name(session_id: str) -> str:
         """获取聊天流展示名称，无法解析时回退到 session_id。"""
 
-        from src.chat.message_receive.chat_manager import chat_manager
+        from src.core.session_port_registry import get_existing_session_info, get_session_name
 
-        session_name = chat_manager.get_session_name(session_id)
-        if session_name:
-            return session_name
+        name = get_session_name(session_id)
+        if name != session_id:
+            return name
 
-        chat_manager.get_existing_session_by_session_id(session_id)
-        return chat_manager.get_session_name(session_id) or session_id
+        get_existing_session_info(session_id)
+        return get_session_name(session_id)
 
     async def learn_from_context_messages(
         self,
@@ -504,7 +504,7 @@ class JargonLearner:
     ) -> Optional[str]:
         """根据真实消息解析本轮黑话学习应该归属的会话 ID。"""
 
-        from src.chat.message_receive.chat_manager import chat_manager
+        from src.core.session_port_registry import get_existing_session_info
 
         candidates: list[str] = []
         for message in messages:
@@ -518,7 +518,7 @@ class JargonLearner:
         def session_exists(session_id: str) -> bool:
             if not session_id:
                 return False
-            return chat_manager.get_existing_session_by_session_id(session_id) is not None
+            return get_existing_session_info(session_id) is not None
 
         for session_id, _ in Counter(candidates).most_common():
             if session_exists(session_id):

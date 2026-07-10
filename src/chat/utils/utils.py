@@ -8,11 +8,11 @@ import random
 import re
 import time
 
-from src.chat.message_receive.chat_manager import chat_manager as _chat_manager
 from src.chat.message_receive.message import SessionMessage
 from src.common.data_models.message_component_data_model import AtComponent
 from src.common.logger import get_logger
 from src.config.config import global_config
+from src.core.session_port_registry import get_session_info
 from src.person_info.person_info import Person
 from src.services.embedding_service import EmbeddingServiceClient
 
@@ -812,7 +812,7 @@ def get_chat_type_and_target_info(chat_id: str) -> Tuple[bool, Optional["ChatTar
     chat_target_info = None
 
     try:
-        if chat_stream := _chat_manager.get_session_by_session_id(chat_id):
+        if chat_stream := get_session_info(chat_id):
             if chat_stream.is_group_session:
                 is_group_chat = True
                 chat_target_info = None  # Explicitly None for group chat
@@ -821,14 +821,8 @@ def get_chat_type_and_target_info(chat_id: str) -> Tuple[bool, Optional["ChatTar
                 platform: str = chat_stream.platform
                 user_id: str = chat_stream.user_id
 
-                # Try to get nickname from context
-                user_nickname = None
-                if (
-                    chat_stream.context
-                    and chat_stream.context.message
-                    and chat_stream.context.message.message_info.user_info
-                ):
-                    user_nickname = chat_stream.context.message.message_info.user_info.user_nickname
+                # Try to get nickname from SessionInfo
+                user_nickname = chat_stream.user_nickname or None
 
                 from src.common.data_models.chat_target_info_data_model import ChatTargetInfo  # 解决循环导入问题
 

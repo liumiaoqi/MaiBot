@@ -1,4 +1,4 @@
-﻿"""Maisaka 推理引擎。"""
+"""Maisaka 推理引擎。"""
 
 from base64 import b64decode
 from binascii import Error as BinasciiError
@@ -494,7 +494,7 @@ class MaisakaReasoningEngine:
                 return await build_person_profile_injection_messages(
                     anchor_message=profile_message,
                     pending_messages=source_messages,
-                    agent_id=getattr(self._runtime.chat_stream, "agent_id", "") or "",
+                    agent_id=self._runtime.chat_stream.primary_agent_id,
                 )
             except Exception as exc:
                 logger.debug(f"{self._runtime.log_prefix} 人物画像自动注入失败，已跳过: {exc}")
@@ -1498,9 +1498,9 @@ class MaisakaReasoningEngine:
             session_id=self._runtime.session_id,
             stream_id=self._runtime.session_id,
             is_group_chat=chat_stream.is_group_session,
-            group_id=str(getattr(chat_stream, "group_id", "") or "").strip(),
-            user_id=str(getattr(chat_stream, "user_id", "") or "").strip(),
-            platform=str(getattr(chat_stream, "platform", "") or "").strip(),
+            group_id=chat_stream.group_id,
+            user_id=chat_stream.user_id,
+            platform=chat_stream.platform,
         )
 
     def _build_tool_execution_context(
@@ -1522,9 +1522,9 @@ class MaisakaReasoningEngine:
             stream_id=self._runtime.session_id,
             reasoning=latest_thought,
             is_group_chat=chat_stream.is_group_session,
-            group_id=str(getattr(chat_stream, "group_id", "") or "").strip(),
-            user_id=str(getattr(chat_stream, "user_id", "") or "").strip(),
-            platform=str(getattr(chat_stream, "platform", "") or "").strip(),
+            group_id=chat_stream.group_id,
+            user_id=chat_stream.user_id,
+            platform=chat_stream.platform,
         )
 
     @staticmethod
@@ -1571,7 +1571,7 @@ class MaisakaReasoningEngine:
         try:
             tool_record_payload = build_tool_record_payload(invocation, result, tool_spec)
             saved_record = await database_api.store_tool_info(
-                chat_stream=self._runtime.chat_stream,
+                chat_stream=self._runtime.session_id,
                 tool_id=invocation.call_id,
                 tool_data=tool_record_payload,
                 tool_name=invocation.tool_name,

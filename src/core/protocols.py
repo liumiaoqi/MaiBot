@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from typing import Protocol, runtime_checkable
 
@@ -475,4 +475,133 @@ class MessagePortV2(Protocol):
 
         Returns:
             SendMessageResult 包含发送结果
+        """
+
+
+@runtime_checkable
+class SessionLifecyclePort(Protocol):
+    """会话生命周期接口 — 会话创建/获取、持久化、初始化。"""
+
+    async def get_or_create_session_id(
+        self,
+        platform: str,
+        user_id: str = "",
+        group_id: str = "",
+        account_id: str = "",
+        scope: str = "",
+    ) -> str:
+        """获取或创建会话，返回 session_id。
+
+        Args:
+            platform: 平台标识
+            user_id: 用户 ID（私聊）
+            group_id: 群 ID（群聊）
+            account_id: 平台账号 ID
+            scope: 路由作用域
+
+        Returns:
+            session_id 字符串
+        """
+
+    def save_all_sessions(self) -> None:
+        """将所有内存会话持久化到数据库。"""
+
+    async def initialize(self) -> None:
+        """初始化会话管理器（从数据库加载会话、恢复绑定等）。"""
+
+    async def regularly_save_sessions(self, interval_seconds: float = 300) -> None:
+        """定时持久化循环。
+
+        Args:
+            interval_seconds: 保存间隔（秒）
+        """
+
+
+@runtime_checkable
+class SessionQueryPort(Protocol):
+    """会话查询接口 — 批量解析、消息缓存、会话列表、路由元数据。"""
+
+    def resolve_sessions_by_target(
+        self,
+        *,
+        platform: str,
+        target_id: str,
+        chat_type: str,
+    ) -> List[SessionInfo]:
+        """按目标批量解析会话。
+
+        Args:
+            platform: 平台标识
+            target_id: 目标 ID（群 ID 或用户 ID）
+            chat_type: 聊天类型（group/private）
+
+        Returns:
+            SessionInfo 列表
+        """
+
+    def resolve_session_ids_by_target(
+        self,
+        *,
+        platform: str,
+        target_id: str,
+        chat_type: str,
+    ) -> set[str]:
+        """按目标批量解析会话 ID。
+
+        Args:
+            platform: 平台标识
+            target_id: 目标 ID
+            chat_type: 聊天类型
+
+        Returns:
+            session_id 集合
+        """
+
+    def get_last_message(self, session_id: str) -> Any:
+        """获取会话最新消息。
+
+        Args:
+            session_id: 会话 ID
+
+        Returns:
+            最新消息对象，不存在时返回 None
+        """
+
+    def list_sessions(self) -> List[SessionInfo]:
+        """获取所有会话列表。
+
+        Returns:
+            SessionInfo 列表
+        """
+
+    def get_route_metadata(self, session_id: str) -> Dict[str, object]:
+        """获取会话路由元数据（account_id/scope 等路由键）。
+
+        Args:
+            session_id: 会话 ID
+
+        Returns:
+            路由元数据字典
+        """
+
+    def get_session_count(self) -> int:
+        """获取会话总数。
+
+        Returns:
+            会话数量
+        """
+
+
+@runtime_checkable
+class MessageRegistryPort(Protocol):
+    """消息注册接口 — 入站消息注册到会话管理器。"""
+
+    def register_message(self, message: Any) -> None:
+        """注册入站消息。
+
+        Args:
+            message: 入站消息对象
+
+        Raises:
+            ValueError: 消息缺少必要字段时
         """

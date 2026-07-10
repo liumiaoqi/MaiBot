@@ -122,12 +122,21 @@ class MainSystem:
 
         await config_manager.start_file_watcher()
 
-        # 注册全局 SessionInfoPort — 必须在 A_memorix 启动之前，因为 A_memorix 注入时从注册点获取
+        # 注册全局 Protocol 端口 — 必须在 A_memorix 启动之前，因为 A_memorix 注入时从注册点获取
+        from src.core.adapters.chat_manager_adapter import ChatManagerAdapter
         from src.core.adapters.routing_adapter import ChatManagerRoutingAdapter
-        from src.core.adapters.session_repository import ChatManagerSessionRepository
-        from src.core.session_port_registry import register_session_info_port
+        from src.core.session_port_registry import (
+            register_session_info_port,
+            register_session_lifecycle_port,
+            register_session_query_port,
+            register_message_registry_port,
+        )
 
-        register_session_info_port(ChatManagerSessionRepository(ChatManagerRoutingAdapter()))
+        _adapter = ChatManagerAdapter(ChatManagerRoutingAdapter())
+        register_session_info_port(_adapter)
+        register_session_lifecycle_port(_adapter)
+        register_session_query_port(_adapter)
+        register_message_registry_port(_adapter)
 
         # 插件 Runner 启动最重，尽早发起以便和后续初始化并行。
         from src.plugin_runtime.integration import get_plugin_runtime_manager
@@ -172,12 +181,13 @@ class MainSystem:
         # 初始化表情管理器
         logger.info(t("startup.emoji_manager_initialized"))
 
-        # 初始化聊天管理器
-        from src.chat.message_receive.chat_manager import chat_manager
+        # 初始化聊天管理器（通过 SessionLifecyclePort，核心层不直接导入 chat_manager）
+        from src.core.session_port_registry import get_session_lifecycle_port
         from src.services.memory_flow_service import memory_automation_service
 
-        await chat_manager.initialize()
-        asyncio.create_task(chat_manager.regularly_save_sessions())
+        lifecycle_port = get_session_lifecycle_port()
+        await lifecycle_port.initialize()
+        asyncio.create_task(lifecycle_port.regularly_save_sessions())
 
 
         logger.info(t("startup.chat_manager_initialized"))

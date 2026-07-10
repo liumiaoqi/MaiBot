@@ -6,7 +6,7 @@ import random
 import re
 import time
 
-from src.chat.message_receive.chat_manager import BotChatSession
+from src.core.types import SessionInfo
 from src.chat.message_receive.message import SessionMessage
 from src.chat.utils.utils import get_chat_type_and_target_info, is_bot_self
 from src.common.data_models.llm_service_data_models import LLMGenerationOptions
@@ -85,7 +85,7 @@ class BaseMaisakaReplyGenerator:
     def __init__(
         self,
         *,
-        chat_stream: Optional[BotChatSession] = None,
+        chat_stream: Optional[SessionInfo] = None,
         request_type: str = "maisaka.replyer",
         llm_client_cls: Any,
         load_prompt_func: Callable[..., str],
@@ -101,7 +101,7 @@ class BaseMaisakaReplyGenerator:
         self.express_model = llm_client_cls(
             task_name="replyer",
             request_type=request_type,
-            session_id=getattr(chat_stream, "session_id", "") if chat_stream is not None else "",
+            session_id=chat_stream.session_id if chat_stream is not None else "",
         )
 
     def _build_personality_prompt(self) -> str:

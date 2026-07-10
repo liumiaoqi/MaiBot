@@ -13,8 +13,9 @@ from src.common.logger import get_logger
 from src.maisaka.agent.config import AgentConfig
 from src.maisaka.agent.emotion import EMOTION_LABELS_ZH, EmotionManager
 from src.maisaka.agent.registry import AgentConfigRegistry
-from src.maisaka.agent.router import AgentRouter
 
+
+from src.core.adapters.routing_adapter import ChatManagerRoutingAdapter
 from src.maisaka.relationship.level import RelationshipLevel
 from src.webui.dependencies import require_auth
 
@@ -27,13 +28,12 @@ def _get_registry() -> AgentConfigRegistry:
     return AgentConfigRegistry.get_instance()
 
 
-def _get_agent_router() -> AgentRouter:
-    """获取 ChatManager 持有的智能体路由器单例"""
-    from src.chat.message_receive.chat_manager import chat_manager
-
-    if chat_manager._agent_router is None:
+def _get_agent_router() -> ChatManagerRoutingAdapter:
+    """获取 ChatManager 持有的智能体路由器单例（通过适配器层访问）"""
+    adapter = ChatManagerRoutingAdapter()
+    if adapter._ensure_router() is None:
         raise HTTPException(status_code=503, detail="ChatManager 尚未初始化，智能体路由器不可用")
-    return chat_manager.agent_router
+    return adapter
 
 
 class EmotionBaselineResponse(BaseModel):

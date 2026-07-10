@@ -10,8 +10,8 @@ import time
 from src.common.logger import get_logger
 
 if TYPE_CHECKING:
-    from src.chat.message_receive.chat_manager import BotChatSession
     from src.common.data_models.image_data_model import MaiEmoji
+    from src.core.types import SessionInfo
 
 logger = get_logger("plugin_runtime.integration")
 
@@ -231,18 +231,22 @@ class RuntimeDataCapabilityMixin:
             logger.error(f"[cap.database.count] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
-    def _list_sessions(self, platform: str, is_group_session: Optional[bool] = None) -> List["BotChatSession"]:
-        from src.chat.message_receive.chat_manager import chat_manager
+    def _list_sessions(self, platform: str, is_group_session: Optional[bool] = None) -> List["SessionInfo"]:
+        from src.core.session_port_registry import get_session_query_port
+
+        query_port = get_session_query_port()
+        if query_port is None:
+            return []
 
         return [
             session
-            for session in chat_manager.sessions.values()
+            for session in query_port.list_sessions()
             if (platform == "all_platforms" or session.platform == platform)
             and (is_group_session is None or session.is_group_session == is_group_session)
         ]
 
     @staticmethod
-    def _serialize_stream(stream: "BotChatSession") -> Dict[str, Any]:
+    def _serialize_stream(stream: "SessionInfo") -> Dict[str, Any]:
         return {
             "session_id": stream.session_id,
             "stream_id": stream.session_id,
@@ -314,24 +318,31 @@ class RuntimeDataCapabilityMixin:
             return {"success": False, "error": "私聊会话缺少必要参数 user_id"}
 
         try:
-            from src.chat.message_receive.chat_manager import chat_manager
+            from src.core.session_port_registry import (
+                get_existing_session_info,
+                get_session_info,
+                get_session_lifecycle_port,
+                get_session_query_port,
+            )
 
-            existing_session_ids = chat_manager.resolve_session_ids_by_target(
+            existing_session_ids = get_session_query_port().resolve_session_ids_by_target(
                 platform=platform,
                 target_id=group_id if chat_type == "group" else user_id,
                 chat_type=chat_type,
             )
-            session = await chat_manager.get_or_create_session(
+            lifecycle_port = get_session_lifecycle_port()
+            session_id = await lifecycle_port.get_or_create_session_id(
                 platform=platform,
                 user_id=user_id or "",
-                group_id=group_id or None,
+                group_id=group_id or "",
                 account_id=account_id,
                 scope=scope,
             )
-            serialized_stream = self._serialize_stream(session)
+            session = get_existing_session_info(session_id) or get_session_info(session_id)
+            serialized_stream = self._serialize_stream(session) if session else {}
             return {
                 "success": True,
-                "created": session.session_id not in existing_session_ids,
+                "created": session_id not in existing_session_ids,
                 "stream": serialized_stream,
                 **serialized_stream,
             }

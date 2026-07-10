@@ -516,6 +516,15 @@ class SessionInfo:
     last_active_timestamp: Optional[datetime] = None
     """会话最后活跃时间"""
 
+    account_id: str = ""
+    """平台账号 ID（多账号路由）"""
+
+    scope: str = ""
+    """路由作用域（多账号路由）"""
+
+    user_cardname: str = ""
+    """用户备注名/群名片"""
+
 
 @dataclass(frozen=True, slots=True)
 class ThinkContext:

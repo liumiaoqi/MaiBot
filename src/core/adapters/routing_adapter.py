@@ -43,3 +43,19 @@ class ChatManagerRoutingAdapter:
     def get_session_all_agents(self, session_id: str) -> frozenset[str]:
         router = self._ensure_router()
         return frozenset(router.get_session_all_agents(session_id))
+
+    def get_session_binding(self, session_id: str) -> Optional[str]:
+        router = self._ensure_router()
+        return router.get_session_binding(session_id)
+
+    def list_group_bindings(self) -> dict[str, str]:
+        router = self._ensure_router()
+        return router.list_group_bindings()
+
+    def bind_group(self, group_id: str, agent_id: str) -> None:
+        router = self._ensure_router()
+        router.bind_group(group_id, agent_id)
+
+    def unbind_group(self, group_id: str) -> None:
+        router = self._ensure_router()
+        router.unbind_group(group_id)

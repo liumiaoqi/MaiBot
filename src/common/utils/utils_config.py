@@ -259,9 +259,9 @@ class ChatConfigUtils:
     @staticmethod
     def _iter_matching_chat_prompts(session_id: str, is_group_chat: Optional[bool]) -> Iterator[str]:
         try:
-            from src.chat.message_receive.chat_manager import chat_manager
+            from src.core.session_port_registry import get_session_info
 
-            chat_stream = chat_manager.get_session_by_session_id(session_id)
+            chat_stream = get_session_info(session_id)
         except Exception as e:
             logger.debug(f"解析额外 Prompt 聊天流失败: session_id={session_id} error={e}")
             chat_stream = None
@@ -362,9 +362,9 @@ class ChatConfigUtils:
     @staticmethod
     def _get_chat_stream(session_id: str):
         try:
-            from src.chat.message_receive.chat_manager import chat_manager
+            from src.core.session_port_registry import get_session_info
 
-            return chat_manager.get_session_by_session_id(session_id)
+            return get_session_info(session_id)
         except Exception as e:
             logger.debug(f"获取聊天流失败: session_id={session_id} error={e}")
             return None
@@ -385,9 +385,13 @@ class ChatConfigUtils:
         """按配置目标解析系统已知的真实聊天流 ID。"""
 
         try:
-            from src.chat.message_receive.chat_manager import chat_manager
+            from src.core.session_port_registry import get_session_query_port
 
-            return chat_manager.resolve_session_ids_by_target(
+            query_port = get_session_query_port()
+            if query_port is None:
+                return set()
+
+            return query_port.resolve_session_ids_by_target(
                 platform=str(platform or "").strip(),
                 target_id=str(item_id or "").strip(),
                 chat_type=str(rule_type or "").strip(),
@@ -417,17 +421,19 @@ class ChatConfigUtils:
 
         matched_session_ids: set[str] = set()
         try:
-            from src.chat.message_receive.chat_manager import chat_manager
+            from src.core.session_port_registry import get_session_query_port
 
-            for chat_stream in chat_manager.sessions.values():
-                chat_stream_platform = str(chat_stream.platform or "").strip()
-                chat_stream_target_id = str(getattr(chat_stream, target_attr) or "").strip()
-                if not chat_stream_target_id:
-                    continue
-                if (platform == "*" or chat_stream_platform == platform) and (
-                    item_id == "*" or chat_stream_target_id == item_id
-                ):
-                    matched_session_ids.add(chat_stream.session_id)
+            query_port = get_session_query_port()
+            if query_port is not None:
+                for chat_stream in query_port.list_sessions():
+                    chat_stream_platform = str(chat_stream.platform or "").strip()
+                    chat_stream_target_id = str(getattr(chat_stream, target_attr) or "").strip()
+                    if not chat_stream_target_id:
+                        continue
+                    if (platform == "*" or chat_stream_platform == platform) and (
+                        item_id == "*" or chat_stream_target_id == item_id
+                    ):
+                        matched_session_ids.add(chat_stream.session_id)
         except Exception as e:
             logger.debug(f"解析通配配置内存聊天流失败: platform={platform} item_id={item_id} error={e}")
 
@@ -587,9 +593,9 @@ class ChatConfigUtils:
             return None
 
         try:
-            from src.chat.message_receive.chat_manager import chat_manager
+            from src.core.session_port_registry import get_session_info
 
-            chat_stream = chat_manager.get_session_by_session_id(session_id)
+            chat_stream = get_session_info(session_id)
         except Exception as e:
             logger.debug(f"解析聊天流类型失败: session_id={session_id} error={e}")
             return None

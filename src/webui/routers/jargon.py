@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import and_, cast, func, not_, or_, String as SQLString
 from sqlmodel import Session, col, delete, select
 
-from src.chat.message_receive.chat_manager import chat_manager as _chat_manager
+from src.core.session_port_registry import get_existing_session_info
 from src.common.database.database import get_db_session
 from src.common.database.database_model import ChatSession, Jargon, JargonCreatedBy, Messages
 from src.common.logger import get_logger
@@ -473,7 +473,7 @@ def require_existing_session_id(session_id: Optional[str]) -> str:
     normalized_session_id = str(session_id or "").strip()
     if not normalized_session_id:
         raise HTTPException(status_code=400, detail="缺少聊天流 ID")
-    if _chat_manager.get_existing_session_by_session_id(normalized_session_id) is None:
+    if get_existing_session_info(normalized_session_id) is None:
         raise HTTPException(status_code=400, detail=f"聊天流不存在: {normalized_session_id}")
     return normalized_session_id
 
