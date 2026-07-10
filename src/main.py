@@ -122,6 +122,13 @@ class MainSystem:
 
         await config_manager.start_file_watcher()
 
+        # 注册全局 SessionInfoPort — 必须在 A_memorix 启动之前，因为 A_memorix 注入时从注册点获取
+        from src.core.adapters.routing_adapter import ChatManagerRoutingAdapter
+        from src.core.adapters.session_repository import ChatManagerSessionRepository
+        from src.core.session_port_registry import register_session_info_port
+
+        register_session_info_port(ChatManagerSessionRepository(ChatManagerRoutingAdapter()))
+
         # 插件 Runner 启动最重，尽早发起以便和后续初始化并行。
         from src.plugin_runtime.integration import get_plugin_runtime_manager
 
@@ -172,12 +179,6 @@ class MainSystem:
         await chat_manager.initialize()
         asyncio.create_task(chat_manager.regularly_save_sessions())
 
-        # 注册全局 SessionInfoPort，让 maisaka 外围模块通过 Protocol 查询会话信息
-        from src.core.adapters.routing_adapter import ChatManagerRoutingAdapter
-        from src.core.adapters.session_repository import ChatManagerSessionRepository
-        from src.core.session_port_registry import register_session_info_port
-
-        register_session_info_port(ChatManagerSessionRepository(ChatManagerRoutingAdapter()))
 
         logger.info(t("startup.chat_manager_initialized"))
         await memory_automation_service.start()

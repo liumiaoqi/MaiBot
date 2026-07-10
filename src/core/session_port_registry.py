@@ -23,6 +23,15 @@ def register_session_info_port(port: SessionInfoPort) -> None:
     _port = port
 
 
+def get_session_info_port() -> Optional[SessionInfoPort]:
+    """获取全局 SessionInfoPort 实例。
+
+    供需要持有 port 引用的模块使用（如 A_memorix 注入到 SDKMemoryKernel）。
+    未注册时返回 None。
+    """
+    return _port
+
+
 def get_session_info(session_id: str) -> Optional[SessionInfo]:
     """查询会话信息快照。
 
