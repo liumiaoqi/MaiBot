@@ -442,7 +442,8 @@ class RuntimeCoreCapabilityMixin:
     async def _cap_send_command(self, plugin_id: str, capability: str, args: Dict[str, Any]) -> Any:
         """向指定流发送命令消息。"""
         del plugin_id, capability
-        from src.core.message_port_registry import get_message_port
+        from src.core.message_port_registry import get_message_port_v2
+        from src.services.send_service import _build_message_sequence_from_custom_message
 
         command = str(args.get("command", ""))
         stream_id = str(args.get("stream_id", ""))
@@ -451,11 +452,11 @@ class RuntimeCoreCapabilityMixin:
             return {"success": False, "error": "缺少必要参数 command 或 stream_id"}
 
         try:
-            port = get_message_port()
-            result = await port.send_custom(
+            message = _build_message_sequence_from_custom_message("command", command)
+            port = get_message_port_v2()
+            result = await port.send_message(
                 session_id=stream_id,
-                message_type="command",
-                content=command,
+                message=message,
                 source=maisaka_source_kind,
             )
             return {"success": result.success}
@@ -466,7 +467,8 @@ class RuntimeCoreCapabilityMixin:
     async def _cap_send_custom(self, plugin_id: str, capability: str, args: Dict[str, Any]) -> Any:
         """向指定流发送自定义消息。"""
         del plugin_id, capability
-        from src.core.message_port_registry import get_message_port
+        from src.core.message_port_registry import get_message_port_v2
+        from src.services.send_service import _build_message_sequence_from_custom_message
 
         message_type = str(args.get("message_type", "") or args.get("custom_type", ""))
         content = args.get("content")
@@ -478,11 +480,11 @@ class RuntimeCoreCapabilityMixin:
             return {"success": False, "error": "缺少必要参数 message_type 或 stream_id"}
 
         try:
-            port = get_message_port()
-            result = await port.send_custom(
+            message = _build_message_sequence_from_custom_message(message_type, content)
+            port = get_message_port_v2()
+            result = await port.send_message(
                 session_id=stream_id,
-                message_type=message_type,
-                content=content,
+                message=message,
                 source=maisaka_source_kind,
             )
             return {"success": result.success}

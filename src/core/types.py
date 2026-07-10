@@ -671,7 +671,7 @@ class MemorySearchResult:
 
 @dataclass(frozen=True, slots=True)
 class SendMessageResult:
-    """消息发送结果 — MessagePort 扩展方法的统一返回类型。"""
+    """消息发送结果 — MessagePortV2.send_message() 的统一返回类型。"""
 
     success: bool
     message_id: str = ""
