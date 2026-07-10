@@ -304,15 +304,22 @@ class BaseMaisakaReplyGenerator:
         locale = BaseMaisakaReplyGenerator._get_prompt_locale()
         if locale.startswith("en"):
             return (
-                "Please do not output any extra content (including unnecessary prefixes or suffixes, "
-                "colons, brackets, stickers, plain at, or @). Only output the message content itself."
+                "Please output the message content directly, without unnecessary prefixes, suffixes, colons, stickers, or @. "
+                "You may use parentheses to describe the character's actions and expressions, "
+                "e.g. (looks away), (smiles), (sighs), but do not use parentheses for explanatory or meta-language content."
             )
         if locale.startswith("ja"):
             return (
-                "余計な内容（不要な前置きや後置き、コロン、括弧、スタンプ、通常の at や @ など）は出力せず、"
-                "発言内容だけを出力してください。"
+                "発言内容だけを直接出力してください。不要な前置きや後置き、コロン、スタンプ、@などは出力しないでください。"
+                "括弧を使ってキャラクターの動作や表情を描写しても構いません"
+                "（例：(そっぽを向く)、(微笑む)、(ため息)）。"
+                "ただし、説明やメタ言語の内容に括弧を使わないでください。"
             )
-        return "请注意不要输出多余内容(包括不必要的前后缀，冒号，括号，表情包，@等 )，只输出发言内容就好。"
+        return (
+            "请直接输出发言内容，不要输出多余的前后缀、冒号、表情包、@等。"
+            "你可以用括号描写角色的动作和表情，例如(看向别处)、(微笑)、(叹气)，"
+            "但不要用括号输出说明性内容或元语言。"
+        )
 
     @staticmethod
     def _replace_regex_capture_groups(reaction: str, match: re.Match[str]) -> str:
@@ -433,7 +440,7 @@ class BaseMaisakaReplyGenerator:
         return system_prompt
 
     def _build_reply_instruction(self) -> str:
-        return "以上是你的思考，你可以参考其中内容或根据实际情况调整回复内容，请自然地回复。不要输出多余说明、括号、@ 或额外标记，只输出实际要发送的内容。"
+        return "以上是你的思考，你可以参考其中内容或根据实际情况调整回复内容，请自然地回复。不要输出多余说明、@ 或额外标记。你可以用括号描写动作和表情，例如(看向别处)、(微笑)、(叹气)。"
 
     def _build_final_user_message(
         self,

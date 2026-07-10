@@ -514,6 +514,32 @@ def _get_random_default_reply() -> str:
     return random.choice(default_replies)
 
 
+_STAGE_DIRECTION_MAX_LEN = 10
+_STAGE_DIRECTION_META_KEYWORDS = {"注意", "说明", "不要", "提醒", "备注", "注:", "参考", "提示", "重要", "警告"}
+_STAGE_DIRECTION_NUMBERING = re.compile(r"^[\d①②③④⑤⑥⑦⑧⑨⑩]")
+
+
+def _is_stage_direction(content: str) -> bool:
+    """判断括号内容是否为舞台指示（动作/表情描写）。
+
+    舞台指示特征：短小、描述动作/表情/语气、不含元语言。
+    """
+    stripped = content.strip()
+    if not stripped:
+        return False
+    chinese_chars = re.findall(r"[\u4e00-\u9fff]", stripped)
+    if len(chinese_chars) > _STAGE_DIRECTION_MAX_LEN:
+        return False
+    for kw in _STAGE_DIRECTION_META_KEYWORDS:
+        if kw in stripped:
+            return False
+    if _STAGE_DIRECTION_NUMBERING.match(stripped):
+        return False
+    if "：" in stripped or ": " in stripped:
+        return False
+    return True
+
+
 def process_llm_response(text: str, enable_splitter: bool = True, enable_chinese_typo: bool = True) -> list[str]:
     if not global_config.response_post_process.enable_response_post_process:
         return [text]
@@ -528,8 +554,16 @@ def process_llm_response(text: str, enable_splitter: bool = True, enable_chinese
     # 提取被 () 或 [] 或 （）包裹且包含中文的内容
     pattern = re.compile(r"[(\[（](?=.*[一-鿿]).*?[)\]）]")
     _extracted_contents = pattern.findall(protected_text)  # 在保护后的文本上查找
-    # 去除 () 和 [] 及其包裹的内容
-    cleaned_text = pattern.sub("", protected_text)
+
+    def _replace_bracket_content(match: re.Match) -> str:
+        """保留舞台指示（短小动作/表情描写），删除多余说明。"""
+        content = match.group(0)
+        inner = content[1:-1].strip()
+        if _is_stage_direction(inner):
+            return content
+        return ""
+
+    cleaned_text = pattern.sub(_replace_bracket_content, protected_text)
 
     if cleaned_text == "":
         return ["呃呃"]
