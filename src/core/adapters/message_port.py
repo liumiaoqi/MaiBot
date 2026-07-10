@@ -48,15 +48,21 @@ class SendServicePort:
         """通过 chat_manager 查找被引用消息的 MaiMessage 对象。
 
         仅在适配器层导入 chat_manager，核心模块不感知此依赖。
+        支持两种格式：session_id_messageid（带下划线）或纯消息ID。
         """
         from src.chat.message_receive.chat_manager import chat_manager
 
-        session = chat_manager.get_session_by_session_id(reply_to.rsplit("_", 1)[0]) if "_" in reply_to else None
-        if session is None:
-            return None
-        for msg in session.context.message:
-            if msg.message_id == reply_to:
-                return msg
+        if "_" in reply_to:
+            session = chat_manager.get_session_by_session_id(reply_to.rsplit("_", 1)[0])
+            if session is not None:
+                for msg in session.context.message:
+                    if msg.message_id == reply_to:
+                        return msg
+
+        for session in chat_manager.sessions.values():
+            for msg in session.context.message:
+                if msg.message_id == reply_to:
+                    return msg
         return None
 
     def _segments_to_message_sequence(self, segments: list[dict[str, Any]]) -> Any:
