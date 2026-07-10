@@ -110,7 +110,9 @@ class VitalityManager:
         reason: str = "standby_enter",
         initial_vitality: float | None = None,
     ) -> None:
-        """将智能体加入待命列表并持久化。"""
+        """将智能体加入待命列表并持久化。已在待命列表中时跳过。"""
+        if self._registry.contains(agent_id, session_id):
+            return
         vitality = (
             initial_vitality
             if initial_vitality is not None
