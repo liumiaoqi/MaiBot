@@ -1319,13 +1319,11 @@ class StatisticOutputTask(AsyncTask):
     def _get_chat_display_name_from_id(self, chat_id: str) -> str:
         """从chat_id获取显示名称"""
         try:
-            # 首先尝试从chat_stream获取真实群组名称
-            from src.chat.message_receive.chat_manager import chat_manager as _stat_chat_manager
+            from src.core.session_port_registry import get_session_name
 
-            if chat_id in _stat_chat_manager.sessions:
-                name = _stat_chat_manager.get_session_name(chat_id)
-                if name and name.strip():
-                    return name.strip()
+            name = get_session_name(chat_id)
+            if name and name.strip() and name != chat_id:
+                return name.strip()
 
             # 如果从chat_stream获取失败，尝试解析chat_id格式
             if chat_id.startswith("g"):

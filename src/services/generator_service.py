@@ -10,13 +10,12 @@ from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 from rich.traceback import install
 
-from src.chat.message_receive.chat_manager import BotChatSession
 from src.chat.replyer.maisaka_generator import MaisakaReplyGenerator
 from src.chat.replyer.replyer_manager import replyer_manager
 from src.chat.utils.utils import process_llm_response
 from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
 from src.common.logger import get_logger
-from src.core.types import ActionInfo
+from src.core.types import ActionInfo, SessionInfo
 
 if TYPE_CHECKING:
     from src.common.data_models.llm_data_model import LLMGenerationDataModel
@@ -34,7 +33,7 @@ logger = get_logger("generator_service")
 
 
 def _get_replyer(
-    chat_stream: Optional[BotChatSession] = None,
+    chat_stream: Optional[SessionInfo] = None,
     chat_id: Optional[str] = None,
     request_type: str = "replyer",
 ) -> Optional[MaisakaReplyGenerator]:
@@ -91,7 +90,7 @@ def _build_message_sequence(
 
 
 async def generate_reply(
-    chat_stream: Optional[BotChatSession] = None,
+    chat_stream: Optional[SessionInfo] = None,
     chat_id: Optional[str] = None,
     action_data: Optional[Dict[str, Any]] = None,
     reply_message: Optional["SessionMessage"] = None,
@@ -169,7 +168,7 @@ async def generate_reply(
 
 
 async def rewrite_reply(
-    chat_stream: Optional[BotChatSession] = None,
+    chat_stream: Optional[SessionInfo] = None,
     reply_data: Optional[Dict[str, Any]] = None,
     chat_id: Optional[str] = None,
     enable_splitter: bool = True,

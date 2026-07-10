@@ -1,4 +1,4 @@
-﻿"""Maisaka 非 CLI 运行时。"""
+"""Maisaka 非 CLI 运行时。"""
 
 from collections import deque
 from datetime import datetime
@@ -9,7 +9,7 @@ import json
 import time
 
 from src.chat.heart_flow.heartFC_utils import CycleDetail
-from src.chat.message_receive.chat_manager import BotChatSession
+
 from src.chat.message_receive.message import SessionMessage
 from src.chat.replyer.expression_vector_index import expression_vector_index
 from src.chat.utils.utils import get_bot_account, is_bot_self, is_mentioned_bot_in_message
@@ -142,17 +142,16 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
 
     def __init__(self, session_id: str):
         self.session_id = session_id
-        from src.chat.message_receive.chat_manager import chat_manager
-
-        chat_stream = chat_manager.get_session_by_session_id(session_id)
-        if chat_stream is None:
-            raise ValueError(f"未找到会话 {session_id} 对应的 Maisaka 运行时")
-        self.chat_stream: BotChatSession = chat_stream
 
         session_info = get_existing_session_info(session_id)
         if session_info is None:
             raise ValueError(f"未找到会话 {session_id} 对应的 SessionInfo")
         self._session_info = session_info
+
+    @property
+    def chat_stream(self) -> SessionInfo:
+        """向后兼容属性 — 返回不可变 SessionInfo 快照。"""
+        return self._session_info
 
         session_name = get_session_name(session_id)
         self.session_name = session_name
@@ -232,7 +231,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         self._reply_effect_tracker = ReplyEffectTracker(
             session_id=self.session_id,
             session_name=self.session_name,
-            chat_stream=self.chat_stream,
+            chat_stream=self._session_info,
             judge_runner=self._run_reply_effect_judge,
         )
         self._register_tool_providers()
@@ -980,7 +979,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
 
     def _get_agent_talk_value_modifier(self) -> float:
         """从当前智能体配置获取回复频率修正倍率。"""
-        agent_id = getattr(self.chat_stream, "agent_id", None)
+        agent_id = self._session_info.primary_agent_id or None
         if not agent_id:
             return 1.0
         try:
@@ -1408,7 +1407,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
 
     def _init_emotion_manager(self) -> None:
         """根据当前智能体配置初始化情绪管理器。"""
-        agent_id = getattr(self.chat_stream, "agent_id", None)
+        agent_id = self._session_info.primary_agent_id or None
         if not agent_id:
             return
         try:
@@ -1425,7 +1424,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
 
     def _init_relationship_manager(self) -> None:
         """初始化关系管理器。"""
-        agent_id = getattr(self.chat_stream, "agent_id", None)
+        agent_id = self._session_info.primary_agent_id or None
         if not agent_id:
             return
         try:
@@ -1482,9 +1481,12 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
 
                 recovery = SessionRecoveryService()
                 import asyncio
-                from src.chat.message_receive.chat_manager import chat_manager as _cm
+                from src.core.adapters.chat_manager_adapter import ChatManagerAdapter
+                from src.core.session_port_registry import get_session_query_port
 
-                asyncio.create_task(recovery.recover_all(_cm))
+                _query_port = get_session_query_port()
+                if isinstance(_query_port, ChatManagerAdapter):
+                    asyncio.create_task(recovery.recover_all(_query_port._ensure_chat_manager()))
             except Exception as recovery_exc:
                 logger.debug(
                     f"[agent_autonomy] 会话恢复跳过: {recovery_exc}"
@@ -1511,7 +1513,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         """更新与用户的关系并同步到提示词。"""
         if self._relationship_manager is None:
             return
-        agent_id = getattr(self.chat_stream, "agent_id", "") or ""
+        agent_id = self._session_info.primary_agent_id
         if not agent_id or not user_id:
             return
 
@@ -2201,8 +2203,11 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
     def _build_runtime_user_info(self) -> UserInfo:
         if self._session_info.user_id:
             user_nickname = "用户"
-            if self.chat_stream.context and self.chat_stream.context.message:
-                context_user_info = self.chat_stream.context.message.message_info.user_info
+            from src.core.session_port_registry import get_session_query_port
+            query_port = get_session_query_port()
+            last_msg = query_port.get_last_message(self.session_id) if query_port else None
+            if last_msg is not None:
+                context_user_info = last_msg.message_info.user_info
                 user_nickname = context_user_info.user_nickname or context_user_info.user_id or user_nickname
             self._chat_loop_service.update_current_user(self._session_info.user_id, user_nickname)
             return UserInfo(
@@ -2217,8 +2222,12 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         group_info = None
         if message is not None:
             group_info = message.message_info.group_info
-        elif self.chat_stream.context and self.chat_stream.context.message:
-            group_info = self.chat_stream.context.message.message_info.group_info
+        else:
+            from src.core.session_port_registry import get_session_query_port
+            query_port = get_session_query_port()
+            last_msg = query_port.get_last_message(self.session_id) if query_port else None
+            if last_msg is not None:
+                group_info = last_msg.message_info.group_info
 
         if group_info is None:
             return None

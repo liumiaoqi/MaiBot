@@ -1,6 +1,6 @@
 from typing import Any, Callable, Optional
 
-from src.chat.message_receive.chat_manager import BotChatSession
+from src.core.types import SessionInfo
 from src.common.prompt_i18n import load_prompt
 from src.config.config import global_config
 from src.services.llm_service import LLMServiceClient
@@ -13,7 +13,7 @@ class MaisakaReplyGenerator(BaseMaisakaReplyGenerator):
 
     def __init__(
         self,
-        chat_stream: Optional[BotChatSession] = None,
+        chat_stream: Optional[SessionInfo] = None,
         request_type: str = "maisaka.replyer",
         llm_client_cls: Optional[Any] = None,
         load_prompt_func: Optional[Callable[..., str]] = None,

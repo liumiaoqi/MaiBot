@@ -35,11 +35,11 @@ class HeartflowManager:
                     self._touch_chat(session_id)
                     return chat
 
-                from src.chat.message_receive.chat_manager import chat_manager
+                from src.core.session_port_registry import get_session_info_port
                 from src.maisaka.runtime import MaisakaHeartFlowChatting
 
-                chat_session = chat_manager.get_session_by_session_id(session_id)
-                if not chat_session:
+                session_info_port = get_session_info_port()
+                if session_info_port is None or session_info_port.get_session_info(session_id) is None:
                     raise ValueError(f"未找到 session_id={session_id} 对应的聊天流")
 
                 new_chat = MaisakaHeartFlowChatting(session_id=session_id)

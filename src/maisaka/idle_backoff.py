@@ -38,7 +38,7 @@ class IdleBackoffController:
 
     def _get_agent_idle_backoff_modifier(self) -> float:
         """从当前智能体配置获取空闲退避修正倍率。"""
-        agent_id = getattr(self._runtime.chat_stream, "agent_id", None)
+        agent_id = self._runtime.chat_stream.primary_agent_id or None
         if not agent_id:
             return 1.0
         try:

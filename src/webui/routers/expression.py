@@ -14,7 +14,12 @@ from pydantic import BaseModel, Field
 from sqlalchemy import case, func
 from sqlmodel import col, delete, select
 
-from src.chat.message_receive.chat_manager import chat_manager as _chat_manager
+from src.core.session_port_registry import (
+    get_existing_session_info,
+    get_session_info,
+    get_session_name as _get_session_name_via_port,
+    get_session_query_port,
+)
 from src.chat.replyer.expression_vector_index import normalize_text, resolve_project_path
 from src.common.database.database import get_db_session
 from src.common.database.database_model import ChatSession, Expression, Messages, ModifiedBy
@@ -397,7 +402,7 @@ def require_existing_chat_id(chat_id: Optional[str]) -> str:
     normalized_chat_id = str(chat_id or "").strip()
     if not normalized_chat_id:
         raise HTTPException(status_code=400, detail="缺少聊天流 ID")
-    if _chat_manager.get_existing_session_by_session_id(normalized_chat_id) is None:
+    if get_existing_session_info(normalized_chat_id) is None:
         raise HTTPException(status_code=400, detail=f"聊天流不存在: {normalized_chat_id}")
     return normalized_chat_id
 
@@ -448,16 +453,17 @@ def get_chat_name(chat_id: str, db_session: Optional[Any] = None) -> str:
     """
 
     try:
-        if name := _chat_manager.get_session_name(chat_id):
+        name = _get_session_name_via_port(chat_id)
+        if name != chat_id:
             return name
         if db_session and (name := get_chat_name_from_latest_message(chat_id, db_session)):
             return name
-        session = _chat_manager.get_session_by_session_id(chat_id)
-        if session:
-            if session.group_id:
-                return f"群聊{session.group_id}"
-            if session.user_id:
-                return f"用户{session.user_id}"
+        session_info = get_session_info(chat_id)
+        if session_info:
+            if session_info.is_group_session:
+                return f"群聊{session_info.session_name}"
+            if session_info.session_name:
+                return session_info.session_name
         return chat_id
     except Exception:
         return chat_id
@@ -796,11 +802,16 @@ def resolve_legacy_group_preview(
 
     if platform and target_id and chat_type:
         configured_accounts = get_configured_platform_accounts()
-        candidate_sessions = _chat_manager.resolve_sessions_by_target(
-            platform=platform,
-            target_id=target_id,
-            chat_type=chat_type,
-        )
+        query_port = get_session_query_port()
+        if query_port is not None:
+            candidate_session_infos = query_port.resolve_sessions_by_target(
+                platform=platform,
+                target_id=target_id,
+                chat_type=chat_type,
+            )
+            candidate_sessions = candidate_session_infos
+        else:
+            candidate_sessions = []
         matched_sessions = sorted(
             select_legacy_import_matched_sessions(candidate_sessions, configured_accounts),
             key=lambda session: session.session_id,

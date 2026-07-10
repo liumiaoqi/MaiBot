@@ -1,4 +1,4 @@
-﻿"""会话级回复效果观察器。"""
+"""会话级回复效果观察器。"""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ import time
 import uuid
 
 from src.chat.message_receive.message import SessionMessage
+from src.core.types import SessionInfo
 from src.maisaka.context.history import build_session_message_visible_text
 
 from .image_utils import extract_visual_attachments_from_sequence
@@ -45,7 +46,7 @@ class ReplyEffectTracker:
         *,
         session_id: str,
         session_name: str,
-        chat_stream: Any,
+        chat_stream: SessionInfo,
         judge_runner: JudgeRunner | None = None,
         storage: ReplyEffectStorage | None = None,
     ) -> None:
@@ -156,10 +157,10 @@ class ReplyEffectTracker:
         self._storage.save_record(record)
 
     def _build_session_snapshot(self) -> SessionSnapshot:
-        platform = str(getattr(self._chat_stream, "platform", "") or "").strip()
-        group_id = str(getattr(self._chat_stream, "group_id", "") or "").strip()
-        user_id = str(getattr(self._chat_stream, "user_id", "") or "").strip()
-        is_group_session = bool(getattr(self._chat_stream, "is_group_session", False))
+        platform = self._chat_stream.platform
+        group_id = self._chat_stream.group_id
+        user_id = self._chat_stream.user_id
+        is_group_session = self._chat_stream.is_group_session
         return SessionSnapshot(
             session_id=self._session_id,
             platform_type_id=build_reply_effect_chat_dir_name(self._session_id),

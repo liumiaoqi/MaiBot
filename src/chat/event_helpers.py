@@ -137,11 +137,11 @@ def _build_message_from_stream(
     llm_response: Optional["LLMGenerationDataModel"] = None,
 ) -> MaiMessages:
     """从 stream_id 查找会话消息并转换。"""
-    from src.chat.message_receive.chat_manager import chat_manager
+    from src.core.session_port_registry import get_last_message
 
-    session = chat_manager.get_session_by_session_id(stream_id)
-    assert session, f"未找到流ID为 {stream_id} 的会话"
-    return _transform_event_message(session.context.message, llm_prompt, llm_response)
+    message = get_last_message(stream_id)
+    assert message, f"未找到流ID为 {stream_id} 的会话消息"
+    return _transform_event_message(message, llm_prompt, llm_response)
 
 
 def _build_message_without_raw(
@@ -151,9 +151,9 @@ def _build_message_without_raw(
     action_usage: Optional[List[str]] = None,
 ) -> MaiMessages:
     """没有原始消息对象时，从 stream_id 构建最小 MaiMessages。"""
-    from src.chat.message_receive.chat_manager import chat_manager
+    from src.core.session_port_registry import get_session_info
 
-    session = chat_manager.get_session_by_session_id(stream_id)
+    session = get_session_info(stream_id)
     assert session, f"未找到流ID为 {stream_id} 的会话"
     return MaiMessages(
         stream_id=stream_id,

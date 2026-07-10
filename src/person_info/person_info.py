@@ -7,12 +7,12 @@ import hashlib
 import json
 import time
 
-from src.chat.message_receive.chat_manager import chat_manager as _chat_manager
 from src.common.data_models.person_info_data_model import dump_group_cardname_records, parse_group_cardname_json
 from src.common.database.database import get_db_session
 from src.common.database.database_model import PersonInfo
 from src.common.logger import get_logger
 from src.config.config import global_config
+from src.core.session_port_registry import get_session_info
 from src.services.memory_service import memory_service
 
 
@@ -536,14 +536,14 @@ async def store_person_memory_from_answer(
     clean_person_id = person_id.strip()
     try:
         # 从 chat_id 获取 session
-        session = _chat_manager.get_session_by_session_id(clean_chat_id)
+        session = get_session_info(clean_chat_id)
         if not session:
             logger.warning(f"无法获取session for chat_id: {clean_chat_id}")
             return
 
-        session_platform = str(getattr(session, "platform", "") or "").strip()
-        session_user_id = str(getattr(session, "user_id", "") or "").strip()
-        session_group_id = str(getattr(session, "group_id", "") or "").strip()
+        session_platform = str(session.platform or "").strip()
+        session_user_id = str(session.user_id or "").strip()
+        session_group_id = str(session.group_id or "").strip()
 
         person_id = clean_person_id or resolve_person_id_for_memory(
             person_name=clean_person_name,

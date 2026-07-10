@@ -21,7 +21,7 @@ try:
     from src.A_memorix.core.runtime import sdk_memory_kernel as kernel_module
     from src.A_memorix.core.runtime.sdk_memory_kernel import SDKMemoryKernel
     from src.A_memorix.core.utils import summary_importer as summary_importer_module
-    from src.chat.message_receive.chat_manager import BotChatSession
+    from src.core.types import SessionInfo
     from src.chat.message_receive.message import SessionMessage
     from src.common.data_models.mai_message_data_model import MessageInfo, UserInfo
     from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
@@ -37,7 +37,7 @@ except SystemExit as exc:
     kernel_module = None  # type: ignore[assignment]
     SDKMemoryKernel = None  # type: ignore[assignment]
     summary_importer_module = None  # type: ignore[assignment]
-    BotChatSession = None  # type: ignore[assignment]
+    BotChatSession = None  # type: ignore[assignment]  # 保留变量名兼容
     SessionMessage = None  # type: ignore[assignment]
     MessageInfo = None  # type: ignore[assignment]
     UserInfo = None  # type: ignore[assignment]
@@ -323,20 +323,35 @@ async def test_text_to_stream_triggers_real_chat_summary_writeback(
     monkeypatch.setattr(send_service, "_get_runtime_manager", lambda: _NoopRuntimeManager())
     monkeypatch.setattr(send_service, "get_platform_io_manager", lambda: fake_platform_io_manager)
     monkeypatch.setattr(send_service, "get_bot_account", lambda platform: "bot-qq")
-    monkeypatch.setattr(
-        send_service._chat_manager,
-        "get_session_by_session_id",
-        lambda stream_id: (
-            BotChatSession(
-                session_id="test-session",
-                platform="qq",
-                user_id="target-user",
-                group_id=None,
-            )
-            if stream_id == "test-session"
-            else None
-        ),
-    )
+    from src.core.session_port_registry import register_session_info_port, register_session_query_port
+
+    class _MockSessionInfoPort:
+        def get_session_info(self, session_id: str):
+            if session_id == "test-session":
+                return SessionInfo(
+                    session_id="test-session",
+                    session_name="test-session",
+                    platform="qq",
+                    is_group_session=False,
+                    user_id="target-user",
+                )
+            return None
+
+        def get_existing_session_info(self, session_id: str):
+            return self.get_session_info(session_id)
+
+    class _MockSessionQueryPort:
+        def get_last_message(self, session_id: str):
+            return None
+
+        def get_route_metadata(self, session_id: str):
+            return {}
+
+        def list_sessions(self):
+            return []
+
+    register_session_info_port(_MockSessionInfoPort())
+    register_session_query_port(_MockSessionQueryPort())
     integration_config = memory_flow_service_module.global_config.a_memorix.integration
     monkeypatch.setattr(integration_config, "chat_summary_writeback_enabled", True, raising=False)
     monkeypatch.setattr(integration_config, "chat_summary_writeback_message_threshold", 2, raising=False)

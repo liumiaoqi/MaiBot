@@ -230,9 +230,9 @@ class RuntimeCoreCapabilityMixin:
 
         try:
             from src.chat.heart_flow.heartflow_manager import heartflow_manager
-            from src.chat.message_receive.chat_manager import chat_manager
+            from src.core.session_port_registry import get_existing_session_info
 
-            chat_session = chat_manager.get_existing_session_by_session_id(stream_id)
+            chat_session = get_existing_session_info(stream_id)
             if chat_session is None:
                 return {"success": False, "error": f"未找到已存在的聊天流: {stream_id}"}
 

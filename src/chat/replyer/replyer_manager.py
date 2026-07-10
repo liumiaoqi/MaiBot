@@ -1,8 +1,9 @@
 from typing import Any, Dict, Optional
 
-from src.chat.message_receive.chat_manager import BotChatSession, chat_manager as _chat_manager
-from src.config.config import global_config
 from src.common.logger import get_logger
+from src.config.config import global_config
+from src.core.session_port_registry import get_session_info_port
+from src.core.types import SessionInfo
 
 from .maisaka_generator import MaisakaReplyGenerator
 
@@ -22,7 +23,7 @@ class ReplyerManager:
 
     def get_replyer(
         self,
-        chat_stream: Optional[BotChatSession] = None,
+        chat_stream: Optional[SessionInfo] = None,
         chat_id: Optional[str] = None,
         request_type: str = "replyer",
         replyer_type: str = "default",
@@ -38,7 +39,11 @@ class ReplyerManager:
         if cache_key in self._repliers:
             return self._repliers[cache_key]
 
-        target_stream = chat_stream or _chat_manager.get_session_by_session_id(stream_id)
+        target_stream = chat_stream
+        if target_stream is None:
+            info_port = get_session_info_port()
+            if info_port is not None:
+                target_stream = info_port.get_session_info(stream_id)
         if not target_stream:
             logger.warning(f"[ReplyerManager] 未找到会话，stream_id={stream_id}")
             return None

@@ -12,7 +12,7 @@ from rich.text import Text
 
 from src.chat.heart_flow.heartflow_manager import heartflow_manager
 from src.chat.heart_flow.heartflow_message_processor import HeartFCMessageReceiver
-from src.chat.message_receive.chat_manager import BotChatSession, chat_manager
+
 from src.chat.message_receive.message import SessionMessage
 from src.common.data_models.mai_message_data_model import MessageInfo, UserInfo
 from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
@@ -32,7 +32,7 @@ class BufferCLI:
     def __init__(self) -> None:
         self._reader = InputReader()
         self._message_receiver = HeartFCMessageReceiver()
-        self._session: BotChatSession | None = None
+        self._session_id: str | None = None
 
     @staticmethod
     def _get_current_model_name() -> str:
@@ -87,11 +87,17 @@ class BufferCLI:
             user_text=user_text,
             timestamp=datetime.now(),
         )
-        chat_manager.register_message(message)
-        self._session = await chat_manager.get_or_create_session(
-            platform=self._CLI_PLATFORM,
-            user_id=self._CLI_USER_ID,
-        )
+        from src.core.session_port_registry import get_session_lifecycle_port, get_message_registry_port
+
+        registry_port = get_message_registry_port()
+        if registry_port is not None:
+            registry_port.register_message(message)
+        lifecycle_port = get_session_lifecycle_port()
+        if lifecycle_port is not None:
+            self._session_id = await lifecycle_port.get_or_create_session_id(
+                platform=self._CLI_PLATFORM,
+                user_id=self._CLI_USER_ID,
+            )
         await self._message_receiver.process_message(message)
 
     async def run(self) -> None:
@@ -113,7 +119,7 @@ class BufferCLI:
 
                 await self._dispatch_input(user_text)
         finally:
-            if self._session is not None:
-                runtime = heartflow_manager.heartflow_chat_list.pop(self._session.session_id, None)
+            if self._session_id is not None:
+                runtime = heartflow_manager.heartflow_chat_list.pop(self._session_id, None)
                 if runtime is not None:
                     await runtime.stop()

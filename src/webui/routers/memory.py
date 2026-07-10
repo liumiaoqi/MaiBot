@@ -14,7 +14,7 @@ from sqlmodel import col, select
 import tomlkit
 
 
-from src.chat.message_receive.chat_manager import chat_manager as _chat_manager
+from src.core.session_port_registry import get_session_name as _get_session_name_via_port, get_existing_session_info
 from src.common.database.database import get_db_session
 from src.common.database.database_model import ChatSession, Messages, PersonInfo
 from src.person_info.person_info import resolve_person_id_for_memory
@@ -307,7 +307,8 @@ def _get_chat_name_from_latest_message(message: Optional[dict[str, Any]]) -> Opt
 def _get_chat_name(chat_session: ChatSession, latest_messages: dict[str, dict[str, Any]]) -> str:
     chat_id = str(chat_session.session_id or "").strip()
     try:
-        if name := _chat_manager.get_session_name(chat_id):
+        name = _get_session_name_via_port(chat_id)
+        if name != chat_id:
             return name
     except Exception:
         pass
@@ -353,7 +354,7 @@ def _validate_import_chat_id(payload: dict[str, Any]) -> dict[str, Any]:
         normalized.pop("chat_id", None)
         return normalized
     try:
-        if _chat_manager.get_existing_session_by_session_id(chat_id) is not None:
+        if get_existing_session_info(chat_id) is not None:
             normalized["chat_id"] = chat_id
             return normalized
     except Exception:
@@ -371,9 +372,10 @@ def _find_real_chat_session(chat_id: str) -> Optional[ChatSession]:
     if not token:
         return None
     try:
-        managed_session = _chat_manager.get_existing_session_by_session_id(token)
+        managed_session = get_existing_session_info(token)
         if managed_session is not None:
-            return managed_session
+            with get_db_session() as session:
+                return session.exec(select(ChatSession).where(col(ChatSession.session_id) == token)).first()
     except Exception:
         pass
     with get_db_session() as session:

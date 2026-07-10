@@ -15,7 +15,7 @@ from src.common.database.database_model import ToolRecord
 from src.common.logger import get_logger
 
 if TYPE_CHECKING:
-    from src.chat.message_receive.chat_manager import BotChatSession
+    pass
 
 logger = get_logger("database_service")
 
@@ -175,7 +175,7 @@ async def db_count(model_class: type[SQLModel], filters: Optional[dict[str, Any]
 
 
 async def store_tool_info(
-    chat_stream: "BotChatSession",
+    chat_stream: str,
     tool_id: str = "",
     tool_data: Optional[dict[str, Any]] = None,
     tool_name: str = "",
@@ -185,7 +185,7 @@ async def store_tool_info(
         record_data = {
             "tool_id": tool_id or str(int(time.time() * 1000000)),
             "timestamp": datetime.now(),
-            "session_id": chat_stream.session_id,
+            "session_id": chat_stream,
             "tool_name": tool_name,
             "tool_data": json.dumps(tool_data or {}, ensure_ascii=False),
             "tool_reasoning": tool_reasoning,
@@ -204,7 +204,7 @@ async def store_tool_info(
 
 
 async def store_action_info(
-    chat_stream: "BotChatSession",
+    chat_stream: str,
     thinking_id: str = "",
     action_data: Optional[dict[str, Any]] = None,
     action_name: str = "",

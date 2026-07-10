@@ -12,8 +12,8 @@ import json
 import tomlkit
 
 from src.chat.heart_flow.heartflow_manager import heartflow_manager
-from src.chat.message_receive.chat_manager import chat_manager as core_chat_manager
 from src.common.database.database import get_db_session
+from src.core.session_port_registry import get_session_name as _get_session_name_via_port
 from src.common.database.database_model import (
     BehaviorAction,
     BehaviorExperiencePath,
@@ -914,7 +914,8 @@ def _chat_session_detail_to_response(chat_session: ChatSession) -> Dict[str, Any
 
     session_id = chat_session.session_id
     # 确保配置匹配工具能基于真实聊天流元数据判断通配与定向规则。
-    core_chat_manager.get_existing_session_by_session_id(session_id)
+    from src.core.session_port_registry import get_existing_session_info
+    get_existing_session_info(session_id)
 
     expression_use, expression_learn = ExpressionConfigUtils.get_expression_config_for_chat(session_id)
     behavior_use, behavior_learn = BehaviorConfigUtils.get_behavior_config_for_chat(session_id)
@@ -1009,7 +1010,11 @@ def _delete_or_unlink_jargons(session: Any, session_id: str) -> Dict[str, int]:
 def _release_deleted_chat_runtime(session_id: str) -> None:
     """移除运行期缓存，避免定时保存把已删除聊天流重新写回数据库。"""
 
-    core_chat_manager.sessions.pop(session_id, None)
+    # TODO: sessions.pop 是可变操作，无法通过 Protocol 完成。
+    # 需要通过 SessionLifecyclePort.remove_session() 或类似方法替代。
+    # 当前保留直接导入 chat_manager 以完成运行期缓存清理。
+    from src.chat.message_receive.chat_manager import chat_manager as _chat_manager_for_mutation
+    _chat_manager_for_mutation.sessions.pop(session_id, None)
     heartflow_manager.heartflow_chat_list.pop(session_id, None)
 
 
