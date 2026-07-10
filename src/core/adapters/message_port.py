@@ -55,16 +55,14 @@ class SendServicePort:
         if "_" in reply_to:
             session = chat_manager.get_session_by_session_id(reply_to.rsplit("_", 1)[0])
             if session is not None and session.context and session.context.message:
-                for msg in session.context.message:
-                    if msg.message_id == reply_to:
-                        return msg
+                if session.context.message.message_id == reply_to:
+                    return session.context.message
 
         for session in chat_manager.sessions.values():
             if not session.context or not session.context.message:
                 continue
-            for msg in session.context.message:
-                if msg.message_id == reply_to:
-                    return msg
+            if session.context.message.message_id == reply_to:
+                return session.context.message
         return None
 
     def _segments_to_message_sequence(self, segments: list[dict[str, Any]]) -> Any:
