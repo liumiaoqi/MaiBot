@@ -26,7 +26,7 @@
 ## 变量规范
 1. 当确定某个变量/实例是某种类型的时候（优先按照类型注解确定，除非你分析出类型注解是错误的），可以不必使用`or`进行fallback。
     - 例如，`bot_nickname = (global_config.bot.nickname or "").strip()` 可以改为 `bot_nickname = global_config.bot.nickname.strip()`，前提是我们确定`global_config.bot.nickname`一定是一个字符串。
-2. `or ""` 兜底消除进度：当前 SDKMemoryKernel 中 87 处（已低于 ≤150 目标）。合理豁免场景：外部数据源返回值可能为 None（如 `dict.get(key, "") or ""` 中 dict.get 已提供默认值时可删除；`str(x or "").strip()` 在 x 已知为 str 时可简化为 `x.strip()`）。
+2. `or ""` 兜底消除进度：当前 A_memorix 全局 ~1315 处（分类学代码占大头，将在第5批退役时清理）。已清理：host_service.py 50→1、memory_service.py 23→13、SDKMemoryKernel 3 处。合理豁免场景：外部数据源返回值可能为 None（如 `dict.get(key, "") or ""` 中 dict.get 已提供默认值时可删除；`str(x or "").strip()` 在 x 已知为 str 时可简化为 `x.strip()`）。
 
 ## 类属性使用规范
 1. 应该尽量减少使用getattr和setattr方法，除非是在对一个动态类进行处理或者使用Monkeypatch完成Pytest
@@ -169,6 +169,30 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 - **三层过滤**：相关性 → 时机 → 价值，决定是否触发插话
 - **提醒流**：到时提醒通过 ThinkingOrgan.think_proactive() 触发，不走 enqueue_proactive_task
 - **插话流**：通过 ThinkingOrgan.think() 触发，结果通过 MessagePort.send() 发出
+
+# 记忆系统范式迁移进展
+
+当前阶段：**LEGACY_ONLY**（第1-4批编码完成，第5-6批待运行时验证）
+
+## 迁移架构
+
+- **MigrationAdapter**：5阶段状态机（LEGACY_ONLY→DUAL_WRITE→DUAL_READ→DATA_MIGRATION→NEW_INDEPENDENT），advance_phase() 逐级推进，跳级报错
+- **MigrationRouter**：迁移感知路由，根据阶段将 search/profile/ingest 路由到分类学或连接主义
+- **ConnectionistTranslator**：连接主义→分类学格式翻译（RecallItem→MemoryHit，ProfileView→画像字典）
+- **MemoryServicePort** 已切换到迁移路由（核心调用方零修改）
+- **SemanticConceptExtractor**：jieba 降级概念提取器（LLM 失败时降级）
+
+## 已完成
+
+- ✅ 第1批：配置驱动的智能体注册（MemoryPersonalityV2Config/InnerVoiceItemConfig + 启动注册 + jieba降级）
+- ✅ 第2批：迁移框架（MigrationAdapter阶段约束 + invoke阶段守卫 + granular_decay心跳 + migration_status）
+- ✅ 第3批：迁移路由层与翻译层（ConnectionistTranslator + MigrationRouter + MemoryService委托切换）
+- ✅ 第4批：数据迁移（DataConverter LLM增强 + 迁移脚本）
+
+## 待完成
+
+- ⬜ 第5批：分类学退役（需 NEW_INDEPENDENT 验证后执行）
+- ⬜ 第6批：集成验证（需实际运行系统长期验证）
 
 # changelog编写
 建议分为两部分，一部分是用户感知功能侧，一部分是开发侧（包含修复和插件sdk,api改动）。最好一个功能一行，按模块分。
