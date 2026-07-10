@@ -54,12 +54,14 @@ class SendServicePort:
 
         if "_" in reply_to:
             session = chat_manager.get_session_by_session_id(reply_to.rsplit("_", 1)[0])
-            if session is not None:
+            if session is not None and session.context and session.context.message:
                 for msg in session.context.message:
                     if msg.message_id == reply_to:
                         return msg
 
         for session in chat_manager.sessions.values():
+            if not session.context or not session.context.message:
+                continue
             for msg in session.context.message:
                 if msg.message_id == reply_to:
                     return msg
@@ -266,7 +268,9 @@ class SendServicePort:
                 return SendMessageResult.ok()
             return SendMessageResult.failed("发送失败")
         except Exception as e:
+            import traceback as _tb
             logger.error(f"[message_port] 混合消息发送失败: session={session_id} error={e}")
+            logger.error(_tb.format_exc())
             return SendMessageResult.failed(str(e))
 
     async def send_forward(
