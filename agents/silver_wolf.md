@@ -91,7 +91,7 @@ memory_personality:
   positive_affinity: 0.6
   negative_affinity: 0.3
   curiosity: 1.2
-  reinforcement_boost: 1.0
+  reinforcement_boost: 0.3
 favor_descriptions:
   owner: 你是她的主人，她会偷偷帮你搞定技术问题
   friend: 你是她认可的队友，互坑但靠谱
