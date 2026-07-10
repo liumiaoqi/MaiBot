@@ -144,13 +144,16 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 
 | Protocol | 职责 | 实现者 |
 |----------|------|--------|
-| SessionRepository | 会话查询 | ChatManagerSessionRepository |
+| SessionRepository | 会话查询 | ChatManagerAdapter |
 | AgentRoutingService | 智能体路由 | ChatManagerRoutingAdapter |
 | ChatRuntime | 运行时接口 | MaisakaHeartFlowChatting |
 | ChatRuntimeRegistry | 运行时注册表 | HeartflowRuntimeRegistry |
 | NoticeClassifier | 通知分类 | NapCatNoticeClassifier |
 | MemoryServicePort | 记忆服务 | AMemorixMemoryServicePort |
-| SessionInfoPort | 会话信息反查 | ChatManagerSessionRepository（通过注册点注入 A_memorix） |
+| SessionInfoPort | 会话信息反查 | ChatManagerAdapter（通过注册点注入 A_memorix） |
+| SessionLifecyclePort | 会话生命周期（创建/持久化/初始化） | ChatManagerAdapter |
+| SessionQueryPort | 会话批量查询/路由元数据 | ChatManagerAdapter |
+| MessageRegistryPort | 入站消息注册 | ChatManagerAdapter |
 | ThinkingOrgan | 思维管道 | ThinkingOrgan（agent_autonomy） |
 | ThinkingOrganFactory | 思维管道工厂 | ThinkingOrganFactory |
 
@@ -195,6 +198,29 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 1. dict 序列化丢失 content/binary_data → 消除（MessageSequence 直传）
 2. _resolve_reply_message 全表扫描 → 消除（简化查找）
 3. set_reply=bool(reply_to) 误判 → 消除（基于 reply_message is not None）
+
+# ChatManager Protocol 补全进展（SSD-1）
+
+**迁移已完成**（阶段1-5全部完成）
+
+## 迁移架构
+
+- **ChatManagerAdapter**：统一适配器，同时满足 5 个 Protocol（SessionRepository + SessionInfoPort + SessionLifecyclePort + SessionQueryPort + MessageRegistryPort）
+- **session_port_registry**：全局注册点，4 对注册/获取函数
+- **SessionInfo**：不可变会话快照，新增 account_id/scope/user_cardname 字段
+
+## 已完成
+
+- ✅ 阶段1：Protocol 定义 + 适配器实现（3个新Protocol + ChatManagerAdapter + 注册点扩展）
+- ✅ 阶段2：核心层消费者迁移（main.py → SessionLifecyclePort，heartflow_manager → SessionInfoPort）
+- ✅ 阶段3：BotChatSession 可变引用消除（replyer/runtime/send_service/database_service/CLI）
+- ✅ 阶段4：外围模块导入消除（WebUI 6文件 + 学习器 4文件 + 插件运行时 2文件 + 工具/配置 4文件 + person_info）
+- ✅ 阶段5：旧适配器清理（删除 ChatManagerSessionRepository，统一注册逻辑）
+
+## 待后续
+
+- ⬜ SSD-2：ChatManager 单例拆分（依赖 SSD-1 完成）
+- ⬜ routes.py 中 `sessions.pop()` 可变操作需通过 SessionLifecyclePort.remove_session() 替代
 
 # 记忆系统范式迁移进展
 
