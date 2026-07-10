@@ -558,12 +558,12 @@ class AMemorixHostService:
 
     @staticmethod
     def _inject_session_info_port(kernel: SDKMemoryKernel) -> None:
-        """注入 SessionInfoPort，替代 kernel 内部对 chat_manager 的直接导入。"""
-        from src.core.adapters.session_repository import ChatManagerSessionRepository
-        from src.core.adapters.routing_adapter import ChatManagerRoutingAdapter
+        """注入 SessionInfoPort，从全局注册点获取，不再延迟导入适配器。"""
+        from src.core.session_port_registry import get_session_info_port
 
-        routing_service = ChatManagerRoutingAdapter()
-        kernel._session_info_port = ChatManagerSessionRepository(routing_service)
+        port = get_session_info_port()
+        if port is not None:
+            kernel._session_info_port = port
 
     def _read_config(self) -> Dict[str, Any]:
         if self._config_cache is not None:
