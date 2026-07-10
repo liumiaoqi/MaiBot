@@ -161,7 +161,7 @@ class SendServicePort:
             result = await self._send_to_target_with_message(
                 message_sequence=message_sequence,
                 stream_id=session_id,
-                set_reply=bool(reply_to),
+                set_reply=reply_message is not None,
                 reply_message=reply_message,
                 storage_message=True,
                 show_log=True,
@@ -217,7 +217,7 @@ class SendServicePort:
                 emoji_base64=emoji_base64,
                 stream_id=session_id,
                 storage_message=True,
-                set_reply=bool(reply_to),
+                set_reply=reply_message is not None,
                 reply_message=reply_message,
                 sync_to_maisaka_history=True,
                 maisaka_source_kind=source,
@@ -246,7 +246,7 @@ class SendServicePort:
             result = await self._custom_reply_set_to_stream(
                 reply_set=message_sequence,
                 stream_id=session_id,
-                set_reply=bool(reply_to),
+                set_reply=reply_message is not None,
                 reply_message=reply_message,
                 storage_message=True,
                 show_log=True,

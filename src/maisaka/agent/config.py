@@ -114,14 +114,14 @@ class DeepSeekOptimizationConfig(BaseModel):
 class MemoryPersonalityV2(BaseModel):
     """记忆性格 v2 — 智能体对记忆的个性化处理参数（对齐 lab v0.7 八参数模型）"""
 
-    decay_rate: float = Field(default=0.5, ge=0.0, le=1.0, description="记忆衰减率，值越大遗忘越快")
-    emotional_sensitivity: float = Field(default=0.5, ge=0.0, le=3.0, description="情感敏感度，值越高情感对记忆影响越大")
-    association_depth: int = Field(default=2, ge=0, le=5, description="联想深度，值越高记忆间联想越深")
+    decay_rate: float = Field(default=0.5, ge=0.1, le=5.0, description="记忆衰减率，值越大遗忘越快")
+    emotional_sensitivity: float = Field(default=0.5, ge=0.1, le=3.0, description="情感敏感度，值越高情感对记忆影响越大")
+    association_depth: int = Field(default=2, ge=1, le=4, description="联想深度，值越高记忆间联想越深")
     attention_tags: list[str] = Field(default_factory=list, description="关注领域标签，这些概念更容易被记住")
     positive_affinity: float = Field(default=0.5, ge=0.0, le=3.0, description="正面情感亲和度")
     negative_affinity: float = Field(default=0.5, ge=0.0, le=3.0, description="负面情感亲和度")
-    curiosity: float = Field(default=0.5, ge=0.0, le=3.0, description="好奇心/记忆门槛，只影响阈值不乘分数")
-    reinforcement_boost: float = Field(default=1.0, ge=0.0, le=3.0, description="强化增幅，重复体验的强化程度")
+    curiosity: float = Field(default=0.5, ge=0.5, le=2.0, description="好奇心/记忆门槛，只影响阈值不乘分数")
+    reinforcement_boost: float = Field(default=0.3, ge=0.1, le=0.5, description="强化增幅，重复体验的强化程度")
 
 
 class InnerVoiceStyle(Enum):
