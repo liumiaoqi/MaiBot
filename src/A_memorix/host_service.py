@@ -152,7 +152,7 @@ class AMemorixHostService:
 
     def get_raw_config(self) -> str:
         payload = self.get_raw_config_with_meta()
-        return str(payload.get("config", "") or "")
+        return payload.get("config", "")
 
     async def update_raw_config(self, raw_config: str) -> Dict[str, Any]:
         loaded = tomlkit.loads(raw_config)
@@ -185,7 +185,7 @@ class AMemorixHostService:
         if component_name == "search_memory":
             from .core.runtime.sdk_memory_kernel import KernelSearchRequest
 
-            chat_id = str(payload.get("chat_id", "") or "").strip()
+            chat_id = payload.get("chat_id", "").strip()
             config = self._read_config()
             global_memory_sharing_enabled = bool(config.get("global_memory_sharing_enabled", False))
             search_chat_id = "" if global_memory_sharing_enabled else chat_id
@@ -195,24 +195,24 @@ class AMemorixHostService:
 
             return await kernel.search_memory(
                 KernelSearchRequest(
-                    query=str(payload.get("query", "") or ""),
+                    query=payload.get("query", ""),
                     limit=int(payload.get("limit", 5) or 5),
                     mode=str(payload.get("mode", "search") or "search"),
                     chat_id=search_chat_id,
                     shared_chat_ids=shared_chat_ids,
-                    person_id=str(payload.get("person_id", "") or ""),
+                    person_id=payload.get("person_id", ""),
                     time_start=payload.get("time_start"),
                     time_end=payload.get("time_end"),
                     respect_filter=bool(payload.get("respect_filter", True)),
-                    user_id=str(payload.get("user_id", "") or "").strip(),
-                    group_id=str(payload.get("group_id", "") or "").strip(),
+                    user_id=payload.get("user_id", "").strip(),
+                    group_id=payload.get("group_id", "").strip(),
                 )
             )
 
         if component_name == "enqueue_feedback_task":
             return await kernel._feedback_correction_service.enqueue_feedback_task(
-                query_tool_id=str(payload.get("query_tool_id", "") or ""),
-                session_id=str(payload.get("session_id", "") or ""),
+                query_tool_id=payload.get("query_tool_id", ""),
+                session_id=payload.get("session_id", ""),
                 query_timestamp=payload.get("query_timestamp"),
                 structured_content=payload.get("structured_content")
                 if isinstance(payload.get("structured_content"), dict)
@@ -221,27 +221,27 @@ class AMemorixHostService:
 
         if component_name == "ingest_summary":
             return await kernel.ingest_summary(
-                external_id=str(payload.get("external_id", "") or ""),
-                chat_id=str(payload.get("chat_id", "") or ""),
-                text=str(payload.get("text", "") or ""),
+                external_id=payload.get("external_id", ""),
+                chat_id=payload.get("chat_id", ""),
+                text=payload.get("text", ""),
                 participants=list(payload.get("participants") or []),
                 time_start=payload.get("time_start"),
                 time_end=payload.get("time_end"),
                 tags=list(payload.get("tags") or []),
                 metadata=payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {},
                 respect_filter=bool(payload.get("respect_filter", True)),
-                user_id=str(payload.get("user_id", "") or "").strip(),
-                group_id=str(payload.get("group_id", "") or "").strip(),
+                user_id=payload.get("user_id", "").strip(),
+                group_id=payload.get("group_id", "").strip(),
             )
 
         if component_name == "ingest_text":
             relations = payload.get("relations") if isinstance(payload.get("relations"), list) else []
             entities = payload.get("entities") if isinstance(payload.get("entities"), list) else []
             return await kernel.ingest_text(
-                external_id=str(payload.get("external_id", "") or ""),
-                source_type=str(payload.get("source_type", "") or ""),
-                text=str(payload.get("text", "") or ""),
-                chat_id=str(payload.get("chat_id", "") or ""),
+                external_id=payload.get("external_id", ""),
+                source_type=payload.get("source_type", ""),
+                text=payload.get("text", ""),
+                chat_id=payload.get("chat_id", ""),
                 person_ids=list(payload.get("person_ids") or []),
                 participants=list(payload.get("participants") or []),
                 timestamp=payload.get("timestamp"),
@@ -252,26 +252,26 @@ class AMemorixHostService:
                 entities=entities,
                 relations=relations,
                 respect_filter=bool(payload.get("respect_filter", True)),
-                user_id=str(payload.get("user_id", "") or "").strip(),
-                group_id=str(payload.get("group_id", "") or "").strip(),
+                user_id=payload.get("user_id", "").strip(),
+                group_id=payload.get("group_id", "").strip(),
             )
 
         if component_name == "get_person_profile":
             return await kernel.get_person_profile(
-                person_id=str(payload.get("person_id", "") or ""),
-                chat_id=str(payload.get("chat_id", "") or ""),
+                person_id=payload.get("person_id", ""),
+                chat_id=payload.get("chat_id", ""),
                 limit=max(1, int(payload.get("limit", 10) or 10)),
             )
 
         if component_name == "maintain_memory":
             result = await kernel.maintain_memory(
-                action=str(payload.get("action", "") or ""),
-                target=str(payload.get("target", "") or ""),
+                action=payload.get("action", ""),
+                target=payload.get("target", ""),
                 hours=payload.get("hours"),
-                reason=str(payload.get("reason", "") or ""),
+                reason=payload.get("reason", ""),
                 limit=max(1, int(payload.get("limit", 50) or 50)),
             )
-            action = str(payload.get("action", "") or "")
+            action = payload.get("action", "")
             migration_adapter = kernel._migration_adapter
             if action == "decay" and migration_adapter and migration_adapter.should_observe():
                 hours = float(payload.get("hours") or 1.0) if payload.get("hours") else 1.0
@@ -289,22 +289,22 @@ class AMemorixHostService:
             migration_adapter = kernel._migration_adapter
             if migration_adapter and not migration_adapter.should_observe():
                 from .core.connectionist.models import ObserveResult
-                return ObserveResult(text=str(payload.get("text", "") or ""))
+                return ObserveResult(text=payload.get("text", ""))
             from .core.connectionist.enums import Valence
 
             valence = Valence.NEUTRAL
-            valence_str = str(payload.get("valence", "") or "").strip()
+            valence_str = payload.get("valence", "").strip()
             if valence_str:
                 try:
                     valence = Valence(valence_str)
                 except ValueError:
                     pass
             return await kernel._memory_field.observe(
-                text=str(payload.get("text", "") or ""),
+                text=payload.get("text", ""),
                 valence=valence,
                 timestamp=payload.get("timestamp"),
-                source_id=str(payload.get("source_id", "") or ""),
-                session_id=str(payload.get("session_id", "") or ""),
+                source_id=payload.get("source_id", ""),
+                session_id=payload.get("session_id", ""),
             )
 
         if component_name == "recall":
@@ -314,7 +314,7 @@ class AMemorixHostService:
             seeds = payload.get("seeds") if isinstance(payload.get("seeds"), list) else []
             return kernel._memory_field.recall(
                 seeds=[str(s) for s in seeds],
-                agent_id=str(payload.get("agent_id", "") or ""),
+                agent_id=payload.get("agent_id", ""),
                 min_weight=float(payload.get("min_weight", 0.05) or 0.05),
                 max_results=int(payload.get("max_results", 20) or 20),
             )
@@ -323,10 +323,10 @@ class AMemorixHostService:
             migration_adapter = kernel._migration_adapter
             if migration_adapter and not migration_adapter.should_recall():
                 from .core.connectionist.models import ProfileView
-                return ProfileView(subject=str(payload.get("subject", "") or ""))
+                return ProfileView(subject=payload.get("subject", ""))
             return await kernel._memory_field.derive_profile(
-                subject=str(payload.get("subject", "") or ""),
-                observer=str(payload.get("observer", "") or ""),
+                subject=payload.get("subject", ""),
+                observer=payload.get("observer", ""),
                 now=payload.get("now"),
             )
 
@@ -336,8 +336,8 @@ class AMemorixHostService:
                 from .core.connectionist.models import ReflectResult
                 return ReflectResult()
             return await kernel._memory_field.reflect(
-                subject=str(payload.get("subject", "") or ""),
-                agent_id=str(payload.get("agent_id", "") or ""),
+                subject=payload.get("subject", ""),
+                agent_id=payload.get("agent_id", ""),
             )
 
         if component_name == "register_agent":
@@ -365,15 +365,15 @@ class AMemorixHostService:
                         style = VoiceStyle.PRESERVE
                     voices.append(
                         InnerVoice(
-                            name=str(v.get("name", "") or ""),
+                            name=v.get("name", ""),
                             style=style,
                             focus_concepts=frozenset(v.get("focus_concepts") if isinstance(v.get("focus_concepts"), list) else []),
                             weight_multiplier=float(v.get("weight_multiplier", 1.0) or 1.0),
-                            description=str(v.get("description", "") or ""),
+                            description=v.get("description", ""),
                         )
                     )
             kernel._memory_field.register_agent(
-                agent_id=str(payload.get("agent_id", "") or ""),
+                agent_id=payload.get("agent_id", ""),
                 personality=personality,
                 voices=voices,
             )
@@ -393,32 +393,32 @@ class AMemorixHostService:
 
         if component_name == "migration_search":
             return await kernel._migration_router.search(
-                query=str(payload.get("query", "") or ""),
-                agent_id=str(payload.get("agent_id", "") or ""),
+                query=payload.get("query", ""),
+                agent_id=payload.get("agent_id", ""),
                 **{k: v for k, v in payload.items() if k not in {"query", "agent_id"}},
             )
 
         if component_name == "migration_get_person_profile":
             return await kernel._migration_router.get_person_profile(
-                person_id=str(payload.get("person_id", "") or ""),
-                agent_id=str(payload.get("agent_id", "") or ""),
+                person_id=payload.get("person_id", ""),
+                agent_id=payload.get("agent_id", ""),
                 limit=int(payload.get("limit", 4) or 4),
             )
 
         if component_name == "migration_ingest_text":
             return await kernel._migration_router.ingest_text(
-                text=str(payload.get("text", "") or ""),
+                text=payload.get("text", ""),
                 **{k: v for k, v in payload.items() if k != "text"},
             )
 
         if component_name == "migration_build_profile_injection_text":
             return await kernel._migration_router.build_profile_injection_text(
-                raw_text=str(payload.get("raw_text", "") or ""),
-                agent_id=str(payload.get("agent_id", "") or ""),
+                raw_text=payload.get("raw_text", ""),
+                agent_id=payload.get("agent_id", ""),
             )
 
         if component_name == "metadata_get_paragraphs_by_source":
-            source = str(payload.get("source", "") or "")
+            source = payload.get("source", "")
             if not source:
                 return []
             metadata_store = getattr(kernel, "metadata_store", None)
@@ -439,7 +439,7 @@ class AMemorixHostService:
             ]
 
         if component_name == "metadata_query":
-            sql = str(payload.get("sql", "") or "").strip()
+            sql = payload.get("sql", "").strip()
             params = payload.get("params", ())
             if not sql:
                 return []
@@ -468,7 +468,7 @@ class AMemorixHostService:
         handler_key = _ADMIN_HANDLER_MAP.get(component_name)
         if handler_key is not None:
             kwargs = dict(payload)
-            action = str(kwargs.pop("action", "") or "")
+            action = kwargs.pop("action", "")
             return await kernel._admin_handlers[handler_key].handle(action, **kwargs)
 
         raise RuntimeError(f"不支持的 A_Memorix 调用: {component_name}")
