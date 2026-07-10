@@ -502,6 +502,18 @@ class AMemorixHostService:
         personality_config = connectionist_config.get("personality", {})
         inner_voices_config = connectionist_config.get("inner_voices", {})
 
+        # 迁移阶段设置 — 无论是否配置 personality 都需要执行
+        phase_str = connectionist_config.get("phase", "legacy_only")
+        if kernel._migration_adapter is not None:
+            from .core.migration.migration_adapter import MigrationPhase
+            try:
+                phase = MigrationPhase(phase_str)
+            except ValueError:
+                logger.warning(f"无效的迁移阶段配置: {phase_str}，使用默认 LEGACY_ONLY")
+                phase = MigrationPhase.LEGACY_ONLY
+            kernel._migration_adapter.set_phase(phase)
+            logger.info(f"迁移阶段已设置: {phase.value}")
+
         if not personality_config:
             logger.info("未配置连接主义记忆性格，所有智能体将使用默认性格")
             return
@@ -545,16 +557,6 @@ class AMemorixHostService:
             kernel._memory_field.register_agent(agent_id, personality, voices)
             logger.info(f"已注册智能体记忆性格: {agent_id} (voices={len(voices)})")
 
-        phase_str = connectionist_config.get("phase", "legacy_only")
-        if kernel._migration_adapter is not None:
-            from .core.migration.migration_adapter import MigrationPhase
-            try:
-                phase = MigrationPhase(phase_str)
-            except ValueError:
-                logger.warning(f"无效的迁移阶段配置: {phase_str}，使用默认 LEGACY_ONLY")
-                phase = MigrationPhase.LEGACY_ONLY
-            kernel._migration_adapter.set_phase(phase)
-            logger.info(f"迁移阶段已设置: {phase.value}")
 
     @staticmethod
     def _inject_session_info_port(kernel: SDKMemoryKernel) -> None:
