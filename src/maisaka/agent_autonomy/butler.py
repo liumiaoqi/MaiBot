@@ -22,8 +22,8 @@ from src.common.logger import get_logger
 from src.maisaka.agent.config import AgentConfig, InternalRelationship
 from src.maisaka.agent.registry import AgentConfigRegistry
 from src.maisaka.agent_autonomy.reminder import ReminderManager, Reminder
-from src.core.message_port_registry import get_message_port
-from src.core.protocols import MessagePort
+from src.core.message_port_registry import get_message_port_v2
+from src.core.protocols import MessagePortV2
 
 logger = get_logger("agent_autonomy.butler")
 
@@ -59,12 +59,12 @@ class Butler:
         primary_agent_id: str,
         session_id: str,
         reminder_manager: ReminderManager | None = None,
-        message_port: MessagePort | None = None,
+        message_port: MessagePortV2 | None = None,
     ) -> None:
         self._primary_agent_id = primary_agent_id
         self._session_id = session_id
         self._reminder_manager = reminder_manager or ReminderManager()
-        self._message_port = message_port or get_message_port()
+        self._message_port = message_port or get_message_port_v2()
 
         self._resident_briefs: list[dict] = []
         self._resident_ids: list[str] = []
@@ -285,10 +285,13 @@ class Butler:
         agent_id: str = "",
         source: str = "core",
     ) -> bool:
-        """通过 MessagePort 发送消息。"""
-        return await self._message_port.send(
+        """通过 MessagePortV2 发送消息。"""
+        from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
+
+        result = await self._message_port.send_message(
             session_id=self._session_id,
-            text=text,
+            message=MessageSequence(components=[TextComponent(text=text)]),
             agent_id=agent_id,
             source=source,
         )
+        return result.success

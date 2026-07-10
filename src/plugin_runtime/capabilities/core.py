@@ -261,7 +261,8 @@ class RuntimeCoreCapabilityMixin:
             Any: 能力执行结果。
         """
         del plugin_id, capability
-        from src.core.message_port_registry import get_message_port
+        from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
+        from src.core.message_port_registry import get_message_port_v2
 
         text = str(args.get("text", ""))
         stream_id = str(args.get("stream_id", ""))
@@ -270,13 +271,13 @@ class RuntimeCoreCapabilityMixin:
             return {"success": False, "error": "缺少必要参数 text 或 stream_id"}
 
         try:
-            port = get_message_port()
-            result = await port.send(
+            port = get_message_port_v2()
+            result = await port.send_message(
                 session_id=stream_id,
-                text=text,
+                message=MessageSequence(components=[TextComponent(text=text)]),
                 source=maisaka_source_kind,
             )
-            return {"success": result}
+            return {"success": result.success}
         except Exception as exc:
             logger.error(f"[cap.send.text] 执行失败: {exc}", exc_info=True)
             return {"success": False, "error": str(exc)}
@@ -284,7 +285,9 @@ class RuntimeCoreCapabilityMixin:
     async def _cap_send_emoji(self, plugin_id: str, capability: str, args: Dict[str, Any]) -> Any:
         """向指定流发送表情图片。"""
         del plugin_id, capability
-        from src.core.message_port_registry import get_message_port
+        import base64
+        from src.common.data_models.message_component_data_model import EmojiComponent, MessageSequence
+        from src.core.message_port_registry import get_message_port_v2
 
         emoji_base64 = str(args.get("emoji_base64", ""))
         stream_id = str(args.get("stream_id", ""))
@@ -293,10 +296,12 @@ class RuntimeCoreCapabilityMixin:
             return {"success": False, "error": "缺少必要参数 emoji_base64 或 stream_id"}
 
         try:
-            port = get_message_port()
-            result = await port.send_emoji(
+            binary_data = base64.b64decode(emoji_base64) if emoji_base64 else b""
+            message = MessageSequence(components=[EmojiComponent(binary_hash="", binary_data=binary_data)])
+            port = get_message_port_v2()
+            result = await port.send_message(
                 session_id=stream_id,
-                emoji_base64=emoji_base64,
+                message=message,
                 source=maisaka_source_kind,
             )
             return {"success": result.success}
@@ -307,7 +312,9 @@ class RuntimeCoreCapabilityMixin:
     async def _cap_send_image(self, plugin_id: str, capability: str, args: Dict[str, Any]) -> Any:
         """向指定流发送图片。"""
         del plugin_id, capability
-        from src.core.message_port_registry import get_message_port
+        import base64
+        from src.common.data_models.message_component_data_model import ImageComponent, MessageSequence
+        from src.core.message_port_registry import get_message_port_v2
 
         image_base64 = str(args.get("image_base64", ""))
         stream_id = str(args.get("stream_id", ""))
@@ -316,10 +323,12 @@ class RuntimeCoreCapabilityMixin:
             return {"success": False, "error": "缺少必要参数 image_base64 或 stream_id"}
 
         try:
-            port = get_message_port()
-            result = await port.send_image(
+            binary_data = base64.b64decode(image_base64) if image_base64 else b""
+            message = MessageSequence(components=[ImageComponent(binary_hash="", binary_data=binary_data)])
+            port = get_message_port_v2()
+            result = await port.send_message(
                 session_id=stream_id,
-                image_base64=image_base64,
+                message=message,
                 source=maisaka_source_kind,
             )
             return {"success": result.success}
@@ -360,7 +369,8 @@ class RuntimeCoreCapabilityMixin:
         """向指定流发送图文混合消息。"""
 
         del plugin_id, capability
-        from src.core.message_port_registry import get_message_port
+        from src.core.adapters.message_port import SendServicePort
+        from src.core.message_port_registry import get_message_port_v2
 
         stream_id = str(args.get("stream_id", ""))
         segments = self._normalize_plugin_segments(args.get("segments") or args.get("parts"))
@@ -369,10 +379,12 @@ class RuntimeCoreCapabilityMixin:
             return {"success": False, "error": "缺少必要参数 segments 或 stream_id"}
 
         try:
-            port = get_message_port()
-            result = await port.send_hybrid(
+            port_adapter = SendServicePort()
+            message = port_adapter._segments_to_message_sequence(segments)
+            port = get_message_port_v2()
+            result = await port.send_message(
                 session_id=stream_id,
-                segments=segments,
+                message=message,
                 source=maisaka_source_kind,
             )
             return {"success": result.success}
@@ -384,7 +396,8 @@ class RuntimeCoreCapabilityMixin:
         """向指定流发送转发消息。"""
 
         del plugin_id, capability
-        from src.core.message_port_registry import get_message_port
+        from src.common.data_models.message_component_data_model import ForwardNodeComponent, MessageSequence
+        from src.core.message_port_registry import get_message_port_v2
 
         stream_id = str(args.get("stream_id", ""))
         messages = args.get("messages")
@@ -392,7 +405,7 @@ class RuntimeCoreCapabilityMixin:
         if not isinstance(messages, list) or not messages or not stream_id:
             return {"success": False, "error": "缺少必要参数 messages 或 stream_id"}
 
-        forward_nodes: List[Dict[str, Any]] = []
+        forward_nodes: list[ForwardNodeComponent] = []
         for index, message in enumerate(messages):
             if not isinstance(message, dict):
                 continue
@@ -401,23 +414,24 @@ class RuntimeCoreCapabilityMixin:
             if not segments:
                 continue
             forward_nodes.append(
-                {
-                    "user_id": str(message.get("user_id") or ""),
-                    "user_nickname": str(message.get("nickname") or message.get("user_nickname") or "插件消息"),
-                    "user_cardname": str(message.get("user_cardname") or ""),
-                    "message_id": str(message.get("message_id") or f"plugin_forward_{index}"),
-                    "content": segments,
-                }
+                ForwardNodeComponent(
+                    user_id=str(message.get("user_id") or ""),
+                    user_nickname=str(message.get("nickname") or message.get("user_nickname") or "插件消息"),
+                    user_cardname=str(message.get("user_cardname") or ""),
+                    message_id=str(message.get("message_id") or f"plugin_forward_{index}"),
+                    content=segments,
+                )
             )
 
         if not forward_nodes:
             return {"success": False, "error": "messages 中缺少有效的转发节点"}
 
         try:
-            port = get_message_port()
-            result = await port.send_forward(
+            message = MessageSequence(components=forward_nodes)
+            port = get_message_port_v2()
+            result = await port.send_message(
                 session_id=stream_id,
-                messages=forward_nodes,
+                message=message,
                 source=maisaka_source_kind,
             )
             return {"success": result.success}

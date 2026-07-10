@@ -9,7 +9,7 @@ from src.common.data_models.image_data_model import MaiEmoji
 from src.common.logger import get_logger
 from src.common.utils.image_path import resolve_stored_image_path
 from src.common.utils.utils_image import ImageUtils
-from src.core.message_port_registry import get_message_port
+from src.core.message_port_registry import get_message_port_v2
 
 from .emoji_manager import (
     _normalize_emoji_tag_text,
@@ -235,10 +235,14 @@ async def send_emoji_for_maisaka(
             sent = True
         else:
             record_usage_locally = False
-            port = get_message_port()
-            result = await port.send_emoji(
+            import base64
+            from src.common.data_models.message_component_data_model import EmojiComponent, MessageSequence
+            binary_data = base64.b64decode(emoji_base64) if emoji_base64 else b""
+            message = MessageSequence(components=[EmojiComponent(binary_hash="", binary_data=binary_data)])
+            port = get_message_port_v2()
+            result = await port.send_message(
                 session_id=stream_id,
-                emoji_base64=emoji_base64,
+                message=message,
                 source="guided_reply",
             )
             sent = result.success

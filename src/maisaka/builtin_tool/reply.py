@@ -6,10 +6,10 @@ import traceback
 from src.chat.replyer.replyer_manager import replyer_manager
 from src.cli.maisaka_cli_sender import CLI_PLATFORM_NAME, render_cli_message
 from src.common.data_models.reply_generation_data_models import ReplyGenerationResult, build_reply_monitor_detail
-from src.common.data_models.message_component_data_model import EmojiComponent, ImageComponent, TextComponent
+
 from src.common.logger import get_logger
 from src.config import config as config_module
-from src.core.message_port_registry import get_message_port
+from src.core.message_port_registry import get_message_port_v2
 from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
 from src.maisaka.context.message_adapter import build_visible_text_from_sequence
 
@@ -18,25 +18,6 @@ from .context import BuiltinToolRuntimeContext
 logger = get_logger("maisaka_builtin_reply")
 _REPLY_TOOL_INTERNAL_ARGUMENTS = {"msg_id", "set_quote"}
 
-
-def _message_sequence_to_segments(message_sequence: Any) -> list[dict[str, Any]]:
-    """将 MessageSequence 转换为 MessagePort.send_hybrid() 需要的 segments 格式。"""
-    import base64
-
-    segments = []
-    for component in getattr(message_sequence, "components", []):
-        if isinstance(component, TextComponent):
-            segments.append({"type": "text", "data": component.text})
-        elif isinstance(component, ImageComponent):
-            b64 = base64.b64encode(component.binary_data).decode("utf-8") if component.binary_data else ""
-            segments.append({"type": "image", "binary_data_base64": b64, "hash": component.binary_hash})
-        elif isinstance(component, EmojiComponent):
-            b64 = base64.b64encode(component.binary_data).decode("utf-8") if component.binary_data else ""
-            segments.append({"type": "emoji", "binary_data_base64": b64, "hash": component.binary_hash})
-        else:
-            data = getattr(component, "data", None) or getattr(component, "text", "")
-            segments.append({"type": "text", "data": str(data)})
-    return segments
 
 
 def _use_expression_intent() -> bool:
@@ -347,16 +328,15 @@ async def handle_tool(
                 )
             sent = True
         else:
-            port = get_message_port()
+            port = get_message_port_v2()
             for index, reply_sequence in enumerate(reply_sequences):
                 segment = reply_segments[index]
                 segment_set_quote = effective_set_quote if index == 0 else False
-                segments = _message_sequence_to_segments(reply_sequence)
-                reply_to = target_message_id if segment_set_quote else ""
-                result = await port.send_hybrid(
+                reply_to_id = target_message_id if segment_set_quote else ""
+                result = await port.send_message(
                     session_id=tool_ctx.runtime.session_id,
-                    segments=segments,
-                    reply_to=reply_to,
+                    message=reply_sequence,
+                    reply_to_id=reply_to_id,
                     source="guided_reply",
                 )
                 sent = result.success

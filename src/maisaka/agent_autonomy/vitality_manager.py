@@ -399,10 +399,12 @@ class VitalityManager:
             result = await agent.thinking_organ.think_proactive("inner_need", think_context)
 
             if result.action.value == "reply" and result.text:
-                port = get_message_port()
-                await port.send(
+                from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
+                from src.core.message_port_registry import get_message_port_v2
+                port = get_message_port_v2()
+                await port.send_message(
                     session_id=session_id,
-                    text=result.text,
+                    message=MessageSequence(components=[TextComponent(text=result.text)]),
                     agent_id=agent_id,
                     source="proactive_desire",
                 )

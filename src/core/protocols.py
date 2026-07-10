@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any, Optional
 from typing import Protocol, runtime_checkable
 
 if TYPE_CHECKING:
+    from src.common.data_models.message_component_data_model import MessageSequence
     from src.core.types import AgentConfig, MemorySearchResult, MemoryWriteResult, NoticeKind, SendMessageResult, SessionInfo, ThinkContext, ThinkResult
 
 
@@ -595,6 +596,45 @@ class MessagePort(Protocol):
             content: 消息内容
             agent_id: 发言智能体 ID
             source: 消息来源标识
+
+        Returns:
+            SendMessageResult 包含发送结果
+        """
+
+
+@runtime_checkable
+class MessagePortV2(Protocol):
+    """统一消息端口协议 — 回复系统 v2。
+
+    核心转变：7 个碎片化方法 → 1 个统一方法 send_message()。
+    MessageSequence 直接传递，不做 dict 序列化/反序列化。
+    引用回复通过 reply_to_id 传递，找不到时降级为不引用（不丢弃消息）。
+
+    迁移路径：
+    - 阶段1: 新 Protocol + 桥接适配器（零风险，新接口内部调用旧实现）
+    - 阶段2: reply 工具迁移到新接口
+    - 阶段3: 直通实现（不再桥接旧方法）
+    - 阶段4: 其他调用方迁移
+    - 阶段5: 旧 MessagePort Protocol 移除
+    """
+
+    async def send_message(
+        self,
+        session_id: str,
+        message: MessageSequence,
+        *,
+        reply_to_id: str = "",
+        agent_id: str = "",
+        source: str = "core",
+    ) -> SendMessageResult:
+        """发送消息 — 统一接口，覆盖所有消息类型。
+
+        Args:
+            session_id: 目标会话 ID
+            message: MessageSequence 消息序列（直接传递，不做序列化）
+            reply_to_id: 被引用消息的 ID（可选，找不到时降级为不引用）
+            agent_id: 发言智能体 ID
+            source: 消息来源标识（reply/interjection/reminder/proactive）
 
         Returns:
             SendMessageResult 包含发送结果
