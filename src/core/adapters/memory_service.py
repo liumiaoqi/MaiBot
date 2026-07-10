@@ -159,9 +159,9 @@ class AMemorixMemoryServicePort:
     async def set_memory_personality(self, agent_id: str, params: dict[str, Any]) -> None:
         """将智能体记忆性格参数传递给 A_memorix 连接主义记忆系统。"""
         try:
-            from src.services.memory_service import memory_service
+            from src.A_memorix.host_service import a_memorix_host_service
 
-            await memory_service.invoke(
+            await a_memorix_host_service.invoke(
                 "register_agent",
                 {
                     "agent_id": agent_id,
