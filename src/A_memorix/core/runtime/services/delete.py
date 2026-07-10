@@ -937,7 +937,7 @@ class DeleteService:
         return {"restored_hashes": restored, "restored_count": len(restored), "failures": failures}
 
     def relation_has_remaining_paragraphs(self, relation_hash: str, removing_hashes: Sequence[str]) -> bool:
-        from src.A_memorix.core.storage.metadata_store import coerce_metadata_dict
+        from ...utils.metadata import coerce_metadata_dict
         assert self.metadata_store
         excluded = [str(item or "").strip() for item in removing_hashes if str(item or "").strip()]
         conn = self.metadata_store.get_connection()

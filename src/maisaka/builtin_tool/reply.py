@@ -21,14 +21,18 @@ _REPLY_TOOL_INTERNAL_ARGUMENTS = {"msg_id", "set_quote"}
 
 def _message_sequence_to_segments(message_sequence: Any) -> list[dict[str, Any]]:
     """将 MessageSequence 转换为 MessagePort.send_hybrid() 需要的 segments 格式。"""
+    import base64
+
     segments = []
     for component in getattr(message_sequence, "components", []):
         if isinstance(component, TextComponent):
             segments.append({"type": "text", "data": component.text})
         elif isinstance(component, ImageComponent):
-            segments.append({"type": "image", "binary_data_base64": component.binary_data_base64})
+            b64 = base64.b64encode(component.binary_data).decode("utf-8") if component.binary_data else ""
+            segments.append({"type": "image", "binary_data_base64": b64, "hash": component.binary_hash})
         elif isinstance(component, EmojiComponent):
-            segments.append({"type": "emoji", "binary_data_base64": component.binary_data_base64})
+            b64 = base64.b64encode(component.binary_data).decode("utf-8") if component.binary_data else ""
+            segments.append({"type": "emoji", "binary_data_base64": b64, "hash": component.binary_hash})
         else:
             data = getattr(component, "data", None) or getattr(component, "text", "")
             segments.append({"type": "text", "data": str(data)})

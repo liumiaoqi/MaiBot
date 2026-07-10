@@ -70,6 +70,8 @@ class SendServicePort:
 
         遍历 segments，按 type 字段构建对应 Component。
         """
+        import base64
+
         from src.common.data_models.message_component_data_model import (
             EmojiComponent,
             ImageComponent,
@@ -83,9 +85,15 @@ class SendServicePort:
             if seg_type == "text":
                 components.append(TextComponent(text=seg.get("data", "")))
             elif seg_type == "image":
-                components.append(ImageComponent(binary_data_base64=seg.get("binary_data_base64", "")))
+                b64 = seg.get("binary_data_base64", "")
+                binary_data = base64.b64decode(b64) if b64 else b""
+                hash_str = seg.get("hash", "")
+                components.append(ImageComponent(binary_hash=hash_str, binary_data=binary_data))
             elif seg_type == "emoji":
-                components.append(EmojiComponent(binary_data_base64=seg.get("binary_data_base64", "")))
+                b64 = seg.get("binary_data_base64", "")
+                binary_data = base64.b64decode(b64) if b64 else b""
+                hash_str = seg.get("hash", "")
+                components.append(EmojiComponent(binary_hash=hash_str, binary_data=binary_data))
             else:
                 from src.services.send_service import _build_message_sequence_from_custom_message
 
