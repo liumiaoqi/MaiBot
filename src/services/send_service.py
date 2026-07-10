@@ -39,6 +39,7 @@ from src.common.data_models.message_component_data_model import (
 from src.common.logger import get_logger
 from src.common.utils.utils_message import MessageUtils
 from src.config.config import global_config
+from src.core.types import SendMessageResult
 from src.platform_io import DeliveryBatch, get_platform_io_manager
 from src.platform_io.route_key_factory import RouteKeyFactory
 from src.plugin_runtime.hook_payloads import deserialize_session_message, serialize_session_message
@@ -1370,3 +1371,88 @@ async def custom_reply_set_to_stream(
         sync_to_maisaka_history=sync_to_maisaka_history,
         maisaka_source_kind=maisaka_source_kind,
     )
+
+
+def _resolve_reply_message_in_send_service(reply_to_id: str) -> Optional[MaiMessage]:
+    """在 send_service 内部查找被引用消息。
+
+    send_service 已持有 chat_manager 引用，无需延迟导入。
+    """
+    if not reply_to_id:
+        return None
+
+    if "_" in reply_to_id:
+        session = _chat_manager.get_session_by_session_id(reply_to_id.rsplit("_", 1)[0])
+        if session is not None and session.context and session.context.message:
+            if session.context.message.message_id == reply_to_id:
+                return session.context.message
+
+    for session in _chat_manager.sessions.values():
+        if not session.context or not session.context.message:
+            continue
+        if session.context.message.message_id == reply_to_id:
+            return session.context.message
+    return None
+
+
+class SendServiceMessagePortV2:
+    """MessagePortV2 直通实现 — 直接调用 send_service 内部函数。
+
+    阶段3：消除桥接层，send_service 自身实现 MessagePortV2 Protocol。
+    核心转变：
+    1. 不再延迟导入 send_service 函数（send_service 内部直接可用）
+    2. _resolve_reply_message 在 send_service 内部完成（已持有 chat_manager）
+    3. 直接调用 _send_to_target_with_message，消除 custom_reply_set_to_stream 中间层
+    """
+
+    async def send_message(
+        self,
+        session_id: str,
+        message: MessageSequence,
+        *,
+        reply_to_id: str = "",
+        agent_id: str = "",
+        source: str = "core",
+    ) -> SendMessageResult:
+        """发送消息 — 统一接口，MessageSequence 直通。
+
+        关键改进：
+        1. MessageSequence 直接传给 _send_to_target_with_message
+        2. set_reply 基于 reply_message 是否找到（不是 reply_to_id 是否非空）
+        3. 找不到被引用消息时降级为不引用，不丢弃整条消息
+        """
+        try:
+            reply_message = _resolve_reply_message_in_send_service(reply_to_id) if reply_to_id else None
+            set_reply = reply_message is not None
+
+            if reply_to_id and not set_reply:
+                logger.debug(
+                    f"[message_port_v2] 引用降级: reply_to_id={reply_to_id} "
+                    f"未找到，降级为不引用 session={session_id}"
+                )
+
+            result = await _send_to_target_with_message(
+                message_sequence=message,
+                stream_id=session_id,
+                set_reply=set_reply,
+                reply_message=reply_message,
+                storage_message=True,
+                show_log=True,
+                sync_to_maisaka_history=True,
+                maisaka_source_kind=source,
+            )
+
+            if result is not None:
+                logger.debug(
+                    f"[message_port_v2] 发送成功: session={session_id} "
+                    f"agent={agent_id} source={source} reply={set_reply}"
+                )
+                return SendMessageResult.ok(message_id=result.message_id)
+            return SendMessageResult.failed("发送失败")
+
+        except Exception as e:
+            logger.error(
+                f"[message_port_v2] 发送失败: session={session_id} "
+                f"agent={agent_id} source={source} error={e}"
+            )
+            return SendMessageResult.failed(str(e))

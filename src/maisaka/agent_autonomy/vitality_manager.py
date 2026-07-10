@@ -386,7 +386,7 @@ class VitalityManager:
 
         try:
             from src.core.types import ThinkContext
-            from src.core.message_port_registry import get_message_port
+
 
             think_context = ThinkContext(
                 messages=[],

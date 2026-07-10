@@ -1,31 +1,29 @@
 """核心消息端口 — 向后兼容重导出。
 
-MessagePort Protocol 定义已迁移到 src.core.protocols，
-SendServicePort 实现已迁移到 src.core.adapters.message_port，
-注册点已迁移到 src.core.message_port_registry。
+MessagePortV2 Protocol 定义在 src.core.protocols，
+SendServiceMessagePortV2 实现在 src.services.send_service，
+注册点在 src.core.message_port_registry。
 此文件保留重导出以兼容旧导入路径。
 """
 
-from src.core.message_port_registry import get_message_port, get_message_port_v2, set_message_port, set_message_port_v2
-from src.core.protocols import MessagePort, MessagePortV2
+from src.core.message_port_registry import get_message_port_v2, set_message_port_v2
+from src.core.protocols import MessagePortV2
 
 __all__ = [
-    "MessagePort",
     "MessagePortV2",
-    "SendServicePort",
-    "BridgedMessagePortV2",
-    "get_message_port",
+    "SendServiceMessagePortV2",
     "get_message_port_v2",
-    "set_message_port",
     "set_message_port_v2",
 ]
 
 
 def __getattr__(name: str):
-    if name == "SendServicePort":
-        from src.core.adapters.message_port import SendServicePort
-        return SendServicePort
-    if name == "BridgedMessagePortV2":
-        from src.core.adapters.message_port_v2 import BridgedMessagePortV2
-        return BridgedMessagePortV2
+    if name == "SendServiceMessagePortV2":
+        from src.services.send_service import SendServiceMessagePortV2
+        return SendServiceMessagePortV2
+    if name in ("MessagePort", "SendServicePort", "BridgedMessagePortV2",
+                "get_message_port", "set_message_port"):
+        raise AttributeError(
+            f"{name} 已在回复系统迁移中移除，请使用 MessagePortV2 / get_message_port_v2()"
+        )
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
