@@ -270,12 +270,13 @@ class AgentOrchestrator:
         result = await task
 
         if result.action == ThinkAction.REPLY and result.text:
-            from src.core.message_port_registry import get_message_port
-            port = get_message_port()
+            from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
+            from src.core.message_port_registry import get_message_port_v2
+            port = get_message_port_v2()
             if port is not None:
-                await port.send(
+                await port.send_message(
                     session_id=self._session_id,
-                    text=result.text,
+                    message=MessageSequence(components=[TextComponent(text=result.text)]),
                     agent_id=agent_id,
                     source="butler_interjection",
                 )
@@ -326,12 +327,13 @@ class AgentOrchestrator:
                     result = await task
 
                     if result.action == ThinkAction.REPLY and result.text:
-                        from src.core.message_port_registry import get_message_port
-                        port = get_message_port()
+                        from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
+                        from src.core.message_port_registry import get_message_port_v2
+                        port = get_message_port_v2()
                         if port is not None:
-                            await port.send(
+                            await port.send_message(
                                 session_id=self._session_id,
-                                text=result.text,
+                                message=MessageSequence(components=[TextComponent(text=result.text)]),
                                 agent_id=reminder.agent_id,
                                 source="reminder",
                             )
