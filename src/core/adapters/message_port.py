@@ -268,9 +268,7 @@ class SendServicePort:
                 return SendMessageResult.ok()
             return SendMessageResult.failed("发送失败")
         except Exception as e:
-            import traceback as _tb
             logger.error(f"[message_port] 混合消息发送失败: session={session_id} error={e}")
-            logger.error(_tb.format_exc())
             return SendMessageResult.failed(str(e))
 
     async def send_forward(
