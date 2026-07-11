@@ -37,8 +37,9 @@ class SessionRecoveryService:
             logger.info("[agent_autonomy] 无活跃会话需要恢复")
             return {}
 
-        # 按 session_id 分组
+        # 按 session_id 分组，每个 (session_id, agent_id) 只保留最新记录
         sessions: dict[str, list[Any]] = {}
+        seen_keys: dict[tuple[str, str], Any] = {}
         for record in active_records:
             # 验证 ChatSession 仍存在
             chat_session = chat_manager.get_existing_session_by_session_id(record.session_id)
@@ -51,6 +52,15 @@ class SessionRecoveryService:
                     f"session={record.session_id} agent={record.agent_id}"
                 )
                 continue
+
+            key = (record.session_id, record.agent_id)
+            if key in seen_keys:
+                # 关闭旧记录，保留更新的
+                self._activity_store.deactivate(
+                    record.session_id, record.agent_id, "superseded_on_recovery"
+                )
+                continue
+            seen_keys[key] = record
 
             if record.session_id not in sessions:
                 sessions[record.session_id] = []

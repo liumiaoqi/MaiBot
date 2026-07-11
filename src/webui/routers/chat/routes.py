@@ -1010,11 +1010,8 @@ def _delete_or_unlink_jargons(session: Any, session_id: str) -> Dict[str, int]:
 def _release_deleted_chat_runtime(session_id: str) -> None:
     """移除运行期缓存，避免定时保存把已删除聊天流重新写回数据库。"""
 
-    # TODO: sessions.pop 是可变操作，无法通过 Protocol 完成。
-    # 需要通过 SessionLifecyclePort.remove_session() 或类似方法替代。
-    # 当前保留直接导入 chat_manager 以完成运行期缓存清理。
     from src.chat.message_receive.chat_manager import chat_manager as _chat_manager_for_mutation
-    _chat_manager_for_mutation.sessions.pop(session_id, None)
+    _chat_manager_for_mutation.session_store.remove(session_id)
     heartflow_manager.heartflow_chat_list.pop(session_id, None)
 
 
