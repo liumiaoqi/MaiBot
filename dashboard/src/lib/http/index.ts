@@ -5,8 +5,13 @@
  * 不要再直接使用 fetch / fetchWithAuth 手写请求样板。
  */
 export { createApiClient } from './client'
-export { ApiError } from './errors'
+export { ApiError, isAuthError, isBizError, isParamError, isSysError } from './errors'
+export {
+  isApiResponseEnvelope,
+  isErrorResponseEnvelope,
+  requireSuccess,
+  unwrapApiResponse,
+} from './envelope'
 export { authApi, backendApi, statsApi, STATS_SERVICE_BASE_URL } from './instances'
-export { requireSuccess } from './envelope'
 export type { ApiClient, ApiClientOptions, HttpMethod, QueryValue, RequestOptions } from './client'
-export type { SuccessEnvelope } from './envelope'
+export type { ApiResponseEnvelope, ErrorResponseEnvelope, SuccessEnvelope } from './envelope'

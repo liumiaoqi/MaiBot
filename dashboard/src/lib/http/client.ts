@@ -12,6 +12,7 @@
  */
 import { formatApiError } from '@/lib/api-error'
 
+import { isApiResponseEnvelope, isErrorResponseEnvelope, unwrapApiResponse } from './envelope'
 import { ApiError } from './errors'
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
@@ -159,13 +160,19 @@ export function createApiClient(clientOptions: ApiClientOptions): ApiClient {
       const fallback = errorMessage ?? `请求失败（HTTP ${response.status}）`
       let detail: unknown = rawText
       let message: string
+      let errorCode: string | undefined
       try {
         detail = JSON.parse(rawText)
-        message = formatApiError(detail, fallback)
+        if (isErrorResponseEnvelope(detail)) {
+          message = detail.error_message || fallback
+          errorCode = detail.error_code
+        } else {
+          message = formatApiError(detail, fallback)
+        }
       } catch {
         message = htmlBody ? htmlRouteDiagnostic(url) : response.statusText || fallback
       }
-      throw new ApiError(message, { status: response.status, detail })
+      throw new ApiError(message, { status: response.status, detail, errorCode })
     }
 
     if (parse === 'text') {
@@ -180,7 +187,12 @@ export function createApiClient(clientOptions: ApiClientOptions): ApiClient {
       throw new ApiError('接口返回了空响应', { status: response.status })
     }
     try {
-      return JSON.parse(rawText) as T
+      const parsed = JSON.parse(rawText)
+      // SSD1 统一响应体自动解包：检测到 code 字段时提取 data
+      if (isApiResponseEnvelope(parsed)) {
+        return unwrapApiResponse(parsed, errorMessage ?? '业务处理失败') as T
+      }
+      return parsed as T
     } catch {
       throw new ApiError('接口响应不是合法 JSON', { status: response.status, detail: rawText })
     }
