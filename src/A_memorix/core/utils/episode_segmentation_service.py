@@ -13,8 +13,7 @@ import json
 from typing import Any, Dict, List, Optional, Tuple
 
 from src.common.logger import get_logger
-from src.config.model_configs import TaskConfig
-from src.services import llm_service as llm_api
+
 
 from .model_routing import (
     ResolvedLLMModel,
@@ -32,8 +31,9 @@ class EpisodeSegmentationService:
 
     SEGMENTATION_VERSION = "episode_mvp_v1"
 
-    def __init__(self, plugin_config: Optional[dict] = None):
+    def __init__(self, plugin_config: Optional[dict] = None, llm_api: Any = None):
         self.plugin_config = plugin_config or {}
+        self._llm_api = llm_api
 
     def _cfg(self, key: str, default: Any = None) -> Any:
         current: Any = self.plugin_config
@@ -48,7 +48,7 @@ class EpisodeSegmentationService:
     def _is_task_config(obj: Any) -> bool:
         return hasattr(obj, "model_list") and bool(getattr(obj, "model_list", []))
 
-    def _pick_template_task(self, available_tasks: Dict[str, Any]) -> Optional[TaskConfig]:
+    def _pick_template_task(self, available_tasks: Dict[str, Any]) -> Any:
         _, task_config = pick_text_generation_task(
             available_tasks,
             preferred=("memory", "utils", "replyer", "planner", "tool_use"),
@@ -56,7 +56,7 @@ class EpisodeSegmentationService:
         return task_config
 
     def _resolve_model_config(self) -> Tuple[Optional[ResolvedLLMModel], str]:
-        available_tasks = get_text_generation_model_tasks(llm_api) or {}
+        available_tasks = get_text_generation_model_tasks(self._llm_api) or {}
         if not available_tasks:
             return None, "unavailable"
 
