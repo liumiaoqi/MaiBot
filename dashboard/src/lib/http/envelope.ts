@@ -1,9 +1,9 @@
 /**
  * 响应包络类型与解包函数。
  *
- * 支持两种格式：
- * 1. SSD1 统一响应体 ApiResponseEnvelope<T>（{code, data, message}）—— 新格式
- * 2. 旧格式 SuccessEnvelope（{success, message?, data?}）—— 过渡期兼容
+ * 支持 SSD1 统一响应体格式：
+ * - 成功：ApiResponseEnvelope<T>（{code, data, message}）
+ * - 失败：ErrorResponseEnvelope（{error_code, error_message, details?}）
  *
  * 请求客户端自动检测格式并解包，API 模块层无需手动处理。
  */
@@ -21,12 +21,6 @@ export interface ErrorResponseEnvelope {
   error_code: string
   error_message: string
   details?: unknown
-}
-
-/** 旧格式业务级响应包络（过渡期兼容，迁移完成后删除） */
-export interface SuccessEnvelope {
-  success: boolean
-  message?: string
 }
 
 /** 类型守卫：判断响应体是否为 ApiResponse 格式 */
@@ -55,12 +49,4 @@ export function unwrapApiResponse<T>(data: ApiResponseEnvelope<T>, fallback: str
     throw new ApiError(data.message || fallback, { detail: data })
   }
   return data.data
-}
-
-/** 校验旧格式响应体中的业务级 success 标记，失败时抛出 ApiError（过渡期兼容） */
-export function requireSuccess<T extends SuccessEnvelope>(data: T, fallback: string): T {
-  if (!data.success) {
-    throw new ApiError(data.message || fallback, { detail: data })
-  }
-  return data
 }

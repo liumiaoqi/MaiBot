@@ -71,7 +71,6 @@ export interface BehaviorPathItem {
 }
 
 export interface BehaviorPathListResponse {
-  success: boolean
   total: number
   page: number
   page_size: number
@@ -79,7 +78,6 @@ export interface BehaviorPathListResponse {
 }
 
 export interface BehaviorClusterListResponse {
-  success: boolean
   total: number
   page: number
   page_size: number
@@ -249,8 +247,8 @@ export interface BehaviorRetrievalDebugRequest {
   max_count: number
 }
 
-export async function listBehaviorChats(): Promise<{ success: boolean; data: BehaviorChatInfo[] }> {
-  return backendApi.get<{ success: boolean; data: BehaviorChatInfo[] }>(`${API_BASE}/chats`)
+export async function listBehaviorChats(): Promise<{ data: BehaviorChatInfo[] }> {
+  return backendApi.get<{ data: BehaviorChatInfo[] }>(`${API_BASE}/chats`)
 }
 
 export async function listBehaviorPaths(params: {
@@ -303,20 +301,20 @@ export async function listBehaviorClusters(params: {
 
 export async function getBehaviorGraphData(params: {
   session_id?: string
-} = {}): Promise<{ success: boolean; data: BehaviorGraphData }> {
-  return backendApi.get<{ success: boolean; data: BehaviorGraphData }>(`${API_BASE}/graph-data`, {
+} = {}): Promise<{ data: BehaviorGraphData }> {
+  return backendApi.get<{ data: BehaviorGraphData }>(`${API_BASE}/graph-data`, {
     query: { session_id: params.session_id || undefined },
   })
 }
 
-export async function getBehaviorPathDetail(pathId: number): Promise<{ success: boolean; data: BehaviorPathDetail }> {
-  return backendApi.get<{ success: boolean; data: BehaviorPathDetail }>(`${API_BASE}/paths/${pathId}`)
+export async function getBehaviorPathDetail(pathId: number): Promise<{ data: BehaviorPathDetail }> {
+  return backendApi.get<{ data: BehaviorPathDetail }>(`${API_BASE}/paths/${pathId}`)
 }
 
 export async function debugBehaviorRetrieval(
   payload: BehaviorRetrievalDebugRequest
-): Promise<{ success: boolean; data: BehaviorRetrievalDebugPayload }> {
-  return backendApi.post<{ success: boolean; data: BehaviorRetrievalDebugPayload }>(
+): Promise<{ data: BehaviorRetrievalDebugPayload }> {
+  return backendApi.post<{ data: BehaviorRetrievalDebugPayload }>(
     `${API_BASE}/retrieval-debug`,
     { body: payload }
   )

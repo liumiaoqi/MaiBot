@@ -129,7 +129,6 @@ export function getEmojiOriginalUrl(id: number): string {
  * 批量删除表情包
  */
 export async function batchDeleteEmojis(emojiIds: number[]): Promise<{
-  success: boolean
   message: string
   deleted_count: number
   failed_count: number
@@ -158,7 +157,6 @@ export function getEmojiBatchUploadUrl(): string {
 // ==================== 缩略图缓存管理 API ====================
 
 export interface ThumbnailCacheStatsResponse {
-  success: boolean
   cache_dir: string
   total_count: number
   total_size_mb: number
@@ -167,14 +165,12 @@ export interface ThumbnailCacheStatsResponse {
 }
 
 export interface ThumbnailCleanupResponse {
-  success: boolean
   message: string
   cleaned_count: number
   kept_count: number
 }
 
 export interface ThumbnailPreheatResponse {
-  success: boolean
   message: string
   generated_count: number
   skipped_count: number

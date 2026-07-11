@@ -2,8 +2,9 @@
  * 插件配置 API
  *
  * 请求样板（认证、解析、错误格式化）由 @/lib/http 的请求客户端承担；
- * 本文件只声明 endpoint、业务错误文案与响应体 success 标记的解包规则。
- * 公开函数遵循 throw 契约：成功返回数据，失败抛 ApiError。
+ * 本文件只声明 endpoint 与业务错误文案。
+ * 注意：插件配置路由尚未迁移到 ApiResponse 格式，仍使用旧 {success, ...} 包络，
+ * 需要手动校验 success 标记。待后端迁移后可删除 requireSuccess 调用。
  */
 import { ApiError, backendApi, requireSuccess } from '@/lib/http'
 

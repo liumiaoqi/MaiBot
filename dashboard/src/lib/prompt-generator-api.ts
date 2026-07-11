@@ -52,7 +52,6 @@ export interface PromptGeneratorRequest {
 }
 
 export interface PromptGeneratorResponse {
-  success: boolean
   model_name: string
   result: PromptGeneratorResult
   config_blocks: PromptGeneratorConfigBlock[]
@@ -78,7 +77,6 @@ export async function generatePromptPersona(
 }
 
 export interface PromptGeneratorApplyResponse {
-  success: boolean
   message: string
   applied_blocks: number
   sections: string[]

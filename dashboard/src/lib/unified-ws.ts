@@ -61,11 +61,8 @@ function isEventEnvelope(message: WsServerEnvelope): message is WsEventEnvelope 
 
 async function getWsToken(): Promise<string | null> {
   try {
-    const data = await backendApi.get<{ success?: boolean; token?: string }>('/api/webui/ws-token')
-    if (data.success && data.token) {
-      return data.token
-    }
-    return null
+    const data = await backendApi.get<{ token?: string }>('/api/webui/ws-token')
+    return data.token ?? null
   } catch (error) {
     console.error('获取统一 WebSocket token 失败:', error)
     return null

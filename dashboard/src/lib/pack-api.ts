@@ -138,10 +138,9 @@ export interface ApplyPackConflicts {
 
 /**
  * Pack 服务的业务包络：失败时以 error 字段（而非 message）给出原因，
- * 因此不使用 requireSuccess，逐函数手动校验。
+ * 因此逐函数手动校验。
  */
 interface PackEnvelope {
-  success: boolean
   error?: string
 }
 
@@ -155,9 +154,8 @@ interface LocalModelConfig {
   model_task_config: Record<string, PackTaskConfig>
 }
 
-/** 模型配置接口响应体：{ success, config } 包络 */
+/** 模型配置接口响应体：请求客户端自动解包 ApiResponse 后的 data 层 */
 interface ModelConfigResponse {
-  success?: boolean
   config?: LocalModelConfig
 }
 
@@ -487,12 +485,8 @@ export async function exportCurrentConfigAsPack(params: {
     errorMessage: '获取当前模型配置失败',
   })
 
-  // API 返回的格式是 { success: true, config: {...} }
-  if (!responseData.success || !responseData.config) {
-    throw new ApiError('获取配置失败', { detail: responseData })
-  }
-
-  const currentConfig = responseData.config
+  // 请求客户端已自动解包 ApiResponse，data 即为内层数据
+  const currentConfig = (responseData.config || responseData) as LocalModelConfig
 
   // 过滤提供商（移除 api_key）
   let providers: PackProvider[] = (currentConfig.api_providers || []).map(
