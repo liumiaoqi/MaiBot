@@ -1,6 +1,6 @@
 """WebUI API 路由"""
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, Request, Response
 
 from src.common.logger import get_logger
 from src.webui.core import (
@@ -11,6 +11,8 @@ from src.webui.core import (
     set_auth_cookie,
 )
 from src.webui.dependencies import require_auth, verify_token_optional
+from src.webui.errors import AppError
+from src.webui.errors.codes import ErrorCode
 from src.webui.routers.avatar import router as avatar_router
 from src.webui.routers.agent import router as agent_router
 from src.webui.routers.deepseek import router as deepseek_router
@@ -38,6 +40,7 @@ from src.webui.schemas.auth import (
     TokenVerifyRequest,
     TokenVerifyResponse,
 )
+from src.webui.schemas.base import ApiResponse
 
 logger = get_logger("webui.api")
 
@@ -78,225 +81,106 @@ router.include_router(unified_ws_router)
 
 
 
-@router.get("/health")
+@router.get("/health", response_model=ApiResponse[dict])
 async def health_check():
     """健康检查"""
-    return {"status": "healthy", "service": "MaiBot WebUI"}
+    return ApiResponse(data={"status": "healthy", "service": "MaiBot WebUI"})
 
 
-@router.post("/auth/verify", response_model=TokenVerifyResponse)
+@router.post("/auth/verify", response_model=ApiResponse[TokenVerifyResponse])
 async def verify_token(
     request_body: TokenVerifyRequest,
     request: Request,
     response: Response,
     _rate_limit: None = Depends(check_auth_rate_limit),
 ):
-    """
-    验证访问令牌，验证成功后设置 HttpOnly Cookie
+    """验证访问令牌，验证成功后设置 HttpOnly Cookie"""
+    token_manager = get_token_manager()
+    rate_limiter = get_rate_limiter()
 
-    Args:
-        request_body: 包含 token 的验证请求
-        request: FastAPI Request 对象（用于获取客户端 IP）
-        response: FastAPI Response 对象
+    is_valid = token_manager.verify_token(request_body.token)
 
-    Returns:
-        验证结果（包含首次配置状态）
-    """
-    try:
-        token_manager = get_token_manager()
-        rate_limiter = get_rate_limiter()
+    if is_valid:
+        rate_limiter.reset_failures(request)
+        set_auth_cookie(response, request_body.token, request)
+        is_first_setup = token_manager.is_first_setup()
+        return ApiResponse(data=TokenVerifyResponse(valid=True, message="Token 验证成功", is_first_setup=is_first_setup))
 
-        is_valid = token_manager.verify_token(request_body.token)
+    blocked, remaining = rate_limiter.record_failed_attempt(
+        request,
+        max_failures=5,
+        window_seconds=300,
+        block_duration=600,
+    )
 
-        if is_valid:
-            # 认证成功，重置失败计数
-            rate_limiter.reset_failures(request)
-            # 设置 HttpOnly Cookie（传入 request 以检测协议）
-            set_auth_cookie(response, request_body.token, request)
-            # 同时返回首次配置状态，避免额外请求
-            is_first_setup = token_manager.is_first_setup()
-            return TokenVerifyResponse(valid=True, message="Token 验证成功", is_first_setup=is_first_setup)
-        else:
-            # 记录失败尝试
-            blocked, remaining = rate_limiter.record_failed_attempt(
-                request,
-                max_failures=5,  # 5 次失败
-                window_seconds=300,  # 5 分钟窗口
-                block_duration=600,  # 封禁 10 分钟
-            )
+    if blocked:
+        raise AppError(ErrorCode.AUTH_RATE_LIMITED, "认证失败次数过多，您的 IP 已被临时封禁 10 分钟")
 
-            if blocked:
-                raise HTTPException(status_code=429, detail="认证失败次数过多，您的 IP 已被临时封禁 10 分钟")
+    message = "Token 无效或已过期"
+    if remaining <= 2:
+        message += f"（剩余 {remaining} 次尝试机会）"
 
-            message = "Token 无效或已过期"
-            if remaining <= 2:
-                message += f"（剩余 {remaining} 次尝试机会）"
-
-            return TokenVerifyResponse(valid=False, message=message)
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Token 验证失败: {e}")
-        raise HTTPException(status_code=500, detail="Token 验证失败") from e
+    return ApiResponse(data=TokenVerifyResponse(valid=False, message=message))
 
 
-@router.post("/auth/logout")
+@router.post("/auth/logout", response_model=ApiResponse[dict])
 async def logout(response: Response):
-    """
-    登出并清除认证 Cookie
-
-    Args:
-        response: FastAPI Response 对象
-
-    Returns:
-        登出结果
-    """
+    """登出并清除认证 Cookie"""
     clear_auth_cookie(response)
-    return {"success": True, "message": "已成功登出"}
+    return ApiResponse(data={"success": True}, message="已成功登出")
 
 
-@router.get("/auth/check")
+@router.get("/auth/check", response_model=ApiResponse[dict])
 async def check_auth_status(
     authenticated: bool = Depends(verify_token_optional),
 ):
-    """
-    检查当前认证状态（用于前端判断是否已登录）
-
-    Returns:
-        认证状态
-    """
-    try:
-        logger.debug(f"检查认证状态，结果: {authenticated}")
-        return {"authenticated": authenticated}
-    except Exception as e:
-        logger.error(f"认证检查失败: {e}", exc_info=True)
-        return {"authenticated": False}
+    """检查当前认证状态"""
+    return ApiResponse(data={"authenticated": authenticated})
 
 
-@router.post("/auth/update", response_model=TokenUpdateResponse, dependencies=[Depends(require_auth)])
+@router.post("/auth/update", response_model=ApiResponse[TokenUpdateResponse], dependencies=[Depends(require_auth)])
 async def update_token(
     request: TokenUpdateRequest,
     response: Response,
 ):
-    """
-    更新访问令牌（需要当前有效的 token）
-
-    Args:
-        request: 包含新 token 的更新请求
-        response: FastAPI Response 对象
-
-    Returns:
-        更新结果
-    """
-    try:
-        token_manager = get_token_manager()
-
-        # 更新 token
-        success, message = token_manager.update_token(request.new_token)
-
-        # 如果更新成功，清除 Cookie，要求用户重新登录
-        if success:
-            clear_auth_cookie(response)
-
-        return TokenUpdateResponse(success=success, message=message)
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Token 更新失败: {e}")
-        raise HTTPException(status_code=500, detail="Token 更新失败") from e
+    """更新访问令牌"""
+    token_manager = get_token_manager()
+    success, message = token_manager.update_token(request.new_token)
+    if success:
+        clear_auth_cookie(response)
+    return ApiResponse(data=TokenUpdateResponse(success=success, message=message))
 
 
-@router.post("/auth/regenerate", response_model=TokenRegenerateResponse, dependencies=[Depends(require_auth)])
+@router.post("/auth/regenerate", response_model=ApiResponse[TokenRegenerateResponse], dependencies=[Depends(require_auth)])
 async def regenerate_token(
     response: Response,
 ):
-    """
-    重新生成访问令牌（需要当前有效的 token）
-
-    Args:
-        response: FastAPI Response 对象
-
-    Returns:
-        新生成的 token
-    """
-    try:
-        token_manager = get_token_manager()
-
-        # 重新生成 token
-        new_token = token_manager.regenerate_token()
-
-        # 清除 Cookie，要求用户重新登录
-        clear_auth_cookie(response)
-
-        return TokenRegenerateResponse(success=True, token=new_token, message="Token 已重新生成")
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Token 重新生成失败: {e}")
-        raise HTTPException(status_code=500, detail="Token 重新生成失败") from e
+    """重新生成访问令牌"""
+    token_manager = get_token_manager()
+    new_token = token_manager.regenerate_token()
+    clear_auth_cookie(response)
+    return ApiResponse(data=TokenRegenerateResponse(success=True, token=new_token, message="Token 已重新生成"))
 
 
-@router.get("/setup/status", response_model=FirstSetupStatusResponse, dependencies=[Depends(require_auth)])
+@router.get("/setup/status", response_model=ApiResponse[FirstSetupStatusResponse], dependencies=[Depends(require_auth)])
 async def get_setup_status():
-    """
-    获取首次配置状态
-
-    Returns:
-        首次配置状态
-    """
-    try:
-        token_manager = get_token_manager()
-
-        # 检查是否为首次配置
-        is_first = token_manager.is_first_setup()
-
-        return FirstSetupStatusResponse(is_first_setup=is_first, message="首次配置" if is_first else "已完成配置")
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"获取配置状态失败: {e}")
-        raise HTTPException(status_code=500, detail="获取配置状态失败") from e
+    """获取首次配置状态"""
+    token_manager = get_token_manager()
+    is_first = token_manager.is_first_setup()
+    return ApiResponse(data=FirstSetupStatusResponse(is_first_setup=is_first, message="首次配置" if is_first else "已完成配置"))
 
 
-@router.post("/setup/complete", response_model=CompleteSetupResponse, dependencies=[Depends(require_auth)])
+@router.post("/setup/complete", response_model=ApiResponse[CompleteSetupResponse], dependencies=[Depends(require_auth)])
 async def complete_setup():
-    """
-    标记首次配置完成
-
-    Returns:
-        完成结果
-    """
-    try:
-        token_manager = get_token_manager()
-
-        # 标记配置完成
-        success = token_manager.mark_setup_completed()
-
-        return CompleteSetupResponse(success=success, message="配置已完成" if success else "标记失败")
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"标记配置完成失败: {e}")
-        raise HTTPException(status_code=500, detail="标记配置完成失败") from e
+    """标记首次配置完成"""
+    token_manager = get_token_manager()
+    success = token_manager.mark_setup_completed()
+    return ApiResponse(data=CompleteSetupResponse(success=success, message="配置已完成" if success else "标记失败"))
 
 
-@router.post("/setup/reset", response_model=ResetSetupResponse, dependencies=[Depends(require_auth)])
+@router.post("/setup/reset", response_model=ApiResponse[ResetSetupResponse], dependencies=[Depends(require_auth)])
 async def reset_setup():
-    """
-    重置首次配置状态，允许重新进入配置向导
-
-    Returns:
-        重置结果
-    """
-    try:
-        token_manager = get_token_manager()
-
-        # 重置配置状态
-        success = token_manager.reset_setup_status()
-
-        return ResetSetupResponse(success=success, message="配置状态已重置" if success else "重置失败")
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"重置配置状态失败: {e}")
-        raise HTTPException(status_code=500, detail="重置配置状态失败") from e
+    """重置首次配置状态"""
+    token_manager = get_token_manager()
+    success = token_manager.reset_setup_status()
+    return ApiResponse(data=ResetSetupResponse(success=success, message="配置状态已重置" if success else "重置失败"))
