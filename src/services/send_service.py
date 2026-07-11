@@ -1062,7 +1062,7 @@ async def _send_to_target_with_message(
         return None
 
 
-async def text_to_stream_with_message(
+async def _text_to_stream_with_message(
     text: str,
     stream_id: str,
     typing: bool = False,
@@ -1087,7 +1087,7 @@ async def text_to_stream_with_message(
     )
 
 
-async def text_to_stream(
+async def _text_to_stream(
     text: str,
     stream_id: str,
     typing: bool = False,
@@ -1128,7 +1128,7 @@ async def text_to_stream(
     )
 
 
-async def emoji_to_stream_with_message(
+async def _emoji_to_stream_with_message(
     emoji_base64: str,
     stream_id: str,
     storage_message: bool = True,
@@ -1150,7 +1150,7 @@ async def emoji_to_stream_with_message(
     )
 
 
-async def emoji_to_stream(
+async def _emoji_to_stream(
     emoji_base64: str,
     stream_id: str,
     storage_message: bool = True,
@@ -1185,7 +1185,7 @@ async def emoji_to_stream(
     )
 
 
-async def image_to_stream(
+async def _image_to_stream(
     image_base64: str,
     stream_id: str,
     storage_message: bool = True,
@@ -1218,7 +1218,7 @@ async def image_to_stream(
     )
 
 
-async def custom_to_stream(
+async def _custom_to_stream(
     message_type: str,
     content: str | Dict[str, Any],
     stream_id: str,
@@ -1261,7 +1261,7 @@ async def custom_to_stream(
     )
 
 
-async def custom_reply_set_to_stream(
+async def _custom_reply_set_to_stream(
     reply_set: MessageSequence,
     stream_id: str,
     processed_plain_text: str = "",

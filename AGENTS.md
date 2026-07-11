@@ -130,8 +130,8 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 2. 禁止核心访问 chat_manager._agent_router
 3. 禁止核心持有 BotChatSession 可变引用
 4. 禁止核心硬编码 napcat_* 字段
-5. 禁止核心绕过 MessagePort 直接调用 send_service ✅ 已消除
-6. 禁止核心导入 A_memorix 内部模块 ✅ 已消除（core/零违规导入，适配器层通过memory_service中转）
+5. 禁止核心绕过 MessagePort 直接调用 send_service ✅ 已消除 + ruff TID251 守卫
+6. 禁止核心导入 A_memorix 内部模块 ✅ 已消除（core/零违规导入 + ruff TID251 守卫 + CI AST脚本）
 7. 禁止 Orchestrator 通过 enqueue_proactive_task 模拟多智能体
 
 # 核心架构
