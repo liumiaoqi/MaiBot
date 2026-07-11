@@ -10,7 +10,6 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
 from sqlalchemy import func, inspect, text
 from sqlmodel import col, select
 
@@ -30,6 +29,29 @@ from src.common.utils.image_path import (
 )
 from src.config.config import MMC_VERSION
 from src.webui.dependencies import require_auth
+from src.webui.schemas.system import (
+    CacheDirectoryStats,
+    DatabaseFileStats,
+    DatabaseStorageStats,
+    DatabaseTableStats,
+    LocalCacheCleanupRequest,
+    LocalCacheCleanupResponse,
+    LocalCacheDataEntriesResponse,
+    LocalCacheDataEntry,
+    LocalCacheDataEntryDeleteRequest,
+    LocalCacheDatabaseVacuumResponse,
+    LocalCacheImageBulkDeleteRequest,
+    LocalCacheImageDateGroup,
+    LocalCacheImageDeleteRequest,
+    LocalCacheImageItem,
+    LocalCacheImageListResponse,
+    LocalCacheLogDirectoryDeleteRequest,
+    LocalCacheLogDirectoryItem,
+    LocalCacheLogDirectoryListResponse,
+    LocalCacheStatsResponse,
+    RestartResponse,
+    StatusResponse,
+)
 
 router = APIRouter(prefix="/system", tags=["system"], dependencies=[Depends(require_auth)])
 logger = get_logger("webui_system")
@@ -120,239 +142,13 @@ CacheImageTarget = Literal["images", "emoji"]
 DatabaseCleanupMode = Literal["all", "older_than_days"]
 MonitorMediaKind = Literal["image", "emoji"]
 
-
-class RestartResponse(BaseModel):
-    """重启响应"""
-
-    success: bool
-    message: str
-
-
-class StatusResponse(BaseModel):
-    """状态响应"""
-
-    running: bool
-    uptime: float
-    version: str
-    start_time: str
-
-
-class CacheDirectoryStats(BaseModel):
-    """本地缓存目录统计。"""
-
-    key: str
-    label: str
-    path: str
-    exists: bool
-    file_count: int
-    total_size: int
-    db_records: int = 0
-
-
-class DatabaseFileStats(BaseModel):
-    """数据库文件统计。"""
-
-    path: str
-    exists: bool
-    size: int
-
-
-class DatabaseTableStats(BaseModel):
-    """数据库表统计。"""
-
-    name: str
-    rows: int
-    size: int = 0
-    size_source: Literal["dbstat", "estimated"] = "estimated"
-    label: str = ""
-    category: str = "其他"
-    description: str = ""
-    cleanup_supported: bool = False
-    cleanup_date_column: str | None = None
-
-
-class DatabaseStorageStats(BaseModel):
-    """数据库存储统计。"""
-
-    files: list[DatabaseFileStats]
-    tables: list[DatabaseTableStats]
-    total_size: int
-    page_size: int = 0
-    page_count: int = 0
-    freelist_count: int = 0
-    free_size: int = 0
-
-
-class LocalCacheStatsResponse(BaseModel):
-    """本地缓存统计响应。"""
-
-    directories: list[CacheDirectoryStats]
-    database: DatabaseStorageStats
-
-
 _local_cache_stats_cache: tuple[float, LocalCacheStatsResponse] | None = None
 _database_stats_cache: tuple[float, DatabaseStorageStats] | None = None
-
-
-class LocalCacheImageItem(BaseModel):
-    """本地缓存图片文件条目。"""
-
-    relative_path: str
-    file_name: str
-    full_path: str
-    size: int
-    modified_time: float
-    format: str
-    db_id: int | None = None
-    image_hash: str | None = None
-    description: str = ""
-    is_registered: bool | None = None
-    is_banned: bool | None = None
-    no_file_flag: bool | None = None
-
-
-class LocalCacheImageDateGroup(BaseModel):
-    """本地缓存图片日期分组。"""
-
-    date: str
-    file_count: int
-    total_size: int
-
-
-class LocalCacheImageListResponse(BaseModel):
-    """本地缓存图片列表响应。"""
-
-    success: bool
-    target: CacheImageTarget
-    total: int
-    page: int
-    page_size: int
-    total_size: int
-    data: list[LocalCacheImageItem]
-    date_groups: list[LocalCacheImageDateGroup] = Field(default_factory=list)
-
-
-class LocalCacheLogDirectoryItem(BaseModel):
-    """本地日志目录条目。"""
-
-    relative_path: str
-    name: str
-    full_path: str
-    depth: int
-    file_count: int
-    total_size: int
-    modified_time: float
-    root_files_only: bool = False
-
-
-class LocalCacheLogDirectoryListResponse(BaseModel):
-    """本地日志目录列表响应。"""
-
-    success: bool
-    total: int
-    data: list[LocalCacheLogDirectoryItem]
-
-
-class LocalCacheDataEntry(BaseModel):
-    """data 目录中的文件或文件夹条目。"""
-
-    relative_path: str
-    name: str
-    full_path: str
-    kind: Literal["file", "directory"]
-    file_count: int
-    total_size: int
-    modified_time: float
-    protected: bool = False
-    protection_reason: str | None = None
-
-
-class LocalCacheDataEntriesResponse(BaseModel):
-    """data 目录浏览响应。"""
-
-    success: bool
-    root_path: str
-    relative_path: str
-    current_path: str
-    parent_path: str | None = None
-    file_count: int
-    total_size: int
-    total: int
-    data: list[LocalCacheDataEntry]
-
-
-class LocalCacheCleanupRequest(BaseModel):
-    """本地缓存清理请求。"""
-
-    target: Literal["images", "emoji", "log_files", "database_logs"]
-    tables: list[str] = Field(default_factory=list)
-    database_mode: DatabaseCleanupMode = "all"
-    older_than_days: int | None = Field(default=None, ge=1)
-    vacuum_after_cleanup: bool = True
-
-
-class LocalCacheCleanupResponse(BaseModel):
-    """本地缓存清理响应。"""
-
-    success: bool
-    message: str
-    target: str
-    removed_files: int = 0
-    removed_bytes: int = 0
-    removed_records: int = 0
-    vacuumed: bool = False
-    database_size_before: int | None = None
-    database_size_after: int | None = None
-    reclaimed_bytes: int = 0
-
-
-class LocalCacheDatabaseVacuumResponse(BaseModel):
-    """数据库 VACUUM 维护响应。"""
-
-    success: bool
-    message: str
-    database_size_before: int
-    database_size_after: int
-    reclaimed_bytes: int
-    checkpoint_busy: int = 0
-    checkpoint_log: int = 0
-    checkpointed: int = 0
-
-
-class LocalCacheImageDeleteRequest(BaseModel):
-    """本地缓存单张图片删除请求。"""
-
-    target: CacheImageTarget
-    relative_path: str
-
-
-class LocalCacheImageBulkDeleteRequest(BaseModel):
-    """本地缓存图片批量删除请求。"""
-
-    target: CacheImageTarget
-    mode: Literal["date_range", "older_than_recent_days"]
-    start_date: str | None = None
-    end_date: str | None = None
-    keep_recent_days: Literal[1, 7, 30] | None = None
-
-
-class LocalCacheLogDirectoryDeleteRequest(BaseModel):
-    """本地日志目录清理请求。"""
-
-    relative_path: str
-
-
-class LocalCacheDataEntryDeleteRequest(BaseModel):
-    """data 目录条目删除请求。"""
-
-    relative_path: str
-
 
 def _iter_files(directory: Path) -> list[Path]:
     if not directory.exists() or not directory.is_dir():
         return []
     return [path for path in directory.rglob("*") if path.is_file()]
-
 
 def _get_path_summary(path: Path) -> tuple[int, int, float]:
     if not path.exists():
@@ -379,10 +175,8 @@ def _get_path_summary(path: Path) -> tuple[int, int, float]:
         modified_time = max(modified_time, file_stat.st_mtime)
     return file_count, total_size, modified_time
 
-
 def _is_cache_image_file(path: Path) -> bool:
     return path.suffix.lower() in _CACHE_IMAGE_EXTENSIONS
-
 
 def _is_relative_to(path: Path, parent: Path) -> bool:
     try:
@@ -390,7 +184,6 @@ def _is_relative_to(path: Path, parent: Path) -> bool:
     except (OSError, RuntimeError, ValueError):
         return False
     return True
-
 
 def _resolve_data_path(relative_path: str = "") -> Path:
     root_path = _DATA_DIR.resolve()
@@ -403,7 +196,6 @@ def _resolve_data_path(relative_path: str = "") -> Path:
         raise HTTPException(status_code=404, detail="未找到指定 data 条目")
     return target_path
 
-
 def _get_data_path_protection_reason(path: Path) -> str | None:
     resolved_path = path.resolve()
     if resolved_path == _DATA_DIR.resolve():
@@ -414,7 +206,6 @@ def _get_data_path_protection_reason(path: Path) -> str | None:
         if _is_relative_to(resolved_path, cache_dir):
             return "图片、表情和缩略图缓存请使用上方专用清理入口，以同步数据库记录"
     return None
-
 
 def _build_data_entry(path: Path, root_path: Path) -> LocalCacheDataEntry:
     resolved_path = path.resolve()
@@ -431,7 +222,6 @@ def _build_data_entry(path: Path, root_path: Path) -> LocalCacheDataEntry:
         protected=protection_reason is not None,
         protection_reason=protection_reason,
     )
-
 
 def _build_data_entries_response(relative_path: str) -> LocalCacheDataEntriesResponse:
     root_path = _DATA_DIR.resolve()
@@ -465,12 +255,10 @@ def _build_data_entries_response(relative_path: str) -> LocalCacheDataEntriesRes
         data=sorted(entries, key=lambda item: (item.kind != "directory", -item.total_size, item.name.lower())),
     )
 
-
 def _get_cache_image_target(target: CacheImageTarget) -> tuple[Path, ImageType, str]:
     if target == "images":
         return _IMAGE_DIR, ImageType.IMAGE, "图片"
     return _EMOJI_DIR, ImageType.EMOJI, "表情包"
-
 
 def _resolve_cache_image_file(target: CacheImageTarget, relative_path: str) -> Path:
     root_dir, _, label = _get_cache_image_target(target)
@@ -487,7 +275,6 @@ def _resolve_cache_image_file(target: CacheImageTarget, relative_path: str) -> P
     if not _is_cache_image_file(file_path):
         raise HTTPException(status_code=400, detail="只能浏览图片缓存文件")
     return file_path
-
 
 def _resolve_monitor_media_file(media_kind: MonitorMediaKind, media_hash: str) -> Path:
     """根据监控事件中的媒体 hash 解析原始图片或表情文件。"""
@@ -514,13 +301,11 @@ def _resolve_monitor_media_file(media_kind: MonitorMediaKind, media_hash: str) -
         raise HTTPException(status_code=404, detail=f"未找到指定{label}文件")
     return file_path
 
-
 def _paths_equal(left: str, right: Path) -> bool:
     try:
         return stored_image_paths_equal(left, right)
     except (OSError, RuntimeError, StoredImagePathError):
         return False
-
 
 def _get_image_records_by_path(image_type: ImageType) -> dict[Path, list[Images]]:
     records_by_path: dict[Path, list[Images]] = {}
@@ -535,7 +320,6 @@ def _get_image_records_by_path(image_type: ImageType) -> dict[Path, list[Images]
             continue
         records_by_path.setdefault(record_path, []).append(record)
     return records_by_path
-
 
 def _build_cache_image_items(target: CacheImageTarget) -> list[LocalCacheImageItem]:
     root_dir, image_type, _ = _get_cache_image_target(target)
@@ -578,7 +362,6 @@ def _build_cache_image_items(target: CacheImageTarget) -> list[LocalCacheImageIt
 
     return sorted(items, key=lambda item: item.modified_time, reverse=True)
 
-
 def _parse_date_filter(value: str | None, field_name: str) -> datetime | None:
     if not value:
         return None
@@ -587,10 +370,8 @@ def _parse_date_filter(value: str | None, field_name: str) -> datetime | None:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=f"{field_name} 必须是 YYYY-MM-DD 格式") from exc
 
-
 def _get_cache_image_item_date(item: LocalCacheImageItem) -> str:
     return datetime.fromtimestamp(item.modified_time).date().isoformat()
-
 
 def _filter_cache_image_items_by_date(
     items: list[LocalCacheImageItem],
@@ -612,7 +393,6 @@ def _filter_cache_image_items_by_date(
         filtered_items.append(item)
     return filtered_items
 
-
 def _build_cache_image_date_groups(items: list[LocalCacheImageItem]) -> list[LocalCacheImageDateGroup]:
     groups: dict[str, LocalCacheImageDateGroup] = {}
     for item in items:
@@ -621,7 +401,6 @@ def _build_cache_image_date_groups(items: list[LocalCacheImageItem]) -> list[Loc
         group.file_count += 1
         group.total_size += item.size
     return sorted(groups.values(), key=lambda group: group.date, reverse=True)
-
 
 def _get_files_stats(files: list[Path]) -> tuple[int, int, float]:
     total_size = 0
@@ -638,7 +417,6 @@ def _get_files_stats(files: list[Path]) -> tuple[int, int, float]:
         total_size += file_stat.st_size
         modified_time = max(modified_time, file_stat.st_mtime)
     return file_count, total_size, modified_time
-
 
 def _build_log_directory_items() -> list[LocalCacheLogDirectoryItem]:
     if not _LOG_DIR.exists() or not _LOG_DIR.is_dir():
@@ -685,7 +463,6 @@ def _build_log_directory_items() -> list[LocalCacheLogDirectoryItem]:
 
     return sorted(items, key=lambda item: (not item.root_files_only, item.relative_path))
 
-
 def _resolve_log_directory(relative_path: str) -> Path:
     root_path = _LOG_DIR.resolve()
     try:
@@ -700,17 +477,14 @@ def _resolve_log_directory(relative_path: str) -> Path:
         raise HTTPException(status_code=404, detail="未找到指定日志目录")
     return target_path
 
-
 def _get_directory_size(directory: Path) -> tuple[int, int]:
     file_count, total_size, _ = _get_path_summary(directory)
     return file_count, total_size
-
 
 def _get_image_record_count(image_type: ImageType) -> int:
     with get_db_session() as session:
         statement = select(func.count()).select_from(Images).where(col(Images.image_type) == image_type)
         return int(session.exec(statement).one())
-
 
 def _build_directory_stats(
     key: str,
@@ -737,7 +511,6 @@ def _build_directory_stats(
         db_records=_get_image_record_count(image_type) if image_type is not None else 0,
     )
 
-
 def _get_database_files() -> list[DatabaseFileStats]:
     db_paths = [_DATABASE_FILE, *[Path(f"{_DATABASE_FILE}{suffix}") for suffix in _DATABASE_AUXILIARY_SUFFIXES]]
     result: list[DatabaseFileStats] = []
@@ -752,10 +525,8 @@ def _get_database_files() -> list[DatabaseFileStats]:
         result.append(DatabaseFileStats(path=str(db_path), exists=exists, size=size))
     return result
 
-
 def _get_database_total_size() -> int:
     return sum(file.size for file in _get_database_files())
-
 
 def _get_database_page_stats() -> tuple[int, int, int]:
     if not _DATABASE_FILE.exists():
@@ -772,10 +543,8 @@ def _get_database_page_stats() -> tuple[int, int, int]:
         return 0, 0, 0
     return page_size, page_count, freelist_count
 
-
 def _quote_sqlite_identifier(identifier: str) -> str:
     return '"' + identifier.replace('"', '""') + '"'
-
 
 def _get_table_indexes(connection, table_name: str) -> list[str]:
     quoted_table_name = _quote_sqlite_identifier(table_name)
@@ -784,7 +553,6 @@ def _get_table_indexes(connection, table_name: str) -> list[str]:
         if len(row) > 1 and row[1]:
             indexes.append(str(row[1]))
     return indexes
-
 
 def _get_dbstat_table_sizes(connection, table_names: list[str]) -> dict[str, int] | None:
     try:
@@ -804,7 +572,6 @@ def _get_dbstat_table_sizes(connection, table_names: list[str]) -> dict[str, int
             table_size += object_sizes.get(index_name, 0)
         table_sizes[table_name] = table_size
     return table_sizes
-
 
 def _estimate_table_data_size(connection, table_name: str, rows: int) -> int:
     if rows <= 0:
@@ -830,7 +597,6 @@ def _estimate_table_data_size(connection, table_name: str, rows: int) -> int:
     if int(sample_rows or 0) == 0:
         return 0
     return int(int(sample_size or 0) * rows / int(sample_rows))
-
 
 def _get_database_table_stats() -> list[DatabaseTableStats]:
     inspector = inspect(engine)
@@ -864,7 +630,6 @@ def _get_database_table_stats() -> list[DatabaseTableStats]:
             )
     return sorted(table_stats, key=lambda item: item.name)
 
-
 def _build_database_stats(include_tables: bool = True) -> DatabaseStorageStats:
     files = _get_database_files()
     page_size, page_count, freelist_count = _get_database_page_stats()
@@ -877,7 +642,6 @@ def _build_database_stats(include_tables: bool = True) -> DatabaseStorageStats:
         freelist_count=freelist_count,
         free_size=page_size * freelist_count,
     )
-
 
 def _build_local_cache_stats_response() -> LocalCacheStatsResponse:
     return LocalCacheStatsResponse(
@@ -895,7 +659,6 @@ def _build_local_cache_stats_response() -> LocalCacheStatsResponse:
         database=_build_database_stats(include_tables=False),
     )
 
-
 def _get_cached_local_cache_stats_response() -> LocalCacheStatsResponse | None:
     cached = _local_cache_stats_cache
     if cached is None:
@@ -906,14 +669,12 @@ def _get_cached_local_cache_stats_response() -> LocalCacheStatsResponse | None:
         return None
     return response
 
-
 def _store_local_cache_stats_response(response: LocalCacheStatsResponse) -> LocalCacheStatsResponse:
     global _local_cache_stats_cache
 
     expires_at = time.monotonic() + _LOCAL_CACHE_STATS_CACHE_TTL_SECONDS
     _local_cache_stats_cache = (expires_at, response)
     return response
-
 
 def _get_cached_database_stats_response() -> DatabaseStorageStats | None:
     cached = _database_stats_cache
@@ -925,7 +686,6 @@ def _get_cached_database_stats_response() -> DatabaseStorageStats | None:
         return None
     return response
 
-
 def _store_database_stats_response(response: DatabaseStorageStats) -> DatabaseStorageStats:
     global _database_stats_cache
 
@@ -933,13 +693,11 @@ def _store_database_stats_response(response: DatabaseStorageStats) -> DatabaseSt
     _database_stats_cache = (expires_at, response)
     return response
 
-
 def _invalidate_local_cache_stats_cache() -> None:
     global _database_stats_cache, _local_cache_stats_cache
 
     _local_cache_stats_cache = None
     _database_stats_cache = None
-
 
 def _build_local_cache_image_list_response(
     target: CacheImageTarget,
@@ -964,7 +722,6 @@ def _build_local_cache_image_list_response(
         date_groups=date_groups,
     )
 
-
 def _delete_local_cache_image_response(request: LocalCacheImageDeleteRequest) -> LocalCacheCleanupResponse:
     removed_files, removed_bytes, removed_records = _delete_cache_image_file(request.target, request.relative_path)
     _, _, label = _get_cache_image_target(request.target)
@@ -976,7 +733,6 @@ def _delete_local_cache_image_response(request: LocalCacheImageDeleteRequest) ->
         removed_bytes=removed_bytes,
         removed_records=removed_records,
     )
-
 
 def _delete_local_cache_images_bulk_response(request: LocalCacheImageBulkDeleteRequest) -> LocalCacheCleanupResponse:
     items = _build_cache_image_items(request.target)
@@ -1002,11 +758,9 @@ def _delete_local_cache_images_bulk_response(request: LocalCacheImageBulkDeleteR
         removed_records=removed_records,
     )
 
-
 def _build_local_cache_log_directory_list_response() -> LocalCacheLogDirectoryListResponse:
     items = _build_log_directory_items()
     return LocalCacheLogDirectoryListResponse(success=True, total=len(items), data=items)
-
 
 def _delete_local_cache_log_directory_response(
     request: LocalCacheLogDirectoryDeleteRequest,
@@ -1026,7 +780,6 @@ def _delete_local_cache_log_directory_response(
         removed_files=removed_files,
         removed_bytes=removed_bytes,
     )
-
 
 def _delete_data_entry_response(request: LocalCacheDataEntryDeleteRequest) -> LocalCacheCleanupResponse:
     target_path = _resolve_data_path(request.relative_path)
@@ -1067,7 +820,6 @@ def _delete_data_entry_response(request: LocalCacheDataEntryDeleteRequest) -> Lo
         removed_bytes=removed_bytes,
     )
 
-
 def _checkpoint_database() -> tuple[int, int, int]:
     if not _DATABASE_FILE.exists():
         return 0, 0, 0
@@ -1084,7 +836,6 @@ def _checkpoint_database() -> tuple[int, int, int]:
     if row is None:
         return 0, 0, 0
     return int(row[0] or 0), int(row[1] or 0), int(row[2] or 0)
-
 
 def _vacuum_database_response() -> LocalCacheDatabaseVacuumResponse:
     if not _DATABASE_FILE.exists():
@@ -1114,7 +865,6 @@ def _vacuum_database_response() -> LocalCacheDatabaseVacuumResponse:
         checkpoint_log=checkpoint_log,
         checkpointed=checkpointed,
     )
-
 
 def _cleanup_local_cache_response(request: LocalCacheCleanupRequest) -> LocalCacheCleanupResponse:
     if request.target == "images":
@@ -1171,7 +921,6 @@ def _cleanup_local_cache_response(request: LocalCacheCleanupRequest) -> LocalCac
         reclaimed_bytes=maintenance_result.reclaimed_bytes if maintenance_result is not None else 0,
     )
 
-
 def _remove_directory_contents(directory: Path) -> tuple[int, int]:
     if not directory.exists() or not directory.is_dir():
         return 0, 0
@@ -1195,7 +944,6 @@ def _remove_directory_contents(directory: Path) -> tuple[int, int]:
                 pass
     return removed_files, removed_bytes
 
-
 def _remove_direct_files(directory: Path) -> tuple[int, int]:
     if not directory.exists() or not directory.is_dir():
         return 0, 0
@@ -1214,7 +962,6 @@ def _remove_direct_files(directory: Path) -> tuple[int, int]:
             logger.warning(f"删除缓存文件失败: {file_path}, error={exc}")
     return removed_files, removed_bytes
 
-
 def _remove_empty_parent_dirs(start_dir: Path, stop_dir: Path) -> None:
     stop_path = stop_dir.resolve()
     current_dir = start_dir.resolve()
@@ -1228,7 +975,6 @@ def _remove_empty_parent_dirs(start_dir: Path, stop_dir: Path) -> None:
         except ValueError:
             break
         current_dir = current_dir.parent
-
 
 def _delete_emoji_thumbnail_files(image_hashes: set[str]) -> tuple[int, int]:
     removed_files = 0
@@ -1246,7 +992,6 @@ def _delete_emoji_thumbnail_files(image_hashes: set[str]) -> tuple[int, int]:
             logger.warning(f"删除表情包缩略图缓存失败: {thumbnail_path}, error={exc}")
     return removed_files, removed_bytes
 
-
 def _remove_emoji_hashes_from_memory(image_hashes: set[str]) -> None:
     if not image_hashes:
         return
@@ -1258,7 +1003,6 @@ def _remove_emoji_hashes_from_memory(image_hashes: set[str]) -> None:
         emoji_manager._emoji_num = len(emoji_manager.emojis)
     except Exception as exc:
         logger.warning(f"同步移除内存表情包失败: {exc}")
-
 
 def _delete_image_records_for_file(image_type: ImageType, file_path: Path) -> tuple[int, set[str]]:
     removed_records = 0
@@ -1278,7 +1022,6 @@ def _delete_image_records_for_file(image_type: ImageType, file_path: Path) -> tu
     if image_type == ImageType.EMOJI:
         _remove_emoji_hashes_from_memory(removed_hashes)
     return removed_records, removed_hashes
-
 
 def _delete_cache_image_file(target: CacheImageTarget, relative_path: str) -> tuple[int, int, int]:
     root_dir, image_type, label = _get_cache_image_target(target)
@@ -1300,7 +1043,6 @@ def _delete_cache_image_file(target: CacheImageTarget, relative_path: str) -> tu
     _remove_empty_parent_dirs(file_path.parent, root_dir)
     return 1 + thumbnail_files, file_size + thumbnail_bytes, removed_records
 
-
 def _delete_cache_image_items(target: CacheImageTarget, items: list[LocalCacheImageItem]) -> tuple[int, int, int]:
     removed_files = 0
     removed_bytes = 0
@@ -1319,7 +1061,6 @@ def _delete_cache_image_items(target: CacheImageTarget, items: list[LocalCacheIm
         removed_records += item_removed_records
     return removed_files, removed_bytes, removed_records
 
-
 def _delete_image_records(image_type: ImageType) -> int:
     removed_records = 0
     removed_hashes: set[str] = set()
@@ -1333,7 +1074,6 @@ def _delete_image_records(image_type: ImageType) -> int:
     if image_type == ImageType.EMOJI:
         _remove_emoji_hashes_from_memory(removed_hashes)
     return removed_records
-
 
 def _delete_database_records(
     table_names: list[str],
@@ -1369,7 +1109,6 @@ def _delete_database_records(
             removed_records += int(result.rowcount or 0)
     return removed_records
 
-
 async def _stop_runtime_before_restart() -> None:
     """WebUI 重启前主动停止插件运行时，避免遗留 runner 子进程。"""
     try:
@@ -1394,7 +1133,6 @@ async def _stop_runtime_before_restart() -> None:
     except Exception as exc:
         logger.warning(f"WebUI 重启前停止异步任务失败: {exc}")
 
-
 async def _delayed_restart() -> None:
     await asyncio.sleep(0.5)  # 延迟 0.5 秒，确保响应已发送
     logger.info("WebUI 请求重启，正在停止插件运行时")
@@ -1407,7 +1145,6 @@ async def _delayed_restart() -> None:
     finally:
         logger.info(f"WebUI 请求重启，退出代码 {_RESTART_EXIT_CODE}")
         os._exit(_RESTART_EXIT_CODE)
-
 
 @router.post("/restart", response_model=RestartResponse)
 async def restart_maibot():
@@ -1432,7 +1169,6 @@ async def restart_maibot():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"重启失败: {str(e)}") from e
 
-
 @router.get("/status", response_model=StatusResponse)
 async def get_maibot_status():
     """
@@ -1452,7 +1188,6 @@ async def get_maibot_status():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取状态失败: {str(e)}") from e
 
-
 @router.get("/local-cache", response_model=LocalCacheStatsResponse)
 async def get_local_cache_stats():
     """获取本地存储概览，数据库表详情会按需单独加载以加快首屏速度。"""
@@ -1466,7 +1201,6 @@ async def get_local_cache_stats():
     except Exception as e:
         logger.exception(f"获取本地缓存统计失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取本地缓存统计失败: {str(e)}") from e
-
 
 @router.get("/local-cache/database", response_model=DatabaseStorageStats)
 async def get_local_cache_database_stats() -> DatabaseStorageStats:
@@ -1482,7 +1216,6 @@ async def get_local_cache_database_stats() -> DatabaseStorageStats:
         logger.exception(f"获取数据库存储统计失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取数据库存储统计失败: {str(e)}") from e
 
-
 @router.post("/local-cache/database/vacuum", response_model=LocalCacheDatabaseVacuumResponse)
 async def vacuum_local_cache_database() -> LocalCacheDatabaseVacuumResponse:
     """执行 SQLite VACUUM，释放删除记录后留下的空闲页。"""
@@ -1495,7 +1228,6 @@ async def vacuum_local_cache_database() -> LocalCacheDatabaseVacuumResponse:
     except Exception as e:
         logger.exception(f"数据库 VACUUM 失败: {e}")
         raise HTTPException(status_code=500, detail=f"数据库 VACUUM 失败: {str(e)}") from e
-
 
 @router.get("/local-cache/data-entries", response_model=LocalCacheDataEntriesResponse)
 async def list_local_cache_data_entries(
@@ -1510,7 +1242,6 @@ async def list_local_cache_data_entries(
         logger.exception(f"获取 data 目录条目失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取 data 目录条目失败: {str(e)}") from e
 
-
 @router.delete("/local-cache/data-entries", response_model=LocalCacheCleanupResponse)
 async def delete_local_cache_data_entry(request: LocalCacheDataEntryDeleteRequest) -> LocalCacheCleanupResponse:
     """删除 data 目录中的非受保护文件或文件夹。"""
@@ -1523,7 +1254,6 @@ async def delete_local_cache_data_entry(request: LocalCacheDataEntryDeleteReques
     except Exception as e:
         logger.exception(f"删除 data 目录条目失败: {e}")
         raise HTTPException(status_code=500, detail=f"删除 data 目录条目失败: {str(e)}") from e
-
 
 @router.get("/local-cache/images", response_model=LocalCacheImageListResponse)
 async def list_local_cache_images(
@@ -1549,7 +1279,6 @@ async def list_local_cache_images(
         logger.exception(f"获取本地缓存图片列表失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取本地缓存图片列表失败: {str(e)}") from e
 
-
 @router.get("/local-cache/images/preview", response_model=None)
 async def preview_local_cache_image(
     target: Annotated[CacheImageTarget, Query(description="缓存类型：images 或 emoji")],
@@ -1560,7 +1289,6 @@ async def preview_local_cache_image(
     media_type = mimetypes.guess_type(str(file_path))[0] or "application/octet-stream"
     return FileResponse(file_path, media_type=media_type, filename=file_path.name)
 
-
 @router.get("/maisaka-monitor/media/{media_kind}/{media_hash}", response_model=None)
 async def get_maisaka_monitor_media(media_kind: MonitorMediaKind, media_hash: str) -> FileResponse:
     """返回 MaiSaka 观察面板消息中的原始图片或表情文件。"""
@@ -1568,7 +1296,6 @@ async def get_maisaka_monitor_media(media_kind: MonitorMediaKind, media_hash: st
     file_path = _resolve_monitor_media_file(media_kind, media_hash)
     media_type = mimetypes.guess_type(str(file_path))[0] or "application/octet-stream"
     return FileResponse(file_path, media_type=media_type, filename=file_path.name)
-
 
 @router.delete("/local-cache/images", response_model=LocalCacheCleanupResponse)
 async def delete_local_cache_image(request: LocalCacheImageDeleteRequest) -> LocalCacheCleanupResponse:
@@ -1583,7 +1310,6 @@ async def delete_local_cache_image(request: LocalCacheImageDeleteRequest) -> Loc
         logger.exception(f"删除本地缓存图片失败: {e}")
         raise HTTPException(status_code=500, detail=f"删除本地缓存图片失败: {str(e)}") from e
 
-
 @router.delete("/local-cache/images/bulk", response_model=LocalCacheCleanupResponse)
 async def delete_local_cache_images_bulk(request: LocalCacheImageBulkDeleteRequest) -> LocalCacheCleanupResponse:
     """按日期范围批量删除 images 或 emoji 缓存。"""
@@ -1597,7 +1323,6 @@ async def delete_local_cache_images_bulk(request: LocalCacheImageBulkDeleteReque
         logger.exception(f"批量删除本地缓存图片失败: {e}")
         raise HTTPException(status_code=500, detail=f"批量删除本地缓存图片失败: {str(e)}") from e
 
-
 @router.get("/local-cache/log-directories", response_model=LocalCacheLogDirectoryListResponse)
 async def list_local_cache_log_directories() -> LocalCacheLogDirectoryListResponse:
     """列出 logs 目录下可分别清理的日志目录。"""
@@ -1606,7 +1331,6 @@ async def list_local_cache_log_directories() -> LocalCacheLogDirectoryListRespon
     except Exception as e:
         logger.exception(f"获取日志目录列表失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取日志目录列表失败: {str(e)}") from e
-
 
 @router.delete("/local-cache/log-directories", response_model=LocalCacheCleanupResponse)
 async def delete_local_cache_log_directory(request: LocalCacheLogDirectoryDeleteRequest) -> LocalCacheCleanupResponse:
@@ -1621,7 +1345,6 @@ async def delete_local_cache_log_directory(request: LocalCacheLogDirectoryDelete
         logger.exception(f"清理日志目录失败: {e}")
         raise HTTPException(status_code=500, detail=f"清理日志目录失败: {str(e)}") from e
 
-
 @router.post("/local-cache/cleanup", response_model=LocalCacheCleanupResponse)
 async def cleanup_local_cache(request: LocalCacheCleanupRequest):
     """清理指定的本地缓存区域。"""
@@ -1635,9 +1358,7 @@ async def cleanup_local_cache(request: LocalCacheCleanupRequest):
         logger.exception(f"清理本地缓存失败: {e}")
         raise HTTPException(status_code=500, detail=f"清理本地缓存失败: {str(e)}") from e
 
-
 # 可选：添加更多系统控制功能
-
 
 @router.post("/reload-config")
 async def reload_config():

@@ -3,7 +3,6 @@
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
 
 from sqlmodel import select
 
@@ -14,19 +13,77 @@ from src.maisaka.agent.config import AgentConfig
 from src.maisaka.agent.emotion import EMOTION_LABELS_ZH, EmotionManager
 from src.maisaka.agent.registry import AgentConfigRegistry
 
-
 from src.core.adapters.routing_adapter import ChatManagerRoutingAdapter
 from src.maisaka.relationship.level import RelationshipLevel
 from src.webui.dependencies import require_auth
+from src.webui.schemas.agent import (
+    ActiveAgentItem,
+    ActiveAgentsResponse,
+    AgentConfigResponse,
+    AgentDetailResponse,
+    AgentListResponse,
+    AgentProfileResponse,
+    AutonomyLogItem,
+    AutonomyLogResponse,
+    BatchBindError,
+    BatchBindItem,
+    BatchBindRequest,
+    BatchBindResponse,
+    BatchEmotionItem,
+    BatchEmotionResponse,
+    BatchLatestSubAgentItem,
+    BatchLatestSubAgentResponse,
+    BatchRelationshipResponse,
+    BatchSessionCountResponse,
+    BehaviorIntentItem,
+    BehaviorIntentsResponse,
+    BindGroupRequest,
+    BindSessionRequest,
+    CohabitantEntryItem,
+    CohabitantInfo,
+    EmotionBaselineResponse,
+    EmotionBehaviorRuleResponse,
+    EmotionBehaviorRulesResponse,
+    EmotionStateResponse,
+    GroupBindingResponse,
+    GroupBindingsListResponse,
+    InteractionConfigResponse,
+    InteractionEventResponse,
+    InterjectionEventItem,
+    InterjectionEventsResponse,
+    InternalRelationshipResponse,
+    ManualTriggerRequest,
+    ManualTriggerResponse,
+    MigrationAdvanceResponse,
+    MigrationStateResponse,
+    MonologueEventResponse,
+    PrimaryAgentResponse,
+    RelationshipItem,
+    RelationshipSummaryResponse,
+    ReloadResponse,
+    SessionAgentInfo,
+    SessionBindingResponse,
+    SessionVitalityResponse,
+    SessionsByAgentResponse,
+    SpeakerChangeItem,
+    SpeakerChangesResponse,
+    StateAwarenessResponse,
+    SubAgentListResponse,
+    SubAgentRecordResponse,
+    SubAgentStatsResponse,
+    SwitchSpeakerRequest,
+    SwitchSpeakerResponse,
+    TriggerInterjectionRequest,
+    TriggerInterjectionResponse,
+    VitalityAgentItem,
+)
 
 logger = get_logger("webui.agent")
 
 router = APIRouter(prefix="/agent", tags=["Agent"], dependencies=[Depends(require_auth)])
 
-
 def _get_registry() -> AgentConfigRegistry:
     return AgentConfigRegistry.get_instance()
-
 
 def _get_agent_router() -> ChatManagerRoutingAdapter:
     """获取 ChatManager 持有的智能体路由器单例（通过适配器层访问）"""
@@ -34,144 +91,6 @@ def _get_agent_router() -> ChatManagerRoutingAdapter:
     if adapter._ensure_router() is None:
         raise HTTPException(status_code=503, detail="ChatManager 尚未初始化，智能体路由器不可用")
     return adapter
-
-
-class EmotionBaselineResponse(BaseModel):
-    emotions: Dict[str, int] = Field(default_factory=dict, description="情绪基线值")
-    labels: Dict[str, str] = Field(default_factory=dict, description="情绪中文标签")
-
-
-class InternalRelationshipResponse(BaseModel):
-    target_agent_id: str
-    relationship_type: str
-    attitude: str
-    interaction_style: str = ""
-    mention_tendency: float = 0.3
-    anti_mechanization: str = ""
-
-
-class AgentConfigResponse(BaseModel):
-    agent_id: str
-    display_name: str
-    personality: str = ""
-    reply_style: str = ""
-    is_default: bool = False
-    color: str = "#9b59b6"
-    emotion_baseline: Dict[str, int] = Field(default_factory=dict)
-    emotion_decay_rate: float = 0.12
-    relationship_growth_rate: float = 1.0
-    talk_value_modifier: float = 1.0
-    idle_backoff_modifier: float = 1.0
-    memory_focus_areas: List[str] = Field(default_factory=list)
-    internal_relationships: List[InternalRelationshipResponse] = Field(default_factory=list)
-    anti_mechanization_rules: List[str] = Field(default_factory=list)
-
-
-class AgentListResponse(BaseModel):
-    success: bool
-    total: int
-    data: List[AgentConfigResponse]
-
-
-class AgentDetailResponse(BaseModel):
-    success: bool
-    data: AgentConfigResponse
-
-
-class SessionBindingResponse(BaseModel):
-    success: bool
-    session_id: str
-    agent_id: Optional[str] = None
-    display_name: Optional[str] = None
-
-
-class BindSessionRequest(BaseModel):
-    agent_id: str = Field(..., description="要绑定的智能体ID")
-
-
-class BatchBindItem(BaseModel):
-    session_id: str = Field(..., description="会话ID")
-    agent_id: str = Field(..., description="要绑定的智能体ID")
-
-
-class BatchBindRequest(BaseModel):
-    bindings: List[BatchBindItem] = Field(..., description="批量绑定列表")
-
-
-class BatchBindError(BaseModel):
-    session_id: str
-    error: str
-
-
-class BatchBindResponse(BaseModel):
-    success: bool
-    total: int
-    succeeded: int
-    failed: int
-    errors: List[BatchBindError] = Field(default_factory=list)
-
-
-class BindGroupRequest(BaseModel):
-    group_id: str = Field(..., description="群ID")
-    agent_id: str = Field(..., description="要绑定的智能体ID")
-
-
-class GroupBindingResponse(BaseModel):
-    success: bool
-    group_id: str
-    agent_id: str
-    display_name: Optional[str] = None
-
-
-class GroupBindingsListResponse(BaseModel):
-    success: bool
-    bindings: Dict[str, str]
-
-
-class CohabitantInfo(BaseModel):
-    agent_id: str
-    display_name: str
-    is_primary: bool = False
-    status: str = "bound_inactive"
-
-
-class SessionAgentInfo(BaseModel):
-    session_id: str
-    display_name: str
-    agent_id: str
-    agent_display_name: str
-    status: str = "bound_inactive"
-    is_primary: bool = False
-    last_spoke_at: Optional[str] = None
-    cohabitants: List[CohabitantInfo] = Field(default_factory=list)
-
-
-class SessionsByAgentResponse(BaseModel):
-    success: bool
-    agent_id: str
-    sessions: List[SessionAgentInfo]
-
-
-class ReloadResponse(BaseModel):
-    success: bool
-    message: str
-    total: int
-
-
-class EmotionStateResponse(BaseModel):
-    success: bool
-    agent_id: str
-    emotions: Dict[str, float] = Field(default_factory=dict)
-    dominant_emotion: str = "calm"
-    dominant_emotion_label: str = "平静"
-    emotion_labels: Dict[str, str] = Field(default_factory=dict)
-
-
-class RelationshipSummaryResponse(BaseModel):
-    success: bool
-    agent_id: str
-    relationships: List[Dict[str, Any]] = Field(default_factory=list)
-
 
 def _config_to_response(config: AgentConfig) -> AgentConfigResponse:
     return AgentConfigResponse(
@@ -201,7 +120,6 @@ def _config_to_response(config: AgentConfig) -> AgentConfigResponse:
         anti_mechanization_rules=config.anti_mechanization_rules,
     )
 
-
 @router.get("/list", response_model=AgentListResponse)
 async def list_agents():
     """获取所有智能体配置列表"""
@@ -217,7 +135,6 @@ async def list_agents():
         logger.error(f"获取智能体列表失败: {e}")
         raise HTTPException(status_code=500, detail="获取智能体列表失败") from e
 
-
 @router.get("/{agent_id}", response_model=AgentDetailResponse)
 async def get_agent_detail(agent_id: str):
     """获取指定智能体详细配置"""
@@ -232,7 +149,6 @@ async def get_agent_detail(agent_id: str):
     except Exception as e:
         logger.error(f"获取智能体详情失败: {e}")
         raise HTTPException(status_code=500, detail="获取智能体详情失败") from e
-
 
 @router.get("/emotion/{agent_id}", response_model=EmotionStateResponse)
 async def get_agent_emotion(agent_id: str):
@@ -262,7 +178,6 @@ async def get_agent_emotion(agent_id: str):
     except Exception as e:
         logger.error(f"获取智能体情绪状态失败: {e}")
         raise HTTPException(status_code=500, detail="获取智能体情绪状态失败") from e
-
 
 @router.get("/relationship/{agent_id}", response_model=RelationshipSummaryResponse)
 async def get_agent_relationships(agent_id: str):
@@ -296,7 +211,6 @@ async def get_agent_relationships(agent_id: str):
         logger.error(f"获取智能体关系概览失败: {e}")
         raise HTTPException(status_code=500, detail="获取智能体关系概览失败") from e
 
-
 @router.get("/binding/session/{session_id}", response_model=SessionBindingResponse)
 async def get_session_binding(session_id: str):
     """获取会话绑定的智能体"""
@@ -317,7 +231,6 @@ async def get_session_binding(session_id: str):
     except Exception as e:
         logger.error(f"获取会话绑定失败: {e}")
         raise HTTPException(status_code=500, detail="获取会话绑定失败") from e
-
 
 @router.put("/binding/session/{session_id}", response_model=SessionBindingResponse)
 async def bind_session_agent(session_id: str, request: BindSessionRequest):
@@ -378,7 +291,6 @@ async def bind_session_agent(session_id: str, request: BindSessionRequest):
         logger.error(f"绑定会话智能体失败: {e}")
         raise HTTPException(status_code=500, detail="绑定会话智能体失败") from e
 
-
 @router.delete("/binding/session/{session_id}", response_model=SessionBindingResponse)
 async def unbind_session_agent(session_id: str):
     """解除会话的所有智能体绑定（四清：内存+数据库+Orchestrator退场+Activity关闭）"""
@@ -419,7 +331,6 @@ async def unbind_session_agent(session_id: str):
         logger.error(f"解除会话绑定失败: {e}")
         raise HTTPException(status_code=500, detail="解除会话绑定失败") from e
 
-
 @router.delete("/binding/session/{session_id}/{agent_id}", response_model=SessionBindingResponse)
 async def unbind_session_specific_agent(session_id: str, agent_id: str):
     """解除会话中指定智能体的绑定（多智能体场景下精确解绑）"""
@@ -458,7 +369,6 @@ async def unbind_session_specific_agent(session_id: str, agent_id: str):
     except Exception as e:
         logger.error(f"解除指定智能体绑定失败: {e}")
         raise HTTPException(status_code=500, detail="解除指定智能体绑定失败") from e
-
 
 @router.put("/binding/batch", response_model=BatchBindResponse)
 async def batch_bind_sessions(request: BatchBindRequest):
@@ -521,7 +431,6 @@ async def batch_bind_sessions(request: BatchBindRequest):
         errors=errors,
     )
 
-
 @router.get("/binding/group", response_model=GroupBindingsListResponse)
 async def list_group_bindings():
     """列出所有群-智能体绑定"""
@@ -534,7 +443,6 @@ async def list_group_bindings():
     except Exception as e:
         logger.error(f"获取群绑定列表失败: {e}")
         raise HTTPException(status_code=500, detail="获取群绑定列表失败") from e
-
 
 @router.put("/binding/group", response_model=GroupBindingResponse)
 async def bind_group_agent(request: BindGroupRequest):
@@ -560,7 +468,6 @@ async def bind_group_agent(request: BindGroupRequest):
         logger.error(f"绑定群智能体失败: {e}")
         raise HTTPException(status_code=500, detail="绑定群智能体失败") from e
 
-
 @router.delete("/binding/group/{group_id}", response_model=GroupBindingResponse)
 async def unbind_group_agent(group_id: str):
     """解除群的智能体绑定"""
@@ -571,7 +478,6 @@ async def unbind_group_agent(group_id: str):
     except Exception as e:
         logger.error(f"解除群绑定失败: {e}")
         raise HTTPException(status_code=500, detail="解除群绑定失败") from e
-
 
 @router.get("/sessions/{agent_id}", response_model=SessionsByAgentResponse)
 async def get_sessions_by_agent(agent_id: str):
@@ -640,7 +546,6 @@ async def get_sessions_by_agent(agent_id: str):
         logger.error(f"获取智能体会话列表失败: {e}")
         raise HTTPException(status_code=500, detail="获取智能体会话列表失败") from e
 
-
 @router.post("/reload", response_model=ReloadResponse)
 async def reload_agents():
     """重新加载所有智能体配置"""
@@ -657,45 +562,7 @@ async def reload_agents():
         logger.error(f"重新加载智能体配置失败: {e}")
         raise HTTPException(status_code=500, detail="重新加载智能体配置失败") from e
 
-
 # ========== 子智能体监控 API ==========
-
-
-class SubAgentRecordResponse(BaseModel):
-    id: int
-    subagent_id: str
-    agent_id: str
-    subagent_type: str
-    session_id: Optional[str] = None
-    lifecycle: str
-    status: str
-    trigger_type: str
-    trigger_reason: str
-    fork_context_captured: bool = False
-    input_tokens: int = 0
-    output_tokens: int = 0
-    cache_hit_tokens: int = 0
-    started_at: Optional[str] = None
-    completed_at: Optional[str] = None
-    error_message: str = ""
-    result_summary: str = ""
-
-
-class SubAgentListResponse(BaseModel):
-    success: bool
-    total: int
-    data: List[SubAgentRecordResponse]
-
-
-class SubAgentStatsResponse(BaseModel):
-    success: bool
-    total_executions: int
-    by_type: Dict[str, int] = Field(default_factory=dict)
-    by_status: Dict[str, int] = Field(default_factory=dict)
-    total_input_tokens: int = 0
-    total_output_tokens: int = 0
-    total_cache_hit_tokens: int = 0
-
 
 @router.get("/subagent/records", response_model=SubAgentListResponse)
 async def list_subagent_records(
@@ -743,7 +610,6 @@ async def list_subagent_records(
         logger.error(f"获取子智能体记录失败: {e}")
         raise HTTPException(status_code=500, detail="获取子智能体记录失败") from e
 
-
 @router.get("/subagent/stats", response_model=SubAgentStatsResponse)
 async def get_subagent_stats():
     """获取子智能体执行统计"""
@@ -774,22 +640,7 @@ async def get_subagent_stats():
         logger.error(f"获取子智能体统计失败: {e}")
         raise HTTPException(status_code=500, detail="获取子智能体统计失败") from e
 
-
 # ========== 情绪-行为映射 API ==========
-
-
-class EmotionBehaviorRuleResponse(BaseModel):
-    emotion_type: str
-    intensity_threshold: int
-    behavior_tendency: str
-    reply_style_modifier: str
-
-
-class EmotionBehaviorRulesResponse(BaseModel):
-    success: bool
-    agent_id: str
-    rules: List[EmotionBehaviorRuleResponse] = Field(default_factory=list)
-
 
 @router.get("/emotion-behavior-rules/{agent_id}", response_model=EmotionBehaviorRulesResponse)
 async def get_emotion_behavior_rules(agent_id: str):
@@ -815,54 +666,7 @@ async def get_emotion_behavior_rules(agent_id: str):
         logger.error(f"获取情绪-行为映射规则失败: {e}")
         raise HTTPException(status_code=500, detail="获取情绪-行为映射规则失败") from e
 
-
 # ========== 批量查询 API ==========
-
-
-class BatchEmotionItem(BaseModel):
-    emotions: Dict[str, float] = Field(default_factory=dict)
-    dominant_emotion: str = "calm"
-    dominant_emotion_label: str = "平静"
-    emotion_labels: Dict[str, str] = Field(default_factory=dict)
-
-
-class BatchEmotionResponse(BaseModel):
-    success: bool
-    data: Dict[str, BatchEmotionItem] = Field(default_factory=dict)
-
-
-class RelationshipItem(BaseModel):
-    user_id: str
-    level: int
-    level_name: str
-    score: float
-    total_interactions: int
-
-
-class BatchRelationshipResponse(BaseModel):
-    success: bool
-    data: Dict[str, List[RelationshipItem]] = Field(default_factory=dict)
-
-
-class BatchSessionCountResponse(BaseModel):
-    success: bool
-    data: Dict[str, int] = Field(default_factory=dict)
-
-
-class BatchLatestSubAgentItem(BaseModel):
-    id: int
-    subagent_id: str
-    agent_id: str
-    subagent_type: str
-    status: str
-    completed_at: Optional[str] = None
-    result_summary: str = ""
-
-
-class BatchLatestSubAgentResponse(BaseModel):
-    success: bool
-    data: Dict[str, Optional[BatchLatestSubAgentItem]] = Field(default_factory=dict)
-
 
 @router.get("/batch/emotion", response_model=BatchEmotionResponse)
 async def batch_get_emotions():
@@ -892,7 +696,6 @@ async def batch_get_emotions():
     except Exception as e:
         logger.error(f"批量获取情绪状态失败: {e}")
         raise HTTPException(status_code=500, detail="批量获取情绪状态失败") from e
-
 
 @router.get("/batch/relationships", response_model=BatchRelationshipResponse)
 async def batch_get_relationships():
@@ -926,7 +729,6 @@ async def batch_get_relationships():
         logger.error(f"批量获取关系概览失败: {e}")
         raise HTTPException(status_code=500, detail="批量获取关系概览失败") from e
 
-
 @router.get("/batch/sessions", response_model=BatchSessionCountResponse)
 async def batch_get_session_counts():
     """批量获取各智能体的已绑定会话数量"""
@@ -949,7 +751,6 @@ async def batch_get_session_counts():
     except Exception as e:
         logger.error(f"批量获取会话数量失败: {e}")
         raise HTTPException(status_code=500, detail="批量获取会话数量失败") from e
-
 
 @router.get("/batch/subagent-latest", response_model=BatchLatestSubAgentResponse)
 async def batch_get_latest_subagent_records():
@@ -987,25 +788,7 @@ async def batch_get_latest_subagent_records():
         logger.error(f"批量获取子智能体记录失败: {e}")
         raise HTTPException(status_code=500, detail="批量获取子智能体记录失败") from e
 
-
 # ========== 插件迁移协调 API ==========
-
-
-class MigrationStateResponse(BaseModel):
-    plugin_id: str
-    plugin_name: str
-    current_phase: str
-    previous_phase: str
-    last_updated: float = 0.0
-    notes: str = ""
-
-
-class MigrationAdvanceResponse(BaseModel):
-    success: bool
-    plugin_id: str
-    current_phase: str
-    previous_phase: str
-
 
 @router.get("/migration/states", response_model=List[MigrationStateResponse])
 async def get_migration_states():
@@ -1026,7 +809,6 @@ async def get_migration_states():
         for s in states
     ]
 
-
 @router.post("/migration/{plugin_id}/advance", response_model=MigrationAdvanceResponse)
 async def advance_migration(plugin_id: str):
     """推进指定插件的迁移阶段。"""
@@ -1044,19 +826,7 @@ async def advance_migration(plugin_id: str):
         previous_phase=state.previous_phase.value,
     )
 
-
 # ---- 内心独白 API ----
-
-
-class MonologueEventResponse(BaseModel):
-    monologue_id: str
-    agent_id: str
-    emotion_snapshot: str
-    content: str
-    self_emotion_effect: str
-    memory_references: str
-    created_at: Optional[str] = None
-
 
 @router.get("/monologue/{agent_id}", response_model=List[MonologueEventResponse])
 async def get_monologue_events(agent_id: str, limit: int = 10):
@@ -1085,19 +855,7 @@ async def get_monologue_events(agent_id: str, limit: int = 10):
             for r in rows
         ]
 
-
 # ---- 智能体画像 API ----
-
-
-class AgentProfileResponse(BaseModel):
-    observer_agent_id: str
-    target_agent_id: str
-    summary: str
-    traits: List[str] = []
-    interaction_count: int = 0
-    emotion_tendency: str = ""
-    refresh_status: str = "pending"
-
 
 @router.get("/profile/{observer_id}/{target_id}", response_model=AgentProfileResponse)
 async def get_agent_profile(observer_id: str, target_id: str):
@@ -1122,25 +880,7 @@ async def get_agent_profile(observer_id: str, target_id: str):
         refresh_status=profile.refresh_status,
     )
 
-
 # ── 智能体间交互事件 API ──
-
-
-class InteractionEventResponse(BaseModel):
-    event_id: str
-    initiator_agent_id: str
-    target_agent_id: str
-    interaction_type: str
-    trigger_reason: str
-    content_summary: str
-    emotion_effects: str
-    relationship_effect: float
-    memory_write_status: str
-    echo_depth: int
-    echo_parent_event_id: str
-    metadata: str
-    created_at: Optional[str] = None
-
 
 @router.get("/interactions/recent", response_model=List[InteractionEventResponse])
 async def get_recent_interactions(limit: int = 20):
@@ -1167,8 +907,6 @@ async def get_recent_interactions(limit: int = 20):
         )
         for e in events
     ]
-
-
 
 @router.get("/interactions/history", response_model=List[InteractionEventResponse])
 async def query_interaction_history(
@@ -1216,36 +954,7 @@ async def query_interaction_history(
         for e in events
     ]
 
-
 # ---- 交互触发管理 API ----
-
-
-class ManualTriggerRequest(BaseModel):
-    initiator_id: str
-    target_id: str
-    interaction_type: str
-    reason: str = ""
-
-
-class ManualTriggerResponse(BaseModel):
-    success: bool
-    event_id: str = ""
-    error: str = ""
-
-
-class InteractionConfigResponse(BaseModel):
-    enabled: bool = True
-    cooldown_minutes: int = 30
-    max_interactions_per_hour: int = 2
-    max_interactions_per_day: int = 8
-    echo_enabled: bool = True
-    echo_max_depth: int = 3
-    echo_decay_ratio: float = 0.5
-    monologue_enabled: bool = True
-    monologue_min_interval_minutes: int = 15
-    monologue_idle_threshold_minutes: int = 30
-    monologue_emotion_intensity_threshold: int = 40
-
 
 @router.post("/interactions/trigger", response_model=ManualTriggerResponse)
 async def manual_trigger_interaction(req: ManualTriggerRequest):
@@ -1272,7 +981,6 @@ async def manual_trigger_interaction(req: ManualTriggerRequest):
         error=result.error,
     )
 
-
 @router.get("/interactions/config", response_model=InteractionConfigResponse)
 async def get_interaction_config():
     """获取交互触发配置。"""
@@ -1292,7 +1000,6 @@ async def get_interaction_config():
         monologue_idle_threshold_minutes=cfg.monologue_idle_threshold_minutes,
         monologue_emotion_intensity_threshold=cfg.monologue_emotion_intensity_threshold,
     )
-
 
 @router.get("/interactions/hotspots")
 async def get_interaction_hotspots():
@@ -1315,7 +1022,6 @@ async def get_interaction_hotspots():
         if count >= 5
     ]
     return {"hotspots": hotspots}
-
 
 @router.get("/interactions/{event_id}", response_model=InteractionEventResponse)
 async def get_interaction_detail(event_id: str):
@@ -1342,106 +1048,7 @@ async def get_interaction_detail(event_id: str):
         created_at=event.created_at.isoformat() if event.created_at else None,
     )
 
-
 # ========== 智能体自主性 API ==========
-
-
-class ActiveAgentItem(BaseModel):
-    agent_id: str
-    is_primary: bool = False
-    activation_reason: str = ""
-    activated_at: Optional[str] = None
-    last_spoke_at: Optional[str] = None
-
-
-class ActiveAgentsResponse(BaseModel):
-    success: bool
-    session_id: str
-    data: List[ActiveAgentItem] = Field(default_factory=list)
-
-
-class PrimaryAgentResponse(BaseModel):
-    success: bool
-    session_id: str
-    agent_id: Optional[str] = None
-    activation_reason: str = ""
-    activated_at: Optional[str] = None
-
-
-class SwitchSpeakerRequest(BaseModel):
-    session_id: str = Field(..., description="会话ID")
-    target_agent_id: str = Field(..., description="目标智能体ID")
-    reason: str = "manual_switch"
-
-
-class SwitchSpeakerResponse(BaseModel):
-    success: bool
-    session_id: str
-    from_agent_id: str = ""
-    to_agent_id: str = ""
-
-
-class TriggerInterjectionRequest(BaseModel):
-    session_id: str = Field(..., description="会话ID")
-    agent_id: str = Field(..., description="插话智能体ID")
-    reason: str = "manual_trigger"
-
-
-class TriggerInterjectionResponse(BaseModel):
-    success: bool
-    session_id: str
-    agent_id: str = ""
-    error: str = ""
-
-
-class BehaviorIntentItem(BaseModel):
-    intent_id: str
-    agent_id: str
-    intent_type: str
-    intent_strength: float
-    intent_source: str
-    source_description: str
-    status: str
-    created_at: Optional[str] = None
-
-
-class BehaviorIntentsResponse(BaseModel):
-    success: bool
-    session_id: str
-    data: List[BehaviorIntentItem] = Field(default_factory=list)
-
-
-class InterjectionEventItem(BaseModel):
-    event_id: str
-    agent_id: str
-    primary_agent_id: str
-    interjection_type: str
-    trigger_reason: str
-    intent_strength: float
-    content_summary: str
-    created_at: Optional[str] = None
-
-
-class InterjectionEventsResponse(BaseModel):
-    success: bool
-    session_id: str
-    data: List[InterjectionEventItem] = Field(default_factory=list)
-
-
-class SpeakerChangeItem(BaseModel):
-    record_id: str
-    from_agent_id: str
-    to_agent_id: str
-    change_type: str
-    change_reason: str
-    created_at: Optional[str] = None
-
-
-class SpeakerChangesResponse(BaseModel):
-    success: bool
-    session_id: str
-    data: List[SpeakerChangeItem] = Field(default_factory=list)
-
 
 @router.get("/autonomy/active/{session_id}", response_model=ActiveAgentsResponse)
 async def get_active_agents(session_id: str):
@@ -1465,7 +1072,6 @@ async def get_active_agents(session_id: str):
         ],
     )
 
-
 @router.get("/autonomy/primary/{session_id}", response_model=PrimaryAgentResponse)
 async def get_primary_agent(session_id: str):
     """获取会话的主发言智能体。"""
@@ -1480,7 +1086,6 @@ async def get_primary_agent(session_id: str):
         activation_reason=primary.activation_reason if primary else "",
         activated_at=primary.activated_at.isoformat() if primary and primary.activated_at else None,
     )
-
 
 @router.post("/autonomy/switch-speaker", response_model=SwitchSpeakerResponse)
 async def switch_speaker(req: SwitchSpeakerRequest):
@@ -1504,7 +1109,6 @@ async def switch_speaker(req: SwitchSpeakerRequest):
         from_agent_id=from_agent_id,
         to_agent_id=req.target_agent_id if success else "",
     )
-
 
 @router.post("/autonomy/trigger-interjection", response_model=TriggerInterjectionResponse)
 async def trigger_interjection(req: TriggerInterjectionRequest):
@@ -1532,7 +1136,6 @@ async def trigger_interjection(req: TriggerInterjectionRequest):
         session_id=req.session_id,
         agent_id=req.agent_id,
     )
-
 
 @router.get("/autonomy/intents/{session_id}", response_model=BehaviorIntentsResponse)
 async def get_behavior_intents(session_id: str, limit: int = 50):
@@ -1565,7 +1168,6 @@ async def get_behavior_intents(session_id: str, limit: int = 50):
             ],
         )
 
-
 @router.get("/autonomy/interjection-events/{session_id}", response_model=InterjectionEventsResponse)
 async def get_interjection_events(session_id: str, limit: int = 50):
     """获取会话的插话事件列表。"""
@@ -1597,7 +1199,6 @@ async def get_interjection_events(session_id: str, limit: int = 50):
             ],
         )
 
-
 @router.get("/autonomy/speaker-changes/{session_id}", response_model=SpeakerChangesResponse)
 async def get_speaker_changes(session_id: str, limit: int = 50):
     """获取会话的发言权变更记录。"""
@@ -1626,23 +1227,6 @@ async def get_speaker_changes(session_id: str, limit: int = 50):
                 for r in rows
             ],
         )
-
-
-class AutonomyLogItem(BaseModel):
-    agent_id: str = ""
-    event_type: str = ""
-    detail: str = ""
-    timestamp: str = ""
-    session_id: str = ""
-    log_level: str = "info"
-
-
-class AutonomyLogResponse(BaseModel):
-    items: List[AutonomyLogItem] = Field(default_factory=list)
-    total: int = 0
-    page: int = 1
-    page_size: int = 50
-
 
 @router.get("/autonomy-logs", response_model=AutonomyLogResponse)
 async def get_autonomy_logs(
@@ -1712,7 +1296,6 @@ async def get_autonomy_logs(
 
     return AutonomyLogResponse(items=items, total=total, page=page, page_size=page_size)
 
-
 def _parse_autonomy_log(entry: dict, event: str) -> Optional[AutonomyLogItem]:
     """解析 [Autonomy:{agent_id}] {event_type}: {detail} 格式日志。"""
     import re
@@ -1738,23 +1321,6 @@ def _parse_autonomy_log(entry: dict, event: str) -> Optional[AutonomyLogItem]:
         session_id="",
         log_level=entry.get("level", "info"),
     )
-
-
-class VitalityAgentItem(BaseModel):
-    agent_id: str
-    display_name: str = ""
-    state: str = "active"
-    vitality_value: float = 0.0
-    last_stimulus_at: Optional[str] = None
-
-
-class SessionVitalityResponse(BaseModel):
-    success: bool
-    session_id: str
-    active_agents: List[VitalityAgentItem] = Field(default_factory=list)
-    standby_agents: List[VitalityAgentItem] = Field(default_factory=list)
-    dormant_agents: List[VitalityAgentItem] = Field(default_factory=list)
-
 
 @router.get("/vitality", response_model=SessionVitalityResponse)
 async def get_session_vitality(session_id: str):
@@ -1821,25 +1387,7 @@ async def get_session_vitality(session_id: str):
         dormant_agents=dormant_items,
     )
 
-
 # ========== 状态互知 API ==========
-
-
-class CohabitantEntryItem(BaseModel):
-    agent_id: str
-    display_name: str
-    state: str
-    vitality_level: str
-    emotion_tendency: str = ""
-
-
-class StateAwarenessResponse(BaseModel):
-    success: bool
-    session_id: str
-    cohabitant_entries: List[CohabitantEntryItem] = Field(default_factory=list)
-    summary_preview: str = ""
-    active_rules: List[Dict[str, Any]] = Field(default_factory=list)
-
 
 @router.get("/state-awareness", response_model=StateAwarenessResponse)
 async def get_state_awareness(session_id: str):

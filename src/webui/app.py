@@ -7,13 +7,16 @@ from typing import Any, Dict, Tuple
 
 import mimetypes
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from src.common.i18n import t
 from src.common.logger import get_logger
 from src.webui.dependencies import require_auth
+from src.webui.errors import AppError
+from src.webui.errors.codes import ErrorCode
+from src.webui.schemas.base import ErrorResponse
 
 logger = get_logger("webui.app")
 
@@ -96,6 +99,7 @@ def create_app(
     """
     app = FastAPI(title="MaiBot WebUI")
 
+    _register_exception_handlers(app)
     _setup_anti_crawler(app)
     _setup_cors(app, port)
     _register_api_routes(app)
@@ -105,6 +109,27 @@ def create_app(
         _setup_static_files(app)
 
     return app
+
+
+def _register_exception_handlers(app: FastAPI):
+    @app.exception_handler(AppError)
+    async def app_error_handler(request: Request, exc: AppError):
+        logger.warning(f"AppError: {exc.error_code.value} - {exc.error_message}")
+        body = ErrorResponse(
+            error_code=exc.error_code.value,
+            error_message=exc.error_message,
+            details=exc.details,
+        ).model_dump()
+        return JSONResponse(status_code=exc.http_status, content=body)
+
+    @app.exception_handler(Exception)
+    async def unhandled_exception_handler(request: Request, exc: Exception):
+        logger.error(f"未捕获异常: {exc}", exc_info=True)
+        body = ErrorResponse(
+            error_code=ErrorCode.SYS_INTERNAL_ERROR.value,
+            error_message="内部服务错误",
+        ).model_dump()
+        return JSONResponse(status_code=500, content=body)
 
 
 def _setup_cors(app: FastAPI, port: int):

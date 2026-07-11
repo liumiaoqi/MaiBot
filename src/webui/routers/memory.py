@@ -9,10 +9,8 @@ import shutil
 import uuid
 
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, UploadFile
-from pydantic import BaseModel, Field
 from sqlmodel import col, select
 import tomlkit
-
 
 from src.core.session_port_registry import get_session_name as _get_session_name_via_port, get_existing_session_info
 from src.common.database.database import get_db_session
@@ -20,235 +18,49 @@ from src.common.database.database_model import ChatSession, Messages, PersonInfo
 from src.person_info.person_info import resolve_person_id_for_memory
 from src.services.memory_service import MemorySearchResult, memory_service
 from src.webui.dependencies import require_auth
-
+from src.webui.schemas.memory import (
+    AutoSaveRequest,
+    DeleteActionRequest,
+    DeletePurgeRequest,
+    DeleteRestoreRequest,
+    EdgeCreateRequest,
+    EdgeDeleteRequest,
+    EdgeWeightRequest,
+    EpisodeProcessPendingRequest,
+    EpisodeRebuildRequest,
+    FeedbackRollbackRequest,
+    ImportChatTarget,
+    ImportChatTargetsResponse,
+    MaintainRequest,
+    MemoryConfigUpdateRequest,
+    MemoryCorrectionExecuteRequest,
+    MemoryCorrectionPreviewRequest,
+    MemoryCorrectionRollbackRequest,
+    MemoryRawConfigUpdateRequest,
+    MemoryTimelineChat,
+    MemoryTimelineEvent,
+    MemoryTimelineJumpTarget,
+    MemoryTimelineRange,
+    MemoryTimelineResponse,
+    NodeRenameRequest,
+    NodeRequest,
+    ProfileEvidenceCorrectRequest,
+    ProfileOverrideRequest,
+    SourceBatchDeleteRequest,
+    SourceDeleteRequest,
+    TuningApplyBestRequest,
+    TuningApplyProfileRequest,
+    V5ActionRequest,
+    VectorRebuildRequest,
+)
 
 router = APIRouter(prefix="/memory", tags=["memory"], dependencies=[Depends(require_auth)])
 compat_router = APIRouter(prefix="/api", tags=["memory-compat"], dependencies=[Depends(require_auth)])
 STAGING_ROOT = Path(__file__).resolve().parents[3] / "data" / "memory_upload_staging"
 
-
-class NodeRequest(BaseModel):
-    name: str = Field(..., min_length=1)
-
-
-class NodeRenameRequest(BaseModel):
-    old_name: str = Field(..., min_length=1)
-    new_name: str = Field(..., min_length=1)
-
-
-class EdgeCreateRequest(BaseModel):
-    subject: str = Field(..., min_length=1)
-    predicate: str = Field(..., min_length=1)
-    object: str = Field(..., min_length=1)
-    confidence: float = Field(1.0, ge=0.0)
-
-
-class EdgeDeleteRequest(BaseModel):
-    hash: str = ""
-    subject: str = ""
-    object: str = ""
-
-
-class EdgeWeightRequest(BaseModel):
-    hash: str = ""
-    subject: str = ""
-    object: str = ""
-    weight: float = Field(..., ge=0.0)
-
-
-class SourceDeleteRequest(BaseModel):
-    source: str = Field(..., min_length=1)
-
-
-class SourceBatchDeleteRequest(BaseModel):
-    sources: list[str] = Field(default_factory=list)
-
-
-class EpisodeRebuildRequest(BaseModel):
-    source: str = ""
-    sources: list[str] = Field(default_factory=list)
-    all: bool = False
-
-
-class EpisodeProcessPendingRequest(BaseModel):
-    limit: int = Field(20, ge=1, le=200)
-    max_retry: int = Field(3, ge=1, le=20)
-
-
-class ProfileOverrideRequest(BaseModel):
-    person_id: str = Field(..., min_length=1)
-    override_text: str = ""
-    updated_by: str = ""
-    source: str = "webui"
-
-
-class ProfileEvidenceCorrectRequest(BaseModel):
-    evidence_type: str = Field(..., min_length=1)
-    hash: str = Field(..., min_length=1)
-    requested_by: str = "webui"
-    reason: str = "profile_evidence_correction"
-    refresh: bool = True
-    limit: int = Field(12, ge=1, le=100)
-
-
-class ImportChatTarget(BaseModel):
-    """记忆导入可选择的聊天流。"""
-
-    chat_id: str
-    chat_name: str
-    platform: Optional[str] = None
-    group_id: Optional[str] = None
-    user_id: Optional[str] = None
-    account_id: Optional[str] = None
-    scope: Optional[str] = None
-    is_group: bool = False
-    last_active_at: Optional[float] = None
-
-
-class ImportChatTargetsResponse(BaseModel):
-    success: bool
-    data: list[ImportChatTarget]
-
-
-class MemoryTimelineChat(BaseModel):
-    chat_id: str
-    chat_name: str
-    platform: Optional[str] = None
-    group_id: Optional[str] = None
-    user_id: Optional[str] = None
-    is_group: bool = False
-
-
-class MemoryTimelineRange(BaseModel):
-    time_start: Optional[float] = None
-    time_end: Optional[float] = None
-    min_time: Optional[float] = None
-    max_time: Optional[float] = None
-
-
-class MemoryTimelineJumpTarget(BaseModel):
-    tab: str
-    params: dict[str, Any] = Field(default_factory=dict)
-
-
-class MemoryTimelineEvent(BaseModel):
-    event_id: str
-    event_type: str
-    category: str
-    occurred_at: float
-    chat_id: str
-    chat_name: str
-    title: str
-    summary: str
-    object_count: int = 1
-    key_id: str = ""
-    source: str = ""
-    attribution: str = ""
-    metadata: dict[str, Any] = Field(default_factory=dict)
-    jump_target: MemoryTimelineJumpTarget
-
-
-class MemoryTimelineResponse(BaseModel):
-    success: bool
-    chat: MemoryTimelineChat
-    range: MemoryTimelineRange
-    items: list[MemoryTimelineEvent]
-    summary: dict[str, Any]
-
-
-class MaintainRequest(BaseModel):
-    target: str = Field(..., min_length=1)
-    hours: Optional[float] = None
-
-
-class AutoSaveRequest(BaseModel):
-    enabled: bool
-
-
-class VectorRebuildRequest(BaseModel):
-    dry_run: bool = False
-    batch_size: int = Field(32, ge=1, le=512)
-    include_relations: Optional[bool] = None
-
-
-class MemoryConfigUpdateRequest(BaseModel):
-    config: dict[str, Any] = Field(default_factory=dict)
-
-
-class MemoryRawConfigUpdateRequest(BaseModel):
-    config: str = ""
-
-
-class TuningApplyProfileRequest(BaseModel):
-    profile: dict[str, Any] = Field(default_factory=dict)
-    reason: str = "manual"
-    validate_result: bool = Field(default=True, alias="validate")
-
-
-class TuningApplyBestRequest(BaseModel):
-    persist: bool = False
-    validate_result: bool = Field(default=True, alias="validate")
-
-
-class V5ActionRequest(BaseModel):
-    target: str = Field(..., min_length=1)
-    strength: Optional[float] = Field(default=None, ge=0.0)
-    reason: str = ""
-    updated_by: str = "webui"
-
-
-class DeleteActionRequest(BaseModel):
-    mode: str = Field(..., min_length=1)
-    selector: dict[str, Any] | str = Field(default_factory=dict)
-    reason: str = ""
-    requested_by: str = "webui"
-
-
-class DeleteRestoreRequest(BaseModel):
-    operation_id: str = ""
-    mode: str = ""
-    selector: dict[str, Any] | str = Field(default_factory=dict)
-    reason: str = ""
-    requested_by: str = "webui"
-
-
-class DeletePurgeRequest(BaseModel):
-    grace_hours: Optional[float] = Field(default=None, ge=0.0)
-    limit: int = Field(1000, ge=1, le=5000)
-
-
-class MemoryCorrectionPreviewRequest(BaseModel):
-    request_text: str = Field(..., min_length=1)
-    scope: str = "person_profile"
-    person_id: str = ""
-    person_keyword: str = ""
-    chat_id: str = ""
-    limit: Optional[int] = Field(default=None, ge=1)
-    requested_by: str = "webui"
-    reason: str = ""
-
-
-class MemoryCorrectionExecuteRequest(BaseModel):
-    plan_id: str = Field(..., min_length=1)
-    confirmed: bool = True
-    requested_by: str = "webui"
-    reason: str = ""
-
-
-class MemoryCorrectionRollbackRequest(BaseModel):
-    requested_by: str = "webui"
-    reason: str = ""
-
-
 FuzzyModifyPreviewRequest = MemoryCorrectionPreviewRequest
 FuzzyModifyExecuteRequest = MemoryCorrectionExecuteRequest
 FuzzyModifyRollbackRequest = MemoryCorrectionRollbackRequest
-
-
-class FeedbackRollbackRequest(BaseModel):
-    requested_by: str = "webui"
-    reason: str = ""
-
 
 def _build_import_guide_markdown(settings: dict[str, Any]) -> str:
     path_aliases_raw = settings.get("path_aliases")
@@ -282,14 +94,12 @@ def _build_import_guide_markdown(settings: dict[str, Any]) -> str:
         ]
     )
 
-
 def _unwrap_payload(payload: dict[str, Any] | None) -> dict[str, Any]:
     raw = payload if isinstance(payload, dict) else {}
     nested = raw.get("payload")
     if isinstance(nested, dict):
         return dict(nested)
     return dict(raw)
-
 
 def _get_chat_name_from_latest_message(message: Optional[dict[str, Any]]) -> Optional[str]:
     if not message:
@@ -302,7 +112,6 @@ def _get_chat_name_from_latest_message(message: Optional[dict[str, Any]]) -> Opt
         message.get("user_cardname") or message.get("user_nickname") or (f"用户{user_id}" if user_id else "")
     ).strip()
     return f"{private_name}的私聊" if private_name else None
-
 
 def _get_chat_name(chat_session: ChatSession, latest_messages: dict[str, dict[str, Any]]) -> str:
     chat_id = str(chat_session.session_id or "").strip()
@@ -322,7 +131,6 @@ def _get_chat_name(chat_session: ChatSession, latest_messages: dict[str, dict[st
         f"用户{chat_session.user_id}" if chat_session.user_id else ""
     )
     return f"{private_name}的私聊" if private_name else chat_id
-
 
 def _prefetch_latest_messages_by_session(db_session: Any, session_ids: list[str]) -> dict[str, dict[str, Any]]:
     if not session_ids:
@@ -346,7 +154,6 @@ def _prefetch_latest_messages_by_session(db_session: Any, session_ids: list[str]
             }
     return latest
 
-
 def _validate_import_chat_id(payload: dict[str, Any]) -> dict[str, Any]:
     normalized = dict(payload)
     chat_id = str(normalized.get("chat_id") or "").strip()
@@ -366,7 +173,6 @@ def _validate_import_chat_id(payload: dict[str, Any]) -> dict[str, Any]:
     normalized["chat_id"] = chat_id
     return normalized
 
-
 def _find_real_chat_session(chat_id: str) -> Optional[ChatSession]:
     token = str(chat_id or "").strip()
     if not token:
@@ -381,10 +187,8 @@ def _find_real_chat_session(chat_id: str) -> Optional[ChatSession]:
     with get_db_session() as session:
         return session.exec(select(ChatSession).where(col(ChatSession.session_id) == token)).first()
 
-
 def _normalize_chat_lookup_token(value: Any) -> str:
     return "".join(str(value or "").strip().lower().split())
-
 
 def _compact_chat_lookup_tokens(parts: list[Any]) -> list[str]:
     seen: set[str] = set()
@@ -396,7 +200,6 @@ def _compact_chat_lookup_tokens(parts: list[Any]) -> list[str]:
         seen.add(token)
         tokens.append(token)
     return tokens
-
 
 def _get_chat_session_lookup_tokens(
     chat_session: ChatSession,
@@ -433,7 +236,6 @@ def _get_chat_session_lookup_tokens(
         ]
     )
 
-
 def _score_chat_session_lookup(query_token: str, tokens: list[str]) -> int:
     normalized_tokens = [_normalize_chat_lookup_token(token) for token in tokens]
     normalized_tokens = [token for token in normalized_tokens if token]
@@ -451,7 +253,6 @@ def _score_chat_session_lookup(query_token: str, tokens: list[str]) -> int:
         return 55
     return 0
 
-
 def _format_chat_session_lookup_label(chat_session: ChatSession, latest_messages: dict[str, dict[str, Any]]) -> str:
     chat_id = str(chat_session.session_id or "").strip()
     chat_name = _get_chat_name(chat_session, latest_messages)
@@ -459,7 +260,6 @@ def _format_chat_session_lookup_label(chat_session: ChatSession, latest_messages
     user_id = str(chat_session.user_id or "").strip()
     identifier = group_id or user_id or chat_id
     return f"{chat_name}({identifier})" if identifier and identifier != chat_name else chat_name
-
 
 def _resolve_memory_correction_chat_id(chat_id: str) -> str:
     raw_chat_id = str(chat_id or "").strip()
@@ -510,7 +310,6 @@ def _resolve_memory_correction_chat_id(chat_id: str) -> str:
 
     return str(best_rows[0].session_id or raw_chat_id).strip()
 
-
 def _timeline_chat_from_session(chat_session: ChatSession) -> MemoryTimelineChat:
     chat_id = str(chat_session.session_id or "").strip()
     latest_messages: dict[str, dict[str, Any]] = {}
@@ -528,7 +327,6 @@ def _timeline_chat_from_session(chat_session: ChatSession) -> MemoryTimelineChat
         is_group=bool(getattr(chat_session, "group_id", None)),
     )
 
-
 def _timeline_sources_for_chat(chat_id: str) -> set[str]:
     token = str(chat_id or "").strip()
     if not token:
@@ -537,7 +335,6 @@ def _timeline_sources_for_chat(chat_id: str) -> set[str]:
         f"chat_summary:{token}",
         f"maibot.chat_history:{token}",
     }
-
 
 def _safe_float(value: Any) -> Optional[float]:
     if value is None:
@@ -550,14 +347,12 @@ def _safe_float(value: Any) -> Optional[float]:
         return None
     return parsed
 
-
 def _first_float(*values: Any) -> Optional[float]:
     for value in values:
         parsed = _safe_float(value)
         if parsed is not None:
             return parsed
     return None
-
 
 def _decode_metadata_payload(raw: Any) -> dict[str, Any]:
     if isinstance(raw, dict):
@@ -576,7 +371,6 @@ def _decode_metadata_payload(raw: Any) -> dict[str, Any]:
             return {}
     return {}
 
-
 def _decode_json_payload(raw: Any, fallback: Any) -> Any:
     if isinstance(raw, (dict, list)):
         return raw
@@ -586,7 +380,6 @@ def _decode_json_payload(raw: Any, fallback: Any) -> Any:
         except Exception:
             return fallback
     return fallback
-
 
 def _extend_metadata_chat_tokens(tokens: set[str], value: Any) -> None:
     if isinstance(value, (list, tuple, set)):
@@ -598,13 +391,11 @@ def _extend_metadata_chat_tokens(tokens: set[str], value: Any) -> None:
     if token:
         tokens.add(token)
 
-
 def _metadata_chat_tokens(metadata: dict[str, Any]) -> set[str]:
     tokens: set[str] = set()
     for key in ("chat_id", "session_id", "stream_id", "chat_ids", "session_ids", "stream_ids"):
         _extend_metadata_chat_tokens(tokens, metadata.get(key))
     return tokens
-
 
 def _metadata_matches_chat(metadata: dict[str, Any], chat_id: str) -> bool:
     token = str(chat_id or "").strip()
@@ -623,11 +414,9 @@ def _metadata_matches_chat(metadata: dict[str, Any], chat_id: str) -> bool:
             return True
     return False
 
-
 def _source_matches_chat(source: Any, chat_id: str) -> bool:
     token = str(source or "").strip()
     return bool(token and token in _timeline_sources_for_chat(chat_id))
-
 
 def _paragraph_matches_chat(row: dict[str, Any], chat_id: str) -> tuple[bool, str]:
     metadata = _decode_metadata_payload(row.get("metadata"))
@@ -637,7 +426,6 @@ def _paragraph_matches_chat(row: dict[str, Any], chat_id: str) -> tuple[bool, st
         return True, "source"
     return False, ""
 
-
 def _event_in_range(occurred_at: float, time_start: Optional[float], time_end: Optional[float]) -> bool:
     if time_start is not None and occurred_at < time_start:
         return False
@@ -645,12 +433,10 @@ def _event_in_range(occurred_at: float, time_start: Optional[float], time_end: O
         return False
     return True
 
-
 def _types_match(event: MemoryTimelineEvent, accepted_types: set[str]) -> bool:
     if not accepted_types:
         return True
     return event.event_type in accepted_types or event.category in accepted_types
-
 
 def _timeline_event(
     *,
@@ -689,11 +475,9 @@ def _timeline_event(
         ),
     )
 
-
 def _paragraph_jump_target(paragraph_hash: str) -> dict[str, Any]:
     token = str(paragraph_hash or "").strip()
     return {"tab": "graph", "params": {"paragraph_hash": token}}
-
 
 async def _delete_jump_target_for_paragraph(paragraph_hash: str, source: str = "") -> dict[str, Any]:
     token = str(paragraph_hash or "").strip()
@@ -720,22 +504,18 @@ async def _delete_jump_target_for_paragraph(paragraph_hash: str, source: str = "
         params["source"] = clean_source
     return {"tab": "delete", "params": params}
 
-
 async def _query_memory_rows(sql: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
     return await memory_service.query_metadata(sql, params)
-
 
 def _timeline_query_limit(limit: int, multiplier: int, minimum: int) -> Optional[int]:
     if limit <= 0:
         return None
     return max(limit * multiplier, minimum)
 
-
 def _append_limit(sql: str, limit: Optional[int]) -> str:
     if limit is None:
         return sql
     return f"{sql}\n        LIMIT ?"
-
 
 async def _timeline_paragraph_events(
     *,
@@ -830,7 +610,6 @@ async def _timeline_paragraph_events(
             )
     return [event for event in events if _types_match(event, accepted_types)]
 
-
 async def _timeline_episode_events(
     *,
     chat: MemoryTimelineChat,
@@ -906,7 +685,6 @@ async def _timeline_episode_events(
             )
     return [event for event in events if _types_match(event, accepted_types)]
 
-
 def _feedback_person_ids(task: dict[str, Any]) -> list[str]:
     candidates: list[Any] = []
     for key in ("decision_payload", "rollback_plan", "rollback_result", "query_snapshot"):
@@ -925,7 +703,6 @@ def _feedback_person_ids(task: dict[str, Any]) -> list[str]:
             seen.add(token)
             normalized.append(token)
     return normalized
-
 
 async def _timeline_feedback_events(
     *,
@@ -1014,7 +791,6 @@ async def _timeline_feedback_events(
                 )
     return [event for event in events if _types_match(event, accepted_types)]
 
-
 async def _operation_payload_matches_chat(value: Any, chat_id: str) -> bool:
     if isinstance(value, dict):
         if _metadata_matches_chat(value, chat_id):
@@ -1042,7 +818,6 @@ async def _operation_payload_matches_chat(value: Any, chat_id: str) -> bool:
     if isinstance(value, str):
         return _source_matches_chat(value, chat_id)
     return False
-
 
 async def _timeline_delete_events(
     *,
@@ -1144,7 +919,6 @@ async def _timeline_delete_events(
                 )
             )
     return [event for event in events if _types_match(event, accepted_types)]
-
 
 async def _timeline_profile_events(
     *,
@@ -1255,7 +1029,6 @@ async def _timeline_profile_events(
         )
     return [event for event in events if _types_match(event, accepted_types)]
 
-
 async def _timeline_maintenance_events(
     *,
     chat: MemoryTimelineChat,
@@ -1312,7 +1085,6 @@ async def _timeline_maintenance_events(
             )
     return [event for event in events if _types_match(event, accepted_types)]
 
-
 def _dedupe_timeline_events(events: list[MemoryTimelineEvent]) -> list[MemoryTimelineEvent]:
     seen: set[str] = set()
     deduped: list[MemoryTimelineEvent] = []
@@ -1323,7 +1095,6 @@ def _dedupe_timeline_events(events: list[MemoryTimelineEvent]) -> list[MemoryTim
         seen.add(key)
         deduped.append(event)
     return deduped
-
 
 async def _memory_timeline(
     *,
@@ -1416,7 +1187,6 @@ async def _memory_timeline(
         },
     )
 
-
 async def _import_chat_targets() -> ImportChatTargetsResponse:
     try:
         with get_db_session() as session:
@@ -1453,14 +1223,11 @@ async def _import_chat_targets() -> ImportChatTargetsResponse:
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"获取导入聊天流失败: {exc}") from exc
 
-
 async def _graph_get(limit: int) -> dict:
     return await memory_service.graph_admin(action="get_graph", limit=limit)
 
-
 async def _graph_search(query: str, limit: int) -> dict:
     return await memory_service.graph_admin(action="search", query=query, limit=limit)
-
 
 async def _graph_get_node_detail(
     node_id: str,
@@ -1480,7 +1247,6 @@ async def _graph_get_node_detail(
         raise HTTPException(status_code=404, detail=str(payload.get("error", "未找到节点详情")))
     return payload
 
-
 async def _graph_get_edge_detail(
     source: str,
     target: str,
@@ -1499,15 +1265,12 @@ async def _graph_get_edge_detail(
         raise HTTPException(status_code=404, detail=str(payload.get("error", "未找到边详情")))
     return payload
 
-
 def _trim_memory_text(value: Any, limit: int = 160) -> str:
     text = str(value or "").strip()
     return text[:limit] + ("..." if len(text) > limit else "")
 
-
 def _format_memory_relation(subject: Any, predicate: Any, obj: Any) -> str:
     return " ".join(str(item or "").strip() for item in (subject, predicate, obj) if str(item or "").strip())
-
 
 def _format_graph_paragraph(row: dict[str, Any], entities: list[str], relations: list[dict[str, Any]]) -> dict[str, Any]:
     content = str(row.get("content") or "").strip()
@@ -1523,7 +1286,6 @@ def _format_graph_paragraph(row: dict[str, Any], entities: list[str], relations:
         "entities": entities,
         "relations": [_format_memory_relation(item.get("subject"), item.get("predicate"), item.get("object")) for item in relations],
     }
-
 
 async def _graph_get_paragraph_detail(paragraph_hash: str, evidence_node_limit: int) -> dict:
     token = str(paragraph_hash or "").strip()
@@ -1655,18 +1417,14 @@ async def _graph_get_paragraph_detail(paragraph_hash: str, evidence_node_limit: 
         },
     }
 
-
 async def _graph_create_node(payload: NodeRequest) -> dict:
     return await memory_service.graph_admin(action="create_node", name=payload.name)
-
 
 async def _graph_delete_node(payload: NodeRequest) -> dict:
     return await memory_service.graph_admin(action="delete_node", name=payload.name)
 
-
 async def _graph_rename_node(payload: NodeRenameRequest) -> dict:
     return await memory_service.graph_admin(action="rename_node", old_name=payload.old_name, new_name=payload.new_name)
-
 
 async def _graph_create_edge(payload: EdgeCreateRequest) -> dict:
     return await memory_service.graph_admin(
@@ -1677,7 +1435,6 @@ async def _graph_create_edge(payload: EdgeCreateRequest) -> dict:
         confidence=payload.confidence,
     )
 
-
 async def _graph_delete_edge(payload: EdgeDeleteRequest) -> dict:
     return await memory_service.graph_admin(
         action="delete_edge",
@@ -1685,7 +1442,6 @@ async def _graph_delete_edge(payload: EdgeDeleteRequest) -> dict:
         subject=payload.subject,
         object=payload.object,
     )
-
 
 async def _graph_update_edge_weight(payload: EdgeWeightRequest) -> dict:
     return await memory_service.graph_admin(
@@ -1696,18 +1452,14 @@ async def _graph_update_edge_weight(payload: EdgeWeightRequest) -> dict:
         weight=payload.weight,
     )
 
-
 async def _source_list() -> dict:
     return await memory_service.source_admin(action="list")
-
 
 async def _source_delete(payload: SourceDeleteRequest) -> dict:
     return await memory_service.source_admin(action="delete", source=payload.source)
 
-
 async def _source_batch_delete(payload: SourceBatchDeleteRequest) -> dict:
     return await memory_service.source_admin(action="batch_delete", sources=payload.sources)
-
 
 async def _query_aggregate(
     query: str,
@@ -1729,7 +1481,6 @@ async def _query_aggregate(
         respect_filter=False,
     )
     return {"success": True, **result.to_dict()}
-
 
 async def _episode_list(
     *,
@@ -1773,14 +1524,12 @@ async def _episode_list(
     payload["items"] = items
     return payload
 
-
 async def _episode_get(episode_id: str) -> dict:
     payload = await memory_service.episode_admin(action="get", episode_id=episode_id)
     if isinstance(payload, dict) and isinstance(payload.get("episode"), dict):
         payload = dict(payload)
         payload["episode"] = _enrich_episode_person_name(payload["episode"])
     return payload
-
 
 async def _episode_rebuild(payload: EpisodeRebuildRequest) -> dict:
     return await memory_service.episode_admin(
@@ -1790,10 +1539,8 @@ async def _episode_rebuild(payload: EpisodeRebuildRequest) -> dict:
         all=payload.all,
     )
 
-
 async def _episode_status(limit: int) -> dict:
     return await memory_service.episode_admin(action="status", limit=limit)
-
 
 async def _episode_process_pending(payload: EpisodeProcessPendingRequest) -> dict:
     return await memory_service.episode_admin(
@@ -1801,7 +1548,6 @@ async def _episode_process_pending(payload: EpisodeProcessPendingRequest) -> dic
         limit=payload.limit,
         max_retry=payload.max_retry,
     )
-
 
 async def _profile_query(
     *,
@@ -1827,7 +1573,6 @@ async def _profile_query(
         force_refresh=force_refresh,
     )
 
-
 def _get_person_name_for_person_id(person_id: str) -> str:
     clean_person_id = str(person_id or "").strip()
     if not clean_person_id:
@@ -1839,7 +1584,6 @@ def _get_person_name_for_person_id(person_id: str) -> str:
             return str(person_name or "").strip()
     except Exception:
         return ""
-
 
 def _enrich_episode_person_name(item: dict) -> dict:
     enriched = dict(item)
@@ -1860,7 +1604,6 @@ def _enrich_episode_person_name(item: dict) -> dict:
     enriched["person_name"] = _get_person_name_for_person_id(item_person_id)
     return enriched
 
-
 async def _profile_list(limit: int) -> dict:
     payload = await memory_service.profile_admin(action="list", limit=limit)
     if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
@@ -1879,7 +1622,6 @@ async def _profile_list(limit: int) -> dict:
     payload = dict(payload)
     payload["items"] = items
     return payload
-
 
 async def _profile_search(
     *,
@@ -1941,7 +1683,6 @@ async def _profile_search(
         },
     }
 
-
 async def _profile_set_override(payload: ProfileOverrideRequest) -> dict:
     return await memory_service.profile_admin(
         action="set_override",
@@ -1951,10 +1692,8 @@ async def _profile_set_override(payload: ProfileOverrideRequest) -> dict:
         source=payload.source,
     )
 
-
 async def _profile_delete_override(person_id: str) -> dict:
     return await memory_service.profile_admin(action="delete_override", person_id=person_id)
-
 
 async def _profile_evidence(person_id: str, limit: int, force_refresh: bool) -> dict:
     return await memory_service.profile_admin(
@@ -1963,7 +1702,6 @@ async def _profile_evidence(person_id: str, limit: int, force_refresh: bool) -> 
         limit=limit,
         force_refresh=force_refresh,
     )
-
 
 async def _profile_correct_evidence(person_id: str, payload: ProfileEvidenceCorrectRequest) -> dict:
     return await memory_service.profile_admin(
@@ -1977,7 +1715,6 @@ async def _profile_correct_evidence(person_id: str, payload: ProfileEvidenceCorr
         limit=payload.limit,
     )
 
-
 async def _feedback_list(limit: int, status: str, rollback_status: str, query: str) -> dict:
     statuses = [item.strip() for item in str(status or "").split(",") if item.strip()]
     rollback_statuses = [item.strip() for item in str(rollback_status or "").split(",") if item.strip()]
@@ -1989,10 +1726,8 @@ async def _feedback_list(limit: int, status: str, rollback_status: str, query: s
         query=query,
     )
 
-
 async def _feedback_get(task_id: int) -> dict:
     return await memory_service.feedback_admin(action="get", task_id=task_id)
-
 
 async def _feedback_rollback(task_id: int, payload: FeedbackRollbackRequest) -> dict:
     return await memory_service.feedback_admin(
@@ -2002,10 +1737,8 @@ async def _feedback_rollback(task_id: int, payload: FeedbackRollbackRequest) -> 
         reason=payload.reason,
     )
 
-
 async def _runtime_save() -> dict:
     return await memory_service.runtime_admin(action="save")
-
 
 async def _runtime_config() -> dict:
     payload = await memory_service.runtime_admin(action="get_config")
@@ -2016,17 +1749,14 @@ async def _runtime_config() -> dict:
         payload["fuzzy_modify_candidate_limit"] = candidate_limit
     return payload
 
-
 async def _runtime_self_check(refresh: bool) -> dict:
     return await memory_service.runtime_admin(action="refresh_self_check" if refresh else "self_check")
-
 
 async def _runtime_auto_save(enabled: bool | None = None) -> dict:
     if enabled is None:
         config = await memory_service.runtime_admin(action="get_config")
         return {"success": bool(config.get("success", False)), "auto_save": bool(config.get("auto_save", False))}
     return await memory_service.runtime_admin(action="set_auto_save", enabled=enabled)
-
 
 async def _runtime_rebuild_vectors(payload: VectorRebuildRequest) -> dict:
     return await memory_service.runtime_admin(
@@ -2037,7 +1767,6 @@ async def _runtime_rebuild_vectors(payload: VectorRebuildRequest) -> dict:
         include_relations=payload.include_relations,
     )
 
-
 async def _memory_config_schema() -> dict:
     return {
         "success": True,
@@ -2045,14 +1774,12 @@ async def _memory_config_schema() -> dict:
         "path": str(memory_service.get_config_path()),
     }
 
-
 async def _memory_config_get() -> dict:
     return {
         "success": True,
         "config": memory_service.get_config(),
         "path": str(memory_service.get_config_path()),
     }
-
 
 async def _memory_config_get_raw() -> dict:
     raw_payload = memory_service.get_raw_config_with_meta()
@@ -2064,10 +1791,8 @@ async def _memory_config_get_raw() -> dict:
         "path": str(memory_service.get_config_path()),
     }
 
-
 async def _memory_config_update(payload: MemoryConfigUpdateRequest) -> dict:
     return await memory_service.update_config(payload.config)
-
 
 async def _memory_config_update_raw(payload: MemoryRawConfigUpdateRequest) -> dict:
     try:
@@ -2076,34 +1801,26 @@ async def _memory_config_update_raw(payload: MemoryRawConfigUpdateRequest) -> di
         raise HTTPException(status_code=400, detail=f"TOML 格式错误: {exc}") from exc
     return await memory_service.update_raw_config(payload.config)
 
-
 async def _maintenance_recycle_bin(limit: int) -> dict:
     return await memory_service.get_recycle_bin(limit=limit)
-
 
 async def _maintenance_restore(payload: MaintainRequest) -> dict:
     return (await memory_service.restore_memory(target=payload.target)).to_dict()
 
-
 async def _maintenance_reinforce(payload: MaintainRequest) -> dict:
     return (await memory_service.reinforce_memory(target=payload.target)).to_dict()
-
 
 async def _maintenance_freeze(payload: MaintainRequest) -> dict:
     return (await memory_service.freeze_memory(target=payload.target)).to_dict()
 
-
 async def _maintenance_protect(payload: MaintainRequest) -> dict:
     return (await memory_service.protect_memory(target=payload.target, hours=payload.hours)).to_dict()
-
 
 async def _v5_status(target: str, limit: int) -> dict:
     return await memory_service.v5_admin(action="status", target=target, limit=limit)
 
-
 async def _v5_recycle_bin(limit: int) -> dict:
     return await memory_service.v5_admin(action="recycle_bin", limit=limit)
-
 
 async def _v5_action(action: str, payload: V5ActionRequest) -> dict:
     kwargs: dict[str, Any] = {
@@ -2115,10 +1832,8 @@ async def _v5_action(action: str, payload: V5ActionRequest) -> dict:
         kwargs["strength"] = payload.strength
     return await memory_service.v5_admin(action=action, **kwargs)
 
-
 async def _delete_preview(payload: DeleteActionRequest) -> dict:
     return await memory_service.delete_admin(action="preview", mode=payload.mode, selector=payload.selector)
-
 
 async def _delete_execute(payload: DeleteActionRequest) -> dict:
     return await memory_service.delete_admin(
@@ -2128,7 +1843,6 @@ async def _delete_execute(payload: DeleteActionRequest) -> dict:
         reason=payload.reason,
         requested_by=payload.requested_by,
     )
-
 
 async def _delete_restore(payload: DeleteRestoreRequest) -> dict:
     return await memory_service.delete_admin(
@@ -2140,14 +1854,11 @@ async def _delete_restore(payload: DeleteRestoreRequest) -> dict:
         requested_by=payload.requested_by,
     )
 
-
 async def _delete_list(limit: int, mode: str) -> dict:
     return await memory_service.delete_admin(action="list_operations", limit=limit, mode=mode)
 
-
 async def _delete_get(operation_id: str) -> dict:
     return await memory_service.delete_admin(action="get_operation", operation_id=operation_id)
-
 
 async def _delete_purge(payload: DeletePurgeRequest) -> dict:
     return await memory_service.delete_admin(
@@ -2155,7 +1866,6 @@ async def _delete_purge(payload: DeletePurgeRequest) -> dict:
         grace_hours=payload.grace_hours,
         limit=payload.limit,
     )
-
 
 async def _memory_correction_preview(payload: MemoryCorrectionPreviewRequest) -> dict:
     resolved_chat_id = _resolve_memory_correction_chat_id(payload.chat_id)
@@ -2171,7 +1881,6 @@ async def _memory_correction_preview(payload: MemoryCorrectionPreviewRequest) ->
         reason=payload.reason,
     )
 
-
 async def _memory_correction_execute(payload: MemoryCorrectionExecuteRequest) -> dict:
     return await memory_service.memory_correction_admin(
         action="execute",
@@ -2181,7 +1890,6 @@ async def _memory_correction_execute(payload: MemoryCorrectionExecuteRequest) ->
         reason=payload.reason,
     )
 
-
 async def _memory_correction_rollback(plan_id: str, payload: MemoryCorrectionRollbackRequest) -> dict:
     return await memory_service.memory_correction_admin(
         action="rollback",
@@ -2190,26 +1898,20 @@ async def _memory_correction_rollback(plan_id: str, payload: MemoryCorrectionRol
         reason=payload.reason,
     )
 
-
 async def _fuzzy_modify_preview(payload: FuzzyModifyPreviewRequest) -> dict:
     return await _memory_correction_preview(payload)
-
 
 async def _fuzzy_modify_execute(payload: FuzzyModifyExecuteRequest) -> dict:
     return await _memory_correction_execute(payload)
 
-
 async def _fuzzy_modify_rollback(plan_id: str, payload: FuzzyModifyRollbackRequest) -> dict:
     return await _memory_correction_rollback(plan_id, payload)
-
 
 async def _import_settings() -> dict:
     return await memory_service.import_admin(action="get_settings")
 
-
 async def _import_path_aliases() -> dict:
     return await memory_service.import_admin(action="get_path_aliases")
-
 
 async def _import_guide() -> dict:
     payload = await memory_service.import_admin(action="get_guide")
@@ -2231,14 +1933,11 @@ async def _import_guide() -> dict:
         "settings": settings or {},
     }
 
-
 async def _import_resolve_path(payload: dict[str, Any]) -> dict:
     return await memory_service.import_admin(action="resolve_path", **_unwrap_payload(payload))
 
-
 async def _import_create(action: str, payload: dict[str, Any]) -> dict:
     return await memory_service.import_admin(action=action, **_validate_import_chat_id(_unwrap_payload(payload)))
-
 
 async def _import_list(limit: int) -> dict:
     listing = await memory_service.import_admin(action="list", limit=limit)
@@ -2251,10 +1950,8 @@ async def _import_list(limit: int) -> dict:
     listing["settings"] = settings
     return listing
 
-
 async def _import_get(task_id: str, include_chunks: bool) -> dict:
     return await memory_service.import_admin(action="get", task_id=task_id, include_chunks=include_chunks)
-
 
 async def _import_chunks(task_id: str, file_id: str, offset: int, limit: int) -> dict:
     return await memory_service.import_admin(
@@ -2265,20 +1962,16 @@ async def _import_chunks(task_id: str, file_id: str, offset: int, limit: int) ->
         limit=limit,
     )
 
-
 async def _import_cancel(task_id: str) -> dict:
     return await memory_service.import_admin(action="cancel", task_id=task_id)
-
 
 async def _import_retry(task_id: str, payload: dict[str, Any]) -> dict:
     raw = _unwrap_payload(payload)
     overrides = raw.get("overrides") if isinstance(raw.get("overrides"), dict) else raw
     return await memory_service.import_admin(action="retry_failed", task_id=task_id, overrides=overrides)
 
-
 async def _tuning_settings() -> dict:
     return await memory_service.tuning_admin(action="get_settings")
-
 
 async def _tuning_profile() -> dict:
     profile = await memory_service.tuning_admin(action="get_profile")
@@ -2289,7 +1982,6 @@ async def _tuning_profile() -> dict:
         profile["settings"] = settings.get("settings") if isinstance(settings.get("settings"), dict) else {}
     return profile
 
-
 async def _tuning_apply_profile(payload: TuningApplyProfileRequest) -> dict:
     return await memory_service.tuning_admin(
         action="apply_profile",
@@ -2298,34 +1990,26 @@ async def _tuning_apply_profile(payload: TuningApplyProfileRequest) -> dict:
         validate=payload.validate_result,
     )
 
-
 async def _tuning_rollback_profile() -> dict:
     return await memory_service.tuning_admin(action="rollback_profile")
-
 
 async def _tuning_export_profile() -> dict:
     return await memory_service.tuning_admin(action="export_profile")
 
-
 async def _tuning_create_task(payload: dict[str, Any]) -> dict:
     return await memory_service.tuning_admin(action="create_task", payload=_unwrap_payload(payload))
-
 
 async def _tuning_list_tasks(limit: int) -> dict:
     return await memory_service.tuning_admin(action="list_tasks", limit=limit)
 
-
 async def _tuning_get_task(task_id: str, include_rounds: bool) -> dict:
     return await memory_service.tuning_admin(action="get_task", task_id=task_id, include_rounds=include_rounds)
-
 
 async def _tuning_get_rounds(task_id: str, offset: int, limit: int) -> dict:
     return await memory_service.tuning_admin(action="get_rounds", task_id=task_id, offset=offset, limit=limit)
 
-
 async def _tuning_cancel(task_id: str) -> dict:
     return await memory_service.tuning_admin(action="cancel", task_id=task_id)
-
 
 async def _tuning_apply_best(task_id: str, payload: TuningApplyBestRequest | None = None) -> dict:
     body = payload or TuningApplyBestRequest()
@@ -2357,7 +2041,6 @@ async def _tuning_apply_best(task_id: str, payload: TuningApplyBestRequest | Non
     result["persist_result"] = persist_payload
     return result
 
-
 async def _tuning_report(task_id: str, fmt: str) -> dict:
     payload_raw = await memory_service.tuning_admin(action="get_report", task_id=task_id, format=fmt)
     payload = payload_raw if isinstance(payload_raw, dict) else {}
@@ -2370,7 +2053,6 @@ async def _tuning_report(task_id: str, fmt: str) -> dict:
         "path": report.get("path", ""),
         "error": payload.get("error", ""),
     }
-
 
 async def _stage_upload_files(files: list[UploadFile]) -> tuple[Path, list[dict[str, Any]]]:
     STAGING_ROOT.mkdir(parents=True, exist_ok=True)
@@ -2391,11 +2073,9 @@ async def _stage_upload_files(files: list[UploadFile]) -> tuple[Path, list[dict[
         )
     return staging_dir, staged_files
 
-
 @router.get("/graph")
 async def get_memory_graph(limit: int = Query(200, ge=1, le=5000)):
     return await _graph_get(limit)
-
 
 @router.get("/graph/search")
 async def search_memory_graph(
@@ -2403,7 +2083,6 @@ async def search_memory_graph(
     limit: int = Query(50, ge=1, le=200),
 ):
     return await _graph_search(query, limit)
-
 
 @router.get("/graph/node-detail")
 async def get_memory_graph_node_detail(
@@ -2419,7 +2098,6 @@ async def get_memory_graph_node_detail(
         evidence_node_limit=evidence_node_limit,
     )
 
-
 @router.get("/graph/edge-detail")
 async def get_memory_graph_edge_detail(
     source: str = Query(..., min_length=1),
@@ -2434,7 +2112,6 @@ async def get_memory_graph_edge_detail(
         evidence_node_limit=evidence_node_limit,
     )
 
-
 @router.get("/graph/paragraph-detail")
 async def get_memory_graph_paragraph_detail(
     paragraph_hash: str = Query(..., min_length=1),
@@ -2442,51 +2119,41 @@ async def get_memory_graph_paragraph_detail(
 ):
     return await _graph_get_paragraph_detail(paragraph_hash, evidence_node_limit)
 
-
 @router.post("/graph/node")
 async def create_memory_node(payload: NodeRequest):
     return await _graph_create_node(payload)
-
 
 @router.delete("/graph/node")
 async def delete_memory_node(payload: NodeRequest):
     return await _graph_delete_node(payload)
 
-
 @router.post("/graph/node/rename")
 async def rename_memory_node(payload: NodeRenameRequest):
     return await _graph_rename_node(payload)
-
 
 @router.post("/graph/edge")
 async def create_memory_edge(payload: EdgeCreateRequest):
     return await _graph_create_edge(payload)
 
-
 @router.delete("/graph/edge")
 async def delete_memory_edge(payload: EdgeDeleteRequest):
     return await _graph_delete_edge(payload)
-
 
 @router.post("/graph/edge/weight")
 async def update_memory_edge_weight(payload: EdgeWeightRequest):
     return await _graph_update_edge_weight(payload)
 
-
 @router.get("/sources")
 async def list_memory_sources():
     return await _source_list()
-
 
 @router.post("/sources/delete")
 async def delete_memory_source(payload: SourceDeleteRequest):
     return await _source_delete(payload)
 
-
 @router.post("/sources/batch-delete")
 async def batch_delete_memory_sources(payload: SourceBatchDeleteRequest):
     return await _source_batch_delete(payload)
-
 
 @router.get("/query/aggregate")
 async def query_memory_aggregate(
@@ -2506,7 +2173,6 @@ async def query_memory_aggregate(
         time_end=time_end,
     )
 
-
 @router.get("/timeline", response_model=MemoryTimelineResponse)
 async def get_memory_timeline(
     chat_id: str = Query(..., min_length=1),
@@ -2522,7 +2188,6 @@ async def get_memory_timeline(
         types=types,
         limit=limit,
     )
-
 
 @router.get("/episodes")
 async def list_memory_episodes(
@@ -2546,26 +2211,21 @@ async def list_memory_episodes(
         time_end=time_end,
     )
 
-
 @router.get("/episodes/status")
 async def get_memory_episode_status(limit: int = Query(20, ge=1, le=200)):
     return await _episode_status(limit)
-
 
 @router.get("/episodes/{episode_id}")
 async def get_memory_episode(episode_id: str):
     return await _episode_get(episode_id)
 
-
 @router.post("/episodes/rebuild")
 async def rebuild_memory_episodes(payload: EpisodeRebuildRequest):
     return await _episode_rebuild(payload)
 
-
 @router.post("/episodes/process-pending")
 async def process_memory_episode_pending(payload: EpisodeProcessPendingRequest):
     return await _episode_process_pending(payload)
-
 
 @router.get("/profiles/query")
 async def query_memory_profile(
@@ -2585,11 +2245,9 @@ async def query_memory_profile(
         force_refresh=force_refresh,
     )
 
-
 @router.get("/profiles")
 async def list_memory_profiles(limit: int = Query(50, ge=1, le=200)):
     return await _profile_list(limit)
-
 
 @router.get("/profiles/search")
 async def search_memory_profiles(
@@ -2607,16 +2265,13 @@ async def search_memory_profiles(
         limit=limit,
     )
 
-
 @router.post("/profiles/override")
 async def set_memory_profile_override(payload: ProfileOverrideRequest):
     return await _profile_set_override(payload)
 
-
 @router.delete("/profiles/override/{person_id}")
 async def delete_memory_profile_override(person_id: str):
     return await _profile_delete_override(person_id)
-
 
 @router.get("/profiles/{person_id}/evidence")
 async def get_memory_profile_evidence(
@@ -2626,11 +2281,9 @@ async def get_memory_profile_evidence(
 ):
     return await _profile_evidence(person_id, limit, force_refresh)
 
-
 @router.post("/profiles/{person_id}/evidence/correct")
 async def correct_memory_profile_evidence(person_id: str, payload: ProfileEvidenceCorrectRequest):
     return await _profile_correct_evidence(person_id, payload)
-
 
 @router.get("/feedback-corrections")
 async def list_memory_feedback_corrections(
@@ -2641,101 +2294,81 @@ async def list_memory_feedback_corrections(
 ):
     return await _feedback_list(limit, status, rollback_status, query)
 
-
 @router.get("/feedback-corrections/{task_id}")
 async def get_memory_feedback_correction(task_id: int):
     return await _feedback_get(task_id)
-
 
 @router.post("/feedback-corrections/{task_id}/rollback")
 async def rollback_memory_feedback_correction(task_id: int, payload: FeedbackRollbackRequest):
     return await _feedback_rollback(task_id, payload)
 
-
 @router.post("/runtime/save")
 async def save_memory_runtime():
     return await _runtime_save()
-
 
 @router.get("/config/schema")
 async def get_memory_config_schema():
     return await _memory_config_schema()
 
-
 @router.get("/config")
 async def get_memory_config():
     return await _memory_config_get()
-
 
 @router.put("/config")
 async def update_memory_config(payload: MemoryConfigUpdateRequest):
     return await _memory_config_update(payload)
 
-
 @router.get("/config/raw")
 async def get_memory_config_raw():
     return await _memory_config_get_raw()
-
 
 @router.put("/config/raw")
 async def update_memory_config_raw(payload: MemoryRawConfigUpdateRequest):
     return await _memory_config_update_raw(payload)
 
-
 @router.get("/runtime/config")
 async def get_memory_runtime_config():
     return await _runtime_config()
-
 
 @router.get("/runtime/self-check")
 async def get_memory_runtime_self_check():
     return await _runtime_self_check(False)
 
-
 @router.post("/runtime/self-check/refresh")
 async def refresh_memory_runtime_self_check():
     return await _runtime_self_check(True)
-
 
 @router.get("/runtime/auto-save")
 async def get_memory_runtime_auto_save():
     return await _runtime_auto_save(None)
 
-
 @router.post("/runtime/auto-save")
 async def set_memory_runtime_auto_save(payload: AutoSaveRequest):
     return await _runtime_auto_save(payload.enabled)
-
 
 @router.post("/runtime/vectors/rebuild")
 async def rebuild_memory_runtime_vectors(payload: VectorRebuildRequest):
     return await _runtime_rebuild_vectors(payload)
 
-
 @router.get("/maintenance/recycle-bin")
 async def get_memory_recycle_bin(limit: int = Query(50, ge=1, le=200)):
     return await _maintenance_recycle_bin(limit)
-
 
 @router.post("/maintenance/restore")
 async def restore_memory_relation(payload: MaintainRequest):
     return await _maintenance_restore(payload)
 
-
 @router.post("/maintenance/reinforce")
 async def reinforce_memory_relation(payload: MaintainRequest):
     return await _maintenance_reinforce(payload)
-
 
 @router.post("/maintenance/freeze")
 async def freeze_memory_relation(payload: MaintainRequest):
     return await _maintenance_freeze(payload)
 
-
 @router.post("/maintenance/protect")
 async def protect_memory_relation(payload: MaintainRequest):
     return await _maintenance_protect(payload)
-
 
 @router.get("/v5/status")
 async def get_memory_v5_status(
@@ -2744,51 +2377,41 @@ async def get_memory_v5_status(
 ):
     return await _v5_status(target, limit)
 
-
 @router.get("/v5/recycle-bin")
 async def get_memory_v5_recycle_bin(limit: int = Query(50, ge=1, le=200)):
     return await _v5_recycle_bin(limit)
-
 
 @router.post("/v5/reinforce")
 async def reinforce_memory_v5(payload: V5ActionRequest):
     return await _v5_action("reinforce", payload)
 
-
 @router.post("/v5/weaken")
 async def weaken_memory_v5(payload: V5ActionRequest):
     return await _v5_action("weaken", payload)
-
 
 @router.post("/v5/remember-forever")
 async def remember_forever_memory_v5(payload: V5ActionRequest):
     return await _v5_action("remember_forever", payload)
 
-
 @router.post("/v5/forget")
 async def forget_memory_v5(payload: V5ActionRequest):
     return await _v5_action("forget", payload)
-
 
 @router.post("/v5/restore")
 async def restore_memory_v5(payload: V5ActionRequest):
     return await _v5_action("restore", payload)
 
-
 @router.post("/delete/preview")
 async def preview_memory_delete(payload: DeleteActionRequest):
     return await _delete_preview(payload)
-
 
 @router.post("/delete/execute")
 async def execute_memory_delete(payload: DeleteActionRequest):
     return await _delete_execute(payload)
 
-
 @router.post("/delete/restore")
 async def restore_memory_delete(payload: DeleteRestoreRequest):
     return await _delete_restore(payload)
-
 
 @router.get("/delete/operations")
 async def list_memory_delete_operations(
@@ -2797,36 +2420,29 @@ async def list_memory_delete_operations(
 ):
     return await _delete_list(limit, mode)
 
-
 @router.get("/delete/operations/{operation_id}")
 async def get_memory_delete_operation(operation_id: str):
     return await _delete_get(operation_id)
-
 
 @router.post("/delete/purge")
 async def purge_memory_delete(payload: DeletePurgeRequest):
     return await _delete_purge(payload)
 
-
 @router.post("/fuzzy-modify/preview")
 async def preview_memory_fuzzy_modify(payload: FuzzyModifyPreviewRequest):
     return await _fuzzy_modify_preview(payload)
-
 
 @router.post("/corrections/preview")
 async def preview_memory_correction(payload: MemoryCorrectionPreviewRequest):
     return await _memory_correction_preview(payload)
 
-
 @router.post("/fuzzy-modify/execute")
 async def execute_memory_fuzzy_modify(payload: FuzzyModifyExecuteRequest):
     return await _fuzzy_modify_execute(payload)
 
-
 @router.post("/corrections/execute")
 async def execute_memory_correction(payload: MemoryCorrectionExecuteRequest):
     return await _memory_correction_execute(payload)
-
 
 @router.get("/fuzzy-modify/plans")
 async def list_memory_fuzzy_modify_plans(
@@ -2841,7 +2457,6 @@ async def list_memory_fuzzy_modify_plans(
         scope=scope,
     )
 
-
 @router.get("/corrections/plans")
 async def list_memory_correction_plans(
     limit: int = Query(50, ge=1, le=200),
@@ -2855,51 +2470,41 @@ async def list_memory_correction_plans(
         scope=scope,
     )
 
-
 @router.get("/fuzzy-modify/plans/{plan_id}")
 async def get_memory_fuzzy_modify_plan(plan_id: str):
     return await memory_service.memory_correction_admin(action="get", plan_id=plan_id)
-
 
 @router.get("/corrections/plans/{plan_id}")
 async def get_memory_correction_plan(plan_id: str):
     return await memory_service.memory_correction_admin(action="get", plan_id=plan_id)
 
-
 @router.post("/fuzzy-modify/plans/{plan_id}/rollback")
 async def rollback_memory_fuzzy_modify_plan(plan_id: str, payload: FuzzyModifyRollbackRequest):
     return await _fuzzy_modify_rollback(plan_id, payload)
-
 
 @router.post("/corrections/plans/{plan_id}/rollback")
 async def rollback_memory_correction_plan(plan_id: str, payload: MemoryCorrectionRollbackRequest):
     return await _memory_correction_rollback(plan_id, payload)
 
-
 @router.get("/import/settings")
 async def get_memory_import_settings():
     return await _import_settings()
-
 
 @router.get("/import/path-aliases")
 async def get_memory_import_path_aliases():
     return await _import_path_aliases()
 
-
 @router.get("/import/chat-targets", response_model=ImportChatTargetsResponse)
 async def get_memory_import_chat_targets():
     return await _import_chat_targets()
-
 
 @router.get("/import/guide")
 async def get_memory_import_guide():
     return await _import_guide()
 
-
 @router.post("/import/resolve-path")
 async def resolve_memory_import_path(payload: dict[str, Any] = Body(default_factory=dict)):
     return await _import_resolve_path(payload)
-
 
 @router.post("/import/upload")
 async def create_memory_import_upload(
@@ -2919,46 +2524,37 @@ async def create_memory_import_upload(
     finally:
         shutil.rmtree(staging_dir, ignore_errors=True)
 
-
 @router.post("/import/paste")
 async def create_memory_import_paste(payload: dict[str, Any] = Body(default_factory=dict)):
     return await _import_create("create_paste", payload)
-
 
 @router.post("/import/raw-scan")
 async def create_memory_import_raw_scan(payload: dict[str, Any] = Body(default_factory=dict)):
     return await _import_create("create_raw_scan", payload)
 
-
 @router.post("/import/lpmm-openie")
 async def create_memory_import_lpmm_openie(payload: dict[str, Any] = Body(default_factory=dict)):
     return await _import_create("create_lpmm_openie", payload)
-
 
 @router.post("/import/lpmm-convert")
 async def create_memory_import_lpmm_convert(payload: dict[str, Any] = Body(default_factory=dict)):
     return await _import_create("create_lpmm_convert", payload)
 
-
 @router.post("/import/temporal-backfill")
 async def create_memory_import_temporal_backfill(payload: dict[str, Any] = Body(default_factory=dict)):
     return await _import_create("create_temporal_backfill", payload)
-
 
 @router.post("/import/maibot-migration")
 async def create_memory_import_maibot_migration(payload: dict[str, Any] = Body(default_factory=dict)):
     return await _import_create("create_maibot_migration", payload)
 
-
 @router.get("/import/tasks")
 async def list_memory_import_tasks(limit: int = Query(50, ge=1, le=200)):
     return await _import_list(limit)
 
-
 @router.get("/import/tasks/{task_id}")
 async def get_memory_import_task(task_id: str, include_chunks: bool = Query(False)):
     return await _import_get(task_id, include_chunks)
-
 
 @router.get("/import/tasks/{task_id}/chunks/{file_id}")
 async def get_memory_import_chunks(
@@ -2969,56 +2565,45 @@ async def get_memory_import_chunks(
 ):
     return await _import_chunks(task_id, file_id, offset, limit)
 
-
 @router.post("/import/tasks/{task_id}/cancel")
 async def cancel_memory_import_task(task_id: str):
     return await _import_cancel(task_id)
-
 
 @router.post("/import/tasks/{task_id}/retry")
 async def retry_memory_import_task(task_id: str, payload: dict[str, Any] = Body(default_factory=dict)):
     return await _import_retry(task_id, payload)
 
-
 @router.get("/retrieval_tuning/settings")
 async def get_memory_tuning_settings():
     return await _tuning_settings()
-
 
 @router.get("/retrieval_tuning/profile")
 async def get_memory_tuning_profile():
     return await _tuning_profile()
 
-
 @router.post("/retrieval_tuning/profile/apply")
 async def apply_memory_tuning_profile(payload: TuningApplyProfileRequest):
     return await _tuning_apply_profile(payload)
-
 
 @router.post("/retrieval_tuning/profile/rollback")
 async def rollback_memory_tuning_profile():
     return await _tuning_rollback_profile()
 
-
 @router.get("/retrieval_tuning/profile/export")
 async def export_memory_tuning_profile():
     return await _tuning_export_profile()
-
 
 @router.post("/retrieval_tuning/tasks")
 async def create_memory_tuning_task(payload: dict[str, Any] = Body(default_factory=dict)):
     return await _tuning_create_task(payload)
 
-
 @router.get("/retrieval_tuning/tasks")
 async def list_memory_tuning_tasks(limit: int = Query(50, ge=1, le=200)):
     return await _tuning_list_tasks(limit)
 
-
 @router.get("/retrieval_tuning/tasks/{task_id}")
 async def get_memory_tuning_task(task_id: str, include_rounds: bool = Query(False)):
     return await _tuning_get_task(task_id, include_rounds)
-
 
 @router.get("/retrieval_tuning/tasks/{task_id}/rounds")
 async def get_memory_tuning_rounds(
@@ -3028,11 +2613,9 @@ async def get_memory_tuning_rounds(
 ):
     return await _tuning_get_rounds(task_id, offset, limit)
 
-
 @router.post("/retrieval_tuning/tasks/{task_id}/cancel")
 async def cancel_memory_tuning_task(task_id: str):
     return await _tuning_cancel(task_id)
-
 
 @router.post("/retrieval_tuning/tasks/{task_id}/apply-best")
 async def apply_best_memory_tuning_profile(
@@ -3041,61 +2624,49 @@ async def apply_best_memory_tuning_profile(
 ):
     return await _tuning_apply_best(task_id, payload)
 
-
 @router.get("/retrieval_tuning/tasks/{task_id}/report")
 async def get_memory_tuning_report(task_id: str, format: str = Query("md")):
     return await _tuning_report(task_id, format)
-
 
 @compat_router.get("/graph")
 async def compat_get_graph(limit: int = Query(200, ge=1, le=5000)):
     return await _graph_get(limit)
 
-
 @compat_router.post("/node")
 async def compat_create_node(payload: NodeRequest):
     return await _graph_create_node(payload)
-
 
 @compat_router.delete("/node")
 async def compat_delete_node(payload: NodeRequest):
     return await _graph_delete_node(payload)
 
-
 @compat_router.post("/node/rename")
 async def compat_rename_node(payload: NodeRenameRequest):
     return await _graph_rename_node(payload)
-
 
 @compat_router.post("/edge")
 async def compat_create_edge(payload: EdgeCreateRequest):
     return await _graph_create_edge(payload)
 
-
 @compat_router.delete("/edge")
 async def compat_delete_edge(payload: EdgeDeleteRequest):
     return await _graph_delete_edge(payload)
-
 
 @compat_router.post("/edge/weight")
 async def compat_update_edge_weight(payload: EdgeWeightRequest):
     return await _graph_update_edge_weight(payload)
 
-
 @compat_router.get("/source/list")
 async def compat_list_sources():
     return await _source_list()
-
 
 @compat_router.post("/source/delete")
 async def compat_delete_source(payload: SourceDeleteRequest):
     return await _source_delete(payload)
 
-
 @compat_router.post("/source/batch_delete")
 async def compat_batch_delete_sources(payload: SourceBatchDeleteRequest):
     return await _source_batch_delete(payload)
-
 
 @compat_router.get("/query/aggregate")
 async def compat_query_aggregate(
@@ -3115,7 +2686,6 @@ async def compat_query_aggregate(
         time_end=time_end,
     )
 
-
 @compat_router.get("/timeline", response_model=MemoryTimelineResponse)
 async def compat_get_memory_timeline(
     chat_id: str = Query(..., min_length=1),
@@ -3131,7 +2701,6 @@ async def compat_get_memory_timeline(
         types=types,
         limit=limit,
     )
-
 
 @compat_router.get("/episodes")
 async def compat_list_episodes(
@@ -3155,26 +2724,21 @@ async def compat_list_episodes(
         time_end=time_end,
     )
 
-
 @compat_router.get("/episodes/status")
 async def compat_episode_status(limit: int = Query(20, ge=1, le=200)):
     return await _episode_status(limit)
-
 
 @compat_router.get("/episodes/{episode_id}")
 async def compat_get_episode(episode_id: str):
     return await _episode_get(episode_id)
 
-
 @compat_router.post("/episodes/rebuild")
 async def compat_rebuild_episodes(payload: EpisodeRebuildRequest):
     return await _episode_rebuild(payload)
 
-
 @compat_router.post("/episodes/process_pending")
 async def compat_process_episode_pending(payload: EpisodeProcessPendingRequest):
     return await _episode_process_pending(payload)
-
 
 @compat_router.get("/person_profile/query")
 async def compat_profile_query(
@@ -3194,11 +2758,9 @@ async def compat_profile_query(
         force_refresh=force_refresh,
     )
 
-
 @compat_router.get("/person_profile/list")
 async def compat_profile_list(limit: int = Query(50, ge=1, le=200)):
     return await _profile_list(limit)
-
 
 @compat_router.get("/person_profile/search")
 async def compat_profile_search(
@@ -3216,96 +2778,77 @@ async def compat_profile_search(
         limit=limit,
     )
 
-
 @compat_router.post("/person_profile/override")
 async def compat_set_profile_override(payload: ProfileOverrideRequest):
     return await _profile_set_override(payload)
-
 
 @compat_router.delete("/person_profile/override/{person_id}")
 async def compat_delete_profile_override(person_id: str):
     return await _profile_delete_override(person_id)
 
-
 @compat_router.post("/save")
 async def compat_runtime_save():
     return await _runtime_save()
-
 
 @compat_router.get("/config")
 async def compat_runtime_config():
     return await _runtime_config()
 
-
 @compat_router.get("/runtime/self_check")
 async def compat_runtime_self_check():
     return await _runtime_self_check(False)
-
 
 @compat_router.post("/runtime/self_check/refresh")
 async def compat_refresh_runtime_self_check():
     return await _runtime_self_check(True)
 
-
 @compat_router.get("/config/auto_save")
 async def compat_runtime_auto_save():
     return await _runtime_auto_save(None)
-
 
 @compat_router.post("/config/auto_save")
 async def compat_set_runtime_auto_save(payload: AutoSaveRequest):
     return await _runtime_auto_save(payload.enabled)
 
-
 @compat_router.post("/runtime/vectors/rebuild")
 async def compat_rebuild_runtime_vectors(payload: VectorRebuildRequest):
     return await _runtime_rebuild_vectors(payload)
-
 
 @compat_router.get("/memory/recycle_bin")
 async def compat_get_recycle_bin(limit: int = Query(50, ge=1, le=200)):
     return await _maintenance_recycle_bin(limit)
 
-
 @compat_router.post("/memory/restore")
 async def compat_restore_memory(payload: MaintainRequest):
     return await _maintenance_restore(payload)
-
 
 @compat_router.post("/memory/reinforce")
 async def compat_reinforce_memory(payload: MaintainRequest):
     return await _maintenance_reinforce(payload)
 
-
 @compat_router.post("/memory/freeze")
 async def compat_freeze_memory(payload: MaintainRequest):
     return await _maintenance_freeze(payload)
-
 
 @compat_router.post("/memory/protect")
 async def compat_protect_memory(payload: MaintainRequest):
     return await _maintenance_protect(payload)
 
-
 @compat_router.get("/import/settings")
 async def compat_import_settings():
     return await _import_settings()
-
 
 @compat_router.get("/import/path_aliases")
 async def compat_import_path_aliases():
     return await _import_path_aliases()
 
-
 @compat_router.get("/import/guide")
 async def compat_import_guide():
     return await _import_guide()
 
-
 @compat_router.post("/import/resolve_path")
 async def compat_import_resolve_path(payload: dict[str, Any] = Body(default_factory=dict)):
     return await _import_resolve_path(payload)
-
 
 @compat_router.post("/import/upload")
 async def compat_import_upload(
@@ -3314,7 +2857,6 @@ async def compat_import_upload(
 ):
     return await create_memory_import_upload(files=files, payload_json=payload_json)
 
-
 @compat_router.post("/import/tasks/upload")
 async def compat_import_upload_task(
     files: list[UploadFile] = File(...),
@@ -3322,76 +2864,61 @@ async def compat_import_upload_task(
 ):
     return await create_memory_import_upload(files=files, payload_json=payload_json)
 
-
 @compat_router.post("/import/paste")
 async def compat_import_paste(payload: dict[str, Any] = Body(default_factory=dict)):
     return await _import_create("create_paste", payload)
-
 
 @compat_router.post("/import/tasks/paste")
 async def compat_import_paste_task(payload: dict[str, Any] = Body(default_factory=dict)):
     return await _import_create("create_paste", payload)
 
-
 @compat_router.post("/import/raw_scan")
 async def compat_import_raw_scan(payload: dict[str, Any] = Body(default_factory=dict)):
     return await _import_create("create_raw_scan", payload)
-
 
 @compat_router.post("/import/tasks/raw_scan")
 async def compat_import_raw_scan_task(payload: dict[str, Any] = Body(default_factory=dict)):
     return await _import_create("create_raw_scan", payload)
 
-
 @compat_router.post("/import/lpmm_openie")
 async def compat_import_lpmm_openie(payload: dict[str, Any] = Body(default_factory=dict)):
     return await _import_create("create_lpmm_openie", payload)
-
 
 @compat_router.post("/import/tasks/lpmm_openie")
 async def compat_import_lpmm_openie_task(payload: dict[str, Any] = Body(default_factory=dict)):
     return await _import_create("create_lpmm_openie", payload)
 
-
 @compat_router.post("/import/lpmm_convert")
 async def compat_import_lpmm_convert(payload: dict[str, Any] = Body(default_factory=dict)):
     return await _import_create("create_lpmm_convert", payload)
-
 
 @compat_router.post("/import/tasks/lpmm_convert")
 async def compat_import_lpmm_convert_task(payload: dict[str, Any] = Body(default_factory=dict)):
     return await _import_create("create_lpmm_convert", payload)
 
-
 @compat_router.post("/import/temporal_backfill")
 async def compat_import_temporal_backfill(payload: dict[str, Any] = Body(default_factory=dict)):
     return await _import_create("create_temporal_backfill", payload)
-
 
 @compat_router.post("/import/tasks/temporal_backfill")
 async def compat_import_temporal_backfill_task(payload: dict[str, Any] = Body(default_factory=dict)):
     return await _import_create("create_temporal_backfill", payload)
 
-
 @compat_router.post("/import/maibot_migration")
 async def compat_import_maibot_migration(payload: dict[str, Any] = Body(default_factory=dict)):
     return await _import_create("create_maibot_migration", payload)
-
 
 @compat_router.post("/import/tasks/maibot_migration")
 async def compat_import_maibot_migration_task(payload: dict[str, Any] = Body(default_factory=dict)):
     return await _import_create("create_maibot_migration", payload)
 
-
 @compat_router.get("/import/tasks")
 async def compat_import_list(limit: int = Query(50, ge=1, le=200)):
     return await _import_list(limit)
 
-
 @compat_router.get("/import/tasks/{task_id}")
 async def compat_import_get(task_id: str, include_chunks: bool = Query(False)):
     return await _import_get(task_id, include_chunks)
-
 
 @compat_router.get("/import/tasks/{task_id}/chunks/{file_id}")
 async def compat_import_chunks(
@@ -3402,7 +2929,6 @@ async def compat_import_chunks(
 ):
     return await _import_chunks(task_id, file_id, offset, limit)
 
-
 @compat_router.get("/import/tasks/{task_id}/files/{file_id}/chunks")
 async def compat_import_file_chunks(
     task_id: str,
@@ -3412,66 +2938,53 @@ async def compat_import_file_chunks(
 ):
     return await _import_chunks(task_id, file_id, offset, limit)
 
-
 @compat_router.post("/import/tasks/{task_id}/cancel")
 async def compat_import_cancel(task_id: str):
     return await _import_cancel(task_id)
-
 
 @compat_router.post("/import/tasks/{task_id}/retry")
 async def compat_import_retry(task_id: str, payload: dict[str, Any] = Body(default_factory=dict)):
     return await _import_retry(task_id, payload)
 
-
 @compat_router.post("/import/tasks/{task_id}/retry_failed")
 async def compat_import_retry_failed(task_id: str, payload: dict[str, Any] = Body(default_factory=dict)):
     return await _import_retry(task_id, payload)
-
 
 @compat_router.get("/retrieval_tuning/settings")
 async def compat_tuning_settings():
     return await _tuning_settings()
 
-
 @compat_router.get("/retrieval_tuning/profile")
 async def compat_tuning_profile():
     return await _tuning_profile()
-
 
 @compat_router.post("/retrieval_tuning/profile/apply")
 async def compat_apply_tuning_profile(payload: TuningApplyProfileRequest):
     return await _tuning_apply_profile(payload)
 
-
 @compat_router.post("/retrieval_tuning/profile/rollback")
 async def compat_rollback_tuning_profile():
     return await _tuning_rollback_profile()
-
 
 @compat_router.get("/retrieval_tuning/profile/export")
 async def compat_export_tuning_profile():
     return await _tuning_export_profile()
 
-
 @compat_router.get("/retrieval_tuning/profile/export_toml")
 async def compat_export_tuning_profile_toml():
     return await _tuning_export_profile()
-
 
 @compat_router.post("/retrieval_tuning/tasks")
 async def compat_create_tuning_task(payload: dict[str, Any] = Body(default_factory=dict)):
     return await _tuning_create_task(payload)
 
-
 @compat_router.get("/retrieval_tuning/tasks")
 async def compat_list_tuning_tasks(limit: int = Query(50, ge=1, le=200)):
     return await _tuning_list_tasks(limit)
 
-
 @compat_router.get("/retrieval_tuning/tasks/{task_id}")
 async def compat_get_tuning_task(task_id: str, include_rounds: bool = Query(False)):
     return await _tuning_get_task(task_id, include_rounds)
-
 
 @compat_router.get("/retrieval_tuning/tasks/{task_id}/rounds")
 async def compat_get_tuning_rounds(
@@ -3481,11 +2994,9 @@ async def compat_get_tuning_rounds(
 ):
     return await _tuning_get_rounds(task_id, offset, limit)
 
-
 @compat_router.post("/retrieval_tuning/tasks/{task_id}/cancel")
 async def compat_cancel_tuning_task(task_id: str):
     return await _tuning_cancel(task_id)
-
 
 @compat_router.post("/retrieval_tuning/tasks/{task_id}/apply_best")
 async def compat_apply_best_tuning_profile(
@@ -3494,14 +3005,12 @@ async def compat_apply_best_tuning_profile(
 ):
     return await _tuning_apply_best(task_id, payload)
 
-
 @compat_router.post("/retrieval_tuning/tasks/{task_id}/apply-best")
 async def compat_apply_best_tuning_profile_kebab(
     task_id: str,
     payload: TuningApplyBestRequest = Body(default_factory=TuningApplyBestRequest),
 ):
     return await _tuning_apply_best(task_id, payload)
-
 
 @compat_router.get("/retrieval_tuning/tasks/{task_id}/report")
 async def compat_get_tuning_report(task_id: str, format: str = Query("md")):
