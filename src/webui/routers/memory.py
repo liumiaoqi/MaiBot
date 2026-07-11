@@ -18,6 +18,9 @@ from src.common.database.database_model import ChatSession, Messages, PersonInfo
 from src.person_info.person_info import resolve_person_id_for_memory
 from src.services.memory_service import MemorySearchResult, memory_service
 from src.webui.dependencies import require_auth
+from src.webui.errors import AppError
+from src.webui.errors.codes import ErrorCode
+from src.webui.schemas.base import ApiResponse
 from src.webui.schemas.memory import (
     AutoSaveRequest,
     DeleteActionRequest,
@@ -1106,12 +1109,12 @@ async def _memory_timeline(
 ) -> MemoryTimelineResponse:
     clean_chat_id = str(chat_id or "").strip()
     if not clean_chat_id:
-        raise HTTPException(status_code=400, detail="chat_id 不能为空")
+        raise AppError(ErrorCode.PARAM_INVALID, "chat_id 不能为空")
     chat_session = _find_real_chat_session(clean_chat_id)
     if chat_session is None:
         raise HTTPException(status_code=400, detail=f"聊天流不存在: {clean_chat_id}")
     if time_start is not None and time_end is not None and time_start > time_end:
-        raise HTTPException(status_code=400, detail="time_start 不能晚于 time_end")
+        raise AppError(ErrorCode.PARAM_INVALID, "time_start 不能晚于 time_end")
 
     chat = _timeline_chat_from_session(chat_session)
     safe_limit = max(1, min(500, int(limit or 100)))
@@ -1218,8 +1221,6 @@ async def _import_chat_targets() -> ImportChatTargetsResponse:
                 if str(chat_session.session_id or "").strip()
             ]
         return ImportChatTargetsResponse(success=True, data=targets)
-    except HTTPException:
-        raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"获取导入聊天流失败: {exc}") from exc
 
@@ -1290,7 +1291,7 @@ def _format_graph_paragraph(row: dict[str, Any], entities: list[str], relations:
 async def _graph_get_paragraph_detail(paragraph_hash: str, evidence_node_limit: int) -> dict:
     token = str(paragraph_hash or "").strip()
     if not token:
-        raise HTTPException(status_code=400, detail="paragraph_hash 不能为空")
+        raise AppError(ErrorCode.PARAM_INVALID, "paragraph_hash 不能为空")
     rows = await _query_memory_rows(
         """
         SELECT hash, content, source, created_at, updated_at, metadata, is_deleted, deleted_at
@@ -2173,7 +2174,7 @@ async def query_memory_aggregate(
         time_end=time_end,
     )
 
-@router.get("/timeline", response_model=MemoryTimelineResponse)
+@router.get("/timeline", response_model=ApiResponse[MemoryTimelineResponse])
 async def get_memory_timeline(
     chat_id: str = Query(..., min_length=1),
     time_start: float | None = Query(None),
@@ -2494,7 +2495,7 @@ async def get_memory_import_settings():
 async def get_memory_import_path_aliases():
     return await _import_path_aliases()
 
-@router.get("/import/chat-targets", response_model=ImportChatTargetsResponse)
+@router.get("/import/chat-targets", response_model=ApiResponse[ImportChatTargetsResponse])
 async def get_memory_import_chat_targets():
     return await _import_chat_targets()
 
@@ -2686,7 +2687,7 @@ async def compat_query_aggregate(
         time_end=time_end,
     )
 
-@compat_router.get("/timeline", response_model=MemoryTimelineResponse)
+@compat_router.get("/timeline", response_model=ApiResponse[MemoryTimelineResponse])
 async def compat_get_memory_timeline(
     chat_id: str = Query(..., min_length=1),
     time_start: float | None = Query(None),

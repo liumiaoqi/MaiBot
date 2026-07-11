@@ -2,7 +2,7 @@
 
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
 from sqlmodel import select
 
@@ -16,6 +16,9 @@ from src.maisaka.agent.registry import AgentConfigRegistry
 from src.core.adapters.routing_adapter import ChatManagerRoutingAdapter
 from src.maisaka.relationship.level import RelationshipLevel
 from src.webui.dependencies import require_auth
+from src.webui.errors import AppError
+from src.webui.errors.codes import ErrorCode
+from src.webui.schemas.base import ApiResponse
 from src.webui.schemas.agent import (
     ActiveAgentItem,
     ActiveAgentsResponse,
@@ -89,7 +92,7 @@ def _get_agent_router() -> ChatManagerRoutingAdapter:
     """获取 ChatManager 持有的智能体路由器单例（通过适配器层访问）"""
     adapter = ChatManagerRoutingAdapter()
     if adapter._ensure_router() is None:
-        raise HTTPException(status_code=503, detail="ChatManager 尚未初始化，智能体路由器不可用")
+        raise AppError(ErrorCode.SYS_SERVICE_UNAVAILABLE, "ChatManager 尚未初始化，智能体路由器不可用")
     return adapter
 
 def _config_to_response(config: AgentConfig) -> AgentConfigResponse:
@@ -120,7 +123,7 @@ def _config_to_response(config: AgentConfig) -> AgentConfigResponse:
         anti_mechanization_rules=config.anti_mechanization_rules,
     )
 
-@router.get("/list", response_model=AgentListResponse)
+@router.get("/list", response_model=ApiResponse[AgentListResponse])
 async def list_agents():
     """获取所有智能体配置列表"""
     try:
@@ -133,9 +136,9 @@ async def list_agents():
         )
     except Exception as e:
         logger.error(f"获取智能体列表失败: {e}")
-        raise HTTPException(status_code=500, detail="获取智能体列表失败") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取智能体列表失败") from e
 
-@router.get("/{agent_id}", response_model=AgentDetailResponse)
+@router.get("/{agent_id}", response_model=ApiResponse[AgentDetailResponse])
 async def get_agent_detail(agent_id: str):
     """获取指定智能体详细配置"""
     try:
@@ -144,13 +147,11 @@ async def get_agent_detail(agent_id: str):
             raise HTTPException(status_code=404, detail=f"智能体不存在: {agent_id}")
         config = registry.get_agent(agent_id)
         return AgentDetailResponse(success=True, data=_config_to_response(config))
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"获取智能体详情失败: {e}")
-        raise HTTPException(status_code=500, detail="获取智能体详情失败") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取智能体详情失败") from e
 
-@router.get("/emotion/{agent_id}", response_model=EmotionStateResponse)
+@router.get("/emotion/{agent_id}", response_model=ApiResponse[EmotionStateResponse])
 async def get_agent_emotion(agent_id: str):
     """获取指定智能体当前情绪状态"""
     try:
@@ -173,13 +174,11 @@ async def get_agent_emotion(agent_id: str):
             dominant_emotion_label=EMOTION_LABELS_ZH.get(dominant, dominant),
             emotion_labels=EMOTION_LABELS_ZH,
         )
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"获取智能体情绪状态失败: {e}")
-        raise HTTPException(status_code=500, detail="获取智能体情绪状态失败") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取智能体情绪状态失败") from e
 
-@router.get("/relationship/{agent_id}", response_model=RelationshipSummaryResponse)
+@router.get("/relationship/{agent_id}", response_model=ApiResponse[RelationshipSummaryResponse])
 async def get_agent_relationships(agent_id: str):
     """获取指定智能体的关系概览"""
     try:
@@ -205,13 +204,11 @@ async def get_agent_relationships(agent_id: str):
             agent_id=agent_id,
             relationships=relationships,
         )
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"获取智能体关系概览失败: {e}")
-        raise HTTPException(status_code=500, detail="获取智能体关系概览失败") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取智能体关系概览失败") from e
 
-@router.get("/binding/session/{session_id}", response_model=SessionBindingResponse)
+@router.get("/binding/session/{session_id}", response_model=ApiResponse[SessionBindingResponse])
 async def get_session_binding(session_id: str):
     """获取会话绑定的智能体"""
     try:
@@ -230,9 +227,9 @@ async def get_session_binding(session_id: str):
         )
     except Exception as e:
         logger.error(f"获取会话绑定失败: {e}")
-        raise HTTPException(status_code=500, detail="获取会话绑定失败") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取会话绑定失败") from e
 
-@router.put("/binding/session/{session_id}", response_model=SessionBindingResponse)
+@router.put("/binding/session/{session_id}", response_model=ApiResponse[SessionBindingResponse])
 async def bind_session_agent(session_id: str, request: BindSessionRequest):
     """绑定会话到指定智能体（双写：内存路由器 + 数据库 + Activity）"""
     try:
@@ -253,7 +250,7 @@ async def bind_session_agent(session_id: str, request: BindSessionRequest):
         except Exception as db_exc:
             agent_router.unbind_session(session_id, request.agent_id)
             logger.error(f"绑定写入数据库失败，已回滚内存绑定: session={session_id}, agent={request.agent_id}, error={db_exc}")
-            raise HTTPException(status_code=500, detail="绑定写入数据库失败") from db_exc
+            raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "绑定写入数据库失败") from db_exc
 
         is_primary = (primary_agent == request.agent_id)
         try:
@@ -285,13 +282,11 @@ async def bind_session_agent(session_id: str, request: BindSessionRequest):
             agent_id=request.agent_id,
             display_name=config.display_name,
         )
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"绑定会话智能体失败: {e}")
-        raise HTTPException(status_code=500, detail="绑定会话智能体失败") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "绑定会话智能体失败") from e
 
-@router.delete("/binding/session/{session_id}", response_model=SessionBindingResponse)
+@router.delete("/binding/session/{session_id}", response_model=ApiResponse[SessionBindingResponse])
 async def unbind_session_agent(session_id: str):
     """解除会话的所有智能体绑定（四清：内存+数据库+Orchestrator退场+Activity关闭）"""
     try:
@@ -325,13 +320,11 @@ async def unbind_session_agent(session_id: str):
                 db.add(db_session)
 
         return SessionBindingResponse(success=True, session_id=session_id)
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"解除会话绑定失败: {e}")
-        raise HTTPException(status_code=500, detail="解除会话绑定失败") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "解除会话绑定失败") from e
 
-@router.delete("/binding/session/{session_id}/{agent_id}", response_model=SessionBindingResponse)
+@router.delete("/binding/session/{session_id}/{agent_id}", response_model=ApiResponse[SessionBindingResponse])
 async def unbind_session_specific_agent(session_id: str, agent_id: str):
     """解除会话中指定智能体的绑定（多智能体场景下精确解绑）"""
     try:
@@ -364,13 +357,11 @@ async def unbind_session_specific_agent(session_id: str, agent_id: str):
                 db.add(db_session)
 
         return SessionBindingResponse(success=True, session_id=session_id, agent_id=agent_id)
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"解除指定智能体绑定失败: {e}")
-        raise HTTPException(status_code=500, detail="解除指定智能体绑定失败") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "解除指定智能体绑定失败") from e
 
-@router.put("/binding/batch", response_model=BatchBindResponse)
+@router.put("/binding/batch", response_model=ApiResponse[BatchBindResponse])
 async def batch_bind_sessions(request: BatchBindRequest):
     """批量绑定会话到指定智能体（双写：内存路由器 + 数据库 + Activity）"""
     registry = _get_registry()
@@ -431,7 +422,7 @@ async def batch_bind_sessions(request: BatchBindRequest):
         errors=errors,
     )
 
-@router.get("/binding/group", response_model=GroupBindingsListResponse)
+@router.get("/binding/group", response_model=ApiResponse[GroupBindingsListResponse])
 async def list_group_bindings():
     """列出所有群-智能体绑定"""
     try:
@@ -442,9 +433,9 @@ async def list_group_bindings():
         )
     except Exception as e:
         logger.error(f"获取群绑定列表失败: {e}")
-        raise HTTPException(status_code=500, detail="获取群绑定列表失败") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取群绑定列表失败") from e
 
-@router.put("/binding/group", response_model=GroupBindingResponse)
+@router.put("/binding/group", response_model=ApiResponse[GroupBindingResponse])
 async def bind_group_agent(request: BindGroupRequest):
     """绑定群到指定智能体"""
     try:
@@ -462,13 +453,11 @@ async def bind_group_agent(request: BindGroupRequest):
             agent_id=request.agent_id,
             display_name=config.display_name,
         )
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"绑定群智能体失败: {e}")
-        raise HTTPException(status_code=500, detail="绑定群智能体失败") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "绑定群智能体失败") from e
 
-@router.delete("/binding/group/{group_id}", response_model=GroupBindingResponse)
+@router.delete("/binding/group/{group_id}", response_model=ApiResponse[GroupBindingResponse])
 async def unbind_group_agent(group_id: str):
     """解除群的智能体绑定"""
     try:
@@ -477,9 +466,9 @@ async def unbind_group_agent(group_id: str):
         return GroupBindingResponse(success=True, group_id=group_id, agent_id="")
     except Exception as e:
         logger.error(f"解除群绑定失败: {e}")
-        raise HTTPException(status_code=500, detail="解除群绑定失败") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "解除群绑定失败") from e
 
-@router.get("/sessions/{agent_id}", response_model=SessionsByAgentResponse)
+@router.get("/sessions/{agent_id}", response_model=ApiResponse[SessionsByAgentResponse])
 async def get_sessions_by_agent(agent_id: str):
     """获取使用指定智能体的所有会话（联合查询 ChatSession + Activity，精确展示活跃状态）"""
     try:
@@ -540,13 +529,11 @@ async def get_sessions_by_agent(agent_id: str):
             agent_id=agent_id,
             sessions=sessions,
         )
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"获取智能体会话列表失败: {e}")
-        raise HTTPException(status_code=500, detail="获取智能体会话列表失败") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取智能体会话列表失败") from e
 
-@router.post("/reload", response_model=ReloadResponse)
+@router.post("/reload", response_model=ApiResponse[ReloadResponse])
 async def reload_agents():
     """重新加载所有智能体配置"""
     try:
@@ -560,11 +547,11 @@ async def reload_agents():
         )
     except Exception as e:
         logger.error(f"重新加载智能体配置失败: {e}")
-        raise HTTPException(status_code=500, detail="重新加载智能体配置失败") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "重新加载智能体配置失败") from e
 
 # ========== 子智能体监控 API ==========
 
-@router.get("/subagent/records", response_model=SubAgentListResponse)
+@router.get("/subagent/records", response_model=ApiResponse[SubAgentListResponse])
 async def list_subagent_records(
     agent_id: Optional[str] = None,
     subagent_type: Optional[str] = None,
@@ -608,9 +595,9 @@ async def list_subagent_records(
             return SubAgentListResponse(success=True, total=len(data), data=data)
     except Exception as e:
         logger.error(f"获取子智能体记录失败: {e}")
-        raise HTTPException(status_code=500, detail="获取子智能体记录失败") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取子智能体记录失败") from e
 
-@router.get("/subagent/stats", response_model=SubAgentStatsResponse)
+@router.get("/subagent/stats", response_model=ApiResponse[SubAgentStatsResponse])
 async def get_subagent_stats():
     """获取子智能体执行统计"""
     try:
@@ -638,11 +625,11 @@ async def get_subagent_stats():
             )
     except Exception as e:
         logger.error(f"获取子智能体统计失败: {e}")
-        raise HTTPException(status_code=500, detail="获取子智能体统计失败") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取子智能体统计失败") from e
 
 # ========== 情绪-行为映射 API ==========
 
-@router.get("/emotion-behavior-rules/{agent_id}", response_model=EmotionBehaviorRulesResponse)
+@router.get("/emotion-behavior-rules/{agent_id}", response_model=ApiResponse[EmotionBehaviorRulesResponse])
 async def get_emotion_behavior_rules(agent_id: str):
     """获取智能体的情绪-行为映射规则"""
     try:
@@ -660,15 +647,13 @@ async def get_emotion_behavior_rules(agent_id: str):
             for rule in config.emotion_behavior_map
         ]
         return EmotionBehaviorRulesResponse(success=True, agent_id=agent_id, rules=rules)
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"获取情绪-行为映射规则失败: {e}")
-        raise HTTPException(status_code=500, detail="获取情绪-行为映射规则失败") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取情绪-行为映射规则失败") from e
 
 # ========== 批量查询 API ==========
 
-@router.get("/batch/emotion", response_model=BatchEmotionResponse)
+@router.get("/batch/emotion", response_model=ApiResponse[BatchEmotionResponse])
 async def batch_get_emotions():
     """批量获取所有智能体的情绪状态"""
     result: Dict[str, BatchEmotionItem] = {}
@@ -695,9 +680,9 @@ async def batch_get_emotions():
         return BatchEmotionResponse(success=True, data=result)
     except Exception as e:
         logger.error(f"批量获取情绪状态失败: {e}")
-        raise HTTPException(status_code=500, detail="批量获取情绪状态失败") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "批量获取情绪状态失败") from e
 
-@router.get("/batch/relationships", response_model=BatchRelationshipResponse)
+@router.get("/batch/relationships", response_model=ApiResponse[BatchRelationshipResponse])
 async def batch_get_relationships():
     """批量获取所有智能体的关系概览"""
     result: Dict[str, List[RelationshipItem]] = {}
@@ -727,9 +712,9 @@ async def batch_get_relationships():
         return BatchRelationshipResponse(success=True, data=result)
     except Exception as e:
         logger.error(f"批量获取关系概览失败: {e}")
-        raise HTTPException(status_code=500, detail="批量获取关系概览失败") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "批量获取关系概览失败") from e
 
-@router.get("/batch/sessions", response_model=BatchSessionCountResponse)
+@router.get("/batch/sessions", response_model=ApiResponse[BatchSessionCountResponse])
 async def batch_get_session_counts():
     """批量获取各智能体的已绑定会话数量"""
     result: Dict[str, int] = {}
@@ -750,9 +735,9 @@ async def batch_get_session_counts():
         return BatchSessionCountResponse(success=True, data=result)
     except Exception as e:
         logger.error(f"批量获取会话数量失败: {e}")
-        raise HTTPException(status_code=500, detail="批量获取会话数量失败") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "批量获取会话数量失败") from e
 
-@router.get("/batch/subagent-latest", response_model=BatchLatestSubAgentResponse)
+@router.get("/batch/subagent-latest", response_model=ApiResponse[BatchLatestSubAgentResponse])
 async def batch_get_latest_subagent_records():
     """批量获取各智能体最近一条子智能体执行记录"""
     result: Dict[str, Optional[BatchLatestSubAgentItem]] = {}
@@ -786,7 +771,7 @@ async def batch_get_latest_subagent_records():
         return BatchLatestSubAgentResponse(success=True, data=result)
     except Exception as e:
         logger.error(f"批量获取子智能体记录失败: {e}")
-        raise HTTPException(status_code=500, detail="批量获取子智能体记录失败") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "批量获取子智能体记录失败") from e
 
 # ========== 插件迁移协调 API ==========
 
@@ -809,7 +794,7 @@ async def get_migration_states():
         for s in states
     ]
 
-@router.post("/migration/{plugin_id}/advance", response_model=MigrationAdvanceResponse)
+@router.post("/migration/{plugin_id}/advance", response_model=ApiResponse[MigrationAdvanceResponse])
 async def advance_migration(plugin_id: str):
     """推进指定插件的迁移阶段。"""
     from src.maisaka.migration import MigrationCoordinator
@@ -857,7 +842,7 @@ async def get_monologue_events(agent_id: str, limit: int = 10):
 
 # ---- 智能体画像 API ----
 
-@router.get("/profile/{observer_id}/{target_id}", response_model=AgentProfileResponse)
+@router.get("/profile/{observer_id}/{target_id}", response_model=ApiResponse[AgentProfileResponse])
 async def get_agent_profile(observer_id: str, target_id: str):
     """获取智能体画像。"""
     from src.maisaka.agent_interaction.memory.adapter import AgentMemoryAdapter
@@ -956,7 +941,7 @@ async def query_interaction_history(
 
 # ---- 交互触发管理 API ----
 
-@router.post("/interactions/trigger", response_model=ManualTriggerResponse)
+@router.post("/interactions/trigger", response_model=ApiResponse[ManualTriggerResponse])
 async def manual_trigger_interaction(req: ManualTriggerRequest):
     """管理员手动触发交互。"""
     from src.maisaka.agent_interaction.engine import InteractionEngine
@@ -981,7 +966,7 @@ async def manual_trigger_interaction(req: ManualTriggerRequest):
         error=result.error,
     )
 
-@router.get("/interactions/config", response_model=InteractionConfigResponse)
+@router.get("/interactions/config", response_model=ApiResponse[InteractionConfigResponse])
 async def get_interaction_config():
     """获取交互触发配置。"""
     from src.config.config import global_config
@@ -1023,7 +1008,7 @@ async def get_interaction_hotspots():
     ]
     return {"hotspots": hotspots}
 
-@router.get("/interactions/{event_id}", response_model=InteractionEventResponse)
+@router.get("/interactions/{event_id}", response_model=ApiResponse[InteractionEventResponse])
 async def get_interaction_detail(event_id: str):
     """获取指定交互事件的详情。"""
     from src.maisaka.agent_interaction.event_store import InteractionEventStore
@@ -1050,7 +1035,7 @@ async def get_interaction_detail(event_id: str):
 
 # ========== 智能体自主性 API ==========
 
-@router.get("/autonomy/active/{session_id}", response_model=ActiveAgentsResponse)
+@router.get("/autonomy/active/{session_id}", response_model=ApiResponse[ActiveAgentsResponse])
 async def get_active_agents(session_id: str):
     """获取会话的活跃智能体列表。"""
     from src.maisaka.agent_autonomy.activity_store import AgentActivityStore
@@ -1072,7 +1057,7 @@ async def get_active_agents(session_id: str):
         ],
     )
 
-@router.get("/autonomy/primary/{session_id}", response_model=PrimaryAgentResponse)
+@router.get("/autonomy/primary/{session_id}", response_model=ApiResponse[PrimaryAgentResponse])
 async def get_primary_agent(session_id: str):
     """获取会话的主发言智能体。"""
     from src.maisaka.agent_autonomy.activity_store import AgentActivityStore
@@ -1087,14 +1072,14 @@ async def get_primary_agent(session_id: str):
         activated_at=primary.activated_at.isoformat() if primary and primary.activated_at else None,
     )
 
-@router.post("/autonomy/switch-speaker", response_model=SwitchSpeakerResponse)
+@router.post("/autonomy/switch-speaker", response_model=ApiResponse[SwitchSpeakerResponse])
 async def switch_speaker(req: SwitchSpeakerRequest):
     """切换主发言智能体。"""
     from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
 
     orchestrator = AgentOrchestrator.get_by_session(req.session_id)
     if orchestrator is None:
-        raise HTTPException(status_code=404, detail="未找到该会话的自主性编排器")
+        raise AppError(ErrorCode.BIZ_NOT_FOUND, "未找到该会话的自主性编排器")
 
     from_id = orchestrator.get_primary_agent()
     from_agent_id = from_id.agent_id if from_id else ""
@@ -1110,14 +1095,14 @@ async def switch_speaker(req: SwitchSpeakerRequest):
         to_agent_id=req.target_agent_id if success else "",
     )
 
-@router.post("/autonomy/trigger-interjection", response_model=TriggerInterjectionResponse)
+@router.post("/autonomy/trigger-interjection", response_model=ApiResponse[TriggerInterjectionResponse])
 async def trigger_interjection(req: TriggerInterjectionRequest):
     """手动触发插话。"""
     from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
 
     orchestrator = AgentOrchestrator.get_by_session(req.session_id)
     if orchestrator is None:
-        raise HTTPException(status_code=404, detail="未找到该会话的自主性编排器")
+        raise AppError(ErrorCode.BIZ_NOT_FOUND, "未找到该会话的自主性编排器")
 
     if req.agent_id not in [a.agent_id for a in orchestrator.get_active_agents()]:
         await orchestrator.activate_agent(req.agent_id, "manual_interjection")
@@ -1137,7 +1122,7 @@ async def trigger_interjection(req: TriggerInterjectionRequest):
         agent_id=req.agent_id,
     )
 
-@router.get("/autonomy/intents/{session_id}", response_model=BehaviorIntentsResponse)
+@router.get("/autonomy/intents/{session_id}", response_model=ApiResponse[BehaviorIntentsResponse])
 async def get_behavior_intents(session_id: str, limit: int = 50):
     """获取会话的行为意图列表。"""
     from src.common.database.database_model import AgentAutonomyBehaviorIntent
@@ -1168,7 +1153,7 @@ async def get_behavior_intents(session_id: str, limit: int = 50):
             ],
         )
 
-@router.get("/autonomy/interjection-events/{session_id}", response_model=InterjectionEventsResponse)
+@router.get("/autonomy/interjection-events/{session_id}", response_model=ApiResponse[InterjectionEventsResponse])
 async def get_interjection_events(session_id: str, limit: int = 50):
     """获取会话的插话事件列表。"""
     from src.common.database.database_model import AgentAutonomyInterjectionEvent
@@ -1199,7 +1184,7 @@ async def get_interjection_events(session_id: str, limit: int = 50):
             ],
         )
 
-@router.get("/autonomy/speaker-changes/{session_id}", response_model=SpeakerChangesResponse)
+@router.get("/autonomy/speaker-changes/{session_id}", response_model=ApiResponse[SpeakerChangesResponse])
 async def get_speaker_changes(session_id: str, limit: int = 50):
     """获取会话的发言权变更记录。"""
     from src.common.database.database_model import AgentAutonomySpeakerChangeRecord
@@ -1228,7 +1213,7 @@ async def get_speaker_changes(session_id: str, limit: int = 50):
             ],
         )
 
-@router.get("/autonomy-logs", response_model=AutonomyLogResponse)
+@router.get("/autonomy-logs", response_model=ApiResponse[AutonomyLogResponse])
 async def get_autonomy_logs(
     agent_id: Optional[str] = None,
     event_type: Optional[str] = None,
@@ -1322,7 +1307,7 @@ def _parse_autonomy_log(entry: dict, event: str) -> Optional[AutonomyLogItem]:
         log_level=entry.get("level", "info"),
     )
 
-@router.get("/vitality", response_model=SessionVitalityResponse)
+@router.get("/vitality", response_model=ApiResponse[SessionVitalityResponse])
 async def get_session_vitality(session_id: str):
     """查询会话智能体生命力状态（三态分类）。"""
     from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
@@ -1389,7 +1374,7 @@ async def get_session_vitality(session_id: str):
 
 # ========== 状态互知 API ==========
 
-@router.get("/state-awareness", response_model=StateAwarenessResponse)
+@router.get("/state-awareness", response_model=ApiResponse[StateAwarenessResponse])
 async def get_state_awareness(session_id: str):
     """查询会话智能体感知关系和摘要预览。"""
     from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
