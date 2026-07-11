@@ -592,6 +592,7 @@ class AMemorixHostService:
             llm_models_exceptions=NetworkConnectionError,
             llm_models_base_client=EmbeddingRequest,
             llm_data_models=LLMServiceResult,
+            build_profile_injection_text=AMemorixHostService.build_profile_injection_text,
         )
 
     def _read_config(self) -> Dict[str, Any]:

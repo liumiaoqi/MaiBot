@@ -5,7 +5,7 @@ from typing import Any, Dict, Iterable, Optional, Tuple
 
 from src.common.logger import get_logger
 from src.common.data_models.llm_service_data_models import LLMServiceResult
-from src.services import llm_service as llm_api
+
 
 logger = get_logger("A_Memorix.ModelRouting")
 
@@ -138,6 +138,7 @@ async def generate_with_resolved_model(
     model: ResolvedLLMModel,
     request_type: str,
     prompt: str,
+    llm_api: Any,
     *,
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,

@@ -287,6 +287,7 @@ class EpisodeSegmentationService:
             resolved_model,
             request_type="A_Memorix.EpisodeSegmentation",
             prompt=prompt,
+            llm_api=self._llm_api,
             temperature=getattr(resolved_model.task_config, "temperature", None),
             max_tokens=getattr(resolved_model.task_config, "max_tokens", None),
         )

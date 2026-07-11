@@ -35,12 +35,8 @@ _CONCEPT_EXTRACTION_PROMPT = """你是一个概念提取器。从以下文本中
 class LLMConceptExtractor:
     """LLM 语义概念提取器，LLM 失败时降级到 jieba 分词"""
 
-    def __init__(self, llm_client: Any = None, *, task_name: str = "utils", concept_index=None) -> None:
-        if llm_client is not None:
-            self._llm = llm_client
-        else:
-            from src.services.llm_service import LLMServiceClient
-            self._llm = LLMServiceClient(task_name=task_name)
+    def __init__(self, llm_client: Any, *, task_name: str = "utils", concept_index=None) -> None:
+        self._llm = llm_client
         self._concept_index = concept_index
 
     async def extract(self, text: str) -> ExtractionResult:

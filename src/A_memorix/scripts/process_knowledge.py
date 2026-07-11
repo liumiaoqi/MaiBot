@@ -583,6 +583,7 @@ Chat paragraph:
             resolved_model,
             request_type="Script.ProcessKnowledge",
             prompt=prompt,
+            llm_api=llm_api,
             temperature=getattr(resolved_model.task_config, "temperature", None),
             max_tokens=getattr(resolved_model.task_config, "max_tokens", None),
         )

@@ -745,6 +745,7 @@ class PersonProfileService:
                 model,
                 PROFILE_CLASSIFICATION_REQUEST_TYPE,
                 prompt,
+                self._llm_api,
                 temperature=self._profile_classification_temperature(),
                 max_tokens=self._profile_classification_max_tokens(),
             )

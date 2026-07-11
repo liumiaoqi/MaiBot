@@ -23,11 +23,11 @@ logger = get_logger("MemoryField")
 class MemoryField:
     """连接主义记忆系统核心运行时"""
 
-    def __init__(self, data_dir: Path) -> None:
+    def __init__(self, data_dir: Path, *, llm_client: Any = None) -> None:
         self._trace_store = TraceStore(data_dir)
         self._concept_index = ConceptIndex(data_dir)
         self._personality_registry = PersonalityRegistry()
-        self._llm_extractor = LLMConceptExtractor(concept_index=self._concept_index)
+        self._llm_extractor = LLMConceptExtractor(llm_client=llm_client, concept_index=self._concept_index)
         self._salience_evaluator = SalienceEvaluator()
         self._voice_processor = InnerVoiceProcessor()
         self._spreading_activation = SpreadingActivation(self._trace_store, self._concept_index)

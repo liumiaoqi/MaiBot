@@ -20,10 +20,7 @@ import numpy as np
 import openai
 
 from src.common.logger import get_logger
-from src.config.config import config_manager
-from src.config.model_configs import APIProvider, ModelInfo
-from src.llm_models.exceptions import NetworkConnectionError
-from src.llm_models.model_client.base_client import EmbeddingRequest, client_registry
+
 
 logger = get_logger("A_Memorix.EmbeddingAPIAdapter")
 
@@ -43,6 +40,11 @@ class EmbeddingAPIAdapter:
         model_name: str = "auto",
         dimension_request_mode: str = "explicit",
         retry_config: Optional[dict] = None,
+        *,
+        config_manager: Any = None,
+        client_registry: Any = None,
+        embedding_request_cls: Any = None,
+        network_connection_error_cls: Any = None,
     ) -> None:
         self.batch_size = max(1, int(batch_size))
         self.max_concurrent = max(1, int(max_concurrent))
@@ -56,6 +58,11 @@ class EmbeddingAPIAdapter:
         self.max_wait_seconds = max(0.1, float(self.retry_config.get("max_wait_seconds", 40)))
         self.min_wait_seconds = max(0.1, float(self.retry_config.get("min_wait_seconds", 3)))
         self.backoff_multiplier = max(1.0, float(self.retry_config.get("backoff_multiplier", 3)))
+
+        self._config_manager = config_manager
+        self._client_registry = client_registry
+        self._embedding_request_cls = embedding_request_cls
+        self._network_connection_error_cls = network_connection_error_cls
 
         self._dimension: Optional[int] = None
         self._dimension_detected = False
@@ -75,19 +82,17 @@ class EmbeddingAPIAdapter:
         )
 
     def _get_current_model_config(self):
-        return config_manager.get_model_config()
+        return self._config_manager.get_model_config()
 
-    @staticmethod
-    def _find_model_info(model_name: str) -> ModelInfo:
-        model_cfg = config_manager.get_model_config()
+    def _find_model_info(self, model_name: str) -> Any:
+        model_cfg = self._config_manager.get_model_config()
         for item in model_cfg.models:
             if item.name == model_name:
                 return item
         raise ValueError(f"未找到 embedding 模型: {model_name}")
 
-    @staticmethod
-    def _find_provider(provider_name: str) -> APIProvider:
-        model_cfg = config_manager.get_model_config()
+    def _find_provider(self, provider_name: str) -> Any:
+        model_cfg = self._config_manager.get_model_config()
         for item in model_cfg.api_providers:
             if item.name == provider_name:
                 return item
@@ -202,7 +207,7 @@ class EmbeddingAPIAdapter:
     def _build_request_extra_params(
         self,
         *,
-        api_provider: APIProvider,
+        api_provider: Any,
         base_extra_params: dict,
         requested_dimension: Optional[int],
         include_dimension: bool,
@@ -230,19 +235,21 @@ class EmbeddingAPIAdapter:
         return array
 
     async def _request_with_retry(self, client, model_info, text: str, extra_params: dict):
-        retriable_exceptions = (
+        retriable_exceptions = [
             openai.APIConnectionError,
             openai.APITimeoutError,
             aiohttp.ClientError,
             asyncio.TimeoutError,
-            NetworkConnectionError,
-        )
+        ]
+        if self._network_connection_error_cls is not None:
+            retriable_exceptions.append(self._network_connection_error_cls)
+        retriable_exceptions = tuple(retriable_exceptions)
 
         last_exc: Optional[BaseException] = None
         for attempt in range(1, self.max_attempts + 1):
             try:
                 return await client.get_embedding(
-                    EmbeddingRequest(
+                    self._embedding_request_cls(
                         model_info=model_info,
                         embedding_input=text,
                         extra_params=extra_params,
@@ -285,7 +292,7 @@ class EmbeddingAPIAdapter:
             try:
                 model_info = self._find_model_info(candidate_name)
                 api_provider = self._find_provider(model_info.api_provider)
-                client = client_registry.get_client_class_instance(api_provider, force_new=True)
+                client = self._client_registry.get_client_class_instance(api_provider, force_new=True)
 
                 should_include_dimension = self._should_include_dimension(dimensions, include_dimension)
                 requested_dimension = (
@@ -573,6 +580,11 @@ def create_embedding_api_adapter(
     model_name: str = "auto",
     dimension_request_mode: str = "explicit",
     retry_config: Optional[dict] = None,
+    *,
+    config_manager: Any = None,
+    client_registry: Any = None,
+    embedding_request_cls: Any = None,
+    network_connection_error_cls: Any = None,
 ) -> EmbeddingAPIAdapter:
     return EmbeddingAPIAdapter(
         batch_size=batch_size,
@@ -582,4 +594,8 @@ def create_embedding_api_adapter(
         model_name=model_name,
         dimension_request_mode=dimension_request_mode,
         retry_config=retry_config,
+        config_manager=config_manager,
+        client_registry=client_registry,
+        embedding_request_cls=embedding_request_cls,
+        network_connection_error_cls=network_connection_error_cls,
     )
