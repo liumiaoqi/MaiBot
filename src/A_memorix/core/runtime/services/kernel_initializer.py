@@ -252,6 +252,7 @@ class KernelInitializer:
             profile_evidence_admin=lambda *a, **kw: kernel._profile_evidence_service.profile_evidence_admin(*a, **kw),
             person_profile_service=kernel.person_profile_service,
             invalidate_filter_cache=lambda: setattr(kernel, '_current_effective_filter_cache', {"checked_at": 0.0, "needed": True}),
+            llm_api=kernel._ports.require_llm_service() if kernel._ports else None,
         )
 
     @staticmethod
@@ -284,6 +285,8 @@ class KernelInitializer:
             person_profile_refresh_max_retry=kernel._person_profile_refresh_max_retry,
             process_person_profile_refresh_queue_batch=kernel._process_person_profile_refresh_queue_batch,
             initialize=kernel.initialize,
+            message_api=kernel._ports.require_message_service() if kernel._ports else None,
+            llm_api=kernel._ports.require_llm_service() if kernel._ports else None,
         )
 
     @staticmethod

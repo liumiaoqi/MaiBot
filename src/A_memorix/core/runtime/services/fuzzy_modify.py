@@ -9,7 +9,7 @@ from ...storage import MetadataStore
 from ...utils.metadata import coerce_metadata_dict
 from src.common.logger import get_logger
 from src.common.prompt_i18n import load_prompt
-from src.services.llm_service import LLMServiceClient
+
 
 logger = get_logger("A_Memorix.fuzzy_modify_service")
 
@@ -22,7 +22,7 @@ class FuzzyModifyService:
         *,
         metadata_store: MetadataStore,
         fuzzy_modify_config: Any,
-        fuzzy_modify_planner: Optional[LLMServiceClient],
+        fuzzy_modify_planner: Optional[Any],
         tokens: Callable[[Optional[Iterable[Any]]], List[str]],
         merge_tokens: Callable[..., List[str]],
         argument_tokens: Callable[[Any], List[str]],
@@ -40,6 +40,7 @@ class FuzzyModifyService:
         profile_evidence_admin: Callable[..., Coroutine[Any, Any, Dict[str, Any]]],
         person_profile_service: Any,
         invalidate_filter_cache: Callable[[], None],
+        llm_api: Any = None,
     ) -> None:
         self.metadata_store = metadata_store
         self._fuzzy_modify_config = fuzzy_modify_config
@@ -61,6 +62,7 @@ class FuzzyModifyService:
         self._profile_evidence_admin = profile_evidence_admin
         self._person_profile_service = person_profile_service
         self._invalidate_filter_cache = invalidate_filter_cache
+        self._llm_api = llm_api
 
     # ── 配置访问 ──────────────────────────────────────────────
 
@@ -598,7 +600,7 @@ class FuzzyModifyService:
             request_payload=json.dumps(payload, ensure_ascii=False, indent=2),
         )
         if self._fuzzy_modify_planner is None:
-            self._fuzzy_modify_planner = LLMServiceClient(
+            self._fuzzy_modify_planner = self._llm_api.LLMServiceClient(
                 task_name="utils",
                 request_type="A_Memorix.fuzzy_modify_plan",
             )
