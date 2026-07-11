@@ -32,8 +32,8 @@ class KernelInitializer:
             vector_pool_config=VectorPoolConfig.from_config(kernel.config),
         )
         kernel._background_scheduler = BackgroundTaskScheduler()
-        kernel._feedback_config = FeedbackConfig.from_global_config()
-        kernel._fuzzy_modify_config = FuzzyModifyConfig.from_global_config()
+        kernel._feedback_config = FeedbackConfig.from_config_dict(kernel.config)
+        kernel._fuzzy_modify_config = FuzzyModifyConfig.from_config_dict(kernel.config)
 
         kernel.embedding_manager = create_embedding_api_adapter(
             batch_size=int(kernel._cfg("embedding.batch_size", 32)),
