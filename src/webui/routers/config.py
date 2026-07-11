@@ -1007,6 +1007,7 @@ def _apply_prompt_generator_config_blocks(blocks: List[PromptGeneratorConfigBloc
         raise HTTPException(status_code=400, detail=f"配置数据验证失败: {str(e)}") from e
 
     save_toml_with_format(plain_config_data, config_path)
+    config_manager.reload_config()
     applied_sections = sorted(section_updates)
     logger.info(f"人设生成器已注入 {len(blocks)} 个配置块: {', '.join(applied_sections)}")
     return PromptGeneratorApplyResponse(
@@ -1505,6 +1506,7 @@ async def update_bot_config(config_data: ConfigBody):
         # 保存配置文件（自动保留注释和格式）
         config_path = os.path.join(CONFIG_DIR, "bot_config.toml")
         save_toml_with_format(config_data, config_path)
+        config_manager.reload_config()
 
         logger.info("麦麦主程序配置已更新")
         return {"success": True, "message": "配置已保存"}
@@ -1528,6 +1530,7 @@ async def update_model_config(config_data: ConfigBody):
         # 保存配置文件（自动保留注释和格式）
         config_path = os.path.join(CONFIG_DIR, "model_config.toml")
         save_toml_with_format(config_data, config_path)
+        config_manager.reload_config()
 
         logger.info("模型配置已更新")
         return {"success": True, "message": "配置已保存"}
@@ -1578,6 +1581,7 @@ async def update_bot_config_section(section_name: str, section_data: SectionBody
 
         # 保存配置（格式化数组为多行，保留注释）
         save_toml_with_format(config_data, config_path)
+        config_manager.reload_config()
 
         logger.info(f"配置节 '{section_name}' 已更新（保留注释）")
         return {"success": True, "message": f"配置节 '{section_name}' 已保存"}
@@ -1718,6 +1722,7 @@ async def update_model_config_section(section_name: str, section_data: SectionBo
 
         # 保存配置（格式化数组为多行，保留注释）
         save_toml_with_format(config_data, config_path)
+        config_manager.reload_config()
 
         logger.info(f"配置节 '{section_name}' 已更新（保留注释）")
         return {"success": True, "message": f"配置节 '{section_name}' 已保存"}
