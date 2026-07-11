@@ -49,6 +49,7 @@ router = APIRouter(prefix="/api/webui", tags=["WebUI"])
 
 # 注册智能体管理路由
 router.include_router(agent_router)
+
 # 注册 DeepSeek 优化面板路由
 router.include_router(deepseek_router)
 # 注册配置管理路由

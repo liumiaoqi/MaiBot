@@ -271,10 +271,10 @@ def _resolve_cache_image_file(target: CacheImageTarget, relative_path: str) -> P
         file_path = (root_path / relative_path).resolve()
         file_path.relative_to(root_path)
     except (OSError, RuntimeError, ValueError) as exc:
-        raise HTTPException(status_code=400, detail=f"无效的{label}路径") from exc
+        raise AppError(ErrorCode.PARAM_INVALID, f"无效的{label}路径", http_status=400) from exc
 
     if not file_path.is_file():
-        raise HTTPException(status_code=404, detail=f"未找到指定{label}文件")
+        raise AppError(ErrorCode.BIZ_NOT_FOUND, f"未找到指定{label}文件", http_status=404)
     if not _is_cache_image_file(file_path):
         raise AppError(ErrorCode.PARAM_INVALID, "只能浏览图片缓存文件")
     return file_path
@@ -293,15 +293,15 @@ def _resolve_monitor_media_file(media_kind: MonitorMediaKind, media_hash: str) -
         image_record = session.exec(statement).first()
 
     if image_record is None:
-        raise HTTPException(status_code=404, detail=f"未找到指定{label}记录")
+        raise AppError(ErrorCode.BIZ_NOT_FOUND, f"未找到指定{label}记录", http_status=404)
 
     try:
         file_path = resolve_stored_image_path(image_record.full_path)
     except (OSError, RuntimeError, StoredImagePathError) as exc:
-        raise HTTPException(status_code=404, detail=f"无法解析指定{label}文件") from exc
+        raise AppError(ErrorCode.BIZ_NOT_FOUND, f"无法解析指定{label}文件", http_status=404) from exc
 
     if not file_path.is_file():
-        raise HTTPException(status_code=404, detail=f"未找到指定{label}文件")
+        raise AppError(ErrorCode.BIZ_NOT_FOUND, f"未找到指定{label}文件", http_status=404)
     return file_path
 
 def _paths_equal(left: str, right: Path) -> bool:
@@ -371,7 +371,7 @@ def _parse_date_filter(value: str | None, field_name: str) -> datetime | None:
     try:
         return datetime.strptime(value, "%Y-%m-%d")
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=f"{field_name} 必须是 YYYY-MM-DD 格式") from exc
+        raise AppError(ErrorCode.PARAM_INVALID, f"{field_name} 必须是 YYYY-MM-DD 格式", http_status=400) from exc
 
 def _get_cache_image_item_date(item: LocalCacheImageItem) -> str:
     return datetime.fromtimestamp(item.modified_time).date().isoformat()
@@ -788,7 +788,7 @@ def _delete_data_entry_response(request: LocalCacheDataEntryDeleteRequest) -> Lo
     target_path = _resolve_data_path(request.relative_path)
     protection_reason = _get_data_path_protection_reason(target_path)
     if protection_reason is not None:
-        raise HTTPException(status_code=400, detail=protection_reason)
+        raise AppError(ErrorCode.PARAM_INVALID, protection_reason, http_status=400)
 
     if target_path.is_file():
         try:
@@ -854,7 +854,7 @@ def _vacuum_database_response() -> LocalCacheDatabaseVacuumResponse:
             connection.execute("VACUUM")
     except sqlite3.Error as exc:
         logger.warning(f"数据库 VACUUM 失败: {exc}")
-        raise HTTPException(status_code=500, detail=f"数据库 VACUUM 失败: {exc}") from exc
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"数据库 VACUUM 失败: {exc}", http_status=500) from exc
 
     checkpoint_busy, checkpoint_log, checkpointed = _checkpoint_database()
     after_size = _get_database_total_size()
@@ -1035,7 +1035,7 @@ def _delete_cache_image_file(target: CacheImageTarget, relative_path: str) -> tu
         file_path.unlink()
     except OSError as exc:
         logger.warning(f"删除{label}缓存文件失败: {file_path}, error={exc}")
-        raise HTTPException(status_code=500, detail=f"删除{label}缓存文件失败") from exc
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"删除{label}缓存文件失败", http_status=500) from exc
 
     removed_records, removed_hashes = _delete_image_records_for_file(image_type, file_path)
     thumbnail_files = 0
@@ -1055,8 +1055,8 @@ def _delete_cache_image_items(target: CacheImageTarget, items: list[LocalCacheIm
             item_removed_files, item_removed_bytes, item_removed_records = _delete_cache_image_file(
                 target, item.relative_path
             )
-        except HTTPException as exc:
-            if exc.status_code == 404:
+        except AppError as exc:
+            if exc.http_status == 404:
                 continue
             raise
         removed_files += item_removed_files
@@ -1169,8 +1169,10 @@ async def restart_maibot():
 
         # 立即返回成功响应
         return ApiResponse(data=RestartResponse(success=True, message="麦麦正在重启中..."))
+    except AppError:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"重启失败: {str(e)}") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"重启失败: {str(e, http_status=500)}") from e
 
 @router.get("/status", response_model=ApiResponse[StatusResponse])
 async def get_maibot_status():
@@ -1188,8 +1190,10 @@ async def get_maibot_status():
         return ApiResponse(data=StatusResponse(
             running=True, uptime=uptime, version=version, start_time=datetime.fromtimestamp(_start_time).isoformat()
         ))
+    except AppError:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取状态失败: {str(e)}") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"获取状态失败: {str(e, http_status=500)}") from e
 
 @router.get("/local-cache", response_model=ApiResponse[LocalCacheStatsResponse])
 async def get_local_cache_stats():
@@ -1201,9 +1205,11 @@ async def get_local_cache_stats():
 
         response = await asyncio.to_thread(_build_local_cache_stats_response)
         return _store_local_cache_stats_response(response)
+    except AppError:
+        raise
     except Exception as e:
         logger.exception(f"获取本地缓存统计失败: {e}")
-        raise HTTPException(status_code=500, detail=f"获取本地缓存统计失败: {str(e)}") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"获取本地缓存统计失败: {str(e, http_status=500)}") from e
 
 @router.get("/local-cache/database", response_model=ApiResponse[DatabaseStorageStats])
 async def get_local_cache_database_stats() -> DatabaseStorageStats:
@@ -1215,9 +1221,11 @@ async def get_local_cache_database_stats() -> DatabaseStorageStats:
 
         response = await asyncio.to_thread(_build_database_stats, True)
         return _store_database_stats_response(response)
+    except AppError:
+        raise
     except Exception as e:
         logger.exception(f"获取数据库存储统计失败: {e}")
-        raise HTTPException(status_code=500, detail=f"获取数据库存储统计失败: {str(e)}") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"获取数据库存储统计失败: {str(e, http_status=500)}") from e
 
 @router.post("/local-cache/database/vacuum", response_model=ApiResponse[LocalCacheDatabaseVacuumResponse])
 async def vacuum_local_cache_database() -> LocalCacheDatabaseVacuumResponse:
@@ -1226,9 +1234,11 @@ async def vacuum_local_cache_database() -> LocalCacheDatabaseVacuumResponse:
         response = await asyncio.to_thread(_vacuum_database_response)
         _invalidate_local_cache_stats_cache()
         return response
+    except AppError:
+        raise
     except Exception as e:
         logger.exception(f"数据库 VACUUM 失败: {e}")
-        raise HTTPException(status_code=500, detail=f"数据库 VACUUM 失败: {str(e)}") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"数据库 VACUUM 失败: {str(e, http_status=500)}") from e
 
 @router.get("/local-cache/data-entries", response_model=ApiResponse[LocalCacheDataEntriesResponse])
 async def list_local_cache_data_entries(
@@ -1237,9 +1247,11 @@ async def list_local_cache_data_entries(
     """浏览 data 目录下的文件和文件夹，按需统计当前层级。"""
     try:
         return await asyncio.to_thread(_build_data_entries_response, relative_path)
+    except AppError:
+        raise
     except Exception as e:
         logger.exception(f"获取 data 目录条目失败: {e}")
-        raise HTTPException(status_code=500, detail=f"获取 data 目录条目失败: {str(e)}") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"获取 data 目录条目失败: {str(e, http_status=500)}") from e
 
 @router.delete("/local-cache/data-entries", response_model=ApiResponse[LocalCacheCleanupResponse])
 async def delete_local_cache_data_entry(request: LocalCacheDataEntryDeleteRequest) -> LocalCacheCleanupResponse:
@@ -1248,9 +1260,11 @@ async def delete_local_cache_data_entry(request: LocalCacheDataEntryDeleteReques
         response = await asyncio.to_thread(_delete_data_entry_response, request)
         _invalidate_local_cache_stats_cache()
         return response
+    except AppError:
+        raise
     except Exception as e:
         logger.exception(f"删除 data 目录条目失败: {e}")
-        raise HTTPException(status_code=500, detail=f"删除 data 目录条目失败: {str(e)}") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"删除 data 目录条目失败: {str(e, http_status=500)}") from e
 
 @router.get("/local-cache/images", response_model=ApiResponse[LocalCacheImageListResponse])
 async def list_local_cache_images(
@@ -1270,9 +1284,11 @@ async def list_local_cache_images(
             start_date,
             end_date,
         )
+    except AppError:
+        raise
     except Exception as e:
         logger.exception(f"获取本地缓存图片列表失败: {e}")
-        raise HTTPException(status_code=500, detail=f"获取本地缓存图片列表失败: {str(e)}") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"获取本地缓存图片列表失败: {str(e, http_status=500)}") from e
 
 @router.get("/local-cache/images/preview", response_model=None)
 async def preview_local_cache_image(
@@ -1299,9 +1315,11 @@ async def delete_local_cache_image(request: LocalCacheImageDeleteRequest) -> Loc
         response = await asyncio.to_thread(_delete_local_cache_image_response, request)
         _invalidate_local_cache_stats_cache()
         return response
+    except AppError:
+        raise
     except Exception as e:
         logger.exception(f"删除本地缓存图片失败: {e}")
-        raise HTTPException(status_code=500, detail=f"删除本地缓存图片失败: {str(e)}") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"删除本地缓存图片失败: {str(e, http_status=500)}") from e
 
 @router.delete("/local-cache/images/bulk", response_model=ApiResponse[LocalCacheCleanupResponse])
 async def delete_local_cache_images_bulk(request: LocalCacheImageBulkDeleteRequest) -> LocalCacheCleanupResponse:
@@ -1310,18 +1328,22 @@ async def delete_local_cache_images_bulk(request: LocalCacheImageBulkDeleteReque
         response = await asyncio.to_thread(_delete_local_cache_images_bulk_response, request)
         _invalidate_local_cache_stats_cache()
         return response
+    except AppError:
+        raise
     except Exception as e:
         logger.exception(f"批量删除本地缓存图片失败: {e}")
-        raise HTTPException(status_code=500, detail=f"批量删除本地缓存图片失败: {str(e)}") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"批量删除本地缓存图片失败: {str(e, http_status=500)}") from e
 
 @router.get("/local-cache/log-directories", response_model=ApiResponse[LocalCacheLogDirectoryListResponse])
 async def list_local_cache_log_directories() -> LocalCacheLogDirectoryListResponse:
     """列出 logs 目录下可分别清理的日志目录。"""
     try:
         return await asyncio.to_thread(_build_local_cache_log_directory_list_response)
+    except AppError:
+        raise
     except Exception as e:
         logger.exception(f"获取日志目录列表失败: {e}")
-        raise HTTPException(status_code=500, detail=f"获取日志目录列表失败: {str(e)}") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"获取日志目录列表失败: {str(e, http_status=500)}") from e
 
 @router.delete("/local-cache/log-directories", response_model=ApiResponse[LocalCacheCleanupResponse])
 async def delete_local_cache_log_directory(request: LocalCacheLogDirectoryDeleteRequest) -> LocalCacheCleanupResponse:
@@ -1330,9 +1352,11 @@ async def delete_local_cache_log_directory(request: LocalCacheLogDirectoryDelete
         response = await asyncio.to_thread(_delete_local_cache_log_directory_response, request)
         _invalidate_local_cache_stats_cache()
         return response
+    except AppError:
+        raise
     except Exception as e:
         logger.exception(f"清理日志目录失败: {e}")
-        raise HTTPException(status_code=500, detail=f"清理日志目录失败: {str(e)}") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"清理日志目录失败: {str(e, http_status=500)}") from e
 
 @router.post("/local-cache/cleanup", response_model=ApiResponse[LocalCacheCleanupResponse])
 async def cleanup_local_cache(request: LocalCacheCleanupRequest):
@@ -1341,9 +1365,11 @@ async def cleanup_local_cache(request: LocalCacheCleanupRequest):
         response = await asyncio.to_thread(_cleanup_local_cache_response, request)
         _invalidate_local_cache_stats_cache()
         return response
+    except AppError:
+        raise
     except Exception as e:
         logger.exception(f"清理本地缓存失败: {e}")
-        raise HTTPException(status_code=500, detail=f"清理本地缓存失败: {str(e)}") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"清理本地缓存失败: {str(e, http_status=500)}") from e
 
 # 可选：添加更多系统控制功能
 

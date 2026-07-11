@@ -97,7 +97,11 @@ def create_app(
         port: 服务器端口
         enable_static: 是否启用静态文件服务
     """
-    app = FastAPI(title="MaiBot WebUI")
+    app = FastAPI(
+        title="MaiBot WebUI API",
+        version="2.0.0",
+        description="MaiBot WebUI 后端 API 文档",
+    )
 
     _register_exception_handlers(app)
     _setup_anti_crawler(app)
