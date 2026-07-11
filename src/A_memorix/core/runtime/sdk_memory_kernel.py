@@ -403,7 +403,9 @@ class SDKMemoryKernel:
         from ..migration.migration_router import MigrationRouter
         from ..migration.translator import ConnectionistTranslator
         self._migration_router = MigrationRouter(
-            self._migration_adapter, self._memory_field, self, ConnectionistTranslator()
+            self._migration_adapter, self._memory_field, self, ConnectionistTranslator(),
+            coerce_search_result=None,
+            coerce_write_result=None,
         )
 
         await self._start_background_tasks()
