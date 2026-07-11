@@ -86,13 +86,13 @@ ignore = ["E711", "E501", "TID252"]
 "src.A_memorix.core" = {msg = "核心模块禁止直接导入 A_memorix 内部实现，请通过 MemoryServicePort Protocol 接口交互"}
 "src.A_memorix.core.runtime" = {msg = "核心模块禁止直接导入 A_memorix 运行时，请通过 MemoryServicePort Protocol 接口交互"}
 "src.A_memorix.core.runtime.sdk_memory_kernel" = {msg = "核心模块禁止直接导入 SDKMemoryKernel，请通过 MemoryServicePort Protocol 接口交互"}
-"src.services.send_service.text_to_stream" = {msg = "禁止直接调用 send_service 发送函数，请使用 get_message_port_v2().send_message()"}
-"src.services.send_service.text_to_stream_with_message" = {msg = "禁止直接调用 send_service 发送函数，请使用 get_message_port_v2().send_message()"}
-"src.services.send_service.emoji_to_stream" = {msg = "禁止直接调用 send_service 发送函数，请使用 get_message_port_v2().send_message()"}
-"src.services.send_service.emoji_to_stream_with_message" = {msg = "禁止直接调用 send_service 发送函数，请使用 get_message_port_v2().send_message()"}
-"src.services.send_service.image_to_stream" = {msg = "禁止直接调用 send_service 发送函数，请使用 get_message_port_v2().send_message()"}
-"src.services.send_service.custom_to_stream" = {msg = "禁止直接调用 send_service 发送函数，请使用 get_message_port_v2().send_message()"}
-"src.services.send_service.custom_reply_set_to_stream" = {msg = "禁止直接调用 send_service 发送函数，请使用 get_message_port_v2().send_message()"}
+"src.services.send_service._text_to_stream" = {msg = "禁止直接调用 send_service 发送函数，请使用 get_message_port_v2().send_message()"}
+"src.services.send_service._text_to_stream_with_message" = {msg = "禁止直接调用 send_service 发送函数，请使用 get_message_port_v2().send_message()"}
+"src.services.send_service._emoji_to_stream" = {msg = "禁止直接调用 send_service 发送函数，请使用 get_message_port_v2().send_message()"}
+"src.services.send_service._emoji_to_stream_with_message" = {msg = "禁止直接调用 send_service 发送函数，请使用 get_message_port_v2().send_message()"}
+"src.services.send_service._image_to_stream" = {msg = "禁止直接调用 send_service 发送函数，请使用 get_message_port_v2().send_message()"}
+"src.services.send_service._custom_to_stream" = {msg = "禁止直接调用 send_service 发送函数，请使用 get_message_port_v2().send_message()"}
+"src.services.send_service._custom_reply_set_to_stream" = {msg = "禁止直接调用 send_service 发送函数，请使用 get_message_port_v2().send_message()"}
 "src.services.send_service._send_to_target_with_message" = {msg = "禁止直接调用 send_service 内部函数，请使用 get_message_port_v2().send_message()"}
 
 [tool.ruff.lint.per-file-ignores]
