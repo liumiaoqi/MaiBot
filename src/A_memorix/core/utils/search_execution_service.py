@@ -91,13 +91,7 @@ class SearchExecutionService:
             plugin_instance = plugin_config.get("plugin_instance")
             if plugin_instance is not None:
                 return plugin_instance
-
-        try:
-            from ...runtime_registry import get_runtime_kernel
-
-            return get_runtime_kernel()
-        except Exception:
-            return None
+        return None
 
     @staticmethod
     def _normalize_query_type(raw_query_type: str) -> str:

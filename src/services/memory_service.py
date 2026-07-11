@@ -509,5 +509,9 @@ class MemoryService:
         result = await self._invoke("migration_build_profile_injection_text", payload)
         return str(result) if result else ""
 
+    async def register_agent(self, agent_id: str, params: dict[str, Any]) -> Dict[str, Any]:
+        payload = {"agent_id": agent_id, **params}
+        return await self._invoke("register_agent", payload)
+
 
 memory_service = MemoryService()
