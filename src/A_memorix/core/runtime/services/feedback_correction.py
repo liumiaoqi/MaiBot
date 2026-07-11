@@ -13,8 +13,7 @@ from ...storage import MetadataStore
 from ...utils.hash import compute_hash
 from ...utils.person_profile_service import PersonProfileService
 from src.common.logger import get_logger
-from src.services import message_service as message_api
-from src.services.llm_service import LLMServiceClient
+
 
 logger = get_logger("A_memorix.feedback_correction_service")
 
@@ -27,7 +26,7 @@ class FeedbackCorrectionService:
         *,
         metadata_store: MetadataStore,
         feedback_config: Any,
-        feedback_classifier: Optional[LLMServiceClient],
+        feedback_classifier: Optional[Any],
         person_profile_service: Any,
         episode_service: Any,
         background_scheduler: Any,
@@ -50,6 +49,8 @@ class FeedbackCorrectionService:
         person_profile_refresh_max_retry: Callable[[], int],
         process_person_profile_refresh_queue_batch: Callable[..., Coroutine[Any, Any, Dict[str, Any]]],
         initialize: Callable[..., Coroutine[Any, Any, None]],
+        message_api: Any = None,
+        llm_api: Any = None,
     ) -> None:
         self.metadata_store = metadata_store
         self._feedback_config = feedback_config
@@ -76,6 +77,8 @@ class FeedbackCorrectionService:
         self._person_profile_refresh_max_retry = person_profile_refresh_max_retry
         self._process_person_profile_refresh_queue_batch = process_person_profile_refresh_queue_batch
         self._initialize = initialize
+        self._message_api = message_api
+        self._llm_api = llm_api
 
     # ── 配置访问 ──────────────────────────────────────────────
 
@@ -215,7 +218,7 @@ class FeedbackCorrectionService:
         due_time: datetime,
         max_messages: int,
     ) -> List[str]:
-        raw_messages = message_api.get_messages_by_time_in_chat(
+        raw_messages = self._message_api.get_messages_by_time_in_chat(
             chat_id=session_id,
             start_time=query_time.timestamp(),
             end_time=due_time.timestamp(),
@@ -1035,7 +1038,7 @@ class FeedbackCorrectionService:
         )
         try:
             if self._feedback_classifier is None:
-                self._feedback_classifier = LLMServiceClient(
+                self._feedback_classifier = self._llm_api.LLMServiceClient(
                     task_name="utils",
                     request_type="memory_feedback_correction",
                 )
