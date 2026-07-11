@@ -41,8 +41,8 @@ def segments_to_message_sequence(segments: list[dict[str, Any]]) -> MessageSeque
             hash_str = seg.get("hash", "")
             components.append(EmojiComponent(binary_hash=hash_str, binary_data=binary_data))
         else:
-            from src.services.send_service import _build_message_sequence_from_custom_message
+            from src.core.message_utils import build_message_sequence_from_custom_message
 
-            ms = _build_message_sequence_from_custom_message(seg_type, seg.get("data", seg.get("content", "")))
+            ms = build_message_sequence_from_custom_message(seg_type, seg.get("data", seg.get("content", "")))
             components.extend(ms.components)
     return MessageSequence(components=components)

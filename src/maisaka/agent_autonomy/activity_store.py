@@ -52,8 +52,21 @@ class AgentActivityStore:
         is_primary: bool = False,
         activation_reason: str = "session_create",
     ) -> str:
-        """持久化活跃状态记录。"""
+        """持久化活跃状态记录。写入前关闭同 (session_id, agent_id) 的旧活跃记录，防止累积。"""
         with get_db_session() as session:
+            duplicates = (
+                session.query(AgentAutonomyActivity)
+                .filter(
+                    AgentAutonomyActivity.session_id == session_id,
+                    AgentAutonomyActivity.agent_id == agent_id,
+                    AgentAutonomyActivity.exited_at.is_(None),
+                )
+                .all()
+            )
+            for dup in duplicates:
+                dup.exit_reason = "superseded"
+                dup.exited_at = datetime.now()
+
             activity = AgentAutonomyActivity(
                 session_id=session_id,
                 agent_id=agent_id,
@@ -113,19 +126,19 @@ class AgentActivityStore:
             self.fallback_to_standby(session_id, agent_id, 0.0)
             return
         with get_db_session() as session:
-            activity = (
+            activities = (
                 session.query(AgentAutonomyActivity)
                 .filter(
                     AgentAutonomyActivity.session_id == session_id,
                     AgentAutonomyActivity.agent_id == agent_id,
                     AgentAutonomyActivity.exited_at.is_(None),
                 )
-                .first()
+                .all()
             )
-            if activity is not None:
+            for activity in activities:
                 activity.exit_reason = reason
                 activity.exited_at = datetime.now()
-                session.commit()
+            session.commit()
 
     def set_primary(self, session_id: str, agent_id: str) -> None:
         """设置主发言智能体。"""

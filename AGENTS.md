@@ -220,7 +220,29 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 ## 待后续
 
 - ⬜ SSD-2：ChatManager 单例拆分（依赖 SSD-1 完成）
-- ⬜ routes.py 中 `sessions.pop()` 可变操作需通过 SessionLifecyclePort.remove_session() 替代
+
+# ChatManager 单例拆分进展（SSD-2）
+
+**迁移已完成**（阶段1-6全部完成）
+
+## 拆分架构
+
+- **ChatManager**：薄协调层（143行），持有6个子模块实例，对外方法逐一委托
+- **SessionStore**：会话存储 CRUD + 单条持久化（`session_store.py`）
+- **MessageRegistry**：消息注册 + 缓存 + 身份更新（`message_registry.py`）
+- **SessionNameCache**：名称查询（`session_name_cache.py`）
+- **SessionResolver**：路由解析 + 数据库懒加载（`session_resolver.py`）
+- **BindingRestorer**：启动时智能体绑定恢复（`binding_restorer.py`）
+- **SessionLifecycle**：创建/获取 + 批量持久化 + 初始化（`session_lifecycle.py`）
+
+## 已完成
+
+- ✅ 阶段1：SessionStore 提取（sessions 字典 CRUD + 单条持久化 + 延迟注入 MessageRegistry）
+- ✅ 阶段2：MessageRegistry 提取（消息注册 + 缓存 + 身份更新）
+- ✅ 阶段3：SessionNameCache 提取（名称查询）
+- ✅ 阶段4：SessionResolver 提取（路由解析 + 数据库懒加载）
+- ✅ 阶段5：BindingRestorer 提取（智能体绑定恢复）
+- ✅ 阶段6：SessionLifecycle 提取 + ChatManager 清理（604→143行，routes.py sessions.pop 已封装）
 
 # 记忆系统范式迁移进展
 

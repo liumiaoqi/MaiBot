@@ -1,19 +1,19 @@
-from datetime import datetime
 from typing import TYPE_CHECKING, Dict, List, Optional
 
-import asyncio
-
 from rich.traceback import install
-from sqlmodel import select
 
-from src.common.data_models.chat_session_data_model import MaiChatSession
-from src.common.database.database import get_db_session
-from src.common.database.database_model import ChatSession
 from src.common.logger import get_logger
 from src.common.utils.utils_session import SessionUtils
 from src.maisaka.agent.registry import AgentConfigRegistry
 from src.maisaka.agent.router import AgentRouter
-from src.platform_io.route_key_factory import RouteKeyFactory
+
+from .binding_restorer import BindingRestorer
+from .message_registry import MessageRegistry
+from .session_lifecycle import SessionLifecycle
+from .session_name_cache import SessionNameCache
+from .session_resolver import SessionResolver
+from .session_store import SessionStore
+from .session_types import BotChatSession, SessionContext
 
 if TYPE_CHECKING:
     from .message import SessionMessage
@@ -23,159 +23,33 @@ install(extra_lines=3)
 logger = get_logger("chat_manager")
 
 
-class SessionContext:
-    """会话上下文"""
-
-    def __init__(self, message: "SessionMessage"):
-        self.message = message
-        self.template_name: Optional[str] = None
-
-    def update_template(self, template_name: str):
-        """更新当前使用的回复模板"""
-        self.template_name = template_name
-
-
-class BotChatSession(MaiChatSession):
-    def __init__(
-        self,
-        session_id: str,
-        platform: str,
-        user_id: Optional[str] = None,
-        user_nickname: Optional[str] = None,
-        user_cardname: Optional[str] = None,
-        group_id: Optional[str] = None,
-        group_name: Optional[str] = None,
-        account_id: Optional[str] = None,
-        scope: Optional[str] = None,
-        agent_id: Optional[str] = None,
-        created_timestamp: Optional[datetime] = None,
-        last_active_timestamp: Optional[datetime] = None,
-    ):
-        self.context: Optional[SessionContext] = None
-        self.accept_format: List[str] = []
-
-        super().__init__(
-            session_id=session_id,
-            platform=platform,
-            user_id=user_id,
-            user_nickname=user_nickname,
-            user_cardname=user_cardname,
-            group_id=group_id,
-            group_name=group_name,
-            account_id=account_id,
-            scope=scope,
-            agent_id=agent_id,
-            created_timestamp=created_timestamp,
-            last_active_timestamp=last_active_timestamp,
-        )
-
-    def check_types(self, types: List[str]) -> bool:
-        """检查消息是否符合可接受类型列表"""
-        return all(t in self.accept_format for t in types)
-
-    def update_active_time(self):
-        """更新最后活跃时间"""
-        self.last_active_timestamp = datetime.now()
-
-    def set_context(self, message: "SessionMessage"):
-        """设置会话上下文"""
-        self.context = SessionContext(message=message)
-
-
 class ChatManager:
-    """聊天管理器，负责管理所有聊天会话"""
+    """薄协调层 — 持有子模块实例，对外暴露方法逐一委托。"""
 
     def __init__(self) -> None:
-        self.sessions: Dict[str, BotChatSession] = {}  # session_id -> BotChatSession
-        self.last_messages: Dict[str, "SessionMessage"] = {}  # session_id -> SessionMessage
+        self.session_store = SessionStore()
+        self.message_registry = MessageRegistry(self.session_store)
+        self.session_store.set_message_registry(self.message_registry)
+        self.name_cache = SessionNameCache(self.session_store)
+        self.resolver = SessionResolver(self.session_store)
         self._agent_router: Optional[AgentRouter] = None
+        self.binding_restorer: Optional[BindingRestorer] = None
+        self.session_lifecycle: Optional[SessionLifecycle] = None
 
-    async def initialize(self):
-        """初始化聊天管理器"""
-        try:
-            await self.load_all_sessions_from_db()
-            logger.debug(f"已加载 {len(self.sessions)} 个会话记录到内存中")
-        except Exception as e:
-            logger.error(f"初始化聊天管理器出现错误: {e}")
+    @property
+    def sessions(self) -> Dict[str, BotChatSession]:
+        """向后兼容属性代理。"""
+        return self.session_store.sessions
 
-        self._restore_bindings_from_db()
-        self._restore_orchestrator_from_db()
+    @property
+    def last_messages(self) -> Dict[str, "SessionMessage"]:
+        """向后兼容属性代理。"""
+        return self.message_registry.last_messages
 
-    def _restore_bindings_from_db(self) -> None:
-        """从数据库恢复会话-智能体绑定关系到内存路由器。
-
-        两阶段恢复：
-        1. 从 ChatSession.agent_id 恢复主发言智能体
-        2. 从 AgentAutonomyActivity 恢复所有共居智能体（含手动绑定）
-        """
-        from sqlmodel import select as sqlmodel_select
-
-        from src.common.database.database_model import AgentAutonomyActivity, ChatSession
-
-        router = self._ensure_agent_router()
-        registry = AgentConfigRegistry()
-        restored = 0
-        skipped = 0
-
-        with get_db_session() as db:
-            statement = sqlmodel_select(ChatSession).filter(ChatSession.agent_id.isnot(None))
-            for session in db.exec(statement):
-                if not registry.has_agent(session.agent_id):
-                    logger.warning(f"启动恢复绑定跳过：智能体不存在 session={session.session_id}, agent={session.agent_id}")
-                    skipped += 1
-                    continue
-                try:
-                    router.bind_session(session.session_id, session.agent_id)
-                    restored += 1
-                except Exception as e:
-                    logger.warning(f"启动恢复绑定失败：session={session.session_id}, agent={session.agent_id}, error={e}")
-
-        cohabitant_restored = 0
-        with get_db_session() as db:
-            statement = sqlmodel_select(AgentAutonomyActivity).filter(
-                AgentAutonomyActivity.exited_at.is_(None),
-                AgentAutonomyActivity.activation_reason == "manual_binding",
-            )
-            for activity in db.exec(statement):
-                all_agents = router.get_session_all_agents(activity.session_id)
-                if activity.agent_id in all_agents:
-                    continue
-                if not registry.has_agent(activity.agent_id):
-                    logger.warning(f"启动恢复共居绑定跳过：智能体不存在 session={activity.session_id}, agent={activity.agent_id}")
-                    continue
-                try:
-                    router.bind_session(activity.session_id, activity.agent_id)
-                    cohabitant_restored += 1
-                except Exception as e:
-                    logger.warning(f"启动恢复共居绑定失败：session={activity.session_id}, agent={activity.agent_id}, error={e}")
-
-        logger.info(f"启动恢复绑定完成：主发言={restored}, 共居={cohabitant_restored}, 跳过={skipped}")
-
-    def _restore_orchestrator_from_db(self) -> None:
-        """从数据库恢复 Orchestrator 活跃状态"""
-        from src.maisaka.agent_autonomy.activity_store import AgentActivityStore
-        from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
-
-        activity_store = AgentActivityStore()
-        active_records = activity_store.get_all_active_sessions()
-
-        session_groups: dict[str, list] = {}
-        for record in active_records:
-            session_groups.setdefault(record.session_id, []).append(record)
-
-        restored_agents = 0
-        for session_id, records in session_groups.items():
-            orchestrator = AgentOrchestrator.get_by_session(session_id)
-            if orchestrator is None:
-                continue
-            for record in records:
-                try:
-                    orchestrator.restore_agent(record.agent_id, is_primary=record.is_primary)
-                    restored_agents += 1
-                except Exception as e:
-                    logger.warning(f"启动恢复Orchestrator失败：session={session_id}, agent={record.agent_id}, error={e}")
-
-        logger.info(f"启动恢复Orchestrator完成：恢复智能体={restored_agents}")
+    @property
+    def agent_router(self) -> AgentRouter:
+        """获取智能体路由器单例，供外部模块访问"""
+        return self._ensure_agent_router()
 
     def _ensure_agent_router(self) -> AgentRouter:
         """延迟初始化智能体路由器"""
@@ -184,10 +58,25 @@ class ChatManager:
             self._agent_router = AgentRouter(registry)
         return self._agent_router
 
-    @property
-    def agent_router(self) -> AgentRouter:
-        """获取智能体路由器单例，供外部模块访问"""
-        return self._ensure_agent_router()
+    def _ensure_lifecycle(self) -> SessionLifecycle:
+        """延迟初始化 SessionLifecycle（依赖 agent_router）。"""
+        if self.session_lifecycle is None:
+            self.session_lifecycle = SessionLifecycle(
+                self.session_store,
+                self.message_registry,
+                self._ensure_agent_router(),
+            )
+        return self.session_lifecycle
+
+    def _ensure_binding_restorer(self) -> BindingRestorer:
+        """延迟初始化 BindingRestorer。"""
+        if self.binding_restorer is None:
+            self.binding_restorer = BindingRestorer(self._ensure_agent_router())
+        return self.binding_restorer
+
+    async def initialize(self):
+        """初始化聊天管理器"""
+        await self._ensure_lifecycle().initialize(self._ensure_binding_restorer())
 
     async def get_or_create_session(
         self,
@@ -197,199 +86,40 @@ class ChatManager:
         account_id: Optional[str] = None,
         scope: Optional[str] = None,
     ) -> BotChatSession:
-        """获取会话，如果不存在则创建一个新会话；一个封装方法。
-
-        Args:
-            platform: 平台
-            user_id: 用户ID
-            group_id: 群ID（如果是群聊）
-            account_id: 平台账号 ID
-            scope: 路由作用域
-        Returns:
-            return (BotChatSession) 会话对象
-        Raises:
-            Exception: 获取或创建会话时发生错误
-        """
-        session_id = SessionUtils.calculate_session_id(
-            platform,
-            user_id=user_id,
-            group_id=group_id,
-            account_id=account_id,
-            scope=scope,
-        )
-        if session := self.get_session_by_session_id(session_id):
-            route_metadata_changed = self._apply_route_metadata(session, account_id=account_id, scope=scope)
-            session.update_active_time()
-            identity_changed = False
-            if session_id in self.last_messages:
-                identity_changed = self._update_session_identity(session, self.last_messages[session_id])
-            if route_metadata_changed or identity_changed:
-                self._save_session(session)
-            return session
-
-        # 内存没有就找db
-        try:
-            with get_db_session() as db_session:
-                statement = select(ChatSession).filter_by(session_id=session_id).limit(1)
-                if result := db_session.exec(statement).first():
-                    session = BotChatSession.from_db_instance(result)
-                    route_metadata_changed = self._apply_route_metadata(session, account_id=account_id, scope=scope)
-                    identity_changed = False
-                    if session.session_id in self.last_messages:
-                        session.set_context(self.last_messages[session.session_id])
-                        identity_changed = self._update_session_identity(session, self.last_messages[session.session_id])
-                    if route_metadata_changed or identity_changed:
-                        result.account_id = session.account_id
-                        result.scope = session.scope
-                        result.user_id = session.user_id
-                        result.user_nickname = session.user_nickname
-                        result.user_cardname = session.user_cardname
-                        result.group_id = session.group_id
-                        result.group_name = session.group_name
-                        db_session.add(result)
-                    self.sessions[session.session_id] = session
-                    return session
-        except Exception as e:
-            logger.error(f"从数据库获取会话时发生错误: {e}")
-            raise e
-
-        # 都没有就创建新的
-        agent_id = self._ensure_agent_router().resolve_agent(
-            session_id=session_id,
-            group_id=group_id,
-        ).agent_id
-        new_session = BotChatSession(
-            session_id=session_id,
+        """获取会话，如果不存在则创建一个新会话。"""
+        return await self._ensure_lifecycle().get_or_create_session(
             platform=platform,
             user_id=user_id,
             group_id=group_id,
             account_id=account_id,
             scope=scope,
-            agent_id=agent_id,
         )
-        self.sessions[new_session.session_id] = new_session
-        if new_session.session_id in self.last_messages:
-            new_session.set_context(self.last_messages[new_session.session_id])
-            self._update_session_identity(new_session, self.last_messages[new_session.session_id])
-        self._save_session(new_session)
-        return new_session
 
     def register_message(self, message: "SessionMessage"):
-        platform = message.platform
-        if not platform:
-            raise ValueError("消息缺少平台信息")
-        user_id = message.message_info.user_info.user_id
-        group_id = message.message_info.group_info.group_id if message.message_info.group_info else None
-        account_id = None
-        scope = None
-        additional_config = message.message_info.additional_config
-        if isinstance(additional_config, dict):
-            account_id, scope = RouteKeyFactory.extract_components(additional_config)
-        session_id = SessionUtils.calculate_session_id(
-            platform,
-            user_id=user_id,
-            group_id=group_id,
-            account_id=account_id,
-            scope=scope,
-        )
-        message.session_id = session_id  # 确保消息的session_id正确设置
-        self.last_messages[session_id] = message
-        session = self.sessions.get(session_id)
-        if session is not None and self._update_session_identity(session, message):
-            self._save_session(session)
-
-    @staticmethod
-    def _normalize_identity_text(value: Optional[str]) -> Optional[str]:
-        normalized_value = str(value or "").strip()
-        return normalized_value or None
-
-    def _update_session_identity(self, session: BotChatSession, message: "SessionMessage") -> bool:
-        """用真实入站消息补齐聊天流展示身份，群聊不保存最近发言人的用户信息。"""
-
-        changed = False
-        group_info = message.message_info.group_info
-        user_info = message.message_info.user_info
-        if group_info is not None:
-            group_name = self._normalize_identity_text(group_info.group_name)
-            if group_name and session.group_name != group_name:
-                session.group_name = group_name
-                changed = True
-            if session.user_id is not None:
-                session.user_id = None
-                changed = True
-            if session.user_nickname is not None:
-                session.user_nickname = None
-                changed = True
-            if session.user_cardname is not None:
-                session.user_cardname = None
-                changed = True
-            return changed
-
-        user_nickname = self._normalize_identity_text(user_info.user_nickname)
-        user_cardname = self._normalize_identity_text(user_info.user_cardname)
-        if user_nickname and session.user_nickname != user_nickname:
-            session.user_nickname = user_nickname
-            changed = True
-        if user_cardname != session.user_cardname:
-            session.user_cardname = user_cardname
-            changed = True
-        return changed
+        self.message_registry.register(message)
 
     async def load_all_sessions_from_db(self):
         """从数据库加载全部会话记录到内存中"""
-        self.sessions.clear()
+        self.session_store.sessions.clear()
+        import asyncio
         try:
-            await asyncio.to_thread(self._load_sessions_from_db)
+            await asyncio.to_thread(self.session_store.load_all_from_db)
         except Exception as e:
             logger.error(f"从数据库加载会话记录时发生错误: {e}")
-            self.sessions.clear()
+            self.session_store.sessions.clear()
             raise e
 
     async def regularly_save_sessions(self, interval_seconds: int = 300):
-        """定期将会话记录保存到数据库中
-
-        Args:
-            interval_seconds: 保存间隔时间，单位为秒，默认为300秒（5分钟）
-        """
-        while True:
-            await asyncio.sleep(interval_seconds)
-            try:
-                await asyncio.to_thread(self.save_all_sessions)
-            except Exception as e:
-                logger.error(f"定期保存会话记录时发生错误: {e}")
+        """定期将会话记录保存到数据库中"""
+        await self._ensure_lifecycle().regularly_save_sessions(interval_seconds)
 
     def save_all_sessions(self):
         """将内存中的全部会话记录保存到数据库"""
-        try:
-            for session in self.sessions.values():
-                self._save_session(session)
-            logger.info(f"共 {len(self.sessions)} 个会话已经保存到数据库中")
-        except Exception as e:
-            logger.error(f"保存会话记录到数据库时发生错误: {e}")
-            raise e
+        self._ensure_lifecycle().save_all_sessions()
 
     def get_session_name(self, session_id: str) -> Optional[str]:
-        """根据会话ID获取会话名称
-
-        Args:
-            session_id: 会话ID
-        Returns:
-            Optional[str]: 会话名称，如果无法获取则返回None
-        """
-        session = self.sessions.get(session_id)
-        if not session:
-            return None
-        if session.is_group_session:
-            if session.group_name:
-                return session.group_name
-            if session.context and session.context.message and session.context.message.message_info.group_info:
-                return session.context.message.message_info.group_info.group_name
-        elif session.user_nickname:
-            return f"{session.user_nickname}的私聊"
-        elif session.context and session.context.message and session.context.message.message_info.user_info:
-            nickname = session.context.message.message_info.user_info.user_nickname
-            return f"{nickname}的私聊"
-        return None
+        """根据会话ID获取会话名称"""
+        return self.name_cache.get(session_id)
 
     def get_session_by_info(
         self,
@@ -399,17 +129,7 @@ class ChatManager:
         account_id: Optional[str] = None,
         scope: Optional[str] = None,
     ) -> Optional[BotChatSession]:
-        """根据平台、用户ID和群ID获取对应的会话
-
-        Args:
-            platform: 平台
-            user_id: 用户ID
-            group_id: 群ID（如果是群聊）
-            account_id: 平台账号 ID
-            scope: 路由作用域
-        Returns:
-            return (Optional[BotChatSession]): 会话对象，如果不存在则返回None
-        """
+        """根据平台、用户ID和群ID获取对应的会话"""
         session_id = SessionUtils.calculate_session_id(
             platform,
             user_id=user_id,
@@ -426,55 +146,8 @@ class ChatManager:
         target_id: str,
         chat_type: str,
     ) -> List[BotChatSession]:
-        """按平台、目标 ID 与聊天类型解析已存在的真实聊天流。
-
-        业务模块不应自行重新计算 session_id，因为真实会话 ID 可能包含
-        account_id、scope 等路由元数据。该接口只返回已经注册或已入库的会话。
-        """
-
-        normalized_platform = str(platform or "").strip()
-        normalized_target_id = str(target_id or "").strip()
-        normalized_chat_type = str(chat_type or "").strip()
-        if not normalized_platform or not normalized_target_id:
-            return []
-
-        if normalized_chat_type == "group":
-            target_attr = "group_id"
-        elif normalized_chat_type == "private":
-            target_attr = "user_id"
-        else:
-            return []
-
-        matched_sessions: Dict[str, BotChatSession] = {}
-        for session in self.sessions.values():
-            if self._session_matches_target(
-                session,
-                platform=normalized_platform,
-                target_attr=target_attr,
-                target_id=normalized_target_id,
-            ):
-                matched_sessions[session.session_id] = session
-
-        try:
-            with get_db_session() as db_session:
-                statement = select(ChatSession).filter_by(platform=normalized_platform)
-                for db_instance in db_session.exec(statement).all():
-                    if str(getattr(db_instance, target_attr) or "").strip() != normalized_target_id:
-                        continue
-                    if db_instance.session_id in matched_sessions:
-                        continue
-                    session = BotChatSession.from_db_instance(db_instance)
-                    self.sessions[session.session_id] = session
-                    if session.session_id in self.last_messages:
-                        session.set_context(self.last_messages[session.session_id])
-                    matched_sessions[session.session_id] = session
-        except Exception as e:
-            logger.error(
-                f"按目标解析聊天流失败: platform={normalized_platform} "
-                f"target_id={normalized_target_id} chat_type={normalized_chat_type} error={e}"
-            )
-
-        return list(matched_sessions.values())
+        """按平台、目标 ID 与聊天类型解析已存在的真实聊天流。"""
+        return self.resolver.resolve_by_target(platform=platform, target_id=target_id, chat_type=chat_type)
 
     def resolve_session_ids_by_target(
         self,
@@ -484,121 +157,15 @@ class ChatManager:
         chat_type: str,
     ) -> set[str]:
         """按平台、目标 ID 与聊天类型解析已存在的真实聊天流 ID。"""
-
-        return {
-            session.session_id
-            for session in self.resolve_sessions_by_target(
-                platform=platform,
-                target_id=target_id,
-                chat_type=chat_type,
-            )
-        }
-
-    @staticmethod
-    def _session_matches_target(
-        session: BotChatSession,
-        *,
-        platform: str,
-        target_attr: str,
-        target_id: str,
-    ) -> bool:
-        return (
-            str(session.platform or "").strip() == platform
-            and str(getattr(session, target_attr) or "").strip() == target_id
-        )
-
-    @staticmethod
-    def _normalize_route_value(value: Optional[str]) -> Optional[str]:
-        normalized_value = str(value or "").strip()
-        return normalized_value or None
-
-    @classmethod
-    def _apply_route_metadata(
-        cls,
-        session: BotChatSession,
-        *,
-        account_id: Optional[str],
-        scope: Optional[str],
-    ) -> bool:
-        changed = False
-        normalized_account_id = cls._normalize_route_value(account_id)
-        normalized_scope = cls._normalize_route_value(scope)
-
-        if normalized_account_id and not cls._normalize_route_value(session.account_id):
-            session.account_id = normalized_account_id
-            changed = True
-        if normalized_scope and not cls._normalize_route_value(session.scope):
-            session.scope = normalized_scope
-            changed = True
-        return changed
+        return self.resolver.resolve_ids_by_target(platform=platform, target_id=target_id, chat_type=chat_type)
 
     def get_session_by_session_id(self, session_id: str) -> Optional[BotChatSession]:
-        """根据会话ID获取对应的会话
-
-        Args:
-            session_id: 会话ID
-        Returns:
-            Optional[BotChatSession]: 会话对象，如果不存在则返回None
-        """
-        session = self.sessions.get(session_id)
-        if session and session_id in self.last_messages:
-            session.set_context(self.last_messages[session_id])
-        return session
+        """根据会话ID获取对应的会话"""
+        return self.session_store.get(session_id)
 
     def get_existing_session_by_session_id(self, session_id: str) -> Optional[BotChatSession]:
         """根据会话 ID 获取已存在的真实会话，内存未命中时从数据库加载。"""
-
-        normalized_session_id = str(session_id or "").strip()
-        if not normalized_session_id:
-            return None
-
-        if session := self.get_session_by_session_id(normalized_session_id):
-            return session
-
-        try:
-            with get_db_session() as db_session:
-                statement = select(ChatSession).filter_by(session_id=normalized_session_id).limit(1)
-                db_instance = db_session.exec(statement).first()
-                if db_instance is None:
-                    return None
-                session = BotChatSession.from_db_instance(db_instance)
-                self.sessions[session.session_id] = session
-                if session.session_id in self.last_messages:
-                    session.set_context(self.last_messages[session.session_id])
-                return session
-        except Exception as e:
-            logger.error(f"从数据库获取已有会话失败: session_id={normalized_session_id} error={e}")
-            return None
-
-    def _load_sessions_from_db(self):
-        """从数据库加载单个会话记录"""
-        with get_db_session() as session:
-            statements = select(ChatSession)
-            for model_instance in session.exec(statements).all():
-                bot_chat_session = BotChatSession.from_db_instance(model_instance)
-                self.sessions[bot_chat_session.session_id] = bot_chat_session
-                if bot_chat_session.session_id in self.last_messages:
-                    bot_chat_session.set_context(self.last_messages[bot_chat_session.session_id])
-
-    def _save_session(self, session: BotChatSession):
-        """将会话记录保存到数据库"""
-        with get_db_session() as db_session:
-            db_instance = session.to_db_instance()
-            statement = select(ChatSession).filter_by(session_id=db_instance.session_id).limit(1)
-            if result := db_session.exec(statement).first():
-                result.created_timestamp = db_instance.created_timestamp
-                result.last_active_timestamp = db_instance.last_active_timestamp
-                result.user_id = db_instance.user_id
-                result.user_nickname = db_instance.user_nickname
-                result.user_cardname = db_instance.user_cardname
-                result.group_id = db_instance.group_id
-                result.group_name = db_instance.group_name
-                result.account_id = db_instance.account_id
-                result.scope = db_instance.scope
-                result.agent_id = db_instance.agent_id
-                db_session.add(result)
-            else:
-                db_session.add(db_instance)
+        return self.session_store.get_existing(session_id)
 
 
 chat_manager = ChatManager()

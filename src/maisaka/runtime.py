@@ -148,10 +148,6 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
             raise ValueError(f"未找到会话 {session_id} 对应的 SessionInfo")
         self._session_info = session_info
 
-    @property
-    def chat_stream(self) -> SessionInfo:
-        """向后兼容属性 — 返回不可变 SessionInfo 快照。"""
-        return self._session_info
 
         session_name = get_session_name(session_id)
         self.session_name = session_name
@@ -236,6 +232,11 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         )
         self._register_tool_providers()
         self._emit_monitor_session_start()
+
+    @property
+    def chat_stream(self) -> SessionInfo:
+        """向后兼容属性 — 返回不可变 SessionInfo 快照。"""
+        return self._session_info
 
     @property
     def _max_context_size(self) -> int:
