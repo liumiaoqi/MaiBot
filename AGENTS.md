@@ -74,7 +74,7 @@ WebUI 开发服务固定起到 7999 端口。
 # 关于 A_memorix 修改
 A_Memorix 是 MaiBot 的核心记忆子系统，可以自由修改。修改约束仅来自 MaiBot 自身架构原则（核心隔离、Protocol 接口契约），详见 `src/A_memorix/MODIFICATION_POLICY.md`。
 
-当前重构进展：SDKMemoryKernel 已从 9650 行瘦身至 2911 行；`services/` 目录已提取 14 个服务文件；`admin/` 目录已提取 13 个 Admin Handler；`_KernelRuntimeFacade` 已删除；`host_service` 直接访问服务实例。
+当前重构进展：SDKMemoryKernel 已从 9650 行瘦身至 2911 行；`services/` 目录已提取 14 个服务文件；`admin/` 目录已提取 13 个 Admin Handler；`_KernelRuntimeFacade` 已删除；`host_service` 直接访问服务实例；**SDKMemoryKernel 完全隔离已完成**（`src/A_memorix/core/` 零违规导入，28→0，所有外部依赖通过 AMemorixServicePorts 构造注入）。
 
 当前约束：子模块不反向持有 SDKMemoryKernel 引用；外部 API 签名不变；不引入新的循环依赖。
 
@@ -131,7 +131,7 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 3. 禁止核心持有 BotChatSession 可变引用
 4. 禁止核心硬编码 napcat_* 字段
 5. 禁止核心绕过 MessagePort 直接调用 send_service ✅ 已消除
-6. 禁止核心导入 A_memorix 内部模块
+6. 禁止核心导入 A_memorix 内部模块 ✅ 已消除（core/零违规导入，适配器层通过memory_service中转）
 7. 禁止 Orchestrator 通过 enqueue_proactive_task 模拟多智能体
 
 # 核心架构
