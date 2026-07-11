@@ -81,7 +81,7 @@ from src.webui.schemas.agent import (
 
 logger = get_logger("webui.agent")
 
-router = APIRouter(prefix="/agent", tags=["Agent"], dependencies=[Depends(require_auth)])
+router = APIRouter(prefix="/agents", tags=["Agent"], dependencies=[Depends(require_auth)])
 
 
 def _get_registry() -> AgentConfigRegistry:
@@ -1474,3 +1474,19 @@ async def get_state_awareness(session_id: str):
         summary_preview=summary_preview,
         active_rules=active_rules,
     ))
+
+
+compat_router = APIRouter(prefix="/api/webui", tags=["Agent (Compat)"], dependencies=[Depends(require_auth)])
+
+
+def _build_compat_routes():
+    for route in router.routes:
+        compat_path = route.path.replace("/agents", "/agent", 1) if route.path.startswith("/agents") else route.path
+        compat_router.add_api_route(
+            path=compat_path,
+            endpoint=route.endpoint,
+            methods=list(route.methods),
+        )
+
+
+_build_compat_routes()

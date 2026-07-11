@@ -14,6 +14,8 @@ def get_api_router() -> APIRouter:
 
 def get_all_routers() -> List[APIRouter]:
     """获取所有需要独立注册的路由器列表"""
+    from src.webui.routers.agent import compat_router as agent_compat_router
+    from src.webui.routers.chat import compat_router as chat_compat_router
     from src.webui.routers.chat import router as chat_router
     from src.webui.routers.config import compat_router as config_compat_router
     from src.webui.routers.memory import compat_router as memory_compat_router
@@ -21,6 +23,8 @@ def get_all_routers() -> List[APIRouter]:
 
     return [
         main_router,
+        agent_compat_router,
+        chat_compat_router,
         config_compat_router,
         memory_compat_router,
         chat_router,
