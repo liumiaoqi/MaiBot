@@ -150,7 +150,7 @@ export async function getUserSubmissions(
 export async function checkUserSubmission(
   surveyId: string,
   userId?: string
-): Promise<{ success: boolean; hasSubmitted?: boolean; error?: string }> {
+): Promise<{ hasSubmitted?: boolean; error?: string }> {
   try {
     const finalUserId = userId || getUserId()
 

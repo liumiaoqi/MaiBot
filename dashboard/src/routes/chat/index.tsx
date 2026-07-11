@@ -194,7 +194,7 @@ export function ChatPage() {
   const fetchPlatforms = useCallback(async () => {
     setIsLoadingPlatforms(true)
     try {
-      const data = await backendApi.get<{ platforms?: PlatformInfo[] }>('/api/chat/platforms')
+      const data = await backendApi.get<{ platforms?: PlatformInfo[] }>('/api/webui/chat/platforms')
       setPlatforms(data.platforms || [])
     } catch (e) {
       if (e instanceof ApiError && e.status !== undefined && (e.status < 200 || e.status >= 300)) {
@@ -230,7 +230,7 @@ export function ChatPage() {
   const fetchPersons = useCallback(async (platform: string, search?: string) => {
     setIsLoadingPersons(true)
     try {
-      const data = await backendApi.get<{ persons?: PersonInfo[] }>('/api/chat/persons', {
+      const data = await backendApi.get<{ persons?: PersonInfo[] }>('/api/webui/chat/persons', {
         query: {
           platform: platform || undefined,
           search: search || undefined,

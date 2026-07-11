@@ -9,9 +9,8 @@ export { ApiError, isAuthError, isBizError, isParamError, isSysError } from './e
 export {
   isApiResponseEnvelope,
   isErrorResponseEnvelope,
-  requireSuccess,
   unwrapApiResponse,
 } from './envelope'
 export { authApi, backendApi, statsApi, STATS_SERVICE_BASE_URL } from './instances'
 export type { ApiClient, ApiClientOptions, HttpMethod, QueryValue, RequestOptions } from './client'
-export type { ApiResponseEnvelope, ErrorResponseEnvelope, SuccessEnvelope } from './envelope'
+export type { ApiResponseEnvelope, ErrorResponseEnvelope } from './envelope'

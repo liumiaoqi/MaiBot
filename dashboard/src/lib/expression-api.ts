@@ -2,10 +2,10 @@
  * 表达方式管理 API
  *
  * 请求样板（认证、解析、错误格式化）由 @/lib/http 的请求客户端承担；
- * 本文件只声明 endpoint、业务错误文案与响应体 success 标记的解包规则。
+ * 本文件只声明 endpoint 与业务错误文案。
  * 公开函数遵循 throw 契约：成功返回数据，失败抛 ApiError。
  */
-import { ApiError, backendApi, requireSuccess } from '@/lib/http'
+import { ApiError, backendApi } from '@/lib/http'
 import type {
   BatchReviewItem,
   BatchReviewResponse,
@@ -47,7 +47,7 @@ export async function getChatList(
     query: { include_legacy: params.include_legacy ? true : undefined },
     errorMessage: '获取聊天列表失败',
   })
-  return requireSuccess(data, '获取聊天列表失败').data
+  return data.data
 }
 
 /**
@@ -60,7 +60,7 @@ export async function getExpressionChatTargets(
     query: { include_legacy: params.include_legacy ? true : undefined },
     errorMessage: '获取导入目标聊天流失败',
   })
-  return requireSuccess(data, '获取导入目标聊天流失败').data
+  return data.data
 }
 
 /**
@@ -73,7 +73,7 @@ export async function getExpressionGroups(
     query: { include_legacy: params.include_legacy ? true : undefined },
     errorMessage: '获取表达共享组失败',
   })
-  return requireSuccess(data, '获取表达共享组失败').data
+  return data.data
 }
 
 /**
@@ -102,7 +102,7 @@ export async function getExpressionList(params: {
     },
     errorMessage: '获取表达方式列表失败',
   })
-  return requireSuccess(data, '获取表达方式列表失败')
+  return data
 }
 
 /**
@@ -196,7 +196,7 @@ export async function getExpressionDetail(expressionId: number): Promise<any> {
   const data = await backendApi.get<ExpressionDetailResponse>(`${API_BASE}/${expressionId}`, {
     errorMessage: '获取表达方式详情失败',
   })
-  return requireSuccess(data, '获取表达方式详情失败').data
+  return data.data
 }
 
 /**
@@ -207,7 +207,7 @@ export async function createExpression(data: ExpressionCreateRequest): Promise<a
     body: data,
     errorMessage: '创建表达方式失败',
   })
-  return requireSuccess(responseData, '创建表达方式失败').data
+  return responseData.data
 }
 
 /**
@@ -224,7 +224,7 @@ export async function updateExpression(
       errorMessage: '更新表达方式失败',
     }
   )
-  return requireSuccess(responseData, '更新表达方式失败').data || {}
+  return responseData.data || {}
 }
 
 /**
@@ -241,7 +241,7 @@ export async function updateExpressionReviewStatus(
       errorMessage: '更新表达方式审核状态失败',
     }
   )
-  const checked = requireSuccess(responseData, '更新表达方式审核状态失败')
+  const checked =
   if (!checked.data) {
     throw new ApiError(checked.message || '更新表达方式审核状态失败', { detail: checked })
   }
@@ -255,7 +255,6 @@ export async function deleteExpression(expressionId: number): Promise<any> {
   const data = await backendApi.delete<ExpressionDeleteResponse>(`${API_BASE}/${expressionId}`, {
     errorMessage: '删除表达方式失败',
   })
-  requireSuccess(data, '删除表达方式失败')
   return {}
 }
 
@@ -267,7 +266,6 @@ export async function batchDeleteExpressions(expressionIds: number[]): Promise<a
     body: { ids: expressionIds },
     errorMessage: '批量删除表达方式失败',
   })
-  requireSuccess(data, '批量删除表达方式失败')
   return {}
 }
 
@@ -281,7 +279,7 @@ export async function getExpressionStats(
     query: { include_legacy: params.include_legacy ? true : undefined },
     errorMessage: '获取统计数据失败',
   })
-  return requireSuccess(data, '获取统计数据失败').data
+  return data.data
 }
 
 /**
@@ -291,7 +289,7 @@ export async function getExpressionClusters(): Promise<ExpressionClusterListResp
   const data = await backendApi.get<ExpressionClusterListResponse>(`${API_BASE}/clusters`, {
     errorMessage: '获取表达聚类失败',
   })
-  return requireSuccess(data, '获取表达聚类失败')
+  return data
 }
 
 /**
@@ -308,7 +306,7 @@ export async function getExpressionClusterMembers(params: {
       errorMessage: '获取表达聚类成员失败',
     }
   )
-  return requireSuccess(data, '获取表达聚类成员失败')
+  return data
 }
 
 // ============ 审核相关 API ============
@@ -346,7 +344,7 @@ export async function getReviewList(params: {
     },
     errorMessage: '获取审核列表失败',
   })
-  return requireSuccess(data, '获取审核列表失败')
+  return data
 }
 
 /**
@@ -359,7 +357,7 @@ export async function batchReviewExpressions(
     body: { items },
     errorMessage: '批量审核失败',
   })
-  return requireSuccess(data, '批量审核失败')
+  return data
 }
 
 /**

@@ -39,7 +39,6 @@ export interface MemoryGraphEdgePayload {
 }
 
 export interface MemoryGraphPayload {
-  success: boolean
   nodes: MemoryGraphNodePayload[]
   edges: MemoryGraphEdgePayload[]
   total_nodes: number
@@ -63,7 +62,6 @@ export interface MemoryGraphSearchItem {
 }
 
 export interface MemoryGraphSearchPayload {
-  success: boolean
   query: string
   limit: number
   count: number
@@ -148,7 +146,6 @@ export type MemoryEvidenceGraphNodeMetadata =
   | Record<string, unknown>
 
 export interface MemoryGraphNodeDetailPayload {
-  success: boolean
   node: {
     id: string
     type: 'entity'
@@ -162,7 +159,6 @@ export interface MemoryGraphNodeDetailPayload {
 }
 
 export interface MemoryGraphEdgeDetailPayload {
-  success: boolean
   edge: MemoryGraphEdgePayload
   relations: MemoryGraphRelationDetailPayload[]
   paragraphs: MemoryGraphParagraphDetailPayload[]
@@ -170,7 +166,6 @@ export interface MemoryGraphEdgeDetailPayload {
 }
 
 export interface MemoryGraphParagraphDetailResponsePayload {
-  success: boolean
   paragraph: MemoryGraphParagraphDetailPayload
   evidence_graph: MemoryEvidenceGraphPayload
 }
@@ -193,7 +188,6 @@ export interface MemoryVectorMigrationProgress extends Record<string, unknown> {
 export interface MemoryVectorAutoMigrationStatus {
   running?: boolean
   attempted?: boolean
-  success?: boolean
   stage?: string
   progress?: MemoryVectorMigrationProgress
   last_error?: string
@@ -214,7 +208,6 @@ export interface MemoryVectorPoolsStatus {
 }
 
 export interface MemoryRuntimeConfigPayload {
-  success: boolean
   config: Record<string, unknown>
   data_dir: string
   embedding_dimension: number
@@ -242,13 +235,11 @@ export interface MemoryRuntimeConfigPayload {
 }
 
 export interface MemoryRuntimeSelfCheckPayload {
-  success: boolean
   report?: Record<string, unknown>
   error?: string
 }
 
 export interface MemoryVectorRebuildPayload {
-  success: boolean
   dry_run?: boolean
   counts?: Record<string, number>
   stats?: Record<string, { done: number; failed: number }>
@@ -270,13 +261,11 @@ export interface MemoryVectorRebuildPayload {
 }
 
 export interface MemoryConfigPayload {
-  success: boolean
   config: Record<string, unknown>
   path: string
 }
 
 export interface MemoryRawConfigPayload {
-  success: boolean
   config: string
   path: string
   exists?: boolean
@@ -284,13 +273,11 @@ export interface MemoryRawConfigPayload {
 }
 
 export interface MemoryConfigSchemaPayload {
-  success: boolean
   schema: PluginConfigSchema
   path: string
 }
 
 export interface MemoryImportGuidePayload {
-  success: boolean
   content: string
   source?: string
   path?: string
@@ -307,7 +294,6 @@ export interface MemoryTaskPayload {
 }
 
 export interface MemoryTaskListPayload {
-  success: boolean
   items: MemoryTaskPayload[]
   count?: number
   settings?: Record<string, unknown>
@@ -347,12 +333,10 @@ export interface MemoryImportSettings {
 }
 
 export interface MemoryImportSettingsPayload {
-  success: boolean
   settings: MemoryImportSettings
 }
 
 export interface MemoryImportPathAliasesPayload {
-  success: boolean
   path_aliases: Record<string, string>
 }
 
@@ -369,7 +353,6 @@ export interface MemoryImportChatTargetPayload {
 }
 
 export interface MemoryImportChatTargetsPayload {
-  success: boolean
   data: MemoryImportChatTargetPayload[]
 }
 
@@ -404,7 +387,6 @@ export interface MemoryTimelineEventPayload {
 }
 
 export interface MemoryTimelinePayload {
-  success: boolean
   chat: Pick<MemoryImportChatTargetPayload, 'chat_id' | 'chat_name' | 'platform' | 'group_id' | 'user_id' | 'is_group'>
   range: {
     time_start?: number | null
@@ -420,7 +402,6 @@ export interface MemoryTimelinePayload {
 }
 
 export interface MemoryImportResolvePathPayload {
-  success?: boolean
   alias: string
   relative_path: string
   resolved_path: string
@@ -503,20 +484,17 @@ export interface MemoryImportTaskPayload extends MemoryTaskPayload {
 }
 
 export interface MemoryImportTaskListPayload {
-  success: boolean
   items: MemoryImportTaskPayload[]
   count?: number
   settings?: MemoryImportSettings
 }
 
 export interface MemoryImportTaskDetailPayload {
-  success: boolean
   task?: MemoryImportTaskPayload
   error?: string
 }
 
 export interface MemoryImportChunkListPayload {
-  success: boolean
   task_id?: string
   file_id?: string
   offset?: number
@@ -527,13 +505,11 @@ export interface MemoryImportChunkListPayload {
 }
 
 export interface MemoryImportActionPayload {
-  success: boolean
   task?: MemoryImportTaskPayload
   error?: string
 }
 
 export interface MemoryTuningProfilePayload {
-  success: boolean
   profile?: Record<string, unknown>
   runtime_profile?: Record<string, unknown>
   persistable_profile?: Record<string, unknown>
@@ -568,7 +544,6 @@ export interface MemoryDeleteRequestPayload {
 }
 
 export interface MemoryDeletePreviewPayload {
-  success: boolean
   mode: string
   selector: Record<string, unknown> | string
   counts: MemoryDeleteCountsPayload
@@ -583,7 +558,6 @@ export interface MemoryDeletePreviewPayload {
 }
 
 export interface MemoryDeleteExecutePayload {
-  success: boolean
   mode: string
   operation_id: string
   counts: MemoryDeleteCountsPayload
@@ -622,14 +596,12 @@ export interface MemoryDeleteOperationPayload {
 }
 
 export interface MemoryDeleteOperationListPayload {
-  success: boolean
   items: MemoryDeleteOperationPayload[]
   count?: number
   error?: string
 }
 
 export interface MemoryDeleteOperationDetailPayload {
-  success: boolean
   operation?: MemoryDeleteOperationPayload | null
   error?: string
 }
@@ -769,7 +741,6 @@ export type MemoryCorrectionStaleRollbackAction =
   | 'invalid_target'
 
 export interface MemoryCorrectionStaleMarkRollbackPayload {
-  success: boolean
   action: MemoryCorrectionStaleRollbackAction
   paragraph_hash: string
   relation_hash: string
@@ -880,7 +851,6 @@ export interface MemoryCorrectionSupersededTargetPayload {
 }
 
 export interface MemoryCorrectionExecutionPayload {
-  success?: boolean
   stored_ids?: string[]
   ingest_results?: MemoryCorrectionIngestResultPayload[]
   superseded_targets?: MemoryCorrectionSupersededTargetPayload[]
@@ -910,7 +880,6 @@ export interface MemoryCorrectionRestoreFailurePayload {
 }
 
 export interface MemoryCorrectionRollbackResultPayload {
-  success: boolean
   stored_ids_deleted?: string[]
   stored_ids_delete_requested?: string[]
   new_relations_deactivated: string[]
@@ -944,7 +913,6 @@ export interface MemoryCorrectionPlanPayload {
 }
 
 export interface MemoryCorrectionPreviewPayload {
-  success: boolean
   plan_id?: string
   plan?: MemoryCorrectionPlanPayload | null
   preview?: MemoryCorrectionPreviewContentPayload
@@ -956,7 +924,6 @@ export interface MemoryCorrectionPreviewPayload {
 }
 
 export interface MemoryCorrectionExecutePayload {
-  success: boolean
   plan?: MemoryCorrectionPlanPayload | null
   execution?: MemoryCorrectionExecutionPayload
   requires_confirmation?: boolean
@@ -964,20 +931,17 @@ export interface MemoryCorrectionExecutePayload {
 }
 
 export interface MemoryCorrectionPlanListPayload {
-  success: boolean
   items: MemoryCorrectionPlanPayload[]
   count?: number
   error?: string
 }
 
 export interface MemoryCorrectionPlanDetailPayload {
-  success: boolean
   plan?: MemoryCorrectionPlanPayload | null
   error?: string
 }
 
 export interface MemoryCorrectionRollbackPayload {
-  success: boolean
   plan?: MemoryCorrectionPlanPayload | null
   rollback?: MemoryCorrectionRollbackResultPayload
   error?: string
@@ -1034,20 +998,17 @@ export interface MemoryFeedbackCorrectionDetailTaskPayload extends MemoryFeedbac
 }
 
 export interface MemoryFeedbackCorrectionListPayload {
-  success: boolean
   items: MemoryFeedbackCorrectionSummaryPayload[]
   count?: number
   error?: string
 }
 
 export interface MemoryFeedbackCorrectionDetailPayload {
-  success: boolean
   task?: MemoryFeedbackCorrectionDetailTaskPayload | null
   error?: string
 }
 
 export interface MemoryFeedbackCorrectionRollbackPayload {
-  success: boolean
   already_rolled_back?: boolean
   result?: Record<string, unknown>
   task?: MemoryFeedbackCorrectionDetailTaskPayload | null
@@ -1063,7 +1024,6 @@ export interface MemorySourceItemPayload {
 }
 
 export interface MemorySourceListPayload {
-  success: boolean
   items: MemorySourceItemPayload[]
   count: number
 }
@@ -1093,14 +1053,12 @@ export interface MemoryEpisodeParagraphPayload extends Record<string, unknown> {
 }
 
 export interface MemoryEpisodeListPayload {
-  success: boolean
   items: MemoryEpisodeItemPayload[]
   count?: number
   error?: string
 }
 
 export interface MemoryEpisodeDetailPayload {
-  success: boolean
   episode?: MemoryEpisodeItemPayload & {
     paragraphs?: MemoryEpisodeParagraphPayload[]
   }
@@ -1108,7 +1066,6 @@ export interface MemoryEpisodeDetailPayload {
 }
 
 export interface MemoryEpisodeStatusPayload extends Record<string, unknown> {
-  success: boolean
   pending_queue?: number
   counts?: Record<string, number>
   failed?: Array<Record<string, unknown>>
@@ -1116,7 +1073,6 @@ export interface MemoryEpisodeStatusPayload extends Record<string, unknown> {
 }
 
 export interface MemoryEpisodeActionPayload extends Record<string, unknown> {
-  success: boolean
   error?: string
   detail?: string
 }
@@ -1134,14 +1090,12 @@ export interface MemoryProfileItemPayload extends Record<string, unknown> {
 }
 
 export interface MemoryProfileListPayload {
-  success: boolean
   items: MemoryProfileItemPayload[]
   count?: number
   error?: string
 }
 
 export interface MemoryProfileQueryPayload extends Record<string, unknown> {
-  success?: boolean
   profile?: MemoryProfileItemPayload | Record<string, unknown>
   person_id?: string
   profile_text?: string
@@ -1165,7 +1119,6 @@ export interface MemoryProfileEvidenceItemPayload extends Record<string, unknown
 }
 
 export interface MemoryProfileEvidencePayload extends Record<string, unknown> {
-  success: boolean
   person_id?: string
   person_name?: string
   profile_text?: string
@@ -1182,7 +1135,6 @@ export interface MemoryProfileEvidencePayload extends Record<string, unknown> {
 }
 
 export interface MemoryProfileEvidenceCorrectPayload extends Record<string, unknown> {
-  success: boolean
   person_id?: string
   evidence?: MemoryProfileEvidenceItemPayload
   delete_result?: Record<string, unknown>
@@ -1193,7 +1145,6 @@ export interface MemoryProfileEvidenceCorrectPayload extends Record<string, unkn
 }
 
 export interface MemoryProfileOverridePayload extends Record<string, unknown> {
-  success: boolean
   override?: Record<string, unknown>
   deleted?: boolean
   person_id?: string
@@ -1213,14 +1164,12 @@ export interface MemoryMaintenanceItemPayload extends Record<string, unknown> {
 }
 
 export interface MemoryRecycleBinPayload {
-  success: boolean
   items: MemoryMaintenanceItemPayload[]
   count?: number
   error?: string
 }
 
 export interface MemoryMaintenanceActionPayload extends Record<string, unknown> {
-  success: boolean
   detail?: string
   error?: string
 }
@@ -1666,7 +1615,7 @@ export async function getMemoryConfig(): Promise<MemoryConfigPayload> {
   return requestJson<MemoryConfigPayload>('/config')
 }
 
-export async function updateMemoryConfig(config: Record<string, unknown>): Promise<{ success: boolean; message?: string }> {
+export async function updateMemoryConfig(config: Record<string, unknown>): Promise<{ message?: string }> {
   return requestJson('/config', {
     method: 'PUT',
     body: { config },
@@ -1677,7 +1626,7 @@ export async function getMemoryConfigRaw(): Promise<MemoryRawConfigPayload> {
   return requestJson<MemoryRawConfigPayload>('/config/raw')
 }
 
-export async function updateMemoryConfigRaw(config: string): Promise<{ success: boolean; message?: string }> {
+export async function updateMemoryConfigRaw(config: string): Promise<{ message?: string }> {
   return requestJson('/config/raw', {
     method: 'PUT',
     body: { config },
@@ -1812,7 +1761,7 @@ export async function getMemoryTuningTasks(limit: number = 20): Promise<MemoryTa
   return requestJson<MemoryTaskListPayload>(`/retrieval_tuning/tasks?limit=${limit}`)
 }
 
-export async function createMemoryTuningTask(payload: Record<string, unknown>): Promise<{ success: boolean; task?: MemoryTaskPayload }> {
+export async function createMemoryTuningTask(payload: Record<string, unknown>): Promise<{ task?: MemoryTaskPayload }> {
   return requestJson('/retrieval_tuning/tasks', {
     method: 'POST',
     body: payload,
@@ -1822,13 +1771,13 @@ export async function createMemoryTuningTask(payload: Record<string, unknown>): 
 export async function applyBestMemoryTuningProfile(
   taskId: string,
   payload: { persist?: boolean; validate?: boolean } = {},
-): Promise<{ success: boolean; error?: string; persisted?: boolean; runtime_rebuilt?: boolean; validation_passed?: boolean }> {
+): Promise<{ error?: string; persisted?: boolean; runtime_rebuilt?: boolean; validation_passed?: boolean }> {
   return requestJson(`/retrieval_tuning/tasks/${encodeURIComponent(taskId)}/apply-best`, {
     method: 'POST',
     body: payload,
   })
 }
 
-export async function getMemoryTuningReport(taskId: string, format: 'md' | 'json' = 'md'): Promise<{ success: boolean; content: string; path: string; error?: string }> {
+export async function getMemoryTuningReport(taskId: string, format: 'md' | 'json' = 'md'): Promise<{ content: string; path: string; error?: string }> {
   return requestJson(`/retrieval_tuning/tasks/${encodeURIComponent(taskId)}/report?format=${format}`)
 }

@@ -1,5 +1,7 @@
 import { backendApi } from '@/lib/http'
 
+const API_BASE = '/api/webui/chat'
+
 export type ChatStreamType = 'group' | 'private'
 
 export interface ChatStream {
@@ -99,19 +101,12 @@ export interface ChatStreamDetail {
   prompts: ChatPromptDetail
 }
 
-interface ChatStreamsResponse {
-  success: boolean
+interface ChatStreamsData {
   sessions?: ChatStream[]
   total?: number
 }
 
-interface ChatStreamDetailResponse {
-  success: boolean
-  detail?: ChatStreamDetail
-}
-
-interface ChatTargetResolveResponse {
-  success: boolean
+interface ChatTargetResolveData {
   found: boolean
   session?: ChatStream | null
 }
@@ -122,8 +117,7 @@ export interface ChatTargetResolveRequest {
   rule_type: ChatStreamType | string
 }
 
-interface ChatTargetsResolveResponse {
-  success: boolean
+interface ChatTargetsResolveData {
   results: Array<{
     found: boolean
     session?: ChatStream | null
@@ -138,7 +132,6 @@ export interface ChatStreamDeleteItem {
 }
 
 export interface ChatStreamDeleteResult {
-  success: boolean
   session_id: string
   deleted_total: number
   jargons?: {
@@ -165,7 +158,7 @@ interface UpdateChatPromptPayload {
 }
 
 export async function getChatStreams(limit = 1000, agentId?: string): Promise<ChatStream[]> {
-  const result = await backendApi.get<ChatStreamsResponse>('/api/chat/sessions', {
+  const result = await backendApi.get<ChatStreamsData>(`${API_BASE}/sessions`, {
     query: { limit, agent_id: agentId || undefined },
   })
   return result.sessions ?? []
@@ -175,7 +168,7 @@ export async function resolveChatTarget(
   platform: string,
   itemId: string,
   ruleType: ChatStreamType | string
-): Promise<ChatTargetResolveResponse> {
+): Promise<ChatTargetResolveData> {
   const [result] = await resolveChatTargets([
     {
       platform,
@@ -183,13 +176,13 @@ export async function resolveChatTarget(
       rule_type: ruleType,
     },
   ])
-  return { success: true, found: Boolean(result?.found), session: result?.session ?? null }
+  return { found: Boolean(result?.found), session: result?.session ?? null }
 }
 
 export async function resolveChatTargets(
   targets: ChatTargetResolveRequest[]
-): Promise<ChatTargetsResolveResponse['results']> {
-  const result = await backendApi.post<ChatTargetsResolveResponse>('/api/chat/resolve-targets', {
+): Promise<ChatTargetsResolveData['results']> {
+  const result = await backendApi.post<ChatTargetsResolveData>(`${API_BASE}/resolve-targets`, {
     body: { targets },
     errorMessage: '解析聊天流失败',
   })
@@ -197,8 +190,8 @@ export async function resolveChatTargets(
 }
 
 export async function getChatStreamDetail(sessionId: string): Promise<ChatStreamDetail> {
-  const result = await backendApi.get<ChatStreamDetailResponse>(
-    `/api/chat/sessions/${encodeURIComponent(sessionId)}`
+  const result = await backendApi.get<{ detail?: ChatStreamDetail }>(
+    `${API_BASE}/sessions/${encodeURIComponent(sessionId)}`
   )
   if (!result.detail) {
     throw new Error('聊天流详情为空')
@@ -210,8 +203,8 @@ export async function updateChatStreamTalkFrequency(
   sessionId: string,
   payload: UpdateTalkFrequencyPayload
 ): Promise<ChatStreamDetail> {
-  const result = await backendApi.put<ChatStreamDetailResponse>(
-    `/api/chat/sessions/${encodeURIComponent(sessionId)}/talk-frequency`,
+  const result = await backendApi.put<{ detail?: ChatStreamDetail }>(
+    `${API_BASE}/sessions/${encodeURIComponent(sessionId)}/talk-frequency`,
     {
       body: payload,
       errorMessage: '保存发言频率失败',
@@ -227,8 +220,8 @@ export async function deleteChatStreamTalkFrequency(
   sessionId: string,
   time: string
 ): Promise<ChatStreamDetail> {
-  const result = await backendApi.delete<ChatStreamDetailResponse>(
-    `/api/chat/sessions/${encodeURIComponent(sessionId)}/talk-frequency`,
+  const result = await backendApi.delete<{ detail?: ChatStreamDetail }>(
+    `${API_BASE}/sessions/${encodeURIComponent(sessionId)}/talk-frequency`,
     {
       query: { time },
       errorMessage: '删除发言频率规则失败',
@@ -245,8 +238,8 @@ export async function updateChatStreamLearning(
   kind: 'expression' | 'jargon' | 'behavior',
   payload: UpdateLearningPayload
 ): Promise<ChatStreamDetail> {
-  const result = await backendApi.put<ChatStreamDetailResponse>(
-    `/api/chat/sessions/${encodeURIComponent(sessionId)}/learning/${kind}`,
+  const result = await backendApi.put<{ detail?: ChatStreamDetail }>(
+    `${API_BASE}/sessions/${encodeURIComponent(sessionId)}/learning/${kind}`,
     {
       body: payload,
       errorMessage: '保存学习配置失败',
@@ -263,8 +256,8 @@ export async function upsertChatStreamPrompt(
   payload: UpdateChatPromptPayload,
   index?: number
 ): Promise<ChatStreamDetail> {
-  const result = await backendApi.put<ChatStreamDetailResponse>(
-    `/api/chat/sessions/${encodeURIComponent(sessionId)}/prompts`,
+  const result = await backendApi.put<{ detail?: ChatStreamDetail }>(
+    `${API_BASE}/sessions/${encodeURIComponent(sessionId)}/prompts`,
     {
       body: payload,
       query: index === undefined ? undefined : { index },
@@ -281,8 +274,8 @@ export async function deleteChatStreamPrompt(
   sessionId: string,
   index: number
 ): Promise<ChatStreamDetail> {
-  const result = await backendApi.delete<ChatStreamDetailResponse>(
-    `/api/chat/sessions/${encodeURIComponent(sessionId)}/prompts/${index}`,
+  const result = await backendApi.delete<{ detail?: ChatStreamDetail }>(
+    `${API_BASE}/sessions/${encodeURIComponent(sessionId)}/prompts/${index}`,
     {
       errorMessage: '删除聊天 Prompt 失败',
     }
@@ -295,7 +288,7 @@ export async function deleteChatStreamPrompt(
 
 export async function deleteChatStream(sessionId: string): Promise<ChatStreamDeleteResult> {
   return backendApi.delete<ChatStreamDeleteResult>(
-    `/api/chat/sessions/${encodeURIComponent(sessionId)}`,
+    `${API_BASE}/sessions/${encodeURIComponent(sessionId)}`,
     {
       errorMessage: '删除聊天流失败',
     }

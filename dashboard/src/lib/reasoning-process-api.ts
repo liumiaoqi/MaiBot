@@ -102,7 +102,6 @@ export type ReasoningReplayRequest = {
 }
 
 export type ReasoningReplayResponse = {
-  success: boolean
   response: string
   reasoning: string
   model_name: string

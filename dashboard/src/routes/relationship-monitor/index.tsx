@@ -1,7 +1,6 @@
-import { useQuery } from '@tanstack/react-query'
 import { useRouterState } from '@tanstack/react-router'
 import { RefreshCw, Users } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -11,13 +10,9 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 
 import { Skeleton } from '@/components/ui/skeleton'
 
+import type { AgentConfigInfo, RelationshipInfo } from '@/lib/agent-api'
 
-import {
-  getAgentList,
-  getAgentRelationships,
-  type AgentConfigInfo,
-  type RelationshipInfo,
-} from '@/lib/agent-api'
+import { useRelationshipMonitor } from '@/hooks/useRelationshipMonitor'
 
 import { cn } from '@/lib/utils'
 
@@ -203,61 +198,20 @@ function AgentRelationshipCard({
 export function RelationshipMonitorPage() {
 
   const search = useRouterState().location.search as Record<string, unknown>
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
+  const agentParam = typeof search.agent === 'string' ? search.agent : undefined
 
-  const agentsQuery = useQuery({
-    queryKey: ['agents', 'list'],
-    queryFn: getAgentList,
-  })
-
-  const agents = agentsQuery.data ?? []
-
-  useEffect(() => {
-    const agentParam = typeof search.agent === 'string' ? search.agent : undefined
-    if (!agentParam) return
-    const found = agents.find((a) => a.agent_id === agentParam)
-    if (found) {
-      setSelectedAgentId(agentParam)
-    }
-  }, [search.agent, agents])
-
-  const allRelationshipsQuery = useQuery({
-    queryKey: ['agents', 'relationships', 'all'],
-    queryFn: async () => {
-      const agents = await getAgentList()
-      const results: Record<string, RelationshipInfo[]> = {}
-      await Promise.all(
-        agents.map(async (agent) => {
-          try {
-            results[agent.agent_id] = await getAgentRelationships(agent.agent_id)
-          } catch {
-            results[agent.agent_id] = []
-          }
-        })
-      )
-      return results
-    },
-    enabled: !!agentsQuery.data,
-  })
-
-  const selectedRelationshipQuery = useQuery({
-    queryKey: ['agents', 'relationships', selectedAgentId],
-    queryFn: () => getAgentRelationships(selectedAgentId!),
-    enabled: !!selectedAgentId,
-  })
-
-
-  const allRelationships = allRelationshipsQuery.data ?? {}
-  const selectedAgent = useMemo(
-    () => agents.find((a) => a.agent_id === selectedAgentId),
-    [agents, selectedAgentId]
-  )
-  const selectedRels = selectedRelationshipQuery.data ?? []
-
-  const totalRelationships = useMemo(
-    () => Object.values(allRelationships).reduce((sum, rels) => sum + rels.length, 0),
-    [allRelationships]
-  )
+  const {
+    agents,
+    allRelationships,
+    selectedAgentId,
+    selectedAgent,
+    selectedRelationships,
+    totalRelationships,
+    isInitialLoading,
+    isRefreshing,
+    setSelectedAgentId,
+    refresh,
+  } = useRelationshipMonitor(agentParam)
 
 
   return (
@@ -275,14 +229,13 @@ export function RelationshipMonitorPage() {
           variant="ghost"
           size="icon"
           onClick={() => {
-            allRelationshipsQuery.refetch()
-            agentsQuery.refetch()
+            refresh()
           }}
         >
           <RefreshCw
             className={cn(
               'h-4 w-4',
-              (allRelationshipsQuery.isFetching || agentsQuery.isFetching) && 'animate-spin'
+              isRefreshing && 'animate-spin'
             )}
           />
         </Button>
@@ -296,7 +249,7 @@ export function RelationshipMonitorPage() {
           </div>
           <ScrollArea className="flex-1">
             <div className="p-3 space-y-2">
-              {agentsQuery.isLoading || allRelationshipsQuery.isLoading ? (
+              {isInitialLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <Skeleton key={i} className="h-20 w-full rounded-lg" />
                 ))
@@ -323,7 +276,7 @@ export function RelationshipMonitorPage() {
                 <p>选择一个智能体查看关系详情</p>
               </div>
             </div>
-          ) : selectedRelationshipQuery.isLoading ? (
+          ) : isInitialLoading ? (
             <div className="p-6 space-y-4">
               <Skeleton className="h-8 w-48" />
               <div className="grid grid-cols-2 gap-4">
@@ -346,7 +299,7 @@ export function RelationshipMonitorPage() {
                     <h2 className="text-xl font-bold">{selectedAgent?.display_name}</h2>
                     <p className="text-sm text-muted-foreground">
                       关系进展速率 ×{selectedAgent?.relationship_growth_rate.toFixed(1)} ·{' '}
-                      {selectedRels.length} 条关系
+                      {selectedRelationships.length} 条关系
                     </p>
                   </div>
                 </div>
@@ -354,7 +307,7 @@ export function RelationshipMonitorPage() {
                 {/* 统计卡片 */}
                 <div className="grid grid-cols-4 gap-4">
                   {LEVEL_THRESHOLDS.map(({ level, label }) => {
-                    const count = selectedRels.filter((r) => r.level === level).length
+                    const count = selectedRelationships.filter((r) => r.level === level).length
                     return (
                       <Card key={level}>
                         <CardContent className="pt-4 pb-3 text-center">
@@ -375,7 +328,7 @@ export function RelationshipMonitorPage() {
                       <CardTitle className="text-sm">关系等级分布</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <RelationshipDistributionChart relationships={selectedRels} />
+                      <RelationshipDistributionChart relationships={selectedRelationships} />
                     </CardContent>
                   </Card>
 
@@ -384,20 +337,20 @@ export function RelationshipMonitorPage() {
                       <CardTitle className="text-sm">平均分数</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      {selectedRels.length > 0 ? (
+                      {selectedRelationships.length > 0 ? (
                         <div className="text-center">
                           <p className="text-4xl font-bold">
                             {Math.round(
-                              selectedRels.reduce((s, r) => s + r.score, 0) /
-                                selectedRels.length
+                              selectedRelationships.reduce((s, r) => s + r.score, 0) /
+                                selectedRelationships.length
                             )}
                           </p>
                           <p className="text-sm text-muted-foreground mt-1">/ 1000</p>
                           <div className="mt-4">
                             <Progress
                               value={
-                                (selectedRels.reduce((s, r) => s + r.score, 0) /
-                                  selectedRels.length /
+                                (selectedRelationships.reduce((s, r) => s + r.score, 0) /
+                                  selectedRelationships.length /
                                   1000) *
                                 100
                               }
@@ -419,12 +372,12 @@ export function RelationshipMonitorPage() {
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-sm">关系排行（前20）</CardTitle>
                       <span className="text-xs text-muted-foreground">
-                        共 {selectedRels.length} 条
+                        共 {selectedRelationships.length} 条
                       </span>
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <RelationshipScoreChart relationships={selectedRels} />
+                    <RelationshipScoreChart relationships={selectedRelationships} />
                   </CardContent>
                 </Card>
               </div>

@@ -2,10 +2,10 @@
  * 人物信息管理 API
  *
  * 请求样板（认证、解析、错误格式化）由 @/lib/http 的请求客户端承担；
- * 本文件只声明 endpoint、业务错误文案与响应体 success 标记的解包规则。
+ * 本文件只声明 endpoint 与业务错误文案。
  * 已切换为 throw 契约：成功直接返回数据，失败抛出 ApiError（配合 TanStack Query 使用）。
  */
-import { ApiError, backendApi, requireSuccess } from '@/lib/http'
+import { ApiError, backendApi } from '@/lib/http'
 import type {
   PersonDeleteResponse,
   PersonDetailResponse,
@@ -49,7 +49,7 @@ export async function getPersonList(params: {
     },
     errorMessage: '获取人物列表失败',
   })
-  const checked = requireSuccess(data, '获取人物列表失败')
+  const checked =
   return {
     data: checked.data,
     total: checked.total,
@@ -65,7 +65,7 @@ export async function getPersonDetail(personId: string): Promise<PersonInfo> {
   const data = await backendApi.get<PersonDetailResponse>(`${API_BASE}/${personId}`, {
     errorMessage: '获取人物详情失败',
   })
-  return requireSuccess(data, '获取人物详情失败').data
+  return data.data
 }
 
 /**
@@ -79,7 +79,7 @@ export async function updatePerson(
     body: data,
     errorMessage: '更新人物信息失败',
   })
-  const checked = requireSuccess(responseData, '更新人物信息失败')
+  const checked =
   if (!checked.data) {
     throw new ApiError(checked.message || '更新人物信息失败', { detail: checked })
   }
@@ -93,7 +93,6 @@ export async function deletePerson(personId: string): Promise<void> {
   const data = await backendApi.delete<PersonDeleteResponse>(`${API_BASE}/${personId}`, {
     errorMessage: '删除人物信息失败',
   })
-  requireSuccess(data, '删除人物信息失败')
 }
 
 /**
@@ -103,7 +102,7 @@ export async function getPersonStats(): Promise<PersonStats> {
   const data = await backendApi.get<PersonStatsResponse>(`${API_BASE}/stats/summary`, {
     errorMessage: '获取统计数据失败',
   })
-  return requireSuccess(data, '获取统计数据失败').data
+  return data.data
 }
 
 /**
@@ -116,7 +115,6 @@ export async function batchDeletePersons(personIds: string[]): Promise<{
   failed_ids: string[]
 }> {
   const data = await backendApi.post<{
-    success: boolean
     message: string
     deleted_count: number
     failed_count: number
@@ -125,7 +123,7 @@ export async function batchDeletePersons(personIds: string[]): Promise<{
     body: { person_ids: personIds },
     errorMessage: '批量删除失败',
   })
-  const checked = requireSuccess(data, '批量删除失败')
+  const checked =
   return {
     message: checked.message,
     deleted_count: checked.deleted_count,

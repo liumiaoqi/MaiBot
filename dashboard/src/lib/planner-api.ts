@@ -145,7 +145,6 @@ export interface ReplyLogSummary {
   timestamp: number
   filename: string
   model: string
-  success: boolean
   llm_ms: number
   overall_ms: number
   output_preview: string
@@ -169,7 +168,6 @@ export interface ReplyLogDetail {
     almost_zero: string
   }
   error: string | null
-  success: boolean
 }
 
 export interface PaginatedReplyLogs {

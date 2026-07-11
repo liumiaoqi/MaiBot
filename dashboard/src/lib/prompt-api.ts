@@ -30,13 +30,11 @@ export interface PromptVersionInfo {
 }
 
 export interface PromptCatalog {
-  success: boolean
   languages: string[]
   files: Record<string, PromptFileInfo[]>
 }
 
 export interface PromptFileContent {
-  success: boolean
   language: string
   filename: string
   content: string

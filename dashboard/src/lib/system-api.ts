@@ -11,8 +11,8 @@ import { backendApi } from '@/lib/http'
 /**
  * 重启麦麦主程序
  */
-export async function restartMaiBot(): Promise<{ success: boolean; message: string }> {
-  return backendApi.post<{ success: boolean; message: string }>('/api/webui/system/restart', {
+export async function restartMaiBot(): Promise<{ message: string }> {
+  return backendApi.post<{ message: string }>('/api/webui/system/restart', {
     errorMessage: '重启失败',
   })
 }
@@ -96,8 +96,7 @@ export interface LocalCacheImageItem {
   no_file_flag: boolean | null
 }
 
-export interface LocalCacheImageListResponse {
-  success: boolean
+export interface LocalCacheImageListData {
   target: LocalCacheImageTarget
   total: number
   page: number
@@ -124,8 +123,7 @@ export interface LocalCacheLogDirectoryItem {
   root_files_only: boolean
 }
 
-export interface LocalCacheLogDirectoryListResponse {
-  success: boolean
+export interface LocalCacheLogDirectoryListData {
   total: number
   data: LocalCacheLogDirectoryItem[]
 }
@@ -142,8 +140,7 @@ export interface LocalCacheDataEntry {
   protection_reason: string | null
 }
 
-export interface LocalCacheDataEntriesResponse {
-  success: boolean
+export interface LocalCacheDataEntriesData {
   root_path: string
   relative_path: string
   current_path: string
@@ -155,7 +152,7 @@ export interface LocalCacheDataEntriesResponse {
 }
 
 export interface LocalCacheCleanupResult {
-  success: boolean
+
   message: string
   target: 'images' | 'emoji' | 'log_files' | 'database_logs' | 'data'
   removed_files: number
@@ -173,7 +170,7 @@ export type DatabaseCleanupTable = string
 export type LogCleanupTable = DatabaseCleanupTable
 
 export interface LocalCacheDatabaseVacuumResult {
-  success: boolean
+
   message: string
   database_size_before: number
   database_size_after: number
@@ -212,8 +209,8 @@ export async function vacuumLocalCacheDatabase(): Promise<LocalCacheDatabaseVacu
   )
 }
 
-export async function getLocalCacheDataEntries(relativePath = ''): Promise<LocalCacheDataEntriesResponse> {
-  return backendApi.get<LocalCacheDataEntriesResponse>(
+export async function getLocalCacheDataEntries(relativePath = ''): Promise<LocalCacheDataEntriesData> {
+  return backendApi.get<LocalCacheDataEntriesData>(
     '/api/webui/system/local-cache/data-entries',
     {
       query: { relative_path: relativePath || undefined },
@@ -256,8 +253,8 @@ export async function getLocalCacheImages(params: {
   page_size?: number
   start_date?: string
   end_date?: string
-}): Promise<LocalCacheImageListResponse> {
-  return backendApi.get<LocalCacheImageListResponse>('/api/webui/system/local-cache/images', {
+}): Promise<LocalCacheImageListData> {
+  return backendApi.get<LocalCacheImageListData>('/api/webui/system/local-cache/images', {
     query: {
       target: params.target,
       page: params.page ?? 1,
@@ -309,8 +306,8 @@ export async function deleteLocalCacheImagesOlderThanRecentDays(
   })
 }
 
-export async function getLocalCacheLogDirectories(): Promise<LocalCacheLogDirectoryListResponse> {
-  return backendApi.get<LocalCacheLogDirectoryListResponse>(
+export async function getLocalCacheLogDirectories(): Promise<LocalCacheLogDirectoryListData> {
+  return backendApi.get<LocalCacheLogDirectoryListData>(
     '/api/webui/system/local-cache/log-directories',
     {
       errorMessage: '获取日志目录列表失败',

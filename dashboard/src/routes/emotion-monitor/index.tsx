@@ -1,7 +1,6 @@
-import { useQuery } from '@tanstack/react-query'
 import { useRouterState } from '@tanstack/react-router'
 import { Heart, RefreshCw, Timer, TimerOff } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
@@ -10,13 +9,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 
+import type { AgentConfigInfo, EmotionStateInfo } from '@/lib/agent-api'
 
-import {
-  getAgentEmotion,
-  getAgentList,
-  type AgentConfigInfo,
-  type EmotionStateInfo,
-} from '@/lib/agent-api'
+import { useEmotionMonitor } from '@/hooks/useEmotionMonitor'
 
 import { cn } from '@/lib/utils'
 
@@ -269,75 +264,23 @@ function BaselineComparisonCard({
 export function EmotionMonitorPage() {
   const { t } = useTranslation()
   const search = useRouterState().location.search as Record<string, unknown>
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
-  const [viewMode, setViewMode] = useState<'grid' | 'detail'>('grid')
-  const [autoRefresh, setAutoRefresh] = useState(false)
+  const agentParam = typeof search.agent === 'string' ? search.agent : undefined
 
-  const agentsQuery = useQuery({
-    queryKey: ['agents', 'list'],
-    queryFn: getAgentList,
-  })
-
-  const agents = agentsQuery.data ?? []
-
-  useEffect(() => {
-    const agentParam = typeof search.agent === 'string' ? search.agent : undefined
-    if (!agentParam) return
-    const found = agents.find((a) => a.agent_id === agentParam)
-    if (found) {
-      setSelectedAgentId(agentParam)
-      setViewMode('detail')
-    }
-  }, [search.agent, agents])
-
-  const allEmotionsQuery = useQuery({
-    queryKey: ['agents', 'emotions', 'all'],
-    queryFn: async () => {
-      const agents = await getAgentList()
-      const results: Record<string, EmotionStateInfo> = {}
-      await Promise.all(
-        agents.map(async (agent) => {
-          try {
-            results[agent.agent_id] = await getAgentEmotion(agent.agent_id)
-          } catch {
-            // skip failed
-          }
-        })
-      )
-      return results
-    },
-    enabled: !!agentsQuery.data,
-  })
-
-  const singleEmotionQuery = useQuery({
-    queryKey: ['agents', 'emotion', selectedAgentId],
-    queryFn: () => getAgentEmotion(selectedAgentId!),
-    enabled: !!selectedAgentId && viewMode === 'detail',
-  })
-
-  const doRefresh = useCallback(() => {
-    allEmotionsQuery.refetch()
-    agentsQuery.refetch()
-    if (viewMode === 'detail' && selectedAgentId) {
-      singleEmotionQuery.refetch()
-    }
-  }, [allEmotionsQuery, agentsQuery, singleEmotionQuery, viewMode, selectedAgentId])
-
-  useEffect(() => {
-    if (!autoRefresh) return
-    const interval = setInterval(doRefresh, 30000)
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') doRefresh()
-    }
-    document.addEventListener('visibilitychange', onVisible)
-    return () => {
-      clearInterval(interval)
-      document.removeEventListener('visibilitychange', onVisible)
-    }
-  }, [autoRefresh, doRefresh])
-
-
-  const allEmotions = allEmotionsQuery.data ?? {}
+  const {
+    agents,
+    allEmotions,
+    selectedAgentId,
+    selectedAgent,
+    selectedEmotion,
+    viewMode,
+    autoRefresh,
+    isInitialLoading,
+    isRefreshing,
+    setSelectedAgentId,
+    setViewMode,
+    setAutoRefresh,
+    refresh,
+  } = useEmotionMonitor(agentParam)
 
   const selectedAgent = useMemo(
     () => agents.find((a) => a.agent_id === selectedAgentId),
@@ -390,15 +333,12 @@ export function EmotionMonitorPage() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => {
-              allEmotionsQuery.refetch()
-              agentsQuery.refetch()
-            }}
+            onClick={refresh}
           >
             <RefreshCw
               className={cn(
                 'h-4 w-4',
-                (allEmotionsQuery.isFetching || agentsQuery.isFetching) && 'animate-spin'
+                isRefreshing && 'animate-spin'
               )}
             />
           </Button>
@@ -438,7 +378,7 @@ export function EmotionMonitorPage() {
               )}
 
               {/* 智能体情绪卡片网格 */}
-              {agentsQuery.isLoading || allEmotionsQuery.isLoading ? (
+              {isInitialLoading ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                   {Array.from({ length: 6 }).map((_, i) => (
                     <Skeleton key={i} className="h-56 rounded-lg" />
@@ -466,7 +406,7 @@ export function EmotionMonitorPage() {
               )}
             </div>
           </ScrollArea>
-        ) : selectedAgent && singleEmotionQuery.data ? (
+        ) : selectedAgent && selectedEmotion ? (
           <ScrollArea className="h-full">
             <div className="p-4 space-y-6 max-w-4xl">
               {/* 详情头部 */}
@@ -483,17 +423,17 @@ export function EmotionMonitorPage() {
                     <Badge
                       style={{
                         backgroundColor:
-                          EMOTION_COLORS[singleEmotionQuery.data.dominant_emotion],
+                          EMOTION_COLORS[selectedEmotion.dominant_emotion],
                         color: 'white',
                       }}
                     >
-                      {EMOTION_ICONS[singleEmotionQuery.data.dominant_emotion]}{' '}
-                      {singleEmotionQuery.data.dominant_emotion_label}
+                      {EMOTION_ICONS[selectedEmotion.dominant_emotion]}{' '}
+                      {selectedEmotion.dominant_emotion_label}
                     </Badge>
                     <span className="text-sm text-muted-foreground">
                       {t('emotion.dominantIntensity', { value: Math.round(
-                         singleEmotionQuery.data.emotions[
-                           singleEmotionQuery.data.dominant_emotion
+                         selectedEmotion.emotions[
+                           selectedEmotion.dominant_emotion
                          ] ?? 0
                        ) })}
                     </span>
@@ -509,10 +449,10 @@ export function EmotionMonitorPage() {
                   </CardHeader>
                   <CardContent className="flex justify-center">
                     <EmotionRadarChart
-                      emotions={singleEmotionQuery.data.emotions}
-                      emotionLabels={singleEmotionQuery.data.emotion_labels}
+                      emotions={selectedEmotion.emotions}
+                      emotionLabels={selectedEmotion.emotion_labels}
                       size={220}
-                      color={EMOTION_COLORS[singleEmotionQuery.data.dominant_emotion] || '#9b59b6'}
+                      color={EMOTION_COLORS[selectedEmotion.dominant_emotion] || '#9b59b6'}
                     />
                   </CardContent>
                 </Card>
@@ -522,8 +462,8 @@ export function EmotionMonitorPage() {
                   </CardHeader>
                   <CardContent>
                     <EmotionBarChart
-                      emotions={singleEmotionQuery.data.emotions}
-                      emotionLabels={singleEmotionQuery.data.emotion_labels}
+                      emotions={selectedEmotion.emotions}
+                      emotionLabels={selectedEmotion.emotion_labels}
                     />
                   </CardContent>
                 </Card>
@@ -532,7 +472,7 @@ export function EmotionMonitorPage() {
               {/* 基线对比 */}
               <BaselineComparisonCard
                 agent={selectedAgent}
-                emotion={singleEmotionQuery.data}
+                emotion={selectedEmotion}
               />
 
               {/* 行为参数 */}

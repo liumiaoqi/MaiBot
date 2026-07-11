@@ -237,8 +237,7 @@ export interface ModelListItem {
 /**
  * 获取模型列表响应
  */
-export interface FetchModelsResponse {
-  success: boolean
+export interface FetchModelsData {
   models: ModelListItem[]
   provider?: string
   count: number
@@ -279,7 +278,7 @@ export async function fetchProviderModels(
   parser: 'openai' | 'gemini' = 'openai',
   endpoint: string = '/models'
 ): Promise<ModelListItem[]> {
-  // 后端返回 { success, models, provider, count }，需要展开取出 models 数组
+  // 后端返回 { models, provider, count }，请求客户端已自动解包 ApiResponse
   const body = await backendApi.get<{ models?: ModelListItem[] } | ModelListItem[]>(
     '/api/webui/models/list',
     {
