@@ -21,11 +21,13 @@ from src.webui.routers.chat.service import (
 )
 from src.webui.routers.plugin.progress import get_current_progress
 from src.webui.routers.websocket.auth import verify_ws_token
+from src.webui.routers.websocket.domains import WSDomain, ws_domain_registry
 from src.webui.routers.websocket.manager import websocket_manager
 
 logger = get_logger("webui.unified_ws")
 router = APIRouter()
 _background_tasks: Set["asyncio.Task[None]"] = set()
+_domains_registered = False
 
 
 def _build_error(code: str, message: str) -> Dict[str, Any]:
@@ -172,28 +174,20 @@ async def _handle_maisaka_monitor_subscribe(connection_id: str, request_id: Opti
 
 
 async def _handle_subscribe(connection_id: str, message: Dict[str, Any]) -> None:
-    """处理主题订阅请求。
-
-    Args:
-        connection_id: 连接 ID。
-        message: 客户端消息。
-    """
+    """处理主题订阅请求。"""
     request_id = cast(Optional[str], message.get("id"))
     domain = str(message.get("domain") or "").strip()
     topic = str(message.get("topic") or "").strip()
     data = _get_request_data(message)
 
-    if domain == "logs" and topic == "main":
-        await _handle_logs_subscribe(connection_id, request_id, data)
-        return
-
-    if domain == "plugin_progress" and topic == "main":
-        await _handle_plugin_progress_subscribe(connection_id, request_id)
-        return
-
-    if domain == "maisaka_monitor" and topic == "main":
-        await _handle_maisaka_monitor_subscribe(connection_id, request_id)
-        return
+    ws_domain = ws_domain_registry.get(domain)
+    if ws_domain is not None and ws_domain.subscribe_handler is not None:
+        if topic == "main":
+            if domain == "logs":
+                await ws_domain.subscribe_handler(connection_id, request_id, data)
+            else:
+                await ws_domain.subscribe_handler(connection_id, request_id)
+            return
 
     await websocket_manager.send_response(
         connection_id,
@@ -497,16 +491,13 @@ async def _handle_chat_call(connection_id: str, message: Dict[str, Any]) -> None
 
 
 async def _handle_call(connection_id: str, message: Dict[str, Any]) -> None:
-    """处理统一调用请求。
-
-    Args:
-        connection_id: 连接 ID。
-        message: 客户端消息。
-    """
+    """处理统一调用请求。"""
     request_id = cast(Optional[str], message.get("id"))
     domain = str(message.get("domain") or "").strip()
-    if domain == "chat":
-        await _handle_chat_call(connection_id, message)
+
+    ws_domain = ws_domain_registry.get(domain)
+    if ws_domain is not None and ws_domain.call_handler is not None:
+        await ws_domain.call_handler(connection_id, message)
         return
 
     await websocket_manager.send_response(
@@ -553,12 +544,33 @@ async def handle_client_message(connection_id: str, message: Dict[str, Any]) -> 
 
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket, token: Optional[str] = Query(None)) -> None:
-    """统一 WebSocket 入口。
+    """统一 WebSocket 入口。"""
+    global _domains_registered
+    if not _domains_registered:
+        ws_domain_registry.register(WSDomain(
+            name="logs",
+            event_types={"entry", "snapshot"},
+            subscribe_handler=_handle_logs_subscribe,
+        ))
+        ws_domain_registry.register(WSDomain(
+            name="plugin_progress",
+            event_types={"update", "snapshot"},
+            subscribe_handler=_handle_plugin_progress_subscribe,
+        ))
+        ws_domain_registry.register(WSDomain(
+            name="maisaka_monitor",
+            event_types={"stage.snapshot"},
+            subscribe_handler=_handle_maisaka_monitor_subscribe,
+        ))
+        ws_domain_registry.register(WSDomain(
+            name="chat",
+            event_types={"message"},
+            subscribe_handler=None,
+            call_handler=_handle_chat_call,
+        ))
+        _domains_registered = True
 
-    Args:
-        websocket: FastAPI WebSocket 对象。
-        token: 可选的一次性握手 Token。
-    """
+
     if not await authenticate_websocket_connection(websocket, token):
         logger.warning("统一 WebSocket 连接被拒绝：认证失败")
         await websocket.close(code=4001, reason="认证失败，请重新登录")
