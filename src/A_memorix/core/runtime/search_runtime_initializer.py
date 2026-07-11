@@ -65,13 +65,7 @@ def _resolve_vector_pools_ready(plugin_config: Optional[dict]) -> bool:
     if callable(checker):
         return bool(checker())
 
-    try:
-        from ...runtime_registry import get_runtime_components
-
-        instances = get_runtime_components()
-    except Exception:
-        instances = {}
-    return bool(instances.get("vector_pools_ready")) if isinstance(instances, dict) else False
+    return False
 
 
 @dataclass
@@ -111,45 +105,12 @@ def _resolve_runtime_components(plugin_config: Optional[dict]) -> SearchRuntimeB
         sparse_index=_get_config_value(plugin_config, "sparse_index"),
     )
 
-    missing_required = any(
-        getattr(bundle, key) is None for key in _REQUIRED_COMPONENT_KEYS
-    )
-    if not missing_required:
-        if bundle.paragraph_vector_store is None:
-            bundle.paragraph_vector_store = bundle.vector_store
-        if bundle.graph_vector_store is None:
-            bundle.graph_vector_store = bundle.vector_store
-        return bundle
-
-    try:
-        from ...runtime_registry import get_runtime_components
-
-        instances = get_runtime_components()
-    except Exception:
-        instances = {}
-
-    if not isinstance(instances, dict) or not instances:
-        return bundle
-
-    if bundle.vector_store is None:
-        bundle.vector_store = instances.get("vector_store")
-    if bundle.paragraph_vector_store is None:
-        bundle.paragraph_vector_store = instances.get("paragraph_vector_store")
-    if bundle.graph_vector_store is None:
-        bundle.graph_vector_store = instances.get("graph_vector_store")
-    if bundle.graph_store is None:
-        bundle.graph_store = instances.get("graph_store")
-    if bundle.metadata_store is None:
-        bundle.metadata_store = instances.get("metadata_store")
-    if bundle.embedding_manager is None:
-        bundle.embedding_manager = instances.get("embedding_manager")
-    if bundle.sparse_index is None:
-        bundle.sparse_index = instances.get("sparse_index")
-    if bundle.paragraph_vector_store is None:
+    if bundle.paragraph_vector_store is None and bundle.vector_store is not None:
         bundle.paragraph_vector_store = bundle.vector_store
-    if bundle.graph_vector_store is None:
+    if bundle.graph_vector_store is None and bundle.vector_store is not None:
         bundle.graph_vector_store = bundle.vector_store
     return bundle
+
 
 
 def build_search_runtime(
