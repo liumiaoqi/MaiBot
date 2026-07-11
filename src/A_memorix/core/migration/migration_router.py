@@ -22,11 +22,15 @@ class MigrationRouter:
         memory_field: MemoryField,
         kernel: Any,
         translator: ConnectionistTranslator,
+        coerce_search_result: Any = None,
+        coerce_write_result: Any = None,
     ) -> None:
         self._adapter = migration_adapter
         self._memory_field = memory_field
         self._kernel = kernel
         self._translator = translator
+        self._coerce_search_result = coerce_search_result
+        self._coerce_write_result = coerce_write_result
 
     async def search(self, query: str, *, agent_id: str = "", **kwargs) -> MemorySearchResult:
         phase = self._adapter.phase
@@ -122,6 +126,8 @@ class MigrationRouter:
             group_id=kwargs.get("group_id", ""),
         )
         raw = await self._kernel.search_memory(request)
+        if self._coerce_search_result is not None:
+            return self._coerce_search_result(raw)
         from src.services.memory_service import MemoryService
         return MemoryService._coerce_search_result(raw)
 
@@ -144,6 +150,8 @@ class MigrationRouter:
             user_id=kwargs.get("user_id", ""),
             group_id=kwargs.get("group_id", ""),
         )
+        if self._coerce_write_result is not None:
+            return self._coerce_write_result(raw)
         from src.services.memory_service import MemoryService
         return MemoryService._coerce_write_result(raw)
 

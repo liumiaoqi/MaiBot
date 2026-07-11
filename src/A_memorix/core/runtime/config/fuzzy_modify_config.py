@@ -29,15 +29,3 @@ class FuzzyModifyConfig:
             allow_global_scope=bool(integration.get("fuzzy_modify_allow_global_scope", False)),
         )
 
-    @classmethod
-    def from_global_config(cls) -> FuzzyModifyConfig:
-        from src.config.config import global_config
-        memory_cfg = global_config.a_memorix.integration
-        return cls(
-            enabled=bool(getattr(memory_cfg, "fuzzy_modify_enabled", True)),
-            auto_execute_enabled=bool(getattr(memory_cfg, "fuzzy_modify_auto_execute_enabled", False)),
-            confirm_threshold=float(getattr(memory_cfg, "fuzzy_modify_confirm_threshold", 0.85) or 0.85),
-            candidate_limit=max(1, int(getattr(memory_cfg, "fuzzy_modify_candidate_limit", 20) or 20)),
-            max_targets=max(1, int(getattr(memory_cfg, "fuzzy_modify_max_targets", 5) or 5)),
-            allow_global_scope=bool(getattr(memory_cfg, "fuzzy_modify_allow_global_scope", False)),
-        )
