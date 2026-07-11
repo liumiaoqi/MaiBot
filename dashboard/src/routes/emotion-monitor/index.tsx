@@ -282,10 +282,6 @@ export function EmotionMonitorPage() {
     refresh,
   } = useEmotionMonitor(agentParam)
 
-  const selectedAgent = useMemo(
-    () => agents.find((a) => a.agent_id === selectedAgentId),
-    [agents, selectedAgentId]
-  )
 
   const dominantEmotionStats = useMemo(() => {
     const counts: Record<string, number> = {}

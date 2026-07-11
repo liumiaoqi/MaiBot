@@ -56,6 +56,7 @@ import { RestartOverlay } from '@/components/restart-overlay'
 import { RestartProvider, useRestart } from '@/lib/restart-context'
 import { ExtraParamsDialog } from '@/components/ui/extra-params-dialog'
 import { SharePackDialog } from '@/components/share-pack-dialog'
+import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard'
 import { TaskConfigCard, Pagination, ModelTable, ModelCardList } from './model/components'
 import { useModelTour, useModelFetcher, useModelConfig } from './model/hooks'
 import { ProviderForm } from './modelProvider/ProviderForm'
@@ -106,6 +107,7 @@ function ModelConfigPageContent() {
     saving,
     autoSaving,
     hasUnsavedChanges,
+
     saveConfig,
     // 任务配置问题
     invalidModelRefs,
@@ -188,6 +190,9 @@ function ModelConfigPageContent() {
     // embedding 警告
     embeddingWarning,
   } = mc
+
+  // 脏状态路由守卫
+  useUnsavedChangesGuard({ isDirty: hasUnsavedChanges })
 
   // 纯 UI 态（不属于配置草稿，留在渲染层）
   const [activeTab, setActiveTab] = useState<ModelConfigTab>(getInitialModelConfigTab)
