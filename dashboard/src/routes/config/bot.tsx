@@ -2,8 +2,7 @@ import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useRef, useS
 import { Link } from '@tanstack/react-router'
 import {
   Check,
-  ChevronLeft,
-  ChevronRight,
+  ChevronDown,
   Code2,
   ExternalLink,
   Info,
@@ -16,11 +15,12 @@ import { parse as parseToml } from 'smol-toml'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { DashboardTabBar, DashboardTabTrigger } from '@/components/ui/dashboard-tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ThinkingIllustration } from '@/components/ui/thinking-illustration'
 import { CodeEditor } from '@/components/CodeEditor'
+import { ConfigSectionNav } from '@/components/dynamic-form/ConfigSectionNav'
+import type { ConfigSection } from '@/components/dynamic-form/ConfigSectionNav'
 import { DynamicConfigForm } from '@/components/dynamic-form'
 import { RestartOverlay } from '@/components/restart-overlay'
 import { useToast } from '@/hooks/use-toast'
@@ -34,6 +34,7 @@ import {
 } from '@/lib/config-api'
 import { fieldHooks } from '@/lib/field-hooks'
 import { RestartProvider, useRestart } from '@/lib/restart-context'
+import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard'
 import { cn } from '@/lib/utils'
 
 import type { ConfigSchema } from '@/types/config-schema'
@@ -171,6 +172,12 @@ function BotConfigPageContent() {
   const { triggerRestart, isRestarting } = useRestart()
 
   const [sectionValues, setSectionValues] = useState<Record<string, ConfigSectionData | null>>({})
+
+  // 脏状态路由守卫
+  useUnsavedChangesGuard({
+    isDirty: hasUnsavedChanges,
+    onDiscard: () => setHasUnsavedChanges(false),
+  })
 
   // Schema 状态（用于动态 tab 分组）
   const [configSchema, setConfigSchema] = useState<ConfigSchema | null>(null)
@@ -432,14 +439,21 @@ function BotConfigPageContent() {
         return
       }
 
-      await updateBotConfigRaw(escapedSourceCode)
+      const result = await updateBotConfigRaw(escapedSourceCode)
       setHasUnsavedChanges(false)
       setHasTomlError(false)
       setTomlErrorMessage('')
-      toast({
-        title: '保存成功',
-        description: '配置已保存',
-      })
+      if (result.needs_restart) {
+        toast({
+          title: '保存成功',
+          description: '部分配置需要重启生效，可点击重启按钮应用更改',
+        })
+      } else {
+        toast({
+          title: '保存成功',
+          description: '配置已保存',
+        })
+      }
       // 重新加载可视化配置
       await loadConfig()
     } catch (error) {
@@ -491,15 +505,21 @@ function BotConfigPageContent() {
   const saveConfig = async () => {
     try {
       setSaving(true)
-      // 取消待处理的自动保存
       cancelPendingAutoSave()
 
-      await updateBotConfig(buildFullConfig())
+      const result = await updateBotConfig(buildFullConfig())
       setHasUnsavedChanges(false)
-      toast({
-        title: '保存成功',
-        description: '麦麦设置已保存',
-      })
+      if (result.needs_restart) {
+        toast({
+          title: '保存成功',
+          description: '部分配置需要重启生效，可点击重启按钮应用更改',
+        })
+      } else {
+        toast({
+          title: '保存成功',
+          description: '麦麦设置已保存',
+        })
+      }
     } catch (error) {
       console.error('保存配置失败:', error)
       toast({
@@ -728,6 +748,7 @@ function BotConfigPageContent() {
             sectionValues={sectionValues}
             setSectionValue={setSectionValue}
             setHasUnsavedChanges={setHasUnsavedChanges}
+            hasUnsavedChanges={hasUnsavedChanges}
           />
         )}
 
@@ -775,18 +796,15 @@ interface DynamicConfigTabsProps {
   sectionValues: Record<string, ConfigSectionData | null>
   setSectionValue: (sectionName: string, value: ConfigSectionData) => void
   setHasUnsavedChanges: (v: boolean) => void
+  hasUnsavedChanges: boolean
 }
 
 function DynamicConfigTabs(props: DynamicConfigTabsProps) {
-  const { configSchema, sectionValues, setHasUnsavedChanges, setSectionValue, tabGroups } = props
-  const [expanded, setExpanded] = useState(false)
+  const { configSchema, sectionValues, setHasUnsavedChanges, setSectionValue, tabGroups, hasUnsavedChanges } = props
   const [activeTab, setActiveTab] = useState(tabGroups[0]?.id ?? '')
   const [expandedSubtabGroups, setExpandedSubtabGroups] = useState<Record<string, boolean>>({})
   const [activeSubtabByGroup, setActiveSubtabByGroup] = useState<Record<string, string>>({})
   const [advancedVisible, setAdvancedVisible] = useState(false)
-  const [tabGuideVisible, setTabGuideVisible] = useState(
-    () => localStorage.getItem('bot-config-tabs-guide-dismissed') !== 'true'
-  )
 
   useEffect(() => {
     if (!tabGroups.some((tab) => tab.id === activeTab)) {
@@ -798,26 +816,13 @@ function DynamicConfigTabs(props: DynamicConfigTabsProps) {
     return null
   }
 
-  const defaultTabGroups = tabGroups.filter((tab) => !tab.advanced)
-  const expandedTabGroups = tabGroups.filter((tab) => tab.advanced)
-  const visibleTabGroups = expanded ? [...defaultTabGroups, ...expandedTabGroups] : defaultTabGroups
-  const hasCollapsibleTabs = tabGroups.some((tab) => tab.advanced)
-  const firstExpandedTabId = visibleTabGroups.find((tab) => tab.advanced)?.id
-
-  const toggleExpanded = () => {
-    setExpanded((current) => {
-      if (current && tabGroups.find((tab) => tab.id === activeTab)?.advanced) {
-        const firstDefaultTab = tabGroups.find((tab) => !tab.advanced)
-        setActiveTab(firstDefaultTab?.id ?? tabGroups[0]?.id ?? '')
-      }
-      return !current
-    })
-  }
-
-  const dismissTabGuide = () => {
-    localStorage.setItem('bot-config-tabs-guide-dismissed', 'true')
-    setTabGuideVisible(false)
-  }
+  const navSections: ConfigSection[] = tabGroups.map((tab) => ({
+    key: tab.id,
+    label: tab.label,
+    advanced: tab.advanced,
+    order: tab.order,
+    dirty: hasUnsavedChanges && tab.sections.some((s) => sectionValues[s] !== null),
+  }))
 
   const updateSectionValueByPath = (sectionName: string, restPath: string[], value: unknown) => {
     const currentSectionValue = sectionValues[sectionName] ?? {}
@@ -1008,42 +1013,41 @@ function DynamicConfigTabs(props: DynamicConfigTabsProps) {
         }
         className="space-y-3"
       >
-        <DashboardTabBar data-config-bot-subtab-list="true" variant="scroll" className="bg-background/80 h-11 border">
-          {visibleSubtabPanes.map((pane) => (
-            <Fragment key={pane.id}>
-              {pane.id === firstExpandedSubtabId && (
-                <span className="bg-border/90 mx-1 hidden h-7 w-[2px] transition-opacity duration-200 sm:block" />
-              )}
-              <DashboardTabTrigger
-                value={pane.id}
-                data-config-bot-extra-tab={pane.advanced ? 'true' : undefined}
-                className={cn(
-                  'min-h-8 text-base font-semibold',
-                  pane.advanced &&
-                    'text-muted-foreground/80 decoration-border/80 hover:bg-background/70 data-[state=active]:bg-primary/10 data-[state=active]:text-primary underline decoration-dashed underline-offset-4 data-[state=active]:shadow-none motion-safe:animate-[config-tab-enter_180ms_ease-out_both]'
+        <div className="flex items-center gap-2">
+          <TabsList className="h-9 bg-muted/50">
+            {visibleSubtabPanes.map((pane) => (
+              <Fragment key={pane.id}>
+                {pane.id === firstExpandedSubtabId && (
+                  <span className="bg-border/90 mx-1 hidden h-5 w-px" />
                 )}
-              >
-                {pane.label}
-              </DashboardTabTrigger>
-            </Fragment>
-          ))}
+                <TabsTrigger
+                  value={pane.id}
+                  className={cn(
+                    'px-3 text-sm',
+                    pane.advanced &&
+                      'text-muted-foreground/80 underline decoration-dashed underline-offset-4 data-[state=active]:bg-primary/10 data-[state=active]:text-primary'
+                  )}
+                >
+                  {pane.label}
+                </TabsTrigger>
+              </Fragment>
+            ))}
+          </TabsList>
           {hasCollapsibleSubtabs && (
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              className="group h-8 shrink-0 gap-1 self-center px-2 text-sm leading-none transition-all duration-200 ease-out sm:px-2.5"
+              className="group h-8 shrink-0 gap-1 px-2 text-xs"
               onClick={toggleSubtabsExpanded}
             >
-              {subtabExpanded ? (
-                <ChevronLeft className="h-3.5 w-3.5 transition-transform duration-200 group-hover:-translate-x-0.5" />
-              ) : (
-                <ChevronRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
-              )}
+              <ChevronDown
+                className={cn('h-3.5 w-3.5 transition-transform duration-200', subtabExpanded && 'rotate-180')}
+              />
               {subtabExpanded ? '收起' : '更多'}
             </Button>
           )}
-        </DashboardTabBar>
+        </div>
 
         {visibleSubtabPanes.map((pane) => (
           <TabsContent key={pane.id} value={pane.id} className="mt-0">
@@ -1108,82 +1112,31 @@ function DynamicConfigTabs(props: DynamicConfigTabsProps) {
     )
   }
 
+  const activeTabGroup = tabGroups.find((tab) => tab.id === activeTab)
+
   return (
-    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-      <DashboardTabBar
-        data-config-bot-tab-list="true"
-        className="h-auto min-h-[3.25rem] content-start items-stretch sm:flex-wrap"
-      >
-        {visibleTabGroups.map((tab) => {
-          const isExpandedOnlyTab = tab.advanced
-          return (
-            <Fragment key={tab.id}>
-              {tab.id === firstExpandedTabId && (
-                <span className="bg-border/90 mx-1 hidden h-7 w-[2px] transition-opacity duration-200 sm:block" />
-              )}
-              <DashboardTabTrigger
-                value={tab.id}
-                data-config-bot-extra-tab={isExpandedOnlyTab ? 'true' : undefined}
-                className={cn(
-                  'min-h-9 text-lg font-semibold',
-                  isExpandedOnlyTab &&
-                    'text-muted-foreground/80 decoration-border/80 hover:bg-background/70 data-[state=active]:bg-primary/10 data-[state=active]:text-primary underline decoration-dashed underline-offset-4 data-[state=active]:shadow-none motion-safe:animate-[config-tab-enter_180ms_ease-out_both]'
-                )}
-              >
-                {tab.label}
-              </DashboardTabTrigger>
-            </Fragment>
-          )
-        })}
-        {hasCollapsibleTabs && (
+    <div className="flex h-full gap-0">
+      <div className="w-[200px] shrink-0 border-r bg-muted/20">
+        <ConfigSectionNav
+          sections={navSections}
+          activeKey={activeTab}
+          onSectionChange={setActiveTab}
+        />
+        <div className="border-t p-2">
           <Button
             type="button"
-            variant="ghost"
+            variant={advancedVisible ? 'default' : 'outline'}
             size="sm"
-            className="group h-9 shrink-0 gap-1 self-center px-2 text-sm leading-none transition-all duration-200 ease-out sm:px-2.5"
-            onClick={toggleExpanded}
+            className="w-full justify-center text-xs"
+            onClick={() => setAdvancedVisible((current) => !current)}
           >
-            {expanded ? (
-              <ChevronLeft className="h-3.5 w-3.5 transition-transform duration-200 group-hover:-translate-x-0.5" />
-            ) : (
-              <ChevronRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
-            )}
-            {expanded ? '收起' : '更多'}
-          </Button>
-        )}
-        <Button
-          type="button"
-          variant={advancedVisible ? 'default' : 'outline'}
-          size="sm"
-          className="h-9 shrink-0 self-center px-2.5 text-sm leading-none transition-all duration-200 ease-out sm:ml-auto"
-          onClick={() => setAdvancedVisible((current) => !current)}
-        >
-          高级设置
-        </Button>
-      </DashboardTabBar>
-      {tabGuideVisible && (
-        <div className="bg-muted/20 text-muted-foreground mt-2 flex flex-col gap-2 rounded-md border px-3 py-2 text-xs sm:flex-row sm:items-center sm:justify-between">
-          <span>点击“更多”展开隐藏配置栏目；点击“高级设置”显示高级配置项。</span>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-6 self-start px-2 text-xs sm:self-center"
-            onClick={dismissTabGuide}
-          >
-            我知道了
+            高级设置
           </Button>
         </div>
-      )}
-      {tabGroups.map((tab) => (
-        <TabsContent
-          key={tab.id}
-          value={tab.id}
-          className="space-y-4 motion-safe:animate-[config-tab-content-enter_180ms_ease-out_both]"
-        >
-          {renderTabContent(tab)}
-        </TabsContent>
-      ))}
-    </Tabs>
+      </div>
+      <div className="min-w-0 flex-1 overflow-y-auto p-4">
+        {activeTabGroup && renderTabContent(activeTabGroup)}
+      </div>
+    </div>
   )
 }

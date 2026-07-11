@@ -143,12 +143,22 @@ export async function getModelConfigCached(): Promise<Record<string, unknown>> {
 }
 
 /**
+ * 配置保存响应（后端 ConfigSaveResponse）
+ */
+export interface ConfigSaveResult {
+  success: boolean
+  message: string
+  needs_restart: boolean
+  restart_required_sections: string[]
+}
+
+/**
  * 更新麦麦主程序配置
  */
 export async function updateBotConfig(
   config: Record<string, unknown>
-): Promise<Record<string, unknown>> {
-  const result = await backendApi.post<Record<string, unknown>>(`${API_BASE}/bot`, {
+): Promise<ConfigSaveResult> {
+  const result = await backendApi.post<ConfigSaveResult>(`${API_BASE}/bot`, {
     body: config,
     errorMessage: '更新配置失败',
   })
@@ -170,8 +180,8 @@ export async function getBotConfigRaw(): Promise<string> {
 /**
  * 更新麦麦主程序配置（原始 TOML 内容）
  */
-export async function updateBotConfigRaw(rawContent: string): Promise<Record<string, unknown>> {
-  const result = await backendApi.post<Record<string, unknown>>(`${API_BASE}/bot/raw`, {
+export async function updateBotConfigRaw(rawContent: string): Promise<ConfigSaveResult> {
+  const result = await backendApi.post<ConfigSaveResult>(`${API_BASE}/bot/raw`, {
     body: { raw_content: rawContent },
     errorMessage: '更新配置失败',
   })
@@ -185,8 +195,8 @@ export async function updateBotConfigRaw(rawContent: string): Promise<Record<str
  */
 export async function updateModelConfig(
   config: Record<string, unknown>
-): Promise<Record<string, unknown>> {
-  const result = await backendApi.post<Record<string, unknown>>(`${API_BASE}/model`, {
+): Promise<ConfigSaveResult> {
+  const result = await backendApi.post<ConfigSaveResult>(`${API_BASE}/model`, {
     body: config,
     errorMessage: '更新配置失败',
   })
@@ -200,8 +210,8 @@ export async function updateModelConfig(
 export async function updateBotConfigSection(
   sectionName: string,
   sectionData: unknown
-): Promise<Record<string, unknown>> {
-  const result = await backendApi.post<Record<string, unknown>>(`${API_BASE}/bot/section/${sectionName}`, {
+): Promise<ConfigSaveResult> {
+  const result = await backendApi.post<ConfigSaveResult>(`${API_BASE}/bot/section/${sectionName}`, {
     body: sectionData,
     errorMessage: '更新配置失败',
   })
@@ -216,8 +226,8 @@ export async function updateBotConfigSection(
 export async function updateModelConfigSection(
   sectionName: string,
   sectionData: unknown
-): Promise<Record<string, unknown>> {
-  const result = await backendApi.post<Record<string, unknown>>(`${API_BASE}/model/section/${sectionName}`, {
+): Promise<ConfigSaveResult> {
+  const result = await backendApi.post<ConfigSaveResult>(`${API_BASE}/model/section/${sectionName}`, {
     body: sectionData,
     errorMessage: '更新配置失败',
   })

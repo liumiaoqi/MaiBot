@@ -57,6 +57,7 @@ from src.webui.errors import AppError
 from src.webui.errors.codes import ErrorCode
 from src.webui.schemas.base import ApiResponse
 from src.webui.schemas.config import (
+    ConfigSaveResponse,
     PromptCatalogResponse,
     PromptFileInfo,
     PromptFileResponse,
@@ -93,7 +94,10 @@ _SCHEMA_CACHE: Dict[str, Dict[str, Any]] = {}
 _PROMPT_VERSION_ID_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
 _LEGACY_CUSTOM_PROMPT_VERSION_ID = "legacy-current"
 
-
+# 修改后需要重启 MaiBot 才能生效的配置节
+_RESTART_REQUIRED_SECTIONS = frozenset({
+    "bot", "database", "log", "webui", "debug", "telemetry",
+})
 
 
 class _SingleModelPromptOrchestrator(LLMOrchestrator):
@@ -1537,8 +1541,15 @@ async def update_bot_config(config_data: ConfigBody):
         save_toml_with_format(config_data, config_path)
         config_manager.reload_config()
 
+        # 判断是否需要重启
+        restart_sections = [s for s in config_data if s in _RESTART_REQUIRED_SECTIONS]
         logger.info("麦麦主程序配置已更新")
-        return {"success": True, "message": "配置已保存"}
+        return ApiResponse(
+            data=ConfigSaveResponse(
+                needs_restart=bool(restart_sections),
+                restart_required_sections=restart_sections,
+            )
+        )
     except AppError:
         raise
     except Exception as e:
@@ -1566,7 +1577,13 @@ async def update_model_config(config_data: ConfigBody):
         config_manager.reload_config()
 
         logger.info("模型配置已更新")
-        return {"success": True, "message": "配置已保存"}
+        return ApiResponse(
+            data=ConfigSaveResponse(
+                message="模型配置已保存",
+                needs_restart=True,
+                restart_required_sections=["model"],
+            )
+        )
     except AppError:
         raise
     except Exception as e:
@@ -1621,7 +1638,14 @@ async def update_bot_config_section(section_name: str, section_data: SectionBody
         config_manager.reload_config()
 
         logger.info(f"配置节 '{section_name}' 已更新（保留注释）")
-        return {"success": True, "message": f"配置节 '{section_name}' 已保存"}
+        needs_restart = section_name in _RESTART_REQUIRED_SECTIONS
+        return ApiResponse(
+            data=ConfigSaveResponse(
+                message=f"配置节 '{section_name}' 已保存",
+                needs_restart=needs_restart,
+                restart_required_sections=[section_name] if needs_restart else [],
+            )
+        )
     except AppError:
         raise
     except Exception as e:

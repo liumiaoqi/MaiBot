@@ -241,11 +241,10 @@ export async function updateExpressionReviewStatus(
       errorMessage: '更新表达方式审核状态失败',
     }
   )
-  const checked =
-  if (!checked.data) {
-    throw new ApiError(checked.message || '更新表达方式审核状态失败', { detail: checked })
+  if (!responseData.data) {
+    throw new ApiError(responseData.message || '更新表达方式审核状态失败', { detail: responseData })
   }
-  return checked.data
+  return responseData.data
 }
 
 /**

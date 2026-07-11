@@ -19,9 +19,6 @@ import type {
 
 const API_BASE = '/api/webui/person'
 
-/**
- * Person list response with pagination info
- */
 export interface PersonListData {
   data: PersonInfo[]
   total: number
@@ -29,9 +26,6 @@ export interface PersonListData {
   page_size: number
 }
 
-/**
- * 获取人物信息列表
- */
 export async function getPersonList(params: {
   page?: number
   page_size?: number
@@ -49,18 +43,14 @@ export async function getPersonList(params: {
     },
     errorMessage: '获取人物列表失败',
   })
-  const checked =
   return {
-    data: checked.data,
-    total: checked.total,
-    page: checked.page,
-    page_size: checked.page_size,
+    data: data.data,
+    total: data.total,
+    page: data.page,
+    page_size: data.page_size,
   }
 }
 
-/**
- * 获取人物详细信息
- */
 export async function getPersonDetail(personId: string): Promise<PersonInfo> {
   const data = await backendApi.get<PersonDetailResponse>(`${API_BASE}/${personId}`, {
     errorMessage: '获取人物详情失败',
@@ -68,36 +58,26 @@ export async function getPersonDetail(personId: string): Promise<PersonInfo> {
   return data.data
 }
 
-/**
- * 更新人物信息（增量更新）
- */
 export async function updatePerson(
   personId: string,
-  data: PersonUpdateRequest
+  updateData: PersonUpdateRequest
 ): Promise<PersonInfo> {
   const responseData = await backendApi.patch<PersonUpdateResponse>(`${API_BASE}/${personId}`, {
-    body: data,
+    body: updateData,
     errorMessage: '更新人物信息失败',
   })
-  const checked =
-  if (!checked.data) {
-    throw new ApiError(checked.message || '更新人物信息失败', { detail: checked })
+  if (!responseData.data) {
+    throw new ApiError(responseData.message || '更新人物信息失败', { detail: responseData })
   }
-  return checked.data
+  return responseData.data
 }
 
-/**
- * 删除人物信息
- */
 export async function deletePerson(personId: string): Promise<void> {
-  const data = await backendApi.delete<PersonDeleteResponse>(`${API_BASE}/${personId}`, {
+  await backendApi.delete<PersonDeleteResponse>(`${API_BASE}/${personId}`, {
     errorMessage: '删除人物信息失败',
   })
 }
 
-/**
- * 获取人物统计数据
- */
 export async function getPersonStats(): Promise<PersonStats> {
   const data = await backendApi.get<PersonStatsResponse>(`${API_BASE}/stats/summary`, {
     errorMessage: '获取统计数据失败',
@@ -105,9 +85,6 @@ export async function getPersonStats(): Promise<PersonStats> {
   return data.data
 }
 
-/**
- * 批量删除人物信息
- */
 export async function batchDeletePersons(personIds: string[]): Promise<{
   message: string
   deleted_count: number
@@ -123,11 +100,10 @@ export async function batchDeletePersons(personIds: string[]): Promise<{
     body: { person_ids: personIds },
     errorMessage: '批量删除失败',
   })
-  const checked =
   return {
-    message: checked.message,
-    deleted_count: checked.deleted_count,
-    failed_count: checked.failed_count,
-    failed_ids: checked.failed_ids,
+    message: data.message,
+    deleted_count: data.deleted_count,
+    failed_count: data.failed_count,
+    failed_ids: data.failed_ids,
   }
 }

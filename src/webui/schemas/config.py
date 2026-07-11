@@ -3,6 +3,13 @@ from typing import Any, List
 from pydantic import BaseModel, Field
 
 
+class ConfigSaveResponse(BaseModel):
+    success: bool = True
+    message: str = "配置已保存"
+    needs_restart: bool = Field(default=False, description="修改的配置节是否需要重启才能生效")
+    restart_required_sections: List[str] = Field(default_factory=list, description="需要重启的配置节列表")
+
+
 class PromptFileInfo(BaseModel):
     name: str = Field(..., description="Prompt 文件名")
     size: int = Field(..., description="文件大小")
