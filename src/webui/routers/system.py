@@ -1168,7 +1168,7 @@ async def restart_maibot():
             _restart_task = asyncio.create_task(_delayed_restart())
 
         # 立即返回成功响应
-        return RestartResponse(success=True, message="麦麦正在重启中...")
+        return ApiResponse(data=RestartResponse(success=True, message="麦麦正在重启中..."))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"重启失败: {str(e)}") from e
 
@@ -1185,9 +1185,9 @@ async def get_maibot_status():
         # 尝试获取版本信息（需要根据实际情况调整）
         version = MMC_VERSION  # 可以从配置或常量中读取
 
-        return StatusResponse(
+        return ApiResponse(data=StatusResponse(
             running=True, uptime=uptime, version=version, start_time=datetime.fromtimestamp(_start_time).isoformat()
-        )
+        ))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取状态失败: {str(e)}") from e
 
@@ -1282,7 +1282,7 @@ async def preview_local_cache_image(
     """返回本地缓存图片文件预览。"""
     file_path = _resolve_cache_image_file(target, relative_path)
     media_type = mimetypes.guess_type(str(file_path))[0] or "application/octet-stream"
-    return FileResponse(file_path, media_type=media_type, filename=file_path.name)
+    return ApiResponse(data=FileResponse(file_path, media_type=media_type, filename=file_path.name))
 
 @router.get("/maisaka-monitor/media/{media_kind}/{media_hash}", response_model=None)
 async def get_maisaka_monitor_media(media_kind: MonitorMediaKind, media_hash: str) -> FileResponse:
@@ -1290,7 +1290,7 @@ async def get_maisaka_monitor_media(media_kind: MonitorMediaKind, media_hash: st
 
     file_path = _resolve_monitor_media_file(media_kind, media_hash)
     media_type = mimetypes.guess_type(str(file_path))[0] or "application/octet-stream"
-    return FileResponse(file_path, media_type=media_type, filename=file_path.name)
+    return ApiResponse(data=FileResponse(file_path, media_type=media_type, filename=file_path.name))
 
 @router.delete("/local-cache/images", response_model=ApiResponse[LocalCacheCleanupResponse])
 async def delete_local_cache_image(request: LocalCacheImageDeleteRequest) -> LocalCacheCleanupResponse:

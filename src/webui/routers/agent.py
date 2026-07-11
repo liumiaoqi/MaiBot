@@ -129,11 +129,11 @@ async def list_agents():
     try:
         registry = _get_registry()
         agents = registry.list_agents()
-        return AgentListResponse(
+        return ApiResponse(data=AgentListResponse(
             success=True,
             total=len(agents),
             data=[_config_to_response(a) for a in agents],
-        )
+        ))
     except Exception as e:
         logger.error(f"获取智能体列表失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取智能体列表失败") from e
@@ -146,7 +146,7 @@ async def get_agent_detail(agent_id: str):
         if not registry.has_agent(agent_id):
             raise HTTPException(status_code=404, detail=f"智能体不存在: {agent_id}")
         config = registry.get_agent(agent_id)
-        return AgentDetailResponse(success=True, data=_config_to_response(config))
+        return ApiResponse(data=AgentDetailResponse(success=True, data=_config_to_response(config)))
     except Exception as e:
         logger.error(f"获取智能体详情失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取智能体详情失败") from e
@@ -166,14 +166,14 @@ async def get_agent_emotion(agent_id: str):
             manager = EmotionManager(config)
         state = manager.state
         dominant = state.get_dominant()
-        return EmotionStateResponse(
+        return ApiResponse(data=EmotionStateResponse(
             success=True,
             agent_id=agent_id,
             emotions=state.emotions,
             dominant_emotion=dominant,
             dominant_emotion_label=EMOTION_LABELS_ZH.get(dominant, dominant),
             emotion_labels=EMOTION_LABELS_ZH,
-        )
+        ))
     except Exception as e:
         logger.error(f"获取智能体情绪状态失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取智能体情绪状态失败") from e
@@ -199,11 +199,11 @@ async def get_agent_relationships(agent_id: str):
                     "score": row.score,
                     "total_interactions": row.interaction_count,
                 })
-        return RelationshipSummaryResponse(
+        return ApiResponse(data=RelationshipSummaryResponse(
             success=True,
             agent_id=agent_id,
             relationships=relationships,
-        )
+        ))
     except Exception as e:
         logger.error(f"获取智能体关系概览失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取智能体关系概览失败") from e
@@ -219,12 +219,12 @@ async def get_session_binding(session_id: str):
             registry = _get_registry()
             config = registry.get_agent(agent_id)
             display_name = config.display_name
-        return SessionBindingResponse(
+        return ApiResponse(data=SessionBindingResponse(
             success=True,
             session_id=session_id,
             agent_id=agent_id,
             display_name=display_name,
-        )
+        ))
     except Exception as e:
         logger.error(f"获取会话绑定失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取会话绑定失败") from e
@@ -276,12 +276,12 @@ async def bind_session_agent(session_id: str, request: BindSessionRequest):
 
         registry = _get_registry()
         config = registry.get_agent(request.agent_id)
-        return SessionBindingResponse(
+        return ApiResponse(data=SessionBindingResponse(
             success=True,
             session_id=session_id,
             agent_id=request.agent_id,
             display_name=config.display_name,
-        )
+        ))
     except Exception as e:
         logger.error(f"绑定会话智能体失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "绑定会话智能体失败") from e
@@ -319,7 +319,7 @@ async def unbind_session_agent(session_id: str):
                 db_session.agent_id = None
                 db.add(db_session)
 
-        return SessionBindingResponse(success=True, session_id=session_id)
+        return ApiResponse(data=SessionBindingResponse(success=True, session_id=session_id))
     except Exception as e:
         logger.error(f"解除会话绑定失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "解除会话绑定失败") from e
@@ -356,7 +356,7 @@ async def unbind_session_specific_agent(session_id: str, agent_id: str):
                 db_session.agent_id = remaining_primary
                 db.add(db_session)
 
-        return SessionBindingResponse(success=True, session_id=session_id, agent_id=agent_id)
+        return ApiResponse(data=SessionBindingResponse(success=True, session_id=session_id, agent_id=agent_id))
     except Exception as e:
         logger.error(f"解除指定智能体绑定失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "解除指定智能体绑定失败") from e
@@ -414,23 +414,23 @@ async def batch_bind_sessions(request: BatchBindRequest):
             failed += 1
             logger.warning(f"批量绑定 — 会话 {item.session_id} 绑定失败: {e}")
 
-    return BatchBindResponse(
+    return ApiResponse(data=BatchBindResponse(
         success=failed == 0,
         total=len(request.bindings),
         succeeded=succeeded,
         failed=failed,
         errors=errors,
-    )
+    ))
 
 @router.get("/binding/group", response_model=ApiResponse[GroupBindingsListResponse])
 async def list_group_bindings():
     """列出所有群-智能体绑定"""
     try:
         agent_router = _get_agent_router()
-        return GroupBindingsListResponse(
+        return ApiResponse(data=GroupBindingsListResponse(
             success=True,
             bindings=agent_router.list_group_bindings(),
-        )
+        ))
     except Exception as e:
         logger.error(f"获取群绑定列表失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取群绑定列表失败") from e
@@ -447,12 +447,12 @@ async def bind_group_agent(request: BindGroupRequest):
 
         registry = _get_registry()
         config = registry.get_agent(request.agent_id)
-        return GroupBindingResponse(
+        return ApiResponse(data=GroupBindingResponse(
             success=True,
             group_id=request.group_id,
             agent_id=request.agent_id,
             display_name=config.display_name,
-        )
+        ))
     except Exception as e:
         logger.error(f"绑定群智能体失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "绑定群智能体失败") from e
@@ -463,7 +463,7 @@ async def unbind_group_agent(group_id: str):
     try:
         agent_router = _get_agent_router()
         agent_router.unbind_group(group_id)
-        return GroupBindingResponse(success=True, group_id=group_id, agent_id="")
+        return ApiResponse(data=GroupBindingResponse(success=True, group_id=group_id, agent_id=""))
     except Exception as e:
         logger.error(f"解除群绑定失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "解除群绑定失败") from e
@@ -524,11 +524,11 @@ async def get_sessions_by_agent(agent_id: str):
                     last_spoke_at=last_spoke,
                     cohabitants=cohabitants,
                 ))
-        return SessionsByAgentResponse(
+        return ApiResponse(data=SessionsByAgentResponse(
             success=True,
             agent_id=agent_id,
             sessions=sessions,
-        )
+        ))
     except Exception as e:
         logger.error(f"获取智能体会话列表失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取智能体会话列表失败") from e
@@ -540,11 +540,11 @@ async def reload_agents():
         registry = _get_registry()
         registry.reload()
         agents = registry.list_agents()
-        return ReloadResponse(
+        return ApiResponse(data=ReloadResponse(
             success=True,
             message=f"已重新加载 {len(agents)} 个智能体配置",
             total=len(agents),
-        )
+        ))
     except Exception as e:
         logger.error(f"重新加载智能体配置失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "重新加载智能体配置失败") from e
@@ -592,7 +592,7 @@ async def list_subagent_records(
                     error_message=row.error_message,
                     result_summary=row.result_summary,
                 ))
-            return SubAgentListResponse(success=True, total=len(data), data=data)
+            return ApiResponse(data=SubAgentListResponse(success=True, total=len(data), data=data))
     except Exception as e:
         logger.error(f"获取子智能体记录失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取子智能体记录失败") from e
@@ -614,7 +614,7 @@ async def get_subagent_stats():
                 total_input += row.input_tokens
                 total_output += row.output_tokens
                 total_cache += row.cache_hit_tokens
-            return SubAgentStatsResponse(
+            return ApiResponse(data=SubAgentStatsResponse(
                 success=True,
                 total_executions=len(rows),
                 by_type=by_type,
@@ -622,7 +622,7 @@ async def get_subagent_stats():
                 total_input_tokens=total_input,
                 total_output_tokens=total_output,
                 total_cache_hit_tokens=total_cache,
-            )
+            ))
     except Exception as e:
         logger.error(f"获取子智能体统计失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取子智能体统计失败") from e
@@ -646,7 +646,7 @@ async def get_emotion_behavior_rules(agent_id: str):
             )
             for rule in config.emotion_behavior_map
         ]
-        return EmotionBehaviorRulesResponse(success=True, agent_id=agent_id, rules=rules)
+        return ApiResponse(data=EmotionBehaviorRulesResponse(success=True, agent_id=agent_id, rules=rules))
     except Exception as e:
         logger.error(f"获取情绪-行为映射规则失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取情绪-行为映射规则失败") from e
@@ -677,7 +677,7 @@ async def batch_get_emotions():
                 )
             except Exception as e:
                 logger.warning(f"批量获取情绪 — 智能体 {agent.agent_id} 失败: {e}")
-        return BatchEmotionResponse(success=True, data=result)
+        return ApiResponse(data=BatchEmotionResponse(success=True, data=result))
     except Exception as e:
         logger.error(f"批量获取情绪状态失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "批量获取情绪状态失败") from e
@@ -709,7 +709,7 @@ async def batch_get_relationships():
                 except Exception as e:
                     logger.warning(f"批量获取关系 — 智能体 {agent.agent_id} 失败: {e}")
                     result[agent.agent_id] = []
-        return BatchRelationshipResponse(success=True, data=result)
+        return ApiResponse(data=BatchRelationshipResponse(success=True, data=result))
     except Exception as e:
         logger.error(f"批量获取关系概览失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "批量获取关系概览失败") from e
@@ -732,7 +732,7 @@ async def batch_get_session_counts():
                 except Exception as e:
                     logger.warning(f"批量获取会话数 — 智能体 {aid} 失败: {e}")
                     result[aid] = 0
-        return BatchSessionCountResponse(success=True, data=result)
+        return ApiResponse(data=BatchSessionCountResponse(success=True, data=result))
     except Exception as e:
         logger.error(f"批量获取会话数量失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "批量获取会话数量失败") from e
@@ -768,7 +768,7 @@ async def batch_get_latest_subagent_records():
                 except Exception as e:
                     logger.warning(f"批量获取子智能体记录 — 智能体 {aid} 失败: {e}")
                     result[aid] = None
-        return BatchLatestSubAgentResponse(success=True, data=result)
+        return ApiResponse(data=BatchLatestSubAgentResponse(success=True, data=result))
     except Exception as e:
         logger.error(f"批量获取子智能体记录失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "批量获取子智能体记录失败") from e
@@ -804,12 +804,12 @@ async def advance_migration(plugin_id: str):
     if state is None:
         raise HTTPException(status_code=404, detail=f"未找到插件: {plugin_id}")
 
-    return MigrationAdvanceResponse(
+    return ApiResponse(data=MigrationAdvanceResponse(
         success=True,
         plugin_id=state.plugin_id,
         current_phase=state.current_phase.value,
         previous_phase=state.previous_phase.value,
-    )
+    ))
 
 # ---- 内心独白 API ----
 
@@ -855,7 +855,7 @@ async def get_agent_profile(observer_id: str, target_id: str):
 
     profile = await service.get_profile(observer_id, target_id)
 
-    return AgentProfileResponse(
+    return ApiResponse(data=AgentProfileResponse(
         observer_agent_id=profile.observer_agent_id,
         target_agent_id=profile.target_agent_id,
         summary=profile.summary,
@@ -863,7 +863,7 @@ async def get_agent_profile(observer_id: str, target_id: str):
         interaction_count=profile.interaction_count,
         emotion_tendency=profile.emotion_tendency,
         refresh_status=profile.refresh_status,
-    )
+    ))
 
 # ── 智能体间交互事件 API ──
 
@@ -960,11 +960,11 @@ async def manual_trigger_interaction(req: ManualTriggerRequest):
         interaction_type=req.interaction_type,
         reason=req.reason,
     )
-    return ManualTriggerResponse(
+    return ApiResponse(data=ManualTriggerResponse(
         success=result.success,
         event_id=result.event_id,
         error=result.error,
-    )
+    ))
 
 @router.get("/interactions/config", response_model=ApiResponse[InteractionConfigResponse])
 async def get_interaction_config():
@@ -972,7 +972,7 @@ async def get_interaction_config():
     from src.config.config import global_config
 
     cfg = global_config.agent_interaction
-    return InteractionConfigResponse(
+    return ApiResponse(data=InteractionConfigResponse(
         enabled=cfg.enabled,
         cooldown_minutes=cfg.cooldown_minutes,
         max_interactions_per_hour=cfg.max_interactions_per_hour,
@@ -984,7 +984,7 @@ async def get_interaction_config():
         monologue_min_interval_minutes=cfg.monologue_min_interval_minutes,
         monologue_idle_threshold_minutes=cfg.monologue_idle_threshold_minutes,
         monologue_emotion_intensity_threshold=cfg.monologue_emotion_intensity_threshold,
-    )
+    ))
 
 @router.get("/interactions/hotspots")
 async def get_interaction_hotspots():
@@ -1017,7 +1017,7 @@ async def get_interaction_detail(event_id: str):
     event = await store.get_event(event_id)
     if event is None:
         raise HTTPException(status_code=404, detail=f"交互事件不存在: {event_id}")
-    return InteractionEventResponse(
+    return ApiResponse(data=InteractionEventResponse(
         event_id=event.event_id,
         initiator_agent_id=event.initiator_agent_id,
         target_agent_id=event.target_agent_id,
@@ -1031,7 +1031,7 @@ async def get_interaction_detail(event_id: str):
         echo_parent_event_id=event.echo_parent_event_id,
         metadata=event.event_metadata,
         created_at=event.created_at.isoformat() if event.created_at else None,
-    )
+    ))
 
 # ========== 智能体自主性 API ==========
 
@@ -1042,7 +1042,7 @@ async def get_active_agents(session_id: str):
 
     store = AgentActivityStore()
     activities = store.get_active_agents(session_id)
-    return ActiveAgentsResponse(
+    return ApiResponse(data=ActiveAgentsResponse(
         success=True,
         session_id=session_id,
         data=[
@@ -1055,7 +1055,7 @@ async def get_active_agents(session_id: str):
             )
             for a in activities
         ],
-    )
+    ))
 
 @router.get("/autonomy/primary/{session_id}", response_model=ApiResponse[PrimaryAgentResponse])
 async def get_primary_agent(session_id: str):
@@ -1064,13 +1064,13 @@ async def get_primary_agent(session_id: str):
 
     store = AgentActivityStore()
     primary = store.get_primary_agent(session_id)
-    return PrimaryAgentResponse(
+    return ApiResponse(data=PrimaryAgentResponse(
         success=True,
         session_id=session_id,
         agent_id=primary.agent_id if primary else None,
         activation_reason=primary.activation_reason if primary else "",
         activated_at=primary.activated_at.isoformat() if primary and primary.activated_at else None,
-    )
+    ))
 
 @router.post("/autonomy/switch-speaker", response_model=ApiResponse[SwitchSpeakerResponse])
 async def switch_speaker(req: SwitchSpeakerRequest):
@@ -1088,12 +1088,12 @@ async def switch_speaker(req: SwitchSpeakerRequest):
         target_agent_id=req.target_agent_id,
         reason=req.reason,
     )
-    return SwitchSpeakerResponse(
+    return ApiResponse(data=SwitchSpeakerResponse(
         success=success,
         session_id=req.session_id,
         from_agent_id=from_agent_id,
         to_agent_id=req.target_agent_id if success else "",
-    )
+    ))
 
 @router.post("/autonomy/trigger-interjection", response_model=ApiResponse[TriggerInterjectionResponse])
 async def trigger_interjection(req: TriggerInterjectionRequest):
@@ -1116,11 +1116,11 @@ async def trigger_interjection(req: TriggerInterjectionRequest):
     )
     orchestrator.report_intent(req.agent_id, intent)
 
-    return TriggerInterjectionResponse(
+    return ApiResponse(data=TriggerInterjectionResponse(
         success=True,
         session_id=req.session_id,
         agent_id=req.agent_id,
-    )
+    ))
 
 @router.get("/autonomy/intents/{session_id}", response_model=ApiResponse[BehaviorIntentsResponse])
 async def get_behavior_intents(session_id: str, limit: int = 50):
@@ -1135,7 +1135,7 @@ async def get_behavior_intents(session_id: str, limit: int = 50):
             .limit(limit)
             .all()
         )
-        return BehaviorIntentsResponse(
+        return ApiResponse(data=BehaviorIntentsResponse(
             success=True,
             session_id=session_id,
             data=[
@@ -1151,7 +1151,7 @@ async def get_behavior_intents(session_id: str, limit: int = 50):
                 )
                 for r in rows
             ],
-        )
+        ))
 
 @router.get("/autonomy/interjection-events/{session_id}", response_model=ApiResponse[InterjectionEventsResponse])
 async def get_interjection_events(session_id: str, limit: int = 50):
@@ -1166,7 +1166,7 @@ async def get_interjection_events(session_id: str, limit: int = 50):
             .limit(limit)
             .all()
         )
-        return InterjectionEventsResponse(
+        return ApiResponse(data=InterjectionEventsResponse(
             success=True,
             session_id=session_id,
             data=[
@@ -1182,7 +1182,7 @@ async def get_interjection_events(session_id: str, limit: int = 50):
                 )
                 for r in rows
             ],
-        )
+        ))
 
 @router.get("/autonomy/speaker-changes/{session_id}", response_model=ApiResponse[SpeakerChangesResponse])
 async def get_speaker_changes(session_id: str, limit: int = 50):
@@ -1197,7 +1197,7 @@ async def get_speaker_changes(session_id: str, limit: int = 50):
             .limit(limit)
             .all()
         )
-        return SpeakerChangesResponse(
+        return ApiResponse(data=SpeakerChangesResponse(
             success=True,
             session_id=session_id,
             data=[
@@ -1211,7 +1211,7 @@ async def get_speaker_changes(session_id: str, limit: int = 50):
                 )
                 for r in rows
             ],
-        )
+        ))
 
 @router.get("/autonomy-logs", response_model=ApiResponse[AutonomyLogResponse])
 async def get_autonomy_logs(
@@ -1228,11 +1228,11 @@ async def get_autonomy_logs(
 
     log_dir = Path("logs")
     if not log_dir.exists():
-        return AutonomyLogResponse()
+        return ApiResponse(data=AutonomyLogResponse())
 
     log_files = sorted(log_dir.glob("app_*.log.jsonl"), key=lambda f: f.stat().st_mtime, reverse=True)
     if not log_files:
-        return AutonomyLogResponse()
+        return ApiResponse(data=AutonomyLogResponse())
 
     max_lines = 5000
     all_items: list[AutonomyLogItem] = []
@@ -1279,7 +1279,7 @@ async def get_autonomy_logs(
     end = start + page_size
     items = all_items[start:end]
 
-    return AutonomyLogResponse(items=items, total=total, page=page, page_size=page_size)
+    return ApiResponse(data=AutonomyLogResponse(items=items, total=total, page=page, page_size=page_size))
 
 def _parse_autonomy_log(entry: dict, event: str) -> Optional[AutonomyLogItem]:
     """解析 [Autonomy:{agent_id}] {event_type}: {detail} 格式日志。"""
@@ -1381,7 +1381,7 @@ async def get_state_awareness(session_id: str):
 
     orch = AgentOrchestrator.get_by_session(session_id)
     if orch is None:
-        return StateAwarenessResponse(success=True, session_id=session_id)
+        return ApiResponse(data=StateAwarenessResponse(success=True, session_id=session_id))
 
     try:
         preview = orch._summary_generator.generate_preview(session_id)
@@ -1418,10 +1418,10 @@ async def get_state_awareness(session_id: str):
     except Exception:
         pass
 
-    return StateAwarenessResponse(
+    return ApiResponse(data=StateAwarenessResponse(
         success=True,
         session_id=session_id,
         cohabitant_entries=entries,
         summary_preview=summary_preview,
         active_rules=active_rules,
-    )
+    ))
