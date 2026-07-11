@@ -55,6 +55,9 @@ dev = [
 ]
 
 
+[tool.pytest-asyncio]
+asyncio_mode = "auto"
+
 [tool.uv]
 index-url = "https://pypi.tuna.tsinghua.edu.cn/simple"
 

@@ -8,7 +8,7 @@ import json
 import shutil
 import uuid
 
-from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Form, Query, UploadFile
 from sqlmodel import col, select
 import tomlkit
 
@@ -172,7 +172,7 @@ def _validate_import_chat_id(payload: dict[str, Any]) -> dict[str, Any]:
     with get_db_session() as session:
         chat_session = session.exec(select(ChatSession).where(col(ChatSession.session_id) == chat_id)).first()
     if chat_session is None:
-        raise HTTPException(status_code=400, detail=f"聊天流不存在: {chat_id}")
+        raise AppError(ErrorCode.PARAM_INVALID, f"聊天流不存在: {chat_id}", http_status=400)
     normalized["chat_id"] = chat_id
     return normalized
 
@@ -306,9 +306,10 @@ def _resolve_memory_correction_chat_id(chat_id: str) -> str:
     best_rows = [chat_session for score, chat_session in scored_rows if score == best_score]
     if len(best_rows) > 1:
         candidates = "、".join(_format_chat_session_lookup_label(item, latest_messages) for item in best_rows[:5])
-        raise HTTPException(
-            status_code=400,
-            detail=f"聊天流匹配不唯一: {raw_chat_id}，请填写更完整的名称、群号、用户 ID 或 session_id。候选：{candidates}",
+        raise AppError(
+            ErrorCode.PARAM_INVALID,
+            f"聊天流匹配不唯一: {raw_chat_id}，请填写更完整的名称、群号、用户 ID 或 session_id。候选：{candidates}",
+            http_status=400,
         )
 
     return str(best_rows[0].session_id or raw_chat_id).strip()
@@ -1112,7 +1113,7 @@ async def _memory_timeline(
         raise AppError(ErrorCode.PARAM_INVALID, "chat_id 不能为空")
     chat_session = _find_real_chat_session(clean_chat_id)
     if chat_session is None:
-        raise HTTPException(status_code=400, detail=f"聊天流不存在: {clean_chat_id}")
+        raise AppError(ErrorCode.PARAM_INVALID, f"聊天流不存在: {clean_chat_id}", http_status=400)
     if time_start is not None and time_end is not None and time_start > time_end:
         raise AppError(ErrorCode.PARAM_INVALID, "time_start 不能晚于 time_end")
 
@@ -1222,7 +1223,7 @@ async def _import_chat_targets() -> ImportChatTargetsResponse:
             ]
         return ImportChatTargetsResponse(success=True, data=targets)
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"获取导入聊天流失败: {exc}") from exc
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"获取导入聊天流失败: {exc}", http_status=500) from exc
 
 async def _graph_get(limit: int) -> dict:
     return await memory_service.graph_admin(action="get_graph", limit=limit)
@@ -1245,7 +1246,7 @@ async def _graph_get_node_detail(
         evidence_node_limit=evidence_node_limit,
     )
     if not bool(payload.get("success", False)):
-        raise HTTPException(status_code=404, detail=str(payload.get("error", "未找到节点详情")))
+        raise AppError(ErrorCode.BIZ_NOT_FOUND, str(payload.get("error", "未找到节点详情", http_status=404)))
     return payload
 
 async def _graph_get_edge_detail(
@@ -1263,7 +1264,7 @@ async def _graph_get_edge_detail(
         evidence_node_limit=evidence_node_limit,
     )
     if not bool(payload.get("success", False)):
-        raise HTTPException(status_code=404, detail=str(payload.get("error", "未找到边详情")))
+        raise AppError(ErrorCode.BIZ_NOT_FOUND, str(payload.get("error", "未找到边详情", http_status=404)))
     return payload
 
 def _trim_memory_text(value: Any, limit: int = 160) -> str:
@@ -1302,11 +1303,11 @@ async def _graph_get_paragraph_detail(paragraph_hash: str, evidence_node_limit: 
         (token,),
     )
     if not rows:
-        raise HTTPException(status_code=404, detail=f"未找到段落: {token}")
+        raise AppError(ErrorCode.BIZ_NOT_FOUND, f"未找到段落: {token}", http_status=404)
 
     paragraph_row = dict(rows[0])
     if bool(int(paragraph_row.get("is_deleted") or 0)) or paragraph_row.get("deleted_at") is not None:
-        raise HTTPException(status_code=404, detail=f"段落已删除: {token}")
+        raise AppError(ErrorCode.BIZ_NOT_FOUND, f"段落已删除: {token}", http_status=404)
 
     entity_rows = [
         dict(row)
@@ -1799,7 +1800,7 @@ async def _memory_config_update_raw(payload: MemoryRawConfigUpdateRequest) -> di
     try:
         tomlkit.loads(payload.config)
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"TOML 格式错误: {exc}") from exc
+        raise AppError(ErrorCode.PARAM_INVALID, f"TOML 格式错误: {exc}", http_status=400) from exc
     return await memory_service.update_raw_config(payload.config)
 
 async def _maintenance_recycle_bin(limit: int) -> dict:

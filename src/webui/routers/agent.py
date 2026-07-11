@@ -29,7 +29,6 @@ from src.webui.schemas.agent import (
     AutonomyLogItem,
     AutonomyLogResponse,
     BatchBindError,
-    BatchBindItem,
     BatchBindRequest,
     BatchBindResponse,
     BatchEmotionItem,
@@ -44,7 +43,6 @@ from src.webui.schemas.agent import (
     BindSessionRequest,
     CohabitantEntryItem,
     CohabitantInfo,
-    EmotionBaselineResponse,
     EmotionBehaviorRuleResponse,
     EmotionBehaviorRulesResponse,
     EmotionStateResponse,
@@ -84,6 +82,7 @@ from src.webui.schemas.agent import (
 logger = get_logger("webui.agent")
 
 router = APIRouter(prefix="/agent", tags=["Agent"], dependencies=[Depends(require_auth)])
+
 
 def _get_registry() -> AgentConfigRegistry:
     return AgentConfigRegistry.get_instance()
@@ -134,6 +133,8 @@ async def list_agents():
             total=len(agents),
             data=[_config_to_response(a) for a in agents],
         ))
+    except AppError:
+        raise
     except Exception as e:
         logger.error(f"获取智能体列表失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取智能体列表失败") from e
@@ -144,9 +145,11 @@ async def get_agent_detail(agent_id: str):
     try:
         registry = _get_registry()
         if not registry.has_agent(agent_id):
-            raise HTTPException(status_code=404, detail=f"智能体不存在: {agent_id}")
+            raise AppError(ErrorCode.BIZ_NOT_FOUND, f"智能体不存在: {agent_id}", http_status=404)
         config = registry.get_agent(agent_id)
         return ApiResponse(data=AgentDetailResponse(success=True, data=_config_to_response(config)))
+    except AppError:
+        raise
     except Exception as e:
         logger.error(f"获取智能体详情失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取智能体详情失败") from e
@@ -157,7 +160,7 @@ async def get_agent_emotion(agent_id: str):
     try:
         registry = _get_registry()
         if not registry.has_agent(agent_id):
-            raise HTTPException(status_code=404, detail=f"智能体不存在: {agent_id}")
+            raise AppError(ErrorCode.BIZ_NOT_FOUND, f"智能体不存在: {agent_id}", http_status=404)
         config = registry.get_agent(agent_id)
         from src.maisaka.agent_interaction.emotion_registry import AgentEmotionManagerRegistry
         emotion_registry = AgentEmotionManagerRegistry()
@@ -174,6 +177,8 @@ async def get_agent_emotion(agent_id: str):
             dominant_emotion_label=EMOTION_LABELS_ZH.get(dominant, dominant),
             emotion_labels=EMOTION_LABELS_ZH,
         ))
+    except AppError:
+        raise
     except Exception as e:
         logger.error(f"获取智能体情绪状态失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取智能体情绪状态失败") from e
@@ -184,7 +189,7 @@ async def get_agent_relationships(agent_id: str):
     try:
         registry = _get_registry()
         if not registry.has_agent(agent_id):
-            raise HTTPException(status_code=404, detail=f"智能体不存在: {agent_id}")
+            raise AppError(ErrorCode.BIZ_NOT_FOUND, f"智能体不存在: {agent_id}", http_status=404)
         relationships = []
         with get_db_session() as db:
             rows = db.query(AgentRelationship).filter(
@@ -204,6 +209,8 @@ async def get_agent_relationships(agent_id: str):
             agent_id=agent_id,
             relationships=relationships,
         ))
+    except AppError:
+        raise
     except Exception as e:
         logger.error(f"获取智能体关系概览失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取智能体关系概览失败") from e
@@ -225,6 +232,8 @@ async def get_session_binding(session_id: str):
             agent_id=agent_id,
             display_name=display_name,
         ))
+    except AppError:
+        raise
     except Exception as e:
         logger.error(f"获取会话绑定失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取会话绑定失败") from e
@@ -237,7 +246,7 @@ async def bind_session_agent(session_id: str, request: BindSessionRequest):
         try:
             agent_router.bind_session(session_id, request.agent_id)
         except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
+            raise AppError(ErrorCode.PARAM_INVALID, str(e, http_status=400)) from e
 
         primary_agent = agent_router.get_session_primary_agent(session_id)
         try:
@@ -282,6 +291,8 @@ async def bind_session_agent(session_id: str, request: BindSessionRequest):
             agent_id=request.agent_id,
             display_name=config.display_name,
         ))
+    except AppError:
+        raise
     except Exception as e:
         logger.error(f"绑定会话智能体失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "绑定会话智能体失败") from e
@@ -320,6 +331,8 @@ async def unbind_session_agent(session_id: str):
                 db.add(db_session)
 
         return ApiResponse(data=SessionBindingResponse(success=True, session_id=session_id))
+    except AppError:
+        raise
     except Exception as e:
         logger.error(f"解除会话绑定失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "解除会话绑定失败") from e
@@ -357,6 +370,8 @@ async def unbind_session_specific_agent(session_id: str, agent_id: str):
                 db.add(db_session)
 
         return ApiResponse(data=SessionBindingResponse(success=True, session_id=session_id, agent_id=agent_id))
+    except AppError:
+        raise
     except Exception as e:
         logger.error(f"解除指定智能体绑定失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "解除指定智能体绑定失败") from e
@@ -409,6 +424,8 @@ async def batch_bind_sessions(request: BatchBindRequest):
                 logger.warning(f"批量绑定写入Activity记录失败: session={item.session_id}, agent={item.agent_id}, error={act_exc}")
 
             succeeded += 1
+        except AppError:
+            raise
         except Exception as e:
             errors.append(BatchBindError(session_id=item.session_id, error=str(e)))
             failed += 1
@@ -431,6 +448,8 @@ async def list_group_bindings():
             success=True,
             bindings=agent_router.list_group_bindings(),
         ))
+    except AppError:
+        raise
     except Exception as e:
         logger.error(f"获取群绑定列表失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取群绑定列表失败") from e
@@ -443,7 +462,7 @@ async def bind_group_agent(request: BindGroupRequest):
         try:
             agent_router.bind_group(request.group_id, request.agent_id)
         except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
+            raise AppError(ErrorCode.PARAM_INVALID, str(e, http_status=400)) from e
 
         registry = _get_registry()
         config = registry.get_agent(request.agent_id)
@@ -453,6 +472,8 @@ async def bind_group_agent(request: BindGroupRequest):
             agent_id=request.agent_id,
             display_name=config.display_name,
         ))
+    except AppError:
+        raise
     except Exception as e:
         logger.error(f"绑定群智能体失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "绑定群智能体失败") from e
@@ -464,6 +485,8 @@ async def unbind_group_agent(group_id: str):
         agent_router = _get_agent_router()
         agent_router.unbind_group(group_id)
         return ApiResponse(data=GroupBindingResponse(success=True, group_id=group_id, agent_id=""))
+    except AppError:
+        raise
     except Exception as e:
         logger.error(f"解除群绑定失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "解除群绑定失败") from e
@@ -474,7 +497,7 @@ async def get_sessions_by_agent(agent_id: str):
     try:
         registry = _get_registry()
         if not registry.has_agent(agent_id):
-            raise HTTPException(status_code=404, detail=f"智能体不存在: {agent_id}")
+            raise AppError(ErrorCode.BIZ_NOT_FOUND, f"智能体不存在: {agent_id}", http_status=404)
         config = registry.get_agent(agent_id)
 
         from src.maisaka.agent_autonomy.activity_store import AgentActivityStore
@@ -529,6 +552,8 @@ async def get_sessions_by_agent(agent_id: str):
             agent_id=agent_id,
             sessions=sessions,
         ))
+    except AppError:
+        raise
     except Exception as e:
         logger.error(f"获取智能体会话列表失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取智能体会话列表失败") from e
@@ -545,6 +570,8 @@ async def reload_agents():
             message=f"已重新加载 {len(agents)} 个智能体配置",
             total=len(agents),
         ))
+    except AppError:
+        raise
     except Exception as e:
         logger.error(f"重新加载智能体配置失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "重新加载智能体配置失败") from e
@@ -593,6 +620,8 @@ async def list_subagent_records(
                     result_summary=row.result_summary,
                 ))
             return ApiResponse(data=SubAgentListResponse(success=True, total=len(data), data=data))
+    except AppError:
+        raise
     except Exception as e:
         logger.error(f"获取子智能体记录失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取子智能体记录失败") from e
@@ -623,6 +652,8 @@ async def get_subagent_stats():
                 total_output_tokens=total_output,
                 total_cache_hit_tokens=total_cache,
             ))
+    except AppError:
+        raise
     except Exception as e:
         logger.error(f"获取子智能体统计失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取子智能体统计失败") from e
@@ -635,7 +666,7 @@ async def get_emotion_behavior_rules(agent_id: str):
     try:
         registry = _get_registry()
         if not registry.has_agent(agent_id):
-            raise HTTPException(status_code=404, detail=f"智能体不存在: {agent_id}")
+            raise AppError(ErrorCode.BIZ_NOT_FOUND, f"智能体不存在: {agent_id}", http_status=404)
         config = registry.get_agent(agent_id)
         rules = [
             EmotionBehaviorRuleResponse(
@@ -647,6 +678,8 @@ async def get_emotion_behavior_rules(agent_id: str):
             for rule in config.emotion_behavior_map
         ]
         return ApiResponse(data=EmotionBehaviorRulesResponse(success=True, agent_id=agent_id, rules=rules))
+    except AppError:
+        raise
     except Exception as e:
         logger.error(f"获取情绪-行为映射规则失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "获取情绪-行为映射规则失败") from e
@@ -675,9 +708,13 @@ async def batch_get_emotions():
                     dominant_emotion_label=EMOTION_LABELS_ZH.get(dominant, dominant),
                     emotion_labels=EMOTION_LABELS_ZH,
                 )
+            except AppError:
+                raise
             except Exception as e:
                 logger.warning(f"批量获取情绪 — 智能体 {agent.agent_id} 失败: {e}")
         return ApiResponse(data=BatchEmotionResponse(success=True, data=result))
+    except AppError:
+        raise
     except Exception as e:
         logger.error(f"批量获取情绪状态失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "批量获取情绪状态失败") from e
@@ -706,10 +743,14 @@ async def batch_get_relationships():
                             total_interactions=row.interaction_count,
                         ))
                     result[agent.agent_id] = items
+                except AppError:
+                    raise
                 except Exception as e:
                     logger.warning(f"批量获取关系 — 智能体 {agent.agent_id} 失败: {e}")
                     result[agent.agent_id] = []
         return ApiResponse(data=BatchRelationshipResponse(success=True, data=result))
+    except AppError:
+        raise
     except Exception as e:
         logger.error(f"批量获取关系概览失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "批量获取关系概览失败") from e
@@ -729,10 +770,14 @@ async def batch_get_session_counts():
                         ChatSession.agent_id == aid
                     ).count()
                     result[aid] = count
+                except AppError:
+                    raise
                 except Exception as e:
                     logger.warning(f"批量获取会话数 — 智能体 {aid} 失败: {e}")
                     result[aid] = 0
         return ApiResponse(data=BatchSessionCountResponse(success=True, data=result))
+    except AppError:
+        raise
     except Exception as e:
         logger.error(f"批量获取会话数量失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "批量获取会话数量失败") from e
@@ -765,10 +810,14 @@ async def batch_get_latest_subagent_records():
                         )
                     else:
                         result[aid] = None
+                except AppError:
+                    raise
                 except Exception as e:
                     logger.warning(f"批量获取子智能体记录 — 智能体 {aid} 失败: {e}")
                     result[aid] = None
         return ApiResponse(data=BatchLatestSubAgentResponse(success=True, data=result))
+    except AppError:
+        raise
     except Exception as e:
         logger.error(f"批量获取子智能体记录失败: {e}")
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, "批量获取子智能体记录失败") from e
@@ -802,7 +851,7 @@ async def advance_migration(plugin_id: str):
     coordinator = MigrationCoordinator()
     state = coordinator.advance(plugin_id)
     if state is None:
-        raise HTTPException(status_code=404, detail=f"未找到插件: {plugin_id}")
+        raise AppError(ErrorCode.BIZ_NOT_FOUND, f"未找到插件: {plugin_id}", http_status=404)
 
     return ApiResponse(data=MigrationAdvanceResponse(
         success=True,
@@ -1016,7 +1065,7 @@ async def get_interaction_detail(event_id: str):
     store = InteractionEventStore()
     event = await store.get_event(event_id)
     if event is None:
-        raise HTTPException(status_code=404, detail=f"交互事件不存在: {event_id}")
+        raise AppError(ErrorCode.BIZ_NOT_FOUND, f"交互事件不存在: {event_id}", http_status=404)
     return ApiResponse(data=InteractionEventResponse(
         event_id=event.event_id,
         initiator_agent_id=event.initiator_agent_id,
