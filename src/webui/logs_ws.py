@@ -116,6 +116,8 @@ def load_recent_logs(limit: int = 100) -> List[Dict]:
 async def websocket_logs(websocket: WebSocket, token: Optional[str] = Query(None)):
     """WebSocket 日志推送端点
 
+    ⚠️ 已废弃：请使用统一 WebSocket 端点 /api/webui/ws?domain=logs
+
     客户端连接后会持续接收服务器端的日志消息
     支持三种认证方式（按优先级）：
     1. query 参数 token（推荐，通过 /api/webui/ws-token 获取临时 token）
@@ -123,6 +125,7 @@ async def websocket_logs(websocket: WebSocket, token: Optional[str] = Query(None
 
     示例：ws://host/ws/logs?token=xxx
     """
+    logger.warning("⚠️ 旧版 WebSocket 端点 /ws/logs 已废弃，请迁移到 /api/webui/ws?domain=logs")
     is_authenticated = False
 
     # 方式 1: 尝试验证临时 WebSocket token（推荐方式）

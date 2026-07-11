@@ -1,6 +1,6 @@
 from typing import Tuple
 
-from .routes import router
+from .routes import compat_router, router
 from .service import WEBUI_CHAT_PLATFORM, ChatConnectionManager, chat_manager
 
 
@@ -13,6 +13,7 @@ __all__ = [
     "ChatConnectionManager",
     "WEBUI_CHAT_PLATFORM",
     "chat_manager",
+    "compat_router",
     "get_webui_chat_broadcaster",
     "router",
 ]

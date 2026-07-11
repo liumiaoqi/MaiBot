@@ -49,7 +49,7 @@ from .service import (
 
 logger = get_logger("webui.chat")
 
-router = APIRouter(prefix="/api/chat", tags=["LocalChat"], dependencies=[Depends(require_auth)])
+router = APIRouter(prefix="/api/webui/chat", tags=["LocalChat"], dependencies=[Depends(require_auth)])
 
 
 class TalkFrequencyUpdateRequest(BaseModel):
@@ -1373,3 +1373,19 @@ async def get_chat_info() -> Dict[str, object]:
         "platform": WEBUI_CHAT_PLATFORM,
         "active_sessions": len(chat_manager.active_connections),
     }
+
+
+compat_router = APIRouter(tags=["LocalChat (Compat)"], dependencies=[Depends(require_auth)])
+
+
+def _build_compat_routes():
+    for route in router.routes:
+        compat_path = route.path.replace("/api/webui/chat", "/api/chat", 1) if route.path.startswith("/api/webui/chat") else route.path
+        compat_router.add_api_route(
+            path=compat_path,
+            endpoint=route.endpoint,
+            methods=list(route.methods),
+        )
+
+
+_build_compat_routes()
