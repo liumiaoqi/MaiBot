@@ -1025,7 +1025,7 @@ async def list_prompt_files():
 
     try:
         if not PROMPTS_DIR.exists():
-            return PromptCatalogResponse(languages=[], files={})
+            return ApiResponse(data=PromptCatalogResponse(languages=[], files={}))
 
         languages: List[str] = []
         files: Dict[str, List[PromptFileInfo]] = {}
@@ -1059,7 +1059,7 @@ async def list_prompt_files():
             languages.append(language)
             files[language] = prompt_files
 
-        return PromptCatalogResponse(languages=languages, files=files)
+        return ApiResponse(data=PromptCatalogResponse(languages=languages, files=files))
     except Exception as e:
         logger.error(f"列出 Prompt 文件失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"列出 Prompt 文件失败: {str(e)}") from e
@@ -1081,7 +1081,7 @@ async def get_prompt_file(language: str, filename: str):
         validation = (
             _build_prompt_validation(default_content, content) if custom_prompt_path.exists() else PromptValidationResult()
         )
-        return PromptFileResponse(
+        return ApiResponse(data=PromptFileResponse(
             language=language,
             filename=filename,
             content=content,
@@ -1089,7 +1089,7 @@ async def get_prompt_file(language: str, filename: str):
             active_version_id=_get_active_prompt_version_id(language, filename),
             versions=_list_prompt_versions(language, filename),
             validation=validation,
-        )
+        ))
     except Exception as e:
         logger.error(f"读取 Prompt 文件失败: {prompt_path} {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"读取 Prompt 文件失败: {str(e)}") from e
@@ -1105,14 +1105,14 @@ async def get_default_prompt_file(language: str, filename: str):
 
     try:
         content = prompt_path.read_text(encoding="utf-8")
-        return PromptFileResponse(
+        return ApiResponse(data=PromptFileResponse(
             language=language,
             filename=filename,
             content=content,
             customized=False,
             active_version_id=_get_active_prompt_version_id(language, filename),
             versions=_list_prompt_versions(language, filename),
-        )
+        ))
     except Exception as e:
         logger.error(f"读取默认 Prompt 文件失败: {prompt_path} {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"读取默认 Prompt 文件失败: {str(e)}") from e
@@ -1126,12 +1126,12 @@ async def list_prompt_versions(language: str, filename: str):
     if not prompt_path.exists() or not prompt_path.is_file():
         raise AppError(ErrorCode.BIZ_NOT_FOUND, "Prompt 文件不存在")
 
-    return PromptVersionListResponse(
+    return ApiResponse(data=PromptVersionListResponse(
         language=language,
         filename=filename,
         active_version_id=_get_active_prompt_version_id(language, filename),
         versions=_list_prompt_versions(language, filename),
-    )
+    ))
 
 
 @router.get("/prompts/{language}/{filename}/versions/{version_id}", response_model=ApiResponse[PromptVersionFileResponse])
@@ -1155,7 +1155,7 @@ async def get_prompt_version_file(language: str, filename: str, version_id: str)
         content = version_path.read_text(encoding="utf-8")
 
     validation = _build_prompt_validation(prompt_path.read_text(encoding="utf-8"), content)
-    return PromptVersionFileResponse(
+    return ApiResponse(data=PromptVersionFileResponse(
         language=language,
         filename=filename,
         version_id=normalized_version_id,
@@ -1164,7 +1164,7 @@ async def get_prompt_version_file(language: str, filename: str, version_id: str)
         active_version_id=_get_active_prompt_version_id(language, filename),
         versions=_list_prompt_versions(language, filename),
         validation=validation,
-    )
+    ))
 
 
 @router.post("/prompts/{language}/{filename}/versions/{version_id}/activate", response_model=ApiResponse[PromptFileResponse])
@@ -1194,7 +1194,7 @@ async def activate_prompt_version(language: str, filename: str, version_id: str)
     if normalized_version_id != _LEGACY_CUSTOM_PROMPT_VERSION_ID:
         _set_active_prompt_version(language, filename, normalized_version_id)
     clear_prompt_cache()
-    return PromptFileResponse(
+    return ApiResponse(data=PromptFileResponse(
         language=language,
         filename=filename,
         content=content,
@@ -1202,7 +1202,7 @@ async def activate_prompt_version(language: str, filename: str, version_id: str)
         active_version_id=_get_active_prompt_version_id(language, filename),
         versions=_list_prompt_versions(language, filename),
         validation=validation,
-    )
+    ))
 
 
 @router.put("/prompts/{language}/{filename}", response_model=ApiResponse[PromptFileResponse])
@@ -1229,7 +1229,7 @@ async def update_prompt_file(language: str, filename: str, request: PromptUpdate
         )
         custom_prompt_path.write_text(request.content, encoding="utf-8", newline="\n")
         clear_prompt_cache()
-        return PromptFileResponse(
+        return ApiResponse(data=PromptFileResponse(
             language=language,
             filename=filename,
             content=request.content,
@@ -1237,7 +1237,7 @@ async def update_prompt_file(language: str, filename: str, request: PromptUpdate
             active_version_id=active_version_id,
             versions=_list_prompt_versions(language, filename),
             validation=validation,
-        )
+        ))
     except Exception as e:
         logger.error(f"保存 Prompt 文件失败: {prompt_path} {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"保存 Prompt 文件失败: {str(e)}") from e
@@ -1258,14 +1258,14 @@ async def reset_prompt_file(language: str, filename: str):
             _set_active_prompt_version(language, filename, None)
             clear_prompt_cache()
         content = prompt_path.read_text(encoding="utf-8")
-        return PromptFileResponse(
+        return ApiResponse(data=PromptFileResponse(
             language=language,
             filename=filename,
             content=content,
             customized=False,
             active_version_id=None,
             versions=_list_prompt_versions(language, filename),
-        )
+        ))
     except Exception as e:
         logger.error(f"恢复 Prompt 默认模板失败: {prompt_path} {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"恢复 Prompt 默认模板失败: {str(e)}") from e
@@ -1283,7 +1283,7 @@ async def get_maisaka_prompt_preview(path: str = Query(..., description="logs/ma
         ".json": "application/json",
         ".txt": "text/plain",
     }.get(preview_path.suffix.lower(), "application/octet-stream")
-    return FileResponse(preview_path, media_type=media_type)
+    return ApiResponse(data=FileResponse(preview_path, media_type=media_type))
 
 
 @router.post("/prompt-generator/generate", response_model=ApiResponse[PromptGeneratorResponse])
@@ -1311,7 +1311,7 @@ async def generate_prompt_persona(request: PromptGeneratorRequest):
         if not parsed_result.personality or not parsed_result.reply_style:
             raise ValueError("模型返回缺少 personality 或 reply_style 字段")
 
-        return PromptGeneratorResponse(
+        return ApiResponse(data=PromptGeneratorResponse(
             model_name=llm_result.model_name or model_name,
             result=parsed_result,
             config_blocks=_build_prompt_generator_config_blocks(parsed_result),
@@ -1321,7 +1321,7 @@ async def generate_prompt_persona(request: PromptGeneratorRequest):
             prompt_tokens=llm_result.prompt_tokens,
             completion_tokens=llm_result.completion_tokens,
             total_tokens=llm_result.total_tokens,
-        )
+        ))
     except Exception as e:
         logger.error(f"Prompt 生成失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Prompt 生成失败: {str(e)}") from e
