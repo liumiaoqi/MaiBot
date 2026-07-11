@@ -3723,6 +3723,7 @@ class ImportTaskManager:
                     resolved_model,
                     request_type="A_Memorix.WebImport",
                     prompt=prompt,
+                    llm_api=self.plugin._ports.require_llm_service(),
                     temperature=getattr(resolved_model.task_config, "temperature", None),
                     max_tokens=getattr(resolved_model.task_config, "max_tokens", None),
                 )

@@ -122,6 +122,7 @@ class SDKMemoryKernel:
         return KernelInitializer.build_runtime_config(self, base_config)
 
     @staticmethod
+
     def _merge_runtime_config_patch(base: Dict[str, Any], patch: Dict[str, Any]) -> Dict[str, Any]:
         return KernelInitializer.merge_runtime_config_patch(base, patch)
 
@@ -395,7 +396,10 @@ class SDKMemoryKernel:
         self._initialized = True
 
         from ..connectionist.memory_field import MemoryField
-        self._memory_field = MemoryField(self.data_dir)
+        llm_client = None
+        if self._ports and self._ports.llm_service:
+            llm_client = self._ports.llm_service.LLMServiceClient(task_name="utils")
+        self._memory_field = MemoryField(self.data_dir, llm_client=llm_client)
 
         from ..migration.migration_adapter import MigrationAdapter, MigrationPhase
         self._migration_adapter = MigrationAdapter(self._memory_field)
@@ -406,6 +410,7 @@ class SDKMemoryKernel:
             self._migration_adapter, self._memory_field, self, ConnectionistTranslator(),
             coerce_search_result=None,
             coerce_write_result=None,
+            build_profile_injection_text_fn=self._ports.build_profile_injection_text if self._ports else None,
         )
 
         await self._start_background_tasks()
