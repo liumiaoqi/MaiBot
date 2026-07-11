@@ -33,10 +33,6 @@ from .search_execution_service import SearchExecutionRequest, SearchExecutionSer
 if TYPE_CHECKING:
     from ..runtime.sdk_memory_kernel import SDKMemoryKernel
 
-try:
-    from src.services import llm_service as llm_api
-except Exception:  # pragma: no cover
-    llm_api = None
 
 logger = get_logger("A_Memorix.RetrievalTuningManager")
 
@@ -281,9 +277,11 @@ class RetrievalTuningManager:
         plugin: SDKMemoryKernel,
         *,
         import_write_blocked_provider: Optional[Callable[[], bool]] = None,
+        llm_api: Any = None,
     ):
         self.plugin = plugin
         self._import_write_blocked_provider = import_write_blocked_provider
+        self._llm_api = llm_api
 
         self._lock = asyncio.Lock()
         self._tasks: Dict[str, RetrievalTuningTaskRecord] = {}
@@ -1562,10 +1560,10 @@ class RetrievalTuningManager:
         return templates[seq % len(templates)]
 
     async def _select_llm_model(self) -> Optional[ResolvedLLMModel]:
-        if llm_api is None:
+        if self._llm_api is None:
             return None
         try:
-            models = get_text_generation_model_tasks(llm_api) or {}
+            models = get_text_generation_model_tasks(self._llm_api) or {}
         except Exception:
             return None
         if not models:
@@ -1590,7 +1588,7 @@ class RetrievalTuningManager:
         return None
 
     async def _llm_call_text(self, prompt: str, *, request_type: str) -> str:
-        if llm_api is None:
+        if self._llm_api is None:
             raise RuntimeError("llm_api unavailable")
         resolved_model = await self._select_llm_model()
         if resolved_model is None:
@@ -1629,7 +1627,7 @@ class RetrievalTuningManager:
         raise RuntimeError(f"LLM call failed: {last_error}")
 
     async def _generate_nl_queries_with_llm(self, anchors: List[Dict[str, Any]], *, enabled: bool) -> Dict[str, str]:
-        if not enabled or llm_api is None or not anchors:
+        if not enabled or self._llm_api is None or not anchors:
             return {}
         payload = [
             {
@@ -1676,7 +1674,7 @@ class RetrievalTuningManager:
         max_count: int,
         enabled: bool,
     ) -> List[Dict[str, Any]]:
-        if not enabled or llm_api is None or max_count <= 0:
+        if not enabled or self._llm_api is None or max_count <= 0:
             return []
         prompt = (
             "你是检索调参专家。"

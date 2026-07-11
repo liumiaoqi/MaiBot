@@ -22,7 +22,7 @@ import traceback
 import uuid
 
 from src.common.logger import get_logger
-from src.services import llm_service as llm_api
+
 
 from ...paths import default_data_dir, repo_root, resolve_repo_path, scripts_root
 from ..storage import (
@@ -3681,7 +3681,7 @@ class ImportTaskManager:
         return rel_hash
 
     async def _select_model(self) -> ResolvedLLMModel:
-        models = get_text_generation_model_tasks(llm_api)
+        models = get_text_generation_model_tasks(self.plugin._ports.require_llm_service())
         if not models:
             raise RuntimeError("没有可用 LLM 模型")
 

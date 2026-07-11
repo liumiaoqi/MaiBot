@@ -142,6 +142,7 @@ class KernelInitializer:
         kernel.retrieval_tuning_manager = RetrievalTuningManager(
             kernel,
             import_write_blocked_provider=kernel.import_task_manager.is_write_blocked,
+            llm_api=kernel._ports.require_llm_service() if kernel._ports else None,
         )
 
     @staticmethod
@@ -557,7 +558,10 @@ class KernelInitializer:
             plugin_config=runtime_config,
             retriever=kernel.retriever,
         )
-        kernel.episode_segmentation_service = EpisodeSegmentationService(plugin_config=runtime_config)
+        kernel.episode_segmentation_service = EpisodeSegmentationService(
+            plugin_config=runtime_config,
+            llm_api=kernel._ports.require_llm_service() if kernel._ports else None,
+        )
         kernel.episode_service = EpisodeService(
             metadata_store=kernel.metadata_store,
             plugin_config=runtime_config,
@@ -575,6 +579,7 @@ class KernelInitializer:
             kernel.retrieval_tuning_manager = RetrievalTuningManager(
                 kernel,
                 import_write_blocked_provider=kernel.import_task_manager.is_write_blocked,
+                llm_api=kernel._ports.require_llm_service() if kernel._ports else None,
             )
 
     @staticmethod
