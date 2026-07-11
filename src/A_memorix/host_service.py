@@ -480,8 +480,9 @@ class AMemorixHostService:
 
                 config = self._read_config()
                 if not self._is_enabled_config(config):
-                    raise RuntimeError("A_Memorix 未启用")
-                kernel = SDKMemoryKernel(plugin_root=repo_root(), config=config)
+                    raise RuntimeError("A_memorix 未启用")
+                ports = self._build_service_ports()
+                kernel = SDKMemoryKernel(plugin_root=repo_root(), config=config, ports=ports)
                 try:
                     await kernel.initialize()
                 except Exception:
@@ -566,6 +567,32 @@ class AMemorixHostService:
         port = get_session_info_port()
         if port is not None:
             kernel._session_info_port = port
+
+    @staticmethod
+    def _build_service_ports() -> Any:
+        """构建 AMemorixServicePorts，注入 MaiBot 服务层依赖。"""
+        from .core.ports import AMemorixServicePorts
+
+        from src.common.database.database import get_db_session
+        from src.common.database.database_model import PersonInfo
+        from src.common.data_models.llm_service_data_models import LLMServiceResult
+        from src.config.config import config_manager
+        from src.llm_models.exceptions import NetworkConnectionError
+        from src.llm_models.model_client.base_client import EmbeddingRequest, client_registry
+        from src.services import llm_service as llm_api
+        from src.services import message_service as message_api
+
+        return AMemorixServicePorts(
+            llm_service=llm_api,
+            message_service=message_api,
+            config_manager=config_manager,
+            db_session_factory=get_db_session,
+            db_person_info_model=PersonInfo,
+            llm_models_client_registry=client_registry,
+            llm_models_exceptions=NetworkConnectionError,
+            llm_models_base_client=EmbeddingRequest,
+            llm_data_models=LLMServiceResult,
+        )
 
     def _read_config(self) -> Dict[str, Any]:
         if self._config_cache is not None:

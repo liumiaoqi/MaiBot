@@ -10,10 +10,7 @@ import time
 
 from src.common.logger import get_logger
 from src.common.prompt_i18n import load_prompt
-from src.config.config import global_config
 from src.core.protocols import SessionInfoPort
-from src.services import message_service as message_api
-from src.services.llm_service import LLMServiceClient
 
 from ...paths import default_data_dir, resolve_repo_path
 from ..embedding import create_embedding_api_adapter
@@ -45,9 +42,10 @@ from .services.types import KernelSearchRequest, NormalizedSearchTimeWindow as _
 logger = get_logger("A_Memorix.SDKMemoryKernel")
 
 class SDKMemoryKernel:
-    def __init__(self, *, plugin_root: Path, config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, *, plugin_root: Path, config: Optional[Dict[str, Any]] = None, ports: Optional[Any] = None) -> None:
         self.plugin_root = Path(plugin_root).resolve()
         self.config = config or {}
+        self._ports = ports
         storage_cfg = self._cfg("storage", {}) or {}
         data_dir = str(storage_cfg.get("data_dir", "./data") or "./data")
         self.data_dir = resolve_repo_path(data_dir, fallback=default_data_dir())
@@ -85,8 +83,8 @@ class SDKMemoryKernel:
         self._active_person_timestamps: Dict[str, float] = {}
         self._embedding_health_service: Optional[Any] = None
         self._current_effective_filter_cache: Dict[str, Any] = {"checked_at": 0.0, "needed": False}
-        self._feedback_classifier: Optional[LLMServiceClient] = None
-        self._fuzzy_modify_planner: Optional[LLMServiceClient] = None
+        self._feedback_classifier: Optional[Any] = None
+        self._fuzzy_modify_planner: Optional[Any] = None
         self._session_info_port: Optional[SessionInfoPort] = None
         self._feedback_config: Optional[Any] = None
         self._fuzzy_modify_config: Optional[Any] = None
