@@ -11,7 +11,7 @@ import re
 import time
 import types
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, Query
 from fastapi.responses import FileResponse
 import tomlkit
 
@@ -53,6 +53,9 @@ from src.config.official_configs import (
 from src.llm_models.utils_model import LLMOrchestrator
 from src.webui.config_schema import ConfigSchemaGenerator
 from src.webui.dependencies import require_auth
+from src.webui.errors import AppError
+from src.webui.errors.codes import ErrorCode
+from src.webui.schemas.base import ApiResponse
 from src.webui.schemas.config import (
     PromptCatalogResponse,
     PromptFileResponse,
@@ -125,16 +128,16 @@ def _safe_prompt_path(language: str, filename: str) -> Path:
     normalized_filename = filename.strip()
 
     if not normalized_language or any(part in normalized_language for part in ("..", "/", "\\")):
-        raise HTTPException(status_code=400, detail="无效的 Prompt 语言目录")
+        raise AppError(ErrorCode.PARAM_INVALID, "无效的 Prompt 语言目录")
     if not normalized_filename.endswith(".prompt") or any(part in normalized_filename for part in ("..", "/", "\\")):
-        raise HTTPException(status_code=400, detail="无效的 Prompt 文件名")
+        raise AppError(ErrorCode.PARAM_INVALID, "无效的 Prompt 文件名")
 
     prompt_path = (PROMPTS_DIR / normalized_language / normalized_filename).resolve()
     prompts_root = PROMPTS_DIR.resolve()
     try:
         prompt_path.relative_to(prompts_root)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail="Prompt 路径越界") from exc
+        raise AppError(ErrorCode.PARAM_INVALID, "Prompt 路径越界") from exc
     return prompt_path
 
 
@@ -145,16 +148,16 @@ def _safe_custom_prompt_path(language: str, filename: str) -> Path:
     normalized_filename = filename.strip()
 
     if not normalized_language or any(part in normalized_language for part in ("..", "/", "\\")):
-        raise HTTPException(status_code=400, detail="无效的 Prompt 语言目录")
+        raise AppError(ErrorCode.PARAM_INVALID, "无效的 Prompt 语言目录")
     if not normalized_filename.endswith(".prompt") or any(part in normalized_filename for part in ("..", "/", "\\")):
-        raise HTTPException(status_code=400, detail="无效的 Prompt 文件名")
+        raise AppError(ErrorCode.PARAM_INVALID, "无效的 Prompt 文件名")
 
     prompt_path = (CUSTOM_PROMPTS_DIR / normalized_language / normalized_filename).resolve()
     custom_prompts_root = CUSTOM_PROMPTS_DIR.resolve()
     try:
         prompt_path.relative_to(custom_prompts_root)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail="Prompt 路径越界") from exc
+        raise AppError(ErrorCode.PARAM_INVALID, "Prompt 路径越界") from exc
     return prompt_path
 
 
@@ -167,7 +170,7 @@ def _safe_prompt_version_id(version_id: str) -> str:
         or normalized_version_id in {".", ".."}
         or not _PROMPT_VERSION_ID_PATTERN.fullmatch(normalized_version_id)
     ):
-        raise HTTPException(status_code=400, detail="无效的 Prompt 版本 ID")
+        raise AppError(ErrorCode.PARAM_INVALID, "无效的 Prompt 版本 ID")
     return normalized_version_id
 
 
@@ -181,7 +184,7 @@ def _safe_custom_prompt_versions_dir(language: str, filename: str) -> Path:
     try:
         resolved_versions_dir.relative_to(custom_prompts_root)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail="Prompt 版本路径越界") from exc
+        raise AppError(ErrorCode.PARAM_INVALID, "Prompt 版本路径越界") from exc
     return resolved_versions_dir
 
 
@@ -197,7 +200,7 @@ def _prompt_version_file_path(language: str, filename: str, version_id: str) -> 
     try:
         resolved_version_path.relative_to(versions_dir)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail="Prompt 版本路径越界") from exc
+        raise AppError(ErrorCode.PARAM_INVALID, "Prompt 版本路径越界") from exc
     return resolved_version_path
 
 
@@ -358,7 +361,7 @@ def _save_prompt_version(
         and normalized_version_id != _LEGACY_CUSTOM_PROMPT_VERSION_ID
         and normalized_version_id not in existing_version_ids
     ):
-        raise HTTPException(status_code=404, detail="Prompt 自定义版本不存在")
+        raise AppError(ErrorCode.BIZ_NOT_FOUND, "Prompt 自定义版本不存在")
 
     should_create_version = (
         create_version
@@ -406,16 +409,16 @@ def _safe_maisaka_prompt_preview_path(relative_path: str) -> Path:
 
     normalized_path = relative_path.strip().replace("\\", "/")
     if not normalized_path or normalized_path.startswith("/") or ".." in Path(normalized_path).parts:
-        raise HTTPException(status_code=400, detail="无效的 Prompt 预览路径")
+        raise AppError(ErrorCode.PARAM_INVALID, "无效的 Prompt 预览路径")
 
     preview_path = (MAISAKA_PROMPT_PREVIEW_DIR / normalized_path).resolve()
     try:
         preview_path.relative_to(MAISAKA_PROMPT_PREVIEW_DIR)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail="Prompt 预览路径越界") from exc
+        raise AppError(ErrorCode.PARAM_INVALID, "Prompt 预览路径越界") from exc
 
     if preview_path.suffix.lower() not in {".html", ".json", ".txt"}:
-        raise HTTPException(status_code=400, detail="只允许打开 Prompt 预览文件")
+        raise AppError(ErrorCode.PARAM_INVALID, "只允许打开 Prompt 预览文件")
     return preview_path
 
 
@@ -515,7 +518,7 @@ def _collect_orphaned_model_api_providers(config_data: Dict[str, Any]) -> Dict[s
 def _validate_api_provider_section(section_data: Any) -> None:
     """只校验 api_providers 小节本身，避免历史坏模型引用阻断 Provider 修复。"""
     if not isinstance(section_data, list) or not section_data:
-        raise HTTPException(status_code=400, detail="API 提供商列表不能为空")
+        raise AppError(ErrorCode.PARAM_INVALID, "API 提供商列表不能为空")
 
     coerced_providers = [
         _coerce_config_numeric_values(copy.deepcopy(provider), APIProvider)
@@ -523,7 +526,7 @@ def _validate_api_provider_section(section_data: Any) -> None:
         if isinstance(provider, dict)
     ]
     if len(coerced_providers) != len(section_data):
-        raise HTTPException(status_code=400, detail="API 提供商配置格式无效")
+        raise AppError(ErrorCode.PARAM_INVALID, "API 提供商配置格式无效")
 
     provider_names: List[str] = []
     try:
@@ -534,7 +537,7 @@ def _validate_api_provider_section(section_data: Any) -> None:
         raise HTTPException(status_code=400, detail=f"API 提供商配置验证失败: {str(exc)}") from exc
 
     if len(provider_names) != len(set(provider_names)):
-        raise HTTPException(status_code=400, detail="API 提供商名称不能重复")
+        raise AppError(ErrorCode.PARAM_INVALID, "API 提供商名称不能重复")
 
 
 def _ensure_prompt_generator_model_exists(model_name: str) -> None:
@@ -930,12 +933,12 @@ def _normalize_prompt_generator_block_value(block: PromptGeneratorConfigBlock) -
     if field == "multiple_reply_style":
         value = _coerce_prompt_generator_string_list(block.value, max_items=5)
         if not value:
-            raise HTTPException(status_code=400, detail="备用表达风格配置块不能为空")
+            raise AppError(ErrorCode.PARAM_INVALID, "备用表达风格配置块不能为空")
         return section, field, value
 
     if field == "chat_prompts":
         if not isinstance(block.value, list):
-            raise HTTPException(status_code=400, detail="额外聊天流 Prompt 必须是数组")
+            raise AppError(ErrorCode.PARAM_INVALID, "额外聊天流 Prompt 必须是数组")
 
         chat_prompts: List[Dict[str, str]] = []
         for item in block.value:
@@ -946,7 +949,7 @@ def _normalize_prompt_generator_block_value(block: PromptGeneratorConfigBlock) -
             prompt = _coerce_prompt_generator_string(item.get("prompt"))
             rule_type = _coerce_prompt_generator_string(item.get("rule_type")) or "group"
             if not platform or not item_id or not prompt:
-                raise HTTPException(status_code=400, detail="额外聊天流 Prompt 需要包含 platform、item_id 和 prompt")
+                raise AppError(ErrorCode.PARAM_INVALID, "额外聊天流 Prompt 需要包含 platform、item_id 和 prompt")
             chat_prompts.append(
                 {
                     "platform": platform,
@@ -956,7 +959,7 @@ def _normalize_prompt_generator_block_value(block: PromptGeneratorConfigBlock) -
                 }
             )
         if not chat_prompts:
-            raise HTTPException(status_code=400, detail="额外聊天流 Prompt 配置块不能为空")
+            raise AppError(ErrorCode.PARAM_INVALID, "额外聊天流 Prompt 配置块不能为空")
         return section, field, chat_prompts[:8]
 
     raise HTTPException(status_code=400, detail=f"无法识别配置字段: {section}.{field}")
@@ -980,11 +983,11 @@ def _apply_prompt_generator_config_blocks(blocks: List[PromptGeneratorConfigBloc
     """把选中的人设生成器配置块写入 bot_config.toml。"""
 
     if not blocks:
-        raise HTTPException(status_code=400, detail="请选择要注入的配置块")
+        raise AppError(ErrorCode.PARAM_INVALID, "请选择要注入的配置块")
 
     config_path = os.path.join(CONFIG_DIR, "bot_config.toml")
     if not os.path.exists(config_path):
-        raise HTTPException(status_code=404, detail="配置文件不存在")
+        raise AppError(ErrorCode.BIZ_NOT_FOUND, "配置文件不存在")
 
     with open(config_path, "r", encoding="utf-8") as f:
         config_data = tomlkit.load(f)
@@ -1016,7 +1019,7 @@ def _apply_prompt_generator_config_blocks(blocks: List[PromptGeneratorConfigBloc
 # ===== 架构获取接口 =====
 
 
-@router.get("/prompts", response_model=PromptCatalogResponse)
+@router.get("/prompts", response_model=ApiResponse[PromptCatalogResponse])
 async def list_prompt_files():
     """列出 prompts 目录下的语言和 Prompt 文件。"""
 
@@ -1057,21 +1060,19 @@ async def list_prompt_files():
             files[language] = prompt_files
 
         return PromptCatalogResponse(languages=languages, files=files)
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"列出 Prompt 文件失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"列出 Prompt 文件失败: {str(e)}") from e
 
 
-@router.get("/prompts/{language}/{filename}", response_model=PromptFileResponse)
+@router.get("/prompts/{language}/{filename}", response_model=ApiResponse[PromptFileResponse])
 async def get_prompt_file(language: str, filename: str):
     """读取指定语言下的 Prompt 文件内容。"""
 
     prompt_path = _safe_prompt_path(language, filename)
     custom_prompt_path = _safe_custom_prompt_path(language, filename)
     if not prompt_path.exists() or not prompt_path.is_file():
-        raise HTTPException(status_code=404, detail="Prompt 文件不存在")
+        raise AppError(ErrorCode.BIZ_NOT_FOUND, "Prompt 文件不存在")
 
     try:
         effective_prompt_path = custom_prompt_path if custom_prompt_path.exists() else prompt_path
@@ -1089,20 +1090,18 @@ async def get_prompt_file(language: str, filename: str):
             versions=_list_prompt_versions(language, filename),
             validation=validation,
         )
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"读取 Prompt 文件失败: {prompt_path} {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"读取 Prompt 文件失败: {str(e)}") from e
 
 
-@router.get("/prompts/{language}/{filename}/default", response_model=PromptFileResponse)
+@router.get("/prompts/{language}/{filename}/default", response_model=ApiResponse[PromptFileResponse])
 async def get_default_prompt_file(language: str, filename: str):
     """只读获取内置 Prompt 模板内容，不读取或修改用户自定义覆盖。"""
 
     prompt_path = _safe_prompt_path(language, filename)
     if not prompt_path.exists() or not prompt_path.is_file():
-        raise HTTPException(status_code=404, detail="Prompt 文件不存在")
+        raise AppError(ErrorCode.BIZ_NOT_FOUND, "Prompt 文件不存在")
 
     try:
         content = prompt_path.read_text(encoding="utf-8")
@@ -1114,20 +1113,18 @@ async def get_default_prompt_file(language: str, filename: str):
             active_version_id=_get_active_prompt_version_id(language, filename),
             versions=_list_prompt_versions(language, filename),
         )
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"读取默认 Prompt 文件失败: {prompt_path} {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"读取默认 Prompt 文件失败: {str(e)}") from e
 
 
-@router.get("/prompts/{language}/{filename}/versions", response_model=PromptVersionListResponse)
+@router.get("/prompts/{language}/{filename}/versions", response_model=ApiResponse[PromptVersionListResponse])
 async def list_prompt_versions(language: str, filename: str):
     """列出指定 Prompt 的自定义版本。"""
 
     prompt_path = _safe_prompt_path(language, filename)
     if not prompt_path.exists() or not prompt_path.is_file():
-        raise HTTPException(status_code=404, detail="Prompt 文件不存在")
+        raise AppError(ErrorCode.BIZ_NOT_FOUND, "Prompt 文件不存在")
 
     return PromptVersionListResponse(
         language=language,
@@ -1137,24 +1134,24 @@ async def list_prompt_versions(language: str, filename: str):
     )
 
 
-@router.get("/prompts/{language}/{filename}/versions/{version_id}", response_model=PromptVersionFileResponse)
+@router.get("/prompts/{language}/{filename}/versions/{version_id}", response_model=ApiResponse[PromptVersionFileResponse])
 async def get_prompt_version_file(language: str, filename: str, version_id: str):
     """读取指定 Prompt 自定义版本内容。"""
 
     prompt_path = _safe_prompt_path(language, filename)
     custom_prompt_path = _safe_custom_prompt_path(language, filename)
     if not prompt_path.exists() or not prompt_path.is_file():
-        raise HTTPException(status_code=404, detail="Prompt 文件不存在")
+        raise AppError(ErrorCode.BIZ_NOT_FOUND, "Prompt 文件不存在")
 
     normalized_version_id = _safe_prompt_version_id(version_id)
     if normalized_version_id == _LEGACY_CUSTOM_PROMPT_VERSION_ID:
         if not custom_prompt_path.exists():
-            raise HTTPException(status_code=404, detail="Prompt 自定义版本不存在")
+            raise AppError(ErrorCode.BIZ_NOT_FOUND, "Prompt 自定义版本不存在")
         content = custom_prompt_path.read_text(encoding="utf-8")
     else:
         version_path = _prompt_version_file_path(language, filename, normalized_version_id)
         if not version_path.exists() or not version_path.is_file():
-            raise HTTPException(status_code=404, detail="Prompt 自定义版本不存在")
+            raise AppError(ErrorCode.BIZ_NOT_FOUND, "Prompt 自定义版本不存在")
         content = version_path.read_text(encoding="utf-8")
 
     validation = _build_prompt_validation(prompt_path.read_text(encoding="utf-8"), content)
@@ -1170,24 +1167,24 @@ async def get_prompt_version_file(language: str, filename: str, version_id: str)
     )
 
 
-@router.post("/prompts/{language}/{filename}/versions/{version_id}/activate", response_model=PromptFileResponse)
+@router.post("/prompts/{language}/{filename}/versions/{version_id}/activate", response_model=ApiResponse[PromptFileResponse])
 async def activate_prompt_version(language: str, filename: str, version_id: str):
     """启用指定 Prompt 自定义版本。"""
 
     prompt_path = _safe_prompt_path(language, filename)
     if not prompt_path.exists() or not prompt_path.is_file():
-        raise HTTPException(status_code=404, detail="Prompt 文件不存在")
+        raise AppError(ErrorCode.BIZ_NOT_FOUND, "Prompt 文件不存在")
 
     normalized_version_id = _safe_prompt_version_id(version_id)
     if normalized_version_id == _LEGACY_CUSTOM_PROMPT_VERSION_ID:
         custom_prompt_path = _safe_custom_prompt_path(language, filename)
         if not custom_prompt_path.exists():
-            raise HTTPException(status_code=404, detail="Prompt 自定义版本不存在")
+            raise AppError(ErrorCode.BIZ_NOT_FOUND, "Prompt 自定义版本不存在")
         content = custom_prompt_path.read_text(encoding="utf-8")
     else:
         version_path = _prompt_version_file_path(language, filename, normalized_version_id)
         if not version_path.exists() or not version_path.is_file():
-            raise HTTPException(status_code=404, detail="Prompt 自定义版本不存在")
+            raise AppError(ErrorCode.BIZ_NOT_FOUND, "Prompt 自定义版本不存在")
         content = version_path.read_text(encoding="utf-8")
 
     validation = _ensure_prompt_parameters_match(prompt_path, content)
@@ -1208,16 +1205,16 @@ async def activate_prompt_version(language: str, filename: str, version_id: str)
     )
 
 
-@router.put("/prompts/{language}/{filename}", response_model=PromptFileResponse)
+@router.put("/prompts/{language}/{filename}", response_model=ApiResponse[PromptFileResponse])
 async def update_prompt_file(language: str, filename: str, request: PromptUpdateRequest):
     """更新指定语言下的 Prompt 文件内容。"""
 
     prompt_path = _safe_prompt_path(language, filename)
     custom_prompt_path = _safe_custom_prompt_path(language, filename)
     if not prompt_path.parent.exists() or not prompt_path.parent.is_dir():
-        raise HTTPException(status_code=404, detail="Prompt 语言目录不存在")
+        raise AppError(ErrorCode.BIZ_NOT_FOUND, "Prompt 语言目录不存在")
     if not prompt_path.exists() or not prompt_path.is_file():
-        raise HTTPException(status_code=404, detail="Prompt 文件不存在")
+        raise AppError(ErrorCode.BIZ_NOT_FOUND, "Prompt 文件不存在")
 
     try:
         validation = _ensure_prompt_parameters_match(prompt_path, request.content)
@@ -1241,21 +1238,19 @@ async def update_prompt_file(language: str, filename: str, request: PromptUpdate
             versions=_list_prompt_versions(language, filename),
             validation=validation,
         )
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"保存 Prompt 文件失败: {prompt_path} {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"保存 Prompt 文件失败: {str(e)}") from e
 
 
-@router.delete("/prompts/{language}/{filename}", response_model=PromptFileResponse)
+@router.delete("/prompts/{language}/{filename}", response_model=ApiResponse[PromptFileResponse])
 async def reset_prompt_file(language: str, filename: str):
     """删除用户自定义覆盖，恢复使用内置 Prompt 模板。"""
 
     prompt_path = _safe_prompt_path(language, filename)
     custom_prompt_path = _safe_custom_prompt_path(language, filename)
     if not prompt_path.exists() or not prompt_path.is_file():
-        raise HTTPException(status_code=404, detail="Prompt 文件不存在")
+        raise AppError(ErrorCode.BIZ_NOT_FOUND, "Prompt 文件不存在")
 
     try:
         if custom_prompt_path.exists():
@@ -1271,8 +1266,6 @@ async def reset_prompt_file(language: str, filename: str):
             active_version_id=None,
             versions=_list_prompt_versions(language, filename),
         )
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"恢复 Prompt 默认模板失败: {prompt_path} {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"恢复 Prompt 默认模板失败: {str(e)}") from e
@@ -1284,7 +1277,7 @@ async def get_maisaka_prompt_preview(path: str = Query(..., description="logs/ma
 
     preview_path = _safe_maisaka_prompt_preview_path(path)
     if not preview_path.exists() or not preview_path.is_file():
-        raise HTTPException(status_code=404, detail="Prompt 预览文件不存在")
+        raise AppError(ErrorCode.BIZ_NOT_FOUND, "Prompt 预览文件不存在")
     media_type = {
         ".html": "text/html",
         ".json": "application/json",
@@ -1293,7 +1286,7 @@ async def get_maisaka_prompt_preview(path: str = Query(..., description="logs/ma
     return FileResponse(preview_path, media_type=media_type)
 
 
-@router.post("/prompt-generator/generate", response_model=PromptGeneratorResponse)
+@router.post("/prompt-generator/generate", response_model=ApiResponse[PromptGeneratorResponse])
 async def generate_prompt_persona(request: PromptGeneratorRequest):
     """使用已定义模型把任意文段解析为 MaiBot 人设配置片段。"""
 
@@ -1329,21 +1322,17 @@ async def generate_prompt_persona(request: PromptGeneratorRequest):
             completion_tokens=llm_result.completion_tokens,
             total_tokens=llm_result.total_tokens,
         )
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Prompt 生成失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Prompt 生成失败: {str(e)}") from e
 
 
-@router.post("/prompt-generator/apply", response_model=PromptGeneratorApplyResponse)
+@router.post("/prompt-generator/apply", response_model=ApiResponse[PromptGeneratorApplyResponse])
 async def apply_prompt_generator_blocks(request: PromptGeneratorApplyRequest):
     """把人设生成器产出的配置块写入 bot_config.toml。"""
 
     try:
         return _apply_prompt_generator_config_blocks(request.blocks)
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Prompt 配置块注入失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Prompt 配置块注入失败: {str(e)}") from e
@@ -1470,14 +1459,12 @@ async def get_bot_config():
     try:
         config_path = os.path.join(CONFIG_DIR, "bot_config.toml")
         if not os.path.exists(config_path):
-            raise HTTPException(status_code=404, detail="配置文件不存在")
+            raise AppError(ErrorCode.BIZ_NOT_FOUND, "配置文件不存在")
 
         with open(config_path, "r", encoding="utf-8") as f:
             config_data = tomlkit.load(f)
 
         return {"success": True, "config": config_data}
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"读取配置文件失败: {e}")
         raise HTTPException(status_code=500, detail=f"读取配置文件失败: {str(e)}") from e
@@ -1489,14 +1476,12 @@ async def get_model_config():
     try:
         config_path = os.path.join(CONFIG_DIR, "model_config.toml")
         if not os.path.exists(config_path):
-            raise HTTPException(status_code=404, detail="配置文件不存在")
+            raise AppError(ErrorCode.BIZ_NOT_FOUND, "配置文件不存在")
 
         with open(config_path, "r", encoding="utf-8") as f:
             config_data = tomlkit.load(f)
 
         return {"success": True, "config": config_data}
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"读取配置文件失败: {e}")
         raise HTTPException(status_code=500, detail=f"读取配置文件失败: {str(e)}") from e
@@ -1523,8 +1508,6 @@ async def update_bot_config(config_data: ConfigBody):
 
         logger.info("麦麦主程序配置已更新")
         return {"success": True, "message": "配置已保存"}
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"保存配置文件失败: {e}")
         raise HTTPException(status_code=500, detail=f"保存配置文件失败: {str(e)}") from e
@@ -1548,8 +1531,6 @@ async def update_model_config(config_data: ConfigBody):
 
         logger.info("模型配置已更新")
         return {"success": True, "message": "配置已保存"}
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"保存配置文件失败: {e}")
         raise HTTPException(status_code=500, detail=f"保存配置文件失败: {str(e)}") from e
@@ -1565,7 +1546,7 @@ async def update_bot_config_section(section_name: str, section_data: SectionBody
         # 读取现有配置
         config_path = os.path.join(CONFIG_DIR, "bot_config.toml")
         if not os.path.exists(config_path):
-            raise HTTPException(status_code=404, detail="配置文件不存在")
+            raise AppError(ErrorCode.BIZ_NOT_FOUND, "配置文件不存在")
 
         with open(config_path, "r", encoding="utf-8") as f:
             config_data = tomlkit.load(f)
@@ -1600,8 +1581,6 @@ async def update_bot_config_section(section_name: str, section_data: SectionBody
 
         logger.info(f"配置节 '{section_name}' 已更新（保留注释）")
         return {"success": True, "message": f"配置节 '{section_name}' 已保存"}
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"更新配置节失败: {e}")
         raise HTTPException(status_code=500, detail=f"更新配置节失败: {str(e)}") from e
@@ -1616,14 +1595,12 @@ async def get_bot_config_raw():
     try:
         config_path = os.path.join(CONFIG_DIR, "bot_config.toml")
         if not os.path.exists(config_path):
-            raise HTTPException(status_code=404, detail="配置文件不存在")
+            raise AppError(ErrorCode.BIZ_NOT_FOUND, "配置文件不存在")
 
         with open(config_path, "r", encoding="utf-8") as f:
             raw_content = f.read()
 
         return {"success": True, "content": raw_content}
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"读取配置文件失败: {e}")
         raise HTTPException(status_code=500, detail=f"读取配置文件失败: {str(e)}") from e
@@ -1652,8 +1629,6 @@ async def update_bot_config_raw(raw_content: RawContentBody):
 
         logger.info("麦麦主程序配置已更新（原始模式）")
         return {"success": True, "message": "配置已保存"}
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"保存配置文件失败: {e}")
         raise HTTPException(status_code=500, detail=f"保存配置文件失败: {str(e)}") from e
@@ -1678,7 +1653,7 @@ async def update_model_config_section(section_name: str, section_data: SectionBo
         # 读取现有配置
         config_path = os.path.join(CONFIG_DIR, "model_config.toml")
         if not os.path.exists(config_path):
-            raise HTTPException(status_code=404, detail="配置文件不存在")
+            raise AppError(ErrorCode.BIZ_NOT_FOUND, "配置文件不存在")
 
         with open(config_path, "r", encoding="utf-8") as f:
             config_data = tomlkit.load(f)
@@ -1746,8 +1721,6 @@ async def update_model_config_section(section_name: str, section_data: SectionBo
 
         logger.info(f"配置节 '{section_name}' 已更新（保留注释）")
         return {"success": True, "message": f"配置节 '{section_name}' 已保存"}
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"更新配置节失败: {e}")
         raise HTTPException(status_code=500, detail=f"更新配置节失败: {str(e)}") from e
@@ -1783,7 +1756,7 @@ def _resolve_safe_adapter_config_path(path: str) -> Path:
     candidate_path = Path(normalized_path).expanduser().resolve()
 
     if candidate_path.suffix.lower() != ".toml":
-        raise HTTPException(status_code=400, detail="只支持 .toml 格式的配置文件")
+        raise AppError(ErrorCode.PARAM_INVALID, "只支持 .toml 格式的配置文件")
 
     for allowed_root in _get_allowed_adapter_config_roots():
         try:
@@ -1792,7 +1765,7 @@ def _resolve_safe_adapter_config_path(path: str) -> Path:
         except ValueError:
             continue
 
-    raise HTTPException(status_code=400, detail="适配器配置路径超出允许范围")
+    raise AppError(ErrorCode.PARAM_INVALID, "适配器配置路径超出允许范围")
 
 
 def _to_relative_path(path: str) -> str:
@@ -1862,7 +1835,7 @@ async def save_adapter_config_path(data: PathBody):
     try:
         path = data.get("path")
         if not path:
-            raise HTTPException(status_code=400, detail="路径不能为空")
+            raise AppError(ErrorCode.PARAM_INVALID, "路径不能为空")
 
         # 保存到 data/webui.json
         webui_data_path = os.path.join("data", "webui.json")
@@ -1891,8 +1864,6 @@ async def save_adapter_config_path(data: PathBody):
         logger.info(f"适配器配置路径已保存: {save_path}（绝对路径: {abs_path}）")
         return {"success": True, "message": "路径已保存"}
 
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"保存适配器配置路径失败: {e}")
         raise HTTPException(status_code=500, detail=f"保存路径失败: {str(e)}") from e
@@ -1903,7 +1874,7 @@ async def get_adapter_config(path: str):
     """从指定路径读取适配器配置文件"""
     try:
         if not path:
-            raise HTTPException(status_code=400, detail="路径参数不能为空")
+            raise AppError(ErrorCode.PARAM_INVALID, "路径参数不能为空")
 
         abs_path = str(_resolve_safe_adapter_config_path(path))
 
@@ -1918,8 +1889,6 @@ async def get_adapter_config(path: str):
         logger.info(f"已读取适配器配置: {path} (绝对路径: {abs_path})")
         return {"success": True, "content": content}
 
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"读取适配器配置失败: {e}")
         raise HTTPException(status_code=500, detail=f"读取配置失败: {str(e)}") from e
@@ -1933,9 +1902,9 @@ async def save_adapter_config(data: PathBody):
         content = data.get("content")
 
         if not path:
-            raise HTTPException(status_code=400, detail="路径不能为空")
+            raise AppError(ErrorCode.PARAM_INVALID, "路径不能为空")
         if content is None:
-            raise HTTPException(status_code=400, detail="配置内容不能为空")
+            raise AppError(ErrorCode.PARAM_INVALID, "配置内容不能为空")
 
         abs_path = str(_resolve_safe_adapter_config_path(path))
 
@@ -1957,8 +1926,6 @@ async def save_adapter_config(data: PathBody):
         logger.info(f"适配器配置已保存: {path} (绝对路径: {abs_path})")
         return {"success": True, "message": "配置已保存"}
 
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"保存适配器配置失败: {e}")
         raise HTTPException(status_code=500, detail=f"保存配置失败: {str(e)}") from e
