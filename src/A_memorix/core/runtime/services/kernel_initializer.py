@@ -492,6 +492,13 @@ class KernelInitializer:
                 "plugin_instance": kernel,
             }
         )
+        if kernel._ports and kernel._ports.config_manager:
+            try:
+                gc = kernel._ports.config_manager.get_global_config()
+                runtime_config["bot_nickname"] = gc.bot.nickname or ""
+                runtime_config["bot_personality"] = getattr(gc.bot, "personality", "") or ""
+            except Exception:
+                pass
         return runtime_config
 
     @staticmethod
@@ -557,6 +564,9 @@ class KernelInitializer:
             sparse_index=kernel.sparse_index,
             plugin_config=runtime_config,
             retriever=kernel.retriever,
+            llm_api=kernel._ports.require_llm_service() if kernel._ports else None,
+            db_session_factory=kernel._ports.db_session_factory if kernel._ports else None,
+            person_info_model=kernel._ports.db_person_info_model if kernel._ports else None,
         )
         kernel.episode_segmentation_service = EpisodeSegmentationService(
             plugin_config=runtime_config,
@@ -573,6 +583,9 @@ class KernelInitializer:
             metadata_store=kernel.metadata_store,
             embedding_manager=kernel.embedding_manager,
             plugin_config=runtime_config,
+            llm_api=kernel._ports.require_llm_service() if kernel._ports else None,
+            message_api=kernel._ports.require_message_service() if kernel._ports else None,
+            config_manager=kernel._ports.require_config_manager() if kernel._ports else None,
         )
         if not preserve_managers:
             kernel.import_task_manager = ImportTaskManager(kernel)

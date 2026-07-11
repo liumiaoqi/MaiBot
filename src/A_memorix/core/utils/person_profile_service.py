@@ -13,11 +13,7 @@ from sqlalchemy import or_
 from sqlmodel import select
 
 
-from src.common.database.database import get_db_session
-from src.common.database.database_model import PersonInfo
 from src.common.logger import get_logger
-from src.config.config import global_config
-from src.services import llm_service as llm_api
 
 from ..embedding import EmbeddingAPIAdapter
 from ..retrieval import (
@@ -59,6 +55,9 @@ class PersonProfileService:
         sparse_index: Any = None,
         plugin_config: Optional[dict] = None,
         retriever: Optional[DualPathRetriever] = None,
+        llm_api: Any = None,
+        db_session_factory: Any = None,
+        person_info_model: Any = None,
     ):
         self.metadata_store = metadata_store
         self.graph_store = graph_store
@@ -69,6 +68,9 @@ class PersonProfileService:
         self.sparse_index = sparse_index
         self.plugin_config = plugin_config or {}
         self.retriever = retriever or self._build_retriever()
+        self._llm_api = llm_api
+        self._db_session_factory = db_session_factory
+        self._person_info_model = person_info_model
 
     def _cfg(self, key: str, default: Any = None) -> Any:
         """读取嵌套配置。"""
@@ -182,19 +184,19 @@ class PersonProfileService:
             return ""
 
         try:
-            with get_db_session(auto_commit=False) as session:
+            with self._db_session_factory(auto_commit=False) as session:
                 record = session.exec(
-                    select(PersonInfo.person_id).where(PersonInfo.person_id == key).limit(1)
+                    select(self._person_info_model.person_id).where(self._person_info_model.person_id == key).limit(1)
                 ).first()
                 if record:
                     return str(record)
 
                 record = session.exec(
-                    select(PersonInfo.person_id)
+                    select(self._person_info_model.person_id)
                     .where(
                         or_(
-                            PersonInfo.person_name == key,
-                            PersonInfo.user_nickname == key,
+                            self._person_info_model.person_name == key,
+                            self._person_info_model.user_nickname == key,
                         )
                     )
                     .limit(1)
@@ -203,8 +205,8 @@ class PersonProfileService:
                     return str(record)
 
                 record = session.exec(
-                    select(PersonInfo.person_id)
-                    .where(PersonInfo.group_cardname.contains(key))
+                    select(self._person_info_model.person_id)
+                    .where(self._person_info_model.group_cardname.contains(key))
                     .limit(1)
                 ).first()
                 if record:
@@ -308,9 +310,9 @@ class PersonProfileService:
             return aliases, primary_name, memory_traits
         recovered_aliases, recovered_primary_name = self._recover_aliases_from_memory(person_id)
         try:
-            with get_db_session(auto_commit=False) as session:
+            with self._db_session_factory(auto_commit=False) as session:
                 record = session.exec(
-                    select(PersonInfo).where(PersonInfo.person_id == person_id).limit(1)
+                    select(self._person_info_model).where(self._person_info_model.person_id == person_id).limit(1)
                 ).first()
                 if not record:
                     return recovered_aliases, recovered_primary_name or person_id, memory_traits
@@ -521,8 +523,8 @@ class PersonProfileService:
         self,
         evidence: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
-        memory_cfg = global_config.a_memorix.integration
-        if not bool(getattr(memory_cfg, "feedback_correction_paragraph_hard_filter_enabled", True)):
+        integration_cfg = self.plugin_config.get("integration") if isinstance(self.plugin_config, dict) else None
+        if not bool((integration_cfg or {}).get("feedback_correction_paragraph_hard_filter_enabled", True)):
             return evidence
         paragraph_hashes = [
             str(item.get("hash", "") or "").strip()
@@ -759,7 +761,7 @@ class PersonProfileService:
 
     def _resolve_profile_classification_model(self) -> Optional[ResolvedLLMModel]:
         try:
-            available_tasks = get_text_generation_model_tasks(llm_api)
+            available_tasks = get_text_generation_model_tasks(self._llm_api)
             task_name, task_config = pick_text_generation_task(
                 available_tasks,
                 preferred=("memory", "utils", "planner", "tool_use", "replyer"),

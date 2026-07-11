@@ -14,10 +14,7 @@ import time
 import traceback
 
 from src.common.logger import get_logger
-from src.config.config import config_manager, global_config
-from src.config.model_configs import TaskConfig
-from src.services import llm_service as llm_api
-from src.services import message_service as message_api
+
 
 from ..storage import (
     KnowledgeType,
@@ -179,12 +176,18 @@ class SummaryImporter:
         metadata_store: MetadataStore,
         embedding_manager: EmbeddingAPIAdapter,
         plugin_config: dict,
+        llm_api: Any = None,
+        message_api: Any = None,
+        config_manager: Any = None,
     ):
         self.vector_store = vector_store
         self.graph_store = graph_store
         self.metadata_store = metadata_store
         self.embedding_manager = embedding_manager
         self.plugin_config = plugin_config
+        self._llm_api = llm_api
+        self._message_api = message_api
+        self._config_manager = config_manager
         self.relation_write_service: Optional[RelationWriteService] = (
             plugin_config.get("relation_write_service") if isinstance(plugin_config, dict) else None
         )
@@ -272,8 +275,8 @@ class SummaryImporter:
         )
 
     def _pick_default_summary_task(
-        self, available_tasks: Dict[str, TaskConfig]
-    ) -> Tuple[Optional[str], Optional[TaskConfig]]:
+        self, available_tasks: Dict[str, Any]
+    ) -> Tuple[Optional[str], Optional[Any]]:
         """
         选择总结默认任务，避免错误落到 embedding/voice/vlm 等非文本生成任务。
         优先级：memory > utils > planner > tool_use > replyer > 其他文本生成任务。
@@ -286,21 +289,21 @@ class SummaryImporter:
     @staticmethod
     def _current_model_dict() -> Dict[str, Any]:
         try:
-            return getattr(config_manager.get_model_config(), "models_dict", {}) or {}
+            return getattr(self._config_manager.get_model_config(), "models_dict", {}) or {}
         except Exception as exc:
             logger.warning(f"读取当前模型字典失败: {exc}")
             return {}
 
-    def _resolve_summary_model_config(self) -> Optional[Tuple[str, TaskConfig]]:
+    def _resolve_summary_model_config(self) -> Optional[Tuple[str, Any]]:
         """
-        解析 summarization.model_name 为 (task_name, TaskConfig)。
+        解析 summarization.model_name 为 (task_name, task_config)。
         支持：
         - "auto"
         - "replyer"（任务名）
         - "some-model-name"（具体模型名）
         - ["utils:model1", "utils:model2", "replyer"]（数组混合语法）
         """
-        available_tasks = get_text_generation_model_tasks(llm_api)
+        available_tasks = get_text_generation_model_tasks(self._llm_api)
         if not available_tasks:
             return None
 
@@ -310,11 +313,11 @@ class SummaryImporter:
         selectors = self._normalize_summary_model_selectors(raw_cfg)
         default_task_name, default_task_cfg = self._pick_default_summary_task(available_tasks)
 
-        base_cfg: Optional[TaskConfig] = None
+        base_cfg: Optional[Any] = None
         base_task_name: Optional[str] = None
         model_dict = self._current_model_dict()
 
-        def _find_task_for_model(model_name: str) -> Tuple[Optional[str], Optional[TaskConfig]]:
+        def _find_task_for_model(model_name: str) -> Tuple[Optional[str], Optional[Any]]:
             return find_text_generation_task_for_model(available_tasks, model_name)
 
         for raw_selector in selectors:
@@ -394,7 +397,7 @@ class SummaryImporter:
 
         template_cfg = base_cfg
         task_name_to_use = base_task_name
-        return task_name_to_use, TaskConfig(
+        return task_name_to_use, type(template_cfg)(
             model_list=list(template_cfg.model_list),
             max_tokens=template_cfg.max_tokens,
             temperature=template_cfg.temperature,
@@ -513,7 +516,7 @@ class SummaryImporter:
 
             # 2. 获取历史消息
             query_time_end = time.time() if time_end is None else float(time_end)
-            messages = message_api.get_messages_by_time_in_chat(
+            messages = self._message_api.get_messages_by_time_in_chat(
                 chat_id=stream_id,
                 start_time=0.0,
                 end_time=query_time_end,
@@ -525,7 +528,7 @@ class SummaryImporter:
                 return SummaryImportResult(False, "未找到有效的聊天记录进行总结")
 
             # 转换为可读文本
-            chat_history_text = message_api.build_readable_messages(messages)
+            chat_history_text = self._message_api.build_readable_messages(messages)
             review_count = self._summary_review_count(metadata)
             previous_summary_context = self._build_previous_summary_context(
                 stream_id,
@@ -533,10 +536,10 @@ class SummaryImporter:
             )
 
             # 3. 准备提示词内容
-            bot_name = global_config.bot.nickname or "机器人"
+            bot_name = self.plugin_config.get("bot_nickname", "") or "机器人"
             personality_context = ""
             if include_personality:
-                personality = getattr(global_config.bot, "personality", "")
+                personality = self.plugin_config.get("bot_personality", "")
                 if personality:
                     personality_context = f"你的性格设定是：{personality}"
 
@@ -555,8 +558,8 @@ class SummaryImporter:
 
             logger.info(f"正在为流 {stream_id} 执行总结，消息条数: {len(messages)}|总结模型任务: {task_name_to_use}|候选列表: {model_config_to_use.model_list}")
 
-            result = await llm_api.generate(
-                llm_api.LLMServiceRequest(
+            result = await self._llm_api.generate(
+                self._llm_api.LLMServiceRequest(
                     task_name=task_name_to_use,
                     request_type="A_Memorix.ChatSummarization",
                     prompt=prompt,
