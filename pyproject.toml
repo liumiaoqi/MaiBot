@@ -77,9 +77,33 @@ select = [
     "E", # pycodestyle 错误
     "F", # pyflakes
     "B", # flake8-bugbear
+    "TID", # flake8-tidy-imports
 ]
 
-ignore = ["E711", "E501"]
+ignore = ["E711", "E501", "TID252"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"src.A_memorix.core" = {msg = "核心模块禁止直接导入 A_memorix 内部实现，请通过 MemoryServicePort Protocol 接口交互"}
+"src.A_memorix.core.runtime" = {msg = "核心模块禁止直接导入 A_memorix 运行时，请通过 MemoryServicePort Protocol 接口交互"}
+"src.A_memorix.core.runtime.sdk_memory_kernel" = {msg = "核心模块禁止直接导入 SDKMemoryKernel，请通过 MemoryServicePort Protocol 接口交互"}
+"src.services.send_service.text_to_stream" = {msg = "禁止直接调用 send_service 发送函数，请使用 get_message_port_v2().send_message()"}
+"src.services.send_service.text_to_stream_with_message" = {msg = "禁止直接调用 send_service 发送函数，请使用 get_message_port_v2().send_message()"}
+"src.services.send_service.emoji_to_stream" = {msg = "禁止直接调用 send_service 发送函数，请使用 get_message_port_v2().send_message()"}
+"src.services.send_service.emoji_to_stream_with_message" = {msg = "禁止直接调用 send_service 发送函数，请使用 get_message_port_v2().send_message()"}
+"src.services.send_service.image_to_stream" = {msg = "禁止直接调用 send_service 发送函数，请使用 get_message_port_v2().send_message()"}
+"src.services.send_service.custom_to_stream" = {msg = "禁止直接调用 send_service 发送函数，请使用 get_message_port_v2().send_message()"}
+"src.services.send_service.custom_reply_set_to_stream" = {msg = "禁止直接调用 send_service 发送函数，请使用 get_message_port_v2().send_message()"}
+"src.services.send_service._send_to_target_with_message" = {msg = "禁止直接调用 send_service 内部函数，请使用 get_message_port_v2().send_message()"}
+
+[tool.ruff.lint.per-file-ignores]
+"src/core/adapters/*" = ["TID251"]
+"src/main.py" = ["TID251"]
+"src/services/memory_service.py" = ["TID251"]
+"src/core/message_port_registry.py" = ["TID251"]
+"src/maisaka/message_port.py" = ["TID251"]
+"src/plugin_runtime/hook_catalog.py" = ["TID251"]
+"src/services/send_service.py" = ["TID251"]
+"src/A_memorix/**" = ["TID251"]
 
 [tool.ruff.format]
 docstring-code-format = true
