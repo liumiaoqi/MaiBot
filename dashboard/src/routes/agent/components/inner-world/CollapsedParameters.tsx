@@ -5,14 +5,12 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 
 interface CollapsedParametersProps {
   talkValueModifier: number
-  idleBackoffModifier: number
   relationshipGrowthRate: number
   emotionDecayRate: number
 }
 
 export function CollapsedParameters({
   talkValueModifier,
-  idleBackoffModifier,
   relationshipGrowthRate,
   emotionDecayRate,
 }: CollapsedParametersProps) {
@@ -31,10 +29,7 @@ export function CollapsedParameters({
             <span>×{talkValueModifier.toFixed(1)}</span>
           </div>
           <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">{t('agent.collapsedParameters.idleBackoffModifier')}</span>
-            <span>×{idleBackoffModifier.toFixed(1)}</span>
-          </div>
-          <div className="flex justify-between text-sm">
+
             <span className="text-muted-foreground">{t('agent.collapsedParameters.relationshipGrowthRate')}</span>
             <span>×{relationshipGrowthRate.toFixed(1)}</span>
           </div>

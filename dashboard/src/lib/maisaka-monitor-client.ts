@@ -115,50 +115,6 @@ export interface MaisakaMessageMedia {
   index?: number
 }
 
-export interface TimingGateResultEvent {
-  session_id: string
-  cycle_id: number
-  action: 'continue' | 'wait' | 'no_action'
-  content: string | null
-  tool_calls: MaisakaToolCall[]
-  messages: MaisakaMessage[]
-  prompt_tokens: number
-  selected_history_count: number
-  duration_ms: number
-  timestamp: number
-}
-
-export interface PlannerRequestEvent {
-  session_id: string
-  cycle_id: number
-  messages: MaisakaMessage[]
-  tool_count: number
-  selected_history_count: number
-  timestamp: number
-}
-
-export interface PlannerResponseEvent {
-  session_id: string
-  cycle_id: number
-  content: string | null
-  tool_calls: MaisakaToolCall[]
-  prompt_tokens: number
-  completion_tokens: number
-  total_tokens: number
-  duration_ms: number
-  timestamp: number
-}
-
-export interface ToolExecutionEvent {
-  session_id: string
-  cycle_id: number
-  tool_name: string
-  tool_args: Record<string, unknown>
-  result_summary: string
-  success: boolean
-  duration_ms: number
-  timestamp: number
-}
 
 export interface MaisakaRequestBlock {
   messages: MaisakaMessage[]
@@ -207,7 +163,7 @@ export interface PlannerFinalizedEvent {
   session_id: string
   cycle_id: number
   timestamp: number
-  timing_gate: MaisakaTimingGateBlock | null
+  timing_gate?: MaisakaTimingGateBlock | null
   request: MaisakaRequestBlock | null
   planner: MaisakaPlannerBlock | null
   tools: MaisakaFinalizedToolResult[]
@@ -220,26 +176,6 @@ export interface PlannerFinalizedEvent {
   }
 }
 
-export interface ReplierRequestEvent {
-  session_id: string
-  messages: MaisakaMessage[]
-  model_name: string
-  timestamp: number
-}
-
-export interface ReplierResponseEvent {
-  session_id: string
-  content: string | null
-  reasoning: string
-  model_name: string
-  prompt_tokens: number
-  completion_tokens: number
-  total_tokens: number
-  duration_ms: number
-  success: boolean
-  timestamp: number
-}
-
 // ─── 统一事件联合类型 ─────────────────────────────────────────
 
 export type MaisakaMonitorEvent =
@@ -250,13 +186,7 @@ export type MaisakaMonitorEvent =
   | { type: 'message.ingested'; data: MessageIngestedEvent }
   | { type: 'message.sent'; data: MessageSentEvent }
   | { type: 'message.updated'; data: MessageUpdatedEvent }
-  | { type: 'timing_gate.result'; data: TimingGateResultEvent }
-  | { type: 'planner.request'; data: PlannerRequestEvent }
-  | { type: 'planner.response'; data: PlannerResponseEvent }
   | { type: 'planner.finalized'; data: PlannerFinalizedEvent }
-  | { type: 'tool.execution'; data: ToolExecutionEvent }
-  | { type: 'replier.request'; data: ReplierRequestEvent }
-  | { type: 'replier.response'; data: ReplierResponseEvent }
 
 export type MaisakaEventListener = (event: MaisakaMonitorEvent) => void
 

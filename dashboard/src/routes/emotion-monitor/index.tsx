@@ -477,7 +477,7 @@ export function EmotionMonitorPage() {
                   <CardTitle className="text-sm">{t('emotion.behaviorParams')}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-xs text-muted-foreground">{t('emotion.decayRate')}</p>
                       <p className="text-lg font-semibold">{selectedAgent.emotion_decay_rate}/h</p>
@@ -485,10 +485,6 @@ export function EmotionMonitorPage() {
                     <div>
                       <p className="text-xs text-muted-foreground">{t('emotion.activityModifier')}</p>
                       <p className="text-lg font-semibold">×{selectedAgent.talk_value_modifier.toFixed(1)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">{t('emotion.backoffModifier')}</p>
-                      <p className="text-lg font-semibold">×{selectedAgent.idle_backoff_modifier.toFixed(1)}</p>
                     </div>
                   </div>
                 </CardContent>

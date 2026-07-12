@@ -1364,7 +1364,7 @@
     "collapsedParameters": {
       "title": "기반 매개변수",
       "talkValueModifier": "활동도 수정",
-      "idleBackoffModifier": "유휴 회피 수정",
+
       "relationshipGrowthRate": "관계 성장률",
       "emotionDecayRate": "감정 감쇠율"
     },
@@ -1399,7 +1399,7 @@
     "behaviorParams": "감정 행동 매개변수",
     "decayRate": "감쇠율",
     "activityModifier": "활동도 수정",
-    "backoffModifier": "회피 수정",
+
     "currentState": "현재 상태",
     "baseline": "감정 기준선"
   },

@@ -1373,7 +1373,7 @@
     "collapsedParameters": {
       "title": "基盤パラメータ",
       "talkValueModifier": "活動度修正",
-      "idleBackoffModifier": "アイドル回避修正",
+
       "relationshipGrowthRate": "関係成長率",
       "emotionDecayRate": "感情減衰率"
     },
@@ -1564,7 +1564,7 @@
     "behaviorParams": "感情行動パラメータ",
     "decayRate": "減衰率",
     "activityModifier": "活動度修正",
-    "backoffModifier": "回避修正",
+
     "currentState": "現在の状態",
     "baseline": "感情ベースライン"
   },

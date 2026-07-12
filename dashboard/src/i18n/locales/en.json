@@ -1373,7 +1373,7 @@
     "collapsedParameters": {
       "title": "Underlying Parameters",
       "talkValueModifier": "Activity Modifier",
-      "idleBackoffModifier": "Idle Backoff Modifier",
+
       "relationshipGrowthRate": "Relationship Growth Rate",
       "emotionDecayRate": "Emotion Decay Rate"
     },
@@ -1564,7 +1564,7 @@
     "behaviorParams": "Emotion Behavior Parameters",
     "decayRate": "Decay Rate",
     "activityModifier": "Activity Modifier",
-    "backoffModifier": "Backoff Modifier",
+
     "currentState": "Current State",
     "baseline": "Emotion Baseline"
   },

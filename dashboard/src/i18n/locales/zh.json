@@ -1371,7 +1371,7 @@
     "collapsedParameters": {
       "title": "底层参数",
       "talkValueModifier": "活跃度修正",
-      "idleBackoffModifier": "空闲退避修正",
+
       "relationshipGrowthRate": "关系进展速率",
       "emotionDecayRate": "情绪衰减率"
     },
@@ -1562,7 +1562,7 @@
     "behaviorParams": "情绪行为参数",
     "decayRate": "衰减率",
     "activityModifier": "活跃度修正",
-    "backoffModifier": "退避修正",
+
     "currentState": "当前状态",
     "baseline": "情绪基线"
   },
