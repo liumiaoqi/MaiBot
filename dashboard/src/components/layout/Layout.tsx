@@ -47,7 +47,7 @@ export function Layout({ children }: LayoutProps) {
   const workspaceMode = pathname === '/chat' ? 'chat' : isLogsPath ? 'logs' : 'settings'
   const isSettingsWorkspace = workspaceMode === 'settings'
   const isChatWorkspace = workspaceMode === 'chat'
-  const showBackToTop = isSettingsWorkspace && pathname !== '/planner-monitor'
+  const showBackToTop = isSettingsWorkspace && pathname !== '/maisaka-monitor'
 
   const [sidebarOpen, setSidebarOpen] = useState(() => loadStoredBoolean(SIDEBAR_OPEN_STORAGE_KEY, true))
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)

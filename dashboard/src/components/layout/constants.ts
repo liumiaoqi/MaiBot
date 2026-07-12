@@ -60,7 +60,7 @@ export const menuSections: MenuSection[] = [
       { icon: RelationshipIcon, label: 'sidebar.menu.relationshipMonitor', path: '/relationship-monitor' },
       { icon: SubAgentIcon, label: 'sidebar.menu.subagentMonitor', path: '/subagent-monitor' },
       { icon: DeepSeekIcon, label: 'sidebar.menu.deepseekMonitor', path: '/deepseek-monitor' },
-      { icon: MonitorIcon, label: 'sidebar.menu.maisakaMonitor', path: '/planner-monitor' },
+      { icon: MonitorIcon, label: 'sidebar.menu.maisakaMonitor', path: '/maisaka-monitor' },
       { icon: SystemMonitorIcon, label: 'sidebar.menu.systemMonitor', path: '/system-monitor' },
       { icon: ChatManagementIcon, label: 'sidebar.menu.chatManagement', path: '/chat-management' },
     ],

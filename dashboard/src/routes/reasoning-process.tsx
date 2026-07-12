@@ -91,10 +91,12 @@ const STAGE_LABELS: Record<string, string> = {
   expression_selector: '表达选择',
   jargon_learner: '黑话抽取',
   jargon_learning_update: '黑话含义推断',
-  planner: '规划器',
+  planner: '思维管道',
   reply_effect_judge: '回复效果评估',
   replyer: '回复器',
-  timing_gate: '时机判断',
+  thinking_organ: '思维管道',
+  tool_loop: '工具循环',
+  timing_gate: '时机判断（历史）',
 }
 
 type StageCategoryRow = {

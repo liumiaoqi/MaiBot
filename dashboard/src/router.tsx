@@ -224,9 +224,9 @@ const deepseekMonitorRoute = createRoute({
 })
 
 // MaiSaka 聊天流监控路由
-const plannerMonitorRoute = createRoute({
+const maisakaMonitorRoute = createRoute({
   getParentRoute: () => protectedRoute,
-  path: '/planner-monitor',
+  path: '/maisaka-monitor',
   component: lazyRouteComponent(() => import('./routes/monitor/index.tsx'), 'PlannerMonitorPage'),
 })
 
@@ -415,7 +415,7 @@ const routeTree = rootRoute.addChildren([
     relationshipMonitorRoute,
     subagentMonitorRoute,
     deepseekMonitorRoute,
-    plannerMonitorRoute,
+    maisakaMonitorRoute,
     systemMonitorRoute,
     chatManagementRoute,
     chatRoute,
