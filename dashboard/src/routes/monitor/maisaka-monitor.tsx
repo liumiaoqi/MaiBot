@@ -542,6 +542,7 @@ function MessageSentCard({ data }: { data: MessageSentEvent }) {
         <div className="mb-1 flex items-center gap-2">
           <span className="font-medium text-sm">{data.speaker_name || '麦麦'}</span>
           <Badge variant="outline" className="text-[10px]">已发送</Badge>
+          {data.source_kind && <Badge variant="secondary" className="text-[10px]">{data.source_kind}</Badge>}
           <span className="text-xs text-muted-foreground">{formatTimestamp(data.timestamp)}</span>
         </div>
         <ReplyPreviewBlock replyTo={data.reply_to} />

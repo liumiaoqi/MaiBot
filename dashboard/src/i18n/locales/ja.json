@@ -1549,6 +1549,13 @@
       "total": "全 {{count}} 件",
       "prev": "前へ",
       "next": "次へ"
+    },
+    "migration": {
+      "title": "記憶移行状態",
+      "loading": "読み込み中...",
+      "advance": "進める",
+      "advanceSuccess": "{{name}} が {{phase}} に進みました",
+      "advanceFailed": "移行フェーズの進行に失敗しました"
     }
   },
   "emotion": {

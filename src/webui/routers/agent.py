@@ -509,6 +509,8 @@ async def get_sessions_by_agent(agent_id: str):
 
         agent_router = _get_agent_router()
 
+        from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
+
         sessions = []
         with get_db_session() as db:
             statement = select(ChatSession).filter_by(agent_id=agent_id)
@@ -522,6 +524,11 @@ async def get_sessions_by_agent(agent_id: str):
 
                 is_primary = (agent_router.get_primary_agent(s.session_id) == agent_id)
 
+                orch = AgentOrchestrator.get_by_session(s.session_id)
+                agent_vitality = 0.0
+                if orch is not None:
+                    agent_vitality = orch._vitality_manager.get_agent_vitality(agent_id, s.session_id)
+
                 all_agents = agent_router.get_session_all_agents(s.session_id)
                 cohabitants = []
                 for other_id in all_agents:
@@ -530,11 +537,15 @@ async def get_sessions_by_agent(agent_id: str):
                     other_config = registry.get_agent(other_id) if registry.has_agent(other_id) else None
                     other_primary = (agent_router.get_primary_agent(s.session_id) == other_id)
                     other_status = "active"
+                    other_vitality = 0.0
+                    if orch is not None:
+                        other_vitality = orch._vitality_manager.get_agent_vitality(other_id, s.session_id)
                     cohabitants.append(CohabitantInfo(
                         agent_id=other_id,
                         display_name=other_config.display_name if other_config else other_id,
                         is_primary=other_primary,
                         status=other_status,
+                        vitality_value=other_vitality,
                     ))
 
                 sessions.append(SessionAgentInfo(
@@ -545,6 +556,7 @@ async def get_sessions_by_agent(agent_id: str):
                     status=status,
                     is_primary=is_primary,
                     last_spoke_at=last_spoke,
+                    vitality_value=agent_vitality,
                     cohabitants=cohabitants,
                 ))
         return ApiResponse(data=SessionsByAgentResponse(

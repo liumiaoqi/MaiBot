@@ -1547,6 +1547,13 @@
       "total": "共 {{count}} 条",
       "prev": "上一页",
       "next": "下一页"
+    },
+    "migration": {
+      "title": "记忆迁移状态",
+      "loading": "加载中...",
+      "advance": "推进",
+      "advanceSuccess": "{{name}} 已推进至 {{phase}}",
+      "advanceFailed": "推进迁移阶段失败"
     }
   },
   "emotion": {

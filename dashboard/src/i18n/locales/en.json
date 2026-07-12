@@ -1549,6 +1549,13 @@
       "total": "{{count}} total",
       "prev": "Prev",
       "next": "Next"
+    },
+    "migration": {
+      "title": "Memory Migration Status",
+      "loading": "Loading...",
+      "advance": "Advance",
+      "advanceSuccess": "{{name}} advanced to {{phase}}",
+      "advanceFailed": "Failed to advance migration phase"
     }
   },
   "emotion": {
