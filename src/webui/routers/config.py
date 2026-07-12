@@ -1011,7 +1011,7 @@ def _apply_prompt_generator_config_blocks(blocks: List[PromptGeneratorConfigBloc
     except AppError:
         raise
     except Exception as e:
-        raise AppError(ErrorCode.PARAM_INVALID, f"配置数据验证失败: {str(e, http_status=400)}") from e
+        raise AppError(ErrorCode.PARAM_INVALID, f"配置数据验证失败: {str(e)}") from e
 
     save_toml_with_format(plain_config_data, config_path)
     config_manager.reload_config()
@@ -1072,7 +1072,7 @@ async def list_prompt_files():
         raise
     except Exception as e:
         logger.error(f"列出 Prompt 文件失败: {e}", exc_info=True)
-        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"列出 Prompt 文件失败: {str(e, http_status=500)}") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"列出 Prompt 文件失败: {str(e)}") from e
 
 
 @router.get("/prompts/{language}/{filename}", response_model=ApiResponse[PromptFileResponse])
@@ -1104,7 +1104,7 @@ async def get_prompt_file(language: str, filename: str):
         raise
     except Exception as e:
         logger.error(f"读取 Prompt 文件失败: {prompt_path} {e}", exc_info=True)
-        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"读取 Prompt 文件失败: {str(e, http_status=500)}") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"读取 Prompt 文件失败: {str(e)}") from e
 
 
 @router.get("/prompts/{language}/{filename}/default", response_model=ApiResponse[PromptFileResponse])
@@ -1129,7 +1129,7 @@ async def get_default_prompt_file(language: str, filename: str):
         raise
     except Exception as e:
         logger.error(f"读取默认 Prompt 文件失败: {prompt_path} {e}", exc_info=True)
-        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"读取默认 Prompt 文件失败: {str(e, http_status=500)}") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"读取默认 Prompt 文件失败: {str(e)}") from e
 
 
 @router.get("/prompts/{language}/{filename}/versions", response_model=ApiResponse[PromptVersionListResponse])
@@ -1256,7 +1256,7 @@ async def update_prompt_file(language: str, filename: str, request: PromptUpdate
         raise
     except Exception as e:
         logger.error(f"保存 Prompt 文件失败: {prompt_path} {e}", exc_info=True)
-        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"保存 Prompt 文件失败: {str(e, http_status=500)}") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"保存 Prompt 文件失败: {str(e)}") from e
 
 
 @router.delete("/prompts/{language}/{filename}", response_model=ApiResponse[PromptFileResponse])
@@ -1286,7 +1286,7 @@ async def reset_prompt_file(language: str, filename: str):
         raise
     except Exception as e:
         logger.error(f"恢复 Prompt 默认模板失败: {prompt_path} {e}", exc_info=True)
-        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"恢复 Prompt 默认模板失败: {str(e, http_status=500)}") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"恢复 Prompt 默认模板失败: {str(e)}") from e
 
 
 @router.get("/maisaka-prompt-preview", response_class=FileResponse)
@@ -1344,7 +1344,7 @@ async def generate_prompt_persona(request: PromptGeneratorRequest):
         raise
     except Exception as e:
         logger.error(f"Prompt 生成失败: {e}", exc_info=True)
-        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"Prompt 生成失败: {str(e, http_status=500)}") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"Prompt 生成失败: {str(e)}") from e
 
 
 @router.post("/prompt-generator/apply", response_model=ApiResponse[PromptGeneratorApplyResponse])
@@ -1357,7 +1357,7 @@ async def apply_prompt_generator_blocks(request: PromptGeneratorApplyRequest):
         raise
     except Exception as e:
         logger.error(f"Prompt 配置块注入失败: {e}", exc_info=True)
-        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"Prompt 配置块注入失败: {str(e, http_status=500)}") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"Prompt 配置块注入失败: {str(e)}") from e
 
 
 @router.get("/schema/bot")
@@ -1371,7 +1371,7 @@ async def get_bot_config_schema():
         raise
     except Exception as e:
         logger.error(f"获取配置架构失败: {e}")
-        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"获取配置架构失败: {str(e, http_status=500)}") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"获取配置架构失败: {str(e)}") from e
 
 
 @compat_router.get("/schema")
@@ -1396,7 +1396,7 @@ async def get_model_config_schema():
         raise
     except Exception as e:
         logger.error(f"获取模型配置架构失败: {e}")
-        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"获取模型配置架构失败: {str(e, http_status=500)}") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"获取模型配置架构失败: {str(e)}") from e
 
 
 # ===== 子配置架构获取接口 =====
@@ -1475,7 +1475,7 @@ async def get_config_section_schema(section_name: str):
         raise
     except Exception as e:
         logger.error(f"获取配置节架构失败: {e}")
-        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"获取配置节架构失败: {str(e, http_status=500)}") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"获取配置节架构失败: {str(e)}") from e
 
 
 # ===== 配置读取接口 =====
@@ -1497,7 +1497,7 @@ async def get_bot_config():
         raise
     except Exception as e:
         logger.error(f"读取配置文件失败: {e}")
-        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"读取配置文件失败: {str(e, http_status=500)}") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"读取配置文件失败: {str(e)}") from e
 
 
 @router.get("/model")
@@ -1516,7 +1516,7 @@ async def get_model_config():
         raise
     except Exception as e:
         logger.error(f"读取配置文件失败: {e}")
-        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"读取配置文件失败: {str(e, http_status=500)}") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"读取配置文件失败: {str(e)}") from e
 
 
 # ===== 配置更新接口 =====
@@ -1534,7 +1534,7 @@ async def update_bot_config(config_data: ConfigBody):
         except AppError:
             raise
         except Exception as e:
-            raise AppError(ErrorCode.PARAM_INVALID, f"配置数据验证失败: {str(e, http_status=400)}") from e
+            raise AppError(ErrorCode.PARAM_INVALID, f"配置数据验证失败: {str(e)}") from e
 
         # 保存配置文件（自动保留注释和格式）
         config_path = os.path.join(CONFIG_DIR, "bot_config.toml")
@@ -1554,7 +1554,7 @@ async def update_bot_config(config_data: ConfigBody):
         raise
     except Exception as e:
         logger.error(f"保存配置文件失败: {e}")
-        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"保存配置文件失败: {str(e, http_status=500)}") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"保存配置文件失败: {str(e)}") from e
 
 
 @router.post("/model")
@@ -1569,7 +1569,7 @@ async def update_model_config(config_data: ConfigBody):
         except AppError:
             raise
         except Exception as e:
-            raise AppError(ErrorCode.PARAM_INVALID, f"配置数据验证失败: {str(e, http_status=400)}") from e
+            raise AppError(ErrorCode.PARAM_INVALID, f"配置数据验证失败: {str(e)}") from e
 
         # 保存配置文件（自动保留注释和格式）
         config_path = os.path.join(CONFIG_DIR, "model_config.toml")
@@ -1588,7 +1588,7 @@ async def update_model_config(config_data: ConfigBody):
         raise
     except Exception as e:
         logger.error(f"保存配置文件失败: {e}")
-        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"保存配置文件失败: {str(e, http_status=500)}") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"保存配置文件失败: {str(e)}") from e
 
 
 # ===== 配置节更新接口 =====
@@ -1629,7 +1629,7 @@ async def update_bot_config_section(section_name: str, section_data: SectionBody
         except AppError:
             raise
         except Exception as e:
-            raise AppError(ErrorCode.PARAM_INVALID, f"配置数据验证失败: {str(e, http_status=400)}") from e
+            raise AppError(ErrorCode.PARAM_INVALID, f"配置数据验证失败: {str(e)}") from e
 
         config_data = plain_config_data
 
@@ -1650,7 +1650,7 @@ async def update_bot_config_section(section_name: str, section_data: SectionBody
         raise
     except Exception as e:
         logger.error(f"更新配置节失败: {e}")
-        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"更新配置节失败: {str(e, http_status=500)}") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"更新配置节失败: {str(e)}") from e
 
 
 # ===== 原始 TOML 文件操作接口 =====
@@ -1672,7 +1672,7 @@ async def get_bot_config_raw():
         raise
     except Exception as e:
         logger.error(f"读取配置文件失败: {e}")
-        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"读取配置文件失败: {str(e, http_status=500)}") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"读取配置文件失败: {str(e)}") from e
 
 
 @router.post("/bot/raw")
@@ -1685,7 +1685,7 @@ async def update_bot_config_raw(raw_content: RawContentBody):
         except AppError:
             raise
         except Exception as e:
-            raise AppError(ErrorCode.PARAM_INVALID, f"TOML 格式错误: {str(e, http_status=400)}") from e
+            raise AppError(ErrorCode.PARAM_INVALID, f"TOML 格式错误: {str(e)}") from e
 
         # 验证配置数据结构
         try:
@@ -1693,7 +1693,7 @@ async def update_bot_config_raw(raw_content: RawContentBody):
         except AppError:
             raise
         except Exception as e:
-            raise AppError(ErrorCode.PARAM_INVALID, f"配置数据验证失败: {str(e, http_status=400)}") from e
+            raise AppError(ErrorCode.PARAM_INVALID, f"配置数据验证失败: {str(e)}") from e
 
         # 保存配置文件
         config_path = os.path.join(CONFIG_DIR, "bot_config.toml")
@@ -1710,7 +1710,7 @@ async def update_bot_config_raw(raw_content: RawContentBody):
         raise
     except Exception as e:
         logger.error(f"保存配置文件失败: {e}")
-        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"保存配置文件失败: {str(e, http_status=500)}") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"保存配置文件失败: {str(e)}") from e
 
 
 @compat_router.get("/raw")
@@ -1791,9 +1791,9 @@ async def update_model_config_section(section_name: str, section_data: SectionBo
                     )
                     raise AppError(ErrorCode.PARAM_INVALID, error_msg, http_status=400) from e
                 else:
-                    raise AppError(ErrorCode.PARAM_INVALID, f"配置数据验证失败: {str(e, http_status=400)}") from e
+                    raise AppError(ErrorCode.PARAM_INVALID, f"配置数据验证失败: {str(e)}") from e
             if not allow_orphaned_provider_save:
-                raise AppError(ErrorCode.PARAM_INVALID, f"配置数据验证失败: {str(e, http_status=400)}") from e
+                raise AppError(ErrorCode.PARAM_INVALID, f"配置数据验证失败: {str(e)}") from e
 
         config_data = plain_config_data
 
@@ -1807,7 +1807,7 @@ async def update_model_config_section(section_name: str, section_data: SectionBo
         raise
     except Exception as e:
         logger.error(f"更新配置节失败: {e}")
-        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"更新配置节失败: {str(e, http_status=500)}") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"更新配置节失败: {str(e)}") from e
 
 
 # ===== 适配器配置管理接口 =====
@@ -1914,7 +1914,7 @@ async def get_adapter_config_path():
 
     except Exception as e:
         logger.error(f"获取适配器配置路径失败: {e}")
-        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"获取配置路径失败: {str(e, http_status=500)}") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"获取配置路径失败: {str(e)}") from e
 
 
 @router.post("/adapter-config/path")
@@ -1958,7 +1958,7 @@ async def save_adapter_config_path(data: PathBody):
 
     except Exception as e:
         logger.error(f"保存适配器配置路径失败: {e}")
-        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"保存路径失败: {str(e, http_status=500)}") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"保存路径失败: {str(e)}") from e
 
 
 @router.get("/adapter-config")
@@ -1987,7 +1987,7 @@ async def get_adapter_config(path: str):
 
     except Exception as e:
         logger.error(f"读取适配器配置失败: {e}")
-        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"读取配置失败: {str(e, http_status=500)}") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"读取配置失败: {str(e)}") from e
 
 
 @router.post("/adapter-config")
@@ -2010,7 +2010,7 @@ async def save_adapter_config(data: PathBody):
         except AppError:
             raise
         except Exception as e:
-            raise AppError(ErrorCode.PARAM_INVALID, f"TOML 格式错误: {str(e, http_status=400)}") from e
+            raise AppError(ErrorCode.PARAM_INVALID, f"TOML 格式错误: {str(e)}") from e
 
         # 确保目录存在
         dir_path = os.path.dirname(abs_path)
@@ -2030,4 +2030,4 @@ async def save_adapter_config(data: PathBody):
 
     except Exception as e:
         logger.error(f"保存适配器配置失败: {e}")
-        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"保存配置失败: {str(e, http_status=500)}") from e
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"保存配置失败: {str(e)}") from e

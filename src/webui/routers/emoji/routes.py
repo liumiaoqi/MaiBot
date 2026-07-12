@@ -310,6 +310,148 @@ async def get_emoji_list(
         raise HTTPException(status_code=500, detail=f"获取表情包列表失败: {str(e)}") from e
 
 
+@router.get("/stats/summary")
+async def get_emoji_stats(maibot_session: Optional[str] = Cookie(None)) -> Dict[str, Any]:
+    """获取表情包统计数据。
+
+    Args:
+        maibot_session: WebUI 登录会话 Cookie。
+
+    Returns:
+        Dict[str, Any]: 表情包总数、格式分布和高频使用统计。
+    """
+    try:
+        verify_auth_token(maibot_session)
+
+        with get_db_session() as session:
+            total_statement = select(func.count()).select_from(Images).where(col(Images.image_type) == ImageType.EMOJI)
+            registered_statement = (
+                select(func.count())
+                .select_from(Images)
+                .where(
+                    col(Images.image_type) == ImageType.EMOJI,
+                    col(Images.is_registered),
+                )
+            )
+            banned_statement = (
+                select(func.count())
+                .select_from(Images)
+                .where(
+                    col(Images.image_type) == ImageType.EMOJI,
+                    col(Images.is_banned),
+                )
+            )
+            description_text = func.trim(func.coalesce(col(Images.description), ""))
+            known_statement = (
+                select(func.count())
+                .select_from(Images)
+                .where(
+                    col(Images.image_type) == ImageType.EMOJI,
+                    col(Images.is_registered).is_(False),
+                    col(Images.is_banned).is_(False),
+                    description_text != "",
+                )
+            )
+            unknown_statement = (
+                select(func.count())
+                .select_from(Images)
+                .where(
+                    col(Images.image_type) == ImageType.EMOJI,
+                    col(Images.is_registered).is_(False),
+                    col(Images.is_banned).is_(False),
+                    description_text == "",
+                )
+            )
+
+            total = session.exec(total_statement).one()
+            registered = session.exec(registered_statement).one()
+            banned = session.exec(banned_statement).one()
+            known = session.exec(known_statement).one()
+            unknown = session.exec(unknown_statement).one()
+
+            formats: Dict[str, int] = {}
+            format_statement = select(Images.full_path).where(col(Images.image_type) == ImageType.EMOJI)
+            for full_path in session.exec(format_statement).all():
+                suffix = Path(full_path).suffix.lower().lstrip(".")
+                fmt = suffix or "unknown"
+                formats[fmt] = formats.get(fmt, 0) + 1
+
+            top_used_statement = (
+                select(Images)
+                .where(col(Images.image_type) == ImageType.EMOJI)
+                .order_by(col(Images.query_count).desc())
+                .limit(10)
+            )
+            top_used_list = [
+                {
+                    "id": emoji.id,
+                    "emoji_hash": emoji.image_hash,
+                    "description": emoji.description,
+                    "usage_count": emoji.query_count,
+                }
+                for emoji in session.exec(top_used_statement).all()
+            ]
+
+        return {
+            "success": True,
+            "data": {
+                "total": total,
+                "registered": registered,
+                "banned": banned,
+                "unregistered": total - registered,
+                "known": known,
+                "unknown": unknown,
+                "adopted": registered,
+                "discarded": banned,
+                "formats": formats,
+                "top_used": top_used_list,
+            },
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"获取统计数据失败: {e}")
+        raise HTTPException(status_code=500, detail=f"获取统计数据失败: {str(e)}") from e
+
+
+@router.get("/thumbnail-cache/stats", response_model=ThumbnailCacheStatsResponse)
+async def get_thumbnail_cache_stats(maibot_session: Optional[str] = Cookie(None)) -> ThumbnailCacheStatsResponse:
+    """获取缩略图缓存统计信息。
+
+    Args:
+        maibot_session: WebUI 登录会话 Cookie。
+
+    Returns:
+        ThumbnailCacheStatsResponse: 缩略图缓存数量、大小和覆盖率统计。
+    """
+    try:
+        verify_auth_token(maibot_session)
+
+        ensure_thumbnail_cache_dir()
+        cache_files = list(THUMBNAIL_CACHE_DIR.glob("*.webp"))
+        total_count = len(cache_files)
+        total_size_mb = round(sum(item.stat().st_size for item in cache_files) / (1024 * 1024), 2)
+
+        with get_db_session() as session:
+            count_statement = select(func.count()).select_from(Images).where(col(Images.image_type) == ImageType.EMOJI)
+            emoji_count = session.exec(count_statement).one()
+
+        coverage_percent = round((total_count / emoji_count * 100) if emoji_count > 0 else 0, 1)
+        return ThumbnailCacheStatsResponse(
+            success=True,
+            cache_dir=str(THUMBNAIL_CACHE_DIR.absolute()),
+            total_count=total_count,
+            total_size_mb=total_size_mb,
+            emoji_count=emoji_count,
+            coverage_percent=coverage_percent,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"获取缩略图缓存统计失败: {e}")
+        raise HTTPException(status_code=500, detail=f"统计失败: {str(e)}") from e
+
+
 @router.get("/{emoji_id}", response_model=EmojiDetailResponse)
 async def get_emoji_detail(emoji_id: int, maibot_session: Optional[str] = Cookie(None)) -> EmojiDetailResponse:
     """获取表情包详细信息。
@@ -461,109 +603,6 @@ async def delete_emoji(emoji_id: int, maibot_session: Optional[str] = Cookie(Non
         logger.exception(f"删除表情包失败: {e}")
         raise HTTPException(status_code=500, detail=f"删除表情包失败: {str(e)}") from e
 
-
-@router.get("/stats/summary")
-async def get_emoji_stats(maibot_session: Optional[str] = Cookie(None)) -> Dict[str, Any]:
-    """获取表情包统计数据。
-
-    Args:
-        maibot_session: WebUI 登录会话 Cookie。
-
-    Returns:
-        Dict[str, Any]: 表情包总数、格式分布和高频使用统计。
-    """
-    try:
-        verify_auth_token(maibot_session)
-
-        with get_db_session() as session:
-            total_statement = select(func.count()).select_from(Images).where(col(Images.image_type) == ImageType.EMOJI)
-            registered_statement = (
-                select(func.count())
-                .select_from(Images)
-                .where(
-                    col(Images.image_type) == ImageType.EMOJI,
-                    col(Images.is_registered),
-                )
-            )
-            banned_statement = (
-                select(func.count())
-                .select_from(Images)
-                .where(
-                    col(Images.image_type) == ImageType.EMOJI,
-                    col(Images.is_banned),
-                )
-            )
-            description_text = func.trim(func.coalesce(col(Images.description), ""))
-            known_statement = (
-                select(func.count())
-                .select_from(Images)
-                .where(
-                    col(Images.image_type) == ImageType.EMOJI,
-                    col(Images.is_registered).is_(False),
-                    col(Images.is_banned).is_(False),
-                    description_text != "",
-                )
-            )
-            unknown_statement = (
-                select(func.count())
-                .select_from(Images)
-                .where(
-                    col(Images.image_type) == ImageType.EMOJI,
-                    col(Images.is_registered).is_(False),
-                    col(Images.is_banned).is_(False),
-                    description_text == "",
-                )
-            )
-
-            total = session.exec(total_statement).one()
-            registered = session.exec(registered_statement).one()
-            banned = session.exec(banned_statement).one()
-            known = session.exec(known_statement).one()
-            unknown = session.exec(unknown_statement).one()
-
-            formats: Dict[str, int] = {}
-            format_statement = select(Images.full_path).where(col(Images.image_type) == ImageType.EMOJI)
-            for full_path in session.exec(format_statement).all():
-                suffix = Path(full_path).suffix.lower().lstrip(".")
-                fmt = suffix or "unknown"
-                formats[fmt] = formats.get(fmt, 0) + 1
-
-            top_used_statement = (
-                select(Images)
-                .where(col(Images.image_type) == ImageType.EMOJI)
-                .order_by(col(Images.query_count).desc())
-                .limit(10)
-            )
-            top_used_list = [
-                {
-                    "id": emoji.id,
-                    "emoji_hash": emoji.image_hash,
-                    "description": emoji.description,
-                    "usage_count": emoji.query_count,
-                }
-                for emoji in session.exec(top_used_statement).all()
-            ]
-
-        return {
-            "success": True,
-            "data": {
-                "total": total,
-                "registered": registered,
-                "banned": banned,
-                "unregistered": total - registered,
-                "known": known,
-                "unknown": unknown,
-                "adopted": registered,
-                "discarded": banned,
-                "formats": formats,
-                "top_used": top_used_list,
-            },
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception(f"获取统计数据失败: {e}")
-        raise HTTPException(status_code=500, detail=f"获取统计数据失败: {str(e)}") from e
 
 
 @router.post("/{emoji_id}/register", response_model=EmojiUpdateResponse)
@@ -1040,43 +1079,6 @@ async def batch_upload_emoji(
         logger.exception(f"批量上传表情包失败: {e}")
         raise HTTPException(status_code=500, detail=f"批量上传失败: {str(e)}") from e
 
-
-@router.get("/thumbnail-cache/stats", response_model=ThumbnailCacheStatsResponse)
-async def get_thumbnail_cache_stats(maibot_session: Optional[str] = Cookie(None)) -> ThumbnailCacheStatsResponse:
-    """获取缩略图缓存统计信息。
-
-    Args:
-        maibot_session: WebUI 登录会话 Cookie。
-
-    Returns:
-        ThumbnailCacheStatsResponse: 缩略图缓存数量、大小和覆盖率统计。
-    """
-    try:
-        verify_auth_token(maibot_session)
-
-        ensure_thumbnail_cache_dir()
-        cache_files = list(THUMBNAIL_CACHE_DIR.glob("*.webp"))
-        total_count = len(cache_files)
-        total_size_mb = round(sum(item.stat().st_size for item in cache_files) / (1024 * 1024), 2)
-
-        with get_db_session() as session:
-            count_statement = select(func.count()).select_from(Images).where(col(Images.image_type) == ImageType.EMOJI)
-            emoji_count = session.exec(count_statement).one()
-
-        coverage_percent = round((total_count / emoji_count * 100) if emoji_count > 0 else 0, 1)
-        return ThumbnailCacheStatsResponse(
-            success=True,
-            cache_dir=str(THUMBNAIL_CACHE_DIR.absolute()),
-            total_count=total_count,
-            total_size_mb=total_size_mb,
-            emoji_count=emoji_count,
-            coverage_percent=coverage_percent,
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception(f"获取缩略图缓存统计失败: {e}")
-        raise HTTPException(status_code=500, detail=f"获取统计失败: {str(e)}") from e
 
 
 @router.post("/thumbnail-cache/cleanup", response_model=ThumbnailCleanupResponse)
