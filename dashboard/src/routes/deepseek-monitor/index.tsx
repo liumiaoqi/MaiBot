@@ -445,7 +445,7 @@ function CostPanel({ agentId }: { agentId: string }) {
           <h4 className="text-sm font-medium">月度成本排行</h4>
           <ScrollArea className="h-48">
             <div className="space-y-1">
-              {Object.entries(report.by_agent)
+              {Object.entries(report.by_agent ?? {})
                 .sort(([, a], [, b]) => b.cost - a.cost)
                 .slice(0, 13)
                 .map(([aid, data]) => (
