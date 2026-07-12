@@ -30,7 +30,42 @@ export interface DynamicFieldProps {
   schema: FieldSchema
   value: unknown
   onChange: (value: unknown) => void
-  fieldPath?: string // 用于 Hook 系统（未来使用）
+  fieldPath?: string
+  originalValue?: unknown
+  error?: string
+}
+
+export function validateField(schema: FieldSchema, value: unknown): string {
+  if (schema.required) {
+    const isEmpty =
+      value === null ||
+      value === undefined ||
+      value === '' ||
+      (Array.isArray(value) && value.length === 0)
+    if (isEmpty) {
+      return '此字段为必填项'
+    }
+  }
+
+  if (schema.type === 'string' && typeof value === 'string') {
+    if (schema.options && schema.options.length > 0 && !schema.options.includes(value)) {
+      return `值必须是以下选项之一：${schema.options.join('、')}`
+    }
+  }
+
+  if (schema.type === 'number' || schema.type === 'integer') {
+    const numValue = typeof value === 'number' ? value : parseFloat(String(value))
+    if (Number.isFinite(numValue)) {
+      if (schema.minValue !== undefined && numValue < schema.minValue) {
+        return `值不能小于 ${schema.minValue}`
+      }
+      if (schema.maxValue !== undefined && numValue > schema.maxValue) {
+        return `值不能大于 ${schema.maxValue}`
+      }
+    }
+  }
+
+  return ''
 }
 
 const resolvePrimitiveArrayValue = (value: unknown, defaultValue: unknown): unknown[] => {
@@ -227,6 +262,41 @@ function TokenListEditor({
   )
 }
 
+function PasswordField({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (value: unknown) => void
+}) {
+  const [visible, setVisible] = React.useState(false)
+
+  return (
+    <div className="relative">
+      <Input
+        className={cn(inlineRightInputClassName, 'pr-9')}
+        type={visible ? 'text' : 'password'}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={inlineRightInputStyle}
+      />
+      <button
+        type="button"
+        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+        aria-label={visible ? '隐藏密码' : '显示密码'}
+        title={visible ? '隐藏' : '显示'}
+        onClick={() => setVisible((v) => !v)}
+      >
+        {visible ? (
+          <LucideIcons.EyeOff className="h-4 w-4" />
+        ) : (
+          <LucideIcons.Eye className="h-4 w-4" />
+        )}
+      </button>
+    </div>
+  )
+}
+
 /**
  * DynamicField - 根据字段类型和 x-widget 渲染对应的 shadcn/ui 组件
  * 
@@ -238,6 +308,7 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
   schema,
   value,
   onChange,
+  error,
 }) => {
   const { i18n } = useTranslation()
   const fieldLabel = resolveFieldLabel(schema, i18n.language)
@@ -596,17 +667,22 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
   /**
    * 渲染 Input[type="text"] 组件（用于 string 类型）
    */
-  const renderTextInput = (type: 'password' | 'text' = 'text') => {
+  const renderTextInput = (inputType: 'password' | 'text' = 'text') => {
     const strValue =
       typeof value === 'string'
         ? value
         : value === null || value === undefined
           ? String(schema.default ?? '')
           : String(value)
+
+    if (inputType === 'password') {
+      return <PasswordField value={strValue} onChange={onChange} />
+    }
+
     return (
       <Input
         className={inlineRightInputClassName}
-        type={type}
+        type="text"
         value={strValue}
         onChange={(e) => onChange(e.target.value)}
         style={inlineRightInputStyle}
@@ -807,6 +883,11 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
 
       {/* Input component */}
       {renderInputComponent()}
+
+      {/* 校验错误信息 */}
+      {error && (
+        <p className="text-destructive text-xs">{error}</p>
+      )}
     </div>
   )
 }
