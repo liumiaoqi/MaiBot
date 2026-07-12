@@ -269,7 +269,7 @@ export function EmotionMonitorPage() {
   const {
     agents,
     allEmotions,
-    selectedAgentId,
+
     selectedAgent,
     selectedEmotion,
     viewMode,

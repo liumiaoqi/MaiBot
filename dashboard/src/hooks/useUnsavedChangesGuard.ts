@@ -29,21 +29,24 @@ export function useUnsavedChangesGuard({
   }, [beforeUnloadHandler])
 
   // 拦截 TanStack Router 路由跳转
-  useBlocker({
+  const blocker = useBlocker({
     shouldBlockFn: () => stateRef.current.isDirty,
     withResolver: true,
-    blockerFn: ({ proceed, reset }) => {
-      const result = window.confirm(stateRef.current.message)
-      if (result) {
-        if (stateRef.current.onDiscard) {
-          stateRef.current.onDiscard()
-        }
-        proceed()
-      } else {
-        reset()
-      }
-    },
   })
+
+  useEffect(() => {
+    if (blocker.status !== 'blocked') return
+
+    const result = window.confirm(stateRef.current.message)
+    if (result) {
+      if (stateRef.current.onDiscard) {
+        stateRef.current.onDiscard()
+      }
+      blocker.proceed?.()
+    } else {
+      blocker.reset?.()
+    }
+  }, [blocker.status])
 
   // 编程式 API：确认离开（放弃修改）
   const confirmLeave = useCallback((): boolean => {

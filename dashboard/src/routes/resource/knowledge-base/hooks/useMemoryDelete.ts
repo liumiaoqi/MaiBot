@@ -280,7 +280,7 @@ export function useMemoryDelete({
         if (cancelled) {
           return
         }
-        if (!payload.success || !payload.operation) {
+        if (payload.error || !payload.operation) {
           setSelectedOperationDetail(null)
           setSelectedOperationDetailError(payload.error || '未能加载删除操作详情')
           return
@@ -322,11 +322,11 @@ export function useMemoryDelete({
         const result = await executeMemoryDelete(request)
         setDeleteResult(result)
         toast({
-          title: result.success ? '删除成功' : '删除失败',
-          description: result.success ? `操作 ${result.operation_id} 已完成` : result.error || '未能执行删除',
-          variant: result.success ? 'default' : 'destructive',
+          title: !result.error ? '删除成功' : '删除失败',
+          description: !result.error ? `操作 ${result.operation_id} 已完成` : result.error || '未能执行删除',
+          variant: !result.error ? 'default' : 'destructive',
         })
-        if (result.success) {
+        if (!result.error) {
           await refreshDeleteData()
           setSelectedSources([])
         }

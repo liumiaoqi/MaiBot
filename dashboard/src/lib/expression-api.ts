@@ -251,7 +251,7 @@ export async function updateExpressionReviewStatus(
  * 删除表达方式
  */
 export async function deleteExpression(expressionId: number): Promise<any> {
-  const data = await backendApi.delete<ExpressionDeleteResponse>(`${API_BASE}/${expressionId}`, {
+  await backendApi.delete<ExpressionDeleteResponse>(`${API_BASE}/${expressionId}`, {
     errorMessage: '删除表达方式失败',
   })
   return {}
@@ -261,7 +261,7 @@ export async function deleteExpression(expressionId: number): Promise<any> {
  * 批量删除表达方式
  */
 export async function batchDeleteExpressions(expressionIds: number[]): Promise<any> {
-  const data = await backendApi.post<ExpressionDeleteResponse>(`${API_BASE}/batch/delete`, {
+  await backendApi.post<ExpressionDeleteResponse>(`${API_BASE}/batch/delete`, {
     body: { ids: expressionIds },
     errorMessage: '批量删除表达方式失败',
   })

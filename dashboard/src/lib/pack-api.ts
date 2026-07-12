@@ -192,8 +192,8 @@ export async function getPack(packId: string): Promise<ModelPack> {
   const data = await statsApi.get<PackEnvelope & { pack: ModelPack }>(`/pack/${packId}`, {
     errorMessage: '获取 Pack 失败',
   })
-  if (!data.success) {
-    throw new ApiError(data.error || '获取 Pack 失败', { detail: data })
+  if (data.error) {
+    throw new ApiError(data.error, { detail: data })
   }
   return data.pack
 }
@@ -214,8 +214,8 @@ export async function createPack(pack: {
     body: pack,
     errorMessage: '创建 Pack 失败',
   })
-  if (!data.success) {
-    throw new ApiError(data.error || '创建 Pack 失败', { detail: data })
+  if (data.error) {
+    throw new ApiError(data.error, { detail: data })
   }
   return data
 }
@@ -247,8 +247,8 @@ export async function togglePackLike(packId: string, userId: string): Promise<{ 
     body: { pack_id: packId, user_id: userId },
     errorMessage: '点赞失败',
   })
-  if (!data.success) {
-    throw new ApiError(data.error || '点赞失败', { detail: data })
+  if (data.error) {
+    throw new ApiError(data.error, { detail: data })
   }
   return { likes: data.likes, liked: data.liked }
 }

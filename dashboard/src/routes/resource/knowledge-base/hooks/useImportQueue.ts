@@ -141,7 +141,7 @@ export function useImportQueue({ active, buildRetryOverrides }: UseImportQueueOp
       try {
         setImportChunksLoading(true)
         const payload = await getMemoryImportTaskChunks(taskId, fileId, offset, IMPORT_CHUNK_PAGE_SIZE)
-        if (!payload.success) {
+        if (payload.error) {
           throw new Error(payload.error || '加载分块详情失败')
         }
         setImportChunksPayload(payload)
@@ -177,7 +177,7 @@ export function useImportQueue({ active, buildRetryOverrides }: UseImportQueueOp
           setSelectedImportTaskLoading(true)
         }
         const payload = await getMemoryImportTask(taskId, false)
-        if (!payload.success || !payload.task) {
+        if (payload.error || !payload.task) {
           throw new Error(payload.error || '任务不存在')
         }
         const task = payload.task
@@ -311,7 +311,7 @@ export function useImportQueue({ active, buildRetryOverrides }: UseImportQueueOp
     }
     try {
       const payload = await cancelMemoryImportTask(selectedImportTaskId)
-      if (!payload.success) {
+      if (payload.error) {
         throw new Error(payload.error || '取消导入任务失败')
       }
       await refreshImportQueue(true)
@@ -339,7 +339,7 @@ export function useImportQueue({ active, buildRetryOverrides }: UseImportQueueOp
       const payload = await retryMemoryImportTask(selectedImportTaskId, {
         overrides: buildRetryOverrides?.() ?? {},
       })
-      if (!payload.success) {
+      if (payload.error) {
         throw new Error(payload.error || '重试失败项失败')
       }
       const nextTaskId = String(payload.task?.task_id ?? '')

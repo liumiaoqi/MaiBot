@@ -161,12 +161,12 @@ export async function checkUserSubmission(
       },
       errorMessage: '检查失败',
     })
-    return { success: true, hasSubmitted: data.hasSubmitted }
+    return { hasSubmitted: data.hasSubmitted }
   } catch (error) {
     if (error instanceof ApiError && error.status !== undefined) {
-      return { success: false, error: error.message }
+      return { error: error.message }
     }
     console.error('Error checking submission:', error)
-    return { success: false, error: '网络错误' }
+    return { error: '网络错误' }
   }
 }

@@ -148,6 +148,7 @@ export interface ReplyLogSummary {
   llm_ms: number
   overall_ms: number
   output_preview: string
+  success: boolean
 }
 
 export interface ReplyLogDetail {

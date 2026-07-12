@@ -141,7 +141,7 @@ describe('KnowledgeGraphPage', () => {
     navigateMock.mockReset()
     toastMock.mockReset()
     vi.mocked(memoryApi.getMemoryGraph).mockResolvedValue({
-      success: true,
+
       nodes: [
         { id: 'alpha', name: 'Alpha' },
         { id: 'beta', name: 'Beta' },
@@ -162,14 +162,14 @@ describe('KnowledgeGraphPage', () => {
       total_edges: 1,
     })
     vi.mocked(memoryApi.getMemoryGraphSearch).mockResolvedValue({
-      success: true,
+
       query: 'alpha',
       limit: 50,
       count: 0,
       items: [],
     })
     vi.mocked(memoryApi.getMemoryGraphNodeDetail).mockResolvedValue({
-      success: true,
+
       node: { id: 'alpha', type: 'entity', content: 'Alpha', hash: 'entity-1', appearance_count: 3 },
       relations: [
         {
@@ -210,7 +210,7 @@ describe('KnowledgeGraphPage', () => {
       },
     })
     vi.mocked(memoryApi.getMemoryGraphEdgeDetail).mockResolvedValue({
-      success: true,
+
       edge: {
         source: 'alpha',
         target: 'beta',
@@ -260,7 +260,7 @@ describe('KnowledgeGraphPage', () => {
       },
     })
     vi.mocked(memoryApi.getMemoryGraphParagraphDetail).mockResolvedValue({
-      success: true,
+
       paragraph: {
         hash: 'p-1',
         content: 'Alpha 提到了 Beta',
@@ -285,7 +285,7 @@ describe('KnowledgeGraphPage', () => {
       },
     })
     vi.mocked(memoryApi.previewMemoryDelete).mockResolvedValue({
-      success: true,
+
       mode: 'mixed',
       selector: { entity_hashes: ['entity-1'] },
       counts: { entities: 1, relations: 1, paragraphs: 1 },
@@ -295,7 +295,7 @@ describe('KnowledgeGraphPage', () => {
       dry_run: true,
     } as never)
     vi.mocked(memoryApi.executeMemoryDelete).mockResolvedValue({
-      success: true,
+
       mode: 'mixed',
       operation_id: 'del-1',
       counts: { entities: 1, relations: 1, paragraphs: 1 },
@@ -306,7 +306,7 @@ describe('KnowledgeGraphPage', () => {
       deleted_paragraph_count: 1,
       deleted_source_count: 0,
     } as never)
-    vi.mocked(memoryApi.restoreMemoryDelete).mockResolvedValue({ success: true } as never)
+    vi.mocked(memoryApi.restoreMemoryDelete).mockResolvedValue({} as never)
   })
 
   it('calls backend graph search and renders no-hit state', async () => {
@@ -331,7 +331,7 @@ describe('KnowledgeGraphPage', () => {
   it('supports clicking entity search result to locate evidence', async () => {
     const user = userEvent.setup()
     vi.mocked(memoryApi.getMemoryGraphSearch).mockResolvedValue({
-      success: true,
+
       query: 'alpha',
       limit: 50,
       count: 1,
@@ -366,7 +366,7 @@ describe('KnowledgeGraphPage', () => {
   it('supports clicking relation search result to locate evidence', async () => {
     const user = userEvent.setup()
     vi.mocked(memoryApi.getMemoryGraphSearch).mockResolvedValue({
-      success: true,
+
       query: '关联',
       limit: 50,
       count: 1,
@@ -481,7 +481,7 @@ describe('KnowledgeGraphPage', () => {
     const user = userEvent.setup()
     vi.mocked(memoryApi.getMemoryGraphParagraphDetail)
       .mockResolvedValueOnce({
-        success: true,
+
         paragraph: {
           hash: 'p-1',
           content: 'Alpha 提到了 Beta',

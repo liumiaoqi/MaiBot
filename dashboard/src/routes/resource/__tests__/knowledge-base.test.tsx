@@ -266,7 +266,7 @@ describe('KnowledgeBasePage import workflow', () => {
     vi.mocked(memoryApi.rebuildMemoryRuntimeVectors).mockReset()
 
     vi.mocked(memoryApi.getMemoryConfigSchema).mockResolvedValue({
-      success: true,
+
       path: 'config/a_memorix.toml',
       schema: {
         plugin_id: 'a_memorix',
@@ -293,17 +293,17 @@ describe('KnowledgeBasePage import workflow', () => {
       },
     })
     vi.mocked(memoryApi.getMemoryConfig).mockResolvedValue({
-      success: true,
+
       path: 'config/a_memorix.toml',
       config: { plugin: { enabled: true } },
     })
     vi.mocked(memoryApi.getMemoryConfigRaw).mockResolvedValue({
-      success: true,
+
       path: 'config/a_memorix.toml',
       config: '[plugin]\nenabled = true\n',
     })
     vi.mocked(memoryApi.getMemoryRuntimeConfig).mockResolvedValue({
-      success: true,
+
       config: { plugin: { enabled: true }, integration: { fuzzy_modify_candidate_limit: 12 } },
       data_dir: 'data/plugins/a-dawn.a-memorix',
       embedding_dimension: 1024,
@@ -333,28 +333,28 @@ describe('KnowledgeBasePage import workflow', () => {
       paragraph_vector_backfill_done: 3,
     })
     vi.mocked(memoryApi.getMemoryGraph).mockResolvedValue({
-      success: true,
+
       nodes: [{ id: 'alpha', name: 'Alpha' }],
       edges: [],
       total_nodes: 1,
       total_edges: 0,
     })
     vi.mocked(memoryApi.getMemoryGraphSearch).mockResolvedValue({
-      success: true,
+
       query: '',
       limit: 50,
       count: 0,
       items: [],
     })
     vi.mocked(memoryApi.getMemoryGraphNodeDetail).mockResolvedValue({
-      success: true,
+
       node: { id: 'alpha', type: 'entity', content: 'Alpha', hash: 'entity-1', appearance_count: 1 },
       relations: [],
       paragraphs: [],
       evidence_graph: { nodes: [], edges: [], focus_entities: [] },
     })
     vi.mocked(memoryApi.getMemoryGraphEdgeDetail).mockResolvedValue({
-      success: true,
+
       edge: {
         source: 'alpha',
         target: 'beta',
@@ -369,7 +369,7 @@ describe('KnowledgeBasePage import workflow', () => {
       evidence_graph: { nodes: [], edges: [], focus_entities: [] },
     })
     vi.mocked(memoryApi.getMemoryGraphParagraphDetail).mockResolvedValue({
-      success: true,
+
       paragraph: {
         hash: 'paragraph-jump',
         content: '跳转段落内容',
@@ -390,11 +390,11 @@ describe('KnowledgeBasePage import workflow', () => {
     })
 
     vi.mocked(memoryApi.getMemoryImportGuide).mockResolvedValue({
-      success: true,
+
       content: '# 导入指南\n导入说明',
     })
     vi.mocked(memoryApi.getMemoryImportSettings).mockResolvedValue({
-      success: true,
+
       settings: {
         max_paste_chars: 200_000,
         max_file_concurrency: 8,
@@ -406,7 +406,7 @@ describe('KnowledgeBasePage import workflow', () => {
       },
     })
     vi.mocked(memoryApi.getMemoryImportPathAliases).mockResolvedValue({
-      success: true,
+
       path_aliases: {
         lpmm: 'data/lpmm',
         plugin_data: 'data/plugins/a-dawn.a-memorix',
@@ -414,7 +414,7 @@ describe('KnowledgeBasePage import workflow', () => {
       },
     })
     vi.mocked(memoryApi.getMemoryImportChatTargets).mockResolvedValue({
-      success: true,
+
       data: [
         {
           chat_id: 'chat-1',
@@ -427,7 +427,7 @@ describe('KnowledgeBasePage import workflow', () => {
       ],
     })
     vi.mocked(memoryApi.getMemoryImportTasks).mockResolvedValue({
-      success: true,
+
       items: [
         mockImportTask('import-run-1', 'running'),
         mockImportTask('import-queued-1', 'queued'),
@@ -435,11 +435,11 @@ describe('KnowledgeBasePage import workflow', () => {
       ],
     })
     vi.mocked(memoryApi.getMemoryImportTask).mockResolvedValue({
-      success: true,
+
       task: mockImportDetail('import-run-1'),
     })
     vi.mocked(memoryApi.getMemoryImportTaskChunks).mockImplementation(async (_taskId, fileId, offset = 0) => ({
-      success: true,
+
       task_id: 'import-run-1',
       file_id: fileId,
       offset,
@@ -463,43 +463,43 @@ describe('KnowledgeBasePage import workflow', () => {
     }))
 
     vi.mocked(memoryApi.createMemoryUploadImport).mockResolvedValue({
-      success: true,
+
       task: mockImportTask('upload-task-1', 'queued'),
     })
     vi.mocked(memoryApi.createMemoryPasteImport).mockResolvedValue({
-      success: true,
+
       task: mockImportTask('paste-task-1', 'queued'),
     })
     vi.mocked(memoryApi.createMemoryRawScanImport).mockResolvedValue({
-      success: true,
+
       task: mockImportTask('raw-task-1', 'queued'),
     })
     vi.mocked(memoryApi.createMemoryLpmmOpenieImport).mockResolvedValue({
-      success: true,
+
       task: mockImportTask('openie-task-1', 'queued'),
     })
     vi.mocked(memoryApi.createMemoryLpmmConvertImport).mockResolvedValue({
-      success: true,
+
       task: mockImportTask('convert-task-1', 'queued'),
     })
     vi.mocked(memoryApi.createMemoryTemporalBackfillImport).mockResolvedValue({
-      success: true,
+
       task: mockImportTask('backfill-task-1', 'queued'),
     })
     vi.mocked(memoryApi.createMemoryMaibotMigrationImport).mockResolvedValue({
-      success: true,
+
       task: mockImportTask('migration-task-1', 'queued'),
     })
     vi.mocked(memoryApi.cancelMemoryImportTask).mockResolvedValue({
-      success: true,
+
       task: mockImportTask('import-run-1', 'cancel_requested'),
     })
     vi.mocked(memoryApi.retryMemoryImportTask).mockResolvedValue({
-      success: true,
+
       task: mockImportTask('retry-task-1', 'queued'),
     })
     vi.mocked(memoryApi.resolveMemoryImportPath).mockResolvedValue({
-      success: true,
+
       alias: 'raw',
       relative_path: 'exports',
       resolved_path: 'D:/Dev/rdev/MaiBot/data/raw/exports',
@@ -509,12 +509,12 @@ describe('KnowledgeBasePage import workflow', () => {
     })
 
     vi.mocked(memoryApi.getMemoryTuningProfile).mockResolvedValue({
-      success: true,
+
       profile: { retrieval: { top_k: 10 } },
       toml: '[retrieval]\ntop_k = 10\n',
     })
     vi.mocked(memoryApi.getMemoryTuningTasks).mockResolvedValue({
-      success: true,
+
       items: [{
         task_id: 'tune-1',
         status: 'completed',
@@ -556,16 +556,16 @@ describe('KnowledgeBasePage import workflow', () => {
         },
       }],
     })
-    vi.mocked(memoryApi.createMemoryTuningTask).mockResolvedValue({ success: true } as never)
-    vi.mocked(memoryApi.applyBestMemoryTuningProfile).mockResolvedValue({ success: true } as never)
+    vi.mocked(memoryApi.createMemoryTuningTask).mockResolvedValue({} as never)
+    vi.mocked(memoryApi.applyBestMemoryTuningProfile).mockResolvedValue({} as never)
 
     vi.mocked(memoryApi.getMemorySources).mockResolvedValue({
-      success: true,
+
       items: [{ source: 'demo-1', paragraph_count: 2, relation_count: 1 }],
       count: 1,
     })
     vi.mocked(memoryApi.getMemoryDeleteOperations).mockResolvedValue({
-      success: true,
+
       items: [
         {
           operation_id: 'del-1',
@@ -577,7 +577,7 @@ describe('KnowledgeBasePage import workflow', () => {
       count: 1,
     })
     vi.mocked(memoryApi.getMemoryDeleteOperation).mockResolvedValue({
-      success: true,
+
       operation: {
         operation_id: 'del-1',
         mode: 'source',
@@ -588,7 +588,7 @@ describe('KnowledgeBasePage import workflow', () => {
       },
     })
     vi.mocked(memoryApi.getMemoryCorrectionPlans).mockResolvedValue({
-      success: true,
+
       items: [
         {
           plan_id: 'correction-plan-1',
@@ -658,7 +658,7 @@ describe('KnowledgeBasePage import workflow', () => {
       count: 1,
     })
     vi.mocked(memoryApi.getMemoryCorrectionPlan).mockResolvedValue({
-      success: true,
+
       plan: {
         plan_id: 'correction-plan-1',
         request_text: '把测试用户的常住城市改为杭州',
@@ -725,7 +725,7 @@ describe('KnowledgeBasePage import workflow', () => {
       },
     })
     vi.mocked(memoryApi.previewMemoryCorrection).mockResolvedValue({
-      success: true,
+
       plan_id: 'correction-plan-2',
       requires_confirmation: true,
       preview: {
@@ -747,15 +747,15 @@ describe('KnowledgeBasePage import workflow', () => {
       },
     })
     vi.mocked(memoryApi.executeMemoryCorrection).mockResolvedValue({
-      success: true,
+
       plan: null,
-      execution: { success: true },
+      execution: {},
     })
     vi.mocked(memoryApi.rollbackMemoryCorrectionPlan).mockResolvedValue({
-      success: true,
+
       plan: null,
       rollback: {
-        success: true,
+
         new_relations_deactivated: [],
         restored_targets: [],
         items: [],
@@ -764,7 +764,7 @@ describe('KnowledgeBasePage import workflow', () => {
       },
     })
     vi.mocked(memoryApi.getMemoryFeedbackCorrections).mockResolvedValue({
-      success: true,
+
       items: [
         {
           task_id: 11,
@@ -792,7 +792,7 @@ describe('KnowledgeBasePage import workflow', () => {
       count: 1,
     })
     vi.mocked(memoryApi.getMemoryFeedbackCorrection).mockResolvedValue({
-      success: true,
+
       task: {
         task_id: 11,
         query_tool_id: 'tool-query-11',
@@ -840,7 +840,6 @@ describe('KnowledgeBasePage import workflow', () => {
       },
     })
     vi.mocked(memoryApi.getMemoryTimeline).mockResolvedValue({
-      success: true,
       chat: {
         chat_id: 'chat-1',
         chat_name: '测试群',
@@ -885,13 +884,13 @@ describe('KnowledgeBasePage import workflow', () => {
       ],
     })
     vi.mocked(memoryApi.getMemoryEpisodeStatus).mockResolvedValue({
-      success: true,
+
       pending_queue: 0,
       counts: {},
       failed: [],
     })
     vi.mocked(memoryApi.getMemoryEpisodes).mockResolvedValue({
-      success: true,
+
       items: [
         {
           episode_id: 'ep-1',
@@ -905,7 +904,7 @@ describe('KnowledgeBasePage import workflow', () => {
       count: 1,
     })
     vi.mocked(memoryApi.getMemoryEpisode).mockResolvedValue({
-      success: true,
+
       episode: {
         episode_id: 'ep-1',
         title: '测试 Episode',
@@ -914,41 +913,41 @@ describe('KnowledgeBasePage import workflow', () => {
         paragraphs: [],
       },
     })
-    vi.mocked(memoryApi.rebuildMemoryEpisodes).mockResolvedValue({ success: true } as never)
-    vi.mocked(memoryApi.processMemoryEpisodePending).mockResolvedValue({ success: true } as never)
+    vi.mocked(memoryApi.rebuildMemoryEpisodes).mockResolvedValue({} as never)
+    vi.mocked(memoryApi.processMemoryEpisodePending).mockResolvedValue({} as never)
     vi.mocked(memoryApi.getMemoryProfiles).mockResolvedValue({
-      success: true,
+
       items: [],
       count: 0,
     })
     vi.mocked(memoryApi.searchMemoryProfiles).mockResolvedValue({
-      success: true,
+
       items: [],
       count: 0,
     })
     vi.mocked(memoryApi.queryMemoryProfile).mockResolvedValue({
-      success: true,
+
       person_id: 'person-1',
       profile_text: '测试画像',
     } as never)
     vi.mocked(memoryApi.getMemoryProfileEvidence).mockResolvedValue({
-      success: true,
+
       person_id: 'person-1',
       evidence: [],
     } as never)
-    vi.mocked(memoryApi.setMemoryProfileOverride).mockResolvedValue({ success: true } as never)
-    vi.mocked(memoryApi.deleteMemoryProfileOverride).mockResolvedValue({ success: true } as never)
+    vi.mocked(memoryApi.setMemoryProfileOverride).mockResolvedValue({} as never)
+    vi.mocked(memoryApi.deleteMemoryProfileOverride).mockResolvedValue({} as never)
     vi.mocked(memoryApi.getMemoryRecycleBin).mockResolvedValue({
-      success: true,
+
       items: [],
       count: 0,
     } as never)
-    vi.mocked(memoryApi.restoreMaintainedMemory).mockResolvedValue({ success: true } as never)
-    vi.mocked(memoryApi.reinforceMemory).mockResolvedValue({ success: true } as never)
-    vi.mocked(memoryApi.freezeMemory).mockResolvedValue({ success: true } as never)
-    vi.mocked(memoryApi.protectMemory).mockResolvedValue({ success: true } as never)
+    vi.mocked(memoryApi.restoreMaintainedMemory).mockResolvedValue({} as never)
+    vi.mocked(memoryApi.reinforceMemory).mockResolvedValue({} as never)
+    vi.mocked(memoryApi.freezeMemory).mockResolvedValue({} as never)
+    vi.mocked(memoryApi.protectMemory).mockResolvedValue({} as never)
     vi.mocked(memoryApi.previewMemoryDelete).mockResolvedValue({
-      success: true,
+
       mode: 'source',
       selector: { sources: ['demo-1'] },
       counts: { sources: 1, paragraphs: 2, relations: 1 },
@@ -958,7 +957,7 @@ describe('KnowledgeBasePage import workflow', () => {
       dry_run: true,
     } as never)
     vi.mocked(memoryApi.executeMemoryDelete).mockResolvedValue({
-      success: true,
+
       mode: 'source',
       operation_id: 'del-2',
       counts: { sources: 1, paragraphs: 2, relations: 1 },
@@ -969,9 +968,9 @@ describe('KnowledgeBasePage import workflow', () => {
       deleted_paragraph_count: 2,
       deleted_source_count: 1,
     } as never)
-    vi.mocked(memoryApi.restoreMemoryDelete).mockResolvedValue({ success: true } as never)
+    vi.mocked(memoryApi.restoreMemoryDelete).mockResolvedValue({} as never)
     vi.mocked(memoryApi.rollbackMemoryFeedbackCorrection).mockResolvedValue({
-      success: true,
+
       result: { restored_relation_hashes: ['rel-old'] },
       task: {
         task_id: 11,
@@ -1002,19 +1001,19 @@ describe('KnowledgeBasePage import workflow', () => {
       },
     })
     vi.mocked(memoryApi.refreshMemoryRuntimeSelfCheck).mockResolvedValue({
-      success: true,
+
       report: { ok: true },
     })
     vi.mocked(memoryApi.rebuildMemoryRuntimeVectors).mockImplementation(async (payload = {}) => ({
-      success: true,
+
       dry_run: Boolean(payload.dry_run),
       counts: { paragraphs: 2, entities: 1, relations: 0 },
       total: 3,
       done: payload.dry_run ? 0 : 3,
       failed: 0,
     }))
-    vi.mocked(memoryApi.updateMemoryConfig).mockResolvedValue({ success: true } as never)
-    vi.mocked(memoryApi.updateMemoryConfigRaw).mockResolvedValue({ success: true } as never)
+    vi.mocked(memoryApi.updateMemoryConfig).mockResolvedValue({} as never)
+    vi.mocked(memoryApi.updateMemoryConfigRaw).mockResolvedValue({} as never)
   })
 
   it('loads import settings/guide/tasks on first render', async () => {
@@ -1036,7 +1035,7 @@ describe('KnowledgeBasePage import workflow', () => {
 
   it('shows vector pool migration progress in runtime badges', async () => {
     vi.mocked(memoryApi.getMemoryRuntimeConfig).mockResolvedValueOnce({
-      success: true,
+
       config: { plugin: { enabled: true } },
       data_dir: 'data/plugins/a-dawn.a-memorix',
       embedding_dimension: 1024,
@@ -1052,7 +1051,7 @@ describe('KnowledgeBasePage import workflow', () => {
         auto_migration: {
           running: true,
           attempted: true,
-          success: false,
+
           stage: 'entities_done',
           progress: {
             total: 12000,
@@ -1097,7 +1096,7 @@ describe('KnowledgeBasePage import workflow', () => {
 
   it('shows pending ETA while vector pool migration rate is unavailable', async () => {
     vi.mocked(memoryApi.getMemoryRuntimeConfig).mockResolvedValueOnce({
-      success: true,
+
       config: { plugin: { enabled: true } },
       data_dir: 'data/plugins/a-dawn.a-memorix',
       embedding_dimension: 1024,
@@ -1113,7 +1112,7 @@ describe('KnowledgeBasePage import workflow', () => {
         auto_migration: {
           running: true,
           attempted: true,
-          success: false,
+
           stage: 'prepare_rebuild',
           progress: {
             total: 12000,
@@ -1153,7 +1152,7 @@ describe('KnowledgeBasePage import workflow', () => {
 
   it('clamps vector pool migration percent inside the progress bar label', async () => {
     vi.mocked(memoryApi.getMemoryRuntimeConfig).mockResolvedValueOnce({
-      success: true,
+
       config: { plugin: { enabled: true } },
       data_dir: 'data/plugins/a-dawn.a-memorix',
       embedding_dimension: 1024,
@@ -1169,7 +1168,7 @@ describe('KnowledgeBasePage import workflow', () => {
         auto_migration: {
           running: true,
           attempted: true,
-          success: false,
+
           stage: 'paragraphs_done',
           progress: {
             total: 10,
@@ -1209,7 +1208,7 @@ describe('KnowledgeBasePage import workflow', () => {
 
   it('keeps displaying legacy vector pool migration details without stable totals', async () => {
     vi.mocked(memoryApi.getMemoryRuntimeConfig).mockResolvedValueOnce({
-      success: true,
+
       config: { plugin: { enabled: true } },
       data_dir: 'data/plugins/a-dawn.a-memorix',
       embedding_dimension: 1024,
@@ -1225,7 +1224,7 @@ describe('KnowledgeBasePage import workflow', () => {
         auto_migration: {
           running: true,
           attempted: true,
-          success: false,
+
           stage: 'entities_done',
           progress: {
             paragraph_done: 10967,
@@ -1461,7 +1460,7 @@ describe('KnowledgeBasePage import workflow', () => {
 
   it('shows import failures separately from successful chunks', async () => {
     vi.mocked(memoryApi.getMemoryImportTask).mockResolvedValue({
-      success: true,
+
       task: mockImportCompletedWithErrorsDetail('import-run-1'),
     })
     const user = userEvent.setup()
@@ -1499,7 +1498,7 @@ describe('KnowledgeBasePage import workflow', () => {
 
   it('auto polling updates queue and keeps page stable when refresh fails once', async () => {
     vi.mocked(memoryApi.getMemoryImportSettings).mockResolvedValue({
-      success: true,
+
       settings: {
         max_paste_chars: 200_000,
         max_file_concurrency: 8,
@@ -1574,7 +1573,7 @@ describe('KnowledgeBasePage import workflow', () => {
 
   it('shows tuning progress before evaluation result exists', async () => {
     vi.mocked(memoryApi.getMemoryTuningTasks).mockResolvedValue({
-      success: true,
+
       items: [{
         task_id: 'tune-running',
         status: 'running',
@@ -1602,7 +1601,7 @@ describe('KnowledgeBasePage import workflow', () => {
 
   it('shows failed tuning task reason in a readable way', async () => {
     vi.mocked(memoryApi.getMemoryTuningTasks).mockResolvedValue({
-      success: true,
+
       items: [{
         task_id: 'tune-failed',
         status: 'failed',
@@ -1627,7 +1626,7 @@ describe('KnowledgeBasePage import workflow', () => {
 
   it('shows non-recommended tuning result with localized validation reason', async () => {
     vi.mocked(memoryApi.getMemoryTuningTasks).mockResolvedValue({
-      success: true,
+
       items: [{
         task_id: 'tune-bad',
         status: 'completed',
@@ -1704,7 +1703,7 @@ describe('KnowledgeBasePage import workflow', () => {
 
   it('disables tuning apply button when task is not recommended', async () => {
     vi.mocked(memoryApi.getMemoryTuningTasks).mockResolvedValue({
-      success: true,
+
       items: [{ task_id: 'tune-2', status: 'completed', recommended: false }],
     })
     const user = userEvent.setup()
@@ -1719,7 +1718,7 @@ describe('KnowledgeBasePage import workflow', () => {
 
   it('uses validation recommendation when enabling tuning apply button', async () => {
     vi.mocked(memoryApi.getMemoryTuningTasks).mockResolvedValue({
-      success: true,
+
       items: [
         {
           task_id: 'tune-3',
@@ -1919,7 +1918,6 @@ describe('KnowledgeBasePage import workflow', () => {
 
   it('jumps from paragraph timeline event to graph paragraph detail', async () => {
     vi.mocked(memoryApi.getMemoryTimeline).mockResolvedValue({
-      success: true,
       chat: {
         chat_id: 'chat-1',
         chat_name: '测试群',
@@ -1978,7 +1976,6 @@ describe('KnowledgeBasePage import workflow', () => {
 
   it('jumps from deleted paragraph timeline event to delete search when operation is missing', async () => {
     vi.mocked(memoryApi.getMemoryTimeline).mockResolvedValue({
-      success: true,
       chat: {
         chat_id: 'chat-1',
         chat_name: '测试群',
@@ -2066,7 +2063,6 @@ describe('KnowledgeBasePage import workflow', () => {
       }
     })
     vi.mocked(memoryApi.getMemoryTimeline).mockResolvedValue({
-      success: true,
       chat: {
         chat_id: 'chat-1',
         chat_name: '测试群',

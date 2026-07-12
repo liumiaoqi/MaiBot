@@ -77,7 +77,7 @@ export function SurveyRenderer({
     const checkSubmission = async () => {
       if (!config.settings?.allowMultiple) {
         const result = await checkUserSubmission(config.id)
-        if (result.success && result.hasSubmitted) {
+        if (!result.error && result.hasSubmitted) {
           setHasAlreadySubmitted(true)
         }
       }

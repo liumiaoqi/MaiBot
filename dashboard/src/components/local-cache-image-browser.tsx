@@ -33,8 +33,9 @@ import {
 import {
   getLocalCacheImagePreviewUrl,
   type LocalCacheImageItem,
-  type LocalCacheImageListResponse,
+  type LocalCacheImageListData,
   type LocalCacheImageTarget,
+  type LocalCacheImageDateGroup,
 } from '@/lib/system-api'
 
 function formatModifiedTime(timestamp: number): string {
@@ -132,7 +133,7 @@ export function CacheImageListPanel({
   deletingKey: string | null
   filters: ImageDateFilters
   isLoading: boolean
-  list: LocalCacheImageListResponse | null
+  list: LocalCacheImageListData | null
   onDelete: (target: LocalCacheImageTarget, item: LocalCacheImageItem) => void
   onDeleteAll: (target: LocalCacheImageTarget) => void
   onDeleteDateRange: (target: LocalCacheImageTarget) => void
@@ -244,7 +245,7 @@ export function CacheImageListPanel({
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
-          {dateGroups.slice(0, 30).map((group) => (
+          {dateGroups.slice(0, 30).map((group: LocalCacheImageDateGroup) => (
             <Button
               key={group.date}
               variant={filters.startDate === group.date && filters.endDate === group.date ? 'default' : 'outline'}
@@ -309,7 +310,7 @@ export function CacheImageListPanel({
             暂无图片缓存
           </div>
         ) : (
-          items.map((item) => {
+          items.map((item: LocalCacheImageItem) => {
             const itemKey = `${target}:${item.relative_path}`
             const deleting = deletingKey === itemKey
             return (

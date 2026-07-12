@@ -327,7 +327,7 @@ export function KnowledgeGraphPage({ embedded = false, initialParagraphHash = ''
     setAppliedSearchQuery(nextQuery)
     try {
       const payload = await getMemoryGraphSearch(nextQuery, 50)
-      if (!payload.success) {
+      if (payload.error) {
         throw new Error(payload.error || '图谱检索失败')
       }
       const items = Array.isArray(payload.items) ? payload.items : []
@@ -633,13 +633,13 @@ export function KnowledgeGraphPage({ embedded = false, initialParagraphHash = ''
       const result = await executeMemoryDelete(deleteDraft.request)
       setDeleteResult(result)
       toast({
-        title: result.success ? '删除成功' : '删除失败',
-        description: result.success
+        title: !result.error ? '删除成功' : '删除失败',
+        description: !result.error
           ? `操作 ${result.operation_id} 已完成`
           : result.error || '未能执行删除',
-        variant: result.success ? 'default' : 'destructive',
+        variant: !result.error ? 'default' : 'destructive',
       })
-      if (result.success) {
+      if (!result.error) {
         await loadGraph({ silent: true, keepSelection: true })
         await restoreGraphTarget(deleteDraft.restoreTarget)
       }
