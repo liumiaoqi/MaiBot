@@ -6563,7 +6563,7 @@ class AgentAutonomySectionConfig(ConfigBase):
     __ui_advanced__ = True
 
     enabled: bool = Field(
-        default=False,
+        default=True,
         json_schema_extra={
             "label": {
                 "zh_CN": "启用智能体自主性",

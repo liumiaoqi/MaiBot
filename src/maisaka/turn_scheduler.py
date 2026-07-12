@@ -97,8 +97,6 @@ class MessageTurnScheduler:
             runtime._enqueue_message_turn()
             return
 
-        if runtime._idle_backoff.should_delay(pending_count):
-            return
 
         trigger_threshold = runtime._get_message_trigger_threshold()
         schedule_detail = f"频率={formatted_frequency} pending={pending_count} 消息阈值={trigger_threshold}"

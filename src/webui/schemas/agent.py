@@ -25,7 +25,7 @@ class AgentConfigResponse(BaseModel):
     emotion_decay_rate: float = 0.12
     relationship_growth_rate: float = 1.0
     talk_value_modifier: float = 1.0
-    idle_backoff_modifier: float = 1.0
+
     memory_focus_areas: List[str] = Field(default_factory=list)
     internal_relationships: List[InternalRelationshipResponse] = Field(default_factory=list)
     anti_mechanization_rules: List[str] = Field(default_factory=list)
