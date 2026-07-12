@@ -179,6 +179,7 @@ class ThinkingOrgan:
                     injected_user_messages=injected_messages or None,
                     request_kind=request_kind,
                     tool_definitions=tool_definitions if tool_definitions else None,
+                    system_prompt=self.build_system_prompt(),
                 )
             except Exception as exc:
                 logger.error(f"[thinking_organ] LLM 调用失败: agent={self._agent_id} round={round_idx} error={exc}")
