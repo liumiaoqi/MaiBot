@@ -21,9 +21,9 @@
   "sidebar": {
     "groups": {
       "overview": "Overview",
-      "botConfig": "Bot Configuration",
-      "botResources": "Bot Resources",
-      "extensionsMonitor": "Plugins & Extensions",
+      "botConfig": "Configuration",
+      "botResources": "Resources",
+      "extensionsMonitor": "Extensions",
       "system": "System"
     },
     "menu": {
@@ -48,6 +48,7 @@
       "logViewer": "Log Viewer",
       "reasoningProcess": "Reasoning Process",
       "maisakaMonitor": "MaiSaka Chat Monitor",
+      "systemMonitor": "System Monitor",
       "agentManagement": "Agent Management",
       "emotionMonitor": "Emotion Monitor",
       "relationshipMonitor": "Relationships",
@@ -1003,6 +1004,30 @@
         "cancel": "Close"
       }
     },
+    "systemStatus": {
+      "title": "System Status",
+      "status": "Status",
+      "uptime": "Uptime",
+      "version": "Main Version",
+      "webuiVersion": "WebUI Version"
+    },
+    "agentStatus": {
+      "title": "Agent Status",
+      "activeAgents": "Active Agents",
+      "totalAgents": "Total Agents",
+      "activeSessions": "Bound Sessions"
+    },
+    "llmOverview": {
+      "title": "LLM Overview",
+      "requests": "Requests",
+      "cost": "Total Cost",
+      "tokens": "Token Usage"
+    },
+    "chatStream": {
+      "title": "Chat Stream",
+      "activeSessions": "Active Sessions",
+      "todayCalls": "Today's Calls"
+    },
     "botStatus": {
       "title": "MaiBot Status",
       "loading": "Reading",
@@ -1550,5 +1575,53 @@
     "tabStreams": "Chat Streams",
     "tabGroups": "Shared Groups",
     "searchPlaceholder": "Search by name, platform, user, group ID or session ID"
+  },
+  "monitor": {
+    "title": "System Monitor",
+    "live": "Live",
+    "polling": "Polling",
+    "tabs": {
+      "system": "System Resources",
+      "llm": "LLM Stats",
+      "chat": "Chat Streams"
+    },
+    "systemResources": {
+      "title": "System Resources",
+      "live": "Live",
+      "polling": "Polling",
+      "error": "Failed to load system resources",
+      "loading": "Loading...",
+      "cpu": "CPU",
+      "memory": "Memory",
+      "disk": "Disk",
+      "database": "Database"
+    },
+    "llm": {
+      "exportCSV": "Export CSV",
+      "totalRequests": "Total Requests",
+      "totalCost": "Total Cost",
+      "totalTokens": "Total Tokens",
+      "avgResponse": "Avg Response",
+      "modelStats": "Model Stats",
+      "agentStats": "Agent Stats",
+      "model": "Model",
+      "agent": "Agent",
+      "requests": "Requests",
+      "cost": "Cost",
+      "tokens": "Tokens",
+      "avgTime": "Avg Time",
+      "inputTokens": "Input Tokens",
+      "outputTokens": "Output Tokens"
+    },
+    "chatStream": {
+      "title": "Chat Stream Status",
+      "lastActive": "Last Active",
+      "messageCount": "Messages",
+      "loading": "Loading...",
+      "empty": "No chat streams",
+      "name": "Name",
+      "agent": "Agent",
+      "messages": "Messages"
+    }
   }
 }

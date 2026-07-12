@@ -21,7 +21,7 @@ from src.webui.routers.chat.service import (
 )
 from src.webui.routers.plugin.progress import get_current_progress
 from src.webui.routers.websocket.auth import verify_ws_token
-from src.webui.routers.websocket.domains import WSDomain, ws_domain_registry
+from src.webui.routers.websocket.domains import WSDomain, llm_stats_domain, system_resources_domain, ws_domain_registry
 from src.webui.routers.websocket.manager import websocket_manager
 
 logger = get_logger("webui.unified_ws")
@@ -568,6 +568,8 @@ async def websocket_endpoint(websocket: WebSocket, token: Optional[str] = Query(
             subscribe_handler=None,
             call_handler=_handle_chat_call,
         ))
+        ws_domain_registry.register(system_resources_domain)
+        ws_domain_registry.register(llm_stats_domain)
         _domains_registered = True
 
 

@@ -5,6 +5,7 @@ import {
   Brain,
   Database,
   FileText,
+  Gauge,
   Hash,
   Heart,
   Home,
@@ -42,6 +43,7 @@ const KnowledgeIcon = createStreamlineIcon('user-sticker-square-remix', Database
 const PluginConfigIcon = createStreamlineIcon('application-add-remix', Puzzle)
 const PluginMarketIcon = createStreamlineIcon('store-2-solid', Store)
 const McpIcon = createStreamlineIcon('router-wifi-network-solid', Wifi)
+const SystemMonitorIcon = createStreamlineIcon('dashboard-speed-gauge-remix', Gauge)
 
 export const menuSections: MenuSection[] = [
   {
@@ -59,6 +61,7 @@ export const menuSections: MenuSection[] = [
       { icon: SubAgentIcon, label: 'sidebar.menu.subagentMonitor', path: '/subagent-monitor' },
       { icon: DeepSeekIcon, label: 'sidebar.menu.deepseekMonitor', path: '/deepseek-monitor' },
       { icon: MonitorIcon, label: 'sidebar.menu.maisakaMonitor', path: '/planner-monitor' },
+      { icon: SystemMonitorIcon, label: 'sidebar.menu.systemMonitor', path: '/system-monitor' },
       { icon: ChatManagementIcon, label: 'sidebar.menu.chatManagement', path: '/chat-management' },
     ],
   },

@@ -197,16 +197,16 @@ class UnifiedWebSocketManager:
         connection.subscriptions.discard(self._build_subscription_key(domain, topic))
 
     def is_subscribed(self, connection_id: str, domain: str, topic: str) -> bool:
-        """判断连接是否订阅了指定主题。
+        """判断连接是否订阅了指定主题。"""
+        connection = self.connections.get(connection_id)
+        if connection is None:
+            return False
+        return self._build_subscription_key(domain, topic) in connection.subscriptions
 
-        Args:
-            connection_id: 连接 ID。
-            domain: 业务域名称。
-            topic: 主题名称。
-
-        Returns:
-            bool: 已订阅时返回 ``True``。
-        """
+    def get_subscribers(self, domain: str, topic: str) -> list[str]:
+        """获取订阅了指定域和主题的所有连接 ID。"""
+        key = self._build_subscription_key(domain, topic)
+        return [cid for cid, conn in self.connections.items() if key in conn.subscriptions]
         connection = self.connections.get(connection_id)
         if connection is None:
             return False

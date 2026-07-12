@@ -53,3 +53,21 @@ class DashboardData(BaseModel):
     daily_data: List[TimeSeriesData]
     recent_activity: List[Dict[str, Any]]
     agent_stats: AgentStatsInfo = Field(default_factory=AgentStatsInfo)
+
+
+class AgentStatisticsItem(BaseModel):
+    """按智能体维度的统计项。"""
+
+    agent_id: str = Field(description="智能体 ID")
+    request_count: int = Field(0, description="调用次数")
+    total_input_tokens: int = Field(0, description="输入 Token 总数")
+    total_output_tokens: int = Field(0, description="输出 Token 总数")
+    total_cost: float = Field(0.0, description="总花费")
+    avg_response_time: float = Field(0.0, description="平均响应时间（秒）")
+
+
+class AgentStatisticsResponse(BaseModel):
+    """智能体维度统计响应。"""
+
+    hours: int = Field(description="统计时间范围（小时）")
+    agents: List[AgentStatisticsItem] = Field(default_factory=list)

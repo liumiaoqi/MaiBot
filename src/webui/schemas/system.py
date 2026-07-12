@@ -203,3 +203,17 @@ class LocalCacheDataEntryDeleteRequest(BaseModel):
     """data 目录条目删除请求。"""
 
     relative_path: str
+
+
+class SystemResourcesResponse(BaseModel):
+    """系统资源使用情况。"""
+
+    cpu_percent: float = Field(0.0, description="CPU 使用率百分比")
+    memory_percent: float = Field(0.0, description="内存使用率百分比")
+    memory_used: int = Field(0, description="已用内存（字节）")
+    memory_total: int = Field(0, description="总内存（字节）")
+    disk_percent: float = Field(0.0, description="磁盘使用率百分比")
+    disk_used: int = Field(0, description="已用磁盘（字节）")
+    disk_total: int = Field(0, description="总磁盘（字节）")
+    database_size: int = Field(0, description="数据库大小（字节）")
+    timestamp: float = Field(0.0, description="采集时间戳")

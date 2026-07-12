@@ -21,9 +21,9 @@
   "sidebar": {
     "groups": {
       "overview": "概要",
-      "botConfig": "ボット設定",
-      "botResources": "ボットリソース",
-      "extensionsMonitor": "プラグインと拡張",
+      "botConfig": "設定",
+      "botResources": "リソース",
+      "extensionsMonitor": "拡張",
       "system": "システム"
     },
     "menu": {
@@ -48,6 +48,7 @@
       "logViewer": "ログビューア",
       "reasoningProcess": "推論プロセス",
       "maisakaMonitor": "MaiSaka チャット監視",
+      "systemMonitor": "システム監視",
       "agentManagement": "エージェント管理",
       "emotionMonitor": "感情モニター",
       "relationshipMonitor": "関係確認",
@@ -1003,6 +1004,30 @@
         "cancel": "閉じる"
       }
     },
+    "systemStatus": {
+      "title": "システムステータス",
+      "status": "ステータス",
+      "uptime": "稼働時間",
+      "version": "メインバージョン",
+      "webuiVersion": "WebUI バージョン"
+    },
+    "agentStatus": {
+      "title": "エージェントステータス",
+      "activeAgents": "アクティブエージェント",
+      "totalAgents": "総エージェント数",
+      "activeSessions": "バインドセッション数"
+    },
+    "llmOverview": {
+      "title": "LLM 概要",
+      "requests": "リクエスト数",
+      "cost": "総コスト",
+      "tokens": "トークン使用量"
+    },
+    "chatStream": {
+      "title": "チャットストリーム",
+      "activeSessions": "アクティブセッション",
+      "todayCalls": "本日の呼び出し"
+    },
     "botStatus": {
       "title": "MaiBot ステータス",
       "loading": "読み取り中",
@@ -1550,5 +1575,53 @@
     "tabStreams": "チャットストリーム",
     "tabGroups": "共有グループ",
     "searchPlaceholder": "名前、プラットフォーム、ユーザー、グループID、セッションIDで検索"
+  },
+  "monitor": {
+    "title": "システム監視",
+    "live": "リアルタイム",
+    "polling": "ポーリング",
+    "tabs": {
+      "system": "システムリソース",
+      "llm": "LLM 統計",
+      "chat": "チャットストリーム"
+    },
+    "systemResources": {
+      "title": "システムリソース",
+      "live": "リアルタイム",
+      "polling": "ポーリング",
+      "error": "システムリソースの取得に失敗",
+      "loading": "読み込み中...",
+      "cpu": "CPU",
+      "memory": "メモリ",
+      "disk": "ディスク",
+      "database": "データベース"
+    },
+    "llm": {
+      "exportCSV": "CSV エクスポート",
+      "totalRequests": "総リクエスト数",
+      "totalCost": "総コスト",
+      "totalTokens": "トークン総量",
+      "avgResponse": "平均応答",
+      "modelStats": "モデル統計",
+      "agentStats": "エージェント統計",
+      "model": "モデル",
+      "agent": "エージェント",
+      "requests": "リクエスト数",
+      "cost": "コスト",
+      "tokens": "トークン",
+      "avgTime": "平均所要時間",
+      "inputTokens": "入力トークン",
+      "outputTokens": "出力トークン"
+    },
+    "chatStream": {
+      "title": "チャットストリーム状態",
+      "lastActive": "最終アクティビティ",
+      "messageCount": "メッセージ数",
+      "loading": "読み込み中...",
+      "empty": "チャットストリームなし",
+      "name": "名前",
+      "agent": "エージェント",
+      "messages": "メッセージ"
+    }
   }
 }

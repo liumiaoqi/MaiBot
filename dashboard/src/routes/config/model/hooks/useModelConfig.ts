@@ -539,14 +539,20 @@ export function useModelConfig() {
       config.api_providers = apiProviders.map(cleanProviderData)
       config.models = models.map(cleanModelForSave)
       config.model_task_config = taskConfig
-      await updateModelConfig(config)
+      const result = await updateModelConfig(config)
       resetSnapshots(config.models as ModelInfo[], taskConfig)
       providersSnapshotRef.current = JSON.stringify(config.api_providers)
       setHasUnsavedChanges(false)
       toast({
         title: '保存成功',
-        description: '模型配置已保存',
+        description: result.needs_restart ? '模型配置已保存，部分配置需要重启才能生效' : '模型配置已保存',
       })
+      if (result.needs_restart) {
+        toast({
+          title: '需要重启',
+          description: '修改的配置需要重启 MaiBot 才能生效',
+        })
+      }
       await loadConfig() // 重新加载以更新模型名称列表
     } catch (error) {
       console.error('保存配置失败:', error)

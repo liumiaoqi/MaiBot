@@ -231,5 +231,65 @@ class LLMUsageRecorder:
         except Exception as e:
             logger.error(f"记录token使用情况失败: {str(e)}")
 
+        self._notify_llm_stats_subscribers(
+            session_id=session_id.strip(),
+            model_name=model_info.name or model_info.model_identifier,
+            prompt_tokens=model_usage.prompt_tokens or 0,
+            completion_tokens=model_usage.completion_tokens or 0,
+            cost=total_cost or 0.0,
+            time_cost=round(time_cost or 0.0, 3),
+        )
+
+    @staticmethod
+    def _notify_llm_stats_subscribers(
+        *,
+        session_id: str,
+        model_name: str,
+        prompt_tokens: int,
+        completion_tokens: int,
+        cost: float,
+        time_cost: float,
+    ) -> None:
+        """LLM 调用完成后通知 llm_stats WebSocket 域的订阅者。"""
+        try:
+            import asyncio
+
+            from src.webui.routers.websocket.domains import ws_domain_registry
+            from src.webui.routers.websocket.manager import websocket_manager
+
+            domain = ws_domain_registry.get("llm_stats")
+            if domain is None:
+                return
+
+            subscribers = websocket_manager.get_subscribers(domain="llm_stats", topic="main")
+            if not subscribers:
+                return
+
+            event_data = {
+                "session_id": session_id,
+                "model_name": model_name,
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "cost": cost,
+                "time_cost": time_cost,
+                "timestamp": __import__("time").time(),
+            }
+
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                return
+
+            for connection_id in subscribers:
+                loop.create_task(websocket_manager.send_event(
+                    connection_id,
+                    domain="llm_stats",
+                    event="call_completed",
+                    topic="main",
+                    data=event_data,
+                ))
+        except Exception:
+            pass
+
 
 llm_usage_recorder = LLMUsageRecorder()

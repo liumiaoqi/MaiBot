@@ -54,6 +54,7 @@ from src.webui.schemas.system import (
     LocalCacheStatsResponse,
     RestartResponse,
     StatusResponse,
+    SystemResourcesResponse,
 )
 
 router = APIRouter(prefix="/system", tags=["system"], dependencies=[Depends(require_auth)])
@@ -1194,6 +1195,37 @@ async def get_maibot_status():
         raise
     except Exception as e:
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"获取状态失败: {str(e, http_status=500)}") from e
+
+
+@router.get("/resources", response_model=ApiResponse[SystemResourcesResponse])
+async def get_system_resources():
+    """获取系统资源使用情况（CPU、内存、磁盘、数据库大小）。"""
+    try:
+        import psutil
+    except ImportError:
+        raise AppError(ErrorCode.SYS_SERVICE_UNAVAILABLE, "psutil 未安装，无法采集系统资源数据")
+
+    try:
+        cpu_percent = psutil.cpu_percent(interval=0.5)
+        mem = psutil.virtual_memory()
+        disk = psutil.disk_usage(str(_PROJECT_ROOT))
+        database_size = _get_database_total_size()
+
+        return ApiResponse(data=SystemResourcesResponse(
+            cpu_percent=cpu_percent,
+            memory_percent=mem.percent,
+            memory_used=mem.used,
+            memory_total=mem.total,
+            disk_percent=disk.percent,
+            disk_used=disk.used,
+            disk_total=disk.total,
+            database_size=database_size,
+            timestamp=time.time(),
+        ))
+    except AppError:
+        raise
+    except Exception as e:
+        raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"获取系统资源失败: {str(e)}") from e
 
 @router.get("/local-cache", response_model=ApiResponse[LocalCacheStatsResponse])
 async def get_local_cache_stats():
