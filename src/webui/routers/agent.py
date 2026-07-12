@@ -246,9 +246,9 @@ async def bind_session_agent(session_id: str, request: BindSessionRequest):
         try:
             agent_router.bind_session(session_id, request.agent_id)
         except ValueError as e:
-            raise AppError(ErrorCode.PARAM_INVALID, str(e, http_status=400)) from e
+            raise AppError(ErrorCode.PARAM_INVALID, str(e)) from e
 
-        primary_agent = agent_router.get_session_primary_agent(session_id)
+        primary_agent = agent_router.get_primary_agent(session_id)
         try:
             with get_db_session() as db:
                 statement = select(ChatSession).filter_by(session_id=session_id).limit(1)
@@ -361,7 +361,7 @@ async def unbind_session_specific_agent(session_id: str, agent_id: str):
 
         agent_router.unbind_session(session_id, agent_id)
 
-        remaining_primary = agent_router.get_session_primary_agent(session_id)
+        remaining_primary = agent_router.get_primary_agent(session_id)
         with get_db_session() as db:
             statement = select(ChatSession).filter_by(session_id=session_id).limit(1)
             db_session = db.exec(statement).first()
@@ -393,7 +393,7 @@ async def batch_bind_sessions(request: BatchBindRequest):
                 continue
             agent_router.bind_session(item.session_id, item.agent_id)
 
-            primary_agent = agent_router.get_session_primary_agent(item.session_id)
+            primary_agent = agent_router.get_primary_agent(item.session_id)
             with get_db_session() as db:
                 statement = select(ChatSession).filter_by(session_id=item.session_id).limit(1)
                 db_session = db.exec(statement).first()
@@ -462,7 +462,7 @@ async def bind_group_agent(request: BindGroupRequest):
         try:
             agent_router.bind_group(request.group_id, request.agent_id)
         except ValueError as e:
-            raise AppError(ErrorCode.PARAM_INVALID, str(e, http_status=400)) from e
+            raise AppError(ErrorCode.PARAM_INVALID, str(e)) from e
 
         registry = _get_registry()
         config = registry.get_agent(request.agent_id)
@@ -520,7 +520,7 @@ async def get_sessions_by_agent(agent_id: str):
                 if activity and activity.last_spoke_at:
                     last_spoke = activity.last_spoke_at.isoformat()
 
-                is_primary = (agent_router.get_session_primary_agent(s.session_id) == agent_id)
+                is_primary = (agent_router.get_primary_agent(s.session_id) == agent_id)
 
                 all_agents = agent_router.get_session_all_agents(s.session_id)
                 cohabitants = []
@@ -528,7 +528,7 @@ async def get_sessions_by_agent(agent_id: str):
                     if other_id == agent_id:
                         continue
                     other_config = registry.get_agent(other_id) if registry.has_agent(other_id) else None
-                    other_primary = (agent_router.get_session_primary_agent(s.session_id) == other_id)
+                    other_primary = (agent_router.get_primary_agent(s.session_id) == other_id)
                     other_status = "active"
                     cohabitants.append(CohabitantInfo(
                         agent_id=other_id,
