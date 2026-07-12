@@ -85,6 +85,7 @@ class CohabitantInfo(BaseModel):
     display_name: str
     is_primary: bool = False
     status: str = "bound_inactive"
+    vitality_value: float = 0.0
 
 class SessionAgentInfo(BaseModel):
     session_id: str
@@ -94,6 +95,7 @@ class SessionAgentInfo(BaseModel):
     status: str = "bound_inactive"
     is_primary: bool = False
     last_spoke_at: Optional[str] = None
+    vitality_value: float = 0.0
     cohabitants: List[CohabitantInfo] = Field(default_factory=list)
 
 class SessionsByAgentResponse(BaseModel):

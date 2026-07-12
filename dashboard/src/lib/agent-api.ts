@@ -55,7 +55,7 @@ export interface CohabitantInfo {
   display_name: string
   is_primary: boolean
   status: 'active' | 'standby' | 'dormant' | 'bound_inactive'
-  vitality_value?: number
+  vitality_value: number
 }
 
 export interface SessionAgentInfo {
@@ -67,7 +67,7 @@ export interface SessionAgentInfo {
   is_primary: boolean
   last_spoke_at: string | null
   cohabitants: CohabitantInfo[]
-  vitality_value?: number
+  vitality_value: number
 }
 
 interface AgentListData {

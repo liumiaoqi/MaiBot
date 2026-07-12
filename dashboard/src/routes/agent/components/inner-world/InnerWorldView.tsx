@@ -24,6 +24,7 @@ import { BindSessionDialog } from './BindSessionDialog'
 import { MonologuePanel } from './MonologuePanel'
 import { AutonomyLogPanel } from '../AutonomyLogPanel'
 import { StateAwarenessPanel } from '../StateAwarenessPanel'
+import { MigrationPanel } from './MigrationPanel'
 
 interface InnerWorldViewProps {
   agentId: string
@@ -194,6 +195,7 @@ export function InnerWorldView({ agentId, onBack }: InnerWorldViewProps) {
                 <StateAwarenessPanel
                   sessionId={innerData.sessions.length > 0 ? innerData.sessions[0].session_id : null}
                 />
+                <MigrationPanel />
               </div>
             </TabsContent>
           </Tabs>
