@@ -26,9 +26,11 @@ class ThinkingOrganFactory:
         self,
         chat_loop_service_factory: Callable[[str], Any] | None = None,
         tool_registry: Any | None = None,
+        chat_loop_adapter: Any | None = None,
     ) -> None:
         self._chat_loop_service_factory = chat_loop_service_factory
         self._tool_registry = tool_registry
+        self._chat_loop_adapter = chat_loop_adapter
 
     def create(self, agent_id: str, session_id: str) -> ThinkingOrganProtocol:
         """为指定智能体创建思维管道。
@@ -51,6 +53,7 @@ class ThinkingOrganFactory:
             prompt_builder,
             chat_loop_service=chat_loop_service,
             tool_registry=self._tool_registry,
+            chat_loop_adapter=self._chat_loop_adapter,
         )
 
         logger.debug(

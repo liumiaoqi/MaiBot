@@ -1467,6 +1467,16 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
                 self._chat_loop_service._use_embodied_prompt = True
                 self._chat_loop_adapter.switch_to_embodied_prompt()
 
+            from src.maisaka.agent_autonomy.thinking_organ_factory import ThinkingOrganFactory
+
+            tool_registry = getattr(self._chat_loop_service, '_tool_registry', None)
+
+            thinking_organ_factory = ThinkingOrganFactory(
+                chat_loop_service_factory=lambda _aid: self._chat_loop_service,
+                tool_registry=tool_registry,
+                chat_loop_adapter=self._chat_loop_adapter,
+            )
+
             # 创建 Orchestrator
             session_name = self.session_name
             self._agent_orchestrator = AgentOrchestrator(
@@ -1474,6 +1484,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
                 session_name=session_name,
                 chat_loop_adapter=self._chat_loop_adapter,
                 is_group_chat=self._session_info.is_group_session,
+                thinking_organ_factory=thinking_organ_factory,
             )
 
             logger.info(

@@ -24,6 +24,11 @@ class ChatLoopServiceAdapter:
     def current_agent_id(self) -> str:
         return self._chat_loop_service.agent_id
 
+    @property
+    def chat_history(self) -> list[Any]:
+        """获取当前对话历史（适配器层允许访问 runtime 内部状态）。"""
+        return self._chat_loop_service._chat_history
+
     def switch_agent_context(self, agent_id: str) -> None:
         """切换当前活跃的智能体上下文。
 
