@@ -50,10 +50,7 @@ import type {
   MaisakaReplyPreview,
   MessageSentEvent,
   PlannerFinalizedEvent,
-  PlannerResponseEvent,
-  ReplierResponseEvent,
-  TimingGateResultEvent,
-  ToolExecutionEvent,
+
 } from '@/lib/maisaka-monitor-client'
 import type { SessionInfo, StageStatusInfo, TimelineEntry } from './use-maisaka-monitor'
 import { useMaisakaMonitor } from './use-maisaka-monitor'
@@ -554,37 +551,6 @@ function MessageSentCard({ data }: { data: MessageSentEvent }) {
   )
 }
 
-function TimingGateCard({ data }: { data: TimingGateResultEvent }) {
-  const actionConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive'; icon: typeof ArrowRight }> = {
-    continue: { label: '继续执行', variant: 'default', icon: ArrowRight },
-    wait: { label: '等待', variant: 'secondary', icon: PauseCircle },
-    no_action: { label: '不回复', variant: 'destructive', icon: XCircle },
-  }
-  const config = actionConfig[data.action] ?? actionConfig.continue
-  const Icon = config.icon
-
-  return (
-    <div className="flex items-start gap-3 rounded-md border bg-background px-3 py-2 shadow-sm">
-      <div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-amber-500">
-        <Timer className="h-3.5 w-3.5" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1 flex-wrap">
-          <span className="text-sm font-medium">反应</span>
-          <Badge variant="outline" className="text-[10px]">react</Badge>
-          <Badge variant={config.variant} className="text-[10px] gap-0.5">
-            <Icon className="h-2.5 w-2.5" />
-            {config.label}
-          </Badge>
-          <span className="text-xs text-muted-foreground">{formatMs(data.duration_ms)}</span>
-        </div>
-        {data.content && (
-          <CollapsibleText text={data.content} maxLines={3} />
-        )}
-      </div>
-    </div>
-  )
-}
 
 function ToolCallBadges({ toolCalls }: { toolCalls: MaisakaToolCall[] }) {
   if (toolCalls.length <= 0) {
@@ -678,28 +644,6 @@ function PlannerInterruptedCard({ data }: { data: PlannerFinalizedEvent }) {
   )
 }
 
-function PlannerResponseCard({ data }: { data: PlannerResponseEvent }) {
-  return (
-    <div className="flex items-start gap-3">
-      <div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-500">
-        <Brain className="h-3.5 w-3.5" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1 flex-wrap">
-          <span className="text-sm font-medium">规划器思考</span>
-          <span className="text-xs text-muted-foreground">{formatMs(data.duration_ms)}</span>
-          <Badge variant="outline" className="text-[10px]">
-            {data.prompt_tokens}+{data.completion_tokens} tokens
-          </Badge>
-        </div>
-        {data.content && (
-          <CollapsibleText text={data.content} maxLines={6} />
-        )}
-        <ToolCallBadges toolCalls={data.tool_calls} />
-      </div>
-    </div>
-  )
-}
 
 function PlannerFinalizedCard({
   data,
@@ -993,38 +937,6 @@ function PlannerToolCallsBlock({
   )
 }
 
-function ToolExecutionCard({ data }: { data: ToolExecutionEvent }) {
-  return (
-    <div className="flex items-start gap-3">
-      <div className={cn(
-        'mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full',
-        data.success
-          ? 'bg-teal-500/15 text-teal-500'
-          : 'bg-red-500/15 text-red-500',
-      )}>
-        <Wrench className="h-3.5 w-3.5" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1 flex-wrap">
-          <span className="text-sm font-medium font-mono">{data.tool_name}</span>
-          {data.success
-            ? <CheckCircle2 className="h-3.5 w-3.5 text-teal-500" />
-            : <XCircle className="h-3.5 w-3.5 text-red-500" />
-          }
-          <span className="text-xs text-muted-foreground">{formatMs(data.duration_ms)}</span>
-        </div>
-        {Object.keys(data.tool_args).length > 0 && (
-          <div className="text-xs text-muted-foreground font-mono bg-muted/50 rounded px-2 py-1 mb-1 whitespace-pre-wrap break-all">
-            {JSON.stringify(data.tool_args, null, 2)}
-          </div>
-        )}
-        {data.result_summary && (
-          <CollapsibleText text={data.result_summary} maxLines={3} className="text-muted-foreground" />
-        )}
-      </div>
-    </div>
-  )
-}
 
 // ─── 可折叠文本组件 ────────────────────────────────────────────
 
@@ -1080,52 +992,6 @@ function CollapsibleText({
   )
 }
 
-// ─── 回复器响应卡片 ──────────────────────────────────────────
-
-function ReplierResponseCard({ data }: { data: ReplierResponseEvent }) {
-  return (
-    <Card className="border-l-4 border-l-purple-500/60">
-      <CardHeader className="py-2.5 px-4 space-y-2">
-        <div className="flex items-center gap-2">
-          <Bot className="h-4 w-4 text-purple-500" />
-          <CardTitle className="text-sm font-medium">回复器响应</CardTitle>
-          <Badge variant="outline" className="text-xs font-normal ml-auto">
-            {formatMs(data.duration_ms)}
-          </Badge>
-          {data.success ? (
-            <Badge variant="secondary" className="text-xs gap-1">
-              <CheckCircle2 className="h-3 w-3" /> 成功
-            </Badge>
-          ) : (
-            <Badge variant="destructive" className="text-xs gap-1">
-              <XCircle className="h-3 w-3" /> 失败
-            </Badge>
-          )}
-          <span className="text-xs text-muted-foreground">{formatTimestamp(data.timestamp)}</span>
-        </div>
-        {data.content && (
-          <CollapsibleText text={data.content} maxLines={6} className="text-foreground/90" />
-        )}
-        {data.reasoning && (
-          <details className="mt-1">
-            <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">
-              思考过程
-            </summary>
-            <CollapsibleText text={data.reasoning} maxLines={8} className="mt-1 text-muted-foreground" />
-          </details>
-        )}
-        {(data.prompt_tokens > 0 || data.completion_tokens > 0) && (
-          <div className="flex gap-3 text-xs text-muted-foreground mt-1">
-            {data.model_name && <span>模型: {data.model_name}</span>}
-            <span>输入: {data.prompt_tokens}</span>
-            <span>输出: {data.completion_tokens}</span>
-            <span>总计: {data.total_tokens}</span>
-          </div>
-        )}
-      </CardHeader>
-    </Card>
-  )
-}
 
 // ─── 时间线入口渲染器 ──────────────────────────────────────────
 
@@ -1141,16 +1007,9 @@ function TimelineEventRenderer({
       return <MessageIngestedCard data={entry.data as MessageIngestedEvent} />
     case 'message.sent':
       return <MessageSentCard data={entry.data as MessageSentEvent} />
-    case 'timing_gate.result':
-      return <TimingGateCard data={entry.data as TimingGateResultEvent} />
-    case 'planner.response':
-      return <PlannerResponseCard data={entry.data as PlannerResponseEvent} />
     case 'planner.finalized':
       if (isPlannerInterrupted(entry.data as PlannerFinalizedEvent)) {
         return <PlannerInterruptedCard data={entry.data as PlannerFinalizedEvent} />
-      }
-      if ((entry.data as PlannerFinalizedEvent).timing_gate?.result?.action === 'no_action') {
-        return null
       }
       return (
         <div className="space-y-2">
@@ -1158,11 +1017,6 @@ function TimelineEventRenderer({
           <PlannerToolCallsBlock data={entry.data as PlannerFinalizedEvent} onOpenReasoning={onOpenReasoning} />
         </div>
       )
-    case 'tool.execution':
-      return <ToolExecutionCard data={entry.data as ToolExecutionEvent} />
-    case 'replier.response':
-      return <ReplierResponseCard data={entry.data as ReplierResponseEvent} />
-    // planner.request, replier.request 和 session.start 通常不需要在 timeline 中主要展示
     default:
       return null
   }
@@ -1241,9 +1095,7 @@ export function MaisakaMonitor() {
     messages: timeline.filter((e) => e.type === 'message.ingested' || e.type === 'message.sent').length,
     cycles: timeline.filter((e) => e.type === 'planner.finalized').length,
     toolCalls: timeline.reduce((count, entry) => {
-      if (entry.type === 'tool.execution') {
-        return count + 1
-      }
+
       if (entry.type === 'planner.finalized') {
         return count + ((entry.data as PlannerFinalizedEvent).tools?.length ?? 0)
       }
@@ -1321,59 +1173,23 @@ export function MaisakaMonitor() {
                   </p>
                 </div>
               ) : (
-                (() => {
-                  const noReplyTimingGateCycles = new Set<string>()
-
-                  return timeline.map((entry) => {
-                    if (entry.type === 'timing_gate.result') {
-                      const data = entry.data as TimingGateResultEvent
-                      if (data.action === 'no_action') {
-                        noReplyTimingGateCycles.add(buildCycleKey(data.session_id, data.cycle_id))
-                      }
-                    }
-
-                    if (entry.type === 'planner.response' || entry.type === 'planner.finalized') {
-                      const data = entry.data as PlannerResponseEvent | PlannerFinalizedEvent
-                      const cycleKey = buildCycleKey(data.session_id, data.cycle_id)
-                      if (entry.type === 'planner.finalized' && isPlannerInterrupted(data as PlannerFinalizedEvent)) {
-                        const rendered = (
-                          <TimelineEventRenderer
-                            entry={entry}
-                            onOpenReasoning={handleOpenReasoning}
-                          />
-                        )
-                        if (!rendered) return null
-                        return (
-                          <div
-                            key={entry.id}
-                            className="animate-in fade-in-0 slide-in-from-bottom-2 duration-300"
-                          >
-                            {rendered}
-                          </div>
-                        )
-                      }
-                      if (noReplyTimingGateCycles.has(cycleKey)) {
-                        return null
-                      }
-                    }
-
-                    const rendered = (
-                      <TimelineEventRenderer
-                        entry={entry}
-                        onOpenReasoning={handleOpenReasoning}
-                      />
-                    )
-                    if (!rendered) return null
-                    return (
-                      <div
-                        key={entry.id}
-                        className="animate-in fade-in-0 slide-in-from-bottom-2 duration-300"
-                      >
-                        {rendered}
-                      </div>
-                    )
-                  })
-                })()
+                timeline.map((entry) => {
+                  const rendered = (
+                    <TimelineEventRenderer
+                      entry={entry}
+                      onOpenReasoning={handleOpenReasoning}
+                    />
+                  )
+                  if (!rendered) return null
+                  return (
+                    <div
+                      key={entry.id}
+                      className="animate-in fade-in-0 slide-in-from-bottom-2 duration-300"
+                    >
+                      {rendered}
+                    </div>
+                  )
+                })
               )}
             </div>
           </ScrollArea>
