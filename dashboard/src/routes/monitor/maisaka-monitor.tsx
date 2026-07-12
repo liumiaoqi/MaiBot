@@ -8,7 +8,6 @@ import { useNavigate } from '@tanstack/react-router'
 import {
   Activity,
   AlertCircle,
-  ArrowRight,
   Bot,
   Brain,
   CheckCircle2,
@@ -19,9 +18,7 @@ import {
   Eraser,
   FileCode2,
   ImageIcon,
-  PauseCircle,
   Radio,
-  Timer,
   Wrench,
   XCircle,
 } from 'lucide-react'
@@ -45,7 +42,7 @@ import { cn } from '@/lib/utils'
 
 import type {
   MaisakaMessageMedia,
-  MaisakaToolCall,
+
   MessageIngestedEvent,
   MaisakaReplyPreview,
   MessageSentEvent,
@@ -62,9 +59,6 @@ function formatMs(ms: number): string {
   return `${(ms / 1000).toFixed(2)}s`
 }
 
-function buildCycleKey(sessionId: string, cycleId: number) {
-  return `${sessionId}:${cycleId}`
-}
 
 function formatTimestamp(ts: number): string {
   return new Date(ts * 1000).toLocaleTimeString('zh-CN', {
@@ -552,31 +546,6 @@ function MessageSentCard({ data }: { data: MessageSentEvent }) {
   )
 }
 
-
-function ToolCallBadges({ toolCalls }: { toolCalls: MaisakaToolCall[] }) {
-  if (toolCalls.length <= 0) {
-    return null
-  }
-
-  return (
-    <div className="mt-2 flex flex-wrap gap-1.5">
-      {toolCalls.map((tc: MaisakaToolCall, idx: number) => (
-        <Badge key={`${tc.id || tc.name}-${idx}`} variant="secondary" className="text-[10px] gap-1">
-          <Wrench className="h-2.5 w-2.5" />
-          {tc.name}
-          {getToolCallSourceLabel(tc.source, tc.source_label) && (
-            <span className={cn(
-              'ml-1 rounded-full border px-1 py-0 text-[9px] leading-4',
-              getToolCallSourceBadgeClassName(tc.source),
-            )}>
-              {getToolCallSourceLabel(tc.source, tc.source_label)}
-            </span>
-          )}
-        </Badge>
-      ))}
-    </div>
-  )
-}
 
 interface ReasoningRecordTarget {
   session: string
