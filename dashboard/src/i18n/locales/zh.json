@@ -21,9 +21,9 @@
   "sidebar": {
     "groups": {
       "overview": "概览",
-      "botConfig": "麦麦配置编辑",
-      "botResources": "麦麦资源管理",
-      "extensionsMonitor": "插件与扩展",
+      "botConfig": "配置",
+      "botResources": "资源",
+      "extensionsMonitor": "扩展",
       "system": "系统"
     },
     "menu": {
@@ -48,6 +48,7 @@
       "logViewer": "日志查看器",
       "reasoningProcess": "推理过程",
       "maisakaMonitor": "麦麦观察",
+      "systemMonitor": "系统监控",
       "agentManagement": "智能体管理",
       "emotionMonitor": "情绪监控",
       "relationshipMonitor": "关系查看",
@@ -1003,6 +1004,30 @@
         "cancel": "关闭"
       }
     },
+    "systemStatus": {
+      "title": "系统状态",
+      "status": "运行状态",
+      "uptime": "运行时间",
+      "version": "主程序版本",
+      "webuiVersion": "WebUI 版本"
+    },
+    "agentStatus": {
+      "title": "智能体状态",
+      "activeAgents": "活跃智能体",
+      "totalAgents": "总智能体数",
+      "activeSessions": "绑定会话数"
+    },
+    "llmOverview": {
+      "title": "LLM 概览",
+      "requests": "调用次数",
+      "cost": "总花费",
+      "tokens": "Token 消耗"
+    },
+    "chatStream": {
+      "title": "聊天流概览",
+      "activeSessions": "活跃会话",
+      "todayCalls": "今日调用"
+    },
     "botStatus": {
       "title": "麦麦状态",
       "loading": "读取中",
@@ -1548,5 +1573,53 @@
     "tabStreams": "聊天流",
     "tabGroups": "共享组",
     "searchPlaceholder": "搜索名称、平台、用户、群号或会话 ID"
+  },
+  "monitor": {
+    "title": "系统监控",
+    "live": "实时",
+    "polling": "轮询中",
+    "tabs": {
+      "system": "系统资源",
+      "llm": "LLM 统计",
+      "chat": "聊天流"
+    },
+    "systemResources": {
+      "title": "系统资源",
+      "live": "实时",
+      "polling": "轮询中",
+      "error": "获取系统资源失败",
+      "loading": "加载中...",
+      "cpu": "CPU",
+      "memory": "内存",
+      "disk": "磁盘",
+      "database": "数据库"
+    },
+    "llm": {
+      "exportCSV": "导出 CSV",
+      "totalRequests": "总请求数",
+      "totalCost": "总花费",
+      "totalTokens": "Token 总量",
+      "avgResponse": "平均响应",
+      "modelStats": "模型统计",
+      "agentStats": "智能体统计",
+      "model": "模型",
+      "agent": "智能体",
+      "requests": "请求数",
+      "cost": "花费",
+      "tokens": "Token",
+      "avgTime": "平均耗时",
+      "inputTokens": "输入 Token",
+      "outputTokens": "输出 Token"
+    },
+    "chatStream": {
+      "title": "聊天流状态",
+      "lastActive": "最后活跃",
+      "messageCount": "消息数",
+      "loading": "加载中...",
+      "empty": "暂无聊天流",
+      "name": "名称",
+      "agent": "智能体",
+      "messages": "消息"
+    }
   }
 }

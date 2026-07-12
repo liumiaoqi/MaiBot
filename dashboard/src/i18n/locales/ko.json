@@ -21,9 +21,9 @@
   "sidebar": {
     "groups": {
       "overview": "개요",
-      "botConfig": "봇 설정",
-      "botResources": "봇 리소스",
-      "extensionsMonitor": "플러그인 및 확장",
+      "botConfig": "설정",
+      "botResources": "리소스",
+      "extensionsMonitor": "확장",
       "system": "시스템"
     },
     "menu": {
@@ -48,6 +48,7 @@
       "logViewer": "로그 뷰어",
       "reasoningProcess": "추론 과정",
       "maisakaMonitor": "MaiSaka 채팅 모니터",
+      "systemMonitor": "시스템 모니터",
       "agentManagement": "에이전트 관리",
       "emotionMonitor": "감정 모니터",
       "relationshipMonitor": "관계 확인",
@@ -995,6 +996,30 @@
         "cancel": "닫기"
       }
     },
+    "systemStatus": {
+      "title": "시스템 상태",
+      "status": "상태",
+      "uptime": "가동 시간",
+      "version": "메인 버전",
+      "webuiVersion": "WebUI 버전"
+    },
+    "agentStatus": {
+      "title": "에이전트 상태",
+      "activeAgents": "활성 에이전트",
+      "totalAgents": "전체 에이전트",
+      "activeSessions": "바인딩 세션"
+    },
+    "llmOverview": {
+      "title": "LLM 개요",
+      "requests": "요청 수",
+      "cost": "총 비용",
+      "tokens": "토큰 사용량"
+    },
+    "chatStream": {
+      "title": "채팅 스트림",
+      "activeSessions": "활성 세션",
+      "todayCalls": "오늘 호출"
+    },
     "botStatus": {
       "title": "MaiBot 상태",
       "loading": "읽는 중",
@@ -1385,5 +1410,53 @@
     "tabStreams": "채팅 스트림",
     "tabGroups": "공유 그룹",
     "searchPlaceholder": "이름, 플랫폼, 사용자, 그룹 ID 또는 세션 ID로 검색"
+  },
+  "monitor": {
+    "title": "시스템 모니터",
+    "live": "실시간",
+    "polling": "폴링",
+    "tabs": {
+      "system": "시스템 리소스",
+      "llm": "LLM 통계",
+      "chat": "채팅 스트림"
+    },
+    "systemResources": {
+      "title": "시스템 리소스",
+      "live": "실시간",
+      "polling": "폴링",
+      "error": "시스템 리소스를 가져오지 못했습니다",
+      "loading": "로딩 중...",
+      "cpu": "CPU",
+      "memory": "메모리",
+      "disk": "디스크",
+      "database": "데이터베이스"
+    },
+    "llm": {
+      "exportCSV": "CSV 내보내기",
+      "totalRequests": "총 요청 수",
+      "totalCost": "총 비용",
+      "totalTokens": "총 토큰",
+      "avgResponse": "평균 응답",
+      "modelStats": "모델 통계",
+      "agentStats": "에이전트 통계",
+      "model": "모델",
+      "agent": "에이전트",
+      "requests": "요청 수",
+      "cost": "비용",
+      "tokens": "토큰",
+      "avgTime": "평균 소요 시간",
+      "inputTokens": "입력 토큰",
+      "outputTokens": "출력 토큰"
+    },
+    "chatStream": {
+      "title": "채팅 스트림 상태",
+      "lastActive": "마지막 활동",
+      "messageCount": "메시지 수",
+      "loading": "로딩 중...",
+      "empty": "채팅 스트림 없음",
+      "name": "이름",
+      "agent": "에이전트",
+      "messages": "메시지"
+    }
   }
 }

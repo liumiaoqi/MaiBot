@@ -78,6 +78,10 @@ import { backendApi } from '@/lib/http'
 import { cn } from '@/lib/utils'
 import { APP_VERSION } from '@/lib/version'
 
+import { AgentStatusCard } from './home/cards/AgentStatusCard'
+import { ChatStreamCard } from './home/cards/ChatStreamCard'
+import { LLMOverviewCard } from './home/cards/LLMOverviewCard'
+import { SystemStatusCard } from './home/cards/SystemStatusCard'
 import { useBotStatus } from './home/hooks/useBotStatus'
 import { useDashboardData } from './home/hooks/useDashboardData'
 import { useFeatureStatus } from './home/hooks/useFeatureStatus'
@@ -476,7 +480,48 @@ function IndexPageContent() {
     },
   ]
 
+  const agentStats = dashboardData?.agent_stats
+
   const homeCards: HomeCardDefinition[] = [
+    {
+      id: 'builtin:system-status',
+      title: t('home.systemStatus.title'),
+      width: 'medium',
+      source: 'builtin',
+      render: () => (
+        <SystemStatusCard
+          botStatus={botStatus}
+          isBotStatusLoading={isBotStatusLoading}
+          webuiVersion={APP_VERSION}
+          formatTime={formatTime}
+        />
+      ),
+    },
+    {
+      id: 'builtin:agent-status',
+      title: t('home.agentStatus.title'),
+      width: 'medium',
+      source: 'builtin',
+      render: () => <AgentStatusCard agentStats={agentStats} />,
+    },
+    {
+      id: 'builtin:llm-overview',
+      title: t('home.llmOverview.title'),
+      width: 'medium',
+      source: 'builtin',
+      render: () => (
+        <LLMOverviewCard summary={summary} formatNumber={formatNumber} formatCurrency={formatCurrency} />
+      ),
+    },
+    {
+      id: 'builtin:chat-stream',
+      title: t('home.chatStream.title'),
+      width: 'medium',
+      source: 'builtin',
+      render: () => (
+        <ChatStreamCard agentStats={agentStats} recentActivity={recent_activity} />
+      ),
+    },
     {
       id: 'builtin:version',
       title: t('home.versionCard.title'),

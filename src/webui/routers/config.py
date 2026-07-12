@@ -1701,7 +1701,11 @@ async def update_bot_config_raw(raw_content: RawContentBody):
             f.write(raw_content)
 
         logger.info("麦麦主程序配置已更新（原始模式）")
-        return {"success": True, "message": "配置已保存"}
+        restart_sections = [s for s in config_data if s in _RESTART_REQUIRED_SECTIONS]
+        return ConfigSaveResponse(
+            needs_restart=bool(restart_sections),
+            restart_required_sections=restart_sections,
+        )
     except AppError:
         raise
     except Exception as e:

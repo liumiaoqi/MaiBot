@@ -36,6 +36,24 @@ export async function getMaiBotStatus(): Promise<{
   })
 }
 
+export interface SystemResources {
+  cpu_percent: number
+  memory_percent: number
+  memory_used: number
+  memory_total: number
+  disk_percent: number
+  disk_used: number
+  disk_total: number
+  database_size: number
+  timestamp: number
+}
+
+export async function getSystemResources(): Promise<SystemResources> {
+  return backendApi.get<SystemResources>('/api/webui/system/resources', {
+    errorMessage: '获取系统资源失败',
+  })
+}
+
 export interface CacheDirectoryStats {
   key: string
   label: string
