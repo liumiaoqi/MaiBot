@@ -60,10 +60,12 @@ class AgentOrchestrator:
         routing_service: AgentRoutingService | None = None,
         notice_classifier: NoticeClassifier | None = None,
         thinking_organ_factory: ThinkingOrganFactory | None = None,
+        is_group_chat: bool = False,
     ) -> None:
         self._session_id = session_id
         self._session_name = session_name
         self._chat_loop_adapter = chat_loop_adapter
+        self._is_group_chat = is_group_chat
         self._routing_service = routing_service or self._get_default_routing_service()
         self._notice_classifier = notice_classifier or self._get_default_notice_classifier()
         self._thinking_organ_factory = thinking_organ_factory or self._get_default_thinking_organ_factory()
@@ -589,6 +591,10 @@ class AgentOrchestrator:
             content = message.processed_plain_text or ""
             sender_id = message.message_info.user_info.user_id if message.message_info else ""
 
+            # 主回复调度：非环境通知消息触发主智能体思考
+            should_reply = not message.is_notify or notice_kind == NoticeKind.INTERACTION
+            if should_reply and self._primary_agent_id is not None:
+                await self._schedule_primary_reply(message)
 
             # 管家：尝试从用户消息中创建提醒
             if self._butler is not None and content:
@@ -647,6 +653,62 @@ class AgentOrchestrator:
                 f"session={self._session_name} error={exc}"
             )
             self._degraded = True
+
+    async def _schedule_primary_reply(self, message: Any) -> None:
+        """调度主智能体回复——消息入队、去重、触发思考。"""
+        primary = self._active_agents.get(self._primary_agent_id or "")
+        if primary is None:
+            return
+
+        content = message.processed_plain_text or ""
+        sender_name = ""
+        if message.message_info and message.message_info.user_info:
+            sender_name = message.message_info.user_info.nickname or message.message_info.user_info.user_id
+
+        core_msg = CoreMessage(
+            session_id=self._session_id,
+            plain_text=content,
+            sender_name=sender_name,
+            is_notify=message.is_notify,
+        )
+
+        think_context = await self._build_think_context(
+            agent=primary,
+            messages=(core_msg,),
+            trigger_reason="user_message",
+        )
+
+        task = self._think_scheduler.schedule(
+            self._primary_agent_id, primary.thinking_organ, think_context,
+        )
+        result = await task
+
+        if result.action == ThinkAction.REPLY and result.text:
+            from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
+            from src.core.message_port_registry import get_message_port_v2
+            port = get_message_port_v2()
+            if port is not None:
+                await port.send_message(
+                    session_id=self._session_id,
+                    message=MessageSequence(components=[TextComponent(text=result.text)]),
+                    agent_id=self._primary_agent_id,
+                    source="primary_reply",
+                )
+                logger.info(
+                    f"[agent_autonomy] 主回复发送: agent={self._primary_agent_id} "
+                    f"text_len={len(result.text)} session={self._session_name}"
+                )
+        elif result.action == ThinkAction.WAIT:
+            logger.info(
+                f"[agent_autonomy] 主回复等待: agent={self._primary_agent_id} "
+                f"wait={result.wait_seconds}s session={self._session_name}"
+            )
+        elif result.action == ThinkAction.SILENT:
+            logger.debug(
+                f"[agent_autonomy] 主回复静默: agent={self._primary_agent_id} "
+                f"rounds={result.rounds} tools={result.tool_calls_count} "
+                f"session={self._session_name}"
+            )
 
     def _handle_ambient_notice(self, message: Any, notice_kind: NoticeKind) -> None:
         """处理纯环境感知通知：更新待命智能体生命力，不触发Planner。"""
@@ -993,4 +1055,6 @@ class AgentOrchestrator:
             memory_personality_params=memory_personality_params,
             trigger_reason=trigger_reason,
             metadata=metadata or {},
+            session_id=self._session_id,
+            is_group_chat=self._is_group_chat,
         )

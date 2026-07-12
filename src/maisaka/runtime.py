@@ -886,6 +886,11 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
 
         if self._is_reply_effect_tracking_enabled():
             asyncio.create_task(self._reply_effect_tracker.observe_user_message(message))
+
+        # Orchestrator 已接管主回复调度，跳过旧 Planner 路径
+        if self._agent_orchestrator is not None:
+            return
+
         if not self._should_continue_after_focus_gate(message):
             return
         if self._agent_state == self._STATE_RUNNING:
@@ -1468,6 +1473,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
                 session_id=self.session_id,
                 session_name=session_name,
                 chat_loop_adapter=self._chat_loop_adapter,
+                is_group_chat=self._session_info.is_group_session,
             )
 
             logger.info(
