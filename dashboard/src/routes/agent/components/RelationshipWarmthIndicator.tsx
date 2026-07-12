@@ -10,6 +10,7 @@ const WARMTH_COLORS: Record<string, string> = {
   warm: '#ef4444',
   moderate: '#f97316',
   cold: '#3b82f6',
+  no_data: '#9ca3af',
   unavailable: '#6b7280',
 }
 
@@ -25,6 +26,11 @@ export function RelationshipWarmthIndicator({ data }: RelationshipWarmthIndicato
       <span className="text-muted-foreground">
         {t(`agent.vitalSigns.warmth.${data.warmth}`)}
       </span>
+      {data.dataSource === 'internal_relationship' && (
+        <span className="text-muted-foreground">
+          · {t('agent.vitalSigns.warmth.basedOnInternal')}
+        </span>
+      )}
       {data.relationshipCount > 0 && (
         <span className="text-muted-foreground">
           · {t('agent.vitalSigns.relationshipCount', { count: data.relationshipCount })}

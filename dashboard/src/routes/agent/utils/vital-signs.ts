@@ -1,6 +1,6 @@
 export type ActivityStatus = 'active' | 'quiet' | 'dormant'
 
-export type WarmthLevel = 'warm' | 'moderate' | 'cold' | 'unavailable'
+export type WarmthLevel = 'warm' | 'moderate' | 'cold' | 'no_data' | 'unavailable'
 
 export type InnerActivityStatus = 'introspecting' | 'quiet' | 'unavailable'
 
@@ -20,6 +20,7 @@ export interface RelationshipWarmthData {
   warmth: WarmthLevel
   relationshipCount: number
   highestLevel: number
+  dataSource: 'user_relationship' | 'internal_relationship' | 'none'
 }
 
 export interface InnerActivityData {
@@ -39,7 +40,7 @@ export interface VitalSignsData {
   innerActivity: InnerActivityData
 }
 
-import type { AgentConfigInfo, BatchEmotionItem, BatchRelationshipItem, BatchLatestSubAgentItem } from '@/lib/agent-api'
+import type { AgentConfigInfo, BatchEmotionItem, BatchRelationshipItem, BatchLatestSubAgentItem, InternalRelationshipSummaryItem } from '@/lib/agent-api'
 import { EMOTION_COLORS } from './emotion-constants'
 
 export function deriveEmotionPulseData(
@@ -70,22 +71,35 @@ export function deriveActivityRhythmData(
 
 export function deriveRelationshipWarmthData(
   relationships: BatchRelationshipItem[] | undefined | null,
+  internalRelationships?: InternalRelationshipSummaryItem[] | undefined | null,
 ): RelationshipWarmthData {
-  if (!relationships || relationships.length === 0) {
-    return { warmth: 'unavailable', relationshipCount: 0, highestLevel: 0 }
+  if (relationships && relationships.length > 0) {
+    const highestLevel = Math.max(...relationships.map((r) => r.level))
+    let warmth: WarmthLevel
+    if (highestLevel >= 3) {
+      warmth = 'warm'
+    } else if (highestLevel >= 2) {
+      warmth = 'moderate'
+    } else if (highestLevel >= 1) {
+      warmth = 'cold'
+    } else {
+      warmth = 'no_data'
+    }
+    return { warmth, relationshipCount: relationships.length, highestLevel, dataSource: 'user_relationship' }
   }
-  const highestLevel = Math.max(...relationships.map((r) => r.level))
-  let warmth: WarmthLevel
-  if (highestLevel >= 3) {
-    warmth = 'warm'
-  } else if (highestLevel >= 2) {
-    warmth = 'moderate'
-  } else if (highestLevel >= 1) {
-    warmth = 'cold'
-  } else {
-    warmth = 'unavailable'
+  if (internalRelationships && internalRelationships.length > 0) {
+    const avgMention = internalRelationships.reduce((sum, r) => sum + r.mention_tendency, 0) / internalRelationships.length
+    let warmth: WarmthLevel
+    if (avgMention >= 0.5) {
+      warmth = 'moderate'
+    } else if (avgMention >= 0.3) {
+      warmth = 'cold'
+    } else {
+      warmth = 'no_data'
+    }
+    return { warmth, relationshipCount: internalRelationships.length, highestLevel: 0, dataSource: 'internal_relationship' }
   }
-  return { warmth, relationshipCount: relationships.length, highestLevel }
+  return { warmth: 'no_data', relationshipCount: 0, highestLevel: 0, dataSource: 'none' }
 }
 
 export function deriveInnerActivityData(
@@ -118,6 +132,7 @@ export function deriveVitalSignsData(
   relationships: BatchRelationshipItem[] | undefined | null,
   sessionCount: number,
   latestRecord: BatchLatestSubAgentItem | null | undefined,
+  internalRelationships?: InternalRelationshipSummaryItem[] | undefined | null,
 ): VitalSignsData {
   return {
     agentId: agent.agent_id,
@@ -126,7 +141,7 @@ export function deriveVitalSignsData(
     isDefault: agent.is_default,
     emotionPulse: deriveEmotionPulseData(emotion),
     activityRhythm: deriveActivityRhythmData(agent, sessionCount),
-    relationshipWarmth: deriveRelationshipWarmthData(relationships),
+    relationshipWarmth: deriveRelationshipWarmthData(relationships, internalRelationships),
     innerActivity: deriveInnerActivityData(latestRecord),
   }
 }

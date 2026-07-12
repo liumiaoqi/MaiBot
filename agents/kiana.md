@@ -26,7 +26,6 @@ hard_permission:
   rule: private_only
 - action: relationship_update
   rule: limited
-idle_backoff_modifier: 0.7
 internal_relationships:
 - anti_mechanization: 不要每句都叫芽衣
   attitude: 叫芽衣叫得最响，偷吃芽衣做的饭被追着打

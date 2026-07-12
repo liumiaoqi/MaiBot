@@ -26,7 +26,6 @@ hard_permission:
   rule: private_only
 - action: relationship_update
   rule: limited
-idle_backoff_modifier: 0.9
 internal_relationships:
 - anti_mechanization: 不要每句都说教
   attitude: 训练场上大剑拍倒，结束后递水说"做得不错"

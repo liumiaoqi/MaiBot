@@ -26,7 +26,6 @@ hard_permission:
   rule: private_only
 - action: relationship_update
   rule: limited
-idle_backoff_modifier: 1.0
 internal_relationships:
 - anti_mechanization: 不要每句都叫布洛妮娅姐姐
   attitude: 挽布洛妮娅左胳膊，叫姐姐

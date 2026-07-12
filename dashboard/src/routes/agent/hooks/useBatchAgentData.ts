@@ -10,12 +10,14 @@ import {
   type BatchEmotionItem,
   type BatchRelationshipItem,
   type BatchLatestSubAgentItem,
+  type InternalRelationshipSummaryItem,
 } from '@/lib/agent-api'
 
 export interface BatchAgentData {
   agents: AgentConfigInfo[]
   emotions: Record<string, BatchEmotionItem>
   relationships: Record<string, BatchRelationshipItem[]>
+  internalRelationshipsSummary: Record<string, InternalRelationshipSummaryItem[]>
   sessionCounts: Record<string, number>
   latestSubAgentRecords: Record<string, BatchLatestSubAgentItem | null>
   isLoading: boolean
@@ -27,14 +29,16 @@ export function useBatchAgentData(): BatchAgentData {
   const agentsQuery = useQuery({
     queryKey: ['agents', 'batch', 'overview'],
     queryFn: async () => {
-      const [agents, emotions, relationships, sessionCounts, latestSubAgentRecords] = await Promise.all([
+      const [agents, emotions, relResult, sessionCounts, latestSubAgentRecords] = await Promise.all([
         getAgentList(),
         getBatchEmotions().catch(() => ({} as Record<string, BatchEmotionItem>)),
-        getBatchRelationships().catch(() => ({} as Record<string, BatchRelationshipItem[]>)),
+        getBatchRelationships().catch(() => ({ data: {}, internal_relationships_summary: {} } as { data: Record<string, BatchRelationshipItem[]>; internal_relationships_summary: Record<string, InternalRelationshipSummaryItem[]> })),
         getBatchSessionCounts().catch(() => ({} as Record<string, number>)),
         getBatchLatestSubAgentRecords().catch(() => ({} as Record<string, BatchLatestSubAgentItem | null>)),
       ])
-      return { agents, emotions, relationships, sessionCounts, latestSubAgentRecords }
+      const relationships = relResult.data ?? {}
+      const internalRelationshipsSummary = relResult.internal_relationships_summary ?? {}
+      return { agents, emotions, relationships, internalRelationshipsSummary, sessionCounts, latestSubAgentRecords }
     },
   })
 
@@ -44,6 +48,7 @@ export function useBatchAgentData(): BatchAgentData {
     agents: data?.agents ?? [],
     emotions: data?.emotions ?? {},
     relationships: data?.relationships ?? {},
+    internalRelationshipsSummary: data?.internalRelationshipsSummary ?? {},
     sessionCounts: data?.sessionCounts ?? {},
     latestSubAgentRecords: data?.latestSubAgentRecords ?? {},
     isLoading: agentsQuery.isLoading,

@@ -28,7 +28,6 @@ hard_permission:
   rule: deny
 - action: relationship_update
   rule: limited
-idle_backoff_modifier: 1.1
 internal_relationships:
 - anti_mechanization: ''
   attitude: 和桑多涅最要好，泡茶她坐旁边吃点心

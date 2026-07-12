@@ -1251,7 +1251,9 @@
         "warm": "温暖",
         "moderate": "温和",
         "cold": "冷淡",
-        "unavailable": "温度暂不可感知"
+        "no_data": "暂无交互数据",
+        "unavailable": "温度暂不可感知",
+        "basedOnInternal": "基于角色关系"
       },
       "innerActivity": {
         "introspecting": "内省中",

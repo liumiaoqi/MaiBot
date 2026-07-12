@@ -53,6 +53,7 @@ from src.webui.schemas.agent import (
     InterjectionEventItem,
     InterjectionEventsResponse,
     InternalRelationshipResponse,
+    InternalRelationshipSummaryItem,
     ManualTriggerRequest,
     ManualTriggerResponse,
     MigrationAdvanceResponse,
@@ -735,9 +736,19 @@ async def batch_get_emotions():
 async def batch_get_relationships():
     """批量获取所有智能体的关系概览"""
     result: Dict[str, List[RelationshipItem]] = {}
+    internal_summary: Dict[str, List[InternalRelationshipSummaryItem]] = {}
     try:
         registry = _get_registry()
         agents = registry.list_agents()
+        for agent in agents:
+            internal_summary[agent.agent_id] = [
+                InternalRelationshipSummaryItem(
+                    target_agent_id=rel.target_agent_id,
+                    relationship_type=rel.relationship_type,
+                    mention_tendency=rel.mention_tendency,
+                )
+                for rel in agent.internal_relationships
+            ]
         with get_db_session() as db:
             for agent in agents:
                 try:
@@ -760,7 +771,7 @@ async def batch_get_relationships():
                 except Exception as e:
                     logger.warning(f"批量获取关系 — 智能体 {agent.agent_id} 失败: {e}")
                     result[agent.agent_id] = []
-        return ApiResponse(data=BatchRelationshipResponse(success=True, data=result))
+        return ApiResponse(data=BatchRelationshipResponse(success=True, data=result, internal_relationships_summary=internal_summary))
     except AppError:
         raise
     except Exception as e:
