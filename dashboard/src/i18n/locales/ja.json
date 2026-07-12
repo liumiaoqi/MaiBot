@@ -1253,7 +1253,9 @@
         "warm": "温かい",
         "moderate": "穏やか",
         "cold": "冷たい",
-        "unavailable": "温度感知不可"
+        "no_data": "交流データなし",
+        "unavailable": "温度感知不可",
+        "basedOnInternal": "キャラクター関係に基づく"
       },
       "innerActivity": {
         "introspecting": "内省中",

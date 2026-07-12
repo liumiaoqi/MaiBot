@@ -324,6 +324,17 @@ export interface BatchRelationshipItem {
   total_interactions: number
 }
 
+export interface InternalRelationshipSummaryItem {
+  target_agent_id: string
+  relationship_type: string
+  mention_tendency: number
+}
+
+export interface BatchRelationshipsResponse {
+  data: Record<string, BatchRelationshipItem[]>
+  internal_relationships_summary: Record<string, InternalRelationshipSummaryItem[]>
+}
+
 export interface BatchLatestSubAgentItem {
   id: number
   subagent_id: string
@@ -348,11 +359,11 @@ export async function getBatchEmotions(): Promise<Record<string, BatchEmotionIte
   return data.data
 }
 
-export async function getBatchRelationships(): Promise<Record<string, BatchRelationshipItem[]>> {
-  const data = await backendApi.get<{ data: Record<string, BatchRelationshipItem[]> }>(`${API_BASE}/batch/relationships`, {
+export async function getBatchRelationships(): Promise<BatchRelationshipsResponse> {
+  const data = await backendApi.get<BatchRelationshipsResponse>(`${API_BASE}/batch/relationships`, {
     errorMessage: '批量获取关系概览失败',
   })
-  return data.data
+  return data
 }
 
 export async function getBatchSessionCounts(): Promise<Record<string, number>> {

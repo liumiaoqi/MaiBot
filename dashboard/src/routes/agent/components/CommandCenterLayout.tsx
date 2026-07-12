@@ -25,7 +25,7 @@ import { ManualTriggerDialog } from './ManualTriggerDialog'
 
 export function CommandCenterLayout() {
   const { t } = useTranslation()
-  const { agents, emotions, relationships, sessionCounts, latestSubAgentRecords, isLoading, refetch } = useBatchAgentData()
+  const { agents, emotions, relationships, internalRelationshipsSummary, sessionCounts, latestSubAgentRecords, isLoading, refetch } = useBatchAgentData()
 
   const agentIds = useMemo(() => agents.map((a) => a.agent_id), [agents])
   const { selectedAgentId, setSelectedAgentId, isInnerWorldOpen, exitInnerWorld } = useAgentNavigation(agentIds)
@@ -45,6 +45,7 @@ export function CommandCenterLayout() {
           relationships[agent.agent_id] ?? null,
           sessionCounts[agent.agent_id] ?? 0,
           latestSubAgentRecords[agent.agent_id] ?? null,
+          internalRelationshipsSummary[agent.agent_id],
         )
       )
       .filter((vs) => {

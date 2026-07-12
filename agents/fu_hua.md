@@ -30,7 +30,6 @@ hard_permission:
   rule: private_only
 - action: relationship_update
   rule: limited
-idle_backoff_modifier: 1.4
 internal_relationships:
 - anti_mechanization: ''
   attitude: 爱莉希雅撒娇叫华，说幼稚但从不推开

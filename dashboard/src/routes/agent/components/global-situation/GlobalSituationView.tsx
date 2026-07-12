@@ -6,7 +6,7 @@ import { RelationshipDynamicsFlow } from './RelationshipDynamicsFlow'
 import { GroupStatsBar } from './GroupStatsBar'
 
 export function GlobalSituationView() {
-  const { agents, emotions, relationships, sessionCounts, latestSubAgentRecords } = useBatchAgentData()
+  const { agents, emotions, relationships, internalRelationshipsSummary, sessionCounts, latestSubAgentRecords } = useBatchAgentData()
 
   const vitalSignsList = agents.map((agent) =>
     deriveVitalSignsData(
@@ -15,6 +15,7 @@ export function GlobalSituationView() {
       relationships[agent.agent_id] ?? null,
       sessionCounts[agent.agent_id] ?? 0,
       latestSubAgentRecords[agent.agent_id] ?? null,
+      internalRelationshipsSummary[agent.agent_id],
     )
   )
 

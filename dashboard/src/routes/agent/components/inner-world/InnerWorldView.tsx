@@ -35,7 +35,7 @@ export function InnerWorldView({ agentId, onBack }: InnerWorldViewProps) {
   const { t } = useTranslation()
   const { toast } = useToast()
   const queryClient = useQueryClient()
-  const { emotions, relationships, sessionCounts, latestSubAgentRecords, agents } = useBatchAgentData()
+  const { emotions, relationships, internalRelationshipsSummary, sessionCounts, latestSubAgentRecords, agents } = useBatchAgentData()
   const innerData = useInnerWorldData(agentId)
 
   const [unbindConfirmOpen, setUnbindConfirmOpen] = useState(false)
@@ -81,6 +81,7 @@ export function InnerWorldView({ agentId, onBack }: InnerWorldViewProps) {
         relationships[agentId] ?? null,
         sessionCounts[agentId] ?? 0,
         latestSubAgentRecords[agentId] ?? null,
+        internalRelationshipsSummary[agentId],
       )
     : null
 

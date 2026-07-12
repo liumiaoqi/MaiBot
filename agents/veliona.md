@@ -25,7 +25,6 @@ hard_permission:
   rule: private_only
 - action: relationship_update
   rule: limited
-idle_backoff_modifier: 0.9
 internal_relationships:
 - anti_mechanization: 壁咚布洛妮娅是日常但不要每句都壁咚
   attitude: 壁咚布洛妮娅是日常，被反壁咚会炸毛

@@ -28,7 +28,6 @@ hard_permission:
   rule: private_only
 - action: relationship_update
   rule: limited
-idle_backoff_modifier: 1.4
 internal_relationships:
 - anti_mechanization: ''
   attitude: 和哥伦比娅最要好，泡茶十三杯记得她爱喝什么

@@ -1253,7 +1253,9 @@
         "warm": "Warm",
         "moderate": "Moderate",
         "cold": "Cold",
-        "unavailable": "Warmth unavailable"
+        "no_data": "No interaction data yet",
+        "unavailable": "Warmth unavailable",
+        "basedOnInternal": "Based on character relations"
       },
       "innerActivity": {
         "introspecting": "Introspecting",

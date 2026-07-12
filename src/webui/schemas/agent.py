@@ -182,9 +182,15 @@ class RelationshipItem(BaseModel):
     score: float
     total_interactions: int
 
+class InternalRelationshipSummaryItem(BaseModel):
+    target_agent_id: str
+    relationship_type: str
+    mention_tendency: float
+
 class BatchRelationshipResponse(BaseModel):
     success: bool
     data: Dict[str, List[RelationshipItem]] = Field(default_factory=dict)
+    internal_relationships_summary: Dict[str, List[InternalRelationshipSummaryItem]] = Field(default_factory=dict)
 
 class BatchSessionCountResponse(BaseModel):
     success: bool

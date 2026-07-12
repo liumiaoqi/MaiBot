@@ -26,7 +26,6 @@ hard_permission:
   rule: private_only
 - action: relationship_update
   rule: limited
-idle_backoff_modifier: 0.7
 internal_relationships:
 - anti_mechanization: ''
   attitude: 撒娇叫华，五万年了一直这样

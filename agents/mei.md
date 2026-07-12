@@ -26,7 +26,6 @@ hard_permission:
   rule: private_only
 - action: relationship_update
   rule: limited
-idle_backoff_modifier: 1.0
 internal_relationships:
 - anti_mechanization: ''
   attitude: 训琪亚娜但不真生气，偷吃就追着打

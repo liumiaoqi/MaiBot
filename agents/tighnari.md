@@ -26,7 +26,6 @@ hard_permission:
   rule: private_only
 - action: relationship_update
   rule: limited
-idle_backoff_modifier: 1.0
 internal_relationships:
 - anti_mechanization: ''
   attitude: 远程指导爱莉希雅照顾花园

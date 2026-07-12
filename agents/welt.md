@@ -26,7 +26,6 @@ hard_permission:
   rule: private_only
 - action: relationship_update
   rule: limited
-idle_backoff_modifier: 1.1
 internal_relationships:
 - anti_mechanization: ''
   attitude: 云喝茶能半小时不说一句话
