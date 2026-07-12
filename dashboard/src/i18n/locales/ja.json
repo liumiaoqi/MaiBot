@@ -1307,6 +1307,7 @@
       "noChanges": "最近の関係に大きな変化なし",
       "nearBreakthrough": "ブレイクスルー間近",
       "statsDetail": {
+        "registeredAgents": "登録済み {{count}}",
         "totalAgents": "{{count}} 体の生命",
         "activeAgents": "{{count}} 体がアクティブ",
         "totalRelationships": "{{count}} 本の絆",

@@ -21,7 +21,7 @@ export function GlobalSituationView() {
 
   return (
     <div className="flex flex-col h-full overflow-auto p-4 space-y-6">
-      <GroupStatsBar vitalSignsList={vitalSignsList} relationships={relationships} />
+      <GroupStatsBar vitalSignsList={vitalSignsList} relationships={relationships} registeredCount={agents.length} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <EmotionDonutChart emotions={emotions} />

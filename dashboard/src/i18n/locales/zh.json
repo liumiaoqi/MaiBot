@@ -1305,6 +1305,7 @@
       "noChanges": "近期关系平稳，无显著变化",
       "nearBreakthrough": "即将突破",
       "statsDetail": {
+        "registeredAgents": "已注册 {{count}}",
         "totalAgents": "{{count}} 个生命体",
         "activeAgents": "{{count}} 个活跃",
         "totalRelationships": "{{count}} 条纽带",
