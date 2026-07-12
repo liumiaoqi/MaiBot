@@ -261,7 +261,7 @@ class AgentOrchestrator:
             f"session={self._session_name}"
         )
 
-        think_context = self._build_think_context(
+        think_context = await self._build_think_context(
             agent=agent,
             messages=(CoreMessage(session_id=self._session_id, plain_text=context, is_notify=False),),
             trigger_reason="butler_interjection",
@@ -315,7 +315,7 @@ class AgentOrchestrator:
                     if agent is None:
                         continue
 
-                    think_context = self._build_think_context(
+                    think_context = await self._build_think_context(
                         agent=agent,
                         messages=(CoreMessage(session_id=self._session_id, plain_text=reminder.context, is_notify=False),),
                         trigger_reason="reminder",
@@ -968,7 +968,7 @@ class AgentOrchestrator:
             )
         return cleaned
 
-    def _build_think_context(
+    async def _build_think_context(
         self,
         agent: AutonomousAgent,
         messages: tuple[CoreMessage, ...],
@@ -980,7 +980,7 @@ class AgentOrchestrator:
         emotion_state_text = ""
         memory_personality_params: dict[str, Any] | None = None
 
-        snapshot = agent.get_inner_world_snapshot()
+        snapshot = await agent.get_inner_world_snapshot()
         if snapshot is not None:
             inner_voice_text = snapshot.inner_voice_text
             emotion_state_text = snapshot.emotion_state_text
