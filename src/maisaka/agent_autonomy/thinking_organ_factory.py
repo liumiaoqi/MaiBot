@@ -6,6 +6,8 @@ Orchestrator 不关心这些，只通过工厂获取实例。
 
 from __future__ import annotations
 
+from typing import Any, Callable
+
 from src.common.logger import get_logger
 from src.core.protocols import ThinkingOrgan as ThinkingOrganProtocol
 from src.maisaka.agent_autonomy.prompt_builder import EmbodiedPlannerPromptBuilder
@@ -20,6 +22,14 @@ class ThinkingOrganFactory:
     封装 ThinkingOrgan 的创建细节，从 AutonomousAgent.__init__ 中提取创建逻辑。
     """
 
+    def __init__(
+        self,
+        chat_loop_service_factory: Callable[[str], Any] | None = None,
+        tool_registry: Any | None = None,
+    ) -> None:
+        self._chat_loop_service_factory = chat_loop_service_factory
+        self._tool_registry = tool_registry
+
     def create(self, agent_id: str, session_id: str) -> ThinkingOrganProtocol:
         """为指定智能体创建思维管道。
 
@@ -31,11 +41,23 @@ class ThinkingOrganFactory:
             ThinkingOrgan 实例
         """
         prompt_builder = EmbodiedPlannerPromptBuilder(agent_id)
-        organ = ThinkingOrgan(agent_id, prompt_builder)
+
+        chat_loop_service = None
+        if self._chat_loop_service_factory is not None:
+            chat_loop_service = self._chat_loop_service_factory(agent_id)
+
+        organ = ThinkingOrgan(
+            agent_id,
+            prompt_builder,
+            chat_loop_service=chat_loop_service,
+            tool_registry=self._tool_registry,
+        )
 
         logger.debug(
             f"[thinking_organ_factory] 创建思维管道: "
             f"agent={agent_id} session={session_id} "
-            f"degraded={organ.is_degraded}"
+            f"degraded={organ.is_degraded} "
+            f"has_chat_loop={chat_loop_service is not None} "
+            f"has_tool_registry={self._tool_registry is not None}"
         )
         return organ
