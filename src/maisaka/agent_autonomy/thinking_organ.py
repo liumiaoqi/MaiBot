@@ -119,7 +119,7 @@ class ThinkingOrgan:
 
         try:
             if self.has_full_capabilities:
-                result = await self._think_with_tools(context, request_kind="proactive", reason=reason)
+                result = await self._think_with_tools(context, request_kind="planner", reason=reason)
                 result.thinking_time_ms = int(time.time() * 1000 - start_ms)
                 return result
             return await self._think_proactive_simple(reason, context)
