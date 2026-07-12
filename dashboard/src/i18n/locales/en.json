@@ -1307,6 +1307,7 @@
       "noChanges": "No significant relationship changes recently",
       "nearBreakthrough": "Near breakthrough",
       "statsDetail": {
+        "registeredAgents": "Registered {{count}}",
         "totalAgents": "{{count}} entities",
         "activeAgents": "{{count}} active",
         "totalRelationships": "{{count}} bonds",

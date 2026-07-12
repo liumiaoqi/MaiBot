@@ -1297,6 +1297,7 @@
       "noChanges": "최근 관계에 큰 변화 없음",
       "nearBreakthrough": "돌파 임박",
       "statsDetail": {
+        "registeredAgents": "등록됨 {{count}}",
         "totalAgents": "{{count}} 개체",
         "activeAgents": "{{count}} 활성",
         "totalRelationships": "{{count}} 유대",
