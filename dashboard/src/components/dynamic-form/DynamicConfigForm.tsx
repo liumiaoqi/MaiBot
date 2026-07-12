@@ -15,7 +15,7 @@ import { fieldHooks, type FieldHookRegistry } from '@/lib/field-hooks'
 import { cn } from '@/lib/utils'
 import type { ConfigSchema, FieldSchema } from '@/types/config-schema'
 
-import { DynamicField } from './DynamicField'
+import { DynamicField, validateField } from './DynamicField'
 
 export interface DynamicConfigFormProps {
   schema: ConfigSchema
@@ -23,10 +23,10 @@ export interface DynamicConfigFormProps {
   onChange: (field: string, value: unknown) => void
   basePath?: string
   hooks?: FieldHookRegistry
-  /** 嵌套层级：0 = tab 内容层，1 = section 内容层，2+ = 更深嵌套 */
   level?: number
   advancedVisible?: boolean
   sectionColumns?: 1 | 2
+  errors?: Record<string, string>
 }
 
 function buildFieldPath(basePath: string, fieldName: string) {
@@ -281,6 +281,7 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
   level = 0,
   advancedVisible,
   sectionColumns = 1,
+  errors,
 }) => {
   const resolvedAdvancedVisible = advancedVisible ?? false
 
@@ -292,6 +293,7 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
   const renderField = (field: FieldSchema) => {
     const fieldPath = buildFieldPath(basePath, field.name)
     const nestedSchema = schema.nested?.[field.name]
+    const fieldError = errors?.[fieldPath]
 
     if (hooks.has(fieldPath)) {
       const hookEntry = hooks.get(fieldPath)
@@ -331,6 +333,7 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
             value={values[field.name]}
             onChange={(v) => onChange(field.name, v)}
             fieldPath={fieldPath}
+            error={fieldError}
           />
         </HookComponent>
       )
@@ -342,6 +345,7 @@ export const DynamicConfigForm: React.FC<DynamicConfigFormProps> = ({
         value={values[field.name]}
         onChange={(v) => onChange(field.name, v)}
         fieldPath={fieldPath}
+        error={fieldError}
       />
     )
   }

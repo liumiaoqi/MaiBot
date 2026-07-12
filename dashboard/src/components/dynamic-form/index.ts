@@ -1,4 +1,5 @@
 export { ConfigSectionNav } from './ConfigSectionNav'
 export type { ConfigSection } from './ConfigSectionNav'
 export { DynamicConfigForm } from './DynamicConfigForm'
-export { DynamicField } from './DynamicField'
+export { DynamicField, validateField } from './DynamicField'
+export type { DynamicFieldProps } from './DynamicField'
