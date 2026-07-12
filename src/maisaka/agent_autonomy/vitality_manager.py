@@ -328,10 +328,15 @@ class VitalityManager:
         return info.vitality_value if info is not None else 0.0
 
     def get_cohabitation_params(self, session_id: str) -> CohabitationParams:
-        """计算共居插话动态参数。"""
+        """计算共居插话动态参数。
+
+        共居数 = 活跃智能体 + 待命智能体，而非仅路由表绑定数。
+        """
         config = self._config
         try:
-            bound_count = len(self._routing_service.get_session_all_agents(session_id))
+            active_count = len(self._orchestrator._active_agents)
+            standby_count = len(self._registry.get_by_session(session_id))
+            bound_count = active_count + standby_count
         except Exception:
             bound_count = 1
 
