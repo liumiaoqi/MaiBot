@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/hooks/use-toast'
 
-import { advanceMigration, getMigrationStates, MigrationState } from '@/lib/migration-api'
+import { advanceMigration, getMigrationStates } from '@/lib/migration-api'
+import type { MigrationState } from '@/lib/migration-api'
 
 const PHASE_LABELS: Record<string, { label: string; color: string }> = {
   LEGACY_ONLY: { label: '仅分类学', color: 'bg-slate-500' },
