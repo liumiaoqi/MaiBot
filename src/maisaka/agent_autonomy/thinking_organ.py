@@ -7,6 +7,7 @@ Orchestrator 只协调"谁在思考"，不关心"怎么思考"。
 from __future__ import annotations
 
 import time
+from typing import Any, Callable
 
 from src.common.logger import get_logger
 from src.core.types import ThinkAction, ThinkContext, ThinkResult
@@ -15,6 +16,8 @@ from src.maisaka.agent_autonomy.prompt_builder import EmbodiedPlannerPromptBuild
 
 logger = get_logger("agent_autonomy.thinking_organ")
 
+MAX_INTERNAL_ROUNDS = 10
+
 
 class ThinkingOrgan:
     """思维器官——以角色内部视角运行 Planner。
@@ -22,10 +25,19 @@ class ThinkingOrgan:
     满足 src.core.protocols.ThinkingOrgan Protocol。
     """
 
-    def __init__(self, agent_id: str, prompt_builder: EmbodiedPlannerPromptBuilder) -> None:
+    def __init__(
+        self,
+        agent_id: str,
+        prompt_builder: EmbodiedPlannerPromptBuilder,
+        chat_loop_service: Any | None = None,
+        tool_registry: Any | None = None,
+    ) -> None:
         self._agent_id = agent_id
         self._prompt_builder = prompt_builder
+        self._chat_loop_service = chat_loop_service
+        self._tool_registry = tool_registry
         self._autonomy_logger = AutonomyLogger.get()
+        self._discovered_tools: list[str] = []
 
     @property
     def agent_id(self) -> str:
