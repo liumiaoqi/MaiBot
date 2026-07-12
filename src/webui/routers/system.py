@@ -1233,10 +1233,11 @@ async def get_local_cache_stats():
     try:
         cached_response = _get_cached_local_cache_stats_response()
         if cached_response is not None:
-            return cached_response
+            return ApiResponse(data=cached_response)
 
         response = await asyncio.to_thread(_build_local_cache_stats_response)
-        return _store_local_cache_stats_response(response)
+        stored = _store_local_cache_stats_response(response)
+        return ApiResponse(data=stored)
     except AppError:
         raise
     except Exception as e:
@@ -1249,10 +1250,11 @@ async def get_local_cache_database_stats() -> DatabaseStorageStats:
     try:
         cached_response = _get_cached_database_stats_response()
         if cached_response is not None:
-            return cached_response
+            return ApiResponse(data=cached_response)
 
         response = await asyncio.to_thread(_build_database_stats, True)
-        return _store_database_stats_response(response)
+        stored = _store_database_stats_response(response)
+        return ApiResponse(data=stored)
     except AppError:
         raise
     except Exception as e:
@@ -1265,7 +1267,7 @@ async def vacuum_local_cache_database() -> LocalCacheDatabaseVacuumResponse:
     try:
         response = await asyncio.to_thread(_vacuum_database_response)
         _invalidate_local_cache_stats_cache()
-        return response
+        return ApiResponse(data=response)
     except AppError:
         raise
     except Exception as e:
@@ -1278,7 +1280,7 @@ async def list_local_cache_data_entries(
 ) -> LocalCacheDataEntriesResponse:
     """浏览 data 目录下的文件和文件夹，按需统计当前层级。"""
     try:
-        return await asyncio.to_thread(_build_data_entries_response, relative_path)
+        return ApiResponse(data=await asyncio.to_thread(_build_data_entries_response, relative_path))
     except AppError:
         raise
     except Exception as e:
@@ -1291,7 +1293,7 @@ async def delete_local_cache_data_entry(request: LocalCacheDataEntryDeleteReques
     try:
         response = await asyncio.to_thread(_delete_data_entry_response, request)
         _invalidate_local_cache_stats_cache()
-        return response
+        return ApiResponse(data=response)
     except AppError:
         raise
     except Exception as e:
@@ -1308,14 +1310,14 @@ async def list_local_cache_images(
 ) -> LocalCacheImageListResponse:
     """分页列出 images 或 emoji 本地缓存中的图片文件。"""
     try:
-        return await asyncio.to_thread(
+        return ApiResponse(data=await asyncio.to_thread(
             _build_local_cache_image_list_response,
             target,
             page,
             page_size,
             start_date,
             end_date,
-        )
+        ))
     except AppError:
         raise
     except Exception as e:
@@ -1346,7 +1348,7 @@ async def delete_local_cache_image(request: LocalCacheImageDeleteRequest) -> Loc
     try:
         response = await asyncio.to_thread(_delete_local_cache_image_response, request)
         _invalidate_local_cache_stats_cache()
-        return response
+        return ApiResponse(data=response)
     except AppError:
         raise
     except Exception as e:
@@ -1359,7 +1361,7 @@ async def delete_local_cache_images_bulk(request: LocalCacheImageBulkDeleteReque
     try:
         response = await asyncio.to_thread(_delete_local_cache_images_bulk_response, request)
         _invalidate_local_cache_stats_cache()
-        return response
+        return ApiResponse(data=response)
     except AppError:
         raise
     except Exception as e:
@@ -1370,7 +1372,7 @@ async def delete_local_cache_images_bulk(request: LocalCacheImageBulkDeleteReque
 async def list_local_cache_log_directories() -> LocalCacheLogDirectoryListResponse:
     """列出 logs 目录下可分别清理的日志目录。"""
     try:
-        return await asyncio.to_thread(_build_local_cache_log_directory_list_response)
+        return ApiResponse(data=await asyncio.to_thread(_build_local_cache_log_directory_list_response))
     except AppError:
         raise
     except Exception as e:
@@ -1383,7 +1385,7 @@ async def delete_local_cache_log_directory(request: LocalCacheLogDirectoryDelete
     try:
         response = await asyncio.to_thread(_delete_local_cache_log_directory_response, request)
         _invalidate_local_cache_stats_cache()
-        return response
+        return ApiResponse(data=response)
     except AppError:
         raise
     except Exception as e:
@@ -1396,7 +1398,7 @@ async def cleanup_local_cache(request: LocalCacheCleanupRequest):
     try:
         response = await asyncio.to_thread(_cleanup_local_cache_response, request)
         _invalidate_local_cache_stats_cache()
-        return response
+        return ApiResponse(data=response)
     except AppError:
         raise
     except Exception as e:

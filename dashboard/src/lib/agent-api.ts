@@ -108,10 +108,16 @@ export async function getAgentList(): Promise<AgentConfigInfo[]> {
   return data.data
 }
 
+interface AgentDetailData {
+  success: boolean
+  data: AgentConfigInfo
+}
+
 export async function getAgentDetail(agentId: string): Promise<AgentConfigInfo> {
-  return backendApi.get<AgentConfigInfo>(`${API_BASE}/${encodeURIComponent(agentId)}`, {
+  const data = await backendApi.get<AgentDetailData>(`${API_BASE}/${encodeURIComponent(agentId)}`, {
     errorMessage: '获取智能体详情失败',
   })
+  return data.data
 }
 
 export async function getAgentEmotion(agentId: string): Promise<EmotionStateInfo> {
@@ -434,11 +440,10 @@ export interface InteractionConfigResponse {
 }
 
 export async function getRecentInteractions(limit = 20): Promise<InteractionEventResponse[]> {
-  const data = await backendApi.get<{ data: InteractionEventResponse[] }>(
+  return backendApi.get<InteractionEventResponse[]>(
     `${API_BASE}/interactions/recent?limit=${limit}`,
     { errorMessage: '获取最近交互事件失败' }
   )
-  return data.data
 }
 
 export async function getInteractionDetail(eventId: string): Promise<InteractionEventResponse> {
@@ -460,41 +465,37 @@ export async function getInteractionHistory(
   if (params.limit) query.set('limit', String(params.limit))
   if (params.offset) query.set('offset', String(params.offset))
   const qs = query.toString()
-  const data = await backendApi.get<{ data: InteractionEventResponse[] }>(
+  return backendApi.get<InteractionEventResponse[]>(
     `${API_BASE}/interactions/history${qs ? `?${qs}` : ''}`,
     { errorMessage: '获取交互历史失败' }
   )
-  return data.data
 }
 
 export async function getAgentMonologues(
   agentId: string,
   limit = 10
 ): Promise<InnerMonologueEventResponse[]> {
-  const data = await backendApi.get<{ data: InnerMonologueEventResponse[] }>(
+  return backendApi.get<InnerMonologueEventResponse[]>(
     `${API_BASE}/monologue/${encodeURIComponent(agentId)}?limit=${limit}`,
     { errorMessage: '获取内心独白失败' }
   )
-  return data.data
 }
 
 export async function getAgentProfile(
   observerId: string,
   targetId: string
 ): Promise<AgentProfileResponse> {
-  const data = await backendApi.get<{ data: AgentProfileResponse }>(
+  return backendApi.get<AgentProfileResponse>(
     `${API_BASE}/profile/${encodeURIComponent(observerId)}/${encodeURIComponent(targetId)}`,
     { errorMessage: '获取智能体画像失败' }
   )
-  return data.data
 }
 
 export async function getInteractionConfig(): Promise<InteractionConfigResponse> {
-  const data = await backendApi.get<{ data: InteractionConfigResponse }>(
+  return backendApi.get<InteractionConfigResponse>(
     `${API_BASE}/interactions/config`,
     { errorMessage: '获取交互配置失败' }
   )
-  return data.data
 }
 
 export async function manualTriggerInteraction(req: {
