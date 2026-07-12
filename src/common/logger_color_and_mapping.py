@@ -27,7 +27,7 @@ MODULE_COLORS: Dict[str, Tuple[str, Optional[str], bool]] = {
     "llm_models": ("#008080", None, False),
     "remote": ("#6c6c6c", None, False),  # 深灰色，更不显眼
     "planner": ("#008080", None, False),
-    "maisaka_reasoning_engine": ("#0fd5d5", None, False),
+    "maisaka_thinking_organ": ("#0fd5d5", None, False),
     "maisaka_chat_loop": ("#1bb2ed", None, False),
     "maisaka_turn_scheduler": ("#ff8700", None, False),
     "maisaka_runtime": ("#e5810f", None, False),

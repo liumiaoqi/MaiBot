@@ -53,7 +53,7 @@ from src.maisaka.monitor.message_payload import (
     build_monitor_message_media,
     build_monitor_reply_preview,
 )
-from src.maisaka.idle_backoff import IdleBackoffController
+
 from src.maisaka.reply_effect import ReplyEffectTracker
 from src.maisaka.reply_effect.image_utils import extract_visual_attachments_from_sequence
 from src.maisaka.reply_effect.quote_utils import extract_quote_target_ids, message_id_from_context_message
@@ -66,7 +66,7 @@ from src.plugin_runtime.tool_provider import PluginToolProvider
 from src.services.message_word_frequency_service import update_high_frequency_terms_from_context_messages
 
 from .chat_loop_service import ChatResponse, MaisakaChatLoopService
-from .reasoning_engine import MaisakaReasoningEngine
+
 
 logger = get_logger("maisaka_runtime")
 
@@ -206,9 +206,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         self._jargon_learner = JargonLearner(session_id)
         self._jargon_miner = JargonMiner(session_id, session_name=session_name)
 
-        self._reasoning_engine = MaisakaReasoningEngine(self)
         self._message_turn_scheduler = MessageTurnScheduler(self)
-        self._idle_backoff = IdleBackoffController(self)
         self._forced_turn_enabled = False
         self._forced_turn_message_id = ""
         self._forced_turn_reason = ""
@@ -352,7 +350,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
                 continue
 
             source_kind = self._resolve_restored_message_source_kind(message)
-            history_message = await self._reasoning_engine._build_history_message(
+            history_message = await self._build_history_message(
                 message,
                 source_kind=source_kind,
             )
@@ -465,6 +463,40 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         if bot_account and user_info.user_id == bot_account:
             return "guided_reply"
         return "user"
+
+    async def _build_history_message(
+        self,
+        message: SessionMessage,
+        *,
+        source_kind: str = "user",
+    ) -> Optional[LLMContextMessage]:
+        """根据真实消息构造对应的上下文消息。"""
+
+        from src.maisaka.context.messages import SessionBackedMessage, ComplexSessionMessage
+        from src.maisaka.context.planner_messages import build_planner_user_prefix_from_session_message
+        from src.maisaka.context.history import contains_complex_message
+
+        source_sequence = message.raw_message
+        include_chat_id = self._is_focus_mode_active_for_current_chat()
+        planner_prefix = build_planner_user_prefix_from_session_message(
+            message,
+            include_chat_id=include_chat_id,
+            is_self_message=source_kind == "guided_reply" and global_config.chat.self_message_special_mark,
+        )
+        if contains_complex_message(source_sequence):
+            return ComplexSessionMessage.from_session_message(
+                message,
+                planner_prefix=planner_prefix,
+                visible_text="",
+                source_kind=source_kind,
+            )
+
+        return SessionBackedMessage.from_session_message(
+            message,
+            raw_message=message.raw_message,
+            visible_text=message.processed_plain_text or "",
+            source_kind=source_kind,
+        )
 
     async def stop(self) -> None:
         """停止运行时主循环。"""
@@ -887,17 +919,6 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         if self._is_reply_effect_tracking_enabled():
             asyncio.create_task(self._reply_effect_tracker.observe_user_message(message))
 
-        # Orchestrator 已接管主回复调度，跳过旧 Planner 路径
-        if self._agent_orchestrator is not None:
-            return
-
-        if not self._should_continue_after_focus_gate(message):
-            return
-        if self._agent_state == self._STATE_RUNNING:
-            self._mark_message_debounce_required()
-        self._request_planner_interrupt_for_message(message)
-        if self._running:
-            self._schedule_message_turn()
 
     def _should_continue_after_focus_gate(self, message: SessionMessage) -> bool:
         """处理 focus 模式准入与唤醒调度，返回是否继续进入 Maisaka 决策。"""
@@ -1285,7 +1306,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
 
         trigger_reason = "@消息" if is_at else "提及消息" if is_mentioned else "触发消息"
         was_armed = self._arm_forced_turn_state(message_id=message.message_id, reason=trigger_reason)
-        self._idle_backoff.reset()
+
 
         if was_armed:
             logger.info(
@@ -1368,20 +1389,6 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         if not self._running:
             return
 
-        if self._internal_loop_task is None or self._internal_loop_task.done():
-            is_restart = self._internal_loop_task is not None
-            if self._internal_loop_task is not None and not self._internal_loop_task.cancelled():
-                try:
-                    exc = self._internal_loop_task.exception()
-                except Exception:
-                    exc = None
-                if exc is not None:
-                    logger.error(f"{self.log_prefix} 内部循环任务异常退出: {exc}")
-            self._internal_loop_task = asyncio.create_task(self._reasoning_engine.run_loop())
-            if is_restart:
-                logger.warning(f"{self.log_prefix} 已重新拉起 Maisaka 内部循环任务")
-            else:
-                logger.debug(f"{self.log_prefix} 已启动 Maisaka 内部循环任务")
 
         self._ensure_expression_vector_history_backfill_running()
 
@@ -1405,8 +1412,12 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
     def _register_tool_providers(self) -> None:
         """注册 Maisaka 运行时默认启用的工具 Provider。"""
 
+        from src.maisaka.builtin_tool import build_split_builtin_tool_handlers
+        from src.maisaka.builtin_tool.context import BuiltinToolRuntimeContext
+
+        tool_ctx = BuiltinToolRuntimeContext(runtime=self)
         self._tool_registry.register_provider(
-            MaisakaBuiltinToolProvider(self._reasoning_engine.build_builtin_tool_handlers())
+            MaisakaBuiltinToolProvider(build_split_builtin_tool_handlers(tool_ctx))
         )
         self._tool_registry.register_provider(PluginToolProvider())
         self._chat_loop_service.set_tool_registry(self._tool_registry)
@@ -1533,7 +1544,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         if not agent_id or not user_id:
             return
 
-        reasoning_content = getattr(self._reasoning_engine, "last_reasoning_content", "") or ""
+        reasoning_content = ""
         if reasoning_content:
             from src.maisaka.relationship.signal import extract_relationship_signal
 
@@ -1846,7 +1857,12 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         return self._last_processed_index < len(self.message_cache)
 
     def _schedule_message_turn(self) -> None:
-        """为当前待处理消息安排一次内部 turn。"""
+        """为当前待处理消息安排一次内部 turn。
+
+        Orchestrator 已接管主回复调度，此方法仅保留兼容性。
+        """
+        if self._agent_orchestrator is not None:
+            return
         self._message_turn_scheduler.schedule_message_turn()
 
     def _collect_pending_messages(self) -> list[SessionMessage]:

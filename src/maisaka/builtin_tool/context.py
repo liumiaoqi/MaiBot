@@ -1,4 +1,4 @@
-﻿"""Maisaka 内置工具执行上下文。"""
+"""Maisaka 内置工具执行上下文。"""
 
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ from src.maisaka.context.planner_messages import (
 )
 
 if TYPE_CHECKING:
-    from src.maisaka.reasoning_engine import MaisakaReasoningEngine
+
     from src.maisaka.runtime import MaisakaHeartFlowChatting
 
 logger = get_logger("maisaka_builtin_context")
@@ -46,8 +46,8 @@ class BuiltinToolRuntimeContext:
 
     def __init__(
         self,
-        engine: "MaisakaReasoningEngine",
-        runtime: "MaisakaHeartFlowChatting",
+        engine: "Any | None" = None,
+        runtime: "MaisakaHeartFlowChatting" = None,
     ) -> None:
         self.engine = engine
         self.runtime = runtime

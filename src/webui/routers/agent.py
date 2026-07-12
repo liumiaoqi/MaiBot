@@ -106,7 +106,7 @@ def _config_to_response(config: AgentConfig) -> AgentConfigResponse:
         emotion_decay_rate=config.emotion_decay_rate,
         relationship_growth_rate=config.relationship_growth_rate,
         talk_value_modifier=config.talk_value_modifier,
-        idle_backoff_modifier=config.idle_backoff_modifier,
+
         memory_focus_areas=config.memory_focus_areas,
         internal_relationships=[
             InternalRelationshipResponse(

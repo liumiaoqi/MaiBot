@@ -1,4 +1,4 @@
-﻿"""Focus-mode helpers for the Maisaka runtime."""
+"""Focus-mode helpers for the Maisaka runtime."""
 
 from __future__ import annotations
 
@@ -85,7 +85,7 @@ class MaisakaFocusRuntimeMixin:
             message_id = str(message.message_id or "").strip()
             if not message_id or message_id in seen_message_ids:
                 continue
-            history_message = await self._reasoning_engine._build_history_message(message, source_kind=source_kind)
+            history_message = await self._build_history_message(message, source_kind=source_kind)
             if history_message is None:
                 continue
             history_messages.append(history_message)
