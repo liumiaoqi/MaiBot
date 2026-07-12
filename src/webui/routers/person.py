@@ -218,6 +218,35 @@ async def get_person_list(
         raise HTTPException(status_code=500, detail=f"获取人物列表失败: {str(e)}") from e
 
 
+@router.get("/stats/summary")
+async def get_person_stats() -> Dict[str, Any]:
+    """获取人物信息统计数据。
+
+    Returns:
+        Dict[str, Any]: 人物总数、已认识数量和平台分布统计。
+    """
+    try:
+        with get_db_session() as session:
+            total = len(session.exec(select(PersonInfo.id)).all())
+            known = len(session.exec(select(PersonInfo.id).where(col(PersonInfo.is_known))).all())
+        unknown = total - known
+
+        # 按平台统计
+        platforms = {}
+        with get_db_session() as session:
+            for platform in session.exec(select(PersonInfo.platform)).all():
+                if platform:
+                    platforms[platform] = platforms.get(platform, 0) + 1
+
+        return {"success": True, "data": {"total": total, "known": known, "unknown": unknown, "platforms": platforms}}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"获取统计数据失败: {e}")
+        raise HTTPException(status_code=500, detail=f"获取统计数据失败: {str(e)}") from e
+
+
 @router.get("/{person_id}", response_model=PersonDetailResponse)
 async def get_person_detail(person_id: str) -> PersonDetailResponse:
     """获取人物详细信息。
@@ -334,34 +363,6 @@ async def delete_person(person_id: str) -> PersonDeleteResponse:
         logger.exception(f"删除人物信息失败: {e}")
         raise HTTPException(status_code=500, detail=f"删除人物信息失败: {str(e)}") from e
 
-
-@router.get("/stats/summary")
-async def get_person_stats() -> Dict[str, Any]:
-    """获取人物信息统计数据。
-
-    Returns:
-        Dict[str, Any]: 人物总数、已认识数量和平台分布统计。
-    """
-    try:
-        with get_db_session() as session:
-            total = len(session.exec(select(PersonInfo.id)).all())
-            known = len(session.exec(select(PersonInfo.id).where(col(PersonInfo.is_known))).all())
-        unknown = total - known
-
-        # 按平台统计
-        platforms = {}
-        with get_db_session() as session:
-            for platform in session.exec(select(PersonInfo.platform)).all():
-                if platform:
-                    platforms[platform] = platforms.get(platform, 0) + 1
-
-        return {"success": True, "data": {"total": total, "known": known, "unknown": unknown, "platforms": platforms}}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception(f"获取统计数据失败: {e}")
-        raise HTTPException(status_code=500, detail=f"获取统计数据失败: {str(e)}") from e
 
 
 @router.post("/batch/delete", response_model=BatchDeleteResponse)
