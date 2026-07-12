@@ -557,6 +557,15 @@ class ThinkContext:
     metadata: Dict[str, Any] = field(default_factory=dict)
     """附加元数据"""
 
+    session_id: str = ""
+    """会话 ID（工具执行需要）"""
+
+    is_group_chat: bool = False
+    """是否为群聊"""
+
+    discovered_tools: tuple[str, ...] = ()
+    """已发现的 deferred 工具名称（不可变）"""
+
 
 class ThinkAction(Enum):
     """思考动作类型。"""
@@ -565,6 +574,7 @@ class ThinkAction(Enum):
     TOOL_CALL = "tool_call"
     SILENT = "silent"
     ERROR = "error"
+    WAIT = "wait"
 
 
 @dataclass(slots=True)
@@ -591,6 +601,15 @@ class ThinkResult:
 
     thinking_time_ms: int = 0
     """思考耗时（毫秒）"""
+
+    tool_calls_count: int = 0
+    """本轮思考的工具调用总次数"""
+
+    rounds: int = 1
+    """工具循环轮次"""
+
+    wait_seconds: float = 0.0
+    """等待秒数（action=WAIT 时有效）"""
 
 
 # ============================================================================
