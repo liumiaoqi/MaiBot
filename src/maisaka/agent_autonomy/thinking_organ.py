@@ -37,15 +37,16 @@ class ThinkingOrgan:
         prompt_builder: EmbodiedPlannerPromptBuilder,
         chat_loop_service: Any | None = None,
         tool_registry: Any | None = None,
+        chat_loop_adapter: Any | None = None,
     ) -> None:
         self._agent_id = agent_id
         self._prompt_builder = prompt_builder
         self._chat_loop_service = chat_loop_service
         self._tool_registry = tool_registry
+        self._chat_loop_adapter = chat_loop_adapter
         self._autonomy_logger = AutonomyLogger.get()
         self._discovered_tools: list[str] = []
         self._last_reasoning_content: str = ""
-        self._chat_history: list[Any] = []
 
     @property
     def agent_id(self) -> str:
@@ -135,6 +136,12 @@ class ThinkingOrgan:
     # 完整模式：工具循环
     # ========================================================================
 
+    def _get_chat_history(self) -> list[Any]:
+        """获取当前对话历史——优先从 adapter 获取 runtime 的实时历史。"""
+        if self._chat_loop_adapter is not None:
+            return self._chat_loop_adapter.chat_history
+        return []
+
     async def _think_with_tools(
         self,
         context: ThinkContext,
@@ -156,7 +163,7 @@ class ThinkingOrgan:
 
             try:
                 response = await self._chat_loop_service.chat_loop_step(
-                    chat_history=self._chat_history,
+                    chat_history=self._get_chat_history(),
                     injected_user_messages=injected_messages or None,
                     request_kind=request_kind,
                     tool_definitions=tool_definitions if tool_definitions else None,
@@ -176,8 +183,6 @@ class ThinkingOrgan:
                 reasoning_content = "我应该根据我上面思考的内容进行反思..."
             self._last_reasoning_content = reasoning_content
 
-            if response.raw_message is not None:
-                self._chat_history.append(response.raw_message)
 
             if not response.tool_calls:
                 content = (response.content or "").strip()

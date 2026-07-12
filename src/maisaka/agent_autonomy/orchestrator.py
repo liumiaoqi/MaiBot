@@ -50,7 +50,7 @@ class AgentOrchestrator:
     @staticmethod
     def _get_default_thinking_organ_factory() -> ThinkingOrganFactory:
         from src.maisaka.agent_autonomy.thinking_organ_factory import ThinkingOrganFactory
-        return ThinkingOrganFactory()
+        return ThinkingOrganFactory(chat_loop_adapter=None)
 
     def __init__(
         self,
@@ -69,6 +69,8 @@ class AgentOrchestrator:
         self._routing_service = routing_service or self._get_default_routing_service()
         self._notice_classifier = notice_classifier or self._get_default_notice_classifier()
         self._thinking_organ_factory = thinking_organ_factory or self._get_default_thinking_organ_factory()
+        if self._thinking_organ_factory._chat_loop_adapter is None:
+            self._thinking_organ_factory._chat_loop_adapter = chat_loop_adapter
         self._config = global_config.agent_autonomy
         self._activity_store = AgentActivityStore()
         self._lifecycle_manager = AgentLifecycleManager(self._activity_store)
@@ -393,7 +395,7 @@ class AgentOrchestrator:
             return False
 
         try:
-            agent = AutonomousAgent(agent_id)
+            agent = AutonomousAgent(agent_id, thinking_organ_factory=self._thinking_organ_factory)
             self._active_agents[agent_id] = agent
 
             # 注入共居状态摘要生成器到 PromptBuilder
@@ -452,10 +454,8 @@ class AgentOrchestrator:
         if agent_id in self._active_agents:
             return
 
-        agent = AutonomousAgent(agent_id)
+        agent = AutonomousAgent(agent_id, thinking_organ_factory=self._thinking_organ_factory)
         self._active_agents[agent_id] = agent
-
-        # 注入共居状态摘要生成器
         if self._config.state_awareness_enabled:
             agent._prompt_builder.set_summary_generator(self._summary_generator)
 
