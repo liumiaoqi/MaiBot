@@ -77,8 +77,14 @@ class AgentLifecycleManager:
         target: AgentLifecycleState,
         reason: str = "",
     ) -> bool:
-        """执行状态转换。合法时持久化到 ActivityStore 并记录日志。"""
+        """执行状态转换。合法时持久化到 ActivityStore 并记录日志。
+
+        当前状态与目标状态相同时视为幂等成功（不报错，不重复持久化）。
+        """
         current = self.current_state(agent_id, session_id)
+        if current == target:
+            return True
+
         if target not in _TRANSITIONS.get(current, set()):
             logger.warning(
                 "非法状态转换: agent=%s %s→%s reason=%s",

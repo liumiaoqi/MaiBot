@@ -77,7 +77,7 @@ class InnerWorld:
         except Exception as exc:
             logger.warning("内心声音生成器初始化失败: agent=%s error=%s", self._agent_id, exc)
 
-    def get_state_snapshot(self) -> InnerWorldSnapshot:
+    async def get_state_snapshot(self) -> InnerWorldSnapshot:
         """获取内心世界完整状态快照。"""
         emotion_text = ""
         desire_summary = ""
@@ -91,7 +91,7 @@ class InnerWorld:
 
         if self._inner_need_engine is not None:
             try:
-                needs = self._inner_need_engine.evaluate(
+                needs = await self._inner_need_engine.evaluate(
                     agent_id=self._agent_id,
                     emotion_state=self._emotion_manager.state if self._emotion_manager else None,
                     time_context=None,
@@ -120,12 +120,12 @@ class InnerWorld:
             memory_personality_params=self._memory_personality,
         )
 
-    def generate_inner_voice(self) -> str:
+    async def generate_inner_voice(self) -> str:
         """纯规则生成内心声音文本。"""
         desire_summary = ""
         if self._inner_need_engine is not None:
             try:
-                needs = self._inner_need_engine.evaluate(
+                needs = await self._inner_need_engine.evaluate(
                     agent_id=self._agent_id,
                     emotion_state=self._emotion_manager.state if self._emotion_manager else None,
                     time_context=None,

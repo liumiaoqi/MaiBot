@@ -79,22 +79,20 @@ class VitalityManager:
     def sync_standby_agents(self, session_id: str) -> None:
         """同步待命列表：将所有非活跃且非待命的智能体加入待命。
 
-        如果 agent_router 中没有绑定其他智能体，则自动将所有已注册智能体加入待命。
+        所有已注册智能体都是潜在共居者，无论是否已绑定到会话。
         这是智能体自主性的核心——所有角色都应该"活着"。
         """
         try:
-            bound_agents = self._routing_service.get_session_all_agents(session_id)
+            from src.maisaka.agent.registry import AgentConfigRegistry
 
-            if not bound_agents:
-                from src.maisaka.agent.registry import AgentConfigRegistry
-                bound_agents = frozenset(a.agent_id for a in AgentConfigRegistry.get_instance().list_agents())
+            all_registered = frozenset(a.agent_id for a in AgentConfigRegistry.get_instance().list_agents())
 
             active_ids = set(self._orchestrator._active_agents.keys())
             standby_ids = {
                 info.agent_id for info in self._registry.get_by_session(session_id)
             }
 
-            for agent_id in bound_agents:
+            for agent_id in all_registered:
                 if agent_id in active_ids or agent_id in standby_ids:
                     continue
                 self.add_to_standby(

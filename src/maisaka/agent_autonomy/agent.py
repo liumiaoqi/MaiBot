@@ -149,10 +149,10 @@ class AutonomousAgent:
     def inner_world(self) -> InnerWorld | None:
         return self._inner_world
 
-    def get_inner_world_snapshot(self) -> InnerWorldSnapshot | None:
+    async def get_inner_world_snapshot(self) -> InnerWorldSnapshot | None:
         """获取内心世界状态快照。"""
         if self._inner_world is not None:
-            return self._inner_world.get_state_snapshot()
+            return await self._inner_world.get_state_snapshot()
         return None
 
     def refresh_config(self) -> None:

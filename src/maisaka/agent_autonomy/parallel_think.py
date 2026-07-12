@@ -21,7 +21,7 @@ class ParallelThinkScheduler:
         self._semaphore = asyncio.Semaphore(max_concurrent)
         self._pending: dict[str, asyncio.Task[ThinkResult]] = {}
 
-    async def schedule(
+    def schedule(
         self,
         agent_id: str,
         organ: ThinkingOrgan,
@@ -39,7 +39,7 @@ class ParallelThinkScheduler:
         self._pending[agent_id] = task
         return task
 
-    async def schedule_proactive(
+    def schedule_proactive(
         self,
         agent_id: str,
         organ: ThinkingOrgan,
