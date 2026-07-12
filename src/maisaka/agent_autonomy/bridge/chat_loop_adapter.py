@@ -12,8 +12,9 @@ logger = get_logger("agent_autonomy.chat_loop_adapter")
 class ChatLoopServiceAdapter:
     """对话循环服务适配器，支持运行时切换 agent_id 和提示词上下文。"""
 
-    def __init__(self, chat_loop_service: ChatRuntime) -> None:
+    def __init__(self, chat_loop_service: ChatRuntime, runtime: Any = None) -> None:
         self._chat_loop_service = chat_loop_service
+        self._runtime = runtime
         self._use_embodied_prompt = False
 
     @property
@@ -26,8 +27,10 @@ class ChatLoopServiceAdapter:
 
     @property
     def chat_history(self) -> list[Any]:
-        """获取当前对话历史（适配器层允许访问 runtime 内部状态）。"""
-        return self._chat_loop_service._chat_history
+        """获取当前对话历史（从 runtime 获取）。"""
+        if self._runtime is not None and hasattr(self._runtime, '_chat_history'):
+            return self._runtime._chat_history
+        return []
 
     def switch_agent_context(self, agent_id: str) -> None:
         """切换当前活跃的智能体上下文。

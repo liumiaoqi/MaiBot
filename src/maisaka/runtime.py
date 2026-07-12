@@ -221,9 +221,9 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         self._chat_loop_adapter: Optional[object] = None
         self._agent_orchestrator: Optional[object] = None
         self._notice_classifier: NoticeClassifier = self._get_default_notice_classifier()
+        self._tool_registry = ToolRegistry()
         self._init_agent_autonomy()
         self._monitor_visual_refresh_keys: set[tuple[str, str]] = set()
-        self._tool_registry = ToolRegistry()
         self._reply_effect_tracker = ReplyEffectTracker(
             session_id=self.session_id,
             session_name=self.session_name,
@@ -1461,7 +1461,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
             from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
 
             self._autonomous_agent = AutonomousAgent(agent_id)
-            self._chat_loop_adapter = ChatLoopServiceAdapter(self._chat_loop_service)
+            self._chat_loop_adapter = ChatLoopServiceAdapter(self._chat_loop_service, runtime=self)
 
             if autonomy_config.embodied_planner_enabled:
                 self._chat_loop_service._use_embodied_prompt = True
@@ -1469,11 +1469,9 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
 
             from src.maisaka.agent_autonomy.thinking_organ_factory import ThinkingOrganFactory
 
-            tool_registry = getattr(self._chat_loop_service, '_tool_registry', None)
-
             thinking_organ_factory = ThinkingOrganFactory(
                 chat_loop_service_factory=lambda _aid: self._chat_loop_service,
-                tool_registry=tool_registry,
+                tool_registry=self._tool_registry,
                 chat_loop_adapter=self._chat_loop_adapter,
             )
 
