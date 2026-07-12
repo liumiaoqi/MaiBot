@@ -265,20 +265,24 @@ function TokenListEditor({
 function PasswordField({
   value,
   onChange,
+  className,
+  style,
 }: {
   value: string
   onChange: (value: unknown) => void
+  className?: string
+  style?: React.CSSProperties
 }) {
   const [visible, setVisible] = React.useState(false)
 
   return (
     <div className="relative">
       <Input
-        className={cn(inlineRightInputClassName, 'pr-9')}
+        className={cn(className, 'pr-9')}
         type={visible ? 'text' : 'password'}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        style={inlineRightInputStyle}
+        style={style}
       />
       <button
         type="button"
@@ -313,6 +317,19 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
   const { i18n } = useTranslation()
   const fieldLabel = resolveFieldLabel(schema, i18n.language)
   const isNumericField = schema.type === 'integer' || schema.type === 'number'
+
+  const supportsInlineRight =
+    schema['x-layout'] === 'inline-right' &&
+    ['input', 'number', 'password', 'select', undefined].includes(schema['x-widget']) &&
+    ['string', 'number', 'integer', 'select'].includes(schema.type)
+  const defaultInlineRightInputWidth = isNumericField ? '7.5rem' : '12rem'
+  const schemaInputWidth = schema['x-input-width']
+  const inlineRightInputWidth =
+    isNumericField && (!schemaInputWidth || schemaInputWidth === '12rem')
+      ? defaultInlineRightInputWidth
+      : schemaInputWidth ?? defaultInlineRightInputWidth
+  const inlineRightInputStyle = supportsInlineRight ? { width: inlineRightInputWidth } : undefined
+  const inlineRightInputClassName = supportsInlineRight ? '!w-[var(--field-input-width)]' : undefined
 
   const parseNumericValue = (rawValue: unknown, fallbackValue: unknown = 0) => {
     if (typeof rawValue === 'number' && Number.isFinite(rawValue)) {
@@ -676,7 +693,7 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
           : String(value)
 
     if (inputType === 'password') {
-      return <PasswordField value={strValue} onChange={onChange} />
+      return <PasswordField value={strValue} onChange={onChange} className={inlineRightInputClassName} style={inlineRightInputStyle} />
     }
 
     return (
@@ -837,18 +854,7 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
   const isBoolean =
     schema['x-widget'] === 'switch' ||
     (!schema['x-widget'] && schema.type === 'boolean')
-  const supportsInlineRight =
-    schema['x-layout'] === 'inline-right' &&
-    ['input', 'number', 'password', 'select', undefined].includes(schema['x-widget']) &&
-    ['string', 'number', 'integer', 'select'].includes(schema.type)
-  const defaultInlineRightInputWidth = isNumericField ? '7.5rem' : '12rem'
-  const schemaInputWidth = schema['x-input-width']
-  const inlineRightInputWidth =
-    isNumericField && (!schemaInputWidth || schemaInputWidth === '12rem')
-      ? defaultInlineRightInputWidth
-      : schemaInputWidth ?? defaultInlineRightInputWidth
-  const inlineRightInputStyle = supportsInlineRight ? { width: inlineRightInputWidth } : undefined
-  const inlineRightInputClassName = supportsInlineRight ? '!w-[var(--field-input-width)]' : undefined
+
 
   // Switch/Boolean 字段自带完整布局，直接返回
   if (isBoolean) {

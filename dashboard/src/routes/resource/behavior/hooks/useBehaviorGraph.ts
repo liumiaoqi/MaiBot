@@ -18,8 +18,7 @@ export function useBehaviorGraph(params: { sessionId: string; enabled: boolean }
       }),
     enabled,
   })
-  // result.success 为契约字段，仅成功时取 data，否则保持 null 占位
-  const graphData: BehaviorGraphData | null = query.data?.success ? (query.data.data ?? null) : null
+  const graphData: BehaviorGraphData | null = query.data?.data ?? null
   return {
     graphData,
     loading: query.isFetching,

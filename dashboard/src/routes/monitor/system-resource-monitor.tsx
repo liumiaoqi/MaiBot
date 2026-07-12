@@ -46,7 +46,7 @@ function ResourceGauge({ label, percent, used, total, icon: Icon }: {
 
 export function SystemResourceMonitor() {
   const { t } = useTranslation()
-  const { data, isConnected, error, refetch } = useSystemResources()
+  const { data, isConnected, error } = useSystemResources()
 
   return (
     <Card>

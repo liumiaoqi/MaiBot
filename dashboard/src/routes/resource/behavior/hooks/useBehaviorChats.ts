@@ -12,8 +12,7 @@ export function useBehaviorChats() {
     queryKey: ['behavior', 'chats'],
     queryFn: () => listBehaviorChats(),
   })
-  // result.success 为契约字段，仅在成功时取 data，否则保持空数组占位
-  const chats: BehaviorChatInfo[] = query.data?.success ? query.data.data : []
+  const chats: BehaviorChatInfo[] = query.data?.data ?? []
   return {
     chats,
     refetch: query.refetch,

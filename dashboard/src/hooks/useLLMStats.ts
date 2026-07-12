@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { backendApi } from '@/lib/http'
 import { unifiedWsClient, type WsEventEnvelope } from '@/lib/unified-ws'

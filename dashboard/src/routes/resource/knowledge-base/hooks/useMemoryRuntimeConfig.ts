@@ -84,9 +84,9 @@ export function useMemoryRuntimeConfig(): UseMemoryRuntimeConfigResult {
       const nextRuntime = await getMemoryRuntimeConfig()
       setRuntimeConfig(nextRuntime)
       toast({
-        title: payload.success ? '自检通过' : '自检未通过',
-        description: payload.success ? '运行时状态正常' : '请检查 embedding 配置和外部服务连通性',
-        variant: payload.success ? 'default' : 'destructive',
+        title: !payload.error ? '自检通过' : '自检未通过',
+        description: !payload.error ? '运行时状态正常' : '请检查 embedding 配置和外部服务连通性',
+        variant: !payload.error ? 'default' : 'destructive',
       })
     } catch (error) {
       toast({
@@ -113,9 +113,9 @@ export function useMemoryRuntimeConfig(): UseMemoryRuntimeConfigResult {
         setRuntimeConfig(nextRuntime)
         setVectorRebuildDialogOpenState(false)
         toast({
-          title: payload.success ? '向量重建完成' : '向量重建未完全成功',
+          title: !payload.error ? '向量重建完成' : '向量重建未完全成功',
           description: `已处理 ${payload.done ?? 0} 条，失败 ${payload.failed ?? 0} 条`,
-          variant: payload.success ? 'default' : 'destructive',
+          variant: !payload.error ? 'default' : 'destructive',
         })
       } catch (error) {
         toast({

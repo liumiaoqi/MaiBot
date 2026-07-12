@@ -1,11 +1,8 @@
-import { useTranslation } from 'react-i18next'
-
 import {
   CartesianGrid,
   Line,
   LineChart,
   XAxis,
-  YAxis,
 } from 'recharts'
 
 import {

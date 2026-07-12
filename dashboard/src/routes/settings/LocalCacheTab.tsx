@@ -69,12 +69,13 @@ import {
   type DatabaseCleanupMode,
   type DatabaseStorageStats,
   type LocalCacheDataEntry,
-  type LocalCacheDataEntriesResponse,
+  type LocalCacheDataEntriesData,
+  type LocalCacheImageDateGroup,
   type LocalCacheImageItem,
-  type LocalCacheImageListResponse,
+  type LocalCacheImageListData,
   type LocalCacheImageTarget,
   type LocalCacheLogDirectoryItem,
-  type LocalCacheLogDirectoryListResponse,
+  type LocalCacheLogDirectoryListData,
   type LocalCacheCleanupTarget,
   type LocalCacheStats,
 } from '@/lib/system-api'
@@ -232,7 +233,7 @@ function CacheImageListPanel({
   deletingKey: string | null
   filters: ImageDateFilters
   isLoading: boolean
-  list: LocalCacheImageListResponse | null
+  list: LocalCacheImageListData | null
   onDelete: (target: LocalCacheImageTarget, item: LocalCacheImageItem) => void
   onDeleteAll: (target: LocalCacheImageTarget) => void
   onDeleteDateRange: (target: LocalCacheImageTarget) => void
@@ -245,8 +246,8 @@ function CacheImageListPanel({
   target: LocalCacheImageTarget
 }) {
   const targetLabel = target === 'images' ? '图片缓存' : '表情包缓存'
-  const items = list?.data ?? []
-  const dateGroups = list?.date_groups ?? []
+  const items: LocalCacheImageItem[] = list?.data ?? []
+  const dateGroups: LocalCacheImageDateGroup[] = list?.date_groups ?? []
   const currentPage = list?.page ?? 1
   const pageSize = list?.page_size ?? IMAGE_PAGE_SIZE
   const total = list?.total ?? 0
@@ -522,11 +523,11 @@ function LogDirectoryListPanel({
   cleanupDisabled: boolean
   deletingPath: string | null
   isLoading: boolean
-  list: LocalCacheLogDirectoryListResponse | null
+  list: LocalCacheLogDirectoryListData | null
   onDelete: (item: LocalCacheLogDirectoryItem) => void
   onRefresh: () => void
 }) {
-  const items = list?.data ?? []
+  const items: LocalCacheLogDirectoryItem[] = list?.data ?? []
 
   return (
     <div className="rounded-lg border bg-card p-4 sm:p-5">
@@ -638,13 +639,13 @@ function DataDirectoryPanel({
   cleanupDisabled: boolean
   deletingPath: string | null
   isLoading: boolean
-  list: LocalCacheDataEntriesResponse | null
+  list: LocalCacheDataEntriesData | null
   onBack: () => void
   onDelete: (item: LocalCacheDataEntry) => void
   onOpen: (relativePath: string) => void
   onRefresh: () => void
 }) {
-  const items = list?.data ?? []
+  const items: LocalCacheDataEntry[] = list?.data ?? []
   const currentLabel = list?.relative_path ? `data/${list.relative_path}` : 'data'
 
   return (
@@ -1129,7 +1130,7 @@ export function LocalCacheTab() {
   const [vacuumAfterCleanup, setVacuumAfterCleanup] = useState(true)
   const [browserTarget, setBrowserTarget] = useState<LocalCacheImageTarget | null>(null)
   const [isLogBrowserOpen, setIsLogBrowserOpen] = useState(false)
-  const [imageLists, setImageLists] = useState<Record<LocalCacheImageTarget, LocalCacheImageListResponse | null>>({
+  const [imageLists, setImageLists] = useState<Record<LocalCacheImageTarget, LocalCacheImageListData | null>>({
     images: null,
     emoji: null,
   })
@@ -1143,10 +1144,10 @@ export function LocalCacheTab() {
   })
   const [loadingImageTarget, setLoadingImageTarget] = useState<LocalCacheImageTarget | null>(null)
   const [deletingImageKey, setDeletingImageKey] = useState<string | null>(null)
-  const [logDirectories, setLogDirectories] = useState<LocalCacheLogDirectoryListResponse | null>(null)
+  const [logDirectories, setLogDirectories] = useState<LocalCacheLogDirectoryListData | null>(null)
   const [loadingLogDirectories, setLoadingLogDirectories] = useState(false)
   const [deletingLogPath, setDeletingLogPath] = useState<string | null>(null)
-  const [dataEntries, setDataEntries] = useState<LocalCacheDataEntriesResponse | null>(null)
+  const [dataEntries, setDataEntries] = useState<LocalCacheDataEntriesData | null>(null)
   const [dataRelativePath, setDataRelativePath] = useState('')
   const [loadingDataEntries, setLoadingDataEntries] = useState(false)
   const [deletingDataPath, setDeletingDataPath] = useState<string | null>(null)

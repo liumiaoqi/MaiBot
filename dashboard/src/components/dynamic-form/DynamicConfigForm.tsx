@@ -15,7 +15,7 @@ import { fieldHooks, type FieldHookRegistry } from '@/lib/field-hooks'
 import { cn } from '@/lib/utils'
 import type { ConfigSchema, FieldSchema } from '@/types/config-schema'
 
-import { DynamicField, validateField } from './DynamicField'
+import { DynamicField } from './DynamicField'
 
 export interface DynamicConfigFormProps {
   schema: ConfigSchema

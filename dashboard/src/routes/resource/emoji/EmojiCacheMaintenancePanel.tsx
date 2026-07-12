@@ -27,7 +27,7 @@ import {
   deleteLocalCacheImagesOlderThanRecentDays,
   getLocalCacheImages,
   type LocalCacheImageItem,
-  type LocalCacheImageListResponse,
+  type LocalCacheImageListData,
   type LocalCacheImageTarget,
 } from '@/lib/system-api'
 
@@ -40,7 +40,7 @@ interface EmojiCacheMaintenancePanelProps {
 export function EmojiCacheMaintenancePanel({ onCacheChanged }: EmojiCacheMaintenancePanelProps) {
   const { toast } = useToast()
   const [open, setOpen] = useState(false)
-  const [cacheList, setCacheList] = useState<LocalCacheImageListResponse | null>(null)
+  const [cacheList, setCacheList] = useState<LocalCacheImageListData | null>(null)
   const [cachePage, setCachePage] = useState(1)
   const [filters, setFilters] = useState<ImageDateFilters>({ endDate: '', startDate: '' })
   const [isLoading, setIsLoading] = useState(false)

@@ -231,7 +231,7 @@ export function useMemoryFeedback({
         if (cancelled) {
           return
         }
-        if (!payload.success || !payload.task) {
+        if (payload.error || !payload.task) {
           setSelectedFeedbackTaskDetail(null)
           setSelectedFeedbackTaskError(payload.error || '未能加载纠错任务详情')
           return
@@ -333,7 +333,7 @@ export function useMemoryFeedback({
         requested_by: 'knowledge_base',
         reason: feedbackRollbackReason.trim(),
       })
-      if (!payload.success) {
+      if (payload.error) {
         throw new Error(payload.error || '回退失败')
       }
       toast({

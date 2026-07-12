@@ -46,7 +46,7 @@ export function useSystemResources() {
 
     const handleEvent = (message: WsEventEnvelope) => {
       if (message.domain === 'system_resources' && (message.event === 'update' || message.event === 'snapshot')) {
-        const payload = message.data as SystemResources
+        const payload = message.data as unknown as SystemResources
         setData(payload)
         setError(null)
       }

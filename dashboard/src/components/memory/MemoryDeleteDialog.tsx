@@ -246,7 +246,7 @@ export function MemoryDeleteDialog({
             </>
           ) : null}
 
-          {result?.success ? (
+          {result && !result.error ? (
             <Alert>
               <AlertDescription className="space-y-1">
                 <div>删除执行成功，操作 ID：<code>{result.operation_id}</code></div>
@@ -262,13 +262,13 @@ export function MemoryDeleteDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             关闭
           </Button>
-          {result?.success && onRestore ? (
+          {result && !result.error && onRestore ? (
             <Button variant="outline" onClick={onRestore} disabled={restoring}>
               <RotateCcw className="mr-2 h-4 w-4" />
               {restoring ? '恢复中...' : '恢复本次删除'}
             </Button>
           ) : null}
-          {!result?.success ? (
+          {!result || result.error ? (
             <Button data-dialog-action="confirm" variant="destructive" onClick={onExecute} disabled={loadingPreview || executing || !preview}>
               <Trash2 className="mr-2 h-4 w-4" />
               {executing ? '执行中...' : '确认删除'}

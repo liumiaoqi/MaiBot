@@ -1313,8 +1313,8 @@ function ReplayResultItem({ item }: { item: ReplayRunResult }) {
   return (
     <div className="space-y-3 rounded-md border p-3">
       <div className="flex flex-wrap items-center gap-2">
-        <Badge variant={result.success ? 'default' : 'destructive'}>
-          #{item.index} {result.success ? '完成' : '失败'}
+        <Badge variant={!result.error ? 'default' : 'destructive'}>
+          #{item.index} {!result.error ? '完成' : '失败'}
         </Badge>
         <span className="text-muted-foreground text-xs">{result.model_name}</span>
       </div>
@@ -1450,7 +1450,7 @@ function ReasoningReplayPanel({
             temperature: temperature.trim() ? Number(temperature) : null,
             max_tokens: maxTokens.trim() ? Number(maxTokens) : null,
           })
-          if (replayResult.success) {
+          if (!replayResult.error) {
             successCount += 1
           }
           setReplayResults((current) => [

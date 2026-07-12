@@ -293,7 +293,7 @@ export function useMemoryCorrection({
         if (cancelled) {
           return
         }
-        if (!payload.success || !payload.plan) {
+        if (payload.error || !payload.plan) {
           setSelectedPlanDetail(null)
           setSelectedPlanError(payload.error || '未能加载记忆修正计划详情')
           return
@@ -379,7 +379,7 @@ export function useMemoryCorrection({
         reason: correctionReason.trim(),
       })
       setPreviewPayload(payload)
-      if (!payload.success) {
+      if (payload.error) {
         throw new Error(payload.error || '生成记忆修正预览失败')
       }
       const planId = payload.plan_id || payload.plan?.plan_id || ''
@@ -436,7 +436,7 @@ export function useMemoryCorrection({
         requested_by: 'knowledge_base',
         reason: correctionReason.trim(),
       })
-      if (!payload.success) {
+      if (payload.error) {
         throw new Error(payload.error || '执行记忆修正失败')
       }
       toast({
@@ -484,7 +484,7 @@ export function useMemoryCorrection({
         requested_by: 'knowledge_base',
         reason: correctionReason.trim(),
       })
-      if (!payload.success) {
+      if (payload.error) {
         throw new Error(payload.error || '回滚记忆修正失败')
       }
       toast({

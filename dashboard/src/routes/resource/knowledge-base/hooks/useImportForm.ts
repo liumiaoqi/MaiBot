@@ -462,7 +462,7 @@ export function useImportForm({ active, onCreated }: UseImportFormOptions): UseI
         input_mode: uploadInputMode,
       }
       const result = await createMemoryUploadImport(uploadFiles, payload)
-      if (!result.success) {
+      if (result.error) {
         throw new Error(result.error || '创建上传导入任务失败')
       }
       const taskId = String(result.task?.task_id ?? '')
@@ -501,7 +501,7 @@ export function useImportForm({ active, onCreated }: UseImportFormOptions): UseI
         content: pasteContent,
         input_mode: pasteMode,
       })
-      if (!result.success) {
+      if (result.error) {
         throw new Error(result.error || '创建粘贴导入任务失败')
       }
       const taskId = String(result.task?.task_id ?? '')
@@ -535,7 +535,7 @@ export function useImportForm({ active, onCreated }: UseImportFormOptions): UseI
         recursive: rawRecursive,
         input_mode: rawInputMode,
       })
-      if (!result.success) {
+      if (result.error) {
         throw new Error(result.error || '创建本地扫描任务失败')
       }
       const taskId = String(result.task?.task_id ?? '')
@@ -565,7 +565,7 @@ export function useImportForm({ active, onCreated }: UseImportFormOptions): UseI
         relative_path: openieRelativePath,
         include_all_json: openieIncludeAllJson,
       })
-      if (!result.success) {
+      if (result.error) {
         throw new Error(result.error || '创建 LPMM OpenIE 任务失败')
       }
       const taskId = String(result.task?.task_id ?? '')
@@ -597,7 +597,7 @@ export function useImportForm({ active, onCreated }: UseImportFormOptions): UseI
         dimension: parseOptionalPositiveInt(convertDimension),
         batch_size: parseOptionalPositiveInt(convertBatchSize),
       })
-      if (!result.success) {
+      if (result.error) {
         throw new Error(result.error || '创建 LPMM 转换任务失败')
       }
       const taskId = String(result.task?.task_id ?? '')
@@ -637,7 +637,7 @@ export function useImportForm({ active, onCreated }: UseImportFormOptions): UseI
         dry_run: backfillDryRun,
         no_created_fallback: backfillNoCreatedFallback,
       })
-      if (!result.success) {
+      if (result.error) {
         throw new Error(result.error || '创建时序回填任务失败')
       }
       const taskId = String(result.task?.task_id ?? '')
@@ -704,7 +704,7 @@ export function useImportForm({ active, onCreated }: UseImportFormOptions): UseI
         dry_run: maibotDryRun,
         verify_only: maibotVerifyOnly,
       })
-      if (!result.success) {
+      if (result.error) {
         throw new Error(result.error || '创建 MaiBot 迁移任务失败')
       }
       const taskId = String(result.task?.task_id ?? '')
