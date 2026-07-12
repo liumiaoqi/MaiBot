@@ -8,9 +8,10 @@ from __future__ import annotations
 
 import time
 from difflib import SequenceMatcher
-from typing import Any, Callable
+from typing import Any
 
 from src.common.logger import get_logger
+from src.config.config import global_config
 from src.core.types import ThinkAction, ThinkContext, ThinkResult
 from src.maisaka.agent_autonomy.autonomy_logger import AutonomyEventType, AutonomyLogger
 from src.maisaka.agent_autonomy.prompt_builder import EmbodiedPlannerPromptBuilder
@@ -150,16 +151,27 @@ class ThinkingOrgan:
         reason: str | None = None,
     ) -> ThinkResult:
         """工具循环核心 — 多轮 LLM 调用 + 工具执行。"""
-        from src.core.tooling import ToolInvocation, ToolExecutionContext, ToolAvailabilityContext
+
 
         total_tool_calls = 0
         rounds = 0
+        tool_monitor_results: list[dict[str, Any]] = []
+        time_records: dict[str, float] = {}
+        last_response = None
+        cycle_started_at = time.time()
 
         tool_definitions = await self._build_tool_definitions(context)
         injected_messages = self._build_injected_messages(context)
 
         for round_idx in range(MAX_INTERNAL_ROUNDS):
             rounds = round_idx + 1
+            round_started_at = time.time()
+
+            logger.info(
+                f"[thinking_organ] 开始思考: agent={self._agent_id} "
+                f"第{rounds}轮 消息数={len(self._get_chat_history())} "
+                f"开始时间={round_started_at:.3f}"
+            )
 
             try:
                 response = await self._chat_loop_service.chat_loop_step(
@@ -177,12 +189,21 @@ class ThinkingOrgan:
                     rounds=rounds,
                 )
 
+            last_response = response
+
+            time_records["planner"] = time.time() - cycle_started_at
+
+            self._save_prompt_preview(response, context, request_kind, round_idx)
+
             reasoning_content = getattr(response, "reasoning", "") or getattr(response, "content", "") or ""
 
             if self._should_replace_reasoning(reasoning_content):
+                logger.info(
+                    f"[thinking_organ] 当前思考与上一轮过于相似，已替换为重新思考提示: "
+                    f"agent={self._agent_id} round={rounds}"
+                )
                 reasoning_content = "我应该根据我上面思考的内容进行反思..."
             self._last_reasoning_content = reasoning_content
-
 
             if not response.tool_calls:
                 content = (response.content or "").strip()
@@ -191,6 +212,15 @@ class ThinkingOrgan:
                     self._agent_id,
                     AutonomyEventType.THINKING,
                     f"思考完成(无工具调用, {rounds}轮, {total_tool_calls}次工具, action={action.value})",
+                )
+                await self._emit_finalized(
+                    response=response,
+                    context=context,
+                    tool_monitor_results=tool_monitor_results,
+                    time_records=time_records,
+                    end_reason="reply" if action == ThinkAction.REPLY else "silent",
+                    rounds=rounds,
+                    total_tool_calls=total_tool_calls,
                 )
                 return ThinkResult(
                     action=action,
@@ -201,11 +231,22 @@ class ThinkingOrgan:
 
             total_tool_calls += len(response.tool_calls)
 
-            should_pause, pause_tool_name, _summaries = await self._handle_tool_calls(
+            for _, tc in enumerate(response.tool_calls, 1):
+                logger.info(
+                    f"[thinking_organ] [推理中工具调用] 第{rounds}轮: "
+                    f"工具={tc.func_name} 调用ID={tc.call_id} "
+                    f"agent={self._agent_id}"
+                )
+
+            should_pause, pause_tool_name, _summaries, new_monitor_results = await self._handle_tool_calls(
                 response.tool_calls,
                 reasoning_content,
                 context,
             )
+            tool_monitor_results.extend(new_monitor_results)
+            time_records["tool_calls"] = sum(
+                r.get("duration_ms", 0) for r in tool_monitor_results
+            ) / 1000
 
             if should_pause:
                 if pause_tool_name == "wait":
@@ -218,6 +259,15 @@ class ThinkingOrgan:
                         AutonomyEventType.THINKING,
                         f"等待工具暂停: {wait_secs}s",
                     )
+                    await self._emit_finalized(
+                        response=response,
+                        context=context,
+                        tool_monitor_results=tool_monitor_results,
+                        time_records=time_records,
+                        end_reason="wait",
+                        rounds=rounds,
+                        total_tool_calls=total_tool_calls,
+                    )
                     return ThinkResult(
                         action=ThinkAction.WAIT,
                         tool_calls_count=total_tool_calls,
@@ -229,6 +279,15 @@ class ThinkingOrgan:
                     AutonomyEventType.THINKING,
                     f"工具暂停: {pause_tool_name}",
                 )
+                await self._emit_finalized(
+                    response=response,
+                    context=context,
+                    tool_monitor_results=tool_monitor_results,
+                    time_records=time_records,
+                    end_reason="pause",
+                    rounds=rounds,
+                    total_tool_calls=total_tool_calls,
+                )
                 return ThinkResult(
                     action=ThinkAction.SILENT,
                     tool_calls_count=total_tool_calls,
@@ -238,6 +297,15 @@ class ThinkingOrgan:
             injected_messages = []
 
         logger.warning(f"[thinking_organ] 工具循环达到上限: agent={self._agent_id} rounds={rounds}")
+        await self._emit_finalized(
+            response=last_response,
+            context=context,
+            tool_monitor_results=tool_monitor_results,
+            time_records=time_records,
+            end_reason="max_rounds",
+            rounds=rounds,
+            total_tool_calls=total_tool_calls,
+        )
         return ThinkResult(
             action=ThinkAction.SILENT,
             tool_calls_count=total_tool_calls,
@@ -249,14 +317,17 @@ class ThinkingOrgan:
         tool_calls: list[Any],
         latest_thought: str,
         context: ThinkContext,
-    ) -> tuple[bool, str, list[str]]:
-        """执行工具调用。返回 (should_pause, pause_tool_name, summaries)。"""
+    ) -> tuple[bool, str, list[str], list[dict[str, Any]]]:
+        """执行工具调用。返回 (should_pause, pause_tool_name, summaries, monitor_results)。"""
         from src.core.tooling import ToolInvocation, ToolExecutionContext, ToolAvailabilityContext
+        from src.maisaka.display.display_utils import format_tool_call_for_display
+        from src.maisaka.utils.tool_record_payload import normalize_tool_record_value
 
         if self._tool_registry is None:
-            return False, "", []
+            return False, "", [], []
 
         summaries: list[str] = []
+        monitor_results: list[dict[str, Any]] = []
         availability_context = ToolAvailabilityContext(
             session_id=context.session_id,
             stream_id=context.session_id,
@@ -299,12 +370,38 @@ class ThinkingOrgan:
             if history_content:
                 summaries.append(f"[{invocation.tool_name}] {history_content[:200]}")
 
-            if bool(result.metadata.get("wait_rest", False)):
-                return True, "wait_rest", summaries
-            if bool(result.metadata.get("pause_execution", False)):
-                return True, invocation.tool_name, summaries
+            normalized_tool_call = format_tool_call_for_display(tool_call)
+            tool_call_source = str(normalized_tool_call.get("source") or "").strip()
+            tool_call_source_label = str(normalized_tool_call.get("source_label") or "").strip()
+            tool_spec = tool_spec_map.get(tool_call.func_name)
+            monitor_result: dict[str, Any] = {
+                "tool_call_id": tool_call.call_id,
+                "tool_name": tool_call.func_name,
+                "tool_title": tool_spec.title.strip() if tool_spec is not None and tool_spec.title.strip() else "",
+                "tool_args": normalize_tool_record_value(invocation.arguments if isinstance(invocation.arguments, dict) else {}),
+                "tool_call_source": tool_call_source,
+                "tool_call_source_label": tool_call_source_label,
+                "success": result.success,
+                "duration_ms": round(tool_duration_ms, 2),
+                "summary": summaries[-1] if summaries else "",
+            }
+            monitor_detail = result.metadata.get("monitor_detail")
+            if monitor_detail is not None:
+                monitor_result["detail"] = normalize_tool_record_value(monitor_detail)
+            monitor_card = result.metadata.get("monitor_card")
+            if monitor_card is not None:
+                monitor_result["card"] = normalize_tool_record_value(monitor_card)
+            prompt_html_uri = str(result.metadata.get("prompt_html_uri") or "").strip()
+            if prompt_html_uri:
+                monitor_result["prompt_html_uri"] = prompt_html_uri
+            monitor_results.append(monitor_result)
 
-        return False, "", summaries
+            if bool(result.metadata.get("wait_rest", False)):
+                return True, "wait_rest", summaries, monitor_results
+            if bool(result.metadata.get("pause_execution", False)):
+                return True, invocation.tool_name, summaries, monitor_results
+
+        return False, "", summaries, monitor_results
 
     async def _build_tool_definitions(self, context: ThinkContext) -> list[dict[str, Any]]:
         """构建工具定义 — visible/deferred 分离。"""
@@ -371,6 +468,103 @@ class ThinkingOrgan:
             return False
         ratio = SequenceMatcher(None, self._last_reasoning_content, content).ratio()
         return ratio > SIMILARITY_THRESHOLD
+
+    # ========================================================================
+    # 监控事件 + 结构化日志
+    # ========================================================================
+
+    async def _emit_finalized(
+        self,
+        *,
+        response: Any,
+        context: ThinkContext,
+        tool_monitor_results: list[dict[str, Any]],
+        time_records: dict[str, float],
+        end_reason: str,
+        rounds: int,
+        total_tool_calls: int,
+    ) -> None:
+        """广播 planner.finalized 事件，让 WebUI 实时监控面板显示思考结果。"""
+        try:
+            from src.maisaka.monitor.events import emit_planner_finalized
+
+            await emit_planner_finalized(
+                session_id=context.session_id,
+                cycle_id=rounds,
+                planner_request_messages=response.request_messages if response is not None else None,
+                planner_selected_history_count=response.selected_history_count if response is not None else None,
+                planner_tool_count=response.tool_count if response is not None else None,
+                planner_content=response.content if response is not None else None,
+                planner_tool_calls=response.tool_calls if response is not None else None,
+                planner_prompt_tokens=response.prompt_tokens if response is not None else None,
+                planner_completion_tokens=response.completion_tokens if response is not None else None,
+                planner_total_tokens=response.total_tokens if response is not None else None,
+                planner_duration_ms=response.duration_ms if response is not None else None,
+                planner_prompt_html_uri=response.prompt_html_uri if response is not None else None,
+                tools=tool_monitor_results,
+                time_records=time_records,
+                agent_state="thinking_organ",
+                planner_interrupted=False,
+                end_reason=end_reason,
+                end_detail=f"rounds={rounds} tool_calls={total_tool_calls}",
+            )
+        except Exception as exc:
+            logger.debug(f"[thinking_organ] 监控事件广播失败: agent={self._agent_id} error={exc}")
+
+    def _save_prompt_preview(
+        self,
+        response: Any,
+        context: ThinkContext,
+        request_kind: str,
+        round_idx: int,
+    ) -> None:
+        """保存结构化 prompt 预览到 logs/maisaka_prompt/。"""
+        if not global_config.debug.show_maisaka_thinking:
+            return
+
+        try:
+            from src.maisaka.display.prompt_cli_renderer import PromptCLIVisualizer
+            from src.cli.console import console
+            from rich.panel import Panel
+
+            if response is None or not hasattr(response, "request_messages"):
+                return
+
+            prompt_access_panel = PromptCLIVisualizer.build_prompt_access_panel(
+                response.request_messages,
+                category="planner",
+                chat_id=context.session_id,
+                request_kind=request_kind,
+                selection_reason=(
+                    f"智能体: {self._agent_id}\n"
+                    f"会话ID: {context.session_id}\n"
+                    f"模型: {response.model_name or '未知'}\n"
+                    f"构建消息数: {response.built_message_count}\n"
+                    f"选中历史数: {response.selected_history_count}\n"
+                    f"轮次: {round_idx + 1}"
+                ),
+                output_content=response.content or "",
+                output_tool_calls=response.tool_calls if response.tool_calls else None,
+                metadata={
+                    "model_name": response.model_name,
+                    "duration_ms": response.duration_ms,
+                    "prompt_tokens": response.prompt_tokens,
+                    "completion_tokens": response.completion_tokens,
+                    "total_tokens": response.total_tokens,
+                    "agent_id": self._agent_id,
+                    "round": round_idx + 1,
+                },
+            )
+            console.print(
+                Panel(
+                    prompt_access_panel,
+                    title=f"[thinking_organ] {self._agent_id} 第{round_idx + 1}轮请求预览",
+                    border_style="green",
+                    padding=(0, 1),
+                )
+            )
+        except Exception as exc:
+            logger.debug(f"[thinking_organ] Prompt预览保存失败: agent={self._agent_id} error={exc}")
 
     # ========================================================================
     # 简化模式：单次 LLM 调用（插话/提醒 fallback）
