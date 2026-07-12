@@ -202,7 +202,7 @@ export function InnerWorldView({ agentId, onBack }: InnerWorldViewProps) {
             <LifeDefensePanel rules={agent.anti_mechanization_rules} />
             <CollapsedParameters
               talkValueModifier={agent.talk_value_modifier}
-              idleBackoffModifier={agent.idle_backoff_modifier}
+
               relationshipGrowthRate={agent.relationship_growth_rate}
               emotionDecayRate={agent.emotion_decay_rate}
             />

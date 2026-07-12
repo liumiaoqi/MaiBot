@@ -28,7 +28,7 @@ export interface AgentConfigInfo {
   emotion_decay_rate: number
   relationship_growth_rate: number
   talk_value_modifier: number
-  idle_backoff_modifier: number
+
   memory_focus_areas: string[]
   internal_relationships: InternalRelationship[]
   anti_mechanization_rules: string[]
