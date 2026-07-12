@@ -215,6 +215,18 @@ async def get_batch_overview():
     )
 
 
+@router.get("/cost/report", response_model=MonthlyReportResponse)
+async def get_monthly_cost_report():
+    """获取月度成本报告。"""
+    cost_tracker = _get_cost_tracker()
+    report = cost_tracker.get_monthly_report()
+
+    return MonthlyReportResponse(
+        by_agent=report.get("by_agent", {}),
+        by_task_type=report.get("by_task_type", {}),
+    )
+
+
 @router.get("/cost/{agent_id}", response_model=AgentCostResponse)
 async def get_agent_cost(agent_id: str, period_days: int = 30):
     """获取指定智能体的成本统计。"""
@@ -227,16 +239,4 @@ async def get_agent_cost(agent_id: str, period_days: int = 30):
         total_input_tokens=int(data.get("total_input_tokens", 0)),
         total_output_tokens=int(data.get("total_output_tokens", 0)),
         total_cache_hit_tokens=int(data.get("total_cache_hit_tokens", 0)),
-    )
-
-
-@router.get("/cost/report", response_model=MonthlyReportResponse)
-async def get_monthly_cost_report():
-    """获取月度成本报告。"""
-    cost_tracker = _get_cost_tracker()
-    report = cost_tracker.get_monthly_report()
-
-    return MonthlyReportResponse(
-        by_agent=report.get("by_agent", {}),
-        by_task_type=report.get("by_task_type", {}),
     )
