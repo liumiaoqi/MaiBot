@@ -663,7 +663,7 @@ class AgentOrchestrator:
         content = message.processed_plain_text or ""
         sender_name = ""
         if message.message_info and message.message_info.user_info:
-            sender_name = message.message_info.user_info.nickname or message.message_info.user_info.user_id
+            sender_name = message.message_info.user_info.user_cardname or message.message_info.user_info.user_id
 
         core_msg = CoreMessage(
             session_id=self._session_id,
