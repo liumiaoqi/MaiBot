@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import time
 from collections import defaultdict
+from pathlib import Path
 from typing import Any
 
 from src.common.logger import get_logger
@@ -14,7 +15,18 @@ from .fragment_view import build_fragments_from_traces
 
 logger = get_logger("NarrativeWeaver")
 
-_EPISODE_PROMPT_ZH = """\
+_PROMPTS_DIR = Path(__file__).parent / "prompts"
+
+
+def _load_prompt(name: str) -> str:
+    """从 prompts/ 目录加载 prompt 模板（优先 zh，fallback 到内联）"""
+    path = _PROMPTS_DIR / f"{name}_zh.txt"
+    if path.exists():
+        return path.read_text(encoding="utf-8").strip()
+    return ""
+
+
+_EPISODE_PROMPT_ZH = _load_prompt("episode") or """\
 你是一个叙事编织器。将以下记忆碎片编织为一段连贯的叙事。
 
 碎片信息：
@@ -38,7 +50,7 @@ _EPISODE_PROMPT_ZH = """\
 
 只输出 JSON，不要其他内容。"""
 
-_SAGA_PROMPT_ZH = """\
+_SAGA_PROMPT_ZH = _load_prompt("saga") or """\
 你是一个叙事编织器。将以下叙事段落编织为一段跨时间的传奇叙事。
 
 段落信息：

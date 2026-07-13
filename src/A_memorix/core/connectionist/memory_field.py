@@ -126,6 +126,23 @@ class MemoryField:
         personality = self._personality_registry.get_personality(agent_id)
         return self._spreading_activation.recall(seeds, agent_id, personality, min_weight, max_results)
 
+    def recall_with_intuition(
+        self,
+        seeds: list[str],
+        context_text: str,
+        agent_id: str,
+        min_weight: float = 0.05,
+        max_results: int = 20,
+        max_tokens: int = 800,
+    ) -> dict:
+        """recall + intuition 合并：概念激活 + 认知和叙事深度"""
+        recall_items = self.recall(seeds, agent_id, min_weight, max_results)
+        intuition = self.get_intuition(context_text, agent_id, max_tokens)
+        return {
+            "recall_items": recall_items,
+            "intuition": intuition,
+        }
+
     async def derive_profile(self, subject: str, observer: str, now: float | None = None) -> ProfileView:
         return await self._profile_deriver.derive_profile(subject, observer, now)
 

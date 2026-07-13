@@ -246,12 +246,12 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 
 # 记忆系统范式迁移进展
 
-当前阶段：**DUAL_WRITE**（第1-4批编码完成，DUAL_WRITE 运行时验证通过，第5-6批待长期验证后推进）
+当前阶段：**NEW_INDEPENDENT**（分类学代码保留但不再调用，所有请求走连接主义）
 
 ## 迁移架构
 
 - **MigrationAdapter**：5阶段状态机（LEGACY_ONLY→DUAL_WRITE→DUAL_READ→DATA_MIGRATION→NEW_INDEPENDENT），advance_phase() 逐级推进，跳级报错
-- **MigrationRouter**：迁移感知路由，根据阶段将 search/profile/ingest 路由到分类学或连接主义
+- **MigrationRouter**：迁移感知路由，NEW_INDEPENDENT 阶段所有请求走连接主义
 - **ConnectionistTranslator**：连接主义→分类学格式翻译（RecallItem→MemoryHit，ProfileView→画像字典）
 - **MemoryServicePort** 已切换到迁移路由（核心调用方零修改）
 - **SemanticConceptExtractor**：jieba 降级概念提取器（LLM 失败时降级）
@@ -262,11 +262,46 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 - ✅ 第2批：迁移框架（MigrationAdapter阶段约束 + invoke阶段守卫 + granular_decay心跳 + migration_status）
 - ✅ 第3批：迁移路由层与翻译层（ConnectionistTranslator + MigrationRouter + MemoryService委托切换）
 - ✅ 第4批：数据迁移（DataConverter LLM增强 + 迁移脚本）
+- ✅ 默认阶段跳至 NEW_INDEPENDENT（v8.24.0，分类学代码保留但不再调用）
 
-## 待完成
+# 记忆叙事原型进展
 
-- ⬜ 第5批：分类学退役（需 NEW_INDEPENDENT 验证后执行）
-- ⬜ 第6批：集成验证（需实际运行系统长期验证）
+**编码已完成**（第1-7批全部完成，端到端集成验证通过）
+
+## 叙事原型架构
+
+- **NarrativeWeaver**：Fragment→Episode→Saga 三层叙事自组织（LLM 生成+降级）
+- **CognitiveStratifier**：概念节点四层认知标注（immutable_fact/stable_trait/current_state/active_hypothesis）+ 证据积累 + 升级/降级
+- **LifecycleManager**：Fragment/Episode/Saga 生命周期推进（active→cooling→frozen→tombstone），与粒度退化正交
+- **IntuitionEngine**：关键词+bigram 双层直觉触发，纯规则计算 ≤5ms，替代全量 dump
+- **MemoryField**：门面集成，持有4个子模块实例，observe() 后 fire-and-forget 通知 CS/NW，心跳协调 granular_decay→advance_lifecycle→process_cognitive_decay
+
+## 已完成
+
+- ✅ 第1批：数据模型+枚举+TraceStore扩展（commit 92b17eb23）
+- ✅ 第2批：NarrativeWeaver叙事编织核心（commit 09ffe6f49）
+- ✅ 第3批：CognitiveStratifier认知分层（commit e517a4595）
+- ✅ 第4批：LifecycleManager生命周期管理（commit 524e73a88）
+- ✅ 第5批：IntuitionEngine直觉引擎（commit 736ba9abf）
+- ✅ 第6批：MemoryField集成+Observer通知+心跳协调+ProfileDeriver扩展（commit 0ca4d0c13）
+- ✅ 第7批：迁移守卫+HostService API+集成验证（commit 0da71485b）
+
+## 待实现细节
+
+- ⬜ recall_with_intuition() 便捷方法（recall + intuition 合并）
+- ⬜ LLM prompt 三语模板文件（narrative/prompts/ 目录）
+- ⬜ ConnectionistTranslator 叙事格式翻译（DUAL_READ 阶段才需要）
+
+## 关键设计决策
+
+1. Fragment 是视图不是表——通过 TraceStore.query_by_observation_ids() 动态构建
+2. Episode/Saga 有独立存储（EpisodeStore SQLite），但可追溯到底层 Trace
+3. Episode.all_concepts 字段——底层 Fragment 概念并集，用于 Saga 连接检测
+4. 四个子模块通过 MemoryField 门面协调，不互相直接依赖
+5. 异步非阻塞集成——Observer.observe() 完成后由 MemoryField 异步通知 CS 和 NW
+6. 迁移阶段守卫——DUAL_WRITE 阶段仅写入，DUAL_READ 及以后才读取直觉/认知
+7. 生命周期与粒度退化正交——退化管细节（detail_level），生命周期管存在权（status）
+8. 直觉触发纯规则——关键词+bigram 双层匹配，停用词过滤，零 LLM 调用
 
 # changelog编写
 建议分为两部分，一部分是用户感知功能侧，一部分是开发侧（包含修复和插件sdk,api改动）。最好一个功能一行，按模块分。

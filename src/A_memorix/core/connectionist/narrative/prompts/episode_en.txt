@@ -1,0 +1,22 @@
+You are a narrative weaver. Weave the following memory fragments into a coherent narrative.
+
+Fragment information:
+{fragments_text}
+
+Shared concepts: {shared_concepts}
+Emotional tone: {emotional_axis}
+
+Requirements:
+1. Generate a title (≤50 characters)
+2. Generate a coherent narrative (100-250 characters), naturally connecting the concepts from the fragments
+3. The narrative should have emotional warmth, not a cold listing of facts
+4. Determine the emotional axis of this narrative: bond/vigilance/confidence/humility/warmth/melancholy/grounded/none
+
+Output strictly in JSON format:
+{{
+  "title": "Title",
+  "content": "Narrative text",
+  "emotional_axis": "warmth"
+}}
+
+Output JSON only, no other content.
