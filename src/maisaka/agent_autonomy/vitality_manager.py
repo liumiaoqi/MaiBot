@@ -241,39 +241,34 @@ class VitalityManager:
         agent_id = info.agent_id
         session_id = info.session_id
 
-        # 内在需求加成
+        # 内在需求加成（仅活跃智能体）
         inner_need_bonus = 0.0
-        try:
-            from src.maisaka.agent_autonomy.agent import AutonomousAgent
-
-            agent = self._orchestrator._active_agents.get(agent_id) or AutonomousAgent(agent_id)
-
-            time_context = {"hour": now.hour, "night_active": False}
-            needs = await agent.inner_need_engine.evaluate(
-                agent_id=agent_id,
-                emotion_state=agent.emotion_manager.state if agent.emotion_manager else None,
-                time_context=time_context,
-            )
-            if needs:
-                total_strength = sum(n.strength for n in needs)
-                inner_need_bonus = min(total_strength / 5.0, 20.0)
-                info.inner_need_summary = ", ".join(
-                    f"{n.need_type}({n.strength:.0f})" for n in needs[:3]
+        agent = self._orchestrator._active_agents.get(agent_id)
+        if agent is not None:
+            try:
+                time_context = {"hour": now.hour, "night_active": False}
+                needs = await agent.inner_need_engine.evaluate(
+                    agent_id=agent_id,
+                    emotion_state=agent.emotion_manager.state if agent.emotion_manager else None,
+                    time_context=time_context,
                 )
-        except Exception as exc:
-            logger.debug(f"[vitality] 内在需求评估跳过: agent={agent_id} error={exc}")
+                if needs:
+                    total_strength = sum(n.strength for n in needs)
+                    inner_need_bonus = min(total_strength / 5.0, 20.0)
+                    info.inner_need_summary = ", ".join(
+                        f"{n.need_type}({n.strength:.0f})" for n in needs[:3]
+                    )
+            except Exception as exc:
+                logger.debug(f"[vitality] 内在需求评估跳过: agent={agent_id} error={exc}")
 
-        # 情绪加成
+        # 情绪加成（仅活跃智能体）
         emotion_bonus = 0.0
-        try:
-            from src.maisaka.agent_autonomy.agent import AutonomousAgent
-
-            agent = self._orchestrator._active_agents.get(agent_id) or AutonomousAgent(agent_id)
-            if agent.emotion_manager is not None:
+        if agent is not None and agent.emotion_manager is not None:
+            try:
                 intensity = agent.emotion_manager.state.get_dominant_intensity()
                 emotion_bonus = min(intensity / 10.0, 10.0)
-        except (AttributeError, TypeError):
-            pass
+            except (AttributeError, TypeError):
+                pass
 
         # 时间衰减
         elapsed_minutes = 0.0

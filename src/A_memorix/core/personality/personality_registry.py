@@ -19,6 +19,8 @@ class PersonalityRegistry:
         self._voices: dict[str, list[InnerVoice]] = {}
 
     def register_agent(self, agent_id: str, personality: MemoryPersonalityV2, voices: list[InnerVoice]) -> None:
+        if agent_id in self._personalities:
+            return
         self._personalities[agent_id] = personality
         self._voices[agent_id] = voices
         logger.info(f"注册智能体记忆性格: {agent_id}, 衰减率={personality.decay_rate}, 情感敏感度={personality.emotional_sensitivity}, 声音数={len(voices)}")

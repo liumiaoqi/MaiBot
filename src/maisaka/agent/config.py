@@ -120,8 +120,8 @@ class MemoryPersonalityV2(BaseModel):
     attention_tags: list[str] = Field(default_factory=list, description="关注领域标签，这些概念更容易被记住")
     positive_affinity: float = Field(default=0.5, ge=0.0, le=3.0, description="正面情感亲和度")
     negative_affinity: float = Field(default=0.5, ge=0.0, le=3.0, description="负面情感亲和度")
-    curiosity: float = Field(default=0.5, ge=0.5, le=2.0, description="好奇心/记忆门槛，只影响阈值不乘分数")
-    reinforcement_boost: float = Field(default=0.3, ge=0.1, le=0.5, description="强化增幅，重复体验的强化程度")
+    curiosity: float = Field(default=0.5, ge=0.1, le=2.0, description="好奇心/记忆门槛，只影响阈值不乘分数")
+    reinforcement_boost: float = Field(default=0.3, ge=0.1, le=1.0, description="强化增幅，重复体验的强化程度")
 
 
 class InnerVoiceStyle(Enum):
