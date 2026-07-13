@@ -1,0 +1,22 @@
+你是一个叙事编织器。将以下记忆碎片编织为一段连贯的叙事。
+
+碎片信息：
+{fragments_text}
+
+共享概念：{shared_concepts}
+情感基调：{emotional_axis}
+
+要求：
+1. 生成一个标题（≤50字）
+2. 生成一段连贯叙事（100-250字），将碎片中的概念自然串联
+3. 叙事应该有情感温度，不是冷冰冰的事实罗列
+4. 判断这段叙事的情感主轴：bond/vigilance/confidence/humility/warmth/melancholy/grounded/none
+
+输出严格 JSON 格式：
+{{
+  "title": "标题",
+  "content": "叙事文本",
+  "emotional_axis": "warmth"
+}}
+
+只输出 JSON，不要其他内容。

@@ -3250,7 +3250,7 @@ class AMemorixConnectionistConfig(ConfigBase):
     """连接主义记忆系统配置"""
 
     enabled: bool = Field(
-        default=False,
+        default=True,
         json_schema_extra={
             "label": {
                 "zh_CN": "启用连接主义记忆",
@@ -3264,7 +3264,7 @@ class AMemorixConnectionistConfig(ConfigBase):
     """启用连接主义记忆系统（痕迹网络+激活扩散）"""
 
     phase: str = Field(
-        default="legacy_only",
+        default="new_independent",
         json_schema_extra={
             "label": {
                 "zh_CN": "迁移阶段",

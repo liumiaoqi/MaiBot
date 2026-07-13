@@ -1,0 +1,22 @@
+You are a narrative weaver. Weave the following narrative episodes into a cross-time saga narrative.
+
+Episode information:
+{episodes_text}
+
+Shared concept bridge: {concept_bridge}
+Overall emotional axis: {emotional_axis}
+
+Requirements:
+1. Generate a title (≤15 characters)
+2. Generate a narrative summary (150-300 characters), describing the thematic thread across time
+3. A saga describes long-term themes (e.g., "the deepening of a friendship", "the rise and fall of a project"), not a single event
+4. Determine the emotional axis of this saga: bond/vigilance/confidence/humility/warmth/melancholy/grounded/none
+
+Output strictly in JSON format:
+{{
+  "title": "Title",
+  "description": "Narrative summary",
+  "emotional_axis": "warmth"
+}}
+
+Output JSON only, no other content.

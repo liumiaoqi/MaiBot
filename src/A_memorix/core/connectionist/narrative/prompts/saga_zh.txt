@@ -1,0 +1,22 @@
+你是一个叙事编织器。将以下叙事段落编织为一段跨时间的传奇叙事。
+
+段落信息：
+{episodes_text}
+
+共享概念桥接：{concept_bridge}
+整体情感主轴：{emotional_axis}
+
+要求：
+1. 生成一个标题（≤15字）
+2. 生成一段叙事摘要（150-300字），描述跨越时间的主题线索
+3. 传奇描述的是长期主题（如"一段友谊的深化""一个项目的起伏"），不是单个事件
+4. 判断这段传奇的情感主轴：bond/vigilance/confidence/humility/warmth/melancholy/grounded/none
+
+输出严格 JSON 格式：
+{{
+  "title": "标题",
+  "description": "叙事摘要",
+  "emotional_axis": "warmth"
+}}
+
+只输出 JSON，不要其他内容。
