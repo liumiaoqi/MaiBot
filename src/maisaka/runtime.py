@@ -1412,12 +1412,12 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
     def _register_tool_providers(self) -> None:
         """注册 Maisaka 运行时默认启用的工具 Provider。"""
 
-        from src.maisaka.builtin_tool import build_split_builtin_tool_handlers
+        from src.maisaka.builtin_tool import build_builtin_tool_handlers
         from src.maisaka.builtin_tool.context import BuiltinToolRuntimeContext
 
         tool_ctx = BuiltinToolRuntimeContext(runtime=self)
         self._tool_registry.register_provider(
-            MaisakaBuiltinToolProvider(build_split_builtin_tool_handlers(tool_ctx))
+            MaisakaBuiltinToolProvider(build_builtin_tool_handlers(tool_ctx))
         )
         self._tool_registry.register_provider(PluginToolProvider())
         self._chat_loop_service.set_tool_registry(self._tool_registry)
