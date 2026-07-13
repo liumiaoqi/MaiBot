@@ -146,7 +146,14 @@ class Observer:
                     reason=reason,
                     traces_created=traces_created,
                     voices_active=voices_active,
+                    observation_id=obs_id,
                 )
             )
 
-        return ObserveResult(text=text, extraction=extraction, memory_results=memory_results)
+        return ObserveResult(
+            text=text,
+            extraction=extraction,
+            memory_results=memory_results,
+
+            concept_names=concept_names,
+        )

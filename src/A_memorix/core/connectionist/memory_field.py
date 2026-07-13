@@ -1,13 +1,30 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
+from typing import Any
 
 from src.common.logger import get_logger
 
+from .cognitive import CognitiveStratifier, CognitiveStore
 from .concept_index import ConceptIndex
 from .enums import Valence
 from .granular_decay_engine import GranularDecayEngine
-from .models import DecayResult, MemoryPersonalityV2, InnerVoice, ObserveResult, ProfileView, RecallItem, ReflectResult
+from .intuition import IntuitionEngine, StopwordManager
+from .lifecycle import LifecycleManager
+from .models import (
+    CognitiveDecayResult,
+    DecayResult,
+    InnerVoice,
+    LifecycleResult,
+    MemoryPersonalityV2,
+    ObserveResult,
+    ProfileView,
+    RecallItem,
+    ReflectResult,
+)
+from .narrative import NarrativeWeaver
+from .narrative.episode_store import EpisodeStore
 from .observer import Observer
 from .profile_deriver import ProfileDeriver
 from .salience_evaluator import SalienceEvaluator
@@ -42,6 +59,21 @@ class MemoryField:
             voice_processor=self._voice_processor,
         )
 
+        # 叙事原型子模块
+        db_path = data_dir / "connectionist.db"
+        self._episode_store = EpisodeStore(db_path)
+        self._cognitive_store = CognitiveStore(db_path)
+        self._narrative_weaver = NarrativeWeaver(self._trace_store, self._episode_store, llm_client=llm_client)
+        self._cognitive_stratifier = CognitiveStratifier(self._cognitive_store)
+        self._lifecycle_manager = LifecycleManager(self._episode_store)
+        self._stopword_manager = StopwordManager(self._cognitive_store)
+        self._intuition_engine = IntuitionEngine(
+            self._cognitive_stratifier, self._episode_store, self._stopword_manager,
+        )
+
+        # 注入叙事原型依赖到 ProfileDeriver
+        self._profile_deriver.inject_narrative_deps(self._cognitive_stratifier, self._episode_store)
+
     async def observe(
         self,
         text: str,
@@ -50,7 +82,23 @@ class MemoryField:
         source_id: str = "",
         session_id: str = "",
     ) -> ObserveResult:
-        return await self._observer.observe(text, valence, timestamp, source_id, session_id)
+        result = await self._observer.observe(text, valence, timestamp, source_id, session_id)
+
+        # fire-and-forget 通知 CS/NW
+        for mr in result.memory_results:
+            if not mr.remembered or not mr.observation_id:
+                continue
+            try:
+                asyncio.create_task(self._cognitive_stratifier.notify_observation(
+                    mr.observation_id, result.concept_names, result.extraction.valence, mr.agent_id,
+                ))
+                asyncio.create_task(self._narrative_weaver.notify_observation(
+                    mr.observation_id, mr.agent_id,
+                ))
+            except Exception:
+                logger.debug("fire-and-forget notify failed for %s", mr.observation_id, exc_info=True)
+
+        return result
 
     def recall(
         self,
@@ -74,10 +122,68 @@ class MemoryField:
     def register_agent(self, agent_id: str, personality: MemoryPersonalityV2, voices: list[InnerVoice]) -> None:
         self._personality_registry.register_agent(agent_id, personality, voices)
 
+    # ── 叙事原型委托方法 ──────────────────────────────
+
+    async def weave_narrative(self, agent_id: str = "") -> dict:
+        """触发叙事编织"""
+        return await self._narrative_weaver.weave(agent_id)
+
+    def get_intuition(self, context_text: str, agent_id: str, max_tokens: int = 800) -> dict:
+        """直觉触发"""
+        return self._intuition_engine.intuition_trigger(context_text, agent_id, max_tokens)
+
+    def advance_lifecycle(self, agent_id: str = "") -> LifecycleResult:
+        """推进叙事元素生命周期"""
+        return self._lifecycle_manager.advance_lifecycle(agent_id)
+
+    def process_cognitive_decay(self, agent_id: str = "") -> CognitiveDecayResult:
+        """处理认知衰减"""
+        return self._cognitive_stratifier.process_cognitive_decay(agent_id)
+
+    def get_cognitive_entries(self, agent_id: str, concept: str = "") -> list:
+        """查询认知条目"""
+        return self._cognitive_stratifier.get_cognitive_entries(agent_id, concept)
+
+    def add_cognitive_evidence(self, entry_id: int, observation_id: str, is_confirm: bool) -> None:
+        """添加认知证据"""
+        self._cognitive_stratifier.add_cognitive_evidence(entry_id, observation_id, is_confirm)
+
+    # ── 心跳协调 ──────────────────────────────────────
+
+    async def heartbeat_maintenance(self, agent_id: str = "", elapsed_hours: float = 1.0) -> dict:
+        """心跳维护：granular_decay → advance_lifecycle → process_cognitive_decay"""
+        import time as _time
+        start = _time.monotonic()
+
+        decay_result = await self.granular_decay(elapsed_hours)
+        lifecycle_result = self.advance_lifecycle(agent_id)
+        cognitive_decay_result = self.process_cognitive_decay(agent_id)
+
+        elapsed = (_time.monotonic() - start) * 1000
+        logger.debug(
+            "heartbeat: decay=%d, lifecycle_fragments=%d, cognitive_processed=%d, %.1fms",
+            decay_result.traces_processed,
+            lifecycle_result.fragments_advanced,
+            cognitive_decay_result.entries_processed,
+            elapsed,
+        )
+        return {
+            "decay": decay_result,
+            "lifecycle": lifecycle_result,
+            "cognitive_decay": cognitive_decay_result,
+            "elapsed_ms": elapsed,
+        }
+
+    # ── 统计 ──────────────────────────────────────────
+
     def memory_stats(self) -> dict:
         return {
             "trace_count": self._trace_store.trace_count(),
             "concept_count": self._concept_index.concept_count(),
             "agent_stats": self._trace_store.trace_count_by_agent(),
             "registered_agents": self._personality_registry.registered_agents(),
+            "fragment_count": len(self._episode_store.query_fragments_status()),
+            "episode_count": len(self._episode_store.query_episodes_by_agent("")),
+            "saga_count": len(self._episode_store.query_sagas_by_agent("")),
+            "cognitive_entry_count": len(self._cognitive_stratifier.get_cognitive_entries("")),
         }
