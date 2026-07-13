@@ -154,6 +154,19 @@ class TraceStore:
     def query_by_agent(self, agent_id: str) -> list[Trace]:
         return [t for t in self._all_traces.values() if t.agent_id == agent_id]
 
+    def query_by_observation_id(self, observation_id: str) -> list[Trace]:
+        """按单个观察批次 ID 查询 Trace"""
+        return [t for t in self._all_traces.values() if t.observation_id == observation_id]
+
+    def query_by_observation_ids(self, observation_ids: list[str]) -> dict[str, list[Trace]]:
+        """批量按观察批次 ID 查询 Trace，返回 observation_id → Trace 列表的映射"""
+        obs_set = set(observation_ids)
+        result: dict[str, list[Trace]] = {oid: [] for oid in obs_set}
+        for t in self._all_traces.values():
+            if t.observation_id in obs_set:
+                result[t.observation_id].append(t)
+        return result
+
     def get_adjacent_concepts(self, concept: str, agent_id: str) -> list[Trace]:
         return self.query_by_concept_and_agent(concept, agent_id)
 

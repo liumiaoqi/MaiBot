@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
-from typing import Any
 
 from .enums import TimeOfDay, Valence, VoiceStyle
 
@@ -235,6 +234,7 @@ class AssociationItem:
     time_of_day: TimeOfDay = TimeOfDay.UNKNOWN
     relative_time: str = ""
     detail: float = 1.0
+    cognitive_type: str = ""
 
 
 @dataclass
@@ -280,6 +280,8 @@ class ProfileView:
     timeline: list[TimelineItem] = field(default_factory=list)
     depth: str = "空白"
     concept_type: str = "unknown"
+    episodes: list[EpisodeSummary] = field(default_factory=list)
+    sagas: list[SagaSummary] = field(default_factory=list)
 
 
 @dataclass
@@ -299,3 +301,142 @@ class DecayResult:
     traces_processed: int = 0
     traces_consolidated: int = 0
     elapsed_ms: float = 0.0
+
+
+# ── 叙事层数据模型 ────────────────────────────────────
+
+@dataclass
+class Fragment:
+    """叙事碎片——同一 observation_id 下 Trace 的聚合视图，无独立存储"""
+
+    observation_id: str
+    agent_id: str
+    concepts: list[str]
+    trace_keys: list[tuple[str, str, str, str]]
+    valence: Valence
+    max_weight: float
+    timestamp: float
+    status: str = "active"
+    last_accessed_at: float = 0.0
+
+
+@dataclass
+class Episode:
+    """叙事段落——围绕同一主题的碎片叙事整合"""
+
+    id: int = 0
+    agent_id: str = ""
+    title: str = ""
+    content: str = ""
+    weight: float = 0.5
+    emotional_axis: str = "none"
+    fragment_ids: list[str] = field(default_factory=list)
+    concept_bridge: list[str] = field(default_factory=list)
+    all_concepts: list[str] = field(default_factory=list)
+    consolidation_type: str = "standard"
+    status: str = "active"
+    detail_level: float = 1.0
+    last_accessed_at: float = 0.0
+    timestamp: float = 0.0
+
+
+@dataclass
+class Saga:
+    """叙事传奇——跨主题的长期叙事弧线"""
+
+    id: int = 0
+    agent_id: str = ""
+    title: str = ""
+    description: str = ""
+    emotional_axis: str = "none"
+    episode_ids: list[int] = field(default_factory=list)
+    status: str = "active"
+    last_accessed_at: float = 0.0
+    timestamp: float = 0.0
+
+
+@dataclass
+class CognitiveEntry:
+    """认知条目——概念节点的确定性元数据标注"""
+
+    id: int = 0
+    concept: str = ""
+    agent_id: str = ""
+    type: str = ""
+    content: str = ""
+    confidence: float = 0.3
+    decay_type: str = "evidence_dependent"
+    evidence_count: int = 0
+    last_evidence_at: float = 0.0
+    source_diversity: int = 1
+    source_quality: str = "inferred"
+    status: str = "active"
+    tags: list[str] = field(default_factory=list)
+    expires_at: float | None = None
+    evolution_history: list[dict] = field(default_factory=list)
+    superseded_by: int | None = None
+    contradicts_id: int | None = None
+    observation_ids: list[str] = field(default_factory=list)
+    timestamp: float = 0.0
+
+
+@dataclass
+class IntuitionResult:
+    """直觉触发结果"""
+
+    triggered_entries: list[dict] = field(default_factory=list)
+    triggered_episodes: list[dict] = field(default_factory=list)
+    triggered_sagas: list[dict] = field(default_factory=list)
+    cached_entities: list[dict] = field(default_factory=list)
+    token_estimate: int = 0
+    trigger_stats: dict = field(default_factory=dict)
+
+
+@dataclass
+class WeaveResult:
+    """叙事编织结果"""
+
+    fragments_processed: int = 0
+    episodes_created: int = 0
+    sagas_created: int = 0
+    elapsed_ms: float = 0.0
+
+
+@dataclass
+class LifecycleResult:
+    """生命周期推进结果"""
+
+    fragments_advanced: int = 0
+    episodes_advanced: int = 0
+    sagas_archived: int = 0
+    revived: int = 0
+    elapsed_ms: float = 0.0
+
+
+@dataclass
+class CognitiveDecayResult:
+    """认知衰减结果"""
+
+    entries_processed: int = 0
+    hypotheses_abandoned: int = 0
+    traits_dormant: int = 0
+    states_expired: int = 0
+    elapsed_ms: float = 0.0
+
+
+@dataclass
+class EpisodeSummary:
+    """画像推导中的 Episode 摘要"""
+
+    title: str = ""
+    emotional_axis: str = "none"
+    fragment_count: int = 0
+
+
+@dataclass
+class SagaSummary:
+    """画像推导中的 Saga 摘要"""
+
+    title: str = ""
+    emotional_axis: str = "none"
+    episode_count: int = 0
