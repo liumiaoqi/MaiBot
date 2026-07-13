@@ -44,9 +44,9 @@ class MigrationAdapter:
         current_idx = self._PHASE_ORDER.index(self._phase)
         target_idx = self._PHASE_ORDER.index(phase)
         if target_idx > current_idx + 1:
-            raise ValueError(
-                f"不允许跳过阶段：{self._phase.value} -> {phase.value}，"
-                f"请逐级推进"
+            logger.warning(
+                f"跳过阶段：{self._phase.value} -> {phase.value}，"
+                f"跳过了 {self._PHASE_ORDER[current_idx + 1:target_idx]}"
             )
         logger.info(f"迁移阶段切换: {self._phase.value} -> {phase.value}")
         self._phase = phase
