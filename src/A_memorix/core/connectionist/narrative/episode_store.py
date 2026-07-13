@@ -66,8 +66,8 @@ _CREATE_INDEXES_SQL = [
 class EpisodeStore:
     """Episode/Saga/FragmentStatus SQLite 持久化，使用 TraceStore 的数据库连接"""
 
-    def __init__(self, db_path: Path) -> None:
-        self._db_path = db_path
+    def __init__(self, db_path: Path | str) -> None:
+        self._db_path = Path(db_path)
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 
@@ -254,3 +254,51 @@ class EpisodeStore:
         """获取 observation_id → status 映射"""
         statuses = self.query_fragments_status(agent_id)
         return {s["observation_id"]: s["status"] for s in statuses}
+
+    def query_fragments_by_status(self, agent_id: str, status: str) -> list[dict]:
+        """按状态查询 Fragment"""
+        with sqlite3.connect(self._db_path) as conn:
+            rows = conn.execute(
+                "SELECT observation_id, agent_id, status, last_accessed_at FROM fragment_status WHERE agent_id=? AND status=?",
+                (agent_id, status),
+            ).fetchall()
+        return [
+            {"observation_id": row[0], "agent_id": row[1], "status": row[2], "last_accessed_at": row[3]}
+            for row in rows
+        ]
+
+    def update_fragment_status(self, observation_id: str, agent_id: str, status: str) -> None:
+        """更新 Fragment 状态"""
+        with sqlite3.connect(self._db_path) as conn:
+            conn.execute(
+                "UPDATE fragment_status SET status=? WHERE observation_id=? AND agent_id=?",
+                (status, observation_id, agent_id),
+            )
+            conn.commit()
+
+    def update_fragment_last_accessed(self, observation_id: str, agent_id: str, timestamp: float) -> None:
+        """更新 Fragment 最后访问时间"""
+        with sqlite3.connect(self._db_path) as conn:
+            conn.execute(
+                "UPDATE fragment_status SET last_accessed_at=? WHERE observation_id=? AND agent_id=?",
+                (timestamp, observation_id, agent_id),
+            )
+            conn.commit()
+
+    def update_episode_last_accessed(self, episode_id: int, timestamp: float) -> None:
+        """更新 Episode 最后访问时间"""
+        with sqlite3.connect(self._db_path) as conn:
+            conn.execute(
+                "UPDATE episodes SET last_accessed_at=? WHERE id=?",
+                (timestamp, episode_id),
+            )
+            conn.commit()
+
+    def update_saga_last_accessed(self, saga_id: int, timestamp: float) -> None:
+        """更新 Saga 最后访问时间"""
+        with sqlite3.connect(self._db_path) as conn:
+            conn.execute(
+                "UPDATE sagas SET last_accessed_at=? WHERE id=?",
+                (timestamp, saga_id),
+            )
+            conn.commit()
