@@ -3113,7 +3113,7 @@ class MemoryPersonalityV2Config(ConfigBase):
     reinforcement_boost: float = Field(
         default=0.3,
         ge=0.1,
-        le=0.5,
+        le=1.0,
         json_schema_extra={
             "label": {
                 "zh_CN": "强化增益",
@@ -3166,7 +3166,7 @@ class MemoryPersonalityV2Config(ConfigBase):
 
     curiosity: float = Field(
         default=1.0,
-        ge=0.5,
+        ge=0.1,
         le=2.0,
         json_schema_extra={
             "label": {
