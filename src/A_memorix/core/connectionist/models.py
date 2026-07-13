@@ -200,6 +200,7 @@ class AgentMemoryResult:
     reason: str = ""
     traces_created: int = 0
     voices_active: list[str] = field(default_factory=list)
+    observation_id: str = ""
 
 
 @dataclass
@@ -209,6 +210,8 @@ class ObserveResult:
     text: str = ""
     extraction: ExtractionResult = field(default_factory=ExtractionResult)
     memory_results: list[AgentMemoryResult] = field(default_factory=list)
+    observation_id: str = ""
+    concept_names: list[str] = field(default_factory=list)
 
 
 @dataclass

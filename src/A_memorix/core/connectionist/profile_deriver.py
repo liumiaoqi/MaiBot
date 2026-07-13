@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from typing import Any
 
 from ..connectionist.enums import Valence
 from ..connectionist.models import (
@@ -24,6 +25,13 @@ class ProfileDeriver:
     def __init__(self, trace_store: TraceStore, personality_registry: PersonalityRegistry) -> None:
         self._trace_store = trace_store
         self._personality_registry = personality_registry
+        self._cognitive_stratifier = None
+        self._episode_store = None
+
+    def inject_narrative_deps(self, cognitive_stratifier: Any, episode_store: Any) -> None:
+        """注入叙事原型依赖（由 MemoryField 在初始化后调用）"""
+        self._cognitive_stratifier = cognitive_stratifier
+        self._episode_store = episode_store
 
     async def derive_profile(self, subject: str, observer: str, now: float | None = None) -> ProfileView:
         now = now or time.time()
@@ -81,6 +89,21 @@ class ProfileDeriver:
                 break
 
         concept_type = "unknown"
+        cognitive_type = ""
+        episodes: list = []
+        sagas: list = []
+
+        if self._cognitive_stratifier is not None:
+            cog_entries = self._cognitive_stratifier.get_cognitive_entries(observer, subject)
+            if cog_entries:
+                cognitive_type = cog_entries[0].type
+
+        if self._episode_store is not None:
+            for ep in self._episode_store.query_episodes_by_agent(observer, status="active"):
+                if subject in ep.all_concepts:
+                    episodes.append({"id": ep.id, "title": ep.title, "emotional_axis": ep.emotional_axis})
+            for saga in self._episode_store.query_sagas_by_agent(observer, status="active"):
+                sagas.append({"id": saga.id, "title": saga.title, "emotional_axis": saga.emotional_axis})
 
         return ProfileView(
             subject=subject,
@@ -91,6 +114,9 @@ class ProfileDeriver:
             timeline=timeline,
             depth=depth,
             concept_type=concept_type,
+            cognitive_type=cognitive_type,
+            episodes=episodes,
+            sagas=sagas,
         )
 
     async def reflect(self, subject: str, agent_id: str) -> ReflectResult:
