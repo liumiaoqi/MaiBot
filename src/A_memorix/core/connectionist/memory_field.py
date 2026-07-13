@@ -74,6 +74,22 @@ class MemoryField:
         # 注入叙事原型依赖到 ProfileDeriver
         self._profile_deriver.inject_narrative_deps(self._cognitive_stratifier, self._episode_store)
 
+        # 迁移阶段守卫（可选，由外部注入）
+        self._migration_adapter: Any = None
+
+    def set_migration_adapter(self, adapter: Any) -> None:
+        """注入迁移适配器（由 SDKMemoryKernel 初始化后调用）"""
+        self._migration_adapter = adapter
+
+    def _is_read_allowed(self) -> bool:
+        """叙事原型读取是否被迁移阶段允许"""
+        if self._migration_adapter is None:
+            return True
+        phase = self._migration_adapter.phase
+        # DUAL_READ 及以后才允许读取
+        from ..migration.migration_adapter import MigrationPhase
+        return phase not in (MigrationPhase.LEGACY_ONLY, MigrationPhase.DUAL_WRITE)
+
     async def observe(
         self,
         text: str,
@@ -129,7 +145,9 @@ class MemoryField:
         return await self._narrative_weaver.weave(agent_id)
 
     def get_intuition(self, context_text: str, agent_id: str, max_tokens: int = 800) -> dict:
-        """直觉触发"""
+        """直觉触发——DUAL_READ 及以后阶段才返回结果"""
+        if not self._is_read_allowed():
+            return {"triggered_entries": [], "triggered_episodes": [], "triggered_sagas": [], "cached_entities": [], "token_estimate": 0, "trigger_stats": {}}
         return self._intuition_engine.intuition_trigger(context_text, agent_id, max_tokens)
 
     def advance_lifecycle(self, agent_id: str = "") -> LifecycleResult:
@@ -141,7 +159,9 @@ class MemoryField:
         return self._cognitive_stratifier.process_cognitive_decay(agent_id)
 
     def get_cognitive_entries(self, agent_id: str, concept: str = "") -> list:
-        """查询认知条目"""
+        """查询认知条目——DUAL_READ 及以后阶段才返回结果"""
+        if not self._is_read_allowed():
+            return []
         return self._cognitive_stratifier.get_cognitive_entries(agent_id, concept)
 
     def add_cognitive_evidence(self, entry_id: int, observation_id: str, is_confirm: bool) -> None:

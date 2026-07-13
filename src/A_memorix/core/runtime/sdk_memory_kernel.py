@@ -401,8 +401,9 @@ class SDKMemoryKernel:
             llm_client = self._ports.llm_service.LLMServiceClient(task_name="utils")
         self._memory_field = MemoryField(self.data_dir, llm_client=llm_client)
 
-        from ..migration.migration_adapter import MigrationAdapter, MigrationPhase
+        from ..migration.migration_adapter import MigrationAdapter
         self._migration_adapter = MigrationAdapter(self._memory_field)
+        self._memory_field.set_migration_adapter(self._migration_adapter)
 
         from ..migration.migration_router import MigrationRouter
         from ..migration.translator import ConnectionistTranslator

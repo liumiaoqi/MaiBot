@@ -382,6 +382,56 @@ class AMemorixHostService:
         if component_name == "connectionist_stats":
             return kernel._memory_field.memory_stats()
 
+        # ── 叙事原型 API ──────────────────────────────────
+
+        if component_name == "narrative_weave":
+            return await kernel._memory_field.weave_narrative(
+                agent_id=payload.get("agent_id", ""),
+            )
+
+        if component_name == "narrative_stats":
+            stats = kernel._memory_field.memory_stats()
+            return {
+                "fragment_count": stats.get("fragment_count", 0),
+                "episode_count": stats.get("episode_count", 0),
+                "saga_count": stats.get("saga_count", 0),
+            }
+
+        if component_name == "cognitive_query":
+            return kernel._memory_field.get_cognitive_entries(
+                agent_id=payload.get("agent_id", ""),
+                concept=payload.get("concept", ""),
+            )
+
+        if component_name == "cognitive_evidence":
+            kernel._memory_field.add_cognitive_evidence(
+                entry_id=int(payload.get("entry_id", 0)),
+                observation_id=payload.get("observation_id", ""),
+                is_confirm=bool(payload.get("is_confirm", True)),
+            )
+            return {"success": True}
+
+        if component_name == "intuition_trigger":
+            return kernel._memory_field.get_intuition(
+                context_text=payload.get("context_text", ""),
+                agent_id=payload.get("agent_id", ""),
+                max_tokens=int(payload.get("max_tokens", 800) or 800),
+            )
+
+        if component_name == "lifecycle_advance":
+            return kernel._memory_field.advance_lifecycle(
+                agent_id=payload.get("agent_id", ""),
+            )
+
+        if component_name == "lifecycle_stats":
+            stats = kernel._memory_field.memory_stats()
+            return {
+                "fragment_count": stats.get("fragment_count", 0),
+                "episode_count": stats.get("episode_count", 0),
+                "saga_count": stats.get("saga_count", 0),
+                "cognitive_entry_count": stats.get("cognitive_entry_count", 0),
+            }
+
         if component_name == "migration_status":
             migration_adapter = kernel._migration_adapter
             if migration_adapter is None:
