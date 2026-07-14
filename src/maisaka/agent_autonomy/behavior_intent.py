@@ -13,7 +13,7 @@ from src.maisaka.agent_autonomy.inner_need import InnerNeed, InnerNeedEngine
 logger = get_logger("agent_autonomy.behavior_intent")
 
 
-@dataclass
+@dataclass(frozen=True)
 class BehaviorIntent:
     """行为意图。"""
 

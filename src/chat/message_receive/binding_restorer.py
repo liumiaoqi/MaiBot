@@ -43,9 +43,10 @@ class BindingRestorer:
         with get_db_session() as db:
             statement = select(AgentAutonomyActivity).filter(
                 AgentAutonomyActivity.exited_at.is_(None),
-                AgentAutonomyActivity.activation_reason == "manual_binding",
             )
             for activity in db.exec(statement):
+                if activity.is_primary:
+                    continue
                 all_agents = self._agent_router.get_session_all_agents(activity.session_id)
                 if activity.agent_id in all_agents:
                     continue
