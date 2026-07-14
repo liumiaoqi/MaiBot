@@ -6577,9 +6577,9 @@ class AgentAutonomySectionConfig(ConfigBase):
     """启用后，智能体将以角色内部视角思考，拥有内在需求和行为意图。"""
 
     max_active_agents: int = Field(
-        default=3,
+        default=13,
         ge=2,
-        le=5,
+        le=20,
         json_schema_extra={
             "label": {
                 "zh_CN": "最大活跃智能体数",

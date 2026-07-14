@@ -286,8 +286,7 @@ class SummaryImporter:
             preferred=("memory", "utils", "planner", "tool_use", "replyer"),
         )
 
-    @staticmethod
-    def _current_model_dict() -> Dict[str, Any]:
+    def _current_model_dict(self) -> Dict[str, Any]:
         try:
             return getattr(self._config_manager.get_model_config(), "models_dict", {}) or {}
         except Exception as exc:
