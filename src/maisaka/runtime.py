@@ -474,7 +474,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
 
         from src.maisaka.context.messages import SessionBackedMessage, ComplexSessionMessage
         from src.maisaka.context.planner_messages import build_planner_user_prefix_from_session_message
-        from src.maisaka.context.history import contains_complex_message
+        from src.maisaka.context.messages import contains_complex_message
 
         source_sequence = message.raw_message
         include_chat_id = self._is_focus_mode_active_for_current_chat()
@@ -1471,7 +1471,6 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
             from src.maisaka.agent_autonomy.bridge.chat_loop_adapter import ChatLoopServiceAdapter
             from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
 
-            self._autonomous_agent = AutonomousAgent(agent_id)
             self._chat_loop_adapter = ChatLoopServiceAdapter(self._chat_loop_service, runtime=self)
 
             if autonomy_config.embodied_planner_enabled:
@@ -1485,6 +1484,8 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
                 tool_registry=self._tool_registry,
                 chat_loop_adapter=self._chat_loop_adapter,
             )
+
+            self._autonomous_agent = AutonomousAgent(agent_id, thinking_organ_factory=thinking_organ_factory)
 
             # 创建 Orchestrator
             session_name = self.session_name

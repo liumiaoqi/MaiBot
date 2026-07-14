@@ -159,14 +159,16 @@ class CohabitantStateSummaryGenerator:
             emotion_tendency = ""
 
             if vis.show_emotion:
-                from src.maisaka.agent_autonomy.agent import AutonomousAgent
-                agent = AutonomousAgent(info.agent_id)
-                if agent.emotion_manager is not None:
-                    state = agent.emotion_manager.state
+                try:
+                    from src.maisaka.agent_interaction.emotion_registry import AgentEmotionManagerRegistry
+                    emotion_mgr = AgentEmotionManagerRegistry().get_emotion_manager(info.agent_id)
+                    state = emotion_mgr.state
                     emotion_tendency = _emotion_mapping.map_to_tendency(
                         state.dominant_emotion,
                         state.get_dominant_intensity(),
                     )
+                except Exception:
+                    emotion_tendency = ""
 
             entries.append(CohabitantStateEntry(
                 agent_id=info.agent_id,

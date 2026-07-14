@@ -95,17 +95,16 @@ class AmbientAwarenessProcessor:
             if info.agent_id == event.agent_id:
                 continue
             try:
-                from src.maisaka.agent_autonomy.agent import AutonomousAgent
+                from src.maisaka.agent_interaction.emotion_registry import AgentEmotionManagerRegistry
 
-                agent = AutonomousAgent(info.agent_id)
-                if agent.emotion_manager is not None:
-                    infection_strength = self._config.vitality_stimulus_mention
-                    if self._rule_engine is not None:
-                        bonus = self._rule_engine.evaluate_for_infection(
-                            session_id, event.emotion_intensity
-                        )
-                        infection_strength += bonus
-                    agent.emotion_manager.apply_trigger(event.emotion_type, infection_strength)
+                emotion_mgr = AgentEmotionManagerRegistry().get_emotion_manager(info.agent_id)
+                infection_strength = self._config.vitality_stimulus_mention
+                if self._rule_engine is not None:
+                    bonus = self._rule_engine.evaluate_for_infection(
+                        session_id, event.emotion_intensity
+                    )
+                    infection_strength += bonus
+                emotion_mgr.apply_trigger(event.emotion_type, infection_strength)
             except Exception as exc:
                 logger.debug(
                     f"[ambient] 情绪感染异常: agent={info.agent_id} error={exc}"

@@ -577,6 +577,97 @@ class ThinkAction(Enum):
     WAIT = "wait"
 
 
+class SilenceReason(Enum):
+    """沉默原因 — 区分"只想不回"和"异常沉默"。"""
+
+    INTENTIONAL = "intentional"
+    """深思熟虑后决定不回复"""
+
+    NO_CONTENT = "no_content"
+    """LLM 返回空内容"""
+
+    ERROR = "error"
+    """LLM 调用出错"""
+
+    TIMEOUT = "timeout"
+    """思考超时"""
+
+    REJECTED = "rejected"
+    """被编排器拒绝激活"""
+
+    TOOL_FAILED = "tool_failed"
+    """工具调用失败"""
+
+    MAX_CYCLES = "max_cycles"
+    """循环达到上限"""
+
+
+class CycleStatus(Enum):
+    """思考循环状态。"""
+
+    COMPLETED_REPLY = "completed_reply"
+    """正常完成，有回复"""
+
+    COMPLETED_SILENT = "completed_silent"
+    """正常完成，无回复"""
+
+    ERROR = "error"
+    """异常终止"""
+
+    TIMEOUT = "timeout"
+    """超时终止"""
+
+
+@dataclass(slots=True)
+class ThinkCycleLog:
+    """思考循环结构化日志 — 区分只想不回和异常沉默。"""
+
+    agent_id: str = ""
+    session_name: str = ""
+    trigger: str = ""
+    status: CycleStatus = CycleStatus.COMPLETED_SILENT
+    silence_reason: Optional[SilenceReason] = None
+    thought_summary: str = ""
+    action_summary: str = ""
+    reply_text: str = ""
+    cycle_count: int = 0
+    tool_calls_made: list[str] = field(default_factory=list)
+    tool_errors: list[str] = field(default_factory=list)
+    elapsed_ms: int = 0
+    error_detail: str = ""
+
+    def to_log_line(self) -> str:
+        parts = [f"[think] agent={self.agent_id}"]
+        if self.trigger:
+            parts.append(f"trigger={self.trigger}")
+        if self.status == CycleStatus.COMPLETED_REPLY:
+            parts.append("status=REPLY")
+            parts.append(f'reply="{self.reply_text[:50]}"')
+            if self.thought_summary:
+                parts.append(f'thought="{self.thought_summary[:50]}"')
+        elif self.status == CycleStatus.COMPLETED_SILENT:
+            reason = self.silence_reason.value if self.silence_reason else "unknown"
+            parts.append("status=SILENT")
+            parts.append(f"reason={reason}")
+            if self.silence_reason == SilenceReason.INTENTIONAL:
+                parts.append(f'why="{self.thought_summary[:80]}"')
+            elif self.silence_reason in (SilenceReason.ERROR, SilenceReason.TIMEOUT, SilenceReason.REJECTED, SilenceReason.TOOL_FAILED):
+                parts.append(f'detail="{self.error_detail[:80]}"')
+        elif self.status == CycleStatus.ERROR:
+            parts.append("status=ERROR")
+            parts.append(f'detail="{self.error_detail[:80]}"')
+        elif self.status == CycleStatus.TIMEOUT:
+            parts.append("status=TIMEOUT")
+            parts.append(f'detail="{self.error_detail[:80]}"')
+        if self.cycle_count > 1:
+            parts.append(f"cycles={self.cycle_count}")
+        if self.tool_calls_made:
+            parts.append(f"tools={','.join(self.tool_calls_made)}")
+        if self.elapsed_ms > 0:
+            parts.append(f"elapsed={self.elapsed_ms}ms")
+        return " ".join(parts)
+
+
 @dataclass(slots=True)
 class ThinkResult:
     """思考结果 — 智能体思考后产生的输出。"""
@@ -585,7 +676,7 @@ class ThinkResult:
     """思考动作类型"""
 
     text: str = ""
-    """回复文本（action=REPLY 时有值）"""
+    """回复文本（action=REPLY 时有值，仅来源于 reply 工具调用结果）"""
 
     tool_calls: List[dict[str, Any]] = field(default_factory=list)
     """工具调用（action=TOOL_CALL 时有值）"""
@@ -610,6 +701,15 @@ class ThinkResult:
 
     wait_seconds: float = 0.0
     """等待秒数（action=WAIT 时有效）"""
+
+    silence_reason: Optional[SilenceReason] = None
+    """沉默原因（action=SILENT 时有值）"""
+
+    thought_summary: str = ""
+    """内心独白摘要（content[:100]，供日志使用）"""
+
+    reply_sent: bool = False
+    """reply 工具是否已内部发送消息（Orchestrator 据此避免重复发送）"""
 
 
 # ============================================================================
