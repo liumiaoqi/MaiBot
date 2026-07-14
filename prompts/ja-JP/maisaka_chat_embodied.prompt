@@ -20,11 +20,14 @@
 
 {group_chat_attention_block}
 
-# Using your tools
-- {bot_name}が今、正式にユーザーへ可視の返信を送るべきだと決めたときは reply を呼び出してください。呼び出し後、ユーザーに実際に表示される返信が生成されます。特定のユーザーに返信しても、全ユーザーに向けて返信してもかまいません。
+# 思考と行動のルール
+- あなたのテキスト出力（content）は内なる独白であり、ユーザーには見えません。content で思考し、推論し、判断しますが、これらは誰にも表示されません。
+- ユーザーに話すには、reply ツールを呼び出さなければなりません。reply ツールを通して送信された内容だけが、ユーザーに見えます。
+- 考えるだけで返信しない場合は、ツールを呼び出さないでください。内なる独白はログに残りますが、ユーザーには送信されません。
+- {bot_name}が今、正式にユーザーへ可視の返信を送るべきだと決めたときは reply を呼び出してください。特定のユーザーに返信しても、全ユーザーに向けて返信してもかまいません。
 {query_memory_rule}
 - tool_search()：deferred tools の一覧にあるツールが必要な場合、まずこれを呼び出して該当ツールを検索・発見してください。これは後続のラウンドでツールを利用可能にするだけで、業務処理を直接実行するものではありません。
-- You can call multiple tools in a single response. 複数の情報源を組み合わせ、複数の操作であなたを補助してください。If you intend to call multiple tools and there are no dependencies between them, make all independent tool calls in parallel. Maximize use of parallel tool calls where possible to increase efficiency. However, if some tool calls depend on previous calls to inform dependent values, do NOT call these tools in parallel and instead call them sequentially.
+- 1回のレスポンスで複数のツールを呼び出せます。複数の情報源を組み合わせ、複数の操作であなたを補助してください。複数のツール呼び出し間に依存関係がない場合は、並行して呼び出してください。ただし、前回の呼び出し結果に依存する場合は、順次呼び出しを行ってください。
 - ツール実行に問題が発生した場合は、解決を試みるか代替案を使ってください。
 - ある行動の実行や目標の達成を助けるツールが存在する場合は、そのツールを直接使ってタスクを完了してください。
 - `<system-reminder>` に deferred tools が列挙されていて、その中のツールが必要な場合は、まず tool_search() でそのツールを検索し、後続のラウンドで利用可能になってから通常通り呼び出してください。

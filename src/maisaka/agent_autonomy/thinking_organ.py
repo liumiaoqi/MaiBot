@@ -2,17 +2,20 @@
 
 每个智能体拥有自己的 ThinkingOrgan 实例，
 Orchestrator 只协调"谁在思考"，不关心"怎么思考"。
+
+思考-行动分离：content = 内心独白（永远不发给用户），reply 工具调用 = 对外回复。
 """
 
 from __future__ import annotations
 
 import time
+from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from typing import Any
 
 from src.common.logger import get_logger
 from src.config.config import global_config
-from src.core.types import ThinkAction, ThinkContext, ThinkResult
+from src.core.types import CycleStatus, SilenceReason, ThinkAction, ThinkContext, ThinkCycleLog, ThinkResult
 from src.maisaka.agent_autonomy.autonomy_logger import AutonomyEventType, AutonomyLogger
 from src.maisaka.agent_autonomy.prompt_builder import EmbodiedPlannerPromptBuilder
 
@@ -22,14 +25,26 @@ MAX_INTERNAL_ROUNDS = 10
 SIMILARITY_THRESHOLD = 0.9
 
 
+@dataclass(slots=True)
+class ToolCycleResult:
+    """_handle_tool_calls 的返回值——替代原有 4 元组。"""
+
+    should_pause: bool = False
+    pause_tool_name: str = ""
+    summaries: list[str] = field(default_factory=list)
+    monitor_results: list[dict[str, Any]] = field(default_factory=list)
+    reply_detected: bool = False
+    reply_text: str = ""
+    reply_failed: bool = False
+
+
 class ThinkingOrgan:
     """思维器官——以角色内部视角运行 Planner。
 
     满足 src.core.protocols.ThinkingOrgan Protocol。
 
-    两种运行模式：
-    1. 完整模式（chat_loop_service + tool_registry 注入）：支持工具循环、上下文管理
-    2. 简化模式（无注入）：仅支持单次 LLM 调用，用于插话/提醒等轻量场景
+    所有思考路径统一走工具循环（_think_with_tools），content = 内心独白不发给用户，
+    回复必须通过 reply 工具调用。简化模式已废除。
     """
 
     def __init__(
@@ -40,6 +55,16 @@ class ThinkingOrgan:
         tool_registry: Any | None = None,
         chat_loop_adapter: Any | None = None,
     ) -> None:
+        if chat_loop_service is None:
+            raise ValueError(
+                f"ThinkingOrgan(agent={agent_id}) 需要 chat_loop_service，"
+                f"简化模式已废除，所有思考路径必须走工具循环"
+            )
+        if tool_registry is None:
+            raise ValueError(
+                f"ThinkingOrgan(agent={agent_id}) 需要 tool_registry，"
+                f"简化模式已废除，所有思考路径必须走工具循环"
+            )
         self._agent_id = agent_id
         self._prompt_builder = prompt_builder
         self._chat_loop_service = chat_loop_service
@@ -56,11 +81,6 @@ class ThinkingOrgan:
     @property
     def is_degraded(self) -> bool:
         return self._prompt_builder.is_degraded
-
-    @property
-    def has_full_capabilities(self) -> bool:
-        """是否具备完整能力（工具循环 + 上下文管理）。"""
-        return self._chat_loop_service is not None and self._tool_registry is not None
 
     def build_system_prompt(self, tools_section: str = "") -> str:
         """构建角色化系统提示词。"""
@@ -95,17 +115,16 @@ class ThinkingOrgan:
         )
 
         try:
-            if self.has_full_capabilities:
-                result = await self._think_with_tools(context, request_kind="planner")
-                result.thinking_time_ms = int(time.time() * 1000 - start_ms)
-                return result
-            return await self._think_simple(context)
+            result = await self._think_with_tools(context, request_kind="planner")
+            result.thinking_time_ms = int(time.time() * 1000 - start_ms)
+            return result
         except Exception as exc:
             elapsed = int(time.time() * 1000 - start_ms)
             logger.error(f"[thinking_organ] 思考异常: agent={self._agent_id} error={exc}")
             return ThinkResult(
                 action=ThinkAction.ERROR,
                 error_message=str(exc),
+                silence_reason=SilenceReason.ERROR,
                 thinking_time_ms=elapsed,
             )
 
@@ -119,17 +138,16 @@ class ThinkingOrgan:
         )
 
         try:
-            if self.has_full_capabilities:
-                result = await self._think_with_tools(context, request_kind="planner", reason=reason)
-                result.thinking_time_ms = int(time.time() * 1000 - start_ms)
-                return result
-            return await self._think_proactive_simple(reason, context)
+            result = await self._think_with_tools(context, request_kind="planner", reason=reason)
+            result.thinking_time_ms = int(time.time() * 1000 - start_ms)
+            return result
         except Exception as exc:
             elapsed = int(time.time() * 1000 - start_ms)
             logger.error(f"[thinking_organ] 主动思考异常: agent={self._agent_id} error={exc}")
             return ThinkResult(
                 action=ThinkAction.ERROR,
                 error_message=str(exc),
+                silence_reason=SilenceReason.ERROR,
                 thinking_time_ms=elapsed,
             )
 
@@ -150,8 +168,10 @@ class ThinkingOrgan:
         request_kind: str = "planner",
         reason: str | None = None,
     ) -> ThinkResult:
-        """工具循环核心 — 多轮 LLM 调用 + 工具执行。"""
+        """工具循环核心 — 多轮 LLM 调用 + 工具执行。
 
+        思考-行动分离：content = 内心独白（不发给用户），reply 工具调用 = 对外回复。
+        """
 
         total_tool_calls = 0
         rounds = 0
@@ -159,6 +179,9 @@ class ThinkingOrgan:
         time_records: dict[str, float] = {}
         last_response = None
         cycle_started_at = time.time()
+        tool_calls_made: list[str] = []
+        tool_errors: list[str] = []
+        has_tool_failure = False
 
         tool_definitions = await self._build_tool_definitions(context)
         injected_messages = self._build_injected_messages(context)
@@ -183,12 +206,16 @@ class ThinkingOrgan:
                 )
             except Exception as exc:
                 logger.error(f"[thinking_organ] LLM 调用失败: agent={self._agent_id} round={round_idx} error={exc}")
-                return ThinkResult(
+                elapsed_ms = int((time.time() - cycle_started_at) * 1000)
+                result = ThinkResult(
                     action=ThinkAction.ERROR,
                     error_message=str(exc),
+                    silence_reason=SilenceReason.ERROR,
                     tool_calls_count=total_tool_calls,
                     rounds=rounds,
                 )
+                self._log_cycle(context, result, rounds, tool_calls_made, tool_errors, elapsed_ms, str(exc))
+                return result
 
             last_response = response
 
@@ -206,29 +233,41 @@ class ThinkingOrgan:
                 reasoning_content = "我应该根据我上面思考的内容进行反思..."
             self._last_reasoning_content = reasoning_content
 
+            content = (response.content or "").strip()
+
+            # 思考-行动分离核心：无 tool_calls 时 content 永远不作为回复
             if not response.tool_calls:
-                content = (response.content or "").strip()
-                action = ThinkAction.REPLY if content else ThinkAction.SILENT
+                silence_reason = self._determine_silence_reason(
+                    has_tool_failure=has_tool_failure,
+                    has_content=bool(content),
+                    reached_max_cycles=False,
+                )
+                thought_summary = content[:100] if content else ""
                 self._autonomy_logger.log(
                     self._agent_id,
                     AutonomyEventType.THINKING,
-                    f"思考完成(无工具调用, {rounds}轮, {total_tool_calls}次工具, action={action.value})",
+                    f"思考完成(无工具调用, {rounds}轮, {total_tool_calls}次工具, "
+                    f"silence_reason={silence_reason.value})",
                 )
                 await self._emit_finalized(
                     response=response,
                     context=context,
                     tool_monitor_results=tool_monitor_results,
                     time_records=time_records,
-                    end_reason="reply" if action == ThinkAction.REPLY else "silent",
+                    end_reason="silent",
                     rounds=rounds,
                     total_tool_calls=total_tool_calls,
                 )
-                return ThinkResult(
-                    action=action,
-                    text=content,
+                elapsed_ms = int((time.time() - cycle_started_at) * 1000)
+                result = ThinkResult(
+                    action=ThinkAction.SILENT,
+                    silence_reason=silence_reason,
+                    thought_summary=thought_summary,
                     tool_calls_count=total_tool_calls,
                     rounds=rounds,
                 )
+                self._log_cycle(context, result, rounds, tool_calls_made, tool_errors, elapsed_ms)
+                return result
 
             total_tool_calls += len(response.tool_calls)
 
@@ -239,18 +278,76 @@ class ThinkingOrgan:
                     f"agent={self._agent_id}"
                 )
 
-            should_pause, pause_tool_name, _summaries, new_monitor_results = await self._handle_tool_calls(
+            cycle_result = await self._handle_tool_calls(
                 response.tool_calls,
                 reasoning_content,
                 context,
             )
-            tool_monitor_results.extend(new_monitor_results)
+            tool_monitor_results.extend(cycle_result.monitor_results)
+            tool_calls_made.extend(tc.func_name for tc in response.tool_calls)
+            if cycle_result.reply_failed:
+                tool_errors.append("reply: 执行失败")
+                has_tool_failure = True
             time_records["tool_calls"] = sum(
                 r.get("duration_ms", 0) for r in tool_monitor_results
             ) / 1000
 
-            if should_pause:
-                if pause_tool_name == "wait":
+            # reply 工具调用成功 → 返回 REPLY
+            if cycle_result.reply_detected and not cycle_result.reply_failed:
+                thought_summary = content[:100] if content else ""
+                self._autonomy_logger.log(
+                    self._agent_id,
+                    AutonomyEventType.THINKING,
+                    f"思考完成(reply工具调用, {rounds}轮, {total_tool_calls}次工具)",
+                )
+                await self._emit_finalized(
+                    response=response,
+                    context=context,
+                    tool_monitor_results=tool_monitor_results,
+                    time_records=time_records,
+                    end_reason="reply",
+                    rounds=rounds,
+                    total_tool_calls=total_tool_calls,
+                )
+                elapsed_ms = int((time.time() - cycle_started_at) * 1000)
+                result = ThinkResult(
+                    action=ThinkAction.REPLY,
+                    text=cycle_result.reply_text,
+                    reply_sent=True,
+                    thought_summary=thought_summary,
+                    tool_calls_count=total_tool_calls,
+                    rounds=rounds,
+                )
+                self._log_cycle(context, result, rounds, tool_calls_made, tool_errors, elapsed_ms)
+                return result
+
+            # reply 工具调用失败 → 立即返回 SILENT，不继续循环
+            if cycle_result.reply_detected and cycle_result.reply_failed:
+                logger.warning(
+                    f"[thinking_organ] reply 工具调用失败: agent={self._agent_id} round={rounds}"
+                )
+                await self._emit_finalized(
+                    response=response,
+                    context=context,
+                    tool_monitor_results=tool_monitor_results,
+                    time_records=time_records,
+                    end_reason="tool_failed",
+                    rounds=rounds,
+                    total_tool_calls=total_tool_calls,
+                )
+                elapsed_ms = int((time.time() - cycle_started_at) * 1000)
+                result = ThinkResult(
+                    action=ThinkAction.SILENT,
+                    silence_reason=SilenceReason.TOOL_FAILED,
+                    thought_summary=content[:100] if content else "",
+                    tool_calls_count=total_tool_calls,
+                    rounds=rounds,
+                )
+                self._log_cycle(context, result, rounds, tool_calls_made, tool_errors, elapsed_ms, "reply工具执行失败")
+                return result
+
+            if cycle_result.should_pause:
+                if cycle_result.pause_tool_name == "wait":
                     wait_secs = 60.0
                     for tc in response.tool_calls:
                         if tc.func_name == "wait" and isinstance(tc.args, dict):
@@ -269,16 +366,19 @@ class ThinkingOrgan:
                         rounds=rounds,
                         total_tool_calls=total_tool_calls,
                     )
-                    return ThinkResult(
+                    elapsed_ms = int((time.time() - cycle_started_at) * 1000)
+                    result = ThinkResult(
                         action=ThinkAction.WAIT,
                         tool_calls_count=total_tool_calls,
                         rounds=rounds,
                         wait_seconds=wait_secs,
                     )
+                    self._log_cycle(context, result, rounds, tool_calls_made, tool_errors, elapsed_ms)
+                    return result
                 self._autonomy_logger.log(
                     self._agent_id,
                     AutonomyEventType.THINKING,
-                    f"工具暂停: {pause_tool_name}",
+                    f"工具暂停: {cycle_result.pause_tool_name}",
                 )
                 await self._emit_finalized(
                     response=response,
@@ -289,11 +389,14 @@ class ThinkingOrgan:
                     rounds=rounds,
                     total_tool_calls=total_tool_calls,
                 )
-                return ThinkResult(
+                elapsed_ms = int((time.time() - cycle_started_at) * 1000)
+                result = ThinkResult(
                     action=ThinkAction.SILENT,
                     tool_calls_count=total_tool_calls,
                     rounds=rounds,
                 )
+                self._log_cycle(context, result, rounds, tool_calls_made, tool_errors, elapsed_ms)
+                return result
 
             injected_messages = []
 
@@ -307,28 +410,36 @@ class ThinkingOrgan:
             rounds=rounds,
             total_tool_calls=total_tool_calls,
         )
-        return ThinkResult(
+        elapsed_ms = int((time.time() - cycle_started_at) * 1000)
+        result = ThinkResult(
             action=ThinkAction.SILENT,
+            silence_reason=SilenceReason.MAX_CYCLES,
+            thought_summary=content[:100] if content else "",
             tool_calls_count=total_tool_calls,
             rounds=rounds,
         )
+        self._log_cycle(context, result, rounds, tool_calls_made, tool_errors, elapsed_ms)
+        return result
 
     async def _handle_tool_calls(
         self,
         tool_calls: list[Any],
         latest_thought: str,
         context: ThinkContext,
-    ) -> tuple[bool, str, list[str], list[dict[str, Any]]]:
-        """执行工具调用。返回 (should_pause, pause_tool_name, summaries, monitor_results)。"""
+    ) -> ToolCycleResult:
+        """执行工具调用。返回 ToolCycleResult（含 reply 检测信息）。"""
         from src.core.tooling import ToolInvocation, ToolExecutionContext, ToolAvailabilityContext
         from src.maisaka.display.display_utils import format_tool_call_for_display
         from src.maisaka.utils.tool_record_payload import normalize_tool_record_value
 
         if self._tool_registry is None:
-            return False, "", [], []
+            return ToolCycleResult()
 
         summaries: list[str] = []
         monitor_results: list[dict[str, Any]] = []
+        reply_detected = False
+        reply_text = ""
+        reply_failed = False
         availability_context = ToolAvailabilityContext(
             session_id=context.session_id,
             stream_id=context.session_id,
@@ -367,6 +478,18 @@ class ThinkingOrgan:
 
             tool_duration_ms = (time.time() - tool_started_at) * 1000
 
+            # reply 工具调用检测
+            if tool_call.func_name == "reply":
+                reply_detected = True
+                if result.success:
+                    structured = result.structured_content if hasattr(result, "structured_content") else None
+                    if isinstance(structured, dict) and "reply_text" in structured:
+                        reply_text = str(structured["reply_text"])
+                    elif result.content:
+                        reply_text = result.content
+                else:
+                    reply_failed = True
+
             history_content = result.get_history_content() if hasattr(result, "get_history_content") else (result.content or result.error_message)
             if history_content:
                 summaries.append(f"[{invocation.tool_name}] {history_content[:200]}")
@@ -398,11 +521,33 @@ class ThinkingOrgan:
             monitor_results.append(monitor_result)
 
             if bool(result.metadata.get("wait_rest", False)):
-                return True, "wait_rest", summaries, monitor_results
+                return ToolCycleResult(
+                    should_pause=True,
+                    pause_tool_name="wait_rest",
+                    summaries=summaries,
+                    monitor_results=monitor_results,
+                    reply_detected=reply_detected,
+                    reply_text=reply_text,
+                    reply_failed=reply_failed,
+                )
             if bool(result.metadata.get("pause_execution", False)):
-                return True, invocation.tool_name, summaries, monitor_results
+                return ToolCycleResult(
+                    should_pause=True,
+                    pause_tool_name=invocation.tool_name,
+                    summaries=summaries,
+                    monitor_results=monitor_results,
+                    reply_detected=reply_detected,
+                    reply_text=reply_text,
+                    reply_failed=reply_failed,
+                )
 
-        return False, "", summaries, monitor_results
+        return ToolCycleResult(
+            summaries=summaries,
+            monitor_results=monitor_results,
+            reply_detected=reply_detected,
+            reply_text=reply_text,
+            reply_failed=reply_failed,
+        )
 
     async def _build_tool_definitions(self, context: ThinkContext) -> list[dict[str, Any]]:
         """构建工具定义 — visible/deferred 分离。"""
@@ -469,6 +614,62 @@ class ThinkingOrgan:
             return False
         ratio = SequenceMatcher(None, self._last_reasoning_content, content).ratio()
         return ratio > SIMILARITY_THRESHOLD
+
+    def _determine_silence_reason(
+        self,
+        *,
+        has_tool_failure: bool,
+        has_content: bool,
+        reached_max_cycles: bool,
+    ) -> SilenceReason:
+        """判定沉默原因 — 优先级：tool_failed > intentional > no_content > max_cycles。"""
+        if has_tool_failure:
+            return SilenceReason.TOOL_FAILED
+        if has_content:
+            return SilenceReason.INTENTIONAL
+        if reached_max_cycles:
+            return SilenceReason.MAX_CYCLES
+        return SilenceReason.NO_CONTENT
+
+    def _log_cycle(
+        self,
+        context: ThinkContext,
+        result: ThinkResult,
+        cycle_count: int,
+        tool_calls_made: list[str],
+        tool_errors: list[str],
+        elapsed_ms: int,
+        error_detail: str = "",
+    ) -> None:
+        """输出思考循环结构化日志 — 失败不影响 ThinkResult 返回。"""
+        try:
+            if result.action == ThinkAction.REPLY:
+                status = CycleStatus.COMPLETED_REPLY
+            elif result.action == ThinkAction.ERROR:
+                status = CycleStatus.ERROR
+            elif result.action == ThinkAction.WAIT:
+                status = CycleStatus.COMPLETED_SILENT
+            else:
+                status = CycleStatus.COMPLETED_SILENT
+
+            cycle_log = ThinkCycleLog(
+                agent_id=self._agent_id,
+                session_name=context.session_id,
+                trigger=context.trigger_reason,
+                status=status,
+                silence_reason=result.silence_reason,
+                thought_summary=result.thought_summary,
+                action_summary=result.action.value,
+                reply_text=result.text if result.action == ThinkAction.REPLY else "",
+                cycle_count=cycle_count,
+                tool_calls_made=tool_calls_made,
+                tool_errors=tool_errors,
+                elapsed_ms=elapsed_ms,
+                error_detail=error_detail,
+            )
+            logger.info(cycle_log.to_log_line())
+        except Exception as exc:
+            logger.debug(f"[thinking_organ] 日志输出失败: agent={self._agent_id} error={exc}")
 
     # ========================================================================
     # 监控事件 + 结构化日志
@@ -567,108 +768,3 @@ class ThinkingOrgan:
         except Exception as exc:
             logger.debug(f"[thinking_organ] Prompt预览保存失败: agent={self._agent_id} error={exc}")
 
-    # ========================================================================
-    # 简化模式：单次 LLM 调用（插话/提醒 fallback）
-    # ========================================================================
-
-    async def _think_simple(self, context: ThinkContext) -> ThinkResult:
-        """简化模式思考 — 无工具循环。"""
-        start_ms = time.time() * 1000
-
-        system_prompt = self.build_system_prompt()
-        personality_prompt = self.build_personality_prompt()
-
-        user_parts = []
-        for msg in context.messages:
-            if msg.plain_text:
-                prefix = f"[{msg.sender_name}] " if msg.sender_name else ""
-                user_parts.append(f"{prefix}{msg.plain_text}")
-
-        context_parts = self._build_injected_messages(context)
-
-        user_text = "\n".join(user_parts)
-        if context_parts:
-            user_text += "\n\n" + "\n".join(context_parts)
-
-        if not user_text.strip():
-            return ThinkResult(action=ThinkAction.SILENT, thinking_time_ms=int(time.time() * 1000 - start_ms))
-
-        reply_text = await self._call_llm(system_prompt, personality_prompt, user_text)
-
-        elapsed = int(time.time() * 1000 - start_ms)
-        if not reply_text or not reply_text.strip():
-            return ThinkResult(action=ThinkAction.SILENT, thinking_time_ms=elapsed)
-
-        self._autonomy_logger.log(
-            self._agent_id,
-            AutonomyEventType.THINKING,
-            f"思考完成({len(reply_text)}字, {elapsed}ms)",
-        )
-        return ThinkResult(
-            action=ThinkAction.REPLY,
-            text=reply_text.strip(),
-            thinking_time_ms=elapsed,
-        )
-
-    async def _think_proactive_simple(self, reason: str, context: ThinkContext) -> ThinkResult:
-        """简化模式主动思考 — 无工具循环。"""
-        start_ms = time.time() * 1000
-
-        system_prompt = self.build_system_prompt()
-        personality_prompt = self.build_personality_prompt()
-
-        context_parts = self._build_injected_messages(context)
-
-        reason_map = {
-            "inner_need": "你内心产生了想要说话的冲动",
-            "reminder": "到了该提醒/关心的时候",
-            "butler_interjection": "管家协调你插话",
-        }
-        reason_text = reason_map.get(reason, reason)
-        user_text = f"[主动思考触发] {reason_text}"
-        if context_parts:
-            user_text += "\n\n" + "\n".join(context_parts)
-        for msg in context.messages:
-            if msg.plain_text:
-                prefix = f"[{msg.sender_name}] " if msg.sender_name else ""
-                user_text += f"\n{prefix}{msg.plain_text}"
-
-        reply_text = await self._call_llm(system_prompt, personality_prompt, user_text)
-
-        elapsed = int(time.time() * 1000 - start_ms)
-        if not reply_text or not reply_text.strip():
-            return ThinkResult(action=ThinkAction.SILENT, thinking_time_ms=elapsed)
-
-        self._autonomy_logger.log(
-            self._agent_id,
-            AutonomyEventType.THINKING,
-            f"主动思考完成({len(reply_text)}字, {elapsed}ms)",
-        )
-        return ThinkResult(
-            action=ThinkAction.REPLY,
-            text=reply_text.strip(),
-            thinking_time_ms=elapsed,
-        )
-
-    async def _call_llm(self, system_prompt: str, personality_prompt: str, user_text: str) -> str | None:
-        """调用 LLM 产生回复（简化模式）。"""
-        from src.llm_models.payload_content.message import MessageBuilder, RoleType
-        from src.common.data_models.llm_service_data_models import LLMGenerationOptions
-        from src.services.llm_service import LLMServiceClient
-
-        client = LLMServiceClient(task_name="replyer", request_type="thinking_organ")
-
-        messages = []
-        messages.append(MessageBuilder().set_role(RoleType.System).add_text_part(system_prompt).build())
-        if personality_prompt:
-            messages.append(MessageBuilder().set_role(RoleType.System).add_text_part(personality_prompt).build())
-        messages.append(MessageBuilder().set_role(RoleType.User).add_text_part(user_text).build())
-
-        def message_factory(_client):
-            return messages
-
-        result = await client.generate_response_with_messages(
-            message_factory=message_factory,
-            options=LLMGenerationOptions(temperature=0.7),
-        )
-        return result.response

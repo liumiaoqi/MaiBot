@@ -34,7 +34,10 @@ class AutonomousAgent:
         if thinking_organ_factory is not None:
             self._thinking_organ = thinking_organ_factory.create(agent_id, "")
         else:
-            self._thinking_organ = ThinkingOrgan(agent_id, self._prompt_builder)
+            raise ValueError(
+                f"AutonomousAgent(agent={agent_id}) 需要 thinking_organ_factory，"
+                f"简化模式已废除，所有思考路径必须走工具循环"
+            )
         self._expression_organ = None
         self._emotion_manager = None
         self._relationship_manager = None

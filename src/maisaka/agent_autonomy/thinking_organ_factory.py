@@ -28,6 +28,16 @@ class ThinkingOrganFactory:
         tool_registry: Any | None = None,
         chat_loop_adapter: Any | None = None,
     ) -> None:
+        if chat_loop_service_factory is None:
+            raise ValueError(
+                "ThinkingOrganFactory 需要 chat_loop_service_factory，"
+                "简化模式已废除，所有思考路径必须走工具循环"
+            )
+        if tool_registry is None:
+            raise ValueError(
+                "ThinkingOrganFactory 需要 tool_registry，"
+                "简化模式已废除，所有思考路径必须走工具循环"
+            )
         self._chat_loop_service_factory = chat_loop_service_factory
         self._tool_registry = tool_registry
         self._chat_loop_adapter = chat_loop_adapter

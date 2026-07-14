@@ -50,7 +50,10 @@ class AgentOrchestrator:
     @staticmethod
     def _get_default_thinking_organ_factory() -> ThinkingOrganFactory:
         from src.maisaka.agent_autonomy.thinking_organ_factory import ThinkingOrganFactory
-        return ThinkingOrganFactory(chat_loop_adapter=None)
+        raise ValueError(
+            "AgentOrchestrator 必须显式传入 thinking_organ_factory，"
+            "简化模式已废除，默认工厂不再可用"
+        )
 
     def __init__(
         self,
@@ -273,7 +276,7 @@ class AgentOrchestrator:
         task = self._think_scheduler.schedule(agent_id, agent.thinking_organ, think_context)
         result = await task
 
-        if result.action == ThinkAction.REPLY and result.text:
+        if result.action == ThinkAction.REPLY and result.text and not result.reply_sent:
             from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
             from src.core.message_port_registry import get_message_port_v2
             port = get_message_port_v2()
@@ -288,6 +291,11 @@ class AgentOrchestrator:
                     f"[agent_autonomy] 管家插话发送: agent={agent_id} "
                     f"text_len={len(result.text)} session={self._session_name}"
                 )
+        elif result.action == ThinkAction.REPLY and result.reply_sent:
+            logger.info(
+                f"[agent_autonomy] 管家插话跳过(reply已发送): agent={agent_id} "
+                f"session={self._session_name}"
+            )
 
         self._cooldown_manager.record_interjection(self._session_id, agent_id)
 
@@ -330,7 +338,7 @@ class AgentOrchestrator:
                     )
                     result = await task
 
-                    if result.action == ThinkAction.REPLY and result.text:
+                    if result.action == ThinkAction.REPLY and result.text and not result.reply_sent:
                         from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
                         from src.core.message_port_registry import get_message_port_v2
                         port = get_message_port_v2()
@@ -345,6 +353,11 @@ class AgentOrchestrator:
                                 f"[agent_autonomy] 提醒发送: agent={reminder.agent_id} "
                                 f"text_len={len(result.text)} session={self._session_name}"
                             )
+                    elif result.action == ThinkAction.REPLY and result.reply_sent:
+                        logger.info(
+                            f"[agent_autonomy] 提醒跳过(reply已发送): agent={reminder.agent_id} "
+                            f"session={self._session_name}"
+                        )
             except asyncio.CancelledError:
                 break
             except Exception as exc:
@@ -683,7 +696,7 @@ class AgentOrchestrator:
         )
         result = await task
 
-        if result.action == ThinkAction.REPLY and result.text:
+        if result.action == ThinkAction.REPLY and result.text and not result.reply_sent:
             from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
             from src.core.message_port_registry import get_message_port_v2
             port = get_message_port_v2()
@@ -698,14 +711,22 @@ class AgentOrchestrator:
                     f"[agent_autonomy] 主回复发送: agent={self._primary_agent_id} "
                     f"text_len={len(result.text)} session={self._session_name}"
                 )
+        elif result.action == ThinkAction.REPLY and result.reply_sent:
+            logger.info(
+                f"[agent_autonomy] 主回复跳过(reply已发送): agent={self._primary_agent_id} "
+                f"session={self._session_name}"
+            )
         elif result.action == ThinkAction.WAIT:
             logger.info(
                 f"[agent_autonomy] 主回复等待: agent={self._primary_agent_id} "
                 f"wait={result.wait_seconds}s session={self._session_name}"
             )
         elif result.action == ThinkAction.SILENT:
+            reason_str = result.silence_reason.value if result.silence_reason else "unknown"
             logger.debug(
                 f"[agent_autonomy] 主回复静默: agent={self._primary_agent_id} "
+                f"reason={reason_str} "
+                f"thought=\"{result.thought_summary[:50]}\" "
                 f"rounds={result.rounds} tools={result.tool_calls_count} "
                 f"session={self._session_name}"
             )

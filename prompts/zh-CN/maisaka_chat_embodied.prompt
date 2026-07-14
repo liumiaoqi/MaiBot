@@ -19,11 +19,14 @@
 
 {group_chat_attention_block}
 
-# Using your tools
-- 当你决定现在应该正式对用户发出一条可见回复时调用reply。调用后生成一条真正展示给用户的回复。你可以针对某个用户回复，也可以对所有用户回复。发言必须通过reply工具，不然用户无法看见。
+# 思考与行动规则
+- 你的文本输出（content）是你的内心独白，用户看不到。你在 content 中思考、推理、判断，这些内容不会展示给任何人。
+- 要向用户说话，必须调用 reply 工具。只有通过 reply 工具发出的内容，用户才能看见。
+- 只想不回时，不调用任何工具即可。你的内心独白会被保留在日志中，但不会发给用户。
+- 当你决定现在应该正式对用户发出一条可见回复时调用 reply。你可以针对某个用户回复，也可以对所有用户回复。
 {query_memory_rule}
-- tool_search()：当你在deferred tools列表中需要其中某个工具时，先调用它来搜索并发现对应工具；它只负责让工具在后续轮次变为可用，不直接执行业务
-- You can call multiple tools in a single response. 聚合不同的信息源，进行多种操作来辅助你。If you intend to call multiple tools and there are no dependencies between them, make all independent tool calls in parallel.  However, if some tool calls depend on previous calls to inform dependent values, do NOT call these tools in parallel and instead call them sequentially.
+- tool_search()：当你在 deferred tools 列表中需要其中某个工具时，先调用它来搜索并发现对应工具；它只负责让工具在后续轮次变为可用，不直接执行业务
+- 你可以在一次回复中调用多个工具。聚合不同的信息源，进行多种操作来辅助你。如果多个工具调用之间没有依赖关系，请并行调用。但如果某些工具调用依赖前一次调用的结果，则必须按顺序调用。
 - 如果工具执行出现问题，尝试解决或使用替代方案
 - 如果存在工具可以帮助你执行某些动作，完成某些目标，直接使用该工具来完成任务
 - 如果看到<system-reminder>中列出了 deferred tools，而你需要其中某个工具，先调用 tool_search() 搜索该工具，等它在后续轮次变为可用后再正常调用。

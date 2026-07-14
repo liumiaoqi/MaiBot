@@ -398,7 +398,7 @@ class VitalityManager:
 
             result = await agent.thinking_organ.think_proactive("inner_need", think_context)
 
-            if result.action.value == "reply" and result.text:
+            if result.action.value == "reply" and result.text and not result.reply_sent:
                 from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
                 from src.core.message_port_registry import get_message_port_v2
                 port = get_message_port_v2()
@@ -412,6 +412,11 @@ class VitalityManager:
                 logger.info(
                     f"[vitality] agent={agent_id} proactive_speech=sent "
                     f"reason=inner_need session={session_id}"
+                )
+            elif result.action.value == "reply" and result.reply_sent:
+                logger.info(
+                    f"[vitality] agent={agent_id} proactive_speech=skip_reply_sent "
+                    f"session={session_id}"
                 )
             else:
                 logger.debug(
