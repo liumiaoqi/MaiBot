@@ -1193,6 +1193,16 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
 
         return None
 
+    def find_latest_user_message(self) -> Optional[SessionMessage]:
+        """从 Maisaka 历史中查找最新的用户消息（非自身消息）。"""
+        for history_message in reversed(self._chat_history):
+            if getattr(history_message, "is_self_message", False):
+                continue
+            original_message = getattr(history_message, "original_message", None)
+            if original_message is not None:
+                return original_message
+        return None
+
     def _prune_processed_message_cache(self) -> None:
         """裁剪 runtime 已经消费过的旧消息。"""
         excess_count = len(self.message_cache) - MAX_RETAINED_MESSAGE_CACHE_SIZE

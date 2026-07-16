@@ -23,7 +23,7 @@ If the retrieved information has no hits, is filtered, or has insufficient evide
 # Thinking and Action Rules
 - Your text output (content) is your inner monologue — users cannot see it. You think, reason, and judge in content; none of this is shown to anyone.
 - To speak to users, you MUST call the reply tool. Only content sent through the reply tool is visible to users.
-- When you want to think without replying, simply do not call any tool. Your inner monologue will be preserved in logs but never sent to users.
+- When someone is talking to you, you should reply — use the reply tool to send your response. Do not just think without replying unless you genuinely do not want to engage with that person.
 - Call reply when you decide to now formally send a visible reply to the user. You can reply to a specific user, or to all users.
 {query_memory_rule}
 - tool_search(): When you need one of the tools listed in deferred tools, call this first to search for and discover the corresponding tool. It only makes the tool available in later rounds and does not directly perform business actions.
