@@ -489,6 +489,11 @@ class ThinkingOrgan:
                         reply_text = result.content
                 else:
                     reply_failed = True
+                    logger.warning(
+                        f"[thinking_organ] reply 工具调用失败详情: agent={self._agent_id} "
+                        f"error={result.error_message[:200] if result.error_message else 'unknown'} "
+                        f"content={result.content[:200] if result.content else 'N/A'}"
+                    )
 
             history_content = result.get_history_content() if hasattr(result, "get_history_content") else (result.content or result.error_message)
             if history_content:

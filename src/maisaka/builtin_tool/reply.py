@@ -40,7 +40,7 @@ def get_tool_spec() -> ToolSpec:
     properties: dict[str, Any] = {
         "msg_id": {
             "type": "string",
-            "description": "要回复的消息msg_id。",
+            "description": "要回复的消息msg_id。如果不提供，将自动回复最新的用户消息。",
         },
         "set_quote": {
             "type": "boolean",
@@ -95,7 +95,7 @@ def get_tool_spec() -> ToolSpec:
         parameters_schema={
             "type": "object",
             "properties": properties,
-            "required": ["msg_id"],
+            "required": [],
         },
         provider_name="maisaka_builtin",
         provider_type="builtin",
@@ -151,10 +151,14 @@ async def handle_tool(
     effective_set_quote = set_quote and enable_reply_quote
 
     if not target_message_id:
-        return tool_ctx.build_failure_result(
-            invocation.tool_name,
-            "reply 工具需要提供有效的 `msg_id` 参数。",
-        )
+        target_message = tool_ctx.runtime.find_latest_user_message()
+        if target_message is not None:
+            target_message_id = target_message.message_id
+        else:
+            return tool_ctx.build_failure_result(
+                invocation.tool_name,
+                "reply 工具需要提供有效的 `msg_id` 参数，且无法自动定位最新用户消息。",
+            )
 
     target_message = tool_ctx.runtime.find_source_message_by_id(target_message_id)
     if target_message is None:
