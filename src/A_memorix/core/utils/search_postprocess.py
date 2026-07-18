@@ -17,11 +17,11 @@ def apply_safe_content_dedup(results: List[Any]) -> Tuple[List[Any], int]:
     seen_contents = set()
 
     for item in results:
-        content = str(getattr(item, "content", "") or "").strip()
+        content = str(getattr(item, "content", "")).strip()
         if not content:
             continue
 
-        hash_value = str(getattr(item, "hash_value", "") or "").strip() or str(hash(content))
+        hash_value = str(getattr(item, "hash_value", "")).strip() or str(hash(content))
         if hash_value in seen_hashes:
             continue
 

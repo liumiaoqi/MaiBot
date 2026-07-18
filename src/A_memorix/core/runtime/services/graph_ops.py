@@ -202,8 +202,8 @@ class GraphOpsService:
         entity_items: List[Dict[str, Any]] = []
         seen_entity_keys: set[str] = set()
         for row in entity_rows:
-            name = str(row.get("name", "") or "").strip()
-            hash_value = str(row.get("hash", "") or "").strip()
+            name = str(row.get("name", "")).strip()
+            hash_value = str(row.get("hash", "")).strip()
             match = self._pick_graph_search_match(
                 [("name", name), ("hash", hash_value)],
                 normalized_query,
@@ -231,10 +231,10 @@ class GraphOpsService:
         relation_items: List[Dict[str, Any]] = []
         seen_relation_keys: set[str] = set()
         for row in relation_rows:
-            subject = str(row.get("subject", "") or "").strip()
-            predicate = str(row.get("predicate", "") or "").strip()
-            obj = str(row.get("object", "") or "").strip()
-            relation_hash = str(row.get("hash", "") or "").strip()
+            subject = str(row.get("subject", "")).strip()
+            predicate = str(row.get("predicate", "")).strip()
+            obj = str(row.get("object", "")).strip()
+            relation_hash = str(row.get("hash", "")).strip()
             match = self._pick_graph_search_match(
                 [
                     ("subject", subject),
@@ -271,15 +271,15 @@ class GraphOpsService:
         items.sort(
             key=lambda item: (
                 int(item["_rank"]) if item.get("_rank") is not None else 99,
-                0 if str(item.get("type", "") or "") == "entity" else 1,
+                0 if str(item.get("type", "")) == "entity" else 1,
                 -int(item.get("appearance_count", 0) or 0)
-                if str(item.get("type", "") or "") == "entity"
+                if str(item.get("type", "")) == "entity"
                 else -float(item.get("confidence", 0.0) or 0.0),
-                0.0 if str(item.get("type", "") or "") == "entity" else -float(item.get("created_at", 0.0) or 0.0),
-                str(item.get("entity_name", item.get("subject", "")) or "").lower(),
-                str(item.get("predicate", "") or "").lower(),
-                str(item.get("object", "") or "").lower(),
-                str(item.get("entity_hash", item.get("relation_hash", "")) or "").lower(),
+                0.0 if str(item.get("type", "")) == "entity" else -float(item.get("created_at", 0.0) or 0.0),
+                str(item.get("entity_name", item.get("subject", ""))).lower(),
+                str(item.get("predicate", "")).lower(),
+                str(item.get("object", "")).lower(),
+                str(item.get("entity_hash", item.get("relation_hash", ""))).lower(),
             )
         )
 
@@ -318,7 +318,7 @@ class GraphOpsService:
             tuple(hashes),
         )
         order = {hash_value: index for index, hash_value in enumerate(hashes)}
-        rows.sort(key=lambda row: order.get(str(row.get("hash", "") or ""), len(order)))
+        rows.sort(key=lambda row: order.get(str(row.get("hash", "")), len(order)))
         return rows
 
     def query_distinct_paragraph_hashes_for_relations(
@@ -344,7 +344,7 @@ class GraphOpsService:
             sql += " LIMIT ?"
             params.append(limit)
         rows = self._metadata_store.query(sql, tuple(params))
-        return [str(row.get("hash", "") or "").strip() for row in rows if str(row.get("hash", "") or "").strip()]
+        return [str(row.get("hash", "")).strip() for row in rows if str(row.get("hash", "")).strip()]
 
     def load_paragraph_rows(self, paragraph_hashes: Sequence[str]) -> List[Dict[str, Any]]:
         hashes = [str(item or "").strip() for item in paragraph_hashes if str(item or "").strip()]
@@ -392,8 +392,8 @@ class GraphOpsService:
             (token, token),
         )
         if relation_rows:
-            subject = str(relation_rows[0].get("subject", "") or "").strip()
-            obj = str(relation_rows[0].get("object", "") or "").strip()
+            subject = str(relation_rows[0].get("subject", "")).strip()
+            obj = str(relation_rows[0].get("object", "")).strip()
             if subject.lower() == token.lower():
                 return subject
             if obj.lower() == token.lower():
@@ -415,24 +415,24 @@ class GraphOpsService:
         return rows
 
     def build_relation_summary(self, row: Dict[str, Any], paragraph_hashes: Optional[Sequence[str]] = None) -> Dict[str, Any]:
-        relation_hash = str(row.get("hash", "") or "").strip()
+        relation_hash = str(row.get("hash", "")).strip()
         hashes = [str(item or "").strip() for item in (paragraph_hashes or []) if str(item or "").strip()]
         if not hashes and relation_hash:
             hashes = self.query_distinct_paragraph_hashes_for_relations([relation_hash])
         return {
             "hash": relation_hash,
-            "subject": str(row.get("subject", "") or "").strip(),
-            "predicate": str(row.get("predicate", "") or "").strip(),
-            "object": str(row.get("object", "") or "").strip(),
+            "subject": str(row.get("subject", "")).strip(),
+            "predicate": str(row.get("predicate", "")).strip(),
+            "object": str(row.get("object", "")).strip(),
             "text": self._format_relation_text(row.get("subject"), row.get("predicate"), row.get("object")),
             "confidence": float(row.get("confidence", 0.0) or 0.0),
             "paragraph_count": len(hashes),
             "paragraph_hashes": hashes,
-            "source_paragraph": str(row.get("source_paragraph", "") or "").strip(),
+            "source_paragraph": str(row.get("source_paragraph", "")).strip(),
         }
 
     def build_paragraph_summary(self, row: Dict[str, Any]) -> Dict[str, Any]:
-        paragraph_hash = str(row.get("hash", "") or "").strip()
+        paragraph_hash = str(row.get("hash", "")).strip()
         entities = self._metadata_store.get_paragraph_entities(paragraph_hash)
         relations = self._metadata_store.get_paragraph_relations(paragraph_hash)
         stale_marks_map, stale_status_map = self._load_paragraph_stale_marks([paragraph_hash])
@@ -440,16 +440,16 @@ class GraphOpsService:
             {
                 **mark,
                 "relation_inactive": self._relation_status_is_inactive(
-                    stale_status_map.get(str(mark.get("relation_hash", "") or "").strip())
+                    stale_status_map.get(str(mark.get("relation_hash", "")).strip())
                 ),
             }
             for mark in stale_marks_map.get(paragraph_hash, [])
         ]
         return {
             "hash": paragraph_hash,
-            "content": str(row.get("content", "") or ""),
-            "preview": self._trim_text(str(row.get("content", "") or "")),
-            "source": str(row.get("source", "") or ""),
+            "content": str(row.get("content", "")),
+            "preview": self._trim_text(str(row.get("content", ""))),
+            "source": str(row.get("source", "")),
             "created_at": row.get("created_at"),
             "updated_at": row.get("updated_at"),
             "entity_count": len(entities),
@@ -478,7 +478,7 @@ class GraphOpsService:
         nodes: Dict[str, Dict[str, Any]] = {}
         edges: List[Dict[str, Any]] = []
         edge_keys: set[tuple[str, str, str]] = set()
-        relation_hash_set = {str(row.get("hash", "") or "").strip() for row in relation_rows if str(row.get("hash", "") or "").strip()}
+        relation_hash_set = {str(row.get("hash", "")).strip() for row in relation_rows if str(row.get("hash", "")).strip()}
 
         def add_node(node_id: str, *, node_type: str, content: str, metadata: Optional[Dict[str, Any]] = None) -> None:
             if not node_id or node_id in nodes:
@@ -514,12 +514,12 @@ class GraphOpsService:
             )
 
         for row in relation_rows:
-            relation_hash = str(row.get("hash", "") or "").strip()
+            relation_hash = str(row.get("hash", "")).strip()
             if not relation_hash:
                 continue
-            subject = str(row.get("subject", "") or "").strip()
-            obj = str(row.get("object", "") or "").strip()
-            predicate = str(row.get("predicate", "") or "").strip()
+            subject = str(row.get("subject", "")).strip()
+            obj = str(row.get("object", "")).strip()
+            predicate = str(row.get("predicate", "")).strip()
             paragraph_hashes = self.query_distinct_paragraph_hashes_for_relations([relation_hash])
             add_node(
                 self._evidence_relation_node_id(relation_hash),
@@ -562,7 +562,7 @@ class GraphOpsService:
             )
 
         for paragraph in paragraph_rows:
-            paragraph_hash = str(paragraph.get("hash", "") or "").strip()
+            paragraph_hash = str(paragraph.get("hash", "")).strip()
             if not paragraph_hash:
                 continue
             paragraph_entities = self._metadata_store.get_paragraph_entities(paragraph_hash)
@@ -570,18 +570,18 @@ class GraphOpsService:
             add_node(
                 self._evidence_paragraph_node_id(paragraph_hash),
                 node_type="paragraph",
-                content=str(paragraph.get("content", "") or ""),
+                content=str(paragraph.get("content", "")),
                 metadata={
                     "hash": paragraph_hash,
-                    "source": str(paragraph.get("source", "") or ""),
+                    "source": str(paragraph.get("source", "")),
                     "updated_at": paragraph.get("updated_at"),
                     "entity_count": len(paragraph_entities),
                     "relation_count": len(paragraph_relations),
-                    "preview": self._trim_text(str(paragraph.get("content", "") or "")),
+                    "preview": self._trim_text(str(paragraph.get("content", ""))),
                 },
             )
             for entity in paragraph_entities:
-                entity_name = str(entity.get("name", "") or "").strip()
+                entity_name = str(entity.get("name", "")).strip()
                 if not entity_name:
                     continue
                 mention_count = int(entity.get("mention_count", 1) or 1)
@@ -599,7 +599,7 @@ class GraphOpsService:
                     weight=float(max(1, mention_count)),
                 )
             for relation in paragraph_relations:
-                relation_hash = str(relation.get("hash", "") or "").strip()
+                relation_hash = str(relation.get("hash", "")).strip()
                 if relation_hash not in relation_hash_set:
                     continue
                 add_edge(
@@ -662,13 +662,13 @@ class GraphOpsService:
         if not relation_rows and entity_row is None:
             return {"success": False, "error": f"未找到节点: {resolved_name}"}
 
-        relation_hashes = [str(row.get("hash", "") or "").strip() for row in relation_rows if str(row.get("hash", "") or "").strip()]
+        relation_hashes = [str(row.get("hash", "")).strip() for row in relation_rows if str(row.get("hash", "")).strip()]
         direct_paragraph_rows = self._metadata_store.get_paragraphs_by_entity(resolved_name)
         relation_paragraph_hashes = self.query_distinct_paragraph_hashes_for_relations(relation_hashes)
         relation_paragraph_rows = self.load_paragraph_rows(relation_paragraph_hashes)
         paragraph_rows_map: Dict[str, Dict[str, Any]] = {}
         for row in direct_paragraph_rows + relation_paragraph_rows:
-            paragraph_hash = str(row.get("hash", "") or "").strip()
+            paragraph_hash = str(row.get("hash", "")).strip()
             if paragraph_hash and not bool(row.get("is_deleted", 0)):
                 paragraph_rows_map[paragraph_hash] = row
         paragraph_rows = list(paragraph_rows_map.values())
@@ -677,7 +677,7 @@ class GraphOpsService:
 
         relation_summaries = []
         for row in relation_rows:
-            relation_hash = str(row.get("hash", "") or "").strip()
+            relation_hash = str(row.get("hash", "")).strip()
             relation_summaries.append(
                 self.build_relation_summary(
                     row,
@@ -699,7 +699,7 @@ class GraphOpsService:
                 "id": resolved_name,
                 "type": "entity",
                 "content": resolved_name,
-                "hash": str(entity_row.get("hash", "") or "") if isinstance(entity_row, dict) else "",
+                "hash": str(entity_row.get("hash", "")) if isinstance(entity_row, dict) else "",
                 "appearance_count": int(entity_row.get("appearance_count", 0) or 0) if isinstance(entity_row, dict) else 0,
             },
             "relations": relation_summaries,
@@ -734,13 +734,13 @@ class GraphOpsService:
         if not relation_rows:
             return {"success": False, "error": f"未找到边: {source_name} -> {target_name}"}
 
-        relation_hashes = [str(row.get("hash", "") or "").strip() for row in relation_rows if str(row.get("hash", "") or "").strip()]
+        relation_hashes = [str(row.get("hash", "")).strip() for row in relation_rows if str(row.get("hash", "")).strip()]
         paragraph_hashes = self.query_distinct_paragraph_hashes_for_relations(relation_hashes, limit=paragraph_limit)
         paragraph_rows = self.load_paragraph_rows(paragraph_hashes)
         relation_summaries = [
             self.build_relation_summary(
                 row,
-                paragraph_hashes=self.query_distinct_paragraph_hashes_for_relations([str(row.get("hash", "") or "").strip()]),
+                paragraph_hashes=self.query_distinct_paragraph_hashes_for_relations([str(row.get("hash", "")).strip()]),
             )
             for row in relation_rows
         ]
@@ -788,25 +788,25 @@ class GraphOpsService:
         relation_rows = [
             row
             for row in raw_relation_rows
-            if str(row.get("subject", "") or "").strip() and str(row.get("object", "") or "").strip()
+            if str(row.get("subject", "")).strip() and str(row.get("object", "")).strip()
         ]
 
         names = list(
             dict.fromkeys(
                 [
-                    str(row.get("name", "") or "").strip()
+                    str(row.get("name", "")).strip()
                     for row in entity_rows
-                    if str(row.get("name", "") or "").strip()
+                    if str(row.get("name", "")).strip()
                 ]
                 + [
-                    str(row.get("subject", "") or "").strip()
+                    str(row.get("subject", "")).strip()
                     for row in relation_rows
-                    if str(row.get("subject", "") or "").strip()
+                    if str(row.get("subject", "")).strip()
                 ]
                 + [
-                    str(row.get("object", "") or "").strip()
+                    str(row.get("object", "")).strip()
                     for row in relation_rows
-                    if str(row.get("object", "") or "").strip()
+                    if str(row.get("object", "")).strip()
                 ]
             )
         )
@@ -817,13 +817,13 @@ class GraphOpsService:
             self._graph_store.add_edges(
                 [
                     (
-                        str(row.get("subject", "") or "").strip(),
-                        str(row.get("object", "") or "").strip(),
+                        str(row.get("subject", "")).strip(),
+                        str(row.get("object", "")).strip(),
                     )
                     for row in relation_rows
                 ],
                 weights=[float(row.get("confidence", 1.0) or 1.0) for row in relation_rows],
-                relation_hashes=[str(row.get("hash", "") or "") for row in relation_rows],
+                relation_hashes=[str(row.get("hash", "")) for row in relation_rows],
             )
         return {"node_count": int(self._graph_store.num_nodes), "edge_count": int(self._graph_store.num_edges)}
 

@@ -518,7 +518,7 @@ class SparseBM25Index:
         scored: List[Dict[str, Any]] = []
         token_count = max(1, len(uniq_tokens))
         for row in rows:
-            content = str(row.get("content") or "")
+            content = str(row.get("content"))
             content_low = content.lower()
             matched = [tok for tok in uniq_tokens if tok in content_low]
             if not matched:
@@ -578,7 +578,7 @@ class SparseBM25Index:
         token_count = max(1, len(match_tokens))
         for rank, row in enumerate(rows, start=1):
             bm25_score = float(row.get("bm25_score", 0.0))
-            content = str(row.get("content", "") or "")
+            content = str(row.get("content", ""))
             content_low = content.lower()
             matched_tokens = [token for token in match_tokens if token in content_low]
             matched_token_count = len(dict.fromkeys(matched_tokens))

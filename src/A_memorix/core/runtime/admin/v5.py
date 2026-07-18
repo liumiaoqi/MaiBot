@@ -23,7 +23,7 @@ class V5AdminHandler(BaseAdminHandler):
 
         act = self._str_action(action)
         target = str(kwargs.get("target", "") or kwargs.get("query", "") or "").strip()
-        reason = str(kwargs.get("reason", "") or "").strip()
+        reason = str(kwargs.get("reason", "")).strip()
         updated_by = str(kwargs.get("updated_by", "") or kwargs.get("requested_by", "") or "").strip()
         limit = max(1, int(kwargs.get("limit", 50) or 50))
 

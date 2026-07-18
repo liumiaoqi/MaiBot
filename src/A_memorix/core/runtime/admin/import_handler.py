@@ -53,24 +53,24 @@ class ImportAdminHandler(BaseAdminHandler):
             return {"success": True, "items": items, "count": len(items)}
         if act == "get":
             task = await manager.get_task(
-                str(kwargs.get("task_id", "") or ""),
+                str(kwargs.get("task_id", "")),
                 include_chunks=bool(kwargs.get("include_chunks", False)),
             )
             return {"success": task is not None, "task": task, "error": "" if task is not None else "任务不存在"}
         if act in {"chunks", "get_chunks"}:
             payload = await manager.get_chunks(
-                str(kwargs.get("task_id", "") or ""),
-                str(kwargs.get("file_id", "") or ""),
+                str(kwargs.get("task_id", "")),
+                str(kwargs.get("file_id", "")),
                 offset=max(0, int(kwargs.get("offset", 0) or 0)),
                 limit=max(1, int(kwargs.get("limit", 50) or 50)),
             )
             return {"success": payload is not None, **(payload or {}), "error": "" if payload is not None else "任务或文件不存在"}
         if act == "cancel":
-            task = await manager.cancel_task(str(kwargs.get("task_id", "") or ""))
+            task = await manager.cancel_task(str(kwargs.get("task_id", "")))
             return {"success": task is not None, "task": task, "error": "" if task is not None else "任务不存在"}
         if act == "retry_failed":
             overrides = kwargs.get("overrides") if isinstance(kwargs.get("overrides"), dict) else kwargs
-            task = await manager.retry_failed(str(kwargs.get("task_id", "") or ""), overrides=overrides)
+            task = await manager.retry_failed(str(kwargs.get("task_id", "")), overrides=overrides)
             return {"success": task is not None, "task": task, "error": "" if task is not None else "任务不存在"}
 
         return self._unsupported("import", act)

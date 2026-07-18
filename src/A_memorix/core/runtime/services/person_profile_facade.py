@@ -58,7 +58,7 @@ class PersonProfileFacade:
         if not bool(profile.get("success")):
             return self.empty_person_profile_response(
                 person_id=str(profile.get("person_id", "") or requested_person_id),
-                person_name=str(profile.get("person_name", "") or ""),
+                person_name=str(profile.get("person_name", "")),
             )
 
         evidence: List[Dict[str, Any]] = []
@@ -69,7 +69,7 @@ class PersonProfileFacade:
                 evidence.append(
                     {
                         "hash": hash_value,
-                        "content": str(paragraph.get("content", "") or "")[:220],
+                        "content": str(paragraph.get("content", ""))[:220],
                         "metadata": paragraph.get("metadata", {}) or {},
                         "type": "paragraph",
                     }
@@ -83,9 +83,9 @@ class PersonProfileFacade:
                         "hash": hash_value,
                         "content": " ".join(
                             [
-                                str(relation.get("subject", "") or "").strip(),
-                                str(relation.get("predicate", "") or "").strip(),
-                                str(relation.get("object", "") or "").strip(),
+                                str(relation.get("subject", "")).strip(),
+                                str(relation.get("predicate", "")).strip(),
+                                str(relation.get("object", "")).strip(),
                             ]
                         ).strip(),
                         "metadata": {
@@ -98,14 +98,14 @@ class PersonProfileFacade:
 
         hit_filter = self._get_hit_filter_service()
         evidence = hit_filter.filter_user_visible_hits(evidence)
-        text = str(profile.get("profile_text", "") or "").strip()
+        text = str(profile.get("profile_text", "")).strip()
         traits = [line.strip("- ").strip() for line in text.splitlines() if line.strip()][:8]
         return {
             "summary": text,
             "traits": traits,
             "evidence": evidence,
             "person_id": str(profile.get("person_id", "") or requested_person_id),
-            "person_name": str(profile.get("person_name", "") or ""),
+            "person_name": str(profile.get("person_name", "")),
             "profile_source": str(profile.get("profile_source", "") or "auto_snapshot"),
             "has_manual_override": bool(profile.get("has_manual_override", False)),
         }
@@ -176,7 +176,7 @@ class PersonProfileFacade:
         request = metadata_store.get_person_profile_refresh_request(person_id)
         if not isinstance(request, dict):
             return False
-        status = str(request.get("status", "") or "").strip().lower()
+        status = str(request.get("status", "")).strip().lower()
         if status in {"pending", "running"}:
             return True
         if status != "failed":

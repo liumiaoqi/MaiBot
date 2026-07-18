@@ -28,7 +28,7 @@ class SourceAdminHandler(BaseAdminHandler):
         sources = self._kernel.metadata_store.get_all_sources()
         items = []
         for row in sources:
-            source_name = str(row.get("source", "") or "").strip()
+            source_name = str(row.get("source", "")).strip()
             items.append(
                 {
                     **row,
@@ -38,7 +38,7 @@ class SourceAdminHandler(BaseAdminHandler):
         return {"success": True, "items": items, "count": len(items)}
 
     async def _delete_source(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
-        source = str(kwargs.get("source", "") or "").strip()
+        source = str(kwargs.get("source", "")).strip()
         result = await self._kernel._delete_service.execute_delete_action(
             mode="source",
             selector={"sources": [source]},

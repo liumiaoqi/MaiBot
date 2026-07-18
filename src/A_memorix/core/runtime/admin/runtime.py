@@ -48,7 +48,7 @@ class RuntimeAdminHandler(BaseAdminHandler):
                 "vector_pools_effective_mode": str(vector_pools_status.get("effective_mode", "single")),
                 "runtime_ready": self._kernel.is_runtime_ready(),
                 "embedding_degraded": bool(degraded.get("active", False)),
-                "embedding_degraded_reason": str(degraded.get("reason", "") or ""),
+                "embedding_degraded_reason": str(degraded.get("reason", "")),
                 "embedding_degraded_since": degraded.get("since"),
                 "embedding_last_check": degraded.get("last_check"),
                 "paragraph_vector_backfill_pending": int(backfill_counts.get("pending", 0) or 0),

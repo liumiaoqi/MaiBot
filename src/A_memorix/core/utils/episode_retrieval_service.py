@@ -75,8 +75,8 @@ class EpisodeRetrievalService:
                 paragraph_rank_map: Dict[str, int] = {}
                 relation_rank_map: Dict[str, int] = {}
                 for rank, item in enumerate(results, start=1):
-                    hash_value = str(getattr(item, "hash_value", "") or "").strip()
-                    result_type = str(getattr(item, "result_type", "") or "").strip().lower()
+                    hash_value = str(getattr(item, "hash_value", "")).strip()
+                    result_type = str(getattr(item, "result_type", "")).strip().lower()
                     if not hash_value:
                         continue
                     if result_type == "paragraph" and hash_value not in paragraph_rank_map:
@@ -112,7 +112,7 @@ class EpisodeRetrievalService:
         if include_paragraphs:
             for item in fused:
                 item["paragraphs"] = self.metadata_store.get_episode_paragraphs(
-                    episode_id=str(item.get("episode_id") or ""),
+                    episode_id=str(item.get("episode_id")),
                     limit=50,
                 )
         return fused
@@ -137,7 +137,7 @@ class EpisodeRetrievalService:
                 _first_support_rank(item),
                 -int(item.get("matched_paragraph_count") or 0),
                 -float(item.get("updated_at") or 0.0),
-                str(item.get("episode_id") or ""),
+                str(item.get("episode_id")),
             )
         )
         return ranked
@@ -154,7 +154,7 @@ class EpisodeRetrievalService:
             if weight <= 0.0:
                 continue
             for rank, row in enumerate(rows, start=1):
-                episode_id = str(row.get("episode_id", "") or "").strip()
+                episode_id = str(row.get("episode_id", "")).strip()
                 if not episode_id:
                     continue
                 if episode_id not in bucket:
@@ -174,7 +174,7 @@ class EpisodeRetrievalService:
             key=lambda item: (
                 -float(item.get("_fusion_score", 0.0)),
                 -float(item.get("updated_at") or 0.0),
-                str(item.get("episode_id") or ""),
+                str(item.get("episode_id")),
             )
         )
         for item in out:

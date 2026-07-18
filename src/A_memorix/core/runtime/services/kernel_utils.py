@@ -125,7 +125,7 @@ def table_has_column(metadata_store: Any, table: str, column: str) -> bool:
     if token not in {"paragraphs", "entities", "relations"} or not col:
         return False
     rows = metadata_store.query(f"PRAGMA table_info({token})")
-    return any(str(row.get("name", "") or "") == col for row in rows)
+    return any(str(row.get("name", "")) == col for row in rows)
 
 
 def active_row_filter_sql(metadata_store: Any, table: str, has_column_fn: Any = None) -> str:

@@ -82,24 +82,24 @@ class AggregateQueryService:
             "name": name,
             "success": bool(data.get("success", False)),
             "skipped": bool(data.get("skipped", False)),
-            "skip_reason": str(data.get("skip_reason", "") or "").strip(),
-            "error": str(data.get("error", "") or "").strip(),
+            "skip_reason": str(data.get("skip_reason", "")).strip(),
+            "error": str(data.get("error", "")).strip(),
             "results": results,
             "count": max(0, int(count)),
             "elapsed_ms": max(0.0, float(data.get("elapsed_ms", 0.0) or 0.0)),
-            "content": str(data.get("content", "") or ""),
+            "content": str(data.get("content", "")),
             "query_type": str(data.get("query_type", "") or name),
         }
 
     @staticmethod
     def _mix_key(item: Dict[str, Any], branch: str, rank: int) -> str:
-        item_type = str(item.get("type", "") or "").strip().lower()
+        item_type = str(item.get("type", "")).strip().lower()
         if item_type == "episode":
-            episode_id = str(item.get("episode_id", "") or "").strip()
+            episode_id = str(item.get("episode_id", "")).strip()
             if episode_id:
                 return f"episode:{episode_id}"
 
-        item_hash = str(item.get("hash", "") or "").strip()
+        item_hash = str(item.get("hash", "")).strip()
         if item_hash:
             return f"{item_type}:{item_hash}"
 
@@ -142,7 +142,7 @@ class AggregateQueryService:
         mixed.sort(
             key=lambda x: (
                 -float(x.get("fusion_score", 0.0)),
-                str(x.get("type", "") or ""),
+                str(x.get("type", "")),
                 str(x.get("hash", "") or x.get("episode_id", "") or ""),
             )
         )
@@ -173,9 +173,9 @@ class AggregateQueryService:
                 "count": int(branch.get("count", 0) or 0),
             }
             if status == "skipped":
-                summary[name]["reason"] = str(branch.get("skip_reason", "") or "")
+                summary[name]["reason"] = str(branch.get("skip_reason", ""))
             if status == "failed":
-                summary[name]["error"] = str(branch.get("error", "") or "")
+                summary[name]["error"] = str(branch.get("error", ""))
         return summary
 
     def _build_content(
@@ -196,8 +196,8 @@ class AggregateQueryService:
             status = self._status(branch)
             count = int(branch.get("count", 0) or 0)
             line = f"- {name}: {status}, count={count}"
-            reason = str(branch.get("skip_reason", "") or "").strip()
-            err = str(branch.get("error", "") or "").strip()
+            reason = str(branch.get("skip_reason", "")).strip()
+            err = str(branch.get("error", "")).strip()
             if status == "skipped" and reason:
                 line += f" ({reason})"
             if status == "failed" and err:
@@ -215,11 +215,11 @@ class AggregateQueryService:
             lines.append(f"🧩 混合结果（{len(mixed_results)} 条）：")
             for idx, item in enumerate(mixed_results[:5], start=1):
                 src = ",".join(item.get("source_branches", []) or [])
-                if str(item.get("type", "") or "") == "episode":
+                if str(item.get("type", "")) == "episode":
                     title = str(item.get("title", "") or "Untitled")
                     lines.append(f"{idx}. 🧠 {title} [{src}]")
                 else:
-                    text = str(item.get("content", "") or "")
+                    text = str(item.get("content", ""))
                     if len(text) > 80:
                         text = text[:80] + "..."
                     lines.append(f"{idx}. {text} [{src}]")

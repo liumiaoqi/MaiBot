@@ -582,7 +582,7 @@ class RetrievalTuningManager:
         return {
             "runtime_rebuilt": bool(result.get("runtime_rebuilt", False)),
             "validation_passed": bool(result.get("validation_passed", True)),
-            "apply_error": str(result.get("error", "") or ""),
+            "apply_error": str(result.get("error", "")),
         }
 
     async def apply_profile(self, profile: Dict[str, Any], *, reason: str = "manual", validate: bool = True) -> Dict[str, Any]:
@@ -1357,8 +1357,8 @@ class RetrievalTuningManager:
             para_hash = ""
             para_content = ""
             if paragraphs:
-                para_hash = str(paragraphs[0].get("hash") or "").strip()
-                para_content = str(paragraphs[0].get("content") or "")
+                para_hash = str(paragraphs[0].get("hash")).strip()
+                para_content = str(paragraphs[0].get("content"))
             anchors.append(
                 {
                     "anchor_id": f"a{idx+1:04d}",
@@ -1376,7 +1376,7 @@ class RetrievalTuningManager:
 
         predicate_groups: Dict[str, List[Dict[str, Any]]] = {}
         for anchor in anchors:
-            predicate_groups.setdefault(str(anchor.get("predicate") or ""), []).append(anchor)
+            predicate_groups.setdefault(str(anchor.get("predicate")), []).append(anchor)
 
         nl_queries = await self._generate_nl_queries_with_llm(anchors, enabled=llm_enabled)
         cases: List[RetrievalQueryCase] = []
@@ -1473,11 +1473,11 @@ class RetrievalTuningManager:
         predicate_groups: Dict[str, List[Dict[str, Any]]],
         seq: int,
     ) -> Optional[Dict[str, Any]]:
-        predicate = str(anchor.get("predicate") or "")
+        predicate = str(anchor.get("predicate"))
         pool = predicate_groups.get(predicate, [])
         if not pool:
             return None
-        candidates = [x for x in pool if x is not anchor and str(x.get("object") or "") != str(anchor.get("object") or "")]
+        candidates = [x for x in pool if x is not anchor and str(x.get("object")) != str(anchor.get("object"))]
         if not candidates:
             return None
         return candidates[seq % len(candidates)]
@@ -1489,11 +1489,11 @@ class RetrievalTuningManager:
         seq: int,
         predicate_groups: Dict[str, List[Dict[str, Any]]],
     ) -> str:
-        subject = str(anchor.get("subject") or "")
-        predicate = str(anchor.get("predicate") or "")
-        obj = str(anchor.get("object") or "")
+        subject = str(anchor.get("subject"))
+        predicate = str(anchor.get("predicate"))
+        obj = str(anchor.get("object"))
         contrast = self._pick_contrast_anchor(anchor=anchor, predicate_groups=predicate_groups, seq=seq)
-        contrast_obj = str(contrast.get("object") or "").strip() if contrast else ""
+        contrast_obj = str(contrast.get("object")).strip() if contrast else ""
 
         variants = [
             f"{subject} {predicate} {obj}",
@@ -1510,10 +1510,10 @@ class RetrievalTuningManager:
         seq: int,
         predicate_groups: Dict[str, List[Dict[str, Any]]],
     ) -> str:
-        subject = str(anchor.get("subject") or "")
-        predicate = str(anchor.get("predicate") or "")
-        obj = str(anchor.get("object") or "")
-        excerpt = str(anchor.get("paragraph_excerpt") or "")
+        subject = str(anchor.get("subject"))
+        predicate = str(anchor.get("predicate"))
+        obj = str(anchor.get("object"))
+        excerpt = str(anchor.get("paragraph_excerpt"))
         tokens = re.findall(r"[A-Za-z0-9_\u4e00-\u9fff]{2,}", excerpt)
         extras: List[str] = []
         seen = set()
@@ -1528,7 +1528,7 @@ class RetrievalTuningManager:
             if len(extras) >= 2:
                 break
         contrast = self._pick_contrast_anchor(anchor=anchor, predicate_groups=predicate_groups, seq=seq)
-        contrast_obj = str(contrast.get("object") or "").strip() if contrast else ""
+        contrast_obj = str(contrast.get("object")).strip() if contrast else ""
 
         variants = [
             [subject, obj] + extras[:2],
@@ -1546,11 +1546,11 @@ class RetrievalTuningManager:
         seq: int,
         predicate_groups: Dict[str, List[Dict[str, Any]]],
     ) -> str:
-        subject = str(anchor.get("subject") or "")
-        predicate = str(anchor.get("predicate") or "")
-        obj = str(anchor.get("object") or "")
+        subject = str(anchor.get("subject"))
+        predicate = str(anchor.get("predicate"))
+        obj = str(anchor.get("object"))
         contrast = self._pick_contrast_anchor(anchor=anchor, predicate_groups=predicate_groups, seq=seq)
-        contrast_obj = str(contrast.get("object") or "").strip() if contrast else ""
+        contrast_obj = str(contrast.get("object")).strip() if contrast else ""
         templates = [
             f"请问 {subject} 与 {obj} 的关系是什么，是否是“{predicate}”？",
             f"在当前知识库中，哪条信息说明 {subject} 对应的是 {obj}，关系词接近“{predicate}”？",
@@ -1658,8 +1658,8 @@ class RetrievalTuningManager:
             for row in items:
                 if not isinstance(row, dict):
                     continue
-                anchor_id = str(row.get("anchor_id") or "").strip()
-                query = str(row.get("query") or "").strip()
+                anchor_id = str(row.get("anchor_id")).strip()
+                query = str(row.get("query")).strip()
                 if anchor_id and query:
                     out[anchor_id] = query
             return out
@@ -2003,16 +2003,16 @@ class RetrievalTuningManager:
                 spo_total += 1
                 spo = case.expected_spo or {}
                 rows = runtime.metadata_store.get_relations(
-                    subject=str(spo.get("subject") or ""),
-                    predicate=str(spo.get("predicate") or ""),
-                    object=str(spo.get("object") or ""),
+                    subject=str(spo.get("subject")),
+                    predicate=str(spo.get("predicate")),
+                    object=str(spo.get("object")),
                 )
                 expected_hash = str(case.expected_hashes[0]) if case.expected_hashes else ""
                 ok = False
                 for row in rows:
                     if not isinstance(row, dict):
                         continue
-                    if expected_hash and str(row.get("hash") or "") == expected_hash:
+                    if expected_hash and str(row.get("hash")) == expected_hash:
                         ok = True
                         break
                     if not expected_hash:
@@ -2025,7 +2025,7 @@ class RetrievalTuningManager:
                     category_stats[cat]["hit_at_3"] += 1
                 else:
                     spo_failed.append(case.case_id)
-                    failed_predicates.update([str(spo.get("predicate") or "").strip() or "__empty__"])
+                    failed_predicates.update([str(spo.get("predicate")).strip() or "__empty__"])
                 continue
 
             text_total += 1
@@ -2073,7 +2073,7 @@ class RetrievalTuningManager:
                 failed_predicates.update([str(case.metadata.get("predicate") or "__unknown__")])
                 continue
 
-            hashes = [str(getattr(x, "hash_value", "") or "") for x in (execution.results or [])]
+            hashes = [str(getattr(x, "hash_value", "")) for x in (execution.results or [])]
             if not hashes:
                 empty_count += 1
                 category_stats[cat]["empty"] += 1

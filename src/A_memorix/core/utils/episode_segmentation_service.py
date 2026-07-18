@@ -147,8 +147,8 @@ class EpisodeSegmentationService:
     ) -> str:
         rows: List[str] = []
         for idx, item in enumerate(paragraphs, 1):
-            p_hash = str(item.get("hash", "") or "").strip()
-            content = str(item.get("content", "") or "").strip().replace("\r\n", "\n")
+            p_hash = str(item.get("hash", "")).strip()
+            content = str(item.get("content", "")).strip().replace("\r\n", "\n")
             content = content[:800]
             event_start = item.get("event_time_start")
             event_end = item.get("event_time_end")
@@ -213,8 +213,8 @@ class EpisodeSegmentationService:
             if not isinstance(item, dict):
                 continue
 
-            title = str(item.get("title", "") or "").strip()
-            summary = str(item.get("summary", "") or "").strip()
+            title = str(item.get("title", "")).strip()
+            summary = str(item.get("summary", "")).strip()
             if not title or not summary:
                 continue
 
@@ -297,7 +297,7 @@ class EpisodeSegmentationService:
             raise RuntimeError("llm_generate_failed")
 
         payload = self._safe_json_loads(str(response))
-        input_hashes = [str(p.get("hash", "") or "").strip() for p in paragraphs]
+        input_hashes = [str(p.get("hash", "")).strip() for p in paragraphs]
         episodes = self._normalize_episodes(payload=payload, input_hashes=input_hashes)
 
         return {

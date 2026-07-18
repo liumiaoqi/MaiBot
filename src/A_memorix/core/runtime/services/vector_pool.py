@@ -185,7 +185,7 @@ class VectorPoolManager:
         if current_fingerprint is None or manifest_fingerprint is None:
             logger.warning("双池 ready manifest 缺少可校验 embedding 指纹，保持单池降级")
             return False
-        if str(current_fingerprint.get("hash", "") or "") != str(manifest_fingerprint.get("hash", "") or ""):
+        if str(current_fingerprint.get("hash", "")) != str(manifest_fingerprint.get("hash", "")):
             logger.warning(
                 "双池 ready manifest embedding 指纹不匹配，保持单池降级: "
                 f"manifest={manifest_fingerprint.get('hash', '')}, "
@@ -314,7 +314,7 @@ class VectorPoolManager:
     def normalize_embedding_fingerprint(value: Any) -> Optional[Dict[str, Any]]:
         if not isinstance(value, dict):
             return None
-        hash_value = str(value.get("hash", "") or "").strip()
+        hash_value = str(value.get("hash", "")).strip()
         if not hash_value:
             return None
         payload = dict(value)
@@ -407,7 +407,7 @@ class VectorPoolManager:
         stamped_fingerprint = self.stored_embedding_fingerprint(store)
         return (
             stamped_fingerprint is not None
-            and str(stamped_fingerprint.get("hash", "") or "") == str(current_fingerprint.get("hash", "") or "")
+            and str(stamped_fingerprint.get("hash", "")) == str(current_fingerprint.get("hash", ""))
         )
 
     @staticmethod
@@ -437,7 +437,7 @@ class VectorPoolManager:
             stored = self.stored_embedding_fingerprint(store)
             if stored is None:
                 return False
-        return str(current.get("hash", "") or "") == str(stored.get("hash", "") or "")
+        return str(current.get("hash", "")) == str(stored.get("hash", ""))
 
     @staticmethod
     def vector_mismatch_error(*, stored_dimension: int, detected_dimension: int) -> str:
@@ -802,7 +802,7 @@ class VectorPoolManager:
         if token not in {"paragraphs", "entities", "relations"} or not col:
             return False
         rows = self.metadata_store.query(f"PRAGMA table_info({token})")
-        return any(str(row.get("name", "") or "") == col for row in rows)
+        return any(str(row.get("name", "")) == col for row in rows)
 
     def _active_row_filter_sql(self, table: str) -> str:
         if str(table or "").strip() == "relations" and self._table_has_column("relations", "is_inactive"):

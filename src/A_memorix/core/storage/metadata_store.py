@@ -2784,7 +2784,7 @@ class MetadataStore:
             )
             for row in cursor.fetchall():
                 payload = self._row_to_dict(row, "paragraph")
-                out[str(payload.get("hash", "") or "")] = payload
+                out[str(payload.get("hash", ""))] = payload
         return out
 
     def update_paragraph_time_meta(
@@ -2948,7 +2948,7 @@ class MetadataStore:
             )
             for row in cursor.fetchall():
                 payload = self._row_to_dict(row, "entity")
-                out[str(payload.get("hash", "") or "")] = payload
+                out[str(payload.get("hash", ""))] = payload
         return out
 
     def get_relation(self, hash_value: str, include_inactive: bool = True) -> Optional[Dict[str, Any]]:
@@ -3050,7 +3050,7 @@ class MetadataStore:
             )
             for row in cursor.fetchall():
                 payload = self._row_to_dict(row, "relation")
-                out[str(payload.get("hash", "") or "")] = payload
+                out[str(payload.get("hash", ""))] = payload
         return out
 
     def get_paragraph_relations(self, paragraph_hash: str) -> List[Dict[str, Any]]:
@@ -3992,8 +3992,8 @@ class MetadataStore:
     def restore_external_memory_refs(self, refs: List[Dict[str, Any]]) -> int:
         count = 0
         for item in refs or []:
-            external_id = str(item.get("external_id", "") or "").strip()
-            paragraph_hash = str(item.get("paragraph_hash", "") or "").strip()
+            external_id = str(item.get("external_id", "")).strip()
+            paragraph_hash = str(item.get("paragraph_hash", "")).strip()
             if not external_id or not paragraph_hash:
                 continue
             created_at = float(item.get("created_at") or datetime.now().timestamp())
@@ -4014,7 +4014,7 @@ class MetadataStore:
                 (
                     external_id,
                     paragraph_hash,
-                    str(item.get("source_type", "") or "").strip() or None,
+                    str(item.get("source_type", "")).strip() or None,
                     created_at,
                     metadata_json,
                 ),
@@ -4243,10 +4243,10 @@ class MetadataStore:
         payload["plan"] = self._json_loads(payload.pop("plan_json", None), {})
         payload["preview"] = self._json_loads(payload.pop("preview_json", None), {})
         payload["execution"] = self._json_loads(payload.pop("execution_json", None), {})
-        payload["target_person_id"] = str(payload.get("target_person_id") or "")
-        payload["target_chat_id"] = str(payload.get("target_chat_id") or "")
-        payload["requested_by"] = str(payload.get("requested_by") or "")
-        payload["reason"] = str(payload.get("reason") or "")
+        payload["target_person_id"] = str(payload.get("target_person_id"))
+        payload["target_chat_id"] = str(payload.get("target_chat_id"))
+        payload["requested_by"] = str(payload.get("requested_by"))
+        payload["reason"] = str(payload.get("reason"))
         return payload
 
     def create_delete_operation(
@@ -4267,13 +4267,13 @@ class MetadataStore:
         for item in items or []:
             if not isinstance(item, dict):
                 continue
-            item_type = str(item.get("item_type", "") or "").strip()
+            item_type = str(item.get("item_type", "")).strip()
             if not item_type:
                 continue
             normalized_items.append(
                 {
                     "item_type": item_type,
-                    "item_hash": str(item.get("item_hash", "") or "").strip() or None,
+                    "item_hash": str(item.get("item_hash", "")).strip() or None,
                     "item_key": str(item.get("item_key", "") or item.get("item_hash", "") or "").strip() or None,
                     "payload": item.get("payload") if isinstance(item.get("payload"), dict) else {},
                 }
@@ -6443,13 +6443,13 @@ class MetadataStore:
         rows = [self._row_to_dict(row, "paragraph") for row in cursor.fetchall()]
         if not exclude_stale:
             return rows
-        paragraph_hashes = [str(row.get("hash", "") or "").strip() for row in rows if str(row.get("hash", "") or "").strip()]
+        paragraph_hashes = [str(row.get("hash", "")).strip() for row in rows if str(row.get("hash", "")).strip()]
         marks_by_paragraph = self.get_paragraph_stale_relation_marks_batch(paragraph_hashes) if paragraph_hashes else {}
         relation_hashes: List[str] = []
         seen = set()
         for marks in marks_by_paragraph.values():
             for mark in marks:
-                relation_hash = str(mark.get("relation_hash", "") or "").strip()
+                relation_hash = str(mark.get("relation_hash", "")).strip()
                 if not relation_hash or relation_hash in seen:
                     continue
                 seen.add(relation_hash)
@@ -6458,13 +6458,13 @@ class MetadataStore:
 
         filtered: List[Dict[str, Any]] = []
         for row in rows:
-            paragraph_hash = str(row.get("hash", "") or "").strip()
+            paragraph_hash = str(row.get("hash", "")).strip()
             marks = marks_by_paragraph.get(paragraph_hash, [])
             if any(
-                status_map.get(str(mark.get("relation_hash", "") or "").strip()) is None
-                or bool((status_map.get(str(mark.get("relation_hash", "") or "").strip()) or {}).get("is_inactive"))
+                status_map.get(str(mark.get("relation_hash", "")).strip()) is None
+                or bool((status_map.get(str(mark.get("relation_hash", "")).strip()) or {}).get("is_inactive"))
                 for mark in marks
-                if str(mark.get("relation_hash", "") or "").strip()
+                if str(mark.get("relation_hash", "")).strip()
             ):
                 continue
             filtered.append(row)
@@ -6546,8 +6546,8 @@ class MetadataStore:
 
             inserted_count = 0
             for raw_payload in payloads:
-                title = str(raw_payload.get("title", "") or "").strip()
-                summary = str(raw_payload.get("summary", "") or "").strip()
+                title = str(raw_payload.get("title", "")).strip()
+                summary = str(raw_payload.get("summary", "")).strip()
                 evidence_ids = [
                     str(item).strip()
                     for item in (raw_payload.get("evidence_ids") or [])
@@ -6557,7 +6557,7 @@ class MetadataStore:
                 if not title or not summary or not evidence_ids:
                     continue
 
-                episode_id = str(raw_payload.get("episode_id", "") or "").strip()
+                episode_id = str(raw_payload.get("episode_id", "")).strip()
                 if not episode_id:
                     seed = json.dumps(
                         {
@@ -6625,15 +6625,15 @@ class MetadataStore:
                         summary[:2000],
                         self._as_optional_float(raw_payload.get("event_time_start")),
                         self._as_optional_float(raw_payload.get("event_time_end")),
-                        str(raw_payload.get("time_granularity", "") or "").strip() or None,
+                        str(raw_payload.get("time_granularity", "")).strip() or None,
                         time_confidence,
                         json.dumps(participants, ensure_ascii=False),
                         json.dumps(keywords, ensure_ascii=False),
                         json.dumps(evidence_ids, ensure_ascii=False),
                         paragraph_count,
                         llm_confidence,
-                        str(raw_payload.get("segmentation_model", "") or "").strip() or None,
-                        str(raw_payload.get("segmentation_version", "") or "").strip() or None,
+                        str(raw_payload.get("segmentation_model", "")).strip() or None,
+                        str(raw_payload.get("segmentation_version", "")).strip() or None,
                         created_ts,
                         updated_ts,
                     ),
@@ -6949,19 +6949,19 @@ class MetadataStore:
         data["rollback_status"] = str(data.get("rollback_status", "") or "none").strip().lower() or "none"
         data["rollback_plan"] = self._json_loads(data.pop("rollback_plan_json", None), {})
         data["rollback_result"] = self._json_loads(data.pop("rollback_result_json", None), {})
-        data["rollback_error"] = str(data.get("rollback_error", "") or "").strip()
-        data["rollback_requested_by"] = str(data.get("rollback_requested_by", "") or "").strip()
-        data["rollback_reason"] = str(data.get("rollback_reason", "") or "").strip()
+        data["rollback_error"] = str(data.get("rollback_error", "")).strip()
+        data["rollback_requested_by"] = str(data.get("rollback_requested_by", "")).strip()
+        data["rollback_reason"] = str(data.get("rollback_reason", "")).strip()
         return data
 
     def _feedback_action_log_row_to_dict(self, row: sqlite3.Row) -> Dict[str, Any]:
         data = dict(row)
         data["id"] = int(data.get("id", 0) or 0)
         data["task_id"] = int(data.get("task_id", 0) or 0)
-        data["query_tool_id"] = str(data.get("query_tool_id", "") or "").strip()
-        data["action_type"] = str(data.get("action_type", "") or "").strip()
-        data["target_hash"] = str(data.get("target_hash", "") or "").strip()
-        data["reason"] = str(data.get("reason", "") or "").strip()
+        data["query_tool_id"] = str(data.get("query_tool_id", "")).strip()
+        data["action_type"] = str(data.get("action_type", "")).strip()
+        data["target_hash"] = str(data.get("target_hash", "")).strip()
+        data["reason"] = str(data.get("reason", "")).strip()
         data["before_payload"] = self._json_loads(data.pop("before_json", None), {})
         data["after_payload"] = self._json_loads(data.pop("after_json", None), {})
         return data
@@ -7552,9 +7552,9 @@ class MetadataStore:
             }
 
         current_source = (
-            str(current.get("source_type", "") or "").strip(),
-            str(current.get("source_id", "") or "").strip(),
-            str(current.get("source_operation_id", "") or "").strip(),
+            str(current.get("source_type", "")).strip(),
+            str(current.get("source_id", "")).strip(),
+            str(current.get("source_operation_id", "")).strip(),
         )
         expected_source = (expected_type, expected_id, expected_operation_id)
         if current_source != expected_source:
@@ -7593,8 +7593,8 @@ class MetadataStore:
         }
 
     def _restore_paragraph_stale_relation_mark(self, snapshot: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        paragraph_token = str(snapshot.get("paragraph_hash", "") or "").strip()
-        relation_token = str(snapshot.get("relation_hash", "") or "").strip()
+        paragraph_token = str(snapshot.get("paragraph_hash", "")).strip()
+        relation_token = str(snapshot.get("relation_hash", "")).strip()
         if not paragraph_token or not relation_token:
             return None
 
@@ -7622,12 +7622,12 @@ class MetadataStore:
             (
                 paragraph_token,
                 relation_token,
-                str(snapshot.get("query_tool_id", "") or "").strip() or None,
+                str(snapshot.get("query_tool_id", "")).strip() or None,
                 task_id,
-                str(snapshot.get("reason", "") or "").strip() or None,
-                str(snapshot.get("source_type", "") or "").strip() or None,
-                str(snapshot.get("source_id", "") or "").strip() or None,
-                str(snapshot.get("source_operation_id", "") or "").strip() or None,
+                str(snapshot.get("reason", "")).strip() or None,
+                str(snapshot.get("source_type", "")).strip() or None,
+                str(snapshot.get("source_id", "")).strip() or None,
+                str(snapshot.get("source_operation_id", "")).strip() or None,
                 created_at,
                 updated_at,
             ),
@@ -7643,14 +7643,14 @@ class MetadataStore:
         if row is None:
             return None
         payload = dict(row)
-        payload["paragraph_hash"] = str(payload.get("paragraph_hash", "") or "").strip()
-        payload["relation_hash"] = str(payload.get("relation_hash", "") or "").strip()
-        payload["query_tool_id"] = str(payload.get("query_tool_id", "") or "").strip()
+        payload["paragraph_hash"] = str(payload.get("paragraph_hash", "")).strip()
+        payload["relation_hash"] = str(payload.get("relation_hash", "")).strip()
+        payload["query_tool_id"] = str(payload.get("query_tool_id", "")).strip()
         payload["task_id"] = int(payload.get("task_id") or 0) if payload.get("task_id") is not None else None
-        payload["reason"] = str(payload.get("reason", "") or "").strip()
-        payload["source_type"] = str(payload.get("source_type", "") or "").strip()
-        payload["source_id"] = str(payload.get("source_id", "") or "").strip()
-        payload["source_operation_id"] = str(payload.get("source_operation_id", "") or "").strip()
+        payload["reason"] = str(payload.get("reason", "")).strip()
+        payload["source_type"] = str(payload.get("source_type", "")).strip()
+        payload["source_id"] = str(payload.get("source_id", "")).strip()
+        payload["source_operation_id"] = str(payload.get("source_operation_id", "")).strip()
         payload["created_at"] = MetadataStore._as_optional_float(payload.get("created_at"))
         payload["updated_at"] = MetadataStore._as_optional_float(payload.get("updated_at"))
         return payload
@@ -7660,12 +7660,12 @@ class MetadataStore:
         if row is None:
             return None
         payload = dict(row)
-        payload["person_id"] = str(payload.get("person_id", "") or "").strip()
-        payload["status"] = str(payload.get("status", "") or "").strip().lower() or "pending"
-        payload["reason"] = str(payload.get("reason", "") or "").strip()
-        payload["source_query_tool_id"] = str(payload.get("source_query_tool_id", "") or "").strip()
+        payload["person_id"] = str(payload.get("person_id", "")).strip()
+        payload["status"] = str(payload.get("status", "")).strip().lower() or "pending"
+        payload["reason"] = str(payload.get("reason", "")).strip()
+        payload["source_query_tool_id"] = str(payload.get("source_query_tool_id", "")).strip()
         payload["retry_count"] = int(payload.get("retry_count", 0) or 0)
-        payload["last_error"] = str(payload.get("last_error", "") or "").strip()
+        payload["last_error"] = str(payload.get("last_error", "")).strip()
         payload["requested_at"] = MetadataStore._as_optional_float(payload.get("requested_at"))
         payload["updated_at"] = MetadataStore._as_optional_float(payload.get("updated_at"))
         return payload
@@ -7975,14 +7975,14 @@ class MetadataStore:
         if not isinstance(payload, dict):
             raise ValueError("payload 必须是字典")
 
-        title = str(payload.get("title", "") or "").strip()
-        summary = str(payload.get("summary", "") or "").strip()
+        title = str(payload.get("title", "")).strip()
+        summary = str(payload.get("summary", "")).strip()
         if not title:
             raise ValueError("episode.title 不能为空")
         if not summary:
             raise ValueError("episode.summary 不能为空")
 
-        source = str(payload.get("source", "") or "").strip() or None
+        source = str(payload.get("source", "")).strip() or None
         participants_raw = payload.get("participants", []) or []
         keywords_raw = payload.get("keywords", []) or []
         evidence_ids_raw = payload.get("evidence_ids", []) or []
@@ -7996,7 +7996,7 @@ class MetadataStore:
         created_ts = created_at if created_at is not None else now
         updated_ts = updated_at if updated_at is not None else now
 
-        episode_id = str(payload.get("episode_id", "") or "").strip()
+        episode_id = str(payload.get("episode_id", "")).strip()
         if not episode_id:
             seed = json.dumps(
                 {
@@ -8073,15 +8073,15 @@ class MetadataStore:
                 summary,
                 self._as_optional_float(payload.get("event_time_start")),
                 self._as_optional_float(payload.get("event_time_end")),
-                str(payload.get("time_granularity", "") or "").strip() or None,
+                str(payload.get("time_granularity", "")).strip() or None,
                 time_conf,
                 json.dumps(participants, ensure_ascii=False),
                 json.dumps(keywords, ensure_ascii=False),
                 json.dumps(evidence_ids, ensure_ascii=False),
                 max(0, paragraph_count),
                 llm_conf,
-                str(payload.get("segmentation_model", "") or "").strip() or None,
-                str(payload.get("segmentation_version", "") or "").strip() or None,
+                str(payload.get("segmentation_model", "")).strip() or None,
+                str(payload.get("segmentation_version", "")).strip() or None,
                 created_ts,
                 updated_ts,
             ),

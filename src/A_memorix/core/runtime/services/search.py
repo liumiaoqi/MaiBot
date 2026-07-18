@@ -405,13 +405,13 @@ class SearchService:
         ranked: Dict[str, Any] = {}
         for index, item in enumerate(items):
             if isinstance(item, dict):
-                item_hash = str(item.get("hash", "") or "").strip()
-                item_type = str(item.get("type", "") or "").strip()
-                content = str(item.get("content", "") or "").strip()
+                item_hash = str(item.get("hash", "")).strip()
+                item_type = str(item.get("type", "")).strip()
+                content = str(item.get("content", "")).strip()
             else:
-                item_hash = str(getattr(item, "hash_value", "") or "").strip()
-                item_type = str(getattr(item, "result_type", "") or "").strip()
-                content = str(getattr(item, "content", "") or "").strip()
+                item_hash = str(getattr(item, "hash_value", "")).strip()
+                item_type = str(getattr(item, "result_type", "")).strip()
+                content = str(getattr(item, "content", "")).strip()
             key = item_hash or f"{item_type}:{content}"
             if not key:
                 key = f"item:{index}"
@@ -485,9 +485,9 @@ class SearchService:
     def _episode_hit(row: Dict[str, Any]) -> Dict[str, Any]:
         return {
             "type": "episode",
-            "episode_id": str(row.get("episode_id", "") or ""),
-            "title": str(row.get("title", "") or ""),
-            "content": str(row.get("summary", "") or ""),
+            "episode_id": str(row.get("episode_id", "")),
+            "title": str(row.get("title", "")),
+            "content": str(row.get("summary", "")),
             "score": float(row.get("lexical_score", 0.0) or 0.0),
             "source": "episode",
             "metadata": {
@@ -505,7 +505,7 @@ class SearchService:
             return ""
         lines = []
         for index, item in enumerate(hits[:5], start=1):
-            content = str(item.get("content", "") or "").strip().replace("\n", " ")
+            content = str(item.get("content", "")).strip().replace("\n", " ")
             lines.append(f"{index}. {(content[:120] + '...') if len(content) > 120 else content}")
         return "\n".join(lines)
 
@@ -519,7 +519,7 @@ class SearchService:
             if person_id in (metadata.get("person_ids", []) or []):
                 filtered.append(item)
                 continue
-            if person_id and person_id in str(item.get("content", "") or ""):
+            if person_id and person_id in str(item.get("content", "")):
                 filtered.append(item)
         return filtered or hits
 

@@ -131,10 +131,10 @@ def _result_text_for_entity_match(result: RetrievalResult) -> str:
     metadata = result.metadata if isinstance(result.metadata, dict) else {}
     parts = [
         str(result.content or ""),
-        str(metadata.get("subject", "") or ""),
-        str(metadata.get("object", "") or ""),
-        str(metadata.get("context_title", "") or ""),
-        str(metadata.get("benchmark_title", "") or ""),
+        str(metadata.get("subject", "")),
+        str(metadata.get("object", "")),
+        str(metadata.get("context_title", "")),
+        str(metadata.get("benchmark_title", "")),
     ]
     return "\n".join(part for part in parts if part)
 
@@ -143,7 +143,7 @@ def _candidate_text_for_competition(result: RetrievalResult) -> str:
     metadata = result.metadata if isinstance(result.metadata, dict) else {}
     parts = [
         _result_text_for_entity_match(result),
-        str(metadata.get("predicate", "") or ""),
+        str(metadata.get("predicate", "")),
     ]
     return "\n".join(part for part in parts if part)
 
@@ -161,7 +161,7 @@ def _extract_candidate_entities(
             entities.add(normalized)
 
     for key in ("benchmark_title", "context_title", "object", "subject"):
-        normalized = str(metadata.get(key, "") or "").strip().lower()
+        normalized = str(metadata.get(key, "")).strip().lower()
         if normalized:
             entities.add(normalized)
 
@@ -253,7 +253,7 @@ def _compute_specificity(candidate: _CompetitionProfile, result: RetrievalResult
     predicate_bonus = 0.0
 
     metadata = result.metadata if isinstance(result.metadata, dict) else {}
-    predicate = str(metadata.get("predicate", "") or "").strip().lower()
+    predicate = str(metadata.get("predicate", "")).strip().lower()
     if predicate:
         if predicate in _BROAD_PREDICATES:
             predicate_bonus = -0.25
@@ -470,9 +470,9 @@ def _linked_core_paragraph_hashes(
         (relation_hash,),
     )
     return {
-        str(row.get("paragraph_hash", "") or "").strip()
+        str(row.get("paragraph_hash", "")).strip()
         for row in rows
-        if str(row.get("paragraph_hash", "") or "").strip()
+        if str(row.get("paragraph_hash", "")).strip()
     }
 
 

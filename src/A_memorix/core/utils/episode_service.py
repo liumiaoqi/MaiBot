@@ -96,7 +96,7 @@ class EpisodeService:
     def _paragraph_sort_key(paragraph: Dict[str, Any]) -> Tuple[float, str]:
         return (
             EpisodeService._paragraph_anchor(paragraph),
-            str(paragraph.get("hash", "") or ""),
+            str(paragraph.get("hash", "")),
         )
 
     def load_pending_paragraphs(
@@ -112,7 +112,7 @@ class EpisodeService:
         loaded: List[Dict[str, Any]] = []
         missing: List[str] = []
         for row in pending_rows or []:
-            p_hash = str(row.get("paragraph_hash", "") or "").strip()
+            p_hash = str(row.get("paragraph_hash", "")).strip()
             if not p_hash:
                 continue
 
@@ -125,14 +125,14 @@ class EpisodeService:
                 {
                     "hash": p_hash,
                     "source": str(row.get("source") or paragraph.get("source") or "").strip(),
-                    "content": str(paragraph.get("content", "") or ""),
+                    "content": str(paragraph.get("content", "")),
                     "created_at": self._to_optional_float(paragraph.get("created_at"))
                     or self._to_optional_float(row.get("created_at"))
                     or 0.0,
                     "event_time": self._to_optional_float(paragraph.get("event_time")),
                     "event_time_start": self._to_optional_float(paragraph.get("event_time_start")),
                     "event_time_end": self._to_optional_float(paragraph.get("event_time_end")),
-                    "time_granularity": str(paragraph.get("time_granularity", "") or "").strip() or None,
+                    "time_granularity": str(paragraph.get("time_granularity", "")).strip() or None,
                     "time_confidence": self._clamp_score(paragraph.get("time_confidence"), default=1.0),
                 }
             )
@@ -154,7 +154,7 @@ class EpisodeService:
 
         by_source: Dict[str, List[Dict[str, Any]]] = {}
         for paragraph in paragraphs:
-            source = str(paragraph.get("source", "") or "").strip()
+            source = str(paragraph.get("source", "")).strip()
             by_source.setdefault(source, []).append(paragraph)
 
         groups: List[Dict[str, Any]] = []
@@ -182,7 +182,7 @@ class EpisodeService:
 
             for paragraph in ordered:
                 anchor = self._paragraph_anchor(paragraph)
-                content_len = len(str(paragraph.get("content", "") or ""))
+                content_len = len(str(paragraph.get("content", "")))
 
                 need_flush = False
                 if current:
@@ -235,7 +235,7 @@ class EpisodeService:
             if end_candidate is not None:
                 ends.append(end_candidate)
 
-            g = str(p.get("time_granularity", "") or "").strip().lower()
+            g = str(p.get("time_granularity", "")).strip().lower()
             if g in granularity_priority and granularity_priority[g] > granularity_rank:
                 granularity_rank = granularity_priority[g]
                 granularity = g
@@ -256,7 +256,7 @@ class EpisodeService:
             except Exception:
                 entities = []
             for item in entities:
-                name = str(item.get("name", "") or "").strip()
+                name = str(item.get("name", "")).strip()
                 if not name:
                     continue
                 key = name.lower()
@@ -296,7 +296,7 @@ class EpisodeService:
             "所以",
         }
         for p in paragraphs:
-            text = str(p.get("content", "") or "").lower()
+            text = str(p.get("content", "")).lower()
             for token in token_pattern.findall(text):
                 if token in stop_words:
                     continue
@@ -306,11 +306,11 @@ class EpisodeService:
 
     def _build_fallback_episode(self, group: Dict[str, Any]) -> Dict[str, Any]:
         paragraphs = group.get("paragraphs", []) or []
-        source = str(group.get("source", "") or "").strip()
-        hashes = [str(p.get("hash", "") or "").strip() for p in paragraphs if str(p.get("hash", "") or "").strip()]
+        source = str(group.get("source", "")).strip()
+        hashes = [str(p.get("hash", "")).strip() for p in paragraphs if str(p.get("hash", "")).strip()]
         snippets = []
         for p in paragraphs[:3]:
-            text = str(p.get("content", "") or "").strip().replace("\n", " ")
+            text = str(p.get("content", "")).strip().replace("\n", " ")
             if text:
                 snippets.append(text[:140])
         summary = "；".join(snippets)[:500] if snippets else "自动回退生成的情景记忆。"
@@ -363,8 +363,8 @@ class EpisodeService:
                 "fallback_count": 0,
             }
 
-        source = str(group.get("source", "") or "").strip()
-        group_hashes = [str(p.get("hash", "") or "").strip() for p in paragraphs if str(p.get("hash", "") or "").strip()]
+        source = str(group.get("source", "")).strip()
+        group_hashes = [str(p.get("hash", "")).strip() for p in paragraphs if str(p.get("hash", "")).strip()]
         group_start, group_end, _, _ = self._compute_time_meta(paragraphs)
 
         fallback_used = False
@@ -379,8 +379,8 @@ class EpisodeService:
                 paragraphs=paragraphs,
             )
             episodes = list(llm_result.get("episodes") or [])
-            segmentation_model = str(llm_result.get("segmentation_model", "") or "").strip() or "auto"
-            segmentation_version = str(llm_result.get("segmentation_version", "") or "").strip() or EpisodeSegmentationService.SEGMENTATION_VERSION
+            segmentation_model = str(llm_result.get("segmentation_model", "")).strip() or "auto"
+            segmentation_version = str(llm_result.get("segmentation_version", "")).strip() or EpisodeSegmentationService.SEGMENTATION_VERSION
             if not episodes:
                 raise ValueError("llm_empty_episodes")
         except Exception as e:
@@ -402,7 +402,7 @@ class EpisodeService:
             if not ordered_hashes:
                 continue
 
-            sub_paragraphs = [p for p in paragraphs if str(p.get("hash", "") or "") in set(ordered_hashes)]
+            sub_paragraphs = [p for p in paragraphs if str(p.get("hash", "")) in set(ordered_hashes)]
             event_start, event_end, granularity, time_conf_default = self._compute_time_meta(sub_paragraphs)
 
             participants = [str(x).strip() for x in (episode.get("participants", []) or []) if str(x).strip()]
@@ -412,8 +412,8 @@ class EpisodeService:
             if not keywords:
                 keywords = self._derive_keywords(sub_paragraphs, limit=12)
 
-            title = str(episode.get("title", "") or "").strip()[:120]
-            summary = str(episode.get("summary", "") or "").strip()[:2000]
+            title = str(episode.get("title", "")).strip()[:120]
+            summary = str(episode.get("summary", "")).strip()[:2000]
             if not title or not summary:
                 continue
 
@@ -449,11 +449,11 @@ class EpisodeService:
                     default=0.0 if fallback_used else 0.6,
                 ),
                 "segmentation_model": (
-                    str(episode.get("segmentation_model", "") or "").strip()
+                    str(episode.get("segmentation_model", "")).strip()
                     or ("fallback_rule" if fallback_used else segmentation_model)
                 ),
                 "segmentation_version": (
-                    str(episode.get("segmentation_version", "") or "").strip()
+                    str(episode.get("segmentation_version", "")).strip()
                     or segmentation_version
                 ),
             }
@@ -496,7 +496,7 @@ class EpisodeService:
         fallback_count = 0
 
         for group in groups:
-            group_hashes = [str(p.get("hash", "") or "").strip() for p in (group.get("paragraphs") or [])]
+            group_hashes = [str(p.get("hash", "")).strip() for p in (group.get("paragraphs") or [])]
             try:
                 result = await self.process_group(group)
                 done_hashes.extend(result.get("done_hashes") or [])
@@ -587,5 +587,5 @@ class EpisodeService:
             "rebuilt": len(items),
             "items": items,
             "failures": failures,
-            "sources": [str(item.get("source", "") or "") for item in items] or tokens(sources),
+            "sources": [str(item.get("source", "")) for item in items] or tokens(sources),
         }

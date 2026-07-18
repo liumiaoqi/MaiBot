@@ -72,12 +72,12 @@ class DeleteService:
         if relation is None:
             return None
         paragraph_hashes = [
-            str(row.get("paragraph_hash", "") or "").strip()
+            str(row.get("paragraph_hash", "")).strip()
             for row in self.metadata_store.query(
                 "SELECT paragraph_hash FROM paragraph_relations WHERE relation_hash = ? ORDER BY paragraph_hash ASC",
                 (hash_value,),
             )
-            if str(row.get("paragraph_hash", "") or "").strip()
+            if str(row.get("paragraph_hash", "")).strip()
         ]
         return {
             "item_type": "relation",
@@ -97,7 +97,7 @@ class DeleteService:
         entity_links = [
             {
                 "paragraph_hash": hash_value,
-                "entity_hash": str(row.get("entity_hash", "") or ""),
+                "entity_hash": str(row.get("entity_hash", "")),
                 "mention_count": int(row.get("mention_count", 1) or 1),
             }
             for row in self.metadata_store.query(
@@ -111,7 +111,7 @@ class DeleteService:
             )
         ]
         relation_hashes = [
-            str(row.get("relation_hash", "") or "").strip()
+            str(row.get("relation_hash", "")).strip()
             for row in self.metadata_store.query(
                 """
                 SELECT relation_hash
@@ -121,7 +121,7 @@ class DeleteService:
                 """,
                 (hash_value,),
             )
-            if str(row.get("relation_hash", "") or "").strip()
+            if str(row.get("relation_hash", "")).strip()
         ]
         return {
             "item_type": "paragraph",
@@ -142,7 +142,7 @@ class DeleteService:
             return None
         paragraph_links = [
             {
-                "paragraph_hash": str(row.get("paragraph_hash", "") or ""),
+                "paragraph_hash": str(row.get("paragraph_hash", "")),
                 "entity_hash": hash_value,
                 "mention_count": int(row.get("mention_count", 1) or 1),
             }
@@ -227,7 +227,7 @@ class DeleteService:
                 rows.append(self.metadata_store._row_to_dict(row, "entity") if hasattr(self.metadata_store, "_row_to_dict") else row)
         dedup: Dict[str, Dict[str, Any]] = {}
         for row in rows:
-            token = str(row.get("hash", "") or "").strip()
+            token = str(row.get("hash", "")).strip()
             if token and token not in dedup:
                 dedup[token] = row
         return list(dedup.values())
@@ -235,8 +235,8 @@ class DeleteService:
     # ── 构建预览/结果 ────────────────────────────────────────
 
     def build_delete_preview_item(self, item: Dict[str, Any]) -> Dict[str, Any]:
-        item_type = str(item.get("item_type", "") or "").strip()
-        item_hash = str(item.get("item_hash", "") or "").strip()
+        item_type = str(item.get("item_type", "")).strip()
+        item_hash = str(item.get("item_hash", "")).strip()
         item_key = str(item.get("item_key", "") or item_hash).strip()
         payload = item.get("payload") if isinstance(item.get("payload"), dict) else {}
         preview = {
@@ -251,16 +251,16 @@ class DeleteService:
             preview["preview"] = name
         elif item_type == "relation":
             relation = payload.get("relation") if isinstance(payload.get("relation"), dict) else {}
-            subject = str(relation.get("subject", "") or "").strip()
-            predicate = str(relation.get("predicate", "") or "").strip()
-            obj = str(relation.get("object", "") or "").strip()
+            subject = str(relation.get("subject", "")).strip()
+            predicate = str(relation.get("predicate", "")).strip()
+            obj = str(relation.get("object", "")).strip()
             text = self._format_relation_text(subject, predicate, obj)
             preview["label"] = text or item_key
             preview["preview"] = text or item_key
         elif item_type == "paragraph":
             paragraph = payload.get("paragraph") if isinstance(payload.get("paragraph"), dict) else {}
-            content = str(paragraph.get("content", "") or "").strip()
-            source = str(paragraph.get("source", "") or "").strip()
+            content = str(paragraph.get("content", "")).strip()
+            source = str(paragraph.get("source", "")).strip()
             preview["label"] = source or item_key
             preview["preview"] = self._trim_text(content)
             preview["source"] = source
@@ -341,7 +341,7 @@ class DeleteService:
         def append_item(snapshot: Optional[Dict[str, Any]]) -> None:
             if not isinstance(snapshot, dict):
                 return
-            item_type = str(snapshot.get("item_type", "") or "").strip()
+            item_type = str(snapshot.get("item_type", "")).strip()
             item_hash = str(snapshot.get("item_hash", "") or snapshot.get("item_key", "") or "").strip()
             if not item_type or not item_hash:
                 return
@@ -365,7 +365,7 @@ class DeleteService:
         def append_paragraph_row(row: Optional[Dict[str, Any]]) -> None:
             if not isinstance(row, dict):
                 return
-            paragraph_hash = str(row.get("hash", "") or "").strip()
+            paragraph_hash = str(row.get("hash", "")).strip()
             if not paragraph_hash or paragraph_hash in paragraph_hashes or bool(row.get("is_deleted", 0)):
                 return
             paragraph_hashes.append(paragraph_hash)
@@ -381,7 +381,7 @@ class DeleteService:
         def append_entity_row(row: Optional[Dict[str, Any]]) -> None:
             if not isinstance(row, dict):
                 return
-            entity_hash = str(row.get("hash", "") or "").strip()
+            entity_hash = str(row.get("hash", "")).strip()
             if not entity_hash or entity_hash in entity_hashes or bool(row.get("is_deleted", 0)):
                 return
             entity_hashes.append(entity_hash)
@@ -394,7 +394,7 @@ class DeleteService:
                 normalized_selector.get("items"),
                 [normalized_selector.get("hash")],
             )
-            query_hashes = self._resolve_relation_hashes(str(normalized_selector.get("query", "") or ""))
+            query_hashes = self._resolve_relation_hashes(str(normalized_selector.get("query", "")))
             for hash_value in direct_hashes or query_hashes:
                 append_relation_hash(hash_value)
             counts["relations"] = len(relation_hashes)
@@ -444,10 +444,10 @@ class DeleteService:
                 append_entity_row(row)
             target_hashes["entities"] = list(entity_hashes)
             counts["entities"] = len(entity_hashes)
-            entity_names = [str(row.get("name", "") or "").strip() for row in entity_rows if str(row.get("name", "") or "").strip()]
+            entity_names = [str(row.get("name", "")).strip() for row in entity_rows if str(row.get("name", "")).strip()]
             for entity_name in entity_names:
                 for relation in self.metadata_store.get_relations(subject=entity_name) + self.metadata_store.get_relations(object=entity_name):
-                    append_relation_hash(str(relation.get("hash", "") or "").strip())
+                    append_relation_hash(str(relation.get("hash", "")).strip())
             target_hashes["relations"] = list(relation_hashes)
             counts["relations"] = len(relation_hashes)
         elif act_mode == "mixed":
@@ -491,13 +491,13 @@ class DeleteService:
                 append_relation_hash(hash_value)
 
             entity_names = [
-                str(row.get("name", "") or "").strip()
+                str(row.get("name", "")).strip()
                 for row in self.resolve_entity_targets({"hashes": entity_hashes}, include_deleted=False)
-                if str(row.get("name", "") or "").strip()
+                if str(row.get("name", "")).strip()
             ]
             for entity_name in entity_names:
                 for relation in self.metadata_store.get_relations(subject=entity_name) + self.metadata_store.get_relations(object=entity_name):
-                    append_relation_hash(str(relation.get("hash", "") or "").strip())
+                    append_relation_hash(str(relation.get("hash", "")).strip())
 
             for relation_hash in self._tokens(paragraph_relation_candidates):
                 if not self._relation_has_remaining_paragraphs(relation_hash, paragraph_hashes):
@@ -564,7 +564,7 @@ class DeleteService:
         if not plan.get("success", False):
             return {"success": False, "error": plan.get("error", "未命中可删除内容")}
 
-        act_mode = str(plan.get("mode", "") or "").strip().lower()
+        act_mode = str(plan.get("mode", "")).strip().lower()
         conn = self.metadata_store.get_connection()
         cursor = conn.cursor()
         paragraph_hashes = self._tokens((plan.get("target_hashes") or {}).get("paragraphs"))
@@ -625,7 +625,7 @@ class DeleteService:
             self._persist()
             return self.build_standard_delete_result(
                 mode=act_mode,
-                operation_id=str(operation.get("operation_id", "") or ""),
+                operation_id=str(operation.get("operation_id", "")),
                 counts=plan.get("counts", {}),
                 sources=plan.get("sources", []),
                 deleted_entity_count=len(entity_hashes),
@@ -683,8 +683,8 @@ class DeleteService:
         for item in items:
             if not isinstance(item, dict):
                 continue
-            item_type = str(item.get("item_type", "") or "").strip()
-            item_hash = str(item.get("item_hash", "") or "").strip()
+            item_type = str(item.get("item_type", "")).strip()
+            item_hash = str(item.get("item_hash", "")).strip()
             payload = item.get("payload") if isinstance(item.get("payload"), dict) else {}
             if item_type == "entity" and item_hash:
                 entity_payloads[item_hash] = payload
@@ -714,8 +714,8 @@ class DeleteService:
         cursor = conn.cursor()
         for payload in entity_payloads.values():
             for link in payload.get("paragraph_links") or []:
-                paragraph_hash = str(link.get("paragraph_hash", "") or "").strip()
-                entity_hash = str(link.get("entity_hash", "") or "").strip()
+                paragraph_hash = str(link.get("paragraph_hash", "")).strip()
+                entity_hash = str(link.get("entity_hash", "")).strip()
                 mention_count = max(1, int(link.get("mention_count", 1) or 1))
                 if not paragraph_hash or not entity_hash:
                     continue
@@ -728,8 +728,8 @@ class DeleteService:
                 )
         for payload in paragraph_payloads.values():
             for link in payload.get("entity_links") or []:
-                paragraph_hash = str(link.get("paragraph_hash", "") or "").strip()
-                entity_hash = str(link.get("entity_hash", "") or "").strip()
+                paragraph_hash = str(link.get("paragraph_hash", "")).strip()
+                entity_hash = str(link.get("entity_hash", "")).strip()
                 mention_count = max(1, int(link.get("mention_count", 1) or 1))
                 if not paragraph_hash or not entity_hash:
                     continue
@@ -770,10 +770,10 @@ class DeleteService:
             "restored_relations": restored_relations.get("restored_hashes", []),
             "sources": sources,
         }
-        self.metadata_store.mark_delete_operation_restored(str(operation.get("operation_id", "") or ""), summary=summary)
+        self.metadata_store.mark_delete_operation_restored(str(operation.get("operation_id", "")), summary=summary)
         return {
             "success": True,
-            "operation_id": str(operation.get("operation_id", "") or ""),
+            "operation_id": str(operation.get("operation_id", "")),
             **summary,
             "restored_relation_count": restored_relations.get("restored_count", 0),
             "relation_failures": restored_relations.get("failures", []),
@@ -853,7 +853,7 @@ class DeleteService:
     def apply_cleanup_plan(self, cleanup: Dict[str, Any]) -> None:
         if not isinstance(cleanup, dict):
             return
-        paragraph_hash = str(cleanup.get("vector_id_to_remove", "") or "").strip()
+        paragraph_hash = str(cleanup.get("vector_id_to_remove", "")).strip()
         relation_hashes = [
             str(relation_hash or "").strip()
             for _, _, relation_hash in cleanup.get("relation_prune_ops", []) or []
@@ -878,7 +878,7 @@ class DeleteService:
                 self.metadata_store.replace_episodes_for_source(source, [])
                 continue
             for row in paragraphs:
-                paragraph_hash = str(row.get("hash", "") or "").strip()
+                paragraph_hash = str(row.get("hash", "")).strip()
                 if not paragraph_hash:
                     continue
                 cleanup = self.metadata_store.delete_paragraph_atomic(paragraph_hash)
@@ -1005,7 +1005,7 @@ class DeleteService:
         if hashes:
             return hashes
         return [
-            str(row.get("hash", "") or "")
+            str(row.get("hash", ""))
             for row in metadata_store.get_relations(subject=token)[:10]
             if str(row.get("hash", "")).strip()
         ]

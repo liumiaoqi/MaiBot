@@ -307,9 +307,9 @@ class EmbeddingRecoveryService:
             return {"success": True, "processed": 0, "done": 0, "failed": 0, "trigger": trigger}
 
         pending_hashes = [
-            str(row.get("paragraph_hash", "") or "").strip()
+            str(row.get("paragraph_hash", "")).strip()
             for row in rows
-            if str(row.get("paragraph_hash", "") or "").strip()
+            if str(row.get("paragraph_hash", "")).strip()
         ]
         if pending_hashes:
             metadata_store.mark_paragraph_vector_backfill_running(pending_hashes)
@@ -325,7 +325,7 @@ class EmbeddingRecoveryService:
             if paragraph is None:
                 done_hashes.append(paragraph_hash)
                 continue
-            content = str(paragraph.get("content", "") or "").strip()
+            content = str(paragraph.get("content", "")).strip()
             if not content:
                 done_hashes.append(paragraph_hash)
                 continue

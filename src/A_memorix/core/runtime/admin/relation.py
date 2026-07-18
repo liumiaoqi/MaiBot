@@ -39,7 +39,7 @@ class RelationAdminHandler(BaseAdminHandler):
             self._kernel._persist()
             return {"success": True, "processed": result}
         if act == "query":
-            query = str(kwargs.get("query", "") or "").strip()
+            query = str(kwargs.get("query", "")).strip()
             limit = max(1, int(kwargs.get("limit", 50) or 50))
             items = self._kernel.metadata_store.query_relations(query, limit=limit)
             return {"success": True, "items": items, "count": len(items)}
@@ -51,7 +51,7 @@ class RelationAdminHandler(BaseAdminHandler):
             return {"success": evidence is not None, "evidence": evidence}
         if act == "correct_evidence":
             relation_hash = str(kwargs.get("hash", "") or kwargs.get("id", "") or "").strip()
-            correction = str(kwargs.get("correction", "") or "").strip()
+            correction = str(kwargs.get("correction", "")).strip()
             if not relation_hash or not correction:
                 return {"success": False, "error": "hash 和 correction 不能为空"}
             result = self._kernel.metadata_store.correct_relation_evidence(relation_hash, correction)

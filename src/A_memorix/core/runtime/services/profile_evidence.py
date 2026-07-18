@@ -36,10 +36,10 @@ class ProfileEvidenceService:
     @staticmethod
     def _profile_evidence_type_from_source(source: str, metadata: Optional[Dict[str, Any]] = None) -> str:
         meta = metadata if isinstance(metadata, dict) else {}
-        source_type = str(meta.get("source_type", "") or "").strip()
+        source_type = str(meta.get("source_type", "")).strip()
         if source_type in {"person_fact", "chat_summary"}:
             return source_type
-        token = str(source or meta.get("source", "") or "").strip()
+        token = str(source or meta.get("source", "")).strip()
         if token.startswith("person_fact:"):
             return "person_fact"
         if token.startswith("chat_summary:"):
@@ -48,9 +48,9 @@ class ProfileEvidenceService:
 
     @staticmethod
     def _profile_relation_content(relation: Dict[str, Any]) -> str:
-        subject = str(relation.get("subject", "") or "").strip()
-        predicate = str(relation.get("predicate", "") or "").strip()
-        obj = str(relation.get("object", "") or "").strip()
+        subject = str(relation.get("subject", "")).strip()
+        predicate = str(relation.get("predicate", "")).strip()
+        obj = str(relation.get("object", "")).strip()
         if subject and predicate and obj:
             return f"{subject} -[{predicate}]-> {obj}"
         return " ".join(item for item in (subject, predicate, obj) if item).strip()
@@ -58,7 +58,7 @@ class ProfileEvidenceService:
     # ── 证据项构建 ────────────────────────────────────────────
 
     def _build_profile_relation_evidence_item(self, relation: Dict[str, Any], *, index: int) -> Dict[str, Any]:
-        relation_hash = str(relation.get("hash", "") or "").strip()
+        relation_hash = str(relation.get("hash", "")).strip()
         metadata = coerce_metadata_dict(relation.get("metadata"))
         return {
             "evidence_key": f"relation:{relation_hash or index}",
@@ -86,7 +86,7 @@ class ProfileEvidenceService:
         hash_value = str(item.get("hash", "") or fallback_hash or "").strip()
         metadata = coerce_metadata_dict(item.get("metadata"))
         source = str(item.get("source", "") or metadata.get("source", "") or "").strip()
-        content = str(item.get("content", "") or "").strip()
+        content = str(item.get("content", "")).strip()
         source_type = self._profile_evidence_type_from_source(source, metadata)
         is_deleted = False
         if hash_value:
@@ -97,8 +97,8 @@ class ProfileEvidenceService:
             if isinstance(paragraph, dict):
                 paragraph_metadata = coerce_metadata_dict(paragraph.get("metadata"))
                 metadata = {**paragraph_metadata, **metadata}
-                source = source or str(paragraph.get("source", "") or "").strip()
-                content = content or str(paragraph.get("content", "") or "").strip()
+                source = source or str(paragraph.get("source", "")).strip()
+                content = content or str(paragraph.get("content", "")).strip()
                 source_type = self._profile_evidence_type_from_source(source, metadata)
                 is_deleted = bool(paragraph.get("is_deleted", 0))
         return {
@@ -123,9 +123,9 @@ class ProfileEvidenceService:
         seen: set[tuple[str, str]] = set()
 
         def append(item: Dict[str, Any]) -> None:
-            evidence_type = str(item.get("evidence_type", "") or "").strip()
-            hash_value = str(item.get("hash", "") or "").strip()
-            key = (evidence_type, hash_value or str(item.get("evidence_key", "") or ""))
+            evidence_type = str(item.get("evidence_type", "")).strip()
+            hash_value = str(item.get("hash", "")).strip()
+            key = (evidence_type, hash_value or str(item.get("evidence_key", "")))
             if not key[0] or key in seen:
                 return
             seen.add(key)
@@ -140,7 +140,7 @@ class ProfileEvidenceService:
                 append(self._build_profile_paragraph_evidence_item(item, index=index))
 
         for index, hash_value in enumerate(self._tokens(profile.get("evidence_ids")), start=1):
-            if any(str(item.get("hash", "") or "").strip() == hash_value for item in evidence):
+            if any(str(item.get("hash", "")).strip() == hash_value for item in evidence):
                 continue
             paragraph = self.metadata_store.get_paragraph(hash_value)
             if isinstance(paragraph, dict):
@@ -148,8 +148,8 @@ class ProfileEvidenceService:
                     self._build_profile_paragraph_evidence_item(
                         {
                             "hash": hash_value,
-                            "content": str(paragraph.get("content", "") or ""),
-                            "source": str(paragraph.get("source", "") or ""),
+                            "content": str(paragraph.get("content", "")),
+                            "source": str(paragraph.get("source", "")),
                             "metadata": coerce_metadata_dict(paragraph.get("metadata")),
                         },
                         index=index,
@@ -176,15 +176,15 @@ class ProfileEvidenceService:
         return {
             "success": True,
             "person_id": str(profile.get("person_id", "") or requested_person_id),
-            "person_name": str(profile.get("person_name", "") or ""),
-            "profile_text": str(profile.get("profile_text", "") or ""),
+            "person_name": str(profile.get("person_name", "")),
+            "profile_text": str(profile.get("profile_text", "")),
             "auto_profile_text": str(profile.get("auto_profile_text", "") or profile.get("profile_text", "") or ""),
             "profile_version": profile.get("profile_version"),
             "updated_at": profile.get("updated_at"),
             "expires_at": profile.get("expires_at"),
             "profile_source": str(profile.get("profile_source", "") or "auto_snapshot"),
             "has_manual_override": bool(profile.get("has_manual_override", False)),
-            "manual_override_text": str(profile.get("manual_override_text", "") or ""),
+            "manual_override_text": str(profile.get("manual_override_text", "")),
             "evidence": evidence[: max(1, int(limit or 12))],
             "evidence_count": len(evidence),
             "raw_profile": profile,
@@ -241,9 +241,9 @@ class ProfileEvidenceService:
         for item in evidence_payload.get("evidence") or []:
             if not isinstance(item, dict):
                 continue
-            if str(item.get("hash", "") or "").strip() != normalized_hash:
+            if str(item.get("hash", "")).strip() != normalized_hash:
                 continue
-            item_type = str(item.get("evidence_type", "") or "").strip().lower()
+            item_type = str(item.get("evidence_type", "")).strip().lower()
             if normalized_type == item_type or (normalized_type == "paragraph" and item_type in {"person_fact", "chat_summary"}):
                 matched = item
                 break
@@ -286,8 +286,8 @@ class ProfileEvidenceService:
             "person_id": str(evidence_payload.get("person_id", "") or person_id),
             "evidence": matched,
             "delete_result": delete_result,
-            "operation_id": str(delete_result.get("operation_id", "") or ""),
+            "operation_id": str(delete_result.get("operation_id", "")),
             "refreshed_profile": refreshed_profile,
             "refreshed_evidence": refreshed_evidence,
-            "error": str(delete_result.get("error", "") or ""),
+            "error": str(delete_result.get("error", "")),
         }

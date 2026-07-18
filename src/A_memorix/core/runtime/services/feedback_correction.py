@@ -230,7 +230,7 @@ class FeedbackCorrectionService:
         collected: List[str] = []
         seen = set()
         for item in raw_messages:
-            text = str(getattr(item, "processed_plain_text", "") or "").strip()
+            text = str(getattr(item, "processed_plain_text", "")).strip()
             if FeedbackCorrectionService._feedback_noise(text):
                 continue
             if text in seen:
@@ -255,7 +255,7 @@ class FeedbackCorrectionService:
         hit_hashes: Sequence[str],
     ) -> Dict[str, Any]:
         allowed = {"confirm", "reject", "correct", "supplement", "none"}
-        decision = str(payload.get("decision", "") or "").strip().lower()
+        decision = str(payload.get("decision", "")).strip().lower()
         if decision not in allowed:
             decision = "none"
         try:
@@ -284,9 +284,9 @@ class FeedbackCorrectionService:
             for item in raw_relations:
                 if not isinstance(item, dict):
                     continue
-                subject = str(item.get("subject", "") or "").strip()
-                predicate = str(item.get("predicate", "") or "").strip()
-                obj = str(item.get("object", "") or "").strip()
+                subject = str(item.get("subject", "")).strip()
+                predicate = str(item.get("predicate", "")).strip()
+                obj = str(item.get("object", "")).strip()
                 if not (subject and predicate and obj):
                     continue
                 try:
@@ -308,7 +308,7 @@ class FeedbackCorrectionService:
             "confidence": confidence,
             "target_hashes": target_hashes,
             "corrected_relations": corrected_relations,
-            "reason": str(payload.get("reason", "") or "").strip(),
+            "reason": str(payload.get("reason", "")).strip(),
             "raw": payload,
         }
 
@@ -317,7 +317,7 @@ class FeedbackCorrectionService:
         if bool(apply_result.get("applied")):
             return "applied"
 
-        reason = str(apply_result.get("reason", "") or "").strip().lower()
+        reason = str(apply_result.get("reason", "")).strip().lower()
         if reason in {"low_confidence", "no_relation_targets"} or reason.startswith("decision_"):
             return "skipped"
         return "error"
@@ -347,7 +347,7 @@ class FeedbackCorrectionService:
             and self._feedback_cfg_profile_refresh_enabled()
             and self._feedback_cfg_profile_force_refresh_on_read()
             and isinstance(dirty_request, dict)
-            and str(dirty_request.get("status", "") or "").strip().lower() in {"pending", "running", "failed"}
+            and str(dirty_request.get("status", "")).strip().lower() in {"pending", "running", "failed"}
         ):
             should_force_refresh = True
 
@@ -482,12 +482,12 @@ class FeedbackCorrectionService:
         decision_payload = task.get("decision_payload") if isinstance(task.get("decision_payload"), dict) else {}
         return {
             "task_id": int(task.get("id", 0) or 0),
-            "query_tool_id": str(task.get("query_tool_id", "") or "").strip(),
-            "session_id": str(task.get("session_id", "") or "").strip(),
-            "query_text": str(query_snapshot.get("query", "") or "").strip(),
+            "query_tool_id": str(task.get("query_tool_id", "")).strip(),
+            "session_id": str(task.get("session_id", "")).strip(),
+            "query_text": str(query_snapshot.get("query", "")).strip(),
             "query_timestamp": task.get("query_timestamp"),
-            "task_status": str(task.get("status", "") or "").strip().lower(),
-            "decision": str(decision_payload.get("decision", "") or "").strip().lower(),
+            "task_status": str(task.get("status", "")).strip().lower(),
+            "decision": str(decision_payload.get("decision", "")).strip().lower(),
             "decision_confidence": float(decision_payload.get("confidence", 0.0) or 0.0),
             "feedback_message_count": int(decision_payload.get("feedback_message_count", 0) or 0),
             "rollback_status": str(task.get("rollback_status", "") or "none").strip().lower() or "none",
@@ -506,9 +506,9 @@ class FeedbackCorrectionService:
                     task.get("rollback_plan") if isinstance(task.get("rollback_plan"), dict) else {}
                 ),
                 "rollback_result": task.get("rollback_result") if isinstance(task.get("rollback_result"), dict) else {},
-                "rollback_error": str(task.get("rollback_error", "") or "").strip(),
-                "rollback_requested_by": str(task.get("rollback_requested_by", "") or "").strip(),
-                "rollback_reason": str(task.get("rollback_reason", "") or "").strip(),
+                "rollback_error": str(task.get("rollback_error", "")).strip(),
+                "rollback_requested_by": str(task.get("rollback_requested_by", "")).strip(),
+                "rollback_reason": str(task.get("rollback_reason", "")).strip(),
                 "rollback_requested_at": task.get("rollback_requested_at"),
                 "rolled_back_at": task.get("rolled_back_at"),
                 "action_logs": self.metadata_store.list_feedback_action_logs(int(task.get("id", 0) or 0))
@@ -531,7 +531,7 @@ class FeedbackCorrectionService:
         task = self.metadata_store.get_feedback_task_by_id(task_id)
         if task is None:
             return {"success": False, "error": "反馈纠错任务不存在"}
-        if str(task.get("status", "") or "").strip().lower() != "applied":
+        if str(task.get("status", "")).strip().lower() != "applied":
             return {"success": False, "error": "仅 applied 的反馈纠错任务允许回退"}
         rollback_status = str(task.get("rollback_status", "") or "none").strip().lower()
         if rollback_status == "rolled_back":
@@ -544,7 +544,7 @@ class FeedbackCorrectionService:
         if rollback_status == "running":
             return {"success": False, "error": "该反馈纠错任务正在回退中", "task": self._build_feedback_task_detail(task)}
 
-        query_tool_id = str(task.get("query_tool_id", "") or "").strip()
+        query_tool_id = str(task.get("query_tool_id", "")).strip()
         rollback_plan = task.get("rollback_plan") if isinstance(task.get("rollback_plan"), dict) else {}
         if not rollback_plan:
             running_task = self.metadata_store.mark_feedback_task_rollback_running(
@@ -629,7 +629,7 @@ class FeedbackCorrectionService:
             for item in forgotten_relations:
                 if not isinstance(item, dict):
                     continue
-                relation_hash = str(item.get("hash", "") or "").strip()
+                relation_hash = str(item.get("hash", "")).strip()
                 snapshot = item.get("before_status") if isinstance(item.get("before_status"), dict) else {}
                 if not relation_hash or not snapshot:
                     continue
@@ -659,7 +659,7 @@ class FeedbackCorrectionService:
             for ref in deleted_external_refs:
                 if not isinstance(ref, dict):
                     continue
-                paragraph_hash = str(ref.get("paragraph_hash", "") or "").strip()
+                paragraph_hash = str(ref.get("paragraph_hash", "")).strip()
                 if not paragraph_hash:
                     continue
                 deleted_ref_map.setdefault(paragraph_hash, []).append(ref)
@@ -680,7 +680,7 @@ class FeedbackCorrectionService:
             for item in corrected_relations:
                 if not isinstance(item, dict):
                     continue
-                relation_hash = str(item.get("hash", "") or "").strip()
+                relation_hash = str(item.get("hash", "")).strip()
                 if not relation_hash:
                     continue
                 before_status = self.metadata_store.get_relation_status_batch([relation_hash]).get(relation_hash, {})
@@ -710,8 +710,8 @@ class FeedbackCorrectionService:
             for item in stale_marks_raw:
                 if not isinstance(item, dict):
                     continue
-                paragraph_hash = str(item.get("paragraph_hash", "") or "").strip()
-                relation_hash = str(item.get("relation_hash", "") or "").strip()
+                paragraph_hash = str(item.get("paragraph_hash", "")).strip()
+                relation_hash = str(item.get("relation_hash", "")).strip()
                 if not paragraph_hash or not relation_hash:
                     continue
                 source_operation_id = str(
@@ -736,8 +736,8 @@ class FeedbackCorrectionService:
             )
             result["stale_mark_rollbacks"] = stale_mark_rollbacks
             for rollback_mark in stale_mark_rollbacks:
-                paragraph_hash = str(rollback_mark.get("paragraph_hash", "") or "").strip()
-                relation_hash = str(rollback_mark.get("relation_hash", "") or "").strip()
+                paragraph_hash = str(rollback_mark.get("paragraph_hash", "")).strip()
+                relation_hash = str(rollback_mark.get("relation_hash", "")).strip()
                 self.metadata_store.append_feedback_action_log(
                     task_id=task_id,
                     query_tool_id=query_tool_id,
@@ -825,7 +825,7 @@ class FeedbackCorrectionService:
         items: List[Dict[str, Any]] = []
         failures: List[Dict[str, Any]] = []
         for row in rows:
-            person_id = str(row.get("person_id", "") or "").strip()
+            person_id = str(row.get("person_id", "")).strip()
             requested_at = row.get("requested_at")
             if not person_id:
                 continue
@@ -843,7 +843,7 @@ class FeedbackCorrectionService:
                         {
                             "person_id": person_id,
                             "profile_version": int(profile.get("profile_version", 0) or 0),
-                            "profile_source": str(profile.get("profile_source", "") or ""),
+                            "profile_source": str(profile.get("profile_source", "")),
                         }
                     )
                 else:
@@ -873,7 +873,7 @@ class FeedbackCorrectionService:
         items: List[Dict[str, Any]] = []
         failures: List[Dict[str, Any]] = []
         for row in rows:
-            source = str(row.get("source", "") or "").strip()
+            source = str(row.get("source", "")).strip()
             requested_at = row.get("requested_at")
             if not source:
                 continue
@@ -967,24 +967,24 @@ class FeedbackCorrectionService:
             if not isinstance(raw, dict):
                 continue
             metadata = raw.get("metadata") if isinstance(raw.get("metadata"), dict) else {}
-            subject = str(metadata.get("subject", "") or "").strip()
-            predicate = str(metadata.get("predicate", "") or "").strip()
-            obj = str(metadata.get("object", "") or "").strip()
+            subject = str(metadata.get("subject", "")).strip()
+            predicate = str(metadata.get("predicate", "")).strip()
+            obj = str(metadata.get("object", "")).strip()
             linked_relation_hashes: List[str] = []
             linked_relation_texts: List[str] = []
 
-            item_type = str(raw.get("type", "") or "").strip()
-            item_hash = str(raw.get("hash", "") or "").strip()
+            item_type = str(raw.get("type", "")).strip()
+            item_hash = str(raw.get("hash", "")).strip()
             if item_type == "paragraph" and item_hash and self.metadata_store is not None:
                 linked_relations = self.metadata_store.get_paragraph_relations(item_hash)
                 for relation in linked_relations:
-                    relation_hash = str(relation.get("hash", "") or "").strip()
+                    relation_hash = str(relation.get("hash", "")).strip()
                     if not relation_hash or relation_hash in linked_relation_hashes:
                         continue
                     linked_relation_hashes.append(relation_hash)
-                    rel_subject = str(relation.get("subject", "") or "").strip()
-                    rel_predicate = str(relation.get("predicate", "") or "").strip()
-                    rel_object = str(relation.get("object", "") or "").strip()
+                    rel_subject = str(relation.get("subject", "")).strip()
+                    rel_predicate = str(relation.get("predicate", "")).strip()
+                    rel_object = str(relation.get("object", "")).strip()
                     relation_text = self._format_relation_text(rel_subject, rel_predicate, rel_object)
                     if relation_text:
                         linked_relation_texts.append(relation_text)
@@ -996,7 +996,7 @@ class FeedbackCorrectionService:
                 {
                     "hash": item_hash,
                     "type": item_type,
-                    "content": str(raw.get("content", "") or "").strip(),
+                    "content": str(raw.get("content", "")).strip(),
                     "subject": subject,
                     "predicate": predicate,
                     "object": obj,
@@ -1109,9 +1109,9 @@ class FeedbackCorrectionService:
         for row in corrected_relations:
             relation_rows.append(
                 {
-                    "subject": str(row.get("subject", "") or "").strip(),
-                    "predicate": str(row.get("predicate", "") or "").strip(),
-                    "object": str(row.get("object", "") or "").strip(),
+                    "subject": str(row.get("subject", "")).strip(),
+                    "predicate": str(row.get("predicate", "")).strip(),
+                    "object": str(row.get("object", "")).strip(),
                     "confidence": float(row.get("confidence", 1.0) or 1.0),
                     "metadata": {
                         "supersedes_hash": supersedes_hash,
@@ -1155,7 +1155,7 @@ class FeedbackCorrectionService:
             payload["corrected_relation_hashes"] = corrected_relation_hashes
             base_success = bool(payload.get("success")) if "success" in payload else True
             payload["success"] = base_success and bool(corrected_relation_hashes)
-            if not payload["success"] and not str(payload.get("error", "") or "").strip():
+            if not payload["success"] and not str(payload.get("error", "")).strip():
                 payload["error"] = "missing_corrected_relations"
             return payload
         return {"success": False, "error": "invalid_ingest_payload"}
@@ -1231,7 +1231,7 @@ class FeedbackCorrectionService:
                 target_hash=hash_value,
                 before_payload=before_status.get(hash_value) if isinstance(before_status, dict) else {},
                 after_payload=after_status.get(hash_value) if isinstance(after_status, dict) else {},
-                reason=str(decision.get("reason", "") or ""),
+                reason=str(decision.get("reason", "")),
             )
 
         ingest_result = None
@@ -1241,9 +1241,9 @@ class FeedbackCorrectionService:
             for item in corrected_relations:
                 try:
                     relation_hash = self.metadata_store.compute_relation_hash(
-                        str(item.get("subject", "") or "").strip(),
-                        str(item.get("predicate", "") or "").strip(),
-                        str(item.get("object", "") or "").strip(),
+                        str(item.get("subject", "")).strip(),
+                        str(item.get("predicate", "")).strip(),
+                        str(item.get("object", "")).strip(),
                     )
                 except Exception:
                     continue
@@ -1251,9 +1251,9 @@ class FeedbackCorrectionService:
                     continue
                 corrected_relation_hash_candidates.append(relation_hash)
                 corrected_relation_specs_by_hash[relation_hash] = {
-                    "subject": str(item.get("subject", "") or "").strip(),
-                    "predicate": str(item.get("predicate", "") or "").strip(),
-                    "object": str(item.get("object", "") or "").strip(),
+                    "subject": str(item.get("subject", "")).strip(),
+                    "predicate": str(item.get("predicate", "")).strip(),
+                    "object": str(item.get("object", "")).strip(),
                 }
         corrected_relation_before_status = (
             self.metadata_store.get_relation_status_batch(corrected_relation_hash_candidates)
@@ -1293,7 +1293,7 @@ class FeedbackCorrectionService:
                 target_hash=relation_hashes[0] if relation_hashes else "",
                 before_payload={"target_hashes": relation_hashes},
                 after_payload=ingest_result,
-                reason=str(decision.get("reason", "") or ""),
+                reason=str(decision.get("reason", "")),
             )
 
             ingest_success = bool((ingest_result or {}).get("success")) if isinstance(ingest_result, dict) else False
@@ -1304,7 +1304,7 @@ class FeedbackCorrectionService:
                     relation_hashes=relation_hashes,
                     snapshots=before_status if isinstance(before_status, dict) else {},
                     current_statuses=after_status if isinstance(after_status, dict) else {},
-                    reason=str(decision.get("reason", "") or "") or "feedback_correction_ingest_failed",
+                    reason=str(decision.get("reason", "")) or "feedback_correction_ingest_failed",
                 )
                 restore_failed_hashes = compensation_result.get("failed_hashes", [])
                 return {
@@ -1330,7 +1330,7 @@ class FeedbackCorrectionService:
                 task_id=task_id,
                 query_tool_id=query_tool_id,
                 relation_hashes=relation_hashes,
-                reason=str(decision.get("reason", "") or "") or "feedback_correction",
+                reason=str(decision.get("reason", "")) or "feedback_correction",
             )
             stale_paragraph_hashes = self._merge_tokens(
                 *[
@@ -1359,7 +1359,7 @@ class FeedbackCorrectionService:
                         action_type="mark_stale_paragraph",
                         target_hash=paragraph_hash,
                         after_payload={"relation_hash": relation_hash},
-                        reason=str(decision.get("reason", "") or ""),
+                        reason=str(decision.get("reason", "")),
                     )
             for source in episode_rebuild_sources:
                 self.metadata_store.append_feedback_action_log(
@@ -1367,7 +1367,7 @@ class FeedbackCorrectionService:
                     query_tool_id=query_tool_id,
                     action_type="enqueue_episode_rebuild",
                     target_hash=source,
-                    reason=str(decision.get("reason", "") or ""),
+                    reason=str(decision.get("reason", "")),
                 )
             for person_id in profile_refresh_person_ids:
                 self.metadata_store.append_feedback_action_log(
@@ -1375,19 +1375,19 @@ class FeedbackCorrectionService:
                     query_tool_id=query_tool_id,
                     action_type="enqueue_profile_refresh",
                     target_hash=person_id,
-                    reason=str(decision.get("reason", "") or ""),
+                    reason=str(decision.get("reason", "")),
                 )
             forgotten_relations = []
             for row in old_relation_rows:
-                relation_hash = str(row.get("hash", "") or "").strip()
+                relation_hash = str(row.get("hash", "")).strip()
                 if not relation_hash:
                     continue
                 forgotten_relations.append(
                     {
                         "hash": relation_hash,
-                        "subject": str(row.get("subject", "") or "").strip(),
-                        "predicate": str(row.get("predicate", "") or "").strip(),
-                        "object": str(row.get("object", "") or "").strip(),
+                        "subject": str(row.get("subject", "")).strip(),
+                        "predicate": str(row.get("predicate", "")).strip(),
+                        "object": str(row.get("object", "")).strip(),
                         "before_status": before_status.get(relation_hash) if isinstance(before_status, dict) else {},
                     }
                 )
@@ -1396,8 +1396,8 @@ class FeedbackCorrectionService:
             if isinstance(ingest_result, dict):
                 stored_relation_hashes = self._tokens(ingest_result.get("corrected_relation_hashes"))
                 corrected_write = {
-                    "external_id": str(ingest_result.get("external_id", "") or "").strip(),
-                    "source": str(ingest_result.get("source", "") or "").strip(),
+                    "external_id": str(ingest_result.get("external_id", "")).strip(),
+                    "source": str(ingest_result.get("source", "")).strip(),
                     "paragraph_hashes": self._tokens(ingest_result.get("paragraph_hashes")),
                     "corrected_relation_hashes": stored_relation_hashes,
                     "corrected_relations": [
@@ -1476,7 +1476,7 @@ class FeedbackCorrectionService:
             linked_candidates = self._tokens((hit or {}).get("linked_relation_hashes"))
             if not linked_candidates and self.metadata_store is not None:
                 for relation in self.metadata_store.get_paragraph_relations(token):
-                    linked_hash = str(relation.get("hash", "") or "").strip()
+                    linked_hash = str(relation.get("hash", "")).strip()
                     if linked_hash:
                         linked_candidates.append(linked_hash)
 
@@ -1489,7 +1489,7 @@ class FeedbackCorrectionService:
 
     async def _process_feedback_task(self, task: Dict[str, Any]) -> None:
         task_id = int(task.get("id") or 0)
-        query_tool_id = str(task.get("query_tool_id", "") or "").strip()
+        query_tool_id = str(task.get("query_tool_id", "")).strip()
         if task_id <= 0 or not query_tool_id:
             return
 
@@ -1497,11 +1497,11 @@ class FeedbackCorrectionService:
         self.metadata_store.mark_feedback_task_running(task_id)
 
         decision_payload: Dict[str, Any] = {}
-        session_id = str(task.get("session_id", "") or "").strip()
+        session_id = str(task.get("session_id", "")).strip()
         try:
             structured = task.get("query_snapshot") if isinstance(task.get("query_snapshot"), dict) else {}
             if not session_id:
-                session_id = str(structured.get("chat_id", "") or "").strip()
+                session_id = str(structured.get("chat_id", "")).strip()
             if not session_id:
                 raise RuntimeError("反馈任务缺少 session_id")
             hits_raw = structured.get("hits")
@@ -1553,10 +1553,10 @@ class FeedbackCorrectionService:
                 return
 
             hit_briefs = self._build_feedback_hit_briefs(hits_raw)
-            hit_map = {str(item.get("hash", "") or "").strip(): item for item in hit_briefs if str(item.get("hash", "") or "").strip()}
+            hit_map = {str(item.get("hash", "")).strip(): item for item in hit_briefs if str(item.get("hash", "")).strip()}
             raw_decision = await self._classify_feedback(
                 query_tool_id=query_tool_id,
-                query_text=str(structured.get("query", "") or ""),
+                query_text=str(structured.get("query", "")),
                 hit_briefs=hit_briefs,
                 feedback_messages=feedback_messages,
             )
@@ -1567,7 +1567,7 @@ class FeedbackCorrectionService:
                 query_tool_id=query_tool_id,
                 action_type="classification",
                 after_payload=decision_payload,
-                reason=str(decision_payload.get("reason", "") or ""),
+                reason=str(decision_payload.get("reason", "")),
             )
 
             apply_result = await self._apply_feedback_decision(
@@ -1583,7 +1583,7 @@ class FeedbackCorrectionService:
                 task_id=task_id,
                 status=final_status,
                 decision_payload=decision_payload,
-                last_error=str(apply_result.get("error", "") or "") if final_status == "error" else "",
+                last_error=str(apply_result.get("error", "")) if final_status == "error" else "",
             )
         except Exception as exc:
             logger.warning(f"反馈纠错任务处理失败: task_id={task_id} err={exc}", exc_info=True)

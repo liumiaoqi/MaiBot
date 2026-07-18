@@ -20,7 +20,7 @@ class DeleteAdminHandler(BaseAdminHandler):
     async def handle(self, action: str, **kwargs) -> Dict[str, Any]:
         await self._kernel.initialize()
         act = self._str_action(action)
-        mode = str(kwargs.get("mode", "") or "").strip().lower()
+        mode = str(kwargs.get("mode", "")).strip().lower()
         selector = kwargs.get("selector")
         if selector is None:
             selector = {
@@ -37,8 +37,8 @@ class DeleteAdminHandler(BaseAdminHandler):
                     "requested_by",
                 }
             }
-        reason = str(kwargs.get("reason", "") or "").strip()
-        requested_by = str(kwargs.get("requested_by", "") or "").strip()
+        reason = str(kwargs.get("reason", "")).strip()
+        requested_by = str(kwargs.get("requested_by", "")).strip()
 
         if act == "preview":
             return await self._kernel._delete_service.preview_delete_action(mode=mode, selector=selector)
@@ -55,12 +55,12 @@ class DeleteAdminHandler(BaseAdminHandler):
             return await self._kernel._delete_service.restore_delete_action(
                 mode=mode,
                 selector=selector,
-                operation_id=str(kwargs.get("operation_id", "") or "").strip(),
+                operation_id=str(kwargs.get("operation_id", "")).strip(),
                 requested_by=requested_by,
                 reason=reason,
             )
         if act == "get_operation":
-            operation = self._kernel.metadata_store.get_delete_operation(str(kwargs.get("operation_id", "") or "").strip())
+            operation = self._kernel.metadata_store.get_delete_operation(str(kwargs.get("operation_id", "")).strip())
             return {"success": operation is not None, "operation": operation, "error": "" if operation is not None else "operation 不存在"}
         if act == "list_operations":
             items = self._kernel.metadata_store.list_delete_operations(

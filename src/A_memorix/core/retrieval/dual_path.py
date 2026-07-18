@@ -766,10 +766,10 @@ class DualPathRetriever:
         candidate_k = self._cap_temporal_scan_k(candidate_k, temporal)
         sparse_rows = self.sparse_index.search(query=query, k=candidate_k)
         sparse_rows = self._filter_sparse_paragraph_rows(sparse_rows)
-        hash_values = [str(row.get("hash", "") or "") for row in sparse_rows]
+        hash_values = [str(row.get("hash", "")) for row in sparse_rows]
         scores = [float(row.get("score", 0.0)) for row in sparse_rows]
         bm25_scores = {
-            str(row.get("hash", "") or ""): float(row.get("bm25_score", 0.0))
+            str(row.get("hash", "")): float(row.get("bm25_score", 0.0))
             for row in sparse_rows
         }
         results = self._build_paragraph_results_from_ids(
@@ -846,10 +846,10 @@ class DualPathRetriever:
         candidate_k = max(top_k, self.config.sparse.relation_candidate_k)
         candidate_k = self._cap_temporal_scan_k(candidate_k, temporal)
         rows = self.sparse_index.search_relations(query=query, k=candidate_k)
-        hash_values = [str(row.get("hash", "") or "") for row in rows]
+        hash_values = [str(row.get("hash", "")) for row in rows]
         scores = [float(row.get("score", 0.0)) for row in rows]
         bm25_scores = {
-            str(row.get("hash", "") or ""): float(row.get("bm25_score", 0.0))
+            str(row.get("hash", "")): float(row.get("bm25_score", 0.0))
             for row in rows
         }
         results = self._build_relation_results_from_ids(
@@ -931,7 +931,7 @@ class DualPathRetriever:
                 float(vector_norm.get(item.hash_value, 0.0)),
                 float(sparse_norm.get(item.hash_value, 0.0)),
             )
-            graph_candidate_type = str(meta.get("graph_candidate_type", "") or "")
+            graph_candidate_type = str(meta.get("graph_candidate_type", ""))
             graph_score = float(graph_score_map.get(graph_candidate_type, 0.0))
 
             if item.hash_value not in support_cache:
@@ -1453,7 +1453,7 @@ class DualPathRetriever:
         *,
         temporal: Optional[TemporalQueryOptions] = None,
     ) -> RetrievalResult:
-        paragraph_hash = str(paragraph.get("hash", "") or "").strip()
+        paragraph_hash = str(paragraph.get("hash", "")).strip()
         item = candidates.get(paragraph_hash)
         if item is None:
             metadata = {
@@ -1465,7 +1465,7 @@ class DualPathRetriever:
                 metadata["time_meta"] = self._build_time_meta_from_paragraph(paragraph, temporal=temporal)
             item = RetrievalResult(
                 hash_value=paragraph_hash,
-                content=str(paragraph.get("content", "") or ""),
+                content=str(paragraph.get("content", "")),
                 score=0.0,
                 result_type="paragraph",
                 source="dual_vector_pool",
@@ -1541,13 +1541,13 @@ class DualPathRetriever:
         evidence_payload = dict(evidence)
         evidence_payload["score"] = float(score)
         evidence_key = (
-            str(evidence_payload.get("type", "") or ""),
-            str(evidence_payload.get("hash", "") or ""),
+            str(evidence_payload.get("type", "")),
+            str(evidence_payload.get("hash", "")),
         )
         for old in evidence_items:
             old_key = (
-                str(old.get("type", "") or ""),
-                str(old.get("hash", "") or ""),
+                str(old.get("type", "")),
+                str(old.get("hash", "")),
             )
             if old_key == evidence_key:
                 if float(score) > float(old.get("score", 0.0) or 0.0):
@@ -1561,7 +1561,7 @@ class DualPathRetriever:
             [
                 float(item.get("score", 0.0) or 0.0)
                 for item in evidence_items
-                if str(item.get("type", "") or "") == "relation"
+                if str(item.get("type", "")) == "relation"
             ],
             reverse=True,
         )
@@ -1569,7 +1569,7 @@ class DualPathRetriever:
             [
                 float(item.get("score", 0.0) or 0.0)
                 for item in evidence_items
-                if str(item.get("type", "") or "") == "entity"
+                if str(item.get("type", "")) == "entity"
             ],
             reverse=True,
         )
@@ -1678,7 +1678,7 @@ class DualPathRetriever:
                 }
 
             for paragraph_index, paragraph in enumerate(paragraphs):
-                paragraph_hash = str(paragraph.get("hash", "") or "").strip()
+                paragraph_hash = str(paragraph.get("hash", "")).strip()
                 if not paragraph_hash:
                     continue
                 if temporal and not self._is_temporal_match(paragraph, temporal):
@@ -1689,7 +1689,7 @@ class DualPathRetriever:
         expanded_entries.sort(key=lambda item: (-item[0], item[1]))
         evidence_by_paragraph: Dict[str, Dict[str, Any]] = {}
         for evidence_score, _order, paragraph, evidence in expanded_entries[: cfg.graph_expand_paragraph_k]:
-            paragraph_hash = str(paragraph.get("hash", "") or "").strip()
+            paragraph_hash = str(paragraph.get("hash", "")).strip()
             if not paragraph_hash:
                 continue
             payload = evidence_by_paragraph.setdefault(

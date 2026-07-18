@@ -132,9 +132,9 @@ def _normalize_relation_items(raw_relations: Any) -> List[Dict[str, str]]:
     for item in raw_relations:
         if not isinstance(item, dict):
             continue
-        subject = str(item.get("subject", "") or "").strip()
-        predicate = str(item.get("predicate", "") or "").strip()
-        obj = str(item.get("object", "") or "").strip()
+        subject = str(item.get("subject", "")).strip()
+        predicate = str(item.get("predicate", "")).strip()
+        obj = str(item.get("object", "")).strip()
         if not (subject and predicate and obj):
             continue
         relations.append({"subject": subject, "predicate": predicate, "object": obj})
@@ -466,7 +466,7 @@ class SummaryImporter:
         ordered = sorted(paragraphs, key=_paragraph_created_at, reverse=True)
         lines: List[str] = []
         for paragraph in ordered:
-            cleaned = self._clean_review_summary(str(paragraph.get("content", "") or ""))
+            cleaned = self._clean_review_summary(str(paragraph.get("content", "")))
             if not cleaned:
                 continue
             lines.append(f"- {cleaned}")
@@ -696,7 +696,7 @@ class SummaryImporter:
                 content=summary,
                 context="summary_import",
             )
-            if str(result.get("warning", "") or "").strip():
+            if str(result.get("warning", "")).strip():
                 logger.warning(f"总结导入段落进入回退写入: {result}")
         else:
             try:

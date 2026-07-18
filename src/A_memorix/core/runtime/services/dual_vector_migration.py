@@ -154,11 +154,11 @@ class DualVectorMigrationService:
             """
         )
         paragraph_items = [
-            (str(row.get("hash", "") or ""), str(row.get("content", "") or "").strip())
+            (str(row.get("hash", "")), str(row.get("content", "")).strip())
             for row in paragraph_rows
-            if str(row.get("hash", "") or "").strip()
-            and str(row.get("content", "") or "").strip()
-            and str(row.get("hash", "") or "").strip() not in paragraph_vector_store
+            if str(row.get("hash", "")).strip()
+            and str(row.get("content", "")).strip()
+            and str(row.get("hash", "")).strip() not in paragraph_vector_store
         ]
         done, failed, error, _done_ids, _failed_ids, copy_stats = await self._copy_or_encode(
             items=paragraph_items,
@@ -182,8 +182,8 @@ class DualVectorMigrationService:
         )
         entity_items = []
         for row in entity_rows:
-            hash_value = str(row.get("hash", "") or "").strip()
-            name = str(row.get("name", "") or "").strip()
+            hash_value = str(row.get("hash", "")).strip()
+            name = str(row.get("name", "")).strip()
             if not hash_value or not name:
                 continue
             if self._graph_vector_id("entity", hash_value) in graph_vector_store:
@@ -213,7 +213,7 @@ class DualVectorMigrationService:
             )
             relation_items = []
             for row in relation_rows:
-                hash_value = str(row.get("hash", "") or "").strip()
+                hash_value = str(row.get("hash", "")).strip()
                 if not hash_value:
                     continue
                 if self._graph_vector_id("relation", hash_value) in graph_vector_store:
@@ -222,9 +222,9 @@ class DualVectorMigrationService:
                     (
                         hash_value,
                         RelationWriteService.build_relation_vector_text(
-                            str(row.get("subject", "") or ""),
-                            str(row.get("predicate", "") or ""),
-                            str(row.get("object", "") or ""),
+                            str(row.get("subject", "")),
+                            str(row.get("predicate", "")),
+                            str(row.get("object", "")),
                         ),
                     )
                 )
@@ -365,7 +365,7 @@ class DualVectorMigrationService:
                     continue
                 self.update_dual_vector_auto_migration_stage("rebuild_start", retry_index=index)
                 result = await self._rebuild_all_vectors()
-                if str(result.get("error", "") or "") != "vector_rebuild_running":
+                if str(result.get("error", "")) != "vector_rebuild_running":
                     break
 
             success = bool(result.get("success", False)) or self._dual_vector_pools_enabled()

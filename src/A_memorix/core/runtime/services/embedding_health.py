@@ -37,7 +37,7 @@ class EmbeddingHealthService:
     def snapshot(self) -> Dict[str, Any]:
         return {
             "active": bool(self._state.get("active", False)),
-            "reason": str(self._state.get("reason", "") or ""),
+            "reason": str(self._state.get("reason", "")),
             "since": self._state.get("since"),
             "last_check": self._state.get("last_check"),
         }
@@ -92,7 +92,7 @@ class EmbeddingHealthService:
         self._runtime_self_check_report = {
             "ok": not is_degraded,
             "code": "startup_self_check_deferred_degraded" if is_degraded else "startup_self_check_deferred",
-            "message": str(degraded.get("reason", "") or "").strip()
+            "message": str(degraded.get("reason", "")).strip()
             or "启动阶段已跳过真实 embedding encode 自检，将由后台探测或手动 self_check 执行",
             "configured_dimension": configured_dimension,
             "requested_dimension": requested_dimension,
@@ -105,7 +105,7 @@ class EmbeddingHealthService:
         }
 
     def is_startup_self_check_deferred(self) -> bool:
-        code = str(self._runtime_self_check_report.get("code", "") or "").strip()
+        code = str(self._runtime_self_check_report.get("code", "")).strip()
         return code in {"startup_self_check_deferred", "startup_self_check_deferred_degraded"}
 
     @property

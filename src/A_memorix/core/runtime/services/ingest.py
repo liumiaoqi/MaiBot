@@ -81,10 +81,10 @@ class IngestService:
             metadata=metadata,
         )
         success = bool(getattr(import_result, "success", False))
-        detail = str(getattr(import_result, "detail", "") or "")
-        paragraph_hash = str(getattr(import_result, "paragraph_hash", "") or "").strip()
+        detail = str(getattr(import_result, "detail", ""))
+        paragraph_hash = str(getattr(import_result, "paragraph_hash", "")).strip()
         source = (
-            str(getattr(import_result, "source", "") or "").strip()
+            str(getattr(import_result, "source", "")).strip()
             or self.build_source("chat_summary", chat_id, [])
         )
         stored_ids: List[str] = []
@@ -221,7 +221,7 @@ class IngestService:
         if existing_ref:
             return {
                 "stored_ids": [],
-                "skipped_ids": [str(existing_ref.get("paragraph_hash", "") or "")],
+                "skipped_ids": [str(existing_ref.get("paragraph_hash", ""))],
                 "reason": "exists",
             }
 
@@ -254,7 +254,7 @@ class IngestService:
             content=content,
             context="ingest_text",
         )
-        warning = str(vector_result.get("warning", "") or "").strip()
+        warning = str(vector_result.get("warning", "")).strip()
         if warning:
             warnings.append(warning)
 
@@ -264,9 +264,9 @@ class IngestService:
 
         stored_relations: List[str] = []
         for row in [dict(item) for item in (relations or []) if isinstance(item, dict)]:
-            subject = str(row.get("subject", "") or "").strip()
-            predicate = str(row.get("predicate", "") or "").strip()
-            obj = str(row.get("object", "") or "").strip()
+            subject = str(row.get("subject", "")).strip()
+            predicate = str(row.get("predicate", "")).strip()
+            obj = str(row.get("object", "")).strip()
             if not (subject and predicate and obj):
                 continue
             result = await relation_write_service.upsert_relation_with_vector(
@@ -310,10 +310,10 @@ class IngestService:
             return {"processed": 0, "episode_count": 0, "fallback_count": 0, "failed": 0}
 
         source_to_hashes: Dict[str, List[str]] = {}
-        pending_hashes = [str(row.get("paragraph_hash", "") or "").strip() for row in pending_rows if str(row.get("paragraph_hash", "") or "").strip()]
+        pending_hashes = [str(row.get("paragraph_hash", "")).strip() for row in pending_rows if str(row.get("paragraph_hash", "")).strip()]
         for row in pending_rows:
-            paragraph_hash = str(row.get("paragraph_hash", "") or "").strip()
-            source = str(row.get("source", "") or "").strip()
+            paragraph_hash = str(row.get("paragraph_hash", "")).strip()
+            source = str(row.get("source", "")).strip()
             if not paragraph_hash or not source:
                 continue
             source_to_hashes.setdefault(source, []).append(paragraph_hash)

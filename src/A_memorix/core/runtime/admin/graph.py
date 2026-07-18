@@ -27,7 +27,7 @@ class GraphAdminHandler(BaseAdminHandler):
             return {"success": True, **self._kernel._graph_ops_service.serialize_graph(limit=max(1, int(kwargs.get("limit", 200) or 200)))}
         if act == "search":
             return self._kernel._graph_ops_service.search_graph(
-                query=str(kwargs.get("query", "") or "").strip(),
+                query=str(kwargs.get("query", "")).strip(),
                 limit=max(1, min(200, int(kwargs.get("limit", 50) or 50))),
             )
         if act == "node_detail":
@@ -39,7 +39,7 @@ class GraphAdminHandler(BaseAdminHandler):
             )
         if act == "edge_detail":
             return self._kernel._graph_ops_service.build_graph_edge_detail(
-                source=str(kwargs.get("source", "") or "").strip(),
+                source=str(kwargs.get("source", "")).strip(),
                 target=str(kwargs.get("target", "") or kwargs.get("object", "") or "").strip(),
                 paragraph_limit=max(1, int(kwargs.get("paragraph_limit", 20) or 20)),
                 evidence_node_limit=max(12, int(kwargs.get("evidence_node_limit", 80) or 80)),
@@ -92,9 +92,9 @@ class GraphAdminHandler(BaseAdminHandler):
             self._kernel._persist()
             return {"success": True, "edge": {"source": source, "target": target, "predicate": predicate, "hash": relation_hash}}
         if act == "delete_edge":
-            source = str(kwargs.get("source", "") or "").strip()
+            source = str(kwargs.get("source", "")).strip()
             target = str(kwargs.get("target", "") or kwargs.get("object", "") or "").strip()
-            predicate = str(kwargs.get("predicate", "") or "").strip()
+            predicate = str(kwargs.get("predicate", "")).strip()
             if not source or not target or not predicate:
                 return {"success": False, "error": "source, target, predicate 不能为空"}
             result = await self._kernel._delete_service.execute_delete_action(
@@ -109,9 +109,9 @@ class GraphAdminHandler(BaseAdminHandler):
                 "edge": f"{source} {predicate} {target}",
             }
         if act == "update_edge_weight":
-            source = str(kwargs.get("source", "") or "").strip()
+            source = str(kwargs.get("source", "")).strip()
             target = str(kwargs.get("target", "") or kwargs.get("object", "") or "").strip()
-            predicate = str(kwargs.get("predicate", "") or "").strip()
+            predicate = str(kwargs.get("predicate", "")).strip()
             if not source or not target or not predicate:
                 return {"success": False, "error": "source, target, predicate 不能为空"}
             new_strength = float(kwargs.get("strength", 1.0) or 1.0)

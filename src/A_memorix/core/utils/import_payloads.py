@@ -44,7 +44,7 @@ def normalize_entity_import_item(item: Any) -> Optional[str]:
     elif isinstance(item, dict):
         name = ""
         for key in _ENTITY_NAME_KEYS:
-            candidate = str(item.get(key, "") or "").strip()
+            candidate = str(item.get(key, "")).strip()
             if candidate:
                 name = candidate
                 break
@@ -62,9 +62,9 @@ def normalize_relation_import_item(item: Any) -> Optional[Dict[str, str]]:
     if not isinstance(item, dict):
         return None
 
-    subject = str(item.get("subject", "") or "").strip()
-    predicate = str(item.get("predicate", "") or "").strip()
-    obj = str(item.get("object", "") or "").strip()
+    subject = str(item.get("subject", "")).strip()
+    predicate = str(item.get("predicate", "")).strip()
+    obj = str(item.get("object", "")).strip()
     if not (subject and predicate and obj):
         return None
     if any(is_probable_hash_token(token) for token in (subject, predicate, obj)):
@@ -144,7 +144,7 @@ def normalize_paragraph_import_item(
             field="content",
         )
 
-    content = str(item.get("content", "") or "")
+    content = str(item.get("content", ""))
     if not content.strip():
         raise ImportPayloadValidationError(
             "段落 content 不能为空",

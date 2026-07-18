@@ -17,17 +17,17 @@ class EpisodeAdminHandler(BaseAdminHandler):
         act = self._str_action(action)
         if act in {"query", "list"}:
             items = self._kernel.metadata_store.query_episodes(
-                query=str(kwargs.get("query", "") or "").strip(),
+                query=str(kwargs.get("query", "")).strip(),
                 time_from=self._kernel._optional_float(kwargs.get("time_start", kwargs.get("time_from"))),
                 time_to=self._kernel._optional_float(kwargs.get("time_end", kwargs.get("time_to"))),
                 person=str(kwargs.get("person_id", "") or kwargs.get("person", "") or "").strip() or None,
-                source=str(kwargs.get("source", "") or "").strip() or None,
+                source=str(kwargs.get("source", "")).strip() or None,
                 limit=max(1, int(kwargs.get("limit", 20) or 20)),
             )
             return {"success": True, "items": items, "count": len(items)}
 
         if act == "get":
-            episode_id = str(kwargs.get("episode_id", "") or "").strip()
+            episode_id = str(kwargs.get("episode_id", "")).strip()
             if not episode_id:
                 return {"success": False, "error": "episode_id 不能为空"}
             episode = self._kernel.metadata_store.get_episode_by_id(episode_id)
@@ -51,13 +51,13 @@ class EpisodeAdminHandler(BaseAdminHandler):
         if act == "rebuild":
             sources = self._kernel._tokens(kwargs.get("sources"))
             if not sources:
-                source = str(kwargs.get("source", "") or "").strip()
+                source = str(kwargs.get("source", "")).strip()
                 if source:
                     sources = [source]
             if not sources and bool(kwargs.get("all", False)):
                 sources = self._kernel.metadata_store.list_episode_sources_for_rebuild()
                 if not sources:
-                    sources = [str(row.get("source", "") or "").strip() for row in self._kernel.metadata_store.get_all_sources()]
+                    sources = [str(row.get("source", "")).strip() for row in self._kernel.metadata_store.get_all_sources()]
             if not sources:
                 return {"success": False, "error": "未提供可重建的 source"}
             result = await self._kernel.rebuild_episodes_for_sources(sources)

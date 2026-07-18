@@ -229,9 +229,9 @@ class VectorRebuildService:
             """
         )
         paragraph_items = [
-            (str(row.get("hash", "") or ""), str(row.get("content", "") or "").strip())
+            (str(row.get("hash", "")), str(row.get("content", "")).strip())
             for row in paragraph_rows
-            if str(row.get("hash", "") or "").strip() and str(row.get("content", "") or "").strip()
+            if str(row.get("hash", "")).strip() and str(row.get("content", "")).strip()
         ]
         self._update_dual_vector_auto_migration_stage("paragraphs_start", paragraph_items=len(paragraph_items))
         if dual_mode:
@@ -268,9 +268,9 @@ class VectorRebuildService:
             """
         )
         entity_items = [
-            (str(row.get("hash", "") or ""), str(row.get("name", "") or "").strip())
+            (str(row.get("hash", "")), str(row.get("name", "")).strip())
             for row in entity_rows
-            if str(row.get("hash", "") or "").strip() and str(row.get("name", "") or "").strip()
+            if str(row.get("hash", "")).strip() and str(row.get("name", "")).strip()
         ]
         self._update_dual_vector_auto_migration_stage("entities_start", entity_items=len(entity_items))
         if dual_mode:
@@ -310,15 +310,15 @@ class VectorRebuildService:
             )
             relation_items = [
                 (
-                    str(row.get("hash", "") or ""),
+                    str(row.get("hash", "")),
                     RelationWriteService.build_relation_vector_text(
-                        str(row.get("subject", "") or ""),
-                        str(row.get("predicate", "") or ""),
-                        str(row.get("object", "") or ""),
+                        str(row.get("subject", "")),
+                        str(row.get("predicate", "")),
+                        str(row.get("object", "")),
                     ),
                 )
                 for row in relation_rows
-                if str(row.get("hash", "") or "").strip()
+                if str(row.get("hash", "")).strip()
             ]
             self._update_dual_vector_auto_migration_stage("relations_start", relation_items=len(relation_items))
             if dual_mode:
@@ -655,7 +655,7 @@ class VectorRebuildService:
                 text_by_id.get(source_id, ""),
             )
             for source_id, target_id in missing_pairs
-            if str(text_by_id.get(source_id, "") or "").strip()
+            if str(text_by_id.get(source_id, "")).strip()
         ]
         done, failed, error, encoded_done_ids, encoded_failed_ids = await self._encode_and_add_rebuild_vectors(
             items=encode_items,

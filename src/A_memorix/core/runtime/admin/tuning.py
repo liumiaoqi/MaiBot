@@ -74,30 +74,30 @@ class TuningAdminHandler(BaseAdminHandler):
             return {"success": True, "items": items, "count": len(items)}
         if act == "get_task":
             task = await manager.get_task(
-                str(kwargs.get("task_id", "") or ""),
+                str(kwargs.get("task_id", "")),
                 include_rounds=bool(kwargs.get("include_rounds", False)),
             )
             return {"success": task is not None, "task": task, "error": "" if task is not None else "任务不存在"}
         if act == "get_rounds":
             payload = await manager.get_rounds(
-                str(kwargs.get("task_id", "") or ""),
+                str(kwargs.get("task_id", "")),
                 offset=max(0, int(kwargs.get("offset", 0) or 0)),
                 limit=max(1, int(kwargs.get("limit", 50) or 50)),
             )
             return {"success": payload is not None, **(payload or {}), "error": "" if payload is not None else "任务不存在"}
         if act == "cancel":
-            task = await manager.cancel_task(str(kwargs.get("task_id", "") or ""))
+            task = await manager.cancel_task(str(kwargs.get("task_id", "")))
             return {"success": task is not None, "task": task, "error": "" if task is not None else "任务不存在"}
         if act == "apply_best":
             return {
                 "success": True,
                 **await manager.apply_best(
-                    str(kwargs.get("task_id", "") or ""),
+                    str(kwargs.get("task_id", "")),
                     validate=bool(kwargs.get("validate", True)),
                 ),
             }
         if act == "get_report":
-            report = await manager.get_report(str(kwargs.get("task_id", "") or ""), fmt=str(kwargs.get("format", "md") or "md"))
+            report = await manager.get_report(str(kwargs.get("task_id", "")), fmt=str(kwargs.get("format", "md") or "md"))
             return {"success": report is not None, "report": report, "error": "" if report is not None else "任务不存在"}
 
         return self._unsupported("tuning", act)

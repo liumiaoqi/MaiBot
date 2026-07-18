@@ -105,9 +105,9 @@ class FuzzyModifyService:
         for row in value or []:
             if not isinstance(row, dict):
                 continue
-            subject = str(row.get("subject", "") or "").strip()
-            predicate = str(row.get("predicate", "") or "").strip()
-            obj = str(row.get("object", "") or "").strip()
+            subject = str(row.get("subject", "")).strip()
+            predicate = str(row.get("predicate", "")).strip()
+            obj = str(row.get("object", "")).strip()
             if not (subject and predicate and obj):
                 continue
             relations.append(
@@ -213,7 +213,7 @@ class FuzzyModifyService:
             "cascade_preview": cascade_preview,
             "requires_confirmation": True,
             "confirm_threshold": self._cfg_confirm_threshold(),
-            "reason": str(plan.get("reason", "") or ""),
+            "reason": str(plan.get("reason", "")),
         }
         record = self.metadata_store.create_fuzzy_modify_plan(
             request_text=text,
@@ -229,7 +229,7 @@ class FuzzyModifyService:
         )
         return {
             "success": True,
-            "plan_id": str(record.get("plan_id", "") or ""),
+            "plan_id": str(record.get("plan_id", "")),
             "plan": record,
             "preview": preview,
             "requires_confirmation": True,
@@ -250,7 +250,7 @@ class FuzzyModifyService:
         plan_record = self.metadata_store.get_fuzzy_modify_plan(token)
         if plan_record is None:
             return {"success": False, "error": "修改计划不存在"}
-        status = str(plan_record.get("status", "") or "").strip()
+        status = str(plan_record.get("status", "")).strip()
         if status not in {"awaiting_confirmation", "failed", "executing"}:
             return {"success": False, "error": f"当前计划状态不可执行: {status}"}
         if not confirmed:
@@ -327,7 +327,7 @@ class FuzzyModifyService:
         plan_record = self.metadata_store.get_fuzzy_modify_plan(token)
         if plan_record is None:
             return {"success": False, "error": "修改计划不存在"}
-        if str(plan_record.get("status", "") or "") != "executed":
+        if str(plan_record.get("status", "")) != "executed":
             return {"success": False, "error": "只有已执行的修改计划可以回滚"}
 
         execution = plan_record.get("execution") if isinstance(plan_record.get("execution"), dict) else {}
@@ -370,15 +370,15 @@ class FuzzyModifyService:
         for item in execution.get("superseded_targets") or []:
             if not isinstance(item, dict):
                 continue
-            target_type = str(item.get("target_type", "") or "").strip()
-            hash_value = str(item.get("hash", "") or "").strip()
+            target_type = str(item.get("target_type", "")).strip()
+            hash_value = str(item.get("hash", "")).strip()
             previous_metadata = item.get("previous_metadata") if isinstance(item.get("previous_metadata"), dict) else {}
             if target_type == "paragraph" and hash_value:
                 cascade = item.get("cascade") if isinstance(item.get("cascade"), dict) else {}
                 for relation_item in cascade.get("relations_marked_inactive") or []:
                     if not isinstance(relation_item, dict):
                         continue
-                    relation_hash = str(relation_item.get("relation_hash", "") or "").strip()
+                    relation_hash = str(relation_item.get("relation_hash", "")).strip()
                     if not relation_hash:
                         continue
                     previous_relation_metadata = (
@@ -411,7 +411,7 @@ class FuzzyModifyService:
                     if not isinstance(snapshot, dict):
                         continue
                     paragraph_hash = str(snapshot.get("paragraph_hash", "") or hash_value).strip()
-                    relation_hash = str(snapshot.get("relation_hash", "") or "").strip()
+                    relation_hash = str(snapshot.get("relation_hash", "")).strip()
                     if not paragraph_hash or not relation_hash:
                         continue
                     rollback_mark = self.metadata_store.rollback_paragraph_stale_relation_mark(
@@ -419,14 +419,14 @@ class FuzzyModifyService:
                         relation_hash=relation_hash,
                         expected_source_type=str(snapshot.get("source_type", "") or "memory_correction"),
                         expected_source_id=str(snapshot.get("source_id", "") or token),
-                        expected_source_operation_id=str(snapshot.get("source_operation_id", "") or ""),
+                        expected_source_operation_id=str(snapshot.get("source_operation_id", "")),
                         previous_mark=(
                             snapshot.get("previous_mark")
                             if isinstance(snapshot.get("previous_mark"), dict)
                             else None
                         ),
                     )
-                    action = str(rollback_mark.get("action", "") or "").strip()
+                    action = str(rollback_mark.get("action", "")).strip()
                     if action == "deleted":
                         stale_marks_deleted.append(rollback_mark)
                     elif action == "restored":
@@ -508,8 +508,8 @@ class FuzzyModifyService:
 
         def append_candidate(item: Dict[str, Any]) -> None:
             candidate = self._normalize_fuzzy_modify_candidate(item)
-            candidate_type = str(candidate.get("target_type", "") or "").strip()
-            hash_value = str(candidate.get("hash", "") or "").strip()
+            candidate_type = str(candidate.get("target_type", "")).strip()
+            hash_value = str(candidate.get("hash", "")).strip()
             key = (candidate_type, hash_value)
             if not candidate_type or not hash_value or key in seen:
                 return
@@ -545,8 +545,8 @@ class FuzzyModifyService:
         assert self.metadata_store is not None
         if raw_item.get("deletable") is False:
             return False
-        target_type = str(candidate.get("target_type", "") or "").strip()
-        hash_value = str(candidate.get("hash", "") or "").strip()
+        target_type = str(candidate.get("target_type", "")).strip()
+        hash_value = str(candidate.get("hash", "")).strip()
         if not target_type or not hash_value:
             return False
         if target_type == "paragraph":
@@ -584,12 +584,12 @@ class FuzzyModifyService:
             "max_targets": self._cfg_max_targets(),
             "candidates": [
                 {
-                    "candidate_id": str(item.get("candidate_id", "") or ""),
-                    "target_type": str(item.get("target_type", "") or ""),
-                    "evidence_type": str(item.get("evidence_type", "") or ""),
-                    "hash": str(item.get("hash", "") or ""),
-                    "content": str(item.get("content", "") or ""),
-                    "source": str(item.get("source", "") or ""),
+                    "candidate_id": str(item.get("candidate_id", "")),
+                    "target_type": str(item.get("target_type", "")),
+                    "evidence_type": str(item.get("evidence_type", "")),
+                    "hash": str(item.get("hash", "")),
+                    "content": str(item.get("content", "")),
+                    "source": str(item.get("source", "")),
                     "metadata": item.get("metadata") if isinstance(item.get("metadata"), dict) else {},
                 }
                 for item in candidates
@@ -620,14 +620,14 @@ class FuzzyModifyService:
         candidates: Sequence[Dict[str, Any]],
     ) -> Dict[str, Any]:
         candidate_map = {
-            str(item.get("candidate_id", "") or "").strip(): item
+            str(item.get("candidate_id", "")).strip(): item
             for item in candidates
-            if str(item.get("candidate_id", "") or "").strip()
+            if str(item.get("candidate_id", "")).strip()
         }
         hash_to_candidate = {
-            str(item.get("hash", "") or "").strip(): item
+            str(item.get("hash", "")).strip(): item
             for item in candidates
-            if str(item.get("hash", "") or "").strip()
+            if str(item.get("hash", "")).strip()
         }
         confidence = min(1.0, max(0.0, float(payload.get("confidence", 0.0) or 0.0)))
         max_targets = self._cfg_max_targets()
@@ -637,12 +637,12 @@ class FuzzyModifyService:
                 continue
             action = str(raw.get("action", "") or raw.get("op", "") or "").strip().lower()
             if action == "mark_superseded":
-                candidate = candidate_map.get(str(raw.get("candidate_id", "") or "").strip())
+                candidate = candidate_map.get(str(raw.get("candidate_id", "")).strip())
                 if candidate is None:
-                    candidate = hash_to_candidate.get(str(raw.get("hash", "") or "").strip())
+                    candidate = hash_to_candidate.get(str(raw.get("hash", "")).strip())
                 if candidate is None:
-                    candidate_id = str(raw.get("candidate_id", "") or "").strip()
-                    raw_hash = str(raw.get("hash", "") or "").strip()
+                    candidate_id = str(raw.get("candidate_id", "")).strip()
+                    raw_hash = str(raw.get("hash", "")).strip()
                     logger.warning(
                         f"记忆修正计划引用了候选集外的目标: action={action} candidate_id={candidate_id} hash={raw_hash}"
                     )
@@ -650,16 +650,16 @@ class FuzzyModifyService:
                 operations.append(
                     {
                         "action": "mark_superseded",
-                        "candidate_id": str(candidate.get("candidate_id", "") or ""),
-                        "target_type": str(candidate.get("target_type", "") or ""),
-                        "hash": str(candidate.get("hash", "") or ""),
+                        "candidate_id": str(candidate.get("candidate_id", "")),
+                        "target_type": str(candidate.get("target_type", "")),
+                        "hash": str(candidate.get("hash", "")),
                         "reason": str(raw.get("reason", "") or payload.get("reason", "") or request_text).strip(),
                         "valid_to": self._optional_float(raw.get("valid_to")),
                     }
                 )
                 continue
             if action == "ingest_text":
-                text = str(raw.get("text", "") or "").strip()
+                text = str(raw.get("text", "")).strip()
                 if not text:
                     continue
                 operation: Dict[str, Any] = {
@@ -702,14 +702,14 @@ class FuzzyModifyService:
             "chat_id": chat_id,
             "confidence": confidence,
             "risk_level": str(payload.get("risk_level", "medium") or "medium").strip(),
-            "reason": str(payload.get("reason", "") or "").strip(),
+            "reason": str(payload.get("reason", "")).strip(),
             "operations": operations,
         }
 
     def _normalize_fuzzy_modify_candidate(self, item: Dict[str, Any]) -> Dict[str, Any]:
         evidence_type = str(item.get("evidence_type", "") or item.get("type", "") or "").strip()
         target_type = "relation" if evidence_type == "relation" else "paragraph"
-        hash_value = str(item.get("hash", "") or "").strip()
+        hash_value = str(item.get("hash", "")).strip()
         metadata = coerce_metadata_dict(item.get("metadata"))
         return {
             "candidate_id": f"{target_type}:{hash_value}",
@@ -734,21 +734,21 @@ class FuzzyModifyService:
                 continue
             if operation.get("action") != "mark_superseded":
                 continue
-            if str(operation.get("target_type", "") or "").strip() != "paragraph":
+            if str(operation.get("target_type", "")).strip() != "paragraph":
                 continue
-            paragraph_hash = str(operation.get("hash", "") or "").strip()
+            paragraph_hash = str(operation.get("hash", "")).strip()
             if not paragraph_hash:
                 continue
             cascade = self._build_fuzzy_modify_paragraph_cascade(
                 paragraph_hash=paragraph_hash,
-                reason=str(operation.get("reason", "") or "").strip(),
+                reason=str(operation.get("reason", "")).strip(),
                 preview_only=True,
                 plan_id="",
             )
             for item in cascade.get("relations", []):
                 if not isinstance(item, dict):
                     continue
-                relation_hash = str(item.get("relation_hash", "") or "").strip()
+                relation_hash = str(item.get("relation_hash", "")).strip()
                 key = (paragraph_hash, relation_hash)
                 if not relation_hash or key in seen_relations:
                     continue
@@ -757,7 +757,7 @@ class FuzzyModifyService:
             for item in cascade.get("entities", []):
                 if not isinstance(item, dict):
                     continue
-                entity_hash = str(item.get("entity_hash", "") or "").strip()
+                entity_hash = str(item.get("entity_hash", "")).strip()
                 key = (paragraph_hash, entity_hash)
                 if not entity_hash or key in seen_entities:
                     continue
@@ -788,16 +788,16 @@ class FuzzyModifyService:
         relations: List[Dict[str, Any]] = []
         raw_relations = self.metadata_store.get_paragraph_relations(paragraph_token)
         relation_hashes = [
-            str(item.get("hash", "") or "").strip()
+            str(item.get("hash", "")).strip()
             for item in raw_relations
-            if isinstance(item, dict) and str(item.get("hash", "") or "").strip()
+            if isinstance(item, dict) and str(item.get("hash", "")).strip()
         ]
         statuses = self.metadata_store.get_relation_status_batch(relation_hashes) if relation_hashes else {}
         now = time.time()
         for relation in raw_relations:
             if not isinstance(relation, dict):
                 continue
-            relation_hash = str(relation.get("hash", "") or "").strip()
+            relation_hash = str(relation.get("hash", "")).strip()
             if not relation_hash:
                 continue
             status = statuses.get(relation_hash, {})
@@ -820,9 +820,9 @@ class FuzzyModifyService:
                     "action": action,
                     "reason": action_reason,
                     "source_reason": reason,
-                    "subject": str(relation.get("subject", "") or ""),
-                    "predicate": str(relation.get("predicate", "") or ""),
-                    "object": str(relation.get("object", "") or ""),
+                    "subject": str(relation.get("subject", "")),
+                    "predicate": str(relation.get("predicate", "")),
+                    "object": str(relation.get("object", "")),
                     "is_pinned": is_pinned,
                     "protected_until": protected_until or None,
                     "is_inactive": bool(status.get("is_inactive", False)),
@@ -844,7 +844,7 @@ class FuzzyModifyService:
         for entity in self.metadata_store.get_paragraph_entities(paragraph_token):
             if not isinstance(entity, dict):
                 continue
-            entity_hash = str(entity.get("hash", "") or "").strip()
+            entity_hash = str(entity.get("hash", "")).strip()
             if not entity_hash:
                 continue
             entities.append(
@@ -890,10 +890,10 @@ class FuzzyModifyService:
         for relation in cascade.get("relations", []):
             if not isinstance(relation, dict):
                 continue
-            relation_hash = str(relation.get("relation_hash", "") or "").strip()
+            relation_hash = str(relation.get("relation_hash", "")).strip()
             if not relation_hash:
                 continue
-            action = str(relation.get("action", "") or "").strip()
+            action = str(relation.get("action", "")).strip()
             if action == "skipped_protected":
                 result["relations_skipped"].append(relation)
                 continue
@@ -972,9 +972,9 @@ class FuzzyModifyService:
         superseded_targets: List[Dict[str, Any]] = []
 
         supersede_hashes = [
-            str(item.get("hash", "") or "").strip()
+            str(item.get("hash", "")).strip()
             for item in operations
-            if item.get("action") == "mark_superseded" and str(item.get("hash", "") or "").strip()
+            if item.get("action") == "mark_superseded" and str(item.get("hash", "")).strip()
         ]
         for index, operation in enumerate([item for item in operations if item.get("action") == "ingest_text"], start=1):
             op_reason = str(operation.get("reason", "") or reason or plan.get("request_text", "") or "").strip()
@@ -993,7 +993,7 @@ class FuzzyModifyService:
             result = await self._ingest_text(
                 external_id=f"{change_id}:ingest:{index}",
                 source_type=str(operation.get("source_type", "") or "memory"),
-                text=str(operation.get("text", "") or ""),
+                text=str(operation.get("text", "")),
                 chat_id=str(operation.get("chat_id", "") or plan.get("chat_id", "") or ""),
                 person_ids=self._argument_tokens(operation.get("person_ids")),
                 participants=self._argument_tokens(operation.get("participants")),
@@ -1016,14 +1016,14 @@ class FuzzyModifyService:
                 changed_by=requested_by,
                 replacement_hashes=replacement_hashes,
                 plan_id=change_id,
-                default_reason=reason or str(plan.get("request_text", "") or ""),
+                default_reason=reason or str(plan.get("request_text", "")),
             )
             if marked:
                 superseded_targets.append(marked)
 
         refreshed_profiles: List[Dict[str, Any]] = []
         for operation in [item for item in operations if item.get("action") == "refresh_person_profile"]:
-            person_id = str(operation.get("person_id", "") or "").strip()
+            person_id = str(operation.get("person_id", "")).strip()
             if not person_id:
                 continue
             refreshed_profiles.append(await self._refresh_person_profile(person_id))
@@ -1056,8 +1056,8 @@ class FuzzyModifyService:
         default_reason: str = "",
     ) -> Dict[str, Any]:
         assert self.metadata_store is not None
-        target_type = str(operation.get("target_type", "") or "").strip()
-        hash_value = str(operation.get("hash", "") or "").strip()
+        target_type = str(operation.get("target_type", "")).strip()
+        hash_value = str(operation.get("hash", "")).strip()
         if target_type not in {"paragraph", "relation"} or not hash_value:
             return {}
         valid_to = self._optional_float(operation.get("valid_to")) or changed_at

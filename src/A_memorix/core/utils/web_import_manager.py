@@ -807,8 +807,8 @@ class ImportTaskManager:
         return candidate
 
     async def resolve_path_request(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        alias = str(payload.get("alias") or "").strip()
-        relative_path = str(payload.get("relative_path") or "").strip()
+        alias = str(payload.get("alias")).strip()
+        relative_path = str(payload.get("relative_path")).strip()
         must_exist = _coerce_bool(payload.get("must_exist"), True)
         resolved = self.resolve_path_alias(alias, relative_path, must_exist=must_exist)
         return {
@@ -862,8 +862,8 @@ class ImportTaskManager:
         if not source_value:
             return False
 
-        item_kind = str(item.get("source_kind") or "").strip().lower()
-        item_name = str(item.get("name") or "").strip()
+        item_kind = str(item.get("source_kind")).strip().lower()
+        item_name = str(item.get("name")).strip()
         item_path_norm = self._normalize_manifest_path(item.get("source_path") or "")
         item_sources = self._dedupe_sources(item.get("sources") if isinstance(item.get("sources"), list) else [])
         if any(source_text.lower() == item_source.lower() for item_source in item_sources):
@@ -1025,7 +1025,7 @@ class ImportTaskManager:
         item = manifest.get(key)
         if not isinstance(item, dict):
             return False
-        if str(item.get("hash") or "") != content_hash or not bool(item.get("imported")):
+        if str(item.get("hash")) != content_hash or not bool(item.get("imported")):
             return False
         if self._manifest_item_has_live_sources(file_record, item):
             return True
@@ -1086,8 +1086,8 @@ class ImportTaskManager:
             raise ValueError("dedupe_policy 必须为 content_hash/manifest/none")
 
         chat_log = _coerce_bool(payload.get("chat_log"), False)
-        chat_reference_time = str(payload.get("chat_reference_time") or "").strip() or None
-        chat_id = str(payload.get("chat_id") or "").strip()
+        chat_reference_time = str(payload.get("chat_reference_time")).strip() or None
+        chat_id = str(payload.get("chat_id")).strip()
         force = _coerce_bool(payload.get("force"), False)
         clear_manifest = _coerce_bool(payload.get("clear_manifest"), False)
         max_chunk_chars = self._max_import_chunk_chars()
@@ -1141,7 +1141,7 @@ class ImportTaskManager:
     def _normalize_raw_scan_params(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         params = self._normalize_common_import_params(payload, default_dedupe="manifest")
         alias = str(payload.get("alias") or "raw").strip()
-        relative_path = str(payload.get("relative_path") or "").strip()
+        relative_path = str(payload.get("relative_path")).strip()
         glob_pattern = str(payload.get("glob") or "*").strip() or "*"
         recursive = _coerce_bool(payload.get("recursive"), True)
         if ".." in relative_path.replace("\\", "/").split("/"):
@@ -1160,7 +1160,7 @@ class ImportTaskManager:
     def _normalize_lpmm_openie_params(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         params = self._normalize_common_import_params(payload, default_dedupe="manifest")
         alias = str(payload.get("alias") or "lpmm").strip()
-        relative_path = str(payload.get("relative_path") or "").strip()
+        relative_path = str(payload.get("relative_path")).strip()
         include_all_json = _coerce_bool(payload.get("include_all_json"), False)
         params.update(
             {
@@ -1175,7 +1175,7 @@ class ImportTaskManager:
 
     def _normalize_temporal_backfill_params(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         alias = str(payload.get("alias") or "plugin_data").strip()
-        relative_path = str(payload.get("relative_path") or "").strip()
+        relative_path = str(payload.get("relative_path")).strip()
         dry_run = _coerce_bool(payload.get("dry_run"), False)
         no_created_fallback = _coerce_bool(payload.get("no_created_fallback"), False)
         limit = _parse_optional_positive_int(payload.get("limit"), "limit") or 100000
@@ -1190,9 +1190,9 @@ class ImportTaskManager:
 
     def _normalize_lpmm_convert_params(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         alias = str(payload.get("alias") or "lpmm").strip()
-        relative_path = str(payload.get("relative_path") or "").strip()
+        relative_path = str(payload.get("relative_path")).strip()
         target_alias = str(payload.get("target_alias") or "plugin_data").strip()
-        target_relative_path = str(payload.get("target_relative_path") or "").strip()
+        target_relative_path = str(payload.get("target_relative_path")).strip()
         dimension = _parse_optional_positive_int(payload.get("dimension"), "dimension") or _coerce_int(
             self._cfg("embedding.dimension", 384),
             384,
@@ -1228,12 +1228,12 @@ class ImportTaskManager:
         return self._normalize_params(payload)
 
     def _normalize_migration_params(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        source_db = str(payload.get("source_db") or "").strip()
+        source_db = str(payload.get("source_db")).strip()
         if not source_db:
             source_db = str(self._default_maibot_source_db())
 
-        time_from = str(payload.get("time_from") or "").strip() or None
-        time_to = str(payload.get("time_to") or "").strip() or None
+        time_from = str(payload.get("time_from")).strip() or None
+        time_to = str(payload.get("time_to")).strip() or None
 
         stream_ids = _coerce_list(payload.get("stream_ids"))
         group_ids = _coerce_list(payload.get("group_ids"))
@@ -1456,7 +1456,7 @@ class ImportTaskManager:
 
         params = self._normalize_params(payload)
         params["task_kind"] = "paste"
-        content = str(payload.get("content", "") or "")
+        content = str(payload.get("content", ""))
         if not content.strip():
             raise ValueError("content 不能为空")
         if len(content) > self._max_paste_chars():
@@ -1932,7 +1932,7 @@ class ImportTaskManager:
             if not chunk_retry_candidates and not file_fallback_candidates:
                 raise ValueError("当前任务没有可重试失败项")
             base_params = dict(task.params)
-            task_kind = str(task.params.get("task_kind") or "").strip().lower()
+            task_kind = str(task.params.get("task_kind")).strip().lower()
 
         if overrides:
             base_params.update(overrides)
@@ -2542,7 +2542,7 @@ class ImportTaskManager:
 
         fail_reason = ""
         if isinstance(report, dict):
-            fail_reason = str(report.get("fail_reason") or "").strip()
+            fail_reason = str(report.get("fail_reason")).strip()
         tail = (stderr_lines[-1] if stderr_lines else "") or (stdout_lines[-1] if stdout_lines else "")
         detail = fail_reason or tail or f"迁移进程退出码: {return_code}"
         await self._set_chunk_failed(task_id, file_record.file_id, chunk_id, detail)
@@ -3038,7 +3038,7 @@ class ImportTaskManager:
                         resolved_model=resolved_model,
                         chunk_semaphore=chunk_semaphore,
                         chat_log=bool(task.params.get("chat_log")),
-                        chat_reference_time=str(task.params.get("chat_reference_time") or "").strip() or None,
+                        chat_reference_time=str(task.params.get("chat_reference_time")).strip() or None,
                         paragraph_metadata=self._chat_metadata_from_params(task.params),
                     )
                 )
@@ -3254,7 +3254,7 @@ class ImportTaskManager:
             for d in docs:
                 if not isinstance(d, dict):
                     continue
-                content = str(d.get("passage", "") or "").strip()
+                content = str(d.get("passage", "")).strip()
                 if not content:
                     continue
                 triples = d.get("extracted_triples", []) or []
@@ -3426,7 +3426,7 @@ class ImportTaskManager:
                             content=content,
                             context="web_import_json",
                         )
-                        if str(vector_result.get("warning", "") or "").strip():
+                        if str(vector_result.get("warning", "")).strip():
                             logger.warning(
                                 f"web_import json paragraph 向量写入降级: hash={para_hash[:8]} detail={vector_result.get('detail')}"
                             )
@@ -3500,7 +3500,7 @@ class ImportTaskManager:
 
     @staticmethod
     def _chat_metadata_from_params(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        chat_id = str(params.get("chat_id") or "").strip()
+        chat_id = str(params.get("chat_id")).strip()
         if not chat_id:
             return None
         return {"chat_id": chat_id}
@@ -3551,7 +3551,7 @@ class ImportTaskManager:
             content=content,
             context="web_import_text",
         )
-        if str(vector_result.get("warning", "") or "").strip():
+        if str(vector_result.get("warning", "")).strip():
             logger.warning(
                 f"web_import text paragraph 向量写入降级: hash={para_hash[:8]} detail={vector_result.get('detail')}"
             )

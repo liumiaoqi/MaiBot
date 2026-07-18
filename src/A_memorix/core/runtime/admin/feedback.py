@@ -20,7 +20,7 @@ class FeedbackAdminHandler(BaseAdminHandler):
                 limit=max(1, int(kwargs.get("limit", 50) or 50)),
                 statuses=self._kernel._tokens(kwargs.get("status") or kwargs.get("statuses")),
                 rollback_statuses=self._kernel._tokens(kwargs.get("rollback_status") or kwargs.get("rollback_statuses")),
-                query=str(kwargs.get("query", "") or "").strip(),
+                query=str(kwargs.get("query", "")).strip(),
             )
             return {
                 "success": True,
@@ -37,8 +37,8 @@ class FeedbackAdminHandler(BaseAdminHandler):
         if act == "rollback":
             return await self._kernel._feedback_correction_service._rollback_feedback_task(
                 task_id=int(kwargs.get("task_id", 0) or 0),
-                requested_by=str(kwargs.get("requested_by", "") or "").strip(),
-                reason=str(kwargs.get("reason", "") or "").strip(),
+                requested_by=str(kwargs.get("requested_by", "")).strip(),
+                reason=str(kwargs.get("reason", "")).strip(),
             )
 
         return self._unsupported("feedback", act)

@@ -216,7 +216,7 @@ class EmbeddingAPIAdapter:
         if not include_dimension or requested_dimension is None:
             return extra_params
 
-        client_type = str(getattr(api_provider, "client_type", "") or "").strip().lower()
+        client_type = str(getattr(api_provider, "client_type", "")).strip().lower()
         if client_type in {"gemini", "google"}:
             extra_params["output_dimensionality"] = int(requested_dimension)
         elif client_type == "openai":

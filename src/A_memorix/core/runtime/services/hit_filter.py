@@ -95,7 +95,7 @@ class HitFilterService:
             return hits
         filtered: List[Dict[str, Any]] = []
         for item in hits:
-            if str(item.get("type", "") or "").strip() != "episode":
+            if str(item.get("type", "")).strip() != "episode":
                 filtered.append(item)
                 continue
             metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
@@ -116,8 +116,8 @@ class HitFilterService:
         paragraph_hashes: List[str] = []
         relation_hashes: List[str] = []
         for item in hits:
-            item_type = str(item.get("type", "") or "").strip()
-            hash_value = str(item.get("hash", "") or "").strip()
+            item_type = str(item.get("type", "")).strip()
+            hash_value = str(item.get("hash", "")).strip()
             if item_type == "paragraph" and hash_value:
                 paragraph_hashes.append(hash_value)
             elif item_type == "relation" and hash_value:
@@ -128,8 +128,8 @@ class HitFilterService:
         filtered: List[Dict[str, Any]] = []
         for item in hits:
             metadata = coerce_metadata_dict(item.get("metadata"))
-            item_type = str(item.get("type", "") or "").strip()
-            hash_value = str(item.get("hash", "") or "").strip()
+            item_type = str(item.get("type", "")).strip()
+            hash_value = str(item.get("hash", "")).strip()
             if hash_value:
                 stored: Optional[Dict[str, Any]] = None
                 if item_type == "paragraph":
@@ -187,8 +187,8 @@ class HitFilterService:
         seen_relation_hashes: set[str] = set()
 
         for item in hits:
-            item_type = str(item.get("type", "") or "").strip()
-            item_hash = str(item.get("hash", "") or "").strip()
+            item_type = str(item.get("type", "")).strip()
+            item_hash = str(item.get("hash", "")).strip()
             if item_type == "relation" and item_hash and item_hash not in seen_relation_hashes:
                 seen_relation_hashes.add(item_hash)
                 relation_hashes.append(item_hash)
@@ -199,7 +199,7 @@ class HitFilterService:
             linked_relations = self._metadata_store.get_paragraph_relations(item_hash)
             linked_hashes: List[str] = []
             for relation in linked_relations:
-                linked_hash = str(relation.get("hash", "") or "").strip()
+                linked_hash = str(relation.get("hash", "")).strip()
                 if not linked_hash or linked_hash in seen_relation_hashes:
                     continue
                 seen_relation_hashes.add(linked_hash)
@@ -227,9 +227,9 @@ class HitFilterService:
         status_map = self._metadata_store.get_relation_status_batch(relation_hashes)
         filtered: List[Dict[str, Any]] = []
         for item in hits:
-            item_type = str(item.get("type", "") or "").strip()
+            item_type = str(item.get("type", "")).strip()
             if item_type == "paragraph":
-                paragraph_hash = str(item.get("hash", "") or "").strip()
+                paragraph_hash = str(item.get("hash", "")).strip()
                 if self.paragraph_hidden_by_stale_marks(
                     paragraph_hash,
                     marks_by_paragraph=marks_by_paragraph,
@@ -249,7 +249,7 @@ class HitFilterService:
             if item_type != "relation":
                 filtered.append(item)
                 continue
-            hash_value = str(item.get("hash", "") or "").strip()
+            hash_value = str(item.get("hash", "")).strip()
             status = status_map.get(hash_value) if isinstance(status_map, dict) else None
             if status is None:
                 continue
@@ -280,14 +280,14 @@ class HitFilterService:
         if cls._metadata_chat_scope_ids(metadata) & allowed_chat_ids:
             return True
         source = str(paragraph.get("source", "") or metadata.get("source", "") or "").strip()
-        return any(source == str(cls._chat_source_static(allowed_chat_id) or "") for allowed_chat_id in allowed_chat_ids)
+        return any(source == str(cls._chat_source_static(allowed_chat_id)) for allowed_chat_id in allowed_chat_ids)
 
     @classmethod
     def _hit_metadata_matches_chat_scope(cls, hit: Dict[str, Any], allowed_chat_ids: set[str]) -> Optional[bool]:
         if not allowed_chat_ids:
             return True
         metadata = coerce_metadata_dict(hit.get("metadata"))
-        hit_type = str(hit.get("type", "") or "").strip()
+        hit_type = str(hit.get("type", "")).strip()
         metadata_chat_ids = cls._metadata_chat_scope_ids(metadata)
         if metadata_chat_ids:
             if metadata_chat_ids & allowed_chat_ids:
@@ -296,7 +296,7 @@ class HitFilterService:
                 return None
             return False
         source = str(metadata.get("source", "") or hit.get("source", "") or "").strip()
-        chat_sources = {str(cls._chat_source_static(allowed_chat_id) or "") for allowed_chat_id in allowed_chat_ids}
+        chat_sources = {str(cls._chat_source_static(allowed_chat_id)) for allowed_chat_id in allowed_chat_ids}
         if hit_type == "episode":
             return source in chat_sources
         if source.startswith("chat_summary:"):
@@ -341,7 +341,7 @@ class HitFilterService:
 
         for index, item in enumerate(hits):
             hit = dict(item)
-            hit_type = str(hit.get("type", "") or "").strip()
+            hit_type = str(hit.get("type", "")).strip()
             metadata_decision = self._hit_metadata_matches_chat_scope(hit, allowed_chat_ids)
             if metadata_decision is True:
                 allowed_indexes.add(index)
@@ -349,7 +349,7 @@ class HitFilterService:
             if metadata_decision is False:
                 continue
 
-            hit_hash = str(hit.get("hash", "") or "").strip()
+            hit_hash = str(hit.get("hash", "")).strip()
             if hit_type == "paragraph" and hit_hash:
                 unresolved_paragraph_hashes.append(hit_hash)
                 pending_indexes[index] = {"type": hit_type, "hash": hit_hash}
@@ -393,8 +393,8 @@ class HitFilterService:
         paragraph_hashes: List[str] = []
         relation_hashes: List[str] = []
         for item in hits:
-            item_type = str(item.get("type", "") or "").strip()
-            item_hash = str(item.get("hash", "") or "").strip()
+            item_type = str(item.get("type", "")).strip()
+            item_hash = str(item.get("hash", "")).strip()
             if not item_hash:
                 continue
             if item_type == "paragraph":
@@ -453,8 +453,8 @@ class HitFilterService:
         paragraph_map: Dict[str, Dict[str, Any]],
         relation_paragraph_map: Dict[str, List[Dict[str, Any]]],
     ) -> List[Dict[str, str]]:
-        hit_type = str(hit.get("type", "") or "").strip()
-        hit_hash = str(hit.get("hash", "") or "").strip()
+        hit_type = str(hit.get("type", "")).strip()
+        hit_hash = str(hit.get("hash", "")).strip()
 
         if hit_type == "paragraph" and hit_hash in paragraph_map:
             return [self._retrieval_filter_context_from_paragraph(paragraph_map[hit_hash])]
@@ -473,9 +473,9 @@ class HitFilterService:
     def _retrieval_filter_context_from_hit(self, hit: Dict[str, Any]) -> Dict[str, str]:
         metadata = coerce_metadata_dict(hit.get("metadata"))
         source = str(metadata.get("source", "") or hit.get("source", "") or "").strip()
-        source_type = str(metadata.get("source_type", "") or "").strip()
-        hit_type = str(hit.get("type", "") or "").strip()
-        stream_id = str(metadata.get("chat_id", "") or "").strip()
+        source_type = str(metadata.get("source_type", "")).strip()
+        hit_type = str(hit.get("type", "")).strip()
+        stream_id = str(metadata.get("chat_id", "")).strip()
         if not stream_id:
             stream_id = self._source_stream_id(source)
         return self._retrieval_filter_context(
@@ -486,8 +486,8 @@ class HitFilterService:
     def _retrieval_filter_context_from_paragraph(self, paragraph: Dict[str, Any]) -> Dict[str, str]:
         metadata = coerce_metadata_dict(paragraph.get("metadata"))
         source = str(paragraph.get("source", "") or metadata.get("source", "") or "").strip()
-        source_type = str(metadata.get("source_type", "") or "").strip()
-        stream_id = str(metadata.get("chat_id", "") or "").strip()
+        source_type = str(metadata.get("source_type", "")).strip()
+        stream_id = str(metadata.get("chat_id", "")).strip()
         if not stream_id:
             stream_id = self._source_stream_id(source)
         return self._retrieval_filter_context(
@@ -550,24 +550,24 @@ class HitFilterService:
         context: Dict[str, str],
         current_context: Dict[str, str],
     ) -> bool:
-        current_stream_id = str(current_context.get("stream_id", "") or "").strip()
-        source_stream_id = str(context.get("stream_id", "") or "").strip()
+        current_stream_id = str(current_context.get("stream_id", "")).strip()
+        source_stream_id = str(context.get("stream_id", "")).strip()
         if current_stream_id and source_stream_id and current_stream_id == source_stream_id:
             return True
 
-        current_group_id = str(current_context.get("group_id", "") or "").strip()
-        source_group_id = str(context.get("group_id", "") or "").strip()
+        current_group_id = str(current_context.get("group_id", "")).strip()
+        source_group_id = str(context.get("group_id", "")).strip()
         if current_group_id and source_group_id and current_group_id == source_group_id:
             return True
 
-        current_user_id = str(current_context.get("user_id", "") or "").strip()
-        source_user_id = str(context.get("user_id", "") or "").strip()
+        current_user_id = str(current_context.get("user_id", "")).strip()
+        source_user_id = str(context.get("user_id", "")).strip()
         current_is_private = bool(current_user_id) and not current_group_id
         source_is_private = bool(source_user_id) and not source_group_id
         return current_is_private and source_is_private and current_user_id == source_user_id
 
     def _retrieval_filter_context_allowed(self, context: Dict[str, str]) -> bool:
-        kind = str(context.get("kind", "") or "").strip()
+        kind = str(context.get("kind", "")).strip()
         if not kind:
             return True
         type_config = self._retrieval_type_filter_config(kind)
@@ -575,9 +575,9 @@ class HitFilterService:
             return True
         return self._chat_filter_config_allows(
             type_config,
-            stream_id=str(context.get("stream_id", "") or "").strip(),
-            group_id=str(context.get("group_id", "") or "").strip(),
-            user_id=str(context.get("user_id", "") or "").strip(),
+            stream_id=str(context.get("stream_id", "")).strip(),
+            group_id=str(context.get("group_id", "")).strip(),
+            user_id=str(context.get("user_id", "")).strip(),
             default_when_empty=True,
         )
 

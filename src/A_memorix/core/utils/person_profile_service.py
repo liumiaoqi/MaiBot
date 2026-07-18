@@ -281,7 +281,7 @@ class PersonProfileService:
             return [], ""
 
         for paragraph in paragraphs[:20]:
-            paragraph_hash = str(paragraph.get("hash", "") or "").strip()
+            paragraph_hash = str(paragraph.get("hash", "")).strip()
             if not paragraph_hash:
                 continue
             try:
@@ -289,7 +289,7 @@ class PersonProfileService:
             except Exception:
                 paragraph_entities = []
             for entity in paragraph_entities:
-                name = str(entity.get("name", "") or "").strip()
+                name = str(entity.get("name", "")).strip()
                 if not name or name == person_id:
                     continue
                 key = name.lower()
@@ -316,8 +316,8 @@ class PersonProfileService:
                 ).first()
                 if not record:
                     return recovered_aliases, recovered_primary_name or person_id, memory_traits
-            person_name = str(getattr(record, "person_name", "") or "").strip()
-            nickname = str(getattr(record, "user_nickname", "") or "").strip()
+            person_name = str(getattr(record, "person_name", "")).strip()
+            nickname = str(getattr(record, "user_nickname", "")).strip()
             group_nicks = self._parse_group_nicks(getattr(record, "group_cardname", None))
             memory_traits = self._parse_memory_traits(getattr(record, "memory_points", None))
 
@@ -325,7 +325,7 @@ class PersonProfileService:
                 person_name
                 or nickname
                 or recovered_primary_name
-                or str(getattr(record, "user_id", "") or "").strip()
+                or str(getattr(record, "user_id", "")).strip()
                 or person_id
             )
 
@@ -393,12 +393,12 @@ class PersonProfileService:
             return False
 
         metadata = coerce_metadata_dict(relation.get("metadata"))
-        if str(metadata.get("person_id", "") or "").strip() == pid:
+        if str(metadata.get("person_id", "")).strip() == pid:
             return True
         if pid in self._list_tokens(metadata.get("person_ids")):
             return True
 
-        source_paragraph = str(relation.get("source_paragraph", "") or "").strip()
+        source_paragraph = str(relation.get("source_paragraph", "")).strip()
         if source_paragraph:
             try:
                 paragraph = self.metadata_store.get_paragraph(source_paragraph)
@@ -407,7 +407,7 @@ class PersonProfileService:
             if isinstance(paragraph, dict):
                 payload = {
                     "hash": source_paragraph,
-                    "source": str(paragraph.get("source", "") or ""),
+                    "source": str(paragraph.get("source", "")),
                     "metadata": coerce_metadata_dict(paragraph.get("metadata")),
                 }
                 return self._is_evidence_bound_to_person(payload, person_id=pid)
@@ -432,8 +432,8 @@ class PersonProfileService:
 
         evidence: List[Dict[str, Any]] = []
         for row in paragraphs[: max(1, int(limit))]:
-            paragraph_hash = str(row.get("hash", "") or "")
-            content = str(row.get("content", "") or "").strip()
+            paragraph_hash = str(row.get("hash", ""))
+            content = str(row.get("content", "")).strip()
             if not paragraph_hash or not content:
                 continue
             evidence.append(
@@ -473,7 +473,7 @@ class PersonProfileService:
         if source == f"person_fact:{pid}":
             return True
 
-        if str(metadata.get("person_id", "") or "").strip() == pid:
+        if str(metadata.get("person_id", "")).strip() == pid:
             return True
         if pid in self._list_tokens(metadata.get("person_ids")):
             return True
@@ -495,7 +495,7 @@ class PersonProfileService:
         metadata: Dict[str, Any],
     ) -> Tuple[Dict[str, Any], str]:
         merged = coerce_metadata_dict(metadata)
-        source = str(merged.get("source", "") or "").strip()
+        source = str(merged.get("source", "")).strip()
         try:
             paragraph = self.metadata_store.get_paragraph(paragraph_hash)
         except Exception:
@@ -504,8 +504,8 @@ class PersonProfileService:
             paragraph_metadata = coerce_metadata_dict(paragraph.get("metadata"))
             if paragraph_metadata:
                 merged = {**paragraph_metadata, **merged}
-            source = source or str(paragraph.get("source", "") or "").strip()
-        source_type = str(merged.get("source_type", "") or "").strip() or self._source_type_from_source(source)
+            source = source or str(paragraph.get("source", "")).strip()
+        source_type = str(merged.get("source_type", "")).strip() or self._source_type_from_source(source)
         if source_type:
             merged["source_type"] = source_type
         if source:
@@ -515,7 +515,7 @@ class PersonProfileService:
     @staticmethod
     def _is_chat_summary_evidence(item: Dict[str, Any]) -> bool:
         metadata = item.get("metadata", {}) if isinstance(item.get("metadata"), dict) else {}
-        source_type = str(metadata.get("source_type", "") or "").strip()
+        source_type = str(metadata.get("source_type", "")).strip()
         source = str(item.get("source", "") or metadata.get("source", "") or "").strip()
         return source_type == "chat_summary" or source.startswith("chat_summary:")
 
@@ -527,9 +527,9 @@ class PersonProfileService:
         if not bool((integration_cfg or {}).get("feedback_correction_paragraph_hard_filter_enabled", True)):
             return evidence
         paragraph_hashes = [
-            str(item.get("hash", "") or "").strip()
+            str(item.get("hash", "")).strip()
             for item in evidence
-            if str(item.get("type", "") or "").strip() == "paragraph" and str(item.get("hash", "") or "").strip()
+            if str(item.get("type", "")).strip() == "paragraph" and str(item.get("hash", "")).strip()
         ]
         if not paragraph_hashes:
             return evidence
@@ -539,7 +539,7 @@ class PersonProfileService:
         seen = set()
         for marks in marks_by_paragraph.values():
             for mark in marks:
-                relation_hash = str(mark.get("relation_hash", "") or "").strip()
+                relation_hash = str(mark.get("relation_hash", "")).strip()
                 if not relation_hash or relation_hash in seen:
                     continue
                 seen.add(relation_hash)
@@ -548,17 +548,17 @@ class PersonProfileService:
 
         filtered: List[Dict[str, Any]] = []
         for item in evidence:
-            item_type = str(item.get("type", "") or "").strip()
-            item_hash = str(item.get("hash", "") or "").strip()
+            item_type = str(item.get("type", "")).strip()
+            item_hash = str(item.get("hash", "")).strip()
             if item_type != "paragraph" or not item_hash:
                 filtered.append(item)
                 continue
             marks = marks_by_paragraph.get(item_hash, [])
             should_hide = any(
-                status_map.get(str(mark.get("relation_hash", "") or "").strip()) is None
-                or bool((status_map.get(str(mark.get("relation_hash", "") or "").strip()) or {}).get("is_inactive"))
+                status_map.get(str(mark.get("relation_hash", "")).strip()) is None
+                or bool((status_map.get(str(mark.get("relation_hash", "")).strip()) or {}).get("is_inactive"))
                 for mark in marks
-                if str(mark.get("relation_hash", "") or "").strip()
+                if str(mark.get("relation_hash", "")).strip()
             )
             if should_hide:
                 continue
@@ -591,7 +591,7 @@ class PersonProfileService:
                             "type": "paragraph",
                             "score": 0.0,
                             "content": str(para.get("content", ""))[:180],
-                            "source": str(para.get("source", "") or ""),
+                            "source": str(para.get("source", "")),
                             "metadata": coerce_metadata_dict(para.get("metadata")),
                         }
                     )
@@ -603,7 +603,7 @@ class PersonProfileService:
         seen_hash = set()
         evidence: List[Dict[str, Any]] = []
         for item in self._collect_person_fact_evidence(person_id, limit=max(2, min(4, top_k))):
-            h = str(item.get("hash", "") or "")
+            h = str(item.get("hash", ""))
             if not h or h in seen_hash:
                 continue
             seen_hash.add(h)
@@ -697,7 +697,7 @@ class PersonProfileService:
             self._append_profile_bucket(buckets, bucket, text)
 
         for item in vector_evidence:
-            content = str(item.get("content", "") or "").strip()
+            content = str(item.get("content", "")).strip()
             if not content:
                 continue
             if self._is_chat_summary_evidence(item):
@@ -863,11 +863,11 @@ class PersonProfileService:
             if text:
                 candidates.append({"id": f"relation-{index}", "source_type": "relation", "text": text})
         for index, item in enumerate(vector_evidence[:16], start=1):
-            content = str(item.get("content", "") or "").strip()
+            content = str(item.get("content", "")).strip()
             if not content:
                 continue
             metadata = coerce_metadata_dict(item.get("metadata"))
-            source_type = str(metadata.get("source_type", "") or "").strip()
+            source_type = str(metadata.get("source_type", "")).strip()
             if not source_type:
                 source_type = "chat_summary" if self._is_chat_summary_evidence(item) else "person_fact"
             candidates.append({"id": f"evidence-{index}", "source_type": source_type, "text": content[:260]})
@@ -884,9 +884,9 @@ class PersonProfileService:
 
     @staticmethod
     def _format_relation_evidence_text(rel: Dict[str, Any]) -> str:
-        subject = str(rel.get("subject", "") or "").strip()
-        predicate = str(rel.get("predicate", "") or "").strip()
-        obj = str(rel.get("object", "") or "").strip()
+        subject = str(rel.get("subject", "")).strip()
+        predicate = str(rel.get("predicate", "")).strip()
+        obj = str(rel.get("object", "")).strip()
         if not (subject and predicate and obj):
             return ""
         return f"{subject}{predicate}{obj}。"
@@ -948,7 +948,7 @@ class PersonProfileService:
     def _apply_manual_override(self, person_id: str, profile_payload: Dict[str, Any]) -> Dict[str, Any]:
         """将手工覆盖并入画像结果（覆盖 profile_text，同时保留 auto_profile_text）。"""
         payload = dict(profile_payload or {})
-        auto_text = str(payload.get("profile_text", "") or "")
+        auto_text = str(payload.get("profile_text", ""))
         payload["auto_profile_text"] = auto_text
         payload["has_manual_override"] = False
         payload["manual_override_text"] = ""
@@ -968,14 +968,14 @@ class PersonProfileService:
         if not override:
             return payload
 
-        manual_text = str(override.get("override_text", "") or "").strip()
+        manual_text = str(override.get("override_text", "")).strip()
         if not manual_text:
             return payload
 
         payload["has_manual_override"] = True
         payload["manual_override_text"] = manual_text
         payload["override_updated_at"] = override.get("updated_at")
-        payload["override_updated_by"] = str(override.get("updated_by", "") or "")
+        payload["override_updated_by"] = str(override.get("updated_by", ""))
         payload["profile_text"] = manual_text
         payload["profile_source"] = "manual_override"
         return payload
@@ -1081,7 +1081,7 @@ class PersonProfileService:
         """格式化给 replyer 的注入块。"""
         if not profile or not profile.get("success"):
             return ""
-        text = str(profile.get("profile_text", "") or "").strip()
+        text = str(profile.get("profile_text", "")).strip()
         if not text:
             return ""
         text = build_profile_injection_text(text)

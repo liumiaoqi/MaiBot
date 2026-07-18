@@ -67,38 +67,38 @@ class VectorEnsureService:
         relation_service = self._get_relation_write_service()
         if relation_service is not None:
             result = await relation_service.ensure_relation_vector(
-                hash_value=str(relation.get("hash", "") or ""),
-                subject=str(relation.get("subject", "") or "").strip(),
-                predicate=str(relation.get("predicate", "") or "").strip(),
-                obj=str(relation.get("object", "") or "").strip(),
+                hash_value=str(relation.get("hash", "")),
+                subject=str(relation.get("subject", "")).strip(),
+                predicate=str(relation.get("predicate", "")).strip(),
+                obj=str(relation.get("object", "")).strip(),
                 typed_id=self._dual_vector_pools_enabled(),
             )
             return bool(result.vector_written or result.vector_already_exists)
         from src.A_memorix.core.utils.relation_write_service import RelationWriteService
         return await self.ensure_vector_for_text(
-            item_hash=str(relation.get("hash", "") or ""),
+            item_hash=str(relation.get("hash", "")),
             text=RelationWriteService.build_relation_vector_text(
-                str(relation.get("subject", "") or "").strip(),
-                str(relation.get("predicate", "") or "").strip(),
-                str(relation.get("object", "") or "").strip(),
+                str(relation.get("subject", "")).strip(),
+                str(relation.get("predicate", "")).strip(),
+                str(relation.get("object", "")).strip(),
             ),
         )
 
     async def ensure_paragraph_vector(self, paragraph: Dict[str, Any]) -> bool:
         return await self.ensure_vector_for_text(
-            item_hash=str(paragraph.get("hash", "") or ""),
-            text=str(paragraph.get("content", "") or ""),
+            item_hash=str(paragraph.get("hash", "")),
+            text=str(paragraph.get("content", "")),
             vector_store=self._vpm.paragraph_store(),
         )
 
     async def ensure_entity_vector(self, entity: Dict[str, Any]) -> bool:
         if self._dual_vector_pools_enabled():
             return await self.ensure_vector_for_text(
-                item_hash=self._graph_vector_id("entity", str(entity.get("hash", "") or "")),
-                text=str(entity.get("name", "") or ""),
+                item_hash=self._graph_vector_id("entity", str(entity.get("hash", ""))),
+                text=str(entity.get("name", "")),
                 vector_store=self._get_graph_vector_store(),
             )
         return await self.ensure_vector_for_text(
-            item_hash=str(entity.get("hash", "") or ""),
-            text=str(entity.get("name", "") or ""),
+            item_hash=str(entity.get("hash", "")),
+            text=str(entity.get("name", "")),
         )

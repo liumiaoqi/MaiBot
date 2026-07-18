@@ -57,9 +57,9 @@ class V5MemoryService:
             items.append(
                 {
                     "hash": hash_value,
-                    "subject": str(relation.get("subject", "") or ""),
-                    "predicate": str(relation.get("predicate", "") or ""),
-                    "object": str(relation.get("object", "") or ""),
+                    "subject": str(relation.get("subject", "")),
+                    "predicate": str(relation.get("predicate", "")),
+                    "object": str(relation.get("object", "")),
                     "state": "inactive" if bool(status.get("is_inactive")) else "active",
                     "is_pinned": bool(status.get("is_pinned", False)),
                     "temp_protected": bool(float(status.get("protected_until") or 0.0) > now),
@@ -73,9 +73,9 @@ class V5MemoryService:
             items.append(
                 {
                     "hash": hash_value,
-                    "subject": str(relation.get("subject", "") or ""),
-                    "predicate": str(relation.get("predicate", "") or ""),
-                    "object": str(relation.get("object", "") or ""),
+                    "subject": str(relation.get("subject", "")),
+                    "predicate": str(relation.get("predicate", "")),
+                    "object": str(relation.get("object", "")),
                     "state": "deleted",
                     "is_pinned": bool(relation.get("is_pinned", False)),
                     "temp_protected": False,
