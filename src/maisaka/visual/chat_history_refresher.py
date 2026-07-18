@@ -4,7 +4,7 @@ from typing import Awaitable, Callable, Optional
 
 from sqlmodel import select
 
-from src.chat.message_receive.message import SessionMessage
+from src.core.types import SessionMessage
 from src.common.data_models.message_component_data_model import EmojiComponent, ForwardNodeComponent, ImageComponent
 from src.common.database.database import get_db_session
 from src.common.database.database_model import Images, ImageType

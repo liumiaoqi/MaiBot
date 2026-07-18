@@ -4,7 +4,7 @@ from datetime import datetime
 from html import escape
 from typing import Optional, Sequence
 
-from src.chat.message_receive.message import SessionMessage
+from src.core.types import SessionMessage
 from src.common.data_models.message_component_data_model import (
     MessageSequence,
     ReplyComponent,

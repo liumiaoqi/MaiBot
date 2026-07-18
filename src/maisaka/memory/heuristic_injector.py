@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from time import time
 from typing import Any, Sequence
 
-from src.chat.message_receive.message import SessionMessage
+from src.core.types import SessionMessage
 from src.common.data_models.message_component_data_model import AtComponent, ReplyComponent
 from src.common.logger import get_logger
 from src.common.message_repository import count_messages, find_messages

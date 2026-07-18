@@ -8,7 +8,7 @@ from src.maisaka.context.message_adapter import build_visible_text_from_sequence
 from .messages import AssistantMessage, LLMContextMessage, SessionBackedMessage, ToolResultMessage
 
 if TYPE_CHECKING:
-    from src.chat.message_receive.message import SessionMessage
+    from src.core.types import SessionMessage
 
 TOOL_RESULT_MEDIA_SOURCE_KIND = "tool_result_media"
 OPTIMIZED_TOOL_HISTORY_SOURCE_KIND = "optimized_tool_history"

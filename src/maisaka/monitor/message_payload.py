@@ -4,7 +4,7 @@ from base64 import b64encode
 from collections.abc import Callable
 from typing import Any, Optional
 
-from src.chat.message_receive.message import SessionMessage
+from src.core.types import SessionMessage
 from src.common.data_models.message_component_data_model import (
     EmojiComponent,
     ImageComponent,

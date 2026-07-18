@@ -9,7 +9,7 @@ import asyncio
 import time
 import uuid
 
-from src.chat.message_receive.message import SessionMessage
+from src.core.types import SessionMessage
 from src.core.types import SessionInfo
 from src.maisaka.context.history import build_session_message_visible_text
 

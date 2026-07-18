@@ -10,7 +10,7 @@ from rich.panel import Panel
 from rich.pretty import Pretty
 from rich.text import Text
 
-from src.chat.heart_flow.heartFC_utils import CycleDetail
+from src.core.types import CycleDetail
 from src.cli.console import console
 from src.common.logger import get_logger
 from src.config.config import global_config

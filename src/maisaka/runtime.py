@@ -8,9 +8,9 @@ import asyncio
 import json
 import time
 
-from src.chat.heart_flow.heartFC_utils import CycleDetail
+from src.core.types import CycleDetail
 
-from src.chat.message_receive.message import SessionMessage
+from src.core.types import SessionMessage
 from src.chat.replyer.expression_vector_index import expression_vector_index
 from src.chat.utils.utils import get_bot_account, is_bot_self, is_mentioned_bot_in_message
 from src.common.data_models.mai_message_data_model import GroupInfo, MessageInfo, UserInfo

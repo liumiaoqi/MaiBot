@@ -985,7 +985,9 @@ async def _send_to_target_with_message(
     sync_to_maisaka_history: bool = False,
     maisaka_source_kind: str = "outbound_send",
 ) -> Optional[SessionMessage]:
-    """向指定目标构建并发送消息。
+    """[Deprecated] 请使用 MessagePortV2.send_message() 替代。
+
+向指定目标构建并发送消息。
 
     Args:
         message_sequence: 待发送的消息组件序列。
@@ -1073,7 +1075,9 @@ async def _text_to_stream_with_message(
     sync_to_maisaka_history: bool = False,
     maisaka_source_kind: str = "outbound_send",
 ) -> Optional[SessionMessage]:
-    """向指定流发送文本消息，并返回发送成功后的消息对象。"""
+    """[Deprecated] 请使用 MessagePortV2.send_message() 替代。
+
+向指定流发送文本消息，并返回发送成功后的消息对象。"""
     return await _send_to_target_with_message(
         message_sequence=MessageSequence(components=[TextComponent(text=text)]),
         stream_id=stream_id,
@@ -1098,7 +1102,9 @@ async def _text_to_stream(
     sync_to_maisaka_history: bool = False,
     maisaka_source_kind: str = "outbound_send",
 ) -> bool:
-    """向指定流发送文本消息。
+    """[Deprecated] 请使用 MessagePortV2.send_message() 替代。
+
+向指定流发送文本消息。
 
     Args:
         text: 要发送的文本内容。
@@ -1137,7 +1143,9 @@ async def _emoji_to_stream_with_message(
     sync_to_maisaka_history: bool = False,
     maisaka_source_kind: str = "outbound_send",
 ) -> Optional[SessionMessage]:
-    """向指定流发送表情消息，并返回发送成功后的消息对象。"""
+    """[Deprecated] 请使用 MessagePortV2.send_message() 替代。
+
+向指定流发送表情消息，并返回发送成功后的消息对象。"""
     return await _send_to_target_with_message(
         message_sequence=_build_message_sequence_from_custom_message("emoji", emoji_base64),
         stream_id=stream_id,
@@ -1159,7 +1167,9 @@ async def _emoji_to_stream(
     sync_to_maisaka_history: bool = False,
     maisaka_source_kind: str = "outbound_send",
 ) -> bool:
-    """向指定流发送表情消息。
+    """[Deprecated] 请使用 MessagePortV2.send_message() 替代。
+
+向指定流发送表情消息。
 
     Args:
         emoji_base64: 表情图片的 Base64 内容。
@@ -1194,7 +1204,9 @@ async def _image_to_stream(
     sync_to_maisaka_history: bool = False,
     maisaka_source_kind: str = "outbound_send",
 ) -> bool:
-    """向指定流发送图片消息。
+    """[Deprecated] 请使用 MessagePortV2.send_message() 替代。
+
+向指定流发送图片消息。
 
     Args:
         image_base64: 图片的 Base64 内容。
@@ -1231,7 +1243,9 @@ async def _custom_to_stream(
     sync_to_maisaka_history: bool = False,
     maisaka_source_kind: str = "outbound_send",
 ) -> bool:
-    """向指定流发送自定义类型消息。
+    """[Deprecated] 请使用 MessagePortV2.send_message() 替代。
+
+向指定流发送自定义类型消息。
 
     Args:
         message_type: 自定义消息类型。
@@ -1273,7 +1287,9 @@ async def _custom_reply_set_to_stream(
     sync_to_maisaka_history: bool = False,
     maisaka_source_kind: str = "outbound_send",
 ) -> bool:
-    """向指定流发送消息组件序列。
+    """[Deprecated] 请使用 MessagePortV2.send_message() 替代。
+
+向指定流发送消息组件序列。
 
     Args:
         reply_set: 待发送的消息组件序列。

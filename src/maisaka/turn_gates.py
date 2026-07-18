@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Literal, Optional, Sequence, TYPE_CHECKING
 import time
 
-from src.chat.message_receive.message import SessionMessage
+from src.core.types import SessionMessage
 from src.chat.utils.utils import is_bot_self
 from src.maisaka.reply_necessity import REPLY_NECESSITY_TRIGGER_SCORE, ReplyNecessityInput, score_reply_necessity
 

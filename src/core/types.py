@@ -829,3 +829,19 @@ class MemoryWriteResult:
             "skipped_ids": self.skipped_ids,
             "detail": self.detail,
         }
+
+
+# =============================================================================
+# 桥接 re-export — SessionMessage
+# =============================================================================
+# SessionMessage 当前定义在 src/chat/message_receive/message.py，
+# 但被 core/maisaka 层大量使用。此处 re-export 作为集中桥接点，
+# maisaka 应从 core.types 导入，不直接依赖 chat 层。
+# 后续架构演进将把 SessionMessage 物理迁移到 common 层。
+# ruff: noqa: TID251
+from src.chat.message_receive.message import SessionMessage as SessionMessage
+
+__all__ = [
+    # ... 既有类型 ...
+    "SessionMessage",
+]

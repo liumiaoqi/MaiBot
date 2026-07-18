@@ -2,7 +2,7 @@
 
 from typing import Sequence, TYPE_CHECKING
 
-from src.chat.message_receive.message import SessionMessage
+from src.core.types import SessionMessage
 from src.common.logger import get_logger
 from src.maisaka.focus import focus_mode_manager
 from src.maisaka.mode_policy import is_reply_necessity_trigger_enabled
