@@ -246,7 +246,7 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 
 # 记忆系统范式迁移进展
 
-当前阶段：**NEW_INDEPENDENT**（分类学代码保留但不再调用，所有请求走连接主义）
+当前阶段：**NEW_INDEPENDENT**（分类学代码 graph_ops/ 已标记 DEPRECATED 且零调用，所有请求走连接主义系统 `src/A_memorix/core/connectionist/`）
 
 ## 迁移架构
 

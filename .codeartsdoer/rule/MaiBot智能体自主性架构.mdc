@@ -270,9 +270,9 @@ ChatManager 从 604 行瘦身至 143 行，拆分为 6 个职责单一的子模�
 
 ChatManagerAdapter 通过 5 合 1 Protocol（SessionRepository/SessionInfoPort/SessionLifecyclePort/SessionQueryPort/MessageRegistryPort）包裹这 6 个子模块。当前仍通过 `_ensure_chat_manager()` 延迟拿单例，SSD-3 将改为依赖注入（见存量债务表）。
 
-### 记忆叙事原型（lab 阶段，未主线集成）
+### 记忆叙事原型（已主线集成）
 
-5 子系统架构（lab/memory/narrative_v1.py，743 行，Fragment→Episode→Saga 三层叙事管线）：
+5 子系统架构（已从 lab 毕业到 `src/A_memorix/core/connectionist/`）：
 
 1. **NarrativeWeaver**（叙事编织器）：观察序列 → Fragment → Episode → Saga
 2. **CognitiveStratifier**（认知分层器）：按重要性/时效分层存储
@@ -287,13 +287,13 @@ ChatManagerAdapter 通过 5 合 1 Protocol（SessionRepository/SessionInfoPort/S
 - 直觉召回走纯规则（概念激活扩散），不走 LLM
 - LLM 仅用于概念提取（memory_v11.py）和叙事编织的语义判断
 
-待实现：主线集成（通过 NarrativeServicePort Protocol）、取代分类学代码、WebUI 记忆可视化。
+待实现：WebUI 记忆可视化（recall_with_intuition 便捷方法已就绪）。
 
 ### 待后续
 
 - ✅ **MessagePort 全面采用** — v2 阶段 1-5 全部完成，旧 MessagePort Protocol（7 方法）已移除，统一为 MessagePortV2（1 个方法 send_message）
 - ✅ **SDKMemoryKernel 完全隔离** — `src/A_memorix/core/` 零违规导入（28→0），所有外部依赖通过 AMemorixServicePorts 构造注入，ruff TID251 守卫 + CI AST 脚本
-- ⬜ **记忆系统范式迁移** — 仍在 NEW_INDEPENDENT 阶段，分类学代码保留但不再调用；叙事原型（NarrativeWeaver 等 5 子系统）已编码完成但未主线集成，实验原型在 lab/memory/
+- ✅ **记忆系统范式迁移** — NEW_INDEPENDENT 阶段完成，分类学代码（graph_ops/）保留但零调用（已标记 DEPRECATED），所有请求走连接主义系统（`src/A_memorix/core/connectionist/`）；5 子系统（NarrativeWeaver/CognitiveStratifier/LifecycleManager/IntuitionEngine/MemoryField）已主线集成，通过 host_service API 暴露
 
 ### 存量债务（已消除/剩余）
 
