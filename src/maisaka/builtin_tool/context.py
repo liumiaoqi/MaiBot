@@ -129,15 +129,15 @@ class BuiltinToolRuntimeContext:
         for raw_item in raw_results:
             if not isinstance(raw_item, dict):
                 continue
-            word = str(raw_item.get("word") or "").strip()
+            word = str(raw_item.get("word")).strip()
             matches = raw_item.get("matches")
             normalized_matches: List[Dict[str, str]] = []
             if isinstance(matches, list):
                 for match in matches:
                     if not isinstance(match, dict):
                         continue
-                    content = str(match.get("content") or "").strip()
-                    meaning = str(match.get("meaning") or "").strip()
+                    content = str(match.get("content")).strip()
+                    meaning = str(match.get("meaning")).strip()
                     if not content or not meaning:
                         continue
                     normalized_matches.append({"content": content, "meaning": meaning})
@@ -207,7 +207,7 @@ class BuiltinToolRuntimeContext:
         """把 `<at msg_id>` 解析为对该消息发送者的 at 组件。"""
 
         positional, keyword_args = self._parse_rich_reply_tag_body(raw_body)
-        target_user_id = str(keyword_args.get("user_id") or "").strip()
+        target_user_id = str(keyword_args.get("user_id")).strip()
         target_message_id = str(keyword_args.get("msg_id") or keyword_args.get("message_id") or "").strip()
         if not target_user_id and positional:
             target_message_id = positional[0].strip()

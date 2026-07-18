@@ -179,7 +179,7 @@ class ToolEntry(ComponentEntry):
         self.parameters: List[Dict[str, Any]] = metadata.get("parameters", [])
         self.parameters_raw: Dict[str, Any] | List[Dict[str, Any]] = metadata.get("parameters_raw", {})
         self.invoke_method: str = str(metadata.get("invoke_method", "plugin.invoke_tool") or "plugin.invoke_tool").strip()
-        self.legacy_component_type: str = str(metadata.get("legacy_component_type", "") or "").strip()
+        self.legacy_component_type: str = str(metadata.get("legacy_component_type", "")).strip()
         super().__init__(name, component_type, plugin_id, metadata, chat_scope, allowed_session)
 
     def _get_parameters_schema(self) -> Dict[str, Any] | None:
@@ -217,7 +217,7 @@ class ToolEntry(ComponentEntry):
             for parameter in self.parameters:
                 if not isinstance(parameter, dict):
                     continue
-                parameter_name = str(parameter.get("name", "") or "").strip()
+                parameter_name = str(parameter.get("name", "")).strip()
                 if not parameter_name:
                     continue
                 if bool(parameter.get("required", False)):
@@ -405,10 +405,10 @@ class MessageGatewayEntry(ComponentEntry):
         allowed_session: Optional[List[str]] = None,
     ) -> None:
         self.route_type: str = self._normalize_route_type(metadata.get("route_type", ""))
-        self.platform: str = str(metadata.get("platform", "") or "").strip()
-        self.protocol: str = str(metadata.get("protocol", "") or "").strip()
-        self.account_id: str = str(metadata.get("account_id", "") or "").strip()
-        self.scope: str = str(metadata.get("scope", "") or "").strip()
+        self.platform: str = str(metadata.get("platform", "")).strip()
+        self.protocol: str = str(metadata.get("protocol", "")).strip()
+        self.account_id: str = str(metadata.get("account_id", "")).strip()
+        self.scope: str = str(metadata.get("scope", "")).strip()
         super().__init__(name, component_type, plugin_id, metadata, chat_scope, allowed_session)
 
     @staticmethod
@@ -464,7 +464,7 @@ class HomeCardEntry(ComponentEntry):
         allowed_session: Optional[List[str]] = None,
     ) -> None:
         self.title: str = str(metadata.get("title", "") or name).strip()
-        self.description: str = str(metadata.get("description", "") or "").strip()
+        self.description: str = str(metadata.get("description", "")).strip()
         self.width: str = self._normalize_width(metadata.get("width", "medium"))
         self.order: int = self._normalize_order(metadata.get("order", 1000))
         super().__init__(name, component_type, plugin_id, metadata, chat_scope, allowed_session)
@@ -595,7 +595,7 @@ class ComponentRegistry:
 
         if not isinstance(component, ToolEntry):
             return False
-        return str(component.metadata.get("legacy_component_type", "") or "").strip().upper() == "ACTION"
+        return str(component.metadata.get("legacy_component_type", "")).strip().upper() == "ACTION"
 
     def _validate_hook_handler_entry(self, component: HookHandlerEntry) -> None:
         """校验 HookHandler 是否满足已注册的 Hook 规格。
@@ -854,8 +854,8 @@ class ComponentRegistry:
             )
             prepared_components.append(
                 self._build_component_entry(
-                    name=str(component_data.get("name", "") or ""),
-                    component_type=str(component_data.get("component_type", "") or ""),
+                    name=str(component_data.get("name", "")),
+                    component_type=str(component_data.get("component_type", "")),
                     plugin_id=plugin_id,
                     metadata=raw_metadata,
                     chat_scope=chat_scope,

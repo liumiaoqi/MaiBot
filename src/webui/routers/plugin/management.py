@@ -36,7 +36,7 @@ router = APIRouter()
 
 
 def _read_manifest_plugin_id(manifest: Dict[str, Any]) -> str:
-    return str(manifest.get("id") or "").strip()
+    return str(manifest.get("id")).strip()
 
 
 def _require_manifest_plugin_id(manifest: Dict[str, Any]) -> str:

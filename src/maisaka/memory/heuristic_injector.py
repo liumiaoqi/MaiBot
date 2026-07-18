@@ -254,10 +254,10 @@ class HeuristicMemoryInjector:
         for item in payload.get("items", []) or []:
             if not isinstance(item, dict):
                 continue
-            if str(item.get("item_type", "") or "").strip() != "paragraph":
+            if str(item.get("item_type", "")).strip() != "paragraph":
                 continue
-            paragraph_hash = str(item.get("item_hash", "") or "").strip()
-            source = str(item.get("source", "") or "").strip()
+            paragraph_hash = str(item.get("item_hash", "")).strip()
+            source = str(item.get("source", "")).strip()
             if paragraph_hash and source:
                 sources[paragraph_hash] = source
         return sources
@@ -305,9 +305,9 @@ class HeuristicMemoryInjector:
     ) -> bool:
         metadata = hit.metadata if isinstance(hit.metadata, dict) else {}
         source = str(metadata.get("source") or resolved_source or hit.source or "").strip()
-        source_type = str(metadata.get("source_type") or "").strip()
-        chat_id = str(metadata.get("chat_id") or "").strip()
-        person_id = str(metadata.get("person_id") or "").strip()
+        source_type = str(metadata.get("source_type")).strip()
+        chat_id = str(metadata.get("chat_id")).strip()
+        person_id = str(metadata.get("person_id")).strip()
         if not person_id:
             person_ids = metadata.get("person_ids")
             if isinstance(person_ids, list):
@@ -316,7 +316,7 @@ class HeuristicMemoryInjector:
             person_id = source[len(_SOURCE_PERSON_FACT_PREFIX):].strip()
 
         if hit.hit_type == "episode":
-            episode_source = str(metadata.get("source") or "").strip()
+            episode_source = str(metadata.get("source")).strip()
             return episode_source == f"{_SOURCE_CHAT_SUMMARY_PREFIX}{context.session.session_id}"
 
         if source_type == "person_fact" or source.startswith(_SOURCE_PERSON_FACT_PREFIX):
@@ -386,8 +386,8 @@ class HeuristicMemoryInjector:
     def _collect_active_person_ids(messages: Sequence[SessionMessage]) -> set[str]:
         person_ids: set[str] = set()
         for message in messages:
-            platform = str(getattr(message, "platform", "") or "").strip()
-            user_id = str(getattr(message.message_info.user_info, "user_id", "") or "").strip()
+            platform = str(getattr(message, "platform", "")).strip()
+            user_id = str(getattr(message.message_info.user_info, "user_id", "")).strip()
             if platform and user_id:
                 person_ids.add(get_person_id(platform, user_id))
 
@@ -423,7 +423,7 @@ class HeuristicMemoryInjector:
         lines: list[str] = []
         for message in messages:
             sender = cls._message_sender_name(message)
-            text = str(getattr(message, "processed_plain_text", "") or "").strip()
+            text = str(getattr(message, "processed_plain_text", "")).strip()
             if not text:
                 continue
             text = text.replace("\r", " ").replace("\n", " ")

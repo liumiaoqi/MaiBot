@@ -76,7 +76,7 @@ class BehaviorPatternSelector:
         success_count = max(float(candidate.get("success_count") or 0.0), 0.0)
         failure_count = max(float(candidate.get("failure_count") or 0.0), 0.0)
         activation_count = max(float(candidate.get("activation_count") or 0.0), 0.0)
-        learning_type = str(candidate.get("learning_type") or "").strip()
+        learning_type = str(candidate.get("learning_type")).strip()
         self_feedback_bonus = 0.15 if learning_type == "self_reflection" else 0.0
         weight = max(
             0.2,
@@ -107,7 +107,7 @@ class BehaviorPatternSelector:
         for item in distribution:
             if not isinstance(item, dict):
                 continue
-            tag = str(item.get("tag") or "").strip()
+            tag = str(item.get("tag")).strip()
             if ":" not in tag:
                 continue
             tag_kind = tag.split(":", 1)[0]
@@ -253,8 +253,8 @@ class BehaviorPatternSelector:
         total_count = len(behaviors)
         for index, behavior in enumerate(behaviors, start=1):
             behavior_id = behavior.get("id")
-            action = str(behavior.get("action") or "").strip()
-            outcome = str(behavior.get("outcome") or "").strip()
+            action = str(behavior.get("action")).strip()
+            outcome = str(behavior.get("outcome")).strip()
             priority_label = BehaviorPatternSelector._format_priority_label(index, total_count)
             reference_items.append(
                 f"{index}.\n"

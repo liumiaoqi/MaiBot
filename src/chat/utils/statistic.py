@@ -677,7 +677,7 @@ class StatisticOutputTask(AsyncTask):
                         user_id = cast(str | None, record["model_api_provider_name"]) or "unknown"
                         model_assign_name = cast(str | None, record["model_assign_name"])
                         model_name = model_assign_name or cast(str | None, record["model_name"]) or "unknown"
-                        session_id = str(record.get("session_id") or "").strip()
+                        session_id = str(record.get("session_id")).strip()
                         chat_cost_key = session_id if session_id else GLOBAL_COST_SESSION_KEY
 
                         # 提取模块名：如果请求类型包含"."，取第一个"."之前的部分

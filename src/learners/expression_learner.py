@@ -267,9 +267,9 @@ class ExpressionLearner:
         for raw_expression in raw_expressions:
             if not isinstance(raw_expression, dict):
                 continue
-            situation = str(raw_expression.get("situation") or "").strip()
-            style = normalize_expression_style_for_learning(str(raw_expression.get("style") or "").strip())
-            source_id = str(raw_expression.get("source_id") or "").strip()
+            situation = str(raw_expression.get("situation")).strip()
+            style = normalize_expression_style_for_learning(str(raw_expression.get("style")).strip())
+            source_id = str(raw_expression.get("source_id")).strip()
             if not situation or not style:
                 continue
             normalized_expressions.append((situation, style, source_id))
@@ -464,8 +464,8 @@ class ExpressionLearner:
                 continue
 
             upsert_kwargs = before_upsert_result.kwargs
-            situation = str(upsert_kwargs.get("situation", situation) or "").strip()
-            style = normalize_expression_style_for_learning(str(upsert_kwargs.get("style", style) or "").strip())
+            situation = str(upsert_kwargs.get("situation", situation)).strip()
+            style = normalize_expression_style_for_learning(str(upsert_kwargs.get("style", style)).strip())
             if not situation or not style:
                 logger.info(f"{self.session_id} 表达方式写入 Hook 中止: situation={situation!r}")
                 continue
@@ -500,9 +500,9 @@ class ExpressionLearner:
         from src.core.session_port_registry import get_existing_session_info
 
         candidates = [
-            str(getattr(message, "session_id", "") or "").strip()
+            str(getattr(message, "session_id", "")).strip()
             for message in messages
-            if str(getattr(message, "session_id", "") or "").strip()
+            if str(getattr(message, "session_id", "")).strip()
         ]
 
         def session_exists(session_id: str) -> bool:

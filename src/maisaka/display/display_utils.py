@@ -104,8 +104,8 @@ def build_tool_call_summary_lines(tool_calls: list[Any]) -> list[str]:
     summary_lines: list[str] = []
     for tool_call in tool_calls:
         normalized_tool_call = format_tool_call_for_display(tool_call)
-        tool_name = str(normalized_tool_call.get("name") or "").strip() or "unknown"
-        source_label = str(normalized_tool_call.get("source_label") or "").strip()
+        tool_name = str(normalized_tool_call.get("name")).strip() or "unknown"
+        source_label = str(normalized_tool_call.get("source_label")).strip()
         source_suffix = f" [{source_label}]" if source_label else ""
         tool_args = normalized_tool_call.get("arguments")
         if isinstance(tool_args, dict) and tool_args:

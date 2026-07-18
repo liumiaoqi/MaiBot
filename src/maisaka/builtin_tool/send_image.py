@@ -56,7 +56,7 @@ def _find_context_message_by_id(tool_ctx: BuiltinToolRuntimeContext, message_id:
         return None
 
     for history_message in reversed(tool_ctx.runtime._chat_history):
-        if str(getattr(history_message, "message_id", "") or "").strip() != normalized_message_id:
+        if str(getattr(history_message, "message_id", "")).strip() != normalized_message_id:
             continue
         if isinstance(history_message, SessionBackedMessage):
             return history_message
@@ -135,7 +135,7 @@ async def handle_tool(
 
     del context
     arguments = dict(invocation.arguments or {})
-    target_message_id = str(arguments.get("media_index") or "").strip() or str(arguments.get("msg_id") or "").strip()
+    target_message_id = str(arguments.get("media_index")).strip() or str(arguments.get("msg_id")).strip()
     image_index = _normalize_image_index(arguments)
     structured_content: dict[str, Any] = {
         "success": False,

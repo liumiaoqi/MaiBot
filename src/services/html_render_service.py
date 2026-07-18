@@ -133,12 +133,12 @@ class ManagedBrowserRecord:
             Optional[ManagedBrowserRecord]: 解析成功时返回记录对象，否则返回 ``None``。
         """
 
-        browser_name = str(payload.get("browser_name", "") or "").strip()
-        browsers_path = str(payload.get("browsers_path", "") or "").strip()
-        install_source = str(payload.get("install_source", "") or "").strip()
-        playwright_version = str(payload.get("playwright_version", "") or "").strip()
-        recorded_at = str(payload.get("recorded_at", "") or "").strip()
-        last_verified_at = str(payload.get("last_verified_at", "") or "").strip()
+        browser_name = str(payload.get("browser_name", "")).strip()
+        browsers_path = str(payload.get("browsers_path", "")).strip()
+        install_source = str(payload.get("install_source", "")).strip()
+        playwright_version = str(payload.get("playwright_version", "")).strip()
+        recorded_at = str(payload.get("recorded_at", "")).strip()
+        last_verified_at = str(payload.get("last_verified_at", "")).strip()
         if not all([browser_name, browsers_path, install_source, playwright_version, recorded_at, last_verified_at]):
             return None
         if install_source not in {"auto_download", "existing_cache"}:

@@ -411,7 +411,7 @@ class FocusModeManager:
                 return FocusTargetResolution(None, f"未找到 chat_id={chat_id} 对应的运行中已创建聊天。")
             return FocusTargetResolution(info)
 
-        platform = str(arguments.get("platform") or "").strip()
+        platform = str(arguments.get("platform")).strip()
         target_id = str(
             arguments.get("id")
             or arguments.get("target_id")

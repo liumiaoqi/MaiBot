@@ -526,7 +526,7 @@ class MessageSequence:
             return ReplyComponent(target_message_id=item["data"])
         elif item_type == "dict":
             raw_data = item.get("data") or {}
-            if isinstance(raw_data, dict) and str(raw_data.get("type") or "").strip().lower() == "file":
+            if isinstance(raw_data, dict) and str(raw_data.get("type")).strip().lower() == "file":
                 raw_payload = raw_data.get("data", raw_data)
                 if isinstance(raw_payload, dict):
                     return FileComponent.from_payload(raw_payload)

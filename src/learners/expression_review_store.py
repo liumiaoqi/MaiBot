@@ -146,12 +146,12 @@ def _rescue_by_review_id(entries: List[Dict[str, Any]]) -> Dict[str, Dict[str, A
     rescue_entries = [
         entry
         for entry in entries
-        if entry.get("event") == MANUAL_RESCUE_EVENT and str(entry.get("review_log_id") or "").strip()
+        if entry.get("event") == MANUAL_RESCUE_EVENT and str(entry.get("review_log_id")).strip()
     ]
     rescue_entries.sort(key=lambda entry: _parse_created_at(entry.get("created_at")), reverse=True)
     rescues: Dict[str, Dict[str, Any]] = {}
     for rescue_entry in rescue_entries:
-        review_log_id = str(rescue_entry.get("review_log_id") or "").strip()
+        review_log_id = str(rescue_entry.get("review_log_id")).strip()
         rescues.setdefault(review_log_id, rescue_entry)
     return rescues
 
@@ -178,7 +178,7 @@ def get_recent_ai_review_logs(
     review_entries = [
         entry
         for entry in entries
-        if entry.get("event", AI_REVIEW_EVENT) == AI_REVIEW_EVENT and str(entry.get("id") or "").strip()
+        if entry.get("event", AI_REVIEW_EVENT) == AI_REVIEW_EVENT and str(entry.get("id")).strip()
     ]
 
     if passed is not None:
@@ -188,7 +188,7 @@ def get_recent_ai_review_logs(
         review_entries = [
             entry
             for entry in review_entries
-            if str(entry.get("session_id") or "").strip() == normalized_session_id
+            if str(entry.get("session_id")).strip() == normalized_session_id
         ]
 
     review_entries.sort(key=lambda entry: _parse_created_at(entry.get("created_at")), reverse=True)
@@ -211,6 +211,6 @@ def get_ai_review_log(review_log_id: str) -> Optional[Dict[str, Any]]:
     for entry in entries:
         if entry.get("event", AI_REVIEW_EVENT) != AI_REVIEW_EVENT:
             continue
-        if str(entry.get("id") or "").strip() == normalized_id:
+        if str(entry.get("id")).strip() == normalized_id:
             return _with_rescue_state(entry, rescues.get(normalized_id))
     return None

@@ -267,7 +267,7 @@ class RuntimeDataCapabilityMixin:
         raw_chat_type = str(args.get("chat_type") or args.get("type") or "").strip().lower()
         if raw_chat_type in {"group", "private"}:
             return raw_chat_type
-        if str(args.get("group_id") or "").strip():
+        if str(args.get("group_id")).strip():
             return "group"
         return "private"
 
@@ -305,10 +305,10 @@ class RuntimeDataCapabilityMixin:
 
         platform = str(args.get("platform") or "qq").strip()
         chat_type = self._normalize_chat_type(args)
-        user_id = str(args.get("user_id") or "").strip()
-        group_id = str(args.get("group_id") or "").strip()
-        account_id = str(args.get("account_id") or "").strip() or None
-        scope = str(args.get("scope") or "").strip() or None
+        user_id = str(args.get("user_id")).strip()
+        group_id = str(args.get("group_id")).strip()
+        account_id = str(args.get("account_id")).strip() or None
+        scope = str(args.get("scope")).strip() or None
 
         if not platform:
             return {"success": False, "error": "缺少必要参数 platform"}
@@ -931,7 +931,7 @@ class RuntimeDataCapabilityMixin:
     ) -> dict[str, Any]:
         bucket_values: dict[str, dict[str, float]] = {}
         for row in rows:
-            bucket_label = str(row.get("bucket_label") or "")
+            bucket_label = str(row.get("bucket_label"))
             if not bucket_label:
                 continue
             label = str(row.get(label_column) or "Unknown")
@@ -1034,7 +1034,7 @@ class RuntimeDataCapabilityMixin:
             bucket = self._normalize_statistics_bucket(args)
             top_models = self._normalize_statistics_limit(args, "top_models", 10)
             metric_sql, value_column, top_metric_sql = self._statistics_model_metric_sql(str(args.get("metric") or "token"))
-            module_name = str(args.get("module_name") or "").strip()
+            module_name = str(args.get("module_name")).strip()
             start_time_text = self._statistics_start_time_text(days)
             where_sql = "WHERE bucket_time >= ?"
             params: list[Any] = [start_time_text]
@@ -1359,10 +1359,10 @@ class RuntimeDataCapabilityMixin:
             limit_value = 5
 
         mode = str(args.get("mode", "search") or "search").strip() or "search"
-        chat_id = str(args.get("chat_id", "") or "").strip()
-        person_id = str(args.get("person_id", "") or "").strip()
-        user_id = str(args.get("user_id", "") or "").strip()
-        group_id = str(args.get("group_id", "") or "").strip()
+        chat_id = str(args.get("chat_id", "")).strip()
+        person_id = str(args.get("person_id", "")).strip()
+        user_id = str(args.get("user_id", "")).strip()
+        group_id = str(args.get("group_id", "")).strip()
         respect_filter = bool(args.get("respect_filter", True))
         time_start = args.get("time_start")
         time_end = args.get("time_end")

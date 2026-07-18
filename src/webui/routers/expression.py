@@ -519,18 +519,18 @@ def parse_optional_int(value: Any) -> Optional[int]:
 def review_log_to_response(entry: Dict[str, Any], db_session: Optional[Any] = None) -> ExpressionReviewLogResponse:
     """将表达方式审核日志转换为 WebUI 响应对象。"""
 
-    session_id = str(entry.get("session_id") or "").strip()
+    session_id = str(entry.get("session_id")).strip()
     return ExpressionReviewLogResponse(
-        id=str(entry.get("id") or ""),
+        id=str(entry.get("id")),
         created_at=parse_review_log_datetime(entry.get("created_at")),
         expression_id=parse_optional_int(entry.get("expression_id")),
         session_id=session_id,
         chat_name=get_chat_name(session_id, db_session) if session_id else None,
         passed=bool(entry.get("passed", False)),
-        reason=str(entry.get("reason") or ""),
-        situation=str(entry.get("situation") or ""),
-        style=str(entry.get("style") or ""),
-        source=str(entry.get("source") or ""),
+        reason=str(entry.get("reason")),
+        situation=str(entry.get("situation")),
+        style=str(entry.get("style")),
+        source=str(entry.get("source")),
         error=str(entry.get("error")) if entry.get("error") else None,
         rescued=bool(entry.get("rescued", False)),
         rescued_expression_id=parse_optional_int(entry.get("rescued_expression_id")),
@@ -2140,8 +2140,8 @@ async def approve_expression_review_log(review_log_id: str) -> ExpressionReviewL
             raise HTTPException(status_code=404, detail=f"未找到审核日志: {review_log_id}")
 
         session_id = require_non_empty_chat_id(review_log.get("session_id"))
-        situation = str(review_log.get("situation") or "").strip()
-        style = str(review_log.get("style") or "").strip()
+        situation = str(review_log.get("situation")).strip()
+        style = str(review_log.get("style")).strip()
         if not situation or not style:
             raise HTTPException(status_code=400, detail="审核日志缺少表达方式内容，无法恢复")
 

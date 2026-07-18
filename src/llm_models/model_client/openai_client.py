@@ -750,7 +750,7 @@ def _extract_content_block_tool_call(
 ) -> ToolCall | None:
     """从 content block 中提取工具调用。"""
 
-    block_type = str(_get_content_block_value(content_block, "type") or "").strip().lower()
+    block_type = str(_get_content_block_value(content_block, "type")).strip().lower()
     if block_type not in {"tool_use", "tool_call", "function_call"}:
         return None
 
@@ -797,7 +797,7 @@ def _extract_content_blocks(
     content_parts: List[str] = []
     tool_calls: List[ToolCall] = []
     for content_block in message_content:
-        block_type = str(_get_content_block_value(content_block, "type") or "").strip().lower()
+        block_type = str(_get_content_block_value(content_block, "type")).strip().lower()
         if block_type in {"reasoning", "reasoning_content", "thinking", "thought"}:
             block_text = _extract_content_block_text(content_block).strip()
             if block_text:

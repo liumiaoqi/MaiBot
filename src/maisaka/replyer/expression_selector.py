@@ -164,8 +164,8 @@ class MaisakaExpressionSelector:
         preview_items: List[str] = []
         for candidate in candidates[:5]:
             candidate_id = candidate.get("id")
-            situation = str(candidate.get("situation") or "").strip()
-            style = str(candidate.get("style") or "").strip()
+            situation = str(candidate.get("situation")).strip()
+            style = str(candidate.get("style")).strip()
             count = candidate.get("count")
             preview_items.append(
                 f"id={candidate_id}, situation={situation!r}, style={style!r}, count={count}"
@@ -247,7 +247,7 @@ class MaisakaExpressionSelector:
         if normalized_reply_reason:
             query_parts.append(f"Planner 推理：\n{normalized_reply_reason}")
         elif isinstance(reply_tool_args, dict):
-            reply_guide = str(reply_tool_args.get("reply_guide") or "").strip()
+            reply_guide = str(reply_tool_args.get("reply_guide")).strip()
             if reply_guide:
                 query_parts.append(f"回复指引：\n{reply_guide}")
 
@@ -381,8 +381,8 @@ class MaisakaExpressionSelector:
             candidate_id = raw_candidate.get("id")
             if not isinstance(candidate_id, int):
                 continue
-            situation = str(raw_candidate.get("situation") or "").strip()
-            style = normalize_expression_style_for_learning(str(raw_candidate.get("style") or "").strip())
+            situation = str(raw_candidate.get("situation")).strip()
+            style = normalize_expression_style_for_learning(str(raw_candidate.get("style")).strip())
             if not situation or not style or is_prompt_example_expression_style(style):
                 continue
             normalized_candidates.append(
@@ -423,8 +423,8 @@ class MaisakaExpressionSelector:
         for raw_expression in raw_selected_expressions:
             if not isinstance(raw_expression, dict):
                 continue
-            situation = str(raw_expression.get("situation") or "").strip()
-            style = normalize_expression_style_for_learning(str(raw_expression.get("style") or "").strip())
+            situation = str(raw_expression.get("situation")).strip()
+            style = normalize_expression_style_for_learning(str(raw_expression.get("style")).strip())
             if not situation or not style or is_prompt_example_expression_style(style):
                 continue
             normalized_expression = {

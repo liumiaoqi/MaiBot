@@ -273,7 +273,7 @@ class PromptCLIVisualizer:
         if not isinstance(item, dict):
             return None
 
-        part_type = str(item.get("type") or "").strip()
+        part_type = str(item.get("type")).strip()
         if part_type not in {"image", "image_url", "input_image"}:
             return None
 

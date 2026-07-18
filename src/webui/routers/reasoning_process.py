@@ -66,7 +66,7 @@ def _structured_prompt_content_to_text(content: Any) -> str:
             if isinstance(item, dict) and item.get("type") == "text" and isinstance(item.get("text"), str):
                 parts.append(item["text"])
                 continue
-            if isinstance(item, dict) and str(item.get("type") or "").lower() in {"image", "image_url", "input_image"}:
+            if isinstance(item, dict) and str(item.get("type")).lower() in {"image", "image_url", "input_image"}:
                 image_format = str(item.get("image_format") or item.get("format") or "").strip() or "unknown"
                 size_bytes = item.get("size_bytes")
                 size_text = f" {size_bytes} B" if isinstance(size_bytes, int) else ""
@@ -95,12 +95,12 @@ def _format_jargon_learning_entry(entry: Any, index: int) -> str:
     if not isinstance(entry, dict):
         return f"{index}. {_structured_prompt_content_to_text(entry) or '空条目'}"
 
-    content = str(entry.get("content") or "").strip() or "空词条"
+    content = str(entry.get("content")).strip() or "空词条"
     parts = [f"{index}. {content}"]
-    source_id = str(entry.get("source_id") or "").strip()
+    source_id = str(entry.get("source_id")).strip()
     if source_id:
         parts.append(f"source_id={source_id}")
-    reason = str(entry.get("reason") or "").strip()
+    reason = str(entry.get("reason")).strip()
     if reason:
         parts.append(f"原因: {reason}")
 
@@ -123,7 +123,7 @@ def _format_jargon_learning_entries(title: str, entries: Any) -> str:
 
 
 def _is_jargon_learning_update_payload(payload: dict[str, Any]) -> bool:
-    return str(payload.get("record_type") or "").strip() == "jargon_learning_update"
+    return str(payload.get("record_type")).strip() == "jargon_learning_update"
 
 
 def _is_jargon_learning_update_preview_payload(payload: dict[str, Any]) -> bool:
@@ -135,7 +135,7 @@ def _build_jargon_learning_update_preview_payload(payload: dict[str, Any]) -> di
     """将黑话学习更新日志包装成 dashboard 可展示的 Prompt JSON 结构。"""
 
     session_name = str(payload.get("session_name") or payload.get("learning_session_id") or "").strip()
-    status = str(payload.get("status") or "").strip() or "unknown"
+    status = str(payload.get("status")).strip() or "unknown"
     wrote_database = payload.get("wrote_database")
     summary_lines = [
         "这是黑话学习更新过程日志，不是可重放的 LLM prompt。",
@@ -724,7 +724,7 @@ def _extract_message_ids_from_prompt_payload(payload: dict[str, Any]) -> list[st
         if not isinstance(value, str) or "<message" not in value:
             return
         for attrs in _parse_message_tag_attrs(value):
-            message_id = str(attrs.get("msg_id") or "").strip()
+            message_id = str(attrs.get("msg_id")).strip()
             if message_id and message_id not in seen:
                 seen.add(message_id)
                 message_ids.append(message_id)
@@ -1060,7 +1060,7 @@ def _extract_prompt_metadata(file_path: Path) -> dict[str, object]:
 
 
 def _merge_prompt_metadata(record: dict[str, object], metadata: dict[str, object]) -> None:
-    model_name = str(metadata.get("model_name") or "").strip()
+    model_name = str(metadata.get("model_name")).strip()
     if model_name and not record.get("model_name"):
         record["model_name"] = model_name
 
@@ -1125,7 +1125,7 @@ def _extract_output_text_from_json_payload(payload: dict[str, Any]) -> str | Non
     if isinstance(content, str):
         return " ".join(line.strip() for line in content.splitlines() if line.strip()) or None
     if isinstance(content, dict):
-        response_text = str(content.get("response") or "").strip()
+        response_text = str(content.get("response")).strip()
         if response_text:
             return " ".join(line.strip() for line in response_text.splitlines() if line.strip()) or None
     derived_text = _structured_prompt_content_to_text(content)
@@ -1172,9 +1172,9 @@ def _extract_action_names_from_tool_calls(raw_tool_calls: Any) -> list[str]:
         function_info = tool_call.get("function")
         action_name = ""
         if isinstance(function_info, dict):
-            action_name = str(function_info.get("name") or "").strip()
+            action_name = str(function_info.get("name")).strip()
         if not action_name:
-            action_name = str(tool_call.get("name") or "").strip()
+            action_name = str(tool_call.get("name")).strip()
         if action_name:
             action_names.append(action_name)
     return action_names
@@ -1216,7 +1216,7 @@ def _extract_jargon_learning_update_info(payload: dict[str, Any]) -> tuple[str, 
     if not isinstance(request, dict):
         return "", ""
 
-    selection_reason = str(request.get("selection_reason") or "")
+    selection_reason = str(request.get("selection_reason"))
     jargon_name = ""
     inference_stage = ""
     for raw_line in selection_reason.splitlines():
@@ -1269,7 +1269,7 @@ def _group_jargon_learning_update_records(records: list[dict[str, object]]) -> l
 
         group.sort(
             key=lambda item: (
-                JARGON_UPDATE_STAGE_ORDER.get(str(item.get("_inference_stage") or ""), 99),
+                JARGON_UPDATE_STAGE_ORDER.get(str(item.get("_inference_stage")), 99),
                 float(item.get("modified_at") or 0),
             )
         )
@@ -1281,24 +1281,24 @@ def _group_jargon_learning_update_records(records: list[dict[str, object]]) -> l
         timestamps = [int(item["timestamp"]) for item in group if isinstance(item.get("timestamp"), int)]
         if timestamps:
             base["timestamp"] = max(timestamps)
-        base["stem"] = str(base.get("stem") or "")
-        base["action_preview"] = str(base.get("display_title") or "")
+        base["stem"] = str(base.get("stem"))
+        base["action_preview"] = str(base.get("display_title"))
         base.pop("_jargon_name", None)
         base.pop("_inference_stage", None)
         grouped_records.append(base)
 
     for record in sorted(prepared_records, key=lambda item: float(item.get("modified_at") or 0)):
-        jargon_name = str(record.get("_jargon_name") or "")
-        inference_stage = str(record.get("_inference_stage") or "")
+        jargon_name = str(record.get("_jargon_name"))
+        inference_stage = str(record.get("_inference_stage"))
         if not jargon_name:
             grouped_records.append(record)
             continue
 
-        group_key = (str(record.get("session_id") or ""), jargon_name)
+        group_key = (str(record.get("session_id")), jargon_name)
         group = pending_groups.get(group_key)
         if group:
             first_modified_at = float(group[0].get("modified_at") or 0)
-            stage_names = {str(item.get("_inference_stage") or "") for item in group}
+            stage_names = {str(item.get("_inference_stage")) for item in group}
             if (
                 abs(float(record.get("modified_at") or 0) - first_modified_at) > 120
                 or (inference_stage and inference_stage in stage_names)
@@ -1778,7 +1778,7 @@ async def list_reasoning_prompt_files(
                 (
                     index
                     for index, record in enumerate(records)
-                    if str(record.get("stem") or "") == normalized_target_stem
+                    if str(record.get("stem")) == normalized_target_stem
                 ),
                 -1,
             )

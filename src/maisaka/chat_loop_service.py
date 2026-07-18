@@ -1,4 +1,4 @@
-﻿"""Maisaka 对话循环服务。"""
+"""Maisaka 对话循环服务。"""
 
 from dataclasses import dataclass
 from datetime import datetime
@@ -1130,7 +1130,7 @@ class MaisakaChatLoopService:
         )
         after_response_kwargs = after_response_result.kwargs
         if "response" in after_response_kwargs:
-            final_response = str(after_response_kwargs.get("response") or "")
+            final_response = str(after_response_kwargs.get("response"))
         raw_tool_calls = after_response_kwargs.get("tool_calls")
         if isinstance(raw_tool_calls, list):
             try:

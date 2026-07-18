@@ -183,7 +183,7 @@ def _coerce_scalar_value(field_schema: Dict[str, Any], value: Any) -> Any:
         Any: 规范化后的字段值。
     """
 
-    field_type = str(field_schema.get("type", "") or "").lower()
+    field_type = str(field_schema.get("type", "")).lower()
     if field_type == "boolean" and isinstance(value, str):
         normalized_value = value.strip().lower()
         if normalized_value in {"1", "true", "yes", "on"}:

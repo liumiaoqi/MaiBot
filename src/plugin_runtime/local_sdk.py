@@ -31,7 +31,7 @@ def resolve_local_sdk_path(
     """
 
     env = environ or os.environ
-    raw_path = str(env.get(ENV_LOCAL_PLUGIN_SDK_PATH, "") or "").strip()
+    raw_path = str(env.get(ENV_LOCAL_PLUGIN_SDK_PATH, "")).strip()
     if not raw_path:
         return None
 
@@ -106,7 +106,7 @@ def build_pythonpath_with_local_sdk(environ: Optional[Mapping[str, str]] = None)
 
     existing_entries = [
         entry
-        for entry in str(env.get("PYTHONPATH", "") or "").split(os.pathsep)
+        for entry in str(env.get("PYTHONPATH", "")).split(os.pathsep)
         if entry and Path(entry).resolve() != sdk_path
     ]
     return os.pathsep.join([str(sdk_path), *existing_entries])
@@ -119,18 +119,18 @@ def _validate_local_sdk_path(sdk_path: Path) -> None:
         raise ValueError(f"{ENV_LOCAL_PLUGIN_SDK_PATH} 必须指向包含 {_SDK_IMPORT_DIR}/ 的 SDK 仓库: {sdk_path}")
 
     project_data = _read_project_data(sdk_path)
-    package_name = str(project_data.get("name", "") or "").strip()
+    package_name = str(project_data.get("name", "")).strip()
     if package_name != _SDK_PACKAGE_NAME:
         raise ValueError(f"{ENV_LOCAL_PLUGIN_SDK_PATH} 指向的项目不是 {_SDK_PACKAGE_NAME}: {sdk_path}")
 
-    version = str(project_data.get("version", "") or "").strip()
+    version = str(project_data.get("version", "")).strip()
     if not version:
         raise ValueError(f"{ENV_LOCAL_PLUGIN_SDK_PATH} 指向的 SDK 缺少 project.version: {sdk_path}")
 
 
 def _read_sdk_version_from_path(sdk_path: Path) -> str:
     project_data = _read_project_data(sdk_path)
-    return str(project_data.get("version", "") or "").strip()
+    return str(project_data.get("version", "")).strip()
 
 
 def _read_project_data(sdk_path: Path) -> Mapping[str, object]:

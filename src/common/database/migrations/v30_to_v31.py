@@ -280,7 +280,7 @@ def _split_tag_ref(raw_value: Any) -> tuple[str, str] | None:
 def _normalize_distribution(items: Sequence[dict[str, Any]]) -> str:
     weighted_items: list[tuple[str, float]] = []
     for item in items:
-        tag_ref = str(item.get("tag") or "").strip()
+        tag_ref = str(item.get("tag")).strip()
         if not tag_ref:
             continue
         try:

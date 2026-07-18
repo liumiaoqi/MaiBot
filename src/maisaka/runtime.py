@@ -1184,7 +1184,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
             return None
 
         for history_message in reversed(self._chat_history):
-            if str(getattr(history_message, "message_id", "") or "").strip() != normalized_message_id:
+            if str(getattr(history_message, "message_id", "")).strip() != normalized_message_id:
                 continue
 
             original_message = getattr(history_message, "original_message", None)

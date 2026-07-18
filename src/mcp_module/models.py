@@ -41,8 +41,8 @@ def build_tool_icon(raw_icon: Any) -> ToolIcon:
     sizes_value = getattr(raw_icon, "sizes", None)
     sizes = [str(item) for item in sizes_value] if isinstance(sizes_value, list) else []
     return ToolIcon(
-        src=str(getattr(raw_icon, "src", "") or ""),
-        mime_type=str(getattr(raw_icon, "mimeType", "") or ""),
+        src=str(getattr(raw_icon, "src", "")),
+        mime_type=str(getattr(raw_icon, "mimeType", "")),
         sizes=sizes,
     )
 
@@ -86,14 +86,14 @@ def build_tool_content_item(raw_content: Any) -> ToolContentItem:
         ToolContentItem: 统一工具内容项。
     """
 
-    content_type = str(getattr(raw_content, "type", "") or "").strip().lower()
+    content_type = str(getattr(raw_content, "type", "")).strip().lower()
     annotation = build_tool_annotation(getattr(raw_content, "annotations", None))
     metadata = _dump_model_metadata(raw_content)
 
     if content_type == "text" or hasattr(raw_content, "text"):
         return ToolContentItem(
             content_type="text",
-            text=str(getattr(raw_content, "text", "") or ""),
+            text=str(getattr(raw_content, "text", "")),
             annotation=annotation,
             metadata=metadata,
         )
@@ -101,8 +101,8 @@ def build_tool_content_item(raw_content: Any) -> ToolContentItem:
     if content_type == "image":
         return ToolContentItem(
             content_type="image",
-            data=str(getattr(raw_content, "data", "") or ""),
-            mime_type=str(getattr(raw_content, "mimeType", "") or ""),
+            data=str(getattr(raw_content, "data", "")),
+            mime_type=str(getattr(raw_content, "mimeType", "")),
             annotation=annotation,
             metadata=metadata,
         )
@@ -110,8 +110,8 @@ def build_tool_content_item(raw_content: Any) -> ToolContentItem:
     if content_type == "audio":
         return ToolContentItem(
             content_type="audio",
-            data=str(getattr(raw_content, "data", "") or ""),
-            mime_type=str(getattr(raw_content, "mimeType", "") or ""),
+            data=str(getattr(raw_content, "data", "")),
+            mime_type=str(getattr(raw_content, "mimeType", "")),
             annotation=annotation,
             metadata=metadata,
         )
@@ -119,10 +119,10 @@ def build_tool_content_item(raw_content: Any) -> ToolContentItem:
     if content_type == "resource_link":
         return ToolContentItem(
             content_type="resource_link",
-            uri=str(getattr(raw_content, "uri", "") or ""),
-            name=str(getattr(raw_content, "name", "") or ""),
-            description=str(getattr(raw_content, "description", "") or ""),
-            mime_type=str(getattr(raw_content, "mimeType", "") or ""),
+            uri=str(getattr(raw_content, "uri", "")),
+            name=str(getattr(raw_content, "name", "")),
+            description=str(getattr(raw_content, "description", "")),
+            mime_type=str(getattr(raw_content, "mimeType", "")),
             annotation=annotation,
             metadata=metadata,
         )
@@ -132,11 +132,11 @@ def build_tool_content_item(raw_content: Any) -> ToolContentItem:
         resource_metadata = metadata | _dump_model_metadata(resource)
         return ToolContentItem(
             content_type="resource",
-            text=str(getattr(resource, "text", "") or ""),
-            data=str(getattr(resource, "blob", "") or ""),
-            mime_type=str(getattr(resource, "mimeType", "") or ""),
-            uri=str(getattr(resource, "uri", "") or ""),
-            name=str(getattr(resource, "name", "") or ""),
+            text=str(getattr(resource, "text", "")),
+            data=str(getattr(resource, "blob", "")),
+            mime_type=str(getattr(resource, "mimeType", "")),
+            uri=str(getattr(resource, "uri", "")),
+            name=str(getattr(resource, "name", "")),
             annotation=annotation,
             metadata=resource_metadata,
         )
@@ -144,8 +144,8 @@ def build_tool_content_item(raw_content: Any) -> ToolContentItem:
     if hasattr(raw_content, "data"):
         return ToolContentItem(
             content_type="binary",
-            data=str(getattr(raw_content, "data", "") or ""),
-            mime_type=str(getattr(raw_content, "mimeType", "") or ""),
+            data=str(getattr(raw_content, "data", "")),
+            mime_type=str(getattr(raw_content, "mimeType", "")),
             annotation=annotation,
             metadata=metadata,
         )
@@ -266,8 +266,8 @@ def build_prompt_argument_spec(raw_argument: Any) -> MCPPromptArgumentSpec:
     """
 
     return MCPPromptArgumentSpec(
-        name=str(getattr(raw_argument, "name", "") or ""),
-        description=str(getattr(raw_argument, "description", "") or ""),
+        name=str(getattr(raw_argument, "name", "")),
+        description=str(getattr(raw_argument, "description", "")),
         required=bool(getattr(raw_argument, "required", False)),
     )
 
@@ -286,10 +286,10 @@ def build_prompt_spec(raw_prompt: Any, server_name: str) -> MCPPromptSpec:
     raw_arguments = getattr(raw_prompt, "arguments", None)
     raw_icons = getattr(raw_prompt, "icons", None)
     return MCPPromptSpec(
-        name=str(getattr(raw_prompt, "name", "") or ""),
+        name=str(getattr(raw_prompt, "name", "")),
         server_name=server_name,
-        title=str(getattr(raw_prompt, "title", "") or ""),
-        description=str(getattr(raw_prompt, "description", "") or ""),
+        title=str(getattr(raw_prompt, "title", "")),
+        description=str(getattr(raw_prompt, "description", "")),
         arguments=[build_prompt_argument_spec(item) for item in raw_arguments] if isinstance(raw_arguments, list) else [],
         icons=[build_tool_icon(item) for item in raw_icons] if isinstance(raw_icons, list) else [],
         metadata=_dump_model_metadata(raw_prompt),
@@ -314,7 +314,7 @@ def build_prompt_result(raw_result: Any, prompt_name: str, server_name: str) -> 
         for raw_message in raw_messages:
             messages.append(
                 MCPPromptMessage(
-                    role=str(getattr(raw_message, "role", "") or ""),
+                    role=str(getattr(raw_message, "role", "")),
                     content=build_tool_content_item(getattr(raw_message, "content", None)),
                 )
             )
@@ -322,7 +322,7 @@ def build_prompt_result(raw_result: Any, prompt_name: str, server_name: str) -> 
     return MCPPromptResult(
         prompt_name=prompt_name,
         server_name=server_name,
-        description=str(getattr(raw_result, "description", "") or ""),
+        description=str(getattr(raw_result, "description", "")),
         messages=messages,
         metadata=_dump_model_metadata(raw_result),
     )
@@ -343,12 +343,12 @@ def build_resource_spec(raw_resource: Any, server_name: str) -> MCPResourceSpec:
     size_value = getattr(raw_resource, "size", None)
     size = int(size_value) if isinstance(size_value, int | float) else None
     return MCPResourceSpec(
-        uri=str(getattr(raw_resource, "uri", "") or ""),
+        uri=str(getattr(raw_resource, "uri", "")),
         server_name=server_name,
-        name=str(getattr(raw_resource, "name", "") or ""),
-        title=str(getattr(raw_resource, "title", "") or ""),
-        description=str(getattr(raw_resource, "description", "") or ""),
-        mime_type=str(getattr(raw_resource, "mimeType", "") or ""),
+        name=str(getattr(raw_resource, "name", "")),
+        title=str(getattr(raw_resource, "title", "")),
+        description=str(getattr(raw_resource, "description", "")),
+        mime_type=str(getattr(raw_resource, "mimeType", "")),
         size=size,
         icons=[build_tool_icon(item) for item in raw_icons] if isinstance(raw_icons, list) else [],
         annotation=build_tool_annotation(getattr(raw_resource, "annotations", None)),
@@ -369,12 +369,12 @@ def build_resource_template_spec(raw_template: Any, server_name: str) -> MCPReso
 
     raw_icons = getattr(raw_template, "icons", None)
     return MCPResourceTemplateSpec(
-        uri_template=str(getattr(raw_template, "uriTemplate", "") or ""),
+        uri_template=str(getattr(raw_template, "uriTemplate", "")),
         server_name=server_name,
-        name=str(getattr(raw_template, "name", "") or ""),
-        title=str(getattr(raw_template, "title", "") or ""),
-        description=str(getattr(raw_template, "description", "") or ""),
-        mime_type=str(getattr(raw_template, "mimeType", "") or ""),
+        name=str(getattr(raw_template, "name", "")),
+        title=str(getattr(raw_template, "title", "")),
+        description=str(getattr(raw_template, "description", "")),
+        mime_type=str(getattr(raw_template, "mimeType", "")),
         icons=[build_tool_icon(item) for item in raw_icons] if isinstance(raw_icons, list) else [],
         annotation=build_tool_annotation(getattr(raw_template, "annotations", None)),
         metadata=_dump_model_metadata(raw_template),
@@ -401,9 +401,9 @@ def build_resource_read_result(raw_result: Any, uri: str, server_name: str) -> M
             contents.append(
                 ToolContentItem(
                     content_type="resource",
-                    text=str(getattr(raw_content, "text", "") or ""),
-                    data=str(getattr(raw_content, "blob", "") or ""),
-                    mime_type=str(getattr(raw_content, "mimeType", "") or ""),
+                    text=str(getattr(raw_content, "text", "")),
+                    data=str(getattr(raw_content, "blob", "")),
+                    mime_type=str(getattr(raw_content, "mimeType", "")),
                     uri=str(getattr(raw_content, "uri", "") or uri),
                     annotation=None,
                     metadata=metadata,

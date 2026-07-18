@@ -93,7 +93,7 @@ class RuntimeRenderCapabilityMixin:
             render_timeout_ms = args.get("timeout_ms")
 
         return HtmlRenderRequest(
-            html=str(args.get("html", "") or ""),
+            html=str(args.get("html", "")),
             selector=str(args.get("selector", "body") or "body"),
             viewport_width=viewport_width,
             viewport_height=viewport_height,
@@ -101,7 +101,7 @@ class RuntimeRenderCapabilityMixin:
             full_page=self._coerce_bool(args.get("full_page"), False),
             omit_background=self._coerce_bool(args.get("omit_background"), False),
             wait_until=str(args.get("wait_until", "load") or "load"),
-            wait_for_selector=str(args.get("wait_for_selector", "") or ""),
+            wait_for_selector=str(args.get("wait_for_selector", "")),
             wait_for_timeout_ms=self._coerce_int(args.get("wait_for_timeout_ms"), 0),
             timeout_ms=self._coerce_int(render_timeout_ms, 0),
             allow_network=self._coerce_bool(args.get("allow_network"), False),

@@ -151,9 +151,9 @@ class ChatHistoryManager:
             if not target_message_id:
                 continue
 
-            has_content = bool(str(data.get("target_message_content") or "").strip())
+            has_content = bool(str(data.get("target_message_content")).strip())
             has_sender = any(
-                str(data.get(key) or "").strip()
+                str(data.get(key)).strip()
                 for key in (
                     "target_message_sender_id",
                     "target_message_sender_nickname",
@@ -616,7 +616,7 @@ def normalize_chat_client_info(client_info: Optional[Dict[str, Any]]) -> Dict[st
         "type": client_type,
         "name": _normalize_client_text(raw_client.get("name"), "MaiBot WebUI"),
     }
-    version = str(raw_client.get("version") or "").strip()
+    version = str(raw_client.get("version")).strip()
     if version:
         normalized["version"] = version[:32]
     return normalized
@@ -940,7 +940,7 @@ def normalize_chat_images(raw_images: Any) -> List[Dict[str, str]]:
         if not mime_type.startswith("image/"):
             continue
 
-        raw_base64 = str(raw_image.get("base64") or "").strip()
+        raw_base64 = str(raw_image.get("base64")).strip()
         data_url = str(raw_image.get("data_url") or raw_image.get("dataUrl") or "").strip()
         if not raw_base64 and data_url.startswith("data:image/") and "," in data_url:
             raw_base64 = data_url.split(",", maxsplit=1)[1].strip()
@@ -955,7 +955,7 @@ def normalize_chat_images(raw_images: Any) -> List[Dict[str, str]]:
 
         images.append(
             {
-                "name": str(raw_image.get("name") or "").strip(),
+                "name": str(raw_image.get("name")).strip(),
                 "mime_type": mime_type,
                 "base64": raw_base64,
             }
@@ -974,7 +974,7 @@ def normalize_chat_files(raw_files: Any) -> List[Dict[str, Any]]:
             continue
 
         name = str(raw_file.get("name") or raw_file.get("file_name") or raw_file.get("filename") or "").strip()
-        raw_base64 = str(raw_file.get("base64") or "").strip()
+        raw_base64 = str(raw_file.get("base64")).strip()
         if not name or not raw_base64:
             continue
 
@@ -1009,7 +1009,7 @@ def normalize_chat_voices(raw_voices: Any) -> List[Dict[str, str]]:
         if not mime_type.startswith("audio/"):
             continue
 
-        raw_base64 = str(raw_voice.get("base64") or "").strip()
+        raw_base64 = str(raw_voice.get("base64")).strip()
         data_url = str(raw_voice.get("data_url") or raw_voice.get("dataUrl") or "").strip()
         if not raw_base64 and data_url.startswith("data:audio/") and "," in data_url:
             raw_base64 = data_url.split(",", maxsplit=1)[1].strip()
@@ -1024,7 +1024,7 @@ def normalize_chat_voices(raw_voices: Any) -> List[Dict[str, str]]:
 
         voices.append(
             {
-                "name": str(raw_voice.get("name") or "").strip(),
+                "name": str(raw_voice.get("name")).strip(),
                 "mime_type": mime_type,
                 "base64": raw_base64,
             }
@@ -1327,7 +1327,7 @@ async def enable_virtual_identity(
             await send_chat_error(session_id, f"找不到用户: {person_id_value}")
             return None
 
-        custom_group_id = str(virtual_data.get("group_id") or "").strip()
+        custom_group_id = str(virtual_data.get("group_id")).strip()
         if custom_group_id:
             current_group_id = custom_group_id
             if not current_group_id.startswith(VIRTUAL_GROUP_ID_PREFIX):

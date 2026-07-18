@@ -188,7 +188,7 @@ def contains_bot_self_name(content: str) -> bool:
         return False
 
     target = content.strip().lower()
-    nickname = str(getattr(bot_config, "nickname", "") or "").strip().lower()
+    nickname = str(getattr(bot_config, "nickname", "")).strip().lower()
     alias_names = [str(alias or "").strip().lower() for alias in getattr(bot_config, "alias_names", []) or []]
 
     candidates = [name for name in [nickname, *alias_names] if name]
@@ -210,8 +210,8 @@ def is_bot_message(msg: Any) -> bool:
         return False
 
     known_accounts = {
-        str(getattr(bot_config, "qq_account", "") or "").strip(),
-        str(getattr(bot_config, "telegram_account", "") or "").strip(),
+        str(getattr(bot_config, "qq_account", "")).strip(),
+        str(getattr(bot_config, "telegram_account", "")).strip(),
     }
 
     for platform in getattr(bot_config, "platforms", []) or []:
@@ -283,11 +283,11 @@ def is_bot_message(msg: Any) -> bool:
 #         platform_accounts = {}
 
 #     bot_accounts: Dict[str, str] = {}
-#     qq_account = str(getattr(bot_config, "qq_account", "") or "").strip()
+#     qq_account = str(getattr(bot_config, "qq_account", "")).strip()
 #     if qq_account:
 #         bot_accounts["qq"] = qq_account
 
-#     telegram_account = str(getattr(bot_config, "telegram_account", "") or "").strip()
+#     telegram_account = str(getattr(bot_config, "telegram_account", "")).strip()
 #     if telegram_account:
 #         bot_accounts["telegram"] = telegram_account
 

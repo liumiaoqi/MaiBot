@@ -1272,7 +1272,7 @@ class ManifestValidator:
         if not isinstance(project_data, dict):
             return ""
 
-        raw_version = str(project_data.get("version", "") or "").strip()
+        raw_version = str(project_data.get("version", "")).strip()
         if VersionComparator.is_valid_project_version(raw_version):
             return raw_version
         return ""

@@ -295,7 +295,7 @@ class MCPManager:
                 tool_specs.append(
                     ToolSpec(
                         name=str(tool.name),
-                        title=str(getattr(tool, "title", "") or ""),
+                        title=str(getattr(tool, "title", "")),
                         description=description,
                         parameters_schema=parameters_schema,
                         output_schema=output_schema,

@@ -78,7 +78,7 @@ class PersonFactWritebackService:
             raise
 
     async def _handle_message(self, message: Any) -> None:
-        reply_text = str(getattr(message, "processed_plain_text", "") or "").strip()
+        reply_text = str(getattr(message, "processed_plain_text", "")).strip()
         if not reply_text:
             return
         if self._looks_ephemeral(reply_text):
@@ -114,16 +114,16 @@ class PersonFactWritebackService:
             return
 
         evidence_message_ids = [
-            str(getattr(item, "message_id", "") or "").strip()
+            str(getattr(item, "message_id", "")).strip()
             for item in evidence.target_messages
-            if str(getattr(item, "message_id", "") or "").strip()
+            if str(getattr(item, "message_id", "")).strip()
         ]
         for fact in facts:
             await store_person_memory_from_answer(
                 person_name,
                 fact,
                 session_id,
-                person_id=str(getattr(target_person, "person_id", "") or "").strip(),
+                person_id=str(getattr(target_person, "person_id", "")).strip(),
                 evidence_source="user_supported",
                 evidence_message_ids=evidence_message_ids,
             )
@@ -131,8 +131,8 @@ class PersonFactWritebackService:
     def _resolve_target_person(self, message: Any) -> Optional[Person]:
         session = getattr(message, "session", None)
         session_platform = str(getattr(session, "platform", "") or getattr(message, "platform", "") or "").strip()
-        session_user_id = str(getattr(session, "user_id", "") or "").strip()
-        group_id = str(getattr(session, "group_id", "") or "").strip()
+        session_user_id = str(getattr(session, "user_id", "")).strip()
+        group_id = str(getattr(session, "group_id", "")).strip()
 
         if session_platform and session_user_id and not group_id:
             if is_bot_self(session_platform, session_user_id):
@@ -141,7 +141,7 @@ class PersonFactWritebackService:
             person = Person(person_id=person_id)
             return person if person.is_known else None
 
-        reply_to = str(getattr(message, "reply_to", "") or "").strip()
+        reply_to = str(getattr(message, "reply_to", "")).strip()
         if reply_to:
             try:
                 replies = find_messages(message_id=reply_to, limit=1)
@@ -204,7 +204,7 @@ class PersonFactWritebackService:
         seen_ids = set()
         timestamp = self._extract_message_timestamp(message)
 
-        reply_to = str(getattr(message, "reply_to", "") or "").strip()
+        reply_to = str(getattr(message, "reply_to", "")).strip()
         if reply_to:
             try:
                 replies = find_messages(message_id=reply_to, limit=1)
@@ -261,19 +261,19 @@ class PersonFactWritebackService:
     @staticmethod
     def _filter_target_user_messages(messages: List[Any], person: Person, seen_ids: set) -> List[Any]:
         filtered: List[Any] = []
-        target_person_id = str(getattr(person, "person_id", "") or "").strip()
+        target_person_id = str(getattr(person, "person_id", "")).strip()
         for item in messages:
-            platform = str(getattr(item, "platform", "") or "").strip()
+            platform = str(getattr(item, "platform", "")).strip()
             user_info = getattr(getattr(item, "message_info", None), "user_info", None)
             user_id = str(getattr(user_info, "user_id", "") or getattr(item, "user_id", "") or "").strip()
             if not platform or not user_id or is_bot_self(platform, user_id):
                 continue
             if target_person_id and get_person_id(platform, user_id) != target_person_id:
                 continue
-            text = str(getattr(item, "processed_plain_text", "") or "").strip()
+            text = str(getattr(item, "processed_plain_text", "")).strip()
             if not text:
                 continue
-            message_id = str(getattr(item, "message_id", "") or "").strip()
+            message_id = str(getattr(item, "message_id", "")).strip()
             dedup_key = message_id or f"{platform}:{user_id}:{text}"
             if dedup_key in seen_ids:
                 continue
@@ -291,15 +291,15 @@ class PersonFactWritebackService:
 
         context_lines: List[str] = []
         target_ids = {
-            str(getattr(item, "message_id", "") or "").strip()
+            str(getattr(item, "message_id", "")).strip()
             for item in evidence.target_messages
-            if str(getattr(item, "message_id", "") or "").strip()
+            if str(getattr(item, "message_id", "")).strip()
         }
         for item in evidence.context_messages[:8]:
             line = PersonFactWritebackService._format_evidence_message_line(
                 item,
                 include_sender=True,
-                mark_target=str(getattr(item, "message_id", "") or "").strip() in target_ids,
+                mark_target=str(getattr(item, "message_id", "")).strip() in target_ids,
             )
             if line:
                 context_lines.append(f"- {line}")
@@ -313,7 +313,7 @@ class PersonFactWritebackService:
 
     @staticmethod
     def _format_evidence_message_line(item: Any, *, include_sender: bool, mark_target: bool = False) -> str:
-        text = str(getattr(item, "processed_plain_text", "") or "").strip()
+        text = str(getattr(item, "processed_plain_text", "")).strip()
         if not text:
             return ""
         if not include_sender:

@@ -210,7 +210,7 @@ class BehaviorPatternMaintenanceService:
                 continue
             if feedback_item.get("source") != MAINTENANCE_SOURCE:
                 continue
-            raw_created_at = str(feedback_item.get("created_at") or "").strip()
+            raw_created_at = str(feedback_item.get("created_at")).strip()
             if not raw_created_at:
                 continue
             try:

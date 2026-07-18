@@ -1080,7 +1080,7 @@ class PluginRunnerSupervisor:
             bool: 是否为 API 组件。
         """
 
-        return str(component.get("component_type", "") or "").strip().upper() == "API"
+        return str(component.get("component_type", "")).strip().upper() == "API"
 
     def _split_component_declarations(
         self,
@@ -1493,7 +1493,7 @@ class PluginRunnerSupervisor:
                 route_key=route_key,
                 driver_id=self._build_message_gateway_driver_id(envelope.plugin_id, gateway_entry.name),
                 driver_kind=DriverKind.PLUGIN,
-                external_message_id=payload.external_message_id or str(payload.message.get("message_id") or "") or None,
+                external_message_id=payload.external_message_id or str(payload.message.get("message_id")) or None,
                 dedupe_key=payload.dedupe_key or None,
                 session_message=session_message,
                 payload=payload.message,

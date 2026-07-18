@@ -565,10 +565,10 @@ class BaseMaisakaReplyGenerator:
 
     @staticmethod
     def _format_checker_new_message(message: LLMContextMessage) -> str:
-        message_id = str(getattr(message, "message_id", "") or "").strip()
-        text = str(getattr(message, "processed_plain_text", "") or "").strip()
+        message_id = str(getattr(message, "message_id", "")).strip()
+        text = str(getattr(message, "processed_plain_text", "")).strip()
         if not text:
-            text = str(getattr(message, "visible_text", "") or "").strip()
+            text = str(getattr(message, "visible_text", "")).strip()
         if not text:
             text = "[无可见文本内容]"
         if message_id:
@@ -727,7 +727,7 @@ class BaseMaisakaReplyGenerator:
                 request_type=self.request_type,
                 task_name=active_task_name,
                 requested_model_name=active_model_name or "",
-                selected_model_name=str(getattr(model_info, "name", "") or ""),
+                selected_model_name=str(getattr(model_info, "name", "")),
                 selected_model_visual=bool(getattr(model_info, "visual", False)),
                 attempt=attempt,
                 retry_count=retry_count,
@@ -990,9 +990,9 @@ class BaseMaisakaReplyGenerator:
             active_task_name = str(before_request_kwargs.get("task_name") or default_task_name).strip()
             if not active_task_name:
                 active_task_name = default_task_name
-            active_model_name = str(before_request_kwargs.get("model_name") or "").strip() or None
+            active_model_name = str(before_request_kwargs.get("model_name")).strip() or None
             active_reply_requirements = self._build_reply_requirements(
-                str(before_request_kwargs.get("extra_prompt") or ""),
+                str(before_request_kwargs.get("extra_prompt")),
                 retry_constraints,
             )
 
@@ -1118,7 +1118,7 @@ class BaseMaisakaReplyGenerator:
                 logger.warning(f"Maisaka 回复器 after_response Hook 调用失败，将继续使用当前回复: {exc}")
                 after_response_kwargs = {}
             if "response" in after_response_kwargs:
-                hook_modified_response = str(after_response_kwargs.get("response") or "").strip()
+                hook_modified_response = str(after_response_kwargs.get("response")).strip()
                 if hook_modified_response != response_text:
                     rewrite_event = {
                         "attempt": str(retry_count + 1),
@@ -1134,10 +1134,10 @@ class BaseMaisakaReplyGenerator:
                     )
                 response_text = hook_modified_response
             retry_requested = self._coerce_hook_bool(after_response_kwargs.get("retry"), default=False)
-            matched_regex = str(after_response_kwargs.get("matched_regex") or "").strip()
-            matched_regex_pattern = str(after_response_kwargs.get("matched_regex_pattern") or "").strip()
-            matched_regex_description = str(after_response_kwargs.get("matched_regex_description") or "").strip()
-            retry_reason = str(after_response_kwargs.get("retry_reason") or "").strip()
+            matched_regex = str(after_response_kwargs.get("matched_regex")).strip()
+            matched_regex_pattern = str(after_response_kwargs.get("matched_regex_pattern")).strip()
+            matched_regex_description = str(after_response_kwargs.get("matched_regex_description")).strip()
+            retry_reason = str(after_response_kwargs.get("retry_reason")).strip()
             if retry_requested and retry_count < REPLYER_MAX_HOOK_RETRIES:
                 reason_parts = []
                 if matched_regex:

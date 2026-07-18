@@ -78,7 +78,7 @@ class RouteKeyFactory:
         Raises:
             ValueError: 当消息字典缺少有效 ``platform`` 字段时抛出。
         """
-        platform = str(message_dict.get("platform") or "").strip()
+        platform = str(message_dict.get("platform")).strip()
         if not platform:
             raise ValueError("消息字典缺少有效的 platform 字段，无法构造 RouteKey")
 

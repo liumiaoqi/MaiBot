@@ -107,10 +107,10 @@ def _unwrap_payload(payload: dict[str, Any] | None) -> dict[str, Any]:
 def _get_chat_name_from_latest_message(message: Optional[dict[str, Any]]) -> Optional[str]:
     if not message:
         return None
-    group_id = str(message.get("group_id") or "").strip()
+    group_id = str(message.get("group_id")).strip()
     if group_id:
-        return str(message.get("group_name") or "").strip() or f"群聊{group_id}"
-    user_id = str(message.get("user_id") or "").strip()
+        return str(message.get("group_name")).strip() or f"群聊{group_id}"
+    user_id = str(message.get("user_id")).strip()
     private_name = str(
         message.get("user_cardname") or message.get("user_nickname") or (f"用户{user_id}" if user_id else "")
     ).strip()
@@ -159,7 +159,7 @@ def _prefetch_latest_messages_by_session(db_session: Any, session_ids: list[str]
 
 def _validate_import_chat_id(payload: dict[str, Any]) -> dict[str, Any]:
     normalized = dict(payload)
-    chat_id = str(normalized.get("chat_id") or "").strip()
+    chat_id = str(normalized.get("chat_id")).strip()
     if not chat_id:
         normalized.pop("chat_id", None)
         return normalized
@@ -210,9 +210,9 @@ def _get_chat_session_lookup_tokens(
 ) -> list[str]:
     chat_id = str(chat_session.session_id or "").strip()
     latest_message = latest_messages.get(chat_id) or {}
-    group_id = str(chat_session.group_id or latest_message.get("group_id") or "").strip()
-    user_id = str(chat_session.user_id or latest_message.get("user_id") or "").strip()
-    group_name = str(chat_session.group_name or latest_message.get("group_name") or "").strip()
+    group_id = str(chat_session.group_id or latest_message.get("group_id")).strip()
+    user_id = str(chat_session.user_id or latest_message.get("user_id")).strip()
+    group_name = str(chat_session.group_name or latest_message.get("group_name")).strip()
     private_name = str(
         chat_session.user_cardname
         or chat_session.user_nickname
@@ -546,9 +546,9 @@ async def _timeline_paragraph_events(
         matched, attribution = _paragraph_matches_chat(row, chat.chat_id)
         if not matched:
             continue
-        paragraph_hash = str(row.get("hash") or "").strip()
-        source = str(row.get("source") or "").strip()
-        content = str(row.get("content") or "").strip()
+        paragraph_hash = str(row.get("hash")).strip()
+        source = str(row.get("source")).strip()
+        content = str(row.get("content")).strip()
         preview = content[:80] + ("..." if len(content) > 80 else "")
         created_at = _safe_float(row.get("created_at"))
         updated_at = _safe_float(row.get("updated_at"))
@@ -641,8 +641,8 @@ async def _timeline_episode_events(
     )
     events: list[MemoryTimelineEvent] = []
     for row in rows:
-        episode_id = str(row.get("episode_id") or "").strip()
-        source = str(row.get("source") or "").strip()
+        episode_id = str(row.get("episode_id")).strip()
+        source = str(row.get("source")).strip()
         created_at = _safe_float(row.get("created_at"))
         updated_at = _safe_float(row.get("updated_at"))
         summary = str(row.get("summary") or row.get("title") or "Episode 已生成").strip()
@@ -736,9 +736,9 @@ async def _timeline_feedback_events(
         task["decision_payload"] = _decode_json_payload(task.get("decision_json"), {})
         task["rollback_plan"] = _decode_json_payload(task.get("rollback_plan_json"), {})
         task["rollback_result"] = _decode_json_payload(task.get("rollback_result_json"), {})
-        task_id = str(task.get("id") or "").strip()
-        query_tool_id = str(task.get("query_tool_id") or "").strip()
-        status = str(task.get("status") or "").strip()
+        task_id = str(task.get("id")).strip()
+        query_tool_id = str(task.get("query_tool_id")).strip()
+        status = str(task.get("status")).strip()
         updated_at = _first_float(task.get("updated_at"), task.get("query_timestamp"), task.get("created_at"))
         if updated_at is not None and _event_in_range(updated_at, time_start, time_end):
             events.append(
@@ -843,7 +843,7 @@ async def _timeline_delete_events(
         ),
         (query_limit,) if query_limit is not None else (),
     )
-    operation_ids = [str(row.get("operation_id") or "").strip() for row in rows]
+    operation_ids = [str(row.get("operation_id")).strip() for row in rows]
     operation_ids = [operation_id for operation_id in operation_ids if operation_id]
     items_by_operation: dict[str, list[dict[str, Any]]] = {operation_id: [] for operation_id in operation_ids}
     if operation_ids:
@@ -858,13 +858,13 @@ async def _timeline_delete_events(
             tuple(operation_ids),
         )
         for item in item_rows:
-            operation_id = str(item.get("operation_id") or "").strip()
+            operation_id = str(item.get("operation_id")).strip()
             if operation_id in items_by_operation:
                 items_by_operation[operation_id].append(dict(item))
 
     events: list[MemoryTimelineEvent] = []
     for row in rows:
-        operation_id = str(row.get("operation_id") or "").strip()
+        operation_id = str(row.get("operation_id")).strip()
         if not operation_id:
             continue
         decoded_items = [
@@ -886,8 +886,8 @@ async def _timeline_delete_events(
         item_count = max(1, len(decoded_items))
         created_at = _safe_float(row.get("created_at"))
         restored_at = _safe_float(row.get("restored_at"))
-        mode = str(row.get("mode") or "").strip()
-        reason = str(row.get("reason") or "").strip()
+        mode = str(row.get("mode")).strip()
+        reason = str(row.get("reason")).strip()
         if created_at is not None and _event_in_range(created_at, time_start, time_end):
             events.append(
                 _timeline_event(
@@ -948,7 +948,7 @@ async def _timeline_profile_events(
         ),
         (query_limit,) if query_limit is not None else (),
     )
-    person_ids = [str(row.get("person_id") or "").strip() for row in rows]
+    person_ids = [str(row.get("person_id")).strip() for row in rows]
     person_ids = [person_id for person_id in person_ids if person_id]
     paragraphs_by_person: dict[str, list[dict[str, Any]]] = {person_id: [] for person_id in person_ids}
     if person_ids:
@@ -965,15 +965,15 @@ async def _timeline_profile_events(
         )
         person_id_set = set(person_ids)
         for paragraph in paragraph_rows:
-            entity_hash = str(paragraph.get("entity_hash") or "").strip()
-            entity_name = str(paragraph.get("entity_name") or "").strip()
+            entity_hash = str(paragraph.get("entity_hash")).strip()
+            entity_name = str(paragraph.get("entity_name")).strip()
             for candidate in (entity_hash, entity_name):
                 if candidate in person_id_set:
                     paragraphs_by_person[candidate].append(dict(paragraph))
 
     events: list[MemoryTimelineEvent] = []
     for row in rows:
-        person_id = str(row.get("person_id") or "").strip()
+        person_id = str(row.get("person_id")).strip()
         paragraph_rows = paragraphs_by_person.get(person_id, [])
         if not any(_paragraph_matches_chat(paragraph, chat.chat_id)[0] for paragraph in paragraph_rows):
             continue
@@ -990,7 +990,7 @@ async def _timeline_profile_events(
                 summary="人物画像证据包含该聊天流的长期记忆段落",
                 object_count=max(1, len(paragraph_rows)),
                 key_id=person_id,
-                source=str(row.get("source_note") or ""),
+                source=str(row.get("source_note")),
                 attribution="profile.evidence_paragraph",
                 metadata={"person_id": person_id, "profile_version": row.get("profile_version")},
                 jump_target={"tab": "profiles", "params": {"person_id": person_id}},
@@ -1009,8 +1009,8 @@ async def _timeline_profile_events(
         (override_limit,) if override_limit is not None else (),
     )
     for row in override_rows:
-        source = str(row.get("source") or "").strip()
-        person_id = str(row.get("person_id") or "").strip()
+        source = str(row.get("source")).strip()
+        person_id = str(row.get("person_id")).strip()
         updated_at = _safe_float(row.get("updated_at"))
         if updated_at is None or not _event_in_range(updated_at, time_start, time_end):
             continue
@@ -1058,12 +1058,12 @@ async def _timeline_maintenance_events(
     events: list[MemoryTimelineEvent] = []
     for row in rows:
         paragraph_row = {"metadata": row.get("paragraph_metadata"), "source": row.get("source")}
-        relation_hash = str(row.get("hash") or "").strip()
+        relation_hash = str(row.get("hash")).strip()
         matched, attribution = _paragraph_matches_chat(paragraph_row, chat.chat_id)
         if not matched:
             continue
-        relation_text = " ".join(str(row.get(key) or "").strip() for key in ("subject", "predicate", "object")).strip()
-        source = str(row.get("source") or "").strip()
+        relation_text = " ".join(str(row.get(key)).strip() for key in ("subject", "predicate", "object")).strip()
+        source = str(row.get("source")).strip()
         for event_type, timestamp_key, title in (
             ("relation_reinforced", "last_reinforced", "关系强化"),
             ("relation_frozen", "inactive_since", "关系冻结"),
@@ -1275,12 +1275,12 @@ def _format_memory_relation(subject: Any, predicate: Any, obj: Any) -> str:
     return " ".join(str(item or "").strip() for item in (subject, predicate, obj) if str(item or "").strip())
 
 def _format_graph_paragraph(row: dict[str, Any], entities: list[str], relations: list[dict[str, Any]]) -> dict[str, Any]:
-    content = str(row.get("content") or "").strip()
+    content = str(row.get("content")).strip()
     return {
-        "hash": str(row.get("hash") or "").strip(),
+        "hash": str(row.get("hash")).strip(),
         "content": content,
         "preview": _trim_memory_text(content),
-        "source": str(row.get("source") or "").strip(),
+        "source": str(row.get("source")).strip(),
         "created_at": _safe_float(row.get("created_at")),
         "updated_at": _safe_float(row.get("updated_at")),
         "entity_count": len(entities),
@@ -1344,7 +1344,7 @@ async def _graph_get_paragraph_detail(paragraph_hash: str, evidence_node_limit: 
         {
             "id": f"paragraph:{token}",
             "type": "paragraph",
-            "content": str(paragraph_row.get("content") or ""),
+            "content": str(paragraph_row.get("content")),
             "metadata": {
                 "hash": token,
                 "source": paragraph.get("source"),
@@ -1378,7 +1378,7 @@ async def _graph_get_paragraph_detail(paragraph_hash: str, evidence_node_limit: 
         )
 
     for row in relation_rows:
-        relation_hash = str(row.get("hash") or "").strip()
+        relation_hash = str(row.get("hash")).strip()
         if not relation_hash:
             continue
         relation_node_id = f"relation:{relation_hash}"
@@ -1392,9 +1392,9 @@ async def _graph_get_paragraph_detail(paragraph_hash: str, evidence_node_limit: 
                     "content": relation_text,
                     "metadata": {
                         "hash": relation_hash,
-                        "subject": str(row.get("subject") or "").strip(),
-                        "predicate": str(row.get("predicate") or "").strip(),
-                        "object": str(row.get("object") or "").strip(),
+                        "subject": str(row.get("subject")).strip(),
+                        "predicate": str(row.get("predicate")).strip(),
+                        "object": str(row.get("object")).strip(),
                         "confidence": float(row.get("confidence") or 0.0),
                         "paragraph_count": 1,
                         "paragraph_hashes": [token],
@@ -1589,7 +1589,7 @@ def _get_person_name_for_person_id(person_id: str) -> str:
 
 def _enrich_episode_person_name(item: dict) -> dict:
     enriched = dict(item)
-    item_person_id = str(enriched.get("person_id", "") or "").strip()
+    item_person_id = str(enriched.get("person_id", "")).strip()
 
     participants = enriched.get("participants")
     if not item_person_id and isinstance(participants, list):
@@ -1617,7 +1617,7 @@ async def _profile_list(limit: int) -> dict:
             items.append(item)
             continue
         enriched = dict(item)
-        person_id = str(enriched.get("person_id", "") or "").strip()
+        person_id = str(enriched.get("person_id", "")).strip()
         enriched["person_name"] = _get_person_name_for_person_id(person_id)
         items.append(enriched)
 
@@ -1648,7 +1648,7 @@ async def _profile_search(
     keyword = str(person_keyword or "").strip().lower()
 
     def _matches(item: dict) -> bool:
-        if clean_person_id and str(item.get("person_id", "") or "").strip() != clean_person_id:
+        if clean_person_id and str(item.get("person_id", "")).strip() != clean_person_id:
             return False
         if not keyword:
             return True
@@ -1662,10 +1662,10 @@ async def _profile_search(
 
         haystack = "\n".join(
             [
-                str(item.get("person_id", "") or ""),
-                str(item.get("person_name", "") or ""),
-                str(item.get("profile_text", "") or ""),
-                str(item.get("source_note", "") or ""),
+                str(item.get("person_id", "")),
+                str(item.get("person_name", "")),
+                str(item.get("profile_text", "")),
+                str(item.get("source_note", "")),
                 override_text,
             ]
         ).lower()
@@ -1787,7 +1787,7 @@ async def _memory_config_get_raw() -> dict:
     raw_payload = memory_service.get_raw_config_with_meta()
     return {
         "success": True,
-        "config": str(raw_payload.get("config", "") or ""),
+        "config": str(raw_payload.get("config", "")),
         "exists": bool(raw_payload.get("exists", False)),
         "using_default": bool(raw_payload.get("using_default", False)),
         "path": str(memory_service.get_config_path()),

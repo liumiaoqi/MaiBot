@@ -302,7 +302,7 @@ class ChatConfigUtils:
 
             if chat_stream is not None:
                 chat_stream_platform = str(chat_stream.platform or "").strip()
-                chat_stream_target_id = str(getattr(chat_stream, target_attr) or "").strip()
+                chat_stream_target_id = str(getattr(chat_stream, target_attr)).strip()
                 if chat_stream_platform == platform and chat_stream_target_id == item_id:
                     yield prompt_content
                     continue
@@ -331,8 +331,8 @@ class ChatConfigUtils:
     @staticmethod
     def _target_values(target_item) -> tuple[str, str, str]:
         if isinstance(target_item, dict):
-            platform = str(target_item.get("platform") or "").strip()
-            item_id = str(target_item.get("item_id") or "").strip()
+            platform = str(target_item.get("platform")).strip()
+            item_id = str(target_item.get("item_id")).strip()
             rule_type = str(target_item.get("type") or target_item.get("rule_type") or "").strip()
             return platform, item_id, rule_type
 
@@ -427,7 +427,7 @@ class ChatConfigUtils:
             if query_port is not None:
                 for chat_stream in query_port.list_sessions():
                     chat_stream_platform = str(chat_stream.platform or "").strip()
-                    chat_stream_target_id = str(getattr(chat_stream, target_attr) or "").strip()
+                    chat_stream_target_id = str(getattr(chat_stream, target_attr)).strip()
                     if not chat_stream_target_id:
                         continue
                     if (platform == "*" or chat_stream_platform == platform) and (
@@ -450,7 +450,7 @@ class ChatConfigUtils:
                 if item_id != "*":
                     statement = statement.where(getattr(ChatSession, target_attr) == item_id)
                 for chat_session in session.exec(statement).all():
-                    target_id = str(getattr(chat_session, target_attr) or "").strip()
+                    target_id = str(getattr(chat_session, target_attr)).strip()
                     if not target_id:
                         continue
                     matched_session_ids.add(chat_session.session_id)
@@ -484,7 +484,7 @@ class ChatConfigUtils:
         chat_stream = ChatConfigUtils._get_chat_stream(session_id)
         if chat_stream is not None:
             chat_stream_platform = str(chat_stream.platform or "").strip()
-            chat_stream_target_id = str(getattr(chat_stream, target_attr) or "").strip()
+            chat_stream_target_id = str(getattr(chat_stream, target_attr)).strip()
             return chat_stream_platform == platform and chat_stream_target_id == item_id
 
         return session_id in ChatConfigUtils.resolve_existing_session_ids(platform, item_id, rule_type)
@@ -570,7 +570,7 @@ class ChatConfigUtils:
             return ChatConfigUtils.target_matches_session(target_item, session_id, is_group_chat)
 
         chat_stream_platform = str(chat_stream.platform or "").strip()
-        chat_stream_target_id = str(getattr(chat_stream, target_attr) or "").strip()
+        chat_stream_target_id = str(getattr(chat_stream, target_attr)).strip()
         if not chat_stream_target_id:
             return False
 
@@ -661,7 +661,7 @@ class ChatConfigUtils:
             return None
 
         chat_stream_platform = str(chat_stream.platform or "").strip()
-        chat_stream_target_id = str(getattr(chat_stream, target_attr) or "").strip()
+        chat_stream_target_id = str(getattr(chat_stream, target_attr)).strip()
         if not chat_stream_target_id:
             return None
 
@@ -679,7 +679,7 @@ class ChatConfigUtils:
     @staticmethod
     def _get_rule_time(rule) -> str:
         if isinstance(rule, dict):
-            return str(rule.get("time") or "").strip()
+            return str(rule.get("time")).strip()
         return str(rule.time or "").strip()
 
     @staticmethod

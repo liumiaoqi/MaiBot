@@ -138,7 +138,7 @@ async def handle_tool(
     """执行 reply 内置工具。"""
 
     latest_thought = context.reasoning if context is not None else invocation.reasoning
-    target_message_id = str(invocation.arguments.get("msg_id") or "").strip()
+    target_message_id = str(invocation.arguments.get("msg_id")).strip()
     set_quote = bool(invocation.arguments.get("set_quote", True))
     reply_tool_args = {
         key: value

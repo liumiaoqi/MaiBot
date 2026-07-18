@@ -76,9 +76,9 @@ class MaisakaFocusRuntimeMixin:
 
         existing_messages = self._chat_history if existing_history is None else existing_history
         seen_message_ids = {
-            str(getattr(history_message, "message_id", "") or "").strip()
+            str(getattr(history_message, "message_id", "")).strip()
             for history_message in existing_messages
-            if str(getattr(history_message, "message_id", "") or "").strip()
+            if str(getattr(history_message, "message_id", "")).strip()
         }
         history_messages: list[LLMContextMessage] = []
         for message in messages:
@@ -574,9 +574,9 @@ class MaisakaFocusRuntimeMixin:
 
         safe_limit = min(50, max(1, int(limit)))
         history_message_ids = {
-            str(getattr(history_message, "message_id", "") or "").strip()
+            str(getattr(history_message, "message_id", "")).strip()
             for history_message in self._chat_history
-            if str(getattr(history_message, "message_id", "") or "").strip()
+            if str(getattr(history_message, "message_id", "")).strip()
         }
         fetched_messages: list[SessionMessage] = []
         seen_message_ids: set[str] = set()

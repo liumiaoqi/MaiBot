@@ -392,7 +392,7 @@ def _save_prompt_version(
             continue
         raw_version["label"] = _normalize_prompt_version_label(
             filename,
-            label if label.strip() else str(raw_version.get("label") or ""),
+            label if label.strip() else str(raw_version.get("label")),
         )
         raw_version["modified_at"] = time.time()
         break

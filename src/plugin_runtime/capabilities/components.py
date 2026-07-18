@@ -557,8 +557,8 @@ class RuntimeComponentCapabilityMixin:
         if plugin_id != "builtin.plugin-management":
             return {"success": False, "error": "仅插件管理内置插件可以修改插件配置"}
 
-        target_plugin_id = str(args.get("plugin_name", "") or "").strip()
-        key = str(args.get("key", "") or "").strip()
+        target_plugin_id = str(args.get("plugin_name", "")).strip()
+        key = str(args.get("key", "")).strip()
         if not target_plugin_id or not key:
             return {"success": False, "error": "缺少必要参数 plugin_name 或 key"}
 
@@ -817,8 +817,8 @@ class RuntimeComponentCapabilityMixin:
         """
 
         del capability
-        api_name = str(args.get("api_name", "") or "").strip()
-        version = str(args.get("version", "") or "").strip()
+        api_name = str(args.get("api_name", "")).strip()
+        version = str(args.get("version", "")).strip()
         api_args = args.get("args", {})
         if not isinstance(api_args, dict):
             return {"success": False, "error": "参数 args 必须为字典"}
@@ -871,8 +871,8 @@ class RuntimeComponentCapabilityMixin:
         """
 
         del capability
-        api_name = str(args.get("api_name", "") or "").strip()
-        version = str(args.get("version", "") or "").strip()
+        api_name = str(args.get("api_name", "")).strip()
+        version = str(args.get("version", "")).strip()
         if not api_name:
             return {"success": False, "error": "缺少必要参数 api_name"}
 
@@ -899,10 +899,10 @@ class RuntimeComponentCapabilityMixin:
         """
 
         del capability
-        target_plugin_id = str(args.get("plugin_id", "") or "").strip()
+        target_plugin_id = str(args.get("plugin_id", "")).strip()
         api_name, version = self._normalize_api_reference(
-            str(args.get("api_name", args.get("name", "")) or ""),
-            str(args.get("version", "") or ""),
+            str(args.get("api_name", args.get("name", ""))),
+            str(args.get("version", "")),
         )
         apis: List[Dict[str, Any]] = []
         for supervisor in self.supervisors:
@@ -930,7 +930,7 @@ class RuntimeComponentCapabilityMixin:
 
         del capability
         raw_apis = args.get("apis", [])
-        offline_reason = str(args.get("offline_reason", "") or "").strip() or "动态 API 已下线"
+        offline_reason = str(args.get("offline_reason", "")).strip() or "动态 API 已下线"
         if not isinstance(raw_apis, list):
             return {"success": False, "error": "参数 apis 必须为列表"}
 
@@ -948,8 +948,8 @@ class RuntimeComponentCapabilityMixin:
             if not isinstance(raw_api, dict):
                 return {"success": False, "error": f"apis[{index}] 必须为字典"}
 
-            api_name = str(raw_api.get("name", "") or "").strip()
-            component_type = str(raw_api.get("component_type", raw_api.get("type", "API")) or "").strip()
+            api_name = str(raw_api.get("name", "")).strip()
+            component_type = str(raw_api.get("component_type", raw_api.get("type", "API"))).strip()
             if not api_name:
                 return {"success": False, "error": f"apis[{index}] 缺少 name"}
             if not self._is_api_component_type(component_type):

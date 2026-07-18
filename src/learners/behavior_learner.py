@@ -285,8 +285,8 @@ def _parse_behavior_item(
     if not isinstance(raw_item, dict):
         return None
 
-    action = str(raw_item.get("action") or "").strip()
-    outcome = str(raw_item.get("outcome") or "").strip()
+    action = str(raw_item.get("action")).strip()
+    outcome = str(raw_item.get("outcome")).strip()
     source_ids = _coerce_source_ids(raw_item.get("source_ids"))
     segment_id = str(raw_item.get("segment_id") or raw_item.get("scene_id") or "").strip()
     actor_type = _coerce_actor_type(raw_item.get("actor_type"))
@@ -417,8 +417,8 @@ def parse_behavior_feedback_response(response: str) -> list[BehaviorFeedbackCand
         adopted = _coerce_bool(raw_item.get("adopted"))
         status = _coerce_feedback_status(raw_item.get("status"))
         score_delta = _coerce_score_delta(raw_item.get("score_delta"), status=status)
-        reason = str(raw_item.get("reason") or "").strip()
-        outcome = str(raw_item.get("outcome") or "").strip()
+        reason = str(raw_item.get("reason")).strip()
+        outcome = str(raw_item.get("outcome")).strip()
         source_ids = _coerce_source_ids(raw_item.get("source_ids"))
         if (
             not adopted
@@ -610,11 +610,11 @@ class BehaviorLearner:
             references.append(
                 BehaviorReferenceCandidate(
                     behavior_id=behavior_id,
-                    action=str(payload.get("action") or "").strip(),
-                    outcome=str(payload.get("outcome") or "").strip(),
-                    actor_type=str(payload.get("actor_type") or "").strip(),
-                    learning_type=str(payload.get("learning_type") or "").strip(),
-                    session_id=str(payload.get("session_id") or "").strip(),
+                    action=str(payload.get("action")).strip(),
+                    outcome=str(payload.get("outcome")).strip(),
+                    actor_type=str(payload.get("actor_type")).strip(),
+                    learning_type=str(payload.get("learning_type")).strip(),
+                    session_id=str(payload.get("session_id")).strip(),
                 )
             )
 
@@ -826,9 +826,9 @@ class BehaviorLearner:
         from src.core.session_port_registry import get_existing_session_info
 
         candidates = [
-            str(getattr(message, "session_id", "") or "").strip()
+            str(getattr(message, "session_id", "")).strip()
             for message in messages
-            if str(getattr(message, "session_id", "") or "").strip()
+            if str(getattr(message, "session_id", "")).strip()
         ]
 
         def session_exists(session_id: str) -> bool:

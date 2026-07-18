@@ -158,7 +158,7 @@ def _is_builtin_tool_available(entry: BuiltinToolEntry, context: ToolAvailabilit
 def get_builtin_tool_visibility(tool_spec: ToolSpec) -> BuiltinToolVisibility:
     """读取工具声明里的可见性。"""
 
-    raw_visibility = str(tool_spec.metadata.get("visibility") or "").strip()
+    raw_visibility = str(tool_spec.metadata.get("visibility")).strip()
     if raw_visibility == "deferred":
         return "deferred"
     if raw_visibility == "hidden":
@@ -169,7 +169,7 @@ def get_builtin_tool_visibility(tool_spec: ToolSpec) -> BuiltinToolVisibility:
 def is_builtin_tool_in_action_stage(tool_spec: ToolSpec) -> bool:
     """判断内置工具是否属于 Action Loop 阶段。"""
 
-    return str(tool_spec.metadata.get("builtin_stage") or "").strip() in {"action", "both"}
+    return str(tool_spec.metadata.get("builtin_stage")).strip() in {"action", "both"}
 
 
 def get_all_builtin_tool_specs(context: Optional[ToolAvailabilityContext] = None) -> List[ToolSpec]:

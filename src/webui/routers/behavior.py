@@ -186,7 +186,7 @@ def _cluster_tag_payloads(
     for item in _load_json_list(raw_value):
         if not isinstance(item, dict):
             continue
-        tag = str(item.get("tag") or "").strip()
+        tag = str(item.get("tag")).strip()
         if not tag:
             continue
         try:
@@ -356,7 +356,7 @@ def _distribution_mapping(raw_value: Any) -> dict[str, float]:
     for item in _load_json_list(raw_value):
         if not isinstance(item, dict):
             continue
-        tag = str(item.get("tag") or "").strip()
+        tag = str(item.get("tag")).strip()
         if not tag:
             continue
         try:
@@ -395,7 +395,7 @@ def _readable_tag_distribution(
 def _scene_cluster_display_name(cluster_id: int, tags: list[dict[str, Any]]) -> str:
     names: list[str] = []
     for item in tags[:4]:
-        for part in str(item.get("display") or "").split(" / "):
+        for part in str(item.get("display")).split(" / "):
             if part and part not in names:
                 names.append(part)
             if len(names) >= 3:
@@ -822,7 +822,7 @@ def _sort_behavior_path_items(
         normalized_sort_by = "update_time"
 
     if normalized_sort_by in text_fields | time_fields:
-        return sorted(items, key=lambda item: str(getattr(item, normalized_sort_by) or ""), reverse=reverse)
+        return sorted(items, key=lambda item: str(getattr(item, normalized_sort_by)), reverse=reverse)
     return sorted(items, key=lambda item: float(getattr(item, normalized_sort_by) or 0), reverse=reverse)
 
 
@@ -851,7 +851,7 @@ def _sort_behavior_cluster_items(
         normalized_sort_by = "update_time"
 
     if normalized_sort_by in text_fields | time_fields:
-        return sorted(items, key=lambda item: str(getattr(item, normalized_sort_by) or ""), reverse=reverse)
+        return sorted(items, key=lambda item: str(getattr(item, normalized_sort_by)), reverse=reverse)
     return sorted(items, key=lambda item: float(getattr(item, normalized_sort_by) or 0), reverse=reverse)
 
 
@@ -926,7 +926,7 @@ def _enrich_debug_clusters(session: Any, matched_clusters: Any) -> list[dict[str
         enriched_clusters.append(
             {
                 **item,
-                "name": cluster_payload.name or str(item.get("name") or ""),
+                "name": cluster_payload.name or str(item.get("name")),
                 "tags": [tag.model_dump() for tag in cluster_payload.tags],
                 "source_count": cluster_payload.source_count,
             }

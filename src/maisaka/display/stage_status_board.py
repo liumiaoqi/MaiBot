@@ -1,4 +1,4 @@
-﻿"""Maisaka 阶段状态广播。"""
+"""Maisaka 阶段状态广播。"""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ class MaisakaStageStatusBoard:
         now = time.time()
         with self._lock:
             current = self._entries.get(session_id, {})
-            previous_stage = str(current.get("stage") or "").strip()
+            previous_stage = str(current.get("stage")).strip()
             stage_started_at = float(current.get("stage_started_at") or now)
             if previous_stage != stage:
                 stage_started_at = now

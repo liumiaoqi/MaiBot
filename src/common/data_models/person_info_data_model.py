@@ -24,8 +24,8 @@ def _normalize_group_cardname_item(raw_item: Mapping[str, Any]) -> Optional[Grou
     Returns:
         Optional[GroupCardnameInfo]: 规范化后的群名片信息；若数据不完整则返回 ``None``。
     """
-    group_id = str(raw_item.get("group_id") or "").strip()
-    group_cardname = str(raw_item.get("group_cardname") or "").strip()
+    group_id = str(raw_item.get("group_id")).strip()
+    group_cardname = str(raw_item.get("group_cardname")).strip()
     if not group_id or not group_cardname:
         return None
     return GroupCardnameInfo(group_id=group_id, group_cardname=group_cardname)

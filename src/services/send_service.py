@@ -319,7 +319,7 @@ def _detect_outbound_message_flags(message_sequence: MessageSequence) -> Dict[st
     component = message_sequence.components[0]
     is_command = False
     if isinstance(component, DictComponent) and isinstance(component.data, dict):
-        is_command = str(component.data.get("type") or "").strip().lower() == "command"
+        is_command = str(component.data.get("type")).strip().lower() == "command"
 
     return {
         "is_emoji": isinstance(component, EmojiComponent),
@@ -342,7 +342,7 @@ def _describe_message_sequence(message_sequence: MessageSequence) -> str:
 
     component = message_sequence.components[0]
     if isinstance(component, DictComponent) and isinstance(component.data, dict):
-        custom_type = str(component.data.get("type") or "").strip()
+        custom_type = str(component.data.get("type")).strip()
         return custom_type or "dict"
 
     if isinstance(component, TextComponent):
@@ -659,7 +659,7 @@ async def _dispatch_adapter_callbacks(delivery_batch: DeliveryBatch) -> None:
                 if not isinstance(raw_callback, dict):
                     continue
 
-                callback_name = str(raw_callback.get("name") or "").strip()
+                callback_name = str(raw_callback.get("name")).strip()
                 payload = raw_callback.get("payload")
                 if not callback_name or not isinstance(payload, dict):
                     continue

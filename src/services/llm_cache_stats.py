@@ -587,7 +587,7 @@ def _calculate_mean_difference_confidence(
 
 
 def _normalize_event_run_id(event: dict[str, Any]) -> str:
-    run_id = str(event.get("run_id") or "").strip()
+    run_id = str(event.get("run_id")).strip()
     return run_id or "legacy"
 
 
@@ -599,9 +599,9 @@ def _aggregate_usage_events_by_run(events: list[dict[str, Any]]) -> list[dict[st
             run_id,
             {
                 "run_id": run_id,
-                "process_started_at": str(event.get("process_started_at") or ""),
-                "first_seen_at": str(event.get("created_at") or ""),
-                "last_seen_at": str(event.get("created_at") or ""),
+                "process_started_at": str(event.get("process_started_at")),
+                "first_seen_at": str(event.get("created_at")),
+                "last_seen_at": str(event.get("created_at")),
                 "calls": 0,
                 "prompt_tokens": 0,
                 "prompt_cache_hit_tokens": 0,
@@ -613,7 +613,7 @@ def _aggregate_usage_events_by_run(events: list[dict[str, Any]]) -> list[dict[st
                 "suspected_context_sliding_calls": 0,
             },
         )
-        created_at = str(event.get("created_at") or "")
+        created_at = str(event.get("created_at"))
         if created_at:
             if not item["first_seen_at"] or created_at < str(item["first_seen_at"]):
                 item["first_seen_at"] = created_at
@@ -678,13 +678,13 @@ def _aggregate_usage_events_by_call_site(
         if _normalize_event_run_id(event) != run_id:
             continue
         base_key = (
-            str(event.get("task_name") or ""),
-            str(event.get("request_type") or ""),
-            str(event.get("model_name") or ""),
+            str(event.get("task_name")),
+            str(event.get("request_type")),
+            str(event.get("model_name")),
         )
         key = (
             *base_key,
-            _normalize_session_id(str(event.get("session_id") or "")),
+            _normalize_session_id(str(event.get("session_id"))),
         ) if include_session else base_key
         item = grouped.setdefault(
             key,
@@ -816,9 +816,9 @@ def _render_run_comparison_rows(
 def _format_run_time_label(run_stat: dict[str, int | str | float] | None) -> str:
     if not run_stat:
         return ""
-    first_seen_at = str(run_stat.get("first_seen_at") or "").strip()
-    last_seen_at = str(run_stat.get("last_seen_at") or "").strip()
-    process_started_at = str(run_stat.get("process_started_at") or "").strip()
+    first_seen_at = str(run_stat.get("first_seen_at")).strip()
+    last_seen_at = str(run_stat.get("last_seen_at")).strip()
+    process_started_at = str(run_stat.get("process_started_at")).strip()
     if first_seen_at and last_seen_at and first_seen_at != last_seen_at:
         return f"{first_seen_at} -> {last_seen_at}"
     if first_seen_at:
@@ -1043,18 +1043,18 @@ def _aggregate_stats_snapshot(
     grouped: dict[tuple[str, ...], dict[str, int | str | float]] = {}
     for item in stats_snapshot:
         base_key = (
-            str(item.get("task_name") or ""),
-            str(item.get("request_type") or ""),
-            str(item.get("model_name") or ""),
+            str(item.get("task_name")),
+            str(item.get("request_type")),
+            str(item.get("model_name")),
         )
-        key = (*base_key, str(item.get("session_id") or "")) if include_session else base_key
+        key = (*base_key, str(item.get("session_id"))) if include_session else base_key
         target = grouped.setdefault(
             key,
             {
                 "task_name": base_key[0],
                 "request_type": base_key[1],
                 "model_name": base_key[2],
-                "session_id": str(item.get("session_id") or "") if include_session else "",
+                "session_id": str(item.get("session_id")) if include_session else "",
                 "calls": 0,
                 "cache_reported_calls": 0,
                 "prompt_tokens": 0,

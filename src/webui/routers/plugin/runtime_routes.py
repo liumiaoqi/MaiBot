@@ -53,7 +53,7 @@ def _serialize_component_entry(component: ComponentEntry) -> Dict[str, Any]:
                 "action_parameters": dict(component.metadata.get("action_parameters") or {}),
                 "action_require": list(component.metadata.get("action_require") or []),
                 "associated_types": list(component.metadata.get("associated_types") or []),
-                "activation_type": str(component.metadata.get("activation_type", "") or ""),
+                "activation_type": str(component.metadata.get("activation_type", "")),
                 "random_activation_probability": float(component.metadata.get("activation_probability") or 0.0),
                 "activation_keywords": list(component.metadata.get("activation_keywords") or []),
                 "parallel_action": bool(component.metadata.get("parallel_action", False)),
@@ -62,7 +62,7 @@ def _serialize_component_entry(component: ComponentEntry) -> Dict[str, Any]:
     elif isinstance(component, ToolEntry):
         data["parameters_schema"] = dict(component._get_parameters_schema() or {})
     elif isinstance(component, CommandEntry):
-        data["pattern"] = str(component.metadata.get("command_pattern", "") or "")
+        data["pattern"] = str(component.metadata.get("command_pattern", ""))
         data["aliases"] = list(component.aliases)
 
     return data

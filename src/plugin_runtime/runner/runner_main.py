@@ -545,7 +545,7 @@ class PluginRunner:
             return {"payload_type": type(payload).__name__}
 
         summary: Dict[str, Any] = {"payload_keys": sorted(str(key) for key in payload.keys())}
-        component_name = str(payload.get("component_name") or "").strip()
+        component_name = str(payload.get("component_name")).strip()
         if component_name:
             summary["component_name"] = component_name
 
@@ -553,9 +553,9 @@ class PluginRunner:
         if isinstance(args, dict):
             summary["args_keys"] = sorted(str(key) for key in args.keys())
             summary["args_count"] = len(args)
-        if client_type := str(payload.get("client_type") or "").strip():
+        if client_type := str(payload.get("client_type")).strip():
             summary["client_type"] = client_type
-        if operation := str(payload.get("operation") or "").strip():
+        if operation := str(payload.get("operation")).strip():
             summary["operation"] = operation
         return summary
 
@@ -715,7 +715,7 @@ class PluginRunner:
                 )
             request_payload = dict(payload or {})
             if timeout_ms is None and normalized_method == "cap.call":
-                capability_name = str(request_payload.get("capability") or "").strip()
+                capability_name = str(request_payload.get("capability")).strip()
                 cap_args = request_payload.get("args")
                 if isinstance(cap_args, dict):
                     if "rpc_timeout_ms" in cap_args:
@@ -1325,7 +1325,7 @@ class PluginRunner:
                 if not isinstance(comp_info, dict):
                     continue
 
-                component_name = str(comp_info.get("name", "") or "").strip()
+                component_name = str(comp_info.get("name", "")).strip()
                 raw_metadata = comp_info.get("metadata", {})
                 component_metadata = raw_metadata if isinstance(raw_metadata, dict) else {}
 
@@ -1336,7 +1336,7 @@ class PluginRunner:
                 components.append(
                     ComponentDeclaration(
                         name=component_name,
-                        component_type=str(comp_info.get("type", "") or "").strip(),
+                        component_type=str(comp_info.get("type", "")).strip(),
                         plugin_id=meta.plugin_id,
                         chat_scope=str(comp_info.get("chat_scope", "all") or "all").strip(),
                         allowed_session=[
@@ -1357,7 +1357,7 @@ class PluginRunner:
                 if not isinstance(provider_info, dict):
                     continue
 
-                client_type = str(provider_info.get("client_type", "") or "").strip()
+                client_type = str(provider_info.get("client_type", "")).strip()
                 raw_metadata = provider_info.get("metadata", {})
                 provider_metadata = raw_metadata if isinstance(raw_metadata, dict) else {}
                 if client_type:
@@ -1367,8 +1367,8 @@ class PluginRunner:
                 llm_providers.append(
                     LLMProviderDeclaration(
                         client_type=client_type,
-                        name=str(provider_info.get("name", "") or "").strip(),
-                        description=str(provider_info.get("description", "") or "").strip(),
+                        name=str(provider_info.get("name", "")).strip(),
+                        description=str(provider_info.get("description", "")).strip(),
                         version=str(provider_info.get("version", "1.0.0") or "1.0.0").strip() or "1.0.0",
                         metadata=provider_metadata,
                     )

@@ -61,7 +61,7 @@ def _domain_only_distribution(raw_distribution: Any) -> list[dict[str, float | s
     for item in parsed_distribution:
         if not isinstance(item, dict):
             continue
-        tag = str(item.get("tag") or "").strip()
+        tag = str(item.get("tag")).strip()
         if ":" not in tag:
             continue
         tag_kind, cluster_key = tag.split(":", 1)

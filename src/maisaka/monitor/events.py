@@ -213,9 +213,9 @@ def _serialize_tool_results(tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]
             "summary": str(tool.get("summary", "")),
         }
         detail = tool.get("detail")
-        prompt_html_uri = str(tool.get("prompt_html_uri") or "").strip()
+        prompt_html_uri = str(tool.get("prompt_html_uri")).strip()
         if not prompt_html_uri and isinstance(detail, dict):
-            prompt_html_uri = str(detail.get("prompt_html_uri") or "").strip()
+            prompt_html_uri = str(detail.get("prompt_html_uri")).strip()
         if prompt_html_uri:
             serialized_tool["prompt_html_uri"] = prompt_html_uri
         if detail is not None:

@@ -204,9 +204,9 @@ def _migrate_images_table_to_v3(connection: Connection) -> int:
     for row in legacy_rows:
         payload: Dict[str, Any] = {
             "id": row.get("id"),
-            "image_hash": str(row.get("image_hash") or "").strip(),
+            "image_hash": str(row.get("image_hash")).strip(),
             "description": _migrate_v3_emoji_description(row),
-            "full_path": str(row.get("full_path") or "").strip(),
+            "full_path": str(row.get("full_path")).strip(),
             "image_type": row.get("image_type"),
             "query_count": int(row.get("query_count") or 0),
             "is_registered": bool(row.get("is_registered")),
@@ -234,9 +234,9 @@ def _migrate_v3_emoji_description(row: Dict[str, Any]) -> str:
         3. 非 emoji 图片保持原描述不变。
     """
 
-    image_type = str(row.get("image_type") or "").strip().upper()
-    current_description = str(row.get("description") or "").strip()
-    current_emotion = str(row.get("emotion") or "").strip()
+    image_type = str(row.get("image_type")).strip().upper()
+    current_description = str(row.get("description")).strip()
+    current_emotion = str(row.get("emotion")).strip()
     if image_type != "EMOJI":
         return current_description
 

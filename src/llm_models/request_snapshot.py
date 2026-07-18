@@ -275,12 +275,12 @@ def deserialize_model_info_snapshot(raw_model_info: Any) -> ModelInfo:
         raise ValueError("快照中的 model_info 必须是字典")
 
     return ModelInfo(
-        api_provider=str(raw_model_info.get("api_provider") or ""),
+        api_provider=str(raw_model_info.get("api_provider")),
         extra_params=dict(raw_model_info.get("extra_params") or {}),
         force_stream_mode=bool(raw_model_info.get("force_stream_mode", False)),
         max_tokens=raw_model_info.get("max_tokens"),
-        model_identifier=str(raw_model_info.get("model_identifier") or ""),
-        name=str(raw_model_info.get("name") or ""),
+        model_identifier=str(raw_model_info.get("model_identifier")),
+        name=str(raw_model_info.get("name")),
         temperature=raw_model_info.get("temperature"),
         visual=bool(raw_model_info.get("visual", False)),
     )

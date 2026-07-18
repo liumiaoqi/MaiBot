@@ -211,7 +211,7 @@ class PluginLoader:
             return None
 
         if isinstance(manifest_data, dict):
-            plugin_id = str(manifest_data.get("id") or "").strip()
+            plugin_id = str(manifest_data.get("id")).strip()
             if plugin_id:
                 return plugin_id
 

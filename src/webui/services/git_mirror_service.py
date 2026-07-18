@@ -733,7 +733,7 @@ class GitMirrorService:
                         message=f"镜像源 {mirror['name']} 克隆失败，正在切换下一个源...",
                         operation=operation,
                         plugin_id=plugin_id,
-                        error=str(result.get("error") or ""),
+                        error=str(result.get("error")),
                         mirror_id=mirror.get("id"),
                         mirror_name=mirror.get("name"),
                         mirror_index=index,

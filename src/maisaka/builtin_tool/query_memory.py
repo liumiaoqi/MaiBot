@@ -142,9 +142,9 @@ def _build_replyer_memory_reference(structured_content: Dict[str, Any]) -> str:
         return ""
 
     lines = [REPLYER_MEMORY_REFERENCE_MARKER]
-    query = str(structured_content.get("query") or "").strip()
-    mode = str(structured_content.get("mode") or "").strip()
-    effective_mode = str(structured_content.get("effective_mode") or "").strip()
+    query = str(structured_content.get("query")).strip()
+    mode = str(structured_content.get("mode")).strip()
+    effective_mode = str(structured_content.get("effective_mode")).strip()
     if query:
         lines.append(f"查询：{query}")
     if mode:
@@ -157,11 +157,11 @@ def _build_replyer_memory_reference(structured_content: Dict[str, Any]) -> str:
     for index, raw_hit in enumerate(raw_hits, start=1):
         if not isinstance(raw_hit, dict):
             continue
-        content = str(raw_hit.get("content") or "").strip()
+        content = str(raw_hit.get("content")).strip()
         if not content:
             continue
-        hit_type = str(raw_hit.get("type") or "").strip()
-        title = str(raw_hit.get("title") or "").strip()
+        hit_type = str(raw_hit.get("type")).strip()
+        title = str(raw_hit.get("title")).strip()
         label_parts = [part for part in (title, hit_type) if part]
         label = f"（{' / '.join(label_parts)}）" if label_parts else ""
         normalized_content = " ".join(content.split())
@@ -186,7 +186,7 @@ async def handle_tool(
     runtime = tool_ctx.runtime
     chat_stream = runtime.chat_stream
 
-    clean_query = str(invocation.arguments.get("query") or "").strip()
+    clean_query = str(invocation.arguments.get("query")).strip()
     mode = str(invocation.arguments.get("mode") or "search").strip().lower() or "search"
     if mode not in _ALLOWED_QUERY_MODES:
         return tool_ctx.build_failure_result(
@@ -214,7 +214,7 @@ async def handle_tool(
     user_id = str(chat_stream.user_id or "").strip()
     group_id = str(chat_stream.group_id or "").strip()
     person_id, person_name = _resolve_person_id(
-        person_name=str(invocation.arguments.get("person_name") or ""),
+        person_name=str(invocation.arguments.get("person_name")),
         platform=platform,
         user_id=user_id,
         group_id=group_id,

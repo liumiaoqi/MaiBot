@@ -141,8 +141,8 @@ def _format_selected_expression_line(expression: Dict[str, Any], fallback_id: Op
     expression_id = expression.get("id")
     if not isinstance(expression_id, int):
         expression_id = fallback_id
-    situation = str(expression.get("situation") or "").strip()
-    style = str(expression.get("style") or "").strip()
+    situation = str(expression.get("situation")).strip()
+    style = str(expression.get("style")).strip()
 
     prefix = f"{expression_id}：" if expression_id is not None else ""
     if situation and style:
@@ -239,13 +239,13 @@ def build_reply_monitor_detail(result: ReplyGenerationResult) -> Dict[str, Any]:
             "title": "已选表达方式",
             "content": selected_expression_content,
         })
-    original_reply_text = str(result.metrics.extra.get("rich_reply_original_response") or "").strip()
+    original_reply_text = str(result.metrics.extra.get("rich_reply_original_response")).strip()
     if original_reply_text:
         extra_sections.append({
             "title": "Replyer 原始回复",
             "content": original_reply_text,
         })
-    checker_output_text = str(result.metrics.extra.get("rich_reply_checker_output") or "").strip()
+    checker_output_text = str(result.metrics.extra.get("rich_reply_checker_output")).strip()
     if checker_output_text:
         extra_sections.append({
             "title": "修改器输出",
@@ -284,7 +284,7 @@ def build_reply_monitor_detail(result: ReplyGenerationResult) -> Dict[str, Any]:
             if isinstance(raw_record.get("request_messages"), list):
                 record["request_messages"] = raw_record["request_messages"]
             else:
-                record["prompt_text"] = str(raw_record.get("prompt_text") or "")
+                record["prompt_text"] = str(raw_record.get("prompt_text"))
             additional_prompt_records.append(record)
         if additional_prompt_records:
             detail["additional_prompt_records"] = additional_prompt_records

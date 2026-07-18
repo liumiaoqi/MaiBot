@@ -55,7 +55,7 @@ class SessionResolver:
             with get_db_session() as db_session:
                 statement = select(ChatSession).filter_by(platform=normalized_platform)
                 for db_instance in db_session.exec(statement).all():
-                    if str(getattr(db_instance, target_attr) or "").strip() != normalized_target_id:
+                    if str(getattr(db_instance, target_attr)).strip() != normalized_target_id:
                         continue
                     if db_instance.session_id in matched_sessions:
                         continue
@@ -102,5 +102,5 @@ class SessionResolver:
     ) -> bool:
         return (
             str(session.platform or "").strip() == platform
-            and str(getattr(session, target_attr) or "").strip() == target_id
+            and str(getattr(session, target_attr)).strip() == target_id
         )

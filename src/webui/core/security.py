@@ -68,11 +68,11 @@ class TokenManager:
 
     def _resolve_token_source(self, config: Dict) -> str:
         """解析 Token 来源，兼容旧版未写入 token_source 的配置。"""
-        configured_source = str(config.get("token_source") or "").strip().lower()
+        configured_source = str(config.get("token_source")).strip().lower()
         if configured_source in VALID_TOKEN_SOURCES:
             return configured_source
 
-        token = str(config.get("access_token") or "")
+        token = str(config.get("access_token"))
         if not token:
             return TOKEN_SOURCE_TEMPORARY
 

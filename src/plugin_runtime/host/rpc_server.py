@@ -105,15 +105,15 @@ class RPCServer:
             return {}
 
         summary: Dict[str, Any] = {"payload_keys": sorted(str(key) for key in payload.keys())}
-        if component_name := str(payload.get("component_name") or "").strip():
+        if component_name := str(payload.get("component_name")).strip():
             summary["component_name"] = component_name
         args = payload.get("args")
         if isinstance(args, dict):
             summary["args_keys"] = sorted(str(key) for key in args.keys())
             summary["args_count"] = len(args)
-        if client_type := str(payload.get("client_type") or "").strip():
+        if client_type := str(payload.get("client_type")).strip():
             summary["client_type"] = client_type
-        if operation := str(payload.get("operation") or "").strip():
+        if operation := str(payload.get("operation")).strip():
             summary["operation"] = operation
         return summary
 

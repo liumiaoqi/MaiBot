@@ -79,7 +79,7 @@ def _build_structured_content(
         "traits": _extract_traits(profile_text),
         "person_id": str(payload.get("person_id") or requested_person_id or "").strip(),
         "person_name": str(payload.get("person_name") or requested_person_name or "").strip(),
-        "profile_source": str(payload.get("profile_source") or "").strip(),
+        "profile_source": str(payload.get("profile_source")).strip(),
         "has_manual_override": bool(payload.get("has_manual_override", False)),
         "from_cache": bool(payload.get("from_cache", False)),
         "limit": limit,
@@ -94,8 +94,8 @@ async def handle_tool(
     """执行 query_person_profile 内置工具。"""
 
     del context
-    person_id = str(invocation.arguments.get("person_id") or "").strip()
-    person_name = str(invocation.arguments.get("person_name") or "").strip()
+    person_id = str(invocation.arguments.get("person_id")).strip()
+    person_name = str(invocation.arguments.get("person_name")).strip()
     if not person_id and not person_name:
         return tool_ctx.build_failure_result(
             invocation.tool_name,

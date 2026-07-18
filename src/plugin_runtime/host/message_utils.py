@@ -244,9 +244,9 @@ class PluginMessageUtils:
         Returns:
             StandardMessageComponents: 恢复后的内部消息组件对象。
         """
-        item_type = str(item.get("type") or "").strip()
+        item_type = str(item.get("type")).strip()
         if item_type == "text":
-            return TextComponent(text=str(item.get("data") or ""))
+            return TextComponent(text=str(item.get("data")))
 
         if item_type == "image":
             return PluginMessageUtils._build_binary_component(ImageComponent, item)
@@ -268,7 +268,7 @@ class PluginMessageUtils:
             if not isinstance(item_data, dict):
                 item_data = {}
             return AtComponent(
-                target_user_id=str(item_data.get("target_user_id") or ""),
+                target_user_id=str(item_data.get("target_user_id")),
                 target_user_nickname=PluginMessageUtils._normalize_optional_string(item_data.get("target_user_nickname")),
                 target_user_cardname=PluginMessageUtils._normalize_optional_string(item_data.get("target_user_cardname")),
             )
@@ -277,7 +277,7 @@ class PluginMessageUtils:
             reply_data = item.get("data")
             if isinstance(reply_data, dict):
                 return ReplyComponent(
-                    target_message_id=str(reply_data.get("target_message_id") or ""),
+                    target_message_id=str(reply_data.get("target_message_id")),
                     target_message_content=PluginMessageUtils._normalize_optional_string(
                         reply_data.get("target_message_content")
                     ),
@@ -320,7 +320,7 @@ class PluginMessageUtils:
                             user_nickname=str(node.get("user_nickname") or "未知用户"),
                             user_id=PluginMessageUtils._normalize_optional_string(node.get("user_id")),
                             user_cardname=PluginMessageUtils._normalize_optional_string(node.get("user_cardname")),
-                            message_id=str(node.get("message_id") or ""),
+                            message_id=str(node.get("message_id")),
                             content=node_components,
                         )
                     )
@@ -330,7 +330,7 @@ class PluginMessageUtils:
 
         component_data = item.get("data")
         if isinstance(component_data, dict):
-            if str(component_data.get("type") or "").strip().lower() == "file":
+            if str(component_data.get("type")).strip().lower() == "file":
                 raw_payload = component_data.get("data", component_data)
                 if isinstance(raw_payload, dict):
                     return FileComponent.from_payload(raw_payload)
@@ -348,8 +348,8 @@ class PluginMessageUtils:
         Returns:
             StandardMessageComponents: 构造后的组件对象。
         """
-        content = str(item.get("data") or "")
-        binary_hash = str(item.get("hash") or "")
+        content = str(item.get("data"))
+        binary_hash = str(item.get("hash"))
         raw_binary_base64 = item.get("binary_data_base64")
         binary_data = b""
         if isinstance(raw_binary_base64, str) and raw_binary_base64:

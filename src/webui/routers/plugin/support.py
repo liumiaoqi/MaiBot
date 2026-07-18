@@ -320,7 +320,7 @@ def find_plugin_path_by_id(plugin_id: str) -> Optional[Path]:
         if manifest is None:
             continue
 
-        manifest_id = str(manifest.get("id") or "").strip()
+        manifest_id = str(manifest.get("id")).strip()
         if manifest_id == plugin_id:
             return plugin_path
 

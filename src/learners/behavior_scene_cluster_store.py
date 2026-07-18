@@ -378,7 +378,7 @@ def _distribution_to_mapping(
     for item in distribution:
         if not isinstance(item, dict):
             continue
-        tag = str(item.get("tag") or "").strip()
+        tag = str(item.get("tag")).strip()
         if not tag:
             continue
         tag = _normalize_stored_tag_name(tag, tag_lookup=tag_lookup)

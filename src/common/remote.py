@@ -208,7 +208,7 @@ class TelemetryStatsUploadTask(AsyncTask):
         cursor = local_storage[self.CURSOR_KEY] if self.CURSOR_KEY in local_storage else None
         period_start = self.process_start_at
         if isinstance(cursor, dict):
-            raw_last_success_end_at = str(cursor.get("last_success_end_at") or "").strip()
+            raw_last_success_end_at = str(cursor.get("last_success_end_at")).strip()
             if raw_last_success_end_at:
                 try:
                     period_start = datetime.fromisoformat(raw_last_success_end_at)

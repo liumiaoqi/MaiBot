@@ -80,7 +80,7 @@ class MCPHostLLMBridge:
             message_factory = self._build_message_factory(
                 raw_messages=list(getattr(params, "messages", []) or []),
                 system_prompt=self._build_system_prompt(
-                    raw_system_prompt=str(getattr(params, "systemPrompt", "") or ""),
+                    raw_system_prompt=str(getattr(params, "systemPrompt", "")),
                     tool_choice_mode=tool_choice_mode,
                     tool_definitions=tool_definitions,
                 ),
@@ -142,7 +142,7 @@ class MCPHostLLMBridge:
         """
 
         tool_choice = getattr(params, "toolChoice", None)
-        mode = str(getattr(tool_choice, "mode", "") or "").strip().lower()
+        mode = str(getattr(tool_choice, "mode", "")).strip().lower()
         if mode in {"required", "none"}:
             return mode
         return "auto"
@@ -222,7 +222,7 @@ class MCPHostLLMBridge:
             list[Message]: 转换后的内部消息列表。
         """
 
-        role = str(getattr(raw_message, "role", "") or "").strip().lower()
+        role = str(getattr(raw_message, "role", "")).strip().lower()
         content_blocks = self._get_content_blocks(getattr(raw_message, "content", None))
 
         if role == "assistant":
@@ -271,8 +271,8 @@ class MCPHostLLMBridge:
             if content_type == "tool_use":
                 tool_calls.append(
                     ToolCall(
-                        call_id=str(getattr(content_block, "id", "") or ""),
-                        func_name=str(getattr(content_block, "name", "") or ""),
+                        call_id=str(getattr(content_block, "id", "")),
+                        func_name=str(getattr(content_block, "name", "")),
                         args=self._normalize_tool_call_arguments(getattr(content_block, "input", None)),
                     )
                 )
@@ -364,15 +364,15 @@ class MCPHostLLMBridge:
 
         content_type = self._get_content_type(content_block)
         if content_type == "text":
-            text_content = str(getattr(content_block, "text", "") or "")
+            text_content = str(getattr(content_block, "text", ""))
             if text_content.strip():
                 message_builder.add_text_content(text_content)
                 return True
             return False
 
         if content_type == "image":
-            image_data = str(getattr(content_block, "data", "") or "")
-            image_mime_type = str(getattr(content_block, "mimeType", "") or "")
+            image_data = str(getattr(content_block, "data", ""))
+            image_mime_type = str(getattr(content_block, "mimeType", ""))
             image_format = self._normalize_image_format(image_mime_type)
             if image_data and image_format:
                 message_builder.add_image_content(
@@ -388,7 +388,7 @@ class MCPHostLLMBridge:
             return True
 
         if content_type == "audio":
-            audio_mime_type = str(getattr(content_block, "mimeType", "") or "")
+            audio_mime_type = str(getattr(content_block, "mimeType", ""))
             message_builder.add_text_content(f"[音频内容：mime_type={audio_mime_type or 'unknown'}]")
             return True
 
@@ -499,7 +499,7 @@ class MCPHostLLMBridge:
 
         tool_definitions: list[ToolDefinitionInput] = []
         for raw_tool in raw_tools:
-            tool_name = str(getattr(raw_tool, "name", "") or "").strip()
+            tool_name = str(getattr(raw_tool, "name", "")).strip()
             if not tool_name:
                 continue
 
@@ -509,8 +509,8 @@ class MCPHostLLMBridge:
             if "$schema" in parameters_schema:
                 parameters_schema.pop("$schema")
 
-            title = str(getattr(raw_tool, "title", "") or "").strip()
-            description = str(getattr(raw_tool, "description", "") or "").strip()
+            title = str(getattr(raw_tool, "title", "")).strip()
+            description = str(getattr(raw_tool, "description", "")).strip()
             tool_description = description or title or f"工具 {tool_name}"
 
             tool_definitions.append(

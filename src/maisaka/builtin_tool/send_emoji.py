@@ -232,13 +232,13 @@ def _build_send_emoji_monitor_detail(
         detail["metrics"] = dict(metrics)
     normalized_sections = [
         {
-            "title": str(section.get("title") or "").strip(),
-            "content": str(section.get("content") or "").strip(),
+            "title": str(section.get("title")).strip(),
+            "content": str(section.get("content")).strip(),
         }
         for section in extra_sections or []
         if isinstance(section, dict)
-        and str(section.get("title") or "").strip()
-        and str(section.get("content") or "").strip()
+        and str(section.get("title")).strip()
+        and str(section.get("content")).strip()
     ]
     if normalized_sections:
         detail["extra_sections"] = normalized_sections
@@ -284,7 +284,7 @@ def _build_send_emoji_monitor_metadata(
     metadata: Dict[str, Any] = {}
     if detail:
         metadata["monitor_detail"] = detail
-    prompt_html_uri = str(selection_metadata.get("prompt_html_uri") or "").strip()
+    prompt_html_uri = str(selection_metadata.get("prompt_html_uri")).strip()
     if prompt_html_uri:
         metadata["prompt_html_uri"] = prompt_html_uri
     return metadata
@@ -469,7 +469,7 @@ async def handle_tool(
     selection_metadata: Dict[str, Any] = {"reason": "", "monitor_detail": {}}
     requested_emotion = ""
     if isinstance(invocation.arguments, dict):
-        requested_emotion = str(invocation.arguments.get("emotion") or "").strip()
+        requested_emotion = str(invocation.arguments.get("emotion")).strip()
 
     logger.info(f"{tool_ctx.runtime.log_prefix} 触发表情包发送工具")
 

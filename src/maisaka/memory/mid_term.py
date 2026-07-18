@@ -487,10 +487,10 @@ def _save_mid_term_memory_prompt_preview(
             chat_id=session_id or "unknown",
             request_kind="mid_term_memory",
             selection_reason=selection_reason,
-            output_content=str(getattr(result, "response", "") or ""),
+            output_content=str(getattr(result, "response", "")),
             output_title="聊天回想生成结果",
             metadata={
-                "model_name": str(getattr(result, "model_name", "") or ""),
+                "model_name": str(getattr(result, "model_name", "")),
             },
         )
         logger.debug(f"{log_prefix} 聊天回想生成 Prompt 预览已保存")
@@ -727,7 +727,7 @@ def _normalize_recall_cue_text(value: Any) -> str:
     if isinstance(value, dict):
         text = value.get("text") or value.get("query") or value.get("content") or ""
         associations = _coerce_str_list(value.get("associations"))
-        reason = str(value.get("reason") or "").strip()
+        reason = str(value.get("reason")).strip()
         parts = [str(text or "").strip()]
         if associations:
             parts.append(f"关联: {'、'.join(associations)}")
@@ -745,7 +745,7 @@ def _get_mid_term_memory_payload(message: LLMContextMessage) -> dict[str, Any]:
     for component in getattr(raw_message, "components", []) or []:
         if not isinstance(component, DictComponent) or not isinstance(component.data, dict):
             continue
-        raw_type = str(component.data.get("type") or "").strip()
+        raw_type = str(component.data.get("type")).strip()
         if raw_type != MID_TERM_MEMORY_COMPONENT_TYPE:
             continue
         payload = component.data.get("data", {})
@@ -778,7 +778,7 @@ def _collect_mid_term_memory_recall_candidates(
         for cue_payload in _iter_recall_cue_payloads(payload):
             if not isinstance(cue_payload, dict):
                 continue
-            cue_text = str(cue_payload.get("text") or "").strip()
+            cue_text = str(cue_payload.get("text")).strip()
             embedding = cue_payload.get("embedding")
             if not cue_text or not isinstance(embedding, list) or not embedding:
                 continue
@@ -882,7 +882,7 @@ def _get_candidate_embedding(payload: dict[str, Any], segment_text: str) -> list
     for cue_payload in _iter_recall_cue_payloads(payload):
         if not isinstance(cue_payload, dict):
             continue
-        if str(cue_payload.get("text") or "").strip() != segment_text:
+        if str(cue_payload.get("text")).strip() != segment_text:
             continue
         embedding = cue_payload.get("embedding")
         if not isinstance(embedding, list):

@@ -176,8 +176,8 @@ async def _handle_maisaka_monitor_subscribe(connection_id: str, request_id: Opti
 async def _handle_subscribe(connection_id: str, message: Dict[str, Any]) -> None:
     """处理主题订阅请求。"""
     request_id = cast(Optional[str], message.get("id"))
-    domain = str(message.get("domain") or "").strip()
-    topic = str(message.get("topic") or "").strip()
+    domain = str(message.get("domain")).strip()
+    topic = str(message.get("topic")).strip()
     data = _get_request_data(message)
 
     ws_domain = ws_domain_registry.get(domain)
@@ -205,8 +205,8 @@ async def _handle_unsubscribe(connection_id: str, message: Dict[str, Any]) -> No
         message: 客户端消息。
     """
     request_id = cast(Optional[str], message.get("id"))
-    domain = str(message.get("domain") or "").strip()
-    topic = str(message.get("topic") or "").strip()
+    domain = str(message.get("domain")).strip()
+    topic = str(message.get("topic")).strip()
 
     if not domain or not topic:
         await websocket_manager.send_response(
@@ -234,7 +234,7 @@ async def _open_chat_session(connection_id: str, message: Dict[str, Any]) -> Non
         message: 客户端消息。
     """
     request_id = cast(Optional[str], message.get("id"))
-    client_session_id = str(message.get("session") or "").strip()
+    client_session_id = str(message.get("session")).strip()
     if not client_session_id:
         await websocket_manager.send_response(
             connection_id,
@@ -312,7 +312,7 @@ async def _close_chat_session(connection_id: str, message: Dict[str, Any]) -> No
         message: 客户端消息。
     """
     request_id = cast(Optional[str], message.get("id"))
-    client_session_id = str(message.get("session") or "").strip()
+    client_session_id = str(message.get("session")).strip()
     session_id = websocket_manager.get_chat_session_id(connection_id, client_session_id)
     if session_id is None:
         await websocket_manager.send_response(
@@ -372,7 +372,7 @@ async def _handle_chat_message_send(connection_id: str, message: Dict[str, Any])
         message: 客户端消息。
     """
     request_id = cast(Optional[str], message.get("id"))
-    client_session_id = str(message.get("session") or "").strip()
+    client_session_id = str(message.get("session")).strip()
     session_id = websocket_manager.get_chat_session_id(connection_id, client_session_id)
     if session_id is None:
         await websocket_manager.send_response(
@@ -410,7 +410,7 @@ async def _handle_chat_nickname_update(connection_id: str, message: Dict[str, An
         message: 客户端消息。
     """
     request_id = cast(Optional[str], message.get("id"))
-    client_session_id = str(message.get("session") or "").strip()
+    client_session_id = str(message.get("session")).strip()
     session_id = websocket_manager.get_chat_session_id(connection_id, client_session_id)
     if session_id is None:
         await websocket_manager.send_response(
@@ -464,7 +464,7 @@ async def _handle_chat_call(connection_id: str, message: Dict[str, Any]) -> None
         message: 客户端消息。
     """
     request_id = cast(Optional[str], message.get("id"))
-    method = str(message.get("method") or "").strip()
+    method = str(message.get("method")).strip()
 
     if method == "session.open":
         await _open_chat_session(connection_id, message)
@@ -493,7 +493,7 @@ async def _handle_chat_call(connection_id: str, message: Dict[str, Any]) -> None
 async def _handle_call(connection_id: str, message: Dict[str, Any]) -> None:
     """处理统一调用请求。"""
     request_id = cast(Optional[str], message.get("id"))
-    domain = str(message.get("domain") or "").strip()
+    domain = str(message.get("domain")).strip()
 
     ws_domain = ws_domain_registry.get(domain)
     if ws_domain is not None and ws_domain.call_handler is not None:
@@ -515,7 +515,7 @@ async def handle_client_message(connection_id: str, message: Dict[str, Any]) -> 
         connection_id: 连接 ID。
         message: 客户端消息。
     """
-    operation = str(message.get("op") or "").strip()
+    operation = str(message.get("op")).strip()
     request_id = cast(Optional[str], message.get("id"))
 
     if operation == "ping":

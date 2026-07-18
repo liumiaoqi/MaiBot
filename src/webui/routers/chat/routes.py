@@ -355,7 +355,7 @@ def _resolve_chat_targets(targets: List[ChatTargetResolveItem]) -> List[Dict[str
             )
             for chat_session in session.exec(statement).all():
                 platform = str(chat_session.platform or "").strip()
-                item_id = str(getattr(chat_session, target_attr) or "").strip()
+                item_id = str(getattr(chat_session, target_attr)).strip()
                 key = (platform, item_id, rule_type)
                 if key in query_keys and key not in resolved_by_key:
                     resolved_by_key[key] = chat_session
@@ -428,8 +428,8 @@ def _is_same_learning_target(rule: Dict[str, Any], chat_session: ChatSession) ->
     """判断学习规则是否精确作用于当前聊天流。"""
 
     return (
-        str(rule.get("platform") or "").strip() == str(chat_session.platform or "").strip()
-        and str(rule.get("item_id") or "").strip() == _get_chat_target_id(chat_session)
+        str(rule.get("platform")).strip() == str(chat_session.platform or "").strip()
+        and str(rule.get("item_id")).strip() == _get_chat_target_id(chat_session)
         and str(rule.get("type") or rule.get("rule_type") or "").strip() == _get_chat_type(chat_session)
     )
 
@@ -526,10 +526,10 @@ def _chat_prompt_item_values(chat_prompt_item: Any) -> Optional[Dict[str, Any]]:
         rule_type = str(chat_prompt_item.rule_type or "").strip()
         prompt = str(chat_prompt_item.prompt or "").strip()
     elif isinstance(chat_prompt_item, dict):
-        platform = str(chat_prompt_item.get("platform") or "").strip()
-        item_id = str(chat_prompt_item.get("item_id") or "").strip()
+        platform = str(chat_prompt_item.get("platform")).strip()
+        item_id = str(chat_prompt_item.get("item_id")).strip()
         rule_type = str(chat_prompt_item.get("rule_type") or chat_prompt_item.get("type") or "").strip()
-        prompt = str(chat_prompt_item.get("prompt") or "").strip()
+        prompt = str(chat_prompt_item.get("prompt")).strip()
     elif isinstance(chat_prompt_item, str):
         parts = chat_prompt_item.split(":", 3)
         if len(parts) != 4:
@@ -566,9 +566,9 @@ def _is_same_prompt_target(prompt_item: Dict[str, Any], chat_session: ChatSessio
     """判断 Prompt 配置是否精确作用于当前聊天流。"""
 
     return (
-        str(prompt_item.get("platform") or "").strip() == str(chat_session.platform or "").strip()
-        and str(prompt_item.get("item_id") or "").strip() == _get_chat_target_id(chat_session)
-        and str(prompt_item.get("rule_type") or "").strip() == _get_chat_type(chat_session)
+        str(prompt_item.get("platform")).strip() == str(chat_session.platform or "").strip()
+        and str(prompt_item.get("item_id")).strip() == _get_chat_target_id(chat_session)
+        and str(prompt_item.get("rule_type")).strip() == _get_chat_type(chat_session)
     )
 
 
@@ -633,9 +633,9 @@ def _is_same_talk_rule_target(rule: Dict[str, Any], chat_session: ChatSession) -
     """判断规则是否精确作用于当前聊天流。"""
 
     return (
-        str(rule.get("platform") or "").strip() == str(chat_session.platform or "").strip()
-        and str(rule.get("item_id") or "").strip() == _get_chat_target_id(chat_session)
-        and str(rule.get("rule_type") or "").strip() == _get_chat_type(chat_session)
+        str(rule.get("platform")).strip() == str(chat_session.platform or "").strip()
+        and str(rule.get("item_id")).strip() == _get_chat_target_id(chat_session)
+        and str(rule.get("rule_type")).strip() == _get_chat_type(chat_session)
     )
 
 
@@ -687,10 +687,10 @@ async def _save_chat_talk_frequency_rule(
     for index, rule in enumerate(rules):
         if not _is_same_talk_rule_target(rule, chat_session):
             continue
-        if str(rule.get("time") or "").strip() == normalized_time:
+        if str(rule.get("time")).strip() == normalized_time:
             replace_index = index
             break
-        if previous_time is not None and str(rule.get("time") or "").strip() == previous_time:
+        if previous_time is not None and str(rule.get("time")).strip() == previous_time:
             fallback_index = index
 
     target_index = replace_index if replace_index is not None else fallback_index
@@ -737,7 +737,7 @@ async def _delete_chat_talk_frequency_rule(chat_session: ChatSession, rule_time:
         for rule in rules
         if not (
             _is_same_talk_rule_target(rule, chat_session)
-            and str(rule.get("time") or "").strip() == normalized_time
+            and str(rule.get("time")).strip() == normalized_time
         )
     ]
     if len(next_rules) == len(rules):

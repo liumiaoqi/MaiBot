@@ -229,7 +229,7 @@ class MaisakaRuntimeDisplayMixin:
         """过滤掉已经在详情卡片中展示过的工具摘要。"""
 
         detailed_summaries = {
-            str(tool_result.get("summary") or "").strip()
+            str(tool_result.get("summary")).strip()
             for tool_result in tool_detail_results
             if isinstance(tool_result.get("detail"), dict) and tool_result.get("detail")
         }
@@ -246,7 +246,7 @@ class MaisakaRuntimeDisplayMixin:
         """将工具监控 metrics 转换为便于 CLI 阅读的文本。"""
 
         lines: list[str] = []
-        model_name = str(metrics.get("model_name") or "").strip()
+        model_name = str(metrics.get("model_name")).strip()
         if model_name:
             lines.append(f"模型：{model_name}")
 
@@ -385,7 +385,7 @@ class MaisakaRuntimeDisplayMixin:
             return {}
 
         metadata: dict[str, Any] = {}
-        model_name = str(metrics.get("model_name") or "").strip()
+        model_name = str(metrics.get("model_name")).strip()
         if model_name:
             metadata["model_name"] = model_name
 
@@ -425,8 +425,8 @@ class MaisakaRuntimeDisplayMixin:
         for sub_card in sub_cards:
             if not isinstance(sub_card, dict):
                 continue
-            title = str(sub_card.get("title") or "").strip() or "附加信息"
-            border_style = str(sub_card.get("border_style") or "").strip() or default_border_style
+            title = str(sub_card.get("title")).strip() or "附加信息"
+            border_style = str(sub_card.get("border_style")).strip() or default_border_style
             body_lines = self._normalize_tool_card_body_lines(
                 sub_card.get("body_lines", sub_card.get("content", ""))
             )
@@ -498,8 +498,8 @@ class MaisakaRuntimeDisplayMixin:
                     )
                 )
 
-        output_text = str(detail.get("output_text") or "").strip()
-        prompt_text = str(detail.get("prompt_text") or "").strip()
+        output_text = str(detail.get("output_text")).strip()
+        prompt_text = str(detail.get("prompt_text")).strip()
         request_messages = detail.get("request_messages") if isinstance(detail.get("request_messages"), list) else None
         if prompt_text or request_messages:
             prompt_access_panel = self._build_tool_prompt_access_panel(
@@ -521,7 +521,7 @@ class MaisakaRuntimeDisplayMixin:
             for index, record in enumerate(additional_prompt_records, start=1):
                 if not isinstance(record, dict):
                     continue
-                record_prompt_text = str(record.get("prompt_text") or "").strip()
+                record_prompt_text = str(record.get("prompt_text")).strip()
                 record_request_messages = (
                     record.get("request_messages") if isinstance(record.get("request_messages"), list) else None
                 )
@@ -535,12 +535,12 @@ class MaisakaRuntimeDisplayMixin:
                     request_messages=record_request_messages,
                     tool_call_id=tool_call_id,
                     border_style=prompt_border_style,
-                    output_content=str(record.get("output_text") or ""),
+                    output_content=str(record.get("output_text")),
                     metadata=record_metadata,
                     prompt_title=str(record.get("prompt_title") or f"Prompt #{index}"),
-                    prompt_category=str(record.get("prompt_category") or ""),
-                    request_kind=str(record.get("request_kind") or ""),
-                    selection_reason=str(record.get("selection_reason") or ""),
+                    prompt_category=str(record.get("prompt_category")),
+                    request_kind=str(record.get("request_kind")),
+                    selection_reason=str(record.get("selection_reason")),
                 )
                 if prompt_access_panel.prompt_html_uri:
                     prompt_record_uris.append(prompt_access_panel.prompt_html_uri)
@@ -548,7 +548,7 @@ class MaisakaRuntimeDisplayMixin:
             if prompt_record_uris:
                 detail["additional_prompt_html_uris"] = prompt_record_uris
 
-        reasoning_text = str(detail.get("reasoning_text") or "").strip()
+        reasoning_text = str(detail.get("reasoning_text")).strip()
         if reasoning_text:
             parts.append(
                 Panel(
@@ -574,8 +574,8 @@ class MaisakaRuntimeDisplayMixin:
             for section in extra_sections:
                 if not isinstance(section, dict):
                     continue
-                section_title = str(section.get("title") or "").strip() or "附加信息"
-                section_content = str(section.get("content") or "").strip()
+                section_title = str(section.get("title")).strip() or "附加信息"
+                section_content = str(section.get("content")).strip()
                 if not section_content:
                     continue
                 parts.append(
@@ -606,10 +606,10 @@ class MaisakaRuntimeDisplayMixin:
             detail = tool_result.get("detail")
             detail_dict = detail if isinstance(detail, dict) else {}
             tool_name = str(tool_result.get("tool_name") or "unknown").strip() or "unknown"
-            tool_title = str(tool_result.get("tool_title") or "").strip() or tool_name
-            tool_call_id = str(tool_result.get("tool_call_id") or "").strip()
+            tool_title = str(tool_result.get("tool_title")).strip() or tool_name
+            tool_call_id = str(tool_result.get("tool_call_id")).strip()
             tool_args = tool_result.get("tool_args")
-            summary = str(tool_result.get("summary") or "").strip()
+            summary = str(tool_result.get("summary")).strip()
             duration_ms = tool_result.get("duration_ms")
             custom_card = tool_result.get("card")
 
@@ -618,8 +618,8 @@ class MaisakaRuntimeDisplayMixin:
             card_border_style = detail_panel_border_style
             replace_default_children = False
             if isinstance(custom_card, dict):
-                custom_title = str(custom_card.get("title") or "").strip()
-                card_border_style = str(custom_card.get("border_style") or "").strip() or detail_panel_border_style
+                custom_title = str(custom_card.get("title")).strip()
+                card_border_style = str(custom_card.get("border_style")).strip() or detail_panel_border_style
                 replace_default_children = bool(custom_card.get("replace_default_children", False))
                 custom_body_lines = self._normalize_tool_card_body_lines(
                     custom_card.get("body_lines", custom_card.get("content", ""))

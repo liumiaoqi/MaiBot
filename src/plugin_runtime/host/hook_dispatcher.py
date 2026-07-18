@@ -504,7 +504,7 @@ class HookDispatcher:
             action=self._normalize_action(response_payload.get("action", "continue")),
             modified_kwargs=self._extract_modified_kwargs(response_payload.get("modified_kwargs")),
             custom_result=response_payload.get("custom_result"),
-            error_message=str(response_payload.get("error_message", "") or ""),
+            error_message=str(response_payload.get("error_message", "")),
         )
 
     @staticmethod

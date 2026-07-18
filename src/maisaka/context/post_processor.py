@@ -220,7 +220,7 @@ def _format_trimmed_tool_search_call(
 ) -> str:
     """以更短的形式保留 tool_search 结果，供后续恢复 deferred tool 激活状态。"""
 
-    query = str(args.get("query", "") or "").strip()
+    query = str(args.get("query", "")).strip()
     matched_tool_names = _parse_tool_search_result_tool_names(tool_result.content if tool_result is not None else "")
     matched_text = ", ".join(matched_tool_names) if matched_tool_names else "无"
     if query:

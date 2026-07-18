@@ -221,7 +221,7 @@ def _coerce_tag_cluster_items(
             continue
         if "kind" in raw_item:
             continue
-        tag_name = " ".join(str(raw_item.get("tag_name") or "").split()).strip()
+        tag_name = " ".join(str(raw_item.get("tag_name")).split()).strip()
         raw_aliases = raw_item.get("tag_aliases")
         tags = _coerce_string_list([tag_name, *_coerce_string_list(raw_aliases, max_items=8)], max_items=8)
         if not tags:
@@ -237,7 +237,7 @@ def _coerce_need_tag_cluster(raw_value: Any) -> BehaviorScenarioTagCluster | Non
     if isinstance(raw_value, dict):
         if "kind" in raw_value:
             return None
-        tag_name = " ".join(str(raw_value.get("tag_name") or "").split()).strip()
+        tag_name = " ".join(str(raw_value.get("tag_name")).split()).strip()
         raw_aliases = raw_value.get("tag_aliases")
         tags = _coerce_string_list([tag_name, *_coerce_string_list(raw_aliases, max_items=8)], max_items=8)
     else:
@@ -256,7 +256,7 @@ def _profile_from_mapping(parsed_response: dict[str, Any]) -> BehaviorScenarioPr
     tag_clusters = _filter_generic_tag_clusters(tag_clusters)
 
     return BehaviorScenarioProfile(
-        summary=" ".join(str(parsed_response.get("summary") or "").split()).strip(),
+        summary=" ".join(str(parsed_response.get("summary")).split()).strip(),
         tag_clusters=tag_clusters,
         confidence=_coerce_float(parsed_response.get("confidence")),
     )

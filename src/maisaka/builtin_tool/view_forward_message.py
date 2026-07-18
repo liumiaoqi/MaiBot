@@ -45,7 +45,7 @@ def _find_context_message_by_id(tool_ctx: BuiltinToolRuntimeContext, message_id:
         return None
 
     for history_message in reversed(tool_ctx.runtime._chat_history):
-        if str(getattr(history_message, "message_id", "") or "").strip() != normalized_message_id:
+        if str(getattr(history_message, "message_id", "")).strip() != normalized_message_id:
             continue
         if isinstance(history_message, SessionBackedMessage):
             return history_message
@@ -69,7 +69,7 @@ async def handle_tool(
     """执行 view_forward_message 内置工具。"""
 
     del context
-    target_message_id = str(invocation.arguments.get("msg_id") or "").strip()
+    target_message_id = str(invocation.arguments.get("msg_id")).strip()
     if not target_message_id:
         return tool_ctx.build_failure_result(
             invocation.tool_name,

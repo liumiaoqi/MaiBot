@@ -151,9 +151,9 @@ async def send_emoji_for_maisaka(
 
     before_select_kwargs = before_select_result.kwargs
     normalized_requested_emotion = str(
-        before_select_kwargs.get("requested_emotion", normalized_requested_emotion) or ""
+        before_select_kwargs.get("requested_emotion", normalized_requested_emotion)
     ).strip()
-    normalized_reasoning = str(before_select_kwargs.get("reasoning", normalized_reasoning) or "").strip()
+    normalized_reasoning = str(before_select_kwargs.get("reasoning", normalized_reasoning)).strip()
     if isinstance(before_select_kwargs.get("context_texts"), list):
         normalized_context_texts = _normalize_context_texts(before_select_kwargs.get("context_texts"))
     sample_size = _coerce_positive_int(before_select_kwargs.get("sample_size"), sample_size)
@@ -187,9 +187,9 @@ async def send_emoji_for_maisaka(
 
     after_select_kwargs = after_select_result.kwargs
     normalized_requested_emotion = str(
-        after_select_kwargs.get("requested_emotion", normalized_requested_emotion) or ""
+        after_select_kwargs.get("requested_emotion", normalized_requested_emotion)
     ).strip()
-    matched_emotion = str(after_select_kwargs.get("matched_emotion", matched_emotion) or "").strip()
+    matched_emotion = str(after_select_kwargs.get("matched_emotion", matched_emotion)).strip()
     override_emoji = _resolve_selected_emoji(after_select_kwargs.get("selected_emoji_hash"))
     if override_emoji is None:
         override_emoji = _resolve_selected_emoji(after_select_kwargs.get("selected_emoji"))

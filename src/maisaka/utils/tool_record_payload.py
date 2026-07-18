@@ -44,8 +44,8 @@ def _omit_tool_record_large_media(value: Any) -> Any:
     media_keys = {"base64", "data", "image_base64", "audio_base64", "emoji_base64"}
     if isinstance(value, dict):
         omitted: dict[str, Any] = {}
-        content_type = str(value.get("content_type") or "").strip().lower()
-        mime_type = str(value.get("mime_type") or "").strip()
+        content_type = str(value.get("content_type")).strip().lower()
+        mime_type = str(value.get("mime_type")).strip()
         image_format = str(value.get("image_format") or value.get("format") or "").strip()
         for key, item in value.items():
             normalized_key = str(key)

@@ -74,7 +74,7 @@ def _parse_item(raw_item: Any) -> RubricScoreItem:
     return RubricScoreItem(
         score=score,
         normalized_score=round((score - 1.0) / 4.0, 4),
-        reason=str(raw_item.get("reason") or "").strip(),
+        reason=str(raw_item.get("reason")).strip(),
         evidence_spans=[str(item).strip() for item in evidence_spans if str(item).strip()],
         confidence=max(0.0, min(1.0, _coerce_float(raw_item.get("confidence"), 0.0))),
     )

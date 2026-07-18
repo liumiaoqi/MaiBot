@@ -1057,7 +1057,7 @@ class EmojiManager:
             logger.info(f"[构建描述] 表情包描述被 Hook 中止注册: {target_emoji.file_name}")
             return False, target_emoji
 
-        normalized_description = str(hook_result.kwargs.get("description", description) or "").strip()
+        normalized_description = str(hook_result.kwargs.get("description", description)).strip()
         if not normalized_description:
             logger.warning(f"[构建描述] Hook 返回空描述，拒绝注册: {target_emoji.file_name}")
             return False, target_emoji

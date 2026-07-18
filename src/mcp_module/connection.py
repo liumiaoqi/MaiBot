@@ -149,7 +149,7 @@ class MCPConnection:
             self.session = session
             initialize_result = await session.initialize()
             self.server_capabilities = getattr(initialize_result, "capabilities", None)
-            self.protocol_version = str(getattr(initialize_result, "protocolVersion", "") or "")
+            self.protocol_version = str(getattr(initialize_result, "protocolVersion", ""))
 
             await self._load_server_features()
             return True

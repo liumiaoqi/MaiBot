@@ -500,8 +500,8 @@ class ThinkingOrgan:
                 summaries.append(f"[{invocation.tool_name}] {history_content[:200]}")
 
             normalized_tool_call = format_tool_call_for_display(tool_call)
-            tool_call_source = str(normalized_tool_call.get("source") or "").strip()
-            tool_call_source_label = str(normalized_tool_call.get("source_label") or "").strip()
+            tool_call_source = str(normalized_tool_call.get("source")).strip()
+            tool_call_source_label = str(normalized_tool_call.get("source_label")).strip()
             tool_spec = tool_spec_map.get(tool_call.func_name)
             monitor_result: dict[str, Any] = {
                 "tool_call_id": tool_call.call_id,
@@ -520,7 +520,7 @@ class ThinkingOrgan:
             monitor_card = result.metadata.get("monitor_card")
             if monitor_card is not None:
                 monitor_result["card"] = normalize_tool_record_value(monitor_card)
-            prompt_html_uri = str(result.metadata.get("prompt_html_uri") or "").strip()
+            prompt_html_uri = str(result.metadata.get("prompt_html_uri")).strip()
             if prompt_html_uri:
                 monitor_result["prompt_html_uri"] = prompt_html_uri
             monitor_results.append(monitor_result)
@@ -572,7 +572,7 @@ class ThinkingOrgan:
         deferred: list[Any] = []
 
         for spec in tool_specs:
-            visibility = str(spec.metadata.get("visibility", "") or "").strip().lower()
+            visibility = str(spec.metadata.get("visibility", "")).strip().lower()
             if spec.provider_name == "maisaka_builtin":
                 from src.maisaka.builtin_tool import get_builtin_tool_visibility, is_builtin_tool_in_action_stage
                 if not is_builtin_tool_in_action_stage(spec):

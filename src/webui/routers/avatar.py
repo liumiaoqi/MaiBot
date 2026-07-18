@@ -141,7 +141,7 @@ def _download_qq_avatar_to_cache(platform: str, target_id: str, target_type: Ava
     )
     try:
         with urlopen(request, timeout=10) as response:
-            content_type = str(response.headers.get("Content-Type") or "").lower()
+            content_type = str(response.headers.get("Content-Type")).lower()
             if content_type and not content_type.startswith("image/"):
                 raise HTTPException(status_code=502, detail="头像接口返回内容不是图片")
             image_bytes = response.read(MAX_AVATAR_BYTES + 1)

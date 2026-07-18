@@ -175,7 +175,7 @@ class ComponentQueryService:
 
         return ActionInfo(
             name=entry.name,
-            description=str(metadata.get("description", "") or ""),
+            description=str(metadata.get("description", "")),
             enabled=bool(entry.enabled),
             plugin_name=entry.plugin_id,
             action_parameters=action_parameters,
@@ -204,7 +204,7 @@ class ComponentQueryService:
         metadata = dict(entry.metadata)
         return CommandInfo(
             name=entry.name,
-            description=str(metadata.get("description", "") or ""),
+            description=str(metadata.get("description", "")),
             enabled=bool(entry.enabled),
             plugin_name=entry.plugin_id,
         )
@@ -270,7 +270,7 @@ class ComponentQueryService:
     def _get_tool_visibility(entry: "ToolEntry") -> str:
         """读取插件工具面向 LLM 的可见性声明。"""
 
-        raw_visibility = str(entry.metadata.get("visibility") or "").strip().lower()
+        raw_visibility = str(entry.metadata.get("visibility")).strip().lower()
         if raw_visibility in {"visible", "deferred", "hidden"}:
             return raw_visibility
         if bool(entry.metadata.get("core_tool", False)):
@@ -389,7 +389,7 @@ class ComponentQueryService:
             except AttributeError:
                 pass
 
-        return str(kwargs.get("stream_id", "") or "")
+        return str(kwargs.get("stream_id", ""))
 
     @staticmethod
     def _build_action_executor(
@@ -430,7 +430,7 @@ class ComponentQueryService:
             invoke_args["action_data"] = action_data if isinstance(action_data, dict) else {}
             invoke_args["stream_id"] = stream_id
             invoke_args["chat_id"] = stream_id
-            invoke_args["reasoning"] = str(kwargs.get("action_reasoning", "") or "")
+            invoke_args["reasoning"] = str(kwargs.get("action_reasoning", ""))
 
             if (thinking_id := kwargs.get("thinking_id")) is not None:
                 invoke_args["thinking_id"] = str(thinking_id)
@@ -508,11 +508,11 @@ class ComponentQueryService:
             group_info = getattr(message_info, "group_info", None)
             user_info = getattr(message_info, "user_info", None)
             invoke_args: Dict[str, Any] = {
-                "text": str(getattr(message, "processed_plain_text", "") or ""),
-                "stream_id": str(getattr(message, "session_id", "") or ""),
-                "group_id": str(getattr(group_info, "group_id", "") or ""),
-                "platform": str(getattr(message, "platform", "") or ""),
-                "user_id": str(getattr(user_info, "user_id", "") or ""),
+                "text": str(getattr(message, "processed_plain_text", "")),
+                "stream_id": str(getattr(message, "session_id", "")),
+                "group_id": str(getattr(group_info, "group_id", "")),
+                "platform": str(getattr(message, "platform", "")),
+                "user_id": str(getattr(user_info, "user_id", "")),
                 "matched_groups": matched_groups if isinstance(matched_groups, dict) else {},
             }
             if message is not None:
@@ -755,8 +755,8 @@ class ComponentQueryService:
         group_info = getattr(message_info, "group_info", None)
         user_info = getattr(message_info, "user_info", None)
 
-        anchor_group_id = str(getattr(group_info, "group_id", "") or "").strip()
-        anchor_user_id = str(getattr(user_info, "user_id", "") or "").strip()
+        anchor_group_id = str(getattr(group_info, "group_id", "")).strip()
+        anchor_user_id = str(getattr(user_info, "user_id", "")).strip()
         if anchor_group_id:
             payload["group_id"] = anchor_group_id
         if anchor_user_id:
@@ -838,11 +838,11 @@ class ComponentQueryService:
 
         if isinstance(result, dict):
             success = bool(result.get("success", True))
-            content = str(result.get("content", result.get("message", "")) or "").strip()
+            content = str(result.get("content", result.get("message", ""))).strip()
             content_items = ComponentQueryService._parse_tool_content_items(result.get("content_items"))
             error_message = ""
             if not success:
-                error_message = str(result.get("error", result.get("message", "插件工具执行失败")) or "").strip()
+                error_message = str(result.get("error", result.get("message", "插件工具执行失败"))).strip()
             return ToolExecutionResult(
                 tool_name=entry.name,
                 success=success,
@@ -895,12 +895,12 @@ class ComponentQueryService:
             content_items.append(
                 ToolContentItem(
                     content_type=cast(Any, raw_content_type),
-                    text=str(raw_item.get("text") or ""),
+                    text=str(raw_item.get("text")),
                     data=str(raw_item.get("data") or raw_item.get("base64") or ""),
-                    mime_type=str(raw_item.get("mime_type") or ""),
-                    uri=str(raw_item.get("uri") or ""),
-                    name=str(raw_item.get("name") or ""),
-                    description=str(raw_item.get("description") or ""),
+                    mime_type=str(raw_item.get("mime_type")),
+                    uri=str(raw_item.get("uri")),
+                    name=str(raw_item.get("name")),
+                    description=str(raw_item.get("description")),
                     metadata=metadata if isinstance(metadata, dict) else {},
                 )
             )

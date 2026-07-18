@@ -120,7 +120,7 @@ class MessageUtils:
             return ReplyComponent(target_message_id=seg.data)
         elif seg.type == "dict":
             assert isinstance(seg.data, dict), "dict类型的seg数据应该是字典"
-            if str(seg.data.get("type") or "").strip().lower() == "file":
+            if str(seg.data.get("type")).strip().lower() == "file":
                 raw_payload = seg.data.get("data", seg.data)
                 if isinstance(raw_payload, dict):
                     return FileComponent.from_payload(raw_payload)
@@ -238,7 +238,7 @@ class MessageUtils:
         if getattr(message, "reply_frequency", None) is not None:
             return
 
-        session_id = str(getattr(message, "session_id", "") or "").strip()
+        session_id = str(getattr(message, "session_id", "")).strip()
         if not session_id:
             return
 

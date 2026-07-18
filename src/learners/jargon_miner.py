@@ -209,7 +209,7 @@ class JargonMiner:
         for raw_entry in raw_entries:
             if not isinstance(raw_entry, dict):
                 continue
-            content = str(raw_entry.get("content") or "").strip()
+            content = str(raw_entry.get("content")).strip()
             if not content:
                 continue
             raw_content_values = raw_entry.get("raw_content")
@@ -239,8 +239,8 @@ class JargonMiner:
             for raw_ref in raw_group:
                 if not isinstance(raw_ref, dict):
                     continue
-                platform = str(raw_ref.get("platform") or "").strip()
-                message_id = str(raw_ref.get("message_id") or "").strip()
+                platform = str(raw_ref.get("platform")).strip()
+                message_id = str(raw_ref.get("message_id")).strip()
                 if not platform or not message_id:
                     continue
                 ref_key = (platform, message_id)
@@ -455,7 +455,7 @@ class JargonMiner:
             stage_name="with_context",
             prompt=prompt1,
             output_content=llm_response_1,
-            model_name=str(getattr(generation_result_1, "model_name", "") or ""),
+            model_name=str(getattr(generation_result_1, "model_name", "")),
         )
         if not llm_response_1:
             logger.warning(f"jargon {content} 推断1失败：无响应")
@@ -494,7 +494,7 @@ class JargonMiner:
             stage_name="content_only",
             prompt=prompt2,
             output_content=llm_response_2,
-            model_name=str(getattr(generation_result_2, "model_name", "") or ""),
+            model_name=str(getattr(generation_result_2, "model_name", "")),
         )
         if not llm_response_2:
             logger.warning(f"jargon {content} 推断2失败：无响应")
@@ -528,7 +528,7 @@ class JargonMiner:
             stage_name="compare",
             prompt=prompt3,
             output_content=llm_response_3,
-            model_name=str(getattr(generation_result_3, "model_name", "") or ""),
+            model_name=str(getattr(generation_result_3, "model_name", "")),
         )
         if not llm_response_3:
             logger.warning(f"jargon {content} 比较失败：无响应")
@@ -542,7 +542,7 @@ class JargonMiner:
         is_similar = comparison_result.get("is_similar", False)
         is_jargon = not is_similar  # 如果相似，说明不是黑话；如果有差异，说明是黑话
 
-        inferred_meaning = str(inference1.get("meaning", "") or "").strip()
+        inferred_meaning = str(inference1.get("meaning", "")).strip()
         finalized_meaning = inferred_meaning if is_jargon else previous_meaning
         is_complete = (jargon_obj.count or 0) >= 100
         last_inference_count = jargon_obj.count or 0
@@ -565,7 +565,7 @@ class JargonMiner:
 
         finalize_kwargs = finalize_result.kwargs
         is_jargon = bool(finalize_kwargs.get("is_jargon", is_jargon))
-        finalized_meaning = str(finalize_kwargs.get("meaning", finalized_meaning) or "").strip()
+        finalized_meaning = str(finalize_kwargs.get("meaning", finalized_meaning)).strip()
         is_complete = bool(finalize_kwargs.get("is_complete", is_complete))
         last_inference_count = self._coerce_int(
             finalize_kwargs.get("last_inference_count"),

@@ -182,7 +182,7 @@ class MaiMessage(BaseDatabaseDataModel[Messages]):
         receiver_group_info = sender_group_info
         receiver_user_info = None
         additional_config = self.message_info.additional_config or {}
-        target_user_id = str(additional_config.get("platform_io_target_user_id") or "").strip()
+        target_user_id = str(additional_config.get("platform_io_target_user_id")).strip()
         if receiver_group_info is None and target_user_id:
             receiver_user_info = MaimUserInfo(
                 user_id=target_user_id,

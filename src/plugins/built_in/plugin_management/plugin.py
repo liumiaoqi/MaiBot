@@ -167,7 +167,7 @@ class PluginManagementPlugin(MaiBotPlugin):
         if not stream_id:
             return False, "无法获取聊天流信息", True
 
-        raw_text = str(kwargs.get("text", "") or "").strip()
+        raw_text = str(kwargs.get("text", "")).strip()
         raw_command = (matched_groups or {}).get("manage_command", "").strip()
         raw_command = self._resolve_alias_command(raw_command or raw_text)
         parts = self._split_command(raw_command) if raw_command else ["/pm"]

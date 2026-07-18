@@ -50,14 +50,14 @@ class APIEntry:
         return cls(
             name=name,
             plugin_id=plugin_id,
-            description=str(safe_metadata.get("description", "") or ""),
+            description=str(safe_metadata.get("description", "")),
             version=str(safe_metadata.get("version", "1") or "1"),
             public=bool(safe_metadata.get("public", False)),
             metadata=safe_metadata,
             enabled=bool(safe_metadata.get("enabled", True)),
             handler_name=str(safe_metadata.get("handler_name", name) or name),
             dynamic=bool(safe_metadata.get("dynamic", False)),
-            offline_reason=str(safe_metadata.get("offline_reason", "") or ""),
+            offline_reason=str(safe_metadata.get("offline_reason", "")),
         )
 
 
@@ -155,7 +155,7 @@ class APIRegistry:
             if not self._is_api_component(component.get("component_type")):
                 continue
             if self.register_api(
-                name=str(component.get("name", "") or ""),
+                name=str(component.get("name", "")),
                 plugin_id=plugin_id,
                 metadata=component.get("metadata", {}) if isinstance(component.get("metadata"), dict) else {},
             ):
@@ -184,7 +184,7 @@ class APIRegistry:
             dynamic_metadata.pop("offline_reason", None)
 
             entry = APIEntry.from_metadata(
-                name=str(component.get("name", "") or ""),
+                name=str(component.get("name", "")),
                 plugin_id=plugin_id,
                 metadata=dynamic_metadata,
             )

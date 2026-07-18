@@ -169,7 +169,7 @@ class ToolParam:
         return cls(
             name=name,
             param_type=normalize_tool_param_type(parameter_schema.get("param_type") or parameter_schema.get("type")),
-            description=str(parameter_schema.get("description", "") or ""),
+            description=str(parameter_schema.get("description", "")),
             required=required,
             enum_values=deepcopy(parameter_schema.get("enum_values") or parameter_schema.get("enum")),
             items_schema=deepcopy(parameter_schema.get("items_schema") or parameter_schema.get("items")),
@@ -260,8 +260,8 @@ class ToolOption:
                 }
             )
 
-        name = str(definition.get("name", "") or "").strip()
-        description = str(definition.get("description", "") or "").strip()
+        name = str(definition.get("name", "")).strip()
+        description = str(definition.get("description", "")).strip()
         if not name:
             raise ValueError("工具定义缺少 name")
         if not description:
@@ -298,7 +298,7 @@ class ToolOption:
                     params.append(ToolParam.from_legacy_tuple(raw_parameter))
                     continue
                 if isinstance(raw_parameter, dict):
-                    parameter_name = str(raw_parameter.get("name", "") or "").strip()
+                    parameter_name = str(raw_parameter.get("name", "")).strip()
                     if not parameter_name:
                         continue
                     params.append(

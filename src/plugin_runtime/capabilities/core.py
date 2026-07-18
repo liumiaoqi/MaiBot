@@ -105,9 +105,9 @@ def _normalize_audio_base64_arg(args: Dict[str, Any]) -> str | None:
     """校验并规范化插件传入的音频 Base64。"""
 
     audio_base64 = (
-        str(args.get("audio_base64") or "").strip()
-        or str(args.get("voice_base64") or "").strip()
-        or str(args.get("base64") or "").strip()
+        str(args.get("audio_base64")).strip()
+        or str(args.get("voice_base64")).strip()
+        or str(args.get("base64")).strip()
     )
     if not audio_base64:
         return None
@@ -129,7 +129,7 @@ def _normalize_context_segment(raw_segment: Any) -> Dict[str, Any] | None:
         return None
 
     segment = dict(raw_segment)
-    segment_type = str(segment.get("type") or "").strip().lower()
+    segment_type = str(segment.get("type")).strip().lower()
     if not segment_type:
         return None
     segment["type"] = segment_type
@@ -139,15 +139,15 @@ def _normalize_context_segment(raw_segment: Any) -> Dict[str, Any] | None:
 
     if segment_type in {"image", "emoji", "voice"}:
         binary_base64 = (
-            str(segment.get("binary_data_base64") or "").strip()
-            or str(segment.get("base64") or "").strip()
-            or str(segment.get("image_base64") or "").strip()
-            or str(segment.get("emoji_base64") or "").strip()
+            str(segment.get("binary_data_base64")).strip()
+            or str(segment.get("base64")).strip()
+            or str(segment.get("image_base64")).strip()
+            or str(segment.get("emoji_base64")).strip()
         )
         if binary_base64:
             segment["binary_data_base64"] = binary_base64
-            if "data" not in segment or str(segment.get("data") or "").strip() == binary_base64:
-                segment["data"] = str(segment.get("description") or "")
+            if "data" not in segment or str(segment.get("data")).strip() == binary_base64:
+                segment["data"] = str(segment.get("description"))
 
     return segment
 
@@ -190,7 +190,7 @@ class RuntimeCoreCapabilityMixin:
 
             runtime = await heartflow_manager.get_or_create_heartflow_chat(stream_id)
             message_sequence = PluginMessageUtils._message_sequence_from_dict(segments)
-            visible_text = str(args.get("visible_text") or "").strip()
+            visible_text = str(args.get("visible_text")).strip()
             if not visible_text:
                 visible_text = build_visible_text_from_sequence(message_sequence)
             if not visible_text:
@@ -201,7 +201,7 @@ class RuntimeCoreCapabilityMixin:
                 raw_message=message_sequence,
                 visible_text=visible_text,
                 timestamp=datetime.now(),
-                message_id=str(args.get("message_id") or "").strip() or None,
+                message_id=str(args.get("message_id")).strip() or None,
                 source_kind=source_kind,
             )
             runtime._chat_history.append(context_message)
@@ -240,8 +240,8 @@ class RuntimeCoreCapabilityMixin:
             result = await runtime.enqueue_proactive_task(
                 plugin_id=plugin_id,
                 intent=intent,
-                reason=str(args.get("reason") or "").strip(),
-                priority=str(args.get("priority") or "").strip(),
+                reason=str(args.get("reason")).strip(),
+                priority=str(args.get("priority")).strip(),
                 metadata=args.get("metadata") if isinstance(args.get("metadata"), dict) else None,
             )
             return {"success": True, **result}
@@ -340,16 +340,16 @@ class RuntimeCoreCapabilityMixin:
     def _normalize_plugin_segment(segment: Dict[str, Any]) -> Dict[str, Any]:
         """将 SDK 侧常见的 content 字段归一化为 Host 消息组件字典。"""
 
-        segment_type = str(segment.get("type") or "").strip().lower()
+        segment_type = str(segment.get("type")).strip().lower()
         if segment_type == "text":
             return {"type": "text", "data": str(segment.get("data") or segment.get("content") or "")}
         if segment_type in {"image", "emoji", "voice"}:
             normalized_segment = dict(segment)
             normalized_segment["type"] = segment_type
-            content = str(segment.get("content") or "").strip()
+            content = str(segment.get("content")).strip()
             if content and not normalized_segment.get("binary_data_base64") and not normalized_segment.get("hash"):
                 normalized_segment["binary_data_base64"] = content
-            normalized_segment.setdefault("data", str(segment.get("data") or ""))
+            normalized_segment.setdefault("data", str(segment.get("data")))
             return normalized_segment
         return dict(segment)
 
@@ -415,9 +415,9 @@ class RuntimeCoreCapabilityMixin:
                 continue
             forward_nodes.append(
                 ForwardNodeComponent(
-                    user_id=str(message.get("user_id") or ""),
+                    user_id=str(message.get("user_id")),
                     user_nickname=str(message.get("nickname") or message.get("user_nickname") or "插件消息"),
-                    user_cardname=str(message.get("user_cardname") or ""),
+                    user_cardname=str(message.get("user_cardname")),
                     message_id=str(message.get("message_id") or f"plugin_forward_{index}"),
                     content=segments,
                 )
@@ -728,7 +728,7 @@ class RuntimeCoreCapabilityMixin:
         """获取指定智能体的当前情绪快照。"""
         del capability
 
-        agent_id = str(args.get("agent_id") or "").strip()
+        agent_id = str(args.get("agent_id")).strip()
         if not agent_id:
             return {"success": False, "error": "缺少必要参数 agent_id"}
 
@@ -761,8 +761,8 @@ class RuntimeCoreCapabilityMixin:
         """获取指定智能体与指定用户的关系等级。"""
         del capability
 
-        agent_id = str(args.get("agent_id") or "").strip()
-        user_id = str(args.get("user_id") or "").strip()
+        agent_id = str(args.get("agent_id")).strip()
+        user_id = str(args.get("user_id")).strip()
         if not agent_id:
             return {"success": False, "error": "缺少必要参数 agent_id"}
         if not user_id:

@@ -243,7 +243,7 @@ def _merge_profile_tag_distribution_from_evidence(evidence_list: Any) -> list[di
         for item in raw_distribution:
             if not isinstance(item, dict):
                 continue
-            tag = str(item.get("tag") or "").strip()
+            tag = str(item.get("tag")).strip()
             if not tag:
                 continue
             try:
