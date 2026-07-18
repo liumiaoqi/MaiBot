@@ -158,9 +158,9 @@ class MaisakaFocusRuntimeMixin:
             ):
                 return
 
-            from src.chat.heart_flow.heartflow_manager import heartflow_manager
+            from src.core.runtime_port_registry import get_chat_runtime_registry
 
-            running_runtimes = list(heartflow_manager.heartflow_chat_list.values())
+            running_runtimes = list(get_chat_runtime_registry().list_runtimes())
             if self._select_focus_cooldown_wakeup_runtime(running_runtimes) is not self:
                 return
             trigger_session_id = self._find_pending_other_focus_chat_id(running_runtimes, self.session_id)
@@ -176,11 +176,11 @@ class MaisakaFocusRuntimeMixin:
     def resolve_running_focus_session_from_args(self, arguments: dict[str, Any]) -> FocusTargetResolution:
         """Resolve focus tool target from currently running heartflow chats."""
 
-        from src.chat.heart_flow.heartflow_manager import heartflow_manager
+        from src.core.runtime_port_registry import get_chat_runtime_registry
 
         running_session_infos = [
             runtime._session_info
-            for runtime in heartflow_manager.heartflow_chat_list.values()
+            for runtime in get_chat_runtime_registry().list_runtimes()
             if runtime._session_info is not None
         ]
         return focus_mode_manager.resolve_session_from_args(arguments, running_session_infos)
@@ -191,9 +191,9 @@ class MaisakaFocusRuntimeMixin:
         if not self._is_focus_mode_active_for_current_chat():
             return
 
-        from src.chat.heart_flow.heartflow_manager import heartflow_manager
+        from src.core.runtime_port_registry import get_chat_runtime_registry
 
-        running_runtimes = list(heartflow_manager.heartflow_chat_list.values())
+        running_runtimes = list(get_chat_runtime_registry().list_runtimes())
         target_runtime = self._select_focus_cooldown_wakeup_runtime(
             running_runtimes,
             trigger_session_id=trigger_session_id,
@@ -208,9 +208,9 @@ class MaisakaFocusRuntimeMixin:
         if not self._is_focus_mode_active_for_current_chat():
             return
 
-        from src.chat.heart_flow.heartflow_manager import heartflow_manager
+        from src.core.runtime_port_registry import get_chat_runtime_registry
 
-        running_runtimes = list(heartflow_manager.heartflow_chat_list.values())
+        running_runtimes = list(get_chat_runtime_registry().list_runtimes())
         target_runtime = self._select_focus_cooldown_wakeup_runtime(
             running_runtimes,
             trigger_session_id=trigger_session_id,
@@ -365,10 +365,10 @@ class MaisakaFocusRuntimeMixin:
     def _build_focus_chat_event_messages(self) -> list[str]:
         """Build focus-mode event messages for currently running chat sessions."""
 
-        from src.chat.heart_flow.heartflow_manager import heartflow_manager
+        from src.core.runtime_port_registry import get_chat_runtime_registry
 
         running_runtimes = sorted(
-            heartflow_manager.heartflow_chat_list.values(),
+            get_chat_runtime_registry().list_runtimes(),
             key=lambda runtime: runtime._session_info.last_active_timestamp
             or runtime._session_info.created_timestamp,
             reverse=True,
@@ -657,9 +657,9 @@ class MaisakaFocusRuntimeMixin:
         if target_session_info.session_id == self.session_id:
             return False, "目标聊天就是当前聊天，不能切换到自身。", {}, {}
 
-        from src.chat.heart_flow.heartflow_manager import heartflow_manager
+        from src.core.runtime_port_registry import get_chat_runtime_registry
 
-        target_runtime = heartflow_manager.heartflow_chat_list.get(target_session_info.session_id)
+        target_runtime = next((r for r in get_chat_runtime_registry().list_runtimes() if r.session_id == target_session_info.session_id), None)
         if target_runtime is None:
             return False, f"chat_id={target_session_info.session_id} 当前不是运行中已创建聊天，不能切换。", {}, {}
 

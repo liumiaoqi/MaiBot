@@ -35,14 +35,18 @@ class HeartflowManager:
                     self._touch_chat(session_id)
                     return chat
 
+                from src.core.runtime_port_registry import get_chat_runtime_factory
                 from src.core.session_port_registry import get_session_info_port
-                from src.maisaka.runtime import MaisakaHeartFlowChatting
 
                 session_info_port = get_session_info_port()
                 if session_info_port is None or session_info_port.get_session_info(session_id) is None:
                     raise ValueError(f"未找到 session_id={session_id} 对应的聊天流")
 
-                new_chat = MaisakaHeartFlowChatting(session_id=session_id)
+                factory = get_chat_runtime_factory()
+                if factory is None:
+                    raise RuntimeError("ChatRuntimeFactory 未注册，无法创建运行时")
+
+                new_chat = factory.create_runtime(session_id=session_id)
                 await new_chat.start()
                 self.heartflow_chat_list[session_id] = new_chat
                 self._touch_chat(session_id)

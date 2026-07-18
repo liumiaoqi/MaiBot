@@ -174,6 +174,32 @@ class ChatRuntimeRegistry(Protocol):
             RuntimeCreationError: 创建失败时抛出
         """
 
+    def list_runtimes(self) -> list[ChatRuntime]:
+        """列出所有活跃的运行时实例。
+
+        Returns:
+            ChatRuntime 实例列表
+        """
+
+
+@runtime_checkable
+class ChatRuntimeFactory(Protocol):
+    """运行时工厂接口 — heartflow_manager 通过此接口创建运行时，不依赖具体类。
+
+    打破 heartflow_manager → maisaka 的物理依赖：
+    heartflow_manager 通过工厂创建运行时，不再知道 MaisakaHeartFlowChatting。
+    """
+
+    def create_runtime(self, session_id: str) -> ChatRuntime:
+        """创建指定会话的运行时实例。
+
+        Args:
+            session_id: 会话 ID
+
+        Returns:
+            ChatRuntime 实例（未启动，调用方负责 start()）
+        """
+
 
 @runtime_checkable
 class NoticeClassifier(Protocol):

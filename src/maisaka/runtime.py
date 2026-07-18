@@ -2277,3 +2277,15 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
             return None
 
         return GroupInfo(group_id=group_info.group_id, group_name=group_info.group_name)
+
+
+class MaisakaRuntimeFactory:
+    """ChatRuntimeFactory 实现 — 生产 MaisakaHeartFlowChatting 实例。
+
+    heartflow_manager 通过此工厂创建运行时，不再直接导入 MaisakaHeartFlowChatting。
+    工厂在 main.py 启动时注册到 core/runtime_port_registry。
+    """
+
+    def create_runtime(self, session_id: str) -> MaisakaHeartFlowChatting:
+        """创建指定会话的运行时实例（未启动，调用方负责 start()）。"""
+        return MaisakaHeartFlowChatting(session_id=session_id)

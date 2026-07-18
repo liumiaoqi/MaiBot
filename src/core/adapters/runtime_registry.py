@@ -30,3 +30,8 @@ class HeartflowRuntimeRegistry:
     async def get_or_create_runtime(self, session_id: str) -> ChatRuntime:
         manager = self._ensure_manager()
         return await manager.get_or_create_heartflow_chat(session_id)
+
+    def list_runtimes(self) -> list[ChatRuntime]:
+        """列出所有活跃的运行时实例。"""
+        manager = self._ensure_manager()
+        return list(manager.heartflow_chat_list.values())
