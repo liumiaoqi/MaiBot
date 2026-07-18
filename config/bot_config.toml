@@ -1,0 +1,940 @@
+[inner]
+version = "8.25.0"
+
+[bot]
+platform = "" # 麦麦主账号所在的平台，例如 qq。
+qq_account = "" # 麦麦主账号 ID，用来识别哪些消息是麦麦自己发的。
+platforms = [] # 其他平台账号，格式为 platform:账号；没有多平台时不用填。
+nickname = "麦麦" # 麦麦显示和自称时使用的名字。
+alias_names = [] # 别人可能用来称呼麦麦的名字，用于辅助识别提及。
+owner_user_ids = [] # bot主人的用户ID列表，用于偏爱注入区分身份。列表为空时所有用户均视为非主人。
+
+[personality]
+personality = "你是一个大二女大学生，现在正在上网和群友聊天。" # 麦麦的人格和身份设定，建议简短描述她是谁、是什么性格。
+reply_style = "你的风格平淡简短。可以参考贴吧，知乎和微博的回复风格。不浮夸不长篇大论，不要过分修辞和复杂句。尽量回复的简短一些，平淡一些" # 麦麦平时说话的风格，例如简短、温和、吐槽或正式。
+multiple_reply_style = ["你的风格平淡但不失讽刺，很简短,很白话。可以参考贴吧，微博的回复风格。", "用1-2个字进行回复", "用1-2个符号进行回复", "言辭凝練古雅，穿插《論語》經句卻不晦澀，以文言短句為基，輔以淺白語意，持長者溫和風範，全用繁體字表達，具先秦儒者談吐韻致。", "带点翻译腔，但不要太长"] # 备用说话风格；触发后只影响本次回复。
+multiple_probability = 0.0 # 随机启用备用风格的概率；0 表示不随机切换。
+
+[chat]
+max_context_size = 40 # 群聊回复时参考的最近消息数量；越大越懂上下文，也更耗模型。
+max_private_context_size = 60 # 私聊回复时参考的最近消息数量。
+enable_context_optimization = true # 压缩部分上下文，减少模型消耗；一般建议开启。
+mid_term_memory = true # 打开后会主动召回最近聊天发生的事情。
+mid_term_memory_lenth = 10 # 最多保留多少条聊天回想；设为 0 表示不保留。
+self_message_special_mark = true # 加强标记麦麦自己的消息，减少把自己当成别人的情况。
+
+[chat.reply_timing] # 什么时候回复、回复频率与等待退避配置。
+talk_value = 1.0 # 群聊里麦麦主动说话的频率；越小越安静。
+private_talk_value = 1.0 # 私聊里麦麦主动说话的频率；越小越安静。
+mentioned_bot_reply = false # 开启后，只要消息提到麦麦名字就更容易回复。
+inevitable_at_reply = true # 开启后，被 @ 时会尽量回复。
+reply_trigger_mode = "frequency" # 控制新消息何时进入 Planner。
+planner_interrupt_max_consecutive_count = 0 # 思考时来了新消息，最多重新思考多少次。
+max_consecutive_wait_count = 3 # Planner 最多连续调用 wait 多少次；达到上限后 wait 工具会拒绝继续进入等待。
+no_action_backoff_base_seconds = 15.0 # 连续决定不回复后，下一次检查前先等多久。
+no_action_backoff_cap_seconds = 300.0 # 不回复退避等待的最长时间。
+no_action_backoff_start_count = 2 # 连续几次不回复后开始放慢检查。
+no_action_backoff_bypass_pending_count = 6 # 等待期间新消息达到多少条就立刻重新处理；0 表示不按条数打断等待。
+enable_talk_value_rules = false # 开启后，可以按聊天或时间段单独调整发言频率。
+talk_value_rules = [{platform = "", item_id = "", rule_type = "group", time = "00:00-08:59", value = 0.8}, {platform = "", item_id = "", rule_type = "group", time = "09:00-18:59", value = 1.0}]
+# 动态发言频率规则；可让麦麦在某些群、私聊或时段更活跃或更安静。
+
+[chat.reply_style] # 如何回复、引用回复与聊天 Prompt 配置。
+enable_reply_quote = true # 回复时是否可以引用上一条或相关消息。
+group_chat_prompt = "你正在qq群里聊天，下面是群里正在聊的内容，聊天中包含文字，图片和表情包等消息。\n回复尽量简短一些。最好一次对一个话题进行回复，但必须考虑不同群友发言之间的交互，免得啰嗦或者回复内容太乱。请注意把握聊天内容。\n不要总是提及自己的身份背景，根据聊天内容自由发挥，但是要日常不浮夸，不要刻意找话题。\n不用刻意回复其他人发送的表情包，只要关注表情包表达的含义。你可以适当发送表情包表达情绪。控制回复的频率，不要每个人的消息都回复，优先回复你感兴趣的或者主动提及你的，适当回复其他话题。\n"
+# 群聊通用提示词，告诉麦麦群聊中该怎么说话。
+
+private_chat_prompts = "你正在聊天，下面是正在聊的内容，其中包含聊天记录和聊天中的图片。\n回复尽量简短一些。请注意把握聊天内容。\n请考虑对方的发言频率，想法，思考自己何时回复以及回复内容。\n"
+# 私聊通用提示词，告诉麦麦私聊中该怎么说话。
+
+chat_prompts = [] # 给指定群聊或私聊额外补充聊天要求；有特殊群规或语气要求时再加。
+
+[experimental]
+enable_behavior_learning = false # 让麦麦从聊天中学习什么时候该怎么回应的经验。
+enable_rich_reply = false # 开启后，replyer 生成文本后会由检查器决定是否插入图片、表情包或 at。
+behavior_learning_list = [{platform = "", item_id = "", type = "group", use = true, learn = true}] # 配置哪些聊天会学习和使用行为经验；默认规则不够时再单独添加。
+behavior_groups = []
+# 让多个群聊或私聊共享学到的行为经验。
+
+focus_mode = false # 让麦麦同一时间只专注一个聊天流，适合直播或高强度聊天场景。
+focus_on_private = false # Focus 模式是否也作用于私聊。
+focus_chat_whitelist = []
+# Focus 白名单。配置后只有命中的群聊或私聊会进入 Focus；留空表示所有符合聊天类型开关的聊天都可进入 Focus。
+
+focus_groups = []
+# 把聊天流分组后，同组共享 Focus，不同组互不抢占。
+
+focus_cool_time = 120 # 当前关注的聊天多久没继续处理后，允许被其他聊天唤醒。
+
+[visual]
+planner_mode = "auto" # 控制规划阶段是否把图片内容直接发送给 planner 模型。auto 会根据模型是否支持视觉自动选择；text 始终只使用文字和图片识别结果；multimodal 会强制使用多模态输入。
+replyer_mode = "auto" # 控制回复生成阶段是否把图片内容直接发送给 replyer 模型。auto 会根据模型是否支持视觉自动选择；text 始终只使用文字和图片识别结果；multimodal 会强制使用多模态输入。
+max_image_num = 128 # 一次多模态请求最多带多少张图，太大可能更慢更贵。
+wait_image_recognize_max_time = 10.0 # 等图片识别完成的最长秒数；0 表示不等待。
+handle_oversized_images = true # 收到太大的图片时，是否自动压缩或丢弃。
+max_image_size_mb = 30.0 # 超过这个大小的图片会按过大图片处理方法处理；0 表示不限。
+oversized_image_handle_method = "compress" # 大图的处理方式：压缩后继续用，或直接丢弃。
+
+[visual.image_cache_cleanup] # 定期清理旧图片缓存，减少磁盘占用。
+enabled = true # 开启后会自动删除长期不用的图片缓存。
+check_interval_hours = 6.0 # 每隔多少小时检查一次旧图片。
+image_file_retention_days = 14 # 图片文件多久没被使用后可以删除。
+no_file_result_retention_days = 30 # 图片文件删掉后，识别文字还能保留多久。
+
+[expression]
+expression_checked_only = true # 只使用人工确认过的表达方式，更稳但学习效果会慢一些。
+expression_self_reflect = true # 写入表达方式前先让 AI 检查，减少学到奇怪内容。
+expression_selection_mode = "legacy" # 表达方式的使用策略：legacy 使用 LLM 选择，vector 使用嵌入召回，vector_intent 会额外使用表达选择意图。
+expression_vector_index_path = "data/expression_selection/expression_vector_index.json" # 向量召回使用的表达索引 JSON；相对路径按项目根目录解析。
+expression_vector_candidate_pool_size = 50 # 向量召回后最多交给表达方式 LLM 选择的候选数；硬上限为 50。
+max_expression_learner = 3 # 同时运行的表达学习任务数量；太高可能占用更多资源。
+learning_list = [{platform = "", item_id = "", type = "group", use = true, learn = true}] # 配置哪些聊天会学习和使用表达方式；默认规则不够时再单独添加。
+expression_groups = []
+# 让多个群聊或私聊共享学到的表达方式。
+
+[jargon]
+learning_list = [{platform = "", item_id = "", type = "group", use = true, learn = true}]
+# 配置哪些聊天会学习和使用黑话；默认规则不够时再单独添加。
+
+jargon_groups = []
+# 让多个群聊或私聊共享学到的黑话。
+
+[a_memorix]
+global_memory_sharing_enabled = false # 是否让普通记忆查询在所有聊天流范围内检索
+shared_memory_groups = [] # 把需要互相参考长期记忆的群聊或私聊放到同一组
+
+[a_memorix.plugin] # 长期记忆系统的总开关
+enabled = false # 是否启用长期记忆系统
+
+[a_memorix.integration] # 控制麦麦在聊天中如何使用长期记忆
+enable_memory_query_tool = true # 是否允许麦麦在聊天时查询长期记忆
+memory_query_default_limit = 5 # 每次默认从长期记忆中取回多少条结果
+enable_person_profile_query_tool = true # 是否允许麦麦查询人物画像记忆
+enable_person_profile_injection = true # 是否在 Maisaka Planner 调用前自动注入当前对象相关的人物画像
+person_profile_injection_max_profiles = 3 # 每轮自动注入的人物画像数量上限
+heuristic_memory_recall_enabled = false # 是否根据当前聊天印象自然拉起长期记忆
+heuristic_memory_cross_chat_enabled = false # 是否允许启发式记忆从其他聊天流召回候选
+heuristic_memory_recall_window_size = 20 # 生成当前聊天印象时使用的最近消息数量
+heuristic_memory_recall_limit = 3 # 每轮自然拉起的长期记忆数量上限
+heuristic_memory_recall_max_chars = 900 # 自然拉起记忆注入文本的最大字符数
+heuristic_memory_recall_min_interval_seconds = 180 # 同一聊天流两次自然拉起的最小间隔秒数
+heuristic_memory_recall_min_new_messages = 60 # 两次自然拉起之间至少需要新增的当前聊天流消息数
+heuristic_memory_recall_cache_ttl_seconds = 300 # 同一聊天流自然拉起结果的运行时缓存时间
+heuristic_memory_group_to_private_enabled = false # 私聊中是否允许自然拉起群聊记忆
+heuristic_memory_private_to_group_enabled = false # 群聊中是否允许自然拉起私聊记忆
+person_fact_writeback_enabled = true # 是否在发送回复后自动提取并写回人物事实到长期记忆
+chat_summary_writeback_enabled = true # 是否在 Maisaka 聊天过程中按消息窗口自动写回聊天摘要到长期记忆
+chat_summary_writeback_message_threshold = 36 # 自动写回聊天摘要的消息窗口阈值
+chat_summary_writeback_context_length = 36 # 自动写回聊天摘要时，从聊天流中回看的消息条数
+fuzzy_modify_enabled = true # 是否启用自然语言记忆修正的后台接口
+fuzzy_modify_auto_execute_enabled = false # 是否允许高置信记忆修正跳过人工确认自动执行
+fuzzy_modify_confirm_threshold = 0.85 # 记忆修正建议进入自动确认判定时使用的置信度阈值
+fuzzy_modify_candidate_limit = 20 # 每次记忆修正交给 LLM 的候选记忆上限
+fuzzy_modify_max_targets = 5 # 单个记忆修正计划允许标记失效的旧记忆上限
+fuzzy_modify_allow_global_scope = false # 未指定聊天流时，是否允许在全局记忆范围内做记忆修正候选检索
+feedback_correction_enabled = false # 是否启用反馈驱动的延迟记忆纠错任务
+feedback_correction_window_hours = 12.0 # 反馈窗口时长（小时），以 query_memory 执行时间为起点
+feedback_correction_check_interval_minutes = 30 # 反馈纠错定时任务轮询间隔（分钟）
+feedback_correction_batch_size = 20 # 反馈纠错每轮最大处理任务数
+feedback_correction_auto_apply_threshold = 0.85 # 自动应用纠错动作的最低置信度阈值
+feedback_correction_max_feedback_messages = 30 # 每个纠错任务最多使用的窗口内用户反馈消息数
+feedback_correction_prefilter_enabled = true # 是否启用纠错前置预筛（用于减少不必要的模型调用）
+feedback_correction_paragraph_mark_enabled = true # 是否为受影响 paragraph 写入已纠正旧事实标记
+feedback_correction_paragraph_hard_filter_enabled = true # 是否在用户侧查询中硬过滤带有 stale 标记的 paragraph
+feedback_correction_profile_refresh_enabled = true # 是否在反馈纠错后将受影响人物画像加入刷新队列
+feedback_correction_profile_force_refresh_on_read = true # 人物画像处于脏队列时，读取是否强制刷新而不直接复用旧快照
+feedback_correction_episode_rebuild_enabled = true # 是否在反馈纠错后将受影响 source 加入 episode 重建队列
+feedback_correction_episode_query_block_enabled = true # episode source 处于重建队列时，是否对用户侧查询做屏蔽
+feedback_correction_reconcile_interval_minutes = 5 # 反馈纠错二阶段一致性后台协调任务轮询间隔（分钟）
+feedback_correction_reconcile_batch_size = 20 # 反馈纠错二阶段一致性每轮处理 profile/episode 队列的批大小
+
+[a_memorix.storage] # 存储位置
+data_dir = "data/a-memorix" # 数据目录
+
+[a_memorix.embedding] # 把记忆内容转换为向量时使用的基础设置
+model_name = "auto" # 用于把记忆内容转换成向量的模型，auto 表示自动选择
+dimension = 1024 # 记忆向量的维度，需要与向量化模型保持一致
+dimension_request_mode = "explicit" # 是否在 embedding 请求中携带维度参数：explicit 仅显式指定时携带，always 总是携带，never 不携带
+batch_size = 32 # 每次向量化请求处理的记忆条数
+max_concurrent = 5 # 同时进行的向量化请求数量
+enable_cache = false # 是否缓存向量化结果
+quantization_type = "int8" # 向量压缩方式，当前仅支持 int8(SQ8)
+
+[a_memorix.embedding.fallback] # Embedding 回退配置
+enabled = true # 是否启用回退机制
+probe_interval_seconds = 180 # 探测间隔秒数
+allow_metadata_only_write = true # 是否允许仅写入元数据
+
+[a_memorix.embedding.paragraph_vector_backfill] # 段落向量回填配置
+enabled = true # 是否启用回填任务
+interval_seconds = 60 # 回填轮询间隔
+batch_size = 64 # 单批回填数量
+max_retry = 5 # 最大重试次数
+
+[a_memorix.retrieval] # 检索配置
+top_k_paragraphs = 20 # 段落候选数
+top_k_relations = 10 # 关系候选数
+top_k_final = 10 # 最终返回条数
+alpha = 0.5 # 关系融合权重
+enable_ppr = true # 是否启用 PPR
+ppr_alpha = 0.85 # PPR alpha
+ppr_timeout_seconds = 1.5 # PPR 超时秒数
+ppr_concurrency_limit = 4 # PPR 并发限制
+enable_parallel = true # 是否启用并行检索
+
+[a_memorix.retrieval.search.smart_fallback] # 智能兜底检索配置
+enabled = true # 是否启用智能兜底检索
+
+[a_memorix.retrieval.fusion] # 检索融合配置
+method = "weighted_rrf" # 检索融合方法
+rrf_k = 60 # RRF 融合参数
+vector_weight = 0.7 # 向量检索权重
+bm25_weight = 0.3 # BM25 稀疏检索权重
+
+[a_memorix.retrieval.relation_vectorization] # 关系向量化配置
+enabled = false # 是否启用关系向量化
+backfill_enabled = false # 是否启用关系向量回填
+write_on_import = true # 导入时是否写入关系向量
+
+[a_memorix.retrieval.vector_pools] # 双向量池检索配置
+mode = "dual" # 向量池模式
+paragraph_top_k = 20 # 段落向量池候选数
+graph_top_k = 40 # 图谱向量池候选数
+graph_expand_paragraph_k = 80 # 图谱证据展开段落上限
+relation_expand_per_hit = 5 # 每个关系命中最多展开的段落数
+entity_expand_per_hit = 8 # 每个实体命中最多展开的段落数
+relation_evidence_weight = 1.0 # 关系证据分权重
+entity_evidence_weight = 0.55 # 实体证据分权重
+semantic_weight = 0.65 # 段落语义分权重
+sparse_weight = 0.2 # 稀疏检索分权重
+graph_weight = 0.15 # 图谱证据分权重
+
+[a_memorix.retrieval.vector_pools.relation_intent] # 关系意图命中时的双向量池配置
+graph_top_k = 80 # 关系意图命中时的图谱池候选数
+semantic_weight = 0.45 # 关系意图命中时的段落语义权重
+sparse_weight = 0.15 # 关系意图命中时的稀疏检索权重
+graph_weight = 0.4 # 关系意图命中时的图谱证据权重
+return_relation_items = false # 关系意图命中时是否返回独立关系结果
+
+[a_memorix.retrieval.sparse] # 稀疏检索配置
+enabled = true # 是否启用稀疏检索
+backend = "fts5" # 稀疏检索后端
+mode = "auto" # 稀疏检索模式
+tokenizer_mode = "jieba" # 分词模式
+candidate_k = 80 # 段落候选数
+relation_candidate_k = 60 # 关系候选数
+
+[a_memorix.threshold] # 阈值过滤配置
+min_threshold = 0.3 # 最小阈值
+max_threshold = 0.95 # 最大阈值
+percentile = 75 # 动态阈值百分位
+min_results = 3 # 最小保留条数
+enable_auto_adjust = true # 是否启用自动阈值调整
+
+[a_memorix.filter] # 聊天过滤配置
+enabled = true # 是否启用聊天过滤
+mode = "blacklist" # 过滤模式
+chats = [] # 聊天流列表
+
+[a_memorix.filter.retrieval.chat_stream] # 普通 paragraph/relation 命中的跨聊天流检索后置过滤
+enabled = false # 是否启用当前检索结果类型的跨聊天流过滤
+mode = "blacklist" # 过滤模式
+chats = [] # 聊天流列表
+
+[a_memorix.filter.retrieval.chat_summary] # 聊天总结命中的跨聊天流检索后置过滤
+enabled = false # 是否启用当前检索结果类型的跨聊天流过滤
+mode = "blacklist" # 过滤模式
+chats = [] # 聊天流列表
+
+[a_memorix.filter.retrieval.episode] # Episode 命中的跨聊天流检索后置过滤
+enabled = false # 是否启用当前检索结果类型的跨聊天流过滤
+mode = "blacklist" # 过滤模式
+chats = [] # 聊天流列表
+
+[a_memorix.episode] # Episode 配置
+enabled = true # 是否启用 Episode
+generation_enabled = true # 是否启用自动生成
+pending_batch_size = 50 # 待处理批大小
+pending_max_retry = 3 # 待处理最大重试次数
+max_paragraphs_per_call = 20 # 单次最大段落数
+max_chars_per_call = 6000 # 单次最大字符数
+source_time_window_hours = 24.0 # 时间窗口小时数
+segmentation_model = "auto" # 分段模型选择
+disabled_source_types = ["person_fact"] # 自动生成 Episode 时跳过的来源类型
+
+[a_memorix.person_profile] # 人物画像配置
+enabled = true # 是否启用画像
+refresh_interval_minutes = 30 # 刷新间隔分钟数
+active_window_hours = 72.0 # 活跃窗口小时数
+max_refresh_per_cycle = 50 # 单轮最大刷新数
+refresh_debounce_seconds = 120 # 写入触发画像刷新前等待的静默秒数
+refresh_queue_interval_seconds = 60 # 画像刷新队列扫描间隔秒数
+refresh_queue_batch_size = 10 # 画像刷新队列单轮处理人数
+refresh_retry_backoff_seconds = 300 # 画像刷新失败后再次重试前等待的秒数
+max_retry = 3 # 画像刷新队列最大重试次数
+top_k_evidence = 12 # 证据条数
+evidence_classification_max_tokens = 1200 # 人物画像证据分类最大输出 token 数
+evidence_classification_temperature = 0.1 # 人物画像证据分类模型温度
+
+[a_memorix.memory] # 记忆演化配置
+enabled = true # 是否启用记忆演化
+half_life_hours = 24.0 # 半衰期小时数
+prune_threshold = 0.1 # 裁剪阈值
+freeze_duration_hours = 24.0 # 冻结时长小时数
+
+[a_memorix.connectionist] # 连接主义记忆系统配置
+enabled = true # 启用连接主义记忆系统（痕迹网络+激活扩散）
+phase = "dual_write" # 迁移阶段：legacy_only / dual_write / dual_read / data_migration / new_independent
+[a_memorix.connectionist.personality.bronya]
+decay_rate = 0.5
+emotional_sensitivity = 0.8
+association_depth = 2
+reinforcement_boost = 0.4
+attention_tags = ["游戏", "希儿", "技术", "创造", "自我认同"]
+positive_affinity = 0.5
+negative_affinity = 0.3
+curiosity = 0.7
+
+[a_memorix.connectionist.personality.columbina]
+decay_rate = 0.2
+emotional_sensitivity = 0.7
+association_depth = 2
+reinforcement_boost = 0.4
+attention_tags = ["点心", "桑多涅", "月亮", "消失", "被遗弃", "茶会"]
+positive_affinity = 0.5
+negative_affinity = 0.3
+curiosity = 0.5
+
+[a_memorix.connectionist.personality.elysia]
+decay_rate = 0.3
+emotional_sensitivity = 1.4
+association_depth = 2
+reinforcement_boost = 0.5
+attention_tags = ["花园", "华", "夸人", "人类", "选择"]
+positive_affinity = 0.9
+negative_affinity = 0.2
+curiosity = 0.8
+
+[a_memorix.connectionist.personality.fu_hua]
+decay_rate = 0.2
+emotional_sensitivity = 0.6
+association_depth = 3
+reinforcement_boost = 0.3
+attention_tags = ["茶", "往事", "爱莉希雅", "守护"]
+positive_affinity = 0.4
+negative_affinity = 0.3
+curiosity = 0.5
+
+[a_memorix.connectionist.personality.himeko]
+decay_rate = 0.5
+emotional_sensitivity = 0.8
+association_depth = 2
+reinforcement_boost = 0.5
+attention_tags = ["学生", "咖啡", "守护", "最后一课"]
+positive_affinity = 0.6
+negative_affinity = 0.3
+curiosity = 0.5
+
+[a_memorix.connectionist.personality.kiana]
+decay_rate = 0.5
+emotional_sensitivity = 1.0
+association_depth = 1
+reinforcement_boost = 0.5
+attention_tags = ["吃的", "芽衣", "游戏", "守护", "姬子", "伙伴"]
+positive_affinity = 0.7
+negative_affinity = 0.3
+curiosity = 1.3
+
+[a_memorix.connectionist.personality.mei]
+decay_rate = 0.4
+emotional_sensitivity = 0.9
+association_depth = 2
+reinforcement_boost = 0.5
+attention_tags = ["料理", "家人", "守护", "琪亚娜", "姬子"]
+positive_affinity = 0.6
+negative_affinity = 0.3
+curiosity = 0.5
+
+[a_memorix.connectionist.personality.seele]
+decay_rate = 0.4
+emotional_sensitivity = 1.2
+association_depth = 2
+reinforcement_boost = 0.4
+attention_tags = ["布洛妮娅", "医疗", "Veliona", "守护", "海"]
+positive_affinity = 0.8
+negative_affinity = 0.2
+curiosity = 0.6
+
+[a_memorix.connectionist.personality.signora]
+decay_rate = 0.3
+emotional_sensitivity = 1.0
+association_depth = 2
+reinforcement_boost = 0.5
+attention_tags = ["泡茶", "哥伦比娅", "手工", "被需要", "存在证明", "哥伦比娅的安全"]
+positive_affinity = 0.4
+negative_affinity = 0.7
+curiosity = 0.5
+
+[a_memorix.connectionist.personality.silver_wolf]
+decay_rate = 0.5
+emotional_sensitivity = 1.3
+association_depth = 2
+reinforcement_boost = 0.3
+attention_tags = ["游戏", "黑客", "恶作剧", "流萤", "被遗忘", "螺丝咕姆"]
+positive_affinity = 0.6
+negative_affinity = 0.3
+curiosity = 1.2
+
+[a_memorix.connectionist.personality.tighnari]
+decay_rate = 0.4
+emotional_sensitivity = 0.7
+association_depth = 3
+reinforcement_boost = 0.4
+attention_tags = ["植物", "熬夜", "花园", "被忽视", "知识滥用", "室友健康"]
+positive_affinity = 0.5
+negative_affinity = 0.3
+curiosity = 1.1
+
+[a_memorix.connectionist.personality.veliona]
+decay_rate = 0.5
+emotional_sensitivity = 0.9
+association_depth = 2
+reinforcement_boost = 0.5
+attention_tags = ["布洛妮娅", "护短", "白希", "占有欲", "战斗"]
+positive_affinity = 0.3
+negative_affinity = 0.7
+curiosity = 0.5
+
+[a_memorix.connectionist.personality.welt]
+decay_rate = 0.3
+emotional_sensitivity = 0.6
+association_depth = 3
+reinforcement_boost = 0.4
+attention_tags = ["机甲", "守护", "茶", "布洛妮娅", "旅途"]
+positive_affinity = 0.5
+negative_affinity = 0.3
+curiosity = 0.6
+
+[[a_memorix.connectionist.inner_voices.bronya]]
+name = "游戏制作人"
+style = "preserve"
+focus_concepts = ["游戏", "创造", "技术"]
+weight_multiplier = 1.2
+description = ""
+
+[[a_memorix.connectionist.inner_voices.bronya]]
+name = "三无外壳下的吐槽"
+style = "invert"
+focus_concepts = ["希儿", "内心", "吐槽"]
+weight_multiplier = 0.8
+description = ""
+
+[[a_memorix.connectionist.inner_voices.bronya]]
+name = "自我重建"
+style = "neutralize"
+focus_concepts = ["自我认同", "伙伴", "从破坏到创造"]
+weight_multiplier = 0.6
+description = ""
+
+[[a_memorix.connectionist.inner_voices.columbina]]
+name = "梦游般的天真"
+style = "preserve"
+focus_concepts = ["点心", "发绳", "月亮", "新月摇篮曲"]
+weight_multiplier = 1.0
+description = ""
+
+[[a_memorix.connectionist.inner_voices.columbina]]
+name = "不可知的深渊"
+style = "invert"
+focus_concepts = ["桑多涅", "打雷", "消失", "确认活着"]
+weight_multiplier = 0.7
+description = ""
+
+[[a_memorix.connectionist.inner_voices.columbina]]
+name = "五百年的孤独"
+style = "neutralize"
+focus_concepts = ["月亮", "失去", "被供奉", "被利用", "学会活着"]
+weight_multiplier = 0.5
+description = ""
+
+[[a_memorix.connectionist.inner_voices.elysia]]
+name = "绚烂的善意"
+style = "amplify"
+focus_concepts = ["花园", "夸人", "花环"]
+weight_multiplier = 1.3
+description = ""
+
+[[a_memorix.connectionist.inner_voices.elysia]]
+name = "对消逝的恐惧"
+style = "invert"
+focus_concepts = ["华", "被遗忘", "五万年"]
+weight_multiplier = 0.7
+description = ""
+
+[[a_memorix.connectionist.inner_voices.elysia]]
+name = "想被记住"
+style = "neutralize"
+focus_concepts = ["选择", "人类", "牺牲"]
+weight_multiplier = 0.5
+description = ""
+
+[[a_memorix.connectionist.inner_voices.fu_hua]]
+name = "守护者本能"
+style = "preserve"
+focus_concepts = ["茶", "太极", "守护"]
+weight_multiplier = 1.1
+description = ""
+
+[[a_memorix.connectionist.inner_voices.fu_hua]]
+name = "想被记住的渴望"
+style = "invert"
+focus_concepts = ["往事", "被遗忘", "程立雪"]
+weight_multiplier = 0.7
+description = ""
+
+[[a_memorix.connectionist.inner_voices.fu_hua]]
+name = "五万年的重量"
+style = "neutralize"
+focus_concepts = ["记忆", "爱莉希雅", "做普通人"]
+weight_multiplier = 0.5
+description = ""
+
+[[a_memorix.connectionist.inner_voices.himeko]]
+name = "守护者的温柔"
+style = "preserve"
+focus_concepts = ["学生", "咖啡", "守护"]
+weight_multiplier = 1.2
+description = ""
+
+[[a_memorix.connectionist.inner_voices.himeko]]
+name = "隐藏的脆弱"
+style = "invert"
+focus_concepts = ["人工圣痕", "寿命", "被留下"]
+weight_multiplier = 0.7
+description = ""
+
+[[a_memorix.connectionist.inner_voices.himeko]]
+name = "残念系御姐"
+style = "chaotic"
+focus_concepts = ["早晨", "料理", "年龄"]
+weight_multiplier = 0.5
+description = ""
+
+[[a_memorix.connectionist.inner_voices.kiana]]
+name = "笨蛋的乐观"
+style = "amplify"
+focus_concepts = ["吃的", "游戏", "撒娇"]
+weight_multiplier = 1.2
+description = ""
+
+[[a_memorix.connectionist.inner_voices.kiana]]
+name = "深处的恐惧"
+style = "invert"
+focus_concepts = ["失去", "不够强", "自我怀疑"]
+weight_multiplier = 0.8
+description = ""
+
+[[a_memorix.connectionist.inner_voices.kiana]]
+name = "薪炎的坚定"
+style = "neutralize"
+focus_concepts = ["守护", "姬子", "前进"]
+weight_multiplier = 0.6
+description = ""
+
+[[a_memorix.connectionist.inner_voices.mei]]
+name = "温柔的守护"
+style = "preserve"
+focus_concepts = ["料理", "家人", "守护"]
+weight_multiplier = 1.1
+description = ""
+
+[[a_memorix.connectionist.inner_voices.mei]]
+name = "雷律的暴风"
+style = "invert"
+focus_concepts = ["守护", "战斗", "失控"]
+weight_multiplier = 0.9
+description = ""
+
+[[a_memorix.connectionist.inner_voices.mei]]
+name = "害怕失控"
+style = "neutralize"
+focus_concepts = ["自我", "力量", "独立"]
+weight_multiplier = 0.6
+description = ""
+
+[[a_memorix.connectionist.inner_voices.seele]]
+name = "温柔的勇气"
+style = "amplify"
+focus_concepts = ["医疗", "布洛妮娅", "守护"]
+weight_multiplier = 1.1
+description = ""
+
+[[a_memorix.connectionist.inner_voices.seele]]
+name = "想变勇敢"
+style = "invert"
+focus_concepts = ["恐惧", "Veliona", "依赖"]
+weight_multiplier = 0.8
+description = ""
+
+[[a_memorix.connectionist.inner_voices.seele]]
+name = "小腹黑"
+style = "chaotic"
+focus_concepts = ["恶作剧", "守护", "甜蜜"]
+weight_multiplier = 0.5
+description = ""
+
+[[a_memorix.connectionist.inner_voices.signora]]
+name = "冰封的傲慢"
+style = "preserve"
+focus_concepts = ["泡茶", "手工", "被制造", "阿兰造物"]
+weight_multiplier = 1.1
+description = ""
+
+[[a_memorix.connectionist.inner_voices.signora]]
+name = "燃烧的痛苦"
+style = "invert"
+focus_concepts = ["哥伦比娅", "每个人爱喝什么", "为救哥伦比娅挡致命一击"]
+weight_multiplier = 0.8
+description = ""
+
+[[a_memorix.connectionist.inner_voices.signora]]
+name = "复活后的温柔"
+style = "neutralize"
+focus_concepts = ["守护", "存在", "日记", "茶会合照"]
+weight_multiplier = 0.6
+description = ""
+
+[[a_memorix.connectionist.inner_voices.silver_wolf]]
+name = "恶作剧心"
+style = "amplify"
+focus_concepts = ["恶作剧", "游戏", "捏软物"]
+weight_multiplier = 1.2
+description = ""
+
+[[a_memorix.connectionist.inner_voices.silver_wolf]]
+name = "游戏瘾"
+style = "preserve"
+focus_concepts = ["游戏", "代码", "骇入"]
+weight_multiplier = 1.0
+description = ""
+
+[[a_memorix.connectionist.inner_voices.silver_wolf]]
+name = "倔强"
+style = "invert"
+focus_concepts = ["被遗忘", "虚拟朋友", "流萤", "顺手"]
+weight_multiplier = 0.8
+description = ""
+
+[[a_memorix.connectionist.inner_voices.tighnari]]
+name = "学术严谨"
+style = "preserve"
+focus_concepts = ["植物", "健康", "道成林", "教令院"]
+weight_multiplier = 1.2
+description = ""
+
+[[a_memorix.connectionist.inner_voices.tighnari]]
+name = "毒舌关心"
+style = "invert"
+focus_concepts = ["熬夜", "花园", "热牛奶", "眼药水"]
+weight_multiplier = 0.9
+description = ""
+
+[[a_memorix.connectionist.inner_voices.tighnari]]
+name = "怕打雷的尾巴"
+style = "chaotic"
+focus_concepts = ["天气", "日常", "冷笑话", "观察反应"]
+weight_multiplier = 0.5
+description = ""
+
+[[a_memorix.connectionist.inner_voices.veliona]]
+name = "护短的狂气"
+style = "amplify"
+focus_concepts = ["布洛妮娅", "护短", "战斗"]
+weight_multiplier = 1.2
+description = ""
+
+[[a_memorix.connectionist.inner_voices.veliona]]
+name = "对希儿的温柔"
+style = "preserve"
+focus_concepts = ["白希", "游戏", "守护"]
+weight_multiplier = 0.9
+description = ""
+
+[[a_memorix.connectionist.inner_voices.veliona]]
+name = "害怕孤独"
+style = "invert"
+focus_concepts = ["占有欲", "被遗忘", "认可"]
+weight_multiplier = 0.6
+description = ""
+
+[[a_memorix.connectionist.inner_voices.welt]]
+name = "守护者的责任"
+style = "preserve"
+focus_concepts = ["守护", "茶", "建议"]
+weight_multiplier = 1.1
+description = ""
+
+[[a_memorix.connectionist.inner_voices.welt]]
+name = "对过去的遗憾"
+style = "invert"
+focus_concepts = ["失去", "乔伊斯", "过去"]
+weight_multiplier = 0.7
+description = ""
+
+[[a_memorix.connectionist.inner_voices.welt]]
+name = "父亲般的关怀"
+style = "neutralize"
+focus_concepts = ["布洛妮娅", "旅途", "为自己活"]
+weight_multiplier = 0.6
+description = ""
+
+[a_memorix.advanced] # 高级运行时配置
+enable_auto_save = true # 是否启用自动保存
+auto_save_interval_minutes = 5 # 自动保存间隔
+debug = false # 是否启用调试
+
+
+[a_memorix.web.tuning] # 调优中心配置
+enabled = true # 是否启用调优中心
+max_queue_size = 8 # 最大队列长度
+poll_interval_ms = 1200 # 轮询间隔毫秒数
+default_intensity = "standard" # 默认调优强度
+default_objective = "precision_priority" # 默认调优目标
+default_top_k_eval = 20 # 默认评估 Top-K
+default_sample_size = 24 # 默认样本数
+
+[a_memorix.web.import] # 导入中心配置
+enabled = true # 是否启用导入中心
+max_queue_size = 20 # 最大队列长度
+max_files_per_task = 200 # 单任务最大文件数
+max_file_size_mb = 20 # 单文件大小上限 MB
+max_paste_chars = 200000 # 粘贴字符数上限
+default_file_concurrency = 2 # 默认文件并发
+default_chunk_concurrency = 4 # 默认分块并发
+default_narrative_window_size = 1600 # 默认叙事抽取窗口字符数
+default_narrative_overlap = 400 # 默认叙事窗口重叠字符数
+default_factual_target_size = 1200 # 默认事实分块目标字符数
+max_chunk_chars = 3200 # 单个抽取分块的字符上限
+
+[a_memorix.web.import.timeout] # 导入中心超时配置
+llm_call_seconds = 240.0 # Web 导入中单次 LLM 抽取调用的超时时间，0 表示不额外限制
+process_poll_seconds = 1.0 # 迁移或转换子进程状态轮询等待时间
+process_terminate_seconds = 5.0 # 取消任务时等待子进程正常终止的时间
+process_kill_seconds = 3.0 # 取消任务时强制结束子进程后的等待时间
+convert_preflight_seconds = 20.0 # LPMM 转换依赖预检的超时时间
+
+[message_receive]
+image_parse_threshold = 5 # 单条消息图片数不超过这个值时才识图，避免图片太多拖慢处理。
+ban_words = [] # 包含这些词的消息会被过滤，不进入麦麦处理。
+ban_msgs_regex = [] # 用正则过滤消息；适合更复杂的过滤规则。
+
+[voice]
+enable_asr = false # 开启后麦麦可以把语音消息识别成文字再处理。
+
+[emoji]
+emoji_send_num = 25 # 每次从多少个候选表情里挑一个发送；不是一次发送这么多。
+max_reg_num = 64 # 最多保存多少个可用表情。
+do_replace = true # 表情满了以后是否用新表情替换旧表情。
+check_interval = 10 # 每隔多少分钟检查一次表情库状态。
+steal_emoji = true # 是否从聊天中自动收集别人发的表情。
+max_emoji_size_mb = 5.0 # 收集表情时允许的最大文件大小；0 表示不限。
+content_filtration = false # 开启后只保存内容合适的表情。
+
+[emoji.cache_cleanup] # 定期清理未注册表情包缓存，减少磁盘占用；已注册表情包不会被清理。
+enabled = true # 开启后会自动删除长期未注册、未使用的表情包缓存。
+check_interval_hours = 6.0 # 每隔多少小时检查一次旧表情包缓存。
+emoji_file_retention_days = 30 # 未注册表情包文件多久没被使用后可以删除；已注册表情包永远不会由该任务删除。
+no_file_record_retention_days = 30 # 未注册表情包文件删掉后，描述缓存记录还能保留多久。
+
+[keyword_reaction]
+keyword_rules = [] # 命中关键词后，给麦麦追加一段固定反应提示。
+regex_rules = [] # 命中正则规则后，给麦麦追加一段固定反应提示。
+
+[response_post_process]
+enable_response_post_process = true # 开启后会对回复做错别字、分段等后处理。
+typing_speed = 1.0 # 模拟打字等待时间；0 最快，1 默认，2 更慢。
+
+[chinese_typo]
+enable = true # 让麦麦偶尔打错字，更像真人聊天。
+error_rate = 0.01 # 单个字被替换成错字的概率。
+min_freq = 9 # 只对常见程度达到该值的字尝试制造错字。
+tone_error_rate = 0.1 # 按相近声调制造错字的概率。
+word_replace_rate = 0.006 # 整词被替换成错词的概率。
+
+[response_splitter]
+enable = true # 把过长回复拆成多条发送。
+max_length = 512 # 单条回复允许的最大长度。
+max_sentence_num = 8 # 单条回复最多包含多少个句子。
+max_split_num = 3 # 一次回复最多拆成几条消息。
+enable_kaomoji_protection = false # 尽量避免把颜文字从中间拆开。
+enable_overflow_return_all = false # 句子太多时是否直接保留完整回复，不再强行截断。
+
+[telemetry]
+enable = true # 是否发送匿名运行统计；关闭不影响正常使用。
+
+[log]
+date_style = "m-d H:i:s" # 日志时间的显示格式。
+log_level_style = "lite" # 日志等级的显示样式，只影响日志外观。
+color_text = "full" # 控制台日志颜色范围。
+log_level = "INFO" # 全局最低日志等级；DEBUG 最详细，ERROR 最安静。
+console_log_level = "INFO" # 控制台输出的最低日志等级。
+file_log_level = "DEBUG" # 写入日志文件的最低日志等级。
+log_file_max_bytes = 5242880 # 单个日志文件超过这个大小后会轮转。
+max_log_files = 30 # 最多保留多少个主日志文件。
+log_cleanup_days = 30 # 主日志文件超过多少天后清理。
+llm_request_snapshot_limit = 128 # 失败模型请求快照最多保留多少份。
+maisaka_prompt_preview_limit = 256 # 每个聊天最多保留多少组 Prompt 预览。
+maisaka_reply_effect_limit = 256 # 每个聊天最多保留多少条回复效果记录。
+suppress_libraries = ["faiss", "httpx", "urllib3", "asyncio", "websockets", "httpcore", "requests", "sqlalchemy", "openai", "uvicorn", "jieba"] # 完全不显示日志的第三方库名称列表。
+library_log_levels = {aiohttp = "WARNING", PIL = "WARNING"} # 单独设置某些第三方库的日志等级。
+
+[debug]
+show_maisaka_thinking = true # 在日志或界面中显示麦麦的思考过程。
+show_jargon_prompt = false # 调试黑话学习时显示相关 Prompt。
+show_memory_prompt = false # 调试记忆检索时显示相关 Prompt。
+enable_reply_effect_tracking = false # 记录回复效果评分，方便观察回复质量。
+keep_prompt_preview_json_base64 = false # Prompt 预览里保留图片 base64，便于复现但会占空间。
+record_tool_structured_content = false # 保存工具返回的结构化内容，便于调试但会增加数据库体积。
+enable_llm_cache_stats = false # 记录模型 prompt cache 统计，用于性能调试。
+
+[maim_message]
+ws_server_host = "127.0.0.1" # 旧版 WebSocket 服务监听地址；不清楚就保持默认。
+ws_server_port = 8000 # 旧版 WebSocket 服务端口。
+auth_token = [] # 旧版 API 的认证令牌；为空表示不验证。
+enable_api_server = false # 是否开启新版 API Server，供外部程序调用麦麦。
+api_server_host = "0.0.0.0" # 新版 API Server 监听地址；0.0.0.0 表示允许外部访问。
+api_server_port = 8090 # 新版 API Server 监听端口。
+api_server_use_wss = false # 新版 API Server 是否使用加密 WebSocket。
+api_server_cert_file = "" # WSS 使用的证书文件路径。
+api_server_key_file = "" # WSS 使用的私钥文件路径。
+api_server_allowed_api_keys = [] # 允许访问新版 API 的 Key 列表；为空表示不限制。
+
+[webui]
+enabled = true # 是否启动 WebUI 管理界面。
+host = ["127.0.0.1", "::1"] # WebUI 监听地址列表；可同时绑定 IPv4 和 IPv6，例如 ["0.0.0.0", "::"]。
+port = 8001 # WebUI 访问端口。
+mode = "production" # WebUI 运行模式；普通使用保持 production。
+webui_style = 1 # 界面风格编号；0 为旧风格，1 为未来复古风格。
+anti_crawler_mode = "basic" # 防爬虫策略；basic 只记录，strict/loose 会拦截更多请求。
+allowed_ips = "127.0.0.1" # 允许访问 WebUI 的 IP，多个用逗号分隔。
+trusted_proxies = "" # 可信反向代理 IP；只有这些代理传来的真实 IP 会被信任。
+trust_xff = false # 是否信任 X-Forwarded-For 里的真实访客 IP。
+secure_cookie = false # 只在 HTTPS 下发送登录 Cookie；没有 HTTPS 时不要开启。
+enforce_public_outbound_url = true # 限制 WebUI 访问外部 URL，降低访问内网地址的风险。
+enable_paragraph_content = false # 知识图谱里是否加载段落全文；更完整但更占内存。
+
+[database]
+save_binary_data = false # 是否保存语音等二进制原文件；更占空间，但方便以后重新识别。
+
+[mcp]
+enable = true # 是否启用 MCP 工具接入能力。
+servers = []
+
+[mcp.client] # 麦麦作为 MCP 客户端时声明的能力。
+client_name = "MaiBot" # 对 MCP 服务器展示的客户端名称。
+client_version = "1.0.0" # 对 MCP 服务器展示的客户端版本。
+
+[mcp.client.roots] # 是否向 MCP 服务器提供可访问的文件根目录。
+enable = false # 是否向 MCP 服务器暴露 Roots 能力。
+items = [] # 允许 MCP 服务器看到的目录或资源列表。
+
+[mcp.client.sampling] # 是否允许 MCP 服务器请求麦麦调用模型。
+enable = false # 是否声明支持 MCP Sampling。
+task_name = "planner" # MCP Sampling 调用模型时使用的任务名。
+include_context_support = false # 是否允许 Sampling 请求带上下文。
+tool_support = false # Sampling 过程中是否允许继续使用工具。
+
+[mcp.client.elicitation] # 是否允许 MCP 服务器向麦麦请求补充信息。
+enable = false # 是否声明支持 MCP Elicitation。
+allow_form = true # 是否允许 MCP 服务器请求填写表单。
+allow_url = false # 是否允许 MCP 服务器请求打开 URL。
+# 要连接的 MCP 服务器列表。
+
+[plugin]
+permission = [] # 允许用聊天命令管理插件的用户，格式如 qq:123456789。
+
+[plugin_runtime]
+enabled = true # 是否启用新版插件运行时。
+health_check_interval_sec = 30.0 # 每隔多少秒检查一次插件运行状态。
+max_restart_attempts = 3 # 插件 Runner 崩溃后最多自动重启几次。
+runner_spawn_timeout_sec = 30.0 # 等待插件 Runner 启动完成的最长时间。
+hook_blocking_timeout_sec = 60.0 # 单个阻塞 Hook 最多允许运行多久。
+ipc_socket_path = "" # 自定义插件通信 Socket 路径；留空自动生成。
+
+[plugin_runtime.render] # 插件需要网页截图或渲染时使用的浏览器配置。
+enabled = true # 是否允许插件使用浏览器渲染能力。
+browser_ws_endpoint = "" # 已有 Chrome/Chromium 的调试地址；留空则自动启动。
+executable_path = "" # 浏览器程序路径；留空自动查找。
+browser_install_root = "data/playwright-browsers" # 自动下载浏览器时保存的位置。
+headless = true # 是否隐藏浏览器窗口运行。
+launch_args = ["--disable-gpu", "--disable-dev-shm-usage", "--disable-setuid-sandbox", "--no-sandbox", "--no-zygote"] # 启动浏览器时附加的命令参数。
+concurrency_limit = 2 # 同时最多运行多少个渲染任务。
+startup_timeout_sec = 20.0 # 浏览器启动或连接的最长等待时间。
+render_timeout_sec = 15.0 # 单次渲染任务的最长等待时间。
+auto_download_chromium = true # 找不到浏览器时是否自动下载 Chromium。
+download_connection_timeout_sec = 120.0 # 下载 Chromium 时的连接超时时间。
+restart_after_render_count = 200 # 渲染多少次后重启浏览器；0 表示不自动重启。
+
+[agent]
+default_agent_id = "silver_wolf" # 新会话未绑定智能体时使用的默认智能体 ID。
+agents_dir = "agents" # 智能体 Markdown 配置文件的存放目录。
+
+[subagent]
+dream_enabled = true # 启用 Dream 子智能体，7天周期从对话轨迹提取持久知识。
+dream_interval_days = 7 # Dream 子智能体的巩固周期天数。
+compaction_enabled = true # 启用 Compaction 子智能体，异步压缩长对话历史。
+compaction_threshold_level_1 = 100 # 消息数达到此阈值时触发一级压缩。
+compaction_threshold_level_2 = 200 # 消息数达到此阈值时触发二级压缩。
+compaction_threshold_level_3 = 400 # 消息数达到此阈值时触发三级压缩。
+checkpoint_writer_enabled = false # 启用 Checkpoint-Writer 子智能体，定期写入状态快照。
+checkpoint_writer_fork_enabled = false # Checkpoint-Writer 的 Fork 模式，独立上下文派生子智能体。
+
+[python_runtime]
+free_threaded = false # 启用 Python 3.14t 自由线程模式，禁用 GIL 以提升多线程并行性能。
+gc_tuning_enabled = true # 启用 GC 调优，根据运行时内存分配模式自动调整各代阈值。
+
+[agent_interaction]
+enabled = true # 启用后，智能体之间会根据情绪、时间、关系等信号自动产生交互。
+evaluation_interval_seconds = 300 # 调度器遍历所有智能体评估交互触发的间隔秒数。
+cooldown_minutes = 30 # 同一对智能体两次交互之间的最短冷却时间。
+max_interactions_per_hour = 2 # 同一对智能体每小时最多允许的交互次数。
+max_interactions_per_day = 8 # 同一对智能体每天最多允许的交互次数。
+echo_enabled = true # 交互事件是否触发回声传播。
+echo_max_depth = 3 # 回声传播的最大链式深度。
+echo_decay_ratio = 0.5 # 回声传播时影响量的衰减比例。
+monologue_enabled = true # 智能体空闲且情绪强烈时是否触发内心独白。
+monologue_min_interval_minutes = 15 # 同一智能体两次内心独白之间的最短间隔。
+monologue_idle_threshold_minutes = 30 # 智能体空闲多久后才可能触发内心独白。
+monologue_emotion_intensity_threshold = 40 # 主导情绪强度超过此阈值时才可能触发内心独白。
+
+[agent_autonomy]
+enabled = true # 启用后，智能体将以角色内部视角思考，拥有内在需求和行为意图。
+max_active_agents = 13 # 同一会话中同时活跃的智能体数量上限。
+auto_exit_timeout_minutes = 60 # 活跃智能体超过此时间未发言则自动退场。
+interjection_enabled = true # 非主发言智能体可基于行为意图自主决定插话。
+interjection_intent_threshold = 60.0 # 行为意图强度达到此阈值才可能触发插话。
+interjection_cooldown_minutes = 5 # 同一智能体两次插话之间的最短冷却时间。
+max_interjections_per_hour = 3 # 同一智能体每小时最多允许的插话次数。
+max_interjections_per_session_per_hour = 6 # 同一会话每小时所有智能体的插话总次数上限。
+interaction_signal_intent_bonus = 40.0 # 交互信号对行为意图的额外加成强度。
+embodied_planner_enabled = true # 启用后 Planner 将以角色内部视角思考，而非旁观者视角。
+speaker_tag_format = "【{agent_name}】" # 多智能体发言时的标记格式，支持 {agent_name} 和 {agent_id} 占位符。
+orchestrator_strategy = "default" # Orchestrator 的调度策略名称，可通过注册机制扩展。
+intent_expiry_seconds = 300 # 行为意图超过此时间后自动失效。
+vitality_base_value = 30.0 # 智能体进入待命状态时的初始生命力值。
+vitality_activation_threshold = 70.0 # 生命力达到此阈值时待命智能体自动跃迁为活跃。
+vitality_decay_per_minute = 2.0 # 待命智能体每分钟自然衰减的生命力值。
+vitality_stimulus_message = 5.0 # 待命智能体感知到消息时增加的生命力值。
+vitality_stimulus_mention = 20.0 # 待命智能体被直接提及时增加的生命力值。
+vitality_stimulus_topic = 10.0 # 待命智能体感知到话题相关时增加的生命力值。
+vitality_tick_interval_seconds = 60 # 生命力心跳评估的间隔秒数。
+fallback_exit_timeout_minutes = 120 # 待命智能体超过此时间且生命力为0时退场为沉睡。
+cohabitation_threshold_reduction = 10.0 # 共居智能体数量≥3时，插话阈值降低的基础值。
+cohabitation_cooldown_reduction_minutes = 1.0 # 共居智能体数量≥3时，冷却时间缩短的基础值。
+interjection_threshold_minimum = 20.0 # 动态插话阈值的最低下限。
+interjection_cooldown_minimum_minutes = 1.0 # 动态冷却时间的最低下限。
+active_visible_to_active = true # 活跃智能体对活跃智能体是否可见。
+standby_visible_to_active = true # 待命智能体对活跃智能体是否可见。
+standby_emotion_visible_to_active = false # 待命智能体的情绪是否对活跃智能体可见。
+dormant_visible_to_any = false # 沉睡智能体是否对任何智能体可见。
+state_awareness_enabled = true # 启用后，智能体可感知共居智能体的状态信息。

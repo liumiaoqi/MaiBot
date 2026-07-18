@@ -636,7 +636,7 @@ class AgentOrchestrator:
 
             # 收集活跃智能体的行为意图
             if self._config.interjection_enabled:
-                await self._collect_behavior_intents()
+                await self._collect_behavior_intents(content=content, sender_id=sender_id)
 
             # 调度插话
             if self._config.interjection_enabled:
@@ -813,7 +813,7 @@ class AgentOrchestrator:
     def _persist_behavior_intent(self, agent_id: str, intent: BehaviorIntent) -> None:
         """持久化行为意图记录。"""
         try:
-            intent_id = f"bi:{agent_id}:{format(int(time.time()), 'x')}:{format(hash(intent), 'x')[:6]}"
+            intent_id = f"bi:{agent_id}:{format(int(time.time()), 'x')}:{format(hash((intent.intent_type, intent.agent_id)), 'x')[:6]}"
             expired_at = datetime.now() + timedelta(seconds=self._config.intent_expiry_seconds)
             self._activity_store.save_behavior_intent(
                 intent_id=intent_id,
@@ -830,8 +830,27 @@ class AgentOrchestrator:
                 f"[agent_autonomy] 行为意图持久化失败: agent={agent_id} error={exc}"
             )
 
-    async def _collect_behavior_intents(self) -> None:
+    async def _collect_behavior_intents(self, *, content: str = "", sender_id: str = "") -> None:
         """并行收集活跃智能体（排除主发言）的行为意图。"""
+        # 构造对话上下文 — 供行为意图引擎的 TopicRelevance/Relationship 源使用
+        from datetime import datetime
+        conversation_context: list[dict[str, Any]] = []
+        if content:
+            conversation_context.append({
+                "sender_id": sender_id,
+                "sender_type": "user",
+                "content": content,
+                "timestamp": datetime.now().isoformat(),
+            })
+
+        # 构造时间上下文
+        now = datetime.now()
+        time_context: dict[str, Any] = {
+            "hour": now.hour,
+            "weekday": now.weekday(),
+            "timestamp": now.isoformat(),
+        }
+
         # 获取动态插话参数
         cohabitation_params = self._vitality_manager.get_cohabitation_params(self._session_id)
         dynamic_threshold = cohabitation_params.intent_threshold
@@ -861,6 +880,8 @@ class AgentOrchestrator:
                 continue
             tasks.append((agent_id, asyncio.create_task(
                 agent.produce_behavior_intents(
+                    conversation_context=conversation_context or None,
+                    time_context=time_context,
                     intent_threshold=dynamic_threshold,
                 )
             )))
@@ -925,7 +946,7 @@ class AgentOrchestrator:
             self._cooldown_manager.record_interjection(self._session_id, decision.agent_id)
 
             # 持久化插话事件
-            event_id = f"ij:{decision.agent_id}:{format(int(time.time()), 'x')}:{format(hash(decision.intent), 'x')[:6]}"
+            event_id = f"ij:{decision.agent_id}:{format(int(time.time()), 'x')}:{format(hash((decision.intent.intent_type, decision.intent.agent_id)), 'x')[:6]}"
             self._activity_store.save_interjection_event(
                 event_id=event_id,
                 agent_id=decision.agent_id,
