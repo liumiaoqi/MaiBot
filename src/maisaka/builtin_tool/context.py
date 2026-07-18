@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Sequence, TYPE_CHECKING
 
 import re
 
-from src.chat.utils.utils import process_llm_response
+from src.maisaka.context.post_processor import process_llm_response
 from src.common.data_models.message_component_data_model import (
     AtComponent,
     EmojiComponent,

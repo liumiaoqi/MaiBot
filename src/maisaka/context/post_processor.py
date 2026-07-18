@@ -300,3 +300,12 @@ def _trim_history_to_context_target(
     for index in reversed(remove_indexes):
         del chat_history[index]
     return removed_messages
+
+
+# =============================================================================
+# 桥接 re-export — process_llm_response
+# =============================================================================
+# process_llm_response 当前定义在 src/chat/utils/utils.py，
+# 但逻辑上属于 maisaka 回复后处理。此处 re-export 作为集中桥接点。
+# 后续架构演进将把函数定义物理迁移到 maisaka 层。
+from src.chat.utils.utils import process_llm_response as process_llm_response

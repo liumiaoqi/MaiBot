@@ -11,8 +11,9 @@ import time
 from src.core.types import CycleDetail
 
 from src.core.types import SessionMessage
-from src.chat.replyer.expression_vector_index import expression_vector_index
-from src.chat.utils.utils import get_bot_account, is_bot_self, is_mentioned_bot_in_message
+from src.maisaka.replyer.expression_vector_index import expression_vector_index
+from src.core.identity import get_bot_account, is_bot_self
+from src.core.message_utils import is_mentioned_bot_in_message
 from src.common.data_models.mai_message_data_model import GroupInfo, MessageInfo, UserInfo
 from src.common.data_models.message_component_data_model import (
     ForwardNodeComponent,

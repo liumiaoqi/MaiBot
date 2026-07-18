@@ -1,29 +1,6 @@
-from typing import Any, Callable, Optional
+"""兼容 re-export — 已迁移到 src/maisaka/replyer/generator.py。
 
-from src.core.types import SessionInfo
-from src.common.prompt_i18n import load_prompt
-from src.config.config import global_config
-from src.services.llm_service import LLMServiceClient
-
-from .maisaka_generator_base import BaseMaisakaReplyGenerator
-
-
-class MaisakaReplyGenerator(BaseMaisakaReplyGenerator):
-    """Maisaka replyer。"""
-
-    def __init__(
-        self,
-        chat_stream: Optional[SessionInfo] = None,
-        request_type: str = "maisaka.replyer",
-        llm_client_cls: Optional[Any] = None,
-        load_prompt_func: Optional[Callable[..., str]] = None,
-        enable_visual_message: Optional[bool] = None,
-    ) -> None:
-        super().__init__(
-            chat_stream=chat_stream,
-            request_type=request_type,
-            llm_client_cls=llm_client_cls or LLMServiceClient,
-            load_prompt_func=load_prompt_func or load_prompt,
-            enable_visual_message=enable_visual_message,
-            replyer_mode=global_config.visual.replyer_mode,
-        )
+此文件保留 6 个月供兼容，后续删除。请从新路径导入。
+"""
+from src.maisaka.replyer.generator import *  # noqa: F401,F403
+from src.maisaka.replyer.generator import MaisakaReplyGenerator

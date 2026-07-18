@@ -7,7 +7,7 @@ import json
 
 from sqlmodel import select
 
-from src.chat.replyer.expression_vector_index import ExpressionVectorIndexUpsertItem, expression_vector_index
+from src.maisaka.replyer.expression_vector_index import ExpressionVectorIndexUpsertItem, expression_vector_index
 from src.chat.utils.utils import is_bot_self
 from src.common.data_models.expression_data_model import MaiExpression
 from src.common.data_models.llm_service_data_models import LLMGenerationOptions

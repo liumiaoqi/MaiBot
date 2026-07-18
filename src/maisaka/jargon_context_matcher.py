@@ -14,7 +14,7 @@ from src.common.database.database import get_db_session
 from src.common.database.database_model import HighFrequencyTerm, Jargon
 from src.common.logger import get_logger
 from src.common.utils.utils_config import JargonConfigUtils
-from src.chat.utils.utils import is_bot_self
+from src.core.identity import is_bot_self
 from src.maisaka.context.messages import LLMContextMessage, ReferenceMessage, ReferenceMessageType, SessionBackedMessage
 
 logger = get_logger("maisaka_jargon_context")

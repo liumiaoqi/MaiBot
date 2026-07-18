@@ -20,7 +20,7 @@ from src.core.session_port_registry import (
     get_session_name as _get_session_name_via_port,
     get_session_query_port,
 )
-from src.chat.replyer.expression_vector_index import normalize_text, resolve_project_path
+from src.maisaka.replyer.expression_vector_index import normalize_text, resolve_project_path
 from src.common.database.database import get_db_session
 from src.common.database.database_model import ChatSession, Expression, Messages, ModifiedBy
 from src.common.logger import get_logger

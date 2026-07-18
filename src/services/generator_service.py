@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 from rich.traceback import install
 
-from src.chat.replyer.maisaka_generator import MaisakaReplyGenerator
+from src.maisaka.replyer.generator import MaisakaReplyGenerator
 from src.chat.replyer.replyer_manager import replyer_manager
 from src.chat.utils.utils import process_llm_response
 from src.common.data_models.message_component_data_model import MessageSequence, TextComponent

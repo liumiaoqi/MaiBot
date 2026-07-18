@@ -86,3 +86,14 @@ def build_message_sequence_from_custom_message(
             )
         ]
     )
+
+
+# =============================================================================
+# 桥接 re-export — is_mentioned_bot_in_message
+# =============================================================================
+# is_mentioned_bot_in_message 当前定义在 src/chat/utils/utils.py，
+# 但被 core/maisaka 层使用。此处 re-export 作为集中桥接点。
+# 后续架构演进将把函数定义物理迁移到 core 层。
+# ruff: noqa: TID251
+from src.chat.utils.utils import is_mentioned_bot_in_message as is_mentioned_bot_in_message
+from src.chat.utils.utils import get_chat_type_and_target_info as get_chat_type_and_target_info

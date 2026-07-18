@@ -5,7 +5,7 @@ from src.config.config import global_config
 from src.core.session_port_registry import get_session_info_port
 from src.core.types import SessionInfo
 
-from .maisaka_generator import MaisakaReplyGenerator
+from src.maisaka.replyer.generator import MaisakaReplyGenerator
 
 logger = get_logger("ReplyerManager")
 
