@@ -48,6 +48,8 @@ class ChatManagerAdapter:
         return self._chat_manager
 
     def _build_session_info(self, session, chat_manager, session_id: str) -> SessionInfo:
+        # SessionInfo 字段为 str（非 Optional），session 属性可能为 None（私聊无 group_id 等）。
+        # `or ""` 是必要的类型适配，非兜底掩盖错误。
         primary_agent_id = self._routing_service.get_primary_agent(session_id) or ""
         cohabitant_ids = self._routing_service.get_session_all_agents(session_id) - {primary_agent_id}
 

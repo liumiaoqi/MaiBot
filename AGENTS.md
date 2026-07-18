@@ -149,6 +149,7 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 | AgentRoutingService | 智能体路由 | ChatManagerRoutingAdapter |
 | ChatRuntime | 运行时接口 | MaisakaHeartFlowChatting |
 | ChatRuntimeRegistry | 运行时注册表 | HeartflowRuntimeRegistry |
+| ChatRuntimeFactory | 运行时工厂（打破 heartflow→maisaka 依赖） | MaisakaRuntimeFactory |
 | NoticeClassifier | 通知分类 | NapCatNoticeClassifier |
 | MemoryServicePort | 记忆服务 | AMemorixMemoryServicePort |
 | SessionInfoPort | 会话信息反查 | ChatManagerAdapter（通过注册点注入 A_memorix） |
@@ -306,3 +307,12 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 建议分为两部分，一部分是用户感知功能侧，一部分是开发侧（包含修复和插件sdk,api改动）。最好一个功能一行，按模块分。
 一般不写入changelog的内容：
 版本号提升或更新项目依赖
+
+# lab 原型进展
+
+阶段 0 创建的 4 个架构验证原型（lab/ 目录，不入共享历史）：
+
+- ✅ `lab/architecture/maisaka_v2_standalone.py` — 验证 maisaka 可脱离 chat 独立运行（4/4 PASS）
+- ✅ `lab/memory/memory_e2e_v1.py` — 验证连接主义记忆 + 叙事编织端到端（4/4 PASS，生成 10 Fragment/2 Episode/1 Saga，召回 0.01ms）
+- ✅ `lab/architecture/replyer_relocate_dry.py` — 验证 replyer 迁移安全性（5/5 PASS，7 个导入点可安全改写）
+- ✅ `lab/architecture/fallback_cleanup_dry.py` — 验证 fallback 清理安全性（5/5 PASS，扫描 1328 处/74 文件）

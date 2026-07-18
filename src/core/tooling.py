@@ -116,7 +116,7 @@ class ToolSpec:
         """
 
         self.name = name
-        self.description = str(description or brief_description or "").strip()
+        self.description = (description or brief_description).strip()
         self.title = title
         self.parameters_schema = parameters_schema
         self.output_schema = output_schema
