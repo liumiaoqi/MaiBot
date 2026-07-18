@@ -27,15 +27,25 @@ class ChatManagerAdapter:
     """通过 chat_manager 统一实现 5 个 Protocol。
 
     返回不可变 SessionInfo 快照，外部修改不影响内部状态。
+
+    chat_manager 实例通过构造注入，不再通过 _ensure_chat_manager() 延迟获取单例。
     """
 
-    def __init__(self, routing_service: AgentRoutingService) -> None:
+    def __init__(self, routing_service: AgentRoutingService, chat_manager: Any = None) -> None:
         self._routing_service = routing_service
+        self._chat_manager: Optional[Any] = chat_manager
 
     def _ensure_chat_manager(self):
+        """获取 chat_manager 实例。
+
+        优先使用构造注入的实例；若未注入则延迟获取全局单例（兼容旧代码）。
+        """
+        if self._chat_manager is not None:
+            return self._chat_manager
         from src.chat.message_receive.chat_manager import chat_manager
 
-        return chat_manager
+        self._chat_manager = chat_manager
+        return self._chat_manager
 
     def _build_session_info(self, session, chat_manager, session_id: str) -> SessionInfo:
         primary_agent_id = self._routing_service.get_primary_agent(session_id) or ""

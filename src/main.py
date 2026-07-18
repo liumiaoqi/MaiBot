@@ -123,6 +123,7 @@ class MainSystem:
         await config_manager.start_file_watcher()
 
         # 注册全局 Protocol 端口 — 必须在 A_memorix 启动之前，因为 A_memorix 注入时从注册点获取
+        from src.chat.message_receive.chat_manager import chat_manager
         from src.core.adapters.chat_manager_adapter import ChatManagerAdapter
         from src.core.adapters.routing_adapter import ChatManagerRoutingAdapter
         from src.core.session_port_registry import (
@@ -132,7 +133,7 @@ class MainSystem:
             register_message_registry_port,
         )
 
-        _adapter = ChatManagerAdapter(ChatManagerRoutingAdapter())
+        _adapter = ChatManagerAdapter(ChatManagerRoutingAdapter(), chat_manager=chat_manager)
         register_session_info_port(_adapter)
         register_session_lifecycle_port(_adapter)
         register_session_query_port(_adapter)
