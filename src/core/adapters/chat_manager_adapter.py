@@ -36,15 +36,9 @@ class ChatManagerAdapter:
         self._chat_manager: Optional[Any] = chat_manager
 
     def _ensure_chat_manager(self):
-        """获取 chat_manager 实例。
-
-        优先使用构造注入的实例；若未注入则延迟获取全局单例（兼容旧代码）。
-        """
-        if self._chat_manager is not None:
-            return self._chat_manager
-        from src.chat.message_receive.chat_manager import chat_manager
-
-        self._chat_manager = chat_manager
+        """获取 chat_manager 实例（构造注入，不再延迟获取全局单例）。"""
+        if self._chat_manager is None:
+            raise RuntimeError("ChatManagerAdapter 未注入 chat_manager 实例")
         return self._chat_manager
 
     def _build_session_info(self, session, chat_manager, session_id: str) -> SessionInfo:
