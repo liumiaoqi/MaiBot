@@ -40,7 +40,7 @@ def get_tool_spec() -> ToolSpec:
     properties: dict[str, Any] = {
         "msg_id": {
             "type": "string",
-            "description": "要回复的消息msg_id。如果不提供，将自动回复最新的用户消息。",
+            "description": "要回复的消息msg_id。留空或不传将自动回复最新的用户消息。不要自己编造msg_id，只在能从上下文中看到确切msg_id时才填写。",
         },
         "set_quote": {
             "type": "boolean",
@@ -138,7 +138,8 @@ async def handle_tool(
     """执行 reply 内置工具。"""
 
     latest_thought = context.reasoning if context is not None else invocation.reasoning
-    target_message_id = str(invocation.arguments.get("msg_id")).strip()
+    raw_msg_id = invocation.arguments.get("msg_id")
+    target_message_id = str(raw_msg_id).strip() if raw_msg_id is not None else ""
     set_quote = bool(invocation.arguments.get("set_quote", True))
     reply_tool_args = {
         key: value
@@ -162,10 +163,19 @@ async def handle_tool(
 
     target_message = tool_ctx.runtime.find_source_message_by_id(target_message_id)
     if target_message is None:
-        return tool_ctx.build_failure_result(
-            invocation.tool_name,
-            f"未找到要回复的目标消息，msg_id={target_message_id}",
+        # 容错降级：msg_id 无效时尝试自动查找最新用户消息，避免一次失误导致无回复
+        logger.warning(
+            f"{tool_ctx.runtime.log_prefix} reply 工具 msg_id 无效({target_message_id})，"
+            f"降级为自动查找最新用户消息"
         )
+        target_message = tool_ctx.runtime.find_latest_user_message()
+        if target_message is not None:
+            target_message_id = target_message.message_id
+        else:
+            return tool_ctx.build_failure_result(
+                invocation.tool_name,
+                f"未找到要回复的目标消息，msg_id={target_message_id}，且无法自动定位最新用户消息。",
+            )
 
     try:
         replyer = replyer_manager.get_replyer(

@@ -23,6 +23,7 @@ logger = get_logger("agent_autonomy.thinking_organ")
 
 MAX_INTERNAL_ROUNDS = 10
 SIMILARITY_THRESHOLD = 0.9
+SILENT_RETRY_MAX = 1  # reply 工具失败时的容错重试次数
 
 
 @dataclass(slots=True)
@@ -73,6 +74,7 @@ class ThinkingOrgan:
         self._autonomy_logger = AutonomyLogger.get()
         self._discovered_tools: list[str] = []
         self._last_reasoning_content: str = ""
+        self._reply_retry_count: int = 0  # reply 工具失败重试计数器
 
     @property
     def agent_id(self) -> str:
@@ -107,6 +109,7 @@ class ThinkingOrgan:
 
     async def think(self, context: ThinkContext) -> ThinkResult:
         """执行一次思考——基于消息上下文产生回复。"""
+        self._reply_retry_count = 0  # 每次新思考重置重试计数
         start_ms = time.time() * 1000
         self._autonomy_logger.log(
             self._agent_id,
@@ -321,10 +324,28 @@ class ThinkingOrgan:
                 self._log_cycle(context, result, rounds, tool_calls_made, tool_errors, elapsed_ms)
                 return result
 
-            # reply 工具调用失败 → 立即返回 SILENT，不继续循环
+            # reply 工具调用失败 → 重试 1 次，仍失败才返回 SILENT
             if cycle_result.reply_detected and cycle_result.reply_failed:
+                if self._reply_retry_count < SILENT_RETRY_MAX:
+                    self._reply_retry_count += 1
+                    logger.warning(
+                        f"[thinking_organ] reply 工具调用失败，重试 "
+                        f"({self._reply_retry_count}/{SILENT_RETRY_MAX}): "
+                        f"agent={self._agent_id} round={rounds}"
+                    )
+                    self._autonomy_logger.log(
+                        self._agent_id,
+                        AutonomyEventType.THINKING,
+                        f"reply 失败重试({self._reply_retry_count}/{SILENT_RETRY_MAX})",
+                        level="warning",
+                    )
+                    # 注入重试提示到 inner_voice_text，引导 LLM 重新调用 reply 工具
+                    retry_hint = "reply 工具调用失败了。请重新调用 reply 工具回复用户，这次不要传 msg_id 参数（系统会自动回复最新消息）。"
+                    context.inner_voice_text = (context.inner_voice_text + "\n" + retry_hint).strip()
+                    continue
+
                 logger.warning(
-                    f"[thinking_organ] reply 工具调用失败: agent={self._agent_id} round={rounds}"
+                    f"[thinking_organ] reply 工具调用失败(重试已用尽): agent={self._agent_id} round={rounds}"
                 )
                 await self._emit_finalized(
                     response=response,
