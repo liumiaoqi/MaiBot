@@ -68,9 +68,11 @@ PROMPT_PREVIEW_CATEGORY_BY_REQUEST_KIND = {
     "sub_agent": "sub_agent",
 }
 CONTEXT_SELECTION_CACHE_STABILITY_RATIO = 2.0
-PLANNER_FINAL_ASSISTANT_REMINDER_TEMPLATE = (
-    "我需要输出对{bot_name}发言的分析，视情况输出文本内容的分析，思考是否进行工具调用"
-)
+# 已废除：assistant pre-fill 会强 bias LLM 输出纯文本而非调用 reply 工具，
+# 是"只思考不回复"问题的核心成因。思考-行动分离架构下不再需要 pre-fill。
+# 旧模板还会用 global_config.bot.nickname 与 embodied prompt 中 agent display_name 不一致，
+# 导致多智能体场景角色混乱。
+PLANNER_FINAL_ASSISTANT_REMINDER_TEMPLATE = ""
 
 
 @dataclass(slots=True)
@@ -689,9 +691,15 @@ class MaisakaChatLoopService:
 
     @staticmethod
     def _build_planner_final_assistant_reminder() -> str:
-        """构造每轮 Planner 请求末尾的一次性 assistant 提醒。"""
+        """构造每轮 Planner 请求末尾的一次性 assistant 提醒。
 
-        return PLANNER_FINAL_ASSISTANT_REMINDER_TEMPLATE.format(bot_name=global_config.bot.nickname.strip())
+        思考-行动分离架构下不再追加 assistant pre-fill：
+        1. pre-fill 会强 bias LLM 输出纯文本（content）而非调用 reply 工具；
+        2. 旧模板使用 global_config.bot.nickname 与 embodied prompt 中
+           agent display_name 不一致，导致角色混乱。
+        保留方法以维持接口兼容，返回空字符串。
+        """
+        return ""
 
     def _get_chat_prompt_name(self) -> str:
         """选择当前聊天使用的 Planner 模板。"""

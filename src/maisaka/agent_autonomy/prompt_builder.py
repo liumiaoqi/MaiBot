@@ -116,7 +116,7 @@ class EmbodiedPlannerPromptBuilder:
             "group_chat_attention_block": "",
             "identity": identity_prompt,
             "planner_idle_focus_rule": "",
-            "query_memory_rule": "",
+            "query_memory_rule": self._build_query_memory_rule(),
             "agent_anti_mechanization": agent_anti_mechanization,
             "agent_internal_relationships": agent_internal_relationships,
             "agent_interaction_memory": agent_interaction_memory,
@@ -141,6 +141,24 @@ class EmbodiedPlannerPromptBuilder:
                 return self._summary_generator.generate(orch.session_id, self._agent_id)
 
         return ""
+
+    def _build_query_memory_rule(self) -> str:
+        """按当前聊天类型构造记忆检索提示。
+
+        复用 MaisakaChatLoopService 的逻辑，通过 orchestrator 获取 is_group_chat。
+        """
+        from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
+
+        is_group_chat = False
+        for orch in AgentOrchestrator._registry.values():
+            if self._agent_id in orch._active_agents:
+                is_group_chat = getattr(orch, "_is_group_chat", False)
+                break
+
+        if is_group_chat:
+            return "- query_memory()：只有回复明显依赖群内过去对话、共同经历、公开约定、任务进展或近期线索时使用；不要为了寒暄、即时情绪回应、轻松接话、只看最近消息就能回答的内容而检索。不要把私聊或个人隐私记忆带到群聊里。"
+
+        return "- query_memory()：当对方提到\"之前\"\"上次\"\"最近\"\"还记得吗\"\"我喜欢\"\"我说过\"等信号，或回复依赖长期偏好、先前承诺、共同经历、人物长期信息时，可以更积极检索。"
 
     def _build_fallback_prompt(self, tools_section: str) -> str:
         """降级为旁观者模式的提示词。"""

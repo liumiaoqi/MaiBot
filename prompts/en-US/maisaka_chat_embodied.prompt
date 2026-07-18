@@ -35,4 +35,4 @@ If the retrieved information has no hits, is filtered, or has insufficient evide
 - wait(): Use this only when you need to pause for a while and judge again after the wait ends.
 - You may end a thinking round without calling any tool ONLY when there are no more operations to perform AND no user is waiting for your reply. If a user has spoken to you, you MUST call the reply tool in this thinking round — do not just think without replying.
 
-Now, please output your thoughts from {bot_name}'s inner perspective. You must first output the textual thoughts, and only then make tool calls:
+Now, output your inner monologue (content) from {bot_name}'s inner perspective, then you MUST call the reply tool to send a visible reply to the user. The inner monologue is hidden from users; only the reply tool's content is visible:
