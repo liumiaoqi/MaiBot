@@ -79,7 +79,7 @@ A_Memorix 是 MaiBot 的核心记忆子系统，可以自由修改。修改约�
 当前约束：子模块不反向持有 SDKMemoryKernel 引用；外部 API 签名不变；不引入新的循环依赖。
 
 # 架构债务追踪
-重大架构变更（新增/删除 Protocol、消除架构债务、核心模块迁移）完成后，应同步更新 AGENTS.md 和 tasks.md 中的相关描述，确保规则性文件与代码实际状态一致。
+重大架构变更（新增/删除 Protocol、消除架构债务、核心模块迁移）完成后，应同步更新 AGENTS.md、tasks.md 和 `.codeartsdoer/rule/` 规则文件中的相关描述，确保规则性文件与代码实际状态一致。详见 `.codeartsdoer/rule/MaiBot智能体自主性架构.mdc` 末尾的"规则文件同步元规则"。
 
 # prompt模板
 涉及对prompt模板的修改，要同步修改英文和日文的文件，对齐到中文
@@ -144,6 +144,7 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 
 | Protocol | 职责 | 实现者 |
 |----------|------|--------|
+| MessagePortV2 | 统一消息发送（1个方法 send_message） | SendServiceMessagePortV2 |
 | SessionRepository | 会话查询 | ChatManagerAdapter |
 | AgentRoutingService | 智能体路由 | ChatManagerRoutingAdapter |
 | ChatRuntime | 运行时接口 | MaisakaHeartFlowChatting |
@@ -156,8 +157,6 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 | MessageRegistryPort | 入站消息注册 | ChatManagerAdapter |
 | ThinkingOrgan | 思维管道 | ThinkingOrgan（agent_autonomy） |
 | ThinkingOrganFactory | 思维管道工厂 | ThinkingOrganFactory |
-
-| MessagePortV2 | 统一消息发送（1个方法 send_message） | SendServiceMessagePortV2 |
 
 ## 内心状态三层
 
@@ -219,7 +218,7 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 
 ## 待后续
 
-- ⬜ SSD-2：ChatManager 单例拆分（依赖 SSD-1 完成）
+- ✅ SSD-2：ChatManager 单例拆分（已完成，详见下方 SSD-2 章节）
 
 # ChatManager 单例拆分进展（SSD-2）
 
