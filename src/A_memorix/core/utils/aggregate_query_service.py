@@ -103,7 +103,7 @@ class AggregateQueryService:
         if item_hash:
             return f"{item_type}:{item_hash}"
 
-        return f"{branch}:{item_type}:{rank}:{str(item.get('content', '') or '')[:80]}"
+        return f"{branch}:{item_type}:{rank}:{str(item.get('content', ''))[:80]}"
 
     def _build_mixed_results(
         self,
