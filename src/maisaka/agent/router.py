@@ -32,21 +32,35 @@ class AgentRouter:
             return self._registry.get_default_agent().agent_id
 
     def resolve_agent(self, session_id: str, group_id: Optional[str] = None) -> AgentConfig:
-        """解析会话应使用的智能体，优先级：会话绑定(主发言) → 群配置绑定 → 默认智能体"""
+        """解析会话应使用的智能体，优先级：会话绑定(主发言) → 群配置绑定 → 默认智能体
+
+        管家智能体（is_butler=True）永远不能成为主发言，会自动跳过。
+        """
         primary = self.get_session_primary_agent(session_id)
         if primary is not None:
             if self._registry.has_agent(primary):
-                return self._registry.get_agent(primary)
-            logger.warning("会话绑定的主发言智能体不存在: session=%s, agent=%s", session_id, primary)
+                agent = self._registry.get_agent(primary)
+                if not getattr(agent, "is_butler", False):
+                    return agent
+                logger.warning("会话主发言是管家，跳过: session=%s, agent=%s", session_id, primary)
 
         if group_id is not None:
             agent_id = self._group_bindings.get(group_id)
             if agent_id is not None:
                 if self._registry.has_agent(agent_id):
-                    return self._registry.get_agent(agent_id)
-                logger.warning("群绑定的智能体不存在: group=%s, agent=%s", group_id, agent_id)
+                    agent = self._registry.get_agent(agent_id)
+                    if not getattr(agent, "is_butler", False):
+                        return agent
+                    logger.warning("群绑定的是管家，跳过: group=%s, agent=%s", group_id, agent_id)
 
-        return self._registry.get_default_agent()
+        # 默认智能体如果是管家，找第一个非管家智能体
+        default = self._registry.get_default_agent()
+        if default is not None and not getattr(default, "is_butler", False):
+            return default
+        for agent in self._registry.list_agents():
+            if not getattr(agent, "is_butler", False):
+                return agent
+        return default
 
     def bind_session(self, session_id: str, agent_id: str) -> None:
         """绑定会话到指定智能体（支持多智能体共居）"""
