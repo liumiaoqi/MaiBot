@@ -5,13 +5,24 @@ from typing import Any, Callable, Coroutine, Dict, List, Set, Tuple, Type
 import asyncio
 
 from src.common.logger import get_logger
-from src.config.config import config_manager
 from src.config.model_configs import APIProvider, ModelInfo
+from src.core.protocols import ModelConfigPort
 from src.llm_models.payload_content.message import Message
 from src.llm_models.payload_content.resp_format import RespFormat
 from src.llm_models.payload_content.tool_option import ToolCall, ToolOption
 
 logger = get_logger("model_client_registry")
+
+_model_config_port: ModelConfigPort | None = None
+
+
+def set_model_config_port(port: ModelConfigPort) -> None:
+    """注入模块级 ModelConfigPort，并注册客户端缓存清空回调。"""
+    global _model_config_port
+    was_none = _model_config_port is None
+    _model_config_port = port
+    if was_none and port is not None:
+        port.register_reload_callback(client_registry.clear_client_instance_cache)
 
 
 @dataclass
@@ -242,7 +253,8 @@ class ClientRegistry:
         """APIProvider.name -> BaseClient的映射表"""
         self._owner_client_types: Dict[str, Set[str]] = {}
         """插件 ID -> 该插件拥有的 client_type 集合。"""
-        config_manager.register_reload_callback(self.clear_client_instance_cache)
+        if _model_config_port is not None:
+            _model_config_port.register_reload_callback(self.clear_client_instance_cache)
 
     def register_client_class(self, client_type: str) -> Callable[[Type[BaseClient]], Type[BaseClient]]:
         """注册主程序内置 API 客户端类。

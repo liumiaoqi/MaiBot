@@ -17,8 +17,8 @@ from src.common.data_models.llm_service_data_models import (
     LLMEmbeddingResult,
     LLMResponseResult,
 )
-from src.config.config import config_manager
 from src.config.model_configs import APIProvider, ModelInfo, TaskConfig
+from src.core.protocols import ModelConfigPort
 from src.llm_models.exceptions import (
     EmptyResponseException,
     LLMTaskTimeoutError,
@@ -54,6 +54,15 @@ install(extra_lines=3)
 
 logger = get_logger("model_utils")
 
+# 模块级 ModelConfigPort — 由 main.py 注入，TempMethodsLLMUtils 等静态工具使用
+_model_config_port: ModelConfigPort | None = None
+
+
+def set_model_config_port(port: ModelConfigPort) -> None:
+    """注入模块级 ModelConfigPort。"""
+    global _model_config_port
+    _model_config_port = port
+
 DATA_URI_LIMIT_PATTERN = re.compile(
     r"Exceeded limit on max bytes per data-uri item\s*:\s*(?P<limit>\d+)",
     re.IGNORECASE,
@@ -86,17 +95,29 @@ class LLMExecutionResult:
 class LLMOrchestrator:
     """LLM 编排调度器。"""
 
-    def __init__(self, task_name: str, request_type: str = "", session_id: str = "") -> None:
+    def __init__(
+        self,
+        task_name: str,
+        request_type: str = "",
+        session_id: str = "",
+        model_config_port: ModelConfigPort | None = None,
+    ) -> None:
         """初始化 LLM 请求调度器。
 
         Args:
             task_name: 任务配置名称，对应 `model_task_config` 下的字段名。
             request_type: 当前请求的业务类型标识。
             session_id: 当前请求归属的真实聊天流 ID；非聊天上下文为空。
+            model_config_port: 模型配置查询端口，为 None 时使用模块级端口。
         """
         self.task_name = task_name.strip()
         self.request_type = request_type
         self.session_id = str(session_id or "").strip()
+        self._model_config_port = model_config_port or _model_config_port
+        if self._model_config_port is None:
+            raise RuntimeError(
+                f"LLMOrchestrator[{task_name}]: ModelConfigPort 未注入，请先调用 set_model_config_port() 或传入 model_config_port 参数"
+            )
         self.model_for_task = self._get_task_config_or_raise()
         self.model_usage: Dict[str, Tuple[int, int, int]] = {
             model: (0, 0, 0) for model in self.model_for_task.model_list
@@ -109,25 +130,18 @@ class LLMOrchestrator:
         return str(session_id or self.session_id or "").strip()
 
     def _get_task_config_or_raise(self) -> TaskConfig:
-        """获取当前任务名对应的最新任务配置。
-
-        Returns:
-            TaskConfig: 当前任务对应的最新任务配置对象。
-
-        Raises:
-            ValueError: 当任务名为空或对应配置不存在时抛出。
-        """
+        """获取当前任务名对应的最新任务配置。"""
         if not self.task_name:
             raise ValueError("任务配置名称不能为空")
 
-        model_task_config = config_manager.get_model_config().model_task_config
-        task_config = getattr(model_task_config, self.task_name, None)
+        model_config = self._model_config_port.get_model_config()
+        task_config = getattr(model_config.model_task_config, self.task_name, None)
         if not isinstance(task_config, TaskConfig):
             raise ValueError(f"未找到名为 '{self.task_name}' 的任务配置")
         if not any(str(model_name).strip() for model_name in task_config.model_list):
             fallback_task_name = EMPTY_TASK_FALLBACKS.get(self.task_name, "")
             if fallback_task_name:
-                fallback_task_config = getattr(model_task_config, fallback_task_name, None)
+                fallback_task_config = getattr(model_config.model_task_config, fallback_task_name, None)
                 if isinstance(fallback_task_config, TaskConfig):
                     return fallback_task_config
         return task_config
@@ -1111,39 +1125,15 @@ class LLMOrchestrator:
 class TempMethodsLLMUtils:
     @staticmethod
     def get_model_info_by_name(model_name: str) -> ModelInfo:
-        """根据模型名称获取模型信息。
-
-        Args:
-            model_name: 模型名称
-
-        Returns:
-            ModelInfo: 模型信息。
-
-        Raises:
-            ValueError: 未找到指定模型。
-        """
-        for model in config_manager.get_model_config().models:
-            if model.name == model_name:
-                return model
-        raise ValueError(f"未找到名为 '{model_name}' 的模型")
+        if _model_config_port is None:
+            raise RuntimeError("ModelConfigPort 未注入，无法查询模型信息")
+        return _model_config_port.get_model_info(model_name)
 
     @staticmethod
     def get_provider_by_name(provider_name: str) -> APIProvider:
-        """根据提供商名称获取提供商信息。
-
-        Args:
-            provider_name: 提供商名称
-
-        Returns:
-            APIProvider: API 提供商信息。
-
-        Raises:
-            ValueError: 未找到指定提供商。
-        """
-        for provider in config_manager.get_model_config().api_providers:
-            if provider.name == provider_name:
-                return provider
-        raise ValueError(f"未找到名为 '{provider_name}' 的API提供商")
+        if _model_config_port is None:
+            raise RuntimeError("ModelConfigPort 未注入，无法查询提供商信息")
+        return _model_config_port.get_provider(provider_name)
 
 
 class LLMRequest(LLMOrchestrator):
@@ -1196,8 +1186,10 @@ class LLMRequest(LLMOrchestrator):
         Raises:
             ValueError: 未能找到匹配任务配置时抛出。
         """
+        if _model_config_port is None:
+            raise RuntimeError("ModelConfigPort 未注入")
         target_signature = cls._build_task_config_signature(model_set)
-        model_task_config = config_manager.get_model_config().model_task_config
+        model_task_config = _model_config_port.get_model_config().model_task_config
         for attr_name in dir(model_task_config):
             if attr_name.startswith("_"):
                 continue

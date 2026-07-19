@@ -1,37 +1,37 @@
 """服务层模型任务解析工具。"""
 
-from typing import Any, Dict
-
 from src.common.logger import get_logger
-from src.config.config import config_manager
 from src.config.model_configs import TaskConfig
+from src.core.protocols import ModelConfigPort
 
 logger = get_logger("service_task_resolver")
 
+_model_config_port: ModelConfigPort | None = None
+
+
+def set_model_config_port(port: ModelConfigPort) -> None:
+    """注入模块级 ModelConfigPort。"""
+    global _model_config_port
+    _model_config_port = port
+
 
 def get_available_models() -> Dict[str, TaskConfig]:
-    """获取当前所有可用的模型任务配置。
-
-    Returns:
-        Dict[str, TaskConfig]: 以任务名为键的可用任务配置映射。
-    """
-    try:
-        models = config_manager.get_model_config().model_task_config
-        available_models: Dict[str, TaskConfig] = {}
-        for attr_name in dir(models):
-            if attr_name.startswith("__"):
-                continue
-            try:
-                attr_value = getattr(models, attr_name)
-            except Exception as exc:
-                logger.debug(f"获取模型任务配置属性 {attr_name} 失败: {exc}")
-                continue
-            if not callable(attr_value) and isinstance(attr_value, TaskConfig):
-                available_models[attr_name] = attr_value
-        return available_models
-    except Exception as exc:
-        logger.error(f"获取可用模型配置失败: {exc}")
-        return {}
+    """获取当前所有可用的模型任务配置。"""
+    if _model_config_port is None:
+        raise RuntimeError("ModelConfigPort 未注入，无法获取模型配置")
+    models = _model_config_port.get_model_config().model_task_config
+    available_models: Dict[str, TaskConfig] = {}
+    for attr_name in dir(models):
+        if attr_name.startswith("__"):
+            continue
+        try:
+            attr_value = getattr(models, attr_name)
+        except Exception as exc:
+            logger.debug(f"获取模型任务配置属性 {attr_name} 失败: {exc}")
+            continue
+        if not callable(attr_value) and isinstance(attr_value, TaskConfig):
+            available_models[attr_name] = attr_value
+    return available_models
 
 
 def resolve_task_name(task_name: str = "") -> str:

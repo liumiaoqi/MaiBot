@@ -206,13 +206,28 @@ class MainSystem:
         logger.info(t("startup.chat_manager_initialized"))
         await memory_automation_service.start()
 
-        # 创建 ModelConfigPort 适配器（模型配置接口隔离，批次1：仅创建暂不注入）
+        # 创建 ModelConfigPort 适配器（模型配置接口隔离）
         from src.core.adapters.model_config_port import ConfigManagerModelConfigPort
+        from src.maisaka.agent.registry import AgentConfigRegistry
+
+        _agent_registry = AgentConfigRegistry.get_instance()
+        _agent_registry.load()
+
         _model_config_port = ConfigManagerModelConfigPort(
             config_manager=config_manager,
-            agent_config_resolver=lambda aid: None,  # 阶段2 接入真实 AgentRegistry
+            agent_config_resolver=lambda aid: _agent_registry.get_agent(aid) if _agent_registry.has_agent(aid) else None,
         )
-        logger.info(f"ModelConfigPort 适配器已创建")
+
+        # 注入 ModelConfigPort 到消费者模块
+        from src.llm_models import utils_model
+        from src.llm_models.model_client import base_client, __init__ as model_client_init
+        from src.services import service_task_resolver
+
+        utils_model.set_model_config_port(_model_config_port)
+        base_client.set_model_config_port(_model_config_port)
+        model_client_init.set_model_config_port(_model_config_port)
+        service_task_resolver.set_model_config_port(_model_config_port)
+        logger.info("ModelConfigPort 适配器已创建并注入到 4 个消费者模块")
 
         # await asyncio.sleep(0.5) #防止logger输出飞了
 
