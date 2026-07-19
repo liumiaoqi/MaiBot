@@ -48,4 +48,5 @@ class ReplyToolContextExtender:
             organ = ExpressionOrgan(agent_id, tag_format)
             return organ.prepend_speaker_tag(content, is_multi_agent_active)
         except Exception:
+            logger.warning(f"添加发言标记失败: agent_id={agent_id}", exc_info=True)
             return content

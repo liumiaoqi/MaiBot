@@ -71,8 +71,7 @@ class BuiltinToolRuntimeContext:
         if not is_multi and self.runtime is not None:
             try:
                 session_info = self.runtime._session_info
-                cohabitant_ids = getattr(session_info, "cohabitant_agent_ids", None)
-                if cohabitant_ids:
+                if session_info.cohabitant_agent_ids:
                     is_multi = True
             except Exception:
                 pass

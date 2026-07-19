@@ -310,20 +310,19 @@ async def handle_tool(
         else:
             reply_sequences = await tool_ctx.post_process_reply_message_sequences_async(reply_text)
 
-        if tool_ctx.is_multi_agent_active and tool_ctx.current_agent_id:
+        agent_id, is_multi = tool_ctx.resolve_speaker_context()
+        if is_multi and agent_id:
             from src.maisaka.agent_autonomy.bridge.reply_context_extender import ReplyToolContextExtender
-            agent_id, is_multi = tool_ctx.resolve_speaker_context()
-            if is_multi and agent_id:
-                for seq in reply_sequences:
-                    for comp in seq.components:
-                        if isinstance(comp, TextComponent) and comp.text:
-                            comp.text = ReplyToolContextExtender.prepend_speaker_tag_to_content(
-                                comp.text, agent_id, True,
-                            )
-                            break
-                    else:
-                        continue
-                    break
+            for seq in reply_sequences:
+                for comp in seq.components:
+                    if isinstance(comp, TextComponent) and comp.text:
+                        comp.text = ReplyToolContextExtender.prepend_speaker_tag_to_content(
+                            comp.text, agent_id, True,
+                        )
+                        break
+                else:
+                    continue
+                break
     except Exception as exc:
         reply_result.completion.response_text = reply_text
         reply_result.monitor_detail = build_reply_monitor_detail(reply_result)
