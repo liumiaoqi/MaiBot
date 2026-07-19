@@ -40,6 +40,8 @@ class AgentConfigRegistry:
         self._default_agent = None
 
         for config in self._agents.values():
+            if getattr(config, "is_butler", False):
+                continue
             if config.is_default:
                 if self._default_agent is not None:
                     logger.warning(
@@ -51,9 +53,10 @@ class AgentConfigRegistry:
                     self._default_agent = config
 
         if self._default_agent is None and self._agents:
-            first = next(iter(self._agents.values()))
-            logger.warning("未设置默认智能体，使用第一个: %s", first.agent_id)
-            self._default_agent = first
+            first = next((c for c in self._agents.values() if not getattr(c, "is_butler", False)), None)
+            if first is not None:
+                logger.warning("未设置默认智能体，使用第一个: %s", first.agent_id)
+                self._default_agent = first
 
         self._loaded = True
         logger.info("已加载 %d 个智能体配置，默认: %s", len(self._agents), self._default_agent.agent_id if self._default_agent else "无")

@@ -123,8 +123,24 @@ class EmbodiedPlannerPromptBuilder:
             "agent_favor_injection": agent_favor_injection,
             "agent_emotion_state": "",
             "agent_relationship": "",
+            "butler_context": self._build_butler_context(),
             "cohabitant_states": self._build_cohabitant_states(),
         }
+
+    def _build_butler_context(self) -> str:
+        """构建管家存在提示文本。"""
+        from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
+
+        for orch in AgentOrchestrator._registry.values():
+            butler = getattr(orch, "_butler", None)
+            if butler is not None and getattr(butler, "_butler_display_name", ""):
+                return (
+                    f"# 管家\n"
+                    f"{butler._butler_display_name}（{butler._butler_id}）是这个客厅的管家。"
+                    f"她负责协调谁该说话、提醒大家该做什么、必要时自己也会发言。"
+                    f"你可以通过管家来协调和其他角色的互动——她了解每个人的状态。"
+                )
+        return ""
 
     def _build_cohabitant_states(self) -> str:
         """构建共居状态摘要文本。"""

@@ -8,6 +8,7 @@
 {agent_emotion_state}
 {agent_relationship}
 {cohabitant_states}
+{butler_context}
 
 以上是你的人设，帮助你以自己的视角思考和行动。
 

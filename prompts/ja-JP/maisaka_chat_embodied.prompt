@@ -8,6 +8,7 @@
 {agent_emotion_state}
 {agent_relationship}
 {cohabitant_states}
+{butler_context}
 
 以上はあなたの人物設定であり、自分の視点から思考し行動するのに役立ちます。
 
