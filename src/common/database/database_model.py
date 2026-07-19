@@ -722,6 +722,8 @@ class AgentAutonomySpeakerChangeRecord(SQLModel, table=True):
     to_agent_id: str = Field(default="", max_length=64)
     change_type: str = Field(default="session_create", max_length=32)
     change_reason: str = Field(default="", max_length=500)
+    transfer_type: str = Field(default="permanent_transfer", max_length=32)
+    decision_source: str = Field(default="manual", max_length=32)
     created_at: Optional[datetime] = Field(default_factory=datetime.now, sa_column=Column(DateTime, nullable=True))
 
     __table_args__ = (

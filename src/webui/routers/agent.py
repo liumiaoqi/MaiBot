@@ -1148,6 +1148,7 @@ async def get_primary_agent(session_id: str):
 async def switch_speaker(req: SwitchSpeakerRequest):
     """切换主发言智能体。"""
     from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
+    from src.maisaka.agent_autonomy.speaker_transfer import SpeakerTransferType, TransferDecisionSource
 
     orchestrator = AgentOrchestrator.get_by_session(req.session_id)
     if orchestrator is None:
@@ -1159,6 +1160,8 @@ async def switch_speaker(req: SwitchSpeakerRequest):
     success = await orchestrator.switch_primary_speaker(
         target_agent_id=req.target_agent_id,
         reason=req.reason,
+        transfer_type=SpeakerTransferType.PERMANENT_TRANSFER,
+        decision_source=TransferDecisionSource.MANUAL,
     )
     return ApiResponse(data=SwitchSpeakerResponse(
         success=success,

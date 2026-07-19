@@ -178,6 +178,8 @@ class AgentActivityStore:
         to_agent_id: str,
         change_type: str,
         change_reason: str,
+        transfer_type: str = "permanent_transfer",
+        decision_source: str = "manual",
     ) -> str:
         """持久化发言权变更记录。"""
         import time
@@ -191,6 +193,8 @@ class AgentActivityStore:
                 to_agent_id=to_agent_id,
                 change_type=change_type,
                 change_reason=change_reason,
+                transfer_type=transfer_type,
+                decision_source=decision_source,
             )
             session.add(record)
             session.commit()

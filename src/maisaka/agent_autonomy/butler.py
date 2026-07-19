@@ -22,6 +22,12 @@ from src.common.logger import get_logger
 from src.maisaka.agent.config import AgentConfig, InternalRelationship
 from src.maisaka.agent.registry import AgentConfigRegistry
 from src.maisaka.agent_autonomy.reminder import ReminderManager, Reminder
+from src.maisaka.agent_autonomy.speaker_transfer import (
+    ButlerConfig,
+    SpeakerTransferType,
+    TransferDecision,
+    TransferDecisionSource,
+)
 from src.core.message_port_registry import get_message_port_v2
 from src.core.protocols import MessagePortV2
 
@@ -74,6 +80,12 @@ class Butler:
         self._primary_display_name: str = ""
         self._last_interjection: dict[str, float] = {}
         self._interjection_cooldown = 30.0
+
+        # 发言权转移状态追踪
+        self._consecutive_silent_count: int = 0
+        self._consecutive_responder: tuple[str, int] | None = None
+        self._butler_takeover_count: int = 0
+        self._borrow_counts: dict[str, int] = {}
 
         # 管家自己的配置（丽塔·洛丝薇瑟）
         self._butler_config: AgentConfig | None = None
@@ -131,9 +143,57 @@ class Butler:
             f"residents={len(self._resident_briefs)} session={self._session_id}"
         )
 
+        # 解析发言权转移配置
+        butler_config_dict = {}
+        if self._butler_config and self._butler_config.butler_config:
+            butler_config_dict = self._butler_config.butler_config
+        self._butler_transfer_config = ButlerConfig(**butler_config_dict)
+
     @property
     def reminder_manager(self) -> ReminderManager:
         return self._reminder_manager
+
+    # ── 发言权转移状态管理 ──────────────────────────────
+
+    def update_primary_status(self, status: str, responder_id: str = "") -> None:
+        """更新主智能体状态，维护发言权转移计数器。
+
+        由 Orchestrator 在主智能体回复/沉默后调用。
+        """
+        if status == "reply":
+            self._consecutive_silent_count = 0
+            self._butler_takeover_count = 0
+            if responder_id:
+                if self._consecutive_responder and self._consecutive_responder[0] == responder_id:
+                    self._consecutive_responder = (responder_id, self._consecutive_responder[1] + 1)
+                else:
+                    self._consecutive_responder = (responder_id, 1)
+        elif status == "silent":
+            self._consecutive_silent_count += 1
+        elif status == "butler_takeover":
+            self._butler_takeover_count += 1
+
+    def update_primary(self, new_primary_id: str) -> None:
+        """永久转移后更新管家追踪的主发言智能体，重置所有计数器。"""
+        self._primary_agent_id = new_primary_id
+        # 更新显示名称
+        for brief in self._resident_briefs:
+            if brief["id"] == new_primary_id:
+                self._primary_display_name = brief["name"]
+                break
+        # 重置所有计数器
+        self._consecutive_silent_count = 0
+        self._consecutive_responder = None
+        self._butler_takeover_count = 0
+        self._borrow_counts = {}
+        logger.info(
+            f"[butler] 主发言更新: primary={new_primary_id} "
+            f"session={self._session_id}"
+        )
+
+    def record_borrow(self, agent_id: str) -> None:
+        """记录一次临时借用。"""
+        self._borrow_counts[agent_id] = self._borrow_counts.get(agent_id, 0) + 1
 
     # ── 对话流 ──────────────────────────────────────────
 
@@ -286,6 +346,147 @@ class Butler:
         """标记智能体刚插过话，进入冷却。"""
         self._last_interjection[agent_id] = time.time()
 
+    # ── 发言权转移决策 ──────────────────────────────────
+
+    _SWITCH_KEYWORDS = ("接管", "来回答", "换你", "你来", "你来回答", "你来说", "你来处理", "你来接")
+
+    def _evaluate_permanent_transfer(self, user_text: str) -> TransferDecision | None:
+        """纯规则判断永久转移条件。
+
+        优先级：用户明确要求 > 连续沉默 > 连续回应。
+        can_switch_primary=False 时返回 None。
+        """
+        if not self._butler_transfer_config.can_switch_primary:
+            return None
+
+        # 1) 用户明确要求切换
+        for brief in self._resident_briefs:
+            name = brief["name"]
+            aid = brief["id"]
+            mentioned = name in user_text or aid in user_text
+            if mentioned and any(kw in user_text for kw in self._SWITCH_KEYWORDS):
+                return TransferDecision(
+                    transfer_type=SpeakerTransferType.PERMANENT_TRANSFER,
+                    target_agent_id=aid,
+                    reason=f"用户明确要求切换到{name}",
+                    decision_source=TransferDecisionSource.RULE,
+                    display_name=name,
+                )
+
+        # 2) 主智能体连续沉默达阈值
+        if self._consecutive_silent_count >= self._butler_transfer_config.consecutive_silent_threshold:
+            target = self._find_best_transfer_target(user_text)
+            if target:
+                return TransferDecision(
+                    transfer_type=SpeakerTransferType.PERMANENT_TRANSFER,
+                    target_agent_id=target["id"],
+                    reason=f"主智能体连续{self._consecutive_silent_count}次沉默",
+                    decision_source=TransferDecisionSource.RULE,
+                    display_name=target["name"],
+                )
+
+        # 3) 连续回应同一共居者达阈值
+        if (self._consecutive_responder
+                and self._consecutive_responder[1] >= self._butler_transfer_config.consecutive_response_threshold):
+            aid = self._consecutive_responder[0]
+            name = next((b["name"] for b in self._resident_briefs if b["id"] == aid), "")
+            if name:
+                return TransferDecision(
+                    transfer_type=SpeakerTransferType.PERMANENT_TRANSFER,
+                    target_agent_id=aid,
+                    reason=f"{name}连续回应{self._consecutive_responder[1]}次",
+                    decision_source=TransferDecisionSource.RULE,
+                    display_name=name,
+                )
+
+        return None
+
+    def _evaluate_borrow_upgrade(self) -> TransferDecision | None:
+        """借用升级评估：同一智能体借用次数达阈值时评估永久转移。"""
+        if not self._butler_transfer_config.can_switch_primary:
+            return None
+
+        threshold = self._butler_transfer_config.borrow_upgrade_threshold
+        for aid, count in self._borrow_counts.items():
+            if count >= threshold:
+                name = next((b["name"] for b in self._resident_briefs if b["id"] == aid), "")
+                if name:
+                    return TransferDecision(
+                        transfer_type=SpeakerTransferType.PERMANENT_TRANSFER,
+                        target_agent_id=aid,
+                        reason=f"{name}连续借用{count}次，升级为永久转移",
+                        decision_source=TransferDecisionSource.RULE,
+                        display_name=name,
+                    )
+        return None
+
+    async def decide_speaker_transfer(
+        self,
+        user_text: str,
+        agent_text: str,
+        primary_status: str,
+    ) -> list[TransferDecision]:
+        """管家发言权转移统一决策入口。
+
+        根据 primary_status 决定决策路径：
+        - "reply": 复用三层过滤，输出 TEMPORARY_BORROW
+        - "silent": 先评估永久转移，再评估临时借用
+        多决策优先级：永久转移最多1个，临时借用最多2个，永久转移优先执行。
+        """
+        decisions: list[TransferDecision] = []
+
+        if primary_status == "silent":
+            # 先评估永久转移
+            perm = self._evaluate_permanent_transfer(user_text)
+            if perm is not None:
+                decisions.append(perm)
+                # 永久转移优先，不再评估临时借用
+                return decisions
+
+        # 复用三层过滤，输出临时借用
+        candidates = await self.decide_interjection(user_text, agent_text)
+        for c in candidates[:MAX_INTERJECTORS]:
+            decisions.append(TransferDecision(
+                transfer_type=SpeakerTransferType.TEMPORARY_BORROW,
+                target_agent_id=c.agent_id,
+                reason="管家三层过滤选中",
+                decision_source=TransferDecisionSource.LLM if c.has_relation or c.is_mentioned else TransferDecisionSource.RULE,
+                display_name=c.display_name,
+            ))
+
+        # 检查借用升级（仅在非永久转移时）
+        if not any(d.transfer_type == SpeakerTransferType.PERMANENT_TRANSFER for d in decisions):
+            upgrade = self._evaluate_borrow_upgrade()
+            if upgrade is not None:
+                decisions.insert(0, upgrade)
+
+        return decisions
+
+    def _find_best_transfer_target(self, user_text: str) -> dict | None:
+        """根据话题匹配找到最佳转移目标。"""
+        user_text_lower = user_text.lower()
+        best: dict | None = None
+        best_score = 0
+        for brief in self._resident_briefs:
+            score = 0
+            focus_areas = brief.get("focus_areas", [])
+            if focus_areas:
+                for area in focus_areas:
+                    if area.lower() in user_text_lower:
+                        score += 2
+            if brief["name"] in user_text or brief["id"] in user_text:
+                score += 3
+            has_relation = any(
+                r["target"] == self._primary_agent_id
+                for r in brief["relationships"]
+            )
+            if has_relation:
+                score += 1
+            if score > best_score:
+                best_score = score
+                best = brief
+        return best
+
     # ── 管家自己发言 ──────────────────────────────────
 
     async def speak_self(
@@ -367,6 +568,11 @@ class Butler:
         if text is None:
             return False
 
+        # 添加管家名字前缀
+        from src.maisaka.agent_autonomy.bridge.reply_context_extender import ReplyToolContextExtender
+        text = ReplyToolContextExtender.prepend_speaker_tag_to_content(
+            text, self._butler_id, True,
+        )
         success = await self.send(text, agent_id=self._butler_id, source="butler_speak")
         if success:
             logger.info(

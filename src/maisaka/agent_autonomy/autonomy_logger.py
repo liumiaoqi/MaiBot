@@ -19,6 +19,7 @@ class AutonomyEventType:
     BEHAVIOR_INTENT = "behavior_intent"
     INTERJECTION = "interjection"
     ORCHESTRATION = "orchestration"
+    SPEAKER_TRANSFER = "speaker_transfer"
 
 
 class AutonomyLogger:

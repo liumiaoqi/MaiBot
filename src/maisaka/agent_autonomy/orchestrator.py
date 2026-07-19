@@ -24,6 +24,11 @@ from src.maisaka.agent_autonomy.state_awareness.rule_engine import StateAwareRul
 from src.maisaka.agent_autonomy.state_awareness.summary_generator import CohabitantStateSummaryGenerator
 from src.maisaka.agent_autonomy.state_awareness.visibility_rule import StateVisibilityRule
 from src.maisaka.agent_autonomy.butler import Butler
+from src.maisaka.agent_autonomy.speaker_transfer import (
+    SpeakerTransferType,
+    TransferDecision,
+    TransferDecisionSource,
+)
 
 logger = get_logger("agent_autonomy.orchestrator")
 
@@ -249,10 +254,16 @@ class AgentOrchestrator:
             )
 
 
-    async def _trigger_interjection_for(self, agent_id: str, context: str) -> None:
+    async def _trigger_interjection_for(
+        self,
+        agent_id: str,
+        context: str,
+        trigger_reason: str = "butler_interjection",
+    ) -> None:
         """管家协调的插话——直接触发目标智能体的 ThinkingOrgan。
 
         管家已经做了三层过滤，不需要策略再过滤。
+        trigger_reason: "butler_interjection"（普通插话）或 "interjection_borrow"（临时借用）
         """
         if agent_id not in self._active_agents:
             activated = await self.activate_agent(agent_id, "butler_interjection")
@@ -265,31 +276,39 @@ class AgentOrchestrator:
 
         logger.info(
             f"[agent_autonomy] 管家插话执行: agent={agent_id} "
-            f"session={self._session_name}"
+            f"trigger={trigger_reason} session={self._session_name}"
         )
 
         think_context = await self._build_think_context(
             agent=agent,
             messages=(CoreMessage(session_id=self._session_id, plain_text=context, is_notify=False),),
-            trigger_reason="butler_interjection",
+            trigger_reason=trigger_reason,
         )
         task = self._think_scheduler.schedule(agent_id, agent.thinking_organ, think_context)
         result = await task
 
+        source = "interjection_borrow" if trigger_reason == "interjection_borrow" else "butler_interjection"
+
         if result.action == ThinkAction.REPLY and result.text and not result.reply_sent:
             from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
             from src.core.message_port_registry import get_message_port_v2
+            from src.maisaka.agent_autonomy.bridge.reply_context_extender import ReplyToolContextExtender
             port = get_message_port_v2()
             if port is not None:
+                # 多智能体活跃时添加名字前缀
+                is_multi = len(self._active_agents) > 1
+                text = ReplyToolContextExtender.prepend_speaker_tag_to_content(
+                    result.text, agent_id, is_multi,
+                )
                 await port.send_message(
                     session_id=self._session_id,
-                    message=MessageSequence(components=[TextComponent(text=result.text)]),
+                    message=MessageSequence(components=[TextComponent(text=text)]),
                     agent_id=agent_id,
-                    source="butler_interjection",
+                    source=source,
                 )
                 logger.info(
                     f"[agent_autonomy] 管家插话发送: agent={agent_id} "
-                    f"text_len={len(result.text)} session={self._session_name}"
+                    f"text_len={len(result.text)} source={source} session={self._session_name}"
                 )
         elif result.action == ThinkAction.REPLY and result.reply_sent:
             logger.info(
@@ -519,7 +538,11 @@ class AgentOrchestrator:
             if self._active_agents:
                 new_primary = next(iter(self._active_agents))
                 await self.switch_primary_speaker(
-                    new_primary, reason=f"原主发言退场({reason})", change_type="agent_exit"
+                    new_primary,
+                    reason=f"原主发言退场({reason})",
+                    change_type="agent_exit",
+                    transfer_type=SpeakerTransferType.PERMANENT_TRANSFER,
+                    decision_source=TransferDecisionSource.AGENT_EXIT,
                 )
             else:
                 self._primary_agent_id = None
@@ -534,6 +557,8 @@ class AgentOrchestrator:
         target_agent_id: str,
         reason: str,
         change_type: str = "manual_switch",
+        transfer_type: SpeakerTransferType = SpeakerTransferType.PERMANENT_TRANSFER,
+        decision_source: TransferDecisionSource = TransferDecisionSource.MANUAL,
     ) -> bool:
         """切换主发言智能体。"""
         if target_agent_id == self._primary_agent_id:
@@ -554,6 +579,8 @@ class AgentOrchestrator:
             to_agent_id=target_agent_id,
             change_type=change_type,
             change_reason=reason,
+            transfer_type=transfer_type.value,
+            decision_source=decision_source.value,
         )
 
         self._chat_loop_adapter.switch_agent_context(target_agent_id)
@@ -568,15 +595,20 @@ class AgentOrchestrator:
             if chat_session is not None:
                 chat_session.agent_id = target_agent_id
 
+        # 同步管家的主发言追踪
+        if self._butler is not None:
+            self._butler.update_primary(target_agent_id)
+
         logger.info(
             f"[agent_autonomy] speaker_change from={from_agent_id} "
             f"to={target_agent_id} reason={reason} "
+            f"transfer_type={transfer_type.value} decision_source={decision_source.value} "
             f"session={self._session_name}"
         )
         self._autonomy_logger.log(
             target_agent_id,
-            AutonomyEventType.ORCHESTRATION,
-            f"发言权变更(来自={from_agent_id}, 原因={reason})",
+            AutonomyEventType.SPEAKER_TRANSFER,
+            f"{transfer_type.value} from={from_agent_id} to={target_agent_id} reason={reason} source={decision_source.value}",
             session_id=self._session_id,
         )
         return True
@@ -655,20 +687,44 @@ class AgentOrchestrator:
             if self._config.interjection_enabled:
                 await self._schedule_interjections()
 
-            # 管家插话决策（基于用户消息，补充现有插话机制）
+            # 管家发言权转移决策（统一临时借用和永久转移）
             if self._butler is not None and content:
                 try:
-                    candidates = await self._butler.decide_interjection(content, primary_reply_text)
-                    for c in candidates:
-                        logger.info(
-                            f"[agent_autonomy] 管家插话候选: agent={c.agent_id} "
-                            f"name={c.display_name} mentioned={c.is_mentioned} "
-                            f"session={self._session_name}"
-                        )
-                        self._butler.mark_interjected(c.agent_id)
-                        await self._trigger_interjection_for(c.agent_id, content)
+                    decisions = await self._butler.decide_speaker_transfer(
+                        content, primary_reply_text, "reply",
+                    )
+                    for decision in decisions:
+                        if decision.transfer_type == SpeakerTransferType.TEMPORARY_BORROW:
+                            logger.info(
+                                f"[agent_autonomy] 临时借用: agent={decision.target_agent_id} "
+                                f"name={decision.display_name} reason={decision.reason} "
+                                f"session={self._session_name}"
+                            )
+                            self._butler.mark_interjected(decision.target_agent_id)
+                            await self._trigger_interjection_for(
+                                decision.target_agent_id, content,
+                                trigger_reason="interjection_borrow",
+                            )
+                            self._butler.record_borrow(decision.target_agent_id)
+                        elif decision.transfer_type == SpeakerTransferType.PERMANENT_TRANSFER:
+                            transferred = await self.switch_primary_speaker(
+                                decision.target_agent_id,
+                                reason=decision.reason,
+                                change_type="butler_auto",
+                                transfer_type=SpeakerTransferType.PERMANENT_TRANSFER,
+                                decision_source=decision.decision_source,
+                            )
+                            if transferred:
+                                logger.info(
+                                    f"[agent_autonomy] 发言权永久转移(插话分支): "
+                                    f"to={decision.target_agent_id} reason={decision.reason} "
+                                    f"session={self._session_name}"
+                                )
+                                new_primary = self._active_agents.get(decision.target_agent_id)
+                                if new_primary:
+                                    await self._trigger_new_primary_think(new_primary, content)
                 except Exception as exc:
-                    logger.warning(f"[agent_autonomy] 管家插话决策异常: error={exc}")
+                    logger.warning(f"[agent_autonomy] 管家发言权转移决策异常: error={exc}")
 
 
             self._check_timeout_exit()
@@ -740,12 +796,17 @@ class AgentOrchestrator:
                     f"[agent_autonomy] 主回复发送: agent={self._primary_agent_id} "
                     f"text_len={len(result.text)} session={self._session_name}"
                 )
-                return result.text
+            # 主智能体回复 → 重置沉默/接管计数器，更新连续回应追踪
+            if self._butler is not None:
+                self._butler.update_primary_status("reply", responder_id=self._primary_agent_id)
+            return result.text
         elif result.action == ThinkAction.REPLY and result.reply_sent:
             logger.info(
                 f"[agent_autonomy] 主回复跳过(reply已发送): agent={self._primary_agent_id} "
                 f"session={self._session_name}"
             )
+            if self._butler is not None:
+                self._butler.update_primary_status("reply", responder_id=self._primary_agent_id)
             return result.text or ""
         elif result.action == ThinkAction.WAIT:
             logger.info(
@@ -762,23 +823,111 @@ class AgentOrchestrator:
                 f"rounds={result.rounds} tools={result.tool_calls_count} "
                 f"session={self._session_name}"
             )
-            # 主智能体 SILENT 时管家接管——丽塔不会让用户被冷落
+            # 主智能体 SILENT → 递增沉默计数
+            if self._butler is not None:
+                self._butler.update_primary_status("silent")
+
+            # 评估发言权转移：先评估永久转移 → 再管家接管 → 放弃
             if self._butler is not None and content:
                 try:
+                    decisions = await self._butler.decide_speaker_transfer(
+                        user_text=content, agent_text="", primary_status="silent",
+                    )
+                    # 永久转移优先
+                    for decision in decisions:
+                        if decision.transfer_type == SpeakerTransferType.PERMANENT_TRANSFER:
+                            transferred = await self.switch_primary_speaker(
+                                decision.target_agent_id,
+                                reason=decision.reason,
+                                change_type="butler_auto",
+                                transfer_type=SpeakerTransferType.PERMANENT_TRANSFER,
+                                decision_source=decision.decision_source,
+                            )
+                            if transferred:
+                                logger.info(
+                                    f"[agent_autonomy] 发言权永久转移: "
+                                    f"to={decision.target_agent_id} reason={decision.reason} "
+                                    f"session={self._session_name}"
+                                )
+                                # 触发新主发言思考
+                                new_primary = self._active_agents.get(decision.target_agent_id)
+                                if new_primary:
+                                    await self._trigger_new_primary_think(new_primary, content)
+                                return ""
+                            # 转移失败，继续评估
+
+                    # 无永久转移 → 管家接管
                     butler_sent = await self._butler.speak_and_send(
                         user_text=content,
                         agent_text="",
                         context_hint="主智能体沉默了，需要你接管回复",
                     )
                     if butler_sent:
+                        self._butler.update_primary_status("butler_takeover")
                         logger.info(
                             f"[agent_autonomy] 管家接管回复: session={self._session_name}"
                         )
-                        return ""  # 管家已回复
+                        # 接管次数达阈值 → 触发永久转移评估
+                        if (self._butler._butler_takeover_count
+                                >= self._butler._butler_transfer_config.butler_takeover_threshold):
+                            upgrade = self._butler._evaluate_permanent_transfer(content)
+                            if upgrade and upgrade.transfer_type == SpeakerTransferType.PERMANENT_TRANSFER:
+                                transferred = await self.switch_primary_speaker(
+                                    upgrade.target_agent_id,
+                                    reason=upgrade.reason,
+                                    change_type="butler_auto",
+                                    transfer_type=SpeakerTransferType.PERMANENT_TRANSFER,
+                                    decision_source=upgrade.decision_source,
+                                )
+                                if transferred:
+                                    logger.info(
+                                        f"[agent_autonomy] 管家接管触发永久转移: "
+                                        f"to={upgrade.target_agent_id} session={self._session_name}"
+                                    )
+                        return ""
                 except Exception as exc:
-                    logger.warning(f"[agent_autonomy] 管家接管异常: error={exc}")
+                    logger.warning(f"[agent_autonomy] 发言权转移评估异常: error={exc}")
+                    # 降级：管家接管
+                    if self._butler is not None and content:
+                        try:
+                            butler_sent = await self._butler.speak_and_send(
+                                user_text=content, agent_text="",
+                                context_hint="主智能体沉默了，需要你接管回复",
+                            )
+                            if butler_sent:
+                                self._butler.update_primary_status("butler_takeover")
+                        except Exception as exc2:
+                            logger.warning(f"[agent_autonomy] 管家接管异常: error={exc2}")
             return ""
         return ""
+
+    async def _trigger_new_primary_think(self, agent: AutonomousAgent, content: str) -> None:
+        """永久转移后触发新主发言思考。"""
+        think_context = await self._build_think_context(
+            agent=agent,
+            messages=(CoreMessage(session_id=self._session_id, plain_text=content, is_notify=False),),
+            trigger_reason="user_message",
+        )
+        task = self._think_scheduler.schedule(
+            self._primary_agent_id, agent.thinking_organ, think_context,
+        )
+        result = await task
+        if result.action == ThinkAction.REPLY and result.text and not result.reply_sent:
+            from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
+            from src.core.message_port_registry import get_message_port_v2
+            from src.maisaka.agent_autonomy.bridge.reply_context_extender import ReplyToolContextExtender
+            port = get_message_port_v2()
+            if port is not None:
+                is_multi = len(self._active_agents) > 1
+                text = ReplyToolContextExtender.prepend_speaker_tag_to_content(
+                    result.text, self._primary_agent_id, is_multi,
+                )
+                await port.send_message(
+                    session_id=self._session_id,
+                    message=MessageSequence(components=[TextComponent(text=text)]),
+                    agent_id=self._primary_agent_id,
+                    source="primary_reply",
+                )
 
     def _handle_ambient_notice(self, message: Any, notice_kind: NoticeKind) -> None:
         """处理纯环境感知通知：更新待命智能体生命力，不触发Planner。"""
