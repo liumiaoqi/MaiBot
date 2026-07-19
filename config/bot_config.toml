@@ -2,8 +2,8 @@
 version = "8.25.0"
 
 [bot]
-platform = "" # 麦麦主账号所在的平台，例如 qq。
-qq_account = "" # 麦麦主账号 ID，用来识别哪些消息是麦麦自己发的。
+platform = "qq" # 麦麦主账号所在的平台，例如 qq。
+qq_account = "167747869" # 麦麦主账号 ID，用来识别哪些消息是麦麦自己发的。
 platforms = [] # 其他平台账号，格式为 platform:账号；没有多平台时不用填。
 nickname = "麦麦" # 麦麦显示和自称时使用的名字。
 alias_names = [] # 别人可能用来称呼麦麦的名字，用于辅助识别提及。
