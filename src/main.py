@@ -206,6 +206,14 @@ class MainSystem:
         logger.info(t("startup.chat_manager_initialized"))
         await memory_automation_service.start()
 
+        # 创建 ModelConfigPort 适配器（模型配置接口隔离，批次1：仅创建暂不注入）
+        from src.core.adapters.model_config_port import ConfigManagerModelConfigPort
+        _model_config_port = ConfigManagerModelConfigPort(
+            config_manager=config_manager,
+            agent_config_resolver=lambda aid: None,  # 阶段2 接入真实 AgentRegistry
+        )
+        logger.info(f"ModelConfigPort 适配器已创建")
+
         # await asyncio.sleep(0.5) #防止logger输出飞了
 
         # 触发 ON_START 事件，事件总线会统一桥接到 IPC 插件运行时。

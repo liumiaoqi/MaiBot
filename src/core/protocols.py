@@ -14,6 +14,8 @@ from typing import Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from src.common.data_models.message_component_data_model import MessageSequence
+    from src.config.config import ModelConfig
+    from src.config.model_configs import APIProvider, ModelInfo, TaskConfig
     from src.core.types import AgentConfig, MemorySearchResult, MemoryWriteResult, NoticeKind, SendMessageResult, SessionInfo, ThinkContext, ThinkResult
 
 
@@ -630,4 +632,82 @@ class MessageRegistryPort(Protocol):
 
         Raises:
             ValueError: 消息缺少必要字段时
+        """
+
+
+@runtime_checkable
+class ModelConfigPort(Protocol):
+    """模型配置查询接口 — 核心通过此接口查询模型配置，不直接依赖 ConfigManager。
+
+    设计原则：
+    1. 消费者通过此 Protocol 查询模型配置，不感知 ConfigManager 具体类
+    2. 支持智能体级配置覆盖（agent_id 非空时合并 model_config_override）
+    3. 查询为纯内存操作，≤1ms
+    """
+
+    def get_task_config(self, task_name: str, *, agent_id: str = "") -> TaskConfig:
+        """按任务名查询任务配置，支持智能体级覆盖。
+
+        Args:
+            task_name: 任务配置名称（replyer/planner/memory/utils/vlm/embedding 等）
+            agent_id: 智能体 ID，非空时应用该智能体的 model_config_override
+
+        Returns:
+            TaskConfig 实例（全局配置或智能体覆盖后的配置）
+
+        Raises:
+            ValueError: 任务名不存在时
+            RuntimeError: 配置未初始化时
+        """
+
+    def get_model_info(self, model_name: str) -> ModelInfo:
+        """按模型名查询模型信息。
+
+        Args:
+            model_name: 模型名称（对应 ModelInfo.name）
+
+        Returns:
+            ModelInfo 实例
+
+        Raises:
+            ValueError: 模型名不存在时
+            RuntimeError: 配置未初始化时
+        """
+
+    def get_provider(self, provider_name: str) -> APIProvider:
+        """按提供商名查询提供商配置。
+
+        Args:
+            provider_name: 提供商名称（对应 APIProvider.name）
+
+        Returns:
+            APIProvider 实例
+
+        Raises:
+            ValueError: 提供商名不存在时
+            RuntimeError: 配置未初始化时
+        """
+
+    def get_model_config(self) -> ModelConfig:
+        """获取完整模型配置。
+
+        Returns:
+            ModelConfig 实例（全局配置，不含智能体覆盖）
+
+        Raises:
+            RuntimeError: 配置未初始化时
+        """
+
+    def register_reload_callback(self, callback: Any) -> None:
+        """注册配置热重载回调。
+
+        Args:
+            callback: 回调函数，支持无参或接收 Sequence[str] 类型的变更范围
+        """
+
+    def unregister_reload_callback(self, callback: Any) -> None:
+        """注销配置热重载回调。
+
+        Args:
+            callback: 先前注册过的回调对象
         """
