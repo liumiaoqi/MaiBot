@@ -114,14 +114,15 @@ class LLMOrchestrator:
         self.request_type = request_type
         self.session_id = str(session_id or "").strip()
         self._model_config_port = model_config_port or _model_config_port
-        if self._model_config_port is None:
-            raise RuntimeError(
-                f"LLMOrchestrator[{task_name}]: ModelConfigPort 未注入，请先调用 set_model_config_port() 或传入 model_config_port 参数"
-            )
-        self.model_for_task = self._get_task_config_or_raise()
-        self.model_usage: Dict[str, Tuple[int, int, int]] = {
-            model: (0, 0, 0) for model in self.model_for_task.model_list
-        }
+        # 过渡期兼容：初始化时不强求端口已注入，首次请求时才检查
+        if self._model_config_port is not None:
+            self.model_for_task = self._get_task_config_or_raise()
+            self.model_usage: Dict[str, Tuple[int, int, int]] = {
+                model: (0, 0, 0) for model in self.model_for_task.model_list
+            }
+        else:
+            self.model_for_task = None  # type: ignore[assignment]
+            self.model_usage = {}
         """模型使用量记录，用于进行负载均衡，对应为(total_tokens, penalty, usage_penalty)，惩罚值是为了能在某个模型请求不给力或正在被使用的时候进行调整"""
 
     def _resolve_effective_session_id(self, session_id: str = "") -> str:
@@ -152,6 +153,17 @@ class LLMOrchestrator:
         Returns:
             TaskConfig: 刷新后的任务配置对象。
         """
+        if self._model_config_port is None:
+            if _model_config_port is not None:
+                self._model_config_port = _model_config_port
+            else:
+                raise RuntimeError(
+                    f"LLMOrchestrator[{self.task_name}]: ModelConfigPort 未注入，"
+                    f"请先调用 set_model_config_port()"
+                )
+        if self.model_for_task is None:
+            self.model_for_task = self._get_task_config_or_raise()
+            self.model_usage = {model: (0, 0, 0) for model in self.model_for_task.model_list}
         latest = self._get_task_config_or_raise()
         if latest is not self.model_for_task:
             self.model_for_task = latest
