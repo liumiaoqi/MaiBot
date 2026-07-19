@@ -21,6 +21,7 @@ def _get_model_config():
     """获取模型配置——优先使用 ModelConfigPort，未注入时回退到 config_manager（过渡期兼容）。"""
     if _model_config_port is not None:
         return _model_config_port.get_model_config()
+    logger.warning("ModelConfigPort 未注入，回退到 config_manager（过渡期兼容）")
     from src.config.config import config_manager
     return config_manager.get_model_config()
 
