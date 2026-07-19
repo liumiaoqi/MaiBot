@@ -55,6 +55,29 @@ class BuiltinToolRuntimeContext:
         self.is_multi_agent_active: bool = False
         self._memory_port: Optional[Any] = None
 
+    def resolve_speaker_context(self) -> tuple[str, bool]:
+        """动态解析当前发言智能体 ID 和多智能体活跃状态。
+
+        优先使用外部注入的 current_agent_id（Orchestrator 设置），
+        否则从 runtime 的 chat_loop_service 回退。
+        """
+        agent_id = self.current_agent_id
+        if not agent_id and self.runtime is not None:
+            try:
+                agent_id = self.runtime._chat_loop_service.agent_id
+            except Exception:
+                pass
+        is_multi = self.is_multi_agent_active
+        if not is_multi and self.runtime is not None:
+            try:
+                session_info = self.runtime._session_info
+                cohabitant_ids = getattr(session_info, "cohabitant_agent_ids", None)
+                if cohabitant_ids:
+                    is_multi = True
+            except Exception:
+                pass
+        return agent_id, is_multi
+
     @property
     def memory_port(self) -> Any:
         """获取 MemoryServicePort 实例（延迟初始化）。"""

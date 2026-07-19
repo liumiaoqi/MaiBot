@@ -284,8 +284,16 @@ class AgentOrchestrator:
             messages=(CoreMessage(session_id=self._session_id, plain_text=context, is_notify=False),),
             trigger_reason=trigger_reason,
         )
+
+        prev_agent_id = self._chat_loop_adapter.current_agent_id
+        if prev_agent_id != agent_id:
+            self._chat_loop_adapter.switch_agent_context(agent_id)
+
         task = self._think_scheduler.schedule(agent_id, agent.thinking_organ, think_context)
         result = await task
+
+        if prev_agent_id != agent_id:
+            self._chat_loop_adapter.switch_agent_context(prev_agent_id)
 
         source = "interjection_borrow" if trigger_reason == "interjection_borrow" else "butler_interjection"
 
