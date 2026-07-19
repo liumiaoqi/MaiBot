@@ -822,7 +822,7 @@ class AgentOrchestrator:
     def _persist_behavior_intent(self, agent_id: str, intent: BehaviorIntent) -> None:
         """持久化行为意图记录。"""
         try:
-            intent_id = f"bi:{agent_id}:{format(int(time.time()), 'x')}:{format(hash((intent.intent_type, intent.agent_id)), 'x')[:6]}"
+            intent_id = f"bi:{agent_id}:{format(int(time.time()), 'x')}:{format(hash((intent.intent_type, intent.intent_source)), 'x')[:6]}"
             expired_at = datetime.now() + timedelta(seconds=self._config.intent_expiry_seconds)
             self._activity_store.save_behavior_intent(
                 intent_id=intent_id,
@@ -955,7 +955,7 @@ class AgentOrchestrator:
             self._cooldown_manager.record_interjection(self._session_id, decision.agent_id)
 
             # 持久化插话事件
-            event_id = f"ij:{decision.agent_id}:{format(int(time.time()), 'x')}:{format(hash((decision.intent.intent_type, decision.intent.agent_id)), 'x')[:6]}"
+            event_id = f"ij:{decision.agent_id}:{format(int(time.time()), 'x')}:{format(hash((decision.intent.intent_type, decision.intent.intent_source)), 'x')[:6]}"
             self._activity_store.save_interjection_event(
                 event_id=event_id,
                 agent_id=decision.agent_id,

@@ -80,9 +80,16 @@ class SessionRecoveryService:
 
 
                 for record in records:
-                    # 回归原型设计：所有智能体恢复为 active，不进入 standby
-                    # 原型中所有共居智能体始终活跃，简单概率决定是否插话
-                    orch.restore_agent(record.agent_id, record.is_primary)
+                    # 智能体恢复到待命列表，由管家协调是否激活插话
+                    if record.state == "standby":
+                        orch._vitality_manager.add_to_standby(
+                            record.agent_id,
+                            session_id,
+                            "session_recovery",
+                            initial_vitality=record.vitality_value,
+                        )
+                    else:
+                        orch.restore_agent(record.agent_id, record.is_primary)
 
                     if session_id not in recovered:
                         recovered[session_id] = []
