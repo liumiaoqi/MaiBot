@@ -238,6 +238,10 @@ class AgentConfig(BaseModel):
         default_factory=FavorDescriptions, description="偏爱行为描述"
     )
 
+    # 管家配置（第14个智能体——客厅的守护者）
+    is_butler: bool = Field(default=False, description="是否为管家智能体")
+    butler_config: dict = Field(default_factory=dict, description="管家配置（see_all_messages/coordinate_interjection/handle_reminders/can_switch_primary/can_speak）")
+
     @property
     def identity_prompt(self) -> str:
         """构建完整的人格提示词（personality + reply_style）"""

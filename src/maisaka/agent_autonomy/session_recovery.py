@@ -80,8 +80,15 @@ class SessionRecoveryService:
 
 
                 for record in records:
-                    # 智能体恢复到待命列表，由管家协调是否激活插话
-                    if record.state == "standby":
+                    # 管家智能体恢复为 active（始终活跃），其他智能体进入 standby
+                    from src.maisaka.agent.registry import AgentConfigRegistry
+                    registry = AgentConfigRegistry.get_instance()
+                    agent_cfg = registry.get_agent(record.agent_id) if registry.has_agent(record.agent_id) else None
+                    is_butler = bool(getattr(agent_cfg, "is_butler", False)) if agent_cfg else False
+
+                    if is_butler:
+                        orch.restore_agent(record.agent_id, record.is_primary)
+                    elif record.state == "standby":
                         orch._vitality_manager.add_to_standby(
                             record.agent_id,
                             session_id,
