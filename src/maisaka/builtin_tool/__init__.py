@@ -31,6 +31,8 @@ from .view_forward_message import get_tool_spec as get_view_forward_message_tool
 from .view_forward_message import handle_tool as handle_view_forward_message_tool
 from .wait import get_tool_spec as get_wait_tool_spec
 from .wait import handle_tool as handle_wait_tool
+from .butler import get_switch_primary_spec, handle_switch_primary
+from .butler import get_activate_agent_spec, handle_activate_agent
 
 BuiltinToolHandler = Callable[[ToolInvocation, Optional[ToolExecutionContext]], Awaitable[ToolExecutionResult]]
 BuiltinToolRawHandler = Callable[
@@ -103,6 +105,9 @@ BUILTIN_TOOL_ENTRIES: List[BuiltinToolEntry] = [
         stage="action",
     ),
     BuiltinToolEntry("switch_chat", get_switch_chat_tool_spec, handle_switch_chat_tool, stage="action"),
+    # 管家专用工具（deferred：仅管家通过 tool_search 发现并使用）
+    BuiltinToolEntry("switch_primary", get_switch_primary_spec, handle_switch_primary, stage="both", visibility="deferred"),
+    BuiltinToolEntry("activate_agent", get_activate_agent_spec, handle_activate_agent, stage="both", visibility="deferred"),
 ]
 
 
