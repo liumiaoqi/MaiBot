@@ -24,6 +24,7 @@ from src.maisaka.agent_autonomy.state_awareness.rule_engine import StateAwareRul
 from src.maisaka.agent_autonomy.state_awareness.summary_generator import CohabitantStateSummaryGenerator
 from src.maisaka.agent_autonomy.state_awareness.visibility_rule import StateVisibilityRule
 from src.maisaka.agent_autonomy.butler import Butler
+from src.maisaka.agent_autonomy.log_utils import fmt_butler, fmt_transfer
 from src.maisaka.agent_autonomy.speaker_transfer import (
     SpeakerTransferType,
     TransferDecision,
@@ -607,12 +608,12 @@ class AgentOrchestrator:
         if self._butler is not None:
             self._butler.update_primary(target_agent_id)
 
-        logger.info(
-            f"[agent_autonomy] speaker_change from={from_agent_id} "
-            f"to={target_agent_id} reason={reason} "
-            f"transfer_type={transfer_type.value} decision_source={decision_source.value} "
-            f"session={self._session_name}"
-        )
+        logger.info(fmt_transfer(
+            from_agent_id, target_agent_id,
+            reason=reason,
+            transfer_type=transfer_type.value,
+            session_name=self._session_name,
+        ) + f" decision_source={decision_source.value}")
         self._autonomy_logger.log(
             target_agent_id,
             AutonomyEventType.SPEAKER_TRANSFER,
@@ -872,9 +873,12 @@ class AgentOrchestrator:
                     )
                     if butler_sent:
                         self._butler.update_primary_status("butler_takeover")
-                        logger.info(
-                            f"[agent_autonomy] 管家接管回复: session={self._session_name}"
-                        )
+                        logger.info(fmt_butler(
+                            "接管回复", butler_id=self._butler._butler_id,
+                            butler_name=self._butler._butler_display_name,
+                            session_name=self._session_name,
+                            extra=f"SILENT_count={self._butler._consecutive_silent_count} takeover_count={self._butler._butler_takeover_count}",
+                        ))
                         # 接管次数达阈值 → 触发永久转移评估
                         if (self._butler._butler_takeover_count
                                 >= self._butler._butler_transfer_config.butler_takeover_threshold):

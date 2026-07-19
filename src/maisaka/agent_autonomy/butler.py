@@ -30,6 +30,7 @@ from src.maisaka.agent_autonomy.speaker_transfer import (
 )
 from src.core.message_port_registry import get_message_port_v2
 from src.core.protocols import MessagePortV2
+from src.maisaka.agent_autonomy.log_utils import fmt_butler, fmt_interjection
 
 logger = get_logger("agent_autonomy.butler")
 
@@ -186,10 +187,10 @@ class Butler:
         self._consecutive_responder = None
         self._butler_takeover_count = 0
         self._borrow_counts = {}
-        logger.info(
-            f"[butler] 主发言更新: primary={new_primary_id} "
-            f"session={self._session_id}"
-        )
+        logger.info(fmt_butler(
+            f"主发言更新→{new_primary_id}", butler_id=self._butler_id,
+            butler_name=self._butler_display_name,
+        ))
 
     def record_borrow(self, agent_id: str) -> None:
         """记录一次临时借用。"""
@@ -322,11 +323,18 @@ class Butler:
             selected_ids = json.loads(response)
             if not isinstance(selected_ids, list):
                 return []
-            return [
+            result = [
                 candidate_map[aid]
                 for aid in selected_ids
                 if aid in candidate_map
             ][:MAX_INTERJECTORS]
+            if result:
+                names = ",".join(r.display_name for r in result)
+                logger.info(fmt_butler(
+                    "插话决策", butler_id=self._butler_id, butler_name=self._butler_display_name,
+                    extra=f"candidates={len(candidates)} selected={len(result)} → {names}",
+                ))
+            return result
         except (json.JSONDecodeError, Exception) as e:
             logger.warning(f"[butler] LLM筛选失败: {e}")
             return []
@@ -460,6 +468,13 @@ class Butler:
             if upgrade is not None:
                 decisions.insert(0, upgrade)
 
+        if decisions:
+            descs = ",".join(f"{d.target_agent_id}({d.transfer_type.value})" for d in decisions)
+            logger.info(fmt_butler(
+                "发言权决策", butler_id=self._butler_id, butler_name=self._butler_display_name,
+                extra=f"status={primary_status} decisions=[{descs}]",
+            ))
+
         return decisions
 
     def _find_best_transfer_target(self, user_text: str) -> dict | None:
@@ -575,10 +590,11 @@ class Butler:
         )
         success = await self.send(text, agent_id=self._butler_id, source="butler_speak")
         if success:
-            logger.info(
-                f"[butler] 管家发言: agent={self._butler_id} "
-                f"text_len={len(text)} session={self._session_id}"
-            )
+            logger.info(fmt_butler(
+                f"发言(text_len={len(text)})", butler_id=self._butler_id,
+                butler_name=self._butler_display_name,
+                extra=f"context={context_hint[:30] if context_hint else 'auto'}",
+            ))
         return success
 
     # ── 提醒流 ──────────────────────────────────────────
