@@ -179,6 +179,7 @@ class SummaryImporter:
         llm_api: Any = None,
         message_api: Any = None,
         config_manager: Any = None,
+        model_config_port: Any = None,
     ):
         self.vector_store = vector_store
         self.graph_store = graph_store
@@ -188,6 +189,7 @@ class SummaryImporter:
         self._llm_api = llm_api
         self._message_api = message_api
         self._config_manager = config_manager
+        self._model_config_port = model_config_port
         self.relation_write_service: Optional[RelationWriteService] = (
             plugin_config.get("relation_write_service") if isinstance(plugin_config, dict) else None
         )
@@ -288,7 +290,7 @@ class SummaryImporter:
 
     def _current_model_dict(self) -> Dict[str, Any]:
         try:
-            return getattr(self._config_manager.get_model_config(), "models_dict", {}) or {}
+            return getattr(self._model_config_port.get_model_config(), "models_dict", {}) or {}
         except Exception as exc:
             logger.warning(f"读取当前模型字典失败: {exc}")
             return {}

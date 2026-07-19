@@ -163,6 +163,7 @@ class MainSystem:
 
         service_registry.register("a_memorix_host_service", a_memorix_host_service)
         a_memorix_host_service.register_config_reload_callback()
+        # ModelConfigPort 在 a_memorix host_service 中延迟注入——适配器在 _init_components 后半段创建
         a_memorix_task = asyncio.create_task(a_memorix_host_service.start(), name="a_memorix_start")
 
         await asyncio.sleep(0)
@@ -228,6 +229,9 @@ class MainSystem:
         model_client.set_model_config_port(_model_config_port)
         service_task_resolver.set_model_config_port(_model_config_port)
         logger.info("ModelConfigPort 适配器已创建并注入到 4 个消费者模块")
+
+        # 注入 ModelConfigPort 到 A_memorix host_service（后续 reload 时生效）
+        a_memorix_host_service.set_model_config_port(_model_config_port)
 
         # await asyncio.sleep(0.5) #防止logger输出飞了
 

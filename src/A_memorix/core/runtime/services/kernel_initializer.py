@@ -43,7 +43,7 @@ class KernelInitializer:
             model_name=str(kernel._cfg("embedding.model_name", "auto") or "auto"),
             dimension_request_mode=str(kernel._cfg("embedding.dimension_request_mode", "explicit") or "explicit"),
             retry_config=kernel._cfg("embedding.retry", {}) or {},
-            config_manager=kernel._ports.config_manager if kernel._ports else None,
+            model_config_port=kernel._ports.model_config_port if kernel._ports else None,
             client_registry=kernel._ports.llm_models_client_registry if kernel._ports else None,
             embedding_request_cls=kernel._ports.llm_models_base_client if kernel._ports else None,
             network_connection_error_cls=kernel._ports.llm_models_exceptions if kernel._ports else None,
@@ -593,6 +593,7 @@ class KernelInitializer:
             llm_api=kernel._ports.require_llm_service() if kernel._ports else None,
             message_api=kernel._ports.require_message_service() if kernel._ports else None,
             config_manager=kernel._ports.require_config_manager() if kernel._ports else None,
+            model_config_port=kernel._ports.model_config_port if kernel._ports else None,
         )
         if not preserve_managers:
             kernel.import_task_manager = ImportTaskManager(kernel)

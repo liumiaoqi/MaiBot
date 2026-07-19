@@ -41,7 +41,7 @@ class EmbeddingAPIAdapter:
         dimension_request_mode: str = "explicit",
         retry_config: Optional[dict] = None,
         *,
-        config_manager: Any = None,
+        model_config_port: Any = None,
         client_registry: Any = None,
         embedding_request_cls: Any = None,
         network_connection_error_cls: Any = None,
@@ -59,7 +59,7 @@ class EmbeddingAPIAdapter:
         self.min_wait_seconds = max(0.1, float(self.retry_config.get("min_wait_seconds", 3)))
         self.backoff_multiplier = max(1.0, float(self.retry_config.get("backoff_multiplier", 3)))
 
-        self._config_manager = config_manager
+        self._model_config_port = model_config_port
         self._client_registry = client_registry
         self._embedding_request_cls = embedding_request_cls
         self._network_connection_error_cls = network_connection_error_cls
@@ -82,25 +82,17 @@ class EmbeddingAPIAdapter:
         )
 
     def _get_current_model_config(self):
-        return self._config_manager.get_model_config()
+        return self._model_config_port.get_model_config()
 
     def _find_model_info(self, model_name: str) -> Any:
-        model_cfg = self._config_manager.get_model_config()
-        for item in model_cfg.models:
-            if item.name == model_name:
-                return item
-        raise ValueError(f"未找到 embedding 模型: {model_name}")
+        return self._model_config_port.get_model_info(model_name)
 
     def _find_provider(self, provider_name: str) -> Any:
-        model_cfg = self._config_manager.get_model_config()
-        for item in model_cfg.api_providers:
-            if item.name == provider_name:
-                return item
-        raise ValueError(f"未找到 embedding provider: {provider_name}")
+        return self._model_config_port.get_provider(provider_name)
 
     def _resolve_candidate_model_names(self) -> List[str]:
-        task_config = self._get_current_model_config().model_task_config.embedding
-        configured = list(getattr(task_config, "model_list", []) or [])
+        task_cfg = self._model_config_port.get_task_config("embedding")
+        configured = list(getattr(task_cfg, "model_list", []) or [])
         if self.model_name and self.model_name != "auto":
             return [self.model_name, *[name for name in configured if name != self.model_name]]
         return configured
@@ -581,7 +573,7 @@ def create_embedding_api_adapter(
     dimension_request_mode: str = "explicit",
     retry_config: Optional[dict] = None,
     *,
-    config_manager: Any = None,
+    model_config_port: Any = None,
     client_registry: Any = None,
     embedding_request_cls: Any = None,
     network_connection_error_cls: Any = None,
@@ -594,7 +586,7 @@ def create_embedding_api_adapter(
         model_name=model_name,
         dimension_request_mode=dimension_request_mode,
         retry_config=retry_config,
-        config_manager=config_manager,
+        model_config_port=model_config_port,
         client_registry=client_registry,
         embedding_request_cls=embedding_request_cls,
         network_connection_error_cls=network_connection_error_cls,

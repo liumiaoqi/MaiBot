@@ -77,6 +77,11 @@ class AMemorixHostService:
         self._kernel: Optional[SDKMemoryKernel] = None
         self._config_cache: Dict[str, Any] | None = None
         self._reload_callback_registered = False
+        self._model_config_port: Any = None
+
+    def set_model_config_port(self, port: Any) -> None:
+        """注入 ModelConfigPort（在 start 之前调用）。"""
+        self._model_config_port = port
 
     async def start(self) -> None:
         if not self.is_enabled():
@@ -636,6 +641,7 @@ class AMemorixHostService:
             llm_service=llm_api,
             message_service=message_api,
             config_manager=config_manager,
+            model_config_port=a_memorix_host_service._model_config_port,
             db_session_factory=get_db_session,
             db_person_info_model=PersonInfo,
             llm_models_client_registry=client_registry,

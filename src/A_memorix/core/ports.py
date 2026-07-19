@@ -15,6 +15,7 @@ class AMemorixServicePorts:
     llm_service: Any = None
     message_service: Any = None
     config_manager: Any = None
+    model_config_port: Any = None  # 模型配置查询端口（替代 config_manager 的模型配置职责）
     db_session_factory: Callable[..., Any] | None = None
     db_person_info_model: Any = None
     llm_models_client_registry: Any = None
@@ -37,6 +38,11 @@ class AMemorixServicePorts:
         if self.config_manager is None:
             raise RuntimeError("A_memorix: 配置管理器未注入")
         return self.config_manager
+
+    def require_model_config_port(self) -> Any:
+        if self.model_config_port is None:
+            raise RuntimeError("A_memorix: ModelConfigPort 未注入")
+        return self.model_config_port
 
     def require_db_session_factory(self) -> Callable[..., Any]:
         if self.db_session_factory is None:
