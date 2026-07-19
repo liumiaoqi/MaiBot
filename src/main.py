@@ -219,13 +219,13 @@ class MainSystem:
         )
 
         # 注入 ModelConfigPort 到消费者模块
+        from src.llm_models import model_client
         from src.llm_models import utils_model
-        from src.llm_models.model_client import base_client, __init__ as model_client_init
         from src.services import service_task_resolver
 
         utils_model.set_model_config_port(_model_config_port)
-        base_client.set_model_config_port(_model_config_port)
-        model_client_init.set_model_config_port(_model_config_port)
+        model_client.base_client.set_model_config_port(_model_config_port)
+        model_client.set_model_config_port(_model_config_port)
         service_task_resolver.set_model_config_port(_model_config_port)
         logger.info("ModelConfigPort 适配器已创建并注入到 4 个消费者模块")
 
