@@ -737,6 +737,21 @@ class AgentOrchestrator:
                 f"rounds={result.rounds} tools={result.tool_calls_count} "
                 f"session={self._session_name}"
             )
+            # 主智能体 SILENT 时管家接管——丽塔不会让用户被冷落
+            if self._butler is not None and content:
+                try:
+                    butler_sent = await self._butler.speak_and_send(
+                        user_text=content,
+                        agent_text="",
+                        context_hint="主智能体沉默了，需要你接管回复",
+                    )
+                    if butler_sent:
+                        logger.info(
+                            f"[agent_autonomy] 管家接管回复: session={self._session_name}"
+                        )
+                        return ""  # 管家已回复
+                except Exception as exc:
+                    logger.warning(f"[agent_autonomy] 管家接管异常: error={exc}")
             return ""
         return ""
 
