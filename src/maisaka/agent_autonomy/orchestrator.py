@@ -689,6 +689,19 @@ class AgentOrchestrator:
         if primary is None:
             return ""
 
+        # 延迟创建 butler（session_recovery 可能绕过 activate_agent）
+        if self._butler is None and self._primary_agent_id:
+            self._butler = Butler(
+                primary_agent_id=self._primary_agent_id,
+                session_id=self._session_id,
+            )
+            self._butler.reminder_manager.load_session(self._session_id)
+            self._start_reminder_tick()
+            logger.info(
+                f"[agent_autonomy] 管家延迟初始化: "
+                f"primary={self._primary_agent_id} session={self._session_name}"
+            )
+
         content = message.processed_plain_text or ""
         sender_name = ""
         if message.message_info and message.message_info.user_info:
