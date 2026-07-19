@@ -22,7 +22,7 @@ def _get_model_config():
     if _model_config_port is not None:
         return _model_config_port.get_model_config()
     logger.warning("ModelConfigPort 未注入，回退到 config_manager（过渡期兼容）")
-    from src.config.config import config_manager
+    from src.config.config import config_manager  # noqa: TID251 — 过渡期兼容，端口可注入后此路径不再触发
     return config_manager.get_model_config()
 
 
