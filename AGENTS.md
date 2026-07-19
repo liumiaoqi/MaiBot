@@ -133,6 +133,7 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 5. 禁止核心绕过 MessagePort 直接调用 send_service ✅ 已消除 + ruff TID251 守卫
 6. 禁止核心导入 A_memorix 内部模块 ✅ 已消除（core/零违规导入 + ruff TID251 守卫 + CI AST脚本）
 7. 禁止 Orchestrator 通过 enqueue_proactive_task 模拟多智能体
+8. 禁止核心直接导入 config_manager 获取模型配置 ✅ 已迁移（llm_models/services/A_memorix 通过 ModelConfigPort，rff TID251 守卫）
 
 # 核心架构
 
@@ -158,6 +159,7 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 | MessageRegistryPort | 入站消息注册 | ChatManagerAdapter |
 | ThinkingOrgan | 思维管道 | ThinkingOrgan（agent_autonomy） |
 | ThinkingOrganFactory | 思维管道工厂 | ThinkingOrganFactory |
+| ModelConfigPort | 模型配置查询（4查询+2回调，支持智能体级覆盖） | ConfigManagerModelConfigPort |
 
 ## 内心状态三层
 
