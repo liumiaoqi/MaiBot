@@ -474,6 +474,18 @@ class AgentOrchestrator:
 
         if is_primary:
             self._primary_agent_id = agent_id
+            # 确保管家在 session_recovery 时也被初始化
+            if self._butler is None:
+                self._butler = Butler(
+                    primary_agent_id=agent_id,
+                    session_id=self._session_id,
+                )
+                self._butler.reminder_manager.load_session(self._session_id)
+                self._start_reminder_tick()
+                logger.info(
+                    f"[agent_autonomy] 管家初始化(恢复): "
+                    f"primary={agent_id} session={self._session_name}"
+                )
 
         self._autonomy_logger.log(
             agent_id,
