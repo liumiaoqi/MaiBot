@@ -395,6 +395,16 @@ positive_affinity = 0.5
 negative_affinity = 0.3
 curiosity = 1.1
 
+[a_memorix.connectionist.personality.rita]
+decay_rate = 0.3
+emotional_sensitivity = 1.5
+association_depth = 3
+reinforcement_boost = 0.4
+attention_tags = ["客厅动态", "他人情绪", "插话时机", "提醒事项", "关系变化", "茶"]
+positive_affinity = 0.7
+negative_affinity = 0.2
+curiosity = 1.0
+
 [a_memorix.connectionist.personality.veliona]
 decay_rate = 0.5
 emotional_sensitivity = 0.9
@@ -602,6 +612,27 @@ name = "复活后的温柔"
 style = "neutralize"
 focus_concepts = ["守护", "存在", "日记", "茶会合照"]
 weight_multiplier = 0.6
+description = ""
+
+[[a_memorix.connectionist.inner_voices.rita]]
+name = "观察"
+style = "preserve"
+focus_concepts = ["他人情绪", "对话脉络", "插话时机", "关系变化"]
+weight_multiplier = 1.3
+description = ""
+
+[[a_memorix.connectionist.inner_voices.rita]]
+name = "优雅"
+style = "amplify"
+focus_concepts = ["礼仪", "茶", "整理", "照顾"]
+weight_multiplier = 1.0
+description = ""
+
+[[a_memorix.connectionist.inner_voices.rita]]
+name = "调皮"
+style = "amplify"
+focus_concepts = ["恶作剧", "俏皮话", "微妙的捉弄"]
+weight_multiplier = 0.9
 description = ""
 
 [[a_memorix.connectionist.inner_voices.silver_wolf]]
