@@ -1,5 +1,7 @@
 """服务层模型任务解析工具。"""
 
+from typing import Any, Dict
+
 from src.common.logger import get_logger
 from src.config.model_configs import TaskConfig
 from src.core.protocols import ModelConfigPort
@@ -15,11 +17,17 @@ def set_model_config_port(port: ModelConfigPort) -> None:
     _model_config_port = port
 
 
+def _get_model_config():
+    """获取模型配置——优先使用 ModelConfigPort，未注入时回退到 config_manager（过渡期兼容）。"""
+    if _model_config_port is not None:
+        return _model_config_port.get_model_config()
+    from src.config.config import config_manager
+    return config_manager.get_model_config()
+
+
 def get_available_models() -> Dict[str, TaskConfig]:
     """获取当前所有可用的模型任务配置。"""
-    if _model_config_port is None:
-        raise RuntimeError("ModelConfigPort 未注入，无法获取模型配置")
-    models = _model_config_port.get_model_config().model_task_config
+    models = _get_model_config().model_task_config
     available_models: Dict[str, TaskConfig] = {}
     for attr_name in dir(models):
         if attr_name.startswith("__"):
