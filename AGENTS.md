@@ -173,9 +173,34 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 
 ## 管家系统
 
-- **三层过滤**：相关性 → 时机 → 价值，决定是否触发插话
-- **提醒流**：到时提醒通过 ThinkingOrgan.think_proactive() 触发，不走 enqueue_proactive_task
-- **插话流**：通过 ThinkingOrgan.think() 触发，结果通过 MessagePortV2.send_message() 发出
+管家是第14个智能体——**丽塔·洛丝薇瑟**（agent_id=rita），客厅的守护者。
+
+### 核心机制
+- **协调插话**：管家看到用户消息 + 主智能体回复，三层过滤（规则→管家LLM→角色LLM）决定谁该插话，每次最多2人
+- **管家发言**：管家以丽塔人格自己发言——引导话题、接话、提醒，主智能体 SILENT 时自动接管回复
+- **定时提醒**：管家创建和管理定时提醒（如"3点提醒我开会"）
+- **主发言权切换**：管家通过 `switch_primary` 工具切换主发言智能体
+- **智能体激活**：管家通过 `activate_agent` 工具唤醒待命的智能体
+
+### 管家智能体特性
+- `is_butler: true` — 标记为管家，始终 active，不进入 standby
+- 从来不能被选为 primary（router + registry 双重防护）
+- 主智能体 prompt 中注入管家存在提示（`{butler_context}`）
+
+### 管家专用工具
+- `switch_primary` — 切换主发言权（deferred，仅管家可用）
+- `activate_agent` — 唤醒待命智能体（deferred，仅管家可用）
+
+### 三层过滤
+- 规则过滤（零成本）：名字被提到→必看见；有关系→可能看见；无关→很少看见
+- 管家LLM（1次调用）：理解话题+角色性格+关系网，判断"谁会关心"
+- 角色LLM（仅选中者）：被选中的角色决定插话内容
+
+### 提醒流
+- 到时提醒通过 ThinkingOrgan.think_proactive() 触发，不走 enqueue_proactive_task
+
+### 插话流
+- 通过 ThinkingOrgan.think() 触发，结果通过 MessagePortV2.send_message() 发出
 
 # 回复系统迁移进展
 
