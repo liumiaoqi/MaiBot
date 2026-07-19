@@ -81,6 +81,7 @@ class VitalityManager:
 
         所有已注册智能体都是潜在共居者，无论是否已绑定到会话。
         这是智能体自主性的核心——所有角色都应该"活着"。
+        管家智能体（is_butler=True）始终活跃，不进入待命。
         """
         try:
             from src.maisaka.agent.registry import AgentConfigRegistry
@@ -94,6 +95,12 @@ class VitalityManager:
 
             for agent_id in all_registered:
                 if agent_id in active_ids or agent_id in standby_ids:
+                    continue
+                # 管家智能体始终 active，不进入 standby
+                agent_cfg = AgentConfigRegistry.get_instance().get_agent(agent_id)
+                if agent_cfg and getattr(agent_cfg, "is_butler", False):
+                    self._orchestrator.restore_agent(agent_id, is_primary=False)
+                    logger.info(f"[vitality] 管家智能体激活: agent={agent_id} session={session_id}")
                     continue
                 self.add_to_standby(
                     agent_id, session_id, reason="sync_from_registry"
