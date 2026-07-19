@@ -605,9 +605,10 @@ class AgentOrchestrator:
             sender_id = message.message_info.user_info.user_id if message.message_info else ""
 
             # 主回复调度：非环境通知消息触发主智能体思考
+            primary_reply_text = ""
             should_reply = not message.is_notify or notice_kind == NoticeKind.INTERACTION
             if should_reply and self._primary_agent_id is not None:
-                await self._schedule_primary_reply(message)
+                primary_reply_text = await self._schedule_primary_reply(message)
 
             # 管家：尝试从用户消息中创建提醒
             if self._butler is not None and content:
@@ -645,7 +646,7 @@ class AgentOrchestrator:
             # 管家插话决策（基于用户消息，补充现有插话机制）
             if self._butler is not None and content:
                 try:
-                    candidates = await self._butler.decide_interjection(content, "")
+                    candidates = await self._butler.decide_interjection(content, primary_reply_text)
                     for c in candidates:
                         logger.info(
                             f"[agent_autonomy] 管家插话候选: agent={c.agent_id} "
@@ -667,11 +668,14 @@ class AgentOrchestrator:
             )
             self._degraded = True
 
-    async def _schedule_primary_reply(self, message: Any) -> None:
-        """调度主智能体回复——消息入队、去重、触发思考。"""
+    async def _schedule_primary_reply(self, message: Any) -> str:
+        """调度主智能体回复——消息入队、去重、触发思考。
+
+        返回主智能体的回复文本（SILENT/WAIT 时返回空字符串）。
+        """
         primary = self._active_agents.get(self._primary_agent_id or "")
         if primary is None:
-            return
+            return ""
 
         content = message.processed_plain_text or ""
         sender_name = ""
@@ -711,25 +715,30 @@ class AgentOrchestrator:
                     f"[agent_autonomy] 主回复发送: agent={self._primary_agent_id} "
                     f"text_len={len(result.text)} session={self._session_name}"
                 )
+                return result.text
         elif result.action == ThinkAction.REPLY and result.reply_sent:
             logger.info(
                 f"[agent_autonomy] 主回复跳过(reply已发送): agent={self._primary_agent_id} "
                 f"session={self._session_name}"
             )
+            return result.text or ""
         elif result.action == ThinkAction.WAIT:
             logger.info(
                 f"[agent_autonomy] 主回复等待: agent={self._primary_agent_id} "
                 f"wait={result.wait_seconds}s session={self._session_name}"
             )
+            return ""
         elif result.action == ThinkAction.SILENT:
             reason_str = result.silence_reason.value if result.silence_reason else "unknown"
-            logger.debug(
+            logger.info(
                 f"[agent_autonomy] 主回复静默: agent={self._primary_agent_id} "
                 f"reason={reason_str} "
                 f"thought=\"{result.thought_summary[:50]}\" "
                 f"rounds={result.rounds} tools={result.tool_calls_count} "
                 f"session={self._session_name}"
             )
+            return ""
+        return ""
 
     def _handle_ambient_notice(self, message: Any, notice_kind: NoticeKind) -> None:
         """处理纯环境感知通知：更新待命智能体生命力，不触发Planner。"""
