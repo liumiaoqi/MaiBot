@@ -40,7 +40,7 @@ def get_switch_primary_spec() -> ToolSpec:
             "当某个角色更适合当前话题时，切换让ta来主导对话。"
             "切换后原来的主智能体变成共居智能体。"
         ),
-        parameters={
+        parameters_schema={
             "type": "object",
             "properties": {
                 "agent_id": {
@@ -88,7 +88,7 @@ def get_activate_agent_spec() -> ToolSpec:
             "激活一个待命的智能体加入对话。只有管家丽塔可以使用。"
             "当某个角色应该参与当前话题但还在待命时，用此工具叫ta加入。"
         ),
-        parameters={
+        parameters_schema={
             "type": "object",
             "properties": {
                 "agent_id": {
