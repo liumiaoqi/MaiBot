@@ -136,7 +136,7 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 1. 禁止核心直接导入 chat_manager ✅ 已消除（子模块直接注入 + 单例移除 + ruff TID251 守卫）
 2. 禁止核心访问 chat_manager._agent_router ✅ 已消除（构造注入 AgentRouter + ruff TID251 守卫，SSD-4 验证关闭）
 3. 禁止核心持有 BotChatSession 可变引用 ✅ 已消除（SessionInfo 不可变快照 + ChatManagerAdapter 立即转换，SSD-4 验证关闭）
-4. 禁止核心硬编码 napcat_* 字段 ✅ 已消除（入站分类 + NapCatNoticeClassifier 改造 + ruff banned-api 守卫，SSD-4 完成）
+4. 禁止核心硬编码 napcat_* 字段 — 通知分类由平台适配器在入站时完成，核心只处理 NoticeKind 枚举
 5. 禁止核心绕过 MessagePort 直接调用 send_service ✅ 已消除 + ruff TID251 守卫
 6. 禁止核心导入 A_memorix 内部模块 ✅ 已消除（core/零违规导入 + ruff TID251 守卫 + CI AST脚本）
 7. 禁止 Orchestrator 通过 enqueue_proactive_task 模拟多智能体
