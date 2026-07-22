@@ -141,8 +141,9 @@ class AgentOrchestrator:
         self._interaction_engine: InteractionEngine | None = None
 
         # 体验写入器
+        from src.core.adapters.memory_service import AMemorixMemoryServicePort
         from src.maisaka.agent_autonomy.experience_writer import ExperienceWriter
-        self._experience_writer = ExperienceWriter(memory_port=None)
+        self._experience_writer = ExperienceWriter(memory_port=AMemorixMemoryServicePort())
 
         # 上下文切换缓存：agent_id -> prompt_context
         self._context_cache: dict[str, dict[str, str]] = {}
