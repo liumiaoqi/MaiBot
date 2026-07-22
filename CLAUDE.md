@@ -46,13 +46,45 @@ MaiBot 是基于 LLM 的多智能体聊天机器人框架，14 个角色共居�
 - **MigrationRouter**：当前处于 NEW_INDEPENDENT 阶段，所有请求走连接主义路径
 - **AgentMemoryAdapter**：智能体间交互记忆隔离，用 `agent_interaction:{A}:{B}` 命名空间
 
+## CA ↔ CC 交接协议（最重要）
+
+### 接收任务时
+1. **先读交接文件**（`.shared/handoff/ca2cc_*`）— 这是 CA 给你写的任务描述
+2. **再读 specs 文档**（`.codeartsdoer/specs/{task}/`）— spec.md / design.md / tasks.md
+3. **按 tasks.md 的子任务粒度拆分工作** — 每个子任务单独建 task，不要把一个批次合并为一个粗任务
+4. **CA 给的 file path + line number 是精确指引**，不要忽略它去自己摸索
+
+### 执行时
+5. **每个子任务单独完成**，不要跳过高复杂度的"集成任务"
+6. **每批提交一次**，commit message 末尾加 `[CC]`
+7. 遇到设计问题不要自己决定，通过交接文件向 CA 反馈
+
+### 完成时
+8. **每批完成后写交接报告**（`.shared/handoff/{task}_b{N}_cc2ca_{date}.md`）
+9. **最终报告写明**：提交列表、覆盖差距、验证结果、遗留项
+10. CA 派发的是 `ca2wb`（给 WorkBuddy）还是 `ca2cc`（给我），文件名看清楚
+
+### 我的自由裁量权
+
+我是实际写代码的人，有权利也有责任在以下情况下自主判断：
+
+1. **SSD 文档有误时直接修正** — 如果 design.md 引用了一个不存在的方法（如 heartbeat_maintenance），不要按错误文档硬写，而是先实现缺失的依赖再继续。修完写入交接报告告知 CA。
+2. **tasks.md 的文件路径和行号可能过时** — CA 写文档时的行号基于当时的代码。如果我刚改过相关文件，行号会偏移。用 grep 确认实际位置，不要盲目信任行号。
+3. **实现方案可以比 SSD 更激进** — CA 有时会保留过渡期兼容（Optional 参数、fallback 路径），但用户偏好革命。如果觉得应该直接删除而非标记废弃，执行更彻底的方案并在报告中说明。
+4. **发现 SSD 未覆盖的问题时主动处理** — 实际编码中会发现文档没提到的依赖、调用方或边界情况。直接修，不要等 CA 补充文档。
+5. **代码审查反馈的修改要灵活** — CA 的 fix request（如 `_classify_memory_error`）可能有遗漏的方法或文件，用 grep 确认全貌。
+
+**底线**：SSD 是蓝图不是合同。我能看到 CA 看不到的代码细节，善用这个优势。
+
 ## 协作流程
 
-1. 开始新任务：读 `.shared/active_task.md` → 读 `.codeartsdoer/specs/{task}/tasks.md`
+1. 开始新任务：读 `.shared/active_task.md` → 读 CA 交接文件 → 读 `.codeartsdoer/specs/{task}/tasks.md`
 2. 编码过程中：遇到架构问题查 `AGENTS.md` 的核心禁止项和 Protocol 表格
 3. 提交代码：按 `CONVENTIONS.md` 命名规则加 `[CC]`
 4. 交接反馈：在 `.shared/handoff/` 按命名规则写反馈文件
 5. CodeArts 写完 SSD 后会交接给我执行，遇到设计问题通过用户转达
+6. **不要跳过任务文档里的子任务** — 每个 `- [ ]` 都要处理，不能因为"太复杂"就跳过
+7. **CA 给的具体文件路径和行号是精确指引**，优先按它去找，不要全靠 grep 搜索
 
 ## 踩坑记录
 

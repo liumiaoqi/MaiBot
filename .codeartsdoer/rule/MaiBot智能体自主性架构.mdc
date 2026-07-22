@@ -26,14 +26,74 @@
   - `E:\Users\lmq\MaiBot\maibot-plugin-sdk` — SDK 原码
 - 我和上游是两个不同的开发方向，运行环境差别也很大，更新 skill、拉取上游时需要仔细检查，需要往我的方向靠拢
 
-## 双智能体协作
+## 三主智能体协作
 
-- **CodeArts**（华为云码道）：需求分析、架构设计、SSD 文档（spec/design/tasks）、代码审查、质量守卫
-- **CC**（Claude Code）：编码执行、运行时验证、调试排障、提交管理
-- **用户是唯一中继**：两个智能体之间没有直接通信链路，需要对方做事必须通过用户传达
+- **CA**（CodeArts，华为云码道）：需求分析、架构设计、SSD 文档（spec/design/tasks）、代码审查、质量守卫
+- **CC**（Claude Code）：复杂编码执行、架构重构、大代码库变更、UI/设计迭代、运行时验证、提交管理
+- **Codex**（GPT-5.3-Codex，Windows 环境）：快速编码执行、Debug/修复、Terminal/CI-CD 任务、批量后台任务、GitHub PR 审查
+- 三者平级，各有优劣，用户根据任务类型选择派发
+- **子智能体**：各主智能体下的代理（如 CA 的 Task subagent、CC 的 MCP 工具、Codex 的内置代理），由主智能体自主调度
+- **用户是唯一中继**：主智能体之间没有直接通信链路，需要对方做事必须通过用户传达
+- **环境隔离**：CC 和 Codex 不在同一环境（CC 在 WSL，Codex 在 Windows 原生），无法直接通信，所有协调只能通过 `.shared/handoff/` 和用户中继
 - **共享区**：`.shared/`（git 子仓库），包含协作约定、活跃任务上下文、交接文件
-- **交接流程**：CodeArts 写 `handoff/ca2cc_*.md` → 用户传达 → CC 读取执行 → CC 写 `handoff/cc2ca_*.md` → 用户传达 → CodeArts 审查
-- **冲突避免**：编码期间 CC 拥有代码修改权，CodeArts 只读；紧急修改先通知用户
+- **交接流程**：CA 写 `handoff/ca2cc_*.md` / `ca2cx_*.md` → 用户传达 → CC/Codex 读取执行 → 写 `handoff/cc2ca_*.md` / `cx2ca_*.md` → 用户传达 → CA 审查
+- **冲突避免**：编码期间执行主智能体（CC 或 Codex）拥有代码修改权，CA 只读；紧急修改先通知用户
+
+### 核心优势
+
+**CA 赢在"想清楚再动手"**：结构化需求分析、Protocol 接口设计、SSD 三阶段文档（spec→design→tasks）、代码审查双重标准（正确性 + 是否违背核心原则）、跨智能体协调与任务拆分。CA 是三元协作的协调中枢——不写代码，但决定谁写什么、怎么验证。
+
+**CC 赢在"第一遍就对"**：跨文件重构首次正确率 ~95%、1M 上下文一次吃透项目依赖图、协议/接口层变更不漏实现、深层因果调试（跨抽象层追踪竞态）。适合需要"理解为什么"的任务。
+
+**Codex 赢在"让子弹飞"**：响应速度 ~3× CC、异步执行扔任务切走、代码审查二道防线（不同训练分布捕获 CC 盲点）、批量并行 4-6 个独立任务。适合"定义清晰、只需执行"的任务。
+
+### 智能体分工矩阵
+
+| 维度 | CA（CodeArts） | CC（Claude Code） | Codex（GPT-5.3-Codex） |
+|------|---------------|-------------------|------------------------|
+| 需求分析/SSD 文档 | ✅ 首选（结构化思维、Protocol 设计） | 不适合 | 不适合 |
+| 代码审查/质量守卫 | ✅ 首选（双重标准：正确性+原则合规） | 辅助 | 二道防线 |
+| 复杂架构重构 | 设计 | ✅ 首选（SWE-bench 80.8%，首次正确率 ~95%） | 辅助（首次正确率 ~90%，易过度工程化） |
+| 快速编码/Bug 修复 | 不参与 | 可用 | ✅ 首选（响应快 ~3×、Token 省 ~4×） |
+| Debug 定位 | 不参与 | 可用（深层因果调试更强） | ✅ 首选（快速定位+修复） |
+| Terminal/CI-CD | 可用（Docker 操作） | 可用 | ✅ 首选（Terminal-Bench 77.3%） |
+| 大代码库理解 | 辅助 | ✅ 首选（1M 上下文+系统级思考） | 辅助 |
+| UI/设计迭代 | 不参与 | ✅ 首选（MCP 工具链，交互体验强） | 不适合 |
+| 后台批量任务 | 不参与 | 不适合（需全程监控） | ✅ 首选（扔任务切走，回来出结果） |
+| GitHub PR 审查 | 不参与 | 需额外配置 | ✅ 首选（原生集成） |
+| 跨智能体协调 | ✅ 唯一（任务拆分+派发+审查） | 不适合 | 不适合 |
+
+### 派发决策规则
+
+1. **架构重构类**（SSD 编码、Protocol 迁移、模块拆分）→ CC
+2. **快速修复类**（Bug fix、lint 修复、导入整理）→ Codex
+3. **调试排障类**（容器日志分析、运行时错误定位）→ Codex
+4. **UI/前端类**（WebUI 开发、主题定制）→ CC
+5. **批量后台类**（依赖升级、全量重命名、CI 配置）→ Codex
+6. **不确定时**→ CC（复杂任务准确率更高）
+
+### 协作模式
+
+1. **CA 规划→CC/Codex 执行→CA 审查**：CA 写 SSD 三阶段文档 + 交接文件 → 用户派发 → CC/Codex 编码 → CA 审查产出（代码正确性 + 是否违背核心原则）。
+2. **代码审查二道防线**：CC 写代码 → Codex 审查 → CC 修复。同模型自审有盲点，Codex 来自不同训练分布，实测捕获了 CC 漏掉的竞态条件和边界情况。
+3. **任务救援**：CC 卡住或超限额 → 切 Codex 接管。不要反复重试同一个 Agent，换 Agent 比调试 Agent 快。
+4. **规划与执行分离**：CC 写详细 plan（精确到文件和函数级别）→ Codex 执行 → CC 审查结果。
+5. **状态检查**：CC 跑长任务时，Codex 对照 spec 确认方向没偏。
+
+### 反模式（禁止）
+
+1. ❌ **给 Codex 模糊的大任务** → Codex 会过度工程化或偏离现有模式。必须精确到文件和函数级别。
+2. ❌ **CC 和 Codex 同时改同一文件** → git merge 冲突。一个周期内只让一方改一个模块，改完锁版。
+3. ❌ **只用 CC 自审查** → 同模型盲点。Codex 审查做二道防线。
+4. ❌ **让 Codex 做架构决策** → 会忽略现有模式和约束。架构决策归 CC 或 CA。
+5. ❌ **让 CC 做机械性批量改动** → 浪费订阅额度，速度和 Codex 差 3 倍。
+6. ❌ **用同一个智能体跑到底** → 没有二道防线，盲点无人发现。
+
+### 文件锁规则
+
+- 一个编码周期内，每个文件只能由一个主智能体修改
+- CA 派发任务时必须按文件拆分，确保 CC 和 Codex 不会同时改同一文件
+- 如果编码智能体发现需要改不在自己任务列表中的文件，**先停下来问用户**
 
 ## 智能体自主性架构原则
 
@@ -108,12 +168,14 @@
 | **MessageRegistryPort** | 入站消息注册 | ChatManagerAdapter | ✅ 已实现 |
 | **ThinkingOrgan** | 智能体思维管道 | ThinkingOrgan（具体类） | ✅ 已实现 |
 | **ThinkingOrganFactory** | 思维管道工厂 | ThinkingOrganFactory（具体类） | ✅ 已实现 |
+| **ReplyerServicePort** | 回复生成器服务（maisaka 通过此接口获取 replyer） | ReplyerServiceAdapter | ✅ 已实现 |
+| **ImageDescriptionPort** | 图片描述服务（maisaka 通过此接口获取图片描述） | ImageDescriptionAdapter | ✅ 已实现 |
 
 ### 核心禁止项
 
 以下模式是架构债务，新增代码禁止引入，存量代码逐步消除：
 
-1. **禁止核心直接导入 chat_manager** — 25 个文件 54 处导入是最大病灶，核心模块只通过 SessionRepository / AgentRoutingService 接口查询
+1. **禁止核心直接导入 chat_manager** ✅ 已消除（子模块直接注入 + 单例移除 + ruff TID251 守卫） — 核心模块只通过 SessionRepository / AgentRoutingService 等接口查询
 2. **禁止核心访问 chat_manager._agent_router** — 私有属性访问破坏封装，通过 AgentRoutingService 接口操作
 3. **禁止核心持有 BotChatSession 可变引用** — SessionRepository 返回不可变 SessionInfo 快照
 4. **禁止核心硬编码 napcat_* 字段** — 通知分类由平台适配器在入站时完成，核心只处理 NoticeKind 枚举
@@ -335,13 +397,13 @@ ChatManagerAdapter 通过 5 合 1 Protocol（SessionRepository/SessionInfoPort/S
 
 | 债务 | 原影响范围 | 原严重度 | 当前状态 |
 |---|---|---|---|
-| chat_manager 全局单例导入 | 25 个文件 54 处 | 极高 | ✅ 核心模块已通过Protocol隔离，剩余在适配器层（唯一允许的地方） |
+| chat_manager 全局单例导入 | 25 个文件 54 处 | 极高 | ✅ 已消除（子模块直接注入 + 单例移除 + ruff TID251 守卫） |
 | HeartFlow ↔ Maisaka 循环依赖 | 9+ 文件 | 高 | ✅ ChatRuntime Protocol + ChatRuntimeRegistry 打破类型层循环 |
 | napcat_* 字段泄漏到核心 | 3 处 | 高 | ✅ NoticeClassifier + NoticeKind 枚举统一 |
 | send_service 绕过 MessagePort | 6 个文件 12 处 | 中 | ✅ 已消除 + ruff TID251 守卫（8 个旧函数 banned-api 封堵） |
 | A_memorix 内部函数泄漏 | 2 处 | 中 | ✅ person_profile 已隔离，SDKMemoryKernel 完全隔离（core/ 零违规导入） |
-| chat_manager 单例物理退役 | 适配器层 | 中 | ⬜ 待 SSD-3 推进（ChatManagerAdapter 通过 `_ensure_chat_manager()` 延迟拿单例，Protocol 已隔离类型层，物理单例未拆） |
-| maisaka → chat 物理依赖 | 19 处导入 | 中 | ⬜ 待架构革命推进（maisaka 单向依赖 chat 的 SessionMessage/CycleDetail/utils/heartflow_manager，类型层无循环，物理层靠延迟导入规避） |
+| chat_manager 单例物理退役 | 适配器层 | 中 | ✅ 已完成 SSD-3（子模块直接注入 + 模块级单例移除 + bot.py/webui 改用注册点） |
+| maisaka → chat 物理依赖 | 19 处导入 | 中 | ✅ 已消除（process_llm_response 物理迁移 + ReplyerServicePort/ImageDescriptionPort 接口化 + fork_context/session_recovery 改用 Protocol） |
 
 ## 规则文件同步元规则
 
