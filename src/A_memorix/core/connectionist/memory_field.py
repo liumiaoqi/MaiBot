@@ -74,18 +74,18 @@ class MemoryField:
         # 注入叙事原型依赖到 ProfileDeriver
         self._profile_deriver.inject_narrative_deps(self._cognitive_stratifier, self._episode_store)
 
+        # 迁移阶段守卫（可选，由外部注入）
+        self._migration_adapter: Any = None
+
     async def start_async_queue(self) -> None:
-        if not self._async_write_started:
-            await self._async_write_queue.start()
-            self._async_write_started = True
+        if getattr(self, "_async_write_started", False):
+            return
 
         from .async_write_queue import AsyncWriteQueue
 
         self._async_write_queue = AsyncWriteQueue(self._observer)
-        self._async_write_started = False
-
-        # 迁移阶段守卫（可选，由外部注入）
-        self._migration_adapter: Any = None
+        await self._async_write_queue.start()
+        self._async_write_started = True
 
     def set_migration_adapter(self, adapter: Any) -> None:
         """注入迁移适配器（由 SDKMemoryKernel 初始化后调用）"""
@@ -114,7 +114,7 @@ class MemoryField:
         async_write: bool = True,
     ) -> Any:
         if async_write:
-            if not self._async_write_started:
+            if not getattr(self, "_async_write_started", False):
                 await self.start_async_queue()
             return await self._async_write_queue.enqueue(
                 text=text, valence=valence, timestamp=timestamp,
