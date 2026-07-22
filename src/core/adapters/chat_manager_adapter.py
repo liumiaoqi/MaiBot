@@ -1,7 +1,7 @@
 """ChatManagerAdapter — 统一适配器，同时满足 5 个 Protocol。
 
-合并 SessionRepository + SessionInfoPort + SessionLifecyclePort + SessionQueryPort + MessageRegistryPort，
-替代 ChatManagerSessionRepository，消除 getattr，扩展 SessionInfo 新增字段。
+合并 SessionRepository + SessionInfoPort + SessionLifecyclePort + SessionQueryPort + MessageRegistryPort。
+子模块实例通过构造注入，不再通过 ChatManager 单例间接访问。
 """
 
 from __future__ import annotations
@@ -24,32 +24,57 @@ logger = get_logger("core.adapters.chat_manager_adapter")
 
 
 class ChatManagerAdapter:
-    """通过 chat_manager 统一实现 5 个 Protocol。
+    """通过子模块直接注入实现 5 个 Protocol。
 
     返回不可变 SessionInfo 快照，外部修改不影响内部状态。
-
-    chat_manager 实例通过构造注入，不再通过 _ensure_chat_manager() 延迟获取单例。
+    不再持有 ChatManager 单例引用。
     """
 
-    def __init__(self, routing_service: AgentRoutingService, chat_manager: Any = None) -> None:
+    def __init__(
+        self,
+        routing_service: AgentRoutingService,
+        session_store: Any,
+        message_registry: Any,
+        name_cache: Any,
+        resolver: Any,
+        binding_restorer: Any = None,
+        session_lifecycle: Any = None,
+    ) -> None:
         self._routing_service = routing_service
-        self._chat_manager: Optional[Any] = chat_manager
+        self._session_store = session_store
+        self._message_registry = message_registry
+        self._name_cache = name_cache
+        self._resolver = resolver
+        self._binding_restorer = binding_restorer
+        self._session_lifecycle = session_lifecycle
+        for name, val in (
+            ("routing_service", routing_service),
+            ("session_store", session_store),
+            ("message_registry", message_registry),
+            ("name_cache", name_cache),
+            ("resolver", resolver),
+        ):
+            if val is None:
+                raise TypeError(f"ChatManagerAdapter: {name} 不能为 None")
 
-    def _ensure_chat_manager(self):
-        """获取 chat_manager 实例（构造注入，不再延迟获取全局单例）。"""
-        if self._chat_manager is None:
-            raise RuntimeError("ChatManagerAdapter 未注入 chat_manager 实例")
-        return self._chat_manager
+    def _ensure_binding_restorer(self):
+        if self._binding_restorer is None:
+            raise RuntimeError("ChatManagerAdapter: binding_restorer 未注入")
+        return self._binding_restorer
 
-    def _build_session_info(self, session, chat_manager, session_id: str) -> SessionInfo:
-        # SessionInfo 字段为 str（非 Optional），session 属性可能为 None（私聊无 group_id 等）。
-        # `or ""` 是必要的类型适配，非兜底掩盖错误。
+    def _ensure_session_lifecycle(self):
+        if self._session_lifecycle is None:
+            raise RuntimeError("ChatManagerAdapter: session_lifecycle 未注入")
+        return self._session_lifecycle
+
+    def _build_session_info(self, session, session_id: str) -> SessionInfo:
         primary_agent_id = self._routing_service.get_primary_agent(session_id) or ""
         cohabitant_ids = self._routing_service.get_session_all_agents(session_id) - {primary_agent_id}
+        session_name = self._name_cache.get(session_id) or session_id
 
         return SessionInfo(
             session_id=session.session_id,
-            session_name=chat_manager.get_session_name(session_id) or session.session_id,
+            session_name=session_name,
             platform=session.platform,
             is_group_session=session.is_group_session,
             group_id=session.group_id or "",
@@ -68,32 +93,28 @@ class ChatManagerAdapter:
     # ── SessionRepository ──────────────────────────────────────────
 
     async def get_session(self, session_id: str) -> Optional[SessionInfo]:
-        chat_manager = self._ensure_chat_manager()
-        session = chat_manager.get_session_by_session_id(session_id)
+        session = self._session_store.get(session_id)
         if session is None:
             return None
-        return self._build_session_info(session, chat_manager, session_id)
+        return self._build_session_info(session, session_id)
 
     async def get_session_name(self, session_id: str) -> str:
-        chat_manager = self._ensure_chat_manager()
-        name = chat_manager.get_session_name(session_id)
+        name = self._name_cache.get(session_id)
         return name or session_id
 
     # ── SessionInfoPort ────────────────────────────────────────────
 
     def get_session_info(self, session_id: str) -> Optional[SessionInfo]:
-        chat_manager = self._ensure_chat_manager()
-        session = chat_manager.get_session_by_session_id(session_id)
+        session = self._session_store.get(session_id)
         if session is None:
             return None
-        return self._build_session_info(session, chat_manager, session_id)
+        return self._build_session_info(session, session_id)
 
     def get_existing_session_info(self, session_id: str) -> Optional[SessionInfo]:
-        chat_manager = self._ensure_chat_manager()
-        session = chat_manager.get_existing_session_by_session_id(session_id)
+        session = self._session_store.get_existing(session_id)
         if session is None:
             return None
-        return self._build_session_info(session, chat_manager, session_id)
+        return self._build_session_info(session, session_id)
 
     # ── SessionLifecyclePort ───────────────────────────────────────
 
@@ -105,8 +126,8 @@ class ChatManagerAdapter:
         account_id: str = "",
         scope: str = "",
     ) -> str:
-        chat_manager = self._ensure_chat_manager()
-        session = await chat_manager.get_or_create_session(
+        lifecycle = self._ensure_session_lifecycle()
+        session = await lifecycle.get_or_create_session(
             platform=platform,
             user_id=user_id,
             group_id=group_id or None,
@@ -116,16 +137,17 @@ class ChatManagerAdapter:
         return session.session_id
 
     def save_all_sessions(self) -> None:
-        chat_manager = self._ensure_chat_manager()
-        chat_manager.save_all_sessions()
+        lifecycle = self._ensure_session_lifecycle()
+        lifecycle.save_all_sessions()
 
     async def initialize(self) -> None:
-        chat_manager = self._ensure_chat_manager()
-        await chat_manager.initialize()
+        lifecycle = self._ensure_session_lifecycle()
+        restorer = self._ensure_binding_restorer()
+        await lifecycle.initialize(restorer)
 
     async def regularly_save_sessions(self, interval_seconds: float = 300) -> None:
-        chat_manager = self._ensure_chat_manager()
-        await chat_manager.regularly_save_sessions(interval_seconds=int(interval_seconds))
+        lifecycle = self._ensure_session_lifecycle()
+        await lifecycle.regularly_save_sessions(interval_seconds=int(interval_seconds))
 
     # ── SessionQueryPort ───────────────────────────────────────────
 
@@ -136,14 +158,13 @@ class ChatManagerAdapter:
         target_id: str,
         chat_type: str,
     ) -> List[SessionInfo]:
-        chat_manager = self._ensure_chat_manager()
-        sessions = chat_manager.resolve_sessions_by_target(
+        sessions = self._resolver.resolve_by_target(
             platform=platform,
             target_id=target_id,
             chat_type=chat_type,
         )
         return [
-            self._build_session_info(session, chat_manager, session.session_id)
+            self._build_session_info(session, session.session_id)
             for session in sessions
         ]
 
@@ -154,27 +175,24 @@ class ChatManagerAdapter:
         target_id: str,
         chat_type: str,
     ) -> set[str]:
-        chat_manager = self._ensure_chat_manager()
-        return chat_manager.resolve_session_ids_by_target(
+        return self._resolver.resolve_ids_by_target(
             platform=platform,
             target_id=target_id,
             chat_type=chat_type,
         )
 
     def get_last_message(self, session_id: str) -> Any:
-        chat_manager = self._ensure_chat_manager()
-        return chat_manager.last_messages.get(session_id)
+        return self._message_registry.last_messages.get(session_id)
 
     def list_sessions(self) -> List[SessionInfo]:
-        chat_manager = self._ensure_chat_manager()
+        sessions = self._session_store.sessions
         return [
-            self._build_session_info(session, chat_manager, session.session_id)
-            for session in chat_manager.sessions.values()
+            self._build_session_info(session, session_id)
+            for session_id, session in list(sessions.items())
         ]
 
     def get_route_metadata(self, session_id: str) -> Dict[str, object]:
-        chat_manager = self._ensure_chat_manager()
-        session = chat_manager.get_session_by_session_id(session_id)
+        session = self._session_store.get(session_id)
         if session is None:
             return {}
 
@@ -198,11 +216,10 @@ class ChatManagerAdapter:
         return metadata
 
     def get_session_count(self) -> int:
-        chat_manager = self._ensure_chat_manager()
-        return len(chat_manager.sessions)
+        sessions = self._session_store.sessions
+        return len(sessions)
 
     # ── MessageRegistryPort ────────────────────────────────────────
 
     def register_message(self, message: Any) -> None:
-        chat_manager = self._ensure_chat_manager()
-        chat_manager.register_message(message)
+        self._message_registry.register(message)

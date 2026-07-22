@@ -12,50 +12,44 @@ logger = get_logger("core.adapters.routing_adapter")
 
 
 class ChatManagerRoutingAdapter:
-    """通过 chat_manager._agent_router 实现 AgentRoutingService Protocol。"""
+    """通过构造注入 AgentRouter 实现 AgentRoutingService Protocol。"""
+
+    def __init__(self, agent_router: Any = None) -> None:
+        self._agent_router = agent_router
 
     def _ensure_router(self):
-        from src.chat.message_receive.chat_manager import chat_manager
-
-        return chat_manager.agent_router
+        if self._agent_router is None:
+            raise RuntimeError("ChatManagerRoutingAdapter: agent_router 未注入")
+        return self._agent_router
 
     def resolve_agent(self, session_id: str, group_id: Optional[str] = None) -> AgentConfig:
-        router = self._ensure_router()
-        return router.resolve_agent(session_id, group_id)
+        return self._ensure_router().resolve_agent(session_id, group_id)
 
     def bind_session(self, session_id: str, agent_id: str) -> bool:
-        router = self._ensure_router()
         try:
-            router.bind_session(session_id, agent_id)
+            self._ensure_router().bind_session(session_id, agent_id)
             return True
         except ValueError:
             logger.warning(f"绑定失败: session={session_id}, agent={agent_id}")
             return False
 
     def unbind_session(self, session_id: str, agent_id: Optional[str] = None) -> None:
-        router = self._ensure_router()
-        router.unbind_session(session_id, agent_id)
+        self._ensure_router().unbind_session(session_id, agent_id)
 
     def get_primary_agent(self, session_id: str) -> Optional[str]:
-        router = self._ensure_router()
-        return router.get_session_primary_agent(session_id)
+        return self._ensure_router().get_session_primary_agent(session_id)
 
     def get_session_all_agents(self, session_id: str) -> frozenset[str]:
-        router = self._ensure_router()
-        return frozenset(router.get_session_all_agents(session_id))
+        return frozenset(self._ensure_router().get_session_all_agents(session_id))
 
     def get_session_binding(self, session_id: str) -> Optional[str]:
-        router = self._ensure_router()
-        return router.get_session_binding(session_id)
+        return self._ensure_router().get_session_binding(session_id)
 
     def list_group_bindings(self) -> dict[str, str]:
-        router = self._ensure_router()
-        return router.list_group_bindings()
+        return self._ensure_router().list_group_bindings()
 
     def bind_group(self, group_id: str, agent_id: str) -> None:
-        router = self._ensure_router()
-        router.bind_group(group_id, agent_id)
+        self._ensure_router().bind_group(group_id, agent_id)
 
     def unbind_group(self, group_id: str) -> None:
-        router = self._ensure_router()
-        router.unbind_group(group_id)
+        self._ensure_router().unbind_group(group_id)

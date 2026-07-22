@@ -122,8 +122,15 @@ class MainSystem:
 
         await config_manager.start_file_watcher()
 
-        # 注册全局 Protocol 端口 — 必须在 A_memorix 启动之前，因为 A_memorix 注入时从注册点获取
+        # ── 构造子模块 → 构造适配器 → 注册 Protocol 端口 ─────────────────
+        # 必须在 A_memorix 启动之前，因为 A_memorix 注入时从注册点获取
         from src.chat.message_receive.chat_manager import chat_manager
+        from src.chat.message_receive.session_store import SessionStore
+        from src.chat.message_receive.message_registry import MessageRegistry
+        from src.chat.message_receive.session_name_cache import SessionNameCache
+        from src.chat.message_receive.session_resolver import SessionResolver
+        from src.chat.message_receive.binding_restorer import BindingRestorer
+        from src.chat.message_receive.session_lifecycle import SessionLifecycle
         from src.core.adapters.chat_manager_adapter import ChatManagerAdapter
         from src.core.adapters.routing_adapter import ChatManagerRoutingAdapter
         from src.core.session_port_registry import (
@@ -132,12 +139,41 @@ class MainSystem:
             register_session_query_port,
             register_message_registry_port,
         )
+        from src.maisaka.agent.router import AgentRouter
+        from src.maisaka.agent.registry import AgentConfigRegistry
 
-        _adapter = ChatManagerAdapter(ChatManagerRoutingAdapter(), chat_manager=chat_manager)
+        # 构造子模块（SessionStore ↔ MessageRegistry 循环依赖需处理后注入）
+        session_store = SessionStore()
+        message_registry = MessageRegistry(session_store)
+        session_store.set_message_registry(message_registry)
+        name_cache = SessionNameCache(session_store)
+        resolver = SessionResolver(session_store)
+        agent_router = AgentRouter(AgentConfigRegistry())
+        binding_restorer = BindingRestorer(agent_router)
+        session_lifecycle = SessionLifecycle(session_store, message_registry, agent_router)
+
+        # 构造适配器（构造注入子模块）
+        routing_adapter = ChatManagerRoutingAdapter(agent_router)
+        _adapter = ChatManagerAdapter(
+            routing_service=routing_adapter,
+            session_store=session_store,
+            message_registry=message_registry,
+            name_cache=name_cache,
+            resolver=resolver,
+            binding_restorer=binding_restorer,
+            session_lifecycle=session_lifecycle,
+        )
+
+        # 注册 4 个 Protocol 端口
         register_session_info_port(_adapter)
         register_session_lifecycle_port(_adapter)
         register_session_query_port(_adapter)
         register_message_registry_port(_adapter)
+
+        # 保持 chat_manager 单例的属性同步（向后兼容，阶段3退役）
+        chat_manager._agent_router = agent_router
+        chat_manager._ensure_binding_restorer = lambda: binding_restorer
+        chat_manager._ensure_lifecycle = lambda: session_lifecycle
 
         # 注册 ChatRuntimeRegistry + ChatRuntimeFactory
         # — 打破 heartflow_manager ↔ maisaka 物理循环依赖
