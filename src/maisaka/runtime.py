@@ -654,7 +654,12 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         priority: str = "",
         metadata: Optional[dict[str, Any]] = None,
     ) -> dict[str, Any]:
-        """追加一个插件主动聊天任务，并唤醒 Maisaka 主循环。"""
+        """追加一个插件主动聊天任务，并唤醒 Maisaka 主循环。
+
+        仅用于插件主动对话，禁止用于多智能体插话。
+        管家/提醒/Orchestrator 应通过 ThinkingOrgan 直接触发插话。
+        合法调用方：plugin_runtime。
+        """
 
         normalized_plugin_id = str(plugin_id or "").strip() or "unknown"
         normalized_intent = str(intent or "").strip()

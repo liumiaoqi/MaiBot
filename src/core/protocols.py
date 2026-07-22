@@ -131,7 +131,14 @@ class ChatRuntime(Protocol):
         reason: str = "",
         metadata: Optional[dict[str, Any]] = None,
     ) -> Optional[dict[str, Any]]:
-        """触发主动对话任务（仅用于插件主动对话，禁止用于多智能体插话）。
+        """触发主动对话任务。
+
+        **仅用于插件主动对话，禁止用于多智能体插话。**
+
+        合法调用方：plugin_runtime（插件主动对话触发）
+        禁止用途：多智能体插话应通过 ThinkingOrgan 直接触发，
+                  管家/提醒/Orchestrator 不得调用此方法。
+        违反约束的后果：CI 不通过（grep 守卫 + code review）。
 
         Args:
             plugin_id: 触发来源标识

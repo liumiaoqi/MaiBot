@@ -86,19 +86,3 @@ class ChatLoopServiceAdapter:
         if self._use_embodied_prompt:
             return "maisaka_chat_embodied"
         return self._chat_loop_service.get_prompt_template_name()
-
-    async def enqueue_proactive_task(
-        self,
-        *,
-        plugin_id: str,
-        intent: str,
-        reason: str = "",
-        metadata: Optional[dict[str, Any]] = None,
-    ) -> dict[str, Any] | None:
-        """代理 enqueue_proactive_task，让管家/提醒等核心模块触发 Planner。"""
-        return await self._chat_loop_service.enqueue_proactive_task(
-            plugin_id=plugin_id,
-            intent=intent,
-            reason=reason,
-            metadata=metadata,
-        )
