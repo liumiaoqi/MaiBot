@@ -140,6 +140,10 @@ class AgentOrchestrator:
         # 交互引擎（插话反哺用）
         self._interaction_engine: InteractionEngine | None = None
 
+        # 体验写入器
+        from src.maisaka.agent_autonomy.experience_writer import ExperienceWriter
+        self._experience_writer = ExperienceWriter(memory_port=None)
+
         # 上下文切换缓存：agent_id -> prompt_context
         self._context_cache: dict[str, dict[str, str]] = {}
 
@@ -298,6 +302,8 @@ class AgentOrchestrator:
         task = self._think_scheduler.schedule(agent_id, agent.thinking_organ, think_context)
         result = await task
 
+        self._try_write_experience(agent_id, result)
+
         if prev_agent_id != agent_id:
             self._chat_loop_adapter.switch_agent_context(prev_agent_id)
 
@@ -331,6 +337,19 @@ class AgentOrchestrator:
             )
 
         self._cooldown_manager.record_interjection(self._session_id, agent_id)
+
+    def _try_write_experience(
+        self, agent_id: str, result: Any, emotion_state: Any = None
+    ) -> None:
+        if self._experience_writer.should_write(result):
+            try:
+                self._experience_writer.write_experience(
+                    result, self._session_id, agent_id, emotion_state,
+                )
+            except Exception:
+                logger.debug(
+                    "体验写入发起失败: agent=%s", agent_id, exc_info=True,
+                )
 
     def _start_reminder_tick(self) -> None:
         """启动提醒心跳检查。"""
@@ -370,6 +389,8 @@ class AgentOrchestrator:
                         reminder.agent_id, agent.thinking_organ, "reminder", think_context,
                     )
                     result = await task
+
+                    self._try_write_experience(reminder.agent_id, result)
 
                     if result.action == ThinkAction.REPLY and result.text and not result.reply_sent:
                         from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
@@ -795,6 +816,8 @@ class AgentOrchestrator:
         )
         result = await task
 
+        self._try_write_experience(self._primary_agent_id, result)
+
         if result.action == ThinkAction.REPLY and result.text and not result.reply_sent:
             from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
             from src.core.message_port_registry import get_message_port_v2
@@ -929,6 +952,7 @@ class AgentOrchestrator:
             self._primary_agent_id, agent.thinking_organ, think_context,
         )
         result = await task
+        self._try_write_experience(self._primary_agent_id, result)
         if result.action == ThinkAction.REPLY and result.text and not result.reply_sent:
             from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
             from src.core.message_port_registry import get_message_port_v2

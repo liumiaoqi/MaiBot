@@ -373,11 +373,11 @@ class DreamAgent:
         for bucket_key, items in bucket_distribution.items():
             for item_text in items:
                 try:
-                    await self._memory_service.ingest_text(
-                        external_id=f"dream_{spec.agent_id}_{int(time.time())}",
-                        source_type="dream_consolidation",
+                    await self._memory_service.observe(
                         text=item_text,
-                        chat_id=spec.session_id,
+                        source_id=f"dream_{spec.agent_id}_{int(time.time())}",
+                        session_id=spec.session_id,
+                        tags=["dream_consolidation"],
                     )
                     added += 1
                 except Exception as e:

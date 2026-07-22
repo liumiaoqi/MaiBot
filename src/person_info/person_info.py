@@ -566,24 +566,21 @@ async def store_person_memory_from_answer(
         payload_fingerprint = hashlib.md5(f"{person_id}|{clean_chat_id}|{clean_content}".encode()).hexdigest()
         external_id = f"person_fact:{person_id}:{payload_fingerprint}"
 
-        result = await memory_service.ingest_text(
-            external_id=external_id,
-            source_type="person_fact",
+        result = await memory_service.observe(
             text=clean_content,
-            chat_id=clean_chat_id,
-            person_ids=[person_id],
+            source_id=external_id,
+            session_id=clean_chat_id,
             participants=[participant_name],
-            tags=["person_fact"],
+            tags=["person_fact", str(evidence_source or "user_supported")],
             metadata={
                 "person_id": person_id,
                 "person_name": participant_name,
                 "writeback_source": "memory_flow_service",
                 "evidence_source": str(evidence_source or "user_supported"),
                 "evidence_message_ids": evidence_message_ids or [],
+                "user_id": session_user_id,
+                "group_id": session_group_id,
             },
-            respect_filter=True,
-            user_id=session_user_id,
-            group_id=session_group_id,
         )
 
         if getattr(result, "success", False):

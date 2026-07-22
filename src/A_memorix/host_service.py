@@ -498,6 +498,11 @@ class AMemorixHostService:
                 )
     
             if component_name == "migration_ingest_text":
+                import warnings
+                warnings.warn(
+                    "migration_ingest_text 已废弃，请使用 observe",
+                    DeprecationWarning, stacklevel=2,
+                )
                 return await kernel._migration_router.ingest_text(
                     text=payload.get("text", ""),
                     external_id=payload.get("external_id", ""),

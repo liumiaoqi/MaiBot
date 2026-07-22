@@ -165,7 +165,22 @@ class AgentMemoryAdapter:
         timestamp: float,
     ) -> MemoryWriteResult:
         """写入单条交互记忆。"""
-        return await self.memory_port.ingest_text(
+        port = self.memory_port
+        if hasattr(port, "observe_experience"):
+            return await port.observe_experience(
+                text=text,
+                source_id=external_id,
+                session_id=chat_id,
+                agent_id=person_id,
+                tags=["agent_interaction", emotion_tag, interaction_type],
+                timestamp=timestamp,
+                metadata={
+                    "interaction_event_id": event_id,
+                    "emotion_snapshot": emotion_snapshot,
+                    "relationship_delta": relationship_delta,
+                },
+            )
+        return await port.ingest_text(
             external_id=external_id,
             source_type="agent_interaction",
             text=text,
@@ -219,19 +234,34 @@ class AgentMemoryAdapter:
             if not content:
                 continue
 
-            await self.memory_port.ingest_text(
-                external_id=f"propagated:{hit.hash_value or hit.episode_id}",
-                source_type="agent_interaction_propagated",
-                text=content,
-                chat_id=target_chat_id,
-                person_ids=[target_person_id],
-                tags=["agent_interaction", "propagated"],
-                metadata={
-                    "propagated_from": source_agent_id,
-                    "about_agent": about_agent_id,
-                    "original_hash": hit.hash_value,
-                },
-            )
+            port = self.memory_port
+            if hasattr(port, "observe_experience"):
+                await port.observe_experience(
+                    text=content,
+                    source_id=f"propagated:{hit.hash_value or hit.episode_id}",
+                    session_id=target_chat_id,
+                    agent_id=target_person_id,
+                    tags=["agent_interaction", "propagated"],
+                    metadata={
+                        "propagated_from": source_agent_id,
+                        "about_agent": about_agent_id,
+                        "original_hash": hit.hash_value,
+                    },
+                )
+            else:
+                await port.ingest_text(
+                    external_id=f"propagated:{hit.hash_value or hit.episode_id}",
+                    source_type="agent_interaction_propagated",
+                    text=content,
+                    chat_id=target_chat_id,
+                    person_ids=[target_person_id],
+                    tags=["agent_interaction", "propagated"],
+                    metadata={
+                        "propagated_from": source_agent_id,
+                        "about_agent": about_agent_id,
+                        "original_hash": hit.hash_value,
+                    },
+                )
 
         logger.info(
             "[agent_interaction] 记忆传播: %s→%s about=%s count=%d",
