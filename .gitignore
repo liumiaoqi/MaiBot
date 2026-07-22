@@ -389,6 +389,8 @@ agentlite/
 .arts/
 .codeartsdoer/
 .codemate
+
+.workbuddy/
 MiMo-Code
 maibot-plugin-sdk
 skills

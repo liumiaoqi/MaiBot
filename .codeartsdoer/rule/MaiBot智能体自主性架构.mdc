@@ -26,6 +26,15 @@
   - `E:\Users\lmq\MaiBot\maibot-plugin-sdk` — SDK 原码
 - 我和上游是两个不同的开发方向，运行环境差别也很大，更新 skill、拉取上游时需要仔细检查，需要往我的方向靠拢
 
+## 双智能体协作
+
+- **CodeArts**（华为云码道）：需求分析、架构设计、SSD 文档（spec/design/tasks）、代码审查、质量守卫
+- **WorkBuddy**（DeepSeek V4 Pro）：编码执行、运行时验证、调试排障、提交管理
+- **用户是唯一中继**：两个智能体之间没有直接通信链路，需要对方做事必须通过用户传达
+- **共享区**：`.shared/`（git 子仓库），包含协作约定、活跃任务上下文、交接文件
+- **交接流程**：CodeArts 写 `handoff/codearts_to_wb.md` → 用户传达 → WorkBuddy 读取执行 → WorkBuddy 写 `handoff/wb_to_codearts.md` → 用户传达 → CodeArts 审查
+- **冲突避免**：编码期间 WorkBuddy 拥有代码修改权，CodeArts 只读；紧急修改先通知用户
+
 ## 智能体自主性架构原则
 
 1. **智能体决策权原则**：外部系统（bot.py、HeartFlow、ChatManager 等消息链路模块）不应替智能体做业务决策。消息是否需要回复、是否触发 Planner，应由智能体自身的规则引擎决定，而非在链路中硬编码过滤或分流。消息链路保持透明，智能体是消息的最终消费者和决策者。
