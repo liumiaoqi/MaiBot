@@ -152,7 +152,7 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 | ChatRuntimeRegistry | 运行时注册表 | HeartflowRuntimeRegistry |
 | ChatRuntimeFactory | 运行时工厂（打破 heartflow→maisaka 依赖） | MaisakaRuntimeFactory |
 | NoticeClassifier | 通知分类 | NapCatNoticeClassifier |
-| MemoryServicePort | 记忆服务（含 observe_experience） | AMemorixMemoryServicePort |
+| MemoryServicePort | 记忆服务（16方法：observe/recall/recall_with_intuition/derive_profile/reflect/weave_narrative/heartbeat_maintenance 等） | AMemorixMemoryServicePort |
 | SessionInfoPort | 会话信息反查 | ChatManagerAdapter（通过注册点注入 A_memorix） |
 | SessionLifecyclePort | 会话生命周期（创建/持久化/初始化） | ChatManagerAdapter |
 | SessionQueryPort | 会话批量查询/路由元数据 | ChatManagerAdapter |
@@ -315,7 +315,7 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 
 ## 待实现细节
 
-- ⬜ recall_with_intuition() 便捷方法（recall + intuition 合并）
+- ✅ recall_with_intuition() 便捷方法（mem_core_gap 已实现）
 - ⬜ LLM prompt 三语模板文件（narrative/prompts/ 目录）
 - ⬜ ConnectionistTranslator 叙事格式翻译（DUAL_READ 阶段才需要）
 
@@ -329,6 +329,34 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 6. 迁移阶段守卫——DUAL_WRITE 阶段仅写入，DUAL_READ 及以后才读取直觉/认知
 7. 生命周期与粒度退化正交——退化管细节（detail_level），生命周期管存在权（status）
 8. 直觉触发纯规则——关键词+bigram 双层匹配，停用词过滤，零 LLM 调用
+
+# 记忆系统与核心架构差距（mem_core_gap，已完成）
+
+**6 批编码全部完成**，21/29 项差距覆盖，8 项不在本期范围。
+
+## 关键变更
+
+1. **MemoryServicePort 从 10 方法扩展到 16 方法** — 新增 recall/recall_with_intuition/derive_profile/reflect/weave_narrative/heartbeat_maintenance，删除 ingest_text
+2. **异常子类体系** — MemoryServiceError → TemporaryMemoryError / PermanentMemoryError / MemoryNotFoundError
+3. **单例模式** — `get_memory_service_port()` + `reset_memory_service_port()` 替代 13 处独立实例化
+4. **数据类型下放 common 层** — `src/common/memory_types.py`（8 个纯数据类型），`src/common/memory_utils.py`（从 core 迁移），core/types.py 重新导出
+5. **A_memorix/core/ 零运行时 core 导入** — 4 文件切到 common，1 个改 AMemorixServicePorts 注入
+6. **observe_experience() 统一 ObserveRequest 对象**
+7. **MemoryWriteResult 扩展** — 新增 observation_id / concept_names
+8. **直觉接入思考循环** — `_build_think_context()` 调用 `recall_with_intuition()`，填充 `memory_snippets` + `intuition_context`
+9. **heuristic_injector 直觉优先** — `recall_with_intuition()` + `search()` 降级
+10. **情绪联动** — ExperienceWriter 新增 `emotion_manager` 注入，实时情绪→valence 自动推导
+
+## 未覆盖的 8 项差距（不在本期范围）
+
+- G16 host_service 直接访问 kernel 私有属性（修复成本高，影响低）
+- G18 Agent-owns-Thinking 与记忆性格未联动（agent_id 参数已传递，深度联动待后续）
+- G19 管家系统与记忆系统未联动（需新增关系查询接口）
+- G21 叙事弧未接入智能体认知（weave_narrative 已暴露，深度集成待后续）
+- G22 AsyncWriteQueue 延迟启动竞态（已有保护机制）
+- G23 ModelConfigPort 注入时序无检查（已有 None 保护）
+- G24 记忆性格注册窗口期（需核心调度时序保证）
+- G28 A_memorix 内部 322 处 bare except（修复成本极高，逐个审查需单独排期）
 
 # changelog编写
 建议分为两部分，一部分是用户感知功能侧，一部分是开发侧（包含修复和插件sdk,api改动）。最好一个功能一行，按模块分。
