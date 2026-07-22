@@ -118,15 +118,16 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 
 5. **记忆是连接而非对象原则**：记忆不是带标签的标本，而是概念之间的激活模式。新记忆 = 新连接，遗忘 = 连接衰减，回忆 = 重新激活模式。
 
-6. **主智能体-子智能体协作原则**：主智能体是用户的"哲学守护者"，子智能体是"代码专家"。分工不可避免，但必须防止两者孤立甚至对立：
-   - **原则随任务传递**：主智能体分派编码任务时，必须同时传递完成该任务所需遵循的特定原则（从 AGENTS.md 和会话上下文中提取），而非只传递"做什么"
-   - **审核双重标准**：主智能体审核子智能体产出时，不仅审核代码正确性，更审核是否违背用户的根本原则（核心禁止项、代码风格、架构约束）
+6. **主智能体-子智能体协作原则**：CA、CC、Codex 是三个平级主智能体，各有优劣，用户根据任务类型选择派发。子智能体是各主智能体下的代理（如 Task subagent、MCP 工具等），由主智能体自主调度。
+   - **原则随任务传递**：任一主智能体分派编码任务时，必须同时传递完成该任务所需遵循的特定原则（从 AGENTS.md 和会话上下文中提取），而非只传递"做什么"
+   - **审核双重标准**：主智能体审核其他主智能体产出时，不仅审核代码正确性，更审核是否违背用户的根本原则（核心禁止项、代码风格、架构约束）
    - **禁止自动推进流程**：不得在用户未明确表示"进入下一阶段"时自动推进 SSD 流程；不得主动询问"有什么代码任务"——等待用户发起
    - **上下文压缩后优先恢复原则**：压缩后丢失的首先是"为什么"，恢复时应优先从 AGENTS.md 重新加载核心原则，而非仅恢复任务状态
+   - **派发决策**：架构重构→CC；快速修复/Debug/CI→Codex；需求设计/审查→CA；UI/前端→CC；批量后台→Codex；不确定→CC。详细决策参考见 `.shared/decisions/cc_vs_codex_routing_guide.md`。
 
 ## 核心禁止项
 
-1. 禁止核心直接导入 chat_manager
+1. 禁止核心直接导入 chat_manager ✅ 已消除（子模块直接注入 + 单例移除 + ruff TID251 守卫）
 2. 禁止核心访问 chat_manager._agent_router
 3. 禁止核心持有 BotChatSession 可变引用
 4. 禁止核心硬编码 napcat_* 字段
@@ -143,25 +144,25 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 
 ### 核心接口层
 
-| Protocol | 职责 | 实现者 |
-|----------|------|--------|
-| MessagePortV2 | 统一消息发送（1个方法 send_message） | SendServiceMessagePortV2 |
-| SessionRepository | 会话查询 | ChatManagerAdapter |
-| AgentRoutingService | 智能体路由 | ChatManagerRoutingAdapter |
-| ChatRuntime | 运行时接口 | MaisakaHeartFlowChatting |
-| ChatRuntimeRegistry | 运行时注册表 | HeartflowRuntimeRegistry |
-| ChatRuntimeFactory | 运行时工厂（打破 heartflow→maisaka 依赖） | MaisakaRuntimeFactory |
-| NoticeClassifier | 通知分类 | NapCatNoticeClassifier |
-| MemoryServicePort | 记忆服务（16方法：observe/recall/recall_with_intuition/derive_profile/reflect/weave_narrative/heartbeat_maintenance 等） | AMemorixMemoryServicePort |
-| SessionInfoPort | 会话信息反查 | ChatManagerAdapter（通过注册点注入 A_memorix） |
-| SessionLifecyclePort | 会话生命周期（创建/持久化/初始化） | ChatManagerAdapter |
-| SessionQueryPort | 会话批量查询/路由元数据 | ChatManagerAdapter |
-| MessageRegistryPort | 入站消息注册 | ChatManagerAdapter |
-| ThinkingOrgan | 思维管道 | ThinkingOrgan（agent_autonomy） |
-| ThinkingOrganFactory | 思维管道工厂 | ThinkingOrganFactory |
-| ReplyerServicePort | 回复生成器服务（maisaka 通过此接口获取 replyer） | ReplyerServiceAdapter |
-| ImageDescriptionPort | 图片描述服务（maisaka 通过此接口获取图片描述） | ImageDescriptionAdapter |
-| ModelConfigPort | 模型配置查询（4查询+2回调，支持智能体级覆盖） | ConfigManagerModelConfigPort |
+| Protocol             | 职责　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 | 实现者　　　　　　　　　　　　　　　　　　　　 |
+| ----------------------| --------------------------------------------------------------------------------------------------------------------------| ------------------------------------------------|
+| MessagePortV2        | 统一消息发送（1个方法 send_message）　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 | SendServiceMessagePortV2　　　　　　　　　　　 |
+| SessionRepository    | 会话查询　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 | ChatManagerAdapter　　　　　　　　　　　　　　 |
+| AgentRoutingService  | 智能体路由　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 | ChatManagerRoutingAdapter　　　　　　　　　　　|
+| ChatRuntime          | 运行时接口　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 | MaisakaHeartFlowChatting　　　　　　　　　　　 |
+| ChatRuntimeRegistry  | 运行时注册表　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 | HeartflowRuntimeRegistry　　　　　　　　　　　 |
+| ChatRuntimeFactory   | 运行时工厂（打破 heartflow→maisaka 依赖）　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　| MaisakaRuntimeFactory　　　　　　　　　　　　　|
+| NoticeClassifier     | 通知分类　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 | NapCatNoticeClassifier　　　　　　　　　　　　 |
+| MemoryServicePort    | 记忆服务（16方法：observe/recall/recall_with_intuition/derive_profile/reflect/weave_narrative/heartbeat_maintenance 等） | AMemorixMemoryServicePort　　　　　　　　　　　|
+| SessionInfoPort      | 会话信息反查　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 | ChatManagerAdapter（通过注册点注入 A_memorix） |
+| SessionLifecyclePort | 会话生命周期（创建/持久化/初始化）　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 | ChatManagerAdapter　　　　　　　　　　　　　　 |
+| SessionQueryPort     | 会话批量查询/路由元数据　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　| ChatManagerAdapter　　　　　　　　　　　　　　 |
+| MessageRegistryPort  | 入站消息注册　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 | ChatManagerAdapter　　　　　　　　　　　　　　 |
+| ThinkingOrgan        | 思维管道　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 | ThinkingOrgan（agent_autonomy）　　　　　　　　|
+| ThinkingOrganFactory | 思维管道工厂　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 | ThinkingOrganFactory　　　　　　　　　　　　　 |
+| ReplyerServicePort   | 回复生成器服务（maisaka 通过此接口获取 replyer）　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 | ReplyerServiceAdapter　　　　　　　　　　　　　|
+| ImageDescriptionPort | 图片描述服务（maisaka 通过此接口获取图片描述）　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 | ImageDescriptionAdapter　　　　　　　　　　　　|
+| ModelConfigPort      | 模型配置查询（4查询+2回调，支持智能体级覆盖）　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　| ConfigManagerModelConfigPort　　　　　　　　　 |
 
 ## 内心状态三层
 
