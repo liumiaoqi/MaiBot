@@ -191,6 +191,21 @@ class AMemorixHostService:
             timeout=timeout_ms / 1000,
         )
 
+    _ADMIN_HANDLER_MAP: dict[str, str] = {
+        "memory_graph_admin": "graph",
+        "memory_source_admin": "source",
+        "memory_episode_admin": "episode",
+        "memory_profile_admin": "profile",
+        "memory_feedback_admin": "feedback",
+        "memory_runtime_admin": "runtime",
+        "memory_import_admin": "import",
+        "memory_tuning_admin": "tuning",
+        "memory_v5_admin": "v5",
+        "memory_delete_admin": "delete",
+        "memory_correction_admin": "correction",
+        "memory_fuzzy_modify_admin": "correction",
+    }
+
     async def _dispatch(self, kernel: Any, component_name: str, payload: dict) -> Any:
             if component_name == "search_memory":
                 from .core.runtime.sdk_memory_kernel import KernelSearchRequest
@@ -455,7 +470,15 @@ class AMemorixHostService:
                 return await kernel._migration_router.search(
                     query=payload.get("query", ""),
                     agent_id=payload.get("agent_id", ""),
-                    **{k: v for k, v in payload.items() if k not in {"query", "agent_id"}},
+                    limit=payload.get("limit", 5),
+                    mode=payload.get("mode", "search"),
+                    chat_id=payload.get("chat_id", ""),
+                    person_id=payload.get("person_id", ""),
+                    time_start=payload.get("time_start"),
+                    time_end=payload.get("time_end"),
+                    respect_filter=payload.get("respect_filter", True),
+                    user_id=payload.get("user_id", ""),
+                    group_id=payload.get("group_id", ""),
                 )
     
             if component_name == "migration_get_person_profile":
@@ -468,7 +491,24 @@ class AMemorixHostService:
             if component_name == "migration_ingest_text":
                 return await kernel._migration_router.ingest_text(
                     text=payload.get("text", ""),
-                    **{k: v for k, v in payload.items() if k != "text"},
+                    external_id=payload.get("external_id", ""),
+                    source_type=payload.get("source_type", ""),
+                    chat_id=payload.get("chat_id", ""),
+                    person_ids=payload.get("person_ids"),
+                    participants=payload.get("participants"),
+                    timestamp=payload.get("timestamp"),
+                    time_start=payload.get("time_start"),
+                    time_end=payload.get("time_end"),
+                    tags=payload.get("tags"),
+                    metadata=payload.get("metadata"),
+                    entities=payload.get("entities"),
+                    relations=payload.get("relations"),
+                    respect_filter=payload.get("respect_filter", True),
+                    user_id=payload.get("user_id", ""),
+                    group_id=payload.get("group_id", ""),
+                    source_id=payload.get("source_id", ""),
+                    session_id=payload.get("session_id", ""),
+                    agent_id=payload.get("agent_id", ""),
                 )
     
             if component_name == "migration_build_profile_injection_text":
@@ -511,21 +551,7 @@ class AMemorixHostService:
                 rows = metadata_store.query(sql, tuple(params) if not isinstance(params, tuple) else params)
                 return [dict(row) for row in rows] if rows else []
     
-            _ADMIN_HANDLER_MAP = {
-                "memory_graph_admin": "graph",
-                "memory_source_admin": "source",
-                "memory_episode_admin": "episode",
-                "memory_profile_admin": "profile",
-                "memory_feedback_admin": "feedback",
-                "memory_runtime_admin": "runtime",
-                "memory_import_admin": "import",
-                "memory_tuning_admin": "tuning",
-                "memory_v5_admin": "v5",
-                "memory_delete_admin": "delete",
-                "memory_correction_admin": "correction",
-                "memory_fuzzy_modify_admin": "correction",
-            }
-            handler_key = _ADMIN_HANDLER_MAP.get(component_name)
+            handler_key = self._ADMIN_HANDLER_MAP.get(component_name)
             if handler_key is not None:
                 kwargs = dict(payload)
                 action = kwargs.pop("action", "")

@@ -409,8 +409,6 @@ class SDKMemoryKernel:
         from ..migration.translator import ConnectionistTranslator
         self._migration_router = MigrationRouter(
             self._migration_adapter, self._memory_field, self, ConnectionistTranslator(),
-            coerce_search_result=None,
-            coerce_write_result=None,
             build_profile_injection_text_fn=self._ports.build_profile_injection_text if self._ports else None,
         )
 

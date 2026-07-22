@@ -25,12 +25,11 @@ class AgentMemoryAdapter:
     将智能体间交互记忆与用户记忆隔离。
     """
 
-    def __init__(self) -> None:
-        self._memory_port: Any = None
+    def __init__(self, memory_port: Any = None) -> None:
+        self._memory_port: Any = memory_port
 
     @property
     def memory_port(self) -> Any:
-        """获取 MemoryServicePort 实例（延迟初始化）。"""
         if self._memory_port is None:
             from src.core.adapters.memory_service import AMemorixMemoryServicePort
             self._memory_port = AMemorixMemoryServicePort()

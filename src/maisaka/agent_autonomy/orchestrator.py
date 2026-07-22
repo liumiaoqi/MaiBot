@@ -225,10 +225,15 @@ class AgentOrchestrator:
                 emotion_registry = AgentEmotionManagerRegistry()
                 relationship_manager = AgentRelationshipManager()
                 event_store = InteractionEventStore()
+                from src.core.adapters.memory_service import AMemorixMemoryServicePort
+                from src.maisaka.agent_interaction.memory.adapter import AgentMemoryAdapter
+
+                memory_adapter = AgentMemoryAdapter(memory_port=AMemorixMemoryServicePort())
                 self._interaction_engine = InteractionEngine(
                     emotion_registry=emotion_registry,
                     relationship_manager=relationship_manager,
                     event_store=event_store,
+                    memory_adapter=memory_adapter,
                 )
 
             from src.maisaka.agent_interaction.trigger_base import TriggerEvaluation

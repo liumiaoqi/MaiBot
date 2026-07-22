@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, List, Optional
 
 from src.common.logger import get_logger
+from src.core.memory_utils import coerce_search_result, coerce_write_result
 from src.core.types import MemoryHit, MemorySearchResult, MemoryWriteResult
 
 from ..connectionist.memory_field import MemoryField
@@ -11,64 +12,6 @@ from .migration_adapter import MigrationAdapter, MigrationPhase
 from .translator import ConnectionistTranslator
 
 logger = get_logger("MigrationRouter")
-
-
-def _coerce_search_result(payload: Any) -> MemorySearchResult:
-    if not isinstance(payload, dict):
-        return MemorySearchResult(success=False, error="invalid_payload")
-    hits: List[MemoryHit] = []
-    for item in payload.get("hits", []) or []:
-        if not isinstance(item, dict):
-            continue
-        metadata = item.get("metadata", {}) or {}
-        if not isinstance(metadata, dict):
-            metadata = {}
-        if "source_branches" in item and "source_branches" not in metadata:
-            metadata["source_branches"] = item.get("source_branches") or []
-        if "rank" in item and "rank" not in metadata:
-            metadata["rank"] = item.get("rank")
-        hits.append(
-            MemoryHit(
-                content=item.get("content", ""),
-                score=float(item.get("score", 0.0) or 0.0),
-                hit_type=item.get("type", ""),
-                source=item.get("source", ""),
-                hash_value=item.get("hash", ""),
-                metadata=metadata,
-                episode_id=item.get("episode_id", ""),
-                title=item.get("title", ""),
-            )
-        )
-    success_raw = payload.get("success")
-    error = payload.get("error", "")
-    success = (not bool(error)) if success_raw is None else bool(success_raw)
-    return MemorySearchResult(
-        summary=payload.get("summary", ""),
-        hits=hits,
-        filtered=bool(payload.get("filtered", False)),
-        success=success,
-        error=error,
-    )
-
-
-def _coerce_write_result(payload: Any) -> MemoryWriteResult:
-    if not isinstance(payload, dict):
-        return MemoryWriteResult(success=False, detail="invalid_payload")
-    stored_ids = [str(item) for item in (payload.get("stored_ids") or []) if str(item).strip()]
-    skipped_ids = [str(item) for item in (payload.get("skipped_ids") or []) if str(item).strip()]
-    detail = str(payload.get("detail") or payload.get("reason") or "")
-    if stored_ids or skipped_ids:
-        success = True
-    elif "success" in payload:
-        success = bool(payload.get("success"))
-    else:
-        success = not bool(detail)
-    return MemoryWriteResult(
-        success=success,
-        stored_ids=stored_ids,
-        skipped_ids=skipped_ids,
-        detail=detail,
-    )
 
 
 class MigrationRouter:
@@ -80,16 +23,12 @@ class MigrationRouter:
         memory_field: MemoryField,
         kernel: Any,
         translator: ConnectionistTranslator,
-        coerce_search_result: Any = None,
-        coerce_write_result: Any = None,
         build_profile_injection_text_fn: Any = None,
     ) -> None:
         self._adapter = migration_adapter
         self._memory_field = memory_field
         self._kernel = kernel
         self._translator = translator
-        self._coerce_search_result = coerce_search_result
-        self._coerce_write_result = coerce_write_result
         self._build_profile_injection_text_fn = build_profile_injection_text_fn
 
     async def search(self, query: str, *, agent_id: str = "", **kwargs) -> MemorySearchResult:
@@ -187,9 +126,7 @@ class MigrationRouter:
             group_id=kwargs.get("group_id", ""),
         )
         raw = await self._kernel.search_memory(request)
-        if self._coerce_search_result is not None:
-            return self._coerce_search_result(raw)
-        return _coerce_search_result(raw)
+        return coerce_search_result(raw)
 
     async def _legacy_ingest(self, text: str, **kwargs) -> MemoryWriteResult:
         raw = await self._kernel.ingest_text(
@@ -210,9 +147,7 @@ class MigrationRouter:
             user_id=kwargs.get("user_id", ""),
             group_id=kwargs.get("group_id", ""),
         )
-        if self._coerce_write_result is not None:
-            return self._coerce_write_result(raw)
-        return _coerce_write_result(raw)
+        return coerce_write_result(raw)
 
     @staticmethod
     def _observe_to_write_result(result: ObserveResult) -> MemoryWriteResult:
