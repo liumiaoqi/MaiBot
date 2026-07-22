@@ -80,9 +80,9 @@ class AutonomousAgent:
 
         try:
             from src.maisaka.agent_interaction.memory.adapter import AgentMemoryAdapter
-            from src.core.adapters.memory_service import AMemorixMemoryServicePort
+            from src.core.adapters import get_memory_service_port
 
-            self._memory_adapter = AgentMemoryAdapter(AMemorixMemoryServicePort())
+            self._memory_adapter = AgentMemoryAdapter(get_memory_service_port())
         except Exception as exc:
             logger.warning("记忆适配器初始化失败: agent=%s error=%s", self._agent_id, exc)
 
@@ -181,9 +181,9 @@ class AutonomousAgent:
             return
         try:
             import asyncio
-            from src.core.adapters.memory_service import AMemorixMemoryServicePort
+            from src.core.adapters import get_memory_service_port
 
-            port = AMemorixMemoryServicePort()
+            port = get_memory_service_port()
             params = self._agent_config.memory_personality.model_dump()
             try:
                 loop = asyncio.get_running_loop()

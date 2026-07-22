@@ -67,8 +67,8 @@ class HeuristicMemoryInjector:
     def memory_port(self) -> Any:
         """获取 MemoryServicePort 实例（延迟初始化）。"""
         if self._memory_port is None:
-            from src.core.adapters.memory_service import AMemorixMemoryServicePort
-            self._memory_port = AMemorixMemoryServicePort()
+            from src.core.adapters import get_memory_service_port
+            self._memory_port = get_memory_service_port()
         return self._memory_port
 
     async def build_injection_message(

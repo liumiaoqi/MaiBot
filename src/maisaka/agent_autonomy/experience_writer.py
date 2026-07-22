@@ -49,15 +49,37 @@ class ExperienceWriter:
         summary = self._build_summary(result, emotion_state)
         valence = self._emotion_to_valence(result)
         asyncio.create_task(
-            self._memory_port.observe_experience(
+            self._write_with_error_handling(
+                summary=summary,
+                valence=valence,
+                agent_id=agent_id,
+                session_id=session_id,
+                action=result.action.value,
+            )
+        )
+
+    async def _write_with_error_handling(
+        self,
+        *,
+        summary: str,
+        valence: str,
+        agent_id: str,
+        session_id: str,
+        action: str,
+    ) -> None:
+        try:
+            await self._memory_port.observe_experience(
                 text=summary,
                 valence=valence,
                 source_id=f"experience:{agent_id}:{int(time.time())}",
                 session_id=session_id,
                 agent_id=agent_id,
-                tags=["agent_experience", result.action.value],
+                tags=["agent_experience", action],
             )
-        )
+        except Exception:
+            logger.debug(
+                "体验写入失败: agent=%s action=%s", agent_id, action, exc_info=True,
+            )
 
     @staticmethod
     def _build_summary(result: ThinkResult, emotion_state: Any = None) -> str:

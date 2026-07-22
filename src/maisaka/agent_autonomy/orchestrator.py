@@ -141,9 +141,9 @@ class AgentOrchestrator:
         self._interaction_engine: InteractionEngine | None = None
 
         # 体验写入器
-        from src.core.adapters.memory_service import AMemorixMemoryServicePort
+        from src.core.adapters import get_memory_service_port
         from src.maisaka.agent_autonomy.experience_writer import ExperienceWriter
-        self._experience_writer = ExperienceWriter(memory_port=AMemorixMemoryServicePort())
+        self._experience_writer = ExperienceWriter(memory_port=get_memory_service_port())
 
         # 上下文切换缓存：agent_id -> prompt_context
         self._context_cache: dict[str, dict[str, str]] = {}
@@ -230,10 +230,10 @@ class AgentOrchestrator:
                 emotion_registry = AgentEmotionManagerRegistry()
                 relationship_manager = AgentRelationshipManager()
                 event_store = InteractionEventStore()
-                from src.core.adapters.memory_service import AMemorixMemoryServicePort
+                from src.core.adapters import get_memory_service_port
                 from src.maisaka.agent_interaction.memory.adapter import AgentMemoryAdapter
 
-                memory_adapter = AgentMemoryAdapter(memory_port=AMemorixMemoryServicePort())
+                memory_adapter = AgentMemoryAdapter(memory_port=get_memory_service_port())
                 self._interaction_engine = InteractionEngine(
                     emotion_registry=emotion_registry,
                     relationship_manager=relationship_manager,

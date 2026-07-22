@@ -855,6 +855,30 @@ class MemoryWriteResult:
         }
 
 
+# ── 记忆服务异常体系 ──────────────────────────────────
+
+
+class MemoryServiceError(Exception):
+    """记忆服务异常基类"""
+
+    def __init__(self, message: str, original: Exception | None = None):
+        super().__init__(message)
+        self.message = message
+        self.original = original
+
+
+class TemporaryMemoryError(MemoryServiceError):
+    """可重试的临时性错误（网络/超时/服务暂时不可用）"""
+
+
+class PermanentMemoryError(MemoryServiceError):
+    """不可恢复错误（配置错误/数据损坏）"""
+
+
+class MemoryNotFoundError(MemoryServiceError):
+    """查询目标不存在（画像/记忆条目）"""
+
+
 # =============================================================================
 # 桥接 re-export — SessionMessage
 # =============================================================================
@@ -867,5 +891,9 @@ from src.chat.message_receive.message import SessionMessage as SessionMessage
 
 __all__ = [
     # ... 既有类型 ...
+    "MemoryServiceError",
+    "TemporaryMemoryError",
+    "PermanentMemoryError",
+    "MemoryNotFoundError",
     "SessionMessage",
 ]

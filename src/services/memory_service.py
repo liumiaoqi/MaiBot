@@ -110,26 +110,22 @@ class MemoryService:
         normalized_time_end = None if time_end in {None, ""} else time_end
         if not clean_query and normalized_time_start is None and normalized_time_end is None:
             return MemorySearchResult()
-        try:
-            payload = await self._invoke(
-                "search_memory",
-                {
-                    "query": clean_query,
-                    "limit": max(1, int(limit)),
-                    "mode": mode,
-                    "chat_id": chat_id,
-                    "person_id": person_id,
-                    "time_start": normalized_time_start,
-                    "time_end": normalized_time_end,
-                    "respect_filter": bool(respect_filter),
-                    "user_id": str(user_id or "").strip(),
-                    "group_id": str(group_id or "").strip(),
-                },
-            )
-            return self._coerce_search_result(payload)
-        except Exception as exc:
-            logger.warning(f"长期记忆搜索失败: {exc}")
-            return MemorySearchResult(success=False, error=str(exc))
+        payload = await self._invoke(
+            "search_memory",
+            {
+                "query": clean_query,
+                "limit": max(1, int(limit)),
+                "mode": mode,
+                "chat_id": chat_id,
+                "person_id": person_id,
+                "time_start": normalized_time_start,
+                "time_end": normalized_time_end,
+                "respect_filter": bool(respect_filter),
+                "user_id": str(user_id or "").strip(),
+                "group_id": str(group_id or "").strip(),
+            },
+        )
+        return self._coerce_search_result(payload)
 
     async def enqueue_feedback_task(
         self,
@@ -139,20 +135,16 @@ class MemoryService:
         query_timestamp: Any = None,
         structured_content: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        try:
-            payload = await self._invoke(
-                "enqueue_feedback_task",
-                {
-                    "query_tool_id": str(query_tool_id or "").strip(),
-                    "session_id": str(session_id or "").strip(),
-                    "query_timestamp": query_timestamp,
-                    "structured_content": structured_content if isinstance(structured_content, dict) else {},
-                },
-                timeout_ms=10000,
-            )
-        except Exception as exc:
-            logger.warning(f"反馈纠错任务入队失败: {exc}")
-            return {"success": False, "queued": False, "reason": str(exc)}
+        payload = await self._invoke(
+            "enqueue_feedback_task",
+            {
+                "query_tool_id": str(query_tool_id or "").strip(),
+                "session_id": str(session_id or "").strip(),
+                "query_timestamp": query_timestamp,
+                "structured_content": structured_content if isinstance(structured_content, dict) else {},
+            },
+            timeout_ms=10000,
+        )
         return payload if isinstance(payload, dict) else {"success": False, "queued": False, "reason": "invalid_payload"}
 
     async def ingest_summary(
@@ -170,27 +162,23 @@ class MemoryService:
         user_id: str = "",
         group_id: str = "",
     ) -> MemoryWriteResult:
-        try:
-            payload = await self._invoke(
-                "ingest_summary",
-                {
-                    "external_id": external_id,
-                    "chat_id": chat_id,
-                    "text": text,
-                    "participants": participants or [],
-                    "time_start": time_start,
-                    "time_end": time_end,
-                    "tags": tags or [],
-                    "metadata": metadata or {},
-                    "respect_filter": bool(respect_filter),
-                    "user_id": str(user_id or "").strip(),
-                    "group_id": str(group_id or "").strip(),
-                },
-            )
-            return self._coerce_write_result(payload)
-        except Exception as exc:
-            logger.warning(f"长期记忆写入摘要失败: {exc}")
-            return MemoryWriteResult(success=False, detail=str(exc))
+        payload = await self._invoke(
+            "ingest_summary",
+            {
+                "external_id": external_id,
+                "chat_id": chat_id,
+                "text": text,
+                "participants": participants or [],
+                "time_start": time_start,
+                "time_end": time_end,
+                "tags": tags or [],
+                "metadata": metadata or {},
+                "respect_filter": bool(respect_filter),
+                "user_id": str(user_id or "").strip(),
+                "group_id": str(group_id or "").strip(),
+            },
+        )
+        return self._coerce_write_result(payload)
 
     async def ingest_text(
         self,
@@ -213,47 +201,40 @@ class MemoryService:
         group_id: str = "",
     ) -> MemoryWriteResult:
         import warnings
+        import warnings
         warnings.warn("ingest_text 已废弃，请使用 observe()", DeprecationWarning, stacklevel=2)
-        try:
-            payload = await self._invoke(
-                "ingest_text",
-                {
-                    "external_id": external_id,
-                    "source_type": source_type,
-                    "text": text,
-                    "chat_id": chat_id,
-                    "person_ids": person_ids or [],
-                    "participants": participants or [],
-                    "timestamp": timestamp,
-                    "time_start": time_start,
-                    "time_end": time_end,
-                    "tags": tags or [],
-                    "metadata": metadata or {},
-                    "entities": entities or [],
-                    "relations": relations or [],
-                    "respect_filter": bool(respect_filter),
-                    "user_id": str(user_id or "").strip(),
-                    "group_id": str(group_id or "").strip(),
-                },
-            )
-            return self._coerce_write_result(payload)
-        except Exception as exc:
-            logger.warning(f"长期记忆写入文本失败: {exc}")
-            return MemoryWriteResult(success=False, detail=str(exc))
+        payload = await self._invoke(
+            "ingest_text",
+            {
+                "external_id": external_id,
+                "source_type": source_type,
+                "text": text,
+                "chat_id": chat_id,
+                "person_ids": person_ids or [],
+                "participants": participants or [],
+                "timestamp": timestamp,
+                "time_start": time_start,
+                "time_end": time_end,
+                "tags": tags or [],
+                "metadata": metadata or {},
+                "entities": entities or [],
+                "relations": relations or [],
+                "respect_filter": bool(respect_filter),
+                "user_id": str(user_id or "").strip(),
+                "group_id": str(group_id or "").strip(),
+            },
+        )
+        return self._coerce_write_result(payload)
 
     async def get_person_profile(self, person_id: str, *, chat_id: str = "", limit: int = 10) -> PersonProfileResult:
         clean_person_id = str(person_id or "").strip()
         if not clean_person_id:
             return PersonProfileResult()
-        try:
-            payload = await self._invoke(
-                "get_person_profile",
-                {"person_id": clean_person_id, "chat_id": chat_id, "limit": max(1, int(limit))},
-            )
-            return self._coerce_profile_result(payload)
-        except Exception as exc:
-            logger.warning(f"获取人物画像失败: {exc}")
-            return PersonProfileResult()
+        payload = await self._invoke(
+            "get_person_profile",
+            {"person_id": clean_person_id, "chat_id": chat_id, "limit": max(1, int(limit))},
+        )
+        return self._coerce_profile_result(payload)
 
     async def observe(
         self,
@@ -295,113 +276,57 @@ class MemoryService:
         reason: str = "",
         limit: int = 50,
     ) -> MemoryWriteResult:
-        try:
-            payload = await self._invoke(
-                "maintain_memory",
-                {"action": action, "target": target, "hours": hours, "reason": reason, "limit": limit},
-            )
-            if not isinstance(payload, dict):
-                return MemoryWriteResult(success=False, detail="invalid_payload")
-            return MemoryWriteResult(success=bool(payload.get("success")), detail=payload.get("detail", ""))
-        except Exception as exc:
-            logger.warning(f"记忆维护失败: {exc}")
-            return MemoryWriteResult(success=False, detail=str(exc))
+        payload = await self._invoke(
+            "maintain_memory",
+            {"action": action, "target": target, "hours": hours, "reason": reason, "limit": limit},
+        )
+        if not isinstance(payload, dict):
+            return MemoryWriteResult(success=False, detail="invalid_payload")
+        return MemoryWriteResult(success=bool(payload.get("success")), detail=payload.get("detail", ""))
 
     async def memory_stats(self) -> Dict[str, Any]:
-        try:
-            payload = await self._invoke("memory_stats", {})
-            return payload if isinstance(payload, dict) else {}
-        except Exception as exc:
-            logger.warning(f"获取记忆统计失败: {exc}")
-            return {}
+        payload = await self._invoke("memory_stats", {})
+        return payload if isinstance(payload, dict) else {}
 
     async def graph_admin(self, *, action: str, **kwargs) -> Dict[str, Any]:
-        try:
-            return await self._invoke_admin("memory_graph_admin", action=action, **kwargs)
-        except Exception as exc:
-            logger.warning(f"图谱管理调用失败: {exc}")
-            return {"success": False, "error": str(exc)}
+        return await self._invoke_admin("memory_graph_admin", action=action, **kwargs)
 
     async def source_admin(self, *, action: str, **kwargs) -> Dict[str, Any]:
-        try:
-            return await self._invoke_admin("memory_source_admin", action=action, **kwargs)
-        except Exception as exc:
-            logger.warning(f"来源管理调用失败: {exc}")
-            return {"success": False, "error": str(exc)}
+        return await self._invoke_admin("memory_source_admin", action=action, **kwargs)
 
     async def episode_admin(self, *, action: str, **kwargs) -> Dict[str, Any]:
-        try:
-            return await self._invoke_admin("memory_episode_admin", action=action, **kwargs)
-        except Exception as exc:
-            logger.warning(f"Episode 管理调用失败: {exc}")
-            return {"success": False, "error": str(exc)}
+        return await self._invoke_admin("memory_episode_admin", action=action, **kwargs)
 
     async def profile_admin(self, *, action: str, **kwargs) -> Dict[str, Any]:
-        try:
-            return await self._invoke_admin("memory_profile_admin", action=action, **kwargs)
-        except Exception as exc:
-            logger.warning(f"画像管理调用失败: {exc}")
-            return {"success": False, "error": str(exc)}
+        return await self._invoke_admin("memory_profile_admin", action=action, **kwargs)
 
     async def feedback_admin(self, *, action: str, **kwargs) -> Dict[str, Any]:
-        try:
-            return await self._invoke_admin("memory_feedback_admin", action=action, **kwargs)
-        except Exception as exc:
-            logger.warning(f"反馈纠错管理调用失败: {exc}")
-            return {"success": False, "error": str(exc)}
+        return await self._invoke_admin("memory_feedback_admin", action=action, **kwargs)
 
     async def runtime_admin(self, *, action: str, **kwargs) -> Dict[str, Any]:
-        try:
-            return await self._invoke_admin("memory_runtime_admin", action=action, **kwargs)
-        except Exception as exc:
-            logger.warning(f"运行时管理调用失败: {exc}")
-            return {"success": False, "error": str(exc)}
+        return await self._invoke_admin("memory_runtime_admin", action=action, **kwargs)
 
     async def import_admin(self, *, action: str, timeout_ms: int = 120000, **kwargs) -> Dict[str, Any]:
-        try:
-            return await self._invoke_admin("memory_import_admin", action=action, timeout_ms=timeout_ms, **kwargs)
-        except Exception as exc:
-            logger.warning(f"导入管理调用失败: {exc}")
-            return {"success": False, "error": str(exc)}
+        return await self._invoke_admin("memory_import_admin", action=action, timeout_ms=timeout_ms, **kwargs)
 
     async def tuning_admin(self, *, action: str, timeout_ms: int = 120000, **kwargs) -> Dict[str, Any]:
-        try:
-            return await self._invoke_admin("memory_tuning_admin", action=action, timeout_ms=timeout_ms, **kwargs)
-        except Exception as exc:
-            logger.warning(f"调优管理调用失败: {exc}")
-            return {"success": False, "error": str(exc)}
+        return await self._invoke_admin("memory_tuning_admin", action=action, timeout_ms=timeout_ms, **kwargs)
 
     async def v5_admin(self, *, action: str, timeout_ms: int = 30000, **kwargs) -> Dict[str, Any]:
-        try:
-            return await self._invoke_admin("memory_v5_admin", action=action, timeout_ms=timeout_ms, **kwargs)
-        except Exception as exc:
-            logger.warning(f"V5 记忆管理调用失败: {exc}")
-            return {"success": False, "error": str(exc)}
+        return await self._invoke_admin("memory_v5_admin", action=action, timeout_ms=timeout_ms, **kwargs)
 
     async def delete_admin(self, *, action: str, timeout_ms: int = 120000, **kwargs) -> Dict[str, Any]:
-        try:
-            return await self._invoke_admin("memory_delete_admin", action=action, timeout_ms=timeout_ms, **kwargs)
-        except Exception as exc:
-            logger.warning(f"删除管理调用失败: {exc}")
-            return {"success": False, "error": str(exc)}
+        return await self._invoke_admin("memory_delete_admin", action=action, timeout_ms=timeout_ms, **kwargs)
 
     async def memory_correction_admin(self, *, action: str, timeout_ms: int = 120000, **kwargs) -> Dict[str, Any]:
-        try:
-            return await self._invoke_admin("memory_correction_admin", action=action, timeout_ms=timeout_ms, **kwargs)
-        except Exception as exc:
-            logger.warning(f"记忆修正管理调用失败: {exc}")
-            return {"success": False, "error": str(exc)}
+        return await self._invoke_admin("memory_correction_admin", action=action, timeout_ms=timeout_ms, **kwargs)
 
     async def fuzzy_modify_admin(self, *, action: str, timeout_ms: int = 120000, **kwargs) -> Dict[str, Any]:
         return await self.memory_correction_admin(action=action, timeout_ms=timeout_ms, **kwargs)
 
     async def get_recycle_bin(self, *, limit: int = 50) -> Dict[str, Any]:
-        try:
-            payload = await self._invoke("maintain_memory", {"action": "recycle_bin", "limit": max(1, int(limit or 50))})
-            return payload if isinstance(payload, dict) else {"success": False, "error": "invalid_payload"}
-        except Exception as exc:
-            logger.warning(f"获取回收站失败: {exc}")
-            return {"success": False, "error": str(exc)}
+        payload = await self._invoke("maintain_memory", {"action": "recycle_bin", "limit": max(1, int(limit or 50))})
+        return payload if isinstance(payload, dict) else {"success": False, "error": "invalid_payload"}
 
     async def restore_memory(self, *, target: str) -> MemoryWriteResult:
         return await self.maintain_memory(action="restore", target=target)
@@ -420,30 +345,22 @@ class MemoryService:
         clean_source = str(source or "").strip()
         if not clean_source:
             return []
-        try:
-            payload = await self._invoke(
-                "metadata_get_paragraphs_by_source",
-                {"source": clean_source},
-            )
-            return payload if isinstance(payload, list) else []
-        except Exception as exc:
-            logger.warning(f"按来源查询段落失败: {exc}")
-            return []
+        payload = await self._invoke(
+            "metadata_get_paragraphs_by_source",
+            {"source": clean_source},
+        )
+        return payload if isinstance(payload, list) else []
 
     async def query_metadata(self, sql: str, params: tuple = ()) -> List[Dict[str, Any]]:
         """只读 SQL 查询元数据存储，替代直接访问 kernel.metadata_store.query()。"""
         clean_sql = str(sql or "").strip()
         if not clean_sql:
             return []
-        try:
-            payload = await self._invoke(
-                "metadata_query",
-                {"sql": clean_sql, "params": list(params)},
-            )
-            return payload if isinstance(payload, list) else []
-        except Exception as exc:
-            logger.warning(f"元数据查询失败: {exc}")
-            return []
+        payload = await self._invoke(
+            "metadata_query",
+            {"sql": clean_sql, "params": list(params)},
+        )
+        return payload if isinstance(payload, list) else []
 
     def get_config_schema(self) -> Dict[str, Any]:
         return self._get_host_service().get_config_schema()

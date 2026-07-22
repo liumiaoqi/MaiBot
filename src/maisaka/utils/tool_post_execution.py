@@ -59,8 +59,8 @@ async def _enqueue_memory_feedback_task(
         return
 
     try:
-        from src.core.adapters.memory_service import AMemorixMemoryServicePort
-        _memory_port = AMemorixMemoryServicePort()
+        from src.core.adapters import get_memory_service_port
+        _memory_port = get_memory_service_port()
         normalized_structured_content = normalize_tool_record_value(result.structured_content)
         enqueue_payload = await _memory_port.enqueue_feedback_task(
             query_tool_id=str(saved_record.get("tool_id") or invocation.call_id or "").strip(),

@@ -20,8 +20,8 @@ PROFILE_TEXT_MAX_CHARS = 900
 
 
 def _get_default_memory_port() -> MemoryServicePort:
-    from src.core.adapters.memory_service import AMemorixMemoryServicePort
-    return AMemorixMemoryServicePort()
+    from src.core.adapters import get_memory_service_port
+    return get_memory_service_port()
 
 
 @dataclass(frozen=True)

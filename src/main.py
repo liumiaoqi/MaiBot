@@ -261,9 +261,9 @@ class MainSystem:
         try:
             from src.maisaka.agent_interaction.bootstrap import build_interaction_scheduler
             from src.maisaka.agent_interaction.relationship_manager import AgentRelationshipManager
-            from src.core.adapters.memory_service import AMemorixMemoryServicePort
+            from src.core.adapters import get_memory_service_port
 
-            scheduler = build_interaction_scheduler(AMemorixMemoryServicePort())
+            scheduler = build_interaction_scheduler(get_memory_service_port())
             if scheduler is not None:
                 # 初始化关系数据
                 relationship_mgr = AgentRelationshipManager()

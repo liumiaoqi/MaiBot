@@ -2,17 +2,31 @@
 
 from __future__ import annotations
 
+import uuid
 from typing import Any, Optional
 
 from src.common.logger import get_logger
-from src.core.protocols import MemoryServicePort
-from src.core.types import MemorySearchResult, MemoryWriteResult
+from src.core.types import (
+    MemorySearchResult,
+    MemoryWriteResult,
+    PermanentMemoryError,
+    TemporaryMemoryError,
+)
 
 logger = get_logger("core.adapters.memory_service")
 
 
 class AMemorixMemoryServicePort:
     """通过 A_memorix memory_service 实现 MemoryServicePort Protocol。"""
+
+    def __init__(self, memory_service: Any = None) -> None:
+        self._memory_service = memory_service
+
+    def _get_memory_service(self) -> Any:
+        if self._memory_service is None:
+            from src.services.memory_service import memory_service
+            self._memory_service = memory_service
+        return self._memory_service
 
     async def observe_experience(
         self,
@@ -27,13 +41,9 @@ class AMemorixMemoryServicePort:
         tags: list[str] | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> MemoryWriteResult:
-        import uuid
-
-        from src.services.memory_service import memory_service
-
         trace_id = uuid.uuid4().hex[:12]
         effective_source_id = source_id or f"trace:{trace_id}"
-        result = await memory_service.observe(
+        result = await self._get_memory_service().observe(
             text=text,
             valence=valence,
             timestamp=timestamp,
@@ -61,34 +71,29 @@ class AMemorixMemoryServicePort:
         user_id: str = "",
         group_id: str = "",
     ) -> MemorySearchResult:
-        from src.services.memory_service import memory_service
-
         try:
-            return await memory_service.migration_search(query, agent_id=person_id)
+            return await self._get_memory_service().migration_search(query, agent_id=person_id)
         except Exception as exc:
-            logger.warning(f"[memory_port] 搜索失败: query={query} error={exc}")
-            return MemorySearchResult(success=False, error=str(exc))
+            raise PermanentMemoryError(f"搜索失败: query={query}", original=exc) from exc
 
-    async def get_person_profile(self, person_id: str, *, limit: int = 4) -> Optional[dict[str, Any]]:
-        from src.services.memory_service import memory_service
-
+    async def get_person_profile(self, person_id: str, *, limit: int = 4) -> dict[str, Any]:
         try:
-            result = await memory_service.migration_get_person_profile(person_id, limit=limit)
+            result = await self._get_memory_service().migration_get_person_profile(person_id, limit=limit)
             if result and (result.summary or result.evidence):
                 return result.to_dict()
-            return None
+            return {}
         except Exception as exc:
-            logger.debug(f"[memory_port] 画像查询失败: person_id={person_id} error={exc}")
-            return None
+            raise PermanentMemoryError(
+                f"画像查询失败: person_id={person_id}", original=exc,
+            ) from exc
 
     async def profile_admin(self, *, action: str, **kwargs: Any) -> dict[str, Any]:
-        from src.services.memory_service import memory_service
-
         try:
-            return await memory_service.profile_admin(action=action, **kwargs)
+            return await self._get_memory_service().profile_admin(action=action, **kwargs)
         except Exception as exc:
-            logger.warning(f"[memory_port] 画像管理失败: action={action} error={exc}")
-            return {"success": False, "error": str(exc)}
+            raise PermanentMemoryError(
+                f"画像管理失败: action={action}", original=exc,
+            ) from exc
 
     async def ingest_text(
         self,
@@ -110,32 +115,9 @@ class AMemorixMemoryServicePort:
         user_id: str = "",
         group_id: str = "",
     ) -> MemoryWriteResult:
-        import warnings
-        warnings.warn("ingest_text 已废弃，请使用 observe_experience()", DeprecationWarning, stacklevel=2)
-        from src.services.memory_service import memory_service
-
-        try:
-            return await memory_service.migration_ingest_text(
-                text=text,
-                external_id=external_id,
-                source_type=source_type,
-                chat_id=chat_id,
-                person_ids=person_ids,
-                participants=participants,
-                timestamp=timestamp,
-                time_start=time_start,
-                time_end=time_end,
-                tags=tags,
-                metadata=metadata,
-                entities=entities,
-                relations=relations,
-                respect_filter=respect_filter,
-                user_id=user_id,
-                group_id=group_id,
-            )
-        except Exception as exc:
-            logger.error(f"[memory_port] 文本摄入失败: external_id={external_id} error={exc}")
-            return MemoryWriteResult(success=False, detail=str(exc))
+        raise PermanentMemoryError(
+            "ingest_text 已废弃，请使用 observe_experience()",
+        )
 
     async def maintain_memory(
         self,
@@ -146,24 +128,24 @@ class AMemorixMemoryServicePort:
         reason: str = "",
         limit: int = 50,
     ) -> MemoryWriteResult:
-        from src.services.memory_service import memory_service
-
         try:
-            return await memory_service.maintain_memory(
-                action=action, target=target, hours=hours, reason=reason, limit=limit
+            return await self._get_memory_service().maintain_memory(
+                action=action, target=target, hours=hours, reason=reason, limit=limit,
             )
         except Exception as exc:
-            logger.warning(f"[memory_port] 记忆维护失败: action={action} target={target} error={exc}")
-            return MemoryWriteResult(success=False, detail=str(exc))
+            raise PermanentMemoryError(
+                f"记忆维护失败: action={action} target={target}", original=exc,
+            ) from exc
 
     async def delete_admin(self, *, action: str, timeout_ms: int = 120000, **kwargs: Any) -> dict[str, Any]:
-        from src.services.memory_service import memory_service
-
         try:
-            return await memory_service.delete_admin(action=action, timeout_ms=timeout_ms, **kwargs)
+            return await self._get_memory_service().delete_admin(
+                action=action, timeout_ms=timeout_ms, **kwargs,
+            )
         except Exception as exc:
-            logger.warning(f"[memory_port] 删除管理失败: action={action} error={exc}")
-            return {"success": False, "error": str(exc)}
+            raise PermanentMemoryError(
+                f"删除管理失败: action={action}", original=exc,
+            ) from exc
 
     async def enqueue_feedback_task(
         self,
@@ -173,31 +155,43 @@ class AMemorixMemoryServicePort:
         query_timestamp: Any = None,
         structured_content: Optional[dict[str, Any]] = None,
     ) -> dict[str, Any]:
-        from src.services.memory_service import memory_service
-
         try:
-            return await memory_service.enqueue_feedback_task(
+            return await self._get_memory_service().enqueue_feedback_task(
                 query_tool_id=query_tool_id,
                 session_id=session_id,
                 query_timestamp=query_timestamp,
                 structured_content=structured_content,
             )
         except Exception as exc:
-            logger.warning(f"[memory_port] 反馈任务入队失败: session={session_id} error={exc}")
-            return {"success": False, "queued": False, "reason": str(exc)}
+            raise PermanentMemoryError(
+                f"反馈任务入队失败: session={session_id}", original=exc,
+            ) from exc
 
     async def build_profile_injection_text(self, raw_text: str) -> str:
-        from src.services.memory_service import memory_service
-
-        return await memory_service.migration_build_profile_injection_text(raw_text)
+        return await self._get_memory_service().migration_build_profile_injection_text(raw_text)
 
     async def set_memory_personality(self, agent_id: str, params: dict[str, Any]) -> None:
-        """将智能体记忆性格参数传递给 A_memorix 连接主义记忆系统。"""
-        from src.services.memory_service import memory_service
-
         try:
-            await memory_service.register_agent(agent_id, params)
+            await self._get_memory_service().register_agent(agent_id, params)
         except Exception as exc:
-            logger.warning(
-                "[memory_port] 设置记忆性格失败: agent=%s error=%s", agent_id, exc
-            )
+            raise PermanentMemoryError(
+                f"设置记忆性格失败: agent={agent_id}", original=exc,
+            ) from exc
+
+
+# ── 模块级单例 ──────────────────────────────────
+
+_instance: AMemorixMemoryServicePort | None = None
+
+
+def get_memory_service_port() -> AMemorixMemoryServicePort:
+    global _instance
+    if _instance is None:
+        from src.services.memory_service import memory_service
+        _instance = AMemorixMemoryServicePort(memory_service=memory_service)
+    return _instance
+
+
+def reset_memory_service_port() -> None:
+    global _instance
+    _instance = None
