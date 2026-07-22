@@ -13,6 +13,7 @@ from datetime import datetime
 from maim_message import Seg
 
 from src.llm_models.payload_content.tool_option import ToolCall
+from src.common.memory_types import IntuitionContext as IntuitionContext  # noqa: F401
 # from src.common.data_models.message_data_model import ReplyContentType as ReplyContentType
 # from src.common.data_models.message_data_model import ReplyContent as ReplyContent
 # from src.common.data_models.message_data_model import ForwardNode as ForwardNode
@@ -549,6 +550,9 @@ class ThinkContext:
 
     memory_snippets: tuple[str, ...] = ()
     """记忆片段（不可变）"""
+
+    intuition_context: IntuitionContext | None = None
+    """直觉触发结果（纯规则快速预判，供 prompt_builder 使用）"""
 
     cohabitant_summary: str = ""
     """共居智能体状态摘要（自然语言）"""

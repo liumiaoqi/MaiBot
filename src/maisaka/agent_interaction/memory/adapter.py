@@ -149,6 +149,21 @@ class AgentMemoryAdapter:
             limit=limit,
         )
 
+    async def recall_with_intuition(
+        self,
+        agent_id: str,
+        seeds: list[str],
+        context_text: str = "",
+        max_tokens: int = 800,
+    ) -> Any:
+        port = self.memory_port
+        if hasattr(port, "recall_with_intuition"):
+            return await port.recall_with_intuition(
+                seeds=seeds, context_text=context_text or f"与{agent_id}的交互",
+                agent_id=agent_id, max_tokens=max_tokens,
+            )
+        return await self.search_interaction_memory(agent_id, agent_id, limit=5)
+
     async def _write_single(
         self,
         external_id: str,

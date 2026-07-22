@@ -7,7 +7,14 @@ import uuid
 from typing import Any, Optional
 
 from src.common.logger import get_logger
-from src.common.memory_types import MemorySearchResult, MemoryWriteResult
+from src.common.memory_types import (
+    MemorySearchResult,
+    MemoryWriteResult,
+    ProfileView,
+    RecallItem,
+    RecallResult,
+    ReflectResult,
+)
 from src.core.types import ObserveRequest, PermanentMemoryError, TemporaryMemoryError
 
 logger = get_logger("core.adapters.memory_service")
@@ -179,35 +186,52 @@ class AMemorixMemoryServicePort:
 
     async def recall(
         self, seeds: list[str], *, agent_id: str = "", min_weight: float = 0.05, max_results: int = 20,
-    ) -> Any:
+    ) -> list[RecallItem]:
         try:
-            return await self._get_memory_service().recall(
+            raw = await self._get_memory_service().recall(
                 seeds=seeds, agent_id=agent_id, min_weight=min_weight, max_results=max_results,
             )
+            if isinstance(raw, list):
+                return [RecallItem(**item) if isinstance(item, dict) else item for item in raw]
+            return []
         except Exception as exc:
             raise _classify_memory_error(f"概念召回失败: agent={agent_id}", original=exc) from exc
 
     async def recall_with_intuition(
         self, seeds: list[str], context_text: str, *, agent_id: str = "",
         min_weight: float = 0.05, max_results: int = 20, max_tokens: int = 800,
-    ) -> Any:
+    ) -> RecallResult:
         try:
-            return await self._get_memory_service().recall_with_intuition(
+            raw = await self._get_memory_service().recall_with_intuition(
                 seeds=seeds, context_text=context_text, agent_id=agent_id,
                 min_weight=min_weight, max_results=max_results, max_tokens=max_tokens,
             )
+            if isinstance(raw, dict):
+                items = raw.get("recall_items", []) or []
+                intuition = raw.get("intuition")
+                return RecallResult(
+                    recall_items=[RecallItem(**i) if isinstance(i, dict) else i for i in items],
+                    intuition=intuition,
+                )
+            return RecallResult()
         except Exception as exc:
             raise _classify_memory_error(f"直觉召回失败: agent={agent_id}", original=exc) from exc
 
-    async def derive_profile(self, subject: str, *, observer: str = "") -> Any:
+    async def derive_profile(self, subject: str, *, observer: str = "") -> ProfileView:
         try:
-            return await self._get_memory_service().derive_profile(subject=subject, observer=observer)
+            raw = await self._get_memory_service().derive_profile(subject=subject, observer=observer)
+            if isinstance(raw, dict):
+                return ProfileView(**raw)
+            return ProfileView(subject=subject, observer=observer)
         except Exception as exc:
             raise _classify_memory_error(f"画像视图失败: subject={subject}", original=exc) from exc
 
-    async def reflect(self, subject: str, *, agent_id: str = "") -> Any:
+    async def reflect(self, subject: str, *, agent_id: str = "") -> ReflectResult:
         try:
-            return await self._get_memory_service().reflect(subject=subject, agent_id=agent_id)
+            raw = await self._get_memory_service().reflect(subject=subject, agent_id=agent_id)
+            if isinstance(raw, dict):
+                return ReflectResult(**raw)
+            return ReflectResult(subject=subject, agent_id=agent_id)
         except Exception as exc:
             raise _classify_memory_error(f"反思失败: subject={subject}", original=exc) from exc
 
