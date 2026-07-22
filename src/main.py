@@ -124,7 +124,6 @@ class MainSystem:
 
         # ── 构造子模块 → 构造适配器 → 注册 Protocol 端口 ─────────────────
         # 必须在 A_memorix 启动之前，因为 A_memorix 注入时从注册点获取
-        from src.chat.message_receive.chat_manager import chat_manager
         from src.chat.message_receive.session_store import SessionStore
         from src.chat.message_receive.message_registry import MessageRegistry
         from src.chat.message_receive.session_name_cache import SessionNameCache
@@ -169,11 +168,6 @@ class MainSystem:
         register_session_lifecycle_port(_adapter)
         register_session_query_port(_adapter)
         register_message_registry_port(_adapter)
-
-        # 保持 chat_manager 单例的属性同步（向后兼容，阶段3退役）
-        chat_manager._agent_router = agent_router
-        chat_manager._ensure_binding_restorer = lambda: binding_restorer
-        chat_manager._ensure_lifecycle = lambda: session_lifecycle
 
         # ── 注册 ReplyerServicePort + ImageDescriptionPort ─────────────────
         from src.chat.replyer.replyer_manager import replyer_manager

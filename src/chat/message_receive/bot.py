@@ -20,7 +20,7 @@ from src.plugin_runtime.hook_schema_utils import build_object_schema
 from src.plugin_runtime.host.hook_dispatcher import HookDispatchResult
 from src.plugin_runtime.host.hook_spec_registry import HookSpec, HookSpecRegistry
 
-from .chat_manager import chat_manager
+from src.core.session_port_registry import get_message_registry_port, get_session_lifecycle_port
 from .image_receive_compressor import process_received_images_in_message
 from .message import SessionMessage
 
@@ -567,12 +567,13 @@ class ChatBot:
                 logger.info(f"[正则表达式过滤]消息匹配到{pattern}，filtered")
                 return
 
-            chat_manager.register_message(message)
+            get_message_registry_port().register_message(message)
 
             platform = message.platform
             user_id = user_info.user_id
             group_id = group_info.group_id if group_info else None
-            _ = await chat_manager.get_or_create_session(
+            lifecycle_port = get_session_lifecycle_port()
+            _ = await lifecycle_port.get_or_create_session_id(
                 platform,
                 user_id,
                 group_id,

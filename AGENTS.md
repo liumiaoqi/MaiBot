@@ -159,6 +159,8 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 | MessageRegistryPort | 入站消息注册 | ChatManagerAdapter |
 | ThinkingOrgan | 思维管道 | ThinkingOrgan（agent_autonomy） |
 | ThinkingOrganFactory | 思维管道工厂 | ThinkingOrganFactory |
+| ReplyerServicePort | 回复生成器服务（maisaka 通过此接口获取 replyer） | ReplyerServiceAdapter |
+| ImageDescriptionPort | 图片描述服务（maisaka 通过此接口获取图片描述） | ImageDescriptionAdapter |
 | ModelConfigPort | 模型配置查询（4查询+2回调，支持智能体级覆盖） | ConfigManagerModelConfigPort |
 
 ## 内心状态三层

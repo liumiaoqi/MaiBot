@@ -1010,8 +1010,10 @@ def _delete_or_unlink_jargons(session: Any, session_id: str) -> Dict[str, int]:
 def _release_deleted_chat_runtime(session_id: str) -> None:
     """移除运行期缓存，避免定时保存把已删除聊天流重新写回数据库。"""
 
-    from src.chat.message_receive.chat_manager import chat_manager as _chat_manager_for_mutation
-    _chat_manager_for_mutation.session_store.remove(session_id)
+    from src.core.session_port_registry import get_session_info_port
+    port = get_session_info_port()
+    if port is not None:
+        port._session_store.remove(session_id)
     heartflow_manager.heartflow_chat_list.pop(session_id, None)
 
 

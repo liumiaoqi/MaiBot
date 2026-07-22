@@ -168,4 +168,4 @@ class ChatManager:
         return self.session_store.get_existing(session_id)
 
 
-chat_manager = ChatManager()
+# chat_manager 全局单例已移除（SSD-3）
