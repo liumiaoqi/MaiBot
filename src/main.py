@@ -163,7 +163,21 @@ class MainSystem:
 
         service_registry.register("a_memorix_host_service", a_memorix_host_service)
         a_memorix_host_service.register_config_reload_callback()
-        # ModelConfigPort 在 a_memorix host_service 中延迟注入——适配器在 _init_components 后半段创建
+
+        # 创建 ModelConfigPort 适配器并提前注入 — 必须在 a_memorix start 之前，
+        # 否则 EmbeddingAPIAdapter 初始化时 model_config_port 为 None
+        from src.core.adapters.model_config_port import ConfigManagerModelConfigPort
+        from src.maisaka.agent.registry import AgentConfigRegistry
+
+        _agent_registry = AgentConfigRegistry.get_instance()
+        _agent_registry.load()
+
+        _model_config_port = ConfigManagerModelConfigPort(
+            config_manager=config_manager,
+            agent_config_resolver=lambda aid: _agent_registry.get_agent(aid) if _agent_registry.has_agent(aid) else None,
+        )
+        a_memorix_host_service.set_model_config_port(_model_config_port)
+
         a_memorix_task = asyncio.create_task(a_memorix_host_service.start(), name="a_memorix_start")
 
         await asyncio.sleep(0)
@@ -207,19 +221,7 @@ class MainSystem:
         logger.info(t("startup.chat_manager_initialized"))
         await memory_automation_service.start()
 
-        # 创建 ModelConfigPort 适配器（模型配置接口隔离）
-        from src.core.adapters.model_config_port import ConfigManagerModelConfigPort
-        from src.maisaka.agent.registry import AgentConfigRegistry
-
-        _agent_registry = AgentConfigRegistry.get_instance()
-        _agent_registry.load()
-
-        _model_config_port = ConfigManagerModelConfigPort(
-            config_manager=config_manager,
-            agent_config_resolver=lambda aid: _agent_registry.get_agent(aid) if _agent_registry.has_agent(aid) else None,
-        )
-
-        # 注入 ModelConfigPort 到消费者模块
+        # 注入 ModelConfigPort 到其余消费者模块（a_memorix 已在上方提前注入）
         from src.llm_models import model_client
         from src.llm_models import utils_model
         from src.services import service_task_resolver
@@ -229,9 +231,6 @@ class MainSystem:
         model_client.set_model_config_port(_model_config_port)
         service_task_resolver.set_model_config_port(_model_config_port)
         logger.info("ModelConfigPort 适配器已创建并注入到 4 个消费者模块")
-
-        # 注入 ModelConfigPort 到 A_memorix host_service（后续 reload 时生效）
-        a_memorix_host_service.set_model_config_port(_model_config_port)
 
         # await asyncio.sleep(0.5) #防止logger输出飞了
 
