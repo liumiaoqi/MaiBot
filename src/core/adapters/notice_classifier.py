@@ -40,29 +40,27 @@ class NapCatNoticeClassifier:
     """
 
     def classify(self, message: Any) -> NoticeKind:
-        sub_type = self._extract_napcat_sub_type(message)
-        if not sub_type:
-            return NoticeKind.UNKNOWN
-
-        if sub_type in _NAPCAT_INPUT_STATUS_SUBTYPES:
-            return NoticeKind.INPUT_STATUS
-
-        if sub_type in _NAPCAT_AMBIENT_SUBTYPES:
-            return NoticeKind.AMBIENT
-
-        if sub_type in _NAPCAT_INTERACTION_SUBTYPES:
-            return NoticeKind.INTERACTION
-
+        # SSD-4 T3.3：优先使用 bot.py 入站点预填充的 notice_kind
+        notice_kind = self._extract_notice_kind(message)
+        if notice_kind:
+            try:
+                return NoticeKind(notice_kind)
+            except ValueError:
+                pass
         return NoticeKind.UNKNOWN
 
     @staticmethod
-    def _extract_napcat_sub_type(message: Any) -> str:
+    def _extract_notice_kind(message: Any) -> str:
         if hasattr(message, "message_info") and hasattr(message.message_info, "additional_config"):
-            return message.message_info.additional_config.get("napcat_notice_sub_type", "")
+            kind = message.message_info.additional_config.get("notice_kind")
+            if kind:
+                return str(kind)
         if hasattr(message, "additional_config"):
-            return message.additional_config.get("napcat_notice_sub_type", "")
+            kind = message.additional_config.get("notice_kind")
+            if kind:
+                return str(kind)
         if isinstance(message, dict):
             additional_config = message.get("additional_config", {})
             if isinstance(additional_config, dict):
-                return additional_config.get("napcat_notice_sub_type", "")
+                return str(additional_config.get("notice_kind", ""))
         return ""

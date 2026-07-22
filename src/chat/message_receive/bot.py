@@ -406,8 +406,15 @@ class ChatBot:
         if not isinstance(additional_config, dict):
             return False
 
-        # 通知消息由适配器完整格式化（含 [事件-xxx] 前缀及详情），
-        # 此处仅做类型识别，具体文本由消息正常链路输出，避免重复日志。
+        # SSD-4 T3.2：在入站点完成 napcat_notice_sub_type → NoticeKind 映射
+        # 核心层不再感知 napcat_* 字段名
+        from .notice_type_mapping import map_napcat_notice
+        sub_type = additional_config.get("napcat_notice_sub_type", "")
+        if sub_type:
+            additional_config["notice_kind"] = map_napcat_notice(sub_type)
+        else:
+            additional_config["notice_kind"] = "UNKNOWN"
+
         return True
 
     async def echo_message_process(self, raw_data: Dict[str, Any]) -> None:
