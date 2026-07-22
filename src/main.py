@@ -183,13 +183,14 @@ class MainSystem:
         # 注册 ChatRuntimeRegistry + ChatRuntimeFactory
         # — 打破 heartflow_manager ↔ maisaka 物理循环依赖
         from src.core.adapters.runtime_registry import HeartflowRuntimeRegistry
+        from src.chat.heart_flow.heartflow_manager import heartflow_manager
         from src.core.runtime_port_registry import (
             register_chat_runtime_factory,
             register_chat_runtime_registry,
         )
         from src.maisaka.runtime import MaisakaRuntimeFactory
 
-        register_chat_runtime_registry(HeartflowRuntimeRegistry())
+        register_chat_runtime_registry(HeartflowRuntimeRegistry(heartflow_manager))
         register_chat_runtime_factory(MaisakaRuntimeFactory())
 
         # 插件 Runner 启动最重，尽早发起以便和后续初始化并行。

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional
 
 from src.common.logger import get_logger
 from src.core.protocols import ChatRuntime, ChatRuntimeRegistry
@@ -17,21 +17,17 @@ class HeartflowRuntimeRegistry:
     它通过 Python Protocol 结构化子类型满足 ChatRuntime 接口。
     """
 
-    def _ensure_manager(self):
-        from src.chat.heart_flow.heartflow_manager import heartflow_manager
-
-        return heartflow_manager
+    def __init__(self, heartflow_manager: Any) -> None:
+        self._heartflow_manager = heartflow_manager
 
     async def get_runtime(self, session_id: str) -> Optional[ChatRuntime]:
-        manager = self._ensure_manager()
-        runtime = manager.heartflow_chat_list.get(session_id)
+        runtime = self._heartflow_manager.heartflow_chat_list.get(session_id)
         return runtime
 
     async def get_or_create_runtime(self, session_id: str) -> ChatRuntime:
-        manager = self._ensure_manager()
-        return await manager.get_or_create_heartflow_chat(session_id)
+        return await self._heartflow_manager.get_or_create_heartflow_chat(session_id)
 
     def list_runtimes(self) -> list[ChatRuntime]:
         """列出所有活跃的运行时实例。"""
-        manager = self._ensure_manager()
-        return list(manager.heartflow_chat_list.values())
+        return list(self._heartflow_manager.heartflow_chat_list.values())
+
