@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -412,6 +413,32 @@ class MemoryService:
     async def register_agent(self, agent_id: str, params: dict[str, Any]) -> Dict[str, Any]:
         payload = {"agent_id": agent_id, **params}
         return await self._invoke("register_agent", payload)
+
+    async def recall(
+        self, seeds: list[str], *, agent_id: str = "", min_weight: float = 0.05, max_results: int = 20,
+    ) -> Any:
+        return await self._invoke("recall", {"seeds": seeds, "agent_id": agent_id, "min_weight": min_weight, "max_results": max_results})
+
+    async def recall_with_intuition(
+        self, seeds: list[str], context_text: str, *, agent_id: str = "",
+        min_weight: float = 0.05, max_results: int = 20, max_tokens: int = 800,
+    ) -> Any:
+        return await self._invoke("recall_with_intuition", {
+            "seeds": seeds, "context_text": context_text, "agent_id": agent_id,
+            "min_weight": min_weight, "max_results": max_results, "max_tokens": max_tokens,
+        })
+
+    async def derive_profile(self, subject: str, *, observer: str = "") -> Any:
+        return await self._invoke("derive_profile", {"subject": subject, "observer": observer, "now": time.time()})
+
+    async def reflect(self, subject: str, *, agent_id: str = "") -> Any:
+        return await self._invoke("reflect", {"subject": subject, "agent_id": agent_id})
+
+    async def weave_narrative(self, *, agent_id: str = "") -> dict[str, Any]:
+        return await self._invoke("narrative_weave", {"agent_id": agent_id})
+
+    async def heartbeat_maintenance(self, *, agent_id: str = "", elapsed_hours: float = 1.0) -> dict[str, Any]:
+        return await self._invoke("heartbeat_maintenance", {"agent_id": agent_id, "elapsed_hours": elapsed_hours})
 
 
 memory_service = MemoryService()

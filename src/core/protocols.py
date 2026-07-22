@@ -16,7 +16,8 @@ if TYPE_CHECKING:
     from src.common.data_models.message_component_data_model import MessageSequence
     from src.config.config import ModelConfig
     from src.config.model_configs import APIProvider, ModelInfo, TaskConfig
-    from src.core.types import AgentConfig, MemorySearchResult, MemoryWriteResult, NoticeKind, SendMessageResult, SessionInfo, ThinkContext, ThinkResult
+    from src.common.memory_types import ProfileView, RecallItem, RecallResult, ReflectResult
+    from src.core.types import AgentConfig, MemorySearchResult, MemoryWriteResult, NoticeKind, ObserveRequest, SendMessageResult, SessionInfo, ThinkContext, ThinkResult
 
 
 @runtime_checkable
@@ -402,6 +403,59 @@ class MemoryServicePort(Protocol):
             agent_id: 智能体 ID
             params: 记忆性格参数字典
         """
+
+    async def recall(
+        self,
+        seeds: list[str],
+        *,
+        agent_id: str = "",
+        min_weight: float = 0.05,
+        max_results: int = 20,
+    ) -> list[RecallItem]:
+        """概念激活扩散召回——连接主义原生召回。"""
+
+    async def recall_with_intuition(
+        self,
+        seeds: list[str],
+        context_text: str,
+        *,
+        agent_id: str = "",
+        min_weight: float = 0.05,
+        max_results: int = 20,
+        max_tokens: int = 800,
+    ) -> RecallResult:
+        """直觉召回——概念激活 + 认知和叙事深度。"""
+
+    async def derive_profile(
+        self,
+        subject: str,
+        *,
+        observer: str = "",
+    ) -> ProfileView:
+        """画像实时视图——连接主义原生画像。"""
+
+    async def reflect(
+        self,
+        subject: str,
+        *,
+        agent_id: str = "",
+    ) -> ReflectResult:
+        """反思——多声音视角 + 矛盾检测。"""
+
+    async def weave_narrative(
+        self,
+        *,
+        agent_id: str = "",
+    ) -> dict[str, Any]:
+        """触发叙事编织——Fragment → Episode → Saga。"""
+
+    async def heartbeat_maintenance(
+        self,
+        *,
+        agent_id: str = "",
+        elapsed_hours: float = 1.0,
+    ) -> dict[str, Any]:
+        """完整心跳维护——granular_decay + advance_lifecycle + process_cognitive_decay。"""
 
 
 @runtime_checkable

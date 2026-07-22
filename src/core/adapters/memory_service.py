@@ -177,6 +177,54 @@ class AMemorixMemoryServicePort:
                 f"设置记忆性格失败: agent={agent_id}", original=exc,
             ) from exc
 
+    async def recall(
+        self, seeds: list[str], *, agent_id: str = "", min_weight: float = 0.05, max_results: int = 20,
+    ) -> Any:
+        try:
+            return await self._get_memory_service().recall(
+                seeds=seeds, agent_id=agent_id, min_weight=min_weight, max_results=max_results,
+            )
+        except Exception as exc:
+            raise _classify_memory_error(f"概念召回失败: agent={agent_id}", original=exc) from exc
+
+    async def recall_with_intuition(
+        self, seeds: list[str], context_text: str, *, agent_id: str = "",
+        min_weight: float = 0.05, max_results: int = 20, max_tokens: int = 800,
+    ) -> Any:
+        try:
+            return await self._get_memory_service().recall_with_intuition(
+                seeds=seeds, context_text=context_text, agent_id=agent_id,
+                min_weight=min_weight, max_results=max_results, max_tokens=max_tokens,
+            )
+        except Exception as exc:
+            raise _classify_memory_error(f"直觉召回失败: agent={agent_id}", original=exc) from exc
+
+    async def derive_profile(self, subject: str, *, observer: str = "") -> Any:
+        try:
+            return await self._get_memory_service().derive_profile(subject=subject, observer=observer)
+        except Exception as exc:
+            raise _classify_memory_error(f"画像视图失败: subject={subject}", original=exc) from exc
+
+    async def reflect(self, subject: str, *, agent_id: str = "") -> Any:
+        try:
+            return await self._get_memory_service().reflect(subject=subject, agent_id=agent_id)
+        except Exception as exc:
+            raise _classify_memory_error(f"反思失败: subject={subject}", original=exc) from exc
+
+    async def weave_narrative(self, *, agent_id: str = "") -> dict[str, Any]:
+        try:
+            return await self._get_memory_service().weave_narrative(agent_id=agent_id)
+        except Exception as exc:
+            raise _classify_memory_error(f"叙事编织失败: agent={agent_id}", original=exc) from exc
+
+    async def heartbeat_maintenance(self, *, agent_id: str = "", elapsed_hours: float = 1.0) -> dict[str, Any]:
+        try:
+            return await self._get_memory_service().heartbeat_maintenance(
+                agent_id=agent_id, elapsed_hours=elapsed_hours,
+            )
+        except Exception as exc:
+            raise _classify_memory_error(f"心跳维护失败: agent={agent_id}", original=exc) from exc
+
 
 # ── 模块级单例 ──────────────────────────────────
 

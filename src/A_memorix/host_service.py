@@ -352,7 +352,21 @@ class AMemorixHostService:
                     min_weight=float(payload.get("min_weight", 0.05) or 0.05),
                     max_results=int(payload.get("max_results", 20) or 20),
                 )
-    
+
+            if component_name == "recall_with_intuition":
+                migration_adapter = kernel._migration_adapter
+                if migration_adapter and not migration_adapter.should_recall():
+                    return {"recall_items": [], "intuition": None}
+                seeds = payload.get("seeds") if isinstance(payload.get("seeds"), list) else []
+                return kernel._memory_field.recall_with_intuition(
+                    seeds=[str(s) for s in seeds],
+                    context_text=payload.get("context_text", ""),
+                    agent_id=payload.get("agent_id", ""),
+                    min_weight=float(payload.get("min_weight", 0.05) or 0.05),
+                    max_results=int(payload.get("max_results", 20) or 20),
+                    max_tokens=int(payload.get("max_tokens", 800) or 800),
+                )
+
             if component_name == "derive_profile":
                 migration_adapter = kernel._migration_adapter
                 if migration_adapter and not migration_adapter.should_recall():
@@ -431,6 +445,12 @@ class AMemorixHostService:
                     "saga_count": stats.get("saga_count", 0),
                 }
     
+            if component_name == "heartbeat_maintenance":
+                return await kernel._memory_field.heartbeat_maintenance(
+                    agent_id=payload.get("agent_id", ""),
+                    elapsed_hours=float(payload.get("elapsed_hours", 1.0) or 1.0),
+                )
+
             if component_name == "cognitive_query":
                 return kernel._memory_field.get_cognitive_entries(
                     agent_id=payload.get("agent_id", ""),
