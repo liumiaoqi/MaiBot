@@ -814,7 +814,6 @@ class SendMessageResult:
         return cls(success=False, error=error)
 
 
-@dataclass
 @dataclass(frozen=True, slots=True)
 class ObserveRequest:
     """连接主义记忆观察请求。
@@ -833,9 +832,10 @@ class ObserveRequest:
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
+@dataclass
 class MemoryWriteResult:
     """记忆写入结果。"""
-    success: bool
+    success: bool = False
     stored_ids: List[str] = field(default_factory=list)
     skipped_ids: List[str] = field(default_factory=list)
     detail: str = ""
