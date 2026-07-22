@@ -10,9 +10,6 @@ import time
 
 from src.common.logger import get_logger
 from src.common.prompt_i18n import load_prompt
-if TYPE_CHECKING:
-    from src.core.protocols import SessionInfoPort as SessionInfoPort
-
 from ...paths import default_data_dir, resolve_repo_path
 from ..embedding import create_embedding_api_adapter
 from ..retrieval import RetrievalResult, SparseBM25Config, SparseBM25Index
@@ -86,7 +83,7 @@ class SDKMemoryKernel:
         self._current_effective_filter_cache: Dict[str, Any] = {"checked_at": 0.0, "needed": False}
         self._feedback_classifier: Optional[Any] = None
         self._fuzzy_modify_planner: Optional[Any] = None
-        self._session_info_port: Optional[SessionInfoPort] = None
+        self._session_info_port: Any = None
         self._feedback_config: Optional[Any] = None
         self._fuzzy_modify_config: Optional[Any] = None
         self._admin_handlers: Dict[str, Any] = {}

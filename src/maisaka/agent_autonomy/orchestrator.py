@@ -1330,11 +1330,40 @@ class AgentOrchestrator:
             emotion_state_text = snapshot.emotion_state_text
             memory_personality_params = snapshot.memory_personality_params.model_dump()
 
+        memory_snippets: tuple[str, ...] = ()
+        intuition_context = None
+        try:
+            from src.core.adapters import get_memory_service_port
+            port = get_memory_service_port()
+            if hasattr(port, "recall_with_intuition"):
+                seeds = [trigger_reason, self._session_name]
+                if emotion_state_text:
+                    seeds.append(emotion_state_text[:60])
+                recall_result = await port.recall_with_intuition(
+                    seeds=seeds,
+                    context_text=messages[-1].get_text_content() if messages else "",
+                    agent_id=agent.agent_id,
+                    max_tokens=800,
+                )
+                items = getattr(recall_result, "recall_items", []) or []
+                if isinstance(items, list) and items:
+                    snippets = []
+                    for item in items[:5]:
+                        concept = getattr(item, "concept", "") or str(item)
+                        detail = getattr(item, "detail_level", 0.5) or 0.5
+                        snippets.append(f"[{detail:.1f}] {concept}")
+                    memory_snippets = tuple(snippets)
+                intuition_context = getattr(recall_result, "intuition", None)
+        except Exception:
+            logger.debug("记忆检索跳过: agent=%s", agent.agent_id, exc_info=True)
+
         return ThinkContext(
             messages=messages,
             emotion_state_text=emotion_state_text,
             inner_voice_text=inner_voice_text,
             memory_personality_params=memory_personality_params,
+            memory_snippets=memory_snippets,
+            intuition_context=intuition_context,
             trigger_reason=trigger_reason,
             metadata=metadata or {},
             session_id=self._session_id,

@@ -184,7 +184,7 @@ class KernelInitializer:
             tokens=kernel._tokens,
             chat_source=kernel._chat_source,
             chat_filter_config_allows=kernel._chat_filter_config_allows,
-            session_info_port=kernel._session_info_port,
+            session_info_port=kernel._ports.session_info_port if kernel._ports else None,
             feedback_cfg_paragraph_hard_filter_enabled=lambda: kernel._feedback_config.paragraph_hard_filter_enabled,
             feedback_cfg_episode_query_block_enabled=lambda: kernel._feedback_config.episode_query_block_enabled,
             current_effective_filter_cache=lambda: kernel._current_effective_filter_cache,

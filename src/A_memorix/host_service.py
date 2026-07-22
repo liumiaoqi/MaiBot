@@ -561,7 +561,6 @@ class AMemorixHostService:
                     raise
                 self._kernel = kernel
                 set_runtime_kernel(kernel)
-                self._inject_session_info_port(kernel)
                 self._register_agents_from_config(kernel)
             return self._kernel
 
@@ -631,15 +630,6 @@ class AMemorixHostService:
 
 
     @staticmethod
-    def _inject_session_info_port(kernel: SDKMemoryKernel) -> None:
-        """注入 SessionInfoPort，从全局注册点获取，不再延迟导入适配器。"""
-        from src.core.session_port_registry import get_session_info_port
-
-        port = get_session_info_port()
-        if port is not None:
-            kernel._session_info_port = port
-
-    @staticmethod
     def _build_service_ports() -> Any:
         """构建 AMemorixServicePorts，注入 MaiBot 服务层依赖。"""
         from .core.ports import AMemorixServicePorts
@@ -652,6 +642,7 @@ class AMemorixHostService:
         from src.llm_models.model_client.base_client import EmbeddingRequest, client_registry
         from src.services import llm_service as llm_api
         from src.services import message_service as message_api
+        from src.core.session_port_registry import get_session_info_port
 
         return AMemorixServicePorts(
             llm_service=llm_api,
@@ -665,6 +656,7 @@ class AMemorixHostService:
             llm_models_base_client=EmbeddingRequest,
             llm_data_models=LLMServiceResult,
             build_profile_injection_text=AMemorixHostService.build_profile_injection_text,
+            session_info_port=get_session_info_port(),
         )
 
     def _read_config(self) -> Dict[str, Any]:

@@ -23,6 +23,7 @@ class AMemorixServicePorts:
     llm_models_base_client: Any = None
     llm_data_models: Any = None
     build_profile_injection_text: Callable[[str], str] | None = None
+    session_info_port: Any = None  # SessionInfoPort，提供会话信息查询能力
 
     def require_llm_service(self) -> Any:
         if self.llm_service is None:

@@ -62,17 +62,7 @@ class AMemorixPlugin(MaiBotPlugin):
             ports = a_memorix_host_service._build_service_ports()
             self._kernel = SDKMemoryKernel(plugin_root=self._plugin_root, config=self._plugin_config, ports=ports)
             await self._kernel.initialize()
-            self._inject_session_info_port(self._kernel)
         return self._kernel
-
-    @staticmethod
-    def _inject_session_info_port(kernel: SDKMemoryKernel) -> None:
-        """注入 SessionInfoPort，从全局注册点获取，不再延迟导入适配器。"""
-        from src.core.session_port_registry import get_session_info_port
-
-        port = get_session_info_port()
-        if port is not None:
-            kernel._session_info_port = port
 
     _ADMIN_HANDLER_MAP = {
         "memory_graph_admin": "graph",

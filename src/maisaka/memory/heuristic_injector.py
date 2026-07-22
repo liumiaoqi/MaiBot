@@ -65,11 +65,33 @@ class HeuristicMemoryInjector:
 
     @property
     def memory_port(self) -> Any:
-        """获取 MemoryServicePort 实例（延迟初始化）。"""
         if self._memory_port is None:
             from src.core.adapters import get_memory_service_port
             self._memory_port = get_memory_service_port()
         return self._memory_port
+
+    async def _search_with_intuition_fallback(
+        self, *, impression: str, context_text: str, limit: int,
+        cross_chat_enabled: bool, chat_id: str, user_id: str, group_id: str,
+    ) -> Any:
+        try:
+            if hasattr(self.memory_port, "recall_with_intuition"):
+                return await self.memory_port.recall_with_intuition(
+                    seeds=impression.split()[:10] if impression else [],
+                    context_text=context_text,
+                )
+        except Exception:
+            logger.debug("直觉召回失败，降级到 search", exc_info=True)
+        return await self.memory_port.search(
+            impression,
+            limit=limit,
+            mode="search",
+            chat_id=chat_id,
+            person_id="",
+            respect_filter=not cross_chat_enabled,
+            user_id=user_id,
+            group_id=group_id,
+        )
 
     async def build_injection_message(
         self,
@@ -201,13 +223,12 @@ class HeuristicMemoryInjector:
         limit = max(1, int(getattr(config, "heuristic_memory_recall_limit", 3) or 3))
         search_limit = max(limit * 4, limit)
         cross_chat_enabled = bool(getattr(config, "heuristic_memory_cross_chat_enabled", False))
-        result = await self.memory_port.search(
-            impression,
+        result = await self._search_with_intuition_fallback(
+            impression=impression,
+            context_text=impression,
             limit=min(20, search_limit),
-            mode="search",
+            cross_chat_enabled=cross_chat_enabled,
             chat_id="" if cross_chat_enabled else context.session.session_id,
-            person_id="",
-            respect_filter=not cross_chat_enabled,
             user_id=str(context.session.user_id or ""),
             group_id=str(context.session.group_id or ""),
         )
