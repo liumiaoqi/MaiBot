@@ -5,8 +5,8 @@ from typing import Any, Dict, List, Optional
 
 
 from src.common.logger import get_logger
-from src.core.memory_utils import coerce_search_result, coerce_write_result
-from src.core.types import MemoryHit, MemorySearchResult, MemoryWriteResult
+from src.common.memory_utils import coerce_search_result, coerce_write_result
+from src.common.memory_types import MemoryHit, MemorySearchResult, MemoryWriteResult
 
 
 logger = get_logger("memory_service")
@@ -200,7 +200,6 @@ class MemoryService:
         user_id: str = "",
         group_id: str = "",
     ) -> MemoryWriteResult:
-        import warnings
         import warnings
         warnings.warn("ingest_text 已废弃，请使用 observe()", DeprecationWarning, stacklevel=2)
         payload = await self._invoke(

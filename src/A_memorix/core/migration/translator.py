@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from src.common.logger import get_logger
-from src.core.types import MemoryHit, MemorySearchResult
+from src.common.memory_types import MemoryHit, MemorySearchResult
 
 from ..connectionist.models import ProfileView, RecallItem
 

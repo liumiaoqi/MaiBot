@@ -296,7 +296,7 @@ async def build_person_profile_injection_messages(
             logger.debug(f"查询人物画像注入内容失败: person_id={candidate.person_id!r} err={exc}")
             continue
 
-        if payload is None:
+        if not payload:
             logger.debug(f"人物画像注入跳过: person_id={candidate.person_id!r} error=not_found")
             continue
 

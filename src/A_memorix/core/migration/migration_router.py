@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import Any, List, Optional
 
 from src.common.logger import get_logger
-from src.core.memory_utils import coerce_search_result, coerce_write_result
-from src.core.types import MemoryHit, MemorySearchResult, MemoryWriteResult
+from src.common.memory_utils import coerce_search_result, coerce_write_result
+from src.common.memory_types import MemoryHit, MemorySearchResult, MemoryWriteResult
 
 from ..connectionist.memory_field import MemoryField
 from ..connectionist.models import ObserveResult

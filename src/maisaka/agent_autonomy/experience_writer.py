@@ -11,7 +11,7 @@ import time
 from typing import Any
 
 from src.common.logger import get_logger
-from src.core.types import SilenceReason, ThinkAction, ThinkResult
+from src.core.types import ObserveRequest, SilenceReason, ThinkAction, ThinkResult
 
 logger = get_logger("experience_writer")
 
@@ -68,14 +68,15 @@ class ExperienceWriter:
         action: str,
     ) -> None:
         try:
-            await self._memory_port.observe_experience(
+            request = ObserveRequest(
                 text=summary,
                 valence=valence,
                 source_id=f"experience:{agent_id}:{int(time.time())}",
                 session_id=session_id,
                 agent_id=agent_id,
-                tags=["agent_experience", action],
+                tags=("agent_experience", action),
             )
+            await self._memory_port.observe_experience(request)
         except Exception:
             logger.debug(
                 "体验写入失败: agent=%s action=%s", agent_id, action, exc_info=True,

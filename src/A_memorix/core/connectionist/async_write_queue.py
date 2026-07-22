@@ -11,7 +11,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from src.common.logger import get_logger
-from src.core.types import MemoryWriteResult
+from src.common.memory_types import MemoryWriteResult
 
 if TYPE_CHECKING:
     from .observer import Observer

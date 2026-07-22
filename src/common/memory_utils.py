@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any, List
 
-from src.core.types import MemoryHit, MemorySearchResult, MemoryWriteResult
+from src.common.memory_types import MemoryHit, MemorySearchResult, MemoryWriteResult
 
 
 def coerce_write_result(payload: Any) -> MemoryWriteResult:

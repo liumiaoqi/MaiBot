@@ -10,7 +10,8 @@ import time
 
 from src.common.logger import get_logger
 from src.common.prompt_i18n import load_prompt
-from src.core.protocols import SessionInfoPort
+if TYPE_CHECKING:
+    from src.core.protocols import SessionInfoPort as SessionInfoPort
 
 from ...paths import default_data_dir, resolve_repo_path
 from ..embedding import create_embedding_api_adapter

@@ -7,12 +7,8 @@ import uuid
 from typing import Any, Optional
 
 from src.common.logger import get_logger
-from src.core.types import (
-    MemorySearchResult,
-    MemoryWriteResult,
-    PermanentMemoryError,
-    TemporaryMemoryError,
-)
+from src.common.memory_types import MemorySearchResult, MemoryWriteResult
+from src.core.types import ObserveRequest, PermanentMemoryError, TemporaryMemoryError
 
 logger = get_logger("core.adapters.memory_service")
 
@@ -41,31 +37,19 @@ class AMemorixMemoryServicePort:
             self._memory_service = memory_service
         return self._memory_service
 
-    async def observe_experience(
-        self,
-        *,
-        text: str,
-        valence: str = "neutral",
-        timestamp: float | None = None,
-        source_id: str = "",
-        session_id: str = "",
-        agent_id: str = "",
-        participants: list[str] | None = None,
-        tags: list[str] | None = None,
-        metadata: dict[str, Any] | None = None,
-    ) -> MemoryWriteResult:
+    async def observe_experience(self, request: ObserveRequest) -> MemoryWriteResult:
         trace_id = uuid.uuid4().hex[:12]
-        effective_source_id = source_id or f"trace:{trace_id}"
+        effective_source_id = request.source_id or f"trace:{trace_id}"
         result = await self._get_memory_service().observe(
-            text=text,
-            valence=valence,
-            timestamp=timestamp,
+            text=request.text,
+            valence=request.valence,
+            timestamp=request.timestamp,
             source_id=effective_source_id,
-            session_id=session_id,
-            agent_id=agent_id,
-            participants=participants,
-            tags=tags,
-            metadata=metadata,
+            session_id=request.session_id,
+            agent_id=request.agent_id,
+            participants=list(request.participants) if request.participants else None,
+            tags=list(request.tags) if request.tags else None,
+            metadata=request.metadata,
         )
         result.trace_id = trace_id
         return result
@@ -78,6 +62,7 @@ class AMemorixMemoryServicePort:
         mode: str = "search",
         chat_id: str = "",
         person_id: str = "",
+        agent_id: str = "",
         time_start: str | float | None = None,
         time_end: str | float | None = None,
         respect_filter: bool = True,
@@ -85,7 +70,8 @@ class AMemorixMemoryServicePort:
         group_id: str = "",
     ) -> MemorySearchResult:
         try:
-            return await self._get_memory_service().migration_search(query, agent_id=person_id)
+            effective_agent = agent_id or person_id
+            return await self._get_memory_service().migration_search(query, agent_id=effective_agent)
         except Exception as exc:
             raise _classify_memory_error(f"搜索失败: query={query}", original=exc) from exc
 
@@ -96,7 +82,7 @@ class AMemorixMemoryServicePort:
                 return result.to_dict()
             return {}
         except Exception as exc:
-            raise _classify_memory_error(
+            raise PermanentMemoryError(
                 f"画像查询失败: person_id={person_id}", original=exc,
             ) from exc
 
