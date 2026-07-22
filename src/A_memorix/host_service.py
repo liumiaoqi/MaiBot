@@ -324,12 +324,21 @@ class AMemorixHostService:
                         valence = Valence(valence_str)
                     except ValueError:
                         pass
+                participants_raw = payload.get("participants")
+                participants = list(participants_raw) if isinstance(participants_raw, list) else None
+                tags_raw = payload.get("tags")
+                tags = list(tags_raw) if isinstance(tags_raw, list) else None
+                metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else None
                 return await kernel._memory_field.observe(
                     text=payload.get("text", ""),
                     valence=valence,
                     timestamp=payload.get("timestamp"),
                     source_id=payload.get("source_id", ""),
                     session_id=payload.get("session_id", ""),
+                    agent_id=payload.get("agent_id", ""),
+                    participants=participants,
+                    tags=tags,
+                    metadata=metadata,
                 )
     
             if component_name == "recall":

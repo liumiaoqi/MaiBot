@@ -815,12 +815,32 @@ class SendMessageResult:
 
 
 @dataclass
+@dataclass(frozen=True, slots=True)
+class ObserveRequest:
+    """连接主义记忆观察请求。
+
+    统一写入入口，承载完整的语义上下文。
+    """
+
+    text: str
+    valence: str = "neutral"
+    timestamp: float | None = None
+    source_id: str = ""
+    session_id: str = ""
+    agent_id: str = ""
+    participants: tuple[str, ...] = ()
+    tags: tuple[str, ...] = ()
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
 class MemoryWriteResult:
     """记忆写入结果。"""
     success: bool
     stored_ids: List[str] = field(default_factory=list)
     skipped_ids: List[str] = field(default_factory=list)
     detail: str = ""
+    pending: bool = False
+    trace_id: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -828,6 +848,8 @@ class MemoryWriteResult:
             "stored_ids": self.stored_ids,
             "skipped_ids": self.skipped_ids,
             "detail": self.detail,
+            "pending": self.pending,
+            "trace_id": self.trace_id,
         }
 
 

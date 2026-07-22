@@ -14,6 +14,33 @@ logger = get_logger("core.adapters.memory_service")
 class AMemorixMemoryServicePort:
     """通过 A_memorix memory_service 实现 MemoryServicePort Protocol。"""
 
+    async def observe_experience(
+        self,
+        *,
+        text: str,
+        valence: str = "neutral",
+        timestamp: float | None = None,
+        source_id: str = "",
+        session_id: str = "",
+        agent_id: str = "",
+        participants: list[str] | None = None,
+        tags: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> MemoryWriteResult:
+        from src.services.memory_service import memory_service
+
+        return await memory_service.observe(
+            text=text,
+            valence=valence,
+            timestamp=timestamp,
+            source_id=source_id,
+            session_id=session_id,
+            agent_id=agent_id,
+            participants=participants,
+            tags=tags,
+            metadata=metadata,
+        )
+
     async def search(
         self,
         query: str,

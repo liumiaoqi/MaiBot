@@ -253,6 +253,37 @@ class MemoryService:
             logger.warning(f"获取人物画像失败: {exc}")
             return PersonProfileResult()
 
+    async def observe(
+        self,
+        *,
+        text: str,
+        valence: str = "neutral",
+        timestamp: float | None = None,
+        source_id: str = "",
+        session_id: str = "",
+        agent_id: str = "",
+        participants: list[str] | None = None,
+        tags: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> MemoryWriteResult:
+        payload: dict[str, Any] = {
+            "text": text,
+            "valence": valence,
+            "source_id": source_id,
+            "session_id": session_id,
+            "agent_id": agent_id,
+        }
+        if timestamp is not None:
+            payload["timestamp"] = timestamp
+        if participants:
+            payload["participants"] = list(participants)
+        if tags:
+            payload["tags"] = list(tags)
+        if metadata:
+            payload["metadata"] = metadata
+        result = await self._invoke("observe", payload)
+        return coerce_write_result(result)
+
     async def maintain_memory(
         self,
         *,

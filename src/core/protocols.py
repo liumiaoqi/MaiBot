@@ -222,6 +222,41 @@ class NoticeClassifier(Protocol):
 class MemoryServicePort(Protocol):
     """记忆服务接口 — 核心通过此接口访问 A_memorix。"""
 
+    async def observe_experience(
+        self,
+        *,
+        text: str,
+        valence: str = "neutral",
+        timestamp: float | None = None,
+        source_id: str = "",
+        session_id: str = "",
+        agent_id: str = "",
+        participants: list[str] | None = None,
+        tags: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> MemoryWriteResult:
+        """观察智能体的体验并写入连接主义记忆。
+
+        与 ingest_text 的区别：
+        - 走 observe 路径（连接主义），不走 legacy 分类学
+        - 不吞没异常，让错误完整上浮
+        - 语义化参数（agent_id、valence）替代通用 metadata
+
+        Args:
+            text: 体验文本
+            valence: 情绪效价（positive/negative/neutral）
+            timestamp: 时间戳
+            source_id: 来源标识
+            session_id: 会话 ID
+            agent_id: 智能体 ID
+            participants: 参与者列表
+            tags: 标签列表
+            metadata: 扩展元数据
+
+        Returns:
+            MemoryWriteResult 写入结果
+        """
+
     async def search(
         self,
         query: str,

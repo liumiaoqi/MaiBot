@@ -51,10 +51,18 @@ class Observer:
         timestamp: float | None = None,
         source_id: str = "",
         session_id: str = "",
+        agent_id: str = "",
+        participants: list[str] | None = None,
+        tags: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> ObserveResult:
         timestamp = timestamp or time.time()
 
-        extraction = await self._llm_extractor.extract(text)
+        context_text = text
+        if participants:
+            context_text = f"[参与者: {', '.join(participants)}]\n{text}"
+
+        extraction = await self._llm_extractor.extract(context_text)
         if not extraction.concepts:
             return ObserveResult(text=text, extraction=extraction)
 

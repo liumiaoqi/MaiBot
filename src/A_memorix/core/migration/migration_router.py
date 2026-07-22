@@ -91,6 +91,10 @@ class MigrationRouter:
                     text=text,
                     source_id=kwargs.get("source_id", ""),
                     session_id=kwargs.get("session_id", ""),
+                    agent_id=kwargs.get("agent_id", ""),
+                    participants=kwargs.get("participants"),
+                    tags=kwargs.get("tags"),
+                    metadata=kwargs.get("metadata"),
                 )
             except Exception as e:
                 logger.warning(f"连接主义 observe 失败（不影响分类学写入）: {e}")
@@ -100,6 +104,10 @@ class MigrationRouter:
             text=text,
             source_id=kwargs.get("source_id", ""),
             session_id=kwargs.get("session_id", ""),
+            agent_id=kwargs.get("agent_id", ""),
+            participants=kwargs.get("participants"),
+            tags=kwargs.get("tags"),
+            metadata=kwargs.get("metadata"),
         )
         return self._observe_to_write_result(observe_result)
 

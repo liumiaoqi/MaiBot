@@ -97,8 +97,15 @@ class MemoryField:
         timestamp: float | None = None,
         source_id: str = "",
         session_id: str = "",
+        agent_id: str = "",
+        participants: list[str] | None = None,
+        tags: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> ObserveResult:
-        result = await self._observer.observe(text, valence, timestamp, source_id, session_id)
+        result = await self._observer.observe(
+            text, valence, timestamp, source_id, session_id,
+            agent_id=agent_id, participants=participants, tags=tags, metadata=metadata,
+        )
 
         # fire-and-forget 通知 CS/NW
         for mr in result.memory_results:
