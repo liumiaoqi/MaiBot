@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from typing import Any, Optional
 
@@ -14,6 +15,18 @@ from src.core.types import (
 )
 
 logger = get_logger("core.adapters.memory_service")
+
+
+def _classify_memory_error(message: str, exc: Exception) -> MemoryServiceError:
+    """根据原始异常类型分类为临时性或永久性。"""
+    if isinstance(exc, (ConnectionError, TimeoutError, OSError)):
+        return TemporaryMemoryError(message, original=exc)
+    if isinstance(exc, asyncio.TimeoutError):
+        return TemporaryMemoryError(message, original=exc)
+    exc_name = type(exc).__name__.lower()
+    if any(kw in exc_name for kw in ("timeout", "connection", "network")):
+        return TemporaryMemoryError(message, original=exc)
+    return PermanentMemoryError(message, original=exc)
 
 
 class AMemorixMemoryServicePort:
@@ -74,7 +87,7 @@ class AMemorixMemoryServicePort:
         try:
             return await self._get_memory_service().migration_search(query, agent_id=person_id)
         except Exception as exc:
-            raise PermanentMemoryError(f"搜索失败: query={query}", original=exc) from exc
+            raise _classify_memory_error(f"搜索失败: query={query}", original=exc) from exc
 
     async def get_person_profile(self, person_id: str, *, limit: int = 4) -> dict[str, Any]:
         try:
@@ -83,7 +96,7 @@ class AMemorixMemoryServicePort:
                 return result.to_dict()
             return {}
         except Exception as exc:
-            raise PermanentMemoryError(
+            raise _classify_memory_error(
                 f"画像查询失败: person_id={person_id}", original=exc,
             ) from exc
 
@@ -91,7 +104,7 @@ class AMemorixMemoryServicePort:
         try:
             return await self._get_memory_service().profile_admin(action=action, **kwargs)
         except Exception as exc:
-            raise PermanentMemoryError(
+            raise _classify_memory_error(
                 f"画像管理失败: action={action}", original=exc,
             ) from exc
 
@@ -133,7 +146,7 @@ class AMemorixMemoryServicePort:
                 action=action, target=target, hours=hours, reason=reason, limit=limit,
             )
         except Exception as exc:
-            raise PermanentMemoryError(
+            raise _classify_memory_error(
                 f"记忆维护失败: action={action} target={target}", original=exc,
             ) from exc
 
@@ -143,7 +156,7 @@ class AMemorixMemoryServicePort:
                 action=action, timeout_ms=timeout_ms, **kwargs,
             )
         except Exception as exc:
-            raise PermanentMemoryError(
+            raise _classify_memory_error(
                 f"删除管理失败: action={action}", original=exc,
             ) from exc
 
@@ -163,7 +176,7 @@ class AMemorixMemoryServicePort:
                 structured_content=structured_content,
             )
         except Exception as exc:
-            raise PermanentMemoryError(
+            raise _classify_memory_error(
                 f"反馈任务入队失败: session={session_id}", original=exc,
             ) from exc
 
