@@ -77,15 +77,17 @@ class MemoryField:
         # 迁移阶段守卫（可选，由外部注入）
         self._migration_adapter: Any = None
 
-    async def start_async_queue(self) -> None:
-        if getattr(self, "_async_write_started", False):
-            return
-
+        # 异步写入队列 — 在 __init__ 中同步创建对象，消除 getattr 竞态
         from .async_write_queue import AsyncWriteQueue
-
         self._async_write_queue = AsyncWriteQueue(self._observer)
+
+    async def initialize(self) -> None:
+        """异步初始化 — 启动 AsyncWriteQueue 消费协程。
+
+        必须在首次 observe() 前完成。由 SDKMemoryKernel.initialize() 调用。
+        """
         await self._async_write_queue.start()
-        self._async_write_started = True
+
 
     def set_migration_adapter(self, adapter: Any) -> None:
         """注入迁移适配器（由 SDKMemoryKernel 初始化后调用）"""
@@ -114,8 +116,6 @@ class MemoryField:
         async_write: bool = True,
     ) -> Any:
         if async_write:
-            if not getattr(self, "_async_write_started", False):
-                await self.start_async_queue()
             return await self._async_write_queue.enqueue(
                 text=text, valence=valence, timestamp=timestamp,
                 source_id=source_id, session_id=session_id,

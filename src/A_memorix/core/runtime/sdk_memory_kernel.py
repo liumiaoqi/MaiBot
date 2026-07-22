@@ -410,7 +410,7 @@ class SDKMemoryKernel:
             build_profile_injection_text_fn=self._ports.build_profile_injection_text if self._ports else None,
         )
 
-        await self._memory_field.start_async_queue()
+        await self._memory_field.initialize()
         await self._start_background_tasks()
 
     async def shutdown(self) -> None:
