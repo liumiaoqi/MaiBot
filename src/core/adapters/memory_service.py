@@ -27,19 +27,25 @@ class AMemorixMemoryServicePort:
         tags: list[str] | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> MemoryWriteResult:
+        import uuid
+
         from src.services.memory_service import memory_service
 
-        return await memory_service.observe(
+        trace_id = uuid.uuid4().hex[:12]
+        effective_source_id = source_id or f"trace:{trace_id}"
+        result = await memory_service.observe(
             text=text,
             valence=valence,
             timestamp=timestamp,
-            source_id=source_id,
+            source_id=effective_source_id,
             session_id=session_id,
             agent_id=agent_id,
             participants=participants,
             tags=tags,
             metadata=metadata,
         )
+        result.trace_id = trace_id
+        return result
 
     async def search(
         self,
@@ -126,7 +132,7 @@ class AMemorixMemoryServicePort:
                 group_id=group_id,
             )
         except Exception as exc:
-            logger.warning(f"[memory_port] 文本摄入失败: external_id={external_id} error={exc}")
+            logger.error(f"[memory_port] 文本摄入失败: external_id={external_id} error={exc}")
             return MemoryWriteResult(success=False, detail=str(exc))
 
     async def maintain_memory(
