@@ -11,7 +11,7 @@ import time
 from typing import Any
 
 from src.common.logger import get_logger
-from src.core.types import ThinkAction, ThinkResult
+from src.core.types import SilenceReason, ThinkAction, ThinkResult
 
 logger = get_logger("experience_writer")
 
@@ -27,7 +27,10 @@ class ExperienceWriter:
     def should_write(result: ThinkResult) -> bool:
         if result.action == ThinkAction.REPLY and len(result.text or "") >= _REPLY_MIN_CHARS:
             return True
-        if result.action == ThinkAction.INTENTIONAL:
+        if (
+            result.action == ThinkAction.SILENT
+            and result.silence_reason == SilenceReason.INTENTIONAL
+        ):
             summary = (result.thought_summary or result.text or "")
             if len(summary) >= _INTENTIONAL_MIN_SUMMARY_CHARS:
                 return True
@@ -61,7 +64,7 @@ class ExperienceWriter:
         parts: list[str] = []
         if result.action == ThinkAction.REPLY and result.text:
             parts.append(f"回复: {result.text.strip()[:200]}")
-        elif result.action == ThinkAction.INTENTIONAL:
+        elif result.silence_reason == SilenceReason.INTENTIONAL:
             summary = (result.thought_summary or result.text or "").strip()
             if summary:
                 parts.append(f"感知/意图: {summary[:200]}")
