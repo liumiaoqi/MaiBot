@@ -152,7 +152,7 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 | ChatRuntimeRegistry | 运行时注册表 | HeartflowRuntimeRegistry |
 | ChatRuntimeFactory | 运行时工厂（打破 heartflow→maisaka 依赖） | MaisakaRuntimeFactory |
 | NoticeClassifier | 通知分类 | NapCatNoticeClassifier |
-| MemoryServicePort | 记忆服务 | AMemorixMemoryServicePort |
+| MemoryServicePort | 记忆服务（含 observe_experience） | AMemorixMemoryServicePort |
 | SessionInfoPort | 会话信息反查 | ChatManagerAdapter（通过注册点注入 A_memorix） |
 | SessionLifecyclePort | 会话生命周期（创建/持久化/初始化） | ChatManagerAdapter |
 | SessionQueryPort | 会话批量查询/路由元数据 | ChatManagerAdapter |

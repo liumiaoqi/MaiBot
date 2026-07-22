@@ -212,6 +212,8 @@ class MemoryService:
         user_id: str = "",
         group_id: str = "",
     ) -> MemoryWriteResult:
+        import warnings
+        warnings.warn("ingest_text 已废弃，请使用 observe()", DeprecationWarning, stacklevel=2)
         try:
             payload = await self._invoke(
                 "ingest_text",

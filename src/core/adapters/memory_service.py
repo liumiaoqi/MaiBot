@@ -110,6 +110,8 @@ class AMemorixMemoryServicePort:
         user_id: str = "",
         group_id: str = "",
     ) -> MemoryWriteResult:
+        import warnings
+        warnings.warn("ingest_text 已废弃，请使用 observe_experience()", DeprecationWarning, stacklevel=2)
         from src.services.memory_service import memory_service
 
         try:

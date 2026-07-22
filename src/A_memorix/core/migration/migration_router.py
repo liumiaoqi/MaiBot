@@ -79,6 +79,8 @@ class MigrationRouter:
         return self._translator.profile_view_to_dict(profile_view)
 
     async def ingest_text(self, text: str, **kwargs) -> MemoryWriteResult:
+        import warnings
+        warnings.warn("ingest_text 已废弃，请使用 observe 路径", DeprecationWarning, stacklevel=2)
         phase = self._adapter.phase
 
         if phase == MigrationPhase.LEGACY_ONLY:

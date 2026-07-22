@@ -311,6 +311,7 @@ class MemoryServicePort(Protocol):
             操作结果字典
         """
 
+    # DEPRECATED: 使用 observe_experience() 替代
     async def ingest_text(
         self,
         *,
