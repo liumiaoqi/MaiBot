@@ -60,9 +60,9 @@ class PersonFactWritebackService:
         if self._stopping:
             return
         try:
-            self._queue.put_nowait(message)
-        except asyncio.QueueFull:
-            logger.warning("人物事实写回队列已满，跳过本次回复")
+            await asyncio.wait_for(self._queue.put(message), timeout=5)
+        except asyncio.TimeoutError:
+            logger.warning("人物事实写回队列已满（5s 超时），跳过本次回复")
 
     async def _worker_loop(self) -> None:
         try:
@@ -423,6 +423,7 @@ class PersonFactWritebackService:
 class ChatSummaryWritebackState:
     last_trigger_message_count: int = 0
     last_trigger_time: float = 0.0
+    consecutive_failures: int = 0
 
 
 class ChatSummaryWritebackService:
@@ -458,9 +459,9 @@ class ChatSummaryWritebackService:
         if self._stopping:
             return
         try:
-            self._queue.put_nowait(message)
-        except asyncio.QueueFull:
-            logger.warning("聊天摘要写回队列已满，跳过本次触发")
+            await asyncio.wait_for(self._queue.put(message), timeout=5)
+        except asyncio.TimeoutError:
+            logger.warning("聊天摘要写回队列已满（5s 超时），跳过本次触发")
 
     async def _worker_loop(self) -> None:
         try:
@@ -497,6 +498,9 @@ class ChatSummaryWritebackService:
                 last_trigger_time=time.time() if restored_count > 0 else 0.0,
             )
             self._states[session_id] = state
+        if state.consecutive_failures >= 3:
+            return
+
         pending_message_count = max(0, total_message_count - state.last_trigger_message_count)
         if pending_message_count < threshold:
             return
@@ -528,13 +532,18 @@ class ChatSummaryWritebackService:
             group_id=self._extract_session_group_id(message),
         )
         if not getattr(result, "success", False):
+            state.last_trigger_message_count = total_message_count
+            state.last_trigger_time = time.time()
+            state.consecutive_failures += 1
             logger.warning(
-                f"聊天摘要自动写回失败: session_id={session_id} detail={getattr(result, 'detail', '')}",
+                f"聊天摘要自动写回失败: session_id={session_id} detail={getattr(result, 'detail', '')} "
+                f"consecutive_failures={state.consecutive_failures}",
             )
             return
 
         state.last_trigger_message_count = total_message_count
         state.last_trigger_time = time.time()
+        state.consecutive_failures = 0
         logger.info(
             f"聊天摘要自动写回成功: session_id={session_id} trigger=message_threshold "
             f"total_messages={total_message_count} context_length={context_length} "

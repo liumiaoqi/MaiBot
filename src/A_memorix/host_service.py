@@ -181,352 +181,358 @@ class AMemorixHostService:
         }
 
     async def invoke(self, component_name: str, args: Dict[str, Any] | None = None, *, timeout_ms: int = 30000) -> Any:
-        del timeout_ms
         payload = args or {}
         if not self.is_enabled():
             return self._disabled_response(component_name)
         kernel = await self._ensure_kernel()
 
-        if component_name == "search_memory":
-            from .core.runtime.sdk_memory_kernel import KernelSearchRequest
+        return await asyncio.wait_for(
+            self._dispatch(kernel, component_name, payload),
+            timeout=timeout_ms / 1000,
+        )
 
-            chat_id = payload.get("chat_id", "").strip()
-            config = self._read_config()
-            global_memory_sharing_enabled = bool(config.get("global_memory_sharing_enabled", False))
-            search_chat_id = "" if global_memory_sharing_enabled else chat_id
-            shared_chat_ids = ()
-            if not global_memory_sharing_enabled:
-                shared_chat_ids = tuple(AMemorixConfigUtils.get_shared_memory_session_ids(chat_id))
-
-            return await kernel.search_memory(
-                KernelSearchRequest(
-                    query=payload.get("query", ""),
-                    limit=int(payload.get("limit", 5) or 5),
-                    mode=str(payload.get("mode", "search") or "search"),
-                    chat_id=search_chat_id,
-                    shared_chat_ids=shared_chat_ids,
-                    person_id=payload.get("person_id", ""),
+    async def _dispatch(self, kernel: Any, component_name: str, payload: dict) -> Any:
+            if component_name == "search_memory":
+                from .core.runtime.sdk_memory_kernel import KernelSearchRequest
+    
+                chat_id = payload.get("chat_id", "").strip()
+                config = self._read_config()
+                global_memory_sharing_enabled = bool(config.get("global_memory_sharing_enabled", False))
+                search_chat_id = "" if global_memory_sharing_enabled else chat_id
+                shared_chat_ids = ()
+                if not global_memory_sharing_enabled:
+                    shared_chat_ids = tuple(AMemorixConfigUtils.get_shared_memory_session_ids(chat_id))
+    
+                return await kernel.search_memory(
+                    KernelSearchRequest(
+                        query=payload.get("query", ""),
+                        limit=int(payload.get("limit", 5) or 5),
+                        mode=str(payload.get("mode", "search") or "search"),
+                        chat_id=search_chat_id,
+                        shared_chat_ids=shared_chat_ids,
+                        person_id=payload.get("person_id", ""),
+                        time_start=payload.get("time_start"),
+                        time_end=payload.get("time_end"),
+                        respect_filter=bool(payload.get("respect_filter", True)),
+                        user_id=payload.get("user_id", "").strip(),
+                        group_id=payload.get("group_id", "").strip(),
+                    )
+                )
+    
+            if component_name == "enqueue_feedback_task":
+                return await kernel._feedback_correction_service.enqueue_feedback_task(
+                    query_tool_id=payload.get("query_tool_id", ""),
+                    session_id=payload.get("session_id", ""),
+                    query_timestamp=payload.get("query_timestamp"),
+                    structured_content=payload.get("structured_content")
+                    if isinstance(payload.get("structured_content"), dict)
+                    else {},
+                )
+    
+            if component_name == "ingest_summary":
+                return await kernel.ingest_summary(
+                    external_id=payload.get("external_id", ""),
+                    chat_id=payload.get("chat_id", ""),
+                    text=payload.get("text", ""),
+                    participants=list(payload.get("participants") or []),
                     time_start=payload.get("time_start"),
                     time_end=payload.get("time_end"),
+                    tags=list(payload.get("tags") or []),
+                    metadata=payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {},
                     respect_filter=bool(payload.get("respect_filter", True)),
                     user_id=payload.get("user_id", "").strip(),
                     group_id=payload.get("group_id", "").strip(),
                 )
-            )
-
-        if component_name == "enqueue_feedback_task":
-            return await kernel._feedback_correction_service.enqueue_feedback_task(
-                query_tool_id=payload.get("query_tool_id", ""),
-                session_id=payload.get("session_id", ""),
-                query_timestamp=payload.get("query_timestamp"),
-                structured_content=payload.get("structured_content")
-                if isinstance(payload.get("structured_content"), dict)
-                else {},
-            )
-
-        if component_name == "ingest_summary":
-            return await kernel.ingest_summary(
-                external_id=payload.get("external_id", ""),
-                chat_id=payload.get("chat_id", ""),
-                text=payload.get("text", ""),
-                participants=list(payload.get("participants") or []),
-                time_start=payload.get("time_start"),
-                time_end=payload.get("time_end"),
-                tags=list(payload.get("tags") or []),
-                metadata=payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {},
-                respect_filter=bool(payload.get("respect_filter", True)),
-                user_id=payload.get("user_id", "").strip(),
-                group_id=payload.get("group_id", "").strip(),
-            )
-
-        if component_name == "ingest_text":
-            relations = payload.get("relations") if isinstance(payload.get("relations"), list) else []
-            entities = payload.get("entities") if isinstance(payload.get("entities"), list) else []
-            return await kernel.ingest_text(
-                external_id=payload.get("external_id", ""),
-                source_type=payload.get("source_type", ""),
-                text=payload.get("text", ""),
-                chat_id=payload.get("chat_id", ""),
-                person_ids=list(payload.get("person_ids") or []),
-                participants=list(payload.get("participants") or []),
-                timestamp=payload.get("timestamp"),
-                time_start=payload.get("time_start"),
-                time_end=payload.get("time_end"),
-                tags=list(payload.get("tags") or []),
-                metadata=payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {},
-                entities=entities,
-                relations=relations,
-                respect_filter=bool(payload.get("respect_filter", True)),
-                user_id=payload.get("user_id", "").strip(),
-                group_id=payload.get("group_id", "").strip(),
-            )
-
-        if component_name == "get_person_profile":
-            return await kernel.get_person_profile(
-                person_id=payload.get("person_id", ""),
-                chat_id=payload.get("chat_id", ""),
-                limit=max(1, int(payload.get("limit", 10) or 10)),
-            )
-
-        if component_name == "maintain_memory":
-            result = await kernel.maintain_memory(
-                action=payload.get("action", ""),
-                target=payload.get("target", ""),
-                hours=payload.get("hours"),
-                reason=payload.get("reason", ""),
-                limit=max(1, int(payload.get("limit", 50) or 50)),
-            )
-            action = payload.get("action", "")
-            migration_adapter = kernel._migration_adapter
-            if action == "decay" and migration_adapter and migration_adapter.should_observe():
-                hours = float(payload.get("hours") or 1.0) if payload.get("hours") else 1.0
-                decay_result = await kernel._memory_field.granular_decay(elapsed_hours=hours)
-                result["connectionist_decay"] = {
-                    "traces_processed": decay_result.traces_processed,
-                    "traces_consolidated": decay_result.traces_consolidated,
-                }
-            return result
-
-        if component_name == "memory_stats":
-            return kernel.memory_stats()
-
-        if component_name == "observe":
-            migration_adapter = kernel._migration_adapter
-            if migration_adapter and not migration_adapter.should_observe():
-                from .core.connectionist.models import ObserveResult
-                return ObserveResult(text=payload.get("text", ""))
-            from .core.connectionist.enums import Valence
-
-            valence = Valence.NEUTRAL
-            valence_str = payload.get("valence", "").strip()
-            if valence_str:
-                try:
-                    valence = Valence(valence_str)
-                except ValueError:
-                    pass
-            return await kernel._memory_field.observe(
-                text=payload.get("text", ""),
-                valence=valence,
-                timestamp=payload.get("timestamp"),
-                source_id=payload.get("source_id", ""),
-                session_id=payload.get("session_id", ""),
-            )
-
-        if component_name == "recall":
-            migration_adapter = kernel._migration_adapter
-            if migration_adapter and not migration_adapter.should_recall():
-                return []
-            seeds = payload.get("seeds") if isinstance(payload.get("seeds"), list) else []
-            return kernel._memory_field.recall(
-                seeds=[str(s) for s in seeds],
-                agent_id=payload.get("agent_id", ""),
-                min_weight=float(payload.get("min_weight", 0.05) or 0.05),
-                max_results=int(payload.get("max_results", 20) or 20),
-            )
-
-        if component_name == "derive_profile":
-            migration_adapter = kernel._migration_adapter
-            if migration_adapter and not migration_adapter.should_recall():
-                from .core.connectionist.models import ProfileView
-                return ProfileView(subject=payload.get("subject", ""))
-            return await kernel._memory_field.derive_profile(
-                subject=payload.get("subject", ""),
-                observer=payload.get("observer", ""),
-                now=payload.get("now"),
-            )
-
-        if component_name == "reflect":
-            migration_adapter = kernel._migration_adapter
-            if migration_adapter and not migration_adapter.should_recall():
-                from .core.connectionist.models import ReflectResult
-                return ReflectResult()
-            return await kernel._memory_field.reflect(
-                subject=payload.get("subject", ""),
-                agent_id=payload.get("agent_id", ""),
-            )
-
-        if component_name == "register_agent":
-            from .core.connectionist.enums import VoiceStyle
-            from .core.connectionist.models import InnerVoice, MemoryPersonalityV2
-
-            personality = MemoryPersonalityV2(
-                decay_rate=float(payload.get("decay_rate", 1.0) or 1.0),
-                emotional_sensitivity=float(payload.get("emotional_sensitivity", 1.0) or 1.0),
-                association_depth=int(payload.get("association_depth", 2) or 2),
-                reinforcement_boost=float(payload.get("reinforcement_boost", 0.3) or 0.3),
-                attention_tags=frozenset(payload.get("attention_tags") if isinstance(payload.get("attention_tags"), list) else []),
-                positive_affinity=float(payload.get("positive_affinity", 1.0) or 1.0),
-                negative_affinity=float(payload.get("negative_affinity", 1.0) or 1.0),
-                curiosity=float(payload.get("curiosity", 1.0) or 1.0),
-            )
-            voices_data = payload.get("voices") if isinstance(payload.get("voices"), list) else []
-            voices = []
-            for v in voices_data:
-                if isinstance(v, dict):
-                    style_str = str(v.get("style", "preserve") or "preserve")
+    
+            if component_name == "ingest_text":
+                relations = payload.get("relations") if isinstance(payload.get("relations"), list) else []
+                entities = payload.get("entities") if isinstance(payload.get("entities"), list) else []
+                return await kernel.ingest_text(
+                    external_id=payload.get("external_id", ""),
+                    source_type=payload.get("source_type", ""),
+                    text=payload.get("text", ""),
+                    chat_id=payload.get("chat_id", ""),
+                    person_ids=list(payload.get("person_ids") or []),
+                    participants=list(payload.get("participants") or []),
+                    timestamp=payload.get("timestamp"),
+                    time_start=payload.get("time_start"),
+                    time_end=payload.get("time_end"),
+                    tags=list(payload.get("tags") or []),
+                    metadata=payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {},
+                    entities=entities,
+                    relations=relations,
+                    respect_filter=bool(payload.get("respect_filter", True)),
+                    user_id=payload.get("user_id", "").strip(),
+                    group_id=payload.get("group_id", "").strip(),
+                )
+    
+            if component_name == "get_person_profile":
+                return await kernel.get_person_profile(
+                    person_id=payload.get("person_id", ""),
+                    chat_id=payload.get("chat_id", ""),
+                    limit=max(1, int(payload.get("limit", 10) or 10)),
+                )
+    
+            if component_name == "maintain_memory":
+                result = await kernel.maintain_memory(
+                    action=payload.get("action", ""),
+                    target=payload.get("target", ""),
+                    hours=payload.get("hours"),
+                    reason=payload.get("reason", ""),
+                    limit=max(1, int(payload.get("limit", 50) or 50)),
+                )
+                action = payload.get("action", "")
+                migration_adapter = kernel._migration_adapter
+                if action == "decay" and migration_adapter and migration_adapter.should_observe():
+                    hours = float(payload.get("hours") or 1.0) if payload.get("hours") else 1.0
+                    decay_result = await kernel._memory_field.granular_decay(elapsed_hours=hours)
+                    result["connectionist_decay"] = {
+                        "traces_processed": decay_result.traces_processed,
+                        "traces_consolidated": decay_result.traces_consolidated,
+                    }
+                return result
+    
+            if component_name == "memory_stats":
+                return kernel.memory_stats()
+    
+            if component_name == "observe":
+                migration_adapter = kernel._migration_adapter
+                if migration_adapter and not migration_adapter.should_observe():
+                    from .core.connectionist.models import ObserveResult
+                    return ObserveResult(text=payload.get("text", ""))
+                from .core.connectionist.enums import Valence
+    
+                valence = Valence.NEUTRAL
+                valence_str = payload.get("valence", "").strip()
+                if valence_str:
                     try:
-                        style = VoiceStyle(style_str)
+                        valence = Valence(valence_str)
                     except ValueError:
-                        style = VoiceStyle.PRESERVE
-                    voices.append(
-                        InnerVoice(
-                            name=v.get("name", ""),
-                            style=style,
-                            focus_concepts=frozenset(v.get("focus_concepts") if isinstance(v.get("focus_concepts"), list) else []),
-                            weight_multiplier=float(v.get("weight_multiplier", 1.0) or 1.0),
-                            description=v.get("description", ""),
+                        pass
+                return await kernel._memory_field.observe(
+                    text=payload.get("text", ""),
+                    valence=valence,
+                    timestamp=payload.get("timestamp"),
+                    source_id=payload.get("source_id", ""),
+                    session_id=payload.get("session_id", ""),
+                )
+    
+            if component_name == "recall":
+                migration_adapter = kernel._migration_adapter
+                if migration_adapter and not migration_adapter.should_recall():
+                    return []
+                seeds = payload.get("seeds") if isinstance(payload.get("seeds"), list) else []
+                return kernel._memory_field.recall(
+                    seeds=[str(s) for s in seeds],
+                    agent_id=payload.get("agent_id", ""),
+                    min_weight=float(payload.get("min_weight", 0.05) or 0.05),
+                    max_results=int(payload.get("max_results", 20) or 20),
+                )
+    
+            if component_name == "derive_profile":
+                migration_adapter = kernel._migration_adapter
+                if migration_adapter and not migration_adapter.should_recall():
+                    from .core.connectionist.models import ProfileView
+                    return ProfileView(subject=payload.get("subject", ""))
+                return await kernel._memory_field.derive_profile(
+                    subject=payload.get("subject", ""),
+                    observer=payload.get("observer", ""),
+                    now=payload.get("now"),
+                )
+    
+            if component_name == "reflect":
+                migration_adapter = kernel._migration_adapter
+                if migration_adapter and not migration_adapter.should_recall():
+                    from .core.connectionist.models import ReflectResult
+                    return ReflectResult()
+                return await kernel._memory_field.reflect(
+                    subject=payload.get("subject", ""),
+                    agent_id=payload.get("agent_id", ""),
+                )
+    
+            if component_name == "register_agent":
+                from .core.connectionist.enums import VoiceStyle
+                from .core.connectionist.models import InnerVoice, MemoryPersonalityV2
+    
+                personality = MemoryPersonalityV2(
+                    decay_rate=float(payload.get("decay_rate", 1.0) or 1.0),
+                    emotional_sensitivity=float(payload.get("emotional_sensitivity", 1.0) or 1.0),
+                    association_depth=int(payload.get("association_depth", 2) or 2),
+                    reinforcement_boost=float(payload.get("reinforcement_boost", 0.3) or 0.3),
+                    attention_tags=frozenset(payload.get("attention_tags") if isinstance(payload.get("attention_tags"), list) else []),
+                    positive_affinity=float(payload.get("positive_affinity", 1.0) or 1.0),
+                    negative_affinity=float(payload.get("negative_affinity", 1.0) or 1.0),
+                    curiosity=float(payload.get("curiosity", 1.0) or 1.0),
+                )
+                voices_data = payload.get("voices") if isinstance(payload.get("voices"), list) else []
+                voices = []
+                for v in voices_data:
+                    if isinstance(v, dict):
+                        style_str = str(v.get("style", "preserve") or "preserve")
+                        try:
+                            style = VoiceStyle(style_str)
+                        except ValueError:
+                            style = VoiceStyle.PRESERVE
+                        voices.append(
+                            InnerVoice(
+                                name=v.get("name", ""),
+                                style=style,
+                                focus_concepts=frozenset(v.get("focus_concepts") if isinstance(v.get("focus_concepts"), list) else []),
+                                weight_multiplier=float(v.get("weight_multiplier", 1.0) or 1.0),
+                                description=v.get("description", ""),
+                            )
                         )
-                    )
-            kernel._memory_field.register_agent(
-                agent_id=payload.get("agent_id", ""),
-                personality=personality,
-                voices=voices,
-            )
-            return {"success": True}
-
-        if component_name == "connectionist_stats":
-            return kernel._memory_field.memory_stats()
-
-        # ── 叙事原型 API ──────────────────────────────────
-
-        if component_name == "narrative_weave":
-            return await kernel._memory_field.weave_narrative(
-                agent_id=payload.get("agent_id", ""),
-            )
-
-        if component_name == "narrative_stats":
-            stats = kernel._memory_field.memory_stats()
-            return {
-                "fragment_count": stats.get("fragment_count", 0),
-                "episode_count": stats.get("episode_count", 0),
-                "saga_count": stats.get("saga_count", 0),
-            }
-
-        if component_name == "cognitive_query":
-            return kernel._memory_field.get_cognitive_entries(
-                agent_id=payload.get("agent_id", ""),
-                concept=payload.get("concept", ""),
-            )
-
-        if component_name == "cognitive_evidence":
-            kernel._memory_field.add_cognitive_evidence(
-                entry_id=int(payload.get("entry_id", 0)),
-                observation_id=payload.get("observation_id", ""),
-                is_confirm=bool(payload.get("is_confirm", True)),
-            )
-            return {"success": True}
-
-        if component_name == "intuition_trigger":
-            return kernel._memory_field.get_intuition(
-                context_text=payload.get("context_text", ""),
-                agent_id=payload.get("agent_id", ""),
-                max_tokens=int(payload.get("max_tokens", 800) or 800),
-            )
-
-        if component_name == "lifecycle_advance":
-            return kernel._memory_field.advance_lifecycle(
-                agent_id=payload.get("agent_id", ""),
-            )
-
-        if component_name == "lifecycle_stats":
-            stats = kernel._memory_field.memory_stats()
-            return {
-                "fragment_count": stats.get("fragment_count", 0),
-                "episode_count": stats.get("episode_count", 0),
-                "saga_count": stats.get("saga_count", 0),
-                "cognitive_entry_count": stats.get("cognitive_entry_count", 0),
-            }
-
-        if component_name == "migration_status":
-            migration_adapter = kernel._migration_adapter
-            if migration_adapter is None:
-                return {"phase": "unknown", "can_advance": False}
-            return {
-                "phase": migration_adapter.phase.value,
-                "can_advance": migration_adapter.can_advance(),
-            }
-
-        if component_name == "migration_search":
-            return await kernel._migration_router.search(
-                query=payload.get("query", ""),
-                agent_id=payload.get("agent_id", ""),
-                **{k: v for k, v in payload.items() if k not in {"query", "agent_id"}},
-            )
-
-        if component_name == "migration_get_person_profile":
-            return await kernel._migration_router.get_person_profile(
-                person_id=payload.get("person_id", ""),
-                agent_id=payload.get("agent_id", ""),
-                limit=int(payload.get("limit", 4) or 4),
-            )
-
-        if component_name == "migration_ingest_text":
-            return await kernel._migration_router.ingest_text(
-                text=payload.get("text", ""),
-                **{k: v for k, v in payload.items() if k != "text"},
-            )
-
-        if component_name == "migration_build_profile_injection_text":
-            return await kernel._migration_router.build_profile_injection_text(
-                raw_text=payload.get("raw_text", ""),
-                agent_id=payload.get("agent_id", ""),
-            )
-
-        if component_name == "metadata_get_paragraphs_by_source":
-            source = payload.get("source", "")
-            if not source:
-                return []
-            metadata_store = kernel.metadata_store
-            if metadata_store is None:
-                return []
-            paragraphs = metadata_store.get_paragraphs_by_source(source)
-            if not paragraphs:
-                return []
-            return [
-                {
-                    "hash": p.get("hash", ""),
-                    "source": p.get("source", ""),
-                    "content": p.get("content", ""),
-                    "metadata": p.get("metadata", {}),
-                    "created_at": str(p.get("created_at", "")),
+                kernel._memory_field.register_agent(
+                    agent_id=payload.get("agent_id", ""),
+                    personality=personality,
+                    voices=voices,
+                )
+                return {"success": True}
+    
+            if component_name == "connectionist_stats":
+                return kernel._memory_field.memory_stats()
+    
+            # ── 叙事原型 API ──────────────────────────────────
+    
+            if component_name == "narrative_weave":
+                return await kernel._memory_field.weave_narrative(
+                    agent_id=payload.get("agent_id", ""),
+                )
+    
+            if component_name == "narrative_stats":
+                stats = kernel._memory_field.memory_stats()
+                return {
+                    "fragment_count": stats.get("fragment_count", 0),
+                    "episode_count": stats.get("episode_count", 0),
+                    "saga_count": stats.get("saga_count", 0),
                 }
-                for p in paragraphs
-            ]
-
-        if component_name == "metadata_query":
-            sql = payload.get("sql", "").strip()
-            params = payload.get("params", ())
-            if not sql:
-                return []
-            if not sql.upper().startswith("SELECT"):
-                raise ValueError("metadata_query 仅支持只读查询")
-            metadata_store = kernel.metadata_store
-            if metadata_store is None:
-                return []
-            rows = metadata_store.query(sql, tuple(params) if not isinstance(params, tuple) else params)
-            return [dict(row) for row in rows] if rows else []
-
-        _ADMIN_HANDLER_MAP = {
-            "memory_graph_admin": "graph",
-            "memory_source_admin": "source",
-            "memory_episode_admin": "episode",
-            "memory_profile_admin": "profile",
-            "memory_feedback_admin": "feedback",
-            "memory_runtime_admin": "runtime",
-            "memory_import_admin": "import",
-            "memory_tuning_admin": "tuning",
-            "memory_v5_admin": "v5",
-            "memory_delete_admin": "delete",
-            "memory_correction_admin": "correction",
-            "memory_fuzzy_modify_admin": "correction",
-        }
-        handler_key = _ADMIN_HANDLER_MAP.get(component_name)
-        if handler_key is not None:
-            kwargs = dict(payload)
-            action = kwargs.pop("action", "")
-            return await kernel._admin_handlers[handler_key].handle(action, **kwargs)
-
-        raise RuntimeError(f"不支持的 A_Memorix 调用: {component_name}")
+    
+            if component_name == "cognitive_query":
+                return kernel._memory_field.get_cognitive_entries(
+                    agent_id=payload.get("agent_id", ""),
+                    concept=payload.get("concept", ""),
+                )
+    
+            if component_name == "cognitive_evidence":
+                kernel._memory_field.add_cognitive_evidence(
+                    entry_id=int(payload.get("entry_id", 0)),
+                    observation_id=payload.get("observation_id", ""),
+                    is_confirm=bool(payload.get("is_confirm", True)),
+                )
+                return {"success": True}
+    
+            if component_name == "intuition_trigger":
+                return kernel._memory_field.get_intuition(
+                    context_text=payload.get("context_text", ""),
+                    agent_id=payload.get("agent_id", ""),
+                    max_tokens=int(payload.get("max_tokens", 800) or 800),
+                )
+    
+            if component_name == "lifecycle_advance":
+                return kernel._memory_field.advance_lifecycle(
+                    agent_id=payload.get("agent_id", ""),
+                )
+    
+            if component_name == "lifecycle_stats":
+                stats = kernel._memory_field.memory_stats()
+                return {
+                    "fragment_count": stats.get("fragment_count", 0),
+                    "episode_count": stats.get("episode_count", 0),
+                    "saga_count": stats.get("saga_count", 0),
+                    "cognitive_entry_count": stats.get("cognitive_entry_count", 0),
+                }
+    
+            if component_name == "migration_status":
+                migration_adapter = kernel._migration_adapter
+                if migration_adapter is None:
+                    return {"phase": "unknown", "can_advance": False}
+                return {
+                    "phase": migration_adapter.phase.value,
+                    "can_advance": migration_adapter.can_advance(),
+                }
+    
+            if component_name == "migration_search":
+                return await kernel._migration_router.search(
+                    query=payload.get("query", ""),
+                    agent_id=payload.get("agent_id", ""),
+                    **{k: v for k, v in payload.items() if k not in {"query", "agent_id"}},
+                )
+    
+            if component_name == "migration_get_person_profile":
+                return await kernel._migration_router.get_person_profile(
+                    person_id=payload.get("person_id", ""),
+                    agent_id=payload.get("agent_id", ""),
+                    limit=int(payload.get("limit", 4) or 4),
+                )
+    
+            if component_name == "migration_ingest_text":
+                return await kernel._migration_router.ingest_text(
+                    text=payload.get("text", ""),
+                    **{k: v for k, v in payload.items() if k != "text"},
+                )
+    
+            if component_name == "migration_build_profile_injection_text":
+                return await kernel._migration_router.build_profile_injection_text(
+                    raw_text=payload.get("raw_text", ""),
+                    agent_id=payload.get("agent_id", ""),
+                )
+    
+            if component_name == "metadata_get_paragraphs_by_source":
+                source = payload.get("source", "")
+                if not source:
+                    return []
+                metadata_store = kernel.metadata_store
+                if metadata_store is None:
+                    return []
+                paragraphs = metadata_store.get_paragraphs_by_source(source)
+                if not paragraphs:
+                    return []
+                return [
+                    {
+                        "hash": p.get("hash", ""),
+                        "source": p.get("source", ""),
+                        "content": p.get("content", ""),
+                        "metadata": p.get("metadata", {}),
+                        "created_at": str(p.get("created_at", "")),
+                    }
+                    for p in paragraphs
+                ]
+    
+            if component_name == "metadata_query":
+                sql = payload.get("sql", "").strip()
+                params = payload.get("params", ())
+                if not sql:
+                    return []
+                if not sql.upper().startswith("SELECT"):
+                    raise ValueError("metadata_query 仅支持只读查询")
+                metadata_store = kernel.metadata_store
+                if metadata_store is None:
+                    return []
+                rows = metadata_store.query(sql, tuple(params) if not isinstance(params, tuple) else params)
+                return [dict(row) for row in rows] if rows else []
+    
+            _ADMIN_HANDLER_MAP = {
+                "memory_graph_admin": "graph",
+                "memory_source_admin": "source",
+                "memory_episode_admin": "episode",
+                "memory_profile_admin": "profile",
+                "memory_feedback_admin": "feedback",
+                "memory_runtime_admin": "runtime",
+                "memory_import_admin": "import",
+                "memory_tuning_admin": "tuning",
+                "memory_v5_admin": "v5",
+                "memory_delete_admin": "delete",
+                "memory_correction_admin": "correction",
+                "memory_fuzzy_modify_admin": "correction",
+            }
+            handler_key = _ADMIN_HANDLER_MAP.get(component_name)
+            if handler_key is not None:
+                kwargs = dict(payload)
+                action = kwargs.pop("action", "")
+                return await kernel._admin_handlers[handler_key].handle(action, **kwargs)
+    
+            raise RuntimeError(f"不支持的 A_Memorix 调用: {component_name}")
+    
 
     async def _ensure_kernel(self) -> SDKMemoryKernel:
         async with self._lock:

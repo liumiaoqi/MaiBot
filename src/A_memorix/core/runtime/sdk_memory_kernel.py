@@ -535,6 +535,10 @@ class SDKMemoryKernel:
         group_id: str = "",
     ) -> Dict[str, Any]:
         await self.initialize()
+        if external_id and self.metadata_store is not None:
+            existing = self.metadata_store.get_external_memory_ref(external_id)
+            if existing:
+                return {"success": True, "stored_ids": [], "skipped_ids": [external_id]}
         return await self._ingest_service.ingest_text(
             external_id=external_id,
             source_type=source_type,
