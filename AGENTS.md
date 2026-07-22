@@ -372,9 +372,48 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 一般不写入changelog的内容：
 版本号提升或更新项目依赖
 
-# lab 原型进展
+# lab 原型实验室
 
-阶段 0 创建的 4 个架构验证原型（lab/ 目录，不入共享历史）：
+## 定位
+
+Lab 是 MaiBot 的**实验场**，不是生产代码。所有未经验证的架构假设、算法思路、交互模式，先在 lab 里跑通再进主仓库。核心原则：**lab 是沙盒，不是草稿箱**——每个原型必须有明确的实验假设和验证标准。
+
+Lab 是独立 git 仓库（`lab/.git`），不入主仓库共享历史（主仓库 `.gitignore` 排除 `lab/`），但通过子模块引用追踪。
+
+## 目录结构
+
+```
+lab/
+├── NOTES.md              # 全局探索笔记（按时间线记录）
+├── LAB_CONVENTION.md     # 实验室规范
+├── {topic}/              # 按主题分组（如 memory/、reply/、architecture/）
+│   ├── NOTES.md          # 主题探索笔记（假设、实验、结论）
+│   └── {topic}_v{n}.py   # 版本化原型（架构性改变升版本）
+├── graduated/            # 已毕业的原型（验证通过，已集成到主仓库）
+├── exploratory/          # 一次性探索脚本（分析、提取、回归测试）
+└── architecture/         # 架构验证原型（迁移安全性、竞态检测等）
+```
+
+## 毕业流程
+
+```
+lab/{topic}/ → lab/integration/ → 主仓库 src/
+概念验证         集成验证            生产代码
+```
+
+毕业标准：核心假设已验证 + 接口契约已明确 + 集成验证通过 + 按主仓库规范重写。毕业后原型移入 `graduated/` 保留作为决策记录。
+
+## 当前实验线
+
+| 主题 | 目录 | 最新版本 | 状态 |
+|------|------|---------|------|
+| 记忆系统 | `memory/` | v11 | ✅ 已毕业（连接主义范式，主线集成） |
+| 回复系统 | `reply/` | v7 | ✅ 已毕业（直通发送，MessagePortV2） |
+| 管家系统 | `graduated/` | v4 | ✅ 已毕业（三层过滤+提醒，主线集成） |
+| 架构验证 | `architecture/` | - | ✅ 已完成（maisaka 独立、replyer 迁移、fallback 清理） |
+| 探索脚本 | `exploratory/` | - | 活跃（fallback 分析、冗余检测等） |
+
+## 阶段 0 架构验证原型
 
 - ✅ `lab/architecture/maisaka_v2_standalone.py` — 验证 maisaka 可脱离 chat 独立运行（4/4 PASS）
 - ✅ `lab/memory/memory_e2e_v1.py` — 验证连接主义记忆 + 叙事编织端到端（4/4 PASS，生成 10 Fragment/2 Episode/1 Saga，召回 0.01ms）
