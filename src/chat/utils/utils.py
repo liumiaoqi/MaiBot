@@ -1002,3 +1002,8 @@ def parse_keywords_string(keywords_input) -> list[str]:
     return [keywords_str] if keywords_str else []
 
 
+
+# ── SSD-3 re-export（实际定义已迁移到 src/maisaka/context/post_processor.py）──
+from src.maisaka.context.post_processor import process_llm_response  # noqa: F401
+from src.maisaka.context.post_processor import protect_kaomoji, recover_kaomoji  # noqa: F401
+from src.maisaka.context.post_processor import split_into_sentences_w_remove_punctuation  # noqa: F401

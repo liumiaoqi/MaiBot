@@ -3,7 +3,7 @@
 from typing import Any, Optional
 import traceback
 
-from src.chat.replyer.replyer_manager import replyer_manager
+from src.core.replyer_port_registry import get_replyer_service_port
 from src.cli.maisaka_cli_sender import CLI_PLATFORM_NAME, render_cli_message
 from src.common.data_models.message_component_data_model import TextComponent
 from src.common.data_models.reply_generation_data_models import ReplyGenerationResult, build_reply_monitor_detail
@@ -179,7 +179,8 @@ async def handle_tool(
             )
 
     try:
-        replyer = replyer_manager.get_replyer(
+        replyer_port = get_replyer_service_port()
+        replyer = replyer_port.get_replyer(
             chat_stream=tool_ctx.runtime.chat_stream,
             request_type="maisaka.replyer",
             replyer_type="maisaka",

@@ -142,22 +142,23 @@ class ForkContextCapturer:
             return []
 
         try:
-            chat_session = self._runtime._chat_manager.get_session(session_id)
-            if chat_session is None:
+            from src.core.session_port_registry import get_session_info_port
+
+            session_info = None
+            info_port = get_session_info_port()
+            if info_port is not None:
+                session_info = info_port.get_session_info(session_id)
+            if session_info is None:
                 return []
 
-            bot_session = getattr(chat_session, "bot_chat_session", None)
-            if bot_session is None:
+            from src.maisaka.agent.registry import AgentConfigRegistry
+            registry = AgentConfigRegistry.get_instance()
+            agent_id = getattr(session_info, "primary_agent_id", "")
+            if not agent_id or not registry.has_agent(agent_id):
                 return []
 
-            prompt_context = getattr(bot_session, "_last_prompt_context", None)
-            if prompt_context is None:
-                return []
-
-            system_parts = []
-            if hasattr(prompt_context, "system_message") and prompt_context.system_message:
-                system_parts.append(prompt_context.system_message)
-            return system_parts
+            template_name = registry.get_agent(agent_id).get_prompt_template_name()
+            return [f"[system prompt: {template_name}]"] if template_name else []
 
         except Exception:
             return []

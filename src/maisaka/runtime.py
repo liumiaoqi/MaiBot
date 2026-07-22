@@ -626,11 +626,15 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
     async def _recognize_sent_images(self, images: list[ImageComponent], message_id: str) -> None:
         """后台触发已发送图片的描述构建，不阻塞发送链路。"""
 
-        from src.chat.image_system.image_manager import image_manager
+        from src.core.image_port_registry import get_image_description_port
+
+        image_port = get_image_description_port()
+        if image_port is None:
+            return
 
         for image in images:
             try:
-                await image_manager.get_image_description(
+                await image_port.get_image_description(
                     image_hash=image.binary_hash,
                     image_bytes=image.binary_data,
                     wait_for_build=False,
@@ -1520,12 +1524,11 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
 
                 recovery = SessionRecoveryService()
                 import asyncio
-                from src.core.adapters.chat_manager_adapter import ChatManagerAdapter
                 from src.core.session_port_registry import get_session_query_port
 
                 _query_port = get_session_query_port()
-                if isinstance(_query_port, ChatManagerAdapter):
-                    asyncio.create_task(recovery.recover_all(_query_port._ensure_chat_manager()))
+                if _query_port is not None:
+                    asyncio.create_task(recovery.recover_all(_query_port))
             except Exception as recovery_exc:
                 logger.debug(
                     f"[agent_autonomy] 会话恢复跳过: {recovery_exc}"

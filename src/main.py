@@ -175,6 +175,17 @@ class MainSystem:
         chat_manager._ensure_binding_restorer = lambda: binding_restorer
         chat_manager._ensure_lifecycle = lambda: session_lifecycle
 
+        # ── 注册 ReplyerServicePort + ImageDescriptionPort ─────────────────
+        from src.chat.replyer.replyer_manager import replyer_manager
+        from src.chat.image_system.image_manager import image_manager
+        from src.core.adapters.replyer_service_adapter import ReplyerServiceAdapter
+        from src.core.adapters.image_description_adapter import ImageDescriptionAdapter
+        from src.core.replyer_port_registry import register_replyer_service_port
+        from src.core.image_port_registry import register_image_description_port
+
+        register_replyer_service_port(ReplyerServiceAdapter(replyer_manager))
+        register_image_description_port(ImageDescriptionAdapter(image_manager))
+
         # 注册 ChatRuntimeRegistry + ChatRuntimeFactory
         # — 打破 heartflow_manager ↔ maisaka 物理循环依赖
         from src.core.adapters.runtime_registry import HeartflowRuntimeRegistry

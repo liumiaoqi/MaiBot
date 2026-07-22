@@ -22,7 +22,7 @@ class SessionRecoveryService:
         self._activity_store = AgentActivityStore()
         self._autonomy_logger = AutonomyLogger.get()
 
-    async def recover_all(self, chat_manager: Any) -> dict[str, list[str]]:
+    async def recover_all(self, session_query_port: Any) -> dict[str, list[str]]:
         """恢复所有活跃会话的智能体关联（含待命状态恢复）。
 
         Args:
@@ -42,8 +42,8 @@ class SessionRecoveryService:
         seen_keys: dict[tuple[str, str], Any] = {}
         for record in active_records:
             # 验证 ChatSession 仍存在
-            chat_session = chat_manager.get_existing_session_by_session_id(record.session_id)
-            if chat_session is None:
+            session_info = session_query_port.get_existing_session_info(record.session_id)
+            if session_info is None:
                 self._activity_store.deactivate(
                     record.session_id, record.agent_id, "session_deleted"
                 )

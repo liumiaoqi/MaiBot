@@ -731,3 +731,29 @@ class ModelConfigPort(Protocol):
         Args:
             callback: 先前注册过的回调对象
         """
+
+@runtime_checkable
+class ReplyerServicePort(Protocol):
+    """回复器服务接口 — maisaka 通过此接口获取回复生成器。"""
+
+    def get_replyer(
+        self,
+        chat_stream: Optional[SessionInfo] = None,
+        chat_id: Optional[str] = None,
+        request_type: str = "replyer",
+        replyer_type: str = "default",
+    ) -> Optional[Any]:
+        """获取回复生成器实例。"""
+
+
+@runtime_checkable
+class ImageDescriptionPort(Protocol):
+    """图片描述服务接口 — maisaka 通过此接口请求图片描述。"""
+
+    async def get_image_description(
+        self,
+        image_hash: str,
+        image_bytes: bytes,
+        wait_for_build: bool = True,
+    ) -> str:
+        """获取图片描述文本。"""

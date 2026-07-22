@@ -475,3 +475,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# ── SSD-3 re-export（实际定义已迁移到 src/maisaka/context/typo_generator.py）──
+from src.maisaka.context.typo_generator import ChineseTypoGenerator  # noqa: F401
