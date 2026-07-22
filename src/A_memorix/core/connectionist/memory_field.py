@@ -74,6 +74,16 @@ class MemoryField:
         # 注入叙事原型依赖到 ProfileDeriver
         self._profile_deriver.inject_narrative_deps(self._cognitive_stratifier, self._episode_store)
 
+    async def start_async_queue(self) -> None:
+        if not self._async_write_started:
+            await self._async_write_queue.start()
+            self._async_write_started = True
+
+        from .async_write_queue import AsyncWriteQueue
+
+        self._async_write_queue = AsyncWriteQueue(self._observer)
+        self._async_write_started = False
+
         # 迁移阶段守卫（可选，由外部注入）
         self._migration_adapter: Any = None
 
@@ -101,7 +111,18 @@ class MemoryField:
         participants: list[str] | None = None,
         tags: list[str] | None = None,
         metadata: dict[str, Any] | None = None,
-    ) -> ObserveResult:
+        async_write: bool = True,
+    ) -> Any:
+        if async_write:
+            if not self._async_write_started:
+                await self.start_async_queue()
+            return await self._async_write_queue.enqueue(
+                text=text, valence=valence, timestamp=timestamp,
+                source_id=source_id, session_id=session_id,
+                agent_id=agent_id, participants=participants,
+                tags=tags, metadata=metadata,
+            )
+
         result = await self._observer.observe(
             text, valence, timestamp, source_id, session_id,
             agent_id=agent_id, participants=participants, tags=tags, metadata=metadata,
