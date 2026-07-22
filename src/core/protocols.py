@@ -265,7 +265,7 @@ class MemoryServicePort(Protocol):
             MemorySearchResult 检索结果
         """
 
-    async def get_person_profile(self, person_id: str, *, limit: int = 4) -> Optional[dict[str, Any]]:
+    async def get_person_profile(self, person_id: str, *, limit: int = 4) -> dict[str, Any]:
         """查询人物画像。
 
         Args:
@@ -285,51 +285,6 @@ class MemoryServicePort(Protocol):
 
         Returns:
             操作结果字典
-        """
-
-    # DEPRECATED: 使用 observe_experience() 替代
-    async def ingest_text(
-        self,
-        *,
-        external_id: str,
-        source_type: str,
-        text: str,
-        chat_id: str = "",
-        person_ids: Optional[list[str]] = None,
-        participants: Optional[list[str]] = None,
-        timestamp: Optional[float] = None,
-        time_start: Optional[float] = None,
-        time_end: Optional[float] = None,
-        tags: Optional[list[str]] = None,
-        metadata: Optional[dict[str, Any]] = None,
-        entities: Optional[list[str]] = None,
-        relations: Optional[list[dict[str, Any]]] = None,
-        respect_filter: bool = True,
-        user_id: str = "",
-        group_id: str = "",
-    ) -> MemoryWriteResult:
-        """摄入文本到记忆系统。
-
-        Args:
-            external_id: 外部标识 ID
-            source_type: 来源类型
-            text: 文本内容
-            chat_id: 聊天流 ID
-            person_ids: 关联人物 ID 列表
-            participants: 参与者列表
-            timestamp: 时间戳
-            time_start: 时间范围起点
-            time_end: 时间范围终点
-            tags: 标签列表
-            metadata: 元数据字典
-            entities: 实体列表
-            relations: 关系列表
-            respect_filter: 是否遵守过滤规则
-            user_id: 用户 ID
-            group_id: 群组 ID
-
-        Returns:
-            MemoryWriteResult 写入结果
         """
 
     async def maintain_memory(

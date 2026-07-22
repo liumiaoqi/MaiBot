@@ -101,30 +101,6 @@ class AMemorixMemoryServicePort:
                 f"画像管理失败: action={action}", original=exc,
             ) from exc
 
-    async def ingest_text(
-        self,
-        *,
-        external_id: str,
-        source_type: str,
-        text: str,
-        chat_id: str = "",
-        person_ids: Optional[list[str]] = None,
-        participants: Optional[list[str]] = None,
-        timestamp: Optional[float] = None,
-        time_start: Optional[float] = None,
-        time_end: Optional[float] = None,
-        tags: Optional[list[str]] = None,
-        metadata: Optional[dict[str, Any]] = None,
-        entities: Optional[list[str]] = None,
-        relations: Optional[list[dict[str, Any]]] = None,
-        respect_filter: bool = True,
-        user_id: str = "",
-        group_id: str = "",
-    ) -> MemoryWriteResult:
-        raise PermanentMemoryError(
-            "ingest_text 已废弃，请使用 observe_experience()",
-        )
-
     async def maintain_memory(
         self,
         *,

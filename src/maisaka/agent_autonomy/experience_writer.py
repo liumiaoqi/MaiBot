@@ -20,8 +20,9 @@ _INTENTIONAL_MIN_SUMMARY_CHARS = 20
 
 
 class ExperienceWriter:
-    def __init__(self, memory_port: Any = None) -> None:
+    def __init__(self, memory_port: Any = None, emotion_manager: Any = None) -> None:
         self._memory_port = memory_port
+        self._emotion_manager = emotion_manager
 
     @staticmethod
     def should_write(result: ThinkResult) -> bool:
@@ -96,8 +97,21 @@ class ExperienceWriter:
             parts.append(f"情绪: {emotion}")
         return "；".join(parts) if parts else "体验记录"
 
-    @staticmethod
-    def _emotion_to_valence(result: ThinkResult) -> str:
+    def _emotion_to_valence(self, result: ThinkResult) -> str:
+        if self._emotion_manager is not None:
+            try:
+                state = self._emotion_manager.get_current_state()
+                if state and hasattr(state, "dominant_emotion"):
+                    emotion = state.dominant_emotion
+                    positive = {"joy", "happy", "excited", "grateful", "love", "satisfied", "calm"}
+                    negative = {"anger", "sad", "fear", "anxious", "frustrated", "jealous", "disgust"}
+                    if emotion in positive:
+                        return "positive"
+                    if emotion in negative:
+                        return "negative"
+                    return "neutral"
+            except Exception:
+                pass
         positive = {"joy", "happy", "excited", "grateful", "love", "satisfied", "calm"}
         negative = {"anger", "sad", "fear", "anxious", "frustrated", "jealous", "disgust"}
         if result.emotion_type in positive:

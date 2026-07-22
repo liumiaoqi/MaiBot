@@ -181,51 +181,6 @@ class MemoryService:
         )
         return self._coerce_write_result(payload)
 
-    async def ingest_text(
-        self,
-        *,
-        external_id: str,
-        source_type: str,
-        text: str,
-        chat_id: str = "",
-        person_ids: Optional[List[str]] = None,
-        participants: Optional[List[str]] = None,
-        timestamp: float | None = None,
-        time_start: float | None = None,
-        time_end: float | None = None,
-        tags: Optional[List[str]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-        entities: Optional[List[str]] = None,
-        relations: Optional[List[Dict[str, Any]]] = None,
-        respect_filter: bool = True,
-        user_id: str = "",
-        group_id: str = "",
-    ) -> MemoryWriteResult:
-        import warnings
-        warnings.warn("ingest_text 已废弃，请使用 observe()", DeprecationWarning, stacklevel=2)
-        payload = await self._invoke(
-            "ingest_text",
-            {
-                "external_id": external_id,
-                "source_type": source_type,
-                "text": text,
-                "chat_id": chat_id,
-                "person_ids": person_ids or [],
-                "participants": participants or [],
-                "timestamp": timestamp,
-                "time_start": time_start,
-                "time_end": time_end,
-                "tags": tags or [],
-                "metadata": metadata or {},
-                "entities": entities or [],
-                "relations": relations or [],
-                "respect_filter": bool(respect_filter),
-                "user_id": str(user_id or "").strip(),
-                "group_id": str(group_id or "").strip(),
-            },
-        )
-        return self._coerce_write_result(payload)
-
     async def get_person_profile(self, person_id: str, *, chat_id: str = "", limit: int = 10) -> PersonProfileResult:
         clean_person_id = str(person_id or "").strip()
         if not clean_person_id:
@@ -397,13 +352,6 @@ class MemoryService:
         payload = {"person_id": person_id, "agent_id": agent_id, "limit": limit}
         result = await self._invoke("migration_get_person_profile", payload)
         return self._coerce_profile_result(result)
-
-    async def migration_ingest_text(self, text: str, **kwargs) -> MemoryWriteResult:
-        payload = {"text": text, **kwargs}
-        result = await self._invoke("migration_ingest_text", payload)
-        if isinstance(result, MemoryWriteResult):
-            return result
-        return self._coerce_write_result(result)
 
     async def migration_build_profile_injection_text(self, raw_text: str, *, agent_id: str = "") -> str:
         payload = {"raw_text": raw_text, "agent_id": agent_id}

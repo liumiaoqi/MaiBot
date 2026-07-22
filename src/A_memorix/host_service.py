@@ -259,28 +259,6 @@ class AMemorixHostService:
                     group_id=payload.get("group_id", "").strip(),
                 )
     
-            if component_name == "ingest_text":
-                relations = payload.get("relations") if isinstance(payload.get("relations"), list) else []
-                entities = payload.get("entities") if isinstance(payload.get("entities"), list) else []
-                return await kernel.ingest_text(
-                    external_id=payload.get("external_id", ""),
-                    source_type=payload.get("source_type", ""),
-                    text=payload.get("text", ""),
-                    chat_id=payload.get("chat_id", ""),
-                    person_ids=list(payload.get("person_ids") or []),
-                    participants=list(payload.get("participants") or []),
-                    timestamp=payload.get("timestamp"),
-                    time_start=payload.get("time_start"),
-                    time_end=payload.get("time_end"),
-                    tags=list(payload.get("tags") or []),
-                    metadata=payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {},
-                    entities=entities,
-                    relations=relations,
-                    respect_filter=bool(payload.get("respect_filter", True)),
-                    user_id=payload.get("user_id", "").strip(),
-                    group_id=payload.get("group_id", "").strip(),
-                )
-    
             if component_name == "get_person_profile":
                 return await kernel.get_person_profile(
                     person_id=payload.get("person_id", ""),
@@ -515,34 +493,6 @@ class AMemorixHostService:
                     person_id=payload.get("person_id", ""),
                     agent_id=payload.get("agent_id", ""),
                     limit=int(payload.get("limit", 4) or 4),
-                )
-    
-            if component_name == "migration_ingest_text":
-                import warnings
-                warnings.warn(
-                    "migration_ingest_text 已废弃，请使用 observe",
-                    DeprecationWarning, stacklevel=2,
-                )
-                return await kernel._migration_router.ingest_text(
-                    text=payload.get("text", ""),
-                    external_id=payload.get("external_id", ""),
-                    source_type=payload.get("source_type", ""),
-                    chat_id=payload.get("chat_id", ""),
-                    person_ids=payload.get("person_ids"),
-                    participants=payload.get("participants"),
-                    timestamp=payload.get("timestamp"),
-                    time_start=payload.get("time_start"),
-                    time_end=payload.get("time_end"),
-                    tags=payload.get("tags"),
-                    metadata=payload.get("metadata"),
-                    entities=payload.get("entities"),
-                    relations=payload.get("relations"),
-                    respect_filter=payload.get("respect_filter", True),
-                    user_id=payload.get("user_id", ""),
-                    group_id=payload.get("group_id", ""),
-                    source_id=payload.get("source_id", ""),
-                    session_id=payload.get("session_id", ""),
-                    agent_id=payload.get("agent_id", ""),
                 )
     
             if component_name == "migration_build_profile_injection_text":
