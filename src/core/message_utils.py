@@ -88,12 +88,213 @@ def build_message_sequence_from_custom_message(
     )
 
 
-# =============================================================================
-# 桥接 re-export — is_mentioned_bot_in_message
-# =============================================================================
-# is_mentioned_bot_in_message 当前定义在 src/chat/utils/utils.py，
-# 但被 core/maisaka 层使用。此处 re-export 作为集中桥接点。
-# 后续架构演进将把函数定义物理迁移到 core 层。
-# ruff: noqa: TID251
-from src.chat.utils.utils import is_mentioned_bot_in_message as is_mentioned_bot_in_message
-from src.chat.utils.utils import get_chat_type_and_target_info as get_chat_type_and_target_info
+# ── is_mentioned_bot_in_message / get_chat_type_and_target_info（从 src/chat/utils/utils.py 物理迁移）──
+# 迁移时间：SSD-4 T2.3
+# 原位置：src/chat/utils/utils.py
+
+def _has_at_component_targeting_bot(message: SessionMessage, platform: str) -> bool:
+    """检查消息中的结构化 @ 组件是否直接指向当前 bot。"""
+
+    raw_message = getattr(message, "raw_message", None)
+    for component in getattr(raw_message, "components", []) or []:
+        if isinstance(component, AtComponent) and is_bot_self(platform, component.target_user_id):
+            return True
+    return False
+
+
+def is_mentioned_bot_in_message(message: SessionMessage) -> tuple[bool, bool, float]:
+    """检查消息是否提到了机器人（统一多平台实现）"""
+    text = message.processed_plain_text or ""
+    platform = str(message.platform or "").strip().lower()
+
+    # 获取当前平台对应的账号
+    current_account = get_bot_account(platform)
+
+    nickname = str(global_config.bot.nickname or "")
+    alias_names = list(getattr(global_config.bot, "alias_names", []) or [])
+    keywords = [nickname] + alias_names
+
+    reply_probability = 0.0
+    is_at = False
+    is_mentioned = False
+
+    # 1) 直接的 additional_config 标记
+    add_cfg = getattr(message.message_info, "additional_config", None) or {}
+    if isinstance(add_cfg, dict):
+        if add_cfg.get("at_bot") or add_cfg.get("is_mentioned"):
+            is_mentioned = True
+            if add_cfg.get("at_bot"):
+                is_at = True
+            # 当提供数值型 is_mentioned 时，当作概率提升；布尔提及标记只负责标记命中。
+            raw_mention_boost = add_cfg.get("is_mentioned")
+            if raw_mention_boost not in (None, "") and not isinstance(raw_mention_boost, bool):
+                reply_probability = float(raw_mention_boost)
+
+    # 2) 已经在上游设置过的 message.is_at / message.is_mentioned
+    if getattr(message, "is_at", False):
+        is_at = True
+        is_mentioned = True
+    if getattr(message, "is_mentioned", False):
+        is_mentioned = True
+
+    # 3) 扫描分段：是否包含 mention_bot（适配器插入）
+    def _has_mention_bot(seg) -> bool:
+        try:
+            if seg is None:
+                return False
+            if getattr(seg, "type", None) == "mention_bot":
+                return True
+            if getattr(seg, "type", None) == "seglist":
+                for s in getattr(seg, "data", []) or []:
+                    if _has_mention_bot(s):
+                        return True
+            return False
+        except Exception:
+            return False
+
+    if _has_mention_bot(getattr(message, "message_segment", None)):
+        is_at = True
+        is_mentioned = True
+
+    # 4) 结构化 @ 组件检测。处理后的文本可能只剩群名片，不能依赖文本里的显示名判断。
+    if not is_at and _has_at_component_targeting_bot(message, platform):
+        is_at = True
+        is_mentioned = True
+
+    # 5) 统一的 @ 检测逻辑
+    if current_account and not is_at and not is_mentioned:
+        if platform == "qq":
+            # QQ 格式: @<name:qq_id>
+            if re.search(rf"@<(.+?):{re.escape(current_account)}>", text):
+                is_at = True
+                is_mentioned = True
+        else:
+            # 其他平台格式: @username 或 @account
+            if re.search(rf"@{re.escape(current_account)}(\b|$)", text, flags=re.IGNORECASE):
+                is_at = True
+                is_mentioned = True
+
+    # 6) 统一的回复检测逻辑
+    if not is_mentioned:
+        # 通用回复格式：包含 "(你)" 或 "（你）"
+        if re.search(r"\[回复 .*?\(你\)：", text) or re.search(r"\[回复 .*?（你）：", text):
+            is_mentioned = True
+        # ID 形式的回复检测
+        elif current_account:
+            if re.search(rf"\[回复 (.+?)\({re.escape(current_account)}\)：(.+?)\]，说：", text):
+                is_mentioned = True
+            elif re.search(
+                rf"\[回复<(.+?)(?=:{re.escape(current_account)}>)\:{re.escape(current_account)}>：(.+?)\]，说：", text
+            ):
+                is_mentioned = True
+
+    # 7) 名称/别名 提及（去除 @/回复标记后再匹配）
+    if not is_mentioned and keywords:
+        msg_content = text
+        # 去除各种 @ 与 回复标记，避免误判
+        msg_content = re.sub(r"@(.+?)（(\d+)）", "", msg_content)
+        msg_content = re.sub(r"@<(.+?)(?=:(\d+))\:(\d+)>", "", msg_content)
+        msg_content = re.sub(r"\[回复 (.+?)\(((\d+)|未知id|你)\)：(.+?)\]，说：", "", msg_content)
+        msg_content = re.sub(r"\[回复<(.+?)(?=:(\d+))\:(\d+)>：(.+?)\]，说：", "", msg_content)
+        for kw in keywords:
+            if kw and kw in msg_content:
+                is_mentioned = True
+                break
+
+    # 8) 概率设置
+    reply_timing_config = global_config.chat.reply_timing
+    if is_at and reply_timing_config.inevitable_at_reply:
+        reply_probability = 1.0
+        logger.debug("被@，回复概率设置为100%")
+    elif is_mentioned and reply_timing_config.mentioned_bot_reply:
+        reply_probability = max(reply_probability, 1.0)
+        logger.debug("被提及，回复概率设置为100%")
+
+    return is_mentioned, is_at, reply_probability
+
+
+async def get_embedding(text: str, request_type: str = "embedding") -> Optional[List[float]]:
+    """获取文本的嵌入向量。
+
+    Args:
+        text: 待编码的文本内容。
+        request_type: 当前请求的业务类型标识。
+
+    Returns:
+        Optional[List[float]]: 成功时返回嵌入向量，失败时返回 `None`。
+    """
+    embedding_client = EmbeddingServiceClient(task_name="embedding", request_type=request_type)
+    try:
+        embedding_result = await embedding_client.embed_text(text)
+        embedding = embedding_result.embedding
+    except Exception as e:
+        logger.error(f"获取embedding失败: {str(e)}")
+        embedding = None
+    return embedding
+
+
+def get_chat_type_and_target_info(chat_id: str) -> Tuple[bool, Optional["ChatTargetInfo"]]:
+    """
+    获取聊天类型（是否群聊）和私聊对象信息。
+
+    Args:
+        chat_id: 聊天流ID
+
+    Returns:
+        Tuple[bool, Optional[Dict]]:
+            - bool: 是否为群聊 (True 是群聊, False 是私聊或未知)
+            - Optional[Dict]: 如果是私聊，包含对方信息的字典；否则为 None。
+            字典包含: platform, user_id, user_nickname, person_id, person_name
+    """
+    is_group_chat = False  # Default to private/unknown
+    chat_target_info = None
+
+    try:
+        if chat_stream := get_session_info(chat_id):
+            if chat_stream.is_group_session:
+                is_group_chat = True
+                chat_target_info = None  # Explicitly None for group chat
+            elif chat_stream.user_id:  # It's a private chat
+                is_group_chat = False
+                platform: str = chat_stream.platform
+                user_id: str = chat_stream.user_id
+
+                # Try to get nickname from SessionInfo
+                user_nickname = chat_stream.user_nickname or None
+
+                from src.common.data_models.chat_target_info_data_model import ChatTargetInfo  # 解决循环导入问题
+
+                # Initialize target_info with basic info
+                target_info = ChatTargetInfo(
+                    platform=platform,
+                    user_id=user_id,
+                    session_nickname=user_nickname or "",
+                    person_id=None,
+                    person_name=None,
+                )
+
+                # Try to fetch person info
+                try:
+                    person = Person(platform=platform, user_id=user_id)
+                    if not person.is_known:
+                        logger.warning(f"用户 {user_nickname} 尚未认识")
+                        # 如果用户尚未认识，则返回False和None
+                        return False, None
+                    target_info.is_known = True
+                    if person.person_id:
+                        target_info.person_id = person.person_id
+                        target_info.person_name = person.person_name
+                except Exception as person_e:
+                    logger.warning(
+                        f"获取 person_id 或 person_name 时出错 for {platform}:{user_id} in utils: {person_e}"
+                    )
+
+                chat_target_info = target_info
+        else:
+            logger.warning(f"无法获取 chat_stream for {chat_id} in utils")
+    except Exception as e:
+        logger.error(f"获取聊天类型和目标信息时出错 for {chat_id}: {e}", exc_info=True)
+
+    return is_group_chat, chat_target_info
+
+

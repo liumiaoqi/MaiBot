@@ -903,3 +903,9 @@ def parse_keywords_string(keywords_input) -> list[str]:
 from src.maisaka.context.post_processor import process_llm_response  # noqa: F401
 from src.maisaka.context.post_processor import protect_kaomoji, recover_kaomoji  # noqa: F401
 from src.maisaka.context.post_processor import split_into_sentences_w_remove_punctuation  # noqa: F401
+
+
+# ── SSD-4 T2.3 re-export（实际定义已迁移到 src/core/message_utils.py）──
+from src.core.message_utils import is_mentioned_bot_in_message
+from src.core.message_utils import get_chat_type_and_target_info
+from src.core.message_utils import _has_at_component_targeting_bot

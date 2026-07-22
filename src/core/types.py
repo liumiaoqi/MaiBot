@@ -815,7 +815,7 @@ class MemoryNotFoundError(MemoryServiceError):
 # maisaka 应从 core.types 导入，不直接依赖 chat 层。
 # 后续架构演进将把 SessionMessage 物理迁移到 common 层。
 # ruff: noqa: TID251
-from src.chat.message_receive.message import SessionMessage as SessionMessage
+from src.common.data_models.session_message_data_model import SessionMessage as SessionMessage  # noqa: F401
 
 # ── 纯数据类型 re-export（真实定义在 common 层）────────────────
 from src.common.memory_types import (  # noqa: F401
