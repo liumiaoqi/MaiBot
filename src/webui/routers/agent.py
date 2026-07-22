@@ -920,8 +920,9 @@ async def get_agent_profile(observer_id: str, target_id: str):
     from src.maisaka.agent_interaction.memory.adapter import AgentMemoryAdapter
     from src.maisaka.agent_interaction.memory.profile import AgentProfileService
     from src.maisaka.agent_interaction.event_store import InteractionEventStore
+    from src.core.adapters.memory_service import AMemorixMemoryServicePort
 
-    adapter = AgentMemoryAdapter()
+    adapter = AgentMemoryAdapter(AMemorixMemoryServicePort())
     store = InteractionEventStore()
     service = AgentProfileService(adapter, store)
 

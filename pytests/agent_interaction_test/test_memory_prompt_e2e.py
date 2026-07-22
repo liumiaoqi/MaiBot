@@ -163,38 +163,38 @@ class TestAgentMemoryAdapter:
 
     @pytest.mark.asyncio
     async def test_write_interaction_memory(self):
-        with patch("src.maisaka.agent_interaction.memory.adapter.memory_service") as mock_svc:
-            mock_svc.ingest_text = AsyncMock(return_value=MemoryWriteResult(
-                success=True,
-                stored_ids=["mem1", "mem2"],
-            ))
+        mock_port = MagicMock()
+        mock_port.observe_experience = AsyncMock(return_value=MemoryWriteResult(
+            success=True,
+            stored_ids=["mem1", "mem2"],
+        ))
 
-            adapter = AgentMemoryAdapter()
-            result = await adapter.write_interaction_memory(
-                event_id="ie:test:1",
-                initiator_id="silver_wolf",
-                target_id="bronya",
-                content="愉快的聊天",
-                emotion_tag="positive",
-                interaction_type="emotion_driven",
-            )
+        adapter = AgentMemoryAdapter(mock_port)
+        result = await adapter.write_interaction_memory(
+            event_id="ie:test:1",
+            initiator_id="silver_wolf",
+            target_id="bronya",
+            content="愉快的聊天",
+            emotion_tag="positive",
+            interaction_type="emotion_driven",
+        )
 
-            assert result.success
-            assert mock_svc.ingest_text.call_count == 2
+        assert result.success
+        assert mock_port.observe_experience.call_count == 2
 
     @pytest.mark.asyncio
     async def test_search_interaction_memory(self):
-        with patch("src.maisaka.agent_interaction.memory.adapter.memory_service") as mock_svc:
-            mock_svc.search = AsyncMock(return_value=MemorySearchResult(
-                success=True,
-                hits=[MagicMock(content="测试记忆")],
-            ))
+        mock_port = MagicMock()
+        mock_port.search = AsyncMock(return_value=MemorySearchResult(
+            success=True,
+            hits=[MagicMock(content="测试记忆")],
+        ))
 
-            adapter = AgentMemoryAdapter()
-            result = await adapter.search_interaction_memory("silver_wolf", "bronya")
+        adapter = AgentMemoryAdapter(mock_port)
+        result = await adapter.search_interaction_memory("silver_wolf", "bronya")
 
-            assert result.success
-            mock_svc.search.assert_called_once()
-            call_kwargs = mock_svc.search.call_args
-            assert call_kwargs.kwargs.get("chat_id") == "agent_interaction:bronya:silver_wolf"
-            assert call_kwargs.kwargs.get("person_id") == "agent:silver_wolf"
+        assert result.success
+        mock_port.search.assert_called_once()
+        call_kwargs = mock_port.search.call_args
+        assert call_kwargs.kwargs.get("chat_id") == "agent_interaction:bronya:silver_wolf"
+        assert call_kwargs.kwargs.get("person_id") == "agent:silver_wolf"

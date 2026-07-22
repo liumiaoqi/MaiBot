@@ -91,6 +91,8 @@ class EmbeddingAPIAdapter:
         return self._model_config_port.get_provider(provider_name)
 
     def _resolve_candidate_model_names(self) -> List[str]:
+        if self._model_config_port is None:
+            return []
         task_cfg = self._model_config_port.get_task_config("embedding")
         configured = list(getattr(task_cfg, "model_list", []) or [])
         if self.model_name and self.model_name != "auto":

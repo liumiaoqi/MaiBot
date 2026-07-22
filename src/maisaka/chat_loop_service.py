@@ -779,9 +779,10 @@ class MaisakaChatLoopService:
             from src.maisaka.agent_interaction.memory.profile import AgentProfileService
             from src.maisaka.agent_interaction.memory.adapter import AgentMemoryAdapter
             from src.maisaka.agent_interaction.event_store import InteractionEventStore
+            from src.core.adapters.memory_service import AMemorixMemoryServicePort
             import asyncio
 
-            adapter = AgentMemoryAdapter()
+            adapter = AgentMemoryAdapter(AMemorixMemoryServicePort())
             store = InteractionEventStore()
             service = AgentProfileService(adapter, store)
 

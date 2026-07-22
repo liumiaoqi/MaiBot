@@ -57,7 +57,10 @@ class AMemorixPlugin(MaiBotPlugin):
 
     async def _get_kernel(self) -> SDKMemoryKernel:
         if self._kernel is None:
-            self._kernel = SDKMemoryKernel(plugin_root=self._plugin_root, config=self._plugin_config)
+            from src.A_memorix.host_service import a_memorix_host_service
+
+            ports = a_memorix_host_service._build_service_ports()
+            self._kernel = SDKMemoryKernel(plugin_root=self._plugin_root, config=self._plugin_config, ports=ports)
             await self._kernel.initialize()
             self._inject_session_info_port(self._kernel)
         return self._kernel

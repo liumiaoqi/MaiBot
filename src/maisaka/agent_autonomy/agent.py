@@ -80,8 +80,9 @@ class AutonomousAgent:
 
         try:
             from src.maisaka.agent_interaction.memory.adapter import AgentMemoryAdapter
+            from src.core.adapters.memory_service import AMemorixMemoryServicePort
 
-            self._memory_adapter = AgentMemoryAdapter()
+            self._memory_adapter = AgentMemoryAdapter(AMemorixMemoryServicePort())
         except Exception as exc:
             logger.warning("记忆适配器初始化失败: agent=%s error=%s", self._agent_id, exc)
 

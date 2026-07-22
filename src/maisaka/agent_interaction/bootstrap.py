@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 
 from src.config.config import global_config
+from src.core.protocols import MemoryServicePort
 from src.maisaka.agent_interaction.cooldown import InteractionCooldownManager
 from src.maisaka.agent_interaction.emotion_registry import AgentEmotionManagerRegistry
 from src.maisaka.agent_interaction.engine import InteractionEngine
@@ -39,7 +40,7 @@ from src.maisaka.agent_interaction.triggers import (
 logger = logging.getLogger(__name__)
 
 
-def build_interaction_scheduler() -> InteractionScheduler | None:
+def build_interaction_scheduler(memory_port: MemoryServicePort) -> InteractionScheduler | None:
     """根据配置组装并返回 InteractionScheduler 实例。
 
     若 agent_interaction.enabled 为 False，返回 None。
@@ -55,7 +56,7 @@ def build_interaction_scheduler() -> InteractionScheduler | None:
     relationship_manager = AgentRelationshipManager()
     cooldown_manager = InteractionCooldownManager()
     event_store = InteractionEventStore()
-    memory_adapter = AgentMemoryAdapter()
+    memory_adapter = AgentMemoryAdapter(memory_port)
 
     # 注册触发器
     trigger_registry = TriggerRegistry()
@@ -101,7 +102,7 @@ def build_interaction_scheduler() -> InteractionScheduler | None:
     return scheduler
 
 
-def build_monologue_engine() -> MonologueEngine | None:
+def build_monologue_engine(memory_port: MemoryServicePort) -> MonologueEngine | None:
     """根据配置组装并返回 MonologueEngine 实例。
 
     若 agent_interaction.monologue_enabled 为 False，返回 None。
@@ -117,7 +118,7 @@ def build_monologue_engine() -> MonologueEngine | None:
         emotion_intensity_threshold=cfg.monologue_emotion_intensity_threshold,
         min_interval_minutes=cfg.monologue_min_interval_minutes,
     )
-    memory_adapter = AgentMemoryAdapter()
+    memory_adapter = AgentMemoryAdapter(memory_port)
 
     return MonologueEngine(
         emotion_registry=emotion_registry,
