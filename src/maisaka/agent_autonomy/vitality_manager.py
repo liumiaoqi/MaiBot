@@ -84,9 +84,9 @@ class VitalityManager:
         管家智能体（is_butler=True）始终活跃，不进入待命。
         """
         try:
-            from src.maisaka.agent.registry import AgentConfigRegistry
+            from src.core.adapters.agent_config_port import get_agent_config_provider
 
-            all_registered = frozenset(a.agent_id for a in AgentConfigRegistry.get_instance().list_agents())
+            all_registered = frozenset(a.agent_id for a in get_agent_config_provider().list_agents())
 
             active_ids = set(self._orchestrator._active_agents.keys())
             standby_ids = {
@@ -95,7 +95,7 @@ class VitalityManager:
 
             for agent_id in all_registered:
                 # 管家智能体始终 active，检查要优先于 active/standby 判断
-                agent_cfg = AgentConfigRegistry.get_instance().get_agent(agent_id)
+                agent_cfg = get_agent_config_provider().get_agent(agent_id)
                 if agent_cfg and getattr(agent_cfg, "is_butler", False):
                     if agent_id not in active_ids:
                         self._orchestrator.restore_agent(agent_id, is_primary=False)

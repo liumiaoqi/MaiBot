@@ -126,9 +126,9 @@ class ConsolidationScheduler:
         tasks: list[ConsolidationTask] = []
 
         try:
-            from src.maisaka.agent.registry import AgentConfigRegistry
+            from src.core.adapters.agent_config_port import get_agent_config_provider
 
-            registry = AgentConfigRegistry.get_instance()
+            registry = get_agent_config_provider()
             agents = registry.list_agents()
 
             for agent_config in agents:

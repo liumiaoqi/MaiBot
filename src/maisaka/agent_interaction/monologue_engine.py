@@ -17,7 +17,7 @@ from src.common.database.database import get_db_session
 from src.common.database.database_model import InnerMonologueEvent as MonologueTable
 from src.maisaka.agent.config import AgentConfig
 from src.maisaka.agent.emotion import EmotionState
-from src.maisaka.agent.registry import AgentConfigRegistry
+from src.core.adapters.agent_config_port import get_agent_config_provider
 from src.maisaka.agent_interaction.emotion_registry import AgentEmotionManagerRegistry
 from src.maisaka.agent_interaction.memory.adapter import AgentMemoryAdapter
 from src.maisaka.agent_interaction.monologue_trigger import MonologueTrigger
@@ -83,7 +83,7 @@ class MonologueEngine:
         self._emotion_registry = emotion_registry
         self._monologue_trigger = monologue_trigger
         self._memory_adapter = memory_adapter
-        self._config_registry = AgentConfigRegistry.get_instance()
+        self._config_registry = get_agent_config_provider()
 
     async def execute(self, agent_id: str) -> MonologueResult:
         """执行内心独白。"""

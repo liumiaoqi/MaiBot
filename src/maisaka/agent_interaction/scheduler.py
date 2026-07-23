@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from src.maisaka.agent.registry import AgentConfigRegistry
+from src.core.adapters.agent_config_port import get_agent_config_provider
 from src.maisaka.agent_interaction.trigger_scheduler import InteractionTrigger
 
 logger = logging.getLogger(__name__)
@@ -31,7 +31,7 @@ class InteractionScheduler:
     ) -> None:
         self._trigger = trigger
         self._interval = evaluation_interval_seconds
-        self._config_registry = AgentConfigRegistry.get_instance()
+        self._config_registry = get_agent_config_provider()
         self._task: asyncio.Task | None = None
         self._running = False
 

@@ -11,7 +11,7 @@ from src.common.database.database_model import AgentRelationship, ChatSession, S
 from src.common.logger import get_logger
 from src.maisaka.agent.config import AgentConfig
 from src.maisaka.agent.emotion import EMOTION_LABELS_ZH, EmotionManager
-from src.maisaka.agent.registry import AgentConfigRegistry
+from src.core.adapters.agent_config_port import get_agent_config_provider
 
 from src.core.adapters.routing_adapter import ChatManagerRoutingAdapter
 from src.maisaka.relationship.level import RelationshipLevel
@@ -85,8 +85,8 @@ logger = get_logger("webui.agent")
 router = APIRouter(prefix="/agents", tags=["Agent"], dependencies=[Depends(require_auth)])
 
 
-def _get_registry() -> AgentConfigRegistry:
-    return AgentConfigRegistry.get_instance()
+def _get_registry() -> Any:
+    return get_agent_config_provider()
 
 def _get_agent_router() -> ChatManagerRoutingAdapter:
     """获取 ChatManager 持有的智能体路由器单例（通过适配器层访问）"""
@@ -1387,9 +1387,9 @@ def _parse_autonomy_log(entry: dict, event: str) -> Optional[AutonomyLogItem]:
 async def get_session_vitality(session_id: str):
     """查询会话智能体生命力状态（三态分类）。"""
     from src.maisaka.agent_autonomy.orchestrator import AgentOrchestrator
-    from src.maisaka.agent.registry import AgentConfigRegistry
+    from src.core.adapters.agent_config_port import get_agent_config_provider
 
-    registry = AgentConfigRegistry()
+    registry = get_agent_config_provider()
     orch = AgentOrchestrator.get_by_session(session_id)
 
     active_items: list[VitalityAgentItem] = []

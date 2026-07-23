@@ -92,9 +92,9 @@ class TokenBudgetManager:
         try:
             budget_ratio = 1.0
             try:
-                from src.maisaka.agent.registry import AgentConfigRegistry
+                from src.core.adapters.agent_config_port import get_agent_config_provider
 
-                registry = AgentConfigRegistry.get_instance()
+                registry = get_agent_config_provider()
                 if registry.has_agent(agent_id):
                     budget_ratio = registry.get_agent(agent_id).deepseek.token_budget_ratio
             except Exception:

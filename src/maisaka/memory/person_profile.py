@@ -37,9 +37,9 @@ class PersonProfileCandidate:
 def _filter_profile_by_agent_focus(profile_text: str, agent_id: str) -> str:
     """根据智能体记忆焦点领域过滤画像段落，保留相关内容。"""
     try:
-        from src.maisaka.agent.registry import AgentConfigRegistry
+        from src.core.adapters.agent_config_port import get_agent_config_provider
 
-        registry = AgentConfigRegistry.get_instance()
+        registry = get_agent_config_provider()
         if not registry.has_agent(agent_id):
             return profile_text
         focus_areas = registry.get_agent(agent_id).memory_focus_areas

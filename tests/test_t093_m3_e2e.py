@@ -54,10 +54,11 @@ async def verify_all() -> dict[str, bool]:
     print("\n--- 场景②: WebUI 可管理13个智能体 ---")
     try:
         from src.maisaka.agent.registry import AgentConfigRegistry
+        from src.core.adapters.agent_config_port import AgentConfigProviderAdapter
         from src.maisaka.agent.emotion import EmotionManager
         from src.maisaka.relationship.manager import RelationshipManager
 
-        registry = AgentConfigRegistry()
+        registry = AgentConfigProviderAdapter(AgentConfigRegistry())
         agents = registry.list_agents()
         assert len(agents) == 13, f"智能体数量: {len(agents)}"
 
@@ -85,6 +86,7 @@ async def verify_all() -> dict[str, bool]:
         snapshot_before = tracemalloc.take_snapshot()
 
         from src.maisaka.agent.registry import AgentConfigRegistry
+        from src.core.adapters.agent_config_port import AgentConfigProviderAdapter
         from src.maisaka.agent.emotion import EmotionManager
         from src.maisaka.deepseek.budget import TokenBudgetManager
         from src.maisaka.deepseek.prefix_cache import PrefixCacheManager
@@ -92,7 +94,7 @@ async def verify_all() -> dict[str, bool]:
         from src.maisaka.goal.manager import GoalManager
         from src.maisaka.consolidation.scheduler import ConsolidationScheduler
 
-        registry = AgentConfigRegistry()
+        registry = AgentConfigProviderAdapter(AgentConfigRegistry())
         agents = registry.list_agents()
 
         for a in agents:
@@ -116,10 +118,11 @@ async def verify_all() -> dict[str, bool]:
     print("\n--- 场景④: 情绪/关系计算 <100ms ---")
     try:
         from src.maisaka.agent.registry import AgentConfigRegistry
+        from src.core.adapters.agent_config_port import AgentConfigProviderAdapter
         from src.maisaka.agent.emotion import EmotionManager
         from src.maisaka.relationship.manager import RelationshipManager
 
-        registry = AgentConfigRegistry()
+        registry = AgentConfigProviderAdapter(AgentConfigRegistry())
         agents = registry.list_agents()
 
         max_emotion_ms = 0.0

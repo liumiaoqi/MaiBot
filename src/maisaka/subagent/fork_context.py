@@ -151,8 +151,8 @@ class ForkContextCapturer:
             if session_info is None:
                 return []
 
-            from src.maisaka.agent.registry import AgentConfigRegistry
-            registry = AgentConfigRegistry.get_instance()
+            from src.core.adapters.agent_config_port import get_agent_config_provider
+            registry = get_agent_config_provider()
             agent_id = getattr(session_info, "primary_agent_id", "")
             if not agent_id or not registry.has_agent(agent_id):
                 return []
@@ -169,9 +169,9 @@ class ForkContextCapturer:
             return {}
 
         try:
-            from src.maisaka.agent.registry import AgentConfigRegistry
+            from src.core.adapters.agent_config_port import get_agent_config_provider
 
-            registry = AgentConfigRegistry.get_instance()
+            registry = get_agent_config_provider()
             if not registry.has_agent(agent_id):
                 return {}
 
@@ -192,9 +192,9 @@ class ForkContextCapturer:
             return PermissionRuleset()
 
         try:
-            from src.maisaka.agent.registry import AgentConfigRegistry
+            from src.core.adapters.agent_config_port import get_agent_config_provider
 
-            registry = AgentConfigRegistry.get_instance()
+            registry = get_agent_config_provider()
             if not registry.has_agent(agent_id):
                 return PermissionRuleset()
 

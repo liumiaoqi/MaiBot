@@ -10,7 +10,7 @@ import logging
 
 from src.maisaka.agent.config import AgentConfig
 
-from src.maisaka.agent.registry import AgentConfigRegistry
+from src.core.adapters.agent_config_port import get_agent_config_provider
 from src.maisaka.agent_interaction.cooldown import InteractionCooldownManager, build_agent_pair_key
 from src.maisaka.agent_interaction.emotion_registry import AgentEmotionManagerRegistry
 from src.maisaka.agent_interaction.engine import InteractionEngine, InteractionResult
@@ -56,7 +56,7 @@ class InteractionTrigger:
         self._cooldown_manager = cooldown_manager
         self._trigger_registry = trigger_registry or TriggerRegistry()
         self._trigger_threshold = trigger_threshold
-        self._config_registry = AgentConfigRegistry.get_instance()
+        self._config_registry = get_agent_config_provider()
         self._time_service = TimeAwarenessService()
 
     @property

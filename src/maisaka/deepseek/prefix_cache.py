@@ -124,9 +124,9 @@ class PrefixCacheManager:
     def is_prefix_cache_enabled(self, agent_id: str) -> bool:
         """检查智能体是否启用前缀缓存。"""
         try:
-            from src.maisaka.agent.registry import AgentConfigRegistry
+            from src.core.adapters.agent_config_port import get_agent_config_provider
 
-            registry = AgentConfigRegistry.get_instance()
+            registry = get_agent_config_provider()
             if registry.has_agent(agent_id):
                 return registry.get_agent(agent_id).deepseek.prefix_cache_enabled
         except Exception:

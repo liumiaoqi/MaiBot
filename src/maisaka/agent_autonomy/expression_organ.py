@@ -62,9 +62,9 @@ class ExpressionOrgan:
         if self._agent_display_name is not None:
             return self._agent_display_name
         try:
-            from src.maisaka.agent.registry import AgentConfigRegistry
+            from src.core.adapters.agent_config_port import get_agent_config_provider
 
-            registry = AgentConfigRegistry.get_instance()
+            registry = get_agent_config_provider()
             if registry.has_agent(self._agent_id):
                 agent_config = registry.get_agent(self._agent_id)
                 self._agent_display_name = agent_config.display_name or self._agent_id

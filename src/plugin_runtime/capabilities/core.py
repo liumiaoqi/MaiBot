@@ -733,9 +733,9 @@ class RuntimeCoreCapabilityMixin:
             return {"success": False, "error": "缺少必要参数 agent_id"}
 
         try:
-            from src.maisaka.agent.registry import AgentConfigRegistry
+            from src.core.adapters.agent_config_port import get_agent_config_provider
 
-            registry = AgentConfigRegistry()
+            registry = get_agent_config_provider()
             if not registry.has_agent(agent_id):
                 return {"success": False, "error": f"未找到智能体: {agent_id}"}
 

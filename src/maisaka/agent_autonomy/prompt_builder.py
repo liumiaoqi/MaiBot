@@ -87,9 +87,9 @@ class EmbodiedPlannerPromptBuilder:
         动态数据源优先：如果注册了 identity_provider 且返回非 None，
         则使用动态数据源替换默认的 identity_prompt。
         """
-        from src.maisaka.agent.registry import AgentConfigRegistry
+        from src.core.adapters.agent_config_port import get_agent_config_provider
 
-        registry = AgentConfigRegistry.get_instance()
+        registry = get_agent_config_provider()
         agent_config = registry.get_agent(self._agent_id)
 
         # 动态数据源优先
@@ -228,9 +228,9 @@ class EmbodiedPlannerPromptBuilder:
     def _get_agent_display_name(self) -> str:
         """获取智能体的显示名称。"""
         try:
-            from src.maisaka.agent.registry import AgentConfigRegistry
+            from src.core.adapters.agent_config_port import get_agent_config_provider
 
-            registry = AgentConfigRegistry.get_instance()
+            registry = get_agent_config_provider()
             if registry.has_agent(self._agent_id):
                 agent_config = registry.get_agent(self._agent_id)
                 return agent_config.display_name or self._agent_id

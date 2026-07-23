@@ -21,7 +21,7 @@ from sqlmodel import select
 from src.common.database.database import _DB_FILE, get_db_session
 from src.common.database.database_model import AgentRelationship, ChatSession, PersonInfo
 from src.common.logger import get_logger
-from src.maisaka.agent.registry import AgentConfigRegistry
+from src.core.adapters.agent_config_port import get_agent_config_provider
 from src.maisaka.relationship.level import RelationshipLevel
 
 logger = get_logger("data_migration")
@@ -69,7 +69,7 @@ class DataMigrationTool:
     def _resolve_default_agent(self) -> None:
         """从 AgentConfigRegistry 获取默认智能体ID。"""
         try:
-            registry = AgentConfigRegistry()
+            registry = get_agent_config_provider()
             default = registry.get_default_agent()
             self._default_agent_id = default.agent_id
         except Exception:

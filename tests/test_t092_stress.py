@@ -55,8 +55,9 @@ class StressTestReport:
 def _get_all_agent_ids() -> list[str]:
     """获取全部13个智能体ID。"""
     from src.maisaka.agent.registry import AgentConfigRegistry
+    from src.core.adapters.agent_config_port import AgentConfigProviderAdapter
 
-    registry = AgentConfigRegistry()
+    registry = AgentConfigProviderAdapter(AgentConfigRegistry())
     return [a.agent_id for a in registry.list_agents()]
 
 
@@ -69,11 +70,12 @@ def benchmark_memory() -> BenchmarkResult:
     snapshot_before = tracemalloc.take_snapshot()
 
     from src.maisaka.agent.registry import AgentConfigRegistry
+    from src.core.adapters.agent_config_port import AgentConfigProviderAdapter
     from src.maisaka.agent.emotion import EmotionManager
     from src.maisaka.deepseek.budget import TokenBudgetManager
     from src.maisaka.deepseek.prefix_cache import PrefixCacheManager
 
-    registry = AgentConfigRegistry()
+    registry = AgentConfigProviderAdapter(AgentConfigRegistry())
     agents = registry.list_agents()
 
     emotion_managers: dict[str, EmotionManager] = {}
@@ -114,9 +116,10 @@ def benchmark_memory() -> BenchmarkResult:
 def benchmark_emotion_computation() -> BenchmarkResult:
     """测试情绪状态计算延迟 <100ms。"""
     from src.maisaka.agent.registry import AgentConfigRegistry
+    from src.core.adapters.agent_config_port import AgentConfigProviderAdapter
     from src.maisaka.agent.emotion import EmotionManager
 
-    registry = AgentConfigRegistry()
+    registry = AgentConfigProviderAdapter(AgentConfigRegistry())
     agents = registry.list_agents()
 
     max_ms = 0.0
@@ -203,9 +206,10 @@ def benchmark_budget_allocation() -> BenchmarkResult:
 def benchmark_prefix_cache() -> BenchmarkResult:
     """测试13个智能体前缀缓存构建延迟。"""
     from src.maisaka.agent.registry import AgentConfigRegistry
+    from src.core.adapters.agent_config_port import AgentConfigProviderAdapter
     from src.maisaka.deepseek.prefix_cache import PrefixCacheManager
 
-    registry = AgentConfigRegistry()
+    registry = AgentConfigProviderAdapter(AgentConfigRegistry())
     agents = registry.list_agents()
     cache_mgr = PrefixCacheManager()
 
@@ -237,8 +241,9 @@ def benchmark_config_loading() -> BenchmarkResult:
     """测试智能体配置加载延迟。"""
     start = time.perf_counter()
     from src.maisaka.agent.registry import AgentConfigRegistry
+    from src.core.adapters.agent_config_port import AgentConfigProviderAdapter
 
-    registry = AgentConfigRegistry()
+    registry = AgentConfigProviderAdapter(AgentConfigRegistry())
     agents = registry.list_agents()
     for a in agents:
         _ = a.identity_prompt

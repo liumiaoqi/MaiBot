@@ -261,14 +261,14 @@ class MainSystem:
         from src.chat.message_receive.binding_restorer import BindingRestorer
         from src.chat.message_receive.session_lifecycle import SessionLifecycle
         from src.maisaka.agent.router import AgentRouter
-        from src.maisaka.agent.registry import AgentConfigRegistry
+        from src.core.adapters.agent_config_port import get_agent_config_provider
 
         self._session_store = SessionStore()
         self._message_registry = MessageRegistry(self._session_store)
         self._session_store.set_message_registry(self._message_registry)
         self._name_cache = SessionNameCache(self._session_store)
         self._resolver = SessionResolver(self._session_store)
-        agent_router = AgentRouter(AgentConfigRegistry())
+        agent_router = AgentRouter(get_agent_config_provider())
         self._binding_restorer = BindingRestorer(agent_router)
         self._session_lifecycle = SessionLifecycle(self._session_store, self._message_registry, agent_router)
         self._agent_router = agent_router
@@ -332,6 +332,9 @@ class MainSystem:
 
         self._agent_registry = AgentConfigRegistry.get_instance()
         self._agent_registry.load()
+
+        from src.core.adapters.agent_config_port import AgentConfigProviderAdapter, set_agent_config_provider
+        set_agent_config_provider(AgentConfigProviderAdapter(self._agent_registry))
 
     async def _init_model_config_port(self) -> None:
         from src.A_memorix.host_service import a_memorix_host_service

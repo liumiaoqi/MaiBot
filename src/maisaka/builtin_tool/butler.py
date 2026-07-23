@@ -20,8 +20,8 @@ def _is_butler_agent(ctx: BuiltinToolRuntimeContext) -> bool:
         orch = ctx.runtime._agent_orchestrator
         if orch is None:
             return False
-        from src.maisaka.agent.registry import AgentConfigRegistry
-        registry = AgentConfigRegistry.get_instance()
+        from src.core.adapters.agent_config_port import get_agent_config_provider
+        registry = get_agent_config_provider()
         if not registry.has_agent(ctx.agent_id):
             return False
         agent_cfg = registry.get_agent(ctx.agent_id)

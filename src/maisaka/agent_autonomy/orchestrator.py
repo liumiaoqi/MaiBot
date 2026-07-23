@@ -1209,9 +1209,9 @@ class AgentOrchestrator:
             return
 
         try:
-            from src.maisaka.agent.registry import AgentConfigRegistry
+            from src.core.adapters.agent_config_port import get_agent_config_provider
 
-            registry = AgentConfigRegistry.get_instance()
+            registry = get_agent_config_provider()
             for agent in registry.list_agents():
                 if agent.agent_id == speaker_agent_id:
                     continue

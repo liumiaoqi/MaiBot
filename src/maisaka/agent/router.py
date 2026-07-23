@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from src.core.protocols import AgentConfigProvider
 
 from .config import AgentConfig
-from .registry import AgentConfigRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +18,7 @@ class AgentRouter:
     第一个绑定的智能体为主发言智能体。
     """
 
-    def __init__(self, registry: AgentConfigRegistry) -> None:
+    def __init__(self, registry: AgentConfigProvider) -> None:
         self._registry = registry
         self._session_bindings: dict[str, set[str]] = {}
         self._primary_order: dict[str, list[str]] = {}

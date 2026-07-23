@@ -4,7 +4,7 @@ from rich.traceback import install
 
 from src.common.logger import get_logger
 from src.common.utils.utils_session import SessionUtils
-from src.maisaka.agent.registry import AgentConfigRegistry
+from src.core.adapters.agent_config_port import get_agent_config_provider
 from src.maisaka.agent.router import AgentRouter
 
 from .binding_restorer import BindingRestorer
@@ -54,7 +54,7 @@ class ChatManager:
     def _ensure_agent_router(self) -> AgentRouter:
         """延迟初始化智能体路由器"""
         if self._agent_router is None:
-            registry = AgentConfigRegistry()
+            registry = get_agent_config_provider()
             self._agent_router = AgentRouter(registry)
         return self._agent_router
 

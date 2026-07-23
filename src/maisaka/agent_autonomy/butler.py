@@ -20,7 +20,7 @@ from typing import Any, Optional
 
 from src.common.logger import get_logger
 from src.maisaka.agent.config import AgentConfig, InternalRelationship
-from src.maisaka.agent.registry import AgentConfigRegistry
+from src.core.adapters.agent_config_port import get_agent_config_provider
 from src.maisaka.agent_autonomy.reminder import ReminderManager, Reminder
 from src.maisaka.agent_autonomy.speaker_transfer import (
     ButlerConfig,
@@ -98,8 +98,8 @@ class Butler:
         self._load_agents()
 
     def _load_agents(self) -> None:
-        """从 AgentConfigRegistry 加载智能体信息，含管家配置。"""
-        registry = AgentConfigRegistry.get_instance()
+        """加载智能体信息，含管家配置。"""
+        registry = get_agent_config_provider()
         agents = registry.list_agents()
 
         for agent in agents:

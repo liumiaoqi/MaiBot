@@ -115,9 +115,9 @@ class AmbientAwarenessProcessor:
         if not content:
             return False
 
-        from src.maisaka.agent.registry import AgentConfigRegistry
+        from src.core.adapters.agent_config_port import get_agent_config_provider
 
-        registry = AgentConfigRegistry.get_instance()
+        registry = get_agent_config_provider()
         if registry is None:
             return False
 
@@ -138,9 +138,9 @@ class AmbientAwarenessProcessor:
         if not content:
             return []
 
-        from src.maisaka.agent.registry import AgentConfigRegistry
+        from src.core.adapters.agent_config_port import get_agent_config_provider
 
-        registry = AgentConfigRegistry.get_instance()
+        registry = get_agent_config_provider()
         if registry is None:
             return []
 

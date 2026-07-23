@@ -52,9 +52,9 @@ class AutonomousAgent:
     def _init_components(self) -> None:
         """初始化智能体的各个组件。"""
         try:
-            from src.maisaka.agent.registry import AgentConfigRegistry
+            from src.core.adapters.agent_config_port import get_agent_config_provider
 
-            registry = AgentConfigRegistry.get_instance()
+            registry = get_agent_config_provider()
             if registry.has_agent(self._agent_id):
                 self._agent_config = registry.get_agent(self._agent_id)
         except Exception as exc:
@@ -160,11 +160,11 @@ class AutonomousAgent:
         return None
 
     def refresh_config(self) -> None:
-        """从 AgentConfigRegistry 重新加载配置。"""
+        """重新加载智能体配置。"""
         try:
-            from src.maisaka.agent.registry import AgentConfigRegistry
+            from src.core.adapters.agent_config_port import get_agent_config_provider
 
-            registry = AgentConfigRegistry.get_instance()
+            registry = get_agent_config_provider()
             if registry.has_agent(self._agent_id):
                 self._agent_config = registry.get_agent(self._agent_id)
                 if self._inner_world is not None and self._agent_config is not None:

@@ -36,7 +36,7 @@ from src.common.utils.utils_config import (
     JargonConfigUtils,
 )
 from src.config.config import BOT_CONFIG_PATH, config_manager, global_config
-from src.maisaka.agent.registry import AgentConfigRegistry
+from src.core.adapters.agent_config_port import get_agent_config_provider
 from src.webui.dependencies import require_auth
 from src.webui.utils.toml_utils import save_toml_with_format
 
@@ -262,7 +262,7 @@ def _build_agent_info_map(chat_sessions: List[ChatSession]) -> Dict[str, Dict[st
     """批量查询智能体信息，返回 agent_id → {display_name, color} 映射。"""
     unique_agent_ids = {cs.agent_id or "silver_wolf" for cs in chat_sessions}
     try:
-        registry = AgentConfigRegistry()
+        registry = get_agent_config_provider()
         registry.load()
         result: Dict[str, Dict[str, str]] = {}
         for aid in unique_agent_ids:

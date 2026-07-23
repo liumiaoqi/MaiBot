@@ -17,7 +17,8 @@ if TYPE_CHECKING:
     from src.config.config import ModelConfig
     from src.config.model_configs import APIProvider, ModelInfo, TaskConfig
     from src.common.memory_types import ProfileView, RecallItem, RecallResult, ReflectResult
-    from src.core.types import AgentConfig, MemorySearchResult, MemoryWriteResult, NoticeKind, ObserveRequest, SendMessageResult, SessionInfo, ThinkContext, ThinkResult
+    from src.maisaka.agent.config import AgentConfig
+    from src.core.types import MemorySearchResult, MemoryWriteResult, NoticeKind, ObserveRequest, SendMessageResult, SessionInfo, ThinkContext, ThinkResult
 
 
 @runtime_checkable
@@ -764,3 +765,36 @@ class ImageDescriptionPort(Protocol):
         wait_for_build: bool = True,
     ) -> str:
         """获取图片描述文本。"""
+
+
+@runtime_checkable
+class AgentConfigProvider(Protocol):
+    """智能体配置查询接口 — 核心通过此接口访问智能体配置，不直接依赖 AgentConfigRegistry。"""
+
+    def get_agent(self, agent_id: str) -> AgentConfig:
+        """获取指定智能体配置。"""
+        ...
+
+    def list_agents(self) -> list[AgentConfig]:
+        """返回所有已加载智能体配置列表。"""
+        ...
+
+    def get_default_agent(self) -> AgentConfig:
+        """返回默认智能体配置。"""
+        ...
+
+    def has_agent(self, agent_id: str) -> bool:
+        """检查智能体是否存在。"""
+        ...
+
+    def reload(self) -> None:
+        """全量重载所有智能体配置。"""
+        ...
+
+    def reload_agent(self, agent_id: str) -> bool:
+        """重载指定智能体配置，不存在或失败返回 False。"""
+        ...
+
+    def load(self) -> None:
+        """懒加载：首次查询时自动触发。"""
+        ...

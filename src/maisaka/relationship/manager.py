@@ -207,9 +207,9 @@ class RelationshipManager:
     def _get_growth_rate(agent_id: str) -> float:
         """获取智能体的关系进展速率。"""
         try:
-            from src.maisaka.agent.registry import AgentConfigRegistry
+            from src.core.adapters.agent_config_port import get_agent_config_provider
 
-            registry = AgentConfigRegistry.get_instance()
+            registry = get_agent_config_provider()
             if registry.has_agent(agent_id):
                 return registry.get_agent(agent_id).relationship_growth_rate
         except Exception:

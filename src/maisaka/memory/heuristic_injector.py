@@ -297,9 +297,9 @@ class HeuristicMemoryInjector:
             return hits
 
         try:
-            from src.maisaka.agent.registry import AgentConfigRegistry
+            from src.core.adapters.agent_config_port import get_agent_config_provider
 
-            registry = AgentConfigRegistry.get_instance()
+            registry = get_agent_config_provider()
             if not registry.has_agent(context.agent_id):
                 return hits
             focus_areas = registry.get_agent(context.agent_id).memory_focus_areas

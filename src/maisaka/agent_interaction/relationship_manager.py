@@ -5,7 +5,7 @@ from sqlalchemy import select
 from src.common.database.database import get_db_session
 from src.common.database.database_model import AgentInteractionRelationship as AIRTable
 
-from src.maisaka.agent.registry import AgentConfigRegistry
+from src.core.adapters.agent_config_port import get_agent_config_provider
 from src.maisaka.agent_interaction.models import AgentInteractionRelationshipRead
 
 
@@ -28,7 +28,7 @@ class AgentRelationshipManager:
     """智能体间交互关系管理"""
 
     def __init__(self) -> None:
-        self._registry = AgentConfigRegistry.get_instance()
+        self._registry = get_agent_config_provider()
 
     async def initialize_from_config(self) -> None:
         agents = self._registry.list_agents()

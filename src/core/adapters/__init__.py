@@ -4,6 +4,7 @@
 核心模块只依赖 Protocol，不直接导入组件。
 """
 
+from src.core.adapters.agent_config_port import get_agent_config_provider, reset_agent_config_provider  # noqa: F401
 from src.core.adapters.chat_manager_adapter import ChatManagerAdapter
 from src.core.adapters.memory_service import get_memory_service_port, reset_memory_service_port  # noqa: F401
 from src.core.adapters.notice_classifier import NapCatNoticeClassifier
@@ -15,5 +16,7 @@ __all__ = [
     "ChatManagerAdapter",
     "ChatManagerRoutingAdapter",
     "HeartflowRuntimeRegistry",
+    "get_agent_config_provider",
+    "reset_agent_config_provider",
     "NapCatNoticeClassifier",
 ]

@@ -3,7 +3,7 @@ from sqlmodel import select
 from src.common.database.database import get_db_session
 from src.common.database.database_model import AgentAutonomyActivity, ChatSession
 from src.common.logger import get_logger
-from src.maisaka.agent.registry import AgentConfigRegistry
+from src.core.adapters.agent_config_port import get_agent_config_provider
 from src.maisaka.agent.router import AgentRouter
 
 logger = get_logger("binding_restorer")
@@ -22,7 +22,7 @@ class BindingRestorer:
         1. 从 ChatSession.agent_id 恢复主发言智能体
         2. 从 AgentAutonomyActivity 恢复所有共居智能体（含手动绑定）
         """
-        registry = AgentConfigRegistry()
+        registry = get_agent_config_provider()
         restored = 0
         skipped = 0
 

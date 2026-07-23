@@ -81,8 +81,8 @@ class SessionRecoveryService:
 
                 for record in records:
                     # 管家智能体恢复为 active（始终活跃），其他智能体进入 standby
-                    from src.maisaka.agent.registry import AgentConfigRegistry
-                    registry = AgentConfigRegistry.get_instance()
+                    from src.core.adapters.agent_config_port import get_agent_config_provider
+                    registry = get_agent_config_provider()
                     agent_cfg = registry.get_agent(record.agent_id) if registry.has_agent(record.agent_id) else None
                     is_butler = bool(getattr(agent_cfg, "is_butler", False)) if agent_cfg else False
 

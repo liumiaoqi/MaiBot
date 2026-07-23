@@ -123,9 +123,9 @@ class TopicRelevanceIntentSource(BaseIntentSource):
             return intents
 
         try:
-            from src.maisaka.agent.registry import AgentConfigRegistry
+            from src.core.adapters.agent_config_port import get_agent_config_provider
 
-            registry = AgentConfigRegistry.get_instance()
+            registry = get_agent_config_provider()
             if not registry.has_agent(agent_id):
                 return intents
             agent_config = registry.get_agent(agent_id)
@@ -169,9 +169,9 @@ class RelationshipIntentSource(BaseIntentSource):
             return intents
 
         try:
-            from src.maisaka.agent.registry import AgentConfigRegistry
+            from src.core.adapters.agent_config_port import get_agent_config_provider
 
-            registry = AgentConfigRegistry.get_instance()
+            registry = get_agent_config_provider()
             if not registry.has_agent(agent_id):
                 return intents
             agent_config = registry.get_agent(agent_id)

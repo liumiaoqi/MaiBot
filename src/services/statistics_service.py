@@ -9,7 +9,7 @@ from src.common.database.database_model import ChatSession, Messages, ModelUsage
 from src.common.logger import get_logger
 from src.common.message_repository import count_messages
 from src.manager.local_store_manager import local_storage
-from src.maisaka.agent.registry import AgentConfigRegistry
+from src.core.adapters.agent_config_port import get_agent_config_provider
 from src.webui.schemas.statistics import AgentStatsInfo, DashboardData, ModelStatistics, StatisticsSummary, TimeSeriesData
 
 logger = get_logger("statistics_service")
@@ -224,7 +224,7 @@ def _is_empty_time_series_item(item: Any) -> bool:
 def _compute_agent_stats() -> AgentStatsInfo:
     """计算智能体统计信息。"""
     try:
-        registry = AgentConfigRegistry()
+        registry = get_agent_config_provider()
         registry.load()
         all_agents = registry.list_agents()
         total_agents = len(all_agents)

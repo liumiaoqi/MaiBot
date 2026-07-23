@@ -74,9 +74,9 @@ class ModelScheduler:
     def _get_agent_preference(agent_id: str) -> str:
         """获取智能体的模型调度偏好。"""
         try:
-            from src.maisaka.agent.registry import AgentConfigRegistry
+            from src.core.adapters.agent_config_port import get_agent_config_provider
 
-            registry = AgentConfigRegistry.get_instance()
+            registry = get_agent_config_provider()
             if registry.has_agent(agent_id):
                 return registry.get_agent(agent_id).deepseek.model_scheduling_preference
         except Exception:

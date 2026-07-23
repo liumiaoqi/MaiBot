@@ -64,9 +64,9 @@ class DeepSeekOptimizer:
             return False
 
         try:
-            from src.maisaka.agent.registry import AgentConfigRegistry
+            from src.core.adapters.agent_config_port import get_agent_config_provider
 
-            registry = AgentConfigRegistry.get_instance()
+            registry = get_agent_config_provider()
             if registry.has_agent(agent_id):
                 return registry.get_agent(agent_id).deepseek.enabled
         except Exception:
@@ -87,9 +87,9 @@ class DeepSeekOptimizer:
             return "lean"
 
         try:
-            from src.maisaka.agent.registry import AgentConfigRegistry
+            from src.core.adapters.agent_config_port import get_agent_config_provider
 
-            registry = AgentConfigRegistry.get_instance()
+            registry = get_agent_config_provider()
             if registry.has_agent(agent_id):
                 config = registry.get_agent(agent_id).deepseek
                 return config.injection_strategy
@@ -216,9 +216,9 @@ class DeepSeekOptimizer:
     def _get_injection_priority(agent_id: str) -> list[str]:
         """获取智能体的注入优先级。"""
         try:
-            from src.maisaka.agent.registry import AgentConfigRegistry
+            from src.core.adapters.agent_config_port import get_agent_config_provider
 
-            registry = AgentConfigRegistry.get_instance()
+            registry = get_agent_config_provider()
             if registry.has_agent(agent_id):
                 return registry.get_agent(agent_id).deepseek.injection_priority
         except Exception:
