@@ -155,6 +155,7 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 | MessagePortV2        | 统一消息发送（1个方法 send_message）　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 | SendServiceMessagePortV2　　　　　　　　　　　 |
 | SessionRepository    | 会话查询　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 | ChatManagerAdapter　　　　　　　　　　　　　　 |
 | AgentRoutingService  | 智能体路由　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 | ChatManagerRoutingAdapter　　　　　　　　　　　|
+| AgentConfigProvider  | 智能体配置查询（7方法，替代直接导入AgentConfigRegistry）　　　　　　　　　　　　　　　　　　　　　　　　　　　　 | AgentConfigProviderAdapter　　　　　　　　　　 |
 | ChatRuntime          | 运行时接口　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 | MaisakaHeartFlowChatting　　　　　　　　　　　 |
 | ChatRuntimeRegistry  | 运行时注册表　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 | HeartflowRuntimeRegistry　　　　　　　　　　　 |
 | ChatRuntimeFactory   | 运行时工厂（打破 heartflow→maisaka 依赖）　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　| MaisakaRuntimeFactory　　　　　　　　　　　　　|

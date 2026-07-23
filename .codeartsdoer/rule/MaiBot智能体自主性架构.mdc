@@ -405,6 +405,43 @@ ChatManagerAdapter 通过 5 合 1 Protocol（SessionRepository/SessionInfoPort/S
 | chat_manager 单例物理退役 | 适配器层 | 中 | ✅ 已完成 SSD-3（子模块直接注入 + 模块级单例移除 + bot.py/webui 改用注册点） |
 | maisaka → chat 物理依赖 | 19 处导入 | 中 | ✅ 已消除（process_llm_response 物理迁移 + ReplyerServicePort/ImageDescriptionPort 接口化 + fork_context/session_recovery 改用 Protocol） |
 
+## lab 原型实验室
+
+Lab 是 MaiBot 的**实验场**，不是生产代码。核心原则：**lab 是沙盒，不是草稿箱**——每个原型必须有明确的实验假设和验证标准。
+
+Lab 是独立 git 仓库（`lab/.git`），不入主仓库共享历史（主仓库 `.gitignore` 排除 `lab/`），但通过子模块引用追踪。
+
+### 目录结构
+
+```
+lab/
+├── NOTES.md              # 全局探索笔记
+├── LAB_CONVENTION.md     # 实验室规范
+├── {topic}/              # 按主题分组（memory/、reply/、architecture/）
+│   ├── NOTES.md          # 主题探索笔记
+│   └── {topic}_v{n}.py   # 版本化原型
+├── graduated/            # 已毕业原型（验证通过，已集成到主仓库）
+├── exploratory/          # 一次性探索脚本
+└── architecture/         # 架构验证原型
+```
+
+### 毕业流程
+
+```
+lab/{topic}/ → lab/integration/ → 主仓库 src/
+概念验证         集成验证            生产代码
+```
+
+### 当前实验线
+
+| 主题 | 目录 | 最新版本 | 状态 |
+|------|------|---------|------|
+| 记忆系统 | `memory/` | v11 | ✅ 已毕业（连接主义范式，主线集成） |
+| 回复系统 | `reply/` | v7 | ✅ 已毕业（直通发送，MessagePortV2） |
+| 管家系统 | `graduated/` | v4 | ✅ 已毕业（三层过滤+提醒，主线集成） |
+| 架构验证 | `architecture/` | - | ✅ 已完成（maisaka 独立、replyer 迁移、fallback 清理） |
+| 探索脚本 | `exploratory/` | - | 活跃（fallback 分析、冗余检测等） |
+
 ## 规则文件同步元规则
 
 本元规则确保本文件（项目级规则）与 AGENTS.md（工程规范 + 债务追踪单一事实源）保持同步，避免规则文件过时误导开发。
