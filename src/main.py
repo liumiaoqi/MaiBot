@@ -163,7 +163,11 @@ class MainSystem:
             init_fn=self._init_model_config_port,
         ))
         orchestrator.register(StartupComponent(
-            name="prompt_manager", phase=StartupPhase.CORE_SERVICES, order=7, critical=True,
+            name="llm_service_port", phase=StartupPhase.CORE_SERVICES, order=7, critical=True,
+            init_fn=self._init_llm_service_port,
+        ))
+        orchestrator.register(StartupComponent(
+            name="prompt_manager", phase=StartupPhase.CORE_SERVICES, order=8, critical=True,
             init_fn=self._load_prompts,
         ))
 
@@ -346,6 +350,11 @@ class MainSystem:
             agent_config_resolver=lambda aid: self._agent_registry.get_agent(aid) if self._agent_registry.has_agent(aid) else None,
         )
         a_memorix_host_service.set_model_config_port(self._model_config_port)
+
+    @staticmethod
+    async def _init_llm_service_port() -> None:
+        from src.core.adapters.llm_service_port import LLMServiceAdapter, set_llm_service
+        set_llm_service(LLMServiceAdapter())
 
     @staticmethod
     async def _load_prompts() -> None:

@@ -101,10 +101,12 @@ ignore = ["E711", "E501", "TID252"]
 "src.config.config.model_config" = {msg = "禁止直接导入 model_config 模块变量，请使用 ModelConfigPort Protocol 接口"}
 "src.chat.message_receive.bot.napcat_notice_sub_type" = {msg = "核心层禁止读取 napcat_* 字段，通知分类应在入站点完成（notice_type_mapping.py → NoticeKind）"}
 "src.maisaka.agent.registry.AgentConfigRegistry" = {msg = "禁止直接导入 AgentConfigRegistry，请使用 AgentConfigProvider Protocol 接口（get_agent_config_provider()）"}
+"src.services.llm_service.LLMServiceClient" = {msg = "禁止直接导入 LLMServiceClient，请使用 LLMService Protocol 接口（get_llm_service()）"}
 
 [tool.ruff.lint.per-file-ignores]
 "src/core/adapters/*" = ["TID251"]
 "src/main.py" = ["TID251"]
+"src/services/llm_service.py" = ["TID251"]
 "src/services/memory_service.py" = ["TID251"]
 "src/core/message_port_registry.py" = ["TID251"]
 "src/maisaka/message_port.py" = ["TID251"]

@@ -17,6 +17,13 @@ if TYPE_CHECKING:
     from src.config.config import ModelConfig
     from src.config.model_configs import APIProvider, ModelInfo, TaskConfig
     from src.common.memory_types import ProfileView, RecallItem, RecallResult, ReflectResult
+    from src.common.data_models.llm_service_data_models import (
+        LLMAudioTranscriptionResult,
+        LLMGenerationOptions,
+        LLMImageOptions,
+        LLMResponseResult,
+        MessageFactory,
+    )
     from src.maisaka.agent.config import AgentConfig
     from src.core.types import MemorySearchResult, MemoryWriteResult, NoticeKind, ObserveRequest, SendMessageResult, SessionInfo, ThinkContext, ThinkResult
 
@@ -797,4 +804,58 @@ class AgentConfigProvider(Protocol):
 
     def load(self) -> None:
         """懒加载：首次查询时自动触发。"""
+        ...
+
+
+@runtime_checkable
+class LLMService(Protocol):
+    """LLM 服务接口 — 核心层和组件层通过此接口访问 LLM 能力，不直接依赖 LLMServiceClient。"""
+
+    async def generate_response(
+        self,
+        task_name: str,
+        prompt: str,
+        options: LLMGenerationOptions | None = None,
+        *,
+        request_type: str = "",
+        session_id: str = "",
+    ) -> LLMResponseResult:
+        """文本生成（单轮）。"""
+        ...
+
+    async def generate_response_with_messages(
+        self,
+        task_name: str,
+        message_factory: MessageFactory,
+        options: LLMGenerationOptions | None = None,
+        *,
+        request_type: str = "",
+        session_id: str = "",
+    ) -> LLMResponseResult:
+        """文本生成（消息工厂）。"""
+        ...
+
+    async def generate_response_for_image(
+        self,
+        task_name: str,
+        prompt: str,
+        image_base64: str,
+        image_format: str,
+        options: LLMImageOptions | None = None,
+        *,
+        request_type: str = "",
+        session_id: str = "",
+    ) -> LLMResponseResult:
+        """图像理解。"""
+        ...
+
+    async def transcribe_audio(
+        self,
+        task_name: str,
+        voice_base64: str,
+        *,
+        request_type: str = "",
+        session_id: str = "",
+    ) -> LLMAudioTranscriptionResult:
+        """音频转写。"""
         ...
