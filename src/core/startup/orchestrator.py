@@ -21,6 +21,15 @@ logger = get_logger("core.startup.orchestrator")
 # 阶段3 子系统单个组件超时（秒）
 _SUBSYSTEM_TIMEOUT = 60.0
 
+_PHASE_NAMES: dict[StartupPhase, str] = {
+    StartupPhase.CONFIG_LOAD: "配置加载",
+    StartupPhase.INFRASTRUCTURE: "基础设施",
+    StartupPhase.CORE_SERVICES: "核心服务构造",
+    StartupPhase.SUBSYSTEMS: "子系统启动",
+    StartupPhase.SESSION_RESTORE: "会话恢复",
+    StartupPhase.READY: "就绪",
+}
+
 
 class StartupOrchestrator:
     """启动流程的唯一编排入口。
@@ -73,7 +82,7 @@ class StartupOrchestrator:
         if self._core_readiness.core_ready and self._core_ready_time > 0:
             core_ready_ms = int((self._core_ready_time - self._start_time) * 1000)
 
-        return StartupResult(
+        result = StartupResult(
             total_duration_ms=total_ms,
             phases=self._phase_results,
             failed_components=failed,
@@ -83,6 +92,29 @@ class StartupOrchestrator:
             core_ready_time_ms=core_ready_ms,
             subsystem_status=self._subsystem_status,
         )
+        self._emit_startup_summary(result)
+        return result
+
+    def _emit_startup_summary(self, result: StartupResult) -> None:
+        degraded_names = [c.name for c in result.degraded_components]
+        lines = [
+            f"[启动摘要] 总耗时={result.total_duration_ms}ms | 核心就绪={result.core_ready_time_ms}ms",
+        ]
+        for phase in sorted(StartupPhase, key=lambda p: p.value):
+            pr = result.phases.get(phase)
+            if pr is None:
+                continue
+            status = "✓" if pr.status == ComponentStatus.SUCCESS else "✗"
+            phase_name = _PHASE_NAMES.get(phase, phase.name)
+            async_mark = " (异步)" if phase == StartupPhase.SUBSYSTEMS else ""
+            lines.append(f"  阶段{phase.value} {phase_name}: {pr.duration_ms}ms {status}{async_mark}")
+            for c in pr.components:
+                c_status = "✓" if c.status == ComponentStatus.SUCCESS else "✗"
+                duration_str = "已发起" if phase == StartupPhase.SUBSYSTEMS else f"{c.duration_ms}ms"
+                lines.append(f"    {c.name}: {duration_str} {c_status}")
+        if degraded_names:
+            lines.append(f"  降级组件: {', '.join(degraded_names)}")
+        logger.info("\n".join(lines))
 
     def get_core_readiness(self) -> CoreReadiness:
         return self._core_readiness
@@ -92,6 +124,7 @@ class StartupOrchestrator:
 
     async def _run_phase(self, phase: StartupPhase) -> PhaseResult:
         start = time.monotonic()
+        phase_name = _PHASE_NAMES.get(phase, phase.name)
         components = sorted(
             [c for c in self._components if c.phase == phase],
             key=lambda c: c.order,
@@ -107,7 +140,7 @@ class StartupOrchestrator:
                 components=[],
             )
 
-        logger.info(f"启动阶段 {phase.name} 开始（{len(components)} 个组件）")
+        logger.info(f"[启动] 阶段{phase.value}: {phase_name} 状态=进行中（{len(components)} 个组件）")
 
         if not self._check_phase_entry(phase):
             raise RuntimeError(f"阶段 {phase.name} 未满足准入条件——前一阶段关键组件未全部成功")
@@ -124,7 +157,10 @@ class StartupOrchestrator:
             c.status == ComponentStatus.SUCCESS for c in components
         ) else ComponentStatus.FAILED
 
-        logger.info(f"启动阶段 {phase.name} 完成 ({duration_ms}ms)")
+        if status == ComponentStatus.SUCCESS:
+            logger.info(f"[启动] 阶段{phase.value}: {phase_name} 状态=成功 耗时={duration_ms}ms")
+        else:
+            logger.error(f"[启动] 阶段{phase.value}: {phase_name} 状态=失败 耗时={duration_ms}ms")
 
         return PhaseResult(
             phase=phase,
@@ -177,7 +213,7 @@ class StartupOrchestrator:
         except asyncio.TimeoutError:
             component.status = ComponentStatus.FAILED
             component.error = f"超时 {_SUBSYSTEM_TIMEOUT}s"
-            logger.error(f"[{component.name}] 子系统启动超时")
+            logger.warning(f"[{component.name}] 子系统启动超时")
             self._subsystem_status[component.name] = ComponentStatus.FAILED
         except Exception as exc:
             component.status = ComponentStatus.FAILED
