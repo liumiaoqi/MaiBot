@@ -454,6 +454,39 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 
 - ⬜ A_memorix 4 处 `LLMServiceClient` 通过 `AMemorixServicePorts.llm_service` 注入整个模块，后续优化为 `LLMService` Protocol 注入
 
+# 插件上下文协议化进展（SSD-8，已完成）
+
+**迁移已完成**（4 批次全部完成）
+
+## 迁移架构
+
+- **MessageIngestionPort** Protocol：2 方法（receive_message/message_process），替代 chat_bot 全局单例的直接导入
+- **ChatBotMessageIngestionPort**：鸭子类型适配器，包裹 chat_bot 实例，不要求 ChatBot 继承 Protocol
+- **ChatRuntime 扩展**：3 新方法（append_context_message/get_talk_frequency_adjust/adjust_talk_frequency）+ enqueue_proactive_task 签名修复（补 priority 参数，返回类型 Optional[dict]→dict）
+- **注册点**：`get_message_ingestion_port()`/`set_message_ingestion_port()`/`reset_message_ingestion_port()`
+- **ruff 守卫**：`src.chat.message_receive.bot.chat_bot` + `src.chat.heart_flow.heartflow_manager.heartflow_manager` banned-api
+
+## 已完成
+
+- ✅ 批次1：基础设施搭建（MessageIngestionPort Protocol + ChatBotMessageIngestionPort 适配器 + 注册点 + MaisakaRuntime 新增方法 + main.py 启动注册 + ruff 守卫）
+- ✅ 批次2：H4 消费方迁移（integration.py/message_gateway.py/webui chat service.py — chat_bot→MessageIngestionPort）
+- ✅ 批次3：H5 消费方迁移（capabilities/core.py/data.py — heartflow_manager→ChatRuntimeRegistry + _chat_history→append_context_message + _talk_frequency_adjust→get_talk_frequency_adjust + async 转换）
+- ✅ 批次4：验证与清理（SessionInfo 导入修复 + heartflow_manager banned-api 守卫 + per-file-ignores + 全量 TID251 验证通过）
+
+## 消除的架构债务
+
+1. H4: 3 处 `chat_bot` 直接导入 → 全部替换为 `MessageIngestionPort` Protocol
+2. H5: 2 处 `heartflow_manager` 直接导入 + 私有属性访问 → 全部替换为 `ChatRuntimeRegistry` Protocol
+3. `_chat_history.append()` 私有属性写入 → `append_context_message()` 公开方法
+4. `_talk_frequency_adjust` 私有属性读取 → `get_talk_frequency_adjust()` 公开方法
+5. `_get_frequency_adjust_value` 同步→异步转换，调用方已加 `await`
+
+## 待后续
+
+- ⬜ `webui/routers/chat/routes.py` 的 heartflow_manager 导入（H5 残留，需 ChatRuntime 扩展或新接口）
+- ⬜ `cli/maisaka_cli.py` 的 heartflow_manager 导入（CLI 层，优先级低）
+- ⬜ `common/utils/utils_message.py` 的 heartflow_manager 导入（H6/M8，SSD-9 范围）
+
 # changelog编写
 建议分为两部分，一部分是用户感知功能侧，一部分是开发侧（包含修复和插件sdk,api改动）。最好一个功能一行，按模块分。
 一般不写入changelog的内容：
