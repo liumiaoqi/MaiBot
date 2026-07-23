@@ -36,7 +36,7 @@ from .math_utils import number_to_short_id, TimestampMode, translate_timestamp_t
 from .system_utils import is_bot_self
 
 if TYPE_CHECKING:
-    from src.chat.message_receive.message import SessionMessage
+    from src.common.data_models.session_message_data_model import SessionMessage
 
 logger = get_logger("message_utils")
 

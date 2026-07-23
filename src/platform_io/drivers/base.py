@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, Optional
 from src.platform_io.types import DeliveryReceipt, DriverDescriptor, InboundMessageEnvelope, RouteKey
 
 if TYPE_CHECKING:
-    from src.chat.message_receive.message import SessionMessage
+    from src.common.data_models.session_message_data_model import SessionMessage
 
 InboundHandler = Callable[[InboundMessageEnvelope], Awaitable[bool]]
 

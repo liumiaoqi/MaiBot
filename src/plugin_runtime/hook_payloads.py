@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Sequence
 
-from src.chat.message_receive.message import SessionMessage
+from src.common.data_models.session_message_data_model import SessionMessage
 from src.common.data_models.llm_service_data_models import PromptMessage
 from src.llm_models.payload_content.message import Message
 from src.llm_models.payload_content.tool_option import ToolCall, ToolDefinitionInput, normalize_tool_options

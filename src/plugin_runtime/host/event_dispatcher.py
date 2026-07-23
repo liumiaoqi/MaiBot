@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from .component_registry import ComponentRegistry, EventHandlerEntry
     from .message_utils import MessageDict
     from .supervisor import PluginRunnerSupervisor
-    from src.chat.message_receive.message import SessionMessage
+    from src.common.data_models.session_message_data_model import SessionMessage
 
 logger = get_logger("plugin_runtime.host.event_dispatcher")
 

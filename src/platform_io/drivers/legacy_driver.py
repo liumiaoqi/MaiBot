@@ -6,7 +6,7 @@ from src.platform_io.drivers.base import PlatformIODriver
 from src.platform_io.types import DeliveryReceipt, DeliveryStatus, DriverDescriptor, DriverKind, RouteKey
 
 if TYPE_CHECKING:
-    from src.chat.message_receive.message import SessionMessage
+    from src.common.data_models.session_message_data_model import SessionMessage
 
 
 class LegacyPlatformDriver(PlatformIODriver):

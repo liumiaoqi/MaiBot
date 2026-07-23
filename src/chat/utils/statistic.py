@@ -2604,7 +2604,7 @@ class StatisticOutputTask(AsyncTask):
         total_replies = [0] * len(time_points)
         total_online_hours = [0.0] * len(time_points)
 
-        from src.chat.utils.utils import is_bot_self
+        from src.core.identity import is_bot_self
 
         interval_seconds = interval_hours * 3600
 

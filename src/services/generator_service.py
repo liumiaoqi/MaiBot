@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 from rich.traceback import install
 
 from src.maisaka.replyer.generator import MaisakaReplyGenerator
-from src.chat.replyer.replyer_manager import replyer_manager
+from src.core.replyer_port_registry import get_replyer_service_port
 from src.chat.utils.utils import process_llm_response
 from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
 from src.common.logger import get_logger
@@ -20,7 +20,7 @@ from src.core.types import ActionInfo, SessionInfo
 if TYPE_CHECKING:
     from src.common.data_models.llm_data_model import LLMGenerationDataModel
     from src.common.data_models.planned_action_data_models import PlannedAction
-    from src.chat.message_receive.message import SessionMessage
+    from src.common.data_models.session_message_data_model import SessionMessage
 
 install(extra_lines=3)
 
@@ -44,7 +44,10 @@ def _get_replyer(
         logger.debug(
             f"[GeneratorService] 正在获取回复器，chat_id: {chat_id}, chat_stream: {'有' if chat_stream else '无'}"
         )
-        return replyer_manager.get_replyer(
+        replyer_service = get_replyer_service_port()
+        if replyer_service is None:
+            return None
+        return replyer_service.get_replyer(
             chat_stream=chat_stream,
             chat_id=chat_id,
             request_type=request_type,

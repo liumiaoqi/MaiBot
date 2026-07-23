@@ -6,7 +6,7 @@ from typing import List, Optional, Tuple
 
 from sqlmodel import col, select
 
-from src.chat.message_receive.message import SessionMessage
+from src.common.data_models.session_message_data_model import SessionMessage
 from src.common.data_models.tool_record_data_model import MaiToolRecord
 from src.common.database.database import get_db_session
 from src.common.database.database_model import Images, ImageType, ToolRecord

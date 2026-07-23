@@ -24,8 +24,9 @@ from src.config.config import global_config
 from src.core.message_utils import build_binary_component_from_base64, build_message_sequence_from_custom_message
 from src.core.session_port_registry import get_session_info_port, get_session_query_port
 from src.core.types import SendMessageResult, SessionInfo
-from src.chat.message_receive.message import SessionMessage
-from src.chat.utils.utils import calculate_typing_time, get_bot_account
+from src.common.data_models.session_message_data_model import SessionMessage
+from src.chat.utils.utils import calculate_typing_time
+from src.core.identity import get_bot_account
 from src.common.data_models.mai_message_data_model import GroupInfo, MaiMessage, MessageInfo, UserInfo
 from src.common.data_models.message_component_data_model import (
     AtComponent,

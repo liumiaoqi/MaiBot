@@ -8,7 +8,7 @@ import asyncio
 import json
 import re
 
-from src.chat.utils.utils import is_bot_self
+from src.core.identity import is_bot_self
 from src.common.data_models.llm_service_data_models import LLMGenerationOptions
 from src.common.logger import get_logger
 from src.common.prompt_i18n import load_prompt
@@ -33,7 +33,7 @@ from .behavior_pattern_store import (
 from .behavior_scenario import BehaviorScenarioProfile, BehaviorScenarioSegment, behavior_scenario_analyzer
 
 if TYPE_CHECKING:
-    from src.chat.message_receive.message import SessionMessage
+    from src.common.data_models.session_message_data_model import SessionMessage
     from src.maisaka.context.messages import LLMContextMessage
 
 

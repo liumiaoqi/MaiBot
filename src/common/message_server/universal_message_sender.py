@@ -10,7 +10,7 @@ from src.common.utils.utils_message import MessageUtils
 from src.common.data_models.message_component_data_model import ReplyComponent
 
 if TYPE_CHECKING:
-    from src.chat.message_receive.message import SessionMessage
+    from src.common.data_models.session_message_data_model import SessionMessage
 
 logger = get_logger("sender")
 

@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 from .types import RouteKey
 
 if TYPE_CHECKING:
-    from src.chat.message_receive.message import SessionMessage
+    from src.common.data_models.session_message_data_model import SessionMessage
 
 
 class RouteKeyFactory:

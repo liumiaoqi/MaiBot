@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from . import BaseDataModel
 
 if TYPE_CHECKING:
-    from src.chat.message_receive.message import SessionMessage
+    from src.common.data_models.session_message_data_model import SessionMessage
     from src.core.types import ActionInfo
 
 

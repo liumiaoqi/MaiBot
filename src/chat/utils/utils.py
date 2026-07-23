@@ -8,7 +8,7 @@ import random
 import re
 import time
 
-from src.chat.message_receive.message import SessionMessage
+from src.common.data_models.session_message_data_model import SessionMessage
 from src.common.logger import get_logger
 from src.config.config import global_config
 

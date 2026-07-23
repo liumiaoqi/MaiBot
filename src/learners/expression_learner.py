@@ -8,7 +8,7 @@ import json
 from sqlmodel import select
 
 from src.maisaka.replyer.expression_vector_index import ExpressionVectorIndexUpsertItem, expression_vector_index
-from src.chat.utils.utils import is_bot_self
+from src.core.identity import is_bot_self
 from src.common.data_models.expression_data_model import MaiExpression
 from src.common.data_models.llm_service_data_models import LLMGenerationOptions
 from src.common.database.database import get_db_session
@@ -27,7 +27,7 @@ from .expression_style_utils import normalize_expression_style_for_learning
 from .expression_utils import check_expression_suitability, parse_expression_response
 
 if TYPE_CHECKING:
-    from src.chat.message_receive.message import SessionMessage
+    from src.common.data_models.session_message_data_model import SessionMessage
     from src.maisaka.context.messages import LLMContextMessage
 
 

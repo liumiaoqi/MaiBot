@@ -7,7 +7,7 @@ from sqlmodel import col, select
 
 import hashlib
 
-from src.chat.utils.utils import get_all_bot_accounts
+from src.core.identity import get_all_bot_accounts
 from src.common.database.database import get_db_session
 from src.common.database.database_model import OnlineTime
 from src.config.config import config_manager

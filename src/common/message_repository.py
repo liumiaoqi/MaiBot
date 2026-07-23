@@ -7,7 +7,7 @@ import traceback
 from sqlalchemy import and_, func, not_, or_
 from sqlmodel import col, select
 
-from src.chat.message_receive.message import SessionMessage
+from src.common.data_models.session_message_data_model import SessionMessage
 from src.common.database.database import get_db_session
 from src.common.database.database_model import Messages
 from src.common.logger import get_logger
@@ -162,7 +162,7 @@ def find_messages(
             after_time=after_time,
         )
         if filter_bot:
-            from src.chat.utils.utils import get_all_bot_accounts, get_bot_account
+            from src.core.identity import get_all_bot_accounts, get_bot_account
 
             bot_accounts = get_all_bot_accounts()
             exclusion_conditions: list[Any] = []

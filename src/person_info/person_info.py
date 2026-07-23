@@ -12,8 +12,8 @@ from src.common.database.database import get_db_session
 from src.common.database.database_model import PersonInfo
 from src.common.logger import get_logger
 from src.config.config import global_config
+from src.core.memory_port_registry import get_memory_service_port
 from src.core.session_port_registry import get_session_info
-from src.services.memory_service import memory_service
 
 
 logger = get_logger("person_info")
@@ -261,7 +261,7 @@ class Person:
         Returns:
             bool: 如果是机器人自己则返回 True，否则返回 False
         """
-        from src.chat.utils.utils import is_bot_self
+        from src.core.identity import is_bot_self
 
         return is_bot_self(platform, user_id)
 
@@ -566,7 +566,7 @@ async def store_person_memory_from_answer(
         payload_fingerprint = hashlib.md5(f"{person_id}|{clean_chat_id}|{clean_content}".encode()).hexdigest()
         external_id = f"person_fact:{person_id}:{payload_fingerprint}"
 
-        result = await memory_service.observe(
+        result = await get_memory_service_port().observe(
             text=clean_content,
             source_id=external_id,
             session_id=clean_chat_id,

@@ -5,7 +5,7 @@ import traceback
 
 from rich.traceback import install
 
-from src.chat.message_receive.message import SessionMessage
+from src.common.data_models.session_message_data_model import SessionMessage
 from src.chat.utils.utils import calculate_typing_time, truncate_message
 from src.common.data_models.message_component_data_model import ReplyComponent
 from src.common.database.database import get_db_session

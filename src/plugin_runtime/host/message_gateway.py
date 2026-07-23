@@ -6,7 +6,7 @@ from src.common.logger import get_logger
 from src.platform_io import get_platform_io_manager
 
 if TYPE_CHECKING:
-    from src.chat.message_receive.message import SessionMessage
+    from src.common.data_models.session_message_data_model import SessionMessage
     from .component_registry import ComponentRegistry
     from .supervisor import PluginRunnerSupervisor
 

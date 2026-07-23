@@ -52,7 +52,7 @@ from src.plugin_runtime.protocol.envelope import InspectPluginConfigResultPayloa
 from src.plugin_runtime.runner.manifest_validator import ManifestValidator, is_reserved_plugin_directory
 
 if TYPE_CHECKING:
-    from src.chat.message_receive.message import SessionMessage
+    from src.common.data_models.session_message_data_model import SessionMessage
     from src.plugin_runtime.host.message_utils import MessageDict
     from src.plugin_runtime.host.supervisor import PluginSupervisor
 

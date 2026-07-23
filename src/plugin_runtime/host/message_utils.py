@@ -5,7 +5,7 @@ import base64
 import hashlib
 
 from src.common.logger import get_logger
-from src.chat.message_receive.message import SessionMessage
+from src.common.data_models.session_message_data_model import SessionMessage
 from src.common.data_models.mai_message_data_model import UserInfo, GroupInfo, MessageInfo
 from src.common.data_models.message_component_data_model import (
     AtComponent,

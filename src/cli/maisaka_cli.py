@@ -13,7 +13,7 @@ from rich.text import Text
 from src.chat.heart_flow.heartflow_manager import heartflow_manager
 from src.chat.heart_flow.heartflow_message_processor import HeartFCMessageReceiver
 
-from src.chat.message_receive.message import SessionMessage
+from src.common.data_models.session_message_data_model import SessionMessage
 from src.common.data_models.mai_message_data_model import MessageInfo, UserInfo
 from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
 from src.config.config import config_manager

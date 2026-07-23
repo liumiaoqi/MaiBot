@@ -11,8 +11,8 @@ from pydantic import BaseModel
 from sqlmodel import col, delete, select
 
 from src.core.adapters.message_ingestion_port import get_message_ingestion_port
-from src.chat.message_receive.message import SessionMessage
-from src.chat.utils.utils import is_bot_self
+from src.common.data_models.session_message_data_model import SessionMessage
+from src.core.identity import is_bot_self
 from src.common.database.database import get_db_session
 from src.common.database.database_model import Messages, PersonInfo
 from src.common.logger import get_logger

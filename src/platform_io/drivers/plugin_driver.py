@@ -7,7 +7,7 @@ from src.platform_io.types import DeliveryReceipt, DeliveryStatus, DriverDescrip
 from src.plugin_runtime.host.component_timeout import resolve_component_rpc_timeout_ms
 
 if TYPE_CHECKING:
-    from src.chat.message_receive.message import SessionMessage
+    from src.common.data_models.session_message_data_model import SessionMessage
 
 
 class _GatewaySupervisorProtocol(Protocol):

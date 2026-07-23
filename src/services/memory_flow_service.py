@@ -12,13 +12,13 @@ import time
 
 from src.common.logger import get_logger
 from src.common.message_repository import count_messages, find_messages
-from src.chat.utils.utils import is_bot_self
+from src.core.identity import is_bot_self
 from src.config.config import global_config
 from src.core.adapters.llm_service_port import get_llm_service
 from src.core.protocols import LLMService
 from src.person_info.person_info import Person, get_person_id, store_person_memory_from_answer
 
-from src.services.memory_service import memory_service
+from src.core.memory_port_registry import get_memory_service_port
 
 logger = get_logger("memory_flow_service")
 
@@ -508,7 +508,7 @@ class ChatSummaryWritebackService:
             configured_context_length=configured_context_length,
             pending_message_count=pending_message_count,
         )
-        result = await memory_service.ingest_summary(
+        result = await get_memory_service_port().ingest_summary(
             external_id=f"chat_auto_summary:{session_id}:{total_message_count}",
             chat_id=session_id,
             text="",
@@ -551,7 +551,7 @@ class ChatSummaryWritebackService:
     async def _load_last_trigger_message_count(self, *, session_id: str, total_message_count: int) -> int:
         """从已落库的聊天摘要恢复触发游标，避免服务重启后重复摘要。"""
         try:
-            paragraphs = await memory_service.get_paragraphs_by_source(f"chat_summary:{session_id}")
+            paragraphs = await get_memory_service_port().get_paragraphs_by_source(f"chat_summary:{session_id}")
             if not paragraphs:
                 return 0
 

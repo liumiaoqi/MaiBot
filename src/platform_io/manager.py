@@ -15,7 +15,7 @@ from .routing import RouteTable
 from .types import DeliveryBatch, DeliveryReceipt, DeliveryStatus, DriverKind, InboundMessageEnvelope, RouteBinding, RouteKey
 
 if TYPE_CHECKING:
-    from src.chat.message_receive.message import SessionMessage
+    from src.common.data_models.session_message_data_model import SessionMessage
 
 logger = get_logger("platform_io.manager")
 
@@ -294,7 +294,7 @@ class PlatformIOManager:
 
     async def _sync_legacy_send_drivers(self) -> None:
         """根据当前配置同步 legacy fallback driver。"""
-        from src.chat.utils.utils import get_all_bot_accounts
+        from src.core.identity import get_all_bot_accounts
         from src.platform_io.drivers.legacy_driver import LegacyPlatformDriver
 
         desired_accounts = get_all_bot_accounts()
