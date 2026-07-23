@@ -463,6 +463,9 @@ def raw_main():
 
     easter_egg()
 
+    from src.config.config import initialize_config
+    initialize_config()
+
     # 返回MainSystem实例
     return MainSystem()
 

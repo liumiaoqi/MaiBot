@@ -68,16 +68,12 @@ class StartupValidator:
             return failures
 
         try:
-            agent_dirs = [
-                entry
-                for entry in _AGENTS_DIR.iterdir()
-                if entry.is_dir() and not entry.name.startswith("_")
-            ]
+            agent_files = list(_AGENTS_DIR.glob("*.md"))
         except OSError as e:
             failures.append(f"无法读取智能体配置目录「{_AGENTS_DIR}」: {e}")
             return failures
 
-        if not agent_dirs:
+        if not agent_files:
             failures.append(
                 f"智能体配置目录「{_AGENTS_DIR}」为空，没有找到智能体配置"
             )

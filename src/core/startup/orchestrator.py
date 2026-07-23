@@ -238,7 +238,7 @@ class StartupOrchestrator:
     def _update_core_readiness(self, result: PhaseResult) -> None:
         """阶段 2 完成后根据指定组件更新核心就绪状态。"""
         for c in result.components:
-            if c.name == "session_port_registry" and c.status == ComponentStatus.SUCCESS:
+            if c.name == "chat_manager_adapter" and c.status == ComponentStatus.SUCCESS:
                 self._core_readiness.message_pipeline_ready = True
             elif c.name == "agent_registry" and c.status == ComponentStatus.SUCCESS:
                 self._core_readiness.agent_thinking_ready = True
