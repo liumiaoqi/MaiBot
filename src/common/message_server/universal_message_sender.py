@@ -66,7 +66,7 @@ class UniversalMessageSender:
         try:
             if storage_message:
                 with get_db_session() as db_session:
-                    MessageUtils.fill_reply_frequency_if_available(message)
+                    MessageUtils.fill_reply_frequency_if_available(message, reply_frequency_provider=None)
                     db_session.add(message.to_db_instance())
         except Exception as e:
             logger.error(f"[{message.session_id}] 存储消息 {message.message_id} 时出错：{e}")

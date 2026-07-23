@@ -169,6 +169,7 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 | ThinkingOrganFactory | 思维管道工厂　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 | ThinkingOrganFactory　　　　　　　　　　　　　 |
 | ReplyerServicePort   | 回复生成器服务（maisaka 通过此接口获取 replyer）　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 | ReplyerServiceAdapter　　　　　　　　　　　　　|
 | ImageDescriptionPort | 图片描述服务（maisaka 通过此接口获取图片描述）　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 | ImageDescriptionAdapter　　　　　　　　　　　　|
+| PersonInfoPort       | 人物信息查询（core 层通过此接口查询人物，替代 Person 直接导入）　　　　　　　　　　　　　　　　　　　　　　　　　　　| PersonInfoPortAdapter　　　　　　　　　　　　　|
 | ModelConfigPort      | 模型配置查询（4查询+2回调，支持智能体级覆盖）　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　| ConfigManagerModelConfigPort　　　　　　　　　 |
 | LLMService           | LLM服务（4方法：generate_response/generate_response_with_messages/generate_response_for_image/transcribe_audio）　　　　　 | LLMServiceAdapter　　　　　　　　　　　　　　 |
 

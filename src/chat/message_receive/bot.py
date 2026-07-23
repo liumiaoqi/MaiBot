@@ -352,6 +352,23 @@ class ChatBot:
         message.message_info.additional_config["intercept_message_level"] = intercept_message_level
 
     @staticmethod
+    def _make_freq_provider(session_id: str):
+        """构造回复频率 provider 闭包，从 ChatRuntimeRegistry 获取运行时频率。"""
+        from src.core.runtime_port_registry import get_chat_runtime_registry
+
+        registry = get_chat_runtime_registry()
+        if registry is None:
+            return None
+        for rt in registry.list_runtimes():
+            if rt.session_id == session_id:
+
+                def _provider(_rt=rt):
+                    return _rt.get_talk_frequency_adjust()
+
+                return _provider
+        return None
+
+    @staticmethod
     async def _store_intercepted_command_message(message: SessionMessage) -> None:
         """将被命令链拦截的消息写入数据库。
 
@@ -359,7 +376,7 @@ class ChatBot:
             message: 已完成命令处理的会话消息。
         """
 
-        await MessageUtils.store_message_to_db_async(message)
+        await MessageUtils.store_message_to_db_async(message, reply_frequency_provider=ChatBot._make_freq_provider(message.session_id))
 
     async def _handle_command_processing_result(
         self,

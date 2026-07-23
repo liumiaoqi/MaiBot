@@ -57,7 +57,11 @@ class HeartFCMessageReceiver:
             except Exception as e:
                 logger.error(f"出现错误: {e}")
 
-            await MessageUtils.store_message_to_db_async(message)  # 存储消息到数据库
+            def _freq_provider(_chat=chat):
+                return _chat.get_talk_frequency_adjust()
+
+            _provider = _freq_provider if chat is not None else None
+            await MessageUtils.store_message_to_db_async(message, reply_frequency_provider=_provider)
             if chat is not None:
                 await chat.register_message(message)
 

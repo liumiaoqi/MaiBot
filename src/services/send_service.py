@@ -616,7 +616,22 @@ async def _store_sent_message(message: SessionMessage) -> None:
     Args:
         message: 已成功发送的内部消息对象。
     """
-    await MessageUtils.store_message_to_db_async(message)
+    from src.core.runtime_port_registry import get_chat_runtime_registry
+
+    session_id = str(message.session_id or "").strip()
+    freq_provider = None
+    if session_id:
+        registry = get_chat_runtime_registry()
+        if registry is not None:
+            for rt in registry.list_runtimes():
+                if rt.session_id == session_id:
+
+                    def _provider(_rt=rt):
+                        return _rt.get_talk_frequency_adjust()
+
+                    freq_provider = _provider
+                    break
+    await MessageUtils.store_message_to_db_async(message, reply_frequency_provider=freq_provider)
 
 
 async def _apply_successful_delivery_receipt(message: SessionMessage, delivery_batch: DeliveryBatch) -> None:

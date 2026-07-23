@@ -795,6 +795,14 @@ class MemoryServiceError(Exception):
         self.original = original
 
 
+@dataclass(frozen=True)
+class PersonInfoResult:
+    """人物信息查询结果 — 不可变数据对象。"""
+    is_known: bool
+    person_id: Optional[str] = None
+    person_name: Optional[str] = None
+
+
 class TemporaryMemoryError(MemoryServiceError):
     """可重试的临时性错误（网络/超时/服务暂时不可用）"""
 
@@ -837,8 +845,6 @@ __all__ = [
     "RecallResult",
     "ProfileView",
     "ReflectResult",
-    "TemporaryMemoryError",
-    "PermanentMemoryError",
-    "MemoryNotFoundError",
+    "PersonInfoResult",
     "SessionMessage",
 ]

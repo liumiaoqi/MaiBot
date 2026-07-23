@@ -23,7 +23,7 @@ from src.common.data_models.chat_target_info_data_model import ChatTargetInfo
 from src.config.config import global_config
 from src.core.identity import get_bot_account, is_bot_self
 from src.core.session_port_registry import get_session_info
-from src.person_info.person_info import Person
+from src.core.person_info_port_registry import get_person_info_port
 
 logger = get_logger("core.message_utils")
 
@@ -264,15 +264,16 @@ def get_chat_type_and_target_info(chat_id: str) -> Tuple[bool, Optional["ChatTar
 
                 # Try to fetch person info
                 try:
-                    person = Person(platform=platform, user_id=user_id)
-                    if not person.is_known:
-                        logger.warning(f"用户 {user_nickname} 尚未认识")
-                        # 如果用户尚未认识，则返回False和None
-                        return False, None
-                    target_info.is_known = True
-                    if person.person_id:
-                        target_info.person_id = person.person_id
-                        target_info.person_name = person.person_name
+                    port = get_person_info_port()
+                    person_info = port.get_person_info(platform, user_id) if port is not None else None
+                    if person_info is not None:
+                        if not person_info.is_known:
+                            logger.warning(f"用户 {user_nickname} 尚未认识")
+                            return False, None
+                        target_info.is_known = True
+                        if person_info.person_id:
+                            target_info.person_id = person_info.person_id
+                            target_info.person_name = person_info.person_name or ""
                 except Exception as person_e:
                     logger.warning(
                         f"获取 person_id 或 person_name 时出错 for {platform}:{user_id} in utils: {person_e}"

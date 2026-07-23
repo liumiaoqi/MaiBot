@@ -30,6 +30,7 @@ if TYPE_CHECKING:
         MemoryWriteResult,
         NoticeKind,
         ObserveRequest,
+        PersonInfoResult,
         SendMessageResult,
         SessionInfo,
         SessionMessage,
@@ -892,4 +893,13 @@ class LLMService(Protocol):
         session_id: str = "",
     ) -> LLMAudioTranscriptionResult:
         """音频转写。"""
+        ...
+
+
+@runtime_checkable
+class PersonInfoPort(Protocol):
+    """人物信息查询接口 — 核心通过此接口查询人物信息，不直接依赖 Person 类。"""
+
+    def get_person_info(self, platform: str, user_id: str) -> Optional[PersonInfoResult]:
+        """查询人物信息。"""
         ...

@@ -172,7 +172,11 @@ class MainSystem:
             init_fn=self._init_message_ingestion_port,
         ))
         orchestrator.register(StartupComponent(
-            name="prompt_manager", phase=StartupPhase.CORE_SERVICES, order=9, critical=True,
+            name="person_info_port", phase=StartupPhase.CORE_SERVICES, order=9, critical=True,
+            init_fn=self._init_person_info_port,
+        ))
+        orchestrator.register(StartupComponent(
+            name="prompt_manager", phase=StartupPhase.CORE_SERVICES, order=10, critical=True,
             init_fn=self._load_prompts,
         ))
 
@@ -366,6 +370,12 @@ class MainSystem:
         from src.chat.message_receive.bot import chat_bot
         from src.core.adapters.message_ingestion_port import ChatBotMessageIngestionPort, set_message_ingestion_port
         set_message_ingestion_port(ChatBotMessageIngestionPort(chat_bot))
+
+    @staticmethod
+    async def _init_person_info_port() -> None:
+        from src.core.adapters.person_info_port import PersonInfoPortAdapter
+        from src.core.person_info_port_registry import set_person_info_port
+        set_person_info_port(PersonInfoPortAdapter())
 
     @staticmethod
     async def _load_prompts() -> None:

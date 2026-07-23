@@ -40,6 +40,8 @@ if TYPE_CHECKING:
 
 logger = get_logger("message_utils")
 
+ReplyFrequencyProvider = Callable[[], Optional[float]]
+
 
 # 串行化 store_message_to_db / update_message_id 的 SQLite 写入：
 # 底层 SQLite WAL 仅允许单写，busy_timeout 1s。bot 进程不只一个 event loop
@@ -207,7 +209,7 @@ class MessageUtils:
         )
 
     @staticmethod
-    def store_message_to_db(message: "SessionMessage"):
+    def store_message_to_db(message: "SessionMessage", reply_frequency_provider: "ReplyFrequencyProvider | None" = None):
         """存储消息到数据库，此方法没有update机制。
 
         加锁在同步方法本体，保证所有写入路径（包括同步直接调用与 async wrapper）
@@ -217,22 +219,22 @@ class MessageUtils:
 
         with _DB_WRITE_THREAD_LOCK:
             with get_db_session() as session:
-                MessageUtils.fill_reply_frequency_if_available(message)
+                MessageUtils.fill_reply_frequency_if_available(message, reply_frequency_provider=reply_frequency_provider)
                 MessageUtils._persist_image_components(message.raw_message.components, session)
                 db_message = message.to_db_instance()
                 session.add(db_message)
 
     @staticmethod
-    async def store_message_to_db_async(message: "SessionMessage") -> None:
+    async def store_message_to_db_async(message: "SessionMessage", reply_frequency_provider: ReplyFrequencyProvider | None = None) -> None:
         """异步存储消息到数据库。
 
         把同步 SQLAlchemy session 移出事件循环；锁逻辑在 `store_message_to_db`
         本体里持有，本方法仅做 `to_thread` 透传。
         """
-        await asyncio.to_thread(MessageUtils.store_message_to_db, message)
+        await asyncio.to_thread(MessageUtils.store_message_to_db, message, reply_frequency_provider)
 
     @staticmethod
-    def fill_reply_frequency_if_available(message: "SessionMessage") -> None:
+    def fill_reply_frequency_if_available(message: "SessionMessage", reply_frequency_provider: "ReplyFrequencyProvider | None" = None) -> None:
         """在消息入库前补充当前会话的生效回复频率。"""
 
         if getattr(message, "reply_frequency", None) is not None:
@@ -243,12 +245,11 @@ class MessageUtils:
             return
 
         try:
-            from src.chat.heart_flow.heartflow_manager import heartflow_manager
-
-            runtime = heartflow_manager.heartflow_chat_list.get(session_id)
-            if runtime is not None:
-                message.reply_frequency = float(runtime._get_effective_reply_frequency())
-                return
+            if reply_frequency_provider is not None:
+                freq = reply_frequency_provider()
+                if freq is not None:
+                    message.reply_frequency = freq
+                    return
 
             from src.common.utils.utils_config import ChatConfigUtils
 

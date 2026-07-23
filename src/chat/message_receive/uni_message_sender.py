@@ -373,7 +373,22 @@ class UniversalMessageSender:
 
             if storage_message:
                 with get_db_session() as db_session:
-                    MessageUtils.fill_reply_frequency_if_available(message)
+                    from src.core.runtime_port_registry import get_chat_runtime_registry
+
+                    session_id = str(message.session_id or "").strip()
+                    freq_provider = None
+                    if session_id:
+                        registry = get_chat_runtime_registry()
+                        if registry is not None:
+                            for rt in registry.list_runtimes():
+                                if rt.session_id == session_id:
+
+                                    def _provider(_rt=rt):
+                                        return _rt.get_talk_frequency_adjust()
+
+                                    freq_provider = _provider
+                                    break
+                    MessageUtils.fill_reply_frequency_if_available(message, reply_frequency_provider=freq_provider)
                     db_session.add(message.to_db_instance())
 
             try:

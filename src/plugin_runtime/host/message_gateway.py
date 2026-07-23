@@ -109,8 +109,22 @@ class MessageGateway:
         if save_to_db:
             try:
                 from src.common.utils.utils_message import MessageUtils
+                from src.core.runtime_port_registry import get_chat_runtime_registry
 
-                await MessageUtils.store_message_to_db_async(internal_message)
+                session_id = str(internal_message.session_id or "").strip()
+                freq_provider = None
+                if session_id:
+                    registry = get_chat_runtime_registry()
+                    if registry is not None:
+                        for rt in registry.list_runtimes():
+                            if rt.session_id == session_id:
+
+                                def _provider(_rt=rt):
+                                    return _rt.get_talk_frequency_adjust()
+
+                                freq_provider = _provider
+                                break
+                await MessageUtils.store_message_to_db_async(internal_message, reply_frequency_provider=freq_provider)
             except Exception as e:
                 logger.error(f"保存消息到数据库失败: {e}")
         return True

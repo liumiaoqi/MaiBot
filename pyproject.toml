@@ -103,11 +103,13 @@ ignore = ["E711", "E501", "TID252"]
 "src.maisaka.agent.registry.AgentConfigRegistry" = {msg = "禁止直接导入 AgentConfigRegistry，请使用 AgentConfigProvider Protocol 接口（get_agent_config_provider()）"}
 "src.services.llm_service.LLMServiceClient" = {msg = "禁止直接导入 LLMServiceClient，请使用 LLMService Protocol 接口（get_llm_service()）"}
 "src.chat.message_receive.bot.chat_bot" = {msg = "禁止直接导入 chat_bot 全局单例，请使用 MessageIngestionPort Protocol 接口（get_message_ingestion_port()）"}
+"src.person_info.person_info.Person" = {msg = "禁止直接导入 Person 类，请使用 PersonInfoPort Protocol 接口（get_person_info_port()）"}
 "src.chat.heart_flow.heartflow_manager.heartflow_manager" = {msg = "禁止直接导入 heartflow_manager 全局单例，请使用 ChatRuntimeRegistry Protocol 接口（get_chat_runtime_registry()）"}
 
 [tool.ruff.lint.per-file-ignores]
 "src/chat/message_receive/bot.py" = ["TID251"]
 "src/core/adapters/*" = ["TID251"]
+"src/core/person_info_port_registry.py" = ["TID251"]
 "src/main.py" = ["TID251"]
 "src/services/llm_service.py" = ["TID251"]
 "src/services/memory_service.py" = ["TID251"]
