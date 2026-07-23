@@ -20,7 +20,7 @@ from src.maisaka.display.prompt_cli_renderer import PromptCLIVisualizer
 from src.plugin_runtime.hook_schema_utils import build_object_schema
 from src.plugin_runtime.host.hook_spec_registry import HookSpec, HookSpecRegistry
 from src.prompt.prompt_manager import prompt_manager
-from src.services.llm_service import LLMServiceClient
+from src.core.adapters.llm_service_port import get_llm_service
 
 from .expression_review_store import append_ai_review_log
 from .expression_style_utils import normalize_expression_style_for_learning
@@ -32,12 +32,6 @@ if TYPE_CHECKING:
 
 
 logger = get_logger("expressor")
-
-express_learn_model = LLMServiceClient(
-    task_name="learner", request_type="expression.learner"
-)
-summary_model = LLMServiceClient(task_name="utils", request_type="expression.summary")
-
 
 @dataclass(frozen=True)
 class ExpressionLearningAcquireResult:
@@ -395,9 +389,11 @@ class ExpressionLearner:
 
         try:
             learning_messages = await self._build_multi_learning_messages(pending_messages, prompt)
-            generation_result = await express_learn_model.generate_response_with_messages(
+            generation_result = await get_llm_service().generate_response_with_messages(
+                "learner",
                 lambda _client: learning_messages,
-                options=LLMGenerationOptions(temperature=0.3),
+                LLMGenerationOptions(temperature=0.3),
+                request_type="expression.learner",
                 session_id=learning_session_id,
             )
             self._log_learning_context_preview(
@@ -898,7 +894,7 @@ class ExpressionLearner:
             "只输出概括内容。"
         )
         try:
-            summary_result = await summary_model.generate_response(
+            summary_result = await get_llm_service().generate_response("utils", 
                 prompt, options=LLMGenerationOptions(temperature=0.2), session_id=session_id
             )
             summary = summary_result.response

@@ -14,6 +14,8 @@ from src.common.logger import get_logger
 from src.common.message_repository import count_messages, find_messages
 from src.chat.utils.utils import is_bot_self
 from src.config.config import global_config
+from src.core.adapters.llm_service_port import get_llm_service
+from src.core.protocols import LLMService
 from src.person_info.person_info import Person, get_person_id, store_person_memory_from_answer
 
 from src.services.memory_service import memory_service
@@ -28,11 +30,11 @@ class PersonFactEvidence:
 
 
 class PersonFactWritebackService:
-    def __init__(self) -> None:
+    def __init__(self, llm_service: LLMService | None = None) -> None:
         self._queue: asyncio.Queue[Any] = asyncio.Queue(maxsize=256)
         self._worker_task: Optional[asyncio.Task] = None
         self._stopping = False
-        self._extractor: Any | None = None
+        self._llm_service = llm_service or get_llm_service()
 
     async def start(self) -> None:
         if self._worker_task is not None and not self._worker_task.done():
@@ -362,11 +364,7 @@ class PersonFactWritebackService:
 ["他喜欢深夜打游戏", "他养了一只猫"]
 如果没有可写入的事实，输出 []"""
         try:
-            if self._extractor is None:
-                from src.services.llm_service import LLMServiceClient
-
-                self._extractor = LLMServiceClient(task_name="utils", request_type="A_Memorix.person_fact_writeback")
-            response_result = await self._extractor.generate_response(prompt)
+            response_result = await self._llm_service.generate_response("utils", prompt, request_type="A_Memorix.person_fact_writeback")
         except Exception as exc:
             logger.debug(f"人物事实提取模型调用失败: {exc}")
             return []

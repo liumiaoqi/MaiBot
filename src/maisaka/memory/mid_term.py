@@ -133,13 +133,7 @@ async def build_mid_term_memory_message(
     #     f"prompt_chars={_count_prompt_message_chars(text_prompt_messages)}\n"
     #     f"{_render_summary_prompt_messages_for_log(text_prompt_messages)}"
     # )
-    from src.services.llm_service import LLMServiceClient
-
-    llm_client = LLMServiceClient(
-        task_name="mid_memory",
-        request_type="maisaka.mid_term_memory",
-        session_id=session_id,
-    )
+    from src.core.adapters.llm_service_port import get_llm_service
 
     request_prompt_messages: list[Message] = []
 
@@ -152,7 +146,11 @@ async def build_mid_term_memory_message(
         )
         return request_prompt_messages
 
-    result = await llm_client.generate_response_with_messages(message_factory)
+    result = await get_llm_service().generate_response_with_messages(
+        "mid_memory", message_factory,
+        request_type="maisaka.mid_term_memory",
+        session_id=session_id,
+    )
     _save_mid_term_memory_prompt_preview(
         request_prompt_messages,
         result=result,

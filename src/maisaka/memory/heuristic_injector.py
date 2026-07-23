@@ -15,7 +15,8 @@ from src.config.config import global_config
 from src.core.session_port_registry import get_existing_session_info, get_session_name
 from src.core.types import MemoryHit, SessionInfo
 from src.person_info.person_info import get_person_id
-from src.services.llm_service import LLMServiceClient
+from src.core.adapters.llm_service_port import get_llm_service
+from src.core.protocols import LLMService
 
 logger = get_logger("maisaka_heuristic_memory")
 
@@ -55,12 +56,9 @@ class HeuristicMemoryContext:
 class HeuristicMemoryInjector:
     """根据当前聊天流印象自然拉起长期记忆。"""
 
-    def __init__(self) -> None:
+    def __init__(self, llm_service: LLMService | None = None) -> None:
         self._states: dict[str, HeuristicMemoryRecallState] = {}
-        self._impression_client = LLMServiceClient(
-            task_name="utils",
-            request_type="heuristic_memory_impression",
-        )
+        self._llm_service = llm_service or get_llm_service()
         self._memory_port: Any = None
 
     @property
@@ -211,7 +209,7 @@ class HeuristicMemoryInjector:
             chat_identity=self._format_chat_identity(context.session),
             message_window=self._format_message_window(context.recent_messages),
         )
-        result = await self._impression_client.generate_response(prompt)
+        result = await self._llm_service.generate_response("utils", prompt, request_type="heuristic_memory_impression")
         return str(result.response or "").strip()
 
     async def _search_related_memory(

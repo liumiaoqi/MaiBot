@@ -10,7 +10,8 @@ from src.common.data_models.llm_service_data_models import LLMGenerationOptions,
 from src.common.logger import get_logger
 from src.llm_models.payload_content.message import Message, MessageBuilder, RoleType
 from src.llm_models.payload_content.tool_option import ToolCall, ToolDefinitionInput
-from src.services.llm_service import LLMServiceClient
+from src.core.adapters.llm_service_port import get_llm_service
+from src.core.protocols import LLMService
 
 from .hooks import MCPHostCallbacks
 from .models import build_tool_content_items
@@ -32,7 +33,7 @@ logger = get_logger("mcp_host_llm_bridge")
 class MCPHostLLMBridge:
     """将 MCP Sampling 请求桥接到主程序大模型调用链。"""
 
-    def __init__(self, sampling_task_name: str = "planner") -> None:
+    def __init__(self, sampling_task_name: str = "planner", llm_service: LLMService | None = None) -> None:
         """初始化 MCP 宿主侧大模型桥接服务。
 
         Args:
@@ -40,10 +41,7 @@ class MCPHostLLMBridge:
         """
 
         self._sampling_task_name = sampling_task_name.strip() or "planner"
-        self._sampling_client = LLMServiceClient(
-            task_name=self._sampling_task_name,
-            request_type="mcp_sampling",
-        )
+        self._llm_service = llm_service or get_llm_service()
 
     def build_callbacks(self) -> MCPHostCallbacks:
         """构建可注入给 MCP 连接层的宿主回调集合。
@@ -86,9 +84,9 @@ class MCPHostLLMBridge:
                 ),
             )
 
-            generation_result = await self._sampling_client.generate_response_with_messages(
-                message_factory=message_factory,
-                options=LLMGenerationOptions(
+            generation_result = await self._llm_service.generate_response_with_messages(
+                self._sampling_task_name, message_factory,
+                LLMGenerationOptions(
                     temperature=self._coerce_float(getattr(params, "temperature", None)),
                     max_tokens=int(getattr(params, "maxTokens", 1024) or 1024),
                     tool_options=tool_definitions,

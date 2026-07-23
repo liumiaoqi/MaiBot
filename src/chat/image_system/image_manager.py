@@ -15,7 +15,7 @@ from src.common.logger import get_logger
 from src.common.utils.image_path import resolve_stored_image_path, serialize_stored_image_path
 from src.config.config import config_manager
 from src.prompt.prompt_manager import prompt_manager
-from src.services.llm_service import LLMServiceClient
+from src.core.adapters.llm_service_port import get_llm_service
 
 install(extra_lines=3)
 
@@ -40,9 +40,6 @@ def _is_vlm_task_configured() -> bool:
     except Exception as exc:
         logger.warning(f"读取 VLM 模型配置失败，跳过图片识别: {exc}")
         return False
-
-
-vlm = LLMServiceClient(task_name="vlm", request_type="image")
 
 
 class ImageManager:
@@ -459,7 +456,7 @@ class ImageManager:
         prompt = await prompt_manager.render_prompt(prompt_template)
         image_base64 = base64.b64encode(image_bytes).decode("utf-8")
 
-        generation_result = await vlm.generate_response_for_image(
+        generation_result = await get_llm_service().generate_response_for_image("vlm", 
             prompt,
             image_base64,
             image_format,

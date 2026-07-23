@@ -15,7 +15,7 @@ from src.common.prompt_i18n import load_prompt
 from src.config.config import global_config
 from src.llm_models.payload_content.message import Message, MessageBuilder, RoleType
 from src.maisaka.display.prompt_cli_renderer import PromptCLIVisualizer
-from src.services.llm_service import LLMServiceClient
+from src.core.adapters.llm_service_port import get_llm_service
 
 from .behavior_pattern_maintenance import behavior_pattern_maintenance
 from .behavior_pattern_store import (
@@ -38,10 +38,6 @@ if TYPE_CHECKING:
 
 
 logger = get_logger("behavior_learner")
-
-behavior_learn_model = LLMServiceClient(task_name="learner", request_type="behavior.learner")
-behavior_scene_model = LLMServiceClient(task_name="learner", request_type="behavior.scene_analyzer")
-behavior_feedback_model = LLMServiceClient(task_name="learner", request_type="behavior.feedback")
 
 BEHAVIOR_REFERENCE_ID_PATTERN = re.compile(r"\bbehavior_id\s*[：:]\s*(\d+)\b", re.IGNORECASE)
 FEEDBACK_STATUS_SUCCESS = "success"
@@ -709,9 +705,11 @@ class BehaviorLearner:
         feedback_messages = self._build_behavior_feedback_messages(feedback_context)
 
         try:
-            generation_result = await behavior_feedback_model.generate_response_with_messages(
+            generation_result = await get_llm_service().generate_response_with_messages(
+                "learner",
                 lambda _client: feedback_messages,
-                options=LLMGenerationOptions(temperature=0.15),
+                LLMGenerationOptions(temperature=0.15),
+                request_type="behavior.feedback",
                 session_id=self.session_id,
             )
             response = generation_result.response or ""
@@ -888,9 +886,11 @@ class BehaviorLearner:
 
         try:
             learning_messages = await self._build_multi_learning_messages(pending_messages, prompt)
-            generation_result = await behavior_learn_model.generate_response_with_messages(
+            generation_result = await get_llm_service().generate_response_with_messages(
+                "learner",
                 lambda _client: learning_messages,
-                options=LLMGenerationOptions(temperature=0.25),
+                LLMGenerationOptions(temperature=0.25),
+                request_type="behavior.learner",
                 session_id=learning_session_id,
             )
             response = generation_result.response or ""
@@ -1118,9 +1118,11 @@ class BehaviorLearner:
 
         async def run_scene_prompt(prompt: str) -> str:
             scene_messages = await self._build_scene_analysis_messages(messages, prompt)
-            generation_result = await behavior_scene_model.generate_response_with_messages(
+            generation_result = await get_llm_service().generate_response_with_messages(
+                "learner",
                 lambda _client: scene_messages,
-                options=LLMGenerationOptions(temperature=0.2),
+                LLMGenerationOptions(temperature=0.2),
+                request_type="behavior.scene_analyzer",
                 session_id=learning_session_id,
             )
             response = generation_result.response or ""
@@ -1154,9 +1156,11 @@ class BehaviorLearner:
 
         async def run_scene_prompt(prompt: str) -> str:
             scene_messages = await self._build_scene_analysis_messages(messages, prompt)
-            generation_result = await behavior_scene_model.generate_response_with_messages(
+            generation_result = await get_llm_service().generate_response_with_messages(
+                "learner",
                 lambda _client: scene_messages,
-                options=LLMGenerationOptions(temperature=0.2),
+                LLMGenerationOptions(temperature=0.2),
+                request_type="behavior.scene_analyzer",
                 session_id=learning_session_id,
             )
             response = generation_result.response or ""

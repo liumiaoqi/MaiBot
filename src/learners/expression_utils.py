@@ -8,14 +8,11 @@ import re
 from src.common.data_models.llm_service_data_models import LLMGenerationOptions
 from src.common.logger import get_logger
 from src.prompt.prompt_manager import prompt_manager
-from src.services.llm_service import LLMServiceClient
+from src.core.adapters.llm_service_port import get_llm_service
 
 from .expression_style_utils import normalize_expression_style_for_learning
 
 logger = get_logger("expression_utils")
-
-judge_llm = LLMServiceClient(task_name="learner", request_type="expression.check")
-
 
 def _normalize_repair_json_result(repaired_result: Any) -> str:
     """将 `repair_json` 的返回结果统一转换为字符串。"""
@@ -164,7 +161,7 @@ async def check_expression_suitability(
 
     logger.info(f"正在优化表达方式: situation={situation}, style={style}")
 
-    generation_result = await judge_llm.generate_response(
+    generation_result = await get_llm_service().generate_response("learner", 
         prompt=prompt,
         options=LLMGenerationOptions(temperature=0.6),
         session_id=session_id,

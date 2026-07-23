@@ -28,7 +28,8 @@ from src.plugin_runtime.hook_payloads import (
 )
 from src.plugin_runtime.hook_schema_utils import build_object_schema
 from src.plugin_runtime.host.hook_spec_registry import HookSpec, HookSpecRegistry
-from src.services.llm_service import LLMServiceClient
+from src.core.adapters.llm_service_port import get_llm_service
+from src.core.protocols import LLMService
 
 from src.maisaka.builtin_tool import get_builtin_tools
 from src.maisaka.context.messages import (
@@ -485,6 +486,7 @@ class MaisakaChatLoopService:
         is_group_chat: Optional[bool] = None,
         model_task_name: str = "planner",
         agent_id: Optional[str] = None,
+        llm_service: LLMService | None = None,
     ) -> None:
         """初始化 Maisaka 对话循环服务。
 
@@ -508,7 +510,7 @@ class MaisakaChatLoopService:
         self._tool_registry: ToolRegistry | None = None
         self._custom_chat_system_prompt = chat_system_prompt
         self._prompt_load_lock = asyncio.Lock()
-        self._llm_chat_clients: dict[str, LLMServiceClient] = {}
+        self._llm_service = llm_service or get_llm_service()
         self._use_embodied_prompt: bool = False
 
     @property
@@ -557,22 +559,6 @@ class MaisakaChatLoopService:
 
         normalized_request_kind = str(request_kind or "").strip().lower()
         return MODEL_TASK_NAME_BY_REQUEST_KIND.get(normalized_request_kind, self._model_task_name)
-
-    def _get_llm_chat_client(self, request_kind: str) -> LLMServiceClient:
-        """获取当前请求类型对应的 LLM 客户端。"""
-
-        request_type = self._resolve_llm_request_type(request_kind)
-        model_task_name = self._resolve_model_task_name(request_kind)
-        client_key = f"{model_task_name}:{request_type}"
-        llm_client = self._llm_chat_clients.get(client_key)
-        if llm_client is None:
-            llm_client = LLMServiceClient(
-                task_name=model_task_name,
-                request_type=request_type,
-                session_id=self._session_id,
-            )
-            self._llm_chat_clients[client_key] = llm_client
-        return llm_client
 
     @staticmethod
     def _resolve_planner_response_content(response: str, reasoning: str) -> str:
@@ -1104,15 +1090,18 @@ class MaisakaChatLoopService:
         prompt_section: RenderableType | None = None
         prompt_html_uri: str | None = None
 
-        llm_chat = self._get_llm_chat_client(request_kind)
+        model_task_name = self._resolve_model_task_name(request_kind)
+        request_type = self._resolve_llm_request_type(request_kind)
         llm_started_at = time.perf_counter()
-        generation_result = await llm_chat.generate_response_with_messages(
-            message_factory=message_factory,
-            options=LLMGenerationOptions(
+        generation_result = await self._llm_service.generate_response_with_messages(
+            model_task_name, message_factory,
+            LLMGenerationOptions(
                 tool_options=all_tools if all_tools else None,
                 response_format=response_format,
                 interrupt_flag=self._interrupt_flag,
             ),
+            request_type=request_type,
+            session_id=self._session_id,
         )
         llm_duration_ms = round((time.perf_counter() - llm_started_at) * 1000, 2)
         self._log_prompt_cache_usage(

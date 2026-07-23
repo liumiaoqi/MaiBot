@@ -21,13 +21,12 @@ from src.maisaka.display.prompt_cli_renderer import PromptCLIVisualizer
 from src.plugin_runtime.hook_schema_utils import build_object_schema
 from src.plugin_runtime.host.hook_spec_registry import HookSpec, HookSpecRegistry
 from src.prompt.prompt_manager import prompt_manager
-from src.services.llm_service import LLMServiceClient
+from src.core.adapters.llm_service_port import get_llm_service
 
 from .expression_utils import is_single_char_jargon
 
 logger = get_logger("jargon")
 
-llm_inference = LLMServiceClient(task_name="learner", request_type="jargon.inference")
 JARGON_INFERENCE_THRESHOLDS = [4, 8, 25, 100]
 EMOJI_ONLY_MESSAGE_PATTERN = re.compile(r"^(?:\s*\[表情包(?:\d+)?(?:[:：][^\]]*)?\]\s*)+$")
 
@@ -446,7 +445,7 @@ class JargonMiner:
         prompt1_template.add_context("previous_meaning_instruction", previous_meaning_instruction)
         prompt1 = await prompt_manager.render_prompt(prompt1_template)
 
-        generation_result_1 = await llm_inference.generate_response(
+        generation_result_1 = await get_llm_service().generate_response("learner", 
             prompt1, options=LLMGenerationOptions(temperature=0.3), session_id=self.session_id
         )
         llm_response_1 = generation_result_1.response
@@ -485,7 +484,7 @@ class JargonMiner:
         prompt2_template.add_context("content", content)
         prompt2 = await prompt_manager.render_prompt(prompt2_template)
 
-        generation_result_2 = await llm_inference.generate_response(
+        generation_result_2 = await get_llm_service().generate_response("learner", 
             prompt2, options=LLMGenerationOptions(temperature=0.3), session_id=self.session_id
         )
         llm_response_2 = generation_result_2.response
@@ -519,7 +518,7 @@ class JargonMiner:
         if global_config.debug.show_jargon_prompt:
             logger.info(f"jargon {content} 比较提示词: {prompt3}")
 
-        generation_result_3 = await llm_inference.generate_response(
+        generation_result_3 = await get_llm_service().generate_response("learner", 
             prompt3, options=LLMGenerationOptions(temperature=0.3), session_id=self.session_id
         )
         llm_response_3 = generation_result_3.response

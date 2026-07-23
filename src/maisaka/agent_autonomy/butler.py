@@ -11,15 +11,13 @@
 from __future__ import annotations
 
 import json
-import logging
 import random
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
 
 from src.common.logger import get_logger
-from src.maisaka.agent.config import AgentConfig, InternalRelationship
+from src.maisaka.agent.config import AgentConfig
 from src.core.adapters.agent_config_port import get_agent_config_provider
 from src.maisaka.agent_autonomy.reminder import ReminderManager, Reminder
 from src.maisaka.agent_autonomy.speaker_transfer import (
@@ -30,7 +28,7 @@ from src.maisaka.agent_autonomy.speaker_transfer import (
 )
 from src.core.message_port_registry import get_message_port_v2
 from src.core.protocols import MessagePortV2
-from src.maisaka.agent_autonomy.log_utils import fmt_butler, fmt_interjection
+from src.maisaka.agent_autonomy.log_utils import fmt_butler
 
 logger = get_logger("agent_autonomy.butler")
 
@@ -266,7 +264,7 @@ class Butler:
 
         from src.llm_models.payload_content.message import MessageBuilder, RoleType
         from src.common.data_models.llm_service_data_models import LLMGenerationOptions
-        from src.services.llm_service import LLMServiceClient
+        from src.core.adapters.llm_service_port import get_llm_service
 
         context = f"用户：{user_text}"
         if agent_text:
@@ -306,14 +304,14 @@ class Butler:
             "只返回JSON数组，如：[\"bronya\", \"tighnari\"]\n无则返回：[]"
         )
 
-        client = LLMServiceClient(task_name="replyer", request_type="butler_filter")
         def message_factory(_client):
             return [MessageBuilder().set_role(RoleType.User).add_text_part(prompt).build()]
 
         try:
-            result = await client.generate_response_with_messages(
-                message_factory=message_factory,
-                options=LLMGenerationOptions(temperature=0.3),
+            result = await get_llm_service().generate_response_with_messages(
+                "replyer", message_factory,
+                LLMGenerationOptions(temperature=0.3),
+                request_type="butler_filter",
             )
             response = (result.response or "").strip()
             if "[" in response and "]" in response:
@@ -520,7 +518,7 @@ class Butler:
 
         from src.llm_models.payload_content.message import MessageBuilder, RoleType
         from src.common.data_models.llm_service_data_models import LLMGenerationOptions
-        from src.services.llm_service import LLMServiceClient
+        from src.core.adapters.llm_service_port import get_llm_service
 
         now = _now()
         parts = [
@@ -552,7 +550,6 @@ class Butler:
             f"如果你觉得此刻不需要你说话，回复：NONE"
         )
 
-        client = LLMServiceClient(task_name="replyer", request_type="butler_speak")
         def message_factory(_client):
             return [
                 MessageBuilder().set_role(RoleType.System).add_text_part(system_prompt).build(),
@@ -560,9 +557,10 @@ class Butler:
             ]
 
         try:
-            result = await client.generate_response_with_messages(
-                message_factory=message_factory,
-                options=LLMGenerationOptions(temperature=0.7),
+            result = await get_llm_service().generate_response_with_messages(
+                "replyer", message_factory,
+                LLMGenerationOptions(temperature=0.7),
+                request_type="butler_speak",
             )
             response = (result.response or "").strip()
             if response == "NONE" or not response:

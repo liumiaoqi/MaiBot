@@ -16,7 +16,7 @@ from src.llm_models.payload_content.message import Message, MessageBuilder, Role
 from src.maisaka.display.prompt_cli_renderer import PromptCLIVisualizer
 from src.maisaka.jargon_context_matcher import is_jargon_reference_text
 from src.prompt.prompt_manager import prompt_manager
-from src.services.llm_service import LLMServiceClient
+from src.core.adapters.llm_service_port import get_llm_service
 
 from .expression_utils import parse_jargon_response
 from .jargon_miner import JargonEntry, JargonEvidenceMessageGroup, JargonMiner
@@ -28,7 +28,6 @@ if TYPE_CHECKING:
 
 logger = get_logger("jargon_learner")
 
-jargon_learn_model = LLMServiceClient(task_name="learner", request_type="jargon.learner")
 ALLOWED_LEARNING_SOURCE_KINDS = {
     "assistant",
     "guided_reply",
@@ -444,9 +443,11 @@ class JargonLearner:
 
         try:
             learning_messages = await self._build_multi_learning_messages(pending_messages, prompt)
-            generation_result = await jargon_learn_model.generate_response_with_messages(
+            generation_result = await get_llm_service().generate_response_with_messages(
+                "learner",
                 lambda _client: learning_messages,
-                options=LLMGenerationOptions(temperature=0.3),
+                LLMGenerationOptions(temperature=0.3),
+                request_type="jargon.learner",
                 session_id=learning_session_id,
             )
             self._log_learning_context_preview(

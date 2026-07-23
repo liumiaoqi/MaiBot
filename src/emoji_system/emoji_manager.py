@@ -22,7 +22,7 @@ from src.config.config import config_manager, global_config
 from src.plugin_runtime.hook_schema_utils import build_object_schema
 from src.plugin_runtime.host.hook_spec_registry import HookSpec, HookSpecRegistry
 from src.prompt.prompt_manager import prompt_manager
-from src.services.llm_service import LLMServiceClient
+from src.core.adapters.llm_service_port import get_llm_service
 
 logger = get_logger("emoji")
 
@@ -256,10 +256,6 @@ def _is_collected_emoji_size_allowed(size_bytes: int) -> bool:
 
     max_size_bytes = _get_max_collected_emoji_bytes()
     return max_size_bytes <= 0 or size_bytes <= max_size_bytes
-
-
-emoji_manager_vlm = LLMServiceClient(task_name="vlm", request_type="emoji.see")
-emoji_manager_emotion_judge_llm = LLMServiceClient(task_name="utils", request_type="emoji")
 
 
 class EmojiManager:
@@ -899,7 +895,7 @@ class EmojiManager:
         emoji_replace_prompt_template.add_context("description", new_emoji.description or "无描述")
         emoji_replace_prompt = await prompt_manager.render_prompt(emoji_replace_prompt_template)
 
-        decision_result = await emoji_manager_emotion_judge_llm.generate_response(
+        decision_result = await get_llm_service().generate_response("utils", 
             emoji_replace_prompt,
             session_id=session_id,
         )
@@ -962,7 +958,7 @@ class EmojiManager:
         try:
             review_prompt_template = prompt_manager.get_prompt("emoji_content_filtration")
             review_prompt = await prompt_manager.render_prompt(review_prompt_template)
-            filtration_result = await emoji_manager_vlm.generate_response_for_image(
+            filtration_result = await get_llm_service().generate_response_for_image("vlm", 
                 review_prompt,
                 image_base64,
                 image_format,
@@ -1016,7 +1012,7 @@ class EmojiManager:
                     "使用逗号分隔，标签可为中文或英文，不要附带解释。"
                 )
                 image_base64 = ImageUtils.image_bytes_to_base64(image_bytes)
-                description_result = await emoji_manager_vlm.generate_response_for_image(
+                description_result = await get_llm_service().generate_response_for_image("vlm", 
                     prompt,
                     image_base64,
                     "jpg",
@@ -1028,7 +1024,7 @@ class EmojiManager:
                     "这是一个表情包图片，请提取该表情主要表达的情绪或语气标签，"
                     "最多 5 个，使用逗号分隔，返回纯文本标签列表，不要解释，不要输出其他内容。"
                 )
-                description_result = await emoji_manager_vlm.generate_response_for_image(
+                description_result = await get_llm_service().generate_response_for_image("vlm", 
                     prompt,
                     image_base64,
                     image_format,

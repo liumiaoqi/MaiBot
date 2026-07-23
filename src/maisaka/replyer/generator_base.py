@@ -29,6 +29,7 @@ from src.common.i18n import get_locale
 from src.common.logger import get_logger
 from src.common.utils.utils_config import ChatConfigUtils
 from src.config.config import global_config
+from src.core.protocols import LLMService
 from src.config.model_configs import ModelInfo
 from src.core.types import ActionInfo
 from src.llm_models.payload_content.message import Message, MessageBuilder, RoleType
@@ -88,22 +89,18 @@ class BaseMaisakaReplyGenerator:
         *,
         chat_stream: Optional[SessionInfo] = None,
         request_type: str = "maisaka.replyer",
-        llm_client_cls: Any,
+        llm_service: LLMService,
         load_prompt_func: Callable[..., str],
         enable_visual_message: Optional[bool],
         replyer_mode: Literal["text", "multimodal", "auto"],
     ) -> None:
         self.chat_stream = chat_stream
         self.request_type = request_type
-        self._llm_client_cls = llm_client_cls
+        self._llm_service = llm_service
         self._load_prompt = load_prompt_func
         self._enable_visual_message = enable_visual_message
         self._replyer_mode = replyer_mode
-        self.express_model = llm_client_cls(
-            task_name="replyer",
-            request_type=request_type,
-            session_id=chat_stream.session_id if chat_stream is not None else "",
-        )
+        self._replyer_session_id = chat_stream.session_id if chat_stream is not None else "" 
 
     def _build_personality_prompt(self) -> str:
         """构建 replyer 使用的人设提示。"""
@@ -637,12 +634,6 @@ class BaseMaisakaReplyGenerator:
         filtered_history = [message for message in chat_history if self._should_keep_replyer_history_message(message)]
         new_messages = self._extract_checker_new_messages(chat_history, latest_chat_history)
         preview_chat_id = self._resolve_session_id(stream_id)
-        checker_model = self._llm_client_cls(
-            task_name=str(getattr(self.express_model, "task_name", "") or "replyer").strip() or "replyer",
-            request_type=f"{self.request_type}.checker",
-            session_id=preview_chat_id,
-        )
-
         request_messages: List[Message] = []
         prompt_preview = ""
 
@@ -674,9 +665,12 @@ class BaseMaisakaReplyGenerator:
             prompt_preview = PromptCLIVisualizer.build_prompt_dump_text(request_messages)
             return request_messages
 
-        generation_result = await checker_model.generate_response_with_messages(
+        generation_result = await self._llm_service.generate_response_with_messages(
+            "replyer",
             message_factory=message_factory,
             options=LLMGenerationOptions(),
+            request_type=f"{self.request_type}.checker",
+            session_id=preview_chat_id,
         )
         output_text = (generation_result.response or "").strip()
         normalized_output = output_text.lower()
@@ -902,10 +896,6 @@ class BaseMaisakaReplyGenerator:
 
         result = ReplyGenerationResult()
         overall_started_at = time.perf_counter()
-        if self.express_model is None:
-            logger.error("回复模型未初始化")
-            result.error_message = "回复模型尚未初始化"
-            return finalize(False)
 
         active_reply_tool_args = self._normalize_reply_tool_args(reply_tool_args)
         if chat_history is None:
@@ -961,7 +951,7 @@ class BaseMaisakaReplyGenerator:
         aggregate_prompt_tokens = 0
         aggregate_completion_tokens = 0
         aggregate_total_tokens = 0
-        default_task_name = str(getattr(self.express_model, "task_name", "") or "replyer").strip() or "replyer"
+        default_task_name = "replyer"
 
         while True:
             try:
@@ -1061,16 +1051,12 @@ class BaseMaisakaReplyGenerator:
 
             llm_started_at = time.perf_counter()
             try:
-                active_model = self.express_model
-                if active_task_name != default_task_name:
-                    active_model = self._llm_client_cls(
-                        task_name=active_task_name,
-                        request_type=self.request_type,
-                        session_id=preview_chat_id,
-                    )
-                generation_result = await active_model.generate_response_with_messages(
+                generation_result = await self._llm_service.generate_response_with_messages(
+                    active_task_name,
                     message_factory=message_factory,
                     options=LLMGenerationOptions(model_name=active_model_name),
+                    request_type=self.request_type,
+                    session_id=preview_chat_id,
                 )
             except Exception as exc:
                 logger.exception("Maisaka 回复器调用失败")
