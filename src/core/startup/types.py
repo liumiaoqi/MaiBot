@@ -77,7 +77,10 @@ class StartupResult:
 class CoreReadiness:
     """核心就绪状态判定。
 
-    三个条件由 StartupOrchestrator 在阶段 2 完成后自动设置。
+    三个条件由 StartupOrchestrator 在阶段 2 完成后自动设置：
+    - message_pipeline_ready ← chat_manager_adapter
+    - agent_thinking_ready ← agent_registry
+    - reply_capability_ready ← replyer_port
     """
 
     message_pipeline_ready: bool = False
