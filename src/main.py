@@ -64,8 +64,9 @@ class MainSystem:
             raise RuntimeError("消息 API 初始化失败")
 
         from src.chat.message_receive.bot import chat_bot
+        from src.core.adapters.message_ingestion_port import get_message_ingestion_port
 
-        self.app.register_message_handler(chat_bot.message_process)
+        self.app.register_message_handler(get_message_ingestion_port().message_process)
         self.app.register_custom_message_handler("message_id_echo", chat_bot.echo_message_process)
         self._message_handlers_registered = True
 
@@ -167,7 +168,11 @@ class MainSystem:
             init_fn=self._init_llm_service_port,
         ))
         orchestrator.register(StartupComponent(
-            name="prompt_manager", phase=StartupPhase.CORE_SERVICES, order=8, critical=True,
+            name="message_ingestion_port", phase=StartupPhase.CORE_SERVICES, order=8, critical=True,
+            init_fn=self._init_message_ingestion_port,
+        ))
+        orchestrator.register(StartupComponent(
+            name="prompt_manager", phase=StartupPhase.CORE_SERVICES, order=9, critical=True,
             init_fn=self._load_prompts,
         ))
 
@@ -355,6 +360,12 @@ class MainSystem:
     async def _init_llm_service_port() -> None:
         from src.core.adapters.llm_service_port import LLMServiceAdapter, set_llm_service
         set_llm_service(LLMServiceAdapter())
+
+    @staticmethod
+    async def _init_message_ingestion_port() -> None:
+        from src.chat.message_receive.bot import chat_bot
+        from src.core.adapters.message_ingestion_port import ChatBotMessageIngestionPort, set_message_ingestion_port
+        set_message_ingestion_port(ChatBotMessageIngestionPort(chat_bot))
 
     @staticmethod
     async def _load_prompts() -> None:

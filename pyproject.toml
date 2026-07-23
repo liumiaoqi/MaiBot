@@ -102,8 +102,10 @@ ignore = ["E711", "E501", "TID252"]
 "src.chat.message_receive.bot.napcat_notice_sub_type" = {msg = "核心层禁止读取 napcat_* 字段，通知分类应在入站点完成（notice_type_mapping.py → NoticeKind）"}
 "src.maisaka.agent.registry.AgentConfigRegistry" = {msg = "禁止直接导入 AgentConfigRegistry，请使用 AgentConfigProvider Protocol 接口（get_agent_config_provider()）"}
 "src.services.llm_service.LLMServiceClient" = {msg = "禁止直接导入 LLMServiceClient，请使用 LLMService Protocol 接口（get_llm_service()）"}
+"src.chat.message_receive.bot.chat_bot" = {msg = "禁止直接导入 chat_bot 全局单例，请使用 MessageIngestionPort Protocol 接口（get_message_ingestion_port()）"}
 
 [tool.ruff.lint.per-file-ignores]
+"src/chat/message_receive/bot.py" = ["TID251"]
 "src/core/adapters/*" = ["TID251"]
 "src/main.py" = ["TID251"]
 "src/services/llm_service.py" = ["TID251"]

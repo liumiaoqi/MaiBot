@@ -25,7 +25,17 @@ if TYPE_CHECKING:
         MessageFactory,
     )
     from src.maisaka.agent.config import AgentConfig
-    from src.core.types import MemorySearchResult, MemoryWriteResult, NoticeKind, ObserveRequest, SendMessageResult, SessionInfo, ThinkContext, ThinkResult
+    from src.core.types import (
+        MemorySearchResult,
+        MemoryWriteResult,
+        NoticeKind,
+        ObserveRequest,
+        SendMessageResult,
+        SessionInfo,
+        SessionMessage,
+        ThinkContext,
+        ThinkResult,
+    )
 
 
 @runtime_checkable
@@ -137,8 +147,9 @@ class ChatRuntime(Protocol):
         plugin_id: str,
         intent: str,
         reason: str = "",
+        priority: str = "",
         metadata: Optional[dict[str, Any]] = None,
-    ) -> Optional[dict[str, Any]]:
+    ) -> dict[str, Any]:
         """触发主动对话任务。
 
         **仅用于插件主动对话，禁止用于多智能体插话。**
@@ -152,17 +163,40 @@ class ChatRuntime(Protocol):
             plugin_id: 触发来源标识
             intent: 触发意图描述
             reason: 触发原因
+            priority: 优先级标识
             metadata: 附加元数据
 
         Returns:
-            任务执行结果，失败时返回 None
+            任务执行结果
         """
+
+    def append_context_message(self, message: Any, *, source_kind: str = "plugin") -> int:
+        """向聊天历史追加上下文消息。"""
+
+    def get_talk_frequency_adjust(self) -> float:
+        """获取当前回复频率倍率。"""
+
+    def adjust_talk_frequency(self, frequency: float) -> None:
+        """调整当前回复频率倍率。"""
 
     async def start(self) -> None:
         """启动运行时。"""
 
     async def stop(self) -> None:
         """停止运行时。"""
+
+
+@runtime_checkable
+class MessageIngestionPort(Protocol):
+    """消息入站端口 — 外部系统通过此接口向主链路投递消息，不直接依赖 chat_bot 全局单例。"""
+
+    async def receive_message(self, message: SessionMessage) -> None:
+        """接收并处理入站消息。"""
+        ...
+
+    async def message_process(self, message_data: Dict[str, Any]) -> None:
+        """处理 Platform IO 入站封装。"""
+        ...
 
 
 @runtime_checkable

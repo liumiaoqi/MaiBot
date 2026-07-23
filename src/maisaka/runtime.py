@@ -543,6 +543,15 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         self._talk_frequency_adjust = max(0.0, float(frequency))
         self._schedule_message_turn()
 
+    def append_context_message(self, message: Any, *, source_kind: str = "plugin") -> int:
+        """向聊天历史追加上下文消息（SSD-8）。"""
+        self._chat_history.append(message)
+        return len(self._chat_history) - 1
+
+    def get_talk_frequency_adjust(self) -> float:
+        """获取当前回复频率倍率（SSD-8）。"""
+        return self._talk_frequency_adjust
+
     def append_sent_message_to_chat_history(
         self,
         message: SessionMessage,

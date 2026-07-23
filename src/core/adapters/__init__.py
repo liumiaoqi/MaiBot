@@ -8,6 +8,7 @@ from src.core.adapters.agent_config_port import get_agent_config_provider, reset
 from src.core.adapters.chat_manager_adapter import ChatManagerAdapter
 from src.core.adapters.llm_service_port import get_llm_service, reset_llm_service  # noqa: F401
 from src.core.adapters.memory_service import get_memory_service_port, reset_memory_service_port  # noqa: F401
+from src.core.adapters.message_ingestion_port import get_message_ingestion_port, reset_message_ingestion_port  # noqa: F401
 from src.core.adapters.notice_classifier import NapCatNoticeClassifier
 from src.core.adapters.routing_adapter import ChatManagerRoutingAdapter
 from src.core.adapters.runtime_registry import HeartflowRuntimeRegistry
@@ -19,7 +20,9 @@ __all__ = [
     "HeartflowRuntimeRegistry",
     "get_agent_config_provider",
     "get_llm_service",
+    "get_message_ingestion_port",
     "NapCatNoticeClassifier",
     "reset_agent_config_provider",
     "reset_llm_service",
+    "reset_message_ingestion_port",
 ]
