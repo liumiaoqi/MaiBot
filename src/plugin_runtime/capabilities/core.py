@@ -566,6 +566,7 @@ class RuntimeCoreCapabilityMixin:
         from src.services.embedding_service import EmbeddingServiceClient
         from src.services.llm_service import resolve_task_name
 
+
         try:
             text = _normalize_embedding_text_arg(args)
             texts = _normalize_embedding_texts_arg(args)
@@ -603,7 +604,8 @@ class RuntimeCoreCapabilityMixin:
         """执行语音识别能力。"""
 
         del capability
-        from src.services.llm_service import LLMServiceClient, resolve_task_name
+        from src.core.adapters.llm_service_port import get_llm_service
+        from src.services.llm_service import resolve_task_name
 
         try:
             audio_base64 = _normalize_audio_base64_arg(args)
@@ -613,11 +615,10 @@ class RuntimeCoreCapabilityMixin:
             task_name = resolve_task_name(
                 str(args.get("task_name", "") or args.get("model", "") or args.get("model_name", "") or "voice")
             )
-            asr_client = LLMServiceClient(
-                task_name=task_name,
-                request_type=f"plugin.{plugin_id}.asr",
+            request_type = f"plugin.{plugin_id}.asr"
+            result = await get_llm_service().transcribe_audio(
+                task_name, audio_base64, request_type=request_type,
             )
-            result = await asr_client.transcribe_audio(audio_base64)
             text = result.text or ""
             return {
                 "success": bool(text),

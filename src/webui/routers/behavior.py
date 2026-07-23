@@ -33,11 +33,10 @@ from src.learners.behavior_scene_cluster_store import (
     format_scene_cluster_distribution,
 )
 from src.llm_models.payload_content.message import Message, MessageBuilder, RoleType
-from src.services.llm_service import LLMServiceClient
+from src.core.adapters.llm_service_port import get_llm_service
 from src.webui.dependencies import require_auth
 
 router = APIRouter(prefix="/behavior", tags=["Behavior"], dependencies=[Depends(require_auth)])
-behavior_scene_debug_model = LLMServiceClient(task_name="learner", request_type="behavior.scene_analyzer")
 
 
 class BehaviorChatInfo(BaseModel):
@@ -233,9 +232,10 @@ async def _analyze_debug_scene_text(scene_text: str) -> BehaviorScenarioProfile:
 
     async def run_scene_prompt(system_prompt: str) -> str:
         scene_messages = _build_debug_scene_messages(normalized_scene_text, system_prompt)
-        generation_result = await behavior_scene_debug_model.generate_response_with_messages(
-            lambda _client: scene_messages,
-            options=LLMGenerationOptions(temperature=0.2),
+        generation_result = await get_llm_service().generate_response_with_messages(
+            "learner", lambda _client: scene_messages,
+            LLMGenerationOptions(temperature=0.2),
+            request_type="behavior.scene_analyzer",
         )
         return generation_result.response or ""
 
