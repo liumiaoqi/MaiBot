@@ -77,6 +77,7 @@ class StartupOrchestrator:
         total_ms = int((time.monotonic() - self._start_time) * 1000)
         failed = [c for c in self._components if c.status == ComponentStatus.FAILED]
         degraded = [c for c in self._components if c.status == ComponentStatus.FAILED and not c.critical]
+        critical_failed = [c for c in failed if c.critical]
 
         core_ready_ms = 0
         if self._core_readiness.core_ready and self._core_ready_time > 0:
@@ -87,7 +88,7 @@ class StartupOrchestrator:
             phases=self._phase_results,
             failed_components=failed,
             degraded_components=degraded,
-            ready=len(failed) == 0,
+            ready=len(critical_failed) == 0,
             core_ready=self._core_readiness.core_ready,
             core_ready_time_ms=core_ready_ms,
             subsystem_status=self._subsystem_status,
@@ -153,9 +154,10 @@ class StartupOrchestrator:
 
         end = time.monotonic()
         duration_ms = int((end - start) * 1000)
-        status = ComponentStatus.SUCCESS if all(
-            c.status == ComponentStatus.SUCCESS for c in components
-        ) else ComponentStatus.FAILED
+        critical_failed = any(
+            c.critical and c.status != ComponentStatus.SUCCESS for c in components
+        )
+        status = ComponentStatus.FAILED if critical_failed else ComponentStatus.SUCCESS
 
         if status == ComponentStatus.SUCCESS:
             logger.info(f"[启动] 阶段{phase.value}: {phase_name} 状态=成功 耗时={duration_ms}ms")
@@ -180,10 +182,10 @@ class StartupOrchestrator:
         except Exception as exc:
             component.status = ComponentStatus.FAILED
             component.error = exc
-            logger.error(f"[{component.name}] 初始化失败: {exc}", exc_info=True)
             if component.critical:
+                logger.error(f"[{component.name}] 关键组件初始化失败: {exc}", exc_info=True)
                 raise
-            self._subsystem_status[component.name] = ComponentStatus.FAILED
+            logger.warning(f"[{component.name}] 非关键组件初始化失败（降级继续）: {exc}")
         finally:
             component.end_time = time.monotonic()
             component.duration_ms = int((component.end_time - component.start_time) * 1000)
