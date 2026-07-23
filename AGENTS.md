@@ -136,7 +136,7 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 1. 禁止核心直接导入 chat_manager ✅ 已消除（子模块直接注入 + 单例移除 + ruff TID251 守卫）
 2. 禁止核心访问 chat_manager._agent_router ✅ 已消除（构造注入 AgentRouter + ruff TID251 守卫，SSD-4 验证关闭）
 3. 禁止核心持有 BotChatSession 可变引用 ✅ 已消除（SessionInfo 不可变快照 + ChatManagerAdapter 立即转换，SSD-4 验证关闭）
-4. 禁止核心硬编码 napcat_* 字段 — 通知分类由平台适配器在入站时完成，核心只处理 NoticeKind 枚举
+4. 禁止核心硬编码 napcat_* 字段 ✅ 已消除（入站点 notice_type_mapping.py 映射 + NapCatNoticeClassifier 改读 notice_kind + ruff banned-api 守卫，SSD-4 T3.1-T3.5）
 5. 禁止核心绕过 MessagePort 直接调用 send_service ✅ 已消除 + ruff TID251 守卫
 6. 禁止核心导入 A_memorix 内部模块 ✅ 已消除（core/零违规导入 + ruff TID251 守卫 + CI AST脚本）
 7. 禁止 Orchestrator 通过 enqueue_proactive_task 模拟多智能体
@@ -279,6 +279,33 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 - ✅ 阶段4：SessionResolver 提取（路由解析 + 数据库懒加载）
 - ✅ 阶段5：BindingRestorer 提取（智能体绑定恢复）
 - ✅ 阶段6：SessionLifecycle 提取 + ChatManager 清理（604→143行，routes.py sessions.pop 已封装）
+
+# 存量债务继续清（SSD-4）
+
+**编码已完成**（5 批次 17 任务全部完成，CC+Codex 协作 + CA 审查修正）
+
+## 完成的变更
+
+| 批次 | 任务 | 负责人 | 内容 |
+|------|------|--------|------|
+| 1 | T1.1 | Codex | #2/#3 验证关闭（chat_manager 单例 + BotChatSession 可变引用） |
+| 1 | T1.2 | Codex | MemoryField 竞态修复（两阶段初始化） |
+| 2 | T2.1 | CC | SessionMessage 物理迁移到 common 层 |
+| 2 | T2.2 | Codex | is_bot_self/get_bot_account 物理迁移到 core/identity.py |
+| 2 | T2.3 | CC | is_mentioned_bot_in_message/get_chat_type_and_target_info 迁移到 core/message_utils.py |
+| 2 | T2.4 | Codex | HeartflowRuntimeRegistry 构造注入 |
+| 2 | T2.5 | CC | core 层零 chat 导入验证（ruff TID251 确认） |
+| 3 | T3.1-T3.5 | CC | napcat_* 入站化（notice_type_mapping.py + bot.py 入站点 + NapCatNoticeClassifier 改读 notice_kind + ruff banned-api 守卫 + 全量验证） |
+| 4 | T4.1-T4.3 | Codex | enqueue_proactive_task 协议瘦身（chat_loop_adapter 代理移除 + grep 守卫 + 文档字符串强化） |
+| 5 | 修正 | CA | CC 审查修正（补导入/清 getattr/删残留）+ SSD-3 遗留函数体清理 |
+
+## 关键架构变更
+
+1. **SessionMessage → common 层**：chat/message_receive/message.py 从 549 行瘦身至 3 行纯 re-export
+2. **is_mentioned_bot_in_message → core 层**：core/message_utils.py 持有真实定义，消除 getattr 8 处
+3. **napcat_* 入站化**：核心层零 napcat_ 代码引用，通知分类在入站点（bot.py）完成
+4. **NapCatNoticeClassifier 改造**：优先读取入站点预填充的 notice_kind，兼容回退已标注 TODO
+5. **utils.py 函数体清理**：911→284 行，SSD-3+SSD-4 全部已迁移函数体删除，仅保留 re-export
 
 # 记忆系统范式迁移进展
 
