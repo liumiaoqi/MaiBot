@@ -15,126 +15,6 @@
 3. **充分利用好已有的工具，不要重复造车轮**
 4. **大道至简**
 
-## 运行环境
-
-- Docker 环境，容器名 `maim-bot-core`
-- 依赖管理用 uv，不用 pip
-- Python 3.14.6
-- 代码修改后需重启容器才能生效
-- docker 环境外层有 maibot 和 sdk 的原码：
-  - `E:\Users\lmq\MaiBot\MiMo-Code` — 智能体原码
-  - `E:\Users\lmq\MaiBot\maibot-plugin-sdk` — SDK 原码
-- 我和上游是两个不同的开发方向，运行环境差别也很大，更新 skill、拉取上游时需要仔细检查，需要往我的方向靠拢
-
-## 三主智能体协作
-
-- **CA**（CodeArts，华为云码道）：需求分析、架构设计、SSD 文档（spec/design/tasks）、代码审查、质量守卫
-- **CC**（Claude Code）：复杂编码执行、架构重构、大代码库变更、UI/设计迭代、运行时验证、提交管理
-- **Codex**（GPT-5.3-Codex，Windows 环境）：快速编码执行、Debug/修复、Terminal/CI-CD 任务、批量后台任务、GitHub PR 审查
-- 三者平级，各有优劣，用户根据任务类型选择派发
-- **子智能体**：各主智能体下的代理（如 CA 的 Task subagent、CC 的 MCP 工具、Codex 的内置代理），由主智能体自主调度
-- **用户是唯一中继**：主智能体之间没有直接通信链路，需要对方做事必须通过用户传达
-- **环境隔离**：CC 和 Codex 不在同一环境（CC 在 WSL，Codex 在 Windows 原生），无法直接通信，所有协调只能通过 `.shared/handoff/` 和用户中继
-- **共享区**：`.shared/`（git 子仓库），包含协作约定、活跃任务上下文、交接文件
-- **交接流程**：CA 写 `handoff/ca2cc_*.md` / `ca2cx_*.md` → 用户传达 → CC/Codex 读取执行 → 写 `handoff/cc2ca_*.md` / `cx2ca_*.md` → 用户传达 → CA 审查
-- **冲突避免**：编码期间执行主智能体（CC 或 Codex）拥有代码修改权，CA 只读；紧急修改先通知用户
-
-### 核心优势
-
-**CA 赢在"想清楚再动手"**：结构化需求分析、Protocol 接口设计、SSD 三阶段文档（spec→design→tasks）、代码审查双重标准（正确性 + 是否违背核心原则）、跨智能体协调与任务拆分。CA 是三元协作的协调中枢——不写代码，但决定谁写什么、怎么验证。
-
-**CC 赢在"第一遍就对"**：跨文件重构首次正确率 ~95%、1M 上下文一次吃透项目依赖图、协议/接口层变更不漏实现、深层因果调试（跨抽象层追踪竞态）。适合需要"理解为什么"的任务。
-
-**Codex 赢在"让子弹飞"**：响应速度 ~3× CC、异步执行扔任务切走、代码审查二道防线（不同训练分布捕获 CC 盲点）、批量并行 4-6 个独立任务。适合"定义清晰、只需执行"的任务。
-
-### 智能体分工矩阵
-
-| 维度 | CA（CodeArts） | CC（Claude Code） | Codex（GPT-5.3-Codex） |
-|------|---------------|-------------------|------------------------|
-| 需求分析/SSD 文档 | ✅ 首选（结构化思维、Protocol 设计） | 不适合 | 不适合 |
-| 代码审查/质量守卫 | ✅ 首选（双重标准：正确性+原则合规） | 辅助 | 二道防线 |
-| 复杂架构重构 | 设计 | ✅ 首选（SWE-bench 80.8%，首次正确率 ~95%） | 辅助（首次正确率 ~90%，易过度工程化） |
-| 快速编码/Bug 修复 | 不参与 | 可用 | ✅ 首选（响应快 ~3×、Token 省 ~4×） |
-| Debug 定位 | 不参与 | 可用（深层因果调试更强） | ✅ 首选（快速定位+修复） |
-| Terminal/CI-CD | 可用（Docker 操作） | 可用 | ✅ 首选（Terminal-Bench 77.3%） |
-| 大代码库理解 | 辅助 | ✅ 首选（1M 上下文+系统级思考） | 辅助 |
-| UI/设计迭代 | 不参与 | ✅ 首选（MCP 工具链，交互体验强） | 不适合 |
-| 后台批量任务 | 不参与 | 不适合（需全程监控） | ✅ 首选（扔任务切走，回来出结果） |
-| GitHub PR 审查 | 不参与 | 需额外配置 | ✅ 首选（原生集成） |
-| 跨智能体协调 | ✅ 唯一（任务拆分+派发+审查） | 不适合 | 不适合 |
-
-### 派发决策规则
-
-1. **架构重构类**（SSD 编码、Protocol 迁移、模块拆分）→ CC
-2. **快速修复类**（Bug fix、lint 修复、导入整理）→ Codex
-3. **调试排障类**（容器日志分析、运行时错误定位）→ Codex
-4. **UI/前端类**（WebUI 开发、主题定制）→ CC
-5. **批量后台类**（依赖升级、全量重命名、CI 配置）→ Codex
-6. **不确定时**→ CC（复杂任务准确率更高）
-
-### 协作模式
-
-1. **CA 规划→CC/Codex 执行→CA 审查**：CA 写 SSD 三阶段文档 + 交接文件 → 用户派发 → CC/Codex 编码 → CA 审查产出（代码正确性 + 是否违背核心原则）。
-2. **代码审查二道防线**：CC 写代码 → Codex 审查 → CC 修复。同模型自审有盲点，Codex 来自不同训练分布，实测捕获了 CC 漏掉的竞态条件和边界情况。
-3. **任务救援**：CC 卡住或超限额 → 切 Codex 接管。不要反复重试同一个 Agent，换 Agent 比调试 Agent 快。
-4. **规划与执行分离**：CC 写详细 plan（精确到文件和函数级别）→ Codex 执行 → CC 审查结果。
-5. **状态检查**：CC 跑长任务时，Codex 对照 spec 确认方向没偏。
-
-### 反模式（禁止）
-
-1. ❌ **给 Codex 模糊的大任务** → Codex 会过度工程化或偏离现有模式。必须精确到文件和函数级别。
-2. ❌ **CC 和 Codex 同时改同一文件** → git merge 冲突。一个周期内只让一方改一个模块，改完锁版。
-3. ❌ **只用 CC 自审查** → 同模型盲点。Codex 审查做二道防线。
-4. ❌ **让 Codex 做架构决策** → 会忽略现有模式和约束。架构决策归 CC 或 CA。
-5. ❌ **让 CC 做机械性批量改动** → 浪费订阅额度，速度和 Codex 差 3 倍。
-6. ❌ **用同一个智能体跑到底** → 没有二道防线，盲点无人发现。
-
-### 文件锁规则
-
-- 一个编码周期内，每个文件只能由一个主智能体修改
-- CA 派发任务时必须按文件拆分，确保 CC 和 Codex 不会同时改同一文件
-- 如果编码智能体发现需要改不在自己任务列表中的文件，**先停下来问用户**
-
-## 智能体自主性架构原则
-
-1. **智能体决策权原则**：外部系统（bot.py、HeartFlow、ChatManager 等消息链路模块）不应替智能体做业务决策。消息是否需要回复、是否触发 Planner，应由智能体自身的规则引擎决定，而非在链路中硬编码过滤或分流。消息链路保持透明，智能体是消息的最终消费者和决策者。
-
-2. **通知消息处理原则**：`is_notify=True` 的通知消息应到达智能体（通过 Orchestrator），由智能体自主分类处理：
-   - 纯环境信号（如 input_status）→ 规则引擎判定不触发 Planner，仅调整生命力/环境上下文
-   - 可能需要回应的通知（如 poke、入群）→ 规则引擎判定触发 Planner，智能体自主决定是否回复
-   - 分类规则可配置，但决策权在智能体，不在链路层
-
-3. **规则引擎优先原则**：待命状态的环境感知必须是纯规则计算，不调用 LLM。能用规则判断的决策（如"用户正在输入不需要回复"），不应交给 Planner 推理。规则调整参数而非替智能体决策——规则决定"是否触发 Planner"，Planner 决定"如何回应"。
-
-4. **组件兼容核心原则**：核心定义接口契约，组件实现契约。核心不依赖组件的具体实现类，只依赖 Protocol。新增代码禁止引入对 chat_manager、send_service、HeartFlow 等组件具体实现的直接导入。
-
-5. **记忆是连接而非对象原则**：记忆不是带标签的标本，而是概念之间的激活模式。分类学（Paragraph/Entity/Relation/Episode/Profile）肢解了活的经验——给标本贴更多标签（时间、情感、视角）无法修复被分类切断的联系。新记忆系统应以连接为第一公民：新记忆 = 新连接，遗忘 = 连接衰减，回忆 = 重新激活模式。智能体声明记忆性格（衰减率、情感敏感度、联想深度），记忆系统解读执行。
-
-6. **Agent-owns-Thinking 原则**：每个智能体拥有独立 ThinkingOrgan 实例，Orchestrator 只协调"谁在思考"，不关心"怎么思考"。共居智能体可并行思考（ParallelThinkScheduler，asyncio.Semaphore 控制并发）。思维管道的状态、提示词、工具集由智能体自身持有，不被全局共享。
-
-7. **思考-行动分离原则**：content = 内心独白（永不外发，用户看不到），reply 工具调用 = 对外回复。简化模式已废除，所有思考路径统一走工具循环。SilenceReason 区分"只想不回"（INTENTIONAL）和"异常沉默"（ERROR/TIMEOUT 等），ThinkCycleLog 结构化日志记录每次思考循环。
-
-8. **拒绝脏数据原则**：与"不兜底"区分——"不兜底"指当值应该存在时直接使用，不用 `or ""`/`or None` 掩盖错误；"拒绝脏数据"指外部数据源返回 None 时不强行计算 fallback 写入数据库，而应跳过或报错。两者都是让错误完整暴露，但作用点不同：前者在消费端，后者在生产端。
-
-9. **改主程序先请示原则**：插件在 `/plugins` 下独立仓库，改动主程序代码（src/）需先请求许可。本规则文件本身的修改也属主程序改动。配置文件只改模板 + 版本号，不改动 legacy_migration。提示词修改需三语同步（zh-CN / en-US / ja-JP）。
-
-## 技术约束
-
-- 心跳间隔 60 秒，13 个待命智能体单次评估 ~600ms
-- 所有数值必须映射为自然语言描述，不暴露具体数值给 LLM
-- 情绪状态系统是 MaiBot 核心功能，不是插件
-- 提示词修改需三语同步（zh-CN / en-US / ja-JP）
-- 配置文件修改只改模板，新增版本号，不改动 legacy_migration
-- 会话 ID 规范：业务模块不应自行调用 `SessionUtils.calculate_session_id`
-- A_Memorix 是 MaiBot 的核心记忆子系统，可自由修改，约束仅来自核心隔离和 Protocol 接口契约
-
-## 代码风格
-
-- 砍掉过度防御/兜底代码、不必要配置参数、冗余逻辑
-- 不要总是想找兜底，一定要精准地找到问题的核心，兜底是不合适的、难以维护的
-- 不要总是考虑 fallback，如果哪里有错误，一定要让它及时完整地暴露，而不是用 fallback 兜底掩盖过去
-- 应该尽量减少使用 getattr 和 setattr，优先使用类属性直接访问
-
 ## 核心定义
 
 核心 = 智能体 + 消息管道，只关心一件事：**消息进来，智能体思考，回复出去**
@@ -145,64 +25,6 @@
 - `respond(text)` — 回复发出
 
 组件（HeartFlow、ChatManager、NapCat Adapter、A_Memorix、WebUI）是围绕核心的可替换层，应实现核心定义的接口契约，而非核心去适配组件的内部细节。
-
-## 核心架构：微内核 + 接口契约
-
-### 核心接口层
-
-核心通过 Protocol 定义接口契约，组件实现这些契约。核心模块只依赖 Protocol，不依赖具体实现。
-
-| 接口 | 职责 | 实现者 | 状态 |
-|---|---|---|---|
-| **MessagePortV2** | 统一消息发送（1 个方法 send_message） | SendServiceMessagePortV2 | ✅ 已实现（旧 MessagePort 7 方法已移除） |
-| **SessionRepository** | 会话信息查询（不可变快照） | ChatManagerAdapter | ✅ 已实现 |
-| **AgentRoutingService** | 智能体-会话路由 | ChatManagerRoutingAdapter | ✅ 已实现 |
-| **ChatRuntime** | 运行时生命周期 | MaisakaHeartFlowChatting | ✅ 已实现 |
-| **ChatRuntimeRegistry** | 运行时注册表（含 list_runtimes） | HeartflowRuntimeRegistry | ✅ 已实现 |
-| **ChatRuntimeFactory** | 运行时工厂（打破 heartflow→maisaka 依赖） | MaisakaRuntimeFactory | ✅ 已实现 |
-| **NoticeClassifier** | 平台无关通知分类 | NapCatNoticeClassifier | ✅ 已实现 |
-| **MemoryServicePort** | 记忆服务（16方法：observe/recall/recall_with_intuition/derive_profile/reflect/weave_narrative/heartbeat_maintenance 等） | AMemorixMemoryServicePort | ✅ 已实现 |
-| **SessionInfoPort** | 组件反向查询会话 | ChatManagerAdapter（通过注册点注入 A_memorix） | ✅ 已实现 |
-| **SessionLifecyclePort** | 会话生命周期（创建/持久化/初始化） | ChatManagerAdapter | ✅ 已实现 |
-| **SessionQueryPort** | 会话批量查询/路由元数据 | ChatManagerAdapter | ✅ 已实现 |
-| **MessageRegistryPort** | 入站消息注册 | ChatManagerAdapter | ✅ 已实现 |
-| **ThinkingOrgan** | 智能体思维管道 | ThinkingOrgan（具体类） | ✅ 已实现 |
-| **ThinkingOrganFactory** | 思维管道工厂 | ThinkingOrganFactory（具体类） | ✅ 已实现 |
-| **ReplyerServicePort** | 回复生成器服务（maisaka 通过此接口获取 replyer） | ReplyerServiceAdapter | ✅ 已实现 |
-| **ImageDescriptionPort** | 图片描述服务（maisaka 通过此接口获取图片描述） | ImageDescriptionAdapter | ✅ 已实现 |
-
-### 核心禁止项
-
-以下模式是架构债务，新增代码禁止引入，存量代码逐步消除：
-
-1. **禁止核心直接导入 chat_manager** ✅ 已消除（子模块直接注入 + 单例移除 + ruff TID251 守卫） — 核心模块只通过 SessionRepository / AgentRoutingService 等接口查询
-2. **禁止核心访问 chat_manager._agent_router** — 私有属性访问破坏封装，通过 AgentRoutingService 接口操作
-3. **禁止核心持有 BotChatSession 可变引用** — SessionRepository 返回不可变 SessionInfo 快照
-4. **禁止核心硬编码 napcat_* 字段** — 通知分类由平台适配器在入站时完成，核心只处理 NoticeKind 枚举
-5. **禁止核心绕过 MessagePort 直接调用 send_service** ✅ 已消除 + ruff TID251 守卫 — 内置工具和插件运行时统一走 MessagePortV2，8 个旧函数 banned-api 封堵
-6. **禁止核心导入 A_memorix 内部模块** ✅ 已消除（core/ 零违规导入 + ruff TID251 守卫 + CI AST 脚本） — 只通过 MemoryServicePort 或 host_service 公共 API 交互
-7. **禁止 Orchestrator 通过 enqueue_proactive_task 模拟多智能体** — 插话通过管家协调直接触发目标智能体的 ThinkingOrgan
-
-### 数据契约
-
-**CoreMessage**（平台无关的入站消息）：
-- session_id, plain_text, is_notify, notice_kind, sender_id, sender_name, platform, timestamp, additional_data
-
-**SessionInfo**（不可变会话快照）：
-- session_id, session_name, platform, is_group_session, primary_agent_id, cohabitant_agent_ids
-
-**NoticeKind**（平台无关通知枚举）：
-- AMBIENT（环境信号，不触发 Planner）/ INTERACTION（交互信号，可能触发）/ INPUT_STATUS / UNKNOWN
-
-**SilenceReason**（沉默原因枚举）：
-- INTENTIONAL（有内心独白但选择不回）/ NO_CONTENT / ERROR / TIMEOUT / REJECTED / TOOL_FAILED / MAX_CYCLES
-
-**ThinkResult**（思考结果）：
-- action: REPLY/SILENT/WAIT/ERROR
-- text: 回复文本（仅来自 reply 工具，不来自 content）
-- reply_sent: reply 工具是否已内部发送消息
-- silence_reason: 沉默原因（仅 action=SILENT 时有值）
-- thought_summary: 内心独白摘要
 
 ## 核心进化方向：从反射弧到生命体
 
@@ -241,13 +63,6 @@ LLM 仍然是"被调用"的，但调用它的不是人，而是智能体自己�
 每个智能体拥有自己的思维管道（ThinkingOrgan），Orchestrator 只协调"谁在思考"，不关心"怎么思考"。
 
 **思考-行动分离**（已实现）：content = 内心独白（永远不发给用户），reply 工具调用 = 对外回复。简化模式已废除，所有思考路径统一走工具循环。
-
-**当前**：
-- 每个智能体持有自己的 ThinkingOrgan 实例
-- Orchestrator 协调执行顺序，不替智能体做决策
-- 管家在 Orchestrator 层协调，Planner 不知道多智能体的存在
-- 支持并行思考（多个智能体同时思考不同话题）
-- ThinkCycleLog 结构化日志，SilenceReason 区分只想不回和异常沉默
 
 **ParallelThinkScheduler**：
 - asyncio.Semaphore 控制并发数（默认 3，可配置）
@@ -304,44 +119,28 @@ LLM 仍然是"被调用"的，但调用它的不是人，而是智能体自己�
                                定时器触发 → 管家协调 → 提醒/关心
 ```
 
-## 架构变革路线
+## 数据契约
 
-### 已完成
+**CoreMessage**（平台无关的入站消息）：
+- session_id, plain_text, is_notify, notice_kind, sender_id, sender_name, platform, timestamp, additional_data
 
-- ✅ **MessagePort** — 核心→外部的发送接口契约（message_port.py）
-- ✅ **管家系统集成** — Butler 三层过滤+提醒+插话（butler.py, reminder.py）
-- ✅ **管家管道集成** — Orchestrator 中接入提醒创建、管家插话、提醒心跳
-- ✅ **ChatLoopServiceAdapter** — ChatRuntime Protocol 依赖，核心不直接依赖 runtime
-- ✅ **生命力管理** — VitalityManager + InnerNeedEngine + 心跳评估
-- ✅ **环境感知** — AmbientAwarenessProcessor + StateAwareRuleEngine
-- ✅ **Lab 原型验证** — 管家v1-v4、提醒v4、共居、欲望全部验证通过
-- ✅ **核心 Protocol 层** — 13个Protocol（MessagePortV2/SessionRepository/AgentRoutingService/ChatRuntime/ChatRuntimeRegistry/NoticeClassifier/MemoryServicePort/SessionInfoPort/SessionLifecyclePort/SessionQueryPort/MessageRegistryPort/ThinkingOrgan/ThinkingOrganFactory）
-- ✅ **核心数据模型** — NoticeKind/CoreMessage/SessionInfo/ThinkContext/ThinkAction/ThinkResult + CycleDetail迁移
-- ✅ **适配器层** — 6个适配器（ChatManagerAdapter 5合1/ChatManagerRoutingAdapter/HeartflowRuntimeRegistry/NapCatNoticeClassifier/AMemorixMemoryServicePort/SendServiceMessagePortV2）
-- ✅ **核心模块迁移** — Orchestrator/VitalityManager/ChatLoopAdapter/HeartflowManager 从chat_manager具体类迁移到Protocol接口
-- ✅ **通知分类统一** — 消除AMBIENT_NOTICE_SUBTYPES重复定义和napcat_字段泄漏
-- ✅ **Agent-owns-Thinking** — 每个智能体拥有独立ThinkingOrgan，think()/think_proactive()直接调用LLM
-- ✅ **消灭enqueue_proactive_task hack** — 管家插话/提醒触发改为直接调用ThinkingOrgan + MessagePort.send()
-- ✅ **并行思考** — ParallelThinkScheduler（asyncio.Semaphore控制并发）
-- ✅ **A_memorix 隔离** — person_profile通过MemoryServicePort调用，SDKMemoryKernel完全隔离（core/ 零违规导入 28→0，AMemorixServicePorts 构造注入）
-- ✅ **思考-行动分离** — content=内心独白（用户看不到），reply工具=对外回复；废除简化模式；SilenceReason/CycleStatus/ThinkCycleLog 结构化日志；Orchestrator 4个消费点 reply_sent 检查；Embodied Prompt 三语强化
+**SessionInfo**（不可变会话快照）：
+- session_id, session_name, platform, is_group_session, primary_agent_id, cohabitant_agent_ids
 
-### ChatManager 单例拆分（SSD-2，已完成）
+**NoticeKind**（平台无关通知枚举）：
+- AMBIENT（环境信号，不触发 Planner）/ INTERACTION（交互信号，可能触发）/ INPUT_STATUS / UNKNOWN
 
-ChatManager 从 604 行瘦身至 143 行，拆分为 6 个职责单一的子模块：
+**SilenceReason**（沉默原因枚举）：
+- INTENTIONAL（有内心独白但选择不回）/ NO_CONTENT / ERROR / TIMEOUT / REJECTED / TOOL_FAILED / MAX_CYCLES
 
-| 子模块 | 职责 |
-|---|---|
-| SessionStore | 会话内存缓存 + 持久化 |
-| MessageRegistry | 入站消息注册 + 缓存 |
-| SessionNameCache | 会话展示名称缓存 |
-| SessionResolver | 平台/群/用户 → session_id 解析 |
-| BindingRestorer | 智能体绑定恢复 |
-| SessionLifecycle | 会话创建/获取/初始化 |
+**ThinkResult**（思考结果）：
+- action: REPLY/SILENT/WAIT/ERROR
+- text: 回复文本（仅来自 reply 工具，不来自 content）
+- reply_sent: reply 工具是否已内部发送消息
+- silence_reason: 沉默原因（仅 action=SILENT 时有值）
+- thought_summary: 内心独白摘要
 
-ChatManagerAdapter 通过 5 合 1 Protocol（SessionRepository/SessionInfoPort/SessionLifecyclePort/SessionQueryPort/MessageRegistryPort）包裹这 6 个子模块。当前仍通过 `_ensure_chat_manager()` 延迟拿单例，SSD-3 将改为依赖注入（见存量债务表）。
-
-### 记忆叙事原型（已主线集成）
+## 记忆叙事原型（已主线集成）
 
 5 子系统架构（已从 lab 毕业到 `src/A_memorix/core/connectionist/`）：
 
@@ -358,72 +157,11 @@ ChatManagerAdapter 通过 5 合 1 Protocol（SessionRepository/SessionInfoPort/S
 - 直觉召回走纯规则（概念激活扩散），不走 LLM
 - LLM 仅用于概念提取（memory_v11.py）和叙事编织的语义判断
 
-待实现：WebUI 记忆可视化（recall_with_intuition 便捷方法已就绪）。
-
-### 待后续
-
-- ✅ **MessagePort 全面采用** — v2 阶段 1-5 全部完成，旧 MessagePort Protocol（7 方法）已移除，统一为 MessagePortV2（1 个方法 send_message）
-- ✅ **SDKMemoryKernel 完全隔离** — `src/A_memorix/core/` 零违规导入（28→0），所有外部依赖通过 AMemorixServicePorts 构造注入，ruff TID251 守卫 + CI AST 脚本
-- ✅ **记忆系统范式迁移** — NEW_INDEPENDENT 阶段完成，分类学代码（graph_ops/）保留但零调用（已标记 DEPRECATED），所有请求走连接主义系统（`src/A_memorix/core/connectionist/`）；5 子系统（NarrativeWeaver/CognitiveStratifier/LifecycleManager/IntuitionEngine/MemoryField）已主线集成，通过 host_service API 暴露
-- ✅ **记忆系统与核心架构差距（mem_core_gap）** — 6 批编码完成，21/29 项差距覆盖；MemoryServicePort 10→16 方法；异常子类体系；单例化；数据类型下放 common 层；A_memorix/core/ 零运行时 core 导入；直觉接入思考循环；情绪联动
-
-### 记忆系统与核心架构差距（mem_core_gap，已完成）
-
-**6 批编码全部完成**，21/29 项差距覆盖，8 项不在本期范围。
-
-**关键变更**：
-1. MemoryServicePort 从 10 方法扩展到 16 方法（新增 recall/recall_with_intuition/derive_profile/reflect/weave_narrative/heartbeat_maintenance，删除 ingest_text）
-2. 异常子类体系：MemoryServiceError → TemporaryMemoryError / PermanentMemoryError / MemoryNotFoundError
-3. 单例模式：`get_memory_service_port()` + `reset_memory_service_port()` 替代 13 处独立实例化
-4. 数据类型下放 common 层：`src/common/memory_types.py`（8 个纯数据类型），`src/common/memory_utils.py`（从 core 迁移），core/types.py 重新导出
-5. A_memorix/core/ 零运行时 core 导入：4 文件切到 common，1 个改 AMemorixServicePorts 注入
-6. observe_experience() 统一 ObserveRequest 对象
-7. MemoryWriteResult 扩展（新增 observation_id / concept_names）
-8. 直觉接入思考循环：`_build_think_context()` 调用 `recall_with_intuition()`，填充 `memory_snippets` + `intuition_context`
-9. heuristic_injector 直觉优先：`recall_with_intuition()` + `search()` 降级
-10. 情绪联动：ExperienceWriter 新增 `emotion_manager` 注入，实时情绪→valence 自动推导
-
-**未覆盖的 8 项差距**（不在本期范围）：
-- G16 host_service 直接访问 kernel 私有属性（修复成本高，影响低）
-- G18 Agent-owns-Thinking 与记忆性格未联动（agent_id 参数已传递，深度联动待后续）
-- G19 管家系统与记忆系统未联动（需新增关系查询接口）
-- G21 叙事弧未接入智能体认知（weave_narrative 已暴露，深度集成待后续）
-- G22 AsyncWriteQueue 延迟启动竞态（已有保护机制）
-- G23 ModelConfigPort 注入时序无检查（已有 None 保护）
-- G24 记忆性格注册窗口期（需核心调度时序保证）
-- G28 A_memorix 内部 322 处 bare except（修复成本极高，逐个审查需单独排期）
-
-### 存量债务（已消除/剩余）
-
-| 债务 | 原影响范围 | 原严重度 | 当前状态 |
-|---|---|---|---|
-| chat_manager 全局单例导入 | 25 个文件 54 处 | 极高 | ✅ 已消除（子模块直接注入 + 单例移除 + ruff TID251 守卫） |
-| HeartFlow ↔ Maisaka 循环依赖 | 9+ 文件 | 高 | ✅ ChatRuntime Protocol + ChatRuntimeRegistry 打破类型层循环 |
-| napcat_* 字段泄漏到核心 | 3 处 | 高 | ✅ NoticeClassifier + NoticeKind 枚举统一 |
-| send_service 绕过 MessagePort | 6 个文件 12 处 | 中 | ✅ 已消除 + ruff TID251 守卫（8 个旧函数 banned-api 封堵） |
-| A_memorix 内部函数泄漏 | 2 处 | 中 | ✅ person_profile 已隔离，SDKMemoryKernel 完全隔离（core/ 零违规导入） |
-| chat_manager 单例物理退役 | 适配器层 | 中 | ✅ 已完成 SSD-3（子模块直接注入 + 模块级单例移除 + bot.py/webui 改用注册点） |
-| maisaka → chat 物理依赖 | 19 处导入 | 中 | ✅ 已消除（process_llm_response 物理迁移 + ReplyerServicePort/ImageDescriptionPort 接口化 + fork_context/session_recovery 改用 Protocol） |
-
 ## lab 原型实验室
 
 Lab 是 MaiBot 的**实验场**，不是生产代码。核心原则：**lab 是沙盒，不是草稿箱**——每个原型必须有明确的实验假设和验证标准。
 
 Lab 是独立 git 仓库（`lab/.git`），不入主仓库共享历史（主仓库 `.gitignore` 排除 `lab/`），但通过子模块引用追踪。
-
-### 目录结构
-
-```
-lab/
-├── NOTES.md              # 全局探索笔记
-├── LAB_CONVENTION.md     # 实验室规范
-├── {topic}/              # 按主题分组（memory/、reply/、architecture/）
-│   ├── NOTES.md          # 主题探索笔记
-│   └── {topic}_v{n}.py   # 版本化原型
-├── graduated/            # 已毕业原型（验证通过，已集成到主仓库）
-├── exploratory/          # 一次性探索脚本
-└── architecture/         # 架构验证原型
-```
 
 ### 毕业流程
 
@@ -446,7 +184,7 @@ lab/{topic}/ → lab/integration/ → 主仓库 src/
 
 本元规则确保本文件（项目级规则）与 AGENTS.md（工程规范 + 债务追踪单一事实源）保持同步，避免规则文件过时误导开发。
 
-### 1. 同步触发点
+### 同步触发点
 
 以下变更必须同步更新本文件和 AGENTS.md：
 
@@ -456,19 +194,16 @@ lab/{topic}/ → lab/integration/ → 主仓库 src/
 - ruff banned-api 或 per-file-ignores 变化
 - 适配器层新增/删除适配器
 
-### 2. 同步责任
+### 同步责任
 
 提交者负责双向同步。AGENTS.md 是债务追踪单一事实源，本文件是架构哲学 + 核心契约的项目级规则文件。两者冲突时以 AGENTS.md 为准。
 
-### 3. 同步检查（每次 PR 必须自检）
+### 同步检查（每次 PR 必须自检）
 
-- 本文件"核心接口层"表格行数 == `src/core/protocols.py` 中 Protocol 数量
-- 本文件"核心接口层"实现者列引用的类名在代码中存在（无已删除的类名）
+- 本文件引用的 Protocol/数据契约与 `src/core/protocols.py` 一致
 - 本文件"核心禁止项"状态 == AGENTS.md"核心禁止项"状态
-- 本文件"存量债务表"状态 == AGENTS.md 相关描述
+- 本文件存量债务状态 == AGENTS.md 相关描述
 
-### 4. 不一致修正
+### 不一致修正
 
 发现不一致时，优先修正本文件以匹配 AGENTS.md 和代码实际状态，不得反向修改 AGENTS.md 以匹配过时规则。
-
-若 AGENTS.md 也过时，先修正 AGENTS.md（基于代码实际状态），再同步本文件。
