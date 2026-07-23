@@ -170,6 +170,7 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 | ReplyerServicePort   | 回复生成器服务（maisaka 通过此接口获取 replyer）　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 | ReplyerServiceAdapter　　　　　　　　　　　　　|
 | ImageDescriptionPort | 图片描述服务（maisaka 通过此接口获取图片描述）　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 | ImageDescriptionAdapter　　　　　　　　　　　　|
 | ModelConfigPort      | 模型配置查询（4查询+2回调，支持智能体级覆盖）　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　| ConfigManagerModelConfigPort　　　　　　　　　 |
+| LLMService           | LLM服务（4方法：generate_response/generate_response_with_messages/generate_response_for_image/transcribe_audio）　　　　　 | LLMServiceAdapter　　　　　　　　　　　　　　 |
 
 ## 内心状态三层
 
@@ -422,6 +423,36 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 - `src/config/config.py` — config_manager 延迟初始化
 - `src/plugin_runtime/integration.py` — 新增 ready_event
 - `src/A_memorix/host_service.py` — 新增 ready_event
+
+# LLM 服务协议化进展（SSD-7，已完成）
+
+**迁移已完成**（5 批次全部完成）
+
+## 迁移架构
+
+- **LLMService** Protocol：4 方法（generate_response/generate_response_with_messages/generate_response_for_image/transcribe_audio），task_name 从构造参数提升为方法参数
+- **LLMServiceAdapter**：纯委托适配器，OrderedDict LRU 缓存（maxlen=64），按 task_name:request_type:session_id 为键
+- **注册点**：`get_llm_service()`/`set_llm_service()`/`reset_llm_service()`，与 MemoryServicePort/AgentConfigProvider 模式一致
+- **ruff 守卫**：`src.services.llm_service.LLMServiceClient` banned-api + `src/services/llm_service.py` per-file-ignores
+
+## 已完成
+
+- ✅ 批次1：LLMService Protocol + LLMServiceAdapter + 注册点 + 启动注册 + ruff 守卫
+- ✅ 批次2：核心消费方迁移（butler/heuristic_injector/chat_loop_service/replyer/mid_term）
+- ✅ 批次3：学习器迁移（jargon_miner/jargon_learner/expression_utils/expression_learner/behavior_learner）
+- ✅ 批次4：其他基础设施迁移（emoji_manager/image_manager/utils_voice/host_llm_bridge/memory_flow_service）
+- ✅ 批次5：WebUI/插件层迁移（behavior.py/core.py）+ 全量验证
+
+## 消除的架构债务
+
+1. 18 处 `LLMServiceClient` 直接导入 → 全部替换为 `LLMService` Protocol
+2. `chat_loop_service._llm_chat_clients` 缓存字典 → 适配器统一管理
+3. `replyer/generator_base.llm_client_cls` 类参数 → `llm_service: LLMService` 实例参数
+4. 6 个模块级 `LLMServiceClient` 实例 → 注册点 `get_llm_service()`
+
+## 待后续
+
+- ⬜ A_memorix 4 处 `LLMServiceClient` 通过 `AMemorixServicePorts.llm_service` 注入整个模块，后续优化为 `LLMService` Protocol 注入
 
 # changelog编写
 建议分为两部分，一部分是用户感知功能侧，一部分是开发侧（包含修复和插件sdk,api改动）。最好一个功能一行，按模块分。
