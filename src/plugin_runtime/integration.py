@@ -137,9 +137,9 @@ class PluginRuntimeManager(
         if session_message is None:
             raise ValueError("Platform IO 入站封装缺少可用的 SessionMessage 或 payload")
 
-        from src.chat.message_receive.bot import chat_bot
+        from src.core.adapters.message_ingestion_port import get_message_ingestion_port
 
-        await chat_bot.receive_message(session_message)
+        await get_message_ingestion_port().receive_message(session_message)
 
     # ─── 插件目录 ─────────────────────────────────────────────
 

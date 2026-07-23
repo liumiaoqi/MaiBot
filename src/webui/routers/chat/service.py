@@ -10,7 +10,7 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional, Set, Tuple, c
 from pydantic import BaseModel
 from sqlmodel import col, delete, select
 
-from src.chat.message_receive.bot import chat_bot
+from src.core.adapters.message_ingestion_port import get_message_ingestion_port
 from src.chat.message_receive.message import SessionMessage
 from src.chat.utils.utils import is_bot_self
 from src.common.database.database import get_db_session
@@ -1252,7 +1252,7 @@ async def handle_chat_message(
             {"type": "typing", "is_typing": True},
             user_id=normalized_user_id,
         )
-        await chat_bot.message_process(message_data)
+        await get_message_ingestion_port().message_process(message_data)
     except Exception as exc:
         logger.error(f"处理消息时出错: {exc}")
         await send_chat_error(session_id, f"处理消息时出错: {str(exc)}")

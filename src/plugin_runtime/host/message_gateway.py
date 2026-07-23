@@ -65,9 +65,9 @@ class MessageGateway:
             logger.error(f"转换外部消息失败: {e}")
             return
 
-        from src.chat.message_receive.bot import chat_bot
+        from src.core.adapters.message_ingestion_port import get_message_ingestion_port
 
-        await chat_bot.receive_message(session_message)
+        await get_message_ingestion_port().receive_message(session_message)
 
     async def send_message_to_external(
         self,

@@ -800,11 +800,14 @@ class RuntimeDataCapabilityMixin:
             return {"success": False, "error": str(e)}
 
     @staticmethod
-    def _get_frequency_adjust_value(chat_id: str) -> float:
-        from src.chat.heart_flow.heartflow_manager import heartflow_manager
+    async def _get_frequency_adjust_value(chat_id: str) -> float:
+        from src.core.runtime_port_registry import get_chat_runtime_registry
 
-        heartflow_chat = heartflow_manager.heartflow_chat_list.get(chat_id)
-        return 1.0 if heartflow_chat is None else heartflow_chat._talk_frequency_adjust
+        registry = get_chat_runtime_registry()
+        if registry is None:
+            return 1.0
+        runtime = await registry.get_runtime(chat_id)
+        return 1.0 if runtime is None else runtime.get_talk_frequency_adjust()
 
     async def _cap_frequency_get_current_talk_value(self, plugin_id: str, capability: str, args: Dict[str, Any]) -> Any:
         from src.common.utils.utils_config import ChatConfigUtils
@@ -814,14 +817,14 @@ class RuntimeDataCapabilityMixin:
             return {"success": False, "error": "缺少必要参数 chat_id"}
 
         try:
-            value = self._get_frequency_adjust_value(chat_id) * ChatConfigUtils.get_talk_value(chat_id)
+            value = await self._get_frequency_adjust_value(chat_id) * ChatConfigUtils.get_talk_value(chat_id)
             return {"success": True, "value": value}
         except Exception as e:
             logger.error(f"[cap.frequency.get_current_talk_value] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
     async def _cap_frequency_set_adjust(self, plugin_id: str, capability: str, args: Dict[str, Any]) -> Any:
-        from src.chat.heart_flow.heartflow_manager import heartflow_manager
+        from src.core.runtime_port_registry import get_chat_runtime_registry
 
         chat_id: str = args.get("chat_id", "")
         value = args.get("value")
@@ -829,7 +832,11 @@ class RuntimeDataCapabilityMixin:
             return {"success": False, "error": "缺少必要参数 chat_id 或 value"}
 
         try:
-            heartflow_manager.adjust_talk_frequency(chat_id, float(value))
+            registry = get_chat_runtime_registry()
+            if registry is not None:
+                runtime = await registry.get_runtime(chat_id)
+                if runtime is not None:
+                    runtime.adjust_talk_frequency(float(value))
             return {"success": True}
         except Exception as e:
             logger.error(f"[cap.frequency.set_adjust] 执行失败: {e}", exc_info=True)
@@ -841,7 +848,7 @@ class RuntimeDataCapabilityMixin:
             return {"success": False, "error": "缺少必要参数 chat_id"}
 
         try:
-            value = self._get_frequency_adjust_value(chat_id)
+            value = await self._get_frequency_adjust_value(chat_id)
             return {"success": True, "value": value}
         except Exception as e:
             logger.error(f"[cap.frequency.get_adjust] 执行失败: {e}", exc_info=True)

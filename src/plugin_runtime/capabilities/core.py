@@ -183,12 +183,15 @@ class RuntimeCoreCapabilityMixin:
             return {"success": False, "error": "缺少有效的 segments"}
 
         try:
-            from src.chat.heart_flow.heartflow_manager import heartflow_manager
+            from src.core.runtime_port_registry import get_chat_runtime_registry
             from src.maisaka.context.messages import SessionBackedMessage
             from src.maisaka.context.message_adapter import build_visible_text_from_sequence
             from src.plugin_runtime.host.message_utils import PluginMessageUtils
 
-            runtime = await heartflow_manager.get_or_create_heartflow_chat(stream_id)
+            registry = get_chat_runtime_registry()
+            if registry is None:
+                return {"success": False, "error": "运行时注册表未初始化"}
+            runtime = await registry.get_or_create_runtime(stream_id)
             message_sequence = PluginMessageUtils._message_sequence_from_dict(segments)
             visible_text = str(args.get("visible_text")).strip()
             if not visible_text:
@@ -204,10 +207,10 @@ class RuntimeCoreCapabilityMixin:
                 message_id=str(args.get("message_id")).strip() or None,
                 source_kind=source_kind,
             )
-            runtime._chat_history.append(context_message)
+            index = runtime.append_context_message(context_message, source_kind=source_kind)
             return {
                 "success": True,
-                "index": len(runtime._chat_history) - 1,
+                "index": index,
                 "stream_id": stream_id,
                 "visible_text": visible_text,
                 "source_kind": source_kind,
@@ -229,14 +232,17 @@ class RuntimeCoreCapabilityMixin:
             return {"success": False, "error": "缺少必要参数 intent"}
 
         try:
-            from src.chat.heart_flow.heartflow_manager import heartflow_manager
+            from src.core.runtime_port_registry import get_chat_runtime_registry
             from src.core.session_port_registry import get_existing_session_info
 
             chat_session = get_existing_session_info(stream_id)
             if chat_session is None:
                 return {"success": False, "error": f"未找到已存在的聊天流: {stream_id}"}
 
-            runtime = await heartflow_manager.get_or_create_heartflow_chat(stream_id)
+            registry = get_chat_runtime_registry()
+            if registry is None:
+                return {"success": False, "error": "运行时注册表未初始化"}
+            runtime = await registry.get_or_create_runtime(stream_id)
             result = await runtime.enqueue_proactive_task(
                 plugin_id=plugin_id,
                 intent=intent,
