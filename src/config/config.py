@@ -750,7 +750,13 @@ class _ConfigProxy:
 
 
 # generate_new_config_file(Config, BOT_CONFIG_PATH, CONFIG_VERSION)
-config_manager = ConfigManager()
-config_manager.initialize()
-global_config: Config = cast(Config, _ConfigProxy(config_manager.get_global_config))
-model_config: ModelConfig = cast(ModelConfig, _ConfigProxy(config_manager.get_model_config))
+config_manager: ConfigManager | None = None
+global_config: Config = cast(Config, _ConfigProxy(lambda: config_manager.get_global_config()))
+model_config: ModelConfig = cast(ModelConfig, _ConfigProxy(lambda: config_manager.get_model_config()))
+
+
+def initialize_config() -> None:
+    """显式初始化配置管理器，由 main() 在启动入口处调用。"""
+    global config_manager
+    config_manager = ConfigManager()
+    config_manager.initialize()

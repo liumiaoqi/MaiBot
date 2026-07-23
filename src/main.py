@@ -8,7 +8,7 @@ import time
 from src.common.i18n import t
 from src.common.logger import get_logger
 from src.common.runtime_loop import set_main_loop
-from src.config.config import config_manager, global_config
+from src.config.config import global_config
 from src.manager.async_task_manager import async_task_manager
 from src.prompt.prompt_manager import prompt_manager
 
@@ -126,7 +126,7 @@ class MainSystem:
         # 阶段 1：基础设施
         orchestrator.register(StartupComponent(
             name="file_watcher", phase=StartupPhase.INFRASTRUCTURE, order=0, critical=True,
-            init_fn=config_manager.start_file_watcher,
+            init_fn=self._start_file_watcher,
         ))
         orchestrator.register(StartupComponent(
             name="tool_record_vacuum", phase=StartupPhase.INFRASTRUCTURE, order=1, critical=False,
@@ -235,12 +235,17 @@ class MainSystem:
         pass
 
     async def _validate_startup_config(self) -> None:
+        from src.config.config import config_manager as _cm
         from src.core.startup.validator import StartupValidator
-        errors = StartupValidator.validate(global_config, config_manager.get_model_config())
+        errors = StartupValidator.validate(global_config, _cm.get_model_config())
         if errors:
             raise ValueError(f"启动配置校验失败: {'; '.join(errors)}")
 
     # ── 阶段 1 闭包 ───────────────────────────────────────────
+
+    async def _start_file_watcher(self) -> None:
+        from src.config.config import config_manager as _cm
+        await _cm.start_file_watcher()
 
     async def _run_tool_vacuum(self) -> None:
         from src.services.tool_record_cleanup_service import run_startup_tool_record_vacuum_if_needed
@@ -330,11 +335,11 @@ class MainSystem:
 
     async def _init_model_config_port(self) -> None:
         from src.A_memorix.host_service import a_memorix_host_service
-
+        from src.config.config import config_manager as _cm
         from src.core.adapters.model_config_port import ConfigManagerModelConfigPort
 
         self._model_config_port = ConfigManagerModelConfigPort(
-            config_manager=config_manager,
+            config_manager=_cm,
             agent_config_resolver=lambda aid: self._agent_registry.get_agent(aid) if self._agent_registry.has_agent(aid) else None,
         )
         a_memorix_host_service.set_model_config_port(self._model_config_port)
@@ -471,6 +476,8 @@ class MainSystem:
 async def main() -> None:
     """主函数"""
     set_main_loop(asyncio.get_running_loop())
+    from src.config.config import initialize_config
+    initialize_config()
     system = MainSystem()
     try:
         await system.initialize()
@@ -492,7 +499,8 @@ async def main() -> None:
         await get_plugin_runtime_manager().bridge_event("on_stop")
         await get_plugin_runtime_manager().stop()
         await async_task_manager.stop_and_wait_all_tasks()
-        await config_manager.stop_file_watcher()
+        from src.config.config import config_manager as _cm
+        await _cm.stop_file_watcher()
         set_main_loop(None)
 
 
