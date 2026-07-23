@@ -1,8 +1,11 @@
 """Maisaka 历史消息轮次结束后处理。"""
 
+import random
+import re
 from dataclasses import dataclass
 from json import dumps, loads
 from math import ceil
+from typing import List
 
 from .history import drop_leading_orphan_tool_results, normalize_tool_call_result_pairs
 from .messages import (
@@ -13,8 +16,17 @@ from .messages import (
     SessionBackedMessage,
     ToolResultMessage,
 )
+from .typo_generator import ChineseTypoGenerator
 from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
+from src.common.logger import get_logger
+from src.config.config import global_config
 from src.maisaka.memory.mid_term import is_mid_term_memory_message
+
+logger = get_logger("maisaka.post_processor")
+
+
+def _is_english_letter(char: str) -> bool:
+    return ("\u0041" <= char <= "\u005a") or ("\u0061" <= char <= "\u007a")
 
 TRIM_TARGET_RATIO = 1.0
 TRIM_THRESHOLD_RATIO = 2.0
@@ -23,7 +35,6 @@ FOLDED_TOOL_COMPLEX_MESSAGE_THRESHOLD = 1024
 TRIMMED_TOOL_CALL_DROP_NAMES = {"continue", "finish", "no_action", "reply", "wait"}
 
 
-@dataclass(slots=True)
 
 # ── process_llm_response 及相关辅助函数（从 src/chat/utils/utils.py 物理迁移）──
 # 迁移时间：SSD-3
@@ -126,8 +137,8 @@ def split_into_sentences_w_remove_punctuation(text: str) -> list[str]:
                             can_split = False
                         else:
                             # 不分割数字和数字、数字和英文、英文和数字、英文和英文之间的空格
-                            prev_is_alnum = prev_char.isdigit() or is_english_letter(prev_char)
-                            next_is_alnum = next_char.isdigit() or is_english_letter(next_char)
+                            prev_is_alnum = prev_char.isdigit() or _is_english_letter(prev_char)
+                            next_is_alnum = next_char.isdigit() or _is_english_letter(next_char)
                             if prev_is_alnum and next_is_alnum:
                                 can_split = False
 
@@ -500,7 +511,7 @@ def recover_kaomoji(sentences, placeholder_to_kaomoji):
 def get_western_ratio(paragraph):
     """计算段落中字母数字字符的西文比例
     原理：检查段落中字母数字字符的西文比例
-    通过is_english_letter函数判断每个字符是否为西文
+    通过_is_english_letter函数判断每个字符是否为西文
     只检查字母数字字符，忽略标点符号和空格等非字母数字字符
 
     Args:
@@ -513,11 +524,12 @@ def get_western_ratio(paragraph):
     if not alnum_chars:
         return 0.0
 
-    western_count = sum(bool(is_english_letter(char)) for char in alnum_chars)
+    western_count = sum(bool(_is_english_letter(char)) for char in alnum_chars)
     return western_count / len(alnum_chars)
 
 
 
+@dataclass(slots=True)
 class HistoryPostProcessResult:
     """历史后处理结果。"""
 
