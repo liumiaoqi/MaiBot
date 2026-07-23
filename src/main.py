@@ -29,23 +29,6 @@ if TYPE_CHECKING:
     from src.webui.webui_server import ThreadedWebUIServer
 
 
-async def _wait_for_plugin_runners_spawned(
-    plugin_runtime_manager: Any,
-    plugin_runtime_task: asyncio.Task[None],
-    timeout: float = 1.0,
-) -> None:
-    """让插件 Runner 子进程先拉起，以便和后续重初始化并行。"""
-
-    deadline = asyncio.get_running_loop().time() + timeout
-    while not plugin_runtime_task.done():
-        supervisors = list(getattr(plugin_runtime_manager, "supervisors", []))
-        if supervisors and all(getattr(supervisor, "_runner_process", None) is not None for supervisor in supervisors):
-            return
-        if asyncio.get_running_loop().time() >= deadline:
-            return
-        await asyncio.sleep(0.02)
-
-
 class MainSystem:
     def __init__(self) -> None:
         # 使用消息API替代直接的FastAPI实例
@@ -367,8 +350,7 @@ class MainSystem:
         from src.plugin_runtime.integration import get_plugin_runtime_manager
 
         manager = get_plugin_runtime_manager()
-        task = asyncio.create_task(manager.start(), name="plugin_runtime_start")
-        await _wait_for_plugin_runners_spawned(manager, task)
+        await manager.start()
 
     @staticmethod
     async def _start_a_memorix() -> None:

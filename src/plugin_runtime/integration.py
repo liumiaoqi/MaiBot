@@ -96,6 +96,7 @@ class PluginRuntimeManager(
         """初始化插件运行时管理器。"""
         self._builtin_supervisor: Optional[PluginSupervisor] = None
         self._third_party_supervisor: Optional[PluginSupervisor] = None
+        self._ready_event: asyncio.Event = asyncio.Event()
         self._started: bool = False
         self._plugin_file_watcher: Optional[FileWatcher] = None
         self._plugin_source_watcher_subscription_id: Optional[str] = None
@@ -116,6 +117,11 @@ class PluginRuntimeManager(
             lambda: self.supervisors,
             hook_spec_registry=self._hook_spec_registry,
         )
+
+    @property
+    def ready_event(self) -> asyncio.Event:
+        """供启动框架等待插件运行时就绪。"""
+        return self._ready_event
 
     async def _dispatch_platform_inbound(self, envelope: InboundMessageEnvelope) -> None:
         """接收 Platform IO 审核后的入站消息并送入主消息链。
@@ -594,6 +600,7 @@ class PluginRuntimeManager(
             config_manager.register_reload_callback(self._config_reload_callback)
             self._config_reload_callback_registered = True
             self._started = True
+            self._ready_event.set()
             logger.info(f"插件运行时已启动 — 内置: {builtin_dirs or '无'}, 第三方: {third_party_dirs or '无'}")
         except Exception as e:
             logger.error(f"插件运行时启动失败: {e}", exc_info=True)

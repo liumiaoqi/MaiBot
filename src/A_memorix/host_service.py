@@ -78,6 +78,12 @@ class AMemorixHostService:
         self._config_cache: Dict[str, Any] | None = None
         self._reload_callback_registered = False
         self._model_config_port: Any = None
+        self._ready_event: asyncio.Event = asyncio.Event()
+
+    @property
+    def ready_event(self) -> asyncio.Event:
+        """供启动框架等待记忆系统就绪。"""
+        return self._ready_event
 
     def set_model_config_port(self, port: Any) -> None:
         """注入 ModelConfigPort（在 start 之前调用）。"""
@@ -86,8 +92,10 @@ class AMemorixHostService:
     async def start(self) -> None:
         if not self.is_enabled():
             logger.info("A_Memorix 未启用，跳过长期记忆运行时初始化")
+            self._ready_event.set()
             return
         await self._ensure_kernel()
+        self._ready_event.set()
 
     async def stop(self) -> None:
         async with self._lock:
