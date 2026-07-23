@@ -133,6 +133,33 @@
 
 管家（agent_id=rita），客厅守护者。三层过滤（规则→管家LLM→角色LLM）决定插话，定时提醒通过 ThinkingOrgan.think_proactive() 触发。管家专用工具：`switch_primary`/`activate_agent`。
 
+# SSD 审查规范
+
+CA 派发审查任务时，CC 按以下维度输出报告（写入 `.shared/handoff/cc2ca_{task}_review_{date}.md`）：
+
+## 事实准确性
+对照实际代码验证文件路径、类名、方法名、行号。grep/Read 确认，不凭记忆。
+
+## 设计合理性
+- 是否符合大道至简（过度工程化？DI 容器、DAG 拓扑、本地镜像类型？）
+- 是否够彻底（DeprecationWarning 代替删除？fallback 代替异常上浮？）
+
+## 任务可执行性
+每个 `- [ ]` 是否真的能完成。验证命令是否可跑。批间依赖是否正确。
+
+## CC/Codex 派发建议
+每个子任务标注负责人+理由。参照 `.shared/decisions/cc_vs_codex_routing_guide.md`。
+
+## 遗漏检查
+文档没覆盖但代码实际存在的依赖、调用方、边界情况。
+
+## 审查自由度
+- 不需逐行核对所有行号，优先核验关键路径
+- 发现 SSD 遗漏直接在报告里补充
+- 细节小问题不需要卡住整个任务，结论写"建议直接执行，同时修正 N 点"
+- 派发建议是参考不是命令，10 行的小文件顺手做掉不用非得派给 Codex
+- 报告长度匹配任务复杂度，小任务不凑字数
+
 # 已完成 SSD 摘要
 
 | SSD | 主题 | 关键成果 |
