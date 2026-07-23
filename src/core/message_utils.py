@@ -1,8 +1,9 @@
 from copy import deepcopy
-from typing import Any, Dict
+from typing import Any, Dict, Optional, Tuple
 
 import base64
 import hashlib
+import re
 
 from src.common.data_models.message_component_data_model import (
     AtComponent,
@@ -16,7 +17,15 @@ from src.common.data_models.message_component_data_model import (
     TextComponent,
     VoiceComponent,
 )
+from src.common.data_models.session_message_data_model import SessionMessage
+from src.common.logger import get_logger
+from src.common.data_models.chat_target_info_data_model import ChatTargetInfo
+from src.config.config import global_config
+from src.core.identity import get_bot_account, is_bot_self
+from src.core.session_port_registry import get_session_info
+from src.person_info.person_info import Person
 
+logger = get_logger("core.message_utils")
 
 def build_binary_component_from_base64(component_type: str, raw_data: str) -> StandardMessageComponents:
     """根据 Base64 数据构造二进制消息组件。
@@ -95,8 +104,8 @@ def build_message_sequence_from_custom_message(
 def _has_at_component_targeting_bot(message: SessionMessage, platform: str) -> bool:
     """检查消息中的结构化 @ 组件是否直接指向当前 bot。"""
 
-    raw_message = getattr(message, "raw_message", None)
-    for component in getattr(raw_message, "components", []) or []:
+    raw_message = message.raw_message
+    for component in raw_message.components:
         if isinstance(component, AtComponent) and is_bot_self(platform, component.target_user_id):
             return True
     return False
@@ -111,7 +120,7 @@ def is_mentioned_bot_in_message(message: SessionMessage) -> tuple[bool, bool, fl
     current_account = get_bot_account(platform)
 
     nickname = str(global_config.bot.nickname or "")
-    alias_names = list(getattr(global_config.bot, "alias_names", []) or [])
+    alias_names = list(global_config.bot.alias_names)
     keywords = [nickname] + alias_names
 
     reply_probability = 0.0
@@ -119,7 +128,7 @@ def is_mentioned_bot_in_message(message: SessionMessage) -> tuple[bool, bool, fl
     is_mentioned = False
 
     # 1) 直接的 additional_config 标记
-    add_cfg = getattr(message.message_info, "additional_config", None) or {}
+    add_cfg = message.message_info.additional_config
     if isinstance(add_cfg, dict):
         if add_cfg.get("at_bot") or add_cfg.get("is_mentioned"):
             is_mentioned = True
@@ -131,10 +140,10 @@ def is_mentioned_bot_in_message(message: SessionMessage) -> tuple[bool, bool, fl
                 reply_probability = float(raw_mention_boost)
 
     # 2) 已经在上游设置过的 message.is_at / message.is_mentioned
-    if getattr(message, "is_at", False):
+    if message.is_at:
         is_at = True
         is_mentioned = True
-    if getattr(message, "is_mentioned", False):
+    if message.is_mentioned:
         is_mentioned = True
 
     # 3) 扫描分段：是否包含 mention_bot（适配器插入）
@@ -142,10 +151,10 @@ def is_mentioned_bot_in_message(message: SessionMessage) -> tuple[bool, bool, fl
         try:
             if seg is None:
                 return False
-            if getattr(seg, "type", None) == "mention_bot":
+            if seg.type == "mention_bot":
                 return True
-            if getattr(seg, "type", None) == "seglist":
-                for s in getattr(seg, "data", []) or []:
+            if seg.type == "seglist":
+                for s in seg.data:
                     if _has_mention_bot(s):
                         return True
             return False
@@ -211,26 +220,6 @@ def is_mentioned_bot_in_message(message: SessionMessage) -> tuple[bool, bool, fl
         logger.debug("被提及，回复概率设置为100%")
 
     return is_mentioned, is_at, reply_probability
-
-
-async def get_embedding(text: str, request_type: str = "embedding") -> Optional[List[float]]:
-    """获取文本的嵌入向量。
-
-    Args:
-        text: 待编码的文本内容。
-        request_type: 当前请求的业务类型标识。
-
-    Returns:
-        Optional[List[float]]: 成功时返回嵌入向量，失败时返回 `None`。
-    """
-    embedding_client = EmbeddingServiceClient(task_name="embedding", request_type=request_type)
-    try:
-        embedding_result = await embedding_client.embed_text(text)
-        embedding = embedding_result.embedding
-    except Exception as e:
-        logger.error(f"获取embedding失败: {str(e)}")
-        embedding = None
-    return embedding
 
 
 def get_chat_type_and_target_info(chat_id: str) -> Tuple[bool, Optional["ChatTargetInfo"]]:

@@ -13,7 +13,7 @@ from datetime import datetime
 from maim_message import Seg
 
 from src.llm_models.payload_content.tool_option import ToolCall
-from src.common.memory_types import IntuitionContext as IntuitionContext  # noqa: F401
+
 # from src.common.data_models.message_data_model import ReplyContentType as ReplyContentType
 # from src.common.data_models.message_data_model import ReplyContent as ReplyContent
 # from src.common.data_models.message_data_model import ForwardNode as ForwardNode
@@ -807,14 +807,8 @@ class MemoryNotFoundError(MemoryServiceError):
     """查询目标不存在（画像/记忆条目）"""
 
 
-# =============================================================================
-# 桥接 re-export — SessionMessage
-# =============================================================================
-# SessionMessage 当前定义在 src/chat/message_receive/message.py，
-# 但被 core/maisaka 层大量使用。此处 re-export 作为集中桥接点，
-# maisaka 应从 core.types 导入，不直接依赖 chat 层。
-# 后续架构演进将把 SessionMessage 物理迁移到 common 层。
-# ruff: noqa: TID251
+# SessionMessage 真实定义在 src/common/data_models/session_message_data_model.py。
+# 此处 re-export 供 core/maisaka 层使用，不直接依赖 chat 层。
 from src.common.data_models.session_message_data_model import SessionMessage as SessionMessage  # noqa: F401
 
 # ── 纯数据类型 re-export（真实定义在 common 层）────────────────

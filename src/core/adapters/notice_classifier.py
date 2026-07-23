@@ -5,31 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from src.common.logger import get_logger
-from src.core.protocols import NoticeClassifier
+from src.core.protocols import NoticeClassifier  # noqa: F401
 from src.core.types import NoticeKind
 
 logger = get_logger("core.adapters.notice_classifier")
-
-_NAPCAT_AMBIENT_SUBTYPES: frozenset[str] = frozenset({
-    "input_status",
-    "group_ban",
-    "group_increase",
-    "group_decrease",
-    "group_name",
-    "group_upload",
-    "group_msg_emoji_like",
-})
-
-_NAPCAT_INTERACTION_SUBTYPES: frozenset[str] = frozenset({
-    "poke",
-    "group_poke",
-    "friend_add",
-    "group_admin",
-})
-
-_NAPCAT_INPUT_STATUS_SUBTYPES: frozenset[str] = frozenset({
-    "input_status",
-})
 
 
 class NapCatNoticeClassifier:
