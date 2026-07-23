@@ -2,6 +2,34 @@
 
 正式版更新日志见 [changelog.md](changelog.md)。
 
+# 1.0.0-rc.7
+
+## 用户感知功能
+
+### 启动流程重构
+- 启动流程从单函数线性初始化重构为6阶段编排（配置加载→基础设施→核心服务→子系统→会话恢复→就绪），每阶段独立计时
+- 非关键子系统（A_memorix、插件运行时、WebUI、交互调度器）启动失败时系统降级运行而非崩溃退出
+- 启动摘要日志输出各阶段耗时和组件状态，核心就绪时间 ≤5s
+- 消息处理器在消息服务启动前完成注册（就绪屏障），消除启动窗口期消息丢失风险
+- 配置管理器延迟初始化，消除模块级副作用
+
+## 开发侧
+
+### 启动框架
+- 新增 `src/core/startup/` 包：StartupOrchestrator（阶段编排）、StartupValidator（配置前置校验）、数据模型（StartupPhase/ComponentStatus/CoreReadiness 等）
+- MainSystem._init_components 拆分为6个阶段方法，接入 StartupOrchestrator
+- 消除 asyncio.sleep 轮询 hack（3处）和 getattr 私有属性访问（1处）
+- bot.py 入口补充 initialize_config() 调用（实际入口是 bot.py 而非 main.py）
+
+### 配置系统
+- config_manager 从模块级实例化改为延迟初始化（`initialize_config()` 显式调用）
+- 全项目 config_manager 导入改为延迟导入（`from src.config.config import config_manager as _cm`）
+
+### 降级与错误处理
+- StartupOrchestrator 非关键组件失败不传播异常，阶段状态只看关键组件
+- ready_event 机制：PluginRuntimeManager 和 AMemorixHostService 新增 ready_event 属性
+- 子系统启动超时保护（60s），超时后降级继续
+
 # 1.0.0-rc.6
 
 ## 用户感知功能

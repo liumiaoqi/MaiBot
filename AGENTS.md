@@ -394,6 +394,34 @@ https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 - G24 记忆性格注册窗口期（需核心调度时序保证）
 - G28 A_memorix 内部 322 处 bare except（修复成本极高，逐个审查需单独排期）
 
+# 启动流程改革进展（SSD-5，已完成）
+
+**6 批次编码+集成验证全部完成**，消除了启动流程7类缺陷。
+
+## 关键变更
+
+1. **6阶段 StartupOrchestrator**：CONFIG_LOAD→INFRASTRUCTURE→CORE_SERVICES→SUBSYSTEMS→SESSION_RESTORE→READY，每阶段独立计时
+2. **非关键组件降级**：A_memorix/插件运行时/WebUI/交互调度器失败时系统降级运行而非崩溃
+3. **核心就绪指标**：CoreReadiness 三条件（消息管道+智能体思考+回复能力），核心就绪 ≤5s
+4. **config_manager 延迟初始化**：模块级 `None` + `initialize_config()` 显式调用，消除模块级副作用
+5. **就绪屏障**：消息处理器在消息服务启动前注册，消除启动窗口期消息丢失
+6. **消除 hack**：3处 asyncio.sleep 轮询 + 1处 getattr 私有属性访问
+
+## 新增文件
+
+- `src/core/startup/__init__.py` — 包导出
+- `src/core/startup/types.py` — 数据模型（StartupPhase/ComponentStatus/CoreReadiness 等）
+- `src/core/startup/orchestrator.py` — StartupOrchestrator（阶段编排+启动摘要+降级逻辑）
+- `src/core/startup/validator.py` — StartupValidator（配置前置校验）
+
+## 修改文件
+
+- `bot.py` — 入口补充 `initialize_config()` 调用
+- `src/main.py` — 重构为6阶段启动，接入 StartupOrchestrator
+- `src/config/config.py` — config_manager 延迟初始化
+- `src/plugin_runtime/integration.py` — 新增 ready_event
+- `src/A_memorix/host_service.py` — 新增 ready_event
+
 # changelog编写
 建议分为两部分，一部分是用户感知功能侧，一部分是开发侧（包含修复和插件sdk,api改动）。最好一个功能一行，按模块分。
 一般不写入changelog的内容：
