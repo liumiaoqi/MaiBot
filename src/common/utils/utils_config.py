@@ -3,7 +3,8 @@ from typing import Any, Iterator, Optional
 import time
 
 from src.common.logger import get_logger
-from src.config.config import global_config  # noqa: TID251
+from src.config.config import global_config  # noqa: TID251 — expression/experimental/jargon/reply_style/a_memorix 待后续协议化
+from src.core.chat_config_port_registry import get_chat_config_port
 
 logger = get_logger("config_utils")
 
@@ -608,18 +609,19 @@ class ChatConfigUtils:
         if is_group_chat is None:
             is_group_chat = ChatConfigUtils._resolve_is_group_chat(session_id)
 
+        rt = get_chat_config_port().get_reply_timing_config()
         result = (
-            global_config.chat.reply_timing.talk_value
+            rt.talk_value
             if is_group_chat is not False
-            else global_config.chat.reply_timing.private_talk_value
+            else rt.private_talk_value
         ) or 0.0
-        if not global_config.chat.reply_timing.enable_talk_value_rules or not global_config.chat.reply_timing.talk_value_rules:
+        if not rt.enable_talk_value_rules or not rt.talk_value_rules:
             return result
         local_time = time.localtime()
         now_min = local_time.tm_hour * 60 + local_time.tm_min
 
         matched_rules = []
-        for rule in global_config.chat.reply_timing.talk_value_rules:
+        for rule in rt.talk_value_rules:
             target_priority = ChatConfigUtils._talk_rule_target_priority(rule, session_id, is_group_chat)
             if target_priority is None:
                 continue

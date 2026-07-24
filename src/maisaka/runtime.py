@@ -22,8 +22,8 @@ from src.common.data_models.message_component_data_model import (
 from src.common.logger import get_logger
 from src.common.message_repository import find_messages
 from src.common.utils.utils_config import BehaviorConfigUtils, ChatConfigUtils, ExpressionConfigUtils, JargonConfigUtils
-from src.config.config import global_config
-from src.core.bot_config_port_registry import get_bot_config_port
+from src.config.config import global_config  # noqa: TID251 — mcp/expression/debug 待协议化
+
 from src.core.chat_config_port_registry import get_chat_config_port
 from src.core.app_config_port_registry import get_app_config_port
 from src.core.protocols import NoticeClassifier
@@ -253,7 +253,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
     def _planner_interrupt_max_consecutive_count(self) -> int:
         """返回当前实时生效的 Planner 连续打断上限。"""
 
-        return max(0, int(global_config.chat.reply_timing.planner_interrupt_max_consecutive_count))
+        return max(0, int(get_chat_config_port().get_reply_timing_config().planner_interrupt_max_consecutive_count))
 
     @property
     def _enable_expression_learning(self) -> bool:
@@ -1313,8 +1313,8 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
 
         should_force_reply = (
             reply_probability_boost >= 1.0
-            or (message.is_at and global_config.chat.reply_timing.inevitable_at_reply)
-            or (message.is_mentioned and global_config.chat.reply_timing.mentioned_bot_reply)
+            or (message.is_at and get_chat_config_port().get_reply_timing_config().inevitable_at_reply)
+            or (message.is_mentioned and get_chat_config_port().get_reply_timing_config().mentioned_bot_reply)
         )
         if not should_force_reply or (not message.is_at and not message.is_mentioned):
             return
@@ -1960,7 +1960,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
     def _try_enter_wait_state(self, seconds: Optional[float] = None, tool_call_id: Optional[str] = None) -> tuple[bool, int, int]:
         """尝试进入 wait 状态，并返回是否成功、当前连续次数和上限。"""
 
-        max_count = max(1, int(global_config.chat.reply_timing.max_consecutive_wait_count))
+        max_count = max(1, int(get_chat_config_port().get_reply_timing_config().max_consecutive_wait_count))
         if self._consecutive_wait_count >= max_count:
             return False, self._consecutive_wait_count, max_count
 

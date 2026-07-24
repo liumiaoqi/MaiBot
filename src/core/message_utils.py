@@ -20,9 +20,10 @@ from src.common.data_models.message_component_data_model import (
 from src.common.data_models.session_message_data_model import SessionMessage
 from src.common.logger import get_logger
 from src.common.data_models.chat_target_info_data_model import ChatTargetInfo
-from src.config.config import global_config  # noqa: TID251 — reply_timing 待废弃配置本期不协议化
+
 from src.core.bot_config_port_registry import get_bot_config_port
 from src.core.identity import get_bot_account, is_bot_self
+from src.core.chat_config_port_registry import get_chat_config_port
 from src.core.session_port_registry import get_session_info
 from src.core.person_info_port_registry import get_person_info_port
 
@@ -212,7 +213,7 @@ def is_mentioned_bot_in_message(message: SessionMessage) -> tuple[bool, bool, fl
                 break
 
     # 8) 概率设置
-    reply_timing_config = global_config.chat.reply_timing
+    reply_timing_config = get_chat_config_port().get_reply_timing_config()
     if is_at and reply_timing_config.inevitable_at_reply:
         reply_probability = 1.0
         logger.debug("被@，回复概率设置为100%")
