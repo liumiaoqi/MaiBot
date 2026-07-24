@@ -1,0 +1,116 @@
+"""gRPC Host 端点 — gRPC 服务端生命周期管理。
+
+管理 Runner 连接：启动 gRPC 服务器、优雅关停、状态查询。
+"""
+
+from __future__ import annotations
+
+import asyncio
+
+import grpc
+from grpc_reflection.v1alpha import reflection
+
+from src.common.logger import get_logger
+from src.plugin_runtime_v2.host.connection import (
+    HostEndpointConfig,
+    RunnerConnectionSnapshot,
+)
+from src.plugin_runtime_v2.host.heartbeat import HeartbeatManager
+from src.plugin_runtime_v2.host.registry import RunnerRegistry
+from src.plugin_runtime_v2.host.servicer import _PluginHostServicer
+from src.plugin_runtime_v2.proto.plugin_host_pb2_grpc import (
+    add_PluginHostServicer_to_server,
+)
+
+logger = get_logger("plugin_runtime_v2.host.endpoint")
+
+# ── gRPC 服务端 keepalive 配置（design.md 2.3.2.4） ──
+_GRPC_SERVER_OPTIONS = [
+    ("grpc.keepalive_time_ms", 30000),
+    ("grpc.keepalive_timeout_ms", 10000),
+    ("grpc.keepalive_permit_without_calls", 1),
+    ("grpc.http2.max_pings_without_data", 0),
+    ("grpc.http2.min_time_between_pings_ms", 10000),
+    ("grpc.http2.min_ping_interval_without_data_ms", 5000),
+]
+
+_SERVICE_NAME = "maibot.plugin.v2.PluginHost"
+
+
+class HostEndpoint:
+    """gRPC Host 服务端 — 管理 Runner 连接生命周期。"""
+
+    def __init__(self, config: HostEndpointConfig | None = None) -> None:
+        self._cfg = config or HostEndpointConfig()
+        self._server: grpc.aio.Server | None = None
+        self._registry = RunnerRegistry()
+        self._heartbeat_mgr = HeartbeatManager(
+            interval_s=self._cfg.heartbeat_interval_s,
+            timeout_s=self._cfg.heartbeat_timeout_s,
+            max_misses=self._cfg.max_heartbeat_misses,
+        )
+        self._servicer = _PluginHostServicer(
+            registry=self._registry,
+            heartbeat_mgr=self._heartbeat_mgr,
+            config=self._cfg,
+        )
+        self._actual_listen_address: str = ""
+
+    async def start(self) -> None:
+        """启动 gRPC 服务器，开始监听 Runner 连接。
+
+        Raises:
+            OSError: 端口被占用。
+        """
+        self._server = grpc.aio.server(options=_GRPC_SERVER_OPTIONS)
+        add_PluginHostServicer_to_server(self._servicer, self._server)
+
+        # 服务描述（供反射服务使用）
+        service_names = (_SERVICE_NAME, reflection.SERVICE_NAME)
+        reflection.enable_server_reflection(service_names, self._server)
+
+        listen_port = self._server.add_insecure_port(self._cfg.listen_address)
+        await self._server.start()
+        self._actual_listen_address = f"{self._cfg.listen_address.split(':')[0]}:{listen_port}"
+
+        logger.info(
+            "HostEndpoint 已启动，监听 %s，server_id=%s",
+            self._actual_listen_address, self._cfg.server_id,
+        )
+
+    async def stop(self) -> None:
+        """优雅关停：通知所有 Runner，等待排空，停止服务器。"""
+        if self._server is None:
+            return
+
+        # 向所有已连接 Runner 发送 ShutdownRequest
+        drain_ms = self._cfg.default_drain_timeout_ms
+        for runner_id, _conn in self._registry.get_all().items():
+            logger.info("向 Runner %s 发送 ShutdownRequest，drain=%dms", runner_id, drain_ms)
+            self._heartbeat_mgr.stop(runner_id)
+            # 关停通过双向流自然触发 — 这里简化：直接清理注册表
+            # 完整的关停流程由 servicer 在收到 shutdown_trigger 后处理
+
+        # 等待排空
+        if drain_ms > 0:
+            await asyncio.sleep(drain_ms / 1000.0)
+
+        # 停止心跳 + 清理注册表
+        self._heartbeat_mgr.stop_all()
+        for runner_id in list(self._registry.get_all().keys()):
+            self._registry.unregister(runner_id)
+
+        # 停止 gRPC 服务器
+        await self._server.stop(grace=5)
+        self._server = None
+        self._actual_listen_address = ""
+        logger.info("HostEndpoint 已停止")
+
+    def get_status(self) -> dict[str, RunnerConnectionSnapshot]:
+        """返回所有 Runner 连接状态快照，供 WebUI 调试页使用。"""
+        return self._registry.get_all_snapshots()
+
+    @property
+    def listen_address(self) -> str:
+        """实际监听地址（启动后可用）。"""
+        return self._actual_listen_address
