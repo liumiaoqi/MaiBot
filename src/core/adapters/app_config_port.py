@@ -5,10 +5,11 @@ from __future__ import annotations
 from typing import Any
 
 from src.core.types import AgentAutonomySnapshot, AgentInteractionSnapshot, AMemorixIntegrationSnapshot
+from src.core.types import PluginRuntimeSnapshot
 
 
 class GlobalConfigAppConfigPort:
-    """聚合 expression/emoji/experimental/visual/debug/agent_autonomy/a_memorix/mcp/response_splitter/chinese_typo/response_post_process/log/webui/agent/agent_interaction 域配置。"""
+    """聚合 expression/emoji/experimental/visual/debug/agent_autonomy/a_memorix/mcp/response_splitter/chinese_typo/response_post_process/log/webui/agent/agent_interaction/plugin_runtime 域配置。"""
 
     def _get_cfg(self):
         from src.config.config import global_config
@@ -322,3 +323,29 @@ class GlobalConfigAppConfigPort:
     def get_webui_mode(self) -> str:
         return str(self._get_cfg().webui.mode or "development")
 
+    def get_plugin_runtime_config(self) -> PluginRuntimeSnapshot:
+        cfg = self._get_cfg().plugin_runtime
+        return PluginRuntimeSnapshot(
+            enabled=bool(cfg.enabled),
+            ipc_socket_path=str(cfg.ipc_socket_path or ""),
+            health_check_interval_sec=float(cfg.health_check_interval_sec),
+            max_restart_attempts=int(cfg.max_restart_attempts),
+            runner_spawn_timeout_sec=float(cfg.runner_spawn_timeout_sec),
+            hook_blocking_timeout_sec=float(cfg.hook_blocking_timeout_sec),
+        )
+
+    def register_reload_callback(self, callback: object) -> None:
+        from src.config.config import config_manager  # noqa: TID251 — 适配器层允许导入
+        config_manager.register_reload_callback(callback)
+
+    def unregister_reload_callback(self, callback: object) -> None:
+        from src.config.config import config_manager  # noqa: TID251 — 适配器层允许导入
+        config_manager.unregister_reload_callback(callback)
+
+    def get_global_config_json(self) -> str:
+        from src.config.config import config_manager  # noqa: TID251 — 适配器层允许导入
+        return config_manager.get_global_config().model_dump(mode="json")
+
+    def get_model_config_json(self) -> str:
+        from src.config.config import config_manager  # noqa: TID251 — 适配器层允许导入
+        return config_manager.get_model_config().model_dump(mode="json")

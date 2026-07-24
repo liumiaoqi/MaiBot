@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from src.common.logger import get_logger
-from src.core.protocols import ChatRuntime, ChatRuntimeRegistry
+from src.core.protocols import ChatRuntime
 
 logger = get_logger("core.adapters.runtime_registry")
 
@@ -30,4 +30,12 @@ class HeartflowRuntimeRegistry:
     def list_runtimes(self) -> list[ChatRuntime]:
         """列出所有活跃的运行时实例。"""
         return list(self._heartflow_manager.heartflow_chat_list.values())
+
+    def get_runtime_sync(self, session_id: str) -> Optional[ChatRuntime]:
+        """同步获取指定会话的运行时实例（字典查找，≤0.1ms）。"""
+        return self._heartflow_manager.heartflow_chat_list.get(session_id)
+
+    def remove_runtime(self, session_id: str) -> Optional[ChatRuntime]:
+        """移除并返回指定会话的运行时实例。调用方负责 await runtime.stop()。"""
+        return self._heartflow_manager.heartflow_chat_list.pop(session_id, None)
 
