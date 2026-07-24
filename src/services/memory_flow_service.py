@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from json_repair import repair_json
-from typing import Any, List, Optional
+from typing import TYPE_CHECKING, Any, List, Optional
 
 import asyncio
 import json
@@ -15,10 +15,13 @@ from src.common.message_repository import count_messages, find_messages
 from src.core.identity import is_bot_self
 from src.core.app_config_port_registry import get_app_config_port
 from src.core.adapters.llm_service_port import get_llm_service
+from src.core.person_info_port_registry import get_person_info_port
 from src.core.protocols import LLMService
-from src.person_info.person_info import Person, get_person_id, store_person_memory_from_answer
 
 from src.core.memory_port_registry import get_memory_service_port
+
+if TYPE_CHECKING:
+    from src.core.types import PersonDetailSnapshot
 
 logger = get_logger("memory_flow_service")
 
@@ -107,11 +110,7 @@ class PersonFactWritebackService:
         if not session_id:
             return
 
-        person_name = str(
-            getattr(target_person, "person_name", "")
-            or getattr(target_person, "nickname", "")
-            or ""
-        ).strip()
+        person_name = str(target_person.person_name or target_person.nickname or "").strip()
         if not person_name:
             return
 
@@ -121,16 +120,16 @@ class PersonFactWritebackService:
             if str(getattr(item, "message_id", "")).strip()
         ]
         for fact in facts:
-            await store_person_memory_from_answer(
+            await get_person_info_port().store_person_memory(
                 person_name,
                 fact,
                 session_id,
-                person_id=str(getattr(target_person, "person_id", "")).strip(),
+                person_id=target_person.person_id,
                 evidence_source="user_supported",
                 evidence_message_ids=evidence_message_ids,
             )
 
-    def _resolve_target_person(self, message: Any) -> Optional[Person]:
+    def _resolve_target_person(self, message: Any) -> Optional[PersonDetailSnapshot]:
         session = getattr(message, "session", None)
         session_platform = str(getattr(session, "platform", "") or getattr(message, "platform", "") or "").strip()
         session_user_id = str(getattr(session, "user_id", "")).strip()
@@ -139,9 +138,9 @@ class PersonFactWritebackService:
         if session_platform and session_user_id and not group_id:
             if is_bot_self(session_platform, session_user_id):
                 return None
-            person_id = get_person_id(session_platform, session_user_id)
-            person = Person(person_id=person_id)
-            return person if person.is_known else None
+            person_id = get_person_info_port().get_person_id(session_platform, session_user_id)
+            detail = get_person_info_port().get_person_detail(person_id)
+            return detail if detail and detail.is_known else None
 
         reply_to = str(getattr(message, "reply_to", "")).strip()
         if reply_to:
@@ -181,18 +180,18 @@ class PersonFactWritebackService:
         return None
 
     @staticmethod
-    def _person_from_user_message(message: Any, *, fallback_platform: str = "") -> Optional[Person]:
+    def _person_from_user_message(message: Any, *, fallback_platform: str = "") -> Optional[PersonDetailSnapshot]:
         platform = str(getattr(message, "platform", "") or fallback_platform or "").strip()
         user_info = getattr(getattr(message, "message_info", None), "user_info", None)
         user_id = str(getattr(user_info, "user_id", "") or getattr(message, "user_id", "") or "").strip()
 
         if not platform or not user_id or is_bot_self(platform, user_id):
             return None
-        person_id = get_person_id(platform, user_id)
-        person = Person(person_id=person_id)
-        return person if person.is_known else None
+        person_id = get_person_info_port().get_person_id(platform, user_id)
+        detail = get_person_info_port().get_person_detail(person_id)
+        return detail if detail and detail.is_known else None
 
-    def _collect_user_evidence(self, message: Any, person: Person) -> PersonFactEvidence:
+    def _collect_user_evidence(self, message: Any, person: PersonDetailSnapshot) -> PersonFactEvidence:
         session = getattr(message, "session", None)
         session_id = str(
             getattr(message, "session_id", "")
@@ -260,17 +259,16 @@ class PersonFactWritebackService:
             return float(raw_timestamp)
         return None
 
-    @staticmethod
-    def _filter_target_user_messages(messages: List[Any], person: Person, seen_ids: set) -> List[Any]:
+    def _filter_target_user_messages(self, messages: List[Any], person: PersonDetailSnapshot, seen_ids: set) -> List[Any]:
         filtered: List[Any] = []
-        target_person_id = str(getattr(person, "person_id", "")).strip()
+        target_person_id = person.person_id.strip()
         for item in messages:
             platform = str(getattr(item, "platform", "")).strip()
             user_info = getattr(getattr(item, "message_info", None), "user_info", None)
             user_id = str(getattr(user_info, "user_id", "") or getattr(item, "user_id", "") or "").strip()
             if not platform or not user_id or is_bot_self(platform, user_id):
                 continue
-            if target_person_id and get_person_id(platform, user_id) != target_person_id:
+            if target_person_id and get_person_info_port().get_person_id(platform, user_id) != target_person_id:
                 continue
             text = str(getattr(item, "processed_plain_text", "")).strip()
             if not text:
@@ -333,8 +331,8 @@ class PersonFactWritebackService:
         target_marker = " [目标用户发言]" if mark_target else ""
         return f"{prefix}{text}{target_marker}"
 
-    async def _extract_facts(self, person: Person, reply_text: str, user_evidence_text: str) -> List[str]:
-        person_name = str(getattr(person, "person_name", "") or getattr(person, "nickname", "") or person.person_id)
+    async def _extract_facts(self, person: PersonDetailSnapshot, reply_text: str, user_evidence_text: str) -> List[str]:
+        person_name = str(person.person_name or person.nickname or person.person_id)
         prompt = f"""你要从用户原始发言中提取“关于{person_name}的稳定事实”。
 
 目标人物：{person_name}
