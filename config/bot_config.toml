@@ -20,7 +20,6 @@ max_context_size = 40 # 群聊回复时参考的最近消息数量；越大越�
 max_private_context_size = 60 # 私聊回复时参考的最近消息数量。
 enable_context_optimization = true # 压缩部分上下文，减少模型消耗；一般建议开启。
 mid_term_memory = true # 打开后会主动召回最近聊天发生的事情。
-mid_term_memory_lenth = 10 # 最多保留多少条聊天回想；设为 0 表示不保留。
 self_message_special_mark = true # 加强标记麦麦自己的消息，减少把自己当成别人的情况。
 
 [chat.reply_timing] # 什么时候回复、回复频率与等待退避配置。
@@ -31,10 +30,6 @@ inevitable_at_reply = true # 开启后，被 @ 时会尽量回复。
 reply_trigger_mode = "frequency" # 控制新消息何时进入 Planner。
 planner_interrupt_max_consecutive_count = 0 # 思考时来了新消息，最多重新思考多少次。
 max_consecutive_wait_count = 3 # Planner 最多连续调用 wait 多少次；达到上限后 wait 工具会拒绝继续进入等待。
-no_action_backoff_base_seconds = 15.0 # 连续决定不回复后，下一次检查前先等多久。
-no_action_backoff_cap_seconds = 300.0 # 不回复退避等待的最长时间。
-no_action_backoff_start_count = 2 # 连续几次不回复后开始放慢检查。
-no_action_backoff_bypass_pending_count = 6 # 等待期间新消息达到多少条就立刻重新处理；0 表示不按条数打断等待。
 enable_talk_value_rules = false # 开启后，可以按聊天或时间段单独调整发言频率。
 talk_value_rules = [{platform = "", item_id = "", rule_type = "group", time = "00:00-08:59", value = 0.8}, {platform = "", item_id = "", rule_type = "group", time = "09:00-18:59", value = 1.0}]
 # 动态发言频率规则；可让麦麦在某些群、私聊或时段更活跃或更安静。
@@ -852,10 +847,8 @@ trusted_proxies = "" # 可信反向代理 IP；只有这些代理传来的真实
 trust_xff = false # 是否信任 X-Forwarded-For 里的真实访客 IP。
 secure_cookie = false # 只在 HTTPS 下发送登录 Cookie；没有 HTTPS 时不要开启。
 enforce_public_outbound_url = true # 限制 WebUI 访问外部 URL，降低访问内网地址的风险。
-enable_paragraph_content = false # 知识图谱里是否加载段落全文；更完整但更占内存。
 
 [database]
-save_binary_data = false # 是否保存语音等二进制原文件；更占空间，但方便以后重新识别。
 
 [mcp]
 enable = true # 是否启用 MCP 工具接入能力。
@@ -909,16 +902,6 @@ restart_after_render_count = 200 # 渲染多少次后重启浏览器；0 表示�
 [agent]
 default_agent_id = "silver_wolf" # 新会话未绑定智能体时使用的默认智能体 ID。
 agents_dir = "agents" # 智能体 Markdown 配置文件的存放目录。
-
-[subagent]
-dream_enabled = true # 启用 Dream 子智能体，7天周期从对话轨迹提取持久知识。
-dream_interval_days = 7 # Dream 子智能体的巩固周期天数。
-compaction_enabled = true # 启用 Compaction 子智能体，异步压缩长对话历史。
-compaction_threshold_level_1 = 100 # 消息数达到此阈值时触发一级压缩。
-compaction_threshold_level_2 = 200 # 消息数达到此阈值时触发二级压缩。
-compaction_threshold_level_3 = 400 # 消息数达到此阈值时触发三级压缩。
-checkpoint_writer_enabled = false # 启用 Checkpoint-Writer 子智能体，定期写入状态快照。
-checkpoint_writer_fork_enabled = false # Checkpoint-Writer 的 Fork 模式，独立上下文派生子智能体。
 
 [python_runtime]
 free_threaded = false # 启用 Python 3.14t 自由线程模式，禁用 GIL 以提升多线程并行性能。

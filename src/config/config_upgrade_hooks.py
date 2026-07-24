@@ -308,10 +308,6 @@ def _split_chat_config_sections(data: dict[str, Any]) -> list[str]:
         "reply_trigger_mode",
         "planner_interrupt_max_consecutive_count",
         "max_consecutive_wait_count",
-        "no_action_backoff_base_seconds",
-        "no_action_backoff_cap_seconds",
-        "no_action_backoff_start_count",
-        "no_action_backoff_bypass_pending_count",
         "enable_talk_value_rules",
         "talk_value_rules",
     )
@@ -426,43 +422,36 @@ def _add_subagent_section_config(data: dict[str, Any]) -> list[str]:
         return []
     changed = set_nested_config_value(
         data,
-        ("subagent", "dream_enabled"),
         True,
         force=False,
     )
     changed |= set_nested_config_value(
         data,
-        ("subagent", "dream_interval_days"),
         7,
         force=False,
     )
     changed |= set_nested_config_value(
         data,
-        ("subagent", "compaction_enabled"),
         True,
         force=False,
     )
     changed |= set_nested_config_value(
         data,
-        ("subagent", "compaction_threshold_level_1"),
         100,
         force=False,
     )
     changed |= set_nested_config_value(
         data,
-        ("subagent", "compaction_threshold_level_2"),
         200,
         force=False,
     )
     changed |= set_nested_config_value(
         data,
-        ("subagent", "compaction_threshold_level_3"),
         400,
         force=False,
     )
     changed |= set_nested_config_value(
         data,
-        ("subagent", "checkpoint_writer_enabled"),
         False,
         force=False,
     )

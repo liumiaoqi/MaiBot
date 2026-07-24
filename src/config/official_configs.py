@@ -488,6 +488,7 @@ class ChatReplyTimingConfig(ConfigBase):
     __ui_label__ = "什么时候发言"
     __ui_icon__ = "activity"
 
+    # DEPRECATED: 将由 vitality 系统替代
     talk_value: float = Field(
         default=1,
         ge=0,
@@ -506,6 +507,7 @@ class ChatReplyTimingConfig(ConfigBase):
     )
     """群聊里麦麦主动说话的频率；越小越安静。"""
 
+    # DEPRECATED: 将由 vitality 系统替代
     private_talk_value: float = Field(
         default=1,
         ge=0,
@@ -524,6 +526,7 @@ class ChatReplyTimingConfig(ConfigBase):
     )
     """私聊里麦麦主动说话的频率；越小越安静。"""
 
+    # DEPRECATED: 将由管家规则过滤替代
     mentioned_bot_reply: bool = Field(
         default=False,
         json_schema_extra={
@@ -539,6 +542,7 @@ class ChatReplyTimingConfig(ConfigBase):
     )
     """开启后，只要消息提到麦麦名字就更容易回复。"""
 
+    # DEPRECATED: 将由管家规则过滤替代
     inevitable_at_reply: bool = Field(
         default=True,
         json_schema_extra={
@@ -554,6 +558,7 @@ class ChatReplyTimingConfig(ConfigBase):
     )
     """开启后，被 @ 时会尽量回复。"""
 
+    # DEPRECATED: 将由 vitality + 规则引擎替代
     reply_trigger_mode: Literal["frequency", "reply_necessity"] = Field(
         default="frequency",
         json_schema_extra={
@@ -572,6 +577,7 @@ class ChatReplyTimingConfig(ConfigBase):
     )
     """控制新消息何时进入 Planner。"""
 
+    # DEPRECATED: 将由 ThinkingOrgan MAX_CYCLES 替代
     planner_interrupt_max_consecutive_count: int = Field(
         default=0,
         ge=0,
@@ -588,6 +594,7 @@ class ChatReplyTimingConfig(ConfigBase):
     )
     """思考时来了新消息，最多重新思考多少次。"""
 
+    # DEPRECATED: 将由 ThinkingOrgan MAX_CYCLES 替代
     max_consecutive_wait_count: int = Field(
         default=3,
         ge=1,
@@ -622,21 +629,6 @@ class ChatReplyTimingConfig(ConfigBase):
     )
     """连续决定不回复后，下一次检查前先等多久。"""
 
-    no_action_backoff_cap_seconds: float = Field(
-        default=300,
-        ge=0,
-        json_schema_extra={
-            "label": {
-                "zh_CN": "空闲退避上限",
-                "en_US": "Idle backoff cap",
-                "ja_JP": "アイドルバックオフ上限",
-            },
-            "x-widget": "input",
-            "x-icon": "timer-reset",
-            "x-description-display": "icon",
-            "advanced": True,
-        },
-    )
     """不回复退避等待的最长时间。"""
 
     no_action_backoff_start_count: int = Field(
@@ -656,23 +648,9 @@ class ChatReplyTimingConfig(ConfigBase):
     )
     """连续几次不回复后开始放慢检查。"""
 
-    no_action_backoff_bypass_pending_count: int = Field(
-        default=6,
-        ge=0,
-        json_schema_extra={
-            "label": {
-                "zh_CN": "空闲退避绕过消息数",
-                "en_US": "Idle backoff bypass messages",
-                "ja_JP": "アイドルバックオフ迂回メッセージ数",
-            },
-            "x-widget": "input",
-            "x-icon": "message-square-more",
-            "x-description-display": "icon",
-            "advanced": True,
-        },
-    )
     """等待期间新消息达到多少条就立刻重新处理；0 表示不按条数打断等待。"""
 
+    # DEPRECATED: 将由 vitality 系统替代
     enable_talk_value_rules: bool = Field(
         default=False,
         json_schema_extra={
@@ -687,6 +665,7 @@ class ChatReplyTimingConfig(ConfigBase):
     )
     """开启后，可以按聊天或时间段单独调整发言频率。"""
 
+    # DEPRECATED: 将由 vitality 系统替代
     talk_value_rules: list[TalkRulesItem] = Field(
         default_factory=lambda: [
             TalkRulesItem(platform="", item_id="", rule_type="group", time="00:00-08:59", value=0.8),
@@ -899,6 +878,7 @@ class ExperimentalConfig(ConfigBase):
     __ui_advanced__ = True
     __ui_order__ = 30
 
+    # DEPRECATED: 将由 ThinkingOrgan 思考-行动分离替代
     enable_behavior_learning: bool = Field(
         default=False,
         json_schema_extra={
@@ -913,6 +893,7 @@ class ExperimentalConfig(ConfigBase):
     )
     """让麦麦从聊天中学习什么时候该怎么回应的经验。"""
 
+    # DEPRECATED: 将由 reply 工具统一
     enable_rich_reply: bool = Field(
         default=False,
         json_schema_extra={
@@ -927,6 +908,7 @@ class ExperimentalConfig(ConfigBase):
     )
     """开启后，replyer 生成文本后会由检查器决定是否插入图片、表情包或 at。"""
 
+    # DEPRECATED: 将由 ThinkingOrgan 思考-行动分离替代
     behavior_learning_list: list["LearningItem"] = Field(
         default_factory=lambda: [
             LearningItem(
@@ -949,6 +931,7 @@ class ExperimentalConfig(ConfigBase):
     )
     """配置哪些聊天会学习和使用行为经验；默认规则不够时再单独添加。"""
 
+    # DEPRECATED: 将由 ThinkingOrgan 思考-行动分离替代
     behavior_groups: list["ChatStreamGroup"] = Field(
         default_factory=list,
         json_schema_extra={
@@ -1226,6 +1209,7 @@ class AMemorixIntegrationConfig(ConfigBase):
     )
     """每轮自动注入的人物画像数量上限"""
 
+    # DEPRECATED: 与 IntuitionEngine 重叠
     heuristic_memory_recall_enabled: bool = Field(
         default=False,
         json_schema_extra={
@@ -1240,6 +1224,7 @@ class AMemorixIntegrationConfig(ConfigBase):
     )
     """是否根据当前聊天印象自然拉起长期记忆"""
 
+    # DEPRECATED: 与 IntuitionEngine 重叠
     heuristic_memory_cross_chat_enabled: bool = Field(
         default=False,
         json_schema_extra={
@@ -1353,6 +1338,7 @@ class AMemorixIntegrationConfig(ConfigBase):
     )
     """同一聊天流自然拉起结果的运行时缓存时间"""
 
+    # DEPRECATED: 与 IntuitionEngine 重叠
     heuristic_memory_group_to_private_enabled: bool = Field(
         default=False,
         json_schema_extra={
@@ -1368,6 +1354,7 @@ class AMemorixIntegrationConfig(ConfigBase):
     )
     """私聊中是否允许自然拉起群聊记忆"""
 
+    # DEPRECATED: 与 IntuitionEngine 重叠
     heuristic_memory_private_to_group_enabled: bool = Field(
         default=False,
         json_schema_extra={
@@ -3263,6 +3250,7 @@ class AMemorixConnectionistConfig(ConfigBase):
     )
     """启用连接主义记忆系统（痕迹网络+激活扩散）"""
 
+    # DEPRECATED: 迁移阶段已完成
     phase: str = Field(
         default="new_independent",
         json_schema_extra={
@@ -5412,43 +5400,7 @@ class WebUIConfig(ConfigBase):
     )
     """限制 WebUI 访问外部 URL，降低访问内网地址的风险。"""
 
-    enable_paragraph_content: bool = Field(
-        default=False,
-        json_schema_extra={
-            "label": {
-                "zh_CN": "加载段落全文",
-                "en_US": "Load full paragraph content",
-                "ja_JP": "段落全文を読み込む",
-            },
-            "x-widget": "switch",
-            "x-icon": "file-text",
-        },
-    )
-    """知识图谱里是否加载段落全文；更完整但更占内存。"""
-
-
-class DatabaseConfig(ConfigBase):
-    """数据库配置类"""
-
     __ui_parent__ = "debug"
-
-    save_binary_data: bool = Field(
-        default=False,
-        json_schema_extra={
-            "label": {
-                "zh_CN": "保存二进制原文件",
-                "en_US": "Save binary source files",
-                "ja_JP": "バイナリ原本を保存",
-            },
-            "x-widget": "switch",
-            "x-icon": "save",
-            "advanced": True,
-        },
-    )
-    """
-    是否保存语音等二进制原文件；更占空间，但方便以后重新识别。
-    """
-
 
 class MCPAuthorizationConfig(ConfigBase):
     """MCP HTTP 认证配置。"""
@@ -6184,139 +6136,6 @@ class AgentSectionConfig(ConfigBase):
     """智能体 Markdown 配置文件的存放目录。"""
 
 
-class SubAgentSectionConfig(ConfigBase):
-    """子智能体配置类"""
-
-    __ui_label__ = "子智能体"
-    __ui_order__ = 52
-
-    _warp_dream_enabled: str = "启用 Dream 子智能体（记忆巩固）"
-
-    dream_enabled: bool = Field(
-        default=True,
-        json_schema_extra={
-            "label": {
-                "zh_CN": "Dream记忆巩固",
-                "en_US": "Dream Consolidation",
-                "ja_JP": "Dream記憶統合",
-            },
-            "x-widget": "switch",
-            "x-icon": "moon",
-        },
-    )
-    """启用 Dream 子智能体，7天周期从对话轨迹提取持久知识。"""
-
-    _warp_dream_interval_days: str = "Dream 巩固周期（天）"
-
-    dream_interval_days: int = Field(
-        default=7,
-        json_schema_extra={
-            "label": {
-                "zh_CN": "巩固周期(天)",
-                "en_US": "Interval (days)",
-                "ja_JP": "統合周期(日)",
-            },
-            "x-widget": "input",
-            "x-icon": "calendar",
-        },
-    )
-    """Dream 子智能体的巩固周期天数。"""
-
-    _warp_compaction_enabled: str = "启用 Compaction 子智能体（异步压缩）"
-
-    compaction_enabled: bool = Field(
-        default=True,
-        json_schema_extra={
-            "label": {
-                "zh_CN": "Compaction异步压缩",
-                "en_US": "Compaction Compression",
-                "ja_JP": "Compaction非同期圧縮",
-            },
-            "x-widget": "switch",
-            "x-icon": "archive",
-        },
-    )
-    """启用 Compaction 子智能体，异步压缩长对话历史。"""
-
-    _warp_compaction_threshold_l1: str = "Compaction 一级压缩阈值（消息数）"
-
-    compaction_threshold_level_1: int = Field(
-        default=100,
-        json_schema_extra={
-            "label": {
-                "zh_CN": "一级压缩阈值",
-                "en_US": "Level 1 Threshold",
-                "ja_JP": "レベル1閾値",
-            },
-            "x-widget": "input",
-            "x-icon": "gauge",
-        },
-    )
-    """消息数达到此阈值时触发一级压缩。"""
-
-    _warp_compaction_threshold_l2: str = "Compaction 二级压缩阈值（消息数）"
-
-    compaction_threshold_level_2: int = Field(
-        default=200,
-        json_schema_extra={
-            "label": {
-                "zh_CN": "二级压缩阈值",
-                "en_US": "Level 2 Threshold",
-                "ja_JP": "レベル2閾値",
-            },
-            "x-widget": "input",
-            "x-icon": "gauge",
-        },
-    )
-    """消息数达到此阈值时触发二级压缩。"""
-
-    _warp_compaction_threshold_l3: str = "Compaction 三级压缩阈值（消息数）"
-
-    compaction_threshold_level_3: int = Field(
-        default=400,
-        json_schema_extra={
-            "label": {
-                "zh_CN": "三级压缩阈值",
-                "en_US": "Level 3 Threshold",
-                "ja_JP": "レベル3閾値",
-            },
-            "x-widget": "input",
-            "x-icon": "gauge",
-        },
-    )
-    """消息数达到此阈值时触发三级压缩。"""
-
-    _warp_checkpoint_writer_enabled: str = "启用 Checkpoint-Writer 子智能体（状态快照）"
-
-    checkpoint_writer_enabled: bool = Field(
-        default=False,
-        json_schema_extra={
-            "label": {
-                "zh_CN": "Checkpoint-Writer",
-                "en_US": "Checkpoint-Writer",
-                "ja_JP": "Checkpoint-Writer",
-            },
-            "x-widget": "switch",
-            "x-icon": "save",
-        },
-    )
-    """启用 Checkpoint-Writer 子智能体，定期写入状态快照。"""
-
-    _warp_checkpoint_writer_fork_enabled: str = "启用 Fork 模式（独立上下文派生）"
-
-    checkpoint_writer_fork_enabled: bool = Field(
-        default=False,
-        json_schema_extra={
-            "label": {
-                "zh_CN": "Fork模式",
-                "en_US": "Fork Mode",
-                "ja_JP": "Forkモード",
-            },
-            "x-widget": "switch",
-            "x-icon": "git-branch",
-        },
-    )
-    """Checkpoint-Writer 的 Fork 模式，独立上下文派生子智能体。"""
 
 
 class PythonRuntimeSectionConfig(ConfigBase):
