@@ -32,6 +32,15 @@ class GlobalConfigAppConfigPort:
     def get_emoji_do_replace(self) -> bool:
         return self._get_cfg().emoji.do_replace
 
+    def get_emoji_check_interval(self) -> int:
+        return int(self._get_cfg().emoji.check_interval)
+
+    def get_emoji_steal_emoji(self) -> bool:
+        return bool(self._get_cfg().emoji.steal_emoji)
+
+    def get_emoji_content_filtration(self) -> bool:
+        return bool(self._get_cfg().emoji.content_filtration)
+
     def get_emoji_send_num(self) -> int:
         return self._get_cfg().emoji.emoji_send_num
 

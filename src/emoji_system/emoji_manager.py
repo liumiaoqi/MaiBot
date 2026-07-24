@@ -18,7 +18,9 @@ from src.common.database.database_model import Images, ImageType
 from src.common.logger import get_logger
 from src.common.utils.image_path import resolve_stored_image_path, serialize_stored_image_path
 from src.common.utils.utils_image import ImageUtils
-from src.config.config import config_manager, global_config
+from src.config.config import config_manager  # noqa: TID251 — emoji_manager 使用 config_manager 获取模型配置
+from src.core.app_config_port_registry import get_app_config_port
+from src.core.bot_config_port_registry import get_bot_config_port
 from src.plugin_runtime.hook_schema_utils import build_object_schema
 from src.plugin_runtime.host.hook_spec_registry import HookSpec, HookSpecRegistry
 from src.prompt.prompt_manager import prompt_manager
@@ -245,7 +247,7 @@ def _is_vlm_task_configured() -> bool:
 def _get_max_collected_emoji_bytes() -> int:
     """获取收集表情包的最大字节数；配置为 0 时不限制。"""
 
-    max_size_mb = float(global_config.emoji.max_emoji_size_mb)
+    max_size_mb = float(get_app_config_port().get_emoji_max_size_mb())
     if max_size_mb <= 0:
         return 0
     return int(max_size_mb * BYTES_PER_MIB)
@@ -374,7 +376,7 @@ class EmojiManager:
     ) -> MaiEmoji:
         """先缓存表情包文件与数据库记录，确保后续可按 hash 回填。"""
         if not _is_collected_emoji_size_allowed(len(emoji_bytes)):
-            max_size_mb = global_config.emoji.max_emoji_size_mb
+            max_size_mb = get_app_config_port().get_emoji_max_size_mb()
             raise ValueError(f"表情包大小超过收集上限 {max_size_mb:g} MB，跳过缓存")
 
         hash_str = emoji_hash or hashlib.sha256(emoji_bytes).hexdigest()
@@ -888,9 +890,9 @@ class EmojiManager:
             emoji_info_list.append(emoji_info)
 
         emoji_replace_prompt_template = prompt_manager.get_prompt("emoji_replace")
-        emoji_replace_prompt_template.add_context("nickname", global_config.bot.nickname)
+        emoji_replace_prompt_template.add_context("nickname", get_bot_config_port().get_bot_nickname())
         emoji_replace_prompt_template.add_context("emoji_num", str(self._emoji_num))
-        emoji_replace_prompt_template.add_context("emoji_num_max", str(global_config.emoji.max_reg_num))
+        emoji_replace_prompt_template.add_context("emoji_num_max", str(get_app_config_port().get_emoji_max_reg_num()))
         emoji_replace_prompt_template.add_context("emoji_list", "\n".join(emoji_info_list))
         emoji_replace_prompt_template.add_context("description", new_emoji.description or "无描述")
         emoji_replace_prompt = await prompt_manager.render_prompt(emoji_replace_prompt_template)
@@ -944,7 +946,7 @@ class EmojiManager:
 
     async def review_emoji_for_registration(self, target_emoji: MaiEmoji, *, session_id: str = "") -> bool:
         """注册前审核表情包内容，审核关闭时直接通过。"""
-        if not global_config.emoji.content_filtration:
+        if not get_app_config_port().get_emoji_content_filtration():
             return True
         if not _is_vlm_task_configured():
             logger.warning(f"[表情包审查] 已启用内容过滤但未配置 VLM 模型，拒绝注册: {target_emoji.file_name}")
@@ -1146,7 +1148,7 @@ class EmojiManager:
     async def periodic_emoji_maintenance(self) -> None:
         """Run emoji maintenance tasks periodically."""
         while True:
-            wait_seconds = max(global_config.emoji.check_interval * 60, 0)
+            wait_seconds = max(get_app_config_port().get_emoji_check_interval() * 60, 0)
             try:
                 await asyncio.wait_for(self._maintenance_wakeup_event.wait(), timeout=wait_seconds)
                 self._maintenance_wakeup_event.clear()
@@ -1155,9 +1157,9 @@ class EmojiManager:
                 self._maintenance_wakeup_event.clear()
 
             _ensure_directories()
-            if global_config.emoji.steal_emoji and (
-                self._emoji_num < global_config.emoji.max_reg_num
-                or (self._emoji_num > global_config.emoji.max_reg_num and global_config.emoji.do_replace)
+            if get_app_config_port().get_emoji_steal_emoji() and (
+                self._emoji_num < get_app_config_port().get_emoji_max_reg_num()
+                or (self._emoji_num > get_app_config_port().get_emoji_max_reg_num() and get_app_config_port().get_emoji_do_replace())
             ):
                 known_paths: set[Path] = set()
                 with get_db_session() as session:
@@ -1177,7 +1179,7 @@ class EmojiManager:
                     if not _is_collected_emoji_size_allowed(emoji_file.stat().st_size):
                         logger.info(
                             f"[emoji_maintenance] Emoji file exceeds size limit "
-                            f"{global_config.emoji.max_emoji_size_mb:g} MB, skipping: {emoji_file.name}"
+                            f"{get_app_config_port().get_emoji_max_size_mb():g} MB, skipping: {emoji_file.name}"
                         )
                         continue
                     try:
@@ -1260,9 +1262,9 @@ class EmojiManager:
             logger.error(f"[register_emoji] Emoji did not pass content review: {file_full_path}")
             return "failed"
 
-        if self._emoji_num >= global_config.emoji.max_reg_num and global_config.emoji.do_replace:
+        if self._emoji_num >= get_app_config_port().get_emoji_max_reg_num() and get_app_config_port().get_emoji_do_replace():
             logger.warning(
-                f"[register_emoji] Emoji limit {global_config.emoji.max_reg_num} reached, trying replacement"
+                f"[register_emoji] Emoji limit {get_app_config_port().get_emoji_max_reg_num()} reached, trying replacement"
             )
             replaced = await self.replace_an_emoji_by_llm(target_emoji)
             if not replaced:
