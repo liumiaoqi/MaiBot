@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import asyncio
+import importlib.metadata
 import time
 from typing import AsyncIterator
 
@@ -119,10 +120,14 @@ class _PluginHostServicer(PluginHostServicer):
         self._registry.register(conn)
 
         logger.info("Runner %s 握手成功，sdk=%s", runner_id, hello.sdk_version)
+        try:
+            host_ver = importlib.metadata.version("maibot")
+        except importlib.metadata.PackageNotFoundError:
+            host_ver = "unknown"
         yield common_pb2.HostMessage(
             hello_response=common_pb2.HelloResponse(
                 accepted=True,
-                host_version=self._config.server_id,
+                host_version=host_ver,
             )
         )
 
