@@ -75,7 +75,7 @@ class _PluginHostServicer(PluginHostServicer):
         # ── 握手阶段 ──
         try:
             first_msg: common_pb2.RunnerMessage = await asyncio.wait_for(
-                request_iterator.__anext__(), timeout=10.0,
+                anext(request_iterator), timeout=10.0,
             )
         except asyncio.TimeoutError:
             logger.info("Connect 双向流首条消息超时，关闭连接")

@@ -57,11 +57,7 @@ class RunnerEndpoint:
         )
         self._servicer = _PluginRunnerServicer()
         self._shutting_down: bool = False
-        # 发送队列：RunnerMessage → Connect 双向流
-        self._outbox: asyncio.Queue[common_pb2.RunnerMessage | None] = asyncio.Queue(
-            maxsize=64
-        )
-        # 当前双向流的写入句柄（用于同步写入）
+
         self._stream_call: grpc.aio.StreamStreamCall | None = None
 
     # ── 公共 API ────────────────────────────────────────────────
@@ -72,7 +68,7 @@ class RunnerEndpoint:
         失败时自动重连（指数退避），握手被拒绝则停止。
         """
         self._shutting_down = False
-        self._outbox = asyncio.Queue(maxsize=64)
+
 
         while True:
             self._transition(ConnectionState.CONNECTING)
@@ -121,6 +117,8 @@ class RunnerEndpoint:
         """推送 Event 到 Host。"""
         if self._state != ConnectionState.READY:
             raise ConnectionError("Runner not in READY state")
+        if self._stream_call is None:
+            raise ConnectionError("Stream not available")
         msg = common_pb2.RunnerMessage(
             event=common_pb2.EventPayload(
                 event_name=event_name,
@@ -128,9 +126,9 @@ class RunnerEndpoint:
             )
         )
         try:
-            self._outbox.put_nowait(msg)
-        except asyncio.QueueFull:
-            logger.warning("Runner %s 发送队列已满，Event 丢弃: %s",
+            await self._stream_call.write(msg)
+        except grpc.aio.AioRpcError:
+            logger.warning("Runner %s emit_event 写入失败: %s",
                            self._config.runner_id, event_name)
 
     @property
@@ -158,13 +156,16 @@ class RunnerEndpoint:
         await self._server.start()
         runner_listen_address = f"127.0.0.1:{listen_port}"
 
-        # 3. Connect 双向流
+        # 3. Connect 双向流（使用 read/write API，不与 iterator API 混用）
         stub = PluginHostStub(self._channel)
 
-        async def _outgoing_generator():
-            """产出 RunnerMessage 的异步生成器。"""
-            # 首条消息：HelloPayload
-            yield common_pb2.RunnerMessage(
+        self._transition(ConnectionState.HANDSHAKING)
+        call: grpc.aio.StreamStreamCall = stub.Connect()
+        self._stream_call = call
+
+        # 4. 发送 HelloPayload
+        await call.write(
+            common_pb2.RunnerMessage(
                 hello=common_pb2.HelloPayload(
                     runner_id=self._config.runner_id,
                     sdk_version=self._config.sdk_version,
@@ -173,21 +174,12 @@ class RunnerEndpoint:
                     runner_listen_address=runner_listen_address,
                 )
             )
-            # 后续消息：从队列中取出
-            while True:
-                msg = await self._outbox.get()
-                if msg is None:  # 终止信号
-                    return
-                yield msg
+        )
 
-        self._transition(ConnectionState.HANDSHAKING)
-        call: grpc.aio.StreamStreamCall = stub.Connect(_outgoing_generator())
-        self._stream_call = call
-
-        # 4. 等待 HelloResponse
+        # 5. 等待 HelloResponse
         try:
             first_response: common_pb2.HostMessage = await asyncio.wait_for(
-                call.__anext__(), timeout=10.0,
+                call.read(), timeout=10.0,
             )
         except asyncio.TimeoutError:
             raise _HandshakeRejected("HelloResponse 超时") from None
@@ -240,11 +232,14 @@ class RunnerEndpoint:
     async def _recv_loop(self, call: grpc.aio.StreamStreamCall) -> None:
         """HostMessage 接收循环。"""
         try:
-            async for msg in call:
+            while True:
+                msg = await call.read()
+                if msg is grpc.aio.EOF:
+                    break
                 payload_kind = msg.WhichOneof("payload")
                 if payload_kind == "heartbeat":
                     hb = msg.heartbeat
-                    await self._outbox.put(
+                    await call.write(
                         common_pb2.RunnerMessage(
                             heartbeat=common_pb2.HeartbeatResponse(
                                 timestamp_ms=hb.timestamp_ms,
