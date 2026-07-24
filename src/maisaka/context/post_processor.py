@@ -19,7 +19,8 @@ from .messages import (
 from .typo_generator import ChineseTypoGenerator
 from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
 from src.common.logger import get_logger
-from src.config.config import global_config
+from src.config.config import global_config  # noqa: TID251 — response_splitter/chinese_typo 待协议化
+from src.core.bot_config_port_registry import get_bot_config_port
 from src.maisaka.memory.mid_term import is_mid_term_memory_message
 
 logger = get_logger("maisaka.post_processor")
@@ -272,8 +273,8 @@ def random_remove_punctuation(text: str) -> str:
 def _get_random_default_reply() -> str:
     """获取随机默认回复"""
     default_replies = [
-        f"{global_config.bot.nickname}不知道哦",
-        f"{global_config.bot.nickname}不知道",
+        f"{get_bot_config_port().get_bot_nickname()}不知道哦",
+        f"{get_bot_config_port().get_bot_nickname()}不知道",
         "不知道哦",
         "不知道",
         "不晓得",

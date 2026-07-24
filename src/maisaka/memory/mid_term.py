@@ -16,7 +16,8 @@ from src.common.data_models.message_component_data_model import DictComponent, M
 from src.common.data_models.embedding_service_data_models import EmbeddingResult
 from src.common.logger import get_logger
 from src.common.prompt_i18n import load_prompt
-from src.config.config import global_config
+from src.config.config import global_config  # noqa: TID251 — chat.mid_term_memory/visual/debug 待协议化
+from src.core.app_config_port_registry import get_app_config_port
 from src.llm_models.payload_content.message import (
     ImageMessagePart,
     Message,
@@ -446,7 +447,7 @@ def _build_summary_prompt_messages(
     if enable_visual_message:
         return limit_latest_images_in_messages(
             prompt_messages,
-            max_image_num=global_config.visual.max_image_num,
+                max_image_num=get_app_config_port().get_visual_max_image_num(),
         )
     return prompt_messages
 
@@ -462,7 +463,7 @@ def _save_mid_term_memory_prompt_preview(
 ) -> None:
     """保存聊天回想生成 Prompt 到 Maisaka Prompt 预览目录。"""
 
-    if not bool(getattr(global_config.debug, "show_maisaka_thinking", False)):
+    if not get_app_config_port().get_debug_show_maisaka_thinking():
         return
     if not request_prompt_messages:
         return

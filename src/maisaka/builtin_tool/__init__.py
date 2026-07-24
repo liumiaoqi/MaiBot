@@ -5,7 +5,8 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Dict, List, Literal, Optional
 
-from src.config.config import global_config
+from src.config.config import global_config  # noqa: TID251 — a_memorix/experimental 待协议化
+from src.core.app_config_port_registry import get_app_config_port
 from src.core.tooling import ToolAvailabilityContext, ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
 from src.llm_models.payload_content.tool_option import ToolDefinitionInput
 
@@ -133,10 +134,10 @@ def _get_builtin_tool_entries(
 def _is_builtin_tool_enabled_by_config(entry: BuiltinToolEntry) -> bool:
     """根据全局配置判断内置工具是否应暴露。"""
 
-    if entry.name in {"send_emoji", "send_image"} and bool(global_config.experimental.enable_rich_reply):
+    if entry.name in {"send_emoji", "send_image"} and bool(            get_app_config_port().get_experimental_enable_rich_reply()):
         return False
     if entry.name in {"fetch_history", "switch_chat"}:
-        return bool(global_config.experimental.focus_mode)
+        return bool(            get_app_config_port().get_experimental_focus_mode())
     return True
 
 

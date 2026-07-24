@@ -240,9 +240,9 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         """返回当前会话实时生效的上下文窗口大小。"""
 
         configured_context_size = (
-            global_config.chat.max_context_size
+            get_chat_config_port().get_max_context_size()
             if self._session_info.is_group_session
-            else global_config.chat.max_private_context_size
+            else get_chat_config_port().get_max_private_context_size()
         )
         return max(1, int(configured_context_size))
 
@@ -480,7 +480,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         planner_prefix = build_planner_user_prefix_from_session_message(
             message,
             include_chat_id=include_chat_id,
-            is_self_message=source_kind == "guided_reply" and global_config.chat.self_message_special_mark,
+            is_self_message=source_kind == "guided_reply" and get_chat_config_port().get_self_message_special_mark(),
         )
         if contains_complex_message(source_sequence):
             return ComplexSessionMessage.from_session_message(
@@ -578,7 +578,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
                 quote_ids=extract_quote_ids_from_message_sequence(message.raw_message),
                 include_message_id=not message.is_notify and bool(message.message_id),
                 include_chat_id=include_chat_id,
-                is_self_message=source_kind == "guided_reply" and global_config.chat.self_message_special_mark,
+                is_self_message=source_kind == "guided_reply" and get_chat_config_port().get_self_message_special_mark(),
             )
             history_message = SessionBackedMessage.from_session_message(
                 message,
@@ -1423,7 +1423,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
     def _should_run_expression_vector_history_backfill() -> bool:
         """判断是否需要启动表达向量历史补建任务。"""
 
-        return global_config.expression.expression_selection_mode in {"vector", "vector_intent"}
+        return get_app_config_port().get_expression_selection_mode() in {"vector", "vector_intent"}
 
     def _ensure_expression_vector_history_backfill_running(self) -> None:
         """在向量表达模式下拉起全局历史表达向量补建任务。"""
@@ -1484,9 +1484,12 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
     def _init_agent_autonomy(self) -> None:
         """根据配置初始化智能体自主性架构。"""
         try:
-            from src.config.config import global_config
+from src.config.config import global_config  # noqa: TID251 — reply_timing/mcp/expression/debug 待协议化
+from src.core.bot_config_port_registry import get_bot_config_port
+from src.core.chat_config_port_registry import get_chat_config_port
+from src.core.app_config_port_registry import get_app_config_port
 
-            autonomy_config = global_config.agent_autonomy
+            autonomy_config = get_app_config_port().get_agent_autonomy_config()
             if not autonomy_config.enabled:
                 return
 

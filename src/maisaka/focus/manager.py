@@ -9,7 +9,7 @@ from typing import Any, Iterable, Optional
 import time
 
 from src.common.utils.utils_config import ChatConfigUtils
-from src.config.config import global_config
+from src.config.config import global_config  # noqa: TID251 — experimental.focus_* 待协议化
 from src.core.session_port_registry import get_session_info
 from src.core.types import SessionInfo
 

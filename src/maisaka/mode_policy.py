@@ -1,6 +1,6 @@
 """Maisaka Planner-only 模式策略。"""
 
-from src.config.config import global_config
+from src.config.config import global_config  # noqa: TID251 — reply_timing 待废弃配置本期不协议化
 
 IDLE_CYCLE_REASONS = {"planner_no_tool_end", "planner_wait_rest", "tool_pause:wait"}
 

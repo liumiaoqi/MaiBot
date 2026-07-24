@@ -4,8 +4,9 @@ from src.core.protocols import LLMService
 
 from src.core.types import SessionInfo
 from src.common.prompt_i18n import load_prompt
-from src.config.config import global_config
+from src.config.config import global_config  # noqa: TID251
 from src.core.adapters.llm_service_port import get_llm_service
+from src.core.app_config_port_registry import get_app_config_port
 
 from .generator_base import BaseMaisakaReplyGenerator
 
@@ -27,5 +28,5 @@ class MaisakaReplyGenerator(BaseMaisakaReplyGenerator):
             llm_service=llm_service or get_llm_service(),
             load_prompt_func=load_prompt_func or load_prompt,
             enable_visual_message=enable_visual_message,
-            replyer_mode=global_config.visual.replyer_mode,
+            replyer_mode=get_app_config_port().get_visual_replyer_mode(),
         )

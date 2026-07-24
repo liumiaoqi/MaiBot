@@ -76,7 +76,7 @@ class PromptPreviewLogger:
     @classmethod
     def _get_max_preview_groups_per_chat(cls) -> int:
         try:
-            from src.config.config import global_config
+            from src.config.config import global_config  # noqa: TID251
 
             configured_limit = global_config.log.maisaka_prompt_preview_limit
             return max(1, int(configured_limit or cls._DEFAULT_MAX_PREVIEW_GROUPS_PER_CHAT))

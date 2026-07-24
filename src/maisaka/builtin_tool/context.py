@@ -17,7 +17,9 @@ from src.common.data_models.message_component_data_model import (
     TextComponent,
 )
 from src.common.logger import get_logger
-from src.config.config import global_config
+from src.config.config import global_config  # noqa: TID251
+from src.core.bot_config_port_registry import get_bot_config_port
+from src.core.chat_config_port_registry import get_chat_config_port
 from src.core.tooling import ToolExecutionResult
 from src.plugin_runtime.integration import get_plugin_runtime_manager
 
@@ -377,7 +379,7 @@ class BuiltinToolRuntimeContext:
     def append_guided_reply_to_chat_history(self, reply_text: str) -> None:
         """将引导回复写回 Maisaka 历史。"""
 
-        bot_name = global_config.bot.nickname.strip() or "MaiSaka"
+        bot_name = get_bot_config_port().get_bot_nickname().strip() or "MaiSaka"
         reply_timestamp = datetime.now()
         include_chat_id = self._should_include_planner_chat_id()
         history_message = build_session_backed_text_message(
@@ -387,7 +389,7 @@ class BuiltinToolRuntimeContext:
             source_kind="guided_reply",
             chat_id=self.runtime.session_id,
             include_chat_id=include_chat_id,
-            is_self_message=global_config.chat.self_message_special_mark,
+            is_self_message=get_chat_config_port().get_self_message_special_mark(),
         )
         self.runtime._chat_history.append(history_message)
 
@@ -412,7 +414,7 @@ class BuiltinToolRuntimeContext:
             quote_ids=extract_quote_ids_from_message_sequence(message.raw_message),
             include_message_id=not message.is_notify and bool(message.message_id),
             include_chat_id=include_chat_id,
-            is_self_message=source_kind == "guided_reply" and global_config.chat.self_message_special_mark,
+            is_self_message=source_kind == "guided_reply" and get_chat_config_port().get_self_message_special_mark(),
         )
         history_message = SessionBackedMessage.from_session_message(
             message,
@@ -434,7 +436,7 @@ class BuiltinToolRuntimeContext:
     ) -> None:
         """将 bot 主动发送的表情包同步到 Maisaka 历史。"""
 
-        bot_name = global_config.bot.nickname.strip() or "MaiSaka"
+        bot_name = get_bot_config_port().get_bot_nickname().strip() or "MaiSaka"
         reply_timestamp = datetime.now()
         include_chat_id = self._should_include_planner_chat_id()
         planner_prefix = build_planner_prefix(
@@ -442,7 +444,7 @@ class BuiltinToolRuntimeContext:
             user_name=bot_name,
             chat_id=self.runtime.session_id,
             include_chat_id=include_chat_id,
-            is_self_message=global_config.chat.self_message_special_mark,
+            is_self_message=get_chat_config_port().get_self_message_special_mark(),
         )
         history_message = SessionBackedMessage(
             raw_message=MessageSequence(

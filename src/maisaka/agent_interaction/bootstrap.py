@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 
-from src.config.config import global_config
+from src.config.config import global_config  # noqa: TID251 — agent_interaction 待协议化
 from src.core.protocols import MemoryServicePort
 from src.maisaka.agent_interaction.cooldown import InteractionCooldownManager
 from src.maisaka.agent_interaction.emotion_registry import AgentEmotionManagerRegistry

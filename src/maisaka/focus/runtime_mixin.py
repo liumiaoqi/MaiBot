@@ -14,7 +14,8 @@ from src.core.types import SessionMessage
 from src.common.data_models.mai_message_data_model import MessageInfo
 from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
 from src.common.logger import get_logger
-from src.config.config import global_config
+from src.config.config import global_config  # noqa: TID251
+from src.core.bot_config_port_registry import get_bot_config_port
 from src.core.session_port_registry import get_last_message, get_session_name
 from src.core.types import SessionInfo
 
@@ -302,7 +303,7 @@ class MaisakaFocusRuntimeMixin:
             return False
 
         trigger_name = get_session_name(trigger_session_id)
-        bot_name = global_config.bot.nickname.strip()
+        bot_name = get_bot_config_port().get_bot_nickname().strip()
         wakeup_timestamp = datetime.now()
         wakeup_id = f"focus_{wakeup_reason}:{int(time.time() * 1000)}"
         if wakeup_reason == "at":
@@ -373,7 +374,7 @@ class MaisakaFocusRuntimeMixin:
             or runtime._session_info.created_timestamp,
             reverse=True,
         )
-        bot_name = global_config.bot.nickname.strip()
+        bot_name = get_bot_config_port().get_bot_nickname().strip()
         focus_scope_key = focus_mode_manager.get_focus_scope_key(self.session_id)
         unviewed_seconds_threshold = focus_mode_manager.get_focus_cool_time()
         event_messages: list[str] = []

@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Optional
 
-from src.config.config import global_config
+from src.config.config import global_config  # noqa: TID251 — debug.record_tool_structured_content 待协议化
 from src.core.tooling import ToolExecutionResult, ToolInvocation, ToolSpec
 
 

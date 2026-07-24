@@ -15,7 +15,7 @@ from pydantic import Field as PydanticField
 from src.common.data_models.image_data_model import MaiEmoji
 from src.common.data_models.message_component_data_model import ImageComponent, MessageSequence, TextComponent
 from src.common.logger import get_logger
-from src.config.config import config_manager, global_config
+from src.config.config import config_manager, global_config  # noqa: TID251
 from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
 from src.emoji_system.emoji_manager import _is_vlm_task_configured, emoji_manager
 from src.emoji_system.maisaka_tool import send_emoji_for_maisaka

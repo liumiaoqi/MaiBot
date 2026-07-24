@@ -9,7 +9,10 @@ from src.common.data_models.message_component_data_model import TextComponent
 from src.common.data_models.reply_generation_data_models import ReplyGenerationResult, build_reply_monitor_detail
 
 from src.common.logger import get_logger
-from src.config import config as config_module
+from src.config import config as config_module  # noqa: TID251
+from src.core.app_config_port_registry import get_app_config_port
+from src.core.bot_config_port_registry import get_bot_config_port
+from src.core.chat_config_port_registry import get_chat_config_port
 from src.core.message_port_registry import get_message_port_v2
 from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
 from src.maisaka.context.message_adapter import build_visible_text_from_sequence
@@ -22,7 +25,7 @@ _REPLY_TOOL_INTERNAL_ARGUMENTS = {"msg_id", "set_quote"}
 
 
 def _use_expression_intent() -> bool:
-    return config_module.global_config.expression.expression_selection_mode == "vector_intent"
+    return             get_app_config_port().get_expression_selection_mode() == "vector_intent"
 
 
 async def _run_expression_selector(tool_ctx: BuiltinToolRuntimeContext, system_prompt: str) -> str:
@@ -149,7 +152,7 @@ async def handle_tool(
     }
     if not _use_expression_intent():
         reply_tool_args.pop("expression_intent", None)
-    enable_reply_quote = bool(config_module.global_config.chat.reply_style.enable_reply_quote)
+    enable_reply_quote = bool(            get_chat_config_port().get_reply_style().enable_reply_quote)
     effective_set_quote = set_quote and enable_reply_quote
 
     if not target_message_id:
@@ -200,7 +203,7 @@ async def handle_tool(
             "Maisaka 回复生成器当前不可用。",
         )
 
-    rich_reply_enabled = bool(config_module.global_config.experimental.enable_rich_reply)
+    rich_reply_enabled = bool(            get_app_config_port().get_experimental_enable_rich_reply())
     rich_reply_events: list[dict[str, Any]] = []
     rich_reply_checker_records: list[dict[str, Any]] = []
     replyer_chat_history = list(tool_ctx.runtime._chat_history)
@@ -416,7 +419,7 @@ async def handle_tool(
 
     target_user_info = target_message.message_info.user_info
     target_user_name = target_user_info.user_cardname or target_user_info.user_nickname or target_user_info.user_id
-    bot_name = config_module.global_config.bot.nickname.strip() or "MaiSaka"
+    bot_name =             get_bot_config_port().get_bot_nickname().strip() or "MaiSaka"
 
     if tool_ctx.runtime.chat_stream.platform == CLI_PLATFORM_NAME:
         tool_ctx.append_guided_reply_to_chat_history(combined_reply_text)

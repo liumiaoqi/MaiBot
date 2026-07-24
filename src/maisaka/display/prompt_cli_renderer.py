@@ -43,7 +43,7 @@ def _build_webui_local_base_url() -> str:
     """构建终端可直接打开的本机 WebUI 地址。"""
 
     try:
-        from src.config.config import global_config
+        from src.config.config import global_config  # noqa: TID251
 
         host = _select_webui_local_host(global_config.webui.host)
         port = int(global_config.webui.port or 8001)
@@ -373,7 +373,7 @@ class PromptCLIVisualizer:
     @staticmethod
     def _should_keep_prompt_preview_json_base64() -> bool:
         try:
-            from src.config.config import global_config
+            from src.config.config import global_config  # noqa: TID251
 
             return bool(global_config.debug.keep_prompt_preview_json_base64)
         except Exception:

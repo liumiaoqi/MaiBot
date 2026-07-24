@@ -1,5 +1,5 @@
 from src.common.logger import get_logger
-from src.config.config import config_manager, global_config
+from src.config.config import config_manager, global_config  # noqa: TID251
 
 logger = get_logger("maisaka_visual_mode")
 

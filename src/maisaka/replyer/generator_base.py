@@ -28,7 +28,10 @@ from src.common.data_models.reply_generation_data_models import (
 from src.common.i18n import get_locale
 from src.common.logger import get_logger
 from src.common.utils.utils_config import ChatConfigUtils
-from src.config.config import global_config
+from src.config.config import global_config  # noqa: TID251 — personality/keyword_reaction 待协议化
+from src.core.bot_config_port_registry import get_bot_config_port
+from src.core.chat_config_port_registry import get_chat_config_port
+from src.core.app_config_port_registry import get_app_config_port
 from src.core.protocols import LLMService
 from src.config.model_configs import ModelInfo
 from src.core.types import ActionInfo
@@ -105,8 +108,8 @@ class BaseMaisakaReplyGenerator:
     def _build_personality_prompt(self) -> str:
         """构建 replyer 使用的人设提示。"""
         try:
-            bot_name = global_config.bot.nickname
-            alias_names = global_config.bot.alias_names
+            bot_name = get_bot_config_port().get_bot_nickname()
+            alias_names = get_bot_config_port().get_bot_alias_names()
             bot_aliases = f"，也有人叫你{','.join(alias_names)}" if alias_names else ""
 
             prompt_personality = global_config.personality.personality.strip()
@@ -169,7 +172,7 @@ class BaseMaisakaReplyGenerator:
 
         user_info = reply_message.message_info.user_info
         sender_name = user_info.user_cardname or user_info.user_nickname or user_info.user_id
-        bot_name = global_config.bot.nickname.strip() or sender_name
+        bot_name = get_bot_config_port().get_bot_nickname().strip() or sender_name
         target_message_id = reply_message.message_id.strip() if reply_message.message_id else "未知"
         # target_time = reply_message.timestamp.strftime("%Y-%m-%d %H:%M:%S")
         quote_ids = extract_quote_ids_from_message_sequence(reply_message.raw_message)
@@ -272,10 +275,10 @@ class BaseMaisakaReplyGenerator:
         prompt_lines: List[str] = []
 
         if is_group_chat is True:
-            if group_chat_prompt := global_config.chat.reply_style.group_chat_prompt.strip():
+            if group_chat_prompt := get_chat_config_port().get_reply_style().group_chat_prompt.strip():
                 prompt_lines.append(f"通用注意事项：\n{group_chat_prompt}")
         elif is_group_chat is False:
-            if private_chat_prompt := global_config.chat.reply_style.private_chat_prompts.strip():
+            if private_chat_prompt := get_chat_config_port().get_reply_style().private_chat_prompts.strip():
                 prompt_lines.append(f"通用注意事项：\n{private_chat_prompt}")
 
         if chat_prompt := self._get_chat_prompt_for_chat(session_id, is_group_chat).strip():
@@ -426,7 +429,7 @@ class BaseMaisakaReplyGenerator:
         try:
             system_prompt = self._load_prompt(
                 "maisaka_replyer",
-                bot_name=global_config.bot.nickname,
+                bot_name=get_bot_config_port().get_bot_nickname(),
                 group_chat_attention_block=self._build_group_chat_attention_block(session_id),
                 replyer_output_instruction=self._build_replyer_output_instruction(),
                 identity=self._build_personality_prompt(),
@@ -556,7 +559,7 @@ class BaseMaisakaReplyGenerator:
         if enable_visual_message:
             return limit_latest_images_in_messages(
                 messages,
-                max_image_num=global_config.visual.max_image_num,
+                max_image_num=get_app_config_port().get_visual_max_image_num(),
             )
         return messages
 
@@ -660,7 +663,7 @@ class BaseMaisakaReplyGenerator:
                 )
             request_messages = limit_latest_images_in_messages(
                 built_messages,
-                max_image_num=global_config.visual.max_image_num,
+                max_image_num=get_app_config_port().get_visual_max_image_num(),
             )
             prompt_preview = PromptCLIVisualizer.build_prompt_dump_text(request_messages)
             return request_messages

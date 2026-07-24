@@ -14,7 +14,8 @@ from src.common.database.database import get_db_session
 from src.common.database.database_model import Expression, ModifiedBy
 from src.common.logger import get_logger
 from src.common.utils.utils_config import ChatConfigUtils, ExpressionConfigUtils
-from src.config.config import global_config, model_config
+from src.config.config import global_config, model_config  # noqa: TID251
+from src.core.app_config_port_registry import get_app_config_port
 from src.learners.expression_style_utils import (
     is_prompt_example_expression_style,
     normalize_expression_style_for_learning,
@@ -64,7 +65,7 @@ class MaisakaExpressionSelector:
     def _resolve_expression_group_scope(self, session_id: str) -> tuple[set[str], bool]:
         related_session_ids = {session_id}
         has_global_share = False
-        expression_groups = global_config.expression.expression_groups
+        expression_groups =             get_app_config_port().get_expression_groups()
 
         for expression_group in expression_groups:
             target_items = expression_group.targets
@@ -108,7 +109,7 @@ class MaisakaExpressionSelector:
                 scoped_query = base_query.where(
                     (Expression.session_id.in_(related_session_ids)) | (Expression.session_id.is_(None))  # type: ignore[attr-defined]
                 )
-            if global_config.expression.expression_checked_only:
+            if             get_app_config_port().get_expression_checked_only():
                 scoped_query = scoped_query.where(
                     Expression.checked.is_(True),  # type: ignore[attr-defined]
                     Expression.modified_by == ModifiedBy.USER,
@@ -255,7 +256,7 @@ class MaisakaExpressionSelector:
 
     @staticmethod
     def _use_vector_candidate_pool() -> bool:
-        return global_config.expression.expression_selection_mode in {"vector", "vector_intent"}
+        return             get_app_config_port().get_expression_selection_mode() in {"vector", "vector_intent"}
 
     @staticmethod
     def _has_embedding_model_configured() -> bool:
@@ -263,7 +264,7 @@ class MaisakaExpressionSelector:
 
     @staticmethod
     def _use_expression_intent() -> bool:
-        return global_config.expression.expression_selection_mode == "vector_intent"
+        return             get_app_config_port().get_expression_selection_mode() == "vector_intent"
 
     def _build_selector_prompt(
         self,
@@ -495,11 +496,11 @@ class MaisakaExpressionSelector:
                 use_expression_intent=self._use_expression_intent(),
             )
             vector_candidates = await expression_vector_index.select_candidates(
-                index_path=global_config.expression.expression_vector_index_path,
+                index_path=            get_app_config_port().get_expression_vector_index_path(),
                 session_id=session_id,
                 query_text=expression_query_text,
                 scoped_candidates=all_candidates,
-                candidate_pool_size=global_config.expression.expression_vector_candidate_pool_size,
+                candidate_pool_size=            get_app_config_port().get_expression_vector_candidate_pool_size(),
                 cluster_pool_size=self._VECTOR_CLUSTER_POOL_SIZE,
             )
             if vector_candidates:

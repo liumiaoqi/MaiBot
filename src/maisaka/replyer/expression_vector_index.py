@@ -1216,9 +1216,10 @@ class ExpressionVectorIndex:
         resolved_index_path = resolve_project_path(index_path)
         effective_batch_size = HISTORY_BACKFILL_BATCH_SIZE
         while True:
-            from src.config.config import global_config
+            from src.config.config import global_config  # noqa: TID251
+            from src.core.app_config_port_registry import get_app_config_port
 
-            if global_config.expression.expression_selection_mode not in {"vector", "vector_intent"}:
+            if get_app_config_port().get_expression_selection_mode() not in {"vector", "vector_intent"}:
                 logger.info("表达向量历史补建已停止：当前表达选择模式不是向量模式")
                 return
 

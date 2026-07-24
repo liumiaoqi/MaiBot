@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Dict, Optional, Tuple
 
 from src.common.logger import get_logger
-from src.config.config import global_config
+from src.config.config import global_config  # noqa: TID251 — a_memorix.integration 待协议化
 from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
 from src.core.types import MemorySearchResult
 from src.maisaka.utils.tool_post_execution import with_memory_feedback_task

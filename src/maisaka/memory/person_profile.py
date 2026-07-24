@@ -8,7 +8,7 @@ from typing import Sequence
 from src.core.types import SessionMessage
 from src.common.data_models.message_component_data_model import AtComponent, ReplyComponent
 from src.common.logger import get_logger
-from src.config.config import global_config
+from src.config.config import global_config  # noqa: TID251 — bot.qq_account/a_memorix 待协议化
 from src.core.protocols import MemoryServicePort
 from src.person_info.person_info import resolve_person_id_for_memory
 

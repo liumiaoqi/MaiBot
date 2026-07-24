@@ -13,7 +13,10 @@ from src.common.i18n import get_locale
 from src.common.logger import get_logger
 from src.common.prompt_i18n import load_prompt
 from src.common.utils.utils_config import ChatConfigUtils
-from src.config.config import global_config
+from src.config.config import global_config  # noqa: TID251 — personality/reply_timing/mcp 等待协议化
+from src.core.bot_config_port_registry import get_bot_config_port
+from src.core.chat_config_port_registry import get_chat_config_port
+from src.core.app_config_port_registry import get_app_config_port
 from src.core.tooling import ToolAvailabilityContext, ToolRegistry
 from src.llm_models.model_client.base_client import BaseClient
 from src.llm_models.payload_content.message import Message, MessageBuilder, RoleType
@@ -640,8 +643,8 @@ class MaisakaChatLoopService:
                 pass
 
         try:
-            bot_name = global_config.bot.nickname.strip()
-            alias_names = [alias_name.strip() for alias_name in global_config.bot.alias_names if alias_name.strip()]
+            bot_name = get_bot_config_port().get_bot_nickname().strip()
+            alias_names = [alias_name.strip() for alias_name in get_bot_config_port().get_bot_alias_names() if alias_name.strip()]
             prompt_personality = global_config.personality.personality.strip()
             if not prompt_personality:
                 prompt_personality = "是人类。"
@@ -716,7 +719,7 @@ class MaisakaChatLoopService:
                     agent_internal_relationships = agent_config.internal_relationships_prompt
                     agent_favor_injection = agent_config.get_favor_injection(
                         user_name=self._current_user_name,
-                        is_owner=self._current_user_id in global_config.bot.owner_user_ids,
+                        is_owner=self._current_user_id in get_bot_config_port().get_bot_owner_user_ids(),
                     )
                     # 获取智能体交互动态记忆
                     agent_interaction_memory = self._build_agent_interaction_memory(
@@ -729,7 +732,7 @@ class MaisakaChatLoopService:
             agent_emotion_state = self._emotion_state_text
 
         return {
-            "bot_name": global_config.bot.nickname,
+            "bot_name": get_bot_config_port().get_bot_nickname(),
             "file_tools_section": tools_section,
             "group_chat_attention_block": self._build_group_chat_attention_block(),
             "identity": self.personality_prompt,
@@ -816,10 +819,10 @@ class MaisakaChatLoopService:
         prompt_lines: List[str] = []
 
         if self._is_group_chat is True:
-            if group_chat_prompt := str(global_config.chat.reply_style.group_chat_prompt or "").strip():
+            if group_chat_prompt := str(get_chat_config_port().get_reply_style().group_chat_prompt or "").strip():
                 prompt_lines.append(f"通用注意事项：\n{group_chat_prompt}")
         elif self._is_group_chat is False:
-            if private_chat_prompt := str(global_config.chat.reply_style.private_chat_prompts or "").strip():
+            if private_chat_prompt := str(get_chat_config_port().get_reply_style().private_chat_prompts or "").strip():
                 prompt_lines.append(f"通用注意事项：\n{private_chat_prompt}")
 
         if not prompt_lines:
@@ -1027,7 +1030,7 @@ class MaisakaChatLoopService:
         if enable_visual_message:
             built_messages = limit_latest_images_in_messages(
                 built_messages,
-                max_image_num=global_config.visual.max_image_num,
+                max_image_num=get_app_config_port().get_visual_max_image_num(),
             )
 
         def message_factory(_client: BaseClient) -> List[Message]:
@@ -1081,7 +1084,7 @@ class MaisakaChatLoopService:
         if enable_visual_message:
             built_messages = limit_latest_images_in_messages(
                 built_messages,
-                max_image_num=global_config.visual.max_image_num,
+                max_image_num=get_app_config_port().get_visual_max_image_num(),
             )
         raw_tool_definitions = before_request_kwargs.get("tool_definitions")
         if isinstance(raw_tool_definitions, list):
@@ -1150,7 +1153,7 @@ class MaisakaChatLoopService:
             "duration_ms": llm_duration_ms,
         }
 
-        if global_config.debug.show_maisaka_thinking:
+        if get_app_config_port().get_debug_show_maisaka_thinking():
             prompt_section_result = PromptCLIVisualizer.build_prompt_section_result(
                 built_messages,
                 category=self._resolve_prompt_preview_category(request_kind),
@@ -1204,7 +1207,7 @@ class MaisakaChatLoopService:
             chat_history,
             request_kind=request_kind,
         )
-        base_context_size = max(1, int(max_context_size or global_config.chat.max_context_size))
+        base_context_size = max(1, int(max_context_size or get_chat_config_port().get_max_context_size()))
         effective_context_size = max(
             base_context_size,
             int(base_context_size * CONTEXT_SELECTION_CACHE_STABILITY_RATIO),
