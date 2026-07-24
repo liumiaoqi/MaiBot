@@ -33,10 +33,11 @@ message HostMessage {
 
 // 握手请求：Runner 连接后发送的首条消息
 message HelloPayload {
-  string runner_id = 1;       // Runner 进程唯一标识（必填）
-  string sdk_version = 2;     // SDK 版本号（必填）
-  string session_token = 3;   // 一次性会话令牌（必填，Phoenix-3 签发）
-  repeated string scopes = 4; // 所需 scope 列表（至少 1 项）
+  string runner_id = 1;              // Runner 进程唯一标识（必填）
+  string sdk_version = 2;            // SDK 版本号（必填）
+  string session_token = 3;          // 一次性会话令牌（必填，Phoenix-3 签发）
+  repeated string scopes = 4;        // 所需 scope 列表（至少 1 项）
+  string runner_listen_address = 5;  // Runner 的 InvokeTool 侦听地址（如 "localhost:50051"，Host 通过此地址调用 InvokeTool）
 }
 
 // 握手响应：Host 校验后返回

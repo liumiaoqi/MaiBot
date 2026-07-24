@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0c\x63ommon.proto\x12\x10maibot.plugin.v2\"\xb6\x01\n\rRunnerMessage\x12/\n\x05hello\x18\x01 \x01(\x0b\x32\x1e.maibot.plugin.v2.HelloPayloadH\x00\x12/\n\x05\x65vent\x18\x02 \x01(\x0b\x32\x1e.maibot.plugin.v2.EventPayloadH\x00\x12\x38\n\theartbeat\x18\x03 \x01(\x0b\x32#.maibot.plugin.v2.HeartbeatResponseH\x00\x42\t\n\x07payload\"\xf4\x01\n\x0bHostMessage\x12\x39\n\x0ehello_response\x18\x01 \x01(\x0b\x32\x1f.maibot.plugin.v2.HelloResponseH\x00\x12/\n\tevent_ack\x18\x02 \x01(\x0b\x32\x1a.maibot.plugin.v2.EventAckH\x00\x12\x37\n\theartbeat\x18\x03 \x01(\x0b\x32\".maibot.plugin.v2.HeartbeatRequestH\x00\x12\x35\n\x08shutdown\x18\x04 \x01(\x0b\x32!.maibot.plugin.v2.ShutdownRequestH\x00\x42\t\n\x07payload\"]\n\x0cHelloPayload\x12\x11\n\trunner_id\x18\x01 \x01(\t\x12\x13\n\x0bsdk_version\x18\x02 \x01(\t\x12\x15\n\rsession_token\x18\x03 \x01(\t\x12\x0e\n\x06scopes\x18\x04 \x03(\t\"`\n\rHelloResponse\x12\x10\n\x08\x61\x63\x63\x65pted\x18\x01 \x01(\x08\x12\x14\n\x0chost_version\x18\x02 \x01(\t\x12\x0e\n\x06reason\x18\x03 \x01(\t\x12\x17\n\x0frejected_scopes\x18\x04 \x03(\t\"(\n\x10HeartbeatRequest\x12\x14\n\x0ctimestamp_ms\x18\x01 \x01(\x03\")\n\x11HeartbeatResponse\x12\x14\n\x0ctimestamp_ms\x18\x01 \x01(\x03\";\n\x0fShutdownRequest\x12\x0e\n\x06reason\x18\x01 \x01(\t\x12\x18\n\x10\x64rain_timeout_ms\x18\x02 \x01(\x05\"3\n\x0c\x45ventPayload\x12\x12\n\nevent_name\x18\x01 \x01(\t\x12\x0f\n\x07payload\x18\x02 \x01(\t\"\x1c\n\x08\x45ventAck\x12\x10\n\x08received\x18\x01 \x01(\x08\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0c\x63ommon.proto\x12\x10maibot.plugin.v2\"\xb6\x01\n\rRunnerMessage\x12/\n\x05hello\x18\x01 \x01(\x0b\x32\x1e.maibot.plugin.v2.HelloPayloadH\x00\x12/\n\x05\x65vent\x18\x02 \x01(\x0b\x32\x1e.maibot.plugin.v2.EventPayloadH\x00\x12\x38\n\theartbeat\x18\x03 \x01(\x0b\x32#.maibot.plugin.v2.HeartbeatResponseH\x00\x42\t\n\x07payload\"\xf4\x01\n\x0bHostMessage\x12\x39\n\x0ehello_response\x18\x01 \x01(\x0b\x32\x1f.maibot.plugin.v2.HelloResponseH\x00\x12/\n\tevent_ack\x18\x02 \x01(\x0b\x32\x1a.maibot.plugin.v2.EventAckH\x00\x12\x37\n\theartbeat\x18\x03 \x01(\x0b\x32\".maibot.plugin.v2.HeartbeatRequestH\x00\x12\x35\n\x08shutdown\x18\x04 \x01(\x0b\x32!.maibot.plugin.v2.ShutdownRequestH\x00\x42\t\n\x07payload\"|\n\x0cHelloPayload\x12\x11\n\trunner_id\x18\x01 \x01(\t\x12\x13\n\x0bsdk_version\x18\x02 \x01(\t\x12\x15\n\rsession_token\x18\x03 \x01(\t\x12\x0e\n\x06scopes\x18\x04 \x03(\t\x12\x1d\n\x15runner_listen_address\x18\x05 \x01(\t\"`\n\rHelloResponse\x12\x10\n\x08\x61\x63\x63\x65pted\x18\x01 \x01(\x08\x12\x14\n\x0chost_version\x18\x02 \x01(\t\x12\x0e\n\x06reason\x18\x03 \x01(\t\x12\x17\n\x0frejected_scopes\x18\x04 \x03(\t\"(\n\x10HeartbeatRequest\x12\x14\n\x0ctimestamp_ms\x18\x01 \x01(\x03\")\n\x11HeartbeatResponse\x12\x14\n\x0ctimestamp_ms\x18\x01 \x01(\x03\";\n\x0fShutdownRequest\x12\x0e\n\x06reason\x18\x01 \x01(\t\x12\x18\n\x10\x64rain_timeout_ms\x18\x02 \x01(\x05\"3\n\x0c\x45ventPayload\x12\x12\n\nevent_name\x18\x01 \x01(\t\x12\x0f\n\x07payload\x18\x02 \x01(\t\"\x1c\n\x08\x45ventAck\x12\x10\n\x08received\x18\x01 \x01(\x08\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -36,17 +36,17 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_HOSTMESSAGE']._serialized_start=220
   _globals['_HOSTMESSAGE']._serialized_end=464
   _globals['_HELLOPAYLOAD']._serialized_start=466
-  _globals['_HELLOPAYLOAD']._serialized_end=559
-  _globals['_HELLORESPONSE']._serialized_start=561
-  _globals['_HELLORESPONSE']._serialized_end=657
-  _globals['_HEARTBEATREQUEST']._serialized_start=659
-  _globals['_HEARTBEATREQUEST']._serialized_end=699
-  _globals['_HEARTBEATRESPONSE']._serialized_start=701
-  _globals['_HEARTBEATRESPONSE']._serialized_end=742
-  _globals['_SHUTDOWNREQUEST']._serialized_start=744
-  _globals['_SHUTDOWNREQUEST']._serialized_end=803
-  _globals['_EVENTPAYLOAD']._serialized_start=805
-  _globals['_EVENTPAYLOAD']._serialized_end=856
-  _globals['_EVENTACK']._serialized_start=858
-  _globals['_EVENTACK']._serialized_end=886
+  _globals['_HELLOPAYLOAD']._serialized_end=590
+  _globals['_HELLORESPONSE']._serialized_start=592
+  _globals['_HELLORESPONSE']._serialized_end=688
+  _globals['_HEARTBEATREQUEST']._serialized_start=690
+  _globals['_HEARTBEATREQUEST']._serialized_end=730
+  _globals['_HEARTBEATRESPONSE']._serialized_start=732
+  _globals['_HEARTBEATRESPONSE']._serialized_end=773
+  _globals['_SHUTDOWNREQUEST']._serialized_start=775
+  _globals['_SHUTDOWNREQUEST']._serialized_end=834
+  _globals['_EVENTPAYLOAD']._serialized_start=836
+  _globals['_EVENTPAYLOAD']._serialized_end=887
+  _globals['_EVENTACK']._serialized_start=889
+  _globals['_EVENTACK']._serialized_end=917
 # @@protoc_insertion_point(module_scope)
