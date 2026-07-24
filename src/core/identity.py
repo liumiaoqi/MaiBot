@@ -5,7 +5,7 @@ maisaka 层应从此模块导入，不直接依赖 chat 层。
 """
 
 from src.common.logger import get_logger
-from src.config.config import global_config
+from src.core.bot_config_port_registry import get_bot_config_port
 
 __all__ = [
     "get_bot_account",
@@ -37,7 +37,7 @@ def parse_platform_accounts(platforms: list[str]) -> dict[str, str]:
     return result
 
 def _get_configured_qq_account() -> str:
-    qq_account = str(getattr(global_config.bot, "qq_account", "")).strip()
+    qq_account = str(get_bot_config_port().get_bot_qq_account()).strip()
     if qq_account in {"", "0"}:
         return ""
     return qq_account
@@ -52,7 +52,7 @@ def get_bot_account(platform: str) -> str:
     if normalized_platform in {"qq", "webui"}:
         return qq_account
 
-    platforms_list = getattr(global_config.bot, "platforms", []) or []
+    platforms_list = get_bot_config_port().get_bot_platforms()
     platform_accounts = parse_platform_accounts(platforms_list)
     if normalized_platform in {"tg", "telegram"}:
         return platform_accounts.get("tg", "") or platform_accounts.get("telegram", "")
@@ -67,7 +67,7 @@ def get_all_bot_accounts() -> dict[str, str]:
         bot_accounts["qq"] = qq_account
         bot_accounts["webui"] = qq_account
 
-    platforms_list = getattr(global_config.bot, "platforms", []) or []
+    platforms_list = get_bot_config_port().get_bot_platforms()
     platform_accounts = parse_platform_accounts(platforms_list)
 
     telegram_account = platform_accounts.get("tg", "") or platform_accounts.get("telegram", "")

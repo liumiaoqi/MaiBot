@@ -20,7 +20,8 @@ from src.common.data_models.message_component_data_model import (
 from src.common.data_models.session_message_data_model import SessionMessage
 from src.common.logger import get_logger
 from src.common.data_models.chat_target_info_data_model import ChatTargetInfo
-from src.config.config import global_config
+from src.config.config import global_config  # noqa: TID251 — reply_timing 待废弃配置本期不协议化
+from src.core.bot_config_port_registry import get_bot_config_port
 from src.core.identity import get_bot_account, is_bot_self
 from src.core.session_port_registry import get_session_info
 from src.core.person_info_port_registry import get_person_info_port
@@ -119,8 +120,8 @@ def is_mentioned_bot_in_message(message: SessionMessage) -> tuple[bool, bool, fl
     # 获取当前平台对应的账号
     current_account = get_bot_account(platform)
 
-    nickname = str(global_config.bot.nickname or "")
-    alias_names = list(global_config.bot.alias_names)
+    nickname = get_bot_config_port().get_bot_nickname()
+    alias_names = get_bot_config_port().get_bot_alias_names()
     keywords = [nickname] + alias_names
 
     reply_probability = 0.0
