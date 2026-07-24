@@ -13,7 +13,7 @@ from src.common.i18n import get_locale
 from src.common.logger import get_logger
 from src.common.prompt_i18n import load_prompt
 from src.common.utils.utils_config import ChatConfigUtils
-from src.config.config import global_config  # noqa: TID251 — personality/reply_timing/mcp 等待协议化
+
 from src.core.bot_config_port_registry import get_bot_config_port
 from src.core.chat_config_port_registry import get_chat_config_port
 from src.core.app_config_port_registry import get_app_config_port
@@ -645,7 +645,7 @@ class MaisakaChatLoopService:
         try:
             bot_name = get_bot_config_port().get_bot_nickname().strip()
             alias_names = [alias_name.strip() for alias_name in get_bot_config_port().get_bot_alias_names() if alias_name.strip()]
-            prompt_personality = global_config.personality.personality.strip()
+            prompt_personality = get_chat_config_port().get_personality().strip()
             if not prompt_personality:
                 prompt_personality = "是人类。"
 

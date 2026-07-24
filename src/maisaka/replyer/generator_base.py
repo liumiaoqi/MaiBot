@@ -28,7 +28,7 @@ from src.common.data_models.reply_generation_data_models import (
 from src.common.i18n import get_locale
 from src.common.logger import get_logger
 from src.common.utils.utils_config import ChatConfigUtils
-from src.config.config import global_config  # noqa: TID251 — personality/keyword_reaction 待协议化
+
 from src.core.bot_config_port_registry import get_bot_config_port
 from src.core.chat_config_port_registry import get_chat_config_port
 from src.core.app_config_port_registry import get_app_config_port
@@ -112,7 +112,7 @@ class BaseMaisakaReplyGenerator:
             alias_names = get_bot_config_port().get_bot_alias_names()
             bot_aliases = f"，也有人叫你{','.join(alias_names)}" if alias_names else ""
 
-            prompt_personality = global_config.personality.personality.strip()
+            prompt_personality = get_chat_config_port().get_personality().strip()
             if not prompt_personality:
                 prompt_personality = "是人类。"
 
@@ -124,18 +124,17 @@ class BaseMaisakaReplyGenerator:
     @staticmethod
     def _select_reply_style() -> str:
         """返回 replyer 使用的基础表达风格。"""
-        return global_config.personality.reply_style
+        return get_chat_config_port().get_reply_style_text()
 
     @staticmethod
     def _select_temporary_reply_style() -> str:
         """按配置概率选择本次回复的一次性备用表达风格。"""
-        personality_config = global_config.personality
-        candidate_styles = [style.strip() for style in personality_config.multiple_reply_style if style.strip()]
+        candidate_styles = [style.strip() for style in get_chat_config_port().get_multiple_reply_style() if style.strip()]
 
         if not candidate_styles:
             return ""
 
-        probability = personality_config.multiple_probability
+        probability = get_chat_config_port().get_multiple_reply_probability()
         if probability <= 0:
             return ""
         if random.random() > probability:
@@ -386,7 +385,7 @@ class BaseMaisakaReplyGenerator:
             return ""
 
         matched_reactions: List[str] = []
-        keyword_reaction = global_config.keyword_reaction
+        keyword_reaction = get_chat_config_port().get_keyword_reaction()
 
         for rule in keyword_reaction.keyword_rules:
             keywords = [keyword.strip() for keyword in rule.keywords if keyword.strip()]

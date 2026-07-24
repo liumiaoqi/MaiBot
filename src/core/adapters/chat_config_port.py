@@ -54,6 +54,10 @@ class GlobalConfigChatConfigPort:
         from src.config.config import global_config
         return list(global_config.personality.multiple_reply_style)
 
+    def get_multiple_reply_probability(self) -> float:
+        from src.config.config import global_config
+        return global_config.personality.multiple_probability
+
     def get_reply_timing_config(self) -> ReplyTimingSnapshot:
         import warnings
         from src.config.config import global_config
