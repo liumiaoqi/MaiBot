@@ -34,7 +34,7 @@ import tomlkit
 
 from src.common.logger import get_logger
 from src.common.shutdown import is_shutdown_requested
-from src.config.config import config_manager
+from src.core.app_config_port_registry import get_app_config_port
 from src.config.file_watcher import FileChange, FileWatcher
 from src.platform_io import DeliveryBatch, InboundMessageEnvelope, get_platform_io_manager
 from src.plugin_runtime.capabilities import (
@@ -287,7 +287,7 @@ class PluginRuntimeManager(
             Tuple[Optional[str], Optional[str]]: 内置 Runner 与第三方 Runner 的 socket 地址。
         """
 
-        runtime_config = config_manager.get_global_config().plugin_runtime
+        runtime_config = get_app_config_port().get_plugin_runtime_config()
         socket_path_base = runtime_config.ipc_socket_path or None
         builtin_socket = f"{socket_path_base}-builtin" if socket_path_base else None
         third_party_socket = f"{socket_path_base}-third_party" if socket_path_base else None
@@ -562,7 +562,7 @@ class PluginRuntimeManager(
             logger.warning("PluginRuntimeManager 已在运行中，跳过重复启动")
             return
 
-        _cfg = config_manager.get_global_config().plugin_runtime
+        _cfg = get_app_config_port().get_plugin_runtime_config()
         if not _cfg.enabled:
             logger.info("插件运行时已在配置中禁用，跳过启动")
             return
@@ -597,7 +597,7 @@ class PluginRuntimeManager(
             started_supervisors = await self._start_supervisors(builtin_dirs, third_party_dirs)
 
             await self._start_plugin_file_watcher()
-            config_manager.register_reload_callback(self._config_reload_callback)
+            get_app_config_port().register_reload_callback(self._config_reload_callback)
             self._config_reload_callback_registered = True
             self._started = True
             self._ready_event.set()
@@ -606,7 +606,7 @@ class PluginRuntimeManager(
             logger.error(f"插件运行时启动失败: {e}", exc_info=True)
             await self._stop_plugin_file_watcher()
             if self._config_reload_callback_registered:
-                config_manager.unregister_reload_callback(self._config_reload_callback)
+                get_app_config_port().unregister_reload_callback(self._config_reload_callback)
                 self._config_reload_callback_registered = False
             await asyncio.gather(*(sv.stop() for sv in started_supervisors), return_exceptions=True)
             platform_io_manager.clear_inbound_dispatcher()
@@ -627,7 +627,7 @@ class PluginRuntimeManager(
         platform_io_manager = get_platform_io_manager()
         await self._stop_plugin_file_watcher()
         if self._config_reload_callback_registered:
-            config_manager.unregister_reload_callback(self._config_reload_callback)
+            get_app_config_port().unregister_reload_callback(self._config_reload_callback)
             self._config_reload_callback_registered = False
         if is_shutdown_requested():
             await self._hook_dispatcher.stop()
@@ -1113,9 +1113,9 @@ class PluginRuntimeManager(
 
         normalized_scopes = self._normalize_config_reload_scopes(changed_scopes)
         if "bot" in normalized_scopes:
-            await self._broadcast_config_reload("bot", config_manager.get_global_config().model_dump(mode="json"))
+            await self._broadcast_config_reload("bot", get_app_config_port().get_global_config_json())
         if "model" in normalized_scopes:
-            await self._broadcast_config_reload("model", config_manager.get_model_config().model_dump(mode="json"))
+            await self._broadcast_config_reload("model", get_app_config_port().get_model_config_json())
 
     # ─── 事件桥接 ──────────────────────────────────────────────
 
