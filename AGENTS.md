@@ -170,36 +170,29 @@ CA 派发审查任务时，CC 按以下维度输出报告（写入 `.shared/hand
 每个 `- [ ]` 是否真的能完成。验证命令是否可跑。批间依赖是否正确。
 
 ## CC/Codex 派发建议
-每个子任务标注负责人+理由。参照 `.shared/decisions/cc_vs_codex_routing_guide.md`。
+每个子任务标注负责人+理由。参照 `.shared/decisions/archive/cc_vs_codex_routing_guide.md`。
 
 ## 遗漏检查
 文档没覆盖但代码实际存在的依赖、调用方、边界情况。
 
 ## 审查自由度
 - 不需逐行核对所有行号，优先核验关键路径
-- 发现 SSD 遗漏直接在报告里补充
+- 发现遗漏直接在报告里补充
 - 细节小问题不需要卡住整个任务，结论写"建议直接执行，同时修正 N 点"
 - 派发建议是参考不是命令，10 行的小文件顺手做掉不用非得派给 Codex
 - 报告长度匹配任务复杂度，小任务不凑字数
 
-# 已完成 SSD 摘要
+# 已归档：微内核架构改造（SSD-1~13）
 
-| SSD | 主题 | 关键成果 |
-|-----|------|---------|
-| SSD-1 | ChatManager Protocol 补全 | ChatManagerAdapter 5合1 Protocol + SessionInfo 不可变快照 |
-| SSD-2 | ChatManager 单例拆分 | 604→143行，6子模块（SessionStore/MessageRegistry/SessionNameCache/SessionResolver/BindingRestorer/SessionLifecycle） |
-| SSD-3 | ChatManager 单例物理退役 | 子模块直接注入 + 模块级单例移除 |
-| SSD-4 | 存量债务清理 | SessionMessage→common层、is_bot_self→core/identity、napcat_*入站化、enqueue_proactive_task瘦身 |
-| SSD-5 | 启动流程改革 | 6阶段 StartupOrchestrator + 非关键组件降级 + 核心就绪≤5s |
-| SSD-6 | 智能体配置协议化 | AgentConfigProvider Protocol（7方法）替代 AgentConfigRegistry 直接导入 |
-| SSD-7 | LLM服务协议化 | LLMService Protocol（4方法）替代 18处 LLMServiceClient 直接导入 |
-| SSD-8 | 插件上下文协议化 | MessageIngestionPort + ChatRuntime 扩展，消除 chat_bot/heartflow_manager 直接导入 |
-| SSD-9 | Common层架构归正 | H6参数注入消除 heartflow_manager 反向依赖 + M8 PersonInfoPort Protocol |
-| 快速修复 | M2+M3+H7+M4 | SessionMessage/is_bot_self 导入路径替换 + ReplyerServicePort/memory_service 绕过修复 |
-| SSD-10 | 配置与事件注入化 | BotConfigPort/ChatConfigPort/AppConfigPort/AutonomyEventBusPort Protocol + 15项死配置删除 + 13项DEPRECATED + AutonomyEventBus.get_instance()消除 |
-| SSD-11 | SSD-10 遗留协议化 | global_config TID251 从41处降至0处（8处整体对象场景保留noha），ChatConfigPort 5→13方法，AppConfigPort 21→78方法，5个新快照类型，14处死导入清除，is_bot_self替代qq_account直接访问，BotConfigPort新增get_bot_platform/get_bot_primary_account，service_task_resolver.model_name_exists替代config_manager |
-| SSD-12 | 剩余 TID251 违规消除 | config_manager 4处/heartflow_manager 2处/Person 4处 TID251 清零，AppConfigPort +5方法（~60→~65），ChatRuntimeRegistry +2方法（3→5），PersonInfoPort +5方法（1→6），新建 model_config_port_registry，新增 PluginRuntimeSnapshot/PersonDetailSnapshot 快照类型 |
-| SSD-13 | 延迟项与架构债务收尾 | G1 heuristic_injector get_person_id迁移到PersonInfoPort + G2 test_memory_flow_service mock路径更新 + send_service.py F401/F821修复(5处) + memory_port_registry导入路径修复(3处) + 整体对象评估报告(18处: 5可拆/7需Port/6暂不可拆) |
+> SSD-1~13 完成 MaiBot 从宏内核到微内核的架构改造。核心成果：20+ Protocol 接口、global_config TID251 从 41→0、核心禁止项全部消除。详见 `.codeartsdoer/specs/_archive/`。
+
+# Phoenix：插件系统革命
+
+> 全新方向，不再沿用 SSD 编号。三大支柱：MCP Tool/Event 统一组件模型 + OAuth Scope 细粒度能力授权 + gRPC 标准化传输。
+
+| 编号 | 主题 | 状态 |
+|------|------|------|
+| Phoenix-1 | 插件系统革命 | 📋 规划中 |
 
 # 待后续
 
@@ -208,5 +201,4 @@ CA 派发审查任务时，CC 按以下维度输出报告（写入 `.shared/hand
 - ⬜ A_memorix 内部 322 处 bare except
 - ⬜ mem_core_gap 未覆盖的 8 项差距（G16/G18/G19/G21/G22/G23/G24/G28）
 - ⬜ noqa TID251 整体对象遗留 18 处（详见 `.codeartsdoer/specs/_archive/ssd13_deferred/noqa_tid251_evaluation.md`）
-- ⬜ SSD-11 遗留：WebUI 配置管理面（routes.py/config.py 3处）暂不可拆解
-- ⬜ SSD-14 插件系统革命：MCP Tool/Event 统一组件模型 + OAuth Scope 细粒度能力授权 + gRPC 标准化传输（详见 `.codeartsdoer/specs/ssd14_plugin_revolution/`）
+- ⬜ WebUI 配置管理面（routes.py/config.py 3处）暂不可拆解
