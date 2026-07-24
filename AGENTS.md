@@ -93,7 +93,7 @@
 6. 禁止核心导入 A_memorix 内部模块 ✅
 7. 禁止 Orchestrator 通过 enqueue_proactive_task 模拟多智能体
 8. 禁止核心直接导入 config_manager 获取模型配置 ✅
-9. 禁止核心直接导入 global_config ✅（SSD-10 已消除，未覆盖属性保留 noqa）
+9. 禁止核心直接导入 global_config ✅（SSD-11 已消除，8处整体对象场景保留 noqa+原因注释）
 10. 禁止使用 AutonomyEventBus.get_instance() ✅（SSD-10 已消除，改用 get_event_bus_port()）
 
 # 核心架构：微内核 + 接口契约
@@ -125,8 +125,8 @@
 | ModelConfigPort | 模型配置查询 | ConfigManagerModelConfigPort |
 | LLMService | LLM服务（4方法） | LLMServiceAdapter |
 | BotConfigPort | 机器人配置查询（5方法） | GlobalConfigBotConfigPort |
-| ChatConfigPort | 聊天配置查询（5方法） | GlobalConfigChatConfigPort |
-| AppConfigPort | 应用配置查询（~21方法） | GlobalConfigAppConfigPort |
+| ChatConfigPort | 聊天配置查询（11方法） | GlobalConfigChatConfigPort |
+| AppConfigPort | 应用配置查询（~60方法） | GlobalConfigAppConfigPort |
 | AutonomyEventBusPort | 智能体自主性事件总线 | AutonomyEventBus |
 
 ## 内心状态三层
@@ -181,6 +181,7 @@ CA 派发审查任务时，CC 按以下维度输出报告（写入 `.shared/hand
 | SSD-9 | Common层架构归正 | H6参数注入消除 heartflow_manager 反向依赖 + M8 PersonInfoPort Protocol |
 | 快速修复 | M2+M3+H7+M4 | SessionMessage/is_bot_self 导入路径替换 + ReplyerServicePort/memory_service 绕过修复 |
 | SSD-10 | 配置与事件注入化 | BotConfigPort/ChatConfigPort/AppConfigPort/AutonomyEventBusPort Protocol + 15项死配置删除 + 13项DEPRECATED + AutonomyEventBus.get_instance()消除 |
+| SSD-11 | SSD-10 遗留协议化 | global_config TID251 从41处降至8处（整体对象场景保留noha），ChatConfigPort 5→11方法，AppConfigPort 21→60方法，5个新快照类型，14处死导入清除，is_bot_self替代qq_account直接访问 |
 
 # 待后续
 
@@ -188,4 +189,5 @@ CA 派发审查任务时，CC 按以下维度输出报告（写入 `.shared/hand
 - ⬜ WebUI 记忆可视化
 - ⬜ A_memorix 内部 322 处 bare except
 - ⬜ mem_core_gap 未覆盖的 8 项差距（G16/G18/G19/G21/G22/G23/G24/G28）
-- ⬜ SSD-10 遗留：personality/reply_timing/mcp/response_splitter/chinese_typo/log/webui/a_memorix/agent/agent_interaction/keyword_reaction/emoji 等域待后续协议化
+- ⬜ SSD-11 遗留：runtime.py expression/MCPConfig 整体对象、utils_config.py 多域混合、plugin_runtime 整体对象、maim_message 整体对象、learners/ 目录、webui/ 目录待后续协议化
+- ⬜ SSD-12：config_manager TID251 消除（~8处）、Person TID251 消除（~3处）、heartflow_manager TID251 消除（~3处）
