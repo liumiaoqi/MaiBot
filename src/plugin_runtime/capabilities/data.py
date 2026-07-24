@@ -560,7 +560,7 @@ class RuntimeDataCapabilityMixin:
             return {"success": False, "error": str(e)}
 
     async def _cap_person_get_id(self, plugin_id: str, capability: str, args: Dict[str, Any]) -> Any:
-        from src.person_info.person_info import Person
+        from src.core.person_info_port_registry import get_person_info_port
 
         platform: str = args.get("platform", "")
         user_id = args.get("user_id", "")
@@ -568,14 +568,14 @@ class RuntimeDataCapabilityMixin:
             return {"success": False, "error": "缺少必要参数 platform 或 user_id"}
 
         try:
-            pid = Person(platform=platform, user_id=str(user_id)).person_id
+            pid = get_person_info_port().get_person_id(platform, str(user_id))
             return {"success": True, "person_id": pid}
         except Exception as e:
             logger.error(f"[cap.person.get_id] 执行失败: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
     async def _cap_person_get_value(self, plugin_id: str, capability: str, args: Dict[str, Any]) -> Any:
-        from src.person_info.person_info import Person
+        from src.core.person_info_port_registry import get_person_info_port
 
         person_id: str = args.get("person_id", "")
         field_name: str = args.get("field_name", "")
@@ -583,8 +583,7 @@ class RuntimeDataCapabilityMixin:
             return {"success": False, "error": "缺少必要参数 person_id 或 field_name"}
 
         try:
-            person = Person(person_id=person_id)
-            value = getattr(person, field_name)
+            value = get_person_info_port().get_person_attribute(person_id, field_name)
             if value is None:
                 value = args.get("default")
             return {"success": True, "value": value}
@@ -593,14 +592,14 @@ class RuntimeDataCapabilityMixin:
             return {"success": False, "error": str(e)}
 
     async def _cap_person_get_id_by_name(self, plugin_id: str, capability: str, args: Dict[str, Any]) -> Any:
-        from src.person_info.person_info import Person
+        from src.core.person_info_port_registry import get_person_info_port
 
         person_name: str = args.get("person_name", "")
         if not person_name:
             return {"success": False, "error": "缺少必要参数 person_name"}
 
         try:
-            pid = Person(person_name=person_name).person_id
+            pid = get_person_info_port().get_person_id_by_name(person_name)
             return {"success": True, "person_id": pid}
         except Exception as e:
             logger.error(f"[cap.person.get_id_by_name] 执行失败: {e}", exc_info=True)
