@@ -190,7 +190,7 @@ lab/{topic}/ → lab/integration/ → 主仓库 src/
 
 - 新增/删除 Protocol（`src/core/protocols.py` 变化）
 - 消除/新增架构债务（核心禁止项状态变化）
-- 核心模块物理迁移（目录重组、单例拆分、SSD 阶段推进）
+- 核心模块物理迁移（目录重组、单例拆分、Phoenix 阶段推进）
 - ruff banned-api 或 per-file-ignores 变化
 - 适配器层新增/删除适配器
 
@@ -207,3 +207,34 @@ lab/{topic}/ → lab/integration/ → 主仓库 src/
 ### 不一致修正
 
 发现不一致时，优先修正本文件以匹配 AGENTS.md 和代码实际状态，不得反向修改 AGENTS.md 以匹配过时规则。
+
+## 三主智能体协作约定
+
+- **CA**（CodeArts，华为云码道,GLM-5.1）：需求分析、架构设计、SSD 文档、代码审查、质量守卫、**三元协作的协调中枢**
+- **CC**（Claude Code，DeepSeek V4 Pro）：复杂编码执行、架构重构、大代码库变更、运行时验证、提交管理
+- **Codex**（DeepSeek V4 Pro，Windows 环境）：快速编码执行、Debug/修复、批量后台任务、机械替换
+- **WB**（WorkBuddy，DeepSeek V4 Pro）：信息检索、资料查询、辅助调研
+- 四者**平级**，各有优劣，用户根据任务类型选择派发
+- **用户是唯一中继**：主智能体之间没有直接通信链路
+- `.shared/` 是异步上下文共享区（git 子仓库），交接文件命名：`ca2cc_*.md` / `ca2cx_*.md` / `cc2ca_*.md` / `cx2ca_*.md`
+- 编码期间执行主智能体（CC 或 Codex）拥有代码修改权，CA 只读
+
+### 派发原则
+
+参照 `.shared/decisions/archive/cc_vs_codex_routing_guide.md`：
+- **CC 胜在**：首次设计（Protocol 签名/快照类型）、高风险文件（runtime.py 等面积大易出副作用的）、最终验证（ruff 守卫 + AGENTS.md）
+- **Codex 胜在**：定义清晰的分项任务、批量并行后台、机械执行（global_config→Port 替换）
+- CA 派发时不要低估 Codex 能力——SSD-6/7/8/9/10 已证明 Codex 完全能处理机械替换
+
+## Phoenix：插件系统革命
+
+> 全新方向，不再沿用 SSD 编号。SSD-1~13 已完成微内核架构改造（20+ Protocol 接口、global_config TID251 从 41→0、核心禁止项全部消除）。
+
+三大支柱：
+- **MCP Tool/Event 统一组件模型**：8 种组件类型 → 2 种（Tool 拉取式 + Event 推送式），与 ThinkingOrgan 工具循环天然对接
+- **OAuth Scope 细粒度能力授权**：粗粒度 capabilities → 细粒度 scope（如 `database:read:session_message`），用户可逐项审批/撤销
+- **gRPC 标准化传输**：自研 4-byte prefix + MsgPack → gRPC 双向流，消除 2000+ 行传输代码，支持跨语言插件
+
+| 编号 | 主题 | 状态 |
+|------|------|------|
+| Phoenix-1 | 插件系统革命 | 📋 规划中 |
