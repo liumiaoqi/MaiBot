@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Optional
 
-from src.config.config import global_config  # noqa: TID251 — debug.record_tool_structured_content 待协议化
+from src.core.app_config_port_registry import get_app_config_port
 from src.core.tooling import ToolExecutionResult, ToolInvocation, ToolSpec
 
 
@@ -122,7 +122,7 @@ def build_tool_record_structured_content(value: Any) -> Any:
     if value is None:
         return None
     normalized_value = normalize_tool_record_value(value)
-    if not global_config.debug.record_tool_structured_content:
+    if not get_app_config_port().get_debug_record_tool_structured_content():
         return _build_omitted_structured_content_marker(normalized_value)
     return _omit_tool_record_large_media(normalized_value)
 

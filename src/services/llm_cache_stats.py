@@ -187,8 +187,8 @@ def _is_llm_cache_stats_enabled() -> bool:
     """读取调试配置，默认关闭 LLM prompt cache 统计。"""
 
     try:
-        from src.config.config import global_config  # noqa: TID251
-        return bool(global_config.debug.enable_llm_cache_stats)
+        from src.core.app_config_port_registry import get_app_config_port
+        return bool(get_app_config_port().get_debug_enable_llm_cache_stats())
     except Exception:
         return False
 

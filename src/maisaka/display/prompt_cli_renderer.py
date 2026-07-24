@@ -373,9 +373,9 @@ class PromptCLIVisualizer:
     @staticmethod
     def _should_keep_prompt_preview_json_base64() -> bool:
         try:
-            from src.config.config import global_config  # noqa: TID251
+            from src.core.app_config_port_registry import get_app_config_port
 
-            return bool(global_config.debug.keep_prompt_preview_json_base64)
+            return bool(get_app_config_port().get_debug_keep_prompt_preview_json_base64())
         except Exception:
             return False
 

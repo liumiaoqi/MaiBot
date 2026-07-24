@@ -22,7 +22,7 @@ from src.common.data_models.message_component_data_model import (
 from src.common.logger import get_logger
 from src.common.message_repository import find_messages
 from src.common.utils.utils_config import BehaviorConfigUtils, ChatConfigUtils, ExpressionConfigUtils, JargonConfigUtils
-from src.config.config import global_config  # noqa: TID251 — mcp/expression/debug 待协议化
+from src.config.config import global_config  # noqa: TID251 — expression 待协议化
 
 from src.core.chat_config_port_registry import get_chat_config_port
 from src.core.app_config_port_registry import get_app_config_port
@@ -297,7 +297,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
     def _is_reply_effect_tracking_enabled() -> bool:
         """判断是否启用回复效果评分追踪。"""
 
-        return bool(global_config.debug.enable_reply_effect_tracking)
+        return bool(get_app_config_port().get_debug_enable_reply_effect_tracking())
 
     def _update_stage_status(self, stage: str, detail: str = "", *, round_text: str = "") -> None:
         """更新当前会话的阶段状态。"""
@@ -317,7 +317,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
             self._ensure_background_tasks_running()
             return
 
-        if global_config.mcp.enable:
+        if get_app_config_port().get_mcp_enable():
             await self._init_mcp()
 
         await self._restore_recent_context_from_db()
@@ -2232,17 +2232,22 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
 
         return True
 
+    def _get_mcp_config(self):
+        """获取 MCP 配置对象（用于需要完整配置结构的场景）。"""
+        from src.config.config import global_config  # noqa: TID251 — MCPConfig 整体对象无法逐属性 Port 化
+        return global_config.mcp
+
     async def _init_mcp(self) -> None:
         """初始化 MCP 工具并注册到统一工具层。"""
-        if not build_mcp_server_runtime_configs(global_config.mcp):
+        if not build_mcp_server_runtime_configs(self._get_mcp_config()):
             logger.debug(f"{self.log_prefix} 未配置可用的 MCP 服务，跳过 Maisaka MCP 初始化")
             return
 
         self._mcp_host_bridge = MCPHostLLMBridge(
-            sampling_task_name=global_config.mcp.client.sampling.task_name,
+            sampling_task_name=get_app_config_port().get_mcp_sampling_task_name(),
         )
         self._mcp_manager = await MCPManager.from_app_config(
-            global_config.mcp,
+            self._get_mcp_config(),
             host_callbacks=self._mcp_host_bridge.build_callbacks(),
         )
         if self._mcp_manager is None:
