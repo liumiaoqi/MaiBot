@@ -12,8 +12,7 @@ from copy import deepcopy
 from typing import Any, Dict, List, Optional
 
 import asyncio
-import base64
-import hashlib
+
 import time
 import traceback
 from datetime import datetime
@@ -38,7 +37,7 @@ from src.common.data_models.message_component_data_model import (
     ImageComponent,
     MessageSequence,
     ReplyComponent,
-    StandardMessageComponents,
+
     TextComponent,
     VoiceComponent,
 )
@@ -1133,7 +1132,7 @@ async def _text_to_stream(
         bool: 发送成功时返回 ``True``。
     """
     return (
-        await text_to_stream_with_message(
+        await _text_to_stream_with_message(
             text=text,
             stream_id=stream_id,
             typing=typing,
@@ -1196,7 +1195,7 @@ async def _emoji_to_stream(
         bool: 发送成功时返回 ``True``。
     """
     return (
-        await emoji_to_stream_with_message(
+        await _emoji_to_stream_with_message(
             emoji_base64=emoji_base64,
             stream_id=stream_id,
             storage_message=storage_message,
