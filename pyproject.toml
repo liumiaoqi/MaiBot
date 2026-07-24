@@ -48,6 +48,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "grpcio-tools>=1.83.0",
     "pytest",
     "pytest-asyncio",
     "ruff>=0.12.2",
@@ -123,6 +124,7 @@ ignore = ["E711", "E501", "TID252"]
 "src/chat/heart_flow/heartflow_message_processor.py" = ["TID251"]
 "src/services/html_render_service.py" = ["TID251"]
 "src/services/telemetry_stats_service.py" = ["TID251"]
+"src/plugin_runtime_v2/proto/*_pb2*.py" = ["F401", "E402"]
 
 [tool.ruff.format]
 docstring-code-format = true

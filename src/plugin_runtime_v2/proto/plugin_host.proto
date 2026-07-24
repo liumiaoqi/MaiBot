@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package maibot.plugin.v2;
+
+import "common.proto";
+
+// ============================================================
+// Host 端 gRPC 服务
+// ============================================================
+
+// Host 端暴露的 gRPC 服务，Runner 连接后调用
+service PluginHost {
+  // 双向流连接：Runner 通过此流建立持久连接，
+  // 首次消息携带 HelloPayload，后续可推送 EventPayload
+  rpc Connect(stream RunnerMessage) returns (stream HostMessage);
+
+  // 组件注册：Runner 上报 Tool 和 Event 声明
+  rpc RegisterComponents(RegisterComponentsRequest) returns (RegisterComponentsResponse);
+}
+
+// ============================================================
+// 组件声明
+// ============================================================
+
+// MCP Tool 声明
+message ToolDeclaration {
+  string name = 1;               // 工具名称（必填，全局唯一）
+  string description = 2;        // 工具描述（必填，供 LLM 理解）
+  string parameters_schema = 3;  // 参数 JSON Schema（JSON 字符串）
+  string output_schema = 4;      // 输出 JSON Schema（可选）
+}
+
+// MCP Event 声明
+message EventDeclaration {
+  string name = 1;          // 事件名称（必填，全局唯一）
+  string description = 2;   // 事件描述（必填）
+  string event_schema = 3;  // 事件载荷 JSON Schema（JSON 字符串）
+}
+
+// 组件注册请求
+message RegisterComponentsRequest {
+  string plugin_id = 1;                  // 插件 ID（必填）
+  string plugin_version = 2;             // 插件版本
+  repeated ToolDeclaration tools = 3;    // Tool 声明列表
+  repeated EventDeclaration events = 4;  // Event 声明列表
+}
+
+// 组件注册响应
+message RegisterComponentsResponse {
+  bool accepted = 1;           // 是否全部接受（必填）
+  repeated string reasons = 2; // 拒绝原因列表
+}

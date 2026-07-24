@@ -1,0 +1,82 @@
+syntax = "proto3";
+
+package maibot.plugin.v2;
+
+// ============================================================
+// 通用消息：双向流中的消息封装
+// ============================================================
+
+// Runner → Host 的流消息
+// 双向流连接中 Runner 端发送的消息封装
+message RunnerMessage {
+  oneof payload {
+    HelloPayload hello = 1;           // 握手请求（首条消息）
+    EventPayload event = 2;           // Event 推送
+    HeartbeatResponse heartbeat = 3;  // 心跳响应
+  }
+}
+
+// Host → Runner 的流消息
+// 双向流连接中 Host 端发送的消息封装
+message HostMessage {
+  oneof payload {
+    HelloResponse hello_response = 1;  // 握手响应
+    HeartbeatRequest heartbeat = 2;    // 心跳请求
+    ShutdownRequest shutdown = 3;      // 关停请求
+  }
+}
+
+// ============================================================
+// 握手
+// ============================================================
+
+// 握手请求：Runner 连接后发送的首条消息
+message HelloPayload {
+  string runner_id = 1;       // Runner 进程唯一标识（必填）
+  string sdk_version = 2;     // SDK 版本号（必填）
+  string session_token = 3;   // 一次性会话令牌（必填，Phoenix-3 签发）
+  repeated string scopes = 4; // 所需 scope 列表（至少 1 项）
+}
+
+// 握手响应：Host 校验后返回
+message HelloResponse {
+  bool accepted = 1;               // 是否接受连接（必填）
+  string host_version = 2;         // Host 版本号
+  string reason = 3;               // 拒绝原因（accepted=false 时有值）
+  repeated string rejected_scopes = 4; // 未批准的 scope 列表
+}
+
+// ============================================================
+// 心跳与关停
+// ============================================================
+
+// 心跳请求（Host → Runner）
+message HeartbeatRequest {
+  int64 timestamp_ms = 1;  // 发送时间戳（毫秒）
+}
+
+// 心跳响应（Runner → Host）
+message HeartbeatResponse {
+  int64 timestamp_ms = 1;  // 响应时间戳（毫秒）
+}
+
+// 关停请求（Host → Runner）
+message ShutdownRequest {
+  string reason = 1;            // 关停原因
+  int32 drain_timeout_ms = 2;   // 排空超时（毫秒，默认 5000）
+}
+
+// ============================================================
+// Event 推送
+// ============================================================
+
+// Event 推送载荷（Runner → Host，通过双向流）
+message EventPayload {
+  string event_name = 1;  // 事件名称（必填）
+  string payload = 2;     // 事件载荷（JSON 字符串）
+}
+
+// Event 确认
+message EventAck {
+  bool received = 1;  // 是否已接收（必填）
+}
