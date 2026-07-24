@@ -157,7 +157,8 @@ class InteractionEngine:
 
             # 非阻塞：发布交互信号到自主性架构
             try:
-                from src.maisaka.agent_autonomy.event_bus import AutonomyEventBus, InteractionSignalEvent
+                from src.maisaka.agent_autonomy.event_bus import InteractionSignalEvent
+                from src.core.event_bus_port_registry import get_event_bus_port
 
                 signal = InteractionSignalEvent(
                     initiator_agent_id=initiator_id,
@@ -168,7 +169,7 @@ class InteractionEngine:
                     relationship_effect=effect.relationship_delta,
                     event_id=event_id,
                 )
-                AutonomyEventBus.get_instance().emit_sync("interaction_signal", signal)
+                get_event_bus_port().emit_sync("interaction_signal", signal)
             except Exception:
                 pass
 

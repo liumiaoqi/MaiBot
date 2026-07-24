@@ -5,13 +5,14 @@ from typing import Any
 
 from src.common.logger import get_logger
 from src.core.app_config_port_registry import get_app_config_port
+from src.core.event_bus_port_registry import get_event_bus_port
 from src.core.protocols import AgentRoutingService, NoticeClassifier, ThinkingOrganFactory
 from src.core.types import CoreMessage, NoticeKind, ThinkAction, ThinkContext, ThinkResult
 from src.maisaka.agent_autonomy.agent import AutonomousAgent
 from src.maisaka.agent_autonomy.activity_store import AgentActivityStore
 from src.maisaka.agent_autonomy.autonomy_logger import AutonomyEventType, AutonomyLogger, AutonomyEventSubscriber
 from src.maisaka.agent_autonomy.behavior_intent import BehaviorIntent
-from src.maisaka.agent_autonomy.event_bus import AutonomyEventBus, InterjectionMentionEvent, SessionMessageEvent
+from src.maisaka.agent_autonomy.event_bus import InterjectionMentionEvent, SessionMessageEvent
 from src.maisaka.agent_autonomy.interjection_cooldown import InterjectionCooldownManager
 from src.maisaka.agent_autonomy.interjection_scheduler import InterjectionScheduler
 from src.maisaka.agent_autonomy.lifecycle import AgentLifecycleManager, AgentLifecycleState
@@ -165,7 +166,7 @@ class AgentOrchestrator:
 
     def _subscribe_events(self) -> None:
         """订阅自主性事件总线的交互信号。"""
-        bus = AutonomyEventBus.get_instance()
+        bus = get_event_bus_port()
         bus.subscribe("interaction_signal", self._on_interaction_signal)
         bus.subscribe("interjection_mention", self._on_interjection_mention)
         bus.subscribe("session_message", self._ambient_awareness.on_session_message)
@@ -713,7 +714,7 @@ class AgentOrchestrator:
                 content=str(content),
                 timestamp=datetime.now().isoformat(),
             )
-            AutonomyEventBus.get_instance().emit_sync("session_message", session_message_event)
+            get_event_bus_port().emit_sync("session_message", session_message_event)
 
             # 收集活跃智能体的行为意图
             if self._config.interjection_enabled:
@@ -1227,7 +1228,7 @@ class AgentOrchestrator:
                         session_id=self._session_id,
                         content_summary=content_summary,
                     )
-                    AutonomyEventBus.get_instance().emit_sync("interjection_mention", mention_event)
+                    get_event_bus_port().emit_sync("interjection_mention", mention_event)
                     logger.debug(
                         f"[agent_autonomy] 插话提及检测: "
                         f"speaker={speaker_agent_id} mentioned={agent.agent_id}"

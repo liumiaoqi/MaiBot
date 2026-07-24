@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from src.common.logger import get_logger
-from src.maisaka.agent_autonomy.event_bus import AutonomyEventBus
+from src.core.event_bus_port_registry import get_event_bus_port
 
 logger = get_logger("agent_autonomy.autonomy_logger")
 
@@ -74,7 +74,7 @@ class AutonomyEventSubscriber:
 
     def subscribe_all(self) -> None:
         """订阅所有自主性事件类型。"""
-        bus = AutonomyEventBus.get_instance()
+        bus = get_event_bus_port()
         bus.subscribe("interaction_signal", self._on_interaction_signal)
         bus.subscribe("interjection_mention", self._on_interjection_mention)
 

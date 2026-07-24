@@ -188,7 +188,11 @@ class MainSystem:
             init_fn=self._init_app_config_port,
         ))
         orchestrator.register(StartupComponent(
-            name="prompt_manager", phase=StartupPhase.CORE_SERVICES, order=13, critical=True,
+            name="event_bus_port", phase=StartupPhase.CORE_SERVICES, order=13, critical=True,
+            init_fn=self._init_event_bus_port,
+        ))
+        orchestrator.register(StartupComponent(
+            name="prompt_manager", phase=StartupPhase.CORE_SERVICES, order=14, critical=True,
             init_fn=self._load_prompts,
         ))
 
@@ -406,6 +410,12 @@ class MainSystem:
         from src.core.adapters.app_config_port import GlobalConfigAppConfigPort
         from src.core.app_config_port_registry import set_app_config_port
         set_app_config_port(GlobalConfigAppConfigPort())
+
+    @staticmethod
+    async def _init_event_bus_port() -> None:
+        from src.maisaka.agent_autonomy.event_bus import AutonomyEventBus
+        from src.core.event_bus_port_registry import set_event_bus_port
+        set_event_bus_port(AutonomyEventBus())
 
     @staticmethod
     async def _load_prompts() -> None:

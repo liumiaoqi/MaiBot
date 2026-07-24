@@ -9,9 +9,10 @@ from typing import TYPE_CHECKING
 
 from src.common.logger import get_logger
 from src.core.app_config_port_registry import get_app_config_port
+from src.core.event_bus_port_registry import get_event_bus_port
 from src.core.protocols import AgentRoutingService
 from src.maisaka.agent_autonomy.activity_store import AgentActivityStore
-from src.maisaka.agent_autonomy.event_bus import AgentStateChangeEvent, AutonomyEventBus
+from src.maisaka.agent_autonomy.event_bus import AgentStateChangeEvent
 from src.maisaka.agent_autonomy.standby_registry import StandbyAgentInfo, StandbyAgentRegistry
 
 if TYPE_CHECKING:
@@ -70,7 +71,7 @@ class VitalityManager:
                 vitality_at_change=vitality,
                 timestamp=datetime.now().isoformat(),
             )
-            AutonomyEventBus.get_instance().emit_sync("agent_state_change", event)
+            get_event_bus_port().emit_sync("agent_state_change", event)
         except Exception as exc:
             logger.warning(
                 f"[vitality] 状态变更事件发布失败: agent={agent_id} error={exc}"

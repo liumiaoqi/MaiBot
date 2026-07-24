@@ -76,18 +76,13 @@ class AgentStateChangeEvent:
 
 
 class AutonomyEventBus:
-    """自主性架构内部事件总线。"""
+    """自主性架构内部事件总线。
 
-    _instance: AutonomyEventBus | None = None
+    不再使用 get_instance() 单例模式，通过 AutonomyEventBusPort 注册点注入。
+    """
 
     def __init__(self) -> None:
         self._handlers: dict[str, list[AutonomyEventHandler]] = {}
-
-    @classmethod
-    def get_instance(cls) -> AutonomyEventBus:
-        if cls._instance is None:
-            cls._instance = cls()
-        return cls._instance
 
     def subscribe(self, event_type: str, handler: AutonomyEventHandler) -> None:
         if event_type not in self._handlers:
