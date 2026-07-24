@@ -11,7 +11,8 @@ from src.core.identity import is_bot_self
 from src.common.data_models.llm_service_data_models import LLMGenerationOptions, LLMResponseResult
 from src.common.data_models.message_component_data_model import EmojiComponent, ReplyComponent
 from src.common.logger import get_logger
-from src.config.config import global_config
+from src.core.app_config_port_registry import get_app_config_port
+from src.core.bot_config_port_registry import get_bot_config_port
 from src.llm_models.payload_content.message import Message, MessageBuilder, RoleType
 from src.maisaka.display.prompt_cli_renderer import PromptCLIVisualizer
 from src.maisaka.jargon_context_matcher import is_jargon_reference_text
@@ -94,7 +95,7 @@ class JargonLearningBatchGate:
         self._active_session_ids: set[str] = set()
 
     async def acquire(self, session_id: str) -> JargonLearningAcquireResult:
-        max_count = int(global_config.expression.max_expression_learner)
+        max_count = int(get_app_config_port().get_expression_max_expression_learner())
         if max_count <= 0:
             return JargonLearningAcquireResult(False, "max_expression_learner <= 0", 0, max_count)
 
@@ -199,7 +200,7 @@ class JargonLearner:
                         JargonLearningSourceItem(
                             source_kind=context_message.source_kind,
                             speaker_kind="ASSISTANT",
-                            speaker_name=global_config.bot.nickname or "assistant",
+                            speaker_name=get_bot_config_port().get_bot_nickname() or "assistant",
                             content=assistant_content,
                             timestamp=context_message.timestamp,
                         )
@@ -338,10 +339,10 @@ class JargonLearner:
             original_message.message_info.user_info.user_id,
         ):
             speaker_kind = "ASSISTANT"
-            speaker_name = global_config.bot.nickname or "assistant"
+            speaker_name = get_bot_config_port().get_bot_nickname() or "assistant"
         elif source_kind in {"guided_reply", "outbound_send"}:
             speaker_kind = "ASSISTANT"
-            speaker_name = global_config.bot.nickname or "assistant"
+            speaker_name = get_bot_config_port().get_bot_nickname() or "assistant"
         else:
             speaker_kind = "USER"
             if original_message is None:
@@ -437,7 +438,7 @@ class JargonLearner:
 
         readable_message = "聊天上下文将在后续多条 user message 中给出；请以每条消息中的 source_id 作为来源行编号。"
         prompt_template = prompt_manager.get_prompt("learn_jargon")
-        prompt_template.add_context("bot_name", global_config.bot.nickname)
+        prompt_template.add_context("bot_name", get_bot_config_port().get_bot_nickname())
         prompt_template.add_context("chat_str", readable_message)
         prompt = await prompt_manager.render_prompt(prompt_template)
 
@@ -597,7 +598,7 @@ class JargonLearner:
         user_info = message.message_info.user_info
         if is_bot_self(message.platform, user_info.user_id):
             speaker_kind = "ASSISTANT"
-            speaker_name = global_config.bot.nickname or "assistant"
+            speaker_name = get_bot_config_port().get_bot_nickname() or "assistant"
         else:
             speaker_kind = "USER"
             speaker_name = user_info.user_cardname or user_info.user_nickname or "未知用户"
@@ -784,7 +785,7 @@ class JargonLearner:
                 continue
 
             # TODO: 多平台兼容
-            bot_nickname = global_config.bot.nickname
+            bot_nickname = get_bot_config_port().get_bot_nickname()
             if bot_nickname and bot_nickname in content:
                 logger.info(f"跳过包含机器人昵称的黑话：{content}")
                 skipped_entries.append({"content": content, "source_id": source_id, "reason": "contains_bot_nickname"})

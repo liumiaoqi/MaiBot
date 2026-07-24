@@ -8,7 +8,7 @@ import json
 
 from src.common.logger import get_logger
 from src.common.prompt_i18n import load_prompt
-from src.config.config import global_config
+from src.core.bot_config_port_registry import get_bot_config_port
 
 from .behavior_generic_tags import filter_behavior_tag_values
 
@@ -372,7 +372,7 @@ class BehaviorScenarioAnalyzer:
 
         prompt = load_prompt(
             "behavior_scene_analyze",
-            bot_name=global_config.bot.nickname,
+            bot_name=get_bot_config_port().get_bot_nickname(),
         )
         try:
             raw_response = await sub_agent_runner(prompt)
@@ -397,7 +397,7 @@ class BehaviorScenarioAnalyzer:
 
         prompt = load_prompt(
             "behavior_scene_analyze",
-            bot_name=global_config.bot.nickname,
+            bot_name=get_bot_config_port().get_bot_nickname(),
             context_text=normalized_context,
         )
         try:

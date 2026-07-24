@@ -15,7 +15,8 @@ from src.common.database.database import get_db_session
 from src.common.database.database_model import Jargon, JargonCreatedBy, Messages
 from src.common.logger import get_logger
 from src.common.utils.utils_config import JargonConfigUtils
-from src.config.config import global_config
+from src.core.app_config_port_registry import get_app_config_port
+from src.core.bot_config_port_registry import get_bot_config_port
 from src.llm_models.payload_content.message import MessageBuilder, RoleType
 from src.maisaka.display.prompt_cli_renderer import PromptCLIVisualizer
 from src.plugin_runtime.hook_schema_utils import build_object_schema
@@ -438,7 +439,7 @@ class JargonMiner:
             previous_meaning_instruction = "- 请参考上一次推断的含义，结合新的上下文信息，给出更准确或更新的推断结果"
 
         prompt1_template = prompt_manager.get_prompt("jargon_inference_with_context")
-        prompt1_template.add_context("bot_name", global_config.bot.nickname)
+        prompt1_template.add_context("bot_name", get_bot_config_port().get_bot_nickname())
         prompt1_template.add_context("content", str(content))
         prompt1_template.add_context("raw_content_list", raw_content_text)
         prompt1_template.add_context("previous_meaning_section", previous_meaning_section)
@@ -505,7 +506,7 @@ class JargonMiner:
             logger.warning(f"jargon {content} 推断2解析失败")
             return
 
-        if global_config.debug.show_jargon_prompt:
+        if get_app_config_port().get_debug_show_jargon_prompt():
             logger.info(f"jargon {content} 推断1提示词: {prompt1}")
             logger.info(f"jargon {content} 推断2提示词: {prompt2}")
 
@@ -515,7 +516,7 @@ class JargonMiner:
         prompt3_template.add_context("inference2", json.dumps(inference2, ensure_ascii=False))
         prompt3 = await prompt_manager.render_prompt(prompt3_template)
 
-        if global_config.debug.show_jargon_prompt:
+        if get_app_config_port().get_debug_show_jargon_prompt():
             logger.info(f"jargon {content} 比较提示词: {prompt3}")
 
         generation_result_3 = await get_llm_service().generate_response("learner", 

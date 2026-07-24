@@ -3,7 +3,7 @@ import json
 from typing import Optional, List, Dict, Any
 
 from src.common.logger import get_logger
-from src.config.config import global_config
+from src.core.bot_config_port_registry import get_bot_config_port
 
 
 logger = get_logger("learner_utils")
@@ -183,13 +183,13 @@ def contains_bot_self_name(content: str) -> bool:
     if not content:
         return False
 
-    bot_config = getattr(global_config, "bot", None)
+    bot_config = get_bot_config_port()
     if not bot_config:
         return False
 
     target = content.strip().lower()
-    nickname = str(getattr(bot_config, "nickname", "")).strip().lower()
-    alias_names = [str(alias or "").strip().lower() for alias in getattr(bot_config, "alias_names", []) or []]
+    nickname = str(bot_config.get_bot_nickname()).strip().lower()
+    alias_names = [str(alias or "").strip().lower() for alias in bot_config.get_bot_alias_names() or []]
 
     candidates = [name for name in [nickname, *alias_names] if name]
 
@@ -201,7 +201,7 @@ def is_bot_message(msg: Any) -> bool:
     if msg is None:
         return False
 
-    bot_config = getattr(global_config, "bot", None)
+    bot_config = get_bot_config_port()
     if not bot_config:
         return False
 

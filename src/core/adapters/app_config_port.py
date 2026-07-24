@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from src.core.types import AgentAutonomySnapshot, AgentInteractionSnapshot, AMemorixIntegrationSnapshot
 
 
@@ -291,4 +293,40 @@ class GlobalConfigAppConfigPort:
 
     def get_chat_mid_term_memory(self) -> bool:
         return bool(self._get_cfg().chat.mid_term_memory)
+
+    def get_expression_max_expression_learner(self) -> int:
+        return int(self._get_cfg().expression.max_expression_learner or 0)
+
+    def get_expression_self_reflect(self) -> bool:
+        return bool(self._get_cfg().expression.expression_self_reflect)
+
+    def get_expression_selection_mode(self) -> str:
+        return str(self._get_cfg().expression.expression_selection_mode or "random")
+
+    def get_expression_vector_index_path(self) -> str:
+        return str(self._get_cfg().expression.expression_vector_index_path or "")
+
+    def get_expression_groups(self) -> list[Any]:
+        return list(self._get_cfg().expression.expression_groups or [])
+
+    def get_webui_enforce_public_outbound_url(self) -> bool:
+        return bool(self._get_cfg().webui.enforce_public_outbound_url)
+
+    def get_webui_anti_crawler_mode(self) -> str:
+        return str(self._get_cfg().webui.anti_crawler_mode or "off")
+
+    def get_webui_allowed_ips(self) -> str:
+        return str(self._get_cfg().webui.allowed_ips or "")
+
+    def get_webui_trusted_proxies(self) -> str:
+        return str(self._get_cfg().webui.trusted_proxies or "")
+
+    def get_webui_trust_xff(self) -> bool:
+        return bool(self._get_cfg().webui.trust_xff)
+
+    def get_webui_secure_cookie(self) -> bool:
+        return bool(self._get_cfg().webui.secure_cookie)
+
+    def get_webui_mode(self) -> str:
+        return str(self._get_cfg().webui.mode or "development")
 

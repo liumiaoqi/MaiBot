@@ -12,7 +12,8 @@ from src.core.identity import is_bot_self
 from src.common.data_models.llm_service_data_models import LLMGenerationOptions
 from src.common.logger import get_logger
 from src.common.prompt_i18n import load_prompt
-from src.config.config import global_config
+from src.core.app_config_port_registry import get_app_config_port
+from src.core.bot_config_port_registry import get_bot_config_port
 from src.llm_models.payload_content.message import Message, MessageBuilder, RoleType
 from src.maisaka.display.prompt_cli_renderer import PromptCLIVisualizer
 from src.core.adapters.llm_service_port import get_llm_service
@@ -155,7 +156,7 @@ class BehaviorLearningBatchGate:
         self._active_session_ids: set[str] = set()
 
     async def acquire(self, session_id: str) -> BehaviorLearningAcquireResult:
-        max_count = int(global_config.expression.max_expression_learner)
+        max_count = int(get_app_config_port().get_expression_max_expression_learner())
         if max_count <= 0:
             return BehaviorLearningAcquireResult(False, "max_expression_learner <= 0", 0, max_count)
 
@@ -667,7 +668,7 @@ class BehaviorLearner:
 
         prompt = load_prompt(
             "evaluate_behavior_feedback",
-            bot_name=global_config.bot.nickname,
+            bot_name=get_bot_config_port().get_bot_nickname(),
             behavior_references=self._format_feedback_references_for_system_prompt(feedback_context.references),
         )
         feedback_messages = [
@@ -879,7 +880,7 @@ class BehaviorLearner:
 
         prompt = load_prompt(
             "learn_behavior",
-            bot_name=global_config.bot.nickname,
+            bot_name=get_bot_config_port().get_bot_nickname(),
             chat_str="聊天记录将在后续多条 user message 中给出；请以每条消息中的 source_id 作为来源行编号。",
             scene_profile=self._format_scene_segments_for_prompt(scene_segments),
         )

@@ -14,7 +14,8 @@ from src.common.data_models.llm_service_data_models import LLMGenerationOptions
 from src.common.database.database import get_db_session
 from src.common.database.database_model import Expression, ModifiedBy
 from src.common.logger import get_logger
-from src.config.config import global_config
+from src.core.app_config_port_registry import get_app_config_port
+from src.core.bot_config_port_registry import get_bot_config_port
 from src.llm_models.payload_content.message import Message, MessageBuilder, RoleType
 from src.maisaka.display.prompt_cli_renderer import PromptCLIVisualizer
 from src.plugin_runtime.hook_schema_utils import build_object_schema
@@ -51,7 +52,7 @@ class ExpressionLearningBatchGate:
         self._active_session_ids: set[str] = set()
 
     async def acquire(self, session_id: str) -> ExpressionLearningAcquireResult:
-        max_count = int(global_config.expression.max_expression_learner)
+        max_count = int(get_app_config_port().get_expression_max_expression_learner())
         if max_count <= 0:
             return ExpressionLearningAcquireResult(False, "max_expression_learner <= 0", 0, max_count)
 
@@ -383,7 +384,7 @@ class ExpressionLearner:
 
         readable_message = "聊天记录将在后续多条 user message 中给出；请以每条消息中的 source_id 作为来源行编号。"
         prompt_template = prompt_manager.get_prompt("learn_style")
-        prompt_template.add_context("bot_name", global_config.bot.nickname)
+        prompt_template.add_context("bot_name", get_bot_config_port().get_bot_nickname())
         prompt_template.add_context("chat_str", readable_message)
         prompt = await prompt_manager.render_prompt(prompt_template)
 
@@ -444,7 +445,7 @@ class ExpressionLearner:
 
         learnt_expressions_str = "\n".join(f"{situation}->{style}" for situation, style in learnt_expressions)
         session_display_name = self._get_session_display_name(learning_session_id)
-        expression_log_title = "待优化的表达方式" if global_config.expression.expression_self_reflect else "学习到的表达"
+        expression_log_title = "待优化的表达方式" if get_app_config_port().get_expression_self_reflect() else "学习到的表达"
         logger.info(f"[{session_display_name}] {expression_log_title}：\n{learnt_expressions_str}")
 
         written_expressions: List[MaiExpression] = []
@@ -466,7 +467,7 @@ class ExpressionLearner:
                 logger.info(f"{self.session_id} 表达方式写入 Hook 中止: situation={situation!r}")
                 continue
 
-            expression_self_reflect = global_config.expression.expression_self_reflect
+            expression_self_reflect = get_app_config_port().get_expression_self_reflect()
             if expression_self_reflect and not await self._check_expression_before_upsert(
                 situation,
                 style,
@@ -628,10 +629,10 @@ class ExpressionLearner:
         # 准备机器人名称集合（用于过滤 style 与机器人名称重复的表达）
         # TODO: 完善这里的机器人名称检测逻辑（考虑别名、不同平台的名称等）
         banned_names: set[str] = set()
-        bot_nickname = global_config.bot.nickname
+        bot_nickname = get_bot_config_port().get_bot_nickname()
         if bot_nickname:
             banned_names.add(bot_nickname)
-        alias_names = global_config.bot.alias_names or []
+        alias_names = get_bot_config_port().get_bot_alias_names() or []
         for alias in alias_names:
             if alias_stripped := alias.strip():
                 banned_names.add(alias_stripped)
@@ -725,7 +726,7 @@ class ExpressionLearner:
 
     @staticmethod
     def _should_sync_expression_vector_index() -> bool:
-        return global_config.expression.expression_selection_mode in {"vector", "vector_intent"}
+        return get_app_config_port().get_expression_selection_mode() in {"vector", "vector_intent"}
 
     async def _sync_expression_vector_index_batch(self, expressions: Sequence[MaiExpression]) -> None:
         """表达学习批次写库成功后，同步维护表达向量索引并重聚类。"""
@@ -751,7 +752,7 @@ class ExpressionLearner:
             )
 
         await expression_vector_index.upsert_expressions_and_recluster(
-            index_path=global_config.expression.expression_vector_index_path,
+            index_path=get_app_config_port().get_expression_vector_index_path(),
             expressions=index_items,
         )
 
