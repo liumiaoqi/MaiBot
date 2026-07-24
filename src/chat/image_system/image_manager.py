@@ -13,7 +13,7 @@ from src.common.database.database import get_db_session
 from src.common.database.database_model import Images, ImageType
 from src.common.logger import get_logger
 from src.common.utils.image_path import resolve_stored_image_path, serialize_stored_image_path
-from src.config.config import config_manager
+from src.core.model_config_port_registry import get_model_config_port
 from src.prompt.prompt_manager import prompt_manager
 from src.core.adapters.llm_service_port import get_llm_service
 
@@ -35,7 +35,10 @@ def _is_vlm_task_configured() -> bool:
     """判断是否配置了可用于图片识别的视觉模型任务。"""
 
     try:
-        vlm_models = config_manager.get_model_config().model_task_config.vlm.model_list
+        port = get_model_config_port()
+        if port is None:
+            return False
+        vlm_models = port.get_task_config("vlm").model_list
         return any(str(model_name).strip() for model_name in vlm_models)
     except Exception as exc:
         logger.warning(f"读取 VLM 模型配置失败，跳过图片识别: {exc}")

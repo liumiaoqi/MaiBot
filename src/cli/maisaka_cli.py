@@ -10,13 +10,13 @@ from rich import box
 from rich.panel import Panel
 from rich.text import Text
 
-from src.chat.heart_flow.heartflow_manager import heartflow_manager
+from src.core.runtime_port_registry import get_chat_runtime_registry
 from src.chat.heart_flow.heartflow_message_processor import HeartFCMessageReceiver
 
 from src.common.data_models.session_message_data_model import SessionMessage
 from src.common.data_models.mai_message_data_model import MessageInfo, UserInfo
 from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
-from src.config.config import config_manager
+from src.core.model_config_port_registry import get_model_config_port
 
 from .maisaka_cli_sender import CLI_PLATFORM_NAME
 from .console import console
@@ -38,9 +38,12 @@ class BufferCLI:
     def _get_current_model_name() -> str:
         """读取当前 planner 模型名。"""
         try:
-            model_task_config = config_manager.get_model_config().model_task_config
-            if model_task_config.planner.model_list:
-                return model_task_config.planner.model_list[0]
+            port = get_model_config_port()
+            if port is None:
+                return "未配置"
+            task_config = port.get_task_config("planner")
+            if task_config.model_list:
+                return task_config.model_list[0]
         except Exception:
             pass
         return "未配置"
@@ -120,6 +123,6 @@ class BufferCLI:
                 await self._dispatch_input(user_text)
         finally:
             if self._session_id is not None:
-                runtime = heartflow_manager.heartflow_chat_list.pop(self._session_id, None)
+                runtime = get_chat_runtime_registry().remove_runtime(self._session_id)
                 if runtime is not None:
                     await runtime.stop()

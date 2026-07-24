@@ -9,7 +9,7 @@ from src.common.data_models.message_component_data_model import EmojiComponent, 
 from src.common.database.database import get_db_session
 from src.common.database.database_model import Images, ImageType
 from src.common.logger import get_logger
-from src.config.config import config_manager
+from src.core.model_config_port_registry import get_model_config_port
 
 from src.maisaka.context.message_adapter import build_visible_text_from_sequence
 from src.maisaka.context.messages import LLMContextMessage, SessionBackedMessage
@@ -150,7 +150,10 @@ def register_monitor_image_placeholder_refresh(image_hash: str, refresher: Calla
 
 def _is_vlm_task_configured() -> bool:
     try:
-        vlm_models = config_manager.get_model_config().model_task_config.vlm.model_list
+        port = get_model_config_port()
+        if port is None:
+            return False
+        vlm_models = port.get_task_config("vlm").model_list
         return any(str(model_name).strip() for model_name in vlm_models)
     except Exception as exc:
         logger.warning(f"读取 VLM 模型配置失败，跳过图片识别等待: {exc}")
