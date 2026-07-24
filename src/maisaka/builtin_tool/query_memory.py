@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Dict, Optional, Tuple
 
 from src.common.logger import get_logger
-from src.config.config import global_config  # noqa: TID251 — a_memorix.integration 待协议化
+from src.core.app_config_port_registry import get_app_config_port
 from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
 from src.core.types import MemorySearchResult
 from src.maisaka.utils.tool_post_execution import with_memory_feedback_task
@@ -194,7 +194,7 @@ async def handle_tool(
             f"不支持的检索模式：{mode}。可选值：search/time/hybrid/episode/aggregate。",
         )
 
-    default_limit = max(1, global_config.a_memorix.integration.memory_query_default_limit)
+    default_limit = max(1, get_app_config_port().get_a_memorix_integration_config().memory_query_default_limit)
     try:
         limit = int(invocation.arguments.get("limit", default_limit) or default_limit)
     except (TypeError, ValueError):

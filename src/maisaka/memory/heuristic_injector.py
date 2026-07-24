@@ -11,7 +11,7 @@ from src.common.data_models.message_component_data_model import AtComponent, Rep
 from src.common.logger import get_logger
 from src.common.message_repository import count_messages, find_messages
 from src.common.prompt_i18n import load_prompt
-from src.config.config import global_config  # noqa: TID251 — a_memorix.integration 待协议化
+from src.core.app_config_port_registry import get_app_config_port
 from src.core.session_port_registry import get_existing_session_info, get_session_name
 from src.core.types import MemoryHit, SessionInfo
 from src.person_info.person_info import get_person_id
@@ -98,8 +98,8 @@ class HeuristicMemoryInjector:
     ) -> str:
         """构造给 Planner/Replyer 共享的一次性启发式记忆参考。"""
 
-        config = global_config.a_memorix.integration
-        if not bool(getattr(config, "heuristic_memory_recall_enabled", False)):
+        config = get_app_config_port().get_a_memorix_integration_config()
+        if not config.heuristic_memory_recall_enabled:
             self.clear_session_reference(session_id)
             return ""
 
@@ -108,7 +108,7 @@ class HeuristicMemoryInjector:
             logger.debug(f"启发式记忆跳过：无法解析真实聊天流 session_id={session_id!r}")
             return ""
 
-        window_size = max(1, int(getattr(config, "heuristic_memory_recall_window_size", 20) or 20))
+        window_size = max(1, int(config.heuristic_memory_recall_window_size or 20))
         total_message_count = count_messages(session_id=session_info.session_id)
         if total_message_count < window_size:
             self.clear_session_reference(session_info.session_id)
@@ -116,7 +116,7 @@ class HeuristicMemoryInjector:
 
         state = self._states.setdefault(session_info.session_id, HeuristicMemoryRecallState())
         now = time()
-        cache_ttl = max(0, _get_int_config(config, "heuristic_memory_recall_cache_ttl_seconds", 300))
+        cache_ttl = max(0, config.heuristic_memory_recall_cache_ttl_seconds)
         if state.cached_reference and cache_ttl > 0 and now < state.cache_expires_at:
             return state.cached_reference
 
@@ -126,11 +126,11 @@ class HeuristicMemoryInjector:
             now=now,
             min_interval_seconds=max(
                 0,
-                _get_int_config(config, "heuristic_memory_recall_min_interval_seconds", 180),
+                config.heuristic_memory_recall_min_interval_seconds,
             ),
             min_new_messages=max(
                 1,
-                _get_int_config(config, "heuristic_memory_recall_min_new_messages", 60),
+                config.heuristic_memory_recall_min_new_messages,
             ),
         ):
             self.clear_session_reference(session_info.session_id)
@@ -161,7 +161,7 @@ class HeuristicMemoryInjector:
             hits = await self._search_related_memory(impression, context)
             reference = self._format_reference(
                 hits,
-                max_chars=max(100, _get_int_config(config, "heuristic_memory_recall_max_chars", 900)),
+                max_chars=max(100, config.heuristic_memory_recall_max_chars),
             )
         except Exception as exc:
             self.clear_session_reference(session_info.session_id)
@@ -217,10 +217,10 @@ class HeuristicMemoryInjector:
         impression: str,
         context: HeuristicMemoryContext,
     ) -> list[MemoryHit]:
-        config = global_config.a_memorix.integration
-        limit = max(1, int(getattr(config, "heuristic_memory_recall_limit", 3) or 3))
+        config = get_app_config_port().get_a_memorix_integration_config()
+        limit = max(1, int(config.heuristic_memory_recall_limit or 3))
         search_limit = max(limit * 4, limit)
-        cross_chat_enabled = bool(getattr(config, "heuristic_memory_cross_chat_enabled", False))
+        cross_chat_enabled = config.heuristic_memory_cross_chat_enabled
         result = await self._search_with_intuition_fallback(
             impression=impression,
             context_text=impression,
@@ -368,8 +368,8 @@ class HeuristicMemoryInjector:
         if clean_source_session_id == current_session.session_id:
             return True
 
-        config = global_config.a_memorix.integration
-        if not bool(getattr(config, "heuristic_memory_cross_chat_enabled", False)):
+        config = get_app_config_port().get_a_memorix_integration_config()
+        if not config.heuristic_memory_cross_chat_enabled:
             return False
 
         source_info = get_existing_session_info(clean_source_session_id)
@@ -377,9 +377,9 @@ class HeuristicMemoryInjector:
             return False
 
         if source_info.is_group_session and not current_session.is_group_session:
-            return bool(getattr(config, "heuristic_memory_group_to_private_enabled", False))
+            return config.heuristic_memory_group_to_private_enabled
         if not source_info.is_group_session and current_session.is_group_session:
-            return bool(getattr(config, "heuristic_memory_private_to_group_enabled", False))
+            return config.heuristic_memory_private_to_group_enabled
         return True
 
     @staticmethod

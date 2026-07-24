@@ -8,7 +8,8 @@ from typing import Sequence
 from src.core.types import SessionMessage
 from src.common.data_models.message_component_data_model import AtComponent, ReplyComponent
 from src.common.logger import get_logger
-from src.config.config import global_config  # noqa: TID251 — bot.qq_account/a_memorix 待协议化
+from src.core.app_config_port_registry import get_app_config_port
+from src.core.identity import is_bot_self
 from src.core.protocols import MemoryServicePort
 from src.person_info.person_info import resolve_person_id_for_memory
 
@@ -86,9 +87,8 @@ def _candidate_name(*values: object) -> str:
     return ""
 
 
-def _is_bot_user_id(user_id: str) -> bool:
-    bot_user_id = _clean_text(getattr(global_config.bot, "qq_account", ""))
-    return bool(user_id and bot_user_id and user_id == bot_user_id)
+def _is_bot_user_id(user_id: str, platform: str = "") -> bool:
+    return is_bot_self(platform, user_id)
 
 
 def _resolve_candidate(
@@ -101,7 +101,7 @@ def _resolve_candidate(
     clean_platform = _clean_text(platform)
     clean_user_id = _clean_text(user_id)
     clean_person_name = _clean_text(person_name)
-    if _is_bot_user_id(clean_user_id):
+    if _is_bot_user_id(clean_user_id, clean_platform):
         return None
 
     try:
@@ -267,14 +267,14 @@ async def build_person_profile_injection_messages(
 ) -> list[str]:
     """构造注入 planner 的一次性人物画像内部参考消息。"""
 
-    integration_config = global_config.a_memorix.integration
-    if not bool(getattr(integration_config, "enable_person_profile_injection", True)):
+    integration_config = get_app_config_port().get_a_memorix_integration_config()
+    if not integration_config.enable_person_profile_injection:
         return []
 
     _memory_port = memory_service_port or _get_default_memory_port()
 
     try:
-        max_profiles = int(getattr(integration_config, "person_profile_injection_max_profiles", 3) or 3)
+        max_profiles = int(integration_config.person_profile_injection_max_profiles or 3)
     except (TypeError, ValueError):
         max_profiles = 3
     candidates = collect_person_profile_candidates(

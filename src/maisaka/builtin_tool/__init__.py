@@ -5,7 +5,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Dict, List, Literal, Optional
 
-from src.config.config import global_config  # noqa: TID251 — a_memorix/experimental 待协议化
+
 from src.core.app_config_port_registry import get_app_config_port
 from src.core.tooling import ToolAvailabilityContext, ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
 from src.llm_models.payload_content.tool_option import ToolDefinitionInput
@@ -68,14 +68,14 @@ class BuiltinToolEntry:
 def _get_query_memory_tool_spec() -> ToolSpec:
     """根据配置生成 query_memory 工具声明。"""
 
-    return get_query_memory_tool_spec(enabled=bool(global_config.a_memorix.integration.enable_memory_query_tool))
+    return get_query_memory_tool_spec(enabled=bool(get_app_config_port().get_a_memorix_integration_config().enable_memory_query_tool))
 
 
 def _get_query_person_profile_tool_spec() -> ToolSpec:
     """根据配置生成 query_person_profile 工具声明。"""
 
     return get_query_person_profile_tool_spec(
-        enabled=bool(global_config.a_memorix.integration.enable_person_profile_query_tool)
+        enabled=bool(get_app_config_port().get_a_memorix_integration_config().enable_person_profile_query_tool)
     )
 
 
