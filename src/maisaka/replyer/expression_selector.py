@@ -14,7 +14,7 @@ from src.common.database.database import get_db_session
 from src.common.database.database_model import Expression, ModifiedBy
 from src.common.logger import get_logger
 from src.common.utils.utils_config import ChatConfigUtils, ExpressionConfigUtils
-from src.config.config import global_config, model_config  # noqa: TID251
+from src.config.config import model_config  # noqa: TID251
 from src.core.app_config_port_registry import get_app_config_port
 from src.learners.expression_style_utils import (
     is_prompt_example_expression_style,

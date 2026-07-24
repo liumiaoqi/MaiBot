@@ -20,7 +20,7 @@ from datetime import datetime
 
 from src.common.logger import get_logger
 from src.common.utils.utils_message import MessageUtils
-from src.config.config import global_config  # noqa: TID251
+
 from src.core.bot_config_port_registry import get_bot_config_port
 from src.core.message_utils import build_binary_component_from_base64, build_message_sequence_from_custom_message
 from src.core.session_port_registry import get_session_info_port, get_session_query_port
@@ -42,10 +42,7 @@ from src.common.data_models.message_component_data_model import (
     TextComponent,
     VoiceComponent,
 )
-from src.common.logger import get_logger
-from src.common.utils.utils_message import MessageUtils
-from src.config.config import global_config  # noqa: TID251
-from src.core.types import SendMessageResult
+
 from src.platform_io import DeliveryBatch, get_platform_io_manager
 from src.platform_io.route_key_factory import RouteKeyFactory
 from src.plugin_runtime.hook_payloads import deserialize_session_message, serialize_session_message

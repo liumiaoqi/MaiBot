@@ -1,7 +1,7 @@
 from typing import Any, Dict, Optional
 
 from src.common.logger import get_logger
-from src.config.config import global_config  # noqa: TID251
+
 from src.core.app_config_port_registry import get_app_config_port
 from src.core.session_port_registry import get_session_info_port
 from src.core.types import SessionInfo

@@ -13,7 +13,7 @@ from src.common.database.database_model import Images, ImageType, ToolRecord
 from src.common.message_repository import count_messages, find_messages
 from src.common.utils.math_utils import translate_timestamp_to_human_readable
 from src.common.utils.utils_action import ActionUtils
-from src.config.config import global_config  # noqa: TID251
+
 from src.core.bot_config_port_registry import get_bot_config_port
 
 

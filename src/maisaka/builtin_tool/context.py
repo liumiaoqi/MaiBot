@@ -17,7 +17,7 @@ from src.common.data_models.message_component_data_model import (
     TextComponent,
 )
 from src.common.logger import get_logger
-from src.config.config import global_config  # noqa: TID251
+
 from src.core.bot_config_port_registry import get_bot_config_port
 from src.core.chat_config_port_registry import get_chat_config_port
 from src.core.tooling import ToolExecutionResult

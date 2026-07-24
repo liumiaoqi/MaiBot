@@ -368,7 +368,7 @@ class SessionMessage(MaiMessage):
         elif component.target_user_nickname:
             return f"@{component.target_user_nickname}"
         from src.common.utils.system_utils import is_bot_self
-        from src.config.config import global_config  # noqa: TID251
+
         from src.core.bot_config_port_registry import get_bot_config_port
 
         if is_bot_self(self.platform, component.target_user_id):

@@ -101,7 +101,7 @@ async def _send_message(message: SessionMessage, show_log: bool = True) -> bool:
         if is_webui_message and chat_manager is not None:
             # WebUI 聊天室消息（包括虚拟身份模式），通过 WebSocket 广播
             import time
-            from src.config.config import global_config  # noqa: TID251
+
             from src.core.bot_config_port_registry import get_bot_config_port
 
             # 解析消息段，获取富文本内容

@@ -14,7 +14,7 @@ from src.core.types import SessionMessage
 from src.common.data_models.mai_message_data_model import MessageInfo
 from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
 from src.common.logger import get_logger
-from src.config.config import global_config  # noqa: TID251
+
 from src.core.bot_config_port_registry import get_bot_config_port
 from src.core.session_port_registry import get_last_message, get_session_name
 from src.core.types import SessionInfo
