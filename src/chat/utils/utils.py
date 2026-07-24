@@ -10,7 +10,7 @@ import time
 
 from src.common.data_models.session_message_data_model import SessionMessage
 from src.common.logger import get_logger
-from src.config.config import global_config
+from src.config.config import global_config  # noqa: TID251
 
 from .typo_generator import ChineseTypoGenerator  # noqa: F401
 

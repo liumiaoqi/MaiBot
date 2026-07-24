@@ -700,14 +700,15 @@ class RuntimeDataCapabilityMixin:
     async def _cap_emoji_get_info(self, plugin_id: str, capability: str, args: Dict[str, Any]) -> Any:
         try:
             from src.emoji_system.emoji_manager import emoji_manager
-            from src.config.config import global_config
+            from src.config.config import global_config  # noqa: TID251
+            from src.core.app_config_port_registry import get_app_config_port
 
             current_count = len(emoji_manager.emojis)
             return {
                 "success": True,
                 "info": {
                     "current_count": current_count,
-                    "max_count": global_config.emoji.max_reg_num,
+                    "max_count": get_app_config_port().get_emoji_max_reg_num(),
                     "available_emojis": current_count,
                 },
             }

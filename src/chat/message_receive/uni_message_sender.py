@@ -101,7 +101,8 @@ async def _send_message(message: SessionMessage, show_log: bool = True) -> bool:
         if is_webui_message and chat_manager is not None:
             # WebUI 聊天室消息（包括虚拟身份模式），通过 WebSocket 广播
             import time
-            from src.config.config import global_config
+            from src.config.config import global_config  # noqa: TID251
+            from src.core.bot_config_port_registry import get_bot_config_port
 
             # 解析消息段，获取富文本内容
             message_segments = serialize_message_sequence(message.raw_message)
@@ -134,7 +135,7 @@ async def _send_message(message: SessionMessage, show_log: bool = True) -> bool:
                     "timestamp": time.time(),
                     "group_id": group_id,
                     "sender": {
-                        "name": global_config.bot.nickname,
+                        "name": get_bot_config_port().get_bot_nickname(),
                         "avatar": None,
                         "is_bot": True,
                         "agent_id": _resolve_bot_agent_id(message),
@@ -164,7 +165,7 @@ async def _send_message(message: SessionMessage, show_log: bool = True) -> bool:
                 bool: 回退链路是否发送成功。
             """
             try:
-                from src.config.config import global_config
+                from src.config.config import global_config  # noqa: TID251
 
                 # 如果未开启 API Server，直接跳过 Fallback
                 if not global_config.maim_message.enable_api_server:

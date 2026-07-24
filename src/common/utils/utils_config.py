@@ -3,7 +3,7 @@ from typing import Any, Iterator, Optional
 import time
 
 from src.common.logger import get_logger
-from src.config.config import global_config
+from src.config.config import global_config  # noqa: TID251
 
 logger = get_logger("config_utils")
 

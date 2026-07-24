@@ -13,7 +13,8 @@ from src.common.database.database_model import Images, ImageType, ToolRecord
 from src.common.message_repository import count_messages, find_messages
 from src.common.utils.math_utils import translate_timestamp_to_human_readable
 from src.common.utils.utils_action import ActionUtils
-from src.config.config import global_config
+from src.config.config import global_config  # noqa: TID251
+from src.core.bot_config_port_registry import get_bot_config_port
 
 
 def _build_readable_line(
@@ -24,8 +25,8 @@ def _build_readable_line(
     show_message_id_prefix: bool,
 ) -> str:
     plain_text = (message.processed_plain_text or "").strip()
-    if replace_bot_name and global_config.bot.nickname:
-        plain_text = plain_text.replace(global_config.bot.nickname, "你")
+    if replace_bot_name and get_bot_config_port().get_bot_nickname():
+        plain_text = plain_text.replace(get_bot_config_port().get_bot_nickname(), "你")
     user_name = (
         message.message_info.user_info.user_cardname
         or message.message_info.user_info.user_nickname
@@ -276,7 +277,7 @@ def replace_user_references(text: str, platform: str, replace_bot_name: bool = F
     def _replace(match: re.Match[str]) -> str:
         prefix = match.group(1) or ""
         user_name = match.group(2)
-        if replace_bot_name and user_name == global_config.bot.nickname:
+        if replace_bot_name and user_name == get_bot_config_port().get_bot_nickname():
             user_name = "你"
         return f"{prefix}{user_name}"
 

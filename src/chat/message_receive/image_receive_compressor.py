@@ -27,7 +27,7 @@ class ImageReceiveProcessReport:
 
 def process_received_images_in_message(components: List[StandardMessageComponents]) -> ImageReceiveProcessReport:
     """按视觉配置处理入站消息中的过大图片组件。"""
-    from src.config.config import global_config
+    from src.config.config import global_config  # noqa: TID251
 
     visual_config = global_config.visual
     if not visual_config.handle_oversized_images:

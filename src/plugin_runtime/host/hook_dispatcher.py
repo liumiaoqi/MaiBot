@@ -25,7 +25,7 @@ import contextlib
 
 from src.common.logger import get_logger
 from src.common.shutdown import is_shutdown_requested
-from src.config.config import global_config
+from src.config.config import global_config  # noqa: TID251
 from src.plugin_runtime.protocol.errors import ErrorCode, RPCError
 
 from .circuit_breaker import get_plugin_circuit_breaker
@@ -328,7 +328,7 @@ class HookDispatcher:
             int: 默认超时毫秒数。
         """
 
-        timeout_seconds = float(global_config.plugin_runtime.hook_blocking_timeout_sec or 60.0)
+        timeout_seconds = float(global_config.plugin_runtime.hook_blocking_timeout_sec or 60.0)  # noqa: TID251
         return max(int(timeout_seconds * 1000), 1)
 
     @staticmethod

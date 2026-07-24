@@ -11,7 +11,7 @@ from src.chat.heart_flow.heartflow_message_processor import HeartFCMessageReceiv
 from src.common.logger import get_logger
 from src.common.utils.utils_message import MessageUtils
 from src.common.utils.utils_session import SessionUtils
-from src.config.config import global_config
+from src.config.config import global_config  # noqa: TID251
 from src.core.announcement_manager import global_announcement_manager
 from src.platform_io.route_key_factory import RouteKeyFactory
 from src.plugin_runtime.component_query import component_query_service

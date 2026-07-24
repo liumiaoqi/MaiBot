@@ -30,7 +30,7 @@ from src.common.data_models.message_component_data_model import (
 )
 from src.common.logger import get_logger
 from src.common.utils.image_path import resolve_stored_image_path, serialize_stored_image_path
-from src.config.config import global_config
+from src.config.config import global_config  # noqa: TID251
 
 from .math_utils import number_to_short_id, TimestampMode, translate_timestamp_to_human_readable
 from .system_utils import is_bot_self

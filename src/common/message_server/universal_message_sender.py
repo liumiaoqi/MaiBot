@@ -144,7 +144,7 @@ class UniversalMessageSender:
             bool: 消息是否发送成功
         """
         try:
-            from src.config.config import global_config
+            from src.config.config import global_config  # noqa: TID251
 
             # 如果未开启 API Server，直接跳过 Fallback
             if not global_config.maim_message.enable_api_server:

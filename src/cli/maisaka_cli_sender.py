@@ -4,7 +4,8 @@ from rich.markdown import Markdown
 from rich.panel import Panel
 
 from src.common.logger import get_logger
-from src.config.config import global_config
+from src.config.config import global_config  # noqa: TID251
+from src.core.bot_config_port_registry import get_bot_config_port
 
 from .console import console
 
@@ -19,7 +20,7 @@ def render_cli_message(content: str, *, title: str = "") -> None:
     console.print(
         Panel(
             Markdown(preview_text),
-            title=title or global_config.bot.nickname.strip() or "MaiSaka",
+            title=title or get_bot_config_port().get_bot_nickname().strip() or "MaiSaka",
             border_style="magenta",
             padding=(1, 2),
         )

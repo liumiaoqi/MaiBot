@@ -4,7 +4,7 @@ from typing import Optional
 import base64
 
 from src.common.logger import get_logger
-from src.config.config import global_config
+from src.config.config import global_config  # noqa: TID251
 from src.core.adapters.llm_service_port import get_llm_service
 
 

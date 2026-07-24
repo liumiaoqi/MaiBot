@@ -6,7 +6,7 @@ import asyncio
 import platform
 
 from src.common.logger import get_logger
-from src.config.config import global_config, MMC_VERSION
+from src.config.config import global_config, MMC_VERSION  # noqa: TID251
 from src.manager.async_task_manager import AsyncTask
 from src.manager.local_store_manager import local_storage
 from src.services.telemetry_stats_service import build_telemetry_stats_payload, clamp_period_start

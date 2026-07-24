@@ -13,7 +13,7 @@ import time
 from src.common.logger import get_logger
 from src.common.message_repository import count_messages, find_messages
 from src.core.identity import is_bot_self
-from src.config.config import global_config
+from src.config.config import global_config  # noqa: TID251
 from src.core.adapters.llm_service_port import get_llm_service
 from src.core.protocols import LLMService
 from src.person_info.person_info import Person, get_person_id, store_person_memory_from_answer

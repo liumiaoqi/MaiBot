@@ -280,7 +280,7 @@ def run_image_cache_cleanup(config: ImageCacheCleanupConfigLike) -> ImageCacheCl
 
 async def periodic_image_cache_cleanup() -> None:
     """按配置周期执行图片缓存清理。"""
-    from src.config.config import global_config
+    from src.config.config import global_config  # noqa: TID251
 
     while True:
         config = global_config.visual.image_cache_cleanup

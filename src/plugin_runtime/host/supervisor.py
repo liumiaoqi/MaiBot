@@ -11,7 +11,7 @@ import time
 
 from src.common.logger import get_logger
 from src.common.shutdown import is_shutdown_requested
-from src.config.config import global_config
+from src.config.config import global_config  # noqa: TID251
 from src.platform_io import DriverKind, InboundMessageEnvelope, RouteBinding, RouteKey, get_platform_io_manager
 from src.platform_io.drivers import PluginPlatformDriver
 from src.platform_io.route_key_factory import RouteKeyFactory

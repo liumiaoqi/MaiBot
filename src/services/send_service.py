@@ -20,7 +20,8 @@ from datetime import datetime
 
 from src.common.logger import get_logger
 from src.common.utils.utils_message import MessageUtils
-from src.config.config import global_config
+from src.config.config import global_config  # noqa: TID251
+from src.core.bot_config_port_registry import get_bot_config_port
 from src.core.message_utils import build_binary_component_from_base64, build_message_sequence_from_custom_message
 from src.core.session_port_registry import get_session_info_port, get_session_query_port
 from src.core.types import SendMessageResult, SessionInfo
@@ -43,7 +44,7 @@ from src.common.data_models.message_component_data_model import (
 )
 from src.common.logger import get_logger
 from src.common.utils.utils_message import MessageUtils
-from src.config.config import global_config
+from src.config.config import global_config  # noqa: TID251
 from src.core.types import SendMessageResult
 from src.platform_io import DeliveryBatch, get_platform_io_manager
 from src.platform_io.route_key_factory import RouteKeyFactory
@@ -506,7 +507,7 @@ def _build_outbound_session_message(
     outbound_message.message_info = MessageInfo(
         user_info=UserInfo(
             user_id=bot_user_id,
-            user_nickname=global_config.bot.nickname,
+            user_nickname=get_bot_config_port().get_bot_nickname(),
         ),
         group_info=group_info,
         additional_config=additional_config,

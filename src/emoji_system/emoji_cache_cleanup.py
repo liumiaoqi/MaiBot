@@ -310,7 +310,7 @@ def run_emoji_cache_cleanup(config: EmojiCacheCleanupConfigLike) -> EmojiCacheCl
 
 async def periodic_emoji_cache_cleanup() -> None:
     """按配置周期执行表情包缓存清理。"""
-    from src.config.config import global_config
+    from src.config.config import global_config  # noqa: TID251
 
     while True:
         config = global_config.emoji.cache_cleanup

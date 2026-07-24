@@ -11,7 +11,8 @@ from src.common.data_models.person_info_data_model import dump_group_cardname_re
 from src.common.database.database import get_db_session
 from src.common.database.database_model import PersonInfo
 from src.common.logger import get_logger
-from src.config.config import global_config
+from src.config.config import global_config  # noqa: TID251
+from src.core.bot_config_port_registry import get_bot_config_port
 from src.core.memory_port_registry import get_memory_service_port
 from src.core.session_port_registry import get_session_info
 
@@ -272,8 +273,8 @@ class Person:
             self.person_id = get_person_id(platform, user_id)
             self.user_id = user_id
             self.platform = platform
-            self.nickname = global_config.bot.nickname
-            self.person_name = global_config.bot.nickname
+            self.nickname = get_bot_config_port().get_bot_nickname()
+            self.person_name = get_bot_config_port().get_bot_nickname()
             self.group_cardname_list: list[dict[str, str]] = []
             return
 
