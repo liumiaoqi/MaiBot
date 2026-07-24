@@ -121,13 +121,29 @@
 | ThinkingOrganFactory | 思维管道工厂 | ThinkingOrganFactory |
 | ReplyerServicePort | 回复生成器服务 | ReplyerServiceAdapter |
 | ImageDescriptionPort | 图片描述服务 | ImageDescriptionAdapter |
-| PersonInfoPort | 人物信息查询 | PersonInfoPortAdapter |
-| ModelConfigPort | 模型配置查询 | ConfigManagerModelConfigPort |
+| PersonInfoPort | 人物信息查询（6方法） | PersonInfoPortAdapter |
+| ModelConfigPort | 模型配置查询（4+2方法） | ConfigManagerModelConfigPort |
 | LLMService | LLM服务（4方法） | LLMServiceAdapter |
 | BotConfigPort | 机器人配置查询（5方法） | GlobalConfigBotConfigPort |
 | ChatConfigPort | 聊天配置查询（11方法） | GlobalConfigChatConfigPort |
-| AppConfigPort | 应用配置查询（~60方法） | GlobalConfigAppConfigPort |
+| AppConfigPort | 应用配置查询（~65方法） | GlobalConfigAppConfigPort |
 | AutonomyEventBusPort | 智能体自主性事件总线 | AutonomyEventBus |
+
+### 快照类型
+
+| 快照 | 字段数 | 用途 |
+|------|--------|------|
+| PluginRuntimeSnapshot | 6 | 插件运行时配置（enabled/ipc_socket_path等） |
+| PersonDetailSnapshot | 4 | 人物详情（is_known/person_id/person_name/nickname） |
+
+### 全局注册点
+
+| 注册点文件 | 注册 Protocol | 注册/获取/重置 |
+|-----------|-------------|--------------|
+| app_config_port_registry.py | AppConfigPort | get/set/reset |
+| person_info_port_registry.py | PersonInfoPort | get/set/reset |
+| model_config_port_registry.py | ModelConfigPort | register/get/reset |
+| runtime_port_registry.py | ChatRuntimeRegistry + ChatRuntimeFactory | register/get |
 
 ## 内心状态三层
 
@@ -182,6 +198,7 @@ CA 派发审查任务时，CC 按以下维度输出报告（写入 `.shared/hand
 | 快速修复 | M2+M3+H7+M4 | SessionMessage/is_bot_self 导入路径替换 + ReplyerServicePort/memory_service 绕过修复 |
 | SSD-10 | 配置与事件注入化 | BotConfigPort/ChatConfigPort/AppConfigPort/AutonomyEventBusPort Protocol + 15项死配置删除 + 13项DEPRECATED + AutonomyEventBus.get_instance()消除 |
 | SSD-11 | SSD-10 遗留协议化 | global_config TID251 从41处降至0处（8处整体对象场景保留noha），ChatConfigPort 5→13方法，AppConfigPort 21→78方法，5个新快照类型，14处死导入清除，is_bot_self替代qq_account直接访问，BotConfigPort新增get_bot_platform/get_bot_primary_account，service_task_resolver.model_name_exists替代config_manager |
+| SSD-12 | 剩余 TID251 违规消除 | config_manager 4处/heartflow_manager 2处/Person 4处 TID251 清零，AppConfigPort +5方法（~60→~65），ChatRuntimeRegistry +2方法（3→5），PersonInfoPort +5方法（1→6），新建 model_config_port_registry，新增 PluginRuntimeSnapshot/PersonDetailSnapshot 快照类型 |
 
 # 待后续
 
@@ -190,4 +207,3 @@ CA 派发审查任务时，CC 按以下维度输出报告（写入 `.shared/hand
 - ⬜ A_memorix 内部 322 处 bare except
 - ⬜ mem_core_gap 未覆盖的 8 项差距（G16/G18/G19/G21/G22/G23/G24/G28）
 - ⬜ SSD-11 遗留：runtime.py expression/MCPConfig 整体对象、utils_config.py 多域混合、plugin_runtime 整体对象、maim_message 整体对象、emoji缓存清理/图片缓存清理 整体对象、webui/routes/chat reply_style 整体对象
-- ⬜ SSD-12：config_manager TID251 消除（~8处）、Person TID251 消除（~3处）、heartflow_manager TID251 消除（~3处）
