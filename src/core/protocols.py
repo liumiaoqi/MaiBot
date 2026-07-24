@@ -34,7 +34,9 @@ if TYPE_CHECKING:
         MemoryWriteResult,
         NoticeKind,
         ObserveRequest,
+        PersonDetailSnapshot,
         PersonInfoResult,
+        PluginRuntimeSnapshot,
         ReplyTimingSnapshot,
         ReplyStyleSnapshot,
         SendMessageResult,
@@ -238,6 +240,26 @@ class ChatRuntimeRegistry(Protocol):
 
         Returns:
             ChatRuntime 实例列表
+        """
+
+    def get_runtime_sync(self, session_id: str) -> Optional[ChatRuntime]:
+        """同步获取指定会话的运行时实例。
+
+        Args:
+            session_id: 会话 ID
+
+        Returns:
+            ChatRuntime 实例，不存在时返回 None
+        """
+
+    def remove_runtime(self, session_id: str) -> Optional[ChatRuntime]:
+        """移除并返回指定会话的运行时实例。
+
+        Args:
+            session_id: 会话 ID
+
+        Returns:
+            被移除的 ChatRuntime 实例，不存在时返回 None
         """
 
 
@@ -910,6 +932,35 @@ class PersonInfoPort(Protocol):
         """查询人物信息。"""
         ...
 
+    def get_person_id(self, platform: str, user_id: str) -> str:
+        """根据平台和用户ID获取 person_id（纯 MD5 哈希计算）。"""
+        ...
+
+    def get_person_id_by_name(self, person_name: str) -> str:
+        """根据用户名获取 person_id（查数据库）。"""
+        ...
+
+    def get_person_attribute(self, person_id: str, field_name: str) -> Any:
+        """根据 person_id 获取人物属性值。"""
+        ...
+
+    def get_person_detail(self, person_id: str) -> Optional[PersonDetailSnapshot]:
+        """根据 person_id 获取人物详情快照。"""
+        ...
+
+    async def store_person_memory(
+        self,
+        person_name: str,
+        fact: str,
+        session_id: str,
+        *,
+        person_id: str = "",
+        evidence_source: str = "user_supported",
+        evidence_message_ids: list[str] | None = None,
+    ) -> None:
+        """写回人物事实记忆。"""
+        ...
+
 
 @runtime_checkable
 class BotConfigPort(Protocol):
@@ -1023,6 +1074,44 @@ class AppConfigPort(Protocol):
     def get_webui_trust_xff(self) -> bool: ...
     def get_webui_secure_cookie(self) -> bool: ...
     def get_webui_mode(self) -> str: ...
+
+    def get_plugin_runtime_config(self) -> PluginRuntimeSnapshot:
+        """获取插件运行时配置快照。
+
+        Returns:
+            PluginRuntimeSnapshot 不可变快照
+        """
+        ...
+
+    def register_reload_callback(self, callback: object) -> None:
+        """注册全局配置热重载回调。
+
+        适配器委托 config_manager.register_reload_callback()。
+        """
+        ...
+
+    def unregister_reload_callback(self, callback: object) -> None:
+        """注销全局配置热重载回调。
+
+        适配器委托 config_manager.unregister_reload_callback()。
+        """
+        ...
+
+    def get_global_config_json(self) -> str:
+        """获取全局配置的 JSON 序列化字符串。
+
+        Returns:
+            config_manager.get_global_config().model_dump(mode="json") 的结果
+        """
+        ...
+
+    def get_model_config_json(self) -> str:
+        """获取模型配置的 JSON 序列化字符串。
+
+        Returns:
+            config_manager.get_model_config().model_dump(mode="json") 的结果
+        """
+        ...
 
 
 @runtime_checkable

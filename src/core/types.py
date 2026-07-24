@@ -847,6 +847,8 @@ __all__ = [
     "ReflectResult",
     "PersonInfoResult",
     "SessionMessage",
+    "PluginRuntimeSnapshot",
+    "PersonDetailSnapshot",
 ]
 
 
@@ -973,3 +975,25 @@ class KeywordReactionSnapshot:
     """关键词反应配置快照。"""
     keyword_rules: tuple[KeywordRuleSnapshot, ...] = ()
     regex_rules: tuple[KeywordRuleSnapshot, ...] = ()
+
+
+@dataclass(frozen=True)
+class PluginRuntimeSnapshot:
+    """插件运行时配置快照 — 替代 global_config.plugin_runtime 整体对象访问。"""
+
+    enabled: bool = False
+    ipc_socket_path: str = ""
+    health_check_interval_sec: float = 60.0
+    max_restart_attempts: int = 3
+    runner_spawn_timeout_sec: float = 30.0
+    hook_blocking_timeout_sec: float = 5.0
+
+
+@dataclass(frozen=True)
+class PersonDetailSnapshot:
+    """人物详情快照 — 替代 Person 类直接实例化访问。"""
+
+    is_known: bool = False
+    person_id: str = ""
+    person_name: str = ""
+    nickname: str = ""
