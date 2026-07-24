@@ -13,7 +13,7 @@ import time
 from src.common.logger import get_logger
 from src.common.message_repository import count_messages, find_messages
 from src.core.identity import is_bot_self
-from src.config.config import global_config  # noqa: TID251
+from src.core.app_config_port_registry import get_app_config_port
 from src.core.adapters.llm_service_port import get_llm_service
 from src.core.protocols import LLMService
 from src.person_info.person_info import Person, get_person_id, store_person_memory_from_answer
@@ -57,7 +57,7 @@ class PersonFactWritebackService:
             logger.warning(f"关闭人物事实写回 worker 失败: {exc}")
 
     async def enqueue(self, message: Any) -> None:
-        if not bool(global_config.a_memorix.integration.person_fact_writeback_enabled):
+        if not get_app_config_port().get_a_memorix_integration_config().person_fact_writeback_enabled:
             return
         if self._stopping:
             return
@@ -452,7 +452,7 @@ class ChatSummaryWritebackService:
             logger.warning(f"关闭聊天摘要写回 worker 失败: {exc}")
 
     async def enqueue(self, message: Any) -> None:
-        if not bool(global_config.a_memorix.integration.chat_summary_writeback_enabled):
+        if not get_app_config_port().get_a_memorix_integration_config().chat_summary_writeback_enabled:
             return
         if self._stopping:
             return
@@ -636,11 +636,11 @@ class ChatSummaryWritebackService:
 
     @staticmethod
     def _message_threshold() -> int:
-        return max(1, int(global_config.a_memorix.integration.chat_summary_writeback_message_threshold))
+        return max(1, int(get_app_config_port().get_a_memorix_integration_config().chat_summary_writeback_message_threshold))
 
     @staticmethod
     def _context_length() -> int:
-        return max(1, int(global_config.a_memorix.integration.chat_summary_writeback_context_length))
+        return max(1, int(get_app_config_port().get_a_memorix_integration_config().chat_summary_writeback_context_length))
 
     @staticmethod
     def _count_messages_until_trigger(*, session_id: str, message_time: float | None) -> int:

@@ -30,7 +30,7 @@ from src.common.data_models.message_component_data_model import (
 )
 from src.common.logger import get_logger
 from src.common.utils.image_path import resolve_stored_image_path, serialize_stored_image_path
-from src.config.config import global_config  # noqa: TID251
+from src.core.app_config_port_registry import get_app_config_port
 
 from .math_utils import number_to_short_id, TimestampMode, translate_timestamp_to_human_readable
 from .system_utils import is_bot_self
@@ -184,7 +184,7 @@ class MessageUtils:
         if not text:
             return False, None
         return next(
-            ((True, word) for word in global_config.message_receive.ban_words if word in text),
+            ((True, word) for word in get_app_config_port().get_message_receive_ban_words() if word in text),
             (False, None),
         )
 
@@ -204,7 +204,7 @@ class MessageUtils:
         if not text:
             return False, None
         return next(
-            ((True, pattern) for pattern in global_config.message_receive.ban_msgs_regex if re.search(pattern, text)),
+            ((True, pattern) for pattern in get_app_config_port().get_message_receive_ban_msgs_regex() if re.search(pattern, text)),
             (False, None),
         )
 

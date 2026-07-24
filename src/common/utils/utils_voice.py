@@ -4,7 +4,7 @@ from typing import Optional
 import base64
 
 from src.common.logger import get_logger
-from src.config.config import global_config  # noqa: TID251
+from src.core.app_config_port_registry import get_app_config_port
 from src.core.adapters.llm_service_port import get_llm_service
 
 
@@ -21,7 +21,7 @@ async def get_voice_text(voice_bytes: bytes) -> Optional[str]:
     Returns:
         return (Optional[str]): 转录后的文本描述，如果转录失败或未启用语音识别功能，则返回 None
     """
-    if not global_config.voice.enable_asr:
+    if not get_app_config_port().get_voice_enable_asr():
         logger.warning("语音识别未启用，无法处理语音消息")
         return None
     try:

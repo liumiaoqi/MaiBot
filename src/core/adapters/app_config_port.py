@@ -226,3 +226,27 @@ class GlobalConfigAppConfigPort:
             monologue_emotion_intensity_threshold=ai.monologue_emotion_intensity_threshold,
         )
 
+    def get_log_llm_request_snapshot_limit(self) -> int:
+        return int(self._get_cfg().log.llm_request_snapshot_limit or 0)
+
+    def get_voice_enable_asr(self) -> bool:
+        return bool(self._get_cfg().voice.enable_asr)
+
+    def get_maim_message_enable_api_server(self) -> bool:
+        return bool(self._get_cfg().maim_message.enable_api_server)
+
+    def get_plugin_runtime_hook_blocking_timeout_sec(self) -> float:
+        return float(self._get_cfg().plugin_runtime.hook_blocking_timeout_sec or 60.0)
+
+    def get_telemetry_enable(self) -> bool:
+        return bool(self._get_cfg().telemetry.enable)
+
+    def get_message_receive_ban_words(self) -> list[str]:
+        return list(self._get_cfg().message_receive.ban_words or [])
+
+    def get_message_receive_ban_msgs_regex(self) -> list[str]:
+        return list(self._get_cfg().message_receive.ban_msgs_regex or [])
+
+    def get_a_memorix_shared_memory_groups(self) -> list[str]:
+        return list(getattr(self._get_cfg().a_memorix, "shared_memory_groups", []) or [])
+

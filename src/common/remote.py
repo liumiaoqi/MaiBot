@@ -6,7 +6,8 @@ import asyncio
 import platform
 
 from src.common.logger import get_logger
-from src.config.config import global_config, MMC_VERSION  # noqa: TID251
+from src.config.config import MMC_VERSION  # noqa: TID251
+from src.core.app_config_port_registry import get_app_config_port
 from src.manager.async_task_manager import AsyncTask
 from src.manager.local_store_manager import local_storage
 from src.services.telemetry_stats_service import build_telemetry_stats_payload, clamp_period_start
@@ -172,7 +173,7 @@ class TelemetryHeartBeatTask(AsyncTask):
 
     async def run(self):
         # 发送心跳
-        if global_config.telemetry.enable:
+        if get_app_config_port().get_telemetry_enable():
             if self.client_uuid is None and not await self._req_uuid():
                 logger.warning("获取UUID失败，跳过此次心跳")
                 return
@@ -267,7 +268,7 @@ class TelemetryStatsUploadTask(AsyncTask):
         return False
 
     async def run(self):
-        if not global_config.telemetry.enable:
+        if not get_app_config_port().get_telemetry_enable():
             return
         if self.client_uuid is None and not await self._req_uuid():
             logger.warning("获取UUID失败，跳过此次遥测统计上传")

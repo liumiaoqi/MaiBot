@@ -144,10 +144,10 @@ class UniversalMessageSender:
             bool: 消息是否发送成功
         """
         try:
-            from src.config.config import global_config  # noqa: TID251
+            from src.core.app_config_port_registry import get_app_config_port
 
             # 如果未开启 API Server，直接跳过 Fallback
-            if not global_config.maim_message.enable_api_server:
+            if not get_app_config_port().get_maim_message_enable_api_server():
                 logger.debug("[API Server Fallback] API Server 未开启，跳过 fallback")
                 if legacy_exception:
                     raise legacy_exception

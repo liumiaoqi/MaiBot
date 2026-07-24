@@ -388,9 +388,9 @@ def build_replay_command(snapshot_path: Path) -> str:
 
 def _get_llm_request_snapshot_limit() -> int:
     try:
-        from src.config.config import global_config  # noqa: TID251
+        from src.core.app_config_port_registry import get_app_config_port
 
-        return max(1, int(global_config.log.llm_request_snapshot_limit or DEFAULT_LLM_REQUEST_SNAPSHOT_LIMIT))
+        return max(1, int(get_app_config_port().get_log_llm_request_snapshot_limit() or DEFAULT_LLM_REQUEST_SNAPSHOT_LIMIT))
     except Exception:
         return DEFAULT_LLM_REQUEST_SNAPSHOT_LIMIT
 

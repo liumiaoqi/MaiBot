@@ -11,7 +11,7 @@ from src.chat.heart_flow.heartflow_message_processor import HeartFCMessageReceiv
 from src.common.logger import get_logger
 from src.common.utils.utils_message import MessageUtils
 from src.common.utils.utils_session import SessionUtils
-from src.config.config import global_config  # noqa: TID251
+from src.core.app_config_port_registry import get_app_config_port
 from src.core.announcement_manager import global_announcement_manager
 from src.platform_io.route_key_factory import RouteKeyFactory
 from src.plugin_runtime.component_query import component_query_service
@@ -561,7 +561,7 @@ class ChatBot:
             # 入站主链优先保证消息尽快入队，避免图片、表情包、语音分析阻塞适配器超时。
             await message.process(
                 enable_heavy_media_analysis=False,
-                enable_voice_transcription=global_config.voice.enable_asr,
+                enable_voice_transcription=get_app_config_port().get_voice_enable_asr(),
             )
             after_process_result, message = await self._invoke_message_hook(
                 "chat.receive.after_process",
