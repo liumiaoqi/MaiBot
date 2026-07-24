@@ -14,7 +14,7 @@ from src.common.prompt_i18n import load_prompt
 from src.core.app_config_port_registry import get_app_config_port
 from src.core.session_port_registry import get_existing_session_info, get_session_name
 from src.core.types import MemoryHit, SessionInfo
-from src.person_info.person_info import get_person_id
+from src.core.person_info_port_registry import get_person_info_port
 from src.core.adapters.llm_service_port import get_llm_service
 from src.core.protocols import LLMService
 
@@ -403,23 +403,26 @@ class HeuristicMemoryInjector:
 
     @staticmethod
     def _collect_active_person_ids(messages: Sequence[SessionMessage]) -> set[str]:
+        port = get_person_info_port()
+        if port is None:
+            return set()
         person_ids: set[str] = set()
         for message in messages:
             platform = str(getattr(message, "platform", "")).strip()
             user_id = str(getattr(message.message_info.user_info, "user_id", "")).strip()
             if platform and user_id:
-                person_ids.add(get_person_id(platform, user_id))
+                person_ids.add(port.get_person_id(platform, user_id))
 
             raw_message = getattr(message, "raw_message", None)
             for component in getattr(raw_message, "components", []) or []:
                 if isinstance(component, AtComponent):
                     target_user_id = str(component.target_user_id or "").strip()
                     if platform and target_user_id:
-                        person_ids.add(get_person_id(platform, target_user_id))
+                        person_ids.add(port.get_person_id(platform, target_user_id))
                 elif isinstance(component, ReplyComponent):
                     target_user_id = str(component.target_message_sender_id or "").strip()
                     if platform and target_user_id:
-                        person_ids.add(get_person_id(platform, target_user_id))
+                        person_ids.add(port.get_person_id(platform, target_user_id))
         return person_ids
 
     @staticmethod
