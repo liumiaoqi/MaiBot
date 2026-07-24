@@ -848,3 +848,33 @@ __all__ = [
     "PersonInfoResult",
     "SessionMessage",
 ]
+
+
+@dataclass(frozen=True)
+class ReplyStyleSnapshot:
+    """回复风格配置快照 — 不可变数据对象。"""
+    chat_prompts: list[dict[str, Any]] = field(default_factory=list)
+    private_chat_prompts: str = ""
+    group_chat_prompt: str = ""
+    enable_reply_quote: bool = False
+
+
+@dataclass(frozen=True)
+class AgentAutonomySnapshot:
+    """智能体自主性配置快照。"""
+    orchestrator_strategy: str = ""
+    max_concurrent_interjections: int = 3
+    interjection_cooldown_seconds: float = 30.0
+    vitality_decay_rate: float = 0.1
+    vitality_recovery_rate: float = 0.05
+    standby_threshold: float = 30.0
+    active_threshold: float = 70.0
+
+
+@dataclass(frozen=True)
+class AMemorixIntegrationSnapshot:
+    """A_memorix 集成配置快照。"""
+    person_fact_writeback_enabled: bool = False
+    chat_summary_writeback_enabled: bool = False
+    chat_summary_writeback_message_threshold: int = 10
+    chat_summary_writeback_context_length: int = 20

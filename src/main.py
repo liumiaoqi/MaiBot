@@ -176,7 +176,19 @@ class MainSystem:
             init_fn=self._init_person_info_port,
         ))
         orchestrator.register(StartupComponent(
-            name="prompt_manager", phase=StartupPhase.CORE_SERVICES, order=10, critical=True,
+            name="bot_config_port", phase=StartupPhase.CORE_SERVICES, order=10, critical=True,
+            init_fn=self._init_bot_config_port,
+        ))
+        orchestrator.register(StartupComponent(
+            name="chat_config_port", phase=StartupPhase.CORE_SERVICES, order=11, critical=True,
+            init_fn=self._init_chat_config_port,
+        ))
+        orchestrator.register(StartupComponent(
+            name="app_config_port", phase=StartupPhase.CORE_SERVICES, order=12, critical=True,
+            init_fn=self._init_app_config_port,
+        ))
+        orchestrator.register(StartupComponent(
+            name="prompt_manager", phase=StartupPhase.CORE_SERVICES, order=13, critical=True,
             init_fn=self._load_prompts,
         ))
 
@@ -376,6 +388,24 @@ class MainSystem:
         from src.core.adapters.person_info_port import PersonInfoPortAdapter
         from src.core.person_info_port_registry import set_person_info_port
         set_person_info_port(PersonInfoPortAdapter())
+
+    @staticmethod
+    async def _init_bot_config_port() -> None:
+        from src.core.adapters.bot_config_port import GlobalConfigBotConfigPort
+        from src.core.bot_config_port_registry import set_bot_config_port
+        set_bot_config_port(GlobalConfigBotConfigPort())
+
+    @staticmethod
+    async def _init_chat_config_port() -> None:
+        from src.core.adapters.chat_config_port import GlobalConfigChatConfigPort
+        from src.core.chat_config_port_registry import set_chat_config_port
+        set_chat_config_port(GlobalConfigChatConfigPort())
+
+    @staticmethod
+    async def _init_app_config_port() -> None:
+        from src.core.adapters.app_config_port import GlobalConfigAppConfigPort
+        from src.core.app_config_port_registry import set_app_config_port
+        set_app_config_port(GlobalConfigAppConfigPort())
 
     @staticmethod
     async def _load_prompts() -> None:

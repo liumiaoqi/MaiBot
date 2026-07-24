@@ -14,6 +14,9 @@ from src.core.adapters.person_info_port import PersonInfoPortAdapter  # noqa: F4
 from src.core.person_info_port_registry import get_person_info_port, reset_person_info_port  # noqa: F401
 from src.core.adapters.routing_adapter import ChatManagerRoutingAdapter
 from src.core.adapters.runtime_registry import HeartflowRuntimeRegistry
+from src.core.bot_config_port_registry import get_bot_config_port  # noqa: F401
+from src.core.chat_config_port_registry import get_chat_config_port  # noqa: F401
+from src.core.app_config_port_registry import get_app_config_port  # noqa: F401
 
 __all__ = [
     "AMemorixMemoryServicePort",
@@ -30,4 +33,7 @@ __all__ = [
     "reset_llm_service",
     "reset_message_ingestion_port",
     "reset_person_info_port",
+    "get_bot_config_port",
+    "get_chat_config_port",
+    "get_app_config_port",
 ]
