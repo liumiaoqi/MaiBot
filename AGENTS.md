@@ -188,11 +188,24 @@ CA 派发审查任务时，CC 按以下维度输出报告（写入 `.shared/hand
 
 # Phoenix：插件系统革命
 
-> 全新方向，不再沿用 SSD 编号。三大支柱：MCP Tool/Event 统一组件模型 + OAuth Scope 细粒度能力授权 + gRPC 标准化传输。
+> 全新方向，不再沿用 SSD 编号。SSD-1~13 已完成微内核架构改造（20+ Protocol 接口、global_config TID251 从 41→0、核心禁止项全部消除）。
 
-| 编号 | 主题 | 状态 |
-|------|------|------|
-| Phoenix-1 | 插件系统革命 | 📋 规划中 |
+三大支柱：
+- **MCP Tool/Event 统一组件模型**：8 种组件类型 → 2 种（Tool 拉取式 + Event 推送式），与 ThinkingOrgan 工具循环天然对接
+- **OAuth Scope 细粒度能力授权**：粗粒度 capabilities → 细粒度 scope（如 `database:read:session_message`），用户可逐项审批/撤销
+- **gRPC 标准化传输**：自研 4-byte prefix + MsgPack → gRPC 双向流，消除 2000+ 行传输代码，支持跨语言插件
+
+关键决策：不兼容现有插件，napcat-adapter 等直接重写，SDK 大版本升级（v3→v4），manifest 格式重新设计。
+
+| 编号 | 主题 | 依赖 | 核心交付 | 状态 |
+|------|------|------|---------|------|
+| Phoenix-0 | 基础准备 | 无 | .proto Schema + v2 目录骨架 + SDK v4 接口设计 + Scope 词汇表 | 📋 规划中 |
+| Phoenix-1 | gRPC 传输层 | P-0 | gRPC Host/Runner 实现，替换自研 IPC | 📋 规划中 |
+| Phoenix-2 | MCP 组件模型 | P-1 | 8→2（Tool + Event），SDK 实现，ThinkingOrgan 对接 | 📋 规划中 |
+| Phoenix-3 | OAuth Scope 授权 | P-2 | scope 声明/签发/校验，WebUI 审批 | 📋 规划中 |
+| Phoenix-4 | 能力层 Protocol 化 | P-1 | P0/P1 消除，能力模块化，global_config 清除 | 📋 规划中 |
+
+依赖关系：`P-0 → P-1 → P-2 → P-3`，`P-1 → P-4`（P-4 可与 P-2 并行）
 
 # 待后续
 
