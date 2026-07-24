@@ -2,16 +2,47 @@ from types import SimpleNamespace
 
 import pytest
 
+from src.core.types import AMemorixIntegrationSnapshot, PersonDetailSnapshot
 from src.A_memorix.core.utils.summary_importer import SUMMARY_PROMPT_TEMPLATE, SummaryImporter
 from src.services import memory_flow_service as memory_flow_module
 
 
-def _fake_global_config(**integration_values):
-    return SimpleNamespace(
-        a_memorix=SimpleNamespace(
-            integration=SimpleNamespace(**integration_values),
+class FakePersonInfoPort:
+    """可配置的 PersonInfoPort 测试替身。"""
+
+    def __init__(self, *, person_id_func=None, detail_func=None, store_func=None):
+        self._person_id_func = person_id_func or (lambda p, u: f"{p}:{u}")
+        self._detail_func = detail_func
+        self._store_func = store_func
+        self.store_person_memory_calls: list[dict] = []
+
+    def get_person_id(self, platform: str, user_id: str) -> str:
+        return self._person_id_func(platform, user_id)
+
+    def get_person_detail(self, person_id: str):
+        if self._detail_func:
+            return self._detail_func(person_id)
+        return PersonDetailSnapshot(
+            is_known=True, person_id=person_id,
+            person_name="测试用户", nickname="测试用户",
         )
-    )
+
+    async def store_person_memory(self, person_name: str, fact: str, session_id: str, **kwargs):
+        self.store_person_memory_calls.append(
+            {"person_name": person_name, "fact": fact, "session_id": session_id, **kwargs}
+        )
+        if self._store_func:
+            await self._store_func(person_name, fact, session_id, **kwargs)
+
+
+class FakeAppConfigPort:
+    """可配置的 AppConfigPort 测试替身（ChatSummaryWriteback 用）。"""
+
+    def __init__(self, **integration_values):
+        self._snapshot = AMemorixIntegrationSnapshot(**integration_values)
+
+    def get_a_memorix_integration_config(self) -> AMemorixIntegrationSnapshot:
+        return self._snapshot
 
 
 def test_person_fact_parse_fact_list_deduplicates_and_filters_short_items():
@@ -29,15 +60,12 @@ def test_person_fact_looks_ephemeral_detects_short_chitchat():
 
 
 def test_person_fact_resolve_target_person_for_private_chat(monkeypatch):
-    class FakePerson:
-        def __init__(self, person_id: str):
-            self.person_id = person_id
-            self.is_known = True
-
     service = memory_flow_module.PersonFactWritebackService.__new__(memory_flow_module.PersonFactWritebackService)
     monkeypatch.setattr(memory_flow_module, "is_bot_self", lambda platform, user_id: False)
-    monkeypatch.setattr(memory_flow_module, "get_person_id", lambda platform, user_id: f"{platform}:{user_id}")
-    monkeypatch.setattr(memory_flow_module, "Person", FakePerson)
+    monkeypatch.setattr(
+        memory_flow_module, "get_person_info_port",
+        lambda: FakePersonInfoPort(person_id_func=lambda p, u: f"{p}:{u}"),
+    )
 
     message = SimpleNamespace(session=SimpleNamespace(platform="qq", user_id="123", group_id=""))
 
@@ -48,11 +76,6 @@ def test_person_fact_resolve_target_person_for_private_chat(monkeypatch):
 
 
 def test_person_fact_resolve_target_person_for_group_without_reply(monkeypatch):
-    class FakePerson:
-        def __init__(self, person_id: str):
-            self.person_id = person_id
-            self.is_known = person_id in {"qq:user-1", "qq:user-2"}
-
     older_user_message = SimpleNamespace(
         platform="qq",
         user_id="user-1",
@@ -72,8 +95,16 @@ def test_person_fact_resolve_target_person_for_group_without_reply(monkeypatch):
     service = memory_flow_module.PersonFactWritebackService.__new__(memory_flow_module.PersonFactWritebackService)
     monkeypatch.setattr(memory_flow_module, "find_messages", fake_find_messages)
     monkeypatch.setattr(memory_flow_module, "is_bot_self", lambda platform, user_id: False)
-    monkeypatch.setattr(memory_flow_module, "get_person_id", lambda platform, user_id: f"{platform}:{user_id}")
-    monkeypatch.setattr(memory_flow_module, "Person", FakePerson)
+    monkeypatch.setattr(
+        memory_flow_module, "get_person_info_port",
+        lambda: FakePersonInfoPort(
+            person_id_func=lambda p, u: f"{p}:{u}",
+            detail_func=lambda pid: PersonDetailSnapshot(
+                is_known=pid in {"qq:user-1", "qq:user-2"},
+                person_id=pid, person_name="测试用户", nickname="测试用户",
+            ),
+        ),
+    )
 
     message = SimpleNamespace(
         session_id="session-1",
@@ -89,9 +120,6 @@ def test_person_fact_resolve_target_person_for_group_without_reply(monkeypatch):
 
 
 def test_person_fact_collect_user_evidence_keeps_latest_target_messages_without_reply(monkeypatch):
-    class FakePerson:
-        person_id = "qq:user-1"
-
     def make_message(message_id: str, user_id: str, text: str):
         return SimpleNamespace(
             message_id=message_id,
@@ -117,7 +145,10 @@ def test_person_fact_collect_user_evidence_keeps_latest_target_messages_without_
     service = memory_flow_module.PersonFactWritebackService.__new__(memory_flow_module.PersonFactWritebackService)
     monkeypatch.setattr(memory_flow_module, "find_messages", fake_find_messages)
     monkeypatch.setattr(memory_flow_module, "is_bot_self", lambda platform, user_id: False)
-    monkeypatch.setattr(memory_flow_module, "get_person_id", lambda platform, user_id: f"{platform}:{user_id}")
+    monkeypatch.setattr(
+        memory_flow_module, "get_person_info_port",
+        lambda: FakePersonInfoPort(person_id_func=lambda p, u: f"{p}:{u}"),
+    )
 
     message = SimpleNamespace(
         session_id="session-1",
@@ -126,16 +157,14 @@ def test_person_fact_collect_user_evidence_keeps_latest_target_messages_without_
         session=SimpleNamespace(session_id="session-1"),
     )
 
-    evidence = service._collect_user_evidence(message, FakePerson())
+    target_person = PersonDetailSnapshot(is_known=True, person_id="qq:user-1")
+    evidence = service._collect_user_evidence(message, target_person)
 
     assert [item.message_id for item in evidence.target_messages] == ["user-1-b", "user-1-c", "user-1-d"]
     assert evidence.context_messages == messages
 
 
 def test_person_fact_reply_evidence_keeps_context_for_short_answer(monkeypatch):
-    class FakePerson:
-        person_id = "qq:user-1"
-
     def make_message(
         *,
         message_id: str,
@@ -184,7 +213,10 @@ def test_person_fact_reply_evidence_keeps_context_for_short_answer(monkeypatch):
 
     monkeypatch.setattr(memory_flow_module, "find_messages", fake_find_messages)
     monkeypatch.setattr(memory_flow_module, "is_bot_self", lambda platform, user_id: user_id == "bot-1")
-    monkeypatch.setattr(memory_flow_module, "get_person_id", lambda platform, user_id: f"{platform}:{user_id}")
+    monkeypatch.setattr(
+        memory_flow_module, "get_person_info_port",
+        lambda: FakePersonInfoPort(person_id_func=lambda p, u: f"{p}:{u}"),
+    )
 
     service = memory_flow_module.PersonFactWritebackService.__new__(memory_flow_module.PersonFactWritebackService)
     reply_message = SimpleNamespace(
@@ -194,7 +226,8 @@ def test_person_fact_reply_evidence_keeps_context_for_short_answer(monkeypatch):
         session=SimpleNamespace(session_id="session-1"),
     )
 
-    evidence = service._collect_user_evidence(reply_message, FakePerson())
+    target_person = PersonDetailSnapshot(is_known=True, person_id="qq:user-1")
+    evidence = service._collect_user_evidence(reply_message, target_person)
     evidence_text = service._format_user_evidence(evidence)
 
     assert evidence.target_messages == [user_answer]
@@ -209,25 +242,25 @@ def test_person_fact_reply_evidence_keeps_context_for_short_answer(monkeypatch):
 async def test_person_fact_writeback_skips_bot_only_fact_without_user_evidence(monkeypatch):
     stored_facts: list[tuple[str, str, str]] = []
 
-    class FakePerson:
-        person_id = "person-1"
-        person_name = "测试用户"
-        nickname = "测试用户"
-        is_known = True
-
     service = memory_flow_module.PersonFactWritebackService.__new__(memory_flow_module.PersonFactWritebackService)
-    service._resolve_target_person = lambda message: FakePerson()
+    service._resolve_target_person = lambda message: PersonDetailSnapshot(
+        is_known=True, person_id="person-1",
+        person_name="测试用户", nickname="测试用户",
+    )
 
     async def fake_extract_facts(person, reply_text, user_evidence_text):
         del person, reply_text, user_evidence_text
         return ["测试用户喜欢辣椒"]
 
-    async def fake_store_person_memory_from_answer(person_name: str, memory_content: str, chat_id: str, **kwargs):
+    async def fake_store_person_memory(person_name: str, memory_content: str, chat_id: str, **kwargs):
         del kwargs
         stored_facts.append((person_name, memory_content, chat_id))
 
     service._extract_facts = fake_extract_facts
-    monkeypatch.setattr(memory_flow_module, "store_person_memory_from_answer", fake_store_person_memory_from_answer)
+    monkeypatch.setattr(
+        memory_flow_module, "get_person_info_port",
+        lambda: FakePersonInfoPort(store_func=fake_store_person_memory),
+    )
     monkeypatch.setattr(memory_flow_module, "find_messages", lambda **kwargs: [])
 
     message = SimpleNamespace(
@@ -246,12 +279,6 @@ async def test_person_fact_writeback_skips_bot_only_fact_without_user_evidence(m
 async def test_person_fact_writeback_uses_resolved_person_id(monkeypatch):
     stored_payloads: list[dict[str, object]] = []
 
-    class FakePerson:
-        person_id = "person-target"
-        person_name = "重名用户"
-        nickname = "重名用户"
-        is_known = True
-
     user_message = SimpleNamespace(
         message_id="user-1",
         platform="qq",
@@ -261,7 +288,10 @@ async def test_person_fact_writeback_uses_resolved_person_id(monkeypatch):
     )
 
     service = memory_flow_module.PersonFactWritebackService.__new__(memory_flow_module.PersonFactWritebackService)
-    service._resolve_target_person = lambda message: FakePerson()
+    service._resolve_target_person = lambda message: PersonDetailSnapshot(
+        is_known=True, person_id="person-target",
+        person_name="重名用户", nickname="重名用户",
+    )
 
     async def fake_extract_facts(person, reply_text, user_evidence_text):
         assert person.person_id == "person-target"
@@ -269,7 +299,7 @@ async def test_person_fact_writeback_uses_resolved_person_id(monkeypatch):
         del reply_text
         return ["重名用户长期使用青轴键盘"]
 
-    async def fake_store_person_memory_from_answer(person_name: str, memory_content: str, chat_id: str, **kwargs):
+    async def fake_store_person_memory(person_name: str, memory_content: str, chat_id: str, **kwargs):
         stored_payloads.append(
             {
                 "person_name": person_name,
@@ -280,14 +310,19 @@ async def test_person_fact_writeback_uses_resolved_person_id(monkeypatch):
         )
 
     service._extract_facts = fake_extract_facts
-    monkeypatch.setattr(memory_flow_module, "store_person_memory_from_answer", fake_store_person_memory_from_answer)
+    monkeypatch.setattr(
+        memory_flow_module, "get_person_info_port",
+        lambda: FakePersonInfoPort(
+            person_id_func=lambda p, u: "person-target",
+            store_func=fake_store_person_memory,
+        ),
+    )
     monkeypatch.setattr(
         memory_flow_module,
         "find_messages",
         lambda **kwargs: [user_message] if kwargs.get("session_id") == "session-1" else [],
     )
     monkeypatch.setattr(memory_flow_module, "is_bot_self", lambda platform, user_id: False)
-    monkeypatch.setattr(memory_flow_module, "get_person_id", lambda platform, user_id: "person-target")
 
     message = SimpleNamespace(
         processed_plain_text="我记住了，你长期用青轴键盘。",
@@ -309,9 +344,8 @@ async def test_chat_summary_writeback_service_triggers_when_threshold_reached(mo
     events: list[tuple[str, object]] = []
 
     monkeypatch.setattr(
-        memory_flow_module,
-        "global_config",
-        _fake_global_config(
+        memory_flow_module, "get_app_config_port",
+        lambda: FakeAppConfigPort(
             chat_summary_writeback_enabled=True,
             chat_summary_writeback_message_threshold=3,
             chat_summary_writeback_context_length=7,
@@ -359,9 +393,8 @@ async def test_chat_summary_writeback_service_skips_when_threshold_not_reached(m
     called = False
 
     monkeypatch.setattr(
-        memory_flow_module,
-        "global_config",
-        _fake_global_config(
+        memory_flow_module, "get_app_config_port",
+        lambda: FakeAppConfigPort(
             chat_summary_writeback_enabled=True,
             chat_summary_writeback_message_threshold=6,
             chat_summary_writeback_context_length=9,
@@ -398,9 +431,8 @@ async def test_chat_summary_writeback_service_restores_previous_trigger_count(mo
     events: list[tuple[str, object]] = []
 
     monkeypatch.setattr(
-        memory_flow_module,
-        "global_config",
-        _fake_global_config(
+        memory_flow_module, "get_app_config_port",
+        lambda: FakeAppConfigPort(
             chat_summary_writeback_enabled=True,
             chat_summary_writeback_message_threshold=3,
             chat_summary_writeback_context_length=7,
@@ -509,9 +541,8 @@ async def test_chat_summary_writeback_service_falls_back_to_current_count_for_le
     called = False
 
     monkeypatch.setattr(
-        memory_flow_module,
-        "global_config",
-        _fake_global_config(
+        memory_flow_module, "get_app_config_port",
+        lambda: FakeAppConfigPort(
             chat_summary_writeback_enabled=True,
             chat_summary_writeback_message_threshold=3,
             chat_summary_writeback_context_length=7,
