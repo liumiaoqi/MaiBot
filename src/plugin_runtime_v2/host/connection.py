@@ -60,6 +60,7 @@ class RunnerConnection:
     connected_at: float = 0.0
     last_heartbeat_at: float = 0.0
     _heartbeat_misses: int = field(default=0, repr=False)
+    _peer: str = field(default="", repr=False)
 
     def transition(self, new_state: ConnectionState) -> None:
         """状态转换。非法转换抛出 ValueError 并记录 ERROR 日志。"""
