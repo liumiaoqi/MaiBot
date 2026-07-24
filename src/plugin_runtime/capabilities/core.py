@@ -4,7 +4,7 @@ from typing import Any, Dict, List
 import base64
 
 from src.common.logger import get_logger
-from src.config.config import global_config  # noqa: TID251
+from src.config.config import global_config  # noqa: TID251 — 插件动态配置需要 global_config 整体对象反射访问
 
 logger = get_logger("plugin_runtime.integration")
 

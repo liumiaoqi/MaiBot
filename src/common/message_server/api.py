@@ -13,7 +13,7 @@ adopt_library_logger("maim_message", handler_names={"maim_message_default_handle
 
 def get_global_api() -> MessageServer:  # sourcery skip: extract-method
     """获取全局MessageServer实例"""
-    from src.config.config import global_config  # noqa: TID251
+    from src.config.config import global_config  # noqa: TID251 — maim_message 整体对象无法逐属性 Port 化
 
     global global_api
     if global_api is None:
