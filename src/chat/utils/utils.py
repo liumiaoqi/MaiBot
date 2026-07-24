@@ -10,7 +10,7 @@ import time
 
 from src.common.data_models.session_message_data_model import SessionMessage
 from src.common.logger import get_logger
-from src.config.config import global_config  # noqa: TID251
+from src.core.app_config_port_registry import get_app_config_port
 
 from .typo_generator import ChineseTypoGenerator  # noqa: F401
 
@@ -81,7 +81,7 @@ def calculate_typing_time(
     if is_emoji:
         total_time = 1
 
-    typing_speed = global_config.response_post_process.typing_speed
+    typing_speed = get_app_config_port().get_response_post_process_typing_speed()
     if typing_speed <= 0:
         return 0
     total_time *= typing_speed

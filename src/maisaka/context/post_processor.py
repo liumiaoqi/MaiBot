@@ -19,7 +19,7 @@ from .messages import (
 from .typo_generator import ChineseTypoGenerator
 from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
 from src.common.logger import get_logger
-from src.config.config import global_config  # noqa: TID251 — response_splitter/chinese_typo 待协议化
+from src.core.app_config_port_registry import get_app_config_port
 from src.core.bot_config_port_registry import get_bot_config_port
 from src.maisaka.memory.mid_term import is_mid_term_memory_message
 
@@ -311,11 +311,11 @@ def _is_stage_direction(content: str) -> bool:
 
 
 def process_llm_response(text: str, enable_splitter: bool = True, enable_chinese_typo: bool = True) -> list[str]:
-    if not global_config.response_post_process.enable_response_post_process:
+    if not get_app_config_port().get_response_post_process_enable():
         return [text]
 
     # 先保护颜文字
-    if global_config.response_splitter.enable_kaomoji_protection:
+    if get_app_config_port().get_response_splitter_enable_kaomoji_protection():
         protected_text, kaomoji_mapping = protect_kaomoji(text)
         logger.debug(f"保护颜文字后的文本: {protected_text}")
     else:
@@ -341,29 +341,29 @@ def process_llm_response(text: str, enable_splitter: bool = True, enable_chinese
     logger.debug(f"{text}去除括号处理后的文本: {cleaned_text}")
 
     # 对清理后的文本进行进一步处理
-    max_length = global_config.response_splitter.max_length * 2
-    max_sentence_num = global_config.response_splitter.max_sentence_num
-    max_split_num = global_config.response_splitter.max_split_num
+    max_length = get_app_config_port().get_response_splitter_max_length() * 2
+    max_sentence_num = get_app_config_port().get_response_splitter_max_sentence_num()
+    max_split_num = get_app_config_port().get_response_splitter_max_split_num()
     # 如果基本上是中文，则进行长度过滤
     if get_western_ratio(cleaned_text) < 0.1 and len(cleaned_text) > max_length:
         logger.warning(f"回复过长 ({len(cleaned_text)} 字符)，返回默认回复")
         return [_get_random_default_reply()]
 
     typo_generator = ChineseTypoGenerator(
-        error_rate=global_config.chinese_typo.error_rate,
-        min_freq=global_config.chinese_typo.min_freq,
-        tone_error_rate=global_config.chinese_typo.tone_error_rate,
-        word_replace_rate=global_config.chinese_typo.word_replace_rate,
+        error_rate=get_app_config_port().get_chinese_typo_error_rate(),
+        min_freq=get_app_config_port().get_chinese_typo_min_freq(),
+        tone_error_rate=get_app_config_port().get_chinese_typo_tone_error_rate(),
+        word_replace_rate=get_app_config_port().get_chinese_typo_word_replace_rate(),
     )
 
-    if global_config.response_splitter.enable and enable_splitter:
+    if get_app_config_port().get_response_splitter_enable() and enable_splitter:
         split_sentences = split_into_sentences_w_remove_punctuation(cleaned_text)
     else:
         split_sentences = [cleaned_text]
 
     sentences: List[str] = []
     for sentence in split_sentences:
-        if global_config.chinese_typo.enable and enable_chinese_typo:
+        if get_app_config_port().get_chinese_typo_enable() and enable_chinese_typo:
             typoed_text, typo_corrections = typo_generator.create_typo_sentence(sentence)
             if typo_corrections:
                 # 50%概率新增正确字/词，50%概率用正确分句替换错别字分句
@@ -379,7 +379,7 @@ def process_llm_response(text: str, enable_splitter: bool = True, enable_chinese
             sentences.append(sentence)
 
     if len(sentences) > max_sentence_num:
-        if global_config.response_splitter.enable_overflow_return_all:
+        if get_app_config_port().get_response_splitter_enable_overflow_return_all():
             logger.warning(f"分割后消息数量过多 ({len(sentences)} 条)，直接返回原文")
             sentences = [cleaned_text]
         else:
@@ -393,7 +393,7 @@ def process_llm_response(text: str, enable_splitter: bool = True, enable_chinese
     #         sentences.append(content)
 
     # 在所有句子处理完毕后，对包含占位符的列表进行恢复
-    if global_config.response_splitter.enable_kaomoji_protection:
+    if get_app_config_port().get_response_splitter_enable_kaomoji_protection():
         sentences = recover_kaomoji(sentences, kaomoji_mapping)
 
     return sentences
@@ -434,7 +434,7 @@ def calculate_typing_time(
     if is_emoji:
         total_time = 1
 
-    typing_speed = global_config.response_post_process.typing_speed
+    typing_speed = get_app_config_port().get_response_post_process_typing_speed()
     if typing_speed <= 0:
         return 0
     total_time *= typing_speed
