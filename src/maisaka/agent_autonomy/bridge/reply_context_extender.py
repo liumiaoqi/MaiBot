@@ -42,9 +42,9 @@ class ReplyToolContextExtender:
             return content
         try:
             from src.maisaka.agent_autonomy.expression_organ import ExpressionOrgan
-            from src.config.config import global_config
+            from src.core.app_config_port_registry import get_app_config_port
 
-            tag_format = global_config.agent_autonomy.speaker_tag_format
+            tag_format = get_app_config_port().get_agent_autonomy_config().speaker_tag_format
             organ = ExpressionOrgan(agent_id, tag_format)
             return organ.prepend_speaker_tag(content, is_multi_agent_active)
         except Exception:

@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 from src.common.logger import get_logger
-from src.config.config import global_config
+from src.core.app_config_port_registry import get_app_config_port
 
 logger = get_logger("agent_autonomy.interjection_cooldown")
 
@@ -29,7 +29,7 @@ class InterjectionCooldownManager:
         override_max_per_hour: int | None = None,
     ) -> bool:
         """检查智能体是否可以插话。支持动态覆盖参数。"""
-        config = global_config.agent_autonomy
+        config = get_app_config_port().get_agent_autonomy_config()
 
         # 检查冷却时间
         key = (session_id, agent_id)
@@ -73,7 +73,7 @@ class InterjectionCooldownManager:
 
     def get_cooldown_remaining(self, session_id: str, agent_id: str) -> float:
         """获取剩余冷却时间（秒）。"""
-        config = global_config.agent_autonomy
+        config = get_app_config_port().get_agent_autonomy_config()
         key = (session_id, agent_id)
         last_time = self._last_interjection.get(key)
         if last_time is None:

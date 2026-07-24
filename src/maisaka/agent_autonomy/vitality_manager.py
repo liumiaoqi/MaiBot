@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from src.common.logger import get_logger
-from src.config.config import global_config
+from src.core.app_config_port_registry import get_app_config_port
 from src.core.protocols import AgentRoutingService
 from src.maisaka.agent_autonomy.activity_store import AgentActivityStore
 from src.maisaka.agent_autonomy.event_bus import AgentStateChangeEvent, AutonomyEventBus
@@ -37,7 +37,7 @@ class VitalityManager:
         self._routing_service = routing_service or self._get_default_routing_service()
         self._registry = StandbyAgentRegistry()
         self._activity_store = AgentActivityStore()
-        self._config = global_config.agent_autonomy
+        self._config = get_app_config_port().get_agent_autonomy_config()
         self._tick_lock = asyncio.Lock()
 
 

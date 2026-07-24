@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from src.common.logger import get_logger
-from src.config.config import global_config
+from src.core.app_config_port_registry import get_app_config_port
 from src.maisaka.agent_autonomy.state_awareness.mapping import (
     EmotionTendencyMapping,
     VitalityLevel,
@@ -66,7 +66,7 @@ class CohabitantStateSummaryGenerator:
 
     def generate(self, session_id: str, observer_agent_id: str) -> str:
         """生成共居状态摘要文本。"""
-        if not global_config.agent_autonomy.state_awareness_enabled:
+        if not get_app_config_port().get_agent_autonomy_config().state_awareness_enabled:
             return ""
 
         entries = self._build_entries(session_id, observer_agent_id)

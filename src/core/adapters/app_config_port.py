@@ -72,13 +72,37 @@ class GlobalConfigAppConfigPort:
     def get_agent_autonomy_config(self) -> AgentAutonomySnapshot:
         aa = self._get_cfg().agent_autonomy
         return AgentAutonomySnapshot(
+            enabled=aa.enabled,
+            max_active_agents=aa.max_active_agents,
+            auto_exit_timeout_minutes=aa.auto_exit_timeout_minutes,
+            interjection_enabled=aa.interjection_enabled,
+            interjection_intent_threshold=aa.interjection_intent_threshold,
+            interjection_cooldown_minutes=aa.interjection_cooldown_minutes,
+            max_interjections_per_hour=aa.max_interjections_per_hour,
+            max_interjections_per_session_per_hour=aa.max_interjections_per_session_per_hour,
+            interaction_signal_intent_bonus=aa.interaction_signal_intent_bonus,
+            embodied_planner_enabled=aa.embodied_planner_enabled,
+            speaker_tag_format=aa.speaker_tag_format,
             orchestrator_strategy=aa.orchestrator_strategy,
-            max_concurrent_interjections=aa.max_concurrent_interjections,
-            interjection_cooldown_seconds=aa.interjection_cooldown_seconds,
-            vitality_decay_rate=aa.vitality_decay_rate,
-            vitality_recovery_rate=aa.vitality_recovery_rate,
-            standby_threshold=aa.standby_threshold,
-            active_threshold=aa.active_threshold,
+            intent_expiry_seconds=aa.intent_expiry_seconds,
+            vitality_base_value=aa.vitality_base_value,
+            vitality_activation_threshold=aa.vitality_activation_threshold,
+            vitality_decay_per_minute=aa.vitality_decay_per_minute,
+            vitality_stimulus_message=aa.vitality_stimulus_message,
+            vitality_stimulus_mention=aa.vitality_stimulus_mention,
+            vitality_stimulus_topic=aa.vitality_stimulus_topic,
+            vitality_tick_interval_seconds=aa.vitality_tick_interval_seconds,
+            fallback_exit_timeout_minutes=aa.fallback_exit_timeout_minutes,
+            cohabitation_threshold_reduction=aa.cohabitation_threshold_reduction,
+            cohabitation_cooldown_reduction_minutes=aa.cohabitation_cooldown_reduction_minutes,
+            interjection_threshold_minimum=aa.interjection_threshold_minimum,
+            interjection_cooldown_minimum_minutes=aa.interjection_cooldown_minimum_minutes,
+            active_visible_to_active=aa.active_visible_to_active,
+            standby_visible_to_active=aa.standby_visible_to_active,
+            standby_emotion_visible_to_active=aa.standby_emotion_visible_to_active,
+            dormant_visible_to_any=aa.dormant_visible_to_any,
+            state_awareness_enabled=aa.state_awareness_enabled,
+
         )
 
     def get_a_memorix_integration_config(self) -> AMemorixIntegrationSnapshot:

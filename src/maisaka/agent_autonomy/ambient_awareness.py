@@ -6,7 +6,7 @@ import re
 from typing import TYPE_CHECKING
 
 from src.common.logger import get_logger
-from src.config.config import global_config
+from src.core.app_config_port_registry import get_app_config_port
 from src.maisaka.agent_autonomy.event_bus import AgentSpeakEvent, SessionMessageEvent
 
 if TYPE_CHECKING:
@@ -26,7 +26,7 @@ class AmbientAwarenessProcessor:
     ) -> None:
         self._vitality_manager = vitality_manager
         self._rule_engine = rule_engine
-        self._config = global_config.agent_autonomy
+        self._config = get_app_config_port().get_agent_autonomy_config()
 
     async def on_session_message(self, event: SessionMessageEvent) -> None:
         """处理会话消息事件。"""

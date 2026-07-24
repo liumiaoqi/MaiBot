@@ -215,9 +215,9 @@ class InteractionSignalIntentSource(BaseIntentSource):
             return intents
 
         try:
-            from src.config.config import global_config
+            from src.core.app_config_port_registry import get_app_config_port
 
-            bonus = global_config.agent_autonomy.interaction_signal_intent_bonus
+            bonus = get_app_config_port().get_agent_autonomy_config().interaction_signal_intent_bonus
         except Exception:
             bonus = 40.0
 

@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from src.common.logger import get_logger
-from src.config.config import global_config
+from src.core.app_config_port_registry import get_app_config_port
 from src.core.protocols import AgentRoutingService, NoticeClassifier, ThinkingOrganFactory
 from src.core.types import CoreMessage, NoticeKind, ThinkAction, ThinkContext, ThinkResult
 from src.maisaka.agent_autonomy.agent import AutonomousAgent
@@ -80,7 +80,7 @@ class AgentOrchestrator:
         self._thinking_organ_factory = thinking_organ_factory or self._get_default_thinking_organ_factory()
         if self._thinking_organ_factory._chat_loop_adapter is None:
             self._thinking_organ_factory._chat_loop_adapter = chat_loop_adapter
-        self._config = global_config.agent_autonomy
+        self._config = get_app_config_port().get_agent_autonomy_config()
         self._activity_store = AgentActivityStore()
         self._lifecycle_manager = AgentLifecycleManager(self._activity_store)
 

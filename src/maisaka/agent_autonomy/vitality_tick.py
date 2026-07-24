@@ -6,7 +6,7 @@ import asyncio
 from typing import TYPE_CHECKING
 
 from src.common.logger import get_logger
-from src.config.config import global_config
+from src.core.app_config_port_registry import get_app_config_port
 
 if TYPE_CHECKING:
     from src.maisaka.agent_autonomy.vitality_manager import VitalityManager
@@ -23,7 +23,7 @@ class VitalityTickScheduler:
         interval_seconds: int | None = None,
     ) -> None:
         self._vitality_manager = vitality_manager
-        self._interval = interval_seconds or global_config.agent_autonomy.vitality_tick_interval_seconds
+        self._interval = interval_seconds or get_app_config_port().get_agent_autonomy_config().vitality_tick_interval_seconds
         self._task: asyncio.Task | None = None
         self._running = False
 

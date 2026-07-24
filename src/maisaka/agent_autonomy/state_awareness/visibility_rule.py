@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from src.config.config import global_config
+from src.core.app_config_port_registry import get_app_config_port
 
 
 @dataclass
@@ -20,7 +20,7 @@ class StateVisibilityRule:
     """状态可见性规则——基于配置判定目标对观察者的可见信息粒度。"""
 
     def __init__(self) -> None:
-        self._config = global_config.agent_autonomy
+        self._config = get_app_config_port().get_agent_autonomy_config()
 
     def evaluate(self, observer_state: str, target_state: str) -> VisibilityInfo:
         """判定目标智能体对观察者的可见信息粒度。"""

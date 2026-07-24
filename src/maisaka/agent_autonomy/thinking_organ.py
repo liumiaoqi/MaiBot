@@ -14,7 +14,7 @@ from difflib import SequenceMatcher
 from typing import Any
 
 from src.common.logger import get_logger
-from src.config.config import global_config
+from src.core.app_config_port_registry import get_app_config_port
 from src.core.types import CycleStatus, SilenceReason, ThinkAction, ThinkContext, ThinkCycleLog, ThinkResult
 from src.maisaka.agent_autonomy.autonomy_logger import AutonomyEventType, AutonomyLogger
 from src.maisaka.agent_autonomy.prompt_builder import EmbodiedPlannerPromptBuilder
@@ -751,7 +751,7 @@ class ThinkingOrgan:
         round_idx: int,
     ) -> None:
         """保存结构化 prompt 预览到 logs/maisaka_prompt/。"""
-        if not global_config.debug.show_maisaka_thinking:
+        if not get_app_config_port().get_debug_show_maisaka_thinking():
             return
 
         try:

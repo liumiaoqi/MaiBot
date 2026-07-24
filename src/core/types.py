@@ -862,13 +862,37 @@ class ReplyStyleSnapshot:
 @dataclass(frozen=True)
 class AgentAutonomySnapshot:
     """智能体自主性配置快照。"""
-    orchestrator_strategy: str = ""
-    max_concurrent_interjections: int = 3
-    interjection_cooldown_seconds: float = 30.0
-    vitality_decay_rate: float = 0.1
-    vitality_recovery_rate: float = 0.05
-    standby_threshold: float = 30.0
-    active_threshold: float = 70.0
+    enabled: bool = True
+    max_active_agents: int = 13
+    auto_exit_timeout_minutes: int = 60
+    interjection_enabled: bool = True
+    interjection_intent_threshold: float = 60.0
+    interjection_cooldown_minutes: int = 5
+    max_interjections_per_hour: int = 3
+    max_interjections_per_session_per_hour: int = 6
+    interaction_signal_intent_bonus: float = 40.0
+    embodied_planner_enabled: bool = True
+    speaker_tag_format: str = "【{agent_name}】"
+    orchestrator_strategy: str = "default"
+    intent_expiry_seconds: int = 300
+    vitality_base_value: float = 30.0
+    vitality_activation_threshold: float = 70.0
+    vitality_decay_per_minute: float = 2.0
+    vitality_stimulus_message: float = 5.0
+    vitality_stimulus_mention: float = 20.0
+    vitality_stimulus_topic: float = 10.0
+    vitality_tick_interval_seconds: int = 60
+    fallback_exit_timeout_minutes: int = 120
+    cohabitation_threshold_reduction: float = 10.0
+    cohabitation_cooldown_reduction_minutes: float = 1.0
+    interjection_threshold_minimum: float = 20.0
+    interjection_cooldown_minimum_minutes: float = 1.0
+    active_visible_to_active: bool = True
+    standby_visible_to_active: bool = True
+    standby_emotion_visible_to_active: bool = False
+    dormant_visible_to_any: bool = False
+    state_awareness_enabled: bool = True
+
 
 
 @dataclass(frozen=True)

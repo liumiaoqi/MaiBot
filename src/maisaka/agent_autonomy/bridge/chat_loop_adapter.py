@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from src.common.logger import get_logger
-from src.config.config import global_config
+
 from src.core.protocols import ChatRuntime
 
 logger = get_logger("agent_autonomy.chat_loop_adapter")

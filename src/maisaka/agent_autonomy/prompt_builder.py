@@ -2,7 +2,8 @@ from typing import TYPE_CHECKING, Any, Callable
 
 from src.common.logger import get_logger
 from src.common.prompt_i18n import load_prompt
-from src.config.config import global_config
+from src.core.app_config_port_registry import get_app_config_port
+from src.core.bot_config_port_registry import get_bot_config_port
 
 if TYPE_CHECKING:
     from src.maisaka.agent_autonomy.state_awareness.summary_generator import CohabitantStateSummaryGenerator
@@ -144,7 +145,7 @@ class EmbodiedPlannerPromptBuilder:
 
     def _build_cohabitant_states(self) -> str:
         """构建共居状态摘要文本。"""
-        if not global_config.agent_autonomy.state_awareness_enabled:
+        if not get_app_config_port().get_agent_autonomy_config().state_awareness_enabled:
             return ""
 
         if self._summary_generator is None:
@@ -180,7 +181,7 @@ class EmbodiedPlannerPromptBuilder:
         """降级为旁观者模式的提示词。"""
         try:
             context = self._build_embodied_context(tools_section)
-            context["bot_name"] = global_config.bot.nickname
+            context["bot_name"] = get_bot_config_port().get_bot_nickname()
             return load_prompt("maisaka_chat", **context)
         except Exception:
             return f"你是一个有用的AI助手。\n\n{tools_section}"
