@@ -199,7 +199,7 @@ CA 派发审查任务时，CC 按以下维度输出报告（写入 `.shared/hand
 | SSD-10 | 配置与事件注入化 | BotConfigPort/ChatConfigPort/AppConfigPort/AutonomyEventBusPort Protocol + 15项死配置删除 + 13项DEPRECATED + AutonomyEventBus.get_instance()消除 |
 | SSD-11 | SSD-10 遗留协议化 | global_config TID251 从41处降至0处（8处整体对象场景保留noha），ChatConfigPort 5→13方法，AppConfigPort 21→78方法，5个新快照类型，14处死导入清除，is_bot_self替代qq_account直接访问，BotConfigPort新增get_bot_platform/get_bot_primary_account，service_task_resolver.model_name_exists替代config_manager |
 | SSD-12 | 剩余 TID251 违规消除 | config_manager 4处/heartflow_manager 2处/Person 4处 TID251 清零，AppConfigPort +5方法（~60→~65），ChatRuntimeRegistry +2方法（3→5），PersonInfoPort +5方法（1→6），新建 model_config_port_registry，新增 PluginRuntimeSnapshot/PersonDetailSnapshot 快照类型 |
-| SSD-13 | 延迟项与架构债务收尾 | G1 heuristic_injector get_person_id迁移到PersonInfoPort + G2 test_memory_flow_service mock路径更新 + send_service.py F401/F821修复(5处) + 整体对象评估报告(18处: 5可拆/7需Port/6暂不可拆) |
+| SSD-13 | 延迟项与架构债务收尾 | G1 heuristic_injector get_person_id迁移到PersonInfoPort + G2 test_memory_flow_service mock路径更新 + send_service.py F401/F821修复(5处) + memory_port_registry导入路径修复(3处) + 整体对象评估报告(18处: 5可拆/7需Port/6暂不可拆) |
 
 # 待后续
 
@@ -207,5 +207,6 @@ CA 派发审查任务时，CC 按以下维度输出报告（写入 `.shared/hand
 - ⬜ WebUI 记忆可视化
 - ⬜ A_memorix 内部 322 处 bare except
 - ⬜ mem_core_gap 未覆盖的 8 项差距（G16/G18/G19/G21/G22/G23/G24/G28）
-- ⬜ noqa TID251 整体对象遗留 18 处（详见 `.codeartsdoer/specs/ssd13_deferred/noqa_tid251_evaluation.md`）
+- ⬜ noqa TID251 整体对象遗留 18 处（详见 `.codeartsdoer/specs/_archive/ssd13_deferred/noqa_tid251_evaluation.md`）
 - ⬜ SSD-11 遗留：WebUI 配置管理面（routes.py/config.py 3处）暂不可拆解
+- ⬜ SSD-14 插件系统革命：MCP Tool/Event 统一组件模型 + OAuth Scope 细粒度能力授权 + gRPC 标准化传输（详见 `.codeartsdoer/specs/ssd14_plugin_revolution/`）
