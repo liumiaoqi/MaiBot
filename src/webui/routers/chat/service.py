@@ -18,7 +18,8 @@ from src.common.database.database_model import Messages, PersonInfo
 from src.common.logger import get_logger
 from src.common.message_repository import find_messages
 from src.common.utils.utils_session import SessionUtils
-from src.config.config import global_config
+from src.core.app_config_port_registry import get_app_config_port
+from src.core.bot_config_port_registry import get_bot_config_port
 
 from .serializers import serialize_message_sequence
 
@@ -117,7 +118,7 @@ class ChatHistoryManager:
             "type": "bot" if is_bot else "user",
             "content": msg.processed_plain_text or "",
             "timestamp": msg.timestamp.timestamp(),
-            "sender_name": user_info.user_nickname or (global_config.bot.nickname if is_bot else "未知用户"),
+            "sender_name": user_info.user_nickname or (get_bot_config_port().get_bot_nickname() if is_bot else "未知用户"),
             "sender_id": "bot" if is_bot else user_id,
             "is_bot": is_bot,
             "message_type": "rich" if is_rich else "text",
@@ -756,13 +757,13 @@ def build_session_info_message(
         Dict[str, Any]: 会话信息消息。
     """
     normalized_client_info = normalize_chat_client_info(client_info)
-    bot_qq_account = int(getattr(global_config.bot, "qq_account", 0) or 0)
+    bot_qq_account = int(get_bot_config_port().get_bot_qq_account("qq") or 0)
     session_info_data: Dict[str, Any] = {
         "type": "session_info",
         "session_id": session_id,
         "user_id": user_id,
         "user_name": user_name,
-        "bot_name": global_config.bot.nickname,
+        "bot_name": get_bot_config_port().get_bot_nickname(),
         "client_mode": normalized_client_info["type"],
         "client": normalized_client_info,
         "capabilities": build_chat_client_capabilities(normalized_client_info),
@@ -828,9 +829,9 @@ def build_welcome_message(virtual_config: Optional[VirtualIdentityConfig]) -> st
         assert virtual_config is not None
         return (
             f"已以 {virtual_config.user_nickname} 的身份连接到「{virtual_config.group_name}」，"
-            f"开始与 {global_config.bot.nickname} 对话吧！"
+            f"开始与 {get_bot_config_port().get_bot_nickname()} 对话吧！"
         )
-    return f"已连接到本地聊天室，可以开始与 {global_config.bot.nickname} 对话了！"
+    return f"已连接到本地聊天室，可以开始与 {get_bot_config_port().get_bot_nickname()} 对话了！"
 
 
 async def send_chat_error(session_id: str, content: str) -> None:
@@ -1370,7 +1371,7 @@ async def enable_virtual_identity(
                 "type": "system",
                 "content": (
                     f"已切换到虚拟身份模式：以 {current_virtual_config.user_nickname} 的身份在"
-                    f"「{current_virtual_config.group_name}」与 {global_config.bot.nickname} 对话"
+                    f"「{current_virtual_config.group_name}」与 {get_bot_config_port().get_bot_nickname()} 对话"
                 ),
                 "timestamp": time.time(),
             },

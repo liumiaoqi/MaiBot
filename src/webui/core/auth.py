@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi import Cookie, HTTPException, Request, Response
 
 from src.common.logger import get_logger
-from src.config.config import global_config
+from src.core.app_config_port_registry import get_app_config_port
 
 from .security import get_token_manager
 
@@ -24,12 +24,12 @@ def _is_secure_environment() -> bool:
         bool: 如果应该使用 secure cookie 则返回 True
     """
     # 从配置读取
-    if global_config.webui.secure_cookie:
+    if get_app_config_port().get_webui_secure_cookie():
         logger.info("配置中启用了 secure_cookie")
         return True
 
     # 检查是否是生产环境
-    if global_config.webui.mode == "production":
+    if get_app_config_port().get_webui_mode() == "production":
         logger.info("WebUI运行在生产模式，启用 secure cookie")
         return True
 

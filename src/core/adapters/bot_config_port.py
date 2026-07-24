@@ -16,6 +16,12 @@ class GlobalConfigBotConfigPort:
     def get_bot_alias_names(self) -> list[str]:
         return list(self._get_bot().alias_names)
 
+    def get_bot_platform(self) -> str:
+        return str(self._get_bot().platform or "")
+
+    def get_bot_primary_account(self) -> str:
+        return str(self._get_bot().qq_account or "")
+
     def get_bot_qq_account(self, platform: str) -> str:
         from src.core.identity import get_bot_account
         return get_bot_account(platform)

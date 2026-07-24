@@ -14,23 +14,8 @@ class GlobalConfigAppConfigPort:
         from src.config.config import global_config
         return global_config
 
-    def get_expression_selection_mode(self) -> str:
-        return self._get_cfg().expression.expression_selection_mode
-
     def get_expression_learning_list(self) -> list[str]:
         return list(self._get_cfg().expression.expression_learning_list)
-
-    def get_expression_self_reflect(self) -> bool:
-        return self._get_cfg().expression.self_reflect
-
-    def get_expression_groups(self) -> list[str]:
-        return list(self._get_cfg().expression.expression_groups)
-
-    def get_max_expression_learner(self) -> int:
-        return self._get_cfg().expression.max_expression_learner
-
-    def get_expression_vector_index_path(self) -> str:
-        return self._get_cfg().expression.expression_vector_index_path
 
     def get_expression_checked_only(self) -> bool:
         return self._get_cfg().expression.expression_checked_only
@@ -56,8 +41,6 @@ class GlobalConfigAppConfigPort:
     def get_experimental_enable_rich_reply(self) -> bool:
         return self._get_cfg().experimental.enable_rich_reply
 
-    def get_experimental_focus_mode(self) -> bool:
-        return self._get_cfg().experimental.focus_mode
 
     def get_experimental_enable_behavior_learning(self) -> bool:
         return self._get_cfg().experimental.enable_behavior_learning

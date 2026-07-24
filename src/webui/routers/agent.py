@@ -1042,9 +1042,9 @@ async def manual_trigger_interaction(req: ManualTriggerRequest):
 @router.get("/interactions/config", response_model=ApiResponse[InteractionConfigResponse])
 async def get_interaction_config():
     """获取交互触发配置。"""
-    from src.config.config import global_config
+    from src.core.app_config_port_registry import get_app_config_port
 
-    cfg = global_config.agent_interaction
+    cfg = get_app_config_port().get_agent_interaction_config()
     return ApiResponse(data=InteractionConfigResponse(
         enabled=cfg.enabled,
         cooldown_minutes=cfg.cooldown_minutes,
@@ -1484,9 +1484,9 @@ async def get_state_awareness(session_id: str):
 
     active_rules: list[Dict[str, Any]] = []
     try:
-        from src.config.config import global_config
+        from src.core.app_config_port_registry import get_app_config_port
 
-        cfg = global_config.agent_autonomy
+        cfg = get_app_config_port().get_agent_autonomy_config()
         if cfg.state_awareness_enabled:
             rule_result = orch._rule_engine.evaluate_for_interjection(session_id)
             for rule_name in rule_result.triggered_rules:

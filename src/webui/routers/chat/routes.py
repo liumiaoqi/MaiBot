@@ -35,7 +35,10 @@ from src.common.utils.utils_config import (
     ExpressionConfigUtils,
     JargonConfigUtils,
 )
-from src.config.config import BOT_CONFIG_PATH, config_manager, global_config
+from src.config.config import BOT_CONFIG_PATH, config_manager, global_config  # noqa: TID251 — chat.reply_style 整体对象待后续协议化
+from src.core.app_config_port_registry import get_app_config_port
+from src.core.bot_config_port_registry import get_bot_config_port
+from src.core.chat_config_port_registry import get_chat_config_port
 from src.core.adapters.agent_config_port import get_agent_config_provider
 from src.webui.dependencies import require_auth
 from src.webui.utils.toml_utils import save_toml_with_format
@@ -470,7 +473,7 @@ def _get_talk_rule_details(chat_session: ChatSession) -> Dict[str, Any]:
 
     session_id = chat_session.session_id
     is_group_chat = _get_chat_type(chat_session) == "group"
-    reply_timing_config = global_config.chat.reply_timing
+    reply_timing_config = get_chat_config_port().get_reply_timing_config()
     base_value = float(reply_timing_config.talk_value if is_group_chat else reply_timing_config.private_talk_value)
     effective_value = float(ChatConfigUtils.get_talk_value(session_id, is_group_chat=is_group_chat))
     local_time = datetime.now().strftime("%H:%M")
@@ -577,7 +580,7 @@ def _get_chat_prompt_details(chat_session: ChatSession) -> Dict[str, Any]:
 
     session_id = chat_session.session_id
     is_group_chat = _get_chat_type(chat_session) == "group"
-    reply_style_config = global_config.chat.reply_style
+    reply_style_config = global_config.chat.reply_style  # noqa: TID251 — chat.reply_style 整体对象待后续协议化
     base_prompt_type = "group" if is_group_chat else "private"
     base_prompt_title = "群聊提示词" if is_group_chat else "私聊提示词"
     base_prompt = reply_style_config.group_chat_prompt if is_group_chat else reply_style_config.private_chat_prompts
@@ -1371,7 +1374,7 @@ async def clear_chat_history(
 async def get_chat_info() -> Dict[str, object]:
     """获取聊天室信息。"""
     return {
-        "bot_name": global_config.bot.nickname,
+        "bot_name": get_bot_config_port().get_bot_nickname(),
         "platform": WEBUI_CHAT_PLATFORM,
         "active_sessions": len(chat_manager.active_connections),
     }

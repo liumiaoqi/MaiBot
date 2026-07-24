@@ -25,7 +25,8 @@ from src.common.database.database import get_db_session
 from src.common.database.database_model import ChatSession, Expression, Messages, ModifiedBy
 from src.common.logger import get_logger
 from src.common.utils.utils_config import ChatConfigUtils, ExpressionConfigUtils
-from src.config.config import global_config
+from src.core.app_config_port_registry import get_app_config_port
+from src.core.bot_config_port_registry import get_bot_config_port
 from src.learners.expression_review_store import (
     append_manual_rescue_log,
     get_ai_review_log,
@@ -48,12 +49,12 @@ def get_configured_platform_accounts() -> set[tuple[str, str]]:
     """读取配置中当前启用的平台账号对。"""
 
     pairs: set[tuple[str, str]] = set()
-    base_platform = str(global_config.bot.platform or "").strip()
-    base_account = str(global_config.bot.qq_account or "").strip()
+    base_platform = str(get_bot_config_port().get_bot_platform() or "").strip()
+    base_account = str(get_bot_config_port().get_bot_primary_account() or "").strip()
     if base_platform and base_account:
         pairs.add((base_platform, base_account))
 
-    for item in global_config.bot.platforms:
+    for item in get_bot_config_port().get_bot_platforms():
         platform, separator, account_id = str(item or "").partition(":")
         platform = platform.strip()
         account_id = account_id.strip()
@@ -1060,7 +1061,7 @@ async def get_expression_groups(
         groups: List[ExpressionGroupInfo] = []
         with get_db_session() as session:
             all_expression_chat_ids = get_visible_expression_chat_ids(session, include_legacy)
-            for index, expression_group in enumerate(global_config.expression.expression_groups):
+            for index, expression_group in enumerate(get_app_config_port().get_expression_groups()):
                 chat_ids: set[str] = set()
                 is_global = False
 
@@ -1100,7 +1101,7 @@ async def get_expression_groups(
 def read_expression_vector_index_payload() -> tuple[Path, Optional[dict[str, Any]]]:
     """读取当前表达向量索引 JSON。"""
 
-    index_path = resolve_project_path(global_config.expression.expression_vector_index_path)
+    index_path = resolve_project_path(get_app_config_port().get_expression_vector_index_path())
     if not index_path.exists():
         return index_path, None
     payload = json.loads(index_path.read_text(encoding="utf-8"))

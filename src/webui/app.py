@@ -162,10 +162,10 @@ def _setup_cors(app: FastAPI, port: int):
 
 def _setup_anti_crawler(app: FastAPI):
     try:
-        from src.config.config import global_config
+        from src.core.app_config_port_registry import get_app_config_port
         from src.webui.middleware import AntiCrawlerMiddleware
 
-        anti_crawler_mode = global_config.webui.anti_crawler_mode
+        anti_crawler_mode = get_app_config_port().get_webui_anti_crawler_mode()
         app.add_middleware(AntiCrawlerMiddleware, mode=anti_crawler_mode)
 
         mode_descriptions = {

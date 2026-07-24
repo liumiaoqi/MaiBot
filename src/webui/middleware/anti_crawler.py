@@ -238,13 +238,14 @@ def _convert_wildcard_to_regex(wildcard_pattern: str) -> Optional[str]:
 # 从配置读取防爬虫设置（延迟导入避免循环依赖）
 def _get_anti_crawler_config():
     """获取防爬虫配置"""
-    from src.config.config import global_config
+    from src.core.app_config_port_registry import get_app_config_port
 
+    port = get_app_config_port()
     return {
-        "mode": global_config.webui.anti_crawler_mode,
-        "allowed_ips": _parse_allowed_ips(global_config.webui.allowed_ips),
-        "trusted_proxies": _parse_allowed_ips(global_config.webui.trusted_proxies),
-        "trust_xff": global_config.webui.trust_xff,
+        "mode": port.get_webui_anti_crawler_mode(),
+        "allowed_ips": _parse_allowed_ips(port.get_webui_allowed_ips()),
+        "trusted_proxies": _parse_allowed_ips(port.get_webui_trusted_proxies()),
+        "trust_xff": port.get_webui_trust_xff(),
     }
 
 

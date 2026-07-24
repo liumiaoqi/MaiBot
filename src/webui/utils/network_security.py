@@ -43,9 +43,9 @@ def _should_enforce_public_network(require_public_network: bool | None) -> bool:
         return require_public_network
 
     try:
-        from src.config.config import global_config
+        from src.core.app_config_port_registry import get_app_config_port
 
-        return global_config.webui.enforce_public_outbound_url
+        return get_app_config_port().get_webui_enforce_public_outbound_url()
     except (AttributeError, ImportError, RuntimeError):
         return True
 

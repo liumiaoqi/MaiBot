@@ -20,9 +20,8 @@ from src.core.session_port_registry import get_session_name as _get_session_name
 from src.common.data_models.llm_service_data_models import LLMServiceRequest
 from src.common.database.database import get_db_session
 from src.common.database.database_model import ChatSession, Messages
-from src.config.config import config_manager
 from src.services.llm_service import generate as generate_llm_response
-from src.services.service_task_resolver import get_available_models
+from src.services.service_task_resolver import get_available_models, model_name_exists
 from src.webui.dependencies import require_auth
 from src.webui.routers.avatar import build_webui_avatar_url
 
@@ -426,15 +425,15 @@ def _resolve_session_name(session: str, sessions: list[str]) -> str:
 def _get_configured_platform_accounts() -> set[tuple[str, str]]:
     """读取当前配置中的平台账号对。"""
 
-    from src.config.config import global_config
+    from src.core.bot_config_port_registry import get_bot_config_port
 
     pairs: set[tuple[str, str]] = set()
-    base_platform = str(global_config.bot.platform or "").strip()
-    base_account = str(global_config.bot.qq_account or "").strip()
+    base_platform = str(get_bot_config_port().get_bot_platform() or "").strip()
+    base_account = str(get_bot_config_port().get_bot_primary_account() or "").strip()
     if base_platform and base_account:
         pairs.add((base_platform, base_account))
 
-    for item in global_config.bot.platforms:
+    for item in get_bot_config_port().get_bot_platforms():
         platform, separator, account_id = str(item or "").partition(":")
         platform = platform.strip()
         account_id = account_id.strip()
@@ -856,7 +855,7 @@ def _ensure_replay_model_exists(model_name: str) -> str:
     """确认重放模型存在并返回规范化模型名。"""
 
     normalized_model_name = model_name.strip()
-    if not any(model.name == normalized_model_name for model in config_manager.get_model_config().models):
+    if not model_name_exists(normalized_model_name):
         raise HTTPException(status_code=404, detail=f"未找到模型: {normalized_model_name}")
     return normalized_model_name
 

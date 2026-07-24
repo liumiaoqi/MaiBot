@@ -43,6 +43,11 @@ def get_available_models() -> Dict[str, TaskConfig]:
     return available_models
 
 
+def model_name_exists(model_name: str) -> bool:
+    """检查模型名是否存在于当前配置中。"""
+    return any(model.name == model_name.strip() for model in _get_model_config().models)
+
+
 def resolve_task_name(task_name: str = "") -> str:
     """根据任务名解析实际可用的模型任务名称。
 
