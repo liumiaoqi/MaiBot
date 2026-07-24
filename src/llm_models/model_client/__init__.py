@@ -1,6 +1,6 @@
 from importlib import import_module
 
-from src.core.protocols import ModelConfigPort
+from src.core.model_config_port_registry import get_model_config_port, register_model_config_port
 
 _CLIENT_MODULE_BY_TYPE: dict[str, str] = {
     "openai": ".openai_client",
@@ -9,13 +9,9 @@ _CLIENT_MODULE_BY_TYPE: dict[str, str] = {
 
 _LOADED_CLIENT_TYPES: set[str] = set()
 
-_model_config_port: ModelConfigPort | None = None
-
-
-def set_model_config_port(port: ModelConfigPort) -> None:
-    """注入模块级 ModelConfigPort。"""
-    global _model_config_port
-    _model_config_port = port
+def set_model_config_port(port: object) -> None:
+    """注入模块级 ModelConfigPort（委托全局注册点）。"""
+    register_model_config_port(port)
 
 
 def ensure_client_type_loaded(client_type: str) -> None:
@@ -29,7 +25,8 @@ def ensure_client_type_loaded(client_type: str) -> None:
 
 
 def ensure_configured_clients_loaded() -> None:
-    if _model_config_port is None:
+    port = get_model_config_port()
+    if port is None:
         return  # 模块导入时端口可能未注入，延迟到首次请求时
-    for provider in _model_config_port.get_model_config().api_providers:
+    for provider in port.get_model_config().api_providers:
         ensure_client_type_loaded(provider.client_type)

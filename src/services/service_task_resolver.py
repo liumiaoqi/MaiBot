@@ -4,23 +4,22 @@ from typing import Any, Dict
 
 from src.common.logger import get_logger
 from src.config.model_configs import TaskConfig
-from src.core.protocols import ModelConfigPort
+from src.core.model_config_port_registry import get_model_config_port
+from src.core.model_config_port_registry import register_model_config_port
 
 logger = get_logger("service_task_resolver")
 
-_model_config_port: ModelConfigPort | None = None
 
-
-def set_model_config_port(port: ModelConfigPort) -> None:
-    """注入模块级 ModelConfigPort。"""
-    global _model_config_port
-    _model_config_port = port
+def set_model_config_port(port: Any) -> None:
+    """注入模块级 ModelConfigPort（委托全局注册点）。"""
+    register_model_config_port(port)
 
 
 def _get_model_config():
-    """获取模型配置——优先使用 ModelConfigPort，未注入时回退到 config_manager（过渡期兼容）。"""
-    if _model_config_port is not None:
-        return _model_config_port.get_model_config()
+    """获取模型配置——优先使用 ModelConfigPort，未注册时回退到 config_manager（过渡期兼容）。"""
+    port = get_model_config_port()
+    if port is not None:
+        return port.get_model_config()
     logger.warning("ModelConfigPort 未注入，回退到 config_manager（过渡期兼容）")
     from src.config.config import config_manager  # noqa: TID251 — 过渡期兼容，端口可注入后此路径不再触发
     return config_manager.get_model_config()

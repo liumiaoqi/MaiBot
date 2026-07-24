@@ -18,6 +18,7 @@ from src.common.data_models.llm_service_data_models import (
     LLMResponseResult,
 )
 from src.config.model_configs import APIProvider, ModelInfo, TaskConfig
+from src.core.model_config_port_registry import get_model_config_port, register_model_config_port
 from src.core.protocols import ModelConfigPort
 from src.llm_models.exceptions import (
     EmptyResponseException,
@@ -55,13 +56,11 @@ install(extra_lines=3)
 logger = get_logger("model_utils")
 
 # 模块级 ModelConfigPort — 由 main.py 注入，TempMethodsLLMUtils 等静态工具使用
-_model_config_port: ModelConfigPort | None = None
 
 
-def set_model_config_port(port: ModelConfigPort) -> None:
-    """注入模块级 ModelConfigPort。"""
-    global _model_config_port
-    _model_config_port = port
+def set_model_config_port(port: object) -> None:
+    """注入模块级 ModelConfigPort（委托全局注册点）。"""
+    register_model_config_port(port)
 
 DATA_URI_LIMIT_PATTERN = re.compile(
     r"Exceeded limit on max bytes per data-uri item\s*:\s*(?P<limit>\d+)",
@@ -113,7 +112,7 @@ class LLMOrchestrator:
         self.task_name = task_name.strip()
         self.request_type = request_type
         self.session_id = str(session_id or "").strip()
-        self._model_config_port = model_config_port or _model_config_port
+        self._model_config_port = model_config_port or get_model_config_port()
         # 过渡期兼容：初始化时不强求端口已注入，首次请求时才检查
         if self._model_config_port is not None:
             self.model_for_task = self._get_task_config_or_raise()
@@ -154,8 +153,9 @@ class LLMOrchestrator:
             TaskConfig: 刷新后的任务配置对象。
         """
         if self._model_config_port is None:
-            if _model_config_port is not None:
-                self._model_config_port = _model_config_port
+            port = get_model_config_port()
+            if port is not None:
+                self._model_config_port = port
             else:
                 raise RuntimeError(
                     f"LLMOrchestrator[{self.task_name}]: ModelConfigPort 未注入，"
@@ -1137,15 +1137,17 @@ class LLMOrchestrator:
 class TempMethodsLLMUtils:
     @staticmethod
     def get_model_info_by_name(model_name: str) -> ModelInfo:
-        if _model_config_port is None:
-            raise RuntimeError("ModelConfigPort 未注入，无法查询模型信息")
-        return _model_config_port.get_model_info(model_name)
+        port = get_model_config_port()
+        if port is None:
+            raise RuntimeError("ModelConfigPort 未注册，无法查询模型信息")
+        return port.get_model_info(model_name)
 
     @staticmethod
     def get_provider_by_name(provider_name: str) -> APIProvider:
-        if _model_config_port is None:
-            raise RuntimeError("ModelConfigPort 未注入，无法查询提供商信息")
-        return _model_config_port.get_provider(provider_name)
+        port = get_model_config_port()
+        if port is None:
+            raise RuntimeError("ModelConfigPort 未注册，无法查询提供商信息")
+        return port.get_provider(provider_name)
 
 
 class LLMRequest(LLMOrchestrator):
@@ -1198,10 +1200,11 @@ class LLMRequest(LLMOrchestrator):
         Raises:
             ValueError: 未能找到匹配任务配置时抛出。
         """
-        if _model_config_port is None:
-            raise RuntimeError("ModelConfigPort 未注入")
+        port = get_model_config_port()
+        if port is None:
+            raise RuntimeError("ModelConfigPort 未注册")
         target_signature = cls._build_task_config_signature(model_set)
-        model_task_config = _model_config_port.get_model_config().model_task_config
+        model_task_config = port.get_model_config().model_task_config
         for attr_name in dir(model_task_config):
             if attr_name.startswith("_"):
                 continue
