@@ -27,9 +27,9 @@ class AgentRouter:
     def _get_default_agent_id(self) -> str:
         """从配置获取默认智能体ID"""
         try:
-            from src.config.config import global_config  # noqa: TID251
+            from src.core.app_config_port_registry import get_app_config_port
 
-            return global_config.agent.default_agent_id
+            return get_app_config_port().get_default_agent_id()
         except Exception:
             return self._registry.get_default_agent().agent_id
 

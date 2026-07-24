@@ -43,10 +43,10 @@ def _build_webui_local_base_url() -> str:
     """构建终端可直接打开的本机 WebUI 地址。"""
 
     try:
-        from src.config.config import global_config  # noqa: TID251
+        from src.core.app_config_port_registry import get_app_config_port
 
-        host = _select_webui_local_host(global_config.webui.host)
-        port = int(global_config.webui.port or 8001)
+        host = _select_webui_local_host(get_app_config_port().get_webui_host())
+        port = int(get_app_config_port().get_webui_port() or 8001)
     except Exception:
         host = "127.0.0.1"
         port = 8001

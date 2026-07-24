@@ -17,9 +17,9 @@ class AgentConfigRegistry:
     def __init__(self, config_dir: Optional[str] = None) -> None:
         if config_dir is None:
             try:
-                from src.config.config import global_config  # noqa: TID251
+                from src.core.app_config_port_registry import get_app_config_port
 
-                config_dir = global_config.agent.agents_dir
+                config_dir = get_app_config_port().get_agents_dir()
             except Exception:
                 config_dir = "agents/"
         self._loader = AgentConfigLoader(config_dir)

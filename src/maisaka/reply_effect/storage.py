@@ -78,9 +78,9 @@ class ReplyEffectStorage:
     @classmethod
     def _get_max_records_per_chat(cls) -> int:
         try:
-            from src.config.config import global_config  # noqa: TID251
+            from src.core.app_config_port_registry import get_app_config_port
 
-            configured_limit = global_config.log.maisaka_reply_effect_limit
+            configured_limit = get_app_config_port().get_log_maisaka_reply_effect_limit()
             return max(1, int(configured_limit or cls._DEFAULT_MAX_RECORDS_PER_CHAT))
         except Exception:
             return cls._DEFAULT_MAX_RECORDS_PER_CHAT

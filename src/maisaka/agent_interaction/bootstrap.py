@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 
-from src.config.config import global_config  # noqa: TID251 — agent_interaction 待协议化
+from src.core.app_config_port_registry import get_app_config_port
 from src.core.protocols import MemoryServicePort
 from src.maisaka.agent_interaction.cooldown import InteractionCooldownManager
 from src.maisaka.agent_interaction.emotion_registry import AgentEmotionManagerRegistry
@@ -45,7 +45,7 @@ def build_interaction_scheduler(memory_port: MemoryServicePort) -> InteractionSc
 
     若 agent_interaction.enabled 为 False，返回 None。
     """
-    cfg = global_config.agent_interaction
+    cfg = get_app_config_port().get_agent_interaction_config()
 
     if not cfg.enabled:
         logger.info("[agent_interaction] 智能体交互未启用，跳过调度器构建")
@@ -107,7 +107,7 @@ def build_monologue_engine(memory_port: MemoryServicePort) -> MonologueEngine | 
 
     若 agent_interaction.monologue_enabled 为 False，返回 None。
     """
-    cfg = global_config.agent_interaction
+    cfg = get_app_config_port().get_agent_interaction_config()
 
     if not cfg.enabled or not cfg.monologue_enabled:
         return None
