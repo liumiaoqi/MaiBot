@@ -1,7 +1,7 @@
 """Scope 词汇表 — Phoenix 细粒度授权定义。
 
 三段式格式：资源域:操作:资源类型（如 message:send:text）。
-11 个资源域，52 个 scope 条目，覆盖全部 76 个旧 capabilities。
+11 个资源域，54 个 scope 条目，覆盖全部 75 个旧 capabilities。
 版本：1.0.0
 """
 
@@ -90,7 +90,7 @@ _SCOPE_ENTRIES: frozenset[ScopeEntry] = frozenset({
     ScopeEntry("plugin:execute:load", "加载/卸载/重载插件", "component.load_plugin", "high", True),
     ScopeEntry("plugin:execute:api", "调用插件 API", "api.call", "medium", True),
 
-    # ── system 资源域（8 个） ──
+    # ── system 资源域（7 个） ──
     ScopeEntry("system:read:statistics", "读取系统统计", "statistics.local.models", "low", False),
     ScopeEntry("system:read:frequency", "读取发言频率", "frequency.get_current_talk_value", "low", False),
     ScopeEntry("system:read:tool_definitions", "读取工具定义", "tool.get_definitions", "low", False),

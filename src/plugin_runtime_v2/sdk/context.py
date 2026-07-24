@@ -9,7 +9,6 @@ from __future__ import annotations
 from typing import Any
 
 
-
 class ScopeDeniedError(Exception):
     """Scope 未授权异常。"""
 
@@ -17,7 +16,7 @@ class ScopeDeniedError(Exception):
 class SendContext:
     """消息发送上下文 — 需要 message:send:* scope。"""
 
-    _SCOKE_CHECK = {
+    _SCOPE_CHECK = {
         "text": "message:send:text",
         "image": "message:send:image",
         "emoji": "message:send:emoji",
@@ -29,27 +28,47 @@ class SendContext:
         self._granted_scopes = granted_scopes
 
     def _check_scope(self, method: str) -> None:
-        scope = self._SCOKE_CHECK[method]
+        scope = self._SCOPE_CHECK[method]
         if scope not in self._granted_scopes:
             raise ScopeDeniedError(f"Scope {scope} 未授权")
 
     async def text(self, session_id: str, text: str) -> dict[str, Any]:
-        """发送文本消息。需要 message:send:text scope。"""
+        """发送文本消息。需要 message:send:text scope。
+
+        Phoenix-0 占位实现，Phoenix-1 实现实际发送。
+        """
         self._check_scope("text")
         return {"session_id": session_id, "type": "text"}
 
     async def image(self, session_id: str, image_base64: str) -> dict[str, Any]:
-        """发送图片。需要 message:send:image scope。"""
+        """发送图片。需要 message:send:image scope。
+
+        Phoenix-0 占位实现，Phoenix-1 实现实际发送。
+        """
         self._check_scope("image")
         return {"session_id": session_id, "type": "image"}
 
     async def emoji(self, session_id: str, emoji_base64: str) -> dict[str, Any]:
-        """发送表情包。需要 message:send:emoji scope。"""
+        """发送表情包。需要 message:send:emoji scope。
+
+        Phoenix-0 占位实现，Phoenix-1 实现实际发送。
+        """
         self._check_scope("emoji")
         return {"session_id": session_id, "type": "emoji"}
 
+    async def forward(self, session_id: str, message_id: str) -> dict[str, Any]:
+        """发送转发消息。需要 message:send:forward scope。
+
+        Phoenix-0 占位实现，Phoenix-1 实现实际发送。
+        """
+        self._check_scope("forward")
+        return {"session_id": session_id, "type": "forward"}
+
     async def hybrid(self, session_id: str, segments: list[dict[str, Any]]) -> dict[str, Any]:
-        """发送图文混合消息。需要 message:send:hybrid scope。"""
+        """发送图文混合消息。需要 message:send:hybrid scope。
+
+        Phoenix-0 占位实现，Phoenix-1 实现实际发送。
+        """
         self._check_scope("hybrid")
         return {"session_id": session_id, "type": "hybrid"}
 
@@ -61,18 +80,27 @@ class StorageContext:
         self._granted_scopes = granted_scopes
 
     async def get(self, key: str, default: Any = None) -> Any:
-        """读取键值。需要 database:read:self scope。"""
+        """读取键值。需要 database:read:self scope。
+
+        Phoenix-0 占位实现，Phoenix-1 实现实际存储。
+        """
         if "database:read:self" not in self._granted_scopes:
             raise ScopeDeniedError("Scope database:read:self 未授权")
         return default
 
     async def set(self, key: str, value: Any) -> None:
-        """写入键值。需要 database:write:self scope。"""
+        """写入键值。需要 database:write:self scope。
+
+        Phoenix-0 占位实现，Phoenix-1 实现实际存储。
+        """
         if "database:write:self" not in self._granted_scopes:
             raise ScopeDeniedError("Scope database:write:self 未授权")
 
     async def delete(self, key: str) -> bool:
-        """删除键值。需要 database:write:self scope。"""
+        """删除键值。需要 database:write:self scope。
+
+        Phoenix-0 占位实现，Phoenix-1 实现实际存储。
+        """
         if "database:write:self" not in self._granted_scopes:
             raise ScopeDeniedError("Scope database:write:self 未授权")
         return False
@@ -125,9 +153,15 @@ class PluginContext:
         return self._logger
 
     async def emit_event(self, name: str, payload: dict[str, Any]) -> None:
-        """推送事件。需要对应 Event 的 scope。"""
+        """推送事件。需要对应 Event 的 scope。
+
+        Phoenix-0 占位实现，Phoenix-2 实现实际推送。
+        """
         pass
 
     async def emit_card(self, name: str, data: dict[str, Any]) -> None:
-        """推送卡片数据。需要对应 HomeCard 的 scope。"""
+        """推送卡片数据。需要对应 HomeCard 的 scope。
+
+        Phoenix-0 占位实现，Phoenix-2 实现实际推送。
+        """
         pass

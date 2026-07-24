@@ -21,8 +21,9 @@ message RunnerMessage {
 message HostMessage {
   oneof payload {
     HelloResponse hello_response = 1;  // 握手响应
-    HeartbeatRequest heartbeat = 2;    // 心跳请求
-    ShutdownRequest shutdown = 3;      // 关停请求
+    EventAck event_ack = 2;            // Event 确认
+    HeartbeatRequest heartbeat = 3;    // 心跳请求
+    ShutdownRequest shutdown = 4;      // 关停请求
   }
 }
 

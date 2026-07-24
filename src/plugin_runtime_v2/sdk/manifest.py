@@ -79,39 +79,3 @@ class ManifestV3(BaseModel):
         if invalid:
             raise ValueError(f"无效的 scope: {invalid}")
         return v
-
-
-SAMPLE_MANIFEST_V3_JSON = """{
-  "manifest_version": 3,
-  "id": "org.example.my_plugin",
-  "version": "1.0.0",
-  "name": "My Plugin",
-  "description": "A sample plugin for MaiBot",
-  "author": {
-    "name": "Developer Name",
-    "url": "https://example.com"
-  },
-  "license": "MIT",
-  "host_application": {
-    "min_version": "5.0.0",
-    "max_version": ""
-  },
-  "sdk": {
-    "min_version": "4.0.0",
-    "max_version": ""
-  },
-  "scopes": [
-    "message:send:text",
-    "database:read:self",
-    "database:write:self"
-  ],
-  "dependencies": [],
-  "i18n": {
-    "default_locale": "zh-CN",
-    "locales": [
-      {"locale": "zh-CN"},
-      {"locale": "en-US"},
-      {"locale": "ja-JP"}
-    ]
-  }
-}"""
