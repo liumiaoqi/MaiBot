@@ -31,7 +31,6 @@ from .official_configs import (
     BotConfig,
     ChatConfig,
     ChineseTypoConfig,
-    DatabaseConfig,
     DebugConfig,
     EmojiConfig,
     ExperimentalConfig,
@@ -47,7 +46,6 @@ from .official_configs import (
     PluginRuntimeConfig,
     PythonRuntimeSectionConfig,
     ResponsePostProcessConfig,
-    SubAgentSectionConfig,
     ResponseSplitterConfig,
     TelemetryConfig,
     VisualConfig,
@@ -143,8 +141,6 @@ class Config(ConfigBase):
     webui: WebUIConfig = Field(default_factory=WebUIConfig)
     """WebUI配置类"""
 
-    database: DatabaseConfig = Field(default_factory=DatabaseConfig)
-    """数据库配置类"""
 
     mcp: MCPConfig = Field(default_factory=MCPConfig)
     """MCP 配置类"""
@@ -158,8 +154,6 @@ class Config(ConfigBase):
     agent: AgentSectionConfig = Field(default_factory=AgentSectionConfig)
     """智能体配置类"""
 
-    subagent: SubAgentSectionConfig = Field(default_factory=SubAgentSectionConfig)
-    """子智能体配置类"""
 
     python_runtime: PythonRuntimeSectionConfig = Field(default_factory=PythonRuntimeSectionConfig)
     """Python运行时配置类"""
