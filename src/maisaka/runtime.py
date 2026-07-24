@@ -23,6 +23,9 @@ from src.common.logger import get_logger
 from src.common.message_repository import find_messages
 from src.common.utils.utils_config import BehaviorConfigUtils, ChatConfigUtils, ExpressionConfigUtils, JargonConfigUtils
 from src.config.config import global_config
+from src.core.bot_config_port_registry import get_bot_config_port
+from src.core.chat_config_port_registry import get_chat_config_port
+from src.core.app_config_port_registry import get_app_config_port
 from src.core.protocols import NoticeClassifier
 from src.core.session_port_registry import get_existing_session_info, get_session_name
 from src.core.types import NoticeKind
@@ -1484,11 +1487,6 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
     def _init_agent_autonomy(self) -> None:
         """根据配置初始化智能体自主性架构。"""
         try:
-from src.config.config import global_config  # noqa: TID251 — reply_timing/mcp/expression/debug 待协议化
-from src.core.bot_config_port_registry import get_bot_config_port
-from src.core.chat_config_port_registry import get_chat_config_port
-from src.core.app_config_port_registry import get_app_config_port
-
             autonomy_config = get_app_config_port().get_agent_autonomy_config()
             if not autonomy_config.enabled:
                 return

@@ -902,3 +902,74 @@ class AMemorixIntegrationSnapshot:
     chat_summary_writeback_enabled: bool = False
     chat_summary_writeback_message_threshold: int = 10
     chat_summary_writeback_context_length: int = 20
+    enable_memory_query_tool: bool = True
+    enable_person_profile_query_tool: bool = True
+    memory_query_default_limit: int = 5
+    enable_person_profile_injection: bool = True
+    person_profile_injection_max_profiles: int = 3
+    heuristic_memory_recall_enabled: bool = False
+    heuristic_memory_recall_window_size: int = 20
+    heuristic_memory_recall_cache_ttl_seconds: int = 300
+    heuristic_memory_recall_min_interval_seconds: int = 180
+    heuristic_memory_recall_min_new_messages: int = 60
+    heuristic_memory_recall_limit: int = 3
+    heuristic_memory_recall_max_chars: int = 900
+    heuristic_memory_cross_chat_enabled: bool = False
+    heuristic_memory_group_to_private_enabled: bool = False
+    heuristic_memory_private_to_group_enabled: bool = False
+
+
+@dataclass(frozen=True)
+class TalkValueRuleSnapshot:
+    """发言频率规则快照。"""
+    platform: str = ""
+    item_id: str = ""
+    rule_type: str = ""
+    time: str = ""
+    value: float = 0.0
+
+
+@dataclass(frozen=True)
+class ReplyTimingSnapshot:
+    """回复时序配置快照 — DEPRECATED，将由 vitality 系统替代。"""
+    reply_trigger_mode: str = "hybrid"  # DEPRECATED: 将由 vitality + 规则引擎替代
+    planner_interrupt_max_consecutive_count: int = 3  # DEPRECATED: 将由 ThinkingOrgan MAX_CYCLES 替代
+    max_consecutive_wait_count: int = 3  # DEPRECATED: 将由 ThinkingOrgan MAX_CYCLES 替代
+    talk_value: float = 0.5  # DEPRECATED: 将由 vitality 系统替代
+    private_talk_value: float = 0.3  # DEPRECATED: 将由 vitality 系统替代
+    enable_talk_value_rules: bool = False  # DEPRECATED: 将由 vitality 系统替代
+    talk_value_rules: tuple[TalkValueRuleSnapshot, ...] = ()  # DEPRECATED: 将由 vitality 系统替代
+    mentioned_bot_reply: bool = True  # DEPRECATED: 将由管家规则过滤替代
+    inevitable_at_reply: bool = True  # DEPRECATED: 将由管家规则过滤替代
+
+
+@dataclass(frozen=True)
+class AgentInteractionSnapshot:
+    """智能体交互配置快照。"""
+    enabled: bool = True
+    evaluation_interval_seconds: int = 30
+    cooldown_minutes: int = 5
+    max_interactions_per_hour: int = 10
+    max_interactions_per_day: int = 50
+    echo_enabled: bool = True
+    echo_max_depth: int = 3
+    echo_decay_ratio: float = 0.5
+    monologue_enabled: bool = False
+    monologue_min_interval_minutes: int = 30
+    monologue_idle_threshold_minutes: int = 60
+    monologue_emotion_intensity_threshold: int = 5
+
+
+@dataclass(frozen=True)
+class KeywordRuleSnapshot:
+    """关键词规则快照。"""
+    keywords: tuple[str, ...] = ()
+    regex: tuple[str, ...] = ()
+    reaction: str = ""
+
+
+@dataclass(frozen=True)
+class KeywordReactionSnapshot:
+    """关键词反应配置快照。"""
+    keyword_rules: tuple[KeywordRuleSnapshot, ...] = ()
+    regex_rules: tuple[KeywordRuleSnapshot, ...] = ()
