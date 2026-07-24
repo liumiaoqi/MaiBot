@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from src.core.types import AgentAutonomySnapshot, AMemorixIntegrationSnapshot
+from src.core.types import AgentAutonomySnapshot, AgentInteractionSnapshot, AMemorixIntegrationSnapshot
 
 
 class GlobalConfigAppConfigPort:
-    """聚合 expression/emoji/experimental/visual/debug/agent_autonomy/a_memorix 域配置。"""
+    """聚合 expression/emoji/experimental/visual/debug/agent_autonomy/a_memorix/mcp/response_splitter/chinese_typo/response_post_process/log/webui/agent/agent_interaction 域配置。"""
 
     def _get_cfg(self):
         from src.config.config import global_config
@@ -45,6 +45,9 @@ class GlobalConfigAppConfigPort:
     def get_emoji_do_replace(self) -> bool:
         return self._get_cfg().emoji.do_replace
 
+    def get_emoji_send_num(self) -> int:
+        return self._get_cfg().emoji.emoji_send_num
+
     def get_experimental_behavior_learning_list(self) -> list[str]:
         return list(self._get_cfg().experimental.behavior_learning_list)
 
@@ -68,6 +71,83 @@ class GlobalConfigAppConfigPort:
 
     def get_debug_show_jargon_prompt(self) -> bool:
         return self._get_cfg().debug.show_jargon_prompt
+
+
+    def get_debug_enable_reply_effect_tracking(self) -> bool:
+        return self._get_cfg().debug.enable_reply_effect_tracking
+
+    def get_debug_record_tool_structured_content(self) -> bool:
+        return self._get_cfg().debug.record_tool_structured_content
+
+    def get_debug_keep_prompt_preview_json_base64(self) -> bool:
+        return self._get_cfg().debug.keep_prompt_preview_json_base64
+
+    def get_debug_enable_llm_cache_stats(self) -> bool:
+        return self._get_cfg().debug.enable_llm_cache_stats
+
+
+    def get_mcp_enable(self) -> bool:
+        return self._get_cfg().mcp.enable
+
+    def get_mcp_sampling_task_name(self) -> str:
+        return self._get_cfg().mcp.client.sampling.task_name
+
+    def get_response_splitter_enable(self) -> bool:
+        return self._get_cfg().response_splitter.enable
+
+    def get_response_splitter_max_length(self) -> int:
+        return self._get_cfg().response_splitter.max_length
+
+    def get_response_splitter_max_sentence_num(self) -> int:
+        return self._get_cfg().response_splitter.max_sentence_num
+
+    def get_response_splitter_max_split_num(self) -> int:
+        return self._get_cfg().response_splitter.max_split_num
+
+    def get_response_splitter_enable_kaomoji_protection(self) -> bool:
+        return self._get_cfg().response_splitter.enable_kaomoji_protection
+
+    def get_response_splitter_enable_overflow_return_all(self) -> bool:
+        return self._get_cfg().response_splitter.enable_overflow_return_all
+
+    def get_chinese_typo_enable(self) -> bool:
+        return self._get_cfg().chinese_typo.enable
+
+    def get_chinese_typo_error_rate(self) -> float:
+        return self._get_cfg().chinese_typo.error_rate
+
+    def get_chinese_typo_min_freq(self) -> int:
+        return self._get_cfg().chinese_typo.min_freq
+
+    def get_chinese_typo_tone_error_rate(self) -> float:
+        return self._get_cfg().chinese_typo.tone_error_rate
+
+    def get_chinese_typo_word_replace_rate(self) -> float:
+        return self._get_cfg().chinese_typo.word_replace_rate
+
+    def get_response_post_process_enable(self) -> bool:
+        return self._get_cfg().response_post_process.enable_response_post_process
+
+    def get_response_post_process_typing_speed(self) -> float:
+        return self._get_cfg().response_post_process.typing_speed
+
+    def get_log_maisaka_prompt_preview_limit(self) -> int:
+        return self._get_cfg().log.maisaka_prompt_preview_limit
+
+    def get_log_maisaka_reply_effect_limit(self) -> int:
+        return self._get_cfg().log.maisaka_reply_effect_limit
+
+    def get_webui_host(self) -> str:
+        return self._get_cfg().webui.host
+
+    def get_webui_port(self) -> int:
+        return self._get_cfg().webui.port
+
+    def get_default_agent_id(self) -> str:
+        return self._get_cfg().agent.default_agent_id
+
+    def get_agents_dir(self) -> str:
+        return self._get_cfg().agent.agents_dir
 
     def get_agent_autonomy_config(self) -> AgentAutonomySnapshot:
         aa = self._get_cfg().agent_autonomy
@@ -112,4 +192,37 @@ class GlobalConfigAppConfigPort:
             chat_summary_writeback_enabled=ami.chat_summary_writeback_enabled,
             chat_summary_writeback_message_threshold=ami.chat_summary_writeback_message_threshold,
             chat_summary_writeback_context_length=ami.chat_summary_writeback_context_length,
+            enable_memory_query_tool=ami.enable_memory_query_tool,
+            enable_person_profile_query_tool=ami.enable_person_profile_query_tool,
+            memory_query_default_limit=ami.memory_query_default_limit,
+            enable_person_profile_injection=ami.enable_person_profile_injection,
+            person_profile_injection_max_profiles=ami.person_profile_injection_max_profiles,
+            heuristic_memory_recall_enabled=ami.heuristic_memory_recall_enabled,
+            heuristic_memory_recall_window_size=ami.heuristic_memory_recall_window_size,
+            heuristic_memory_recall_cache_ttl_seconds=ami.heuristic_memory_recall_cache_ttl_seconds,
+            heuristic_memory_recall_min_interval_seconds=ami.heuristic_memory_recall_min_interval_seconds,
+            heuristic_memory_recall_min_new_messages=ami.heuristic_memory_recall_min_new_messages,
+            heuristic_memory_recall_limit=ami.heuristic_memory_recall_limit,
+            heuristic_memory_recall_max_chars=ami.heuristic_memory_recall_max_chars,
+            heuristic_memory_cross_chat_enabled=ami.heuristic_memory_cross_chat_enabled,
+            heuristic_memory_group_to_private_enabled=ami.heuristic_memory_group_to_private_enabled,
+            heuristic_memory_private_to_group_enabled=ami.heuristic_memory_private_to_group_enabled,
         )
+
+    def get_agent_interaction_config(self) -> AgentInteractionSnapshot:
+        ai = self._get_cfg().agent_interaction
+        return AgentInteractionSnapshot(
+            enabled=ai.enabled,
+            evaluation_interval_seconds=ai.evaluation_interval_seconds,
+            cooldown_minutes=ai.cooldown_minutes,
+            max_interactions_per_hour=ai.max_interactions_per_hour,
+            max_interactions_per_day=ai.max_interactions_per_day,
+            echo_enabled=ai.echo_enabled,
+            echo_max_depth=ai.echo_max_depth,
+            echo_decay_ratio=ai.echo_decay_ratio,
+            monologue_enabled=ai.monologue_enabled,
+            monologue_min_interval_minutes=ai.monologue_min_interval_minutes,
+            monologue_idle_threshold_minutes=ai.monologue_idle_threshold_minutes,
+            monologue_emotion_intensity_threshold=ai.monologue_emotion_intensity_threshold,
+        )
+
