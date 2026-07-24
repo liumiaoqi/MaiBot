@@ -136,8 +136,8 @@ class MainSystem:
 
         # 阶段 2：核心服务
         orchestrator.register(StartupComponent(
-            name="session_submodules", phase=StartupPhase.CORE_SERVICES, order=0, critical=True,
-            init_fn=self._init_session_submodules,
+            name="agent_registry", phase=StartupPhase.CORE_SERVICES, order=0, critical=True,
+            init_fn=self._init_agent_registry,
         ))
         orchestrator.register(StartupComponent(
             name="chat_manager_adapter", phase=StartupPhase.CORE_SERVICES, order=1, critical=True,
@@ -156,8 +156,8 @@ class MainSystem:
             init_fn=self._init_runtime_port,
         ))
         orchestrator.register(StartupComponent(
-            name="agent_registry", phase=StartupPhase.CORE_SERVICES, order=5, critical=True,
-            init_fn=self._init_agent_registry,
+            name="session_submodules", phase=StartupPhase.CORE_SERVICES, order=5, critical=True,
+            init_fn=self._init_session_submodules,
         ))
         orchestrator.register(StartupComponent(
             name="model_config_port", phase=StartupPhase.CORE_SERVICES, order=6, critical=True,
