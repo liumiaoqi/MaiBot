@@ -148,15 +148,15 @@ class MainSystem:
             init_fn=self._init_adapter_and_ports,
         ))
         orchestrator.register(StartupComponent(
-            name="replyer_port", phase=StartupPhase.CORE_SERVICES, order=2, critical=True,
+            name="replyer_port", phase=StartupPhase.CORE_SERVICES, order=3, critical=True,
             init_fn=self._init_replyer_port,
         ))
         orchestrator.register(StartupComponent(
-            name="image_port", phase=StartupPhase.CORE_SERVICES, order=3, critical=True,
+            name="image_port", phase=StartupPhase.CORE_SERVICES, order=4, critical=True,
             init_fn=self._init_image_port,
         ))
         orchestrator.register(StartupComponent(
-            name="runtime_port", phase=StartupPhase.CORE_SERVICES, order=4, critical=True,
+            name="runtime_port", phase=StartupPhase.CORE_SERVICES, order=5, critical=True,
             init_fn=self._init_runtime_port,
         ))
         orchestrator.register(StartupComponent(
