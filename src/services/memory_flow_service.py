@@ -18,7 +18,7 @@ from src.core.adapters.llm_service_port import get_llm_service
 from src.core.person_info_port_registry import get_person_info_port
 from src.core.protocols import LLMService
 
-from src.core.memory_port_registry import get_memory_service_port
+from src.core.adapters import get_memory_service_port
 
 if TYPE_CHECKING:
     from src.core.types import PersonDetailSnapshot

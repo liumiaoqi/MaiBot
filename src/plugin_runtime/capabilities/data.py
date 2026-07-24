@@ -1375,7 +1375,7 @@ class RuntimeDataCapabilityMixin:
         time_end = args.get("time_end")
 
         try:
-            from src.core.memory_port_registry import get_memory_service_port
+            from src.core.adapters import get_memory_service_port
 
             result = await get_memory_service_port().search(
                 query,

@@ -13,7 +13,7 @@ from src.common.database.database_model import PersonInfo
 from src.common.logger import get_logger
 
 from src.core.bot_config_port_registry import get_bot_config_port
-from src.core.memory_port_registry import get_memory_service_port
+from src.core.adapters import get_memory_service_port
 from src.core.session_port_registry import get_session_info
 
 
