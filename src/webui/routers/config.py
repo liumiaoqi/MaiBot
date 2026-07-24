@@ -17,7 +17,7 @@ import tomlkit
 
 from src.common.logger import get_logger
 from src.common.prompt_i18n import clear_prompt_cache, extract_prompt_placeholders, list_prompt_templates
-from src.config.config import CONFIG_DIR, Config, ModelConfig, PROJECT_ROOT, config_manager
+from src.config.config import CONFIG_DIR, Config, ModelConfig, PROJECT_ROOT, config_manager  # noqa: TID251 — 配置管理页面需直接操作配置对象
 from src.config.config_base import AttributeData, ConfigBase
 from src.config.model_configs import (
     APIProvider,

@@ -11,7 +11,7 @@ from sqlmodel import col, select
 import json
 import tomlkit
 
-from src.chat.heart_flow.heartflow_manager import heartflow_manager
+from src.chat.heart_flow.heartflow_manager import heartflow_manager  # noqa: TID251 — 整体对象：直接访问 heartflow_chat_list
 from src.common.database.database import get_db_session
 from src.core.session_port_registry import get_session_name as _get_session_name_via_port
 from src.common.database.database_model import (
