@@ -250,3 +250,45 @@ class GlobalConfigAppConfigPort:
     def get_a_memorix_shared_memory_groups(self) -> list[str]:
         return list(getattr(self._get_cfg().a_memorix, "shared_memory_groups", []) or [])
 
+    def get_visual_handle_oversized_images(self) -> bool:
+        return bool(self._get_cfg().visual.handle_oversized_images)
+
+    def get_visual_max_image_size_mb(self) -> float:
+        return float(self._get_cfg().visual.max_image_size_mb or 0.0)
+
+    def get_visual_oversized_image_handle_method(self) -> str:
+        return str(self._get_cfg().visual.oversized_image_handle_method or "compress")
+
+    def get_visual_planner_mode(self) -> str:
+        return str(self._get_cfg().visual.planner_mode or "text")
+
+    def get_visual_image_cache_cleanup_enabled(self) -> bool:
+        try:
+            return bool(self._get_cfg().visual.image_cache_cleanup.enabled)
+        except Exception:
+            return False
+
+    def get_emoji_cache_cleanup_enabled(self) -> bool:
+        try:
+            return bool(self._get_cfg().emoji.cache_cleanup.enabled)
+        except Exception:
+            return False
+
+    def get_experimental_focus_mode(self) -> bool:
+        return bool(self._get_cfg().experimental.focus_mode)
+
+    def get_experimental_focus_on_private(self) -> bool:
+        return bool(self._get_cfg().experimental.focus_on_private)
+
+    def get_experimental_focus_chat_whitelist(self) -> list[str]:
+        return list(self._get_cfg().experimental.focus_chat_whitelist or [])
+
+    def get_experimental_focus_cool_time(self) -> float:
+        return max(1.0, float(self._get_cfg().experimental.focus_cool_time or 60.0))
+
+    def get_experimental_focus_groups(self) -> list[str]:
+        return list(self._get_cfg().experimental.focus_groups or [])
+
+    def get_chat_mid_term_memory(self) -> bool:
+        return bool(self._get_cfg().chat.mid_term_memory)
+

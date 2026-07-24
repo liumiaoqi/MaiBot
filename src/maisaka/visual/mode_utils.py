@@ -1,5 +1,6 @@
 from src.common.logger import get_logger
-from src.config.config import config_manager, global_config  # noqa: TID251
+from src.config.config import config_manager  # noqa: TID251
+from src.core.app_config_port_registry import get_app_config_port
 
 logger = get_logger("maisaka_visual_mode")
 
@@ -13,7 +14,7 @@ def _normalize_model_names(model_names: list[str]) -> list[str]:
 def _resolve_enable_visual_task(task_name: str, fallback_task_name: str = "") -> bool:
     """根据指定任务配置解析当前是否应启用视觉消息。"""
 
-    planner_mode = global_config.visual.planner_mode
+    planner_mode = get_app_config_port().get_visual_planner_mode()
     model_config = config_manager.get_model_config()
     model_task_config = model_config.model_task_config
     task_config = getattr(model_task_config, task_name)

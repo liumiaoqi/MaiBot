@@ -16,7 +16,7 @@ from src.common.data_models.message_component_data_model import DictComponent, M
 from src.common.data_models.embedding_service_data_models import EmbeddingResult
 from src.common.logger import get_logger
 from src.common.prompt_i18n import load_prompt
-from src.config.config import global_config  # noqa: TID251 — chat.mid_term_memory/visual/debug 待协议化
+from src.core.app_config_port_registry import get_app_config_port
 from src.core.app_config_port_registry import get_app_config_port
 from src.llm_models.payload_content.message import (
     ImageMessagePart,
@@ -323,7 +323,7 @@ async def build_mid_term_memory_reference_message(
 ) -> ReferenceMessage | None:
     """基于当前 Planner 上下文召回最相关的一条聊天回想。"""
 
-    if not bool(global_config.chat.mid_term_memory):
+    if not get_app_config_port().get_chat_mid_term_memory():
         return None
 
     query_text = _build_mid_term_memory_recall_query_text(selected_history)

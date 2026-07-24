@@ -9,7 +9,7 @@ from typing import Any, Iterable, Optional
 import time
 
 from src.common.utils.utils_config import ChatConfigUtils
-from src.config.config import global_config  # noqa: TID251 — experimental.focus_* 待协议化
+from src.core.app_config_port_registry import get_app_config_port
 from src.core.session_port_registry import get_session_info
 from src.core.types import SessionInfo
 
@@ -43,26 +43,26 @@ class FocusModeManager:
     def is_enabled(self) -> bool:
         """Return whether focus mode is enabled in the live chat config."""
 
-        return bool(global_config.experimental.focus_mode)
+        return get_app_config_port().get_experimental_focus_mode()
 
     def is_enabled_for_chat(self, *, is_group_chat: Optional[bool] = None) -> bool:
         """Return whether focus mode applies to a specific chat type."""
 
         if not self.is_enabled():
             return False
-        if is_group_chat is False and not bool(global_config.experimental.focus_on_private):
+        if is_group_chat is False and not get_app_config_port().get_experimental_focus_on_private():
             return False
         return True
 
     @staticmethod
     def _get_focus_whitelist_targets() -> Iterable[Any]:
-        return global_config.experimental.focus_chat_whitelist or []
+        return get_app_config_port().get_experimental_focus_chat_whitelist()
 
     def get_focus_cool_time(self) -> float:
         """Return the focus wake-up cool time in seconds."""
 
         try:
-            return max(1.0, float(global_config.experimental.focus_cool_time))
+            return get_app_config_port().get_experimental_focus_cool_time()
         except (TypeError, ValueError):
             return 120.0
 
@@ -117,7 +117,7 @@ class FocusModeManager:
         if not normalized_session_id:
             return ""
 
-        focus_groups = list(global_config.experimental.focus_groups or [])
+        focus_groups = get_app_config_port().get_experimental_focus_groups()
         if not focus_groups:
             return FOCUS_GLOBAL_SCOPE_KEY
 

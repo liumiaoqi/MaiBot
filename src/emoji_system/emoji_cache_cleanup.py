@@ -310,7 +310,7 @@ def run_emoji_cache_cleanup(config: EmojiCacheCleanupConfigLike) -> EmojiCacheCl
 
 async def periodic_emoji_cache_cleanup() -> None:
     """按配置周期执行表情包缓存清理。"""
-    from src.config.config import global_config  # noqa: TID251
+    from src.config.config import global_config  # noqa: TID251 — emoji.cache_cleanup 整体对象无法逐属性 Port 化
 
     while True:
         config = global_config.emoji.cache_cleanup

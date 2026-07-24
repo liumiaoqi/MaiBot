@@ -27,20 +27,19 @@ class ImageReceiveProcessReport:
 
 def process_received_images_in_message(components: List[StandardMessageComponents]) -> ImageReceiveProcessReport:
     """按视觉配置处理入站消息中的过大图片组件。"""
-    from src.config.config import global_config  # noqa: TID251
+    from src.core.app_config_port_registry import get_app_config_port
 
-    visual_config = global_config.visual
-    if not visual_config.handle_oversized_images:
+    if not get_app_config_port().get_visual_handle_oversized_images():
         return ImageReceiveProcessReport()
 
-    max_image_size_bytes = int(float(visual_config.max_image_size_mb) * 1024 * 1024)
+    max_image_size_bytes = int(float(get_app_config_port().get_visual_max_image_size_mb()) * 1024 * 1024)
     if max_image_size_bytes <= 0:
         return ImageReceiveProcessReport()
 
     return _process_image_components(
         components,
         max_image_size_bytes,
-        visual_config.oversized_image_handle_method,
+        get_app_config_port().get_visual_oversized_image_handle_method(),
     )
 
 
