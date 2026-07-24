@@ -140,7 +140,11 @@ class MainSystem:
             init_fn=self._init_agent_registry,
         ))
         orchestrator.register(StartupComponent(
-            name="chat_manager_adapter", phase=StartupPhase.CORE_SERVICES, order=1, critical=True,
+            name="session_submodules", phase=StartupPhase.CORE_SERVICES, order=1, critical=True,
+            init_fn=self._init_session_submodules,
+        ))
+        orchestrator.register(StartupComponent(
+            name="chat_manager_adapter", phase=StartupPhase.CORE_SERVICES, order=2, critical=True,
             init_fn=self._init_adapter_and_ports,
         ))
         orchestrator.register(StartupComponent(
@@ -154,10 +158,6 @@ class MainSystem:
         orchestrator.register(StartupComponent(
             name="runtime_port", phase=StartupPhase.CORE_SERVICES, order=4, critical=True,
             init_fn=self._init_runtime_port,
-        ))
-        orchestrator.register(StartupComponent(
-            name="session_submodules", phase=StartupPhase.CORE_SERVICES, order=5, critical=True,
-            init_fn=self._init_session_submodules,
         ))
         orchestrator.register(StartupComponent(
             name="model_config_port", phase=StartupPhase.CORE_SERVICES, order=6, critical=True,
