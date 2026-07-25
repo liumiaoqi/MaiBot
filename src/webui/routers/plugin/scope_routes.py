@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from src.common.logger import get_logger
@@ -85,6 +86,8 @@ def _get_token_service(request: Request):
 async def list_all_plugin_scopes(request: Request) -> list[PluginScopeInfo]:
     """列出所有已发现插件及其 scope 审批状态。"""
     scope_store = _get_scope_store(request)
+    if scope_store is None:
+        return JSONResponse(status_code=503, content={"detail": "v2 插件运行时未启用"})
     plugins = _discover_plugins()
     result: list[PluginScopeInfo] = []
 
@@ -122,13 +125,15 @@ async def list_all_plugin_scopes(request: Request) -> list[PluginScopeInfo]:
 async def get_plugin_scopes(plugin_id: str, request: Request) -> PluginScopeInfo | None:
     """查询单个插件的 scope 审批状态。"""
     scope_store = _get_scope_store(request)
+    if scope_store is None:
+        return JSONResponse(status_code=503, content={"detail": "v2 插件运行时未启用"})
     plugins = _discover_plugins()
     manifest = plugins.get(plugin_id)
     if manifest is None:
         return None
 
     requested_scopes: list[str] = manifest.get("scopes", [])
-    granted = scope_store.get_granted_scopes(plugin_id) if scope_store else set()
+    granted = scope_store.get_granted_scopes(plugin_id)
 
     scope_statuses: list[ScopeStatus] = []
     for scope in requested_scopes:
@@ -161,7 +166,7 @@ async def approve_scope_endpoint(plugin_id: str, body: ApproveRequest, request: 
     """批准单个 scope。"""
     scope_store = _get_scope_store(request)
     if scope_store is None:
-        return {"success": False, "error": "scope_store 未初始化"}
+        return JSONResponse(status_code=503, content={"detail": "v2 插件运行时未启用"})
     scope_store.approve_scope(plugin_id, body.scope, operator="user")
     return {"success": True}
 
@@ -171,7 +176,7 @@ async def revoke_scope_endpoint(plugin_id: str, body: ApproveRequest, request: R
     """撤销单个 scope。"""
     scope_store = _get_scope_store(request)
     if scope_store is None:
-        return {"success": False, "error": "scope_store 未初始化"}
+        return JSONResponse(status_code=503, content={"detail": "v2 插件运行时未启用"})
     scope_store.revoke_scope(plugin_id, body.scope, operator="user")
     return {"success": True}
 
@@ -181,7 +186,7 @@ async def approve_all_pending_endpoint(plugin_id: str, request: Request) -> dict
     """自动批准所有 approval_required=False 的 scope。"""
     scope_store = _get_scope_store(request)
     if scope_store is None:
-        return {"success": False, "error": "scope_store 未初始化"}
+        return JSONResponse(status_code=503, content={"detail": "v2 插件运行时未启用"})
     plugins = _discover_plugins()
     manifest = plugins.get(plugin_id, {})
     count = scope_store.approve_all_pending(
@@ -198,6 +203,6 @@ async def issue_token_endpoint(plugin_id: str, request: Request) -> dict[str, An
     """为插件签发一次性 session_token。"""
     token_service = _get_token_service(request)
     if token_service is None:
-        return {"success": False, "error": "token_service 未初始化"}
+        return JSONResponse(status_code=503, content={"detail": "v2 插件运行时未启用"})
     token = token_service.issue(plugin_id)
     return {"success": True, "token": token, "plugin_id": plugin_id}
