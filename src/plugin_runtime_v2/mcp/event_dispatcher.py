@@ -24,10 +24,20 @@ _THINK_TRIGGER_EVENTS: frozenset[str] = frozenset({
 
 
 class EventDispatcher:
-    """Host 端 Event 分发器。"""
+    """Host 端 Event 分发器。
 
-    def __init__(self) -> None:
-        pass
+    Phoenix-2 阶段不实际调用注入的接口，但保留以便后续扩展。
+    """
+
+    def __init__(
+        self,
+        message_port=None,
+        session_repo=None,
+        person_info_port=None,
+    ) -> None:
+        self._message_port = message_port
+        self._session_repo = session_repo
+        self._person_info_port = person_info_port
 
     async def dispatch(
         self,

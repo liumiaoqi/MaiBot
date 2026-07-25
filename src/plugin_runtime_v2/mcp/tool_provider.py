@@ -25,14 +25,6 @@ logger = get_logger("plugin_runtime_v2.mcp.tool_provider")
 _COMMAND_PATTERN_KEY = "x-maibot-command-pattern"
 
 
-def _parse_schema(json_str: str) -> dict[str, Any] | None:
-    """解析 JSON Schema 字符串，失败返回 None。"""
-    try:
-        return json.loads(json_str) if json_str else None
-    except json.JSONDecodeError:
-        return None
-
-
 class MCPToolProvider:
     """Host 端 ToolProvider 桥接。
 
@@ -60,8 +52,29 @@ class MCPToolProvider:
             name = td.name
             if not name:
                 continue
-            schema_dict = _parse_schema(td.parameters_schema)
-            output_dict = _parse_schema(td.output_schema)
+
+            # parameters_schema：解析失败记录 WARNING 并跳过该 Tool
+            schema_dict = None
+            if td.parameters_schema:
+                try:
+                    schema_dict = json.loads(td.parameters_schema)
+                except json.JSONDecodeError:
+                    logger.warning(
+                        "Tool %s parameters_schema 解析失败，跳过: %s",
+                        name, td.parameters_schema[:200] if td.parameters_schema else "",
+                    )
+                    continue
+
+            # output_schema：解析失败记录 WARNING，设为 None（不跳过 Tool）
+            output_dict = None
+            if td.output_schema:
+                try:
+                    output_dict = json.loads(td.output_schema)
+                except json.JSONDecodeError:
+                    logger.warning(
+                        "Tool %s output_schema 解析失败，降级为 None: %s",
+                        name, td.output_schema[:200] if td.output_schema else "",
+                    )
 
             # 剥离 x-maibot-command-pattern 扩展字段
             pattern: str | None = None
@@ -89,6 +102,7 @@ class MCPToolProvider:
     async def _ensure_channel(self) -> None:
         """惰性创建 gRPC 通道和 stub。"""
         if self._channel is None:
+            logger.info("创建 gRPC channel: %s", self._listen_address)
             self._channel = grpc.aio.insecure_channel(self._listen_address)
             self._stub = PluginRunnerStub(self._channel)
 
@@ -127,23 +141,33 @@ class MCPToolProvider:
         except grpc.aio.AioRpcError as exc:
             code = exc.code()
             if code == grpc.StatusCode.DEADLINE_EXCEEDED:
+                logger.warning("Tool %s 调用超时", invocation.tool_name)
                 return ToolExecutionResult(
                     tool_name=invocation.tool_name,
                     success=False,
                     error_message=f"Tool {invocation.tool_name} 调用超时",
                 )
             if code == grpc.StatusCode.UNAVAILABLE:
+                logger.warning("Runner %s 不可用", self._runner_id)
                 return ToolExecutionResult(
                     tool_name=invocation.tool_name,
                     success=False,
                     error_message=f"Runner {self._runner_id} 不可用",
                 )
+            logger.warning(
+                "Tool %s 调用异常: %s: %s",
+                invocation.tool_name, exc.__class__.__name__, exc.details(),
+            )
             return ToolExecutionResult(
                 tool_name=invocation.tool_name,
                 success=False,
                 error_message=f"{exc.__class__.__name__}: {exc.details()}",
             )
         except Exception as exc:
+            logger.warning(
+                "Tool %s 调用异常: %s: %s",
+                invocation.tool_name, exc.__class__.__name__, exc,
+            )
             return ToolExecutionResult(
                 tool_name=invocation.tool_name,
                 success=False,

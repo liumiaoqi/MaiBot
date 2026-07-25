@@ -176,7 +176,7 @@ class _PluginHostServicer(PluginHostServicer):
                         )
                         if self._host_bridge is not None:
                             asyncio.create_task(
-                                self._host_bridge.dispatch_event(
+                                self._host_bridge.on_event_received(
                                     event.event_name, event.payload, runner_id,
                                 ),
                                 name=f"event-dispatch-{runner_id}",
@@ -306,7 +306,13 @@ class _PluginHostServicer(PluginHostServicer):
         )
 
         if self._host_bridge is not None:
-            self._host_bridge.on_runner_registered(conn)
+            self._host_bridge.on_runner_registered(
+                runner_id=conn.runner_id,
+                plugin_id=conn.plugin_id,
+                tools=conn.tools,
+                events=conn.events,
+                runner_listen_address=conn.runner_listen_address,
+            )
 
         return plugin_host_pb2.RegisterComponentsResponse(accepted=True)
 
@@ -350,8 +356,10 @@ class _PluginHostServicer(PluginHostServicer):
         self._registry.unregister(runner_id)
         self._outboxes.pop(runner_id, None)
         if self._host_bridge is not None:
+            conn = self._registry.get(runner_id)
+            plugin_id = conn.plugin_id if conn else ""
             asyncio.create_task(
-                self._host_bridge.on_runner_disconnected(runner_id),
+                self._host_bridge.on_runner_disconnected(runner_id, plugin_id),
                 name=f"bridge-disconnect-{runner_id}",
             )
         logger.info("Runner %s 连接已清理", runner_id)

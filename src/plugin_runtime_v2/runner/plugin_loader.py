@@ -29,14 +29,20 @@ class PluginLoader:
 
     # ── 公共 API ────────────────────────────────────────────────
 
-    def load(self) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, dict[str, Any]], MaiBotPlugin | None]:
-        """加载插件：扫描装饰器、实例化、注入 PluginContext、调用 on_load。
+    async def load(
+        self, plugin_cls: type[MaiBotPlugin] | None = None,
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, dict[str, Any]], MaiBotPlugin | None]:
+        """扫描装饰器、实例化插件。
 
         首次执行后 _plugin_loaded 设为 True，重连时复用。
+        PluginContext 注入和 on_load 由 RunnerEndpoint 在调用本方法后执行。
 
         Returns:
             (tool_declarations, event_declarations, homecard_registry, plugin_instance)
         """
+        if plugin_cls is not None:
+            self._plugin_cls = plugin_cls
+
         if self._plugin_loaded:
             return (
                 self._tool_declarations,
@@ -63,16 +69,9 @@ class PluginLoader:
             logger.error("插件 %s 实例化失败: %s", self._plugin_cls.__name__, exc)
             return [], [], {}, None
 
-        # 调用 on_load
-        try:
-            # on_load 可能在协程内或协程外调用，这里由 RunnerEndpoint 在 async 上下文中执行
-            pass  # PluginContext 注入和 on_load 由 RunnerEndpoint 在注入 context 后调用
-        except Exception:
-            pass
-
         self._plugin_loaded = True
         logger.info(
-            "PluginLoader 加载完成: cls=%s tools=%d events=%d cards=%d",
+            "PluginLoader 扫描完成: cls=%s tools=%d events=%d cards=%d",
             self._plugin_cls.__name__,
             len(self._tool_declarations),
             len(self._event_declarations),
@@ -84,6 +83,17 @@ class PluginLoader:
             self._homecard_registry,
             self._instance,
         )
+
+    async def unload(self, plugin: MaiBotPlugin) -> None:
+        """调用插件的 on_unload 生命周期。"""
+        try:
+            on_unload = plugin.on_unload
+            if inspect.iscoroutinefunction(on_unload):
+                await on_unload()
+            else:
+                on_unload()
+        except Exception as exc:
+            logger.warning("插件 %s on_unload 异常: %s", plugin.plugin_id, exc)
 
     @property
     def instance(self) -> MaiBotPlugin | None:

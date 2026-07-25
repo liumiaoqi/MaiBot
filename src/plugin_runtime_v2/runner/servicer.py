@@ -22,13 +22,9 @@ class _PluginRunnerServicer(PluginRunnerServicer):
     Phoenix-1 阶段返回 NOT_IMPLEMENTED，Phoenix-2 通过 ToolRouter 执行路由。
     """
 
-    def __init__(self) -> None:
-        self._tool_router: ToolRouter | None = None
+    def __init__(self, tool_router: ToolRouter | None = None) -> None:
+        self._tool_router = tool_router
         self._shutting_down: bool = False
-
-    def set_tool_router(self, router: ToolRouter) -> None:
-        """注入 ToolRouter（由 RunnerEndpoint 在启动时调用）。"""
-        self._tool_router = router
 
     async def InvokeTool(
         self,

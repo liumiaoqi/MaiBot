@@ -20,6 +20,7 @@ from src.plugin_runtime_v2.proto.plugin_runner_pb2_grpc import (
 )
 from src.plugin_runtime_v2.runner.reconnect import ReconnectPolicy, RunnerEndpointConfig
 from src.plugin_runtime_v2.runner.servicer import _PluginRunnerServicer
+from src.plugin_runtime_v2.runner.tool_router import ToolRouter
 
 logger = get_logger("plugin_runtime_v2.runner.endpoint")
 
@@ -55,7 +56,8 @@ class RunnerEndpoint:
             initial_delay_s=config.reconnect_initial_delay_s,
             max_delay_s=config.reconnect_max_delay_s,
         )
-        self._servicer = _PluginRunnerServicer()
+        self._tool_router = ToolRouter()
+        self._servicer = _PluginRunnerServicer(tool_router=self._tool_router)
         self._shutting_down: bool = False
         self._stream_call: grpc.aio.StreamStreamCall | None = None
         self._recv_task: asyncio.Task | None = None
@@ -78,19 +80,26 @@ class RunnerEndpoint:
                 self._config.tools = declarations[0]
                 self._config.events = declarations[1]
                 self._plugin_instance = declarations[3]
-                # 注册 Tool 到 ToolRouter
+                # 构造 homecard_registry
+                homecard_registry: dict[str, dict[str, Any]] = {}
+                for evt in declarations[1]:
+                    card_meta = evt.get("card_metadata")
+                    if card_meta:
+                        homecard_registry[evt["name"]] = card_meta
+                # 注入 PluginContext
                 from src.plugin_runtime_v2.sdk.context import PluginContext
                 ctx = PluginContext(
                     plugin_id=self._config.plugin_id,
                     granted_scopes=set(self._config.scopes),
+                    runner_endpoint=self,
+                    homecard_registry=homecard_registry,
                 )
                 self._plugin_instance.ctx = ctx
                 for tool_entry in declarations[0]:
-                    self._servicer._tool_router.register(
+                    self._tool_router.register(
                         tool_name=tool_entry["name"],
                         plugin=self._plugin_instance,
                         handler=tool_entry["handler"],
-                        declaration=tool_entry.get("_declaration"),
                     )
                 # 调用 on_load
                 try:
@@ -130,6 +139,7 @@ class RunnerEndpoint:
     async def stop(self) -> None:
         """停止 Runner：关闭双向流、停服务端、关通道。"""
         self._shutting_down = True
+        self._servicer._shutting_down = True
         if self._recv_task is not None:
             self._recv_task.cancel()
             self._recv_task = None
@@ -301,6 +311,7 @@ class RunnerEndpoint:
     async def _handle_shutdown(self, drain_timeout_ms: int) -> None:
         """优雅关停：停止接受新调用，等待排空，关闭流。"""
         self._shutting_down = True
+        self._servicer._shutting_down = True
         self._transition(ConnectionState.CLOSING)
 
         if drain_timeout_ms > 0:
