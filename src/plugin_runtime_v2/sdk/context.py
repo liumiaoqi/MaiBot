@@ -1,7 +1,7 @@
 """SDK v4 插件上下文 — 替代 v3 的 self.ctx。
 
 通过 self.ctx 访问，提供消息发送、键值存储、日志桥接等子对象。
-所有方法使用 session_id 替代 v3 的 stream_id。
+所有方法使用 session_id 替代 v3 的 stream_id。Phoenix-6 补全 RPC 调用。
 """
 
 from __future__ import annotations
@@ -37,44 +37,30 @@ class SendContext:
             raise ScopeDeniedError(f"Scope {scope} 未授权")
 
     async def text(self, session_id: str, text: str) -> dict[str, Any]:
-        """发送文本消息。需要 message:send:text scope。
-
-        Phoenix-2 占位实现。TODO: Phoenix-4 实现 RPC 通道
-        """
+        """发送文本消息。需要 message:send:text scope。"""
         self._check_scope("text")
-        return {"session_id": session_id, "type": "text"}
+        return await self._runner.send_message("TEXT", session_id, text_content=text)
 
     async def image(self, session_id: str, image_base64: str) -> dict[str, Any]:
-        """发送图片。需要 message:send:image scope。
-
-        Phoenix-2 占位实现。TODO: Phoenix-4 实现 RPC 通道
-        """
+        """发送图片。需要 message:send:image scope。"""
         self._check_scope("image")
-        return {"session_id": session_id, "type": "image"}
+        return await self._runner.send_message("IMAGE", session_id, image_base64=image_base64)
 
     async def emoji(self, session_id: str, emoji_base64: str) -> dict[str, Any]:
-        """发送表情包。需要 message:send:emoji scope。
-
-        Phoenix-2 占位实现。TODO: Phoenix-4 实现 RPC 通道
-        """
+        """发送表情包。需要 message:send:emoji scope。"""
         self._check_scope("emoji")
-        return {"session_id": session_id, "type": "emoji"}
+        return await self._runner.send_message("EMOJI", session_id, emoji_base64=emoji_base64)
 
     async def forward(self, session_id: str, message_id: str) -> dict[str, Any]:
-        """发送转发消息。需要 message:send:forward scope。
-
-        Phoenix-2 占位实现。TODO: Phoenix-4 实现 RPC 通道
-        """
+        """发送转发消息。需要 message:send:forward scope。"""
         self._check_scope("forward")
-        return {"session_id": session_id, "type": "forward"}
+        return await self._runner.send_message("FORWARD", session_id, forward_message_id=message_id)
 
     async def hybrid(self, session_id: str, segments: list[dict[str, Any]]) -> dict[str, Any]:
-        """发送图文混合消息。需要 message:send:hybrid scope。
-
-        Phoenix-2 占位实现。TODO: Phoenix-4 实现 RPC 通道
-        """
+        """发送图文混合消息。需要 message:send:hybrid scope。"""
         self._check_scope("hybrid")
-        return {"session_id": session_id, "type": "hybrid"}
+        import json
+        return await self._runner.send_message("HYBRID", session_id, hybrid_payload=json.dumps(segments))
 
 
 class StorageContext:
@@ -86,30 +72,22 @@ class StorageContext:
         self._plugin_id = plugin_id
 
     async def get(self, key: str, default: Any = None) -> Any:
-        """读取键值。需要 database:read:self scope。
-
-        Phoenix-2 占位实现。TODO: Phoenix-4 实现 RPC 通道
-        """
+        """读取键值。需要 database:read:self scope。"""
         if "database:read:self" not in self._granted_scopes:
             raise ScopeDeniedError("Scope database:read:self 未授权")
-        return default
+        return await self._runner.storage_get(key, default)
 
     async def set(self, key: str, value: Any) -> None:
-        """写入键值。需要 database:write:self scope。
-
-        Phoenix-2 占位实现。TODO: Phoenix-4 实现 RPC 通道
-        """
+        """写入键值。需要 database:write:self scope。"""
         if "database:write:self" not in self._granted_scopes:
             raise ScopeDeniedError("Scope database:write:self 未授权")
+        await self._runner.storage_set(key, value)
 
     async def delete(self, key: str) -> bool:
-        """删除键值。需要 database:write:self scope。
-
-        Phoenix-2 占位实现。TODO: Phoenix-4 实现 RPC 通道
-        """
+        """删除键值。需要 database:write:self scope。"""
         if "database:write:self" not in self._granted_scopes:
             raise ScopeDeniedError("Scope database:write:self 未授权")
-        return False
+        return await self._runner.storage_delete(key)
 
 
 class LoggerContext:
@@ -133,8 +111,7 @@ class LoggerContext:
 
 
 class PluginContext:
-
-    """插件运行时上下文 — 替代 v3 的 self.ctx。Phoenix-2 补全实现。"""
+    """插件运行时上下文 — 替代 v3 的 self.ctx。Phoenix-6 补全 RPC 调用。"""
 
     def __init__(
         self,
@@ -168,20 +145,13 @@ class PluginContext:
         if scope not in self._send._granted_scopes:
             raise ScopeDeniedError(f"{label}: Scope {scope} 未授权")
 
-    def update_granted_scopes(self, granted_scopes: set[str]) -> None:
-        """握手后更新所有子对象的 granted_scopes。"""
-        self._send._granted_scopes = granted_scopes
-        self._storage._granted_scopes = granted_scopes
-
     async def emit_event(self, name: str, payload: dict[str, Any]) -> None:
-
         """推送事件。通过 RunnerEndpoint 发送到 Host。"""
         if not self._runner.is_ready:
             raise ConnectionError("Runner 未连接")
         await self._runner.emit_event(name, payload)
 
     async def emit_card(self, name: str, data: dict[str, Any]) -> None:
-
         """推送 HomeCard 数据。自动合并卡片元数据后通过 emit_event 发送。"""
         card_metadata = self._homecard_registry.get(name)
         if card_metadata is None:
@@ -195,6 +165,5 @@ class PluginContext:
         await self.emit_event(name, homecard_payload)
 
     async def get_session_info(self, session_id: str) -> dict[str, Any]:
-        """查询会话信息。需要 session:read:detail scope。TODO: Phoenix-4 实现 RPC 通道。"""
         self._check_scope("get_session_info", "session:read:detail")
-        return {"session_id": session_id, "session_name": "", "platform": "", "is_group_session": False}
+        return await self._runner.get_session_info(session_id)
