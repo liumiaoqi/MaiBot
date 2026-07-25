@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable
 
+_VALID_WIDTHS = frozenset({"small", "medium", "large", "wide", "full"})
 
 @dataclass(frozen=True)
 class ToolDeclaration:
@@ -151,8 +152,11 @@ def HomeCard(
         width: 卡片宽度（small/medium/large/wide/full）
 
     Returns:
-        装饰器函数
+       装饰器函数
     """
+
+    if width not in _VALID_WIDTHS:
+        raise ValueError(f"HomeCard width 必须为 small/medium/large/wide/full 之一，得到: {width}")
 
     def decorator(func: Callable) -> Callable:
         func._mcp_event = EventDeclaration(
