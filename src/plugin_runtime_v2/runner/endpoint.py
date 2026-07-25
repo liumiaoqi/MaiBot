@@ -63,6 +63,7 @@ class RunnerEndpoint:
         self._recv_task: asyncio.Task | None = None
         self._plugin_loader = plugin_loader
         self._plugin_instance = None
+        self._granted_scopes: set[str] = set()
 
     # ── 公共 API ────────────────────────────────────────────────
 
@@ -231,6 +232,20 @@ class RunnerEndpoint:
         hr = first_response.hello_response
         if not hr.accepted:
             raise _HandshakeRejected(hr.reason or "unknown")
+
+        # 处理 rejected_scopes：更新 _granted_scopes
+        if hr.rejected_scopes:
+            rejected = set(hr.rejected_scopes)
+            self._granted_scopes = set(self._config.scopes) - rejected
+            logger.warning(
+                "Runner %s 部分 scope 被拒绝: %s, granted=%s",
+                self._config.runner_id, hr.rejected_scopes, self._granted_scopes,
+            )
+            # 更新 PluginContext 的 granted_scopes
+            if self._plugin_instance is not None:
+                self._plugin_instance.ctx._granted_scopes = self._granted_scopes
+        else:
+            self._granted_scopes = set(self._config.scopes)
 
         logger.info("Runner %s 握手成功，host=%s", self._config.runner_id, hr.host_version)
 
