@@ -401,3 +401,104 @@ class _PluginHostServicer(PluginHostServicer):
                 name=f"bridge-disconnect-{runner_id}",
             )
         logger.info("Runner %s 连接已清理", runner_id)
+
+    # ── Phoenix-6: SDK RPC 辅助方法 ──────────────────────────────
+
+    def _resolve_plugin_id(self, context: grpc.aio.ServicerContext) -> str | None:
+        """从 metadata 的 session_token 中解析 plugin_id。
+
+        使用 validate_session（可重复），避免一次性 token 问题。
+        """
+        md = dict(context.invocation_metadata())
+        token = md.get("session_token", "")
+        if self._token_service is not None and token:
+            valid, plugin_id = self._token_service.validate_session(token)
+            if valid:
+                return plugin_id
+        return None
+
+    def _check_plugin_scope(self, plugin_id: str, scope: str) -> bool:
+        """检查插件是否拥有指定 scope。"""
+        if self._scope_store is None:
+            return False
+        return scope in self._scope_store.get_granted_scopes(plugin_id)
+
+    # ── Phoenix-6: SDK RPC 实现 ──────────────────────────────────
+
+    async def SendMessage(self, request, context: grpc.aio.ServicerContext):
+        """发送消息 RPC。过滤 plugin_id → scope 校验 → 转发到 MessagePortV2。"""
+        from src.plugin_runtime_v2.proto import plugin_host_pb2
+
+        plugin_id = self._resolve_plugin_id(context)
+        if plugin_id is None:
+            return plugin_host_pb2.SendMessageResponse(success=False, error="AUTH_FAILED")
+
+        scope_map = {
+            "TEXT": "message:send:text",
+            "IMAGE": "message:send:image",
+            "EMOJI": "message:send:emoji",
+            "FORWARD": "message:send:forward",
+            "HYBRID": "message:send:hybrid",
+        }
+        scope = scope_map.get(request.message_type, "")
+        if scope and not self._check_plugin_scope(plugin_id, scope):
+            return plugin_host_pb2.SendMessageResponse(success=False, error="SCOPE_DENIED")
+
+        # TODO: Phoenix-6 — 组装 SessionMessage 并调用 MessagePortV2.send_message()
+        logger.info(
+            "SendMessage: plugin=%s type=%s session=%s",
+            plugin_id, request.message_type, request.session_id,
+        )
+        return plugin_host_pb2.SendMessageResponse(success=False, error="NOT_IMPLEMENTED")
+
+    async def StorageGet(self, request, context: grpc.aio.ServicerContext):
+        """键值读取 RPC。"""
+        from src.plugin_runtime_v2.proto import plugin_host_pb2
+
+        plugin_id = self._resolve_plugin_id(context)
+        if plugin_id is None:
+            return plugin_host_pb2.StorageGetResponse(found=False, error="AUTH_FAILED")
+        if not self._check_plugin_scope(plugin_id, "database:read:self"):
+            return plugin_host_pb2.StorageGetResponse(found=False, error="SCOPE_DENIED")
+
+        # TODO: Phoenix-6 — 调用 PerPluginStorage.get()
+        return plugin_host_pb2.StorageGetResponse(found=False, error="NOT_IMPLEMENTED")
+
+    async def StorageSet(self, request, context: grpc.aio.ServicerContext):
+        """键值写入 RPC。"""
+        from src.plugin_runtime_v2.proto import plugin_host_pb2
+
+        plugin_id = self._resolve_plugin_id(context)
+        if plugin_id is None:
+            return plugin_host_pb2.StorageSetResponse(success=False, error="AUTH_FAILED")
+        if not self._check_plugin_scope(plugin_id, "database:write:self"):
+            return plugin_host_pb2.StorageSetResponse(success=False, error="SCOPE_DENIED")
+
+        # TODO: Phoenix-6 — 调用 PerPluginStorage.set()
+        return plugin_host_pb2.StorageSetResponse(success=False, error="NOT_IMPLEMENTED")
+
+    async def StorageDelete(self, request, context: grpc.aio.ServicerContext):
+        """键值删除 RPC。"""
+        from src.plugin_runtime_v2.proto import plugin_host_pb2
+
+        plugin_id = self._resolve_plugin_id(context)
+        if plugin_id is None:
+            return plugin_host_pb2.StorageDeleteResponse(deleted=False, error="AUTH_FAILED")
+        if not self._check_plugin_scope(plugin_id, "database:write:self"):
+            return plugin_host_pb2.StorageDeleteResponse(deleted=False, error="SCOPE_DENIED")
+
+        # TODO: Phoenix-6 — 调用 PerPluginStorage.delete()
+        return plugin_host_pb2.StorageDeleteResponse(deleted=False, error="NOT_IMPLEMENTED")
+
+    async def GetSessionInfo(self, request, context: grpc.aio.ServicerContext):
+        """查询会话信息 RPC。"""
+        from src.plugin_runtime_v2.proto import plugin_host_pb2
+
+        plugin_id = self._resolve_plugin_id(context)
+        if plugin_id is None:
+            return plugin_host_pb2.GetSessionInfoResponse(found=False, error="AUTH_FAILED")
+        if not self._check_plugin_scope(plugin_id, "session:read:detail"):
+            return plugin_host_pb2.GetSessionInfoResponse(found=False, error="SCOPE_DENIED")
+
+        # TODO: Phoenix-6 — 调用 SessionRepository.get_session()
+        return plugin_host_pb2.GetSessionInfoResponse(found=False, error="NOT_IMPLEMENTED")
