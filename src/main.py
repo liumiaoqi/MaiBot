@@ -39,6 +39,7 @@ class MainSystem:
         self._interaction_scheduler: Any | None = None
         self._agent_registry: Any | None = None
         self._model_config_port: Any | None = None
+        self._v2_host_endpoint: Any | None = None
         self._init_start_time: float = 0.0
 
     def _ensure_message_server(self) -> None:
@@ -202,15 +203,19 @@ class MainSystem:
             init_fn=self._start_plugin_runtime,
         ))
         orchestrator.register(StartupComponent(
-            name="a_memorix", phase=StartupPhase.SUBSYSTEMS, order=1, critical=False,
+            name="plugin_runtime_v2", phase=StartupPhase.SUBSYSTEMS, order=1, critical=False,
+            init_fn=self._start_plugin_runtime_v2,
+        ))
+        orchestrator.register(StartupComponent(
+            name="a_memorix", phase=StartupPhase.SUBSYSTEMS, order=2, critical=False,
             init_fn=self._start_a_memorix,
         ))
         orchestrator.register(StartupComponent(
-            name="emoji_manager", phase=StartupPhase.SUBSYSTEMS, order=2, critical=False,
+            name="emoji_manager", phase=StartupPhase.SUBSYSTEMS, order=3, critical=False,
             init_fn=self._load_emoji,
         ))
         orchestrator.register(StartupComponent(
-            name="model_config_port_inject", phase=StartupPhase.SUBSYSTEMS, order=3, critical=False,
+            name="model_config_port_inject", phase=StartupPhase.SUBSYSTEMS, order=4, critical=False,
             init_fn=self._inject_model_config_port,
         ))
 
@@ -430,6 +435,34 @@ class MainSystem:
         manager = get_plugin_runtime_manager()
         await manager.start()
 
+    async def _start_plugin_runtime_v2(self) -> None:
+        from src.core.app_config_port_registry import get_app_config_port
+
+        app_port = get_app_config_port()
+        if not app_port.get_plugin_runtime_v2_enabled():
+            logger.info("v2 插件运行时未启用，跳过")
+            return
+        try:
+            from src.plugin_runtime_v2.bootstrap import init_v2_host_endpoint
+
+            self._v2_host_endpoint = await init_v2_host_endpoint(app_port)
+            await self._inject_scope_services_to_webui()
+            logger.info("v2 插件运行时已启动")
+        except Exception as e:
+            logger.error("v2 插件运行时启动失败: %s", e)
+
+    async def _inject_scope_services_to_webui(self) -> None:
+        if self._v2_host_endpoint is None:
+            return
+        try:
+            from src.webui.webui_server import get_threaded_webui_server
+            webui = get_threaded_webui_server()
+            if webui is not None and webui.app is not None:
+                webui.app.state.scope_store = self._v2_host_endpoint._scope_store
+                webui.app.state.token_service = self._v2_host_endpoint._token_service
+        except Exception:
+            pass
+
     @staticmethod
     async def _start_a_memorix() -> None:
         from src.A_memorix.host_service import a_memorix_host_service
@@ -569,6 +602,8 @@ async def main() -> None:
         await memory_automation_service.shutdown()
         if service_registry.has("a_memorix_host_service"):
             await service_registry.get("a_memorix_host_service").stop()
+        if system._v2_host_endpoint is not None:
+            await system._v2_host_endpoint.stop()
         await get_plugin_runtime_manager().bridge_event("on_stop")
         await get_plugin_runtime_manager().stop()
         await async_task_manager.stop_and_wait_all_tasks()

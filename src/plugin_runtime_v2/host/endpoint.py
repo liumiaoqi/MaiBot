@@ -59,6 +59,7 @@ class HostEndpoint:
             scope_store=scope_store,
         )
         self._token_service = token_service
+        self._scope_store = scope_store
         self._cleanup_task: asyncio.Task | None = None
         self._actual_listen_address: str = ""
 
@@ -145,3 +146,11 @@ class HostEndpoint:
     def listen_address(self) -> str:
         """实际监听地址（启动后可用）。"""
         return self._actual_listen_address
+
+    @property
+    def scope_store(self):
+        return self._scope_store
+
+    @property
+    def token_service(self):
+        return self._token_service
