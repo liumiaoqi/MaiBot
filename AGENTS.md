@@ -99,9 +99,9 @@
 4. 禁止核心硬编码 napcat_* 字段 ✅
 5. 禁止核心绕过 MessagePort 直接调用 send_service ✅
 6. 禁止核心导入 A_memorix 内部模块 ✅
-7. 禁止 Orchestrator 通过 enqueue_proactive_task 模拟多智能体
+7. 禁止 Orchestrator 通过 enqueue_proactive_task 模拟多智能体 ✅（Phoenix-4 已验证，Orchestrator 未调用）
 8. 禁止核心直接导入 config_manager 获取模型配置 ✅
-9. 禁止核心直接导入 global_config ✅（SSD-11 已完全消除，0处违规；8处整体对象场景保留 noqa+原因注释）
+9. 禁止核心直接导入 global_config ✅（SSD-11 已完全消除，0处违规；组件层 Phoenix-4 已消除 12 处，剩余 5 处暂不可拆解 + 3 处过渡期 fallback + 5 处适配器层合法）
 10. 禁止使用 AutonomyEventBus.get_instance() ✅（SSD-10 已消除，改用 get_event_bus_port()）
 
 # 核心架构：微内核 + 接口契约
@@ -130,11 +130,11 @@
 | ReplyerServicePort | 回复生成器服务 | ReplyerServiceAdapter |
 | ImageDescriptionPort | 图片描述服务 | ImageDescriptionAdapter |
 | PersonInfoPort | 人物信息查询（6方法） | PersonInfoPortAdapter |
-| ModelConfigPort | 模型配置查询（4+2方法） | ConfigManagerModelConfigPort |
+| ModelConfigPort | 模型配置查询（4+2+1方法） | ConfigManagerModelConfigPort |
 | LLMService | LLM服务（4方法） | LLMServiceAdapter |
 | BotConfigPort | 机器人配置查询（5方法） | GlobalConfigBotConfigPort |
-| ChatConfigPort | 聊天配置查询（11方法） | GlobalConfigChatConfigPort |
-| AppConfigPort | 应用配置查询（~65方法） | GlobalConfigAppConfigPort |
+| ChatConfigPort | 聊天配置查询（11+3方法） | GlobalConfigChatConfigPort |
+| AppConfigPort | 应用配置查询（~65+6方法） | GlobalConfigAppConfigPort |
 | AutonomyEventBusPort | 智能体自主性事件总线 | AutonomyEventBus |
 
 ### 快照类型
@@ -143,6 +143,8 @@
 |------|--------|------|
 | PluginRuntimeSnapshot | 6 | 插件运行时配置（enabled/ipc_socket_path等） |
 | PersonDetailSnapshot | 4 | 人物详情（is_known/person_id/person_name/nickname） |
+| CacheCleanupConfig | 6 | 缓存清理配置（emoji/image cache_cleanup 通用） |
+| MaimMessageConfigSnapshot | 10 | MaimMessage 配置（api_server/ws_server/auth_token等） |
 
 ### 全局注册点
 
@@ -211,7 +213,7 @@ CA 派发审查任务时，CC 按以下维度输出报告（写入 `.shared/hand
 | Phoenix-1 | gRPC 传输层 | P-0 | gRPC Host/Runner 实现，替换自研 IPC | ✅ 已完成 |
 | Phoenix-2 | MCP 组件模型 | P-1 | 8→2（Tool + Event），SDK 运行时，ToolProvider 桥接，Event 分发，Tool 执行路由 | ✅ 已完成 |
 | Phoenix-3 | OAuth Scope 授权 | P-2 | scope 声明/签发/校验，WebUI 审批 | ✅ 已完成 |
-| Phoenix-4 | 能力层 Protocol 化 | P-1 | P0/P1 消除，能力模块化，global_config 清除 | 📋 规划中 |
+| Phoenix-4 | 能力层 Protocol 化 | P-1 | P0/P1 消除，能力模块化，global_config 清除 | ✅ 已完成 |
 
 依赖关系：`P-0 → P-1 → P-2 → P-3`，`P-1 → P-4`（P-4 可与 P-2 并行）
 
@@ -221,5 +223,5 @@ CA 派发审查任务时，CC 按以下维度输出报告（写入 `.shared/hand
 - ⬜ WebUI 记忆可视化
 - ⬜ A_memorix 内部 322 处 bare except
 - ⬜ mem_core_gap 未覆盖的 8 项差距（G16/G18/G19/G21/G22/G23/G24/G28）
-- ⬜ noqa TID251 整体对象遗留 18 处（详见 `.codeartsdoer/specs/_archive/ssd13_deferred/noqa_tid251_evaluation.md`）
+- ⬜ noqa TID251 暂不可拆解 5 处（runtime.py MCPConfig + config.py WebUI + routes.py 2处 + core.py 反射）+ 过渡期 fallback 3 处（emoji_manager）+ 适配器层合法 5 处
 - ⬜ WebUI 配置管理面（routes.py/config.py 3处）暂不可拆解
