@@ -79,21 +79,27 @@ class HostEndpoint:
         )
 
     async def stop(self) -> None:
-        """优雅关停：通知所有 Runner，等待排空，停止服务器。"""
+        """优雅关停：向所有 Runner 发送 ShutdownRequest，等待排空，停止服务器。"""
         if self._server is None:
             return
 
-        # 向所有已连接 Runner 发送 ShutdownRequest
         drain_ms = self._cfg.default_drain_timeout_ms
-        for runner_id, _conn in self._registry.get_all().items():
-            logger.info("向 Runner %s 发送 ShutdownRequest，drain=%dms", runner_id, drain_ms)
-            self._heartbeat_mgr.stop(runner_id)
-            # 关停通过双向流自然触发 — 这里简化：直接清理注册表
-            # 完整的关停流程由 servicer 在收到 shutdown_trigger 后处理
+        runners = list(self._registry.get_all().keys())
+        if runners:
+            # 向所有已连接 Runner 发送 ShutdownRequest
+            for runner_id in runners:
+                logger.info(
+                    "向 Runner %s 发送 ShutdownRequest，drain=%dms",
+                    runner_id, drain_ms,
+                )
+                self._heartbeat_mgr.stop(runner_id)
+                self._servicer.request_shutdown(
+                    runner_id, reason="host_shutdown", drain_ms=drain_ms,
+                )
 
-        # 等待排空
-        if drain_ms > 0:
-            await asyncio.sleep(drain_ms / 1000.0)
+            # 等待排空
+            if drain_ms > 0:
+                await asyncio.sleep(drain_ms / 1000.0)
 
         # 停止心跳 + 清理注册表
         self._heartbeat_mgr.stop_all()

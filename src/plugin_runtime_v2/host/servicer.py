@@ -63,6 +63,7 @@ class _PluginHostServicer(PluginHostServicer):
         self._registry = registry
         self._heartbeat_mgr = heartbeat_mgr
         self._config = config
+        self._outboxes: dict[str, asyncio.Queue[common_pb2.HostMessage | None]] = {}
 
     # ── Connect 双向流 ──────────────────────────────────────────
 
@@ -133,7 +134,8 @@ class _PluginHostServicer(PluginHostServicer):
 
         # ── 注册等待阶段 ──
         conn.transition(ConnectionState.REGISTERING)
-        outbox: asyncio.Queue[common_pb2.HostMessage] = asyncio.Queue(maxsize=64)
+        outbox: asyncio.Queue[common_pb2.HostMessage | None] = asyncio.Queue(maxsize=64)
+        self._outboxes[runner_id] = outbox
         register_deadline = time.time() + self._config.register_timeout_s
 
         async def _send_heartbeat() -> None:
@@ -306,8 +308,29 @@ class _PluginHostServicer(PluginHostServicer):
 
     # ── 资源清理 ────────────────────────────────────────────────
 
+    def request_shutdown(self, runner_id: str, reason: str = "host_shutdown", drain_ms: int = 5000) -> None:
+        """向指定 Runner 发送 ShutdownRequest。
+
+        注入到 Runner 的 outbox 中，由 send_loop 异步发送。
+        """
+        outbox = self._outboxes.get(runner_id)
+        if outbox is None:
+            return
+        try:
+            outbox.put_nowait(
+                common_pb2.HostMessage(
+                    shutdown=common_pb2.ShutdownRequest(
+                        reason=reason,
+                        drain_timeout_ms=drain_ms,
+                    )
+                )
+            )
+        except asyncio.QueueFull:
+            logger.warning("Runner %s outbox 已满，ShutdownRequest 未发送", runner_id)
+
     def _cleanup_connection(self, runner_id: str) -> None:
         """清理 Runner 连接资源。"""
         self._heartbeat_mgr.stop(runner_id)
         self._registry.unregister(runner_id)
+        self._outboxes.pop(runner_id, None)
         logger.info("Runner %s 连接已清理", runner_id)
