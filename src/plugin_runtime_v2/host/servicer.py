@@ -63,11 +63,15 @@ class _PluginHostServicer(PluginHostServicer):
         heartbeat_mgr: HeartbeatManager,
         config: HostEndpointConfig,
         host_bridge: MCPHostBridge | None = None,
+        token_service = None,
+        scope_store = None,
     ) -> None:
         self._registry = registry
         self._heartbeat_mgr = heartbeat_mgr
         self._config = config
         self._host_bridge = host_bridge
+        self._token_service = token_service
+        self._scope_store = scope_store
         self._outboxes: dict[str, asyncio.Queue[common_pb2.HostMessage | None]] = {}
 
     # ── Connect 双向流 ──────────────────────────────────────────
@@ -127,6 +131,21 @@ class _PluginHostServicer(PluginHostServicer):
         self._registry.register(conn)
 
         logger.info("Runner %s 握手成功，sdk=%s", runner_id, hello.sdk_version)
+
+        # 计算 granted/rejected scopes
+        rejected_scopes: list[str] = []
+        if self._scope_store is not None:
+            self._scope_store.approve_all_pending(runner_id, list(hello.scopes))
+            approved = self._scope_store.get_granted_scopes(runner_id)
+            requested = set(hello.scopes)
+            granted = requested & approved
+            rejected_scopes = list(requested - approved)
+            conn.scopes = list(granted) if self._scope_store is not None else list(hello.scopes)
+            if rejected_scopes:
+                logger.warning(
+                    "Runner %s 部分 scope 被拒绝: %s", runner_id, rejected_scopes,
+                )
+
         try:
             host_ver = importlib.metadata.version("maibot")
         except importlib.metadata.PackageNotFoundError:
@@ -135,6 +154,7 @@ class _PluginHostServicer(PluginHostServicer):
             hello_response=common_pb2.HelloResponse(
                 accepted=True,
                 host_version=host_ver,
+                rejected_scopes=rejected_scopes,
             )
         )
 
@@ -241,6 +261,10 @@ class _PluginHostServicer(PluginHostServicer):
             return False, "RUNNER_ALREADY_CONNECTED"
         if not _check_sdk_version(hello.sdk_version):
             return False, "SDK_VERSION_MISMATCH"
+        if self._token_service is not None:
+            valid, plugin_id = self._token_service.validate(hello.session_token)
+            if not valid:
+                return False, "TOKEN_INVALID"
         return True, ""
 
     # ── RegisterComponents 一元 RPC ─────────────────────────────

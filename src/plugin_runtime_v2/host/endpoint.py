@@ -40,7 +40,8 @@ _SERVICE_NAME = "maibot.plugin.v2.PluginHost"
 class HostEndpoint:
     """gRPC Host 服务端 — 管理 Runner 连接生命周期。"""
 
-    def __init__(self, config: HostEndpointConfig | None = None, host_bridge=None) -> None:
+    def __init__(self, config: HostEndpointConfig | None = None, host_bridge=None,
+                 token_service=None, scope_store=None) -> None:
         self._cfg = config or HostEndpointConfig()
         self._server: grpc.aio.Server | None = None
         self._registry = RunnerRegistry()
@@ -54,7 +55,11 @@ class HostEndpoint:
             heartbeat_mgr=self._heartbeat_mgr,
             config=self._cfg,
             host_bridge=host_bridge,
+            token_service=token_service,
+            scope_store=scope_store,
         )
+        self._token_service = token_service
+        self._cleanup_task: asyncio.Task | None = None
         self._actual_listen_address: str = ""
 
     async def start(self) -> None:
@@ -73,6 +78,11 @@ class HostEndpoint:
         listen_port = self._server.add_insecure_port(self._cfg.listen_address)
         await self._server.start()
         self._actual_listen_address = f"{self._cfg.listen_address.split(':')[0]}:{listen_port}"
+
+        if self._token_service is not None:
+            self._cleanup_task = asyncio.create_task(
+                self._cleanup_loop(), name="token-cleanup",
+            )
 
         logger.info(
             "HostEndpoint 已启动，监听 %s，server_id=%s",
@@ -107,11 +117,25 @@ class HostEndpoint:
         for runner_id in list(self._registry.get_all().keys()):
             self._registry.unregister(runner_id)
 
+        if self._cleanup_task is not None:
+            self._cleanup_task.cancel()
+            self._cleanup_task = None
+
         # 停止 gRPC 服务器
         await self._server.stop(grace=5)
         self._server = None
         self._actual_listen_address = ""
         logger.info("HostEndpoint 已停止")
+
+    async def _cleanup_loop(self) -> None:
+        """定期清理过期 token 的后台任务。"""
+        try:
+            while True:
+                await asyncio.sleep(60)
+                if self._token_service is not None:
+                    self._token_service.cleanup_expired()
+        except asyncio.CancelledError:
+            pass
 
     def get_status(self) -> dict[str, RunnerConnectionSnapshot]:
         """返回所有 Runner 连接状态快照，供 WebUI 调试页使用。"""
