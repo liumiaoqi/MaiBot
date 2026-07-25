@@ -5,13 +5,13 @@ from __future__ import annotations
 import json
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest  # noqa: F401
 
 from src.core.tooling import ToolInvocation
 from src.plugin_runtime_v2.mcp.tool_provider import MCPToolProvider
 
 
 def _make_td(name="t1", description="desc", params='{"type":"object"}', output=""):
-    """创建 mock ToolDeclaration (protobuf 对象)。"""
     td = MagicMock()
     td.name = name
     td.description = description
@@ -48,51 +48,42 @@ class TestToolSpecMapping:
     def test_invalid_schema_skipped_gracefully(self):
         td = _make_td(params="not json")
         provider = MCPToolProvider("p1", "r1", [td], "localhost:9999")
-        s = provider._tool_specs[0]
-        assert s.parameters_schema is None  # _parse_schema returns None
+        assert len(provider._tool_specs) == 0
 
 
 class TestListTools:
-    def test_list_tools_returns_cached(self):
+
+    @pytest.mark.asyncio
+    async def test_list_tools_returns_cached(self):
         td = _make_td()
         provider = MCPToolProvider("p1", "r1", [td], "localhost:9999")
-
-        async def _run():
-            tools = await provider.list_tools()
-            assert len(tools) == 1
-            assert tools[0].name == "t1"
-
-        import asyncio
-        asyncio.get_event_loop().run_until_complete(_run())
+        tools = await provider.list_tools()
+        assert len(tools) == 1
+        assert tools[0].name == "t1"
 
 
 class TestInvoke:
-    def test_invoke_success(self):
+
+    @pytest.mark.asyncio
+    async def test_invoke_success(self):
         td = _make_td()
         provider = MCPToolProvider("p1", "r1", [td], "localhost:9999")
         mock_stub = AsyncMock()
         mock_stub.InvokeTool.return_value = MagicMock(success=True, result='{"ok":1}', error="")
         provider._stub = mock_stub
 
-        async def _run():
-            inv = ToolInvocation(tool_name="t1", arguments={}, call_id="c1", session_id="s1")
-            res = await provider.invoke(inv)
-            assert res.success
-            assert json.loads(res.content) == {"ok": 1}
+        inv = ToolInvocation(tool_name="t1", arguments={}, call_id="c1", session_id="s1")
+        res = await provider.invoke(inv)
+        assert res.success
+        assert json.loads(res.content) == {"ok": 1}
 
-        import asyncio
-        asyncio.get_event_loop().run_until_complete(_run())
-
-    def test_invoke_runner_unavailable(self):
+    @pytest.mark.asyncio
+    async def test_invoke_runner_unavailable(self):
         provider = MCPToolProvider("p1", "r1", [], "localhost:9999")
         provider._stub = None
         provider._channel = None
 
-        async def _run():
-            inv = ToolInvocation(tool_name="t1", arguments={}, call_id="c1", session_id="s1")
-            res = await provider.invoke(inv)
-            assert not res.success
-            assert "不可用" in res.error_message
-
-        import asyncio
-        asyncio.get_event_loop().run_until_complete(_run())
+        inv = ToolInvocation(tool_name="t1", arguments={}, call_id="c1", session_id="s1")
+        res = await provider.invoke(inv)
+        assert not res.success
+        assert "不可用" in res.error_message
