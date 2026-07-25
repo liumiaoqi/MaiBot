@@ -134,7 +134,7 @@
 | LLMService | LLM服务（4方法） | LLMServiceAdapter |
 | BotConfigPort | 机器人配置查询（5方法） | GlobalConfigBotConfigPort |
 | ChatConfigPort | 聊天配置查询（11+3方法） | GlobalConfigChatConfigPort |
-| AppConfigPort | 应用配置查询（~65+6方法） | GlobalConfigAppConfigPort |
+| AppConfigPort | 应用配置查询（~65+6+8方法） | GlobalConfigAppConfigPort |
 | AutonomyEventBusPort | 智能体自主性事件总线 | AutonomyEventBus |
 
 ### 快照类型
@@ -142,6 +142,7 @@
 | 快照 | 字段数 | 用途 |
 |------|--------|------|
 | PluginRuntimeSnapshot | 6 | 插件运行时配置（enabled/ipc_socket_path等） |
+| PluginRuntimeV2Snapshot | 8 | v2 插件运行时配置（enabled/host_listen_address等） |
 | PersonDetailSnapshot | 4 | 人物详情（is_known/person_id/person_name/nickname） |
 | CacheCleanupConfig | 6 | 缓存清理配置（emoji/image cache_cleanup 通用） |
 | MaimMessageConfigSnapshot | 10 | MaimMessage 配置（api_server/ws_server/auth_token等） |
@@ -214,7 +215,7 @@ CA 派发审查任务时，CC 按以下维度输出报告（写入 `.shared/hand
 | Phoenix-2 | MCP 组件模型 | P-1 | 8→2（Tool + Event），SDK 运行时，ToolProvider 桥接，Event 分发，Tool 执行路由 | ✅ 已完成 |
 | Phoenix-3 | OAuth Scope 授权 | P-2 | scope 声明/签发/校验，WebUI 审批 | ✅ 已完成 |
 | Phoenix-4 | 能力层 Protocol 化 | P-1 | P0/P1 消除，能力模块化，global_config 清除 | ✅ 已完成 |
-| Phoenix-5 | v2 主程序集成 | P-4 | HostEndpoint 接入 main.py，Scope WebUI 激活，Runner 进程管理，速率限制 | 📋 规划中 |
+| Phoenix-5 | v2 主程序集成 | P-4 | HostEndpoint 接入 main.py，Scope WebUI 激活，Runner 进程管理，速率限制 | ✅ 已完成 |
 | Phoenix-6 | SDK RPC 通道 | P-5 | SendContext/StorageContext/PluginContext gRPC 通道实现 | 📋 规划中 |
 | Phoenix-7 | napcat-adapter 重写 | P-6 | napcat-adapter 从 v1 重写为 v4 格式（Manifest v3 + scopes + gRPC） | 📋 规划中 |
 | Phoenix-8 | 兼容层插件 | P-5 | v1 运行时封装为 v4 插件，从主程序剥离，老插件零修改继续运行 | 📋 规划中 |

@@ -65,6 +65,7 @@ class _PluginHostServicer(PluginHostServicer):
         host_bridge: MCPHostBridge | None = None,
         token_service = None,
         scope_store = None,
+        rate_limiter = None,
     ) -> None:
         self._registry = registry
         self._heartbeat_mgr = heartbeat_mgr
@@ -72,6 +73,7 @@ class _PluginHostServicer(PluginHostServicer):
         self._host_bridge = host_bridge
         self._token_service = token_service
         self._scope_store = scope_store
+        self._rate_limiter = rate_limiter
         self._pending_plugin_id: str = ""
         self._outboxes: dict[str, asyncio.Queue[common_pb2.HostMessage | None]] = {}
 
@@ -303,6 +305,11 @@ class _PluginHostServicer(PluginHostServicer):
         if not request.plugin_id:
             return plugin_host_pb2.RegisterComponentsResponse(
                 accepted=False, reasons=["MISSING_PLUGIN_ID"],
+            )
+
+        if self._rate_limiter is not None and not self._rate_limiter.check(request.plugin_id):
+            return plugin_host_pb2.RegisterComponentsResponse(
+                accepted=False, reasons=["RATE_LIMIT_EXCEEDED"],
             )
 
         # 校验组件 name 唯一性
