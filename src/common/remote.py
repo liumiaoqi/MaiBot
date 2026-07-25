@@ -6,7 +6,6 @@ import asyncio
 import platform
 
 from src.common.logger import get_logger
-from src.config.config import MMC_VERSION  # noqa: TID251
 from src.core.app_config_port_registry import get_app_config_port
 from src.manager.async_task_manager import AsyncTask
 from src.manager.local_store_manager import local_storage
@@ -48,10 +47,12 @@ class TelemetryHeartBeatTask(AsyncTask):
     @staticmethod
     def _get_sys_info() -> dict[str, str]:
         """获取系统信息"""
+        app_cfg = get_app_config_port()
+        mmc_version = app_cfg.get_mmc_version() if app_cfg else "unknown"
         info_dict = {
             "os_type": "Unknown",
             "py_version": platform.python_version(),
-            "mmc_version": MMC_VERSION,
+            "mmc_version": mmc_version,
         }
 
         match platform.system():

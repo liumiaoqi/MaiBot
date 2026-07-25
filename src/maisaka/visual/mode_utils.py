@@ -1,5 +1,5 @@
 from src.common.logger import get_logger
-from src.config.config import config_manager  # noqa: TID251
+from src.core.model_config_port_registry import get_model_config_port
 from src.core.app_config_port_registry import get_app_config_port
 
 logger = get_logger("maisaka_visual_mode")
@@ -15,10 +15,11 @@ def _resolve_enable_visual_task(task_name: str, fallback_task_name: str = "") ->
     """根据指定任务配置解析当前是否应启用视觉消息。"""
 
     planner_mode = get_app_config_port().get_visual_planner_mode()
-    model_config = config_manager.get_model_config()
-    model_task_config = model_config.model_task_config
-    task_config = getattr(model_task_config, task_name)
-    models_by_name = {model.name: model for model in model_config.models}
+    model_config_port = get_model_config_port()
+    if model_config_port is None:
+        return False
+    task_config = model_config_port.get_task_config(task_name)
+    models_by_name = {name: model_config_port.get_model_info(name) for name in model_config_port.list_model_names()}
 
     if planner_mode == "text":
         return False
@@ -26,7 +27,7 @@ def _resolve_enable_visual_task(task_name: str, fallback_task_name: str = "") ->
     task_models = _normalize_model_names(list(task_config.model_list))
     resolved_task_name = task_name
     if not task_models and fallback_task_name:
-        fallback_task_config = getattr(model_task_config, fallback_task_name)
+        fallback_task_config = model_config_port.get_task_config(fallback_task_name)
         task_models = _normalize_model_names(list(fallback_task_config.model_list))
         resolved_task_name = fallback_task_name
 

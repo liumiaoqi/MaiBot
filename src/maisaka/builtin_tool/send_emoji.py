@@ -15,7 +15,7 @@ from pydantic import Field as PydanticField
 from src.common.data_models.image_data_model import MaiEmoji
 from src.common.data_models.message_component_data_model import ImageComponent, MessageSequence, TextComponent
 from src.common.logger import get_logger
-from src.config.config import config_manager  # noqa: TID251
+from src.core.model_config_port_registry import get_model_config_port
 from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
 from src.emoji_system.emoji_manager import _is_vlm_task_configured, emoji_manager
 from src.emoji_system.maisaka_tool import send_emoji_for_maisaka
@@ -295,7 +295,10 @@ def _build_send_emoji_monitor_metadata(
 def _resolve_emoji_selector_model_task_name() -> str:
     """根据 planner 模型视觉能力选择表情选择子代理的模型任务。"""
 
-    model_config = config_manager.get_model_config()
+    port = get_model_config_port()
+    if port is None:
+        return "emoji"
+    model_config = port.get_model_config()
     emoji_task_config = getattr(model_config.model_task_config, "emoji", None)
     emoji_models = [
         model_name for model_name in getattr(emoji_task_config, "model_list", []) if str(model_name).strip()

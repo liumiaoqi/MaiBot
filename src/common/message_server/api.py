@@ -13,7 +13,7 @@ adopt_library_logger("maim_message", handler_names={"maim_message_default_handle
 
 def get_global_api() -> MessageServer:  # sourcery skip: extract-method
     """获取全局MessageServer实例"""
-    from src.config.config import global_config  # noqa: TID251 — maim_message 整体对象无法逐属性 Port 化
+    from src.core.app_config_port_registry import get_app_config_port
 
     global global_api
     if global_api is None:
@@ -23,7 +23,8 @@ def get_global_api() -> MessageServer:  # sourcery skip: extract-method
         if version_int < [0, 6, 2]:
             raise RuntimeError("maim_message 版本过低，请升级到 0.6.2 或更高版本。")
         # 读取配置项
-        maim_message_config = global_config.maim_message
+        app_cfg = get_app_config_port()
+        maim_message_config = app_cfg.get_maim_message_config() if app_cfg else None
 
         # 设置基本参数 (Legacy Server Mode)
         kwargs = {

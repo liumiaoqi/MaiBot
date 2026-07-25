@@ -280,10 +280,14 @@ def run_image_cache_cleanup(config: ImageCacheCleanupConfigLike) -> ImageCacheCl
 
 async def periodic_image_cache_cleanup() -> None:
     """按配置周期执行图片缓存清理。"""
-    from src.config.config import global_config  # noqa: TID251 — visual.image_cache_cleanup 整体对象无法逐属性 Port 化
+    from src.core.app_config_port_registry import get_app_config_port
 
     while True:
-        config = global_config.visual.image_cache_cleanup
+        app_cfg = get_app_config_port()
+        if app_cfg is None:
+            await asyncio.sleep(60)
+            continue
+        config = app_cfg.get_image_cache_cleanup_config()
         interval_seconds = _interval_seconds(config)
 
         if config.enabled:

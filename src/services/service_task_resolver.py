@@ -16,13 +16,11 @@ def set_model_config_port(port: Any) -> None:
 
 
 def _get_model_config():
-    """获取模型配置——优先使用 ModelConfigPort，未注册时回退到 config_manager（过渡期兼容）。"""
+    """获取模型配置——通过 ModelConfigPort 访问。"""
     port = get_model_config_port()
-    if port is not None:
-        return port.get_model_config()
-    logger.warning("ModelConfigPort 未注入，回退到 config_manager（过渡期兼容）")
-    from src.config.config import config_manager  # noqa: TID251 — 过渡期兼容，端口可注入后此路径不再触发
-    return config_manager.get_model_config()
+    if port is None:
+        raise RuntimeError("ModelConfigPort 未注册，无法获取模型配置")
+    return port.get_model_config()
 
 
 def get_available_models() -> Dict[str, TaskConfig]:

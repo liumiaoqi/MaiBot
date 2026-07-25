@@ -14,7 +14,7 @@ from src.common.database.database import get_db_session
 from src.common.database.database_model import Expression, ModifiedBy
 from src.common.logger import get_logger
 from src.common.utils.utils_config import ChatConfigUtils, ExpressionConfigUtils
-from src.config.config import model_config  # noqa: TID251
+from src.core.model_config_port_registry import get_model_config_port
 from src.core.app_config_port_registry import get_app_config_port
 from src.learners.expression_style_utils import (
     is_prompt_example_expression_style,
@@ -260,7 +260,10 @@ class MaisakaExpressionSelector:
 
     @staticmethod
     def _has_embedding_model_configured() -> bool:
-        return any(model_name.strip() for model_name in model_config.model_task_config.embedding.model_list)
+        model_config_port = get_model_config_port()
+        if model_config_port is None:
+            return False
+        return bool(model_config_port.get_task_config("embedding").model_list)
 
     @staticmethod
     def _use_expression_intent() -> bool:

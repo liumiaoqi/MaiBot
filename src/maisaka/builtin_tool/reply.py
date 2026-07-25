@@ -9,7 +9,6 @@ from src.common.data_models.message_component_data_model import TextComponent
 from src.common.data_models.reply_generation_data_models import ReplyGenerationResult, build_reply_monitor_detail
 
 from src.common.logger import get_logger
-from src.config import config as config_module  # noqa: TID251
 from src.core.app_config_port_registry import get_app_config_port
 from src.core.bot_config_port_registry import get_bot_config_port
 from src.core.chat_config_port_registry import get_chat_config_port

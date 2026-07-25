@@ -11,7 +11,7 @@ import time
 
 from src.common.logger import get_logger
 from src.common.shutdown import is_shutdown_requested
-from src.config.config import global_config  # noqa: TID251 — plugin_runtime 整体对象无法逐属性 Port 化
+from src.core.app_config_port_registry import get_app_config_port
 from src.platform_io import DriverKind, InboundMessageEnvelope, RouteBinding, RouteKey, get_platform_io_manager
 from src.platform_io.drivers import PluginPlatformDriver
 from src.platform_io.route_key_factory import RouteKeyFactory
@@ -113,7 +113,8 @@ class PluginRunnerSupervisor:
             max_restart_attempts: 自动重启 Runner 的最大次数。
             runner_spawn_timeout_sec: 等待 Runner 建连并就绪的超时时间，单位秒。
         """
-        runtime_config = global_config.plugin_runtime
+        app_cfg = get_app_config_port()
+        runtime_config = app_cfg.get_plugin_runtime_config() if app_cfg else None
         self._group_name: str = str(group_name or "third_party").strip() or "third_party"
         self._plugin_dirs: List[Path] = plugin_dirs or []
         self._host_version: str = detect_host_application_version(_PROJECT_ROOT)
