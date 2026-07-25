@@ -57,8 +57,8 @@ class RunnerEndpoint:
         )
         self._servicer = _PluginRunnerServicer()
         self._shutting_down: bool = False
-
         self._stream_call: grpc.aio.StreamStreamCall | None = None
+        self._recv_task: asyncio.Task | None = None
 
     # ── 公共 API ────────────────────────────────────────────────
 
@@ -102,6 +102,9 @@ class RunnerEndpoint:
     async def stop(self) -> None:
         """停止 Runner：关闭双向流、停服务端、关通道。"""
         self._shutting_down = True
+        if self._recv_task is not None:
+            self._recv_task.cancel()
+            self._recv_task = None
         if self._stream_call is not None:
             self._stream_call.cancel()
             self._stream_call = None
@@ -226,8 +229,10 @@ class RunnerEndpoint:
         self._transition(ConnectionState.READY)
         logger.info("Runner %s 注册成功，进入 READY", self._config.runner_id)
 
-        # 6. 进入接收循环
-        await self._recv_loop(call)
+        # 6. 接收循环作为后台任务，start() 立即返回
+        self._recv_task = asyncio.create_task(
+            self._recv_loop(call), name=f"recv-{self._config.runner_id}",
+        )
 
     async def _recv_loop(self, call: grpc.aio.StreamStreamCall) -> None:
         """HostMessage 接收循环。"""
