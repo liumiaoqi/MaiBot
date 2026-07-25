@@ -168,6 +168,11 @@ class PluginContext:
         if scope not in self._send._granted_scopes:
             raise ScopeDeniedError(f"{label}: Scope {scope} 未授权")
 
+    def update_granted_scopes(self, granted_scopes: set[str]) -> None:
+        """握手后更新所有子对象的 granted_scopes。"""
+        self._send._granted_scopes = granted_scopes
+        self._storage._granted_scopes = granted_scopes
+
     async def emit_event(self, name: str, payload: dict[str, Any]) -> None:
 
         """推送事件。通过 RunnerEndpoint 发送到 Host。"""

@@ -241,9 +241,8 @@ class RunnerEndpoint:
                 "Runner %s 部分 scope 被拒绝: %s, granted=%s",
                 self._config.runner_id, hr.rejected_scopes, self._granted_scopes,
             )
-            # 更新 PluginContext 的 granted_scopes
             if self._plugin_instance is not None:
-                self._plugin_instance.ctx._granted_scopes = self._granted_scopes
+                self._plugin_instance.ctx.update_granted_scopes(self._granted_scopes)
         else:
             self._granted_scopes = set(self._config.scopes)
 

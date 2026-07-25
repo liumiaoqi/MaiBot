@@ -72,6 +72,7 @@ class _PluginHostServicer(PluginHostServicer):
         self._host_bridge = host_bridge
         self._token_service = token_service
         self._scope_store = scope_store
+        self._pending_plugin_id: str = ""
         self._outboxes: dict[str, asyncio.Queue[common_pb2.HostMessage | None]] = {}
 
     # ── Connect 双向流 ──────────────────────────────────────────
@@ -134,13 +135,14 @@ class _PluginHostServicer(PluginHostServicer):
 
         # 计算 granted/rejected scopes
         rejected_scopes: list[str] = []
+        scope_key = self._pending_plugin_id or runner_id
         if self._scope_store is not None:
-            self._scope_store.approve_all_pending(runner_id, list(hello.scopes))
-            approved = self._scope_store.get_granted_scopes(runner_id)
+            self._scope_store.approve_all_pending(scope_key, list(hello.scopes))
+            approved = self._scope_store.get_granted_scopes(scope_key)
             requested = set(hello.scopes)
             granted = requested & approved
             rejected_scopes = list(requested - approved)
-            conn.scopes = list(granted) if self._scope_store is not None else list(hello.scopes)
+            conn.scopes = list(granted)
             if rejected_scopes:
                 logger.warning(
                     "Runner %s 部分 scope 被拒绝: %s", runner_id, rejected_scopes,
@@ -248,7 +250,10 @@ class _PluginHostServicer(PluginHostServicer):
             self._cleanup_connection(runner_id)
 
     def _validate_hello(self, hello: common_pb2.HelloPayload) -> tuple[bool, str]:
-        """校验 HelloPayload，返回 (accepted, reason)。"""
+        """校验 HelloPayload，返回 (accepted, reason)。
+
+        Token 验证成功时将 plugin_id 存入 self._pending_plugin_id 供 Connect 使用。
+        """
         if not hello.runner_id:
             return False, "MISSING_REQUIRED_FIELD: runner_id"
         if not hello.sdk_version:
@@ -261,10 +266,12 @@ class _PluginHostServicer(PluginHostServicer):
             return False, "RUNNER_ALREADY_CONNECTED"
         if not _check_sdk_version(hello.sdk_version):
             return False, "SDK_VERSION_MISMATCH"
+        self._pending_plugin_id = ""
         if self._token_service is not None:
             valid, plugin_id = self._token_service.validate(hello.session_token)
             if not valid:
                 return False, "TOKEN_INVALID"
+            self._pending_plugin_id = plugin_id
         return True, ""
 
     # ── RegisterComponents 一元 RPC ─────────────────────────────
