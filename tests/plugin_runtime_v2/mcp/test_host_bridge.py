@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+import pytest
 
 from src.core.tooling import ToolInvocation, ToolExecutionContext, ToolRegistry
 from src.plugin_runtime_v2.mcp.host_bridge import MCPHostBridge
@@ -29,9 +30,10 @@ class TestOnRunnerRegistered:
 
         tools = [_make_tool_decl("t1")]
         bridge.on_runner_registered("r1", "p1", tools, [], "localhost:9999")
-        assert "r1" in bridge._providers
+        assert "p1" in bridge._providers
 
-    def test_duplicate_registration_skipped(self):
+    @pytest.mark.asyncio
+    async def test_duplicate_registration_skipped(self):
         registry = ToolRegistry()
         dispatcher = EventDispatcher()
         person_port = MagicMock()

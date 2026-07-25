@@ -70,11 +70,12 @@ def _host_config(listen_address: str = "127.0.0.1:0") -> HostEndpointConfig:
     return HostEndpointConfig(listen_address=listen_address, register_timeout_s=10, default_drain_timeout_ms=2000)
 
 
-def _runner_config(host_address: str, runner_id: str = "test-runner") -> RunnerEndpointConfig:
+def _runner_config(host_address: str, runner_id: str = "test-runner", events: list | None = None) -> RunnerEndpointConfig:
     return RunnerEndpointConfig(
         host_address=host_address, runner_id=runner_id, session_token="t",
         scopes=["message:send:text"], plugin_id="test.echo",
         reconnect_max_retries=2, reconnect_initial_delay_s=0.3, reconnect_max_delay_s=1.0,
+        events=events or [],
     )
 
 
@@ -93,7 +94,7 @@ async def _safe_stop(runner) -> None:
 async def test_tool_router_execute_success():
     router = ToolRouter()
     plugin = EchoPlugin()
-    router.register("echo", plugin, plugin.echo_tool)
+    router.register("echo", plugin, plugin.echo_tool.__func__)
     response = await router.execute("echo", {"msg": "hello"}, timeout_ms=5000)
     assert response.success
 
@@ -108,7 +109,7 @@ async def test_tool_router_tool_not_found():
 async def test_tool_router_execution_error():
     router = ToolRouter()
     plugin = CrashingPlugin()
-    router.register("crash", plugin, plugin.crash_tool)
+    router.register("crash", plugin, plugin.crash_tool.__func__)
     response = await router.execute("crash", {}, timeout_ms=5000)
     assert not response.success
     assert "EXECUTION_ERROR" in response.error
@@ -117,7 +118,7 @@ async def test_tool_router_execution_error():
 async def test_tool_router_sync_handler():
     router = ToolRouter()
     plugin = SyncPlugin()
-    router.register("sync_tool", plugin, plugin.sync_tool)
+    router.register("sync_tool", plugin, plugin.sync_tool.__func__)
     response = await router.execute("sync_tool", {"x": 21}, timeout_ms=5000)
     assert response.success
     assert "42" in response.result
@@ -126,7 +127,9 @@ async def test_tool_router_sync_handler():
 async def test_tool_router_parameter_validation():
     router = ToolRouter()
     plugin = EchoPlugin()
-    router.register("echo", plugin, plugin.echo_tool)
+    handler = plugin.echo_tool.__func__
+    declaration = handler._mcp_tool
+    router.register("echo", plugin, handler, declaration)
     response = await router.execute("echo", {"msg": 123}, timeout_ms=5000)
     assert not response.success
     assert "PARAMETER_VALIDATION_FAILED" in response.error
@@ -134,7 +137,7 @@ async def test_tool_router_parameter_validation():
 @pytest.mark.asyncio
 async def test_tool_router_timeout():
     router = ToolRouter()
-    async def slow_handler(self, args):
+    async def slow_handler(plugin, args):
         await asyncio.sleep(5)
         return {"done": True}
     router.register("slow", EchoPlugin(), slow_handler)
@@ -149,11 +152,23 @@ async def test_tool_router_timeout():
 
 @pytest.mark.asyncio
 async def test_event_push_chain():
-    host = HostEndpoint(_host_config())
+    from src.core.tooling import ToolRegistry
+    from src.plugin_runtime_v2.mcp.host_bridge import MCPHostBridge
+    from src.plugin_runtime_v2.mcp.event_dispatcher import EventDispatcher
+
+    registry = ToolRegistry()
+    dispatcher = EventDispatcher()
+    bridge = MCPHostBridge(registry, dispatcher, MagicMock())
+
+    host = HostEndpoint(_host_config(), host_bridge=bridge)
     await host.start()
     runner = None
     try:
-        runner = RunnerEndpoint(_runner_config(host.listen_address))
+        cfg = _runner_config(
+            host.listen_address,
+            events=[{"name": "custom_event", "description": "测试事件", "event_schema": {}}],
+        )
+        runner = RunnerEndpoint(cfg)
         await asyncio.wait_for(runner.start(), timeout=_RUNNER_START_TIMEOUT)
         assert runner.is_ready
         with patch("src.plugin_runtime_v2.mcp.event_dispatcher.logger.info") as mock_info:
@@ -179,7 +194,7 @@ async def test_command_context_injection_chain():
 
     router = ToolRouter()
     plugin = CtxInjectPlugin()
-    router.register("cmd_help", plugin, plugin.cmd_help)
+    router.register("cmd_help", plugin, plugin.cmd_help.__func__)
 
     bridge = MCPHostBridge(ToolRegistry(), EventDispatcher(), MagicMock())
     inv = ToolInvocation(tool_name="cmd_help", arguments={}, call_id="c1", session_id="")

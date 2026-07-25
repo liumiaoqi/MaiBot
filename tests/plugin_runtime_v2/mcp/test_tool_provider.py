@@ -71,6 +71,7 @@ class TestInvoke:
         mock_stub = AsyncMock()
         mock_stub.InvokeTool.return_value = MagicMock(success=True, result='{"ok":1}', error="")
         provider._stub = mock_stub
+        provider._channel = MagicMock()
 
         inv = ToolInvocation(tool_name="t1", arguments={}, call_id="c1", session_id="s1")
         res = await provider.invoke(inv)
