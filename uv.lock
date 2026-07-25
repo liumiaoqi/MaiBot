@@ -672,6 +672,19 @@ wheels = [
 ]
 
 [[package]]
+name = "grpcio-reflection"
+version = "1.83.0"
+source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
+dependencies = [
+    { name = "grpcio" },
+    { name = "protobuf" },
+]
+sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/e5/6e/e46a65398fe4289b62f46266234321fcfb9ff96fcd69c872440c2bfaf607/grpcio_reflection-1.83.0.tar.gz", hash = "sha256:6a2a30a462ac2c3c6d149734a8fe655fa7617c17fa2cda9949006f3bf07f5b3e", size = 19203, upload-time = "2026-07-23T15:24:26.163Z" }
+wheels = [
+    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/8c/f2/21a1bbe4d35efbfb301dca50406bf643a503c041c8bafc53686c7ed180a2/grpcio_reflection-1.83.0-py3-none-any.whl", hash = "sha256:9d4151f68f18a85aa5b0eff5d493ad13f9421f96c8d9c01c840b353dc979be93", size = 22910, upload-time = "2026-07-23T15:23:37.94Z" },
+]
+
+[[package]]
 name = "grpcio-tools"
 version = "1.83.0"
 source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
@@ -942,7 +955,10 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "grpcio" },
+    { name = "grpcio-reflection" },
     { name = "grpcio-tools" },
+    { name = "jsonschema" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "ruff" },
@@ -991,7 +1007,10 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "grpcio", specifier = ">=1.83.0" },
+    { name = "grpcio-reflection", specifier = ">=1.83.0" },
     { name = "grpcio-tools", specifier = ">=1.83.0" },
+    { name = "jsonschema", specifier = ">=4.0" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "ruff", specifier = ">=0.12.2" },

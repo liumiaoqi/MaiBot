@@ -4,8 +4,8 @@
 
 - Docker 容器：`maim-bot-core`，Python 3.14.6
 - 依赖管理：**uv**，不用 pip
-- 代码修改后需重启容器才能生效，**我来执行 `docker restart maim-bot-core`，不需要先问用户**
-- WSL 环境，Docker 通过 Docker Desktop 在 Windows 侧运行
+- WSL 环境，无法操作 Docker。运行时验证由 CA 和 Codex 完成
+- 我的验收终点：`py_compile` 通过 + `ruff check` 通过。不要写"容器验证"这种无法执行的建议
 
 ## 项目灵魂（最重要）
 
@@ -31,20 +31,23 @@ Derestiny"彼岸居"提示词定义了项目最底层的哲学：
 
 ## CC ↔ Codex 分工
 
-**我该做的**（CC 优势）：
-- 跨文件架构重构、Protocol/接口变更
-- 深层因果调试、多文件联动改动
+**重要**：CC 和 Codex 底模相同（DeepSeek V4 Pro），能力差异来自智能体架构和运气（是否路由到正式版），不是模型本身。不要有"CC 擅长的 Codex 做不了"的预设。
+
+**我该做的**：
+- Protocol 设计、接口签名（需首次正确）
+- 高风险域改动（runtime.py 多域混合、generator_base 核心回复生成器）
 - 审查文档、评估设计合理性
-- 不确定派谁的→我来
 
-**该给 Codex 的**：
-- 单文件 bug 修复、批量小改动（`or ""` 消除、getattr 替换、导入排序）
-- 纯验证任务（grep + 文档更新）
-- ruff/mypy 配置更新
-- 代码审查二道防线（Codex 审查我的产出）
-- 我的工作残余——小文件、单模块改动
+**Codex 同样能做的**（不要低估）：
+- 机械替换（global_config→Protocol、单文件迁移）
+- 适配器/注册点编写（参照模板）
+- 批量小改动、noqa 清理
+- 代码审查二道防线
 
-**审查文档时**：给出 CC/Codex 派发建议，参照 `.shared/decisions/cc_vs_codex_routing_guide.md`
+**派发原则**：
+- 如果任务定义清晰、有模板可参照 → Codex
+- 如果需要理解"为什么"、可能影响产品行为 → CC
+- 审查时必须给出具体的 CC/Codex 派发建议，不能说"全部 CC"
 
 ## 架构常识
 
