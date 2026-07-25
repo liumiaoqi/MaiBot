@@ -1,4 +1,5 @@
 *.bat text eol=crlf
 *.cmd text eol=crlf
+*.py text eol=crlf
 webui/dist/** binary
 *.sh text eol=lf
