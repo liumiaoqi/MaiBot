@@ -72,6 +72,24 @@ class TokenService:
         logger.info("Token 验证成功: plugin=%s", plugin_id)
         return True, plugin_id
 
+    def validate_session(self, token: str) -> tuple[bool, str]:
+        """可重复验证 session_token（不删除 token）。
+
+        用于 SDK RPC 调用时的身份校验。
+        Connect 握手用 validate()（一次性），SDK RPC 用 validate_session()（可重复）。
+
+        Returns:
+            (valid, plugin_id) — valid=False 时 plugin_id 为空字符串。
+        """
+        entry = self._tokens.get(token)
+        if entry is None:
+            return False, ""
+        if entry.used:
+            return False, ""
+        if time.time() - entry.created_at > self._ttl:
+            return False, ""
+        return True, entry.plugin_id
+
     def cleanup_expired(self) -> int:
         """清理过期 token，返回清理数量。"""
         now = time.time()
