@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from src.core.types import AgentAutonomySnapshot, AgentInteractionSnapshot, AMemorixIntegrationSnapshot
-from src.core.types import PluginRuntimeSnapshot
+from src.core.types import CacheCleanupConfig, MaimMessageConfigSnapshot, PluginRuntimeSnapshot
 
 
 class GlobalConfigAppConfigPort:
@@ -349,3 +349,49 @@ class GlobalConfigAppConfigPort:
     def get_model_config_json(self) -> str:
         from src.config.config import config_manager  # noqa: TID251 — 适配器层允许导入
         return config_manager.get_model_config().model_dump(mode="json")
+
+    def get_mmc_version(self) -> str:
+        from src.config.config import MMC_VERSION
+        return MMC_VERSION
+
+    def get_emoji_cache_cleanup_config(self) -> CacheCleanupConfig:
+        from src.core.types import CacheCleanupConfig
+        cfg = self._get_cfg().emoji.cache_cleanup
+        return CacheCleanupConfig(
+            enabled=self.get_emoji_cache_cleanup_enabled(),
+            check_interval_hours=float(cfg.check_interval_hours),
+            emoji_file_retention_days=float(cfg.emoji_file_retention_days),
+            no_file_record_retention_days=float(cfg.no_file_record_retention_days),
+        )
+
+    def get_image_cache_cleanup_config(self) -> CacheCleanupConfig:
+        from src.core.types import CacheCleanupConfig
+        cfg = self._get_cfg().visual.image_cache_cleanup
+        return CacheCleanupConfig(
+            enabled=self.get_visual_image_cache_cleanup_enabled(),
+            check_interval_hours=float(cfg.check_interval_hours),
+            image_file_retention_days=float(cfg.image_file_retention_days),
+            no_file_result_retention_days=float(cfg.no_file_result_retention_days),
+        )
+
+    def get_maim_message_config(self) -> MaimMessageConfigSnapshot:
+        from src.core.types import MaimMessageConfigSnapshot
+        cfg = self._get_cfg().maim_message
+        return MaimMessageConfigSnapshot(
+            enable_api_server=bool(cfg.enable_api_server),
+            api_server_host=str(cfg.api_server_host),
+            api_server_port=int(cfg.api_server_port),
+            api_server_use_wss=bool(cfg.api_server_use_wss),
+            api_server_cert_file=str(cfg.api_server_cert_file),
+            api_server_key_file=str(cfg.api_server_key_file),
+            api_server_allowed_api_keys=tuple(cfg.api_server_allowed_api_keys),
+            ws_server_host=str(cfg.ws_server_host),
+            ws_server_port=int(cfg.ws_server_port),
+            auth_token=str(cfg.auth_token),
+        )
+
+    def get_jargon_learning_list(self) -> list[str]:
+        return list(self._get_cfg().jargon.learning_list)
+
+    def get_jargon_groups(self) -> list[Any]:
+        return list(self._get_cfg().jargon.jargon_groups)

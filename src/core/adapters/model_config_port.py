@@ -179,3 +179,8 @@ class ConfigManagerModelConfigPort:
             if not attr.startswith("_")
             and isinstance(getattr(task_configs, attr, None), TaskConfig)
         ]
+
+    def list_model_names(self) -> list[str]:
+        from src.config.config import config_manager  # noqa: TID251 — 适配器层允许导入
+        model_cfg = config_manager.get_model_config()
+        return [model.name for model in model_cfg.models]

@@ -29,7 +29,9 @@ if TYPE_CHECKING:
         AgentAutonomySnapshot,
         AgentInteractionSnapshot,
         AMemorixIntegrationSnapshot,
+        CacheCleanupConfig,
         KeywordReactionSnapshot,
+        MaimMessageConfigSnapshot,
         MemorySearchResult,
         MemoryWriteResult,
         NoticeKind,
@@ -796,6 +798,10 @@ class ModelConfigPort(Protocol):
             RuntimeError: 配置未初始化时
         """
 
+    def list_model_names(self) -> list[str]:
+        """列出所有已配置的模型名称。"""
+        ...
+
     def register_reload_callback(self, callback: Any) -> None:
         """注册配置热重载回调。
 
@@ -991,6 +997,18 @@ class ChatConfigPort(Protocol):
     def get_reply_timing_config(self) -> ReplyTimingSnapshot: ...
     def get_keyword_reaction(self) -> KeywordReactionSnapshot: ...
 
+    def get_reply_style_chat_prompts(self) -> list[str]:
+        """获取聊天风格 prompts 列表。"""
+        ...
+
+    def get_reply_timing_talk_value(self) -> float:
+        """获取群聊默认发言频率。"""
+        ...
+
+    def get_reply_timing_private_talk_value(self) -> float:
+        """获取私聊默认发言频率。"""
+        ...
+
 
 @runtime_checkable
 class AppConfigPort(Protocol):
@@ -1074,6 +1092,30 @@ class AppConfigPort(Protocol):
     def get_webui_trust_xff(self) -> bool: ...
     def get_webui_secure_cookie(self) -> bool: ...
     def get_webui_mode(self) -> str: ...
+
+    def get_mmc_version(self) -> str:
+        """获取 MMC 版本号常量。"""
+        ...
+
+    def get_emoji_cache_cleanup_config(self) -> CacheCleanupConfig:
+        """获取表情包缓存清理配置快照。"""
+        ...
+
+    def get_image_cache_cleanup_config(self) -> CacheCleanupConfig:
+        """获取图片缓存清理配置快照。"""
+        ...
+
+    def get_maim_message_config(self) -> MaimMessageConfigSnapshot:
+        """获取 MaimMessage 配置快照。"""
+        ...
+
+    def get_jargon_learning_list(self) -> list[str]:
+        """获取行话学习列表。"""
+        ...
+
+    def get_jargon_groups(self) -> list[Any]:
+        """获取行话分组列表。"""
+        ...
 
     def get_plugin_runtime_config(self) -> PluginRuntimeSnapshot:
         """获取插件运行时配置快照。
