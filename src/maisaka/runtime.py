@@ -22,8 +22,6 @@ from src.common.data_models.message_component_data_model import (
 from src.common.logger import get_logger
 from src.common.message_repository import find_messages
 from src.common.utils.utils_config import BehaviorConfigUtils, ChatConfigUtils, ExpressionConfigUtils, JargonConfigUtils
-from src.config.config import global_config  # noqa: TID251 — expression 待协议化
-
 from src.core.chat_config_port_registry import get_chat_config_port
 from src.core.app_config_port_registry import get_app_config_port
 from src.core.protocols import NoticeClassifier
@@ -1048,8 +1046,8 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
     def _get_base_reply_frequency(self) -> float:
         """返回当前会话类型对应的基础回复频率。"""
         if self._session_info.is_group_session:
-            return float(global_config.chat.reply_timing.talk_value)
-        return float(global_config.chat.reply_timing.private_talk_value)
+            return get_chat_config_port().get_reply_timing_talk_value()
+        return get_chat_config_port().get_reply_timing_private_talk_value()
 
     def _is_reply_frequency_silent(self) -> bool:
         """判断当前会话是否处于回复频率为 0 的静默接收模式。"""
@@ -1434,9 +1432,8 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
         if not self._should_run_expression_vector_history_backfill():
             return
 
-        expression_config = global_config.expression
         expression_vector_index.ensure_history_backfill_task(
-            index_path=expression_config.expression_vector_index_path,
+            index_path=get_app_config_port().get_expression_vector_index_path(),
         )
 
     def _register_tool_providers(self) -> None:
