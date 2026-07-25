@@ -1012,7 +1012,32 @@ class ChatConfigPort(Protocol):
 
 @runtime_checkable
 class AppConfigPort(Protocol):
-    """应用配置查询接口 — 组件层聚合 expression/emoji/experimental/visual/debug/agent_autonomy/a_memorix 域。"""
+    """应用配置查询接口 — 按配置域分组。
+
+    === Expression 域 ===
+    === Emoji 域 ===
+    === Experimental 域 ===
+    === Visual 域 ===
+    === Debug 域 ===
+    === Agent Autonomy 域 ===
+    === A_Memorix 域 ===
+    === MCP 域 ===
+    === Plugin Runtime 域 ===
+    === Response Splitter 域 ===
+    === Chinese Typo 域 ===
+    === Response Post Process 域 ===
+    === Log 域 ===
+    === WebUI 域 ===
+    === Agent 域 ===
+    === Agent Interaction 域 ===
+    === Voice 域 ===
+    === MaimMessage 域 ===
+    === Telemetry 域 ===
+    === Message Receive 域 ===
+    === Chat 域 ===
+    === Jargon 域 ===
+    === System 域 ===
+    """
 
     def get_expression_learning_list(self) -> list[str]: ...
     def get_expression_checked_only(self) -> bool: ...
