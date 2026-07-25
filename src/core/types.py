@@ -849,6 +849,8 @@ __all__ = [
     "SessionMessage",
     "PluginRuntimeSnapshot",
     "PersonDetailSnapshot",
+    "CacheCleanupConfig",
+    "MaimMessageConfigSnapshot",
 ]
 
 
@@ -997,3 +999,35 @@ class PersonDetailSnapshot:
     person_id: str = ""
     person_name: str = ""
     nickname: str = ""
+
+
+@dataclass(frozen=True)
+class CacheCleanupConfig:
+    """缓存清理配置快照 — emoji/image cache_cleanup 通用。
+
+    emoji 和 image 的 cache_cleanup 结构高度相似，用同一个快照类型。
+    适配器从各自配置域映射字段。
+    """
+
+    enabled: bool = False
+    check_interval_hours: float = 24.0
+    emoji_file_retention_days: float = 30.0
+    no_file_record_retention_days: float = 90.0
+    image_file_retention_days: float = 14.0
+    no_file_result_retention_days: float = 30.0
+
+
+@dataclass(frozen=True)
+class MaimMessageConfigSnapshot:
+    """MaimMessage 配置快照 — 替代 global_config.maim_message 整体对象。"""
+
+    enable_api_server: bool = False
+    api_server_host: str = ""
+    api_server_port: int = 0
+    api_server_use_wss: bool = False
+    api_server_cert_file: str = ""
+    api_server_key_file: str = ""
+    api_server_allowed_api_keys: tuple[str, ...] = ()
+    ws_server_host: str = ""
+    ws_server_port: int = 0
+    auth_token: str = ""
