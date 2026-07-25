@@ -7,16 +7,18 @@ from __future__ import annotations
 
 import asyncio
 from typing import Any
+from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
 
 from src.plugin_runtime_v2.host.connection import HostEndpointConfig
 from src.plugin_runtime_v2.host.endpoint import HostEndpoint
+from src.plugin_runtime_v2.sdk.decorators import HomeCard, Tool
 from src.plugin_runtime_v2.runner.endpoint import RunnerEndpoint
 from src.plugin_runtime_v2.runner.plugin_loader import PluginLoader
 from src.plugin_runtime_v2.runner.reconnect import RunnerEndpointConfig
 from src.plugin_runtime_v2.runner.tool_router import ToolRouter
-from src.plugin_runtime_v2.sdk.decorators import Tool
+from src.plugin_runtime_v2.sdk.context import PluginContext
 from src.plugin_runtime_v2.sdk.plugin import MaiBotPlugin
 
 _RUNNER_START_TIMEOUT = 10.0
@@ -225,3 +227,115 @@ async def test_plugin_loader_reconnect_protection():
     # 重连时返回相同数据
     assert tools1 == tools2
     assert inst1 is inst2
+
+
+# ═══════════════════════════════════════════════════════════════
+# 8.2 Event 推送链路
+# ═══════════════════════════════════════════════════════════════
+
+
+@pytest.mark.asyncio
+async def test_event_push_chain():
+    """Runner emit_event → Host 收到 EventPayload 并分发。"""
+    from unittest.mock import patch
+    host = HostEndpoint(_host_config())
+    await host.start()
+    runner = None
+    try:
+        runner = RunnerEndpoint(_runner_config(host.listen_address))
+        await asyncio.wait_for(runner.start(), timeout=_RUNNER_START_TIMEOUT)
+        assert runner.is_ready
+
+        with patch(
+            "src.plugin_runtime_v2.mcp.event_dispatcher.logger.info"
+        ) as mock_info:
+            await runner.emit_event("custom_event", {"key": "val"})
+            await asyncio.sleep(0.5)
+            found = any("custom_event" in str(c) for c in mock_info.call_args_list)
+            assert found
+    finally:
+        if runner is not None:
+            await _safe_stop(runner)
+        await host.stop()
+
+
+# ═══════════════════════════════════════════════════════════════
+# 8.3 @Command 上下文注入链路
+# ═══════════════════════════════════════════════════════════════
+
+
+class CtxInjectPlugin(MaiBotPlugin):
+    plugin_id = "test.ctxinject"
+    scopes = ["message:send:text"]
+
+    @Tool(name="cmd_help", description="命令帮助", parameters_schema={"type": "object", "properties": {}})
+    async def cmd_help(self, args):
+        return {"session": args.get("session_id", ""), "sender": args.get("sender_id", "")}
+
+
+@pytest.mark.asyncio
+async def test_command_context_injection_chain():
+    """@Command pattern 匹配 → inject_command_context 注入 → ToolRouter 执行。"""
+    from src.core.tooling import ToolInvocation, ToolExecutionContext
+    from src.plugin_runtime_v2.mcp.host_bridge import MCPHostBridge
+    from src.plugin_runtime_v2.mcp.event_dispatcher import EventDispatcher
+    from src.core.tooling import ToolRegistry
+
+    router = ToolRouter()
+    plugin = CtxInjectPlugin()
+    router.register("cmd_help", plugin, plugin.cmd_help)
+
+    registry = ToolRegistry()
+    dispatcher = EventDispatcher()
+    person_port = MagicMock()
+    person_port.get_person_info.return_value = Mock(person_name="Bob")
+    bridge = MCPHostBridge(registry, dispatcher, person_port)
+
+    inv = ToolInvocation(tool_name="cmd_help", arguments={}, call_id="c1", session_id="")
+    ctx = ToolExecutionContext(session_id="sid1", user_id="uid1", is_group_chat=True, agent_id="", intent_type="")
+    bridge.inject_command_context(inv, ctx, {"pattern": "/help"})
+
+    resp = await router.execute("cmd_help", inv.arguments)
+    assert resp.success
+    import json as _json
+    result = _json.loads(resp.result)
+    assert result["session"] == "sid1"
+    assert result["sender"] == "uid1"
+
+
+# ═══════════════════════════════════════════════════════════════
+# 8.4 @HomeCard 推送链路
+# ═══════════════════════════════════════════════════════════════
+
+
+class CardPlugin(MaiBotPlugin):
+    plugin_id = "test.card"
+
+    @HomeCard(name="dashboard", title="控制台", width="wide")
+    async def dashboard_card(self):
+        pass
+
+
+@pytest.mark.asyncio
+async def test_homecard_push_chain():
+    """PluginLoader 收集 HomeCard → PluginContext.emit_card 推送。"""
+
+    loader = PluginLoader(CardPlugin)
+    tools, events, cards, instance = loader.load()
+    assert "dashboard" in cards
+    assert cards["dashboard"]["title"] == "控制台"
+    assert cards["dashboard"]["width"] == "wide"
+
+    runner = AsyncMock()
+    runner.is_ready = True
+    ctx = PluginContext("test.card", set(), runner, cards)
+
+    async def _run():
+        await ctx.emit_card("dashboard", {"score": 100})
+
+    asyncio.get_event_loop().run_until_complete(_run())
+    payload = runner.emit_event.call_args[0][1]
+    assert payload["name"] == "dashboard"
+    assert payload["title"] == "控制台"
+    assert payload["width"] == "wide"
+    assert payload["data"] == {"score": 100}
