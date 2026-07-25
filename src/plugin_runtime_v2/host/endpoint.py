@@ -126,6 +126,12 @@ class HostEndpoint:
         await self._server.stop(grace=5)
         self._server = None
         self._actual_listen_address = ""
+
+        # 停止 Runner 子进程
+        spawner = getattr(self, "_runner_spawner", None)
+        if spawner is not None:
+            await spawner.stop_all()
+
         logger.info("HostEndpoint 已停止")
 
     async def _cleanup_loop(self) -> None:

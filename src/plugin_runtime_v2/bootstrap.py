@@ -9,6 +9,7 @@ from src.common.logger import get_logger
 from src.core.protocols import AppConfigPort
 from src.plugin_runtime_v2.host.connection import HostEndpointConfig
 from src.plugin_runtime_v2.host.endpoint import HostEndpoint
+from src.plugin_runtime_v2.host.runner_spawner import RunnerSpawner, RunnerSpawnerConfig
 from src.plugin_runtime_v2.mcp.event_dispatcher import EventDispatcher
 from src.plugin_runtime_v2.mcp.host_bridge import MCPHostBridge
 from src.plugin_runtime_v2.scope.approval_store import ScopeApprovalStore
@@ -59,6 +60,17 @@ async def init_v2_host_endpoint(app_config_port: AppConfigPort) -> HostEndpoint:
 
     # 5. 启动
     await endpoint.start()
+
+    # 6. 创建 RunnerSpawner
+    runner_spawn_count = app_config_port.get_plugin_runtime_v2_runner_spawn_count() if hasattr(app_config_port, "get_plugin_runtime_v2_runner_spawn_count") else 0
+    if runner_spawn_count > 0:
+        cfg = RunnerSpawnerConfig(max_restart_attempts=3, spawn_timeout_sec=30.0)
+        spawner = RunnerSpawner(endpoint.listen_address, cfg)
+        for i in range(runner_spawn_count):
+            await spawner.spawn(f"runner-{i}", "plugins")
+        endpoint._runner_spawner = spawner
+        logger.info("RunnerSpawner 已创建，spawn %d 个 Runner", runner_spawn_count)
+
     logger.info(
         "v2 HostEndpoint 已启动: listen=%s scope_file=%s",
         endpoint.listen_address, scope_file,
