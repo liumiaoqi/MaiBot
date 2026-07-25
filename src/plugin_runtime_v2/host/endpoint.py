@@ -40,7 +40,7 @@ _SERVICE_NAME = "maibot.plugin.v2.PluginHost"
 class HostEndpoint:
     """gRPC Host 服务端 — 管理 Runner 连接生命周期。"""
 
-    def __init__(self, config: HostEndpointConfig | None = None) -> None:
+    def __init__(self, config: HostEndpointConfig | None = None, host_bridge=None) -> None:
         self._cfg = config or HostEndpointConfig()
         self._server: grpc.aio.Server | None = None
         self._registry = RunnerRegistry()
@@ -53,6 +53,7 @@ class HostEndpoint:
             registry=self._registry,
             heartbeat_mgr=self._heartbeat_mgr,
             config=self._cfg,
+            host_bridge=host_bridge,
         )
         self._actual_listen_address: str = ""
 

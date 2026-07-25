@@ -45,7 +45,7 @@ _GRPC_SERVER_OPTIONS = [
 class RunnerEndpoint:
     """gRPC Runner 端点 — 连接 Host 并管理双向流。"""
 
-    def __init__(self, config: RunnerEndpointConfig) -> None:
+    def __init__(self, config: RunnerEndpointConfig, plugin_loader=None) -> None:
         self._config = config
         self._channel: grpc.aio.Channel | None = None
         self._server: grpc.aio.Server | None = None
@@ -59,6 +59,8 @@ class RunnerEndpoint:
         self._shutting_down: bool = False
         self._stream_call: grpc.aio.StreamStreamCall | None = None
         self._recv_task: asyncio.Task | None = None
+        self._plugin_loader = plugin_loader
+        self._plugin_instance = None
 
     # ── 公共 API ────────────────────────────────────────────────
 
@@ -69,6 +71,32 @@ class RunnerEndpoint:
         """
         self._shutting_down = False
 
+        # 加载插件（仅首次，重连时复用）
+        if self._plugin_loader is not None and not self._plugin_loader.is_loaded:
+            declarations = self._plugin_loader.load()
+            if declarations[3] is not None:
+                self._config.tools = declarations[0]
+                self._config.events = declarations[1]
+                self._plugin_instance = declarations[3]
+                # 注册 Tool 到 ToolRouter
+                from src.plugin_runtime_v2.sdk.context import PluginContext
+                ctx = PluginContext(
+                    plugin_id=self._config.plugin_id,
+                    granted_scopes=set(self._config.scopes),
+                )
+                self._plugin_instance.ctx = ctx
+                for tool_entry in declarations[0]:
+                    self._servicer._tool_router.register(
+                        tool_name=tool_entry["name"],
+                        plugin=self._plugin_instance,
+                        handler=tool_entry["handler"],
+                        declaration=tool_entry.get("_declaration"),
+                    )
+                # 调用 on_load
+                try:
+                    await self._plugin_instance.on_load()
+                except Exception as exc:
+                    logger.error("插件 on_load 失败: %s", exc)
 
         while True:
             self._transition(ConnectionState.CONNECTING)

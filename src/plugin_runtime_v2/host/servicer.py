@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 import importlib.metadata
 import time
-from typing import AsyncIterator
+from typing import TYPE_CHECKING, AsyncIterator
 
 import grpc
 
@@ -22,6 +22,9 @@ from src.plugin_runtime_v2.host.heartbeat import HeartbeatManager
 from src.plugin_runtime_v2.host.registry import RunnerRegistry
 from src.plugin_runtime_v2.proto import common_pb2, plugin_host_pb2
 from src.plugin_runtime_v2.proto.plugin_host_pb2_grpc import PluginHostServicer
+
+if TYPE_CHECKING:
+    from src.plugin_runtime_v2.mcp.host_bridge import MCPHostBridge
 
 logger = get_logger("plugin_runtime_v2.host.servicer")
 
@@ -59,10 +62,12 @@ class _PluginHostServicer(PluginHostServicer):
         registry: RunnerRegistry,
         heartbeat_mgr: HeartbeatManager,
         config: HostEndpointConfig,
+        host_bridge: MCPHostBridge | None = None,
     ) -> None:
         self._registry = registry
         self._heartbeat_mgr = heartbeat_mgr
         self._config = config
+        self._host_bridge = host_bridge
         self._outboxes: dict[str, asyncio.Queue[common_pb2.HostMessage | None]] = {}
 
     # ── Connect 双向流 ──────────────────────────────────────────
@@ -169,6 +174,13 @@ class _PluginHostServicer(PluginHostServicer):
                         logger.debug(
                             "Runner %s 推送 Event: %s", runner_id, event.event_name,
                         )
+                        if self._host_bridge is not None:
+                            asyncio.create_task(
+                                self._host_bridge.dispatch_event(
+                                    event.event_name, event.payload, runner_id,
+                                ),
+                                name=f"event-dispatch-{runner_id}",
+                            )
                         await outbox.put(
                             common_pb2.HostMessage(
                                 event_ack=common_pb2.EventAck(received=True),
@@ -293,6 +305,9 @@ class _PluginHostServicer(PluginHostServicer):
             runner_id, request.plugin_id, len(request.tools), len(request.events),
         )
 
+        if self._host_bridge is not None:
+            self._host_bridge.on_runner_registered(conn)
+
         return plugin_host_pb2.RegisterComponentsResponse(accepted=True)
 
     def _resolve_runner_id(self, context: grpc.aio.ServicerContext) -> str:
@@ -334,4 +349,9 @@ class _PluginHostServicer(PluginHostServicer):
         self._heartbeat_mgr.stop(runner_id)
         self._registry.unregister(runner_id)
         self._outboxes.pop(runner_id, None)
+        if self._host_bridge is not None:
+            asyncio.create_task(
+                self._host_bridge.on_runner_disconnected(runner_id),
+                name=f"bridge-disconnect-{runner_id}",
+            )
         logger.info("Runner %s 连接已清理", runner_id)
