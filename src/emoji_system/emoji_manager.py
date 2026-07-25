@@ -18,7 +18,7 @@ from src.common.database.database_model import Images, ImageType
 from src.common.logger import get_logger
 from src.common.utils.image_path import resolve_stored_image_path, serialize_stored_image_path
 from src.common.utils.utils_image import ImageUtils
-from src.config.config import config_manager  # noqa: TID251 — emoji_manager 使用 config_manager 获取模型配置
+from src.core.protocols import AppConfigPort, ModelConfigPort
 from src.core.app_config_port_registry import get_app_config_port
 from src.core.bot_config_port_registry import get_bot_config_port
 from src.plugin_runtime.hook_schema_utils import build_object_schema
@@ -237,7 +237,7 @@ def _is_vlm_task_configured() -> bool:
     """判断是否配置了可用于表情包识别和审核的视觉模型任务。"""
 
     try:
-        vlm_models = config_manager.get_model_config().model_task_config.vlm.model_list
+        vlm_models = emoji_manager._get_model_config().model_task_config.vlm.model_list
         return any(str(model_name).strip() for model_name in vlm_models)
     except Exception as exc:
         logger.warning(f"读取 VLM 模型配置失败，跳过表情包识别和审核: {exc}")
@@ -269,6 +269,8 @@ class EmojiManager:
         """初始化表情包管理器。"""
         _ensure_directories()
 
+        self._model_config_port: ModelConfigPort | None = None
+        self._app_config_port: AppConfigPort | None = None
         self._emoji_num: int = 0
         self.emojis: list[MaiEmoji] = []
         self._maintenance_wakeup_event: asyncio.Event = asyncio.Event()
@@ -276,7 +278,35 @@ class EmojiManager:
         self._emoji_save_locks: dict[str, asyncio.Lock] = {}
         self._reload_callback_registered: bool = False
 
-        config_manager.register_reload_callback(self.reload_runtime_config)
+    def set_ports(self, model_config_port: ModelConfigPort, app_config_port: AppConfigPort) -> None:
+        """注入 ModelConfigPort 和 AppConfigPort（由 main.py 在初始化阶段调用）。"""
+        self._model_config_port = model_config_port
+        self._app_config_port = app_config_port
+
+    def _get_model_config(self):
+        """获取模型配置，优先走 Port，回退到 config_manager。"""
+        if self._model_config_port is not None:
+            return self._model_config_port.get_model_config()
+        from src.config.config import config_manager  # noqa: TID251 — 过渡期 fallback
+        return config_manager.get_model_config()
+
+    def _register_reload_callback(self, cb) -> None:
+        """注册热重载回调，优先走 Port，回退到 config_manager。"""
+        if self._app_config_port is not None:
+            self._app_config_port.register_reload_callback(cb)
+            return
+        from src.config.config import config_manager  # noqa: TID251 — 过渡期 fallback
+        config_manager.register_reload_callback(cb)
+
+    def _unregister_reload_callback(self, cb) -> None:
+        """注销热重载回调，优先走 Port，回退到 config_manager。"""
+        if self._app_config_port is not None:
+            self._app_config_port.unregister_reload_callback(cb)
+            return
+        from src.config.config import config_manager  # noqa: TID251 — 过渡期 fallback
+        config_manager.unregister_reload_callback(cb)
+
+        self._register_reload_callback(self.reload_runtime_config)
         self._reload_callback_registered = True
 
         logger.info("启动表情包管理器")
@@ -290,7 +320,7 @@ class EmojiManager:
         """清理 EmojiManager 生命周期资源。"""
         if not self._reload_callback_registered:
             return
-        config_manager.unregister_reload_callback(self.reload_runtime_config)
+        self._unregister_reload_callback(self.reload_runtime_config)
         self._reload_callback_registered = False
         self._maintenance_wakeup_event.set()
         logger.info("[关闭] Emoji 模块已注销配置热重载回调")

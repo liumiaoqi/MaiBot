@@ -3,26 +3,52 @@ from typing import Any, Iterator, Optional
 import time
 
 from src.common.logger import get_logger
-from src.config.config import global_config  # noqa: TID251 — expression/experimental/jargon/reply_style/a_memorix 待后续协议化
 from src.core.chat_config_port_registry import get_chat_config_port
+from src.core.protocols import AppConfigPort, ChatConfigPort
 
 logger = get_logger("config_utils")
+
+_app_config_port: AppConfigPort | None = None
+_chat_config_port_override: ChatConfigPort | None = None
+
+
+def set_utils_config_ports(
+    app_config_port: AppConfigPort,
+    chat_config_port: ChatConfigPort,
+) -> None:
+    """注入 AppConfigPort 和 ChatConfigPort（由 main.py 在初始化阶段调用）。"""
+    global _app_config_port, _chat_config_port_override
+    _app_config_port = app_config_port
+    _chat_config_port_override = chat_config_port
+
+
+def _get_app_port() -> AppConfigPort:
+    if _app_config_port is not None:
+        return _app_config_port
+    from src.core.adapters.app_config_port import GlobalConfigAppConfigPort
+    return GlobalConfigAppConfigPort()
+
+
+def _get_chat_port() -> ChatConfigPort:
+    if _chat_config_port_override is not None:
+        return _chat_config_port_override
+    return get_chat_config_port()
 
 
 class ExpressionConfigUtils:
     @staticmethod
     def _find_expression_config_item(session_id: Optional[str] = None):
-        if not global_config.expression.learning_list:
+        if not _get_app_port().get_expression_learning_list():
             return None
 
         if session_id:
-            for config_item in global_config.expression.learning_list:
+            for config_item in _get_app_port().get_expression_learning_list():
                 if not ChatConfigUtils.is_wildcard_target(config_item):
                     continue
                 if ChatConfigUtils.target_matches_session_with_wildcards(config_item, session_id):
                     return config_item
 
-            for config_item in global_config.expression.learning_list:
+            for config_item in _get_app_port().get_expression_learning_list():
                 if (
                     ChatConfigUtils.is_default_target(config_item)
                     or ChatConfigUtils.is_wildcard_target(config_item)
@@ -32,13 +58,13 @@ class ExpressionConfigUtils:
                 if ChatConfigUtils.target_matches_session(config_item, session_id):
                     return config_item
 
-            for config_item in global_config.expression.learning_list:
+            for config_item in _get_app_port().get_expression_learning_list():
                 if not ChatConfigUtils.is_platform_default_target(config_item):
                     continue
                 if ChatConfigUtils.platform_default_matches_session(config_item, session_id):
                     return config_item
 
-        for config_item in global_config.expression.learning_list:
+        for config_item in _get_app_port().get_expression_learning_list():
             if ChatConfigUtils.is_default_target(config_item):
                 return config_item
 
@@ -80,12 +106,12 @@ class ExpressionConfigUtils:
 class BehaviorConfigUtils:
     @staticmethod
     def _find_behavior_config_item(session_id: Optional[str] = None):
-        if not global_config.experimental.behavior_learning_list:
+        if not _get_app_port().get_experimental_behavior_learning_list():
             return None
 
         is_group_chat = ChatConfigUtils._resolve_is_group_chat(session_id)
         if session_id:
-            for config_item in global_config.experimental.behavior_learning_list:
+            for config_item in _get_app_port().get_experimental_behavior_learning_list():
                 if ChatConfigUtils.is_default_target(config_item):
                     continue
                 if ChatConfigUtils.is_wildcard_target(config_item):
@@ -93,7 +119,7 @@ class BehaviorConfigUtils:
                         return config_item
                     continue
 
-            for config_item in global_config.experimental.behavior_learning_list:
+            for config_item in _get_app_port().get_experimental_behavior_learning_list():
                 if (
                     ChatConfigUtils.is_default_target(config_item)
                     or ChatConfigUtils.is_wildcard_target(config_item)
@@ -103,13 +129,13 @@ class BehaviorConfigUtils:
                 if ChatConfigUtils.target_matches_session(config_item, session_id, is_group_chat):
                     return config_item
 
-            for config_item in global_config.experimental.behavior_learning_list:
+            for config_item in _get_app_port().get_experimental_behavior_learning_list():
                 if not ChatConfigUtils.is_platform_default_target(config_item):
                     continue
                 if ChatConfigUtils.platform_default_matches_session(config_item, session_id, is_group_chat):
                     return config_item
 
-        for config_item in global_config.experimental.behavior_learning_list:
+        for config_item in _get_app_port().get_experimental_behavior_learning_list():
             if ChatConfigUtils.is_default_target(config_item):
                 return config_item
 
@@ -123,7 +149,7 @@ class BehaviorConfigUtils:
         没有任何匹配配置的新聊天流会自动启用行为表现调用，学习总开关由 experimental.enable_behavior_learning 控制。
         """
 
-        enable_behavior_learning = bool(global_config.experimental.enable_behavior_learning)
+        enable_behavior_learning = bool(_get_app_port().get_experimental_enable_behavior_learning())
         config_item = BehaviorConfigUtils._find_behavior_config_item(session_id)
         if config_item is None:
             return True, enable_behavior_learning
@@ -141,7 +167,7 @@ class BehaviorConfigUtils:
         if not session_id:
             return related_session_ids, has_global_share
 
-        for behavior_group in global_config.experimental.behavior_groups:
+        for behavior_group in _get_app_port().get_experimental_behavior_groups():
             target_items = behavior_group.targets
             group_session_ids: set[str] = set()
             contains_current_session = False
@@ -181,12 +207,12 @@ class JargonConfigUtils:
 
     @staticmethod
     def _find_jargon_config_item(session_id: Optional[str] = None):
-        if not global_config.jargon.learning_list:
+        if not _get_app_port().get_jargon_learning_list():
             return None
 
         is_group_chat = ChatConfigUtils._resolve_is_group_chat(session_id)
         if session_id:
-            for config_item in global_config.jargon.learning_list:
+            for config_item in _get_app_port().get_jargon_learning_list():
                 if JargonConfigUtils._is_global_default_item(config_item):
                     continue
                 if JargonConfigUtils._is_wildcard_item(config_item):
@@ -194,7 +220,7 @@ class JargonConfigUtils:
                         return config_item
                     continue
 
-            for config_item in global_config.jargon.learning_list:
+            for config_item in _get_app_port().get_jargon_learning_list():
                 if JargonConfigUtils._is_global_default_item(config_item):
                     continue
                 if JargonConfigUtils._is_wildcard_item(config_item):
@@ -204,13 +230,13 @@ class JargonConfigUtils:
                 if ChatConfigUtils.target_matches_session(config_item, session_id):
                     return config_item
 
-            for config_item in global_config.jargon.learning_list:
+            for config_item in _get_app_port().get_jargon_learning_list():
                 if not ChatConfigUtils.is_platform_default_target(config_item):
                     continue
                 if ChatConfigUtils.platform_default_matches_session(config_item, session_id, is_group_chat):
                     return config_item
 
-        for config_item in global_config.jargon.learning_list:
+        for config_item in _get_app_port().get_jargon_learning_list():
             if JargonConfigUtils._is_global_default_item(config_item):
                 return config_item
 
@@ -232,7 +258,7 @@ class JargonConfigUtils:
         if not session_id:
             return related_session_ids, has_global_share
 
-        for jargon_group in global_config.jargon.jargon_groups:
+        for jargon_group in _get_app_port().get_jargon_groups():
             target_items = jargon_group.targets
             group_session_ids: set[str] = set()
             contains_current_session = False
@@ -267,7 +293,7 @@ class ChatConfigUtils:
             logger.debug(f"解析额外 Prompt 聊天流失败: session_id={session_id} error={e}")
             chat_stream = None
 
-        for chat_prompt_item in global_config.chat.reply_style.chat_prompts:
+        for chat_prompt_item in _get_chat_port().get_reply_style_chat_prompts():
             if hasattr(chat_prompt_item, "platform"):
                 platform = str(chat_prompt_item.platform or "").strip()
                 item_id = str(chat_prompt_item.item_id or "").strip()
@@ -324,7 +350,7 @@ class ChatConfigUtils:
     @staticmethod
     def get_chat_prompts_for_chat(session_id: str, is_group_chat: Optional[bool]) -> list[str]:
         """根据聊天流 ID 获取匹配的额外 Prompt 列表，允许同一聊天流配置多条。"""
-        if not session_id or not global_config.chat.reply_style.chat_prompts:
+        if not session_id or not _get_chat_port().get_reply_style_chat_prompts():
             return []
 
         return list(ChatConfigUtils._iter_matching_chat_prompts(session_id, is_group_chat))
@@ -744,7 +770,7 @@ class AMemorixConfigUtils:
         if not clean_session_id:
             return set()
 
-        shared_groups = getattr(global_config.a_memorix, "shared_memory_groups", []) or []
+        shared_groups = _get_app_port().get_a_memorix_shared_memory_groups() or []
         resolved_session_ids: set[str] = set()
         for group in shared_groups:
             targets = getattr(group, "targets", []) or []

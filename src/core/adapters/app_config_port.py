@@ -48,6 +48,9 @@ class GlobalConfigAppConfigPort:
     def get_experimental_behavior_learning_list(self) -> list[str]:
         return list(self._get_cfg().experimental.behavior_learning_list)
 
+    def get_experimental_behavior_groups(self) -> list[str]:
+        return list(self._get_cfg().experimental.behavior_groups)
+
     def get_experimental_enable_rich_reply(self) -> bool:
         return self._get_cfg().experimental.enable_rich_reply
 
