@@ -44,6 +44,7 @@ from .official_configs import (
     PersonalityConfig,
     PluginConfig,
     PluginRuntimeConfig,
+    PluginRuntimeV2Config,
     PythonRuntimeSectionConfig,
     ResponsePostProcessConfig,
     ResponseSplitterConfig,
@@ -149,6 +150,7 @@ class Config(ConfigBase):
     """插件管理配置类"""
 
     plugin_runtime: PluginRuntimeConfig = Field(default_factory=PluginRuntimeConfig)
+    plugin_runtime_v2: PluginRuntimeV2Config = Field(default_factory=PluginRuntimeV2Config)
     """插件运行时配置类"""
 
     agent: AgentSectionConfig = Field(default_factory=AgentSectionConfig)

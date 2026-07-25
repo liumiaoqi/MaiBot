@@ -848,6 +848,7 @@ __all__ = [
     "PersonInfoResult",
     "SessionMessage",
     "PluginRuntimeSnapshot",
+    "PluginRuntimeV2Snapshot",
     "PersonDetailSnapshot",
     "CacheCleanupConfig",
     "MaimMessageConfigSnapshot",
@@ -989,6 +990,20 @@ class PluginRuntimeSnapshot:
     max_restart_attempts: int = 3
     runner_spawn_timeout_sec: float = 30.0
     hook_blocking_timeout_sec: float = 5.0
+
+
+@dataclass(frozen=True)
+class PluginRuntimeV2Snapshot:
+    """v2 插件运行时配置快照。"""
+
+    enabled: bool = False
+    host_listen_address: str = "0.0.0.0:50051"
+    runner_spawn_count: int = 1
+    runner_spawn_timeout_sec: float = 30.0
+    health_check_interval_sec: float = 60.0
+    max_restart_attempts: int = 3
+    scope_approval_file: str = "data/scope_approvals.json"
+    default_rpm: int = 60
 
 
 @dataclass(frozen=True)

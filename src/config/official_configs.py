@@ -6097,6 +6097,22 @@ class PluginRuntimeConfig(ConfigBase):
     """插件需要网页截图或渲染时使用的浏览器配置。"""
 
 
+class PluginRuntimeV2Config(ConfigBase):
+    """v2 插件运行时配置（Phoenix gRPC 传输层）。"""
+
+    __ui_parent__ = "plugin"
+    __ui_label__ = "运行时 v2 (Phoenix)"
+
+    enabled: bool = Field(default=False)
+    host_listen_address: str = Field(default="0.0.0.0:50051")
+    runner_spawn_count: int = Field(default=1)
+    runner_spawn_timeout_sec: float = Field(default=30.0)
+    health_check_interval_sec: float = Field(default=60.0)
+    max_restart_attempts: int = Field(default=3)
+    scope_approval_file: str = Field(default="data/scope_approvals.json")
+    default_rpm: int = Field(default=60)
+
+
 class AgentSectionConfig(ConfigBase):
     """智能体配置类"""
 

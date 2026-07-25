@@ -885,6 +885,16 @@ runner_spawn_timeout_sec = 30.0 # 等待插件 Runner 启动完成的最长时�
 hook_blocking_timeout_sec = 60.0 # 单个阻塞 Hook 最多允许运行多久。
 ipc_socket_path = "" # 自定义插件通信 Socket 路径；留空自动生成。
 
+[plugin_runtime_v2] # Phoenix gRPC 插件运行时（实验性，与 v1 并行运行）
+enabled = false # 是否启用 v2 插件运行时。v2 与 v1 互不干扰。
+host_listen_address = "0.0.0.0:50051" # gRPC Host 监听地址。
+runner_spawn_count = 1 # 同时启动的 Runner 进程数量。
+runner_spawn_timeout_sec = 30.0 # 等待 Runner 启动完成的最长时间。
+health_check_interval_sec = 60.0 # 健康检查间隔秒数。
+max_restart_attempts = 3 # Runner 崩溃后最多自动重启次数。
+scope_approval_file = "data/scope_approvals.json" # Scope 审批状态文件路径。
+default_rpm = 60 # 每个插件每分钟默认最大调用次数。
+
 [plugin_runtime.render] # 插件需要网页截图或渲染时使用的浏览器配置。
 enabled = true # 是否允许插件使用浏览器渲染能力。
 browser_ws_endpoint = "" # 已有 Chrome/Chromium 的调试地址；留空则自动启动。

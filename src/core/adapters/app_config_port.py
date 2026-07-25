@@ -398,3 +398,34 @@ class GlobalConfigAppConfigPort:
 
     def get_jargon_groups(self) -> list[Any]:
         return list(self._get_cfg().jargon.jargon_groups)
+
+    def get_plugin_runtime_v2_enabled(self) -> bool:
+        return bool(getattr(self._get_cfg(), "plugin_runtime_v2", None) and self._get_cfg().plugin_runtime_v2.enabled)
+
+    def get_plugin_runtime_v2_host_listen_address(self) -> str:
+        cfg = getattr(self._get_cfg(), "plugin_runtime_v2", None)
+        return str(cfg.host_listen_address) if cfg else "0.0.0.0:50051"
+
+    def get_plugin_runtime_v2_runner_spawn_count(self) -> int:
+        cfg = getattr(self._get_cfg(), "plugin_runtime_v2", None)
+        return int(cfg.runner_spawn_count) if cfg else 1
+
+    def get_plugin_runtime_v2_runner_spawn_timeout_sec(self) -> float:
+        cfg = getattr(self._get_cfg(), "plugin_runtime_v2", None)
+        return float(cfg.runner_spawn_timeout_sec) if cfg else 30.0
+
+    def get_plugin_runtime_v2_health_check_interval_sec(self) -> float:
+        cfg = getattr(self._get_cfg(), "plugin_runtime_v2", None)
+        return float(cfg.health_check_interval_sec) if cfg else 60.0
+
+    def get_plugin_runtime_v2_max_restart_attempts(self) -> int:
+        cfg = getattr(self._get_cfg(), "plugin_runtime_v2", None)
+        return int(cfg.max_restart_attempts) if cfg else 3
+
+    def get_plugin_runtime_v2_scope_approval_file(self) -> str:
+        cfg = getattr(self._get_cfg(), "plugin_runtime_v2", None)
+        return str(cfg.scope_approval_file) if cfg else "data/scope_approvals.json"
+
+    def get_plugin_runtime_v2_default_rpm(self) -> int:
+        cfg = getattr(self._get_cfg(), "plugin_runtime_v2", None)
+        return int(cfg.default_rpm) if cfg else 60
