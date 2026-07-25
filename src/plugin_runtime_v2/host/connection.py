@@ -59,6 +59,7 @@ class RunnerConnection:
     plugin_version: str = ""
     connected_at: float = 0.0
     last_heartbeat_at: float = 0.0
+    runner_listen_address: str = ""
     _heartbeat_misses: int = field(default=0, repr=False)
     _peer: str = field(default="", repr=False)
 

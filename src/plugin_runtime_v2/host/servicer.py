@@ -118,6 +118,7 @@ class _PluginHostServicer(PluginHostServicer):
             scopes=list(hello.scopes),
         )
         conn._peer = context.peer() or ""
+        conn.runner_listen_address = hello.runner_listen_address or ""
         self._registry.register(conn)
 
         logger.info("Runner %s 握手成功，sdk=%s", runner_id, hello.sdk_version)
