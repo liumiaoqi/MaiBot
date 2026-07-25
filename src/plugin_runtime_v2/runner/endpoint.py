@@ -350,5 +350,100 @@ class RunnerEndpoint:
         )
 
 
+    # ── Phoenix-6: SDK RPC 客户端方法 ────────────────────────────
+
+    async def send_message(
+        self, message_type: str, session_id: str, **kwargs,
+    ) -> dict[str, Any]:
+        """发送消息 RPC 客户端。"""
+        if self._channel is None:
+            return {"success": False, "error": "CHANNEL_NOT_READY"}
+        from src.plugin_runtime_v2.proto.plugin_host_pb2_grpc import PluginHostStub
+        from src.plugin_runtime_v2.proto import plugin_host_pb2
+
+        stub = PluginHostStub(self._channel)
+        metadata = [("session_token", self._config.session_token)]
+        req = plugin_host_pb2.SendMessageRequest(
+            session_id=session_id,
+            message_type=message_type,
+            text_content=kwargs.get("text", ""),
+            image_base64=kwargs.get("image_base64", ""),
+            emoji_base64=kwargs.get("emoji_base64", ""),
+            forward_message_id=kwargs.get("message_id", ""),
+            hybrid_payload=kwargs.get("hybrid_payload", ""),
+        )
+        resp = await stub.SendMessage(req, metadata=metadata)
+        return {"success": resp.success, "error": resp.error, "message_id": resp.message_id}
+
+    async def storage_get(self, key: str, default: Any = None) -> Any:
+        """键值读取 RPC 客户端。"""
+        if self._channel is None:
+            return default
+        from src.plugin_runtime_v2.proto.plugin_host_pb2_grpc import PluginHostStub
+        from src.plugin_runtime_v2.proto import plugin_host_pb2
+
+        stub = PluginHostStub(self._channel)
+        metadata = [("session_token", self._config.session_token)]
+        req = plugin_host_pb2.StorageGetRequest(
+            key=key, default_value=json.dumps(default),
+        )
+        resp = await stub.StorageGet(req, metadata=metadata)
+        if resp.found:
+            return json.loads(resp.value)
+        return default
+
+    async def storage_set(self, key: str, value: Any) -> bool:
+        """键值写入 RPC 客户端。"""
+        if self._channel is None:
+            return False
+        from src.plugin_runtime_v2.proto.plugin_host_pb2_grpc import PluginHostStub
+        from src.plugin_runtime_v2.proto import plugin_host_pb2
+
+        stub = PluginHostStub(self._channel)
+        metadata = [("session_token", self._config.session_token)]
+        resp = await stub.StorageSet(
+            plugin_host_pb2.StorageSetRequest(key=key, value=json.dumps(value)),
+            metadata=metadata,
+        )
+        return resp.success
+
+    async def storage_delete(self, key: str) -> bool:
+        """键值删除 RPC 客户端。"""
+        if self._channel is None:
+            return False
+        from src.plugin_runtime_v2.proto.plugin_host_pb2_grpc import PluginHostStub
+        from src.plugin_runtime_v2.proto import plugin_host_pb2
+
+        stub = PluginHostStub(self._channel)
+        metadata = [("session_token", self._config.session_token)]
+        resp = await stub.StorageDelete(
+            plugin_host_pb2.StorageDeleteRequest(key=key),
+            metadata=metadata,
+        )
+        return resp.deleted
+
+    async def get_session_info(self, session_id: str) -> dict[str, Any]:
+        """查询会话信息 RPC 客户端。"""
+        if self._channel is None:
+            return {"found": False}
+        from src.plugin_runtime_v2.proto.plugin_host_pb2_grpc import PluginHostStub
+        from src.plugin_runtime_v2.proto import plugin_host_pb2
+
+        stub = PluginHostStub(self._channel)
+        metadata = [("session_token", self._config.session_token)]
+        resp = await stub.GetSessionInfo(
+            plugin_host_pb2.GetSessionInfoRequest(session_id=session_id),
+            metadata=metadata,
+        )
+        return {
+            "found": resp.found,
+            "session_id": resp.session_id,
+            "session_name": resp.session_name,
+            "platform": resp.platform,
+            "is_group_session": resp.is_group_session,
+            "primary_agent_id": resp.primary_agent_id,
+        }
+
+
 class _HandshakeRejected(Exception):
     """握手被拒绝（业务拒绝，不重连）。"""
