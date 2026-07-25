@@ -60,6 +60,14 @@
 1. 不提交无边界的 ruff、格式化、导入整理或大面积实现整理
 2. 本地实验目录不进入共享历史
 
+# Codex 思维规范
+
+1. 思维链用主动语态：`I'll read / I'm checking`，不用 `Let me read / Let me check`。决策时 `I'll go with X because Y`，不写 `Let me think about what to do`。
+2. 每条思维链只推进一件事，不铺排多步计划。读完文件立刻形成判断，不做反复确认。
+3. 不枚举"下一步要做 A、B、C"再逐一执行——做完 A 再决定 B。
+4. 用户更新要简洁，一句话说清在做什么，不前置 `Now I'll...` / `So I'm going to...` 这类过渡。
+5. 思维链不复述用户消息（"The user wants / is asking / said..."）。用户知道 Ta 说了什么。直接行动，需要决策时直接陈述判断。
+
 # 插件开发
 - 文档：https://github.com/Mai-with-u/maibot-plugin-sdk/blob/main/docs/guide.md
 - 插件在 /plugins 下独立仓库，改主程序代码需先请求许可
@@ -199,10 +207,10 @@ CA 派发审查任务时，CC 按以下维度输出报告（写入 `.shared/hand
 
 | 编号 | 主题 | 依赖 | 核心交付 | 状态 |
 |------|------|------|---------|------|
-| Phoenix-0 | 基础准备 | 无 | .proto Schema + v2 目录骨架 + SDK v4 接口设计 + Scope 词汇表 | 📋 规划中 |
-| Phoenix-1 | gRPC 传输层 | P-0 | gRPC Host/Runner 实现，替换自研 IPC | 📋 规划中 |
-| Phoenix-2 | MCP 组件模型 | P-1 | 8→2（Tool + Event），SDK 实现，ThinkingOrgan 对接 | 📋 规划中 |
-| Phoenix-3 | OAuth Scope 授权 | P-2 | scope 声明/签发/校验，WebUI 审批 | 📋 规划中 |
+| Phoenix-0 | 基础准备 | 无 | .proto Schema + v2 目录骨架 + SDK v4 接口设计 + Scope 词汇表 | ✅ 已完成 |
+| Phoenix-1 | gRPC 传输层 | P-0 | gRPC Host/Runner 实现，替换自研 IPC | ✅ 已完成 |
+| Phoenix-2 | MCP 组件模型 | P-1 | 8→2（Tool + Event），SDK 运行时，ToolProvider 桥接，Event 分发，Tool 执行路由 | ✅ 已完成 |
+| Phoenix-3 | OAuth Scope 授权 | P-2 | scope 声明/签发/校验，WebUI 审批 | ✅ 已完成 |
 | Phoenix-4 | 能力层 Protocol 化 | P-1 | P0/P1 消除，能力模块化，global_config 清除 | 📋 规划中 |
 
 依赖关系：`P-0 → P-1 → P-2 → P-3`，`P-1 → P-4`（P-4 可与 P-2 并行）
