@@ -119,7 +119,7 @@ class RPCClient:
             sdk_version=SDK_VERSION,
             session_token=self._session_token,
         )
-        request_id = await self._id_gen.next()
+        request_id = self._id_gen.next()
         envelope = Envelope(
             request_id=request_id,
             message_type=MessageType.REQUEST,
@@ -191,7 +191,7 @@ class RPCClient:
             RPCError: 发送失败、超时或连接异常。
         """
         connection = self._require_connection()
-        request_id = await self._id_gen.next()
+        request_id = self._id_gen.next()
         envelope = Envelope(
             request_id=request_id,
             message_type=MessageType.REQUEST,
@@ -234,7 +234,7 @@ class RPCClient:
             return
 
         connection = self._require_connection()
-        request_id = await self._id_gen.next()
+        request_id = self._id_gen.next()
         envelope = Envelope(
             request_id=request_id,
             message_type=MessageType.BROADCAST,
