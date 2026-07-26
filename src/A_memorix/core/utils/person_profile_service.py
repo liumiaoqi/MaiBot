@@ -750,7 +750,7 @@ class PersonProfileService:
                 max_tokens=self._profile_classification_max_tokens(),
             )
         except Exception as exc:
-            logger.debug(f"人物画像证据分类模型调用失败: person_id={person_id}, err={exc}")
+            logger.warning(f"人物画像证据分类模型调用失败: person_id={person_id}, err={exc}", exc_info=True)
             return fallback
         if not bool(getattr(result, "success", False)):
             return fallback
@@ -771,7 +771,7 @@ class PersonProfileService:
                 return None
             return ResolvedLLMModel(task_name=task_name, task_config=task_config)
         except Exception as exc:
-            logger.debug(f"解析人物画像分类模型失败: {exc}")
+            logger.warning(f"解析人物画像分类模型失败: {exc}", exc_info=True)
             return None
 
     @staticmethod

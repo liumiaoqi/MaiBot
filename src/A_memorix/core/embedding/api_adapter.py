@@ -371,7 +371,7 @@ class EmbeddingAPIAdapter:
                     self._GLOBAL_DIMENSION_CACHE[cache_key] = int(detected_dim)
                     return detected_dim
             except Exception as exc:
-                logger.debug(f"带维度参数探测失败: {exc}，尝试不带维度参数探测")
+                logger.warning(f"带维度参数探测失败: {exc}，尝试不带维度参数探测", exc_info=True)
 
         try:
             test_embedding = await self._get_embedding_direct("test", include_dimension=False)

@@ -460,7 +460,7 @@ class SummaryImporter:
         try:
             paragraphs = self.metadata_store.get_live_paragraphs_by_source(f"chat_summary:{stream_id}")
         except Exception as exc:
-            logger.debug(f"读取历史摘要回顾失败: stream_id={stream_id} error={exc}")
+            logger.warning(f"读取历史摘要回顾失败: stream_id={stream_id} error={exc}", exc_info=True)
             return ""
         if not paragraphs:
             return ""
