@@ -8,6 +8,9 @@ from src.core.types import AgentAutonomySnapshot, AgentInteractionSnapshot, AMem
 from src.core.types import CacheCleanupConfig, MaimMessageConfigSnapshot, PluginRuntimeSnapshot
 
 
+from src.common.logger import get_logger
+logger = get_logger("core.adapters.app_config_port")
+
 class GlobalConfigAppConfigPort:
     """聚合 expression/emoji/experimental/visual/debug/agent_autonomy/a_memorix/mcp/response_splitter/chinese_typo/response_post_process/log/webui/agent/agent_interaction/plugin_runtime 域配置。"""
 
@@ -263,13 +266,15 @@ class GlobalConfigAppConfigPort:
     def get_visual_image_cache_cleanup_enabled(self) -> bool:
         try:
             return bool(self._get_cfg().visual.image_cache_cleanup.enabled)
-        except Exception:
+        except Exception as exc:
+            logger.debug("读取 image_cache_cleanup.enabled 异常: %s", exc)
             return False
 
     def get_emoji_cache_cleanup_enabled(self) -> bool:
         try:
             return bool(self._get_cfg().emoji.cache_cleanup.enabled)
-        except Exception:
+        except Exception as exc:
+            logger.debug("读取 emoji.cache_cleanup.enabled 异常: %s", exc)
             return False
 
     def get_experimental_focus_mode(self) -> bool:

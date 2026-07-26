@@ -1389,7 +1389,8 @@ class GraphStore:
         if self._modification_mode == GraphModificationMode.INCREMENTAL:
              try:
                  self._adjacency = self._adjacency.tolil()
-             except:
+             except Exception:
+                 logger.error("图存储操作异常", exc_info=True)
                  pass
 
     @property

@@ -209,7 +209,8 @@ class AutoImporter:
         )
         try:
             dim = await self.embedding_manager._detect_dimension()
-        except:
+        except Exception:
+            logger.error("知识处理异常", exc_info=True)
             dim = self.embedding_manager.default_dimension
             
         q_type_str = str(self.plugin_config.get("embedding", {}).get("quantization_type", "int8") or "int8").lower()

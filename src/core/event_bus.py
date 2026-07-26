@@ -163,7 +163,8 @@ class EventBus:
                 return
             if exc := task.exception():
                 logger.error(f"handler {handler_name} 异步任务异常: {exc}")
-        except Exception:
+        except Exception as exc:
+            logger.debug("清理异步任务异常: %s", exc)
             pass
         finally:
             task_list = self._running_tasks.get(handler_name, [])

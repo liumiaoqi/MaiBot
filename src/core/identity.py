@@ -37,7 +37,10 @@ def parse_platform_accounts(platforms: list[str]) -> dict[str, str]:
     return result
 
 def _get_configured_qq_account() -> str:
-    qq_account = str(get_bot_config_port().get_bot_qq_account()).strip()
+    port = get_bot_config_port()
+    if port is None:
+        return ""
+    qq_account = str(port.get_bot_qq_account()).strip()
     if qq_account in {"", "0"}:
         return ""
     return qq_account
@@ -48,11 +51,15 @@ def get_bot_account(platform: str) -> str:
     if not normalized_platform:
         return ""
 
+    port = get_bot_config_port()
+    if port is None:
+        return ""
+
     qq_account = _get_configured_qq_account()
     if normalized_platform in {"qq", "webui"}:
         return qq_account
 
-    platforms_list = get_bot_config_port().get_bot_platforms()
+    platforms_list = port.get_bot_platforms()
     platform_accounts = parse_platform_accounts(platforms_list)
     if normalized_platform in {"tg", "telegram"}:
         return platform_accounts.get("tg", "") or platform_accounts.get("telegram", "")
@@ -61,13 +68,17 @@ def get_bot_account(platform: str) -> str:
 
 def get_all_bot_accounts() -> dict[str, str]:
     """获取所有已配置的机器人运行时身份。"""
+    port = get_bot_config_port()
+    if port is None:
+        return {}
+
     bot_accounts: dict[str, str] = {}
     qq_account = _get_configured_qq_account()
     if qq_account:
         bot_accounts["qq"] = qq_account
         bot_accounts["webui"] = qq_account
 
-    platforms_list = get_bot_config_port().get_bot_platforms()
+    platforms_list = port.get_bot_platforms()
     platform_accounts = parse_platform_accounts(platforms_list)
 
     telegram_account = platform_accounts.get("tg", "") or platform_accounts.get("telegram", "")

@@ -160,7 +160,8 @@ def is_mentioned_bot_in_message(message: SessionMessage) -> tuple[bool, bool, fl
                     if _has_mention_bot(s):
                         return True
             return False
-        except Exception:
+        except Exception as exc:
+            logger.debug("核心消息@检测异常: %s", exc)
             return False
 
     if _has_mention_bot(getattr(message, "message_segment", None)):

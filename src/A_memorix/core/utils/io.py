@@ -10,6 +10,10 @@ import contextlib
 from pathlib import Path
 from typing import Union
 
+from src.common.logger import get_logger
+
+logger = get_logger("A_Memorix.IO")
+
 @contextlib.contextmanager
 def atomic_write(file_path: Union[str, Path], mode: str = "w", encoding: str = None, **kwargs):
     """
@@ -50,7 +54,8 @@ def atomic_write(file_path: Union[str, Path], mode: str = "w", encoding: str = N
         if tmp_path.exists():
             try:
                 os.remove(tmp_path)
-            except:
+            except (OSError, ValueError) as exc:
+                logger.warning("IO 操作失败: %s", exc)
                 pass
         raise e
 
@@ -79,6 +84,7 @@ def atomic_save_path(file_path: Union[str, Path]):
         if Path(tmp_path).exists():
             try:
                 os.remove(tmp_path)
-            except:
+            except (OSError, ValueError) as exc:
+                logger.warning("IO 操作失败: %s", exc)
                 pass
         raise e
