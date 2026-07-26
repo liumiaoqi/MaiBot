@@ -50,6 +50,31 @@ class PluginHostStub:
                 request_serializer=plugin__host__pb2.RegisterComponentsRequest.SerializeToString,
                 response_deserializer=plugin__host__pb2.RegisterComponentsResponse.FromString,
                 _registered_method=True)
+        self.SendMessage = channel.unary_unary(
+                '/maibot.plugin.v2.PluginHost/SendMessage',
+                request_serializer=plugin__host__pb2.SendMessageRequest.SerializeToString,
+                response_deserializer=plugin__host__pb2.SendMessageResponse.FromString,
+                _registered_method=True)
+        self.StorageGet = channel.unary_unary(
+                '/maibot.plugin.v2.PluginHost/StorageGet',
+                request_serializer=plugin__host__pb2.StorageGetRequest.SerializeToString,
+                response_deserializer=plugin__host__pb2.StorageGetResponse.FromString,
+                _registered_method=True)
+        self.StorageSet = channel.unary_unary(
+                '/maibot.plugin.v2.PluginHost/StorageSet',
+                request_serializer=plugin__host__pb2.StorageSetRequest.SerializeToString,
+                response_deserializer=plugin__host__pb2.StorageSetResponse.FromString,
+                _registered_method=True)
+        self.StorageDelete = channel.unary_unary(
+                '/maibot.plugin.v2.PluginHost/StorageDelete',
+                request_serializer=plugin__host__pb2.StorageDeleteRequest.SerializeToString,
+                response_deserializer=plugin__host__pb2.StorageDeleteResponse.FromString,
+                _registered_method=True)
+        self.GetSessionInfo = channel.unary_unary(
+                '/maibot.plugin.v2.PluginHost/GetSessionInfo',
+                request_serializer=plugin__host__pb2.GetSessionInfoRequest.SerializeToString,
+                response_deserializer=plugin__host__pb2.GetSessionInfoResponse.FromString,
+                _registered_method=True)
 
 
 class PluginHostServicer:
@@ -75,6 +100,40 @@ class PluginHostServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def SendMessage(self, request, context):
+        """── Phoenix-6: SDK 上下文 RPC ──
+        发送消息
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def StorageGet(self, request, context):
+        """键值存储
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def StorageSet(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def StorageDelete(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetSessionInfo(self, request, context):
+        """查询会话信息
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_PluginHostServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -87,6 +146,31 @@ def add_PluginHostServicer_to_server(servicer, server):
                     servicer.RegisterComponents,
                     request_deserializer=plugin__host__pb2.RegisterComponentsRequest.FromString,
                     response_serializer=plugin__host__pb2.RegisterComponentsResponse.SerializeToString,
+            ),
+            'SendMessage': grpc.unary_unary_rpc_method_handler(
+                    servicer.SendMessage,
+                    request_deserializer=plugin__host__pb2.SendMessageRequest.FromString,
+                    response_serializer=plugin__host__pb2.SendMessageResponse.SerializeToString,
+            ),
+            'StorageGet': grpc.unary_unary_rpc_method_handler(
+                    servicer.StorageGet,
+                    request_deserializer=plugin__host__pb2.StorageGetRequest.FromString,
+                    response_serializer=plugin__host__pb2.StorageGetResponse.SerializeToString,
+            ),
+            'StorageSet': grpc.unary_unary_rpc_method_handler(
+                    servicer.StorageSet,
+                    request_deserializer=plugin__host__pb2.StorageSetRequest.FromString,
+                    response_serializer=plugin__host__pb2.StorageSetResponse.SerializeToString,
+            ),
+            'StorageDelete': grpc.unary_unary_rpc_method_handler(
+                    servicer.StorageDelete,
+                    request_deserializer=plugin__host__pb2.StorageDeleteRequest.FromString,
+                    response_serializer=plugin__host__pb2.StorageDeleteResponse.SerializeToString,
+            ),
+            'GetSessionInfo': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetSessionInfo,
+                    request_deserializer=plugin__host__pb2.GetSessionInfoRequest.FromString,
+                    response_serializer=plugin__host__pb2.GetSessionInfoResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -148,6 +232,141 @@ class PluginHost:
             '/maibot.plugin.v2.PluginHost/RegisterComponents',
             plugin__host__pb2.RegisterComponentsRequest.SerializeToString,
             plugin__host__pb2.RegisterComponentsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SendMessage(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/maibot.plugin.v2.PluginHost/SendMessage',
+            plugin__host__pb2.SendMessageRequest.SerializeToString,
+            plugin__host__pb2.SendMessageResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def StorageGet(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/maibot.plugin.v2.PluginHost/StorageGet',
+            plugin__host__pb2.StorageGetRequest.SerializeToString,
+            plugin__host__pb2.StorageGetResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def StorageSet(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/maibot.plugin.v2.PluginHost/StorageSet',
+            plugin__host__pb2.StorageSetRequest.SerializeToString,
+            plugin__host__pb2.StorageSetResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def StorageDelete(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/maibot.plugin.v2.PluginHost/StorageDelete',
+            plugin__host__pb2.StorageDeleteRequest.SerializeToString,
+            plugin__host__pb2.StorageDeleteResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetSessionInfo(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/maibot.plugin.v2.PluginHost/GetSessionInfo',
+            plugin__host__pb2.GetSessionInfoRequest.SerializeToString,
+            plugin__host__pb2.GetSessionInfoResponse.FromString,
             options,
             channel_credentials,
             insecure,

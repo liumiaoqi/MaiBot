@@ -41,7 +41,8 @@ class HostEndpoint:
     """gRPC Host 服务端 — 管理 Runner 连接生命周期。"""
 
     def __init__(self, config: HostEndpointConfig | None = None, host_bridge=None,
-                 token_service=None, scope_store=None, rate_limiter=None) -> None:
+                 token_service=None, scope_store=None, rate_limiter=None,
+                 storage_service=None) -> None:
         self._cfg = config or HostEndpointConfig()
         self._server: grpc.aio.Server | None = None
         self._registry = RunnerRegistry()
@@ -58,9 +59,11 @@ class HostEndpoint:
             token_service=token_service,
             scope_store=scope_store,
             rate_limiter=rate_limiter,
+            storage_service=storage_service,
         )
         self._token_service = token_service
         self._scope_store = scope_store
+        self._storage_service = storage_service
         self._cleanup_task: asyncio.Task | None = None
         self._actual_listen_address: str = ""
 

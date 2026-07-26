@@ -66,6 +66,7 @@ class _PluginHostServicer(PluginHostServicer):
         token_service = None,
         scope_store = None,
         rate_limiter = None,
+        storage_service = None,
     ) -> None:
         self._registry = registry
         self._heartbeat_mgr = heartbeat_mgr
@@ -74,6 +75,7 @@ class _PluginHostServicer(PluginHostServicer):
         self._token_service = token_service
         self._scope_store = scope_store
         self._rate_limiter = rate_limiter
+        self._storage = storage_service
         self._pending_plugin_id: str = ""
         self._outboxes: dict[str, asyncio.Queue[common_pb2.HostMessage | None]] = {}
 
@@ -427,6 +429,10 @@ class _PluginHostServicer(PluginHostServicer):
 
     async def SendMessage(self, request, context: grpc.aio.ServicerContext):
         """发送消息 RPC。过滤 plugin_id → scope 校验 → 转发到 MessagePortV2。"""
+        import base64
+
+        from src.common.data_models.message_component_data_model import MessageSequence
+        from src.core.message_port_registry import get_message_port_v2
         from src.plugin_runtime_v2.proto import plugin_host_pb2
 
         plugin_id = self._resolve_plugin_id(context)
@@ -444,15 +450,53 @@ class _PluginHostServicer(PluginHostServicer):
         if scope and not self._check_plugin_scope(plugin_id, scope):
             return plugin_host_pb2.SendMessageResponse(success=False, error="SCOPE_DENIED")
 
-        # TODO: Phoenix-6 — 组装 SessionMessage 并调用 MessagePortV2.send_message()
-        logger.info(
-            "SendMessage: plugin=%s type=%s session=%s",
-            plugin_id, request.message_type, request.session_id,
-        )
-        return plugin_host_pb2.SendMessageResponse(success=False, error="NOT_IMPLEMENTED")
+        # 组装 MessageSequence
+        msg_seq = MessageSequence([])
+        if request.message_type == "TEXT":
+            msg_seq.text(request.text_content)
+        elif request.message_type == "IMAGE":
+            from src.common.data_models.message_component_data_model import ImageComponent
+            img_data = base64.b64decode(request.image_base64) if request.image_base64 else b""
+            msg_seq.image(img_data)
+        elif request.message_type == "EMOJI":
+            from src.common.data_models.message_component_data_model import EmojiComponent
+            emoji_data = base64.b64decode(request.emoji_base64) if request.emoji_base64 else b""
+            msg_seq.emoji(emoji_data)
+        elif request.message_type == "FORWARD":
+            from src.common.data_models.message_component_data_model import ReplyComponent
+            msg_seq.components.append(ReplyComponent(target_message_id=request.forward_message_id))
+        elif request.message_type == "HYBRID":
+            import json as _json
+            try:
+                payload = _json.loads(request.hybrid_payload)
+            except _json.JSONDecodeError:
+                return plugin_host_pb2.SendMessageResponse(success=False, error="INVALID_HYBRID_PAYLOAD")
+            msg_seq = self._build_hybrid_message(payload)
+
+        if not msg_seq.components:
+            return plugin_host_pb2.SendMessageResponse(success=False, error="EMPTY_MESSAGE")
+
+        # 调用 MessagePortV2
+        try:
+            port = get_message_port_v2()
+            result = await port.send_message(
+                session_id=request.session_id,
+                message=msg_seq,
+                source=f"plugin:{plugin_id}",
+            )
+            if result.success:
+                return plugin_host_pb2.SendMessageResponse(
+                    success=True, message_id=result.message_id,
+                )
+            return plugin_host_pb2.SendMessageResponse(success=False, error=result.error or "SEND_FAILED")
+        except Exception as e:
+            logger.error("SendMessage RPC 转发失败: %s", e, exc_info=True)
+            return plugin_host_pb2.SendMessageResponse(success=False, error="INTERNAL_ERROR")
 
     async def StorageGet(self, request, context: grpc.aio.ServicerContext):
         """键值读取 RPC。"""
+        import json
+
         from src.plugin_runtime_v2.proto import plugin_host_pb2
 
         plugin_id = self._resolve_plugin_id(context)
@@ -460,12 +504,26 @@ class _PluginHostServicer(PluginHostServicer):
             return plugin_host_pb2.StorageGetResponse(found=False, error="AUTH_FAILED")
         if not self._check_plugin_scope(plugin_id, "database:read:self"):
             return plugin_host_pb2.StorageGetResponse(found=False, error="SCOPE_DENIED")
+        if self._storage is None:
+            return plugin_host_pb2.StorageGetResponse(found=False, error="STORAGE_NOT_AVAILABLE")
 
-        # TODO: Phoenix-6 — 调用 PerPluginStorage.get()
-        return plugin_host_pb2.StorageGetResponse(found=False, error="NOT_IMPLEMENTED")
+        default = None
+        if request.default_value:
+            try:
+                default = json.loads(request.default_value)
+            except json.JSONDecodeError:
+                default = request.default_value
+        value = self._storage.get(plugin_id, request.key, default)
+        if value is None and default is None:
+            return plugin_host_pb2.StorageGetResponse(found=False)
+        return plugin_host_pb2.StorageGetResponse(
+            found=True, value=json.dumps(value, ensure_ascii=False),
+        )
 
     async def StorageSet(self, request, context: grpc.aio.ServicerContext):
         """键值写入 RPC。"""
+        import json
+
         from src.plugin_runtime_v2.proto import plugin_host_pb2
 
         plugin_id = self._resolve_plugin_id(context)
@@ -473,9 +531,15 @@ class _PluginHostServicer(PluginHostServicer):
             return plugin_host_pb2.StorageSetResponse(success=False, error="AUTH_FAILED")
         if not self._check_plugin_scope(plugin_id, "database:write:self"):
             return plugin_host_pb2.StorageSetResponse(success=False, error="SCOPE_DENIED")
+        if self._storage is None:
+            return plugin_host_pb2.StorageSetResponse(success=False, error="STORAGE_NOT_AVAILABLE")
 
-        # TODO: Phoenix-6 — 调用 PerPluginStorage.set()
-        return plugin_host_pb2.StorageSetResponse(success=False, error="NOT_IMPLEMENTED")
+        try:
+            value = json.loads(request.value)
+        except json.JSONDecodeError:
+            value = request.value
+        self._storage.set(plugin_id, request.key, value)
+        return plugin_host_pb2.StorageSetResponse(success=True)
 
     async def StorageDelete(self, request, context: grpc.aio.ServicerContext):
         """键值删除 RPC。"""
@@ -486,9 +550,11 @@ class _PluginHostServicer(PluginHostServicer):
             return plugin_host_pb2.StorageDeleteResponse(deleted=False, error="AUTH_FAILED")
         if not self._check_plugin_scope(plugin_id, "database:write:self"):
             return plugin_host_pb2.StorageDeleteResponse(deleted=False, error="SCOPE_DENIED")
+        if self._storage is None:
+            return plugin_host_pb2.StorageDeleteResponse(deleted=False, error="STORAGE_NOT_AVAILABLE")
 
-        # TODO: Phoenix-6 — 调用 PerPluginStorage.delete()
-        return plugin_host_pb2.StorageDeleteResponse(deleted=False, error="NOT_IMPLEMENTED")
+        deleted = self._storage.delete(plugin_id, request.key)
+        return plugin_host_pb2.StorageDeleteResponse(deleted=deleted)
 
     async def GetSessionInfo(self, request, context: grpc.aio.ServicerContext):
         """查询会话信息 RPC。"""
@@ -500,5 +566,42 @@ class _PluginHostServicer(PluginHostServicer):
         if not self._check_plugin_scope(plugin_id, "session:read:detail"):
             return plugin_host_pb2.GetSessionInfoResponse(found=False, error="SCOPE_DENIED")
 
-        # TODO: Phoenix-6 — 调用 SessionRepository.get_session()
-        return plugin_host_pb2.GetSessionInfoResponse(found=False, error="NOT_IMPLEMENTED")
+        from src.core.session_port_registry import get_session_info
+        info = get_session_info(request.session_id)
+        if info is None:
+            return plugin_host_pb2.GetSessionInfoResponse(found=False, error="SESSION_NOT_FOUND")
+
+        return plugin_host_pb2.GetSessionInfoResponse(
+            found=True,
+            session_id=info.session_id,
+            session_name=info.session_name,
+            platform=info.platform,
+            is_group_session=info.is_group_session,
+            primary_agent_id=info.primary_agent_id,
+        )
+
+    @staticmethod
+    def _build_hybrid_message(payload: list) -> "MessageSequence":
+        """从 JSON payload 构建 MessageSequence。
+
+        payload 格式：[{"type": "text", "data": {"text": "..."}}]
+        """
+        import base64
+
+        from src.common.data_models.message_component_data_model import (
+            ImageComponent,
+            MessageSequence,
+            TextComponent,
+        )
+
+        seq = MessageSequence([])
+        for item in payload:
+            comp_type = item.get("type", "")
+            data = item.get("data", {})
+            if comp_type == "text":
+                seq.text(data.get("text", ""))
+            elif comp_type == "image":
+                img_b64 = data.get("base64", "")
+                img_data = base64.b64decode(img_b64) if img_b64 else b""
+                seq.image(img_data)
+        return seq

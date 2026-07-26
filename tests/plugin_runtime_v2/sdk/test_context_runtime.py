@@ -83,6 +83,10 @@ class TestGetSessionInfo:
     async def test_get_session_info_returns_stub(self):
         runner = AsyncMock()
         runner.is_ready = True
+        runner.get_session_info = AsyncMock(return_value={
+            "found": True, "session_id": "s1", "session_name": "test",
+            "platform": "qq", "is_group_session": False, "primary_agent_id": "mai",
+        })
         ctx = PluginContext("p", {"session:read:detail"}, runner, {})
         result = await ctx.get_session_info("s1")
         assert result["session_id"] == "s1"
