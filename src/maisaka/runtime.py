@@ -1034,8 +1034,8 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
             if registry.has_agent(agent_id):
                 return registry.get_agent(agent_id).talk_value_modifier
         except Exception:
-            pass
-        return 1.0
+            logger.warning("读取 agent talk_value_modifier 失败: agent_id=%s", agent_id, exc_info=True)
+            return 1.0
 
     @staticmethod
     def _format_reply_frequency_for_display(frequency: float) -> str:
@@ -1464,7 +1464,10 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
                 self._emotion_manager = EmotionManager(agent_config)
                 self._sync_emotion_to_prompt()
         except Exception:
-            pass
+            logger.warning(
+                "%s EmotionManager 初始化失败: agent_id=%s",
+                self.log_prefix, agent_id, exc_info=True,
+            )
 
     def _init_relationship_manager(self) -> None:
         """初始化关系管理器。"""
@@ -1479,7 +1482,10 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
                 rel_mgr.set_emotion_trigger_callback(self.trigger_emotion)
             self._relationship_manager = rel_mgr
         except Exception:
-            pass
+            logger.warning(
+                "%s RelationshipManager 初始化失败",
+                self.log_prefix, exc_info=True,
+            )
 
     def _init_agent_autonomy(self) -> None:
         """根据配置初始化智能体自主性架构。"""

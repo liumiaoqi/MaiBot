@@ -41,7 +41,7 @@ def _to_builtin_data(obj: Any) -> Any:
         try:
             obj = obj.unwrap()
         except Exception:
-            pass
+            logger.debug("_to_builtin_data unwrap 失败 (可能是非 wrapping 对象)", exc_info=True)
 
     if isinstance(obj, dict):
         return {str(key): _to_builtin_data(value) for key, value in obj.items()}
