@@ -1,6 +1,6 @@
 # 使用基于时间戳的文件处理器，简单的轮转份数限制
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from src.common.logger import get_logger
 logger = get_logger("auto.logger")
 
@@ -991,3 +991,18 @@ def shutdown_logging():
 
     # 使用 print 而不是 logger，因为 logger 已经关闭
     print("[logger] 日志系统已关闭")
+
+
+def log_think_cycle(entry: dict) -> None:
+    """写入 ThinkCycleLog 到 logs/think_cycles_{date}.log.jsonl。
+
+    Args:
+        entry: 包含 agent_id/action/cycles/total_tokens/elapsed_ms 等字段的字典。
+    """
+    from datetime import date
+    _log_dir = Path("logs")
+    _log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = _log_dir / f"think_cycles_{date.today().isoformat()}.log.jsonl"
+    entry["timestamp"] = datetime.now(timezone.utc).isoformat()
+    with open(log_path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry, ensure_ascii=False, default=str) + "\n")

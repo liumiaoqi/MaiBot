@@ -120,6 +120,14 @@ class ThinkingOrgan:
         try:
             result = await self._think_with_tools(context, request_kind="planner")
             result.thinking_time_ms = int(time.time() * 1000 - start_ms)
+            from src.common.logger import log_think_cycle
+            log_think_cycle({
+                "agent_id": self._agent_id,
+                "action": result.action.value if hasattr(result.action, "value") else str(result.action),
+                "cycles": result.cycles if hasattr(result, "cycles") else 0,
+                "thinking_time_ms": result.thinking_time_ms,
+                "total_tokens": getattr(result, "total_tokens", 0),
+            })
             return result
         except Exception as exc:
             elapsed = int(time.time() * 1000 - start_ms)
