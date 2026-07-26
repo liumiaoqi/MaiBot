@@ -1145,6 +1145,10 @@ class AppConfigPort(Protocol):
         """获取 MaimMessage 配置快照。"""
         ...
 
+    async def reload_config(self, changed_scopes: tuple[str, ...] = ()) -> bool:
+        """热重载配置。适配器委托 config_manager.reload_config()。"""
+        ...
+
     def get_jargon_learning_list(self) -> list[str]:
         """获取行话学习列表。"""
         ...

@@ -11,7 +11,7 @@ from sqlmodel import col, select
 import json
 import tomlkit
 
-from src.chat.heart_flow.heartflow_manager import heartflow_manager  # noqa: TID251 — 整体对象：直接访问 heartflow_chat_list
+from src.core.runtime_port_registry import get_chat_runtime_registry
 from src.common.database.database import get_db_session
 from src.core.session_port_registry import get_session_name as _get_session_name_via_port
 from src.common.database.database_model import (
@@ -35,7 +35,7 @@ from src.common.utils.utils_config import (
     ExpressionConfigUtils,
     JargonConfigUtils,
 )
-from src.config.config import BOT_CONFIG_PATH, config_manager, global_config  # noqa: TID251 — chat.reply_style 整体对象待后续协议化
+from src.config.config import BOT_CONFIG_PATH  # noqa: TID251 — 配置常量
 from src.core.app_config_port_registry import get_app_config_port
 from src.core.bot_config_port_registry import get_bot_config_port
 from src.core.chat_config_port_registry import get_chat_config_port
@@ -582,7 +582,7 @@ def _get_chat_prompt_details(chat_session: ChatSession) -> Dict[str, Any]:
 
     session_id = chat_session.session_id
     is_group_chat = _get_chat_type(chat_session) == "group"
-    reply_style_config = global_config.chat.reply_style  # noqa: TID251 — chat.reply_style 整体对象待后续协议化
+    reply_style_config = get_chat_config_port().get_reply_style()
     base_prompt_type = "group" if is_group_chat else "private"
     base_prompt_title = "群聊提示词" if is_group_chat else "私聊提示词"
     base_prompt = reply_style_config.group_chat_prompt if is_group_chat else reply_style_config.private_chat_prompts
@@ -708,7 +708,7 @@ async def _save_chat_talk_frequency_rule(
     reply_timing_config["talk_value_rules"] = rules
     save_toml_with_format(config_data, str(config_path))
 
-    if not await config_manager.reload_config(changed_scopes=["bot"]):
+    if not await (await get_app_config_port().reload_config(changed_scopes=("bot",))):
         raise HTTPException(status_code=500, detail="配置已写入，但热重载失败")
 
 
@@ -751,7 +751,7 @@ async def _delete_chat_talk_frequency_rule(chat_session: ChatSession, rule_time:
     reply_timing_config["talk_value_rules"] = next_rules
     save_toml_with_format(config_data, str(config_path))
 
-    if not await config_manager.reload_config(changed_scopes=["bot"]):
+    if not await (await get_app_config_port().reload_config(changed_scopes=("bot",))):
         raise HTTPException(status_code=500, detail="配置已写入，但热重载失败")
 
 
@@ -817,7 +817,7 @@ async def _save_chat_learning_rule(chat_session: ChatSession, kind: str, request
         config_section["enable_behavior_learning"] = True
     save_toml_with_format(config_data, str(config_path))
 
-    if not await config_manager.reload_config(changed_scopes=["bot"]):
+    if not await (await get_app_config_port().reload_config(changed_scopes=("bot",))):
         raise HTTPException(status_code=500, detail="配置已写入，但热重载失败")
 
 
@@ -874,7 +874,7 @@ async def _save_chat_prompt_rule(
     reply_style_config["chat_prompts"] = prompts
     save_toml_with_format(config_data, str(config_path))
 
-    if not await config_manager.reload_config(changed_scopes=["bot"]):
+    if not await (await get_app_config_port().reload_config(changed_scopes=("bot",))):
         raise HTTPException(status_code=500, detail="配置已写入，但热重载失败")
 
 
@@ -910,7 +910,7 @@ async def _delete_chat_prompt_rule(chat_session: ChatSession, prompt_index: int)
     reply_style_config["chat_prompts"] = prompts
     save_toml_with_format(config_data, str(config_path))
 
-    if not await config_manager.reload_config(changed_scopes=["bot"]):
+    if not await (await get_app_config_port().reload_config(changed_scopes=("bot",))):
         raise HTTPException(status_code=500, detail="配置已写入，但热重载失败")
 
 
@@ -1019,7 +1019,9 @@ def _release_deleted_chat_runtime(session_id: str) -> None:
     port = get_session_info_port()
     if port is not None:
         port._session_store.remove(session_id)
-    heartflow_manager.heartflow_chat_list.pop(session_id, None)
+    _registry = get_chat_runtime_registry()
+    if _registry is not None:
+        _registry.remove_runtime(session_id)
 
 
 def _delete_chat_session_scope(session_id: str) -> Dict[str, Any]:

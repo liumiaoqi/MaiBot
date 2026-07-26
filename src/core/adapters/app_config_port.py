@@ -398,6 +398,11 @@ class GlobalConfigAppConfigPort:
             auth_token=str(cfg.auth_token),
         )
 
+    async def reload_config(self, changed_scopes: tuple[str, ...] = ()) -> bool:
+        """热重载配置，委托 config_manager。"""
+        from src.config.config import config_manager  # noqa: TID251 — 适配器层允许导入
+        return await config_manager.reload_config(changed_scopes=list(changed_scopes))
+
     def get_jargon_learning_list(self) -> list[str]:
         return list(self._get_cfg().jargon.learning_list)
 
