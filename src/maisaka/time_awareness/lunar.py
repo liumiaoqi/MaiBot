@@ -138,8 +138,8 @@ def get_today_solar_term(target_date: date | None = None) -> SolarTermInfo | Non
                         date=target_date,
                         is_today=True,
                     )
-            except Exception:
-                continue
+            except Exception as exc:
+                logger.debug("操作异常 in lunar.py", exc_info=True)
 
     except ImportError:
         pass

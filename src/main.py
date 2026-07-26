@@ -94,7 +94,8 @@ class MainSystem:
 
         try:
             await self._init_components()
-        except Exception:
+        except Exception as exc:
+            logger.debug("操作异常 in main.py", exc_info=True)
             if self.webui_server:
                 await self.webui_server.shutdown()
             raise
@@ -460,8 +461,8 @@ class MainSystem:
             if webui is not None and webui.app is not None:
                 webui.app.state.scope_store = self._v2_host_endpoint._scope_store
                 webui.app.state.token_service = self._v2_host_endpoint._token_service
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("操作异常 in main.py", exc_info=True)
 
     @staticmethod
     async def _start_a_memorix() -> None:

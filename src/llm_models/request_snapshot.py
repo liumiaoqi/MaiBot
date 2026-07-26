@@ -73,8 +73,8 @@ def extract_error_response_body(error: Exception) -> Any | None:
             if callable(response_json):
                 try:
                     return _json_friendly(response_json())
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("操作异常 in request_snapshot.py", exc_info=True)
 
             response_text = getattr(response, "text", None)
             if response_text not in (None, ""):
@@ -391,7 +391,8 @@ def _get_llm_request_snapshot_limit() -> int:
         from src.core.app_config_port_registry import get_app_config_port
 
         return max(1, int(get_app_config_port().get_log_llm_request_snapshot_limit() or DEFAULT_LLM_REQUEST_SNAPSHOT_LIMIT))
-    except Exception:
+    except Exception as exc:
+        logger.debug("操作异常 in request_snapshot.py", exc_info=True)
         return DEFAULT_LLM_REQUEST_SNAPSHOT_LIMIT
 
 

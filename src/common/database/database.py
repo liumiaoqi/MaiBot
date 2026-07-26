@@ -193,7 +193,8 @@ def get_db_session(auto_commit: bool = True) -> Generator[Session, None, None]:
         yield session
         if auto_commit:
             session.commit()
-    except Exception:
+    except Exception as exc:
+        logger.debug("操作异常 in database.py", exc_info=True)
         session.rollback()
         raise
     finally:

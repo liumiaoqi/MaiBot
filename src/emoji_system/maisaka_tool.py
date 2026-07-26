@@ -209,6 +209,7 @@ async def send_emoji_for_maisaka(
         if not emoji_base64:
             raise ValueError("表情图片转换为 base64 失败")
     except Exception as exc:
+        logger.debug("操作异常 in maisaka_tool.py", exc_info=True)
         return MaisakaEmojiSendResult(
             success=False,
             message=f"发送表情包失败：{exc}",
@@ -248,6 +249,7 @@ async def send_emoji_for_maisaka(
             sent = result.success
             sent_message_id = result.message_id
     except Exception as exc:
+        logger.debug("操作异常 in maisaka_tool.py", exc_info=True)
         return MaisakaEmojiSendResult(
             success=False,
             message=f"发送表情包时发生异常：{exc}",

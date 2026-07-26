@@ -97,8 +97,8 @@ class TokenBudgetManager:
                 registry = get_agent_config_provider()
                 if registry.has_agent(agent_id):
                     budget_ratio = registry.get_agent(agent_id).deepseek.token_budget_ratio
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("操作异常 in budget.py", exc_info=True)
 
             scaled = {k: v * budget_ratio for k, v in alloc_dict.items()}
             total = sum(scaled.values())

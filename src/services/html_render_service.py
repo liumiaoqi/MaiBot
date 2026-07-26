@@ -237,7 +237,8 @@ class HTMLRenderService:
                     height=height,
                     render_ms=int((time.perf_counter() - start_time) * 1000),
                 )
-            except Exception:
+            except Exception as exc:
+                logger.debug("操作异常 in html_render_service.py", exc_info=True)
                 await self.reset_browser(restart_playwright=False)
                 raise
             finally:
@@ -342,8 +343,8 @@ class HTMLRenderService:
             return False
         try:
             return bool(browser.is_connected())
-        except Exception:
-            return False
+        except Exception as exc:
+            logger.debug("操作异常 in html_render_service.py", exc_info=True)
 
     async def _connect_to_existing_browser(self, playwright: Any, config: PluginRuntimeRenderConfig) -> Any:
         """优先连接外部已有的 Chromium 浏览器。
@@ -423,8 +424,8 @@ class HTMLRenderService:
 
         try:
             browser.on("disconnected", self._handle_browser_disconnected)
-        except Exception:
-            return
+        except Exception as exc:
+            logger.debug("操作异常 in html_render_service.py", exc_info=True)
 
     def _handle_browser_disconnected(self, *_args: Any) -> None:
         """处理浏览器断线事件。

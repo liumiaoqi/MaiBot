@@ -330,6 +330,7 @@ def parse_behavior_response_with_diagnostics(
     try:
         parsed_response = json.loads(repair_json(normalized_response))
     except Exception as exc:
+        logger.debug("操作异常 in behavior_learner.py", exc_info=True)
         return BehaviorParseResult(
             candidates=[],
             diagnostics=BehaviorParseDiagnostics(

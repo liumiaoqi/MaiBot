@@ -108,7 +108,8 @@ class UniversalMessageSender:
                     logger.info(f"已将消息 '{message_preview}' 发往平台'{message.platform}'")
                 return True
 
-            except Exception:
+            except Exception as exc:
+                logger.debug("操作异常 in universal_message_sender.py", exc_info=True)
                 # # Legacy API 抛出异常，尝试 Fallback
                 # return await self._send_with_fallback(
                 #     message, message_preview, platform, show_log, legacy_exception=legacy_e

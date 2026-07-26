@@ -86,7 +86,8 @@ class InnerWorld:
         if self._emotion_manager is not None:
             try:
                 emotion_text = self._emotion_manager.state.to_prompt_text()
-            except Exception:
+            except Exception as exc:
+                logger.debug("操作异常 in inner_world.py", exc_info=True)
                 emotion_text = "心情平静"
 
         if self._inner_need_engine is not None:
@@ -100,7 +101,8 @@ class InnerWorld:
                     desire_summary = "、".join(
                         f"{n.description}" for n in needs[:3] if n.description
                     )
-            except Exception:
+            except Exception as exc:
+                logger.debug("操作异常 in inner_world.py", exc_info=True)
                 desire_summary = ""
 
         if self._voice_generator is not None:
@@ -110,7 +112,8 @@ class InnerWorld:
                     desire_summary=desire_summary,
                     memory_personality=self._memory_personality,
                 )
-            except Exception:
+            except Exception as exc:
+                logger.debug("操作异常 in inner_world.py", exc_info=True)
                 inner_voice = "心里闪过一个念头..."
 
         return InnerWorldSnapshot(
@@ -134,7 +137,8 @@ class InnerWorld:
                     desire_summary = "、".join(
                         f"{n.description}" for n in needs[:3] if n.description
                     )
-            except Exception:
+            except Exception as exc:
+                logger.debug("操作异常 in inner_world.py", exc_info=True)
                 desire_summary = ""
 
         if self._voice_generator is None:

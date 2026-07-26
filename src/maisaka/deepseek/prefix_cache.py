@@ -129,6 +129,6 @@ class PrefixCacheManager:
             registry = get_agent_config_provider()
             if registry.has_agent(agent_id):
                 return registry.get_agent(agent_id).deepseek.prefix_cache_enabled
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("操作异常 in prefix_cache.py", exc_info=True)
         return True

@@ -160,7 +160,8 @@ class ForkContextCapturer:
             template_name = registry.get_agent(agent_id).get_prompt_template_name()
             return [f"[system prompt: {template_name}]"] if template_name else []
 
-        except Exception:
+        except Exception as exc:
+            logger.debug("操作异常 in fork_context.py", exc_info=True)
             return []
 
     def _capture_tools(self, agent_id: str) -> dict[str, ToolDefinition]:
@@ -183,7 +184,8 @@ class ForkContextCapturer:
                 tools[tool_name] = ToolDefinition(name=tool_name)
             return tools
 
-        except Exception:
+        except Exception as exc:
+            logger.debug("操作异常 in fork_context.py", exc_info=True)
             return {}
 
     def _capture_permission(self, agent_id: str) -> PermissionRuleset:
@@ -203,7 +205,8 @@ class ForkContextCapturer:
                 allowed_tools=agent_config.tool_allowlist or [],
             )
 
-        except Exception:
+        except Exception as exc:
+            logger.debug("操作异常 in fork_context.py", exc_info=True)
             return PermissionRuleset()
 
     def _capture_inherited_messages(self, session_id: str) -> list[dict[str, Any]]:

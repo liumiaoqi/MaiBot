@@ -69,8 +69,8 @@ def _resolve_bot_agent_id(message: SessionMessage) -> str:
             cs = db.exec(statement).first()
             if cs and cs.agent_id:
                 return cs.agent_id
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("操作异常 in uni_message_sender.py", exc_info=True)
     return "silver_wolf"
 
 

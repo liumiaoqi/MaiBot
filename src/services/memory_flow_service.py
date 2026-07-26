@@ -253,8 +253,8 @@ class PersonFactWritebackService:
         if hasattr(raw_timestamp, "timestamp") and callable(raw_timestamp.timestamp):
             try:
                 return float(raw_timestamp.timestamp())
-            except Exception:
-                return None
+            except Exception as exc:
+                logger.debug("操作异常 in memory_flow_service.py", exc_info=True)
         if isinstance(raw_timestamp, (int, float)):
             return float(raw_timestamp)
         return None
@@ -376,7 +376,8 @@ class PersonFactWritebackService:
         try:
             repaired = repair_json(text)
             payload = json.loads(repaired) if isinstance(repaired, str) else repaired
-        except Exception:
+        except Exception as exc:
+            logger.debug("操作异常 in memory_flow_service.py", exc_info=True)
             payload = None
         if not isinstance(payload, list):
             return []
@@ -570,7 +571,8 @@ class ChatSummaryWritebackService:
     def _paragraph_created_at(paragraph: dict[str, Any]) -> float:
         try:
             return float(paragraph.get("created_at") or 0.0)
-        except Exception:
+        except Exception as exc:
+            logger.debug("操作异常 in memory_flow_service.py", exc_info=True)
             return 0.0
 
     @staticmethod
@@ -581,7 +583,8 @@ class ChatSummaryWritebackService:
         if isinstance(metadata, (bytes, bytearray)):
             try:
                 parsed = pickle.loads(metadata)
-            except Exception:
+            except Exception as exc:
+                logger.debug("操作异常 in memory_flow_service.py", exc_info=True)
                 return {}
             return parsed if isinstance(parsed, dict) else {}
         return {}
@@ -590,7 +593,8 @@ class ChatSummaryWritebackService:
     def _coerce_positive_int(value: Any) -> int:
         try:
             number = int(value or 0)
-        except Exception:
+        except Exception as exc:
+            logger.debug("操作异常 in memory_flow_service.py", exc_info=True)
             return 0
         return max(0, number)
 
@@ -626,8 +630,8 @@ class ChatSummaryWritebackService:
         if hasattr(raw_timestamp, "timestamp") and callable(raw_timestamp.timestamp):
             try:
                 return float(raw_timestamp.timestamp())
-            except Exception:
-                return None
+            except Exception as exc:
+                logger.debug("操作异常 in memory_flow_service.py", exc_info=True)
         if isinstance(raw_timestamp, (int, float)):
             return float(raw_timestamp)
         return None

@@ -466,7 +466,8 @@ def get_chat_name(chat_id: str, db_session: Optional[Any] = None) -> str:
             if session_info.session_name:
                 return session_info.session_name
         return chat_id
-    except Exception:
+    except Exception as exc:
+        logger.debug("操作异常 in expression.py", exc_info=True)
         return chat_id
 
 

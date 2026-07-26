@@ -40,8 +40,8 @@ def _to_builtin_data(obj: Any) -> Any:
     if hasattr(obj, "unwrap"):
         try:
             obj = obj.unwrap()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("操作异常 in config_routes.py", exc_info=True)
 
     if isinstance(obj, dict):
         return {str(key): _to_builtin_data(value) for key, value in obj.items()}

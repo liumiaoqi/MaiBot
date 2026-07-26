@@ -110,8 +110,8 @@ class ExperienceWriter:
                     if emotion in negative:
                         return "negative"
                     return "neutral"
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("操作异常 in experience_writer.py", exc_info=True)
         positive = {"joy", "happy", "excited", "grateful", "love", "satisfied", "calm"}
         negative = {"anger", "sad", "fear", "anxious", "frustrated", "jealous", "disgust"}
         if result.emotion_type in positive:

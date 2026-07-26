@@ -672,7 +672,8 @@ def _extract_xml_tool_calls(
         if normalized_value.startswith(("{", "[")):
             try:
                 return repair_json(normalized_value, return_objects=True, logging=False)
-            except Exception:
+            except Exception as exc:
+                logger.debug("操作异常 in openai_client.py", exc_info=True)
                 return normalized_value
         return normalized_value
 
@@ -1534,6 +1535,7 @@ class OpenaiClient(AdapterClient[AsyncStream[ChatCompletionChunk], ChatCompletio
         except ReqAbortException:
             raise
         except Exception as exc:
+            logger.debug("操作异常 in openai_client.py", exc_info=True)
             if has_request_snapshot(exc):
                 raise
             snapshot_path = save_failed_request_snapshot(
@@ -1616,6 +1618,7 @@ class OpenaiClient(AdapterClient[AsyncStream[ChatCompletionChunk], ChatCompletio
             attach_request_snapshot(wrapped_error, snapshot_path)
             raise wrapped_error from exc
         except Exception as exc:
+            logger.debug("操作异常 in openai_client.py", exc_info=True)
             if has_request_snapshot(exc):
                 raise
             snapshot_path = save_failed_request_snapshot(
@@ -1722,6 +1725,7 @@ class OpenaiClient(AdapterClient[AsyncStream[ChatCompletionChunk], ChatCompletio
             attach_request_snapshot(wrapped_error, snapshot_path)
             raise wrapped_error from exc
         except Exception as exc:
+            logger.debug("操作异常 in openai_client.py", exc_info=True)
             if has_request_snapshot(exc):
                 raise
             snapshot_path = save_failed_request_snapshot(

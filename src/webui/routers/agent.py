@@ -1317,8 +1317,8 @@ async def get_autonomy_logs(
         try:
             with open(log_file, "r", encoding="utf-8", errors="ignore") as f:
                 lines = f.readlines()[-max_lines:]
-        except Exception:
-            continue
+        except Exception as exc:
+            logger.debug("操作异常 in agent.py", exc_info=True)
 
         for line in lines:
             line = line.strip()
@@ -1400,7 +1400,8 @@ async def get_session_vitality(session_id: str):
         try:
             agent = registry.get_agent(agent_id)
             return agent.display_name
-        except Exception:
+        except Exception as exc:
+            logger.debug("操作异常 in agent.py", exc_info=True)
             return agent_id
 
     # 活跃智能体
@@ -1437,8 +1438,8 @@ async def get_session_vitality(session_id: str):
                     state="dormant",
                     vitality_value=0.0,
                 ))
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("操作异常 in agent.py", exc_info=True)
 
     return SessionVitalityResponse(
         success=True,
@@ -1491,8 +1492,8 @@ async def get_state_awareness(session_id: str):
             rule_result = orch._rule_engine.evaluate_for_interjection(session_id)
             for rule_name in rule_result.triggered_rules:
                 active_rules.append({"rule_name": rule_name, "active": True})
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("操作异常 in agent.py", exc_info=True)
 
     return ApiResponse(data=StateAwarenessResponse(
         success=True,

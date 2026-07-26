@@ -200,8 +200,8 @@ class RelationshipManager:
         if self._emotion_trigger_callback and callable(self._emotion_trigger_callback):
             try:
                 self._emotion_trigger_callback("happy", 10.0)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("操作异常 in manager.py", exc_info=True)
 
     @staticmethod
     def _get_growth_rate(agent_id: str) -> float:
@@ -212,6 +212,6 @@ class RelationshipManager:
             registry = get_agent_config_provider()
             if registry.has_agent(agent_id):
                 return registry.get_agent(agent_id).relationship_growth_rate
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("操作异常 in manager.py", exc_info=True)
         return 1.0

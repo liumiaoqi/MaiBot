@@ -583,7 +583,8 @@ async def _default_stream_response_handler(
             _process_stream_chunk(chunk, content_buffer, tool_calls_buffer, api_response)
             usage_record = _extract_usage_record(chunk) or usage_record
         return _build_stream_api_response(content_buffer, tool_calls_buffer, last_response, api_response), usage_record
-    except Exception:
+    except Exception as exc:
+        logger.debug("操作异常 in gemini_client.py", exc_info=True)
         if not content_buffer.closed:
             content_buffer.close()
         raise
@@ -1003,6 +1004,7 @@ class GeminiClient(AdapterClient[AsyncIterator[GenerateContentResponse], Generat
             attach_request_snapshot(exc, snapshot_path)
             raise
         except Exception as exc:
+            logger.debug("操作异常 in gemini_client.py", exc_info=True)
             if has_request_snapshot(exc):
                 raise
             snapshot_path = save_failed_request_snapshot(
@@ -1026,6 +1028,7 @@ class GeminiClient(AdapterClient[AsyncIterator[GenerateContentResponse], Generat
         except EmptyResponseException:
             raise
         except Exception as exc:
+            logger.debug("操作异常 in gemini_client.py", exc_info=True)
             raise NetworkConnectionError(str(exc)) from exc
 
     async def _execute_embedding_request(
@@ -1078,6 +1081,7 @@ class GeminiClient(AdapterClient[AsyncIterator[GenerateContentResponse], Generat
             attach_request_snapshot(wrapped_error, snapshot_path)
             raise wrapped_error from exc
         except Exception as exc:
+            logger.debug("操作异常 in gemini_client.py", exc_info=True)
             if has_request_snapshot(exc):
                 raise
             snapshot_path = save_failed_request_snapshot(
@@ -1208,6 +1212,7 @@ class GeminiClient(AdapterClient[AsyncIterator[GenerateContentResponse], Generat
             attach_request_snapshot(wrapped_error, snapshot_path)
             raise wrapped_error from exc
         except Exception as exc:
+            logger.debug("操作异常 in gemini_client.py", exc_info=True)
             if has_request_snapshot(exc):
                 raise
             snapshot_path = save_failed_request_snapshot(

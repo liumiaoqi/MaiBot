@@ -1165,6 +1165,7 @@ class PluginRunner:
         try:
             meta = self._loader.load_candidate(plugin_id, candidate)
         except Exception as exc:
+            logger.debug("操作异常 in runner_main.py", exc_info=True)
             return None, False, str(exc)
         if meta is None:
             return None, False, "插件模块加载失败"
@@ -1882,6 +1883,7 @@ class PluginRunner:
                         purge_modules=False,
                     )
                 except Exception as exc:
+                    logger.debug("操作异常 in runner_main.py", exc_info=True)
                     rollback_failures[reloaded_plugin_id] = f"清理失败: {exc}"
                 finally:
                     self._loader.purge_plugin_modules(reloaded_plugin_id, reloaded_meta.plugin_dir)
@@ -1894,6 +1896,7 @@ class PluginRunner:
                 try:
                     restored = await self._activate_plugin(rollback_meta)
                 except Exception as exc:
+                    logger.debug("操作异常 in runner_main.py", exc_info=True)
                     rollback_failures[rollback_plugin_id] = str(exc)
                     continue
 
@@ -2013,6 +2016,7 @@ class PluginRunner:
         try:
             invoke = LLMProviderInvokePayload.model_validate(envelope.payload)
         except Exception as exc:
+            logger.debug("操作异常 in runner_main.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
 
         plugin_id = envelope.plugin_id
@@ -2118,6 +2122,7 @@ class PluginRunner:
         try:
             invoke = InvokePayload.model_validate(envelope.payload)
         except Exception as exc:
+            logger.debug("操作异常 in runner_main.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
 
         plugin_id = envelope.plugin_id
@@ -2210,6 +2215,7 @@ class PluginRunner:
         try:
             payload = ConfigUpdatedPayload.model_validate(envelope.payload)
         except Exception as exc:
+            logger.debug("操作异常 in runner_main.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
 
         plugin_id = envelope.plugin_id
@@ -2248,6 +2254,7 @@ class PluginRunner:
         try:
             payload = InspectPluginConfigPayload.model_validate(envelope.payload)
         except Exception as exc:
+            logger.debug("操作异常 in runner_main.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
 
         plugin_id = envelope.plugin_id
@@ -2267,6 +2274,7 @@ class PluginRunner:
                 enforce_version=not payload.use_provided_config,
             )
         except Exception as exc:
+            logger.debug("操作异常 in runner_main.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
         finally:
             if is_temporary_meta:
@@ -2287,6 +2295,7 @@ class PluginRunner:
         try:
             payload = ValidatePluginConfigPayload.model_validate(envelope.payload)
         except Exception as exc:
+            logger.debug("操作异常 in runner_main.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
 
         plugin_id = envelope.plugin_id
@@ -2306,6 +2315,7 @@ class PluginRunner:
                 enforce_version=True,
             )
         except Exception as exc:
+            logger.debug("操作异常 in runner_main.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
         finally:
             if is_temporary_meta:
@@ -2330,6 +2340,7 @@ class PluginRunner:
         try:
             payload = ReloadPluginPayload.model_validate(envelope.payload)
         except Exception as exc:
+            logger.debug("操作异常 in runner_main.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
 
         if self._reload_lock.locked():
@@ -2352,6 +2363,7 @@ class PluginRunner:
         try:
             payload = ReloadPluginsPayload.model_validate(envelope.payload)
         except Exception as exc:
+            logger.debug("操作异常 in runner_main.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
 
         if self._reload_lock.locked():

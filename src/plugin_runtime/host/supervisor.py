@@ -769,6 +769,7 @@ class PluginRunnerSupervisor:
                 timeout_ms=10000,
             )
         except Exception as exc:
+            logger.debug("操作异常 in supervisor.py", exc_info=True)
             raise ValueError(f"插件配置校验请求失败: {exc}") from exc
 
         if response.error:
@@ -813,6 +814,7 @@ class PluginRunnerSupervisor:
                 timeout_ms=10000,
             )
         except Exception as exc:
+            logger.debug("操作异常 in supervisor.py", exc_info=True)
             raise ValueError(f"插件配置解析请求失败: {exc}") from exc
 
         if response.error:
@@ -930,6 +932,7 @@ class PluginRunnerSupervisor:
         try:
             payload = BootstrapPluginPayload.model_validate(envelope.payload)
         except Exception as exc:
+            logger.debug("操作异常 in supervisor.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
 
         if payload.capabilities_required:
@@ -951,6 +954,7 @@ class PluginRunnerSupervisor:
         try:
             payload = RegisterPluginPayload.model_validate(envelope.payload)
         except Exception as exc:
+            logger.debug("操作异常 in supervisor.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
 
         component_declarations = [component.model_dump() for component in payload.components]
@@ -1044,6 +1048,7 @@ class PluginRunnerSupervisor:
         try:
             payload = UnregisterPluginPayload.model_validate(envelope.payload)
         except Exception as exc:
+            logger.debug("操作异常 in supervisor.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
 
         removed_components = self._component_registry.remove_components_by_plugin(payload.plugin_id)
@@ -1417,6 +1422,7 @@ class PluginRunnerSupervisor:
         try:
             payload = MessageGatewayStateUpdatePayload.model_validate(envelope.payload)
         except Exception as exc:
+            logger.debug("操作异常 in supervisor.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
 
         gateway_entry = self._resolve_message_gateway_entry(envelope.plugin_id, payload.gateway_name)
@@ -1438,6 +1444,7 @@ class PluginRunnerSupervisor:
                 payload=payload,
             )
         except Exception as exc:
+            logger.debug("操作异常 in supervisor.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
 
         response = MessageGatewayStateUpdateResultPayload(
@@ -1460,6 +1467,7 @@ class PluginRunnerSupervisor:
         try:
             payload = RouteMessagePayload.model_validate(envelope.payload)
         except Exception as exc:
+            logger.debug("操作异常 in supervisor.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
 
         gateway_entry = self._resolve_message_gateway_entry(envelope.plugin_id, payload.gateway_name)
@@ -1489,6 +1497,7 @@ class PluginRunnerSupervisor:
             session_message = self._message_gateway.build_session_message(payload.message)
             self._attach_inbound_route_metadata(session_message, route_key, payload.route_metadata)
         except Exception as exc:
+            logger.debug("操作异常 in supervisor.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
 
         platform_io_manager = get_platform_io_manager()
@@ -1531,6 +1540,7 @@ class PluginRunnerSupervisor:
         try:
             payload = RunnerReadyPayload.model_validate(envelope.payload)
         except Exception as exc:
+            logger.debug("操作异常 in supervisor.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
 
         self._runner_ready_payloads = payload

@@ -539,6 +539,7 @@ def _validate_api_provider_section(section_data: Any) -> None:
             provider = APIProvider.from_dict(AttributeData(), provider_data)
             provider_names.append(provider.name)
     except Exception as exc:
+        logger.debug("操作异常 in config.py", exc_info=True)
         raise AppError(ErrorCode.PARAM_INVALID, f"API 提供商配置验证失败: {str(exc, http_status=400)}") from exc
 
     if len(provider_names) != len(set(provider_names)):

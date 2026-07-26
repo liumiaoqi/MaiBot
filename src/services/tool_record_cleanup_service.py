@@ -40,7 +40,8 @@ def _load_stats(raw_stats: Any) -> dict[str, int]:
         return {"scanned_records": 0, "updated_records": 0}
     try:
         stats = loads(raw_stats)
-    except Exception:
+    except Exception as exc:
+        logger.debug("操作异常 in tool_record_cleanup_service.py", exc_info=True)
         return {"scanned_records": 0, "updated_records": 0}
     if not isinstance(stats, dict):
         return {"scanned_records": 0, "updated_records": 0}
@@ -172,6 +173,7 @@ def run_startup_tool_record_vacuum_if_needed() -> bool:
         finally:
             connection.close()
     except Exception as exc:
+        logger.debug("操作异常 in tool_record_cleanup_service.py", exc_info=True)
         message = f"工具记录维护 VACUUM 失败，请关闭占用数据库的程序后重启: {exc}"
         with get_db_session(auto_commit=False) as session:
             latest_state = _get_state(session)

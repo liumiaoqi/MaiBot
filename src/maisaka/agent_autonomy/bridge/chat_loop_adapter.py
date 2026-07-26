@@ -52,7 +52,8 @@ class ChatLoopServiceAdapter:
                 self._chat_loop_service.update_emotion_state_text(
                     emotion_state.to_prompt_text()
                 )
-        except Exception:
+        except Exception as exc:
+            logger.debug("操作异常 in chat_loop_adapter.py", exc_info=True)
             self._chat_loop_service.update_emotion_state_text("")
 
         # 更新关系文本

@@ -117,8 +117,8 @@ class AgentProfileService:
                 emotion_tag = metadata.get("emotion_tag", "")
                 if emotion_tag:
                     emotion_counts[emotion_tag] = emotion_counts.get(emotion_tag, 0) + 1
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("操作异常 in profile.py", exc_info=True)
 
             evidence_list.append({
                 "event_id": event.event_id,
@@ -187,5 +187,6 @@ class AgentProfileService:
                 if len(content) > 20:
                     traits_set.add(content[:20])
             return list(traits_set)
-        except Exception:
+        except Exception as exc:
+            logger.debug("操作异常 in profile.py", exc_info=True)
             return []

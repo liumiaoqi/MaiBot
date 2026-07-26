@@ -912,6 +912,7 @@ class ManifestValidator:
             with manifest_path.open("r", encoding="utf-8") as manifest_file:
                 manifest_data = json.load(manifest_file)
         except Exception as exc:
+            logger.debug("操作异常 in manifest_validator.py", exc_info=True)
             self.errors.append(f"manifest 解析失败: {exc}")
             self._log_errors(source=str(plugin_path))
             return None

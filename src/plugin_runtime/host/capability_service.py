@@ -60,6 +60,7 @@ class CapabilityService:
         try:
             req = CapabilityRequestPayload.model_validate(envelope.payload)
         except Exception as exc:
+            logger.debug("操作异常 in capability_service.py", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, f"能力调用 payload 非法: {exc}")
 
         capability = req.capability

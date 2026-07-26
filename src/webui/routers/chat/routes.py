@@ -272,10 +272,12 @@ def _build_agent_info_map(chat_sessions: List[ChatSession]) -> Dict[str, Dict[st
             try:
                 config = registry.get_agent(aid)
                 result[aid] = {"display_name": config.display_name, "color": config.color}
-            except Exception:
+            except Exception as exc:
+                logger.debug("操作异常 in routes.py", exc_info=True)
                 result[aid] = {"display_name": "银狼", "color": "#9b59b6"}
         return result
-    except Exception:
+    except Exception as exc:
+        logger.debug("操作异常 in routes.py", exc_info=True)
         return {aid: {"display_name": "银狼", "color": "#9b59b6"} for aid in unique_agent_ids}
 
 

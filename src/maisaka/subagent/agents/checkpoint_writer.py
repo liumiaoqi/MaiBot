@@ -323,8 +323,8 @@ class CheckpointWriterAgent:
             try:
                 state = self._emotion_manager.get_state(spec.agent_id)
                 return f"情绪状态: {state}"
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("操作异常 in checkpoint_writer.py", exc_info=True)
         return "情绪状态快照待捕获。"
 
     def _section5_relationship(self, spec: SubAgentSpec) -> str:
@@ -332,8 +332,8 @@ class CheckpointWriterAgent:
             try:
                 snapshot = self._relationship_manager.get_snapshot(spec.agent_id)
                 return f"关系等级: {snapshot}"
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("操作异常 in checkpoint_writer.py", exc_info=True)
         return "关系等级快照待捕获。"
 
     def _section6_cross_chat(self, spec: SubAgentSpec) -> str:

@@ -167,7 +167,8 @@ class CohabitantStateSummaryGenerator:
                         state.dominant_emotion,
                         state.get_dominant_intensity(),
                     )
-                except Exception:
+                except Exception as exc:
+                    logger.debug("操作异常 in summary_generator.py", exc_info=True)
                     emotion_tendency = ""
 
             entries.append(CohabitantStateEntry(

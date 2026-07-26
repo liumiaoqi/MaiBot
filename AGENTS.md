@@ -216,11 +216,11 @@ CA 派发审查任务时，CC 按以下维度输出报告（写入 `.shared/hand
 | Phoenix-3　| OAuth Scope 授权　　| P-2　| scope 声明/签发/校验，WebUI 审批　　　　　　　　　　　　　　　　　　　　　　　| ✅ 已完成　|
 | Phoenix-4　| 能力层 Protocol 化　| P-1　| P0/P1 消除，能力模块化，global_config 清除　　　　　　　　　　　　　　　　　　| ✅ 已完成　|
 | Phoenix-5　| v2 主程序集成　　　 | P-4　| HostEndpoint 接入 main.py，Scope WebUI 激活，Runner 进程管理，速率限制　　　　| ✅ 已完成　|
-| Phoenix-6　| SDK RPC 通道　　　　| P-5　| SendContext/StorageContext/PluginContext gRPC 通道实现　　　　　　　　　　　　| 📋 规划中 |
-| Phoenix-7　| napcat-adapter 重写 | P-6　| napcat-adapter 从 v1 重写为 v4 格式（Manifest v3 + scopes + gRPC）　　　　　　| 📋 规划中 |
-| Phoenix-8　| 兼容层插件　　　　　| P-5　| v1 运行时封装为 v4 插件，从主程序剥离，老插件零修改继续运行　　　　　　　　　 | 📋 规划中 |
-| Phoenix-9　| Runner 进程管理增强 | P-8　| Host spawn Runner、健康检查、自动重启、热重载　　　　　　　　　　　　　　　　 | 📋 规划中 |
-| Phoenix-10 | WebUI 插件管理面　　| P-8　| Scope 审批前端 UI + 插件安装/卸载/配置 + 插件市场　　　　　　　　　　　　　　 | 📋 规划中 |
+| Phoenix-6　| SDK RPC 通道　　　　| P-5　| SendContext/StorageContext/PluginContext gRPC 通道实现　　　　　　　　　　　　| ✅ 已完成　|
+| Phoenix-7　| napcat-adapter 重写 | P-6　| napcat-adapter 从 v1 重写为 v4 格式（Manifest v3 + scopes + gRPC）+ 7b 补完 | ✅ 已完成　|
+| Phoenix-8　| 兼容层插件　　　　　| P-5　| v1 运行时封装为 v4 插件，从主程序剥离，老插件零修改继续运行　　　　　　　　　 | ✅ 已完成　|
+| Phoenix-9　| Runner 进程管理增强 | P-8　| Host spawn Runner、健康检查、自动重启、热重载　　　　　　　　　　　　　　　　 | ✅ 已完成　|
+| Phoenix-10 | WebUI 插件管理面　　| P-8　| Scope 审批前端 UI + 插件安装/卸载/配置 + 插件市场　　　　　　　　　　　　　　 | ⏸️ 延后　　|
 
 依赖关系：`P-0 → P-1 → P-2 → P-3`，`P-1 → P-4`，`P-4 → P-5 → P-6 → P-7`，`P-5 → P-8 → P-9/P-10`
 
@@ -230,16 +230,54 @@ CA 派发审查任务时，CC 按以下维度输出报告（写入 `.shared/hand
 
 ## Phoenix 后路线（优先级从高到低）
 
-1. **清算遗留问题** — 消除所有技术债
-2. **QQ 能力革命** — 重构 MaiBot 中与 QQ 能力相关的部分（napcat adapter、消息格式、平台特定逻辑），Phoenix 结束后规划细节
+1. **炉火纯青（ChunQing）** — 清算遗留问题 + 系统协调 + Bug 修复（分批 SSD，中间插入调研任务动态调整）
+2. **QQ 能力革命** — 重构 MaiBot 中与 QQ 能力相关的部分（napcat adapter、消息格式、平台特定逻辑），ChunQing 结束后规划细节
 3. **日志与调试系统升级** — 探索更好方案：结构化日志（JSON 格式、链路追踪、correlation ID）、远程调试（WebUI 实时日志流、Runner 调试面板）、日志聚合（多 Runner 统一收集+查询）
 
-## 遗留问题清单
+# 炉火纯青（ChunQing）：Phoenix 后清算
 
-- ⬜ 欲望驱动主动发言集成
+> 项目代号：炉火纯青（ChunQing），简写 CQ。Phoenix 浴火重生后，炉火烧至纯青——杂质尽除，技艺登峰造极。
+> 策略：分批 SSD（CQ-1 → CQ-2 → ...），每批末尾插入调研任务，调研结果指导下一批规划。
+
+## 核心原则：用现在换未来，不是拿未来换现在
+
+- **拿未来换现在**（必须消除）：图省事写 `except Exception: pass`，透支未来排障能力；绕过 Port 直接导入，透支未来重构自由度。每多存在一天，复利越多。
+- **用现在换未来**（优先投入）：修 exception handling 投入现在的工作，换未来每个 bug 都可追踪；集成欲望系统，换未来智能体主动说话的能力。
+- **不影响未来**（低优先）：V1 getattr 残留（V1 将废弃，修了也不投资未来）、TODO 注释清理。
+
+## 债务全景（2026-07-26 调查）
+
+| 优先级 | 编号 | 类别 | 数量 | 一句话 |
+|--------|------|------|------|--------|
+| P0 | CQ-9 | `except Exception:` 吞没 | 336 | 全项目最大规模债务，异常静默吞没导致排障极难 |
+| P0 | CQ-10 | `except Exception: pass` 无日志 | 88 | 异常完全消失（另有 13 处仅 logger.debug 等价于静默） |
+| P0 | CQ-3 | identity.py None 防御 | 2 | 运行时崩溃风险（get_bot_account/get_all_bot_accounts 直接调用无 None 检查） |
+| P1 | CQ-7 | 欲望驱动主动发言未集成 | 1 | 核心功能缺口，InnerNeedEngine 已实现未接入心跳管道 |
+| P1 | CQ-11 | `import logging` 绕过统一日志 | 45 | maisaka 下 45 个文件用 stdlib logging 而非 get_logger |
+| P1 | CQ-15 | `chat_manager` 直接导入 | ~20 | webui 大量直接使用，应走 SessionQueryPort |
+| P1 | CQ-14 | `config_manager` 直接导入 | ~15 | A_memorix×7 + webui×8 + services×2，应走 AppConfigPort |
+| P1 | CQ-13 | `heartflow_manager` 直接导入 | 2 | routes.py + heartflow_message_processor.py，应走 ChatRuntimeRegistry |
+| P2 | CQ-4 | TID251 noqa | 14 | 5暂不可拆 + 3过渡期fallback + 5适配器合法 + 1 WebUI |
+| P2 | CQ-6 | `global_config` 残留（核心外） | ~8 | maisaka×1, A_memorix×2, webui×2, mcp_module×1, services×1, startup×1 |
+| P2 | CQ-1 | bare `except:` | 4 | A_memorix: io.py×2, graph_store.py×1, scripts×1 |
+| P2 | CQ-5 | getattr 残留 (V1) | 48 | V1 将废弃，integration.py×14 最集中 |
+| P3 | CQ-8 | V1/V2 双系统共存 | 待评估 | Phoenix-8 兼容层，需调研启动/关闭/消息流协调 |
+| P3 | CQ-12 | TODO/FIXME 遗留 | 14 | 含 Phoenix-4 未实现项 |
+| P3 | CQ-12 | TODO/FIXME 遗留 | 14 | 含 Phoenix-4 未实现项 |
+
+## 系统协调调研方向（不在初始 SSD 中硬编码，作为中间调研任务）
+
+1. V1/V2 双运行时启动序列竞态
+2. 配置热重载跨子系统传播一致性
+3. 关闭序列协调（gRPC + V1 IPC + HeartFlow 优雅退出）
+4. 消息流在 V1/V2 双路径下的去重与顺序保证
+
+## 遗留问题清单（旧格式保留，逐步迁移至上方债务全景）
+
+- ⬜ 欲望驱动主动发言集成 → CQ-7
 - ⬜ WebUI 记忆可视化
-- ⬜ A_memorix 内部 322 处 bare except
+- ⬜ A_memorix 内部 322 处 bare except → 实际为全项目 336 处 `except Exception:`（CQ-9），bare `except:` 仅 4 处（CQ-1）
 - ⬜ mem_core_gap 未覆盖的 8 项差距（G16/G18/G19/G21/G22/G23/G24/G28）
-- ⬜ noqa TID251 暂不可拆解 5 处（runtime.py MCPConfig + config.py WebUI + routes.py 2处 + core.py 反射）+ 过渡期 fallback 3 处（emoji_manager）+ 适配器层合法 5 处
+- ⬜ noqa TID251 暂不可拆解 5 处 → CQ-4（实际 14 处）
 - ⬜ WebUI 配置管理面（routes.py/config.py 3处）暂不可拆解
-- ⬜ identity.py get_bot_config_port() None 防御（statistic.py 线程池时序竞争）
+- ⬜ identity.py get_bot_config_port() None 防御 → CQ-3

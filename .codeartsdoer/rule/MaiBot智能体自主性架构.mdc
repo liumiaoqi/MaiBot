@@ -222,7 +222,7 @@ lab/{topic}/ → lab/integration/ → 主仓库 src/
 ### 派发原则
 
 - **CC 胜在**：首次设计（Protocol 签名/快照类型）、高风险文件（runtime.py 等面积大易出副作用的）、最终验证（ruff 守卫 + AGENTS.md）
-- **Codex 胜在**：定义清晰的分项任务、批量并行后台、机械执行（global_config→Port 替换）
+- **Codex 胜在**：定义清晰的分项任务、批量并行后台、机械执行（global_config→Port 替换）、小bug精确查找快速修复
 - CA 派发时不要低估 Codex 能力——SSD-6/7/8/9/10 已证明 Codex 完全能处理机械替换
 
 ### 思维链规范
@@ -232,23 +232,55 @@ lab/{topic}/ → lab/integration/ → 主仓库 src/
 3. **不枚举下一步**：不写"下一步要做 A、B、C"再逐一执行——做完 A 再决定 B
 4. **用户更新简洁**：一句话说清在做什么，不前置 `Now I'll...` / `So I'm going to...` 这类过渡
 
-## Phoenix：插件系统革命
+## Phoenix：插件系统革命（已完成）
 
-> 全新方向，不再沿用 SSD 编号。SSD-1~13 已完成微内核架构改造（20+ Protocol 接口、global_config TID251 从 41→0、核心禁止项全部消除）。
+> SSD-1~13 完成微内核架构改造，Phoenix-0~9 完成插件系统革命。详见 `.codeartsdoer/specs/_archive/phoenix/`。
 
 三大支柱：
 - **MCP Tool/Event 统一组件模型**：8 种组件类型 → 2 种（Tool 拉取式 + Event 推送式），与 ThinkingOrgan 工具循环天然对接
 - **OAuth Scope 细粒度能力授权**：粗粒度 capabilities → 细粒度 scope（如 `database:read:session_message`），用户可逐项审批/撤销
 - **gRPC 标准化传输**：自研 4-byte prefix + MsgPack → gRPC 双向流，消除 2000+ 行传输代码，支持跨语言插件
 
-关键决策：不兼容现有插件，napcat-adapter 等直接重写，SDK 大版本升级（v3→v4），manifest 格式重新设计。
+关键决策：不兼容现有插件，napcat-adapter 等直接重写，SDK 大版本升级（v3→v4），manifest 格式重新设计。老插件通过兼容层插件（P-8）代理。
 
 | 编号 | 主题 | 依赖 | 核心交付 | 状态 |
 |------|------|------|---------|------|
 | Phoenix-0 | 基础准备 | 无 | .proto Schema + v2 目录骨架 + SDK v4 接口设计 + Scope 词汇表 | ✅ 已完成 |
 | Phoenix-1 | gRPC 传输层 | P-0 | gRPC Host/Runner 实现，替换自研 IPC | ✅ 已完成 |
-| Phoenix-2 | MCP 组件模型 | P-1 | 8→2（Tool + Event），SDK 运行时，ToolProvider 桥接，Event 分发，Tool 执行路由 | ✅ 已完成（测试修正中） |
-| Phoenix-3 | OAuth Scope 授权 | P-2 | scope 声明/签发/校验，WebUI 审批 | 📋 规划中 |
-| Phoenix-4 | 能力层 Protocol 化 | P-1 | P0/P1 消除，能力模块化，global_config 清除 | 📋 规划中 |
+| Phoenix-2 | MCP 组件模型 | P-1 | 8→2（Tool + Event），SDK 运行时，ToolProvider 桥接，Event 分发，Tool 执行路由 | ✅ 已完成 |
+| Phoenix-3 | OAuth Scope 授权 | P-2 | scope 声明/签发/校验，WebUI 审批 | ✅ 已完成 |
+| Phoenix-4 | 能力层 Protocol 化 | P-1 | P0/P1 消除，能力模块化，global_config 清除 | ✅ 已完成 |
+| Phoenix-5 | v2 主程序集成 | P-4 | HostEndpoint 接入 main.py，Scope WebUI 激活 | ✅ 已完成 |
+| Phoenix-6 | SDK RPC 通道 | P-5 | SendContext/StorageContext/PluginContext gRPC 通道实现 | ✅ 已完成 |
+| Phoenix-7 | napcat-adapter 重写 | P-6 | napcat-adapter v4 格式 + 7b 补完 | ✅ 已完成 |
+| Phoenix-8 | 兼容层插件 | P-5 | v1 运行时封装为 v4 插件，老插件零修改继续运行 | ✅ 已完成 |
+| Phoenix-9 | Runner 进程管理增强 | P-8 | Host spawn Runner、健康检查、自动重启、热重载 | ✅ 已完成 |
+| Phoenix-10 | WebUI 插件管理面 | P-8 | Scope 审批前端 UI + 插件安装/卸载/配置 | ⏸️ 延后 |
 
-依赖关系：`P-0 → P-1 → P-2 → P-3`，`P-1 → P-4`（P-4 可与 P-2 并行）
+依赖关系：`P-0 → P-1 → P-2 → P-3`，`P-1 → P-4`，`P-4 → P-5 → P-6 → P-7`，`P-5 → P-8 → P-9/P-10`
+
+## 炉火纯青（ChunQing）：Phoenix 后清算
+
+> 项目代号：炉火纯青（ChunQing），简写 CQ。Phoenix 浴火重生后，炉火烧至纯青——杂质尽除，技艺登峰造极。
+> 策略：分批 SSD（CQ-1 → CQ-2 → ...），每批末尾插入调研任务，调研结果指导下一批规划。
+
+### 核心原则：用现在换未来，不是拿未来换现在
+
+- **拿未来换现在**（必须消除）：图省事写 `except Exception: pass`，透支未来排障能力；绕过 Port 直接导入，透支未来重构自由度
+- **用现在换未来**（优先投入）：修 exception handling 投入现在的工作，换未来每个 bug 都可追踪；集成欲望系统，换未来智能体主动说话的能力
+- **不影响未来**（低优先）：V1 getattr 残留（V1 将废弃）、TODO 注释清理
+
+### 债务全景
+
+| 优先级 | 编号 | 类别 | 数量 | 一句话 |
+|--------|------|------|------|--------|
+| P0 | CQ-9 | `except Exception:` 吞没 | 336 | 全项目最大规模债务 |
+| P0 | CQ-10 | `except Exception: pass` | 160 | 异常完全消失，无迹可查 |
+| P0 | CQ-3 | identity.py None 防御 | 2 | 运行时崩溃风险 |
+| P1 | CQ-7 | 欲望驱动主动发言未集成 | 1 | 核心功能缺口 |
+| P1 | CQ-11 | `import logging` 绕过统一日志 | 45 | maisaka 日志碎片化 |
+| P1 | CQ-15 | `chat_manager` 直接导入 | ~20 | 应走 SessionQueryPort |
+| P1 | CQ-14 | `config_manager` 直接导入 | ~15 | 应走 AppConfigPort |
+| P1 | CQ-13 | `heartflow_manager` 直接导入 | 2 | 应走 ChatRuntimeRegistry |
+| P2 | CQ-4/1/5/6 | 代码质量债 | 若干 | noqa/bare except/getattr/global_config 残留 |
+| P3 | CQ-8/12 | 低优先清理 | 若干 | V1/V2 共存评估、TODO/FIXME |

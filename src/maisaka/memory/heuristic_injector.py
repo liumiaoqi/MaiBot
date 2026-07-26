@@ -301,7 +301,8 @@ class HeuristicMemoryInjector:
             if not registry.has_agent(context.agent_id):
                 return hits
             focus_areas = registry.get_agent(context.agent_id).memory_focus_areas
-        except Exception:
+        except Exception as exc:
+            logger.debug("操作异常 in heuristic_injector.py", exc_info=True)
             return hits
 
         if not focus_areas:

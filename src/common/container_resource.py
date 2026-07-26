@@ -29,8 +29,8 @@ def get_cpu_limit() -> int:
                 period = int(parts[1])
                 if period > 0:
                     return max(1, int(quota / period))
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("操作异常 in container_resource.py", exc_info=True)
 
     try:
         quota_path = "/sys/fs/cgroup/cpu/cpu.cfs_quota_us"
@@ -42,8 +42,8 @@ def get_cpu_limit() -> int:
                 period = int(f.read().strip())
             if quota > 0 and period > 0:
                 return max(1, int(quota / period))
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("操作异常 in container_resource.py", exc_info=True)
 
     return os.cpu_count() or 2
 
@@ -63,8 +63,8 @@ def get_memory_limit_mb() -> int:
                 limit_bytes = int(content)
                 if limit_bytes > 0:
                     return limit_bytes // (1024 * 1024)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("操作异常 in container_resource.py", exc_info=True)
 
     try:
         mem_limit_path = "/sys/fs/cgroup/memory/memory.limit_in_bytes"
@@ -73,8 +73,8 @@ def get_memory_limit_mb() -> int:
                 limit_bytes = int(f.read().strip())
             if 0 < limit_bytes < 2**63:
                 return limit_bytes // (1024 * 1024)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("操作异常 in container_resource.py", exc_info=True)
 
     return 0
 
@@ -96,8 +96,8 @@ def is_running_in_container() -> bool:
                 content = f.read()
             if "docker" in content or "containerd" in content:
                 return True
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("操作异常 in container_resource.py", exc_info=True)
 
     return False
 

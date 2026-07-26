@@ -311,7 +311,8 @@ class SessionMessage(MaiMessage):
                 image_bytes=component.binary_data,
                 wait_for_build=enable_heavy_media_analysis,
             )
-        except Exception:
+        except Exception as exc:
+            logger.debug("操作异常 in session_message_data_model.py", exc_info=True)
             desc = None  # 失败置空
 
         # desc 为空时保持 content 为空，表示图片仍处于待识别状态；
@@ -349,7 +350,8 @@ class SessionMessage(MaiMessage):
                 session_id=self.session_id,
                 wait_for_build=enable_heavy_media_analysis,
             )
-        except Exception:
+        except Exception as exc:
+            logger.debug("操作异常 in session_message_data_model.py", exc_info=True)
             tuple_content = None  # 失败置空
 
         if tuple_content:

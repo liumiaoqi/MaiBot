@@ -4,8 +4,8 @@
 
 - Docker 容器：`maim-bot-core`，Python 3.14.6
 - 依赖管理：**uv**，不用 pip
-- WSL 环境，无法操作 Docker。运行时验证由 CA 和 Codex 完成
-- 我的验收终点：`py_compile` 通过 + `ruff check` 通过。不要写"容器验证"这种无法执行的建议
+- Docker 可用：`docker exec maim-bot-core bash -c "cd /MaiMBot && uv run ..."`
+- 我的验收终点：`ruff check` 通过 + pytest 通过。验证命令直接在 Docker 容器内执行
 
 ## 项目灵魂（最重要）
 

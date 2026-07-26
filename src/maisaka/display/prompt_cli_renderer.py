@@ -47,7 +47,8 @@ def _build_webui_local_base_url() -> str:
 
         host = _select_webui_local_host(get_app_config_port().get_webui_host())
         port = int(get_app_config_port().get_webui_port() or 8001)
-    except Exception:
+    except Exception as exc:
+        logger.debug("操作异常 in prompt_cli_renderer.py", exc_info=True)
         host = "127.0.0.1"
         port = 8001
 
@@ -219,8 +220,8 @@ class PromptCLIVisualizer:
         normalized_format = PromptCLIVisualizer._normalize_image_format(image_format) or "bin"
         try:
             image_bytes = b64decode(image_base64)
-        except Exception:
-            return None
+        except Exception as exc:
+            logger.debug("操作异常 in prompt_cli_renderer.py", exc_info=True)
 
         official_path = PromptCLIVisualizer._build_official_image_path(normalized_format, image_bytes)
         if official_path is not None:
@@ -230,8 +231,8 @@ class PromptCLIVisualizer:
         if not path.exists():
             try:
                 path.write_bytes(image_bytes)
-            except Exception:
-                return None
+            except Exception as exc:
+                logger.debug("操作异常 in prompt_cli_renderer.py", exc_info=True)
         return build_file_uri(path), path
 
     @staticmethod
@@ -248,8 +249,8 @@ class PromptCLIVisualizer:
             try:
                 if not b64decode(image_base64, validate=True):
                     return None
-            except Exception:
-                return None
+            except Exception as exc:
+                logger.debug("操作异常 in prompt_cli_renderer.py", exc_info=True)
             return normalized_format, image_base64
         return None
 
@@ -322,14 +323,16 @@ class PromptCLIVisualizer:
                     continue
                 try:
                     parts.append(json.dumps(item, ensure_ascii=False, indent=2, default=str))
-                except Exception:
+                except Exception as exc:
+                    logger.debug("操作异常 in prompt_cli_renderer.py", exc_info=True)
                     parts.append(str(item))
             return "\n".join(part for part in parts if part).strip()
         if content is None:
             return ""
         try:
             return json.dumps(content, ensure_ascii=False, indent=2, default=str)
-        except Exception:
+        except Exception as exc:
+            logger.debug("操作异常 in prompt_cli_renderer.py", exc_info=True)
             return str(content)
 
     @classmethod
@@ -376,8 +379,8 @@ class PromptCLIVisualizer:
             from src.core.app_config_port_registry import get_app_config_port
 
             return bool(get_app_config_port().get_debug_keep_prompt_preview_json_base64())
-        except Exception:
-            return False
+        except Exception as exc:
+            logger.debug("操作异常 in prompt_cli_renderer.py", exc_info=True)
 
     @classmethod
     def _build_structured_image_reference(cls, image_format: str, image_base64: str) -> dict[str, Any]:

@@ -732,8 +732,8 @@ def _resolve_agent_id_for_session(
             cs = db.exec(statement).first()
             if cs and cs.agent_id:
                 return cs.agent_id
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("操作异常 in service.py", exc_info=True)
     return None
 
 

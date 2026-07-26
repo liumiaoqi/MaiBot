@@ -218,7 +218,8 @@ class InteractionSignalIntentSource(BaseIntentSource):
             from src.core.app_config_port_registry import get_app_config_port
 
             bonus = get_app_config_port().get_agent_autonomy_config().interaction_signal_intent_bonus
-        except Exception:
+        except Exception as exc:
+            logger.debug("操作异常 in behavior_intent.py", exc_info=True)
             bonus = 40.0
 
         for signal in interaction_signals:

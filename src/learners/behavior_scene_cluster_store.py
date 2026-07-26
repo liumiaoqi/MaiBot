@@ -797,7 +797,8 @@ def _debug_cluster_scores(cluster_scores: dict[int, float]) -> list[dict[str, An
                 select(BehaviorSceneCluster).where(BehaviorSceneCluster.id.in_(set(cluster_scores)))  # type: ignore[attr-defined]
             ).all()
             cluster_by_id = {cluster.id: cluster for cluster in clusters if cluster.id is not None}
-    except Exception:
+    except Exception as exc:
+        logger.debug("操作异常 in behavior_scene_cluster_store.py", exc_info=True)
         cluster_by_id = {}
     return [
         {

@@ -290,9 +290,10 @@ def is_single_char_jargon(content: str) -> bool:
 def _try_parse(text: str) -> Any:
     try:
         return json.loads(text)
-    except Exception:
+    except Exception as exc:
+        logger.debug("操作异常 in expression_utils.py", exc_info=True)
         try:
             repaired = _normalize_repair_json_result(repair_json(text))
             return json.loads(repaired)
-        except Exception:
-            return None
+        except Exception as exc:
+            logger.debug("操作异常 in expression_utils.py", exc_info=True)

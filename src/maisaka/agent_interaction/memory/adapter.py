@@ -303,6 +303,6 @@ class AgentMemoryAdapter:
                             agent_id, target_agent_id, hit.hash_value
                         )
                 return True
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("操作异常 in adapter.py", exc_info=True)
         return False

@@ -228,7 +228,8 @@ def _compute_agent_stats() -> AgentStatsInfo:
         registry.load()
         all_agents = registry.list_agents()
         total_agents = len(all_agents)
-    except Exception:
+    except Exception as exc:
+        logger.debug("操作异常 in statistics_service.py", exc_info=True)
         return AgentStatsInfo()
 
     try:
@@ -241,7 +242,8 @@ def _compute_agent_stats() -> AgentStatsInfo:
             total_active_sessions = sum(agent_session_counts.values())
             active_agent_ids = {aid for aid, cnt in agent_session_counts.items() if cnt > 0}
             active_agents = len(active_agent_ids)
-    except Exception:
+    except Exception as exc:
+        logger.debug("操作异常 in statistics_service.py", exc_info=True)
         active_agents = 0
         total_active_sessions = 0
 
