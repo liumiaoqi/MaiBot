@@ -646,7 +646,8 @@ Chat paragraph:
             try:
                 self.vector_store.add(emb.reshape(1, -1), [hash_value])
             except ValueError: pass
-        except Exception: pass
+        except Exception:
+            logger.warning("生成 hash 值失败", exc_info=True)
         return hash_value
 
     async def import_json_data(self, data: Dict, filename: str = "script_import", progress_callback=None):
@@ -760,7 +761,7 @@ Chat paragraph:
                         try:
                             self.metadata_store.set_relation_vector_state(rel_hash, "none")
                         except Exception:
-                            pass
+            logger.warning(f\"操作失败 in src/A_memorix/scripts/process_knowledge.py\", exc_info=True)
 
                 if progress_callback:
                     progress_callback(1)
@@ -814,7 +815,7 @@ Chat paragraph:
                     try:
                         self.metadata_store.set_relation_vector_state(rel_hash, "none")
                     except Exception:
-                        pass
+            logger.warning(f\"操作失败 in src/A_memorix/scripts/process_knowledge.py\", exc_info=True)
 
         if warning_count > 0:
             logger.warning(f"脚本导入完成，跳过异常项 {warning_count} 条")
