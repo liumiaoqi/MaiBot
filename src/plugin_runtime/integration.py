@@ -26,7 +26,6 @@ from typing import (
 )
 
 import asyncio
-import inspect
 import shutil
 import stat
 
@@ -57,21 +56,6 @@ if TYPE_CHECKING:
     from src.plugin_runtime.host.supervisor import PluginSupervisor
 
 logger = get_logger("plugin_runtime.integration")
-
-# 旧系统 EventType -> 新系统 event_type 字符串映射
-_EVENT_TYPE_MAP: Dict[str, str] = {
-    "on_start": "on_start",
-    "on_stop": "on_stop",
-    "on_message_pre_process": "on_message_pre_process",
-    "on_message": "on_message",
-    "on_plan": "on_plan",
-    "post_llm": "post_llm",
-    "after_llm": "after_llm",
-    "post_send_pre_process": "post_send_pre_process",
-    "post_send": "post_send",
-    "after_send": "after_send",
-}
-
 
 @dataclass(frozen=True)
 class DependencySyncState:
@@ -255,20 +239,7 @@ class PluginRuntimeManager(
             Any: 实例化后的 Supervisor。
         """
 
-        signature = inspect.signature(supervisor_cls)
-        accepts_var_keyword = any(
-            parameter.kind == inspect.Parameter.VAR_KEYWORD
-            for parameter in signature.parameters.values()
-        )
-        if accepts_var_keyword:
-            return supervisor_cls(**kwargs)
-
-        supported_kwargs = {
-            key: value
-            for key, value in kwargs.items()
-            if key in signature.parameters
-        }
-        return supervisor_cls(**supported_kwargs)
+        return supervisor_cls(**kwargs)
 
     def _resolve_runtime_plugin_dirs(self) -> Tuple[List[Path], List[Path]]:
         """解析当前运行时应管理的插件根目录。
@@ -502,7 +473,8 @@ class PluginRuntimeManager(
                     set_blocked_plugin_reasons(self._blocked_plugin_reasons)
                 await supervisor.start()
                 started_supervisors.append(supervisor)
-        except Exception:
+        except Exception as exc:
+            logger.debug("并行启动异常: %s", exc)
             await asyncio.gather(*(supervisor.stop() for supervisor in started_supervisors), return_exceptions=True)
             raise
 
@@ -1133,7 +1105,7 @@ class PluginRuntimeManager(
         if not self._started:
             return True, None
 
-        new_event_type: str = _EVENT_TYPE_MAP.get(event_type_value, event_type_value)
+        new_event_type: str = event_type_value  # 原名映射（全部 key==value，直接使用）
 
         modified: Optional["MessageDict"] = None
         plugin_message_utils: Any | None = None

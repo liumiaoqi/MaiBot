@@ -58,6 +58,7 @@ class RPCServer:
 
         self._id_gen = RequestIdGenerator()
         self._connection: Optional[Connection] = None  # 当前活跃的 Runner 连接
+        self._connection_event: asyncio.Event = asyncio.Event()
 
         # 方法处理器注册表
         self._method_handlers: Dict[str, MethodHandler] = {}
@@ -92,6 +93,7 @@ class RPCServer:
     def clear_handshake_state(self) -> None:
         """清空最近一次握手拒绝状态。"""
         self._last_handshake_rejection_reason = ""
+        self._connection_event.clear()
 
     def register_method(self, method: str, handler: MethodHandler) -> None:
         """注册 RPC 方法处理器"""
@@ -197,7 +199,7 @@ class RPCServer:
         """
         if not self._connection or self._connection.is_closed:
             raise RPCError(ErrorCode.E_PLUGIN_CRASHED, "Runner 未连接")
-        request_id = await self._id_gen.next()
+        request_id = self._id_gen.next()
         envelope = Envelope(
             request_id=request_id,
             message_type=MessageType.REQUEST,
@@ -353,6 +355,7 @@ class RPCServer:
 
         # 发送响应
         self.clear_handshake_state()
+        self._connection_event.set()
         resp_payload = HelloResponsePayload(accepted=True, host_version=self._host_version)
         resp = envelope.make_response(payload=resp_payload.model_dump())
         await conn.send_frame(self._codec.encode_envelope(resp))

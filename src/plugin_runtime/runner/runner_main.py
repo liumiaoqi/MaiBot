@@ -394,6 +394,7 @@ class PluginRunner:
         self._loader.set_blocked_plugin_reasons(self._blocked_plugin_reasons)
         self._start_time: float = time.monotonic()
         self._shutting_down: bool = False
+        self._shutdown_event: asyncio.Event = asyncio.Event()
         self._reload_lock: asyncio.Lock = asyncio.Lock()
         self._inflight_rpcs: Dict[int, InFlightRPC] = {}
 
@@ -474,7 +475,8 @@ class PluginRunner:
         # 5. 等待直到收到关停信号
         with contextlib.suppress(asyncio.CancelledError):
             while not self._shutting_down:
-                await asyncio.sleep(1.0)
+                self._shutdown_event.clear()
+                await self._shutdown_event.wait()
 
         # 6. 卸载 IPC 日志 Handler 并刷空剩余缓冲，然后断开连接
         logger.info("Runner 开始关停")
@@ -2187,6 +2189,7 @@ class PluginRunner:
     async def _handle_prepare_shutdown(self, envelope: Envelope) -> Envelope:
         """处理准备关停"""
         logger.info("收到 prepare_shutdown 信号")
+        self._shutdown_event.set()
         await self._dump_inflight_debug("prepare_shutdown")
         return envelope.make_response(payload={"acknowledged": True})
 
@@ -2199,6 +2202,7 @@ class PluginRunner:
             if meta is not None:
                 await self._unload_plugin(meta, reason="runner_shutdown")
         self._shutting_down = True
+        self._shutdown_event.set()
         return envelope.make_response(payload={"acknowledged": True})
 
     async def _handle_config_updated(self, envelope: Envelope) -> Envelope:
