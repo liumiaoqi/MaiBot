@@ -70,6 +70,6 @@ class ExpressionOrgan:
                 self._agent_display_name = agent_config.display_name or self._agent_id
                 return self._agent_display_name
         except Exception:
-            pass
+            logger.warning("获取 agent display_name 失败", exc_info=True)
         self._agent_display_name = self._agent_id
         return self._agent_display_name

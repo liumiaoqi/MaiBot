@@ -148,7 +148,7 @@ class TopicRelevanceIntentSource(BaseIntentSource):
                     source_description=f"话题相关：{', '.join(matched_keywords)}",
                 ))
         except Exception:
-            pass
+            logger.warning("计算发言欲望失败", exc_info=True)
 
         return intents
 
@@ -194,7 +194,7 @@ class RelationshipIntentSource(BaseIntentSource):
                         source_description=f"对话提及{target_name}，关系亲密",
                     ))
         except Exception:
-            pass
+            logger.warning("计算发言欲望失败", exc_info=True)
 
         return intents
 
