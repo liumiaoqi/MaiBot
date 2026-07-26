@@ -10,7 +10,7 @@ import hashlib
 from src.core.identity import get_all_bot_accounts
 from src.common.database.database import get_db_session
 from src.common.database.database_model import OnlineTime
-from src.config.config import config_manager
+from src.core.model_config_port_registry import get_model_config_port
 from src.config.model_configs import TaskConfig
 
 FREQUENCY_BUCKETS = (
@@ -209,7 +209,7 @@ def _get_frequency_bucket(value: Any) -> str:
 
 
 def _collect_model_task_assignment() -> dict[str, dict[str, list[str]]]:
-    model_task_config = config_manager.get_model_config().model_task_config
+    model_task_config = get_model_config_port().get_model_config().model_task_config
     result: dict[str, dict[str, list[str]]] = {}
     for task_name in type(model_task_config).model_fields:
         task_config = getattr(model_task_config, task_name, None)
