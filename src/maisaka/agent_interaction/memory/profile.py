@@ -5,6 +5,9 @@
 """
 
 from __future__ import annotations
+from src.common.logger import get_logger
+logger = get_logger("auto.profile")
+
 
 import logging
 
@@ -118,7 +121,7 @@ class AgentProfileService:
                 if emotion_tag:
                     emotion_counts[emotion_tag] = emotion_counts.get(emotion_tag, 0) + 1
             except Exception as exc:
-                logger.debug("操作异常 in profile.py", exc_info=True)
+                logger.warning("操作异常 in profile.py", exc_info=True)
 
             evidence_list.append({
                 "event_id": event.event_id,
@@ -188,5 +191,5 @@ class AgentProfileService:
                     traits_set.add(content[:20])
             return list(traits_set)
         except Exception as exc:
-            logger.debug("操作异常 in profile.py", exc_info=True)
+            logger.warning("操作异常 in profile.py", exc_info=True)
             return []

@@ -1,4 +1,7 @@
 import logging as stdlib_logging
+from src.common.logger import get_logger
+logger = get_logger("auto.logger_bridge")
+
 from src.plugin_runtime.protocol.errors import ErrorCode
 from src.plugin_runtime.protocol.envelope import Envelope, LogBatchPayload
 class RunnerLogBridge:
@@ -22,6 +25,7 @@ class RunnerLogBridge:
         try:
             batch = LogBatchPayload.model_validate(envelope.payload)
         except Exception as exc:
+            logger.warning("操作异常 in logger_bridge", exc_info=True)
             return envelope.make_error_response(ErrorCode.E_BAD_PAYLOAD.value, str(exc))
 
         for entry in batch.entries:

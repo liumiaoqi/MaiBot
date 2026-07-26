@@ -1,6 +1,9 @@
 """会话级回复效果观察器。"""
 
 from __future__ import annotations
+from src.common.logger import get_logger
+logger = get_logger("auto.tracker")
+
 
 from datetime import datetime
 from typing import Any, Dict, List
@@ -180,7 +183,8 @@ class ReplyEffectTracker:
         plain_text = str(message.processed_plain_text or "").strip()
         try:
             visible_text = build_session_message_visible_text(message)
-        except Exception:
+        except Exception as exc:
+            logger.warning("操作异常 in tracker", exc_info=True)
             visible_text = plain_text
         latency_seconds = max(0.0, time.time() - _parse_iso_timestamp(record.created_at))
         user_id = str(user_info.user_id or "").strip()

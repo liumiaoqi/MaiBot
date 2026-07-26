@@ -342,7 +342,7 @@ class VitalityManager:
             standby_count = len(self._registry.get_by_session(session_id))
             bound_count = active_count + standby_count
         except Exception as exc:
-            logger.debug("操作异常 in vitality_manager.py", exc_info=True)
+            logger.warning("操作异常 in vitality_manager.py", exc_info=True)
             bound_count = 1
 
         if bound_count < 3:

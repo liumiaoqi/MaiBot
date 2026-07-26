@@ -27,7 +27,7 @@ def _is_butler_agent(ctx: BuiltinToolRuntimeContext) -> bool:
         agent_cfg = registry.get_agent(ctx.agent_id)
         return bool(getattr(agent_cfg, "is_butler", False))
     except Exception as exc:
-        logger.debug("操作异常 in butler.py", exc_info=True)
+        logger.warning("操作异常 in butler.py", exc_info=True)
 
 
 # ── switch_primary ──────────────────────────────────

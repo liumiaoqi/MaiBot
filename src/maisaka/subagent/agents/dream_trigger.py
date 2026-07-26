@@ -7,6 +7,9 @@
 """
 
 from __future__ import annotations
+from src.common.logger import get_logger
+logger = get_logger("auto.dream_trigger")
+
 
 import asyncio
 import logging
@@ -93,7 +96,7 @@ class DreamTrigger:
                 await self._check_and_spawn()
             except asyncio.CancelledError:
                 break
-            except Exception:
+            except Exception as exc:
                 logger.exception("Dream 定时触发循环异常")
                 await asyncio.sleep(60)
 

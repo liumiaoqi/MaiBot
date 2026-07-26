@@ -40,7 +40,7 @@ def _get_sdk_version() -> str:
 
         return version("maibot-plugin-sdk")
     except Exception as exc:
-        logger.debug("SDK 版本读取失败: %s", exc)
+        logger.warning("SDK 版本读取失败: %s", exc)
         return "1.0.0"
 
 
@@ -212,7 +212,7 @@ class RPCClient:
             self._pending_requests.pop(request_id, None)
             raise RPCError(ErrorCode.E_TIMEOUT, f"请求 {method} 超时 ({timeout_ms}ms)") from None
         except Exception as exc:
-            logger.debug("操作异常 in rpc_client.py", exc_info=True)
+            logger.warning("操作异常 in rpc_client.py", exc_info=True)
             self._pending_requests.pop(request_id, None)
             if isinstance(exc, RPCError):
                 raise

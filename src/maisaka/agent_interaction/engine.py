@@ -4,6 +4,9 @@
 """
 
 from __future__ import annotations
+from src.common.logger import get_logger
+logger = get_logger("auto.engine")
+
 
 import json
 import logging
@@ -171,7 +174,7 @@ class InteractionEngine:
                 )
                 get_event_bus_port().emit_sync("interaction_signal", signal)
             except Exception as exc:
-                logger.debug("操作异常 in engine.py", exc_info=True)
+                logger.warning("操作异常 in engine.py", exc_info=True)
 
             return result
 

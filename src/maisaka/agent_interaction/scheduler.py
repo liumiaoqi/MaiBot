@@ -5,6 +5,9 @@
 """
 
 from __future__ import annotations
+from src.common.logger import get_logger
+logger = get_logger("auto.scheduler")
+
 
 import asyncio
 import logging
@@ -62,7 +65,7 @@ class InteractionScheduler:
         while self._running:
             try:
                 await self._evaluate_all_agents()
-            except Exception:
+            except Exception as exc:
                 logger.exception("[agent_interaction] 调度循环异常，降级静默")
             await asyncio.sleep(self._interval)
 
@@ -77,7 +80,7 @@ class InteractionScheduler:
                         "[agent_interaction] 触发成功: event_id=%s",
                         result.event_id,
                     )
-            except Exception:
+            except Exception as exc:
                 logger.warning(
                     "[agent_interaction] 智能体 %s 评估异常，跳过",
                     agent.agent_id,

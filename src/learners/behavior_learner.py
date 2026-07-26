@@ -330,7 +330,7 @@ def parse_behavior_response_with_diagnostics(
     try:
         parsed_response = json.loads(repair_json(normalized_response))
     except Exception as exc:
-        logger.debug("操作异常 in behavior_learner.py", exc_info=True)
+        logger.warning("操作异常 in behavior_learner.py", exc_info=True)
         return BehaviorParseResult(
             candidates=[],
             diagnostics=BehaviorParseDiagnostics(
@@ -386,7 +386,7 @@ def parse_behavior_feedback_response(response: str) -> list[BehaviorFeedbackCand
 
     try:
         parsed_response = json.loads(repair_json(normalized_response))
-    except Exception:
+    except Exception as exc:
         logger.warning(f"行为路径反馈结果解析失败: {normalized_response!r}")
         return []
 

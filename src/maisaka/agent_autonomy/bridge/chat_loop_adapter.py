@@ -53,7 +53,7 @@ class ChatLoopServiceAdapter:
                     emotion_state.to_prompt_text()
                 )
         except Exception as exc:
-            logger.debug("操作异常 in chat_loop_adapter.py", exc_info=True)
+            logger.warning("操作异常 in chat_loop_adapter.py", exc_info=True)
             self._chat_loop_service.update_emotion_state_text("")
 
         # 更新关系文本
@@ -63,10 +63,10 @@ class ChatLoopServiceAdapter:
             rel_manager = AgentRelationshipManager()
             # 关系文本在 build_prompt_template_context 中动态获取
             self._chat_loop_service.update_relationship_text("")
-        except Exception:
+        except Exception as exc:
             pass
 
-        logger.debug(
+        logger.warning(
             f"[agent_autonomy] 上下文切换: agent {old_agent_id} -> {agent_id}"
         )
 

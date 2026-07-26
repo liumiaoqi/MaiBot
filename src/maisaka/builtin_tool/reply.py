@@ -187,7 +187,7 @@ async def handle_tool(
             request_type="maisaka.replyer",
             replyer_type="maisaka",
         )
-    except Exception:
+    except Exception as exc:
         logger.exception(f"{tool_ctx.runtime.log_prefix} 获取回复生成器时发生异常: 目标消息编号={target_message_id}")
         logger.info(traceback.format_exc())
         return tool_ctx.build_failure_result(
@@ -394,7 +394,7 @@ async def handle_tool(
                         message_id=sent_message_id,
                     )
                 )
-    except Exception:
+    except Exception as exc:
         logger.exception(f"{tool_ctx.runtime.log_prefix} 发送文字消息时发生异常，目标消息编号={target_message_id}")
         return tool_ctx.build_failure_result(
             invocation.tool_name,

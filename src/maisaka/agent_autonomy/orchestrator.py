@@ -348,7 +348,7 @@ class AgentOrchestrator:
                 self._experience_writer.write_experience(
                     result, self._session_id, agent_id, emotion_state,
                 )
-            except Exception:
+            except Exception as exc:
                 logger.warning(
                     "体验写入发起失败: agent=%s", agent_id, exc_info=True,
                 )
@@ -1307,7 +1307,7 @@ class AgentOrchestrator:
             logger.warning(f"[agent_autonomy] 清理过期意图异常: error={exc}")
 
         if cleaned > 0:
-            logger.debug(
+            logger.warning(
                 f"[agent_autonomy] 清理过期行为意图: count={cleaned} "
                 f"session={self._session_name}"
             )
@@ -1355,8 +1355,8 @@ class AgentOrchestrator:
                         snippets.append(f"[{detail:.1f}] {concept}")
                     memory_snippets = tuple(snippets)
                 intuition_context = getattr(recall_result, "intuition", None)
-        except Exception:
-            logger.debug("记忆检索跳过: agent=%s", agent.agent_id, exc_info=True)
+        except Exception as exc:
+            logger.warning("记忆检索跳过: agent=%s", agent.agent_id, exc_info=True)
 
         return ThinkContext(
             messages=messages,

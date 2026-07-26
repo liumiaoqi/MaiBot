@@ -494,7 +494,7 @@ class ThinkingOrgan:
             try:
                 result = await self._tool_registry.invoke(invocation, execution_context)
             except Exception as exc:
-                logger.debug("操作异常 in thinking_organ.py", exc_info=True)
+                logger.warning("操作异常 in thinking_organ.py", exc_info=True)
                 from src.core.tooling import ToolExecutionResult
                 result = ToolExecutionResult(
                     tool_name=invocation.tool_name,

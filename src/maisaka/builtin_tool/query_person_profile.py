@@ -1,6 +1,9 @@
 """query_person_profile 内置工具。"""
 
 from __future__ import annotations
+from src.common.logger import get_logger
+logger = get_logger("auto.query_person_profile")
+
 
 from typing import Any, Dict, Optional
 
@@ -117,6 +120,7 @@ async def handle_tool(
                 limit=limit,
             )
     except Exception as exc:
+        logger.warning("操作异常 in query_person_profile", exc_info=True)
         return tool_ctx.build_failure_result(
             invocation.tool_name,
             f"人物画像查询失败：{exc}",

@@ -72,8 +72,8 @@ class DataMigrationTool:
             registry = get_agent_config_provider()
             default = registry.get_default_agent()
             self._default_agent_id = default.agent_id
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("操作异常 in data_migration", exc_info=True)
 
     def backup_database(self) -> Path:
         """备份数据库文件。

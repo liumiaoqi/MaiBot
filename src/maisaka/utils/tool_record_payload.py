@@ -1,6 +1,9 @@
 """工具调用记录落库数据构造工具。"""
 
 from __future__ import annotations
+from src.common.logger import get_logger
+logger = get_logger("auto.tool_record_payload")
+
 
 from datetime import datetime
 from typing import Any, Optional
@@ -28,12 +31,14 @@ def normalize_tool_record_value(value: Any) -> Any:
     if hasattr(value, "model_dump"):
         try:
             return normalize_tool_record_value(value.model_dump())
-        except Exception:
+        except Exception as exc:
+            logger.warning("操作异常 in tool_record_payload", exc_info=True)
             return str(value)
     if hasattr(value, "__dict__"):
         try:
             return normalize_tool_record_value(dict(value.__dict__))
-        except Exception:
+        except Exception as exc:
+            logger.warning("操作异常 in tool_record_payload", exc_info=True)
             return str(value)
     return str(value)
 

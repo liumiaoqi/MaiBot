@@ -256,7 +256,7 @@ class MessageUtils:
             is_group_chat = getattr(message.message_info, "group_info", None) is not None
             message.reply_frequency = float(ChatConfigUtils.get_talk_value(session_id, is_group_chat=is_group_chat))
         except Exception as exc:
-            logger.debug(f"补充消息回复频率失败: session_id={session_id} error={exc}")
+            logger.warning(f"补充消息回复频率失败: session_id={session_id} error={exc}")
 
     @staticmethod
     def _persist_image_components(components: List[StandardMessageComponents], session: Any) -> None:

@@ -86,7 +86,7 @@ class HeartbeatManager:
 
                 try:
                     await send_callback()
-                except Exception:
+                except Exception as exc:
                     logger.warning(
                         "Runner %s 发送心跳请求失败，计入丢失", runner_id
                     )

@@ -1,4 +1,7 @@
 from __future__ import annotations
+from src.common.logger import get_logger
+logger = get_logger("auto.memory")
+
 
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -122,8 +125,8 @@ def _get_chat_name(chat_session: ChatSession, latest_messages: dict[str, dict[st
         name = _get_session_name_via_port(chat_id)
         if name != chat_id:
             return name
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("操作异常 in memory", exc_info=True)
     if name := _get_chat_name_from_latest_message(latest_messages.get(chat_id)):
         return name
     if chat_session.group_name:
@@ -167,8 +170,8 @@ def _validate_import_chat_id(payload: dict[str, Any]) -> dict[str, Any]:
         if get_existing_session_info(chat_id) is not None:
             normalized["chat_id"] = chat_id
             return normalized
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("操作异常 in memory", exc_info=True)
     with get_db_session() as session:
         chat_session = session.exec(select(ChatSession).where(col(ChatSession.session_id) == chat_id)).first()
     if chat_session is None:
@@ -185,8 +188,8 @@ def _find_real_chat_session(chat_id: str) -> Optional[ChatSession]:
         if managed_session is not None:
             with get_db_session() as session:
                 return session.exec(select(ChatSession).where(col(ChatSession.session_id) == token)).first()
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("操作异常 in memory", exc_info=True)
     with get_db_session() as session:
         return session.exec(select(ChatSession).where(col(ChatSession.session_id) == token)).first()
 
@@ -320,7 +323,8 @@ def _timeline_chat_from_session(chat_session: ChatSession) -> MemoryTimelineChat
     try:
         with get_db_session() as session:
             latest_messages = _prefetch_latest_messages_by_session(session, [chat_id])
-    except Exception:
+    except Exception as exc:
+        logger.warning("操作异常 in memory", exc_info=True)
         latest_messages = {}
     return MemoryTimelineChat(
         chat_id=chat_id,
@@ -365,14 +369,14 @@ def _decode_metadata_payload(raw: Any) -> dict[str, Any]:
         try:
             decoded = json.loads(raw.decode("utf-8"))
             return dict(decoded) if isinstance(decoded, dict) else {}
-        except Exception:
-            return {}
+        except Exception as exc:
+            logger.warning("操作异常 in memory", exc_info=True)
     if isinstance(raw, str) and raw.strip():
         try:
             decoded = json.loads(raw)
             return dict(decoded) if isinstance(decoded, dict) else {}
-        except Exception:
-            return {}
+        except Exception as exc:
+            logger.warning("操作异常 in memory", exc_info=True)
     return {}
 
 def _decode_json_payload(raw: Any, fallback: Any) -> Any:
@@ -381,7 +385,8 @@ def _decode_json_payload(raw: Any, fallback: Any) -> Any:
     if isinstance(raw, str) and raw.strip():
         try:
             return json.loads(raw)
-        except Exception:
+        except Exception as exc:
+            logger.warning("操作异常 in memory", exc_info=True)
             return fallback
     return fallback
 
@@ -1223,6 +1228,7 @@ async def _import_chat_targets() -> ImportChatTargetsResponse:
             ]
         return ImportChatTargetsResponse(success=True, data=targets)
     except Exception as exc:
+        logger.warning("操作异常 in memory", exc_info=True)
         raise AppError(ErrorCode.SYS_INTERNAL_ERROR, f"获取导入聊天流失败: {exc}", http_status=500) from exc
 
 async def _graph_get(limit: int) -> dict:
@@ -1584,8 +1590,8 @@ def _get_person_name_for_person_id(person_id: str) -> str:
             statement = select(PersonInfo.person_name).where(col(PersonInfo.person_id) == clean_person_id).limit(1)
             person_name = session.exec(statement).first()
             return str(person_name or "").strip()
-    except Exception:
-        return ""
+    except Exception as exc:
+        logger.warning("操作异常 in memory", exc_info=True)
 
 def _enrich_episode_person_name(item: dict) -> dict:
     enriched = dict(item)
@@ -1800,6 +1806,7 @@ async def _memory_config_update_raw(payload: MemoryRawConfigUpdateRequest) -> di
     try:
         tomlkit.loads(payload.config)
     except Exception as exc:
+        logger.warning("操作异常 in memory", exc_info=True)
         raise AppError(ErrorCode.PARAM_INVALID, f"TOML 格式错误: {exc}", http_status=400) from exc
     return await memory_service.update_raw_config(payload.config)
 
@@ -2036,6 +2043,7 @@ async def _tuning_apply_best(task_id: str, payload: TuningApplyBestRequest | Non
     try:
         persist_payload = await memory_service.update_config(runtime_config)
     except Exception as exc:
+        logger.warning("操作异常 in memory", exc_info=True)
         result["persisted"] = False
         result["persist_error"] = f"persist_failed: {exc}"
         return result
@@ -2517,7 +2525,8 @@ async def create_memory_import_upload(
     try:
         try:
             payload = json.loads(payload_json or "{}")
-        except Exception:
+        except Exception as exc:
+            logger.warning("操作异常 in memory", exc_info=True)
             payload = {}
         if not isinstance(payload, dict):
             payload = {}

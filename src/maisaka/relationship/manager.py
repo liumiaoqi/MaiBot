@@ -114,7 +114,7 @@ class RelationshipManager:
                     )
                     .first()
                 )
-        except Exception:
+        except Exception as exc:
             logger.warning(f"加载关系记录失败: {agent_id} <-> {user_id}")
             return None
 
@@ -148,7 +148,7 @@ class RelationshipManager:
                     row.level = snapshot.level
                     row.interaction_count = snapshot.interaction_count
                     row.last_interaction_at = now
-        except Exception:
+        except Exception as exc:
             logger.warning(f"保存关系记录失败: {agent_id} <-> {user_id}")
 
     @staticmethod
@@ -201,7 +201,7 @@ class RelationshipManager:
             try:
                 self._emotion_trigger_callback("happy", 10.0)
             except Exception as exc:
-                logger.debug("操作异常 in manager.py", exc_info=True)
+                logger.warning("操作异常 in manager.py", exc_info=True)
 
     @staticmethod
     def _get_growth_rate(agent_id: str) -> float:
@@ -213,5 +213,5 @@ class RelationshipManager:
             if registry.has_agent(agent_id):
                 return registry.get_agent(agent_id).relationship_growth_rate
         except Exception as exc:
-            logger.debug("操作异常 in manager.py", exc_info=True)
+            logger.warning("操作异常 in manager.py", exc_info=True)
         return 1.0

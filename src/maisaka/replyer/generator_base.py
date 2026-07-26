@@ -269,7 +269,7 @@ class BaseMaisakaReplyGenerator:
         try:
             is_group_chat, _ = get_chat_type_and_target_info(session_id)
         except Exception as exc:
-            logger.debug("操作异常 in generator_base.py", exc_info=True)
+            logger.warning("操作异常 in generator_base.py", exc_info=True)
             is_group_chat = None
 
         prompt_lines: List[str] = []
@@ -296,7 +296,7 @@ class BaseMaisakaReplyGenerator:
         try:
             return get_locale().lower()
         except Exception as exc:
-            logger.debug("操作异常 in generator_base.py", exc_info=True)
+            logger.warning("操作异常 in generator_base.py", exc_info=True)
             return "zh-cn"
 
     @staticmethod
@@ -437,7 +437,7 @@ class BaseMaisakaReplyGenerator:
                 reply_style=self._select_reply_style(),
             )
         except Exception as exc:
-            logger.debug("操作异常 in generator_base.py", exc_info=True)
+            logger.warning("操作异常 in generator_base.py", exc_info=True)
             system_prompt = "你是一个友好的 AI 助手，请根据聊天记录自然回复。"
 
         return system_prompt

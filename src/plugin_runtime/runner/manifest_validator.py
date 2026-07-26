@@ -912,7 +912,7 @@ class ManifestValidator:
             with manifest_path.open("r", encoding="utf-8") as manifest_file:
                 manifest_data = json.load(manifest_file)
         except Exception as exc:
-            logger.debug("操作异常 in manifest_validator.py", exc_info=True)
+            logger.warning("操作异常 in manifest_validator.py", exc_info=True)
             self.errors.append(f"manifest 解析失败: {exc}")
             self._log_errors(source=str(plugin_path))
             return None
@@ -1267,7 +1267,7 @@ class ManifestValidator:
             with sdk_pyproject_path.open("rb") as pyproject_file:
                 pyproject_data = tomllib.load(pyproject_file)
         except Exception as exc:
-            logger.debug("manifest 校验异常: %s", exc)
+            logger.warning("manifest 校验异常: %s", exc)
             return ""
 
         project_data = pyproject_data.get("project", {})
@@ -1295,7 +1295,7 @@ class ManifestValidator:
             with pyproject_path.open("rb") as pyproject_file:
                 pyproject_data = tomllib.load(pyproject_file)
         except Exception as exc:
-            logger.debug("manifest 校验异常: %s", exc)
+            logger.warning("manifest 校验异常: %s", exc)
             return {}
 
         project_data = pyproject_data.get("project", {})

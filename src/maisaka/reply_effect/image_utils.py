@@ -1,6 +1,9 @@
 """回复效果记录中的图片/表情附件提取工具。"""
 
 from base64 import b64encode
+from src.common.logger import get_logger
+logger = get_logger("auto.image_utils")
+
 from pathlib import Path
 from typing import Any
 
@@ -70,8 +73,8 @@ def _resolve_image_path(binary_hash: str, *, kind: str) -> Path | None:
         file_path = Path(str(image_record.full_path or "")).expanduser().resolve()
         if file_path.is_file():
             return file_path
-    except Exception:
-        return None
+    except Exception as exc:
+        logger.warning("操作异常 in image_utils", exc_info=True)
     return None
 
 

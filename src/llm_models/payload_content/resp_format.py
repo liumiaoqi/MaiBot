@@ -1,4 +1,7 @@
 from copy import deepcopy
+from src.common.logger import get_logger
+logger = get_logger("auto.resp_format")
+
 from enum import Enum
 from typing import Any, Dict, List, Mapping, Optional, Type, cast
 
@@ -203,6 +206,7 @@ class RespFormat:
             try:
                 self.schema = self._generate_schema_from_model(schema)
             except Exception as exc:
+                logger.warning("操作异常 in resp_format", exc_info=True)
                 raise ValueError(
                     f"自动生成JSON Schema时发生异常，请检查模型类{schema.__name__}的定义，详细信息：\n"
                     f"{schema.__name__}:\n"

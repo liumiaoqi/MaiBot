@@ -1,4 +1,4 @@
-﻿import asyncio
+import asyncio
 import base64
 import hashlib
 from datetime import datetime
@@ -196,7 +196,7 @@ class ImageManager:
         try:
             task.result()
         except Exception as exc:
-            logger.debug(f"图片描述后台任务结束时捕获异常，哈希值: {image_hash}，错误: {exc}")
+            logger.warning(f"图片描述后台任务结束时捕获异常，哈希值: {image_hash}，错误: {exc}")
             return
 
         try:
@@ -204,7 +204,7 @@ class ImageManager:
 
             log_tracked_image_recognition_completed(image_hash)
         except Exception as exc:
-            logger.debug(f"通知 MaiSaka 图片识别完成状态失败，image_hash={image_hash}: {exc}")
+            logger.warning(f"通知 MaiSaka 图片识别完成状态失败，image_hash={image_hash}: {exc}")
 
     def get_image_from_db(self, image_hash: str) -> Optional[MaiImage]:
         """

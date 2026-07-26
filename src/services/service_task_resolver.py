@@ -33,7 +33,7 @@ def get_available_models() -> Dict[str, TaskConfig]:
         try:
             attr_value = getattr(models, attr_name)
         except Exception as exc:
-            logger.debug(f"获取模型任务配置属性 {attr_name} 失败: {exc}")
+            logger.warning(f"获取模型任务配置属性 {attr_name} 失败: {exc}")
             continue
         if not callable(attr_value) and isinstance(attr_value, TaskConfig):
             available_models[attr_name] = attr_value

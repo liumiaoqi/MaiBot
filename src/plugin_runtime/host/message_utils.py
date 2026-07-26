@@ -194,7 +194,7 @@ class PluginMessageUtils:
                 return ""
             return base64.b64encode(image_path.read_bytes()).decode("utf-8")
         except Exception as exc:
-            logger.debug(f"通过 hash 加载历史媒体失败: type={image_type} hash={binary_hash} error={exc}")
+            logger.warning(f"通过 hash 加载历史媒体失败: type={image_type} hash={binary_hash} error={exc}")
             return ""
 
     @staticmethod
@@ -356,7 +356,7 @@ class PluginMessageUtils:
             try:
                 binary_data = base64.b64decode(raw_binary_base64)
             except Exception as exc:
-                logger.debug("消息处理异常: %s", exc)
+                logger.warning("消息处理异常: %s", exc)
                 binary_data = b""
 
         if not binary_hash and binary_data:

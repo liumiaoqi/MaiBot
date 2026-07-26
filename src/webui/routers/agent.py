@@ -1318,7 +1318,7 @@ async def get_autonomy_logs(
             with open(log_file, "r", encoding="utf-8", errors="ignore") as f:
                 lines = f.readlines()[-max_lines:]
         except Exception as exc:
-            logger.debug("操作异常 in agent.py", exc_info=True)
+            logger.warning("操作异常 in agent.py", exc_info=True)
 
         for line in lines:
             line = line.strip()
@@ -1401,7 +1401,7 @@ async def get_session_vitality(session_id: str):
             agent = registry.get_agent(agent_id)
             return agent.display_name
         except Exception as exc:
-            logger.debug("操作异常 in agent.py", exc_info=True)
+            logger.warning("操作异常 in agent.py", exc_info=True)
             return agent_id
 
     # 活跃智能体
@@ -1439,7 +1439,7 @@ async def get_session_vitality(session_id: str):
                     vitality_value=0.0,
                 ))
     except Exception as exc:
-        logger.debug("操作异常 in agent.py", exc_info=True)
+        logger.warning("操作异常 in agent.py", exc_info=True)
 
     return SessionVitalityResponse(
         success=True,
@@ -1493,7 +1493,7 @@ async def get_state_awareness(session_id: str):
             for rule_name in rule_result.triggered_rules:
                 active_rules.append({"rule_name": rule_name, "active": True})
     except Exception as exc:
-        logger.debug("操作异常 in agent.py", exc_info=True)
+        logger.warning("操作异常 in agent.py", exc_info=True)
 
     return ApiResponse(data=StateAwarenessResponse(
         success=True,

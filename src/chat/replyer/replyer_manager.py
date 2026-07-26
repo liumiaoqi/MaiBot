@@ -63,7 +63,7 @@ class ReplyerManager:
             else:
                 logger.warning(f"[ReplyerManager] 不支持的 replyer_type={replyer_type}")
                 return None
-        except Exception:
+        except Exception as exc:
             logger.exception(f"[ReplyerManager] 创建 replyer 失败: cache_key={cache_key}")
             raise
 

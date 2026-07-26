@@ -1,6 +1,9 @@
 """WebUI 通用头像缓存接口。"""
 
 from pathlib import Path
+from src.common.logger import get_logger
+logger = get_logger("auto.avatar")
+
 from typing import Literal
 from urllib.request import Request, urlopen
 import mimetypes
@@ -148,6 +151,7 @@ def _download_qq_avatar_to_cache(platform: str, target_id: str, target_type: Ava
     except HTTPException:
         raise
     except Exception as exc:
+        logger.warning("操作异常 in avatar", exc_info=True)
         raise HTTPException(status_code=502, detail=f"头像下载失败：{type(exc).__name__}: {exc}") from exc
 
     if not image_bytes or len(image_bytes) > MAX_AVATAR_BYTES:

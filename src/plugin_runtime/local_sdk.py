@@ -1,6 +1,9 @@
 """本地插件 SDK 开发模式支持。"""
 
 from pathlib import Path
+from src.common.logger import get_logger
+logger = get_logger("auto.local_sdk")
+
 from typing import Mapping, Optional
 
 import os
@@ -139,6 +142,7 @@ def _read_project_data(sdk_path: Path) -> Mapping[str, object]:
         with pyproject_path.open("rb") as pyproject_file:
             pyproject_data = tomllib.load(pyproject_file)
     except Exception as exc:
+        logger.warning("操作异常 in local_sdk", exc_info=True)
         raise ValueError(f"读取本地 SDK pyproject.toml 失败: {pyproject_path}: {exc}") from exc
 
     project_data = pyproject_data.get("project", {})

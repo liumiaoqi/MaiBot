@@ -1,6 +1,9 @@
 """回复效果 LLM 窄维度评审。"""
 
 from __future__ import annotations
+from src.common.logger import get_logger
+logger = get_logger("auto.judge")
+
 
 from collections.abc import Awaitable, Callable
 from typing import Any, Dict, List, Tuple
@@ -25,6 +28,7 @@ async def judge_reply_effect(record: ReplyEffectRecord, judge_runner: JudgeRunne
         payload = _loads_json_object(response_text)
         return parse_rubric_scores(payload), ""
     except Exception as exc:
+        logger.warning("操作异常 in judge", exc_info=True)
         return RubricScores(), str(exc)
 
 

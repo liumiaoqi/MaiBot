@@ -1,6 +1,9 @@
 """回复效果独立 JSON 存储。"""
 
 from pathlib import Path
+from src.common.logger import get_logger
+logger = get_logger("auto.storage")
+
 from typing import Dict
 
 import json
@@ -82,5 +85,5 @@ class ReplyEffectStorage:
 
             configured_limit = get_app_config_port().get_log_maisaka_reply_effect_limit()
             return max(1, int(configured_limit or cls._DEFAULT_MAX_RECORDS_PER_CHAT))
-        except Exception:
+        except Exception as exc:
             return cls._DEFAULT_MAX_RECORDS_PER_CHAT

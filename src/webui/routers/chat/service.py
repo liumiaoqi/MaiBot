@@ -172,7 +172,7 @@ class ChatHistoryManager:
 
                     target_msg = get_message_by_id(str(target_message_id), session_id or None)
                 except Exception as exc:
-                    logger.debug(f"按 ID 回查 reply 目标消息失败: {exc}")
+                    logger.warning(f"按 ID 回查 reply 目标消息失败: {exc}")
                     target_msg = None
             if target_msg is None:
                 continue
@@ -733,7 +733,7 @@ def _resolve_agent_id_for_session(
             if cs and cs.agent_id:
                 return cs.agent_id
     except Exception as exc:
-        logger.debug("操作异常 in service.py", exc_info=True)
+        logger.warning("操作异常 in service.py", exc_info=True)
     return None
 
 

@@ -3,6 +3,9 @@ MaiSaka CLI and conversation loop.
 """
 
 from datetime import datetime
+from src.common.logger import get_logger
+logger = get_logger("auto.maisaka_cli")
+
 
 import asyncio
 
@@ -44,8 +47,8 @@ class BufferCLI:
             task_config = port.get_task_config("planner")
             if task_config.model_list:
                 return task_config.model_list[0]
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("操作异常 in maisaka_cli", exc_info=True)
         return "未配置"
 
     def _show_banner(self) -> None:

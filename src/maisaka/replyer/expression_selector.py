@@ -294,7 +294,7 @@ class MaisakaExpressionSelector:
             return []
         try:
             parsed_result = json.loads(repair_json(raw_response))
-        except Exception:
+        except Exception as exc:
             logger.warning(f"表达方式选择结果解析失败: {raw_response!r}")
             return []
 

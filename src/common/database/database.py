@@ -194,7 +194,7 @@ def get_db_session(auto_commit: bool = True) -> Generator[Session, None, None]:
         if auto_commit:
             session.commit()
     except Exception as exc:
-        logger.debug("操作异常 in database.py", exc_info=True)
+        logger.warning("操作异常 in database.py", exc_info=True)
         session.rollback()
         raise
     finally:

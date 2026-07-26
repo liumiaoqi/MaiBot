@@ -299,7 +299,7 @@ class PluginLoader:
             try:
                 module_path = Path(module_file).resolve()
             except Exception as exc:
-                logger.debug("模块路径解析失败: %s", exc)
+                logger.warning("模块路径解析失败: %s", exc)
                 continue
 
             if module_path.is_relative_to(plugin_path):
@@ -529,7 +529,7 @@ class PluginLoader:
                         manifest=manifest,
                     )
         except Exception as exc:
-            logger.debug("插件加载失败: %s", exc)
+            logger.warning("插件加载失败: %s", exc)
             sys.modules.pop(module_name, None)
             raise
 

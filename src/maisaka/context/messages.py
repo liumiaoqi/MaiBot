@@ -1,6 +1,9 @@
 """Maisaka 内部上下文消息抽象。"""
 
 from abc import ABC, abstractmethod
+from src.common.logger import get_logger
+logger = get_logger("auto.messages")
+
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -40,8 +43,8 @@ def _guess_image_format(image_bytes: bytes) -> Optional[str]:
     try:
         with PILImage.open(BytesIO(image_bytes)) as image:
             return image.format.lower() if image.format else None
-    except Exception:
-        return None
+    except Exception as exc:
+        logger.warning("操作异常 in messages", exc_info=True)
 
 
 def _append_emoji_component(

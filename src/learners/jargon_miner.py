@@ -394,7 +394,7 @@ class JargonMiner:
             logger.warning(f"jargon {jargon_content} 推断 Prompt 保存失败: stage={stage_name}, error={exc}")
             return
 
-        logger.debug(
+        logger.warning(
             f"jargon {jargon_content} 推断 Prompt 已生成: stage={stage_name} "
             f"WebUI={preview_access.preview_web_uri} "
             f"推理详情={preview_access.reasoning_web_uri} "
@@ -822,7 +822,7 @@ class JargonMiner:
         try:
             result = json.loads(response.strip())
         except Exception as exc:
-            logger.debug("操作异常 in jargon_miner.py", exc_info=True)
+            logger.warning("操作异常 in jargon_miner.py", exc_info=True)
             try:
                 repaired = repair_json(response.strip())
                 result = json.loads(repaired)

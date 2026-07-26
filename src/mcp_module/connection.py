@@ -4,6 +4,9 @@ MaiSaka - 单个 MCP 服务器连接管理
 """
 
 from __future__ import annotations
+from src.common.logger import get_logger
+logger = get_logger("auto.connection")
+
 
 from contextlib import AsyncExitStack
 from datetime import timedelta
@@ -155,6 +158,7 @@ class MCPConnection:
             return True
 
         except Exception as exc:
+            logger.warning("操作异常 in connection", exc_info=True)
             console.print(f"[warning]⚠️ MCP 服务器 '{self.config.name}' 连接失败: {exc}[/warning]")
             await self.close()
             return False
@@ -568,6 +572,7 @@ class MCPConnection:
                 read_timeout_seconds=timedelta(seconds=self.config.read_timeout_seconds),
             )
         except Exception as exc:
+            logger.warning("操作异常 in connection", exc_info=True)
             return ToolExecutionResult(
                 tool_name=tool_name,
                 success=False,
@@ -638,8 +643,8 @@ class MCPConnection:
 
         try:
             await self._exit_stack.aclose()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("操作异常 in connection", exc_info=True)
 
         self.session = None
         self.server_capabilities = None

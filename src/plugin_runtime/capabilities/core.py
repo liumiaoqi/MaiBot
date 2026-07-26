@@ -32,7 +32,7 @@ def _get_nested_config_value(source: Any, key: str, default: Any = None) -> Any:
             raise KeyError(part)
         return current
     except Exception as exc:
-        logger.debug("能力注册异常: %s", exc)
+        logger.warning("能力注册异常: %s", exc)
         return default
 
 
@@ -119,7 +119,7 @@ def _normalize_audio_base64_arg(args: Dict[str, Any]) -> str | None:
     try:
         base64.b64decode(audio_base64, validate=True)
     except Exception as exc:
-        logger.debug("操作异常 in core.py", exc_info=True)
+        logger.warning("操作异常 in core.py", exc_info=True)
         raise ValueError("音频 Base64 数据不合法") from exc
     return audio_base64
 
@@ -679,7 +679,7 @@ class RuntimeCoreCapabilityMixin:
             value = _get_nested_config_value(global_config, key, default)
             return {"success": True, "value": value}
         except Exception as exc:
-            logger.debug("操作异常 in core.py", exc_info=True)
+            logger.warning("操作异常 in core.py", exc_info=True)
             return {"success": False, "value": None, "error": str(exc)}
 
     async def _cap_config_get_plugin(self, plugin_id: str, capability: str, args: Dict[str, Any]) -> Any:
@@ -709,7 +709,7 @@ class RuntimeCoreCapabilityMixin:
                 return {"success": True, "value": value}
             return {"success": True, "value": config}
         except Exception as exc:
-            logger.debug("操作异常 in core.py", exc_info=True)
+            logger.warning("操作异常 in core.py", exc_info=True)
             return {"success": False, "value": default, "error": str(exc)}
 
     async def _cap_config_get_all(self, plugin_id: str, capability: str, args: Dict[str, Any]) -> Any:
@@ -733,7 +733,7 @@ class RuntimeCoreCapabilityMixin:
                 return {"success": True, "value": {}}
             return {"success": True, "value": config}
         except Exception as exc:
-            logger.debug("操作异常 in core.py", exc_info=True)
+            logger.warning("操作异常 in core.py", exc_info=True)
             return {"success": False, "value": {}, "error": str(exc)}
 
     async def _cap_agent_emotion_get(self, plugin_id: str, capability: str, args: Dict[str, Any]) -> Any:

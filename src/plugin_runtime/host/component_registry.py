@@ -745,7 +745,7 @@ class ComponentRegistry:
         except ComponentRegistrationError:
             raise
         except Exception as exc:
-            logger.debug("操作异常 in component_registry.py", exc_info=True)
+            logger.warning("操作异常 in component_registry.py", exc_info=True)
             raise ComponentRegistrationError(
                 str(exc),
                 component_name=name,

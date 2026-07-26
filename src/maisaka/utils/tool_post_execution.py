@@ -70,11 +70,11 @@ async def _enqueue_memory_feedback_task(
             if isinstance(normalized_structured_content, dict)
             else {},
         )
-    except Exception:
+    except Exception as exc:
         logger.exception(f"{log_prefix} 反馈纠错任务入队失败: tool_call_id={invocation.call_id}")
     else:
         if not bool(enqueue_payload.get("success")):
-            logger.debug(
+            logger.warning(
                 f"{log_prefix} 反馈纠错任务未入队: "
                 f"tool_call_id={invocation.call_id} reason={enqueue_payload.get('reason', '')}"
             )

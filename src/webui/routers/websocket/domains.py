@@ -1,6 +1,9 @@
 """WebSocket 域注册表 — 解耦 unified.py 中的 if-elif 链。"""
 
 from dataclasses import dataclass, field
+from src.common.logger import get_logger
+logger = get_logger("auto.domains")
+
 from enum import Enum
 from typing import Any, Callable, Coroutine
 
@@ -135,7 +138,8 @@ async def subscribe_llm_stats(connection_id: str, request_id: str | None) -> Non
             "model_stats": [m.model_dump(mode="json") for m in dashboard_data.model_stats],
             "timestamp": __import__("time").time(),
         }
-    except Exception:
+    except Exception as exc:
+        logger.warning("操作异常 in domains", exc_info=True)
         snapshot_data = {"error": "获取统计数据失败", "timestamp": __import__("time").time()}
 
     await websocket_manager.send_event(

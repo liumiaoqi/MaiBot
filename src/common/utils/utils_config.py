@@ -759,7 +759,7 @@ class ChatConfigUtils:
             eh, em = [int(x) for x in end_str.split(":")]
             return sh * 60 + sm, eh * 60 + em
         except Exception as exc:
-            logger.debug("操作异常 in utils_config.py", exc_info=True)
+            logger.warning("操作异常 in utils_config.py", exc_info=True)
 
 
 class AMemorixConfigUtils:

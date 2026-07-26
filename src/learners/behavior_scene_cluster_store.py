@@ -352,7 +352,7 @@ def build_profile_tag_mapping(profile: BehaviorScenarioProfile) -> dict[str, flo
                 tag_lookup=tag_lookup,
             )
     except Exception as exc:
-        logger.debug(f"构建行为画像 tag 映射失败: error={exc}")
+        logger.warning(f"构建行为画像 tag 映射失败: error={exc}")
         return {}
 
 
@@ -798,7 +798,7 @@ def _debug_cluster_scores(cluster_scores: dict[int, float]) -> list[dict[str, An
             ).all()
             cluster_by_id = {cluster.id: cluster for cluster in clusters if cluster.id is not None}
     except Exception as exc:
-        logger.debug("操作异常 in behavior_scene_cluster_store.py", exc_info=True)
+        logger.warning("操作异常 in behavior_scene_cluster_store.py", exc_info=True)
         cluster_by_id = {}
     return [
         {

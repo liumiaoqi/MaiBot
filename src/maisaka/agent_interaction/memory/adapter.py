@@ -6,6 +6,9 @@
 """
 
 from __future__ import annotations
+from src.common.logger import get_logger
+logger = get_logger("auto.adapter")
+
 
 import logging
 import time
@@ -304,5 +307,5 @@ class AgentMemoryAdapter:
                         )
                 return True
         except Exception as exc:
-            logger.debug("操作异常 in adapter.py", exc_info=True)
+            logger.warning("操作异常 in adapter.py", exc_info=True)
         return False

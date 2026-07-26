@@ -1,6 +1,9 @@
 """推理过程日志浏览接口。"""
 
 from html import unescape
+from src.common.logger import get_logger
+logger = get_logger("auto.reasoning_process")
+
 from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlparse
@@ -73,12 +76,14 @@ def _structured_prompt_content_to_text(content: Any) -> str:
                 continue
             try:
                 parts.append(json.dumps(item, ensure_ascii=False, indent=2, default=str))
-            except Exception:
+            except Exception as exc:
+                logger.warning("操作异常 in reasoning_process", exc_info=True)
                 parts.append(str(item))
         return "\n".join(part for part in parts if part).strip()
     try:
         return json.dumps(content, ensure_ascii=False, indent=2, default=str)
-    except Exception:
+    except Exception as exc:
+        logger.warning("操作异常 in reasoning_process", exc_info=True)
         return str(content)
 
 

@@ -283,7 +283,7 @@ def parse_behavior_scenario_response(response: str) -> BehaviorScenarioProfile:
 
     try:
         parsed_response = json.loads(repair_json(normalized_response))
-    except Exception:
+    except Exception as exc:
         logger.warning(f"行为表现情景画像解析失败: {normalized_response!r}")
         return BehaviorScenarioProfile()
 
@@ -306,7 +306,7 @@ def parse_behavior_scenario_segments_response(response: str) -> list[BehaviorSce
 
     try:
         parsed_response = json.loads(repair_json(normalized_response))
-    except Exception:
+    except Exception as exc:
         logger.warning(f"行为表现多场景片段解析失败: {normalized_response!r}")
         return []
 
@@ -377,7 +377,7 @@ class BehaviorScenarioAnalyzer:
         try:
             raw_response = await sub_agent_runner(prompt)
         except Exception as exc:
-            logger.debug(f"行为表现情景画像子代理失败，已退回本地检索: {exc}")
+            logger.warning(f"行为表现情景画像子代理失败，已退回本地检索: {exc}")
             return BehaviorScenarioProfile()
         return parse_behavior_scenario_response(raw_response)
 
@@ -403,7 +403,7 @@ class BehaviorScenarioAnalyzer:
         try:
             raw_response = await sub_agent_runner(prompt)
         except Exception as exc:
-            logger.debug(f"行为表现多场景片段分析失败，跳过本轮场景切分: {exc}")
+            logger.warning(f"行为表现多场景片段分析失败，跳过本轮场景切分: {exc}")
             return []
         return parse_behavior_scenario_segments_response(raw_response)
 

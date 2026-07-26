@@ -147,7 +147,7 @@ class PersonFactWritebackService:
             try:
                 replies = find_messages(message_id=reply_to, limit=1)
             except Exception as exc:
-                logger.debug(f"查询 reply_to 目标失败: {exc}")
+                logger.warning(f"查询 reply_to 目标失败: {exc}")
                 replies = []
             if replies:
                 person = self._person_from_user_message(replies[0], fallback_platform=session_platform)
@@ -171,7 +171,7 @@ class PersonFactWritebackService:
                 filter_bot=True,
             )
         except Exception as exc:
-            logger.debug(f"查询最近用户消息目标失败: {exc}")
+            logger.warning(f"查询最近用户消息目标失败: {exc}")
             return None
         for candidate in reversed(candidates):
             person = self._person_from_user_message(candidate, fallback_platform=session_platform)
@@ -210,7 +210,7 @@ class PersonFactWritebackService:
             try:
                 replies = find_messages(message_id=reply_to, limit=1)
             except Exception as exc:
-                logger.debug("查询人物事实 reply_to 证据失败: %s", exc)
+                logger.warning("查询人物事实 reply_to 证据失败: %s", exc)
                 replies = []
             target_messages.extend(self._filter_target_user_messages(replies, person, seen_ids))
 
@@ -227,7 +227,7 @@ class PersonFactWritebackService:
                 filter_bot=True,
             )
         except Exception as exc:
-            logger.debug("查询人物事实近期用户证据失败: %s", exc)
+            logger.warning("查询人物事实近期用户证据失败: %s", exc)
             return PersonFactEvidence(target_messages=[], context_messages=[])
         target_messages = self._filter_target_user_messages(candidates, person, seen_ids)
         if len(target_messages) > 3:
@@ -244,7 +244,7 @@ class PersonFactWritebackService:
                 limit_mode="latest",
             )
         except Exception as exc:
-            logger.debug("查询人物事实邻近上下文失败: %s", exc)
+            logger.warning("查询人物事实邻近上下文失败: %s", exc)
             return []
 
     @staticmethod
@@ -254,7 +254,7 @@ class PersonFactWritebackService:
             try:
                 return float(raw_timestamp.timestamp())
             except Exception as exc:
-                logger.debug("操作异常 in memory_flow_service.py", exc_info=True)
+                logger.warning("操作异常 in memory_flow_service.py", exc_info=True)
         if isinstance(raw_timestamp, (int, float)):
             return float(raw_timestamp)
         return None
@@ -364,7 +364,7 @@ class PersonFactWritebackService:
         try:
             response_result = await self._llm_service.generate_response("utils", prompt, request_type="A_Memorix.person_fact_writeback")
         except Exception as exc:
-            logger.debug(f"人物事实提取模型调用失败: {exc}")
+            logger.warning(f"人物事实提取模型调用失败: {exc}")
             return []
         return self._parse_fact_list(response_result.response)
 
@@ -377,7 +377,7 @@ class PersonFactWritebackService:
             repaired = repair_json(text)
             payload = json.loads(repaired) if isinstance(repaired, str) else repaired
         except Exception as exc:
-            logger.debug("操作异常 in memory_flow_service.py", exc_info=True)
+            logger.warning("操作异常 in memory_flow_service.py", exc_info=True)
             payload = None
         if not isinstance(payload, list):
             return []
@@ -564,7 +564,7 @@ class ChatSummaryWritebackService:
             # 至少避免重启后立刻重复写入一条相近摘要。
             return total_message_count
         except Exception as exc:
-            logger.debug(f"恢复聊天摘要写回游标失败: session_id={session_id} error={exc}")
+            logger.warning(f"恢复聊天摘要写回游标失败: session_id={session_id} error={exc}")
             return 0
 
     @staticmethod
@@ -572,7 +572,7 @@ class ChatSummaryWritebackService:
         try:
             return float(paragraph.get("created_at") or 0.0)
         except Exception as exc:
-            logger.debug("操作异常 in memory_flow_service.py", exc_info=True)
+            logger.warning("操作异常 in memory_flow_service.py", exc_info=True)
             return 0.0
 
     @staticmethod
@@ -584,7 +584,7 @@ class ChatSummaryWritebackService:
             try:
                 parsed = pickle.loads(metadata)
             except Exception as exc:
-                logger.debug("操作异常 in memory_flow_service.py", exc_info=True)
+                logger.warning("操作异常 in memory_flow_service.py", exc_info=True)
                 return {}
             return parsed if isinstance(parsed, dict) else {}
         return {}
@@ -594,7 +594,7 @@ class ChatSummaryWritebackService:
         try:
             number = int(value or 0)
         except Exception as exc:
-            logger.debug("操作异常 in memory_flow_service.py", exc_info=True)
+            logger.warning("操作异常 in memory_flow_service.py", exc_info=True)
             return 0
         return max(0, number)
 
@@ -631,7 +631,7 @@ class ChatSummaryWritebackService:
             try:
                 return float(raw_timestamp.timestamp())
             except Exception as exc:
-                logger.debug("操作异常 in memory_flow_service.py", exc_info=True)
+                logger.warning("操作异常 in memory_flow_service.py", exc_info=True)
         if isinstance(raw_timestamp, (int, float)):
             return float(raw_timestamp)
         return None

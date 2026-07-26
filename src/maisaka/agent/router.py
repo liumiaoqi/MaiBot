@@ -1,4 +1,7 @@
 from __future__ import annotations
+from src.common.logger import get_logger
+logger = get_logger("auto.router")
+
 
 import logging
 from typing import TYPE_CHECKING, Optional
@@ -31,7 +34,7 @@ class AgentRouter:
 
             return get_app_config_port().get_default_agent_id()
         except Exception as exc:
-            logger.debug("操作异常 in router.py", exc_info=True)
+            logger.warning("操作异常 in router.py", exc_info=True)
             return self._registry.get_default_agent().agent_id
 
     def resolve_agent(self, session_id: str, group_id: Optional[str] = None) -> AgentConfig:

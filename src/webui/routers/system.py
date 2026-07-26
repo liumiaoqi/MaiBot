@@ -565,7 +565,7 @@ def _get_dbstat_table_sizes(connection, table_names: list[str]) -> dict[str, int
             text("SELECT name, SUM(pgsize) AS size FROM temp.local_cache_dbstat GROUP BY name")
         ).fetchall()
     except Exception as exc:
-        logger.debug(f"当前 SQLite 环境不支持 dbstat，数据库表大小将使用估算值: {exc}")
+        logger.warning(f"当前 SQLite 环境不支持 dbstat，数据库表大小将使用估算值: {exc}")
         return None
 
     object_sizes = {str(row[0]): int(row[1] or 0) for row in rows}

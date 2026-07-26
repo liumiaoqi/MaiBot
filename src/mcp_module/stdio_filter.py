@@ -19,6 +19,9 @@ SDK 升级若调整这些符号，此处会在首次连接时立刻报错暴露�
 """
 
 from __future__ import annotations
+from src.common.logger import get_logger
+logger = get_logger("auto.stdio_filter")
+
 
 from contextlib import asynccontextmanager
 from typing import TextIO
@@ -116,7 +119,7 @@ async def tolerant_stdio_client(
                             continue
                         try:
                             message = types.JSONRPCMessage.model_validate_json(line)
-                        except Exception:
+                        except Exception as exc:
                             logger.warning(
                                 "Dropped malformed JSON-RPC line from MCP stdio server: %r",
                                 line[:_MAX_GARBAGE_PREVIEW],
@@ -155,8 +158,8 @@ async def tolerant_stdio_client(
             if process.stdin:
                 try:
                     await process.stdin.aclose()
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("操作异常 in stdio_filter", exc_info=True)
             try:
                 with anyio.fail_after(PROCESS_TERMINATION_TIMEOUT):
                     await process.wait()

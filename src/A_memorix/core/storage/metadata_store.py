@@ -2488,8 +2488,9 @@ class MetadataStore:
                 )
             except Exception as e:
                 logger.warning(f"Episode source 重建入队失败: hash={hash_value[:16]}..., err={e}")
-            logger.warning(, exc_info=True)
-                f"添加段落: hash={hash_value[:16]}..., words={word_count}, type={resolved_knowledge_type.value}"
+            logger.warning(
+                f"添加段落: hash={hash_value[:16]}..., words={word_count}, type={resolved_knowledge_type.value}",
+                exc_info=True,
             )
             return hash_value
         except sqlite3.IntegrityError:

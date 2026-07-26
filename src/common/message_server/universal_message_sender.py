@@ -109,7 +109,7 @@ class UniversalMessageSender:
                 return True
 
             except Exception as exc:
-                logger.debug("操作异常 in universal_message_sender.py", exc_info=True)
+                logger.warning("操作异常 in universal_message_sender.py", exc_info=True)
                 # # Legacy API 抛出异常，尝试 Fallback
                 # return await self._send_with_fallback(
                 #     message, message_preview, platform, show_log, legacy_exception=legacy_e

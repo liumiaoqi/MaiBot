@@ -24,6 +24,9 @@ Host 端将其重放到主进程的 Logger（以 plugin.<name> 为名）中，�
 """
 
 from __future__ import annotations
+from src.common.logger import get_logger
+logger = get_logger("auto.log_handler")
+
 
 from typing import TYPE_CHECKING, List, Optional
 
@@ -134,7 +137,7 @@ class RunnerIPCLogHandler(logging.Handler):
                 exception_text=record.exc_text or "",
             )
             self._buffer.append(entry)
-        except Exception:
+        except Exception as exc:
             self.handleError(record)
 
     def _serialize_message(self, record: logging.LogRecord) -> str:
@@ -187,7 +190,8 @@ class RunnerIPCLogHandler(logging.Handler):
                 await self._flush_batch(self.FLUSH_BATCH_SIZE)
             except asyncio.CancelledError:
                 break
-            except Exception:
+            except Exception as exc:
+                logger.warning("操作异常 in log_handler", exc_info=True)
                 # 任何发送侧错误都静默忽略，避免向 logging 写入导致嵌套循环
                 pass
 
@@ -224,7 +228,8 @@ class RunnerIPCLogHandler(logging.Handler):
                 "runner.log_batch",
                 payload=LogBatchPayload(entries=entries).model_dump(),
             )
-        except Exception:
+        except Exception as exc:
+            logger.warning("操作异常 in log_handler", exc_info=True)
             import sys
 
             for entry in entries:

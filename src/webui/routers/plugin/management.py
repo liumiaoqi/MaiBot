@@ -266,7 +266,7 @@ async def _update_non_git_plugin(
             "backup_path": str(backup_path),
         }
     except Exception as exc:
-        logger.debug("操作异常 in management.py", exc_info=True)
+        logger.warning("操作异常 in management.py", exc_info=True)
         if candidate_path.exists():
             _remove_path(candidate_path)
         if old_moved and backup_path.exists() and not plugin_path.exists():

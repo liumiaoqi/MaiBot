@@ -78,8 +78,8 @@ class HeuristicMemoryInjector:
                     seeds=impression.split()[:10] if impression else [],
                     context_text=context_text,
                 )
-        except Exception:
-            logger.debug("直觉召回失败，降级到 search", exc_info=True)
+        except Exception as exc:
+            logger.warning("直觉召回失败，降级到 search", exc_info=True)
         return await self.memory_port.search(
             impression,
             limit=limit,
@@ -165,7 +165,7 @@ class HeuristicMemoryInjector:
             )
         except Exception as exc:
             self.clear_session_reference(session_info.session_id)
-            logger.debug(f"启发式记忆自然拉起失败，已跳过: {exc}", exc_info=True)
+            logger.warning(f"启发式记忆自然拉起失败，已跳过: {exc}", exc_info=True)
             return ""
 
         state.last_recall_at = now
@@ -302,7 +302,7 @@ class HeuristicMemoryInjector:
                 return hits
             focus_areas = registry.get_agent(context.agent_id).memory_focus_areas
         except Exception as exc:
-            logger.debug("操作异常 in heuristic_injector.py", exc_info=True)
+            logger.warning("操作异常 in heuristic_injector.py", exc_info=True)
             return hits
 
         if not focus_areas:

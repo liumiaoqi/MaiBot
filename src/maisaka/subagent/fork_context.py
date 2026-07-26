@@ -5,6 +5,9 @@ ForkContextCapturer: 从活跃心流运行时捕获 ForkContext。
 """
 
 from __future__ import annotations
+from src.common.logger import get_logger
+logger = get_logger("auto.fork_context")
+
 
 import logging
 import time
@@ -161,7 +164,7 @@ class ForkContextCapturer:
             return [f"[system prompt: {template_name}]"] if template_name else []
 
         except Exception as exc:
-            logger.debug("操作异常 in fork_context.py", exc_info=True)
+            logger.warning("操作异常 in fork_context.py", exc_info=True)
             return []
 
     def _capture_tools(self, agent_id: str) -> dict[str, ToolDefinition]:
@@ -185,7 +188,7 @@ class ForkContextCapturer:
             return tools
 
         except Exception as exc:
-            logger.debug("操作异常 in fork_context.py", exc_info=True)
+            logger.warning("操作异常 in fork_context.py", exc_info=True)
             return {}
 
     def _capture_permission(self, agent_id: str) -> PermissionRuleset:
@@ -206,7 +209,7 @@ class ForkContextCapturer:
             )
 
         except Exception as exc:
-            logger.debug("操作异常 in fork_context.py", exc_info=True)
+            logger.warning("操作异常 in fork_context.py", exc_info=True)
             return PermissionRuleset()
 
     def _capture_inherited_messages(self, session_id: str) -> list[dict[str, Any]]:

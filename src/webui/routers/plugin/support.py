@@ -257,7 +257,7 @@ def load_manifest_json(manifest_path: Path) -> Optional[Dict[str, Any]]:
         with open(manifest_path, "r", encoding="utf-8") as file_obj:
             return cast(dict[str, Any], json.load(file_obj))
     except Exception as exc:
-        logger.debug("操作异常 in support.py", exc_info=True)
+        logger.warning("操作异常 in support.py", exc_info=True)
 
 
 def read_plugin_changelog(plugin_path: Path) -> Optional[str]:

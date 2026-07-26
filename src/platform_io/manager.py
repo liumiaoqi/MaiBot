@@ -69,11 +69,12 @@ class PlatformIOManager:
             for driver in self._driver_registry.list():
                 await driver.start()
                 started_drivers.append(driver)
-        except Exception:
+        except Exception as exc:
+            logger.warning("操作异常 in manager", exc_info=True)
             for driver in reversed(started_drivers):
                 try:
                     await driver.stop()
-                except Exception:
+                except Exception as exc:
                     logger.exception(f"回滚驱动停止失败: driver_id={driver.driver_id}")
             raise
 
@@ -137,7 +138,8 @@ class PlatformIOManager:
 
         try:
             await driver.start()
-        except Exception:
+        except Exception as exc:
+            logger.warning("操作异常 in manager", exc_info=True)
             self._unregister_driver_internal(driver.driver_id)
             raise
 
@@ -502,7 +504,7 @@ class PlatformIOManager:
             return
         try:
             task.result()
-        except Exception:
+        except Exception as exc:
             logger.exception("Platform IO 入站消息后台分发失败")
 
     async def send_message(
@@ -550,6 +552,7 @@ class PlatformIOManager:
             try:
                 receipt = await driver.send_message(message=message, route_key=route_key, metadata=metadata)
             except Exception as exc:
+                logger.warning("操作异常 in manager", exc_info=True)
                 receipt = DeliveryReceipt(
                     internal_message_id=message.message_id,
                     route_key=route_key,

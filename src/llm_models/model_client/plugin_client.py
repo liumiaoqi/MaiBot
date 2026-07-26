@@ -1,4 +1,7 @@
 from typing import Any, Dict, List
+from src.common.logger import get_logger
+logger = get_logger("auto.plugin_client")
+
 
 from src.config.model_configs import APIProvider
 from src.llm_models.exceptions import RespParseException
@@ -124,6 +127,7 @@ class PluginLLMClient(BaseClient):
                 timeout_ms=max(1000, int(self.api_provider.timeout) * 1000),
             )
         except Exception as exc:
+            logger.warning("操作异常 in plugin_client", exc_info=True)
             raise RespParseException(message=f"插件 LLM Provider RPC 调用失败: {exc}") from exc
         if response.error:
             raise RespParseException(message=str(response.error.get("message", "插件 LLM Provider 调用失败")))

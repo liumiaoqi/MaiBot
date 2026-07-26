@@ -289,7 +289,7 @@ class LLMUsageRecorder:
                     data=event_data,
                 ))
         except Exception as exc:
-            logger.debug("操作异常 in utils.py", exc_info=True)
+            logger.warning("操作异常 in utils.py", exc_info=True)
 
 
 llm_usage_recorder = LLMUsageRecorder()

@@ -4,6 +4,9 @@
 """
 
 from __future__ import annotations
+from src.common.logger import get_logger
+logger = get_logger("auto.lunar")
+
 
 import logging
 from dataclasses import dataclass
@@ -139,7 +142,7 @@ def get_today_solar_term(target_date: date | None = None) -> SolarTermInfo | Non
                         is_today=True,
                     )
             except Exception as exc:
-                logger.debug("操作异常 in lunar.py", exc_info=True)
+                logger.warning("操作异常 in lunar.py", exc_info=True)
 
     except ImportError:
         pass
@@ -181,11 +184,11 @@ def get_solar_terms_near(target_date: date | None = None, days: int = 7) -> list
                             date=check_date,
                             is_today=delta == 0,
                         ))
-            except Exception:
+            except Exception as exc:
                 continue
 
     except ImportError:
-        logger.debug("lunarcalendar 库未安装，节气计算不可用")
+        logger.warning("lunarcalendar 库未安装，节气计算不可用")
     except Exception as e:
         logger.warning("节气范围计算失败: %s", e)
 

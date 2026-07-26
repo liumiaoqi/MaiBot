@@ -190,7 +190,7 @@ def _is_llm_cache_stats_enabled() -> bool:
         from src.core.app_config_port_registry import get_app_config_port
         return bool(get_app_config_port().get_debug_enable_llm_cache_stats())
     except Exception as exc:
-        logger.debug("操作异常 in llm_cache_stats.py", exc_info=True)
+        logger.warning("操作异常 in llm_cache_stats.py", exc_info=True)
 
 
 def _normalize_request_type(request_type: str) -> str:

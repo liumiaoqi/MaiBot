@@ -221,8 +221,8 @@ class _PluginHostServicer(PluginHostServicer):
                     elif payload_kind == "heartbeat":
                         self._heartbeat_mgr.record_response(runner_id)
                         conn.record_heartbeat()
-            except Exception:
-                logger.debug("Runner %s 接收循环退出", runner_id, exc_info=True)
+            except Exception as exc:
+                logger.warning("Runner %s 接收循环退出", runner_id, exc_info=True)
             finally:
                 await outbox.put(None)  # 发送终止信号
 

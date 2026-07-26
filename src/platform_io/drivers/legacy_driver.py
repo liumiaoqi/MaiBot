@@ -1,6 +1,9 @@
 """提供 Platform IO 的 legacy 传输驱动实现。"""
 
 from typing import TYPE_CHECKING, Any, Dict, Optional
+from src.common.logger import get_logger
+logger = get_logger("auto.legacy_driver")
+
 
 from src.platform_io.drivers.base import PlatformIODriver
 from src.platform_io.types import DeliveryReceipt, DeliveryStatus, DriverDescriptor, DriverKind, RouteKey
@@ -64,6 +67,7 @@ class LegacyPlatformDriver(PlatformIODriver):
         try:
             sent = await send_prepared_message_to_platform(message, show_log=show_log)
         except Exception as exc:
+            logger.warning("操作异常 in legacy_driver", exc_info=True)
             return DeliveryReceipt(
                 internal_message_id=message.message_id,
                 route_key=route_key,

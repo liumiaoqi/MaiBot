@@ -92,7 +92,7 @@ class ChineseTypoGenerator:
                 py = pinyin(char, style=Style.TONE3)[0][0]
                 pinyin_dict[py].append(char)
             except Exception as exc:
-                logger.debug("操作异常 in typo_generator.py", exc_info=True)
+                logger.warning("操作异常 in typo_generator.py", exc_info=True)
 
         return pinyin_dict
 

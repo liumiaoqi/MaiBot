@@ -171,7 +171,7 @@ async def fetch_raw_file(
                     loaded_plugins=total,
                 )
             except Exception as exc:
-                logger.debug("操作异常 in catalog.py", exc_info=True)
+                logger.warning("操作异常 in catalog.py", exc_info=True)
                 await update_progress(
                     stage="success", progress=100, message="加载完成", total_plugins=0, loaded_plugins=0
                 )

@@ -707,8 +707,8 @@ def write_config_to_file(
             a_memorix_web = full_config_data["a_memorix"]["web"]
             if "import_config" in a_memorix_web and "import" not in a_memorix_web:
                 a_memorix_web["import"] = a_memorix_web.pop("import_config")
-        except Exception:
-            logger.debug("A_Memorix 配置写出时转换 web.import_config 失败", exc_info=True)
+        except Exception as exc:
+            logger.warning("A_Memorix 配置写出时转换 web.import_config 失败", exc_info=True)
 
     # 备份旧文件
     if config_path.exists():

@@ -808,7 +808,7 @@ async def _send_via_platform_io(
         await platform_io_manager.ensure_send_pipeline_ready()
     except Exception as exc:
         logger.error(f"[SendService] 准备 Platform IO 发送管线失败: {exc}")
-        logger.debug(traceback.format_exc())
+        logger.warning(traceback.format_exc())
         return None
 
     try:
@@ -832,7 +832,7 @@ async def _send_via_platform_io(
         )
     except Exception as exc:
         logger.error(f"[SendService] Platform IO 发送异常: {exc}")
-        logger.debug(traceback.format_exc())
+        logger.warning(traceback.format_exc())
         return None
 
     sent = bool(delivery_batch.has_success)

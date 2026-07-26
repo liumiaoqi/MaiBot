@@ -281,7 +281,7 @@ class RunnerSupervisor:
             await self._spawner.restart_failed()
             return ReloadResult(runner_id=runner_id, success=True)
         except Exception as exc:
-            logger.debug("操作异常 in runner_supervisor.py", exc_info=True)
+            logger.warning("操作异常 in runner_supervisor.py", exc_info=True)
             return ReloadResult(runner_id=runner_id, success=False, reason=str(exc))
         finally:
             self._reloading.discard(runner_id)

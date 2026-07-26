@@ -125,7 +125,7 @@ def _build_labeled_tile(image_bytes: bytes, index: int, tile_size: int) -> PILIm
         with PILImage.open(BytesIO(image_bytes)) as raw_image:
             image = raw_image.convert("RGBA")
     except Exception as exc:
-        logger.debug("操作异常 in send_emoji.py", exc_info=True)
+        logger.warning("操作异常 in send_emoji.py", exc_info=True)
         return _build_placeholder_tile(str(index), tile_size)
 
     image.thumbnail((tile_size, tile_size))

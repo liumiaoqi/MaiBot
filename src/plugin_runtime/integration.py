@@ -474,7 +474,7 @@ class PluginRuntimeManager(
                 await supervisor.start()
                 started_supervisors.append(supervisor)
         except Exception as exc:
-            logger.debug("并行启动异常: %s", exc)
+            logger.warning("并行启动异常: %s", exc)
             await asyncio.gather(*(supervisor.stop() for supervisor in started_supervisors), return_exceptions=True)
             raise
 

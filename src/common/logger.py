@@ -1,6 +1,9 @@
 # 使用基于时间戳的文件处理器，简单的轮转份数限制
 
 from datetime import datetime, timedelta
+from src.common.logger import get_logger
+logger = get_logger("auto.logger")
+
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -177,7 +180,7 @@ class TimestampedFileHandler(logging.Handler):
                     self.current_stream.flush()
 
         except Exception as exc:
-            logger.debug("操作异常 in logger.py", exc_info=True)
+            logger.warning("操作异常 in logger.py", exc_info=True)
             self.handleError(record)
 
     def close(self):
@@ -212,7 +215,7 @@ class WebSocketLogHandler(logging.Handler):
         except asyncio.CancelledError:
             pass
         except Exception as exc:
-            logger.debug("操作异常 in logger.py", exc_info=True)
+            logger.warning("操作异常 in logger.py", exc_info=True)
 
     def _schedule_broadcast(self, log_data: dict, target_loop: asyncio.AbstractEventLoop) -> None:
         """在目标事件循环内创建日志广播任务。"""
@@ -226,14 +229,14 @@ class WebSocketLogHandler(logging.Handler):
             try:
                 task = target_loop.create_task(broadcast_coro)
             except Exception as exc:
-                logger.debug("操作异常 in logger.py", exc_info=True)
+                logger.warning("操作异常 in logger.py", exc_info=True)
                 broadcast_coro.close()
                 raise
             task.add_done_callback(self._consume_broadcast_result)
         except RuntimeError:
             pass
         except Exception as exc:
-            logger.debug("操作异常 in logger.py", exc_info=True)
+            logger.warning("操作异常 in logger.py", exc_info=True)
 
     def emit(self, record):
         """发送日志到 WebSocket 客户端"""
@@ -278,12 +281,12 @@ class WebSocketLogHandler(logging.Handler):
             try:
                 target_loop.call_soon_threadsafe(self._schedule_broadcast, log_data, target_loop)
             except Exception as exc:
-                logger.debug("操作异常 in logger.py", exc_info=True)
+                logger.warning("操作异常 in logger.py", exc_info=True)
                 # WebSocket 推送失败不影响日志记录
                 pass
 
         except Exception as exc:
-            logger.debug("操作异常 in logger.py", exc_info=True)
+            logger.warning("操作异常 in logger.py", exc_info=True)
             # 不要让 WebSocket 错误影响日志系统
             self.handleError(record)
 
@@ -564,7 +567,7 @@ def convert_pathname_to_module(logger, method_name, event_dict):
             # 移除原始的 pathname 字段
             del event_dict["pathname"]
         except Exception as exc:
-            logger.debug("操作异常 in logger.py", exc_info=True)
+            logger.warning("操作异常 in logger.py", exc_info=True)
             # 如果转换失败，删除 pathname 但保留原始的 module（如果有的话）
             del event_dict["pathname"]
             # 如果没有 module 字段，使用文件名作为备选

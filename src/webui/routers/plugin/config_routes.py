@@ -41,7 +41,7 @@ def _to_builtin_data(obj: Any) -> Any:
         try:
             obj = obj.unwrap()
         except Exception as exc:
-            logger.debug("操作异常 in config_routes.py", exc_info=True)
+            logger.warning("操作异常 in config_routes.py", exc_info=True)
 
     if isinstance(obj, dict):
         return {str(key): _to_builtin_data(value) for key, value in obj.items()}

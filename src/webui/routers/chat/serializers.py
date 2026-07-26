@@ -1,6 +1,9 @@
 """提供 WebUI 聊天路由使用的消息序列化能力。"""
 
 from typing import Any, Dict, List, Optional
+from src.common.logger import get_logger
+logger = get_logger("auto.serializers")
+
 
 import base64
 import mimetypes
@@ -188,7 +191,8 @@ def _load_cached_binary_data(
 
         guessed_mime_type = mimetypes.guess_type(str(image_path))[0] or default_mime_type
         return image_path.read_bytes(), guessed_mime_type
-    except Exception:
+    except Exception as exc:
+        logger.warning("操作异常 in serializers", exc_info=True)
         return b"", default_mime_type
 
 

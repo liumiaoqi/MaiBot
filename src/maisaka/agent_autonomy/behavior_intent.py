@@ -147,7 +147,7 @@ class TopicRelevanceIntentSource(BaseIntentSource):
                     intent_source="topic_relevance_driven",
                     source_description=f"话题相关：{', '.join(matched_keywords)}",
                 ))
-        except Exception:
+        except Exception as exc:
             logger.warning("计算发言欲望失败", exc_info=True)
 
         return intents
@@ -193,7 +193,7 @@ class RelationshipIntentSource(BaseIntentSource):
                         intent_source="relationship_driven",
                         source_description=f"对话提及{target_name}，关系亲密",
                     ))
-        except Exception:
+        except Exception as exc:
             logger.warning("计算发言欲望失败", exc_info=True)
 
         return intents
@@ -219,7 +219,7 @@ class InteractionSignalIntentSource(BaseIntentSource):
 
             bonus = get_app_config_port().get_agent_autonomy_config().interaction_signal_intent_bonus
         except Exception as exc:
-            logger.debug("操作异常 in behavior_intent.py", exc_info=True)
+            logger.warning("操作异常 in behavior_intent.py", exc_info=True)
             bonus = 40.0
 
         for signal in interaction_signals:

@@ -45,7 +45,7 @@ def _filter_profile_by_agent_focus(profile_text: str, agent_id: str) -> str:
             return profile_text
         focus_areas = registry.get_agent(agent_id).memory_focus_areas
     except Exception as exc:
-        logger.debug("操作异常 in person_profile.py", exc_info=True)
+        logger.warning("操作异常 in person_profile.py", exc_info=True)
         return profile_text
 
     if not focus_areas:

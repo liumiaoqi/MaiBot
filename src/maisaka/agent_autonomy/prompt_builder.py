@@ -184,7 +184,7 @@ class EmbodiedPlannerPromptBuilder:
             context["bot_name"] = get_bot_config_port().get_bot_nickname()
             return load_prompt("maisaka_chat", **context)
         except Exception as exc:
-            logger.debug("操作异常 in prompt_builder.py", exc_info=True)
+            logger.warning("操作异常 in prompt_builder.py", exc_info=True)
             return f"你是一个有用的AI助手。\n\n{tools_section}"
 
     @staticmethod
@@ -225,7 +225,7 @@ class EmbodiedPlannerPromptBuilder:
                 return ""
             return "## 最近的交互动态\n" + "\n".join(results)
         except Exception as exc:
-            logger.debug("操作异常 in prompt_builder.py", exc_info=True)
+            logger.warning("操作异常 in prompt_builder.py", exc_info=True)
             return ""
 
     def _get_agent_display_name(self) -> str:
@@ -238,5 +238,5 @@ class EmbodiedPlannerPromptBuilder:
                 agent_config = registry.get_agent(self._agent_id)
                 return agent_config.display_name or self._agent_id
         except Exception as exc:
-            logger.debug("操作异常 in prompt_builder.py", exc_info=True)
+            logger.warning("操作异常 in prompt_builder.py", exc_info=True)
         return self._agent_id

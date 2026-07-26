@@ -70,7 +70,7 @@ class DeepSeekOptimizer:
             if registry.has_agent(agent_id):
                 return registry.get_agent(agent_id).deepseek.enabled
         except Exception as exc:
-            logger.debug("操作异常 in optimizer.py", exc_info=True)
+            logger.warning("操作异常 in optimizer.py", exc_info=True)
         return False
 
     def select_strategy(self, agent_id: str, model_context_window: int, model_id: str = "") -> str:
@@ -94,7 +94,7 @@ class DeepSeekOptimizer:
                 config = registry.get_agent(agent_id).deepseek
                 return config.injection_strategy
         except Exception as exc:
-            logger.debug("操作异常 in optimizer.py", exc_info=True)
+            logger.warning("操作异常 in optimizer.py", exc_info=True)
 
         if model_context_window >= _FULL_STRATEGY_THRESHOLD:
             return "full"
@@ -222,7 +222,7 @@ class DeepSeekOptimizer:
             if registry.has_agent(agent_id):
                 return registry.get_agent(agent_id).deepseek.injection_priority
         except Exception as exc:
-            logger.debug("操作异常 in optimizer.py", exc_info=True)
+            logger.warning("操作异常 in optimizer.py", exc_info=True)
         return ["identity", "anti_mechanization", "profile", "mid_term", "heuristic"]
 
     @staticmethod

@@ -1,4 +1,7 @@
 from __future__ import annotations
+from src.common.logger import get_logger
+logger = get_logger("auto.registry")
+
 
 import logging
 from typing import Optional
@@ -21,7 +24,7 @@ class AgentConfigRegistry:
 
                 config_dir = get_app_config_port().get_agents_dir()
             except Exception as exc:
-                logger.debug("操作异常 in registry.py", exc_info=True)
+                logger.warning("操作异常 in registry.py", exc_info=True)
                 config_dir = "agents/"
         self._loader = AgentConfigLoader(config_dir)
         self._agents: dict[str, AgentConfig] = {}

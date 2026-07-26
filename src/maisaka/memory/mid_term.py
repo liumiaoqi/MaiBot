@@ -653,7 +653,7 @@ def _parse_json_candidate(candidate: str) -> Any:
     try:
         return repair_json(candidate, return_objects=True, logging=False)
     except Exception as exc:
-        logger.debug("操作异常 in mid_term.py", exc_info=True)
+        logger.warning("操作异常 in mid_term.py", exc_info=True)
 
 
 def _coerce_str_list(value: Any) -> list[str]:

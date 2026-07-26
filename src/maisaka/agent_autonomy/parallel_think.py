@@ -96,13 +96,13 @@ class ParallelThinkScheduler:
                 try:
                     results[agent_id] = task.result()
                 except Exception as exc:
-                    logger.debug("操作异常 in parallel_think.py", exc_info=True)
+                    logger.warning("操作异常 in parallel_think.py", exc_info=True)
                     results[agent_id] = ThinkResult(action=ThinkAction.ERROR, error_message="task failed")
             else:
                 try:
                     results[agent_id] = await task
                 except Exception as exc:
-                    logger.debug("操作异常 in parallel_think.py", exc_info=True)
+                    logger.warning("操作异常 in parallel_think.py", exc_info=True)
                     results[agent_id] = ThinkResult(action=ThinkAction.ERROR, error_message="task failed")
 
         self._pending.clear()

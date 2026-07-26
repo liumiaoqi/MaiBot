@@ -155,7 +155,7 @@ class MCPHostBridge:
                 )
                 name = info.person_name if info else ""
             except Exception as exc:
-                logger.debug("操作异常 in host_bridge.py", exc_info=True)
+                logger.warning("操作异常 in host_bridge.py", exc_info=True)
                 name = ""
             invocation.arguments["sender_name"] = name
         if "is_group_chat" not in invocation.arguments:

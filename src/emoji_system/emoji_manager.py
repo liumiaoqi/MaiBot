@@ -505,7 +505,7 @@ class EmojiManager:
         try:
             task.result()
         except Exception as exc:
-            logger.debug(f"表情包描述后台任务结束时捕获异常，哈希值: {emoji_hash}，错误: {exc}")
+            logger.warning(f"表情包描述后台任务结束时捕获异常，哈希值: {emoji_hash}，错误: {exc}")
 
     async def _build_and_cache_emoji_description(
         self,

@@ -1,6 +1,9 @@
 """提供 Platform IO 的插件消息网关驱动实现。"""
 
 from typing import TYPE_CHECKING, Any, Dict, Optional, Protocol
+from src.common.logger import get_logger
+logger = get_logger("auto.plugin_driver")
+
 
 from src.platform_io.drivers.base import PlatformIODriver
 from src.platform_io.types import DeliveryReceipt, DeliveryStatus, DriverDescriptor, DriverKind, RouteKey
@@ -125,6 +128,7 @@ class PluginPlatformDriver(PlatformIODriver):
                 timeout_ms=self._timeout_ms,
             )
         except Exception as exc:
+            logger.warning("操作异常 in plugin_driver", exc_info=True)
             return DeliveryReceipt(
                 internal_message_id=message.message_id,
                 route_key=route_key,

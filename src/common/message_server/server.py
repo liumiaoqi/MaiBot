@@ -108,7 +108,7 @@ class Server:
                 # 超时就强制标记为 None，让垃圾回收处理
                 pass
             except Exception as exc:
-                logger.debug("操作异常 in server.py", exc_info=True)
+                logger.warning("操作异常 in server.py", exc_info=True)
                 # 忽略其他异常
                 pass
             finally:
