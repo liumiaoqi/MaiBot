@@ -31,7 +31,8 @@ def _get_nested_config_value(source: Any, key: str, default: Any = None) -> Any:
                 continue
             raise KeyError(part)
         return current
-    except Exception:
+    except Exception as exc:
+        logger.debug("能力注册异常: %s", exc)
         return default
 
 

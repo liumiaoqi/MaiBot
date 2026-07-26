@@ -49,7 +49,7 @@ class RequestIdGenerator:
         """
         self._counter = start
 
-    async def next(self) -> int:
+    def next(self) -> int:
         """返回下一个请求 ID。
 
         Returns:

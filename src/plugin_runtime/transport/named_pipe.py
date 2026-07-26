@@ -120,7 +120,9 @@ class _NamedPipeServerProtocol(asyncio.StreamReaderProtocol):
                         "protocol": self,
                     }
                 )
-            except Exception:
+            except Exception as exc:
+                import logging
+                logging.debug("Named Pipe 传输异常: %s", exc)
                 # 如果 loop 已经关闭，忽略异常
                 pass
 

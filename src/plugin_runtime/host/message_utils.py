@@ -355,7 +355,8 @@ class PluginMessageUtils:
         if isinstance(raw_binary_base64, str) and raw_binary_base64:
             try:
                 binary_data = base64.b64decode(raw_binary_base64)
-            except Exception:
+            except Exception as exc:
+                logger.debug("消息处理异常: %s", exc)
                 binary_data = b""
 
         if not binary_hash and binary_data:

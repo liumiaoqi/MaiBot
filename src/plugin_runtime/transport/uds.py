@@ -88,7 +88,9 @@ class UDSTransportServer(TransportServer):
 
             # 设置文件权限为仅当前用户可访问
             self._socket_path.chmod(0o600)
-        except Exception:
+        except Exception as exc:
+            import logging
+            logging.debug("UDS 传输异常: %s", exc)
             # 启动失败时清理可能创建的目录和 socket 文件
             if self._socket_path.exists():
                 self._socket_path.unlink()

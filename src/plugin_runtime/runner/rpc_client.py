@@ -39,7 +39,8 @@ def _get_sdk_version() -> str:
         from importlib.metadata import version
 
         return version("maibot-plugin-sdk")
-    except Exception:
+    except Exception as exc:
+        logger.debug("SDK 版本读取失败: %s", exc)
         return "1.0.0"
 
 

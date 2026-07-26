@@ -1265,7 +1265,8 @@ class ManifestValidator:
         try:
             with sdk_pyproject_path.open("rb") as pyproject_file:
                 pyproject_data = tomllib.load(pyproject_file)
-        except Exception:
+        except Exception as exc:
+            logger.debug("manifest 校验异常: %s", exc)
             return ""
 
         project_data = pyproject_data.get("project", {})
@@ -1292,7 +1293,8 @@ class ManifestValidator:
         try:
             with pyproject_path.open("rb") as pyproject_file:
                 pyproject_data = tomllib.load(pyproject_file)
-        except Exception:
+        except Exception as exc:
+            logger.debug("manifest 校验异常: %s", exc)
             return {}
 
         project_data = pyproject_data.get("project", {})

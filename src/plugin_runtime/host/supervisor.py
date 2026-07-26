@@ -448,7 +448,8 @@ class PluginRunnerSupervisor:
                     logger.warning("Runner 未在限定时间内完成连接，后续操作可能失败")
                 else:
                     logger.warning("Runner 未在限定时间内完成初始化，后续操作可能失败")
-        except Exception:
+        except Exception as exc:
+            logger.debug("启动失败: %s", exc, exc_info=True)
             await self._shutdown_runner(reason="startup_failed")
             await self._rpc_server.stop()
             self._clear_runner_state()
@@ -1198,7 +1199,8 @@ class PluginRunnerSupervisor:
                 await platform_io_manager.add_driver(driver)
             else:
                 platform_io_manager.register_driver(driver)
-        except Exception:
+        except Exception as exc:
+            logger.debug("驱动注册失败: %s", exc, exc_info=True)
             with contextlib.suppress(Exception):
                 if platform_io_manager.is_started:
                     await platform_io_manager.remove_driver(driver.driver_id)
@@ -1387,7 +1389,8 @@ class PluginRunnerSupervisor:
 
         try:
             route_key = RouteKeyFactory.from_message_dict(message)
-        except Exception:
+        except Exception as exc:
+            logger.debug("RouteKey 构建失败: %s", exc)
             route_key = RouteKey(platform=platform)
 
         route_account_id, route_scope = RouteKeyFactory.extract_components(route_metadata)
