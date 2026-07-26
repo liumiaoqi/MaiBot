@@ -132,9 +132,9 @@ class HostEndpoint:
         self._actual_listen_address = ""
 
         # 停止 Runner 子进程
-        spawner = getattr(self, "_runner_spawner", None)
-        if spawner is not None:
-            await spawner.stop_all()
+        supervisor = getattr(self, "_supervisor", None)
+        if supervisor is not None:
+            await supervisor.stop()
 
         logger.info("HostEndpoint 已停止")
 
@@ -164,3 +164,16 @@ class HostEndpoint:
     @property
     def token_service(self):
         return self._token_service
+
+    def set_supervisor(self, supervisor) -> None:
+        """正式注入 RunnerSupervisor。"""
+        self._supervisor = supervisor
+        if hasattr(self, "_servicer") and self._servicer is not None:
+            self._servicer._supervisor = supervisor
+
+    async def reload_runners(self, drain_ms: int = 0) -> dict:
+        """热重载所有 Runner。"""
+        supervisor = getattr(self, "_supervisor", None)
+        if supervisor is not None:
+            return await supervisor.reload_all(drain_ms)
+        return {}

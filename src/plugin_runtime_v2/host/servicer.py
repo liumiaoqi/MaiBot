@@ -183,8 +183,14 @@ class _PluginHostServicer(PluginHostServicer):
                 logger.warning("Runner %s 发送队列已满，跳过心跳", runner_id)
 
         async def _on_heartbeat_timeout(rid: str) -> None:
-            """心跳连续超时回调：关闭双向流。"""
+            """心跳连续超时回调：通知 Supervisor + 关闭双向流。"""
             logger.warning("Runner %s 心跳超时，关闭双向流", rid)
+            supervisor = getattr(self, "_supervisor", None)
+            if supervisor is not None:
+                asyncio.create_task(
+                    supervisor._on_heartbeat_timeout(rid),
+                    name=f"supervisor-hb-timeout-{rid}",
+                )
             await context.abort(grpc.StatusCode.UNAVAILABLE, "heartbeat timeout")
 
         self._heartbeat_mgr.start(runner_id, _send_heartbeat, _on_heartbeat_timeout)

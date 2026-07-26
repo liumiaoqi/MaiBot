@@ -10,7 +10,6 @@ from src.core.protocols import AppConfigPort
 from src.plugin_runtime_v2.host.connection import HostEndpointConfig
 from src.plugin_runtime_v2.host.endpoint import HostEndpoint
 from src.plugin_runtime_v2.host.rate_limiter import PluginRateLimiter
-from src.plugin_runtime_v2.host.runner_spawner import RunnerSpawner, RunnerSpawnerConfig
 from src.plugin_runtime_v2.host.storage_service import PerPluginStorage
 from src.plugin_runtime_v2.mcp.event_dispatcher import EventDispatcher
 from src.plugin_runtime_v2.mcp.host_bridge import MCPHostBridge
@@ -72,15 +71,21 @@ async def init_v2_host_endpoint(app_config_port: AppConfigPort) -> HostEndpoint:
     # 7. 启动
     await endpoint.start()
 
-    # 8. 创建 RunnerSpawner
+    # 8. 创建 RunnerSupervisor
+    from src.plugin_runtime_v2.host.runner_supervisor import RunnerSupervisor, RunnerSupervisorConfig
     runner_spawn_count = app_config_port.get_plugin_runtime_v2_runner_spawn_count()
     if runner_spawn_count > 0:
-        cfg = RunnerSpawnerConfig(max_restart_attempts=3, spawn_timeout_sec=30.0)
-        spawner = RunnerSpawner(endpoint.listen_address, cfg)
+        sup_cfg = RunnerSupervisorConfig(
+            max_restart_attempts=3,
+            spawn_timeout_sec=30.0,
+        )
+        registry = endpoint._registry
+        supervisor = RunnerSupervisor(config=sup_cfg, registry=registry)
+        supervisor.start()
+        endpoint.set_supervisor(supervisor)
         for i in range(runner_spawn_count):
-            await spawner.spawn(f"runner-{i}", "plugins")
-        endpoint._runner_spawner = spawner
-        logger.info("RunnerSpawner 已创建，spawn %d 个 Runner", runner_spawn_count)
+            await supervisor.spawn_and_wait(f"runner-{i}", "plugins")
+        logger.info("RunnerSupervisor 已创建，spawn %d 个 Runner", runner_spawn_count)
 
     logger.info(
         "v2 HostEndpoint 已启动: listen=%s scope_file=%s",
