@@ -18,6 +18,7 @@ def get_all_routers() -> List[APIRouter]:
     from src.webui.routers.chat import compat_router as chat_compat_router
     from src.webui.routers.chat import router as chat_router
     from src.webui.routers.config import compat_router as config_compat_router
+    from src.webui.routers.log import router as log_router
     from src.webui.routers.memory import compat_router as memory_compat_router
     from src.webui.routes import router as main_router
 
@@ -26,6 +27,7 @@ def get_all_routers() -> List[APIRouter]:
         agent_compat_router,
         chat_compat_router,
         config_compat_router,
+        log_router,
         memory_compat_router,
         chat_router,
     ]
