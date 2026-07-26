@@ -284,27 +284,22 @@ class EmojiManager:
         self._app_config_port = app_config_port
 
     def _get_model_config(self):
-        """获取模型配置，优先走 Port，回退到 config_manager。"""
-        if self._model_config_port is not None:
-            return self._model_config_port.get_model_config()
-        from src.config.config import config_manager  # noqa: TID251 — 过渡期 fallback
-        return config_manager.get_model_config()
+        """获取模型配置。"""
+        if self._model_config_port is None:
+            raise RuntimeError("ModelConfigPort 未注册")
+        return self._model_config_port.get_model_config()
 
     def _register_reload_callback(self, cb) -> None:
-        """注册热重载回调，优先走 Port，回退到 config_manager。"""
-        if self._app_config_port is not None:
-            self._app_config_port.register_reload_callback(cb)
-            return
-        from src.config.config import config_manager  # noqa: TID251 — 过渡期 fallback
-        config_manager.register_reload_callback(cb)
+        """注册热重载回调。"""
+        if self._app_config_port is None:
+            raise RuntimeError("AppConfigPort 未注册")
+        self._app_config_port.register_reload_callback(cb)
 
     def _unregister_reload_callback(self, cb) -> None:
-        """注销热重载回调，优先走 Port，回退到 config_manager。"""
-        if self._app_config_port is not None:
-            self._app_config_port.unregister_reload_callback(cb)
-            return
-        from src.config.config import config_manager  # noqa: TID251 — 过渡期 fallback
-        config_manager.unregister_reload_callback(cb)
+        """注销热重载回调。"""
+        if self._app_config_port is None:
+            raise RuntimeError("AppConfigPort 未注册")
+        self._app_config_port.unregister_reload_callback(cb)
 
         self._register_reload_callback(self.reload_runtime_config)
         self._reload_callback_registered = True
