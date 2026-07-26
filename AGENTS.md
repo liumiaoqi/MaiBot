@@ -208,19 +208,19 @@ CA 派发审查任务时，CC 按以下维度输出报告（写入 `.shared/hand
 
 关键决策：不兼容现有插件，napcat-adapter 等直接重写，SDK 大版本升级（v3→v4），manifest 格式重新设计。老插件通过兼容层插件（P-8）代理，无需逐个迁移。
 
-| 编号 | 主题 | 依赖 | 核心交付 | 状态 |
-|------|------|------|---------|------|
-| Phoenix-0 | 基础准备 | 无 | .proto Schema + v2 目录骨架 + SDK v4 接口设计 + Scope 词汇表 | ✅ 已完成 |
-| Phoenix-1 | gRPC 传输层 | P-0 | gRPC Host/Runner 实现，替换自研 IPC | ✅ 已完成 |
-| Phoenix-2 | MCP 组件模型 | P-1 | 8→2（Tool + Event），SDK 运行时，ToolProvider 桥接，Event 分发，Tool 执行路由 | ✅ 已完成 |
-| Phoenix-3 | OAuth Scope 授权 | P-2 | scope 声明/签发/校验，WebUI 审批 | ✅ 已完成 |
-| Phoenix-4 | 能力层 Protocol 化 | P-1 | P0/P1 消除，能力模块化，global_config 清除 | ✅ 已完成 |
-| Phoenix-5 | v2 主程序集成 | P-4 | HostEndpoint 接入 main.py，Scope WebUI 激活，Runner 进程管理，速率限制 | ✅ 已完成 |
-| Phoenix-6 | SDK RPC 通道 | P-5 | SendContext/StorageContext/PluginContext gRPC 通道实现 | 📋 规划中 |
-| Phoenix-7 | napcat-adapter 重写 | P-6 | napcat-adapter 从 v1 重写为 v4 格式（Manifest v3 + scopes + gRPC） | 📋 规划中 |
-| Phoenix-8 | 兼容层插件 | P-5 | v1 运行时封装为 v4 插件，从主程序剥离，老插件零修改继续运行 | 📋 规划中 |
-| Phoenix-9 | Runner 进程管理增强 | P-8 | Host spawn Runner、健康检查、自动重启、热重载 | 📋 规划中 |
-| Phoenix-10 | WebUI 插件管理面 | P-8 | Scope 审批前端 UI + 插件安装/卸载/配置 + 插件市场 | 📋 规划中 |
+| 编号　　　 | 主题　　　　　　　　| 依赖 | 核心交付　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　| 状态　　　|
+| ------------| ---------------------| ------| -------------------------------------------------------------------------------| -----------|
+| Phoenix-0　| 基础准备　　　　　　| 无　 | .proto Schema + v2 目录骨架 + SDK v4 接口设计 + Scope 词汇表　　　　　　　　　| ✅ 已完成　|
+| Phoenix-1　| gRPC 传输层　　　　 | P-0　| gRPC Host/Runner 实现，替换自研 IPC　　　　　　　　　　　　　　　　　　　　　 | ✅ 已完成　|
+| Phoenix-2　| MCP 组件模型　　　　| P-1　| 8→2（Tool + Event），SDK 运行时，ToolProvider 桥接，Event 分发，Tool 执行路由 | ✅ 已完成　|
+| Phoenix-3　| OAuth Scope 授权　　| P-2　| scope 声明/签发/校验，WebUI 审批　　　　　　　　　　　　　　　　　　　　　　　| ✅ 已完成　|
+| Phoenix-4　| 能力层 Protocol 化　| P-1　| P0/P1 消除，能力模块化，global_config 清除　　　　　　　　　　　　　　　　　　| ✅ 已完成　|
+| Phoenix-5　| v2 主程序集成　　　 | P-4　| HostEndpoint 接入 main.py，Scope WebUI 激活，Runner 进程管理，速率限制　　　　| ✅ 已完成　|
+| Phoenix-6　| SDK RPC 通道　　　　| P-5　| SendContext/StorageContext/PluginContext gRPC 通道实现　　　　　　　　　　　　| 📋 规划中 |
+| Phoenix-7　| napcat-adapter 重写 | P-6　| napcat-adapter 从 v1 重写为 v4 格式（Manifest v3 + scopes + gRPC）　　　　　　| 📋 规划中 |
+| Phoenix-8　| 兼容层插件　　　　　| P-5　| v1 运行时封装为 v4 插件，从主程序剥离，老插件零修改继续运行　　　　　　　　　 | 📋 规划中 |
+| Phoenix-9　| Runner 进程管理增强 | P-8　| Host spawn Runner、健康检查、自动重启、热重载　　　　　　　　　　　　　　　　 | 📋 规划中 |
+| Phoenix-10 | WebUI 插件管理面　　| P-8　| Scope 审批前端 UI + 插件安装/卸载/配置 + 插件市场　　　　　　　　　　　　　　 | 📋 规划中 |
 
 依赖关系：`P-0 → P-1 → P-2 → P-3`，`P-1 → P-4`，`P-4 → P-5 → P-6 → P-7`，`P-5 → P-8 → P-9/P-10`
 
