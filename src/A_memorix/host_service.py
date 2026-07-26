@@ -24,10 +24,9 @@ logger = get_logger("a_memorix.host_service")
 _INTERNAL_CONFIG_FIELDS = {"field_docs", "_validate_any", "suppress_any_warning"}
 
 
-def _get_config_manager():
-    from src.config.config import config_manager
-
-    return config_manager
+def _get_app_config_port():
+    from src.core.app_config_port_registry import get_app_config_port
+    return get_app_config_port()
 
 
 def _get_bot_config_path() -> Path:
@@ -670,7 +669,7 @@ class AMemorixHostService:
             return dict(self._config_cache)
 
         try:
-            config_model = _get_config_manager().get_global_config().a_memorix
+            config_model = _get_app_config_port().get_a_memorix_integration_config()
         except Exception as exc:
             logger.warning(f"读取 A_Memorix 主配置失败，使用默认值: {exc}")
             defaults = self._build_default_config()
@@ -720,7 +719,7 @@ class AMemorixHostService:
         with path.open("w", encoding="utf-8") as handle:
             tomlkit.dump(doc, handle)
 
-        await _get_config_manager().reload_config(changed_scopes=("bot",))
+        await _get_app_config_port().reload_config(changed_scopes=("bot",))
         if not self._reload_callback_registered:
             await self.reload()
         return path, backup_path
@@ -728,7 +727,7 @@ class AMemorixHostService:
     def register_config_reload_callback(self) -> None:
         if self._reload_callback_registered:
             return
-        _get_config_manager().register_reload_callback(self.on_config_reload)
+        _get_app_config_port().register_reload_callback(self.on_config_reload)
         self._reload_callback_registered = True
 
     async def on_config_reload(self, changed_scopes: Sequence[str] | None = None) -> None:
