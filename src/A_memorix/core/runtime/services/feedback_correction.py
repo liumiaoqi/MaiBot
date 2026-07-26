@@ -139,16 +139,15 @@ class FeedbackCorrectionService:
         if isinstance(value, (int, float)):
             try:
                 return datetime.fromtimestamp(float(value))
-            except Exception:
-                return None
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
         text = str(value or "").strip()
         if not text:
             return None
         try:
             return datetime.fromisoformat(text)
-        except Exception:
-            return None
-
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
     @staticmethod
     def _feedback_signal_tokens() -> tuple[str, ...]:
         return (
@@ -851,6 +850,7 @@ class FeedbackCorrectionService:
                     self.metadata_store.mark_person_profile_refresh_failed(person_id, error, requested_at=requested_at)
                     failures.append({"person_id": person_id, "error": error})
             except Exception as exc:
+                logger.warning("操作失败", exc_info=True)
                 error = str(exc)[:500]
                 self.metadata_store.mark_person_profile_refresh_failed(person_id, error, requested_at=requested_at)
                 failures.append({"person_id": person_id, "error": error})
@@ -884,6 +884,7 @@ class FeedbackCorrectionService:
                 self.metadata_store.mark_episode_source_done(source, requested_at=requested_at)
                 items.append(result if isinstance(result, dict) else {"source": source})
             except Exception as exc:
+                logger.warning("操作失败", exc_info=True)
                 error = str(exc)[:500]
                 self.metadata_store.mark_episode_source_failed(source, error, requested_at=requested_at)
                 failures.append({"source": source, "error": error})
@@ -1245,8 +1246,8 @@ class FeedbackCorrectionService:
                         str(item.get("predicate", "")).strip(),
                         str(item.get("object", "")).strip(),
                     )
-                except Exception:
-                    continue
+                except Exception as exc:
+                    logger.warning("操作异常: %s", exc)
                 if not relation_hash:
                     continue
                 corrected_relation_hash_candidates.append(relation_hash)

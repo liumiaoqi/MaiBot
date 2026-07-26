@@ -5,6 +5,8 @@ from __future__ import annotations
 from typing import Any, List, Tuple
 
 from .path_fallback_service import find_paths_from_query, to_retrieval_results
+from src.common.logger import get_logger
+logger = get_logger("A_memorix.core.utils.search_postprocess")
 
 
 def apply_safe_content_dedup(results: List[Any]) -> Tuple[List[Any], int]:
@@ -65,9 +67,8 @@ def maybe_apply_smart_path_fallback(
     if results:
         try:
             max_score = float(getattr(results[0], "score", 0.0) or 0.0)
-        except Exception:
-            max_score = 0.0
-
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
     if max_score >= float(threshold):
         return results, False, 0
 

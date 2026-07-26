@@ -156,36 +156,42 @@ def build_search_runtime(
     try:
         sparse_cfg = SparseBM25Config(**sparse_cfg_raw)
     except Exception as e:
+        logger.warning("操作失败", exc_info=True)
         log.warning(f"{prefix_text}[{owner}] sparse 配置非法，回退默认: {e}")
         sparse_cfg = SparseBM25Config()
 
     try:
         fusion_cfg = FusionConfig(**fusion_cfg_raw)
     except Exception as e:
+        logger.warning("操作失败", exc_info=True)
         log.warning(f"{prefix_text}[{owner}] fusion 配置非法，回退默认: {e}")
         fusion_cfg = FusionConfig()
 
     try:
         relation_intent_cfg = RelationIntentConfig(**relation_intent_cfg_raw)
     except Exception as e:
+        logger.warning("操作失败", exc_info=True)
         log.warning(f"{prefix_text}[{owner}] relation_intent 配置非法，回退默认: {e}")
         relation_intent_cfg = RelationIntentConfig()
 
     try:
         graph_recall_cfg = GraphRelationRecallConfig(**graph_recall_cfg_raw)
     except Exception as e:
+        logger.warning("操作失败", exc_info=True)
         log.warning(f"{prefix_text}[{owner}] graph_recall 配置非法，回退默认: {e}")
         graph_recall_cfg = GraphRelationRecallConfig()
 
     try:
         posterior_graph_cfg = PosteriorGraphConfig(**posterior_graph_cfg_raw)
     except Exception as e:
+        logger.warning("操作失败", exc_info=True)
         log.warning(f"{prefix_text}[{owner}] posterior_graph 配置非法，回退默认: {e}")
         posterior_graph_cfg = PosteriorGraphConfig()
 
     try:
         vector_pools_cfg = VectorPoolsConfig(**vector_pools_cfg_raw)
     except Exception as e:
+        logger.warning("操作失败", exc_info=True)
         log.warning(f"{prefix_text}[{owner}] vector_pools 配置非法，回退默认: {e}")
         vector_pools_cfg = VectorPoolsConfig()
 
@@ -244,6 +250,7 @@ def build_search_runtime(
         runtime.error = ""
         log.info(f"{prefix_text}[{owner}] 检索运行时就绪")
     except Exception as e:
+        logger.warning("操作失败", exc_info=True)
         runtime.retriever = None
         runtime.threshold_filter = None
         runtime.error = str(e)

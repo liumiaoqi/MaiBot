@@ -179,9 +179,8 @@ class AutoImporter:
             try:
                 with open(MANIFEST_PATH, "r", encoding="utf-8") as f:
                     self.manifest = json.load(f)
-            except Exception:
-                self.manifest = {}
-        
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
         config_path = DEFAULT_CONFIG_PATH
         try:
             with open(config_path, "r", encoding="utf-8") as f:
@@ -760,7 +759,8 @@ Chat paragraph:
                         self.graph_store.add_edges([(s, o)], relation_hashes=[rel_hash])
                         try:
                             self.metadata_store.set_relation_vector_state(rel_hash, "none")
-                        except Exception:
+                        except Exception as exc:
+                            logger.warning("操作异常: %s", exc)
             logger.warning(f\"操作失败 in src/A_memorix/scripts/process_knowledge.py\", exc_info=True)
 
                 if progress_callback:
@@ -814,7 +814,8 @@ Chat paragraph:
                     self.graph_store.add_edges([(subject, obj)], relation_hashes=[rel_hash])
                     try:
                         self.metadata_store.set_relation_vector_state(rel_hash, "none")
-                    except Exception:
+                    except Exception as exc:
+                        logger.warning("操作异常: %s", exc)
             logger.warning(f\"操作失败 in src/A_memorix/scripts/process_knowledge.py\", exc_info=True)
 
         if warning_count > 0:

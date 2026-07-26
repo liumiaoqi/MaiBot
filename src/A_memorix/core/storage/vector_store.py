@@ -543,6 +543,7 @@ class VectorStore:
                     "error": None,
                 }
         except Exception as e:
+            logger.warning("操作失败", exc_info=True)
             duration_ms = (time.perf_counter() - started) * 1000.0
             summary = {
                 "ok": False,
@@ -871,9 +872,8 @@ class VectorStore:
     def _migrate_from_npy_unlocked(self, npy_path, idx_path, data_dir):
         try:
             arr = np.load(npy_path, mmap_mode="r")
-        except Exception:
-            arr = np.load(npy_path)
-
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
         meta_path = data_dir / "vectors_metadata.pkl"
         old_ids = []
         if meta_path.exists():

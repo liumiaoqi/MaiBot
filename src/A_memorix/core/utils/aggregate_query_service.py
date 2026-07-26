@@ -40,16 +40,14 @@ class AggregateQueryService:
     def _as_float(value: Any, default: float = 0.0) -> float:
         try:
             return float(value)
-        except Exception:
-            return float(default)
-
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
     @staticmethod
     def _as_int(value: Any, default: int = 0) -> int:
         try:
             return int(value)
-        except Exception:
-            return int(default)
-
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
     def _rrf_k(self) -> float:
         raw = self._cfg("retrieval.aggregate.rrf_k", 60.0)
         value = self._as_float(raw, 60.0)

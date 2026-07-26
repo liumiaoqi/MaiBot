@@ -14,6 +14,7 @@ from typing import Any
 import tomlkit
 
 from _bootstrap import DEFAULT_CONFIG_PATH, DEFAULT_DATA_DIR, resolve_repo_path
+from src.common.logger import get_logger
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
@@ -48,6 +49,7 @@ if any(arg in {"-h", "--help"} for arg in sys.argv[1:]):
 
 from A_memorix.core.runtime.lifecycle_orchestrator import initialize_storage_async
 from A_memorix.core.utils.runtime_self_check import run_embedding_runtime_self_check
+logger = get_logger("A_memorix.scripts.runtime_self_check")
 
 
 def _load_config(path: Path) -> dict[str, Any]:
@@ -128,8 +130,8 @@ async def _main_async(args: argparse.Namespace) -> int:
         if plugin.metadata_store is not None:
             try:
                 plugin.metadata_store.close()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
         if temp_dir_ctx is not None:
             temp_dir_ctx.cleanup()
 

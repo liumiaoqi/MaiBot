@@ -8,16 +8,15 @@ from collections import deque
 from typing import Dict, List, Optional, Set, Tuple
 
 import os
+from src.common.logger import get_logger
+logger = get_logger("A_memorix.core.utils.matcher")
 
 try:
     import ahocorasick_rs  # type: ignore
 
     HAS_AHOCORASICK_RS = True
-except Exception:
-    ahocorasick_rs = None
-    HAS_AHOCORASICK_RS = False
-
-
+except Exception as exc:
+    logger.warning("操作异常: %s", exc)
 class AhoCorasick:
     """
     Aho-Corasick 自动机实现高效多模式匹配
@@ -115,10 +114,8 @@ class AhoCorasick:
                     store_patterns=True,
                 )
             self._native_patterns = patterns
-        except Exception:
-            self._native_matcher = None
-            self._native_patterns = []
-
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
     def search(self, text: str) -> List[Tuple[int, str]]:
         """
         在文本中搜索所有模式
@@ -133,8 +130,8 @@ class AhoCorasick:
                     (int(end) - 1, self._native_patterns[int(pattern_index)])
                     for pattern_index, _start, end in matches
                 ]
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
 
         self._build_python_matcher()
         state = 0
@@ -160,8 +157,8 @@ class AhoCorasick:
                 for pattern in self._native_matcher.find_matches_as_strings(text):  # type: ignore[attr-defined]
                     stats[str(pattern)] = stats.get(str(pattern), 0) + 1
                 return stats
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
 
         results = self.search(text)
         stats = {}

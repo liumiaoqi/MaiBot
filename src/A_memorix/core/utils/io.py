@@ -50,6 +50,7 @@ def atomic_write(file_path: Union[str, Path], mode: str = "w", encoding: str = N
         os.replace(tmp_path, path)
         
     except Exception as e:
+        logger.warning("操作失败", exc_info=True)
         # 清理临时文件
         if tmp_path.exists():
             try:
@@ -81,6 +82,7 @@ def atomic_save_path(file_path: Union[str, Path]):
             os.replace(tmp_path, path)
             
     except Exception as e:
+        logger.warning("操作失败", exc_info=True)
         if Path(tmp_path).exists():
             try:
                 os.remove(tmp_path)

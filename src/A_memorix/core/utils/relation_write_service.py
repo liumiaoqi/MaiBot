@@ -113,6 +113,7 @@ class RelationWriteService:
                 vector_state="ready",
             )
         except Exception as e:
+            logger.warning("操作失败", exc_info=True)
             err = str(e)[:max_error_len]
             self.metadata_store.set_relation_vector_state(
                 hash_value,

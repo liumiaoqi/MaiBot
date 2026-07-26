@@ -28,10 +28,8 @@ try:
     import jieba  # type: ignore
 
     HAS_JIEBA = True
-except Exception:
-    jieba = None
-    HAS_JIEBA = False
-
+except Exception as exc:
+    logger.warning("操作异常: %s", exc)
 logger = get_logger("A_Memorix.MetadataStore")
 
 
@@ -1669,8 +1667,8 @@ class MetadataStore:
         if HAS_JIEBA and jieba is not None:
             try:
                 tokens = [token.strip().lower() for token in jieba.cut_for_search(source) if token.strip()]
-            except Exception:
-                tokens = list(source.lower())
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
         else:
             tokens = list(source.lower())
         tokens.extend(self._paragraph_phrase_tokens(source))
@@ -3782,8 +3780,8 @@ class MetadataStore:
         if raw_metadata:
             try:
                 payload["metadata"] = json.loads(raw_metadata)
-            except Exception:
-                payload["metadata"] = {}
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
         else:
             payload["metadata"] = {}
         return payload
@@ -3845,9 +3843,8 @@ class MetadataStore:
             return default
         try:
             return json.loads(value)
-        except Exception:
-            return default
-
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
     @staticmethod
     def _decode_metadata(value: Any) -> Dict[str, Any]:
         if value in {None, ""}:
@@ -5384,8 +5381,8 @@ class MetadataStore:
              if "metadata" in d and d["metadata"]:
                  try:
                      d["metadata"] = pickle.loads(d["metadata"])
-                 except Exception:
-                     d["metadata"] = {}
+                 except Exception as exc:
+                     logger.warning("操作异常: %s", exc)
              data.append(d)
         return data
 
@@ -5400,8 +5397,8 @@ class MetadataStore:
         if "metadata" in d and d["metadata"]:
              try:
                  d["metadata"] = pickle.loads(d["metadata"])
-             except Exception:
-                 d["metadata"] = {}
+             except Exception as exc:
+                 logger.warning("操作异常: %s", exc)
         return d
 
     def reinforce_relations(self, hashes: List[str]) -> None:
@@ -5504,9 +5501,8 @@ class MetadataStore:
         if "metadata" in d and d["metadata"]:
             try:
                 d["metadata"] = pickle.loads(d["metadata"])
-            except Exception:
-                d["metadata"] = {}
-
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
         return d
 
     @staticmethod
@@ -6031,9 +6027,8 @@ class MetadataStore:
             try:
                 data = json.loads(raw)
                 return data if isinstance(data, list) else []
-            except Exception:
-                return []
-
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
         return {
             "snapshot_id": row[0],
             "person_id": row[1],
@@ -6587,8 +6582,8 @@ class MetadataStore:
                 paragraph_count = raw_payload.get("paragraph_count", len(evidence_ids))
                 try:
                     paragraph_count = max(0, int(paragraph_count))
-                except Exception:
-                    paragraph_count = len(evidence_ids)
+                except Exception as exc:
+                    logger.warning("操作异常: %s", exc)
                 if paragraph_count <= 0:
                     paragraph_count = len(evidence_ids)
                 if paragraph_count <= 0:
@@ -6598,13 +6593,12 @@ class MetadataStore:
                 llm_confidence = raw_payload.get("llm_confidence", 0.0)
                 try:
                     time_confidence = float(time_confidence)
-                except Exception:
-                    time_confidence = 1.0
+                except Exception as exc:
+                    logger.warning("操作异常: %s", exc)
                 try:
                     llm_confidence = float(llm_confidence)
-                except Exception:
-                    llm_confidence = 0.0
-
+                except Exception as exc:
+                    logger.warning("操作异常: %s", exc)
                 created_at = existing_created_at.get(episode_id)
                 created_ts = created_at if created_at is not None else now
                 updated_ts = self._as_optional_float(raw_payload.get("updated_at")) or now
@@ -6650,10 +6644,8 @@ class MetadataStore:
 
             self._conn.commit()
             return {"source": token, "episode_count": inserted_count}
-        except Exception:
-            self._conn.rollback()
-            raise
-
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
     def enqueue_episode_pending(
         self,
         paragraph_hash: str,
@@ -7954,9 +7946,8 @@ class MetadataStore:
             try:
                 val = json.loads(raw)
                 return val if isinstance(val, list) else []
-            except Exception:
-                return []
-
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
         data["participants"] = _load_list(data.pop("participants_json", None))
         data["keywords"] = _load_list(data.pop("keywords_json", None))
         data["evidence_ids"] = _load_list(data.pop("evidence_ids_json", None))
@@ -7968,9 +7959,8 @@ class MetadataStore:
             return None
         try:
             return float(value)
-        except Exception:
-            return None
-
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
     def upsert_episode(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """写入或更新 episode。"""
         if not isinstance(payload, dict):
@@ -8018,20 +8008,18 @@ class MetadataStore:
             paragraph_count = len(evidence_ids)
         try:
             paragraph_count = int(paragraph_count)
-        except Exception:
-            paragraph_count = len(evidence_ids)
-
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
         time_conf = payload.get("time_confidence", 1.0)
         llm_conf = payload.get("llm_confidence", 0.0)
         try:
             time_conf = float(time_conf)
-        except Exception:
-            time_conf = 1.0
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
         try:
             llm_conf = float(llm_conf)
-        except Exception:
-            llm_conf = 0.0
-
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
         cursor = self._conn.cursor()
         cursor.execute(
             "SELECT created_at FROM episodes WHERE episode_id = ? LIMIT 1",
@@ -8225,9 +8213,8 @@ class MetadataStore:
                         for item in jieba.cut_for_search(span)  # type: ignore[union-attr]
                         if len(str(item).strip()) >= 2
                     ]
-                except Exception:
-                    segmented = []
-
+                except Exception as exc:
+                    logger.warning("操作异常: %s", exc)
             if not segmented:
                 compact = span.strip()
                 if len(compact) <= 3:

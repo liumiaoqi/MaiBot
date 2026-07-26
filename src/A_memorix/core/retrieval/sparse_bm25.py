@@ -26,11 +26,8 @@ try:
     import jieba  # type: ignore
 
     HAS_JIEBA = True
-except Exception:
-    HAS_JIEBA = False
-    jieba = None
-
-
+except Exception as exc:
+    logger.warning("操作异常: %s", exc)
 @dataclass
 class SparseBM25Config:
     """BM25 稀疏检索配置。"""
@@ -381,9 +378,8 @@ class SparseBM25Index:
         try:
             tokens = list(jieba.cut_for_search(text))  # type: ignore[union-attr]
             return [t.strip().lower() for t in tokens if t and t.strip()]
-        except Exception:
-            return []
-
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
     def _tokenize_char_ngram(self, text: str, n: int) -> List[str]:
         compact = re.sub(r"\s+", "", text.lower())
         if not compact:
@@ -658,12 +654,12 @@ class SparseBM25Index:
             try:
                 if self.config.shrink_memory_on_unload:
                     self.metadata_store.shrink_memory(conn=self._conn)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
             try:
                 self._conn.close()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
         self._conn = None
         self._loaded = False
         logger.info("SparseBM25Index unloaded")

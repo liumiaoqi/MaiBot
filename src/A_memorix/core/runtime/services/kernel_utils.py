@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from typing import Any, Dict, Iterable, List, Optional, Sequence
+from src.common.logger import get_logger
+logger = get_logger("A_memorix.core.runtime.services.kernel_utils")
 
 _TOP_LEVEL_KEYS = frozenset({
     "storage", "embedding", "retrieval", "graph",
@@ -104,19 +106,15 @@ def optional_float(value: Any) -> Optional[float]:
         return None
     try:
         return float(value)
-    except Exception:
-        return None
-
-
+    except Exception as exc:
+        logger.warning("操作异常: %s", exc)
 def optional_int(value: Any) -> Optional[int]:
     if value in {None, ""}:
         return None
     try:
         return int(value)
-    except Exception:
-        return None
-
-
+    except Exception as exc:
+        logger.warning("操作异常: %s", exc)
 def table_has_column(metadata_store: Any, table: str, column: str) -> bool:
     if metadata_store is None:
         return False

@@ -227,8 +227,8 @@ class PersonProfileService:
         else:
             try:
                 items = json.loads(raw_value)
-            except Exception:
-                return []
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
         names: List[str] = []
         for item in items:
             if isinstance(item, dict):
@@ -246,8 +246,8 @@ class PersonProfileService:
             return []
         try:
             values = json.loads(raw_value) if isinstance(raw_value, str) else raw_value
-        except Exception:
-            return []
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
         if not isinstance(values, list):
             return []
         traits: List[str] = []
@@ -286,8 +286,8 @@ class PersonProfileService:
                 continue
             try:
                 paragraph_entities = self.metadata_store.get_paragraph_entities(paragraph_hash)
-            except Exception:
-                paragraph_entities = []
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
             for entity in paragraph_entities:
                 name = str(entity.get("name", "")).strip()
                 if not name or name == person_id:
@@ -402,8 +402,8 @@ class PersonProfileService:
         if source_paragraph:
             try:
                 paragraph = self.metadata_store.get_paragraph(source_paragraph)
-            except Exception:
-                paragraph = None
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
             if isinstance(paragraph, dict):
                 payload = {
                     "hash": source_paragraph,
@@ -498,8 +498,8 @@ class PersonProfileService:
         source = str(merged.get("source", "")).strip()
         try:
             paragraph = self.metadata_store.get_paragraph(paragraph_hash)
-        except Exception:
-            paragraph = None
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
         if isinstance(paragraph, dict):
             paragraph_metadata = coerce_metadata_dict(paragraph.get("metadata"))
             if paragraph_metadata:
@@ -811,8 +811,8 @@ class PersonProfileService:
         try:
             repaired = repair_json(text)
             payload = json.loads(repaired) if isinstance(repaired, str) else repaired
-        except Exception:
-            return {}
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
         if not isinstance(payload, dict):
             return {}
         allowed_keys = (
@@ -940,8 +940,8 @@ class PersonProfileService:
         if expires_at is not None:
             try:
                 return now >= float(expires_at)
-            except Exception:
-                return True
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
         updated_at = float(snapshot.get("updated_at") or 0.0)
         return (now - updated_at) >= ttl_seconds
 

@@ -22,6 +22,8 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 import tomlkit
 
 from _bootstrap import DEFAULT_CONFIG_PATH, DEFAULT_DATA_DIR, resolve_repo_path
+from src.common.logger import get_logger
+logger = get_logger("A_memorix.scripts.release_vnext_migrate")
 
 def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="A_Memorix vNext release migration tool")
@@ -131,8 +133,8 @@ def _sqlite_table_exists(conn: sqlite3.Connection, table: str) -> bool:
 def _sqlite_column_exists(conn: sqlite3.Connection, table: str, column: str) -> bool:
     try:
         rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
-    except Exception:
-        return False
+    except Exception as exc:
+        logger.warning("操作异常: %s", exc)
     return any(str(row[1] or "") == str(column or "") for row in rows)
 
 
@@ -186,14 +188,14 @@ def _guess_vector_dimension(config_doc: Dict[str, Any], vectors_dir: Path) -> in
             dim = int(meta.get("dimension", 0))
             if dim > 0:
                 return dim
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
     try:
         dim_cfg = int(_get_nested(config_doc, ("embedding", "dimension"), 1024))
         if dim_cfg > 0:
             return dim_cfg
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("操作异常: %s", exc)
     return 1024
 
 
@@ -442,6 +444,7 @@ def _preflight_impl(config_path: Path, data_dir: Path) -> Dict[str, Any]:
                         )
                     )
             except Exception as e:
+                logger.warning("操作失败", exc_info=True)
                 checks.append(
                     CheckItem(
                         "CP-06",
@@ -753,12 +756,13 @@ def _verify_impl(config_path: Path, data_dir: Path) -> Dict[str, Any]:
                 if not graph_store.has_edge_hash_map():
                     checks.append(CheckItem("CP-06", "error", "edge_hash_map is empty"))
     except Exception as e:
+        logger.warning("操作失败", exc_info=True)
         checks.append(CheckItem("CP-08", "error", f"metadata strict connect failed: {e}"))
     finally:
         try:
             store.close()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
 
     has_error = any(c.level == "error" for c in checks)
     return {

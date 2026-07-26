@@ -104,17 +104,13 @@ def _now() -> float:
 def _coerce_int(value: Any, default: int) -> int:
     try:
         return int(value)
-    except Exception:
-        return default
-
-
+    except Exception as exc:
+        logger.warning("操作异常: %s", exc)
 def _coerce_float(value: Any, default: float) -> float:
     try:
         return float(value)
-    except Exception:
-        return default
-
-
+    except Exception as exc:
+        logger.warning("操作异常: %s", exc)
 def _coerce_bool(value: Any, default: bool) -> bool:
     if value is None:
         return default
@@ -205,8 +201,8 @@ def _parse_optional_positive_int(value: Any, field_name: str) -> Optional[int]:
         return None
     try:
         parsed = int(text)
-    except Exception:
-        raise ValueError(f"{field_name} 必须为整数") from None
+    except Exception as exc:
+        logger.warning("操作异常: %s", exc)
     if parsed <= 0:
         raise ValueError(f"{field_name} 必须 > 0")
     return parsed
@@ -220,8 +216,8 @@ def _parse_optional_non_negative_int(value: Any, field_name: str) -> Optional[in
         return None
     try:
         parsed = int(text)
-    except Exception:
-        raise ValueError(f"{field_name} 必须为整数") from None
+    except Exception as exc:
+        logger.warning("操作异常: %s", exc)
     if parsed < 0:
         raise ValueError(f"{field_name} 必须 >= 0")
     return parsed
@@ -573,10 +569,8 @@ class ImportTaskManager:
                     error=error,
                     bump_retry=bump_retry,
                 )
-            except Exception:
-                if state != "none":
-                    raise
-
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
     async def _write_paragraph_vector_or_enqueue(
         self,
         *,
@@ -658,6 +652,7 @@ class ImportTaskManager:
                 "detail": "",
             }
         except Exception as exc:
+            logger.warning("操作失败", exc_info=True)
             if not self._allow_metadata_only_write():
                 raise
             await self._enqueue_paragraph_backfill_locked(token, error=str(exc))
@@ -833,8 +828,8 @@ class ImportTaskManager:
                 self._manifest_cache = payload
             else:
                 self._manifest_cache = {}
-        except Exception:
-            self._manifest_cache = {}
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
         return self._manifest_cache
 
     def _save_manifest(self, payload: Dict[str, Any]) -> None:
@@ -1799,8 +1794,8 @@ class ImportTaskManager:
                 if retryable:
                     try:
                         retry_indexes.append(int(chunk.index))
-                    except Exception:
-                        has_non_retryable = True
+                    except Exception as exc:
+                        logger.warning("操作异常: %s", exc)
                 else:
                     has_non_retryable = True
 
@@ -2043,8 +2038,8 @@ class ImportTaskManager:
                 await worker
             except asyncio.CancelledError:
                 pass
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
 
         self._cleanup_temp_root()
 
@@ -2340,9 +2335,8 @@ class ImportTaskManager:
             return
         try:
             payload = json.loads(state_path.read_text(encoding="utf-8"))
-        except Exception:
-            return
-
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
         stats = payload.get("stats", {}) if isinstance(payload, dict) else {}
         if not isinstance(stats, dict):
             stats = {}
@@ -2393,12 +2387,13 @@ class ImportTaskManager:
         try:
             process.terminate()
             await asyncio.wait_for(process.wait(), timeout=timeout_cfg["process_terminate_seconds"])
-        except Exception:
+        except Exception as exc:
+            logger.warning("操作失败", exc_info=True)
             try:
                 process.kill()
                 await asyncio.wait_for(process.wait(), timeout=timeout_cfg["process_kill_seconds"])
             except Exception:
-                pass
+            logger.warning("操作异常: %s", exc)
 
     async def _reload_stores_after_external_migration(self) -> None:
         async with self._storage_lock:
@@ -2498,9 +2493,8 @@ class ImportTaskManager:
         if report_path.exists():
             try:
                 report = json.loads(report_path.read_text(encoding="utf-8"))
-            except Exception:
-                report = {}
-
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
         stats = report.get("stats", {}) if isinstance(report, dict) else {}
         if not isinstance(stats, dict):
             stats = {}
@@ -2561,8 +2555,8 @@ class ImportTaskManager:
         for old in dirs[keep:]:
             try:
                 shutil.rmtree(old, ignore_errors=True)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
 
     def _verify_convert_output(self, output_dir: Path) -> Dict[str, Any]:
         vectors = output_dir / "vectors"
@@ -2605,6 +2599,7 @@ class ImportTaskManager:
                 timeout=self._timeout_config()["convert_preflight_seconds"],
             )
         except Exception as e:
+            logger.warning(f"依赖预检执行失败: {e}", exc_info=True)
             return False, f"依赖预检执行失败: {e}"
 
         out = (stdout or b"").decode("utf-8", errors="replace").strip()
@@ -2782,14 +2777,15 @@ class ImportTaskManager:
                 shutil.move(str(src_new), str(src_current))
             switched = True
         except Exception as switch_err:
+            logger.warning("操作失败", exc_info=True)
             rollback_info["error"] = str(switch_err)
             # 尝试回滚
             for src_backup, dst_original in moved_items:
                 if src_backup.exists() and not dst_original.exists():
                     try:
                         shutil.move(str(src_backup), str(dst_original))
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.warning("操作异常: %s", exc)
             rollback_info["restored"] = True
             async with self._lock:
                 t = self._tasks.get(task_id)
@@ -2870,8 +2866,8 @@ class ImportTaskManager:
         finally:
             try:
                 store.close()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
 
         async with self._lock:
             t = self._tasks.get(task_id)
@@ -2957,6 +2953,7 @@ class ImportTaskManager:
                         async with self._lock:
                             self._record_manifest_import(file_record, content_hash, dedupe_policy, task_id)
             except Exception as e:
+                logger.warning("操作失败", exc_info=True)
                 await self._set_file_failed(task_id, file_record.file_id, str(e))
 
     async def _read_file_content(self, file_record: ImportFileRecord) -> str:
@@ -3006,8 +3003,8 @@ class ImportTaskManager:
             for idx in file_record.retry_chunk_indexes:
                 try:
                     retry_index_set.add(int(idx))
-                except Exception:
-                    continue
+                except Exception as exc:
+                    logger.warning("操作异常: %s", exc)
             selected_chunks = [chunk for chunk in chunks if int(chunk.chunk.index) in retry_index_set]
             if not selected_chunks:
                 raise RuntimeError("失败分块重试索引无效，未匹配到可执行分块")
@@ -3114,6 +3111,7 @@ class ImportTaskManager:
                 elif chunk.type == StrategyKnowledgeType.QUOTE:
                     processed = await current_strategy.extract(chunk)
             except Exception as e:
+                logger.warning("操作失败", exc_info=True)
                 await self._set_chunk_failed(task_id, file_record.file_id, chunk_id, f"抽取失败: {e}")
                 return
 
@@ -3138,6 +3136,7 @@ class ImportTaskManager:
                 )
                 await self._set_chunk_completed(task_id, file_record.file_id, chunk_id)
             except Exception as e:
+                logger.warning("操作失败", exc_info=True)
                 await self._set_chunk_failed(task_id, file_record.file_id, chunk_id, f"写入失败: {e}")
 
     async def _process_json_file(
@@ -3480,6 +3479,7 @@ class ImportTaskManager:
                     await self._append_file_warnings(task_id, file_record.file_id, chunk_warnings)
                 await self._set_chunk_completed(task_id, file_record.file_id, chunk_id)
             except Exception as e:
+                logger.warning("操作失败", exc_info=True)
                 await self._set_chunk_failed(task_id, file_record.file_id, chunk_id, f"写入失败: {e}")
 
     def _source_label(self, file_record: ImportFileRecord) -> str:
@@ -3606,6 +3606,7 @@ class ImportTaskManager:
                 emb = await self.plugin.embedding_manager.encode(name_token)
                 target_store.add(emb.reshape(1, -1), [vector_id])
             except Exception as exc:
+                logger.warning("操作失败", exc_info=True)
                 if not self._allow_metadata_only_write():
                     raise
                 logger.warning(f"实体向量写入降级，保留 metadata/graph: entity={name_token} error={exc}")
@@ -3642,8 +3643,8 @@ class ImportTaskManager:
             if not write_vector:
                 try:
                     self.plugin.metadata_store.set_relation_vector_state(rel_hash, "none")
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("操作异常: %s", exc)
                 return rel_hash
             target_store = self._graph_vector_store()
             vector_id = self._graph_vector_id("relation", rel_hash)
@@ -3676,6 +3677,7 @@ class ImportTaskManager:
                 await self._set_relation_vector_state_locked(rel_hash, "failed", error=str(exc), bump_retry=True)
                 logger.warning(f"关系向量写入失败，保留 metadata/graph: relation={rel_hash[:16]} error={exc}")
         except Exception as exc:
+            logger.warning("操作失败", exc_info=True)
             await self._set_relation_vector_state_locked(rel_hash, "failed", error=str(exc), bump_retry=True)
             logger.warning(f"关系向量写入降级，保留 metadata/graph: relation={rel_hash[:16]} error={exc}")
         return rel_hash
@@ -3744,13 +3746,10 @@ class ImportTaskManager:
 
                 try:
                     return _coerce_import_data_dict(json.loads(txt), context="LLM 抽取结果")
-                except Exception:
-                    s = txt.find("{")
-                    e = txt.rfind("}")
-                    if s >= 0 and e > s:
-                        return _coerce_import_data_dict(json.loads(txt[s : e + 1]), context="LLM 抽取结果")
-                    raise
+                except Exception as exc:
+                    logger.warning("操作异常: %s", exc)
             except Exception as err:
+                logger.warning("操作失败", exc_info=True)
                 last_error = err
                 if attempt >= retries:
                     break
@@ -3830,8 +3829,8 @@ JSON schema:
         }
         try:
             normalized = normalize_time_meta(raw_time_meta)
-        except Exception:
-            return None
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
         has_effective = any(k in normalized for k in ("event_time", "event_time_start", "event_time_end"))
         if not has_effective:
             return None

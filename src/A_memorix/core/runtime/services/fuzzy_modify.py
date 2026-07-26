@@ -294,6 +294,7 @@ class FuzzyModifyService:
             )
             return {"success": bool(execution.get("success")), "plan": updated, "execution": execution}
         except Exception as exc:
+            logger.warning("操作失败", exc_info=True)
             execution = {
                 **executing_payload,
                 "success": False,

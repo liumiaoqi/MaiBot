@@ -17,10 +17,8 @@ _DEFAULT_SAMPLE_TEXT = "A_Memorix runtime self check"
 def _safe_int(value: Any, default: int = 0) -> int:
     try:
         return int(value)
-    except Exception:
-        return int(default)
-
-
+    except Exception as exc:
+        logger.warning("操作异常: %s", exc)
 def _get_config_value(config: Any, key: str, default: Any = None) -> Any:
     getter = getattr(config, "get_config", None)
     if callable(getter):
@@ -79,8 +77,8 @@ def _store_snapshot(store: Optional[Any]) -> Dict[str, Any]:
     if callable(checker):
         try:
             has_data = bool(checker())
-        except Exception:
-            has_data = False
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
     else:
         has_data = num_vectors > 0
     return {
@@ -303,6 +301,6 @@ async def ensure_runtime_self_check(
     )
     try:
         plugin_or_config._runtime_self_check_report = report
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("操作异常: %s", exc)
     return report

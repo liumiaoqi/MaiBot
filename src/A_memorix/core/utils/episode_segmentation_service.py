@@ -97,8 +97,8 @@ class EpisodeSegmentationService:
     def _clamp_score(value: Any, default: float = 0.0) -> float:
         try:
             num = float(value)
-        except Exception:
-            num = default
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
         if num < 0.0:
             return 0.0
         if num > 1.0:
@@ -124,8 +124,8 @@ class EpisodeSegmentationService:
             data = json.loads(raw)
             if isinstance(data, dict):
                 return data
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
 
         start = raw.find("{")
         end = raw.rfind("}")

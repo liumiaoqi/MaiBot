@@ -918,6 +918,7 @@ class GraphOpsService:
             cursor.execute("DELETE FROM entities WHERE hash = ?", (old_row["hash"],))
             conn.commit()
         except Exception as exc:
+            logger.warning("操作失败", exc_info=True)
             conn.rollback()
             return {"success": False, "error": f"rename failed: {exc}"}
 

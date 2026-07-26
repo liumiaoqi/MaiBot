@@ -111,9 +111,8 @@ class EmbeddingAPIAdapter:
             return ""
         try:
             return str(self._find_model_info(token).api_provider or "").strip()
-        except Exception:
-            return ""
-
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
     def get_embedding_fingerprint(self, *, dimension: Optional[int] = None) -> Dict[str, Any]:
         """Return a compact fingerprint for the vector space used by this adapter."""
         effective_dimension = max(1, int(dimension or self.get_embedding_dimension()))
@@ -263,9 +262,8 @@ class EmbeddingAPIAdapter:
                     f"{wait_seconds:.1f}s 后重试: {exc}"
                 )
                 await asyncio.sleep(wait_seconds)
-            except Exception:
-                raise
-
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
         if last_exc is not None:
             raise last_exc
         raise RuntimeError("Embedding 请求失败：未知错误")

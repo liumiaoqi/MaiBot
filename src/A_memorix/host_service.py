@@ -40,9 +40,8 @@ def _to_builtin_data(obj: Any) -> Any:
     if hasattr(obj, "unwrap"):
         try:
             obj = obj.unwrap()
-        except Exception:
-            logger.debug("_to_builtin_data unwrap 失败 (可能是非 wrapping 对象)", exc_info=True)
-
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
     if isinstance(obj, dict):
         return {str(key): _to_builtin_data(value) for key, value in obj.items()}
     if isinstance(obj, list):
@@ -564,9 +563,8 @@ class AMemorixHostService:
                 kernel = SDKMemoryKernel(plugin_root=repo_root(), config=config, ports=ports)
                 try:
                     await kernel.initialize()
-                except Exception:
-                    kernel.close()
-                    raise
+                except Exception as exc:
+                    logger.warning("操作异常: %s", exc)
                 self._kernel = kernel
                 set_runtime_kernel(kernel)
                 self._register_agents_from_config(kernel)
@@ -838,8 +836,8 @@ class AMemorixHostService:
             return
         try:
             await self._kernel.shutdown()
-        except Exception:
-            self._kernel.close()
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
         self._kernel = None
         set_runtime_kernel(None)
 

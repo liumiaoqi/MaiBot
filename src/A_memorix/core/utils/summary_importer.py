@@ -150,22 +150,20 @@ def _message_timestamp(message: Any) -> Optional[float]:
         if callable(timestamp_func):
             try:
                 return float(timestamp_func())
-            except Exception:
-                continue
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
         try:
             return float(value)
-        except Exception:
-            continue
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
     return None
 
 
 def _paragraph_created_at(paragraph: Dict[str, Any]) -> float:
     try:
         return float(paragraph.get("created_at") or 0.0)
-    except Exception:
-        return 0.0
-
-
+    except Exception as exc:
+        logger.warning("操作异常: %s", exc)
 class SummaryImporter:
     """总结并导入知识的工具类"""
 
@@ -415,9 +413,8 @@ class SummaryImporter:
             raw_value = self.plugin_config.get("summarization", {}).get("history_review_count", 2)
         try:
             return max(0, int(raw_value or 0))
-        except Exception:
-            return 2
-
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
     @staticmethod
     def _clean_review_summary(text: str) -> str:
         content = re.sub(r"\s+", " ", str(text or "")).strip()
@@ -744,8 +741,8 @@ class SummaryImporter:
                     self.graph_store.add_edges([(s, o)], relation_hashes=[rel_hash])
                     try:
                         self.metadata_store.set_relation_vector_state(rel_hash, "none")
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.warning("操作异常: %s", exc)
 
         logger.info(f"总结导入完成: hash={hash_value[:8]}")
         return hash_value

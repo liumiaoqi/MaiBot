@@ -78,16 +78,16 @@ def _now() -> float:
 def _clamp_int(value: Any, default: int, min_value: int, max_value: int) -> int:
     try:
         parsed = int(value)
-    except Exception:
-        parsed = int(default)
+    except Exception as exc:
+        logger.warning("操作异常: %s", exc)
     return max(min_value, min(max_value, parsed))
 
 
 def _clamp_float(value: Any, default: float, min_value: float, max_value: float) -> float:
     try:
         parsed = float(value)
-    except Exception:
-        parsed = float(default)
+    except Exception as exc:
+        logger.warning("操作异常: %s", exc)
     return max(min_value, min(max_value, parsed))
 
 
@@ -149,15 +149,15 @@ def _safe_json_loads(text: str) -> Optional[Any]:
                 break
     try:
         return json.loads(raw)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("操作异常: %s", exc)
     s = raw.find("{")
     e = raw.rfind("}")
     if s >= 0 and e > s:
         try:
             return json.loads(raw[s : e + 1])
-        except Exception:
-            return None
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
     return None
 
 
@@ -677,8 +677,8 @@ class RetrievalTuningManager:
         for row in triples:
             try:
                 subject, predicate, obj, rel_hash = row
-            except Exception:
-                continue
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
             relation_hash = str(rel_hash or "").strip()
             if not relation_hash:
                 continue
@@ -917,9 +917,8 @@ class RetrievalTuningManager:
         seed = data.get("seed")
         try:
             seed = int(seed)
-        except Exception:
-            seed = int(time.time()) % 1000003
-
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
         async with self._lock:
             if self._pending_task_count() >= self._queue_limit():
                 raise ValueError("调优任务队列已满，请稍后重试")
@@ -1043,8 +1042,8 @@ class RetrievalTuningManager:
             return {"format": fmt, "content": "", "path": str(p)}
         try:
             content = p.read_text(encoding="utf-8")
-        except Exception:
-            content = ""
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
         return {"format": fmt, "content": content, "path": str(p)}
 
     async def _worker_loop(self) -> None:
@@ -1564,8 +1563,8 @@ class RetrievalTuningManager:
             return None
         try:
             models = get_text_generation_model_tasks(self._llm_api) or {}
-        except Exception:
-            return None
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
         if not models:
             return None
 
@@ -1620,6 +1619,7 @@ class RetrievalTuningManager:
                     return text
                 raise RuntimeError("empty_llm_response")
             except Exception as e:
+                logger.warning("操作失败", exc_info=True)
                 last_error = e
                 if idx >= max_attempts - 1:
                     break
@@ -1663,9 +1663,8 @@ class RetrievalTuningManager:
                 if anchor_id and query:
                     out[anchor_id] = query
             return out
-        except Exception:
-            return {}
-
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
     async def _suggest_profiles_with_llm(
         self,
         *,
@@ -1714,9 +1713,8 @@ class RetrievalTuningManager:
                 if isinstance(item, dict):
                     out.append(self._normalize_profile(item, fallback=base_profile))
             return out
-        except Exception:
-            return []
-
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
     def _generate_candidate_profile(
         self,
         *,

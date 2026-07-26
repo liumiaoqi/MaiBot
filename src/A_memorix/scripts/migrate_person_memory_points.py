@@ -10,6 +10,8 @@ from typing import Any, Dict, List
 from _bootstrap import DEFAULT_DATA_DIR, DEFAULT_DB_PATH, PLUGIN_ROOT, resolve_repo_path
 
 from A_memorix.core.runtime.sdk_memory_kernel import SDKMemoryKernel  # noqa: E402
+from src.common.logger import get_logger
+logger = get_logger("A_memorix.scripts.migrate_person_memory_points")
 
 
 def _parse_args() -> argparse.Namespace:
@@ -24,8 +26,8 @@ def _parse_args() -> argparse.Namespace:
 def _parse_memory_points(raw_value: Any) -> List[Dict[str, Any]]:
     try:
         values = json.loads(raw_value) if raw_value else []
-    except Exception:
-        values = []
+    except Exception as exc:
+        logger.warning("操作异常: %s", exc)
     items: List[Dict[str, Any]] = []
     for index, item in enumerate(values):
         text = str(item or "").strip()

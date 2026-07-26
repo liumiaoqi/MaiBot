@@ -117,8 +117,8 @@ class EmbeddingRecoveryService:
         for key in ("encoded_dimension", "detected_dimension", "requested_dimension"):
             try:
                 value = int(report.get(key, 0) or 0)
-            except Exception:
-                value = 0
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
             if value > 0:
                 return value
         return 0

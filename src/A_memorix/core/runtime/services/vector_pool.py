@@ -251,17 +251,8 @@ class VectorPoolManager:
             shutil.move(str(graph_src), str(graph_dst))
             shutil.rmtree(build_root, ignore_errors=True)
             shutil.rmtree(backup_root, ignore_errors=True)
-        except Exception:
-            if paragraph_dst.exists():
-                shutil.rmtree(paragraph_dst, ignore_errors=True)
-            if graph_dst.exists():
-                shutil.rmtree(graph_dst, ignore_errors=True)
-            if backup_paragraph.exists():
-                shutil.move(str(backup_paragraph), str(paragraph_dst))
-            if backup_graph.exists():
-                shutil.move(str(backup_graph), str(graph_dst))
-            raise
-
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
     def cleanup_stale_dual_vector_build_dirs(self) -> None:
         vectors_root = self.vectors_root()
         if not vectors_root.exists():
@@ -298,14 +289,14 @@ class VectorPoolManager:
         if callable(getter):
             try:
                 requested_dimension = int(getter())
-            except Exception:
-                requested_dimension = 0
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
             if requested_dimension > 0:
                 return requested_dimension
         try:
             default_dimension = int(getattr(manager, "default_dimension", 0) or 0)
-        except Exception:
-            default_dimension = 0
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
         if default_dimension > 0:
             return default_dimension
         return max(1, self._embedding_dimension)
@@ -369,8 +360,8 @@ class VectorPoolManager:
         if ready_manifest is not None:
             try:
                 manifest_dimension = int(ready_manifest.get("dimension") or 0)
-            except Exception:
-                manifest_dimension = 0
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
             if manifest_dimension > 0:
                 return manifest_dimension
         vector_dir = Path(store.data_dir) if store is not None and store.data_dir is not None else self.vectors_root()
@@ -385,8 +376,8 @@ class VectorPoolManager:
             return None
         try:
             value = int(meta.get("dimension") or 0)
-        except Exception:
-            return None
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
         return value if value > 0 else None
 
     def stamp_missing_embedding_fingerprint_if_dimension_matches(self, store: Optional[VectorStore]) -> bool:
@@ -636,8 +627,8 @@ class VectorPoolManager:
         has_data = False
         try:
             has_data = bool(store.has_data())
-        except Exception:
-            has_data = False
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
         return {
             "available": True,
             "dimension": int(getattr(store, "dimension", 0) or 0),

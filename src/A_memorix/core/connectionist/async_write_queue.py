@@ -69,8 +69,8 @@ class AsyncWriteQueue:
                     break
                 try:
                     await self._write_with_retry(kwargs)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("操作异常: %s", exc)
                 finally:
                     self._queue.task_done()
         except asyncio.CancelledError:
@@ -83,6 +83,7 @@ class AsyncWriteQueue:
                 await self._observer.observe(**kwargs)
                 return
             except Exception as exc:
+                logger.warning("操作失败", exc_info=True)
                 last_error = str(exc)
                 if attempt < _MAX_RETRIES:
                     await asyncio.sleep(min(1.0, 0.5 * (attempt + 1)))

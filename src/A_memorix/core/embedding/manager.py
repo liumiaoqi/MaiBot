@@ -402,6 +402,7 @@ class EmbeddingManager:
                 return True, f"模型一致，平均相似度: {np.mean(similarities):.3f}"
 
             except Exception as e:
+                logger.warning("操作失败", exc_info=True)
                 return False, f"一致性检查失败: {e}"
 
         return True, "维度匹配"

@@ -66,15 +66,14 @@ class EpisodeService:
             return None
         try:
             return float(value)
-        except Exception:
-            return None
-
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
     @staticmethod
     def _clamp_score(value: Any, default: float = 1.0) -> float:
         try:
             num = float(value)
-        except Exception:
-            num = default
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
         if num < 0.0:
             return 0.0
         if num > 1.0:
@@ -88,8 +87,8 @@ class EpisodeService:
             try:
                 if value is not None:
                     return float(value)
-            except Exception:
-                continue
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
         return 0.0
 
     @staticmethod
@@ -253,8 +252,8 @@ class EpisodeService:
         for p_hash in paragraph_hashes:
             try:
                 entities = self.metadata_store.get_paragraph_entities(p_hash)
-            except Exception:
-                entities = []
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
             for item in entities:
                 name = str(item.get("name", "")).strip()
                 if not name:
@@ -503,6 +502,7 @@ class EpisodeService:
                 episode_count += int(result.get("episode_count") or 0)
                 fallback_count += int(result.get("fallback_count") or 0)
             except Exception as e:
+                logger.warning("操作失败", exc_info=True)
                 err = str(e)[:500]
                 for h in group_hashes:
                     if h:
@@ -579,6 +579,7 @@ class EpisodeService:
                 kernel.metadata_store.mark_episode_source_done(source)
                 items.append(result)
             except Exception as exc:
+                logger.warning("操作失败", exc_info=True)
                 err = str(exc)[:500]
                 kernel.metadata_store.mark_episode_source_failed(source, err)
                 failures.append({"source": source, "error": err})

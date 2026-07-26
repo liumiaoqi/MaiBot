@@ -504,8 +504,8 @@ class KernelInitializer:
                 gc = kernel._ports.config_manager.get_global_config()
                 runtime_config["bot_nickname"] = gc.bot.nickname or ""
                 runtime_config["bot_personality"] = getattr(gc.bot, "personality", "") or ""
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
         return runtime_config
 
     @staticmethod

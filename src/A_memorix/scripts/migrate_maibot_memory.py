@@ -35,6 +35,7 @@ import numpy as np
 import tomlkit
 
 from _bootstrap import (
+logger = get_logger("A_memorix.scripts.migrate_maibot_memory")
     DEFAULT_CONFIG_PATH as BOOTSTRAP_DEFAULT_CONFIG_PATH,
     DEFAULT_DATA_DIR as BOOTSTRAP_DEFAULT_DATA_DIR,
     DEFAULT_DB_PATH as BOOTSTRAP_DEFAULT_DB_PATH,
@@ -72,10 +73,8 @@ def _create_bootstrap_logger():
         from src.common.logger import get_logger
 
         return get_logger("A_Memorix.MaiBotMigration")
-    except Exception:
-        return fallback
-
-
+    except Exception as exc:
+        logger.warning("操作异常: %s", exc)
 logger = _create_bootstrap_logger()
 
 
@@ -103,8 +102,8 @@ def _disable_unavailable_gemini_provider() -> None:
     try:
         from google import genai  # type: ignore  # noqa: F401
         return
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("操作异常: %s", exc)
 
     from src.config.config import model_config as loaded_model_config
 
@@ -280,17 +279,15 @@ class MappedRow:
 def _safe_int(value: Any, default: int) -> int:
     try:
         return int(value)
-    except Exception:
-        return default
-
-
+    except Exception as exc:
+        logger.warning("操作异常: %s", exc)
 def _safe_float(value: Any, default: float) -> float:
     if isinstance(value, datetime):
         return value.timestamp()
     try:
         return float(value)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("操作异常: %s", exc)
 
     text = str(value or "").strip()
     if not text:
@@ -298,10 +295,8 @@ def _safe_float(value: Any, default: float) -> float:
     normalized = text[:-1] + "+00:00" if text.endswith("Z") else text
     try:
         return datetime.fromisoformat(normalized).timestamp()
-    except Exception:
-        return default
-
-
+    except Exception as exc:
+        logger.warning("操作异常: %s", exc)
 def _sqlite_timestamp_expr(column_expr: str) -> str:
     return (
         f"CASE WHEN typeof({column_expr}) IN ('integer', 'real') THEN CAST({column_expr} AS REAL) "
@@ -347,10 +342,8 @@ def _format_ts(ts: Optional[float]) -> str:
         return "-"
     try:
         return datetime.fromtimestamp(float(ts)).strftime("%Y-%m-%d %H:%M:%S")
-    except Exception:
-        return str(ts)
-
-
+    except Exception as exc:
+        logger.warning("操作异常: %s", exc)
 def _parse_cli_datetime(text: str, is_end: bool = False) -> float:
     value = str(text or "").strip()
     if not value:
@@ -906,9 +899,8 @@ class MigrationRunner:
                 payload = pickle.load(f)
             value = _safe_int(payload.get("dimension"), fallback_dimension)
             return max(1, value)
-        except Exception:
-            return fallback_dimension
-
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
     async def _init_target_stores(self, require_embedding: bool) -> None:
         if VectorStore is None or GraphStore is None or MetadataStore is None:
             raise MigrationError("运行时初始化失败：存储组件不可用")
@@ -1251,16 +1243,16 @@ class MigrationRunner:
                 if not isinstance(parsed, list):
                     self._warn_list_field_coerced(row_id, field_name, f"JSON 类型为 {type(parsed).__name__}")
                 return self._normalize_list_field_items(parsed)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
 
             try:
                 parsed_literal = ast.literal_eval(text)
                 if isinstance(parsed_literal, (list, tuple, set, dict)):
                     self._warn_list_field_coerced(row_id, field_name, "使用 Python literal 兼容解析")
                     return self._normalize_list_field_items(parsed_literal)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
 
             separators = [",", "，", "、", ";", "；", "\n"]
             for sep in separators:
@@ -1647,10 +1639,8 @@ class MigrationRunner:
                 )
 
             conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
         self.stats["relations_written"] += len(relation_records)
 
         if relation_records:
@@ -1775,10 +1765,8 @@ class MigrationRunner:
         for row in sample_rows:
             try:
                 mapped = self._map_row(row)
-            except Exception:
-                verify_bad_rows += 1
-                continue
-
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
             paragraph = self.metadata_store.get_paragraph(mapped.paragraph_hash)
             if paragraph is None:
                 para_missing += 1
@@ -1881,8 +1869,8 @@ class MigrationRunner:
         try:
             if self.metadata_store is not None:
                 self.metadata_store.close()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
         self.source_db.close()
 
 

@@ -46,6 +46,7 @@ try:
     from A_memorix.core.storage.metadata_store import MetadataStore
     from A_memorix.core.storage import QuantizationType
 except Exception as e:  # pragma: no cover
+    logger.warning("操作失败", exc_info=True)
     print(f"❌ 导入核心模块失败: {e}")
     sys.exit(1)
 
@@ -164,6 +165,7 @@ def main() -> int:
     try:
         result = run_audit(data_dir)
     except Exception as e:
+        logger.warning("操作失败", exc_info=True)
         print(f"❌ 审计失败: {e}")
         return 2
 

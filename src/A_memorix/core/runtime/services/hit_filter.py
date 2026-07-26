@@ -5,6 +5,8 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Set
 
 from ...storage import MetadataStore
 from ...utils.metadata import coerce_metadata_dict
+from src.common.logger import get_logger
+logger = get_logger("A_memorix.core.runtime.services.hit_filter")
 
 
 class HitFilterService:
@@ -161,8 +163,8 @@ class HitFilterService:
                 statuses=["executing", "executed", "rolled_back", "rollback_failed"],
             )
             needed = bool(plans)
-        except Exception:
-            needed = True
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)
         self._set_cache({"checked_at": now, "needed": needed})
         return needed
 

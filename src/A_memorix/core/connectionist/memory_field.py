@@ -139,9 +139,8 @@ class MemoryField:
                 asyncio.create_task(self._narrative_weaver.notify_observation(
                     mr.observation_id, mr.agent_id,
                 ))
-            except Exception:
-                logger.debug("fire-and-forget notify failed for %s", mr.observation_id, exc_info=True)
-
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
         return result
 
     def recall(

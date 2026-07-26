@@ -6,6 +6,8 @@ import hashlib
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from ..retrieval.dual_path import RetrievalResult
+from src.common.logger import get_logger
+logger = get_logger("A_memorix.core.utils.path_fallback_service")
 
 
 def extract_entities(query: str, graph_store: Any) -> List[str]:
@@ -66,9 +68,8 @@ def find_paths_between_entities(
             max_depth=max_depth,
             max_paths=max_paths,
         )
-    except Exception:
-        return []
-
+    except Exception as exc:
+        logger.warning("操作异常: %s", exc)
     if not paths:
         return []
 

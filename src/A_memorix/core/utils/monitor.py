@@ -186,4 +186,5 @@ def get_memory_info() -> dict:
             "process_percent": (process.memory_info().rss / mem.total) * 100,
         }
     except Exception as e:
+        logger.warning("操作失败", exc_info=True)
         return {"error": str(e)}

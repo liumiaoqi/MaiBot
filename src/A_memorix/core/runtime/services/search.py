@@ -529,5 +529,5 @@ class SearchService:
             return None
         try:
             return float(value)
-        except Exception:
-            return None
+        except Exception as exc:
+            logger.warning("操作异常: %s", exc)

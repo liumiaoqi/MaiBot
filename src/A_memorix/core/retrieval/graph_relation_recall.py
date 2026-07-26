@@ -123,8 +123,8 @@ class GraphRelationRecallService:
             resolved = None
             try:
                 resolved = self.graph_store.find_node(str(raw), ignore_case=True)
-            except Exception:
-                resolved = None
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
             if not resolved:
                 continue
             canon = str(resolved).strip().lower()

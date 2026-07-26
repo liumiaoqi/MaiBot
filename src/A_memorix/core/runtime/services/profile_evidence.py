@@ -92,8 +92,8 @@ class ProfileEvidenceService:
         if hash_value:
             try:
                 paragraph = self.metadata_store.get_paragraph(hash_value) if self.metadata_store else None
-            except Exception:
-                paragraph = None
+            except Exception as exc:
+                logger.warning("操作异常: %s", exc)
             if isinstance(paragraph, dict):
                 paragraph_metadata = coerce_metadata_dict(paragraph.get("metadata"))
                 metadata = {**paragraph_metadata, **metadata}

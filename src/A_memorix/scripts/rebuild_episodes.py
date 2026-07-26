@@ -9,14 +9,15 @@ import sys
 from typing import Any, Dict, List
 
 from _bootstrap import DEFAULT_CONFIG_PATH, DEFAULT_DATA_DIR, resolve_repo_path
+from src.common.logger import get_logger
 
 try:
     import tomlkit  # type: ignore
-except Exception:  # pragma: no cover
-    tomlkit = None
-
+except Exception as exc:  # pragma: no cover
+    logger.warning("操作异常: %s", exc)
 from A_memorix.core.storage import MetadataStore
 from A_memorix.core.utils.episode_service import EpisodeService
+logger = get_logger("A_memorix.scripts.rebuild_episodes")
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
@@ -41,10 +42,8 @@ def _load_plugin_config() -> Dict[str, Any]:
         with open(config_path, "r", encoding="utf-8") as handle:
             parsed = tomlkit.load(handle)
         return dict(parsed) if isinstance(parsed, dict) else {}
-    except Exception:
-        return {}
-
-
+    except Exception as exc:
+        logger.warning("操作异常: %s", exc)
 def _resolve_sources(store: MetadataStore, *, source: str | None, rebuild_all: bool) -> List[str]:
     if rebuild_all:
         return list(store.list_episode_sources_for_rebuild())
@@ -74,6 +73,7 @@ async def _run_rebuilds(store: MetadataStore, plugin_config: Dict[str, Any], sou
                 f" fallback={int(result.get('fallback_count') or 0)}"
             )
         except Exception as exc:
+            logger.warning("操作失败", exc_info=True)
             err = str(exc)[:500]
             store.mark_episode_source_failed(source, err)
             failures.append(f"{source}: {err}")

@@ -22,6 +22,7 @@ import numpy as np
 import tomlkit
 
 from _bootstrap import DEFAULT_CONFIG_PATH, resolve_repo_path
+logger = get_logger("A_memorix.scripts.convert_lpmm")
 
 def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="将 LPMM 数据转换为 A_memorix 格式")
@@ -47,10 +48,8 @@ try:
     from src.common.logger import get_logger
 
     logger = get_logger("A_Memorix.LPMMConverter")
-except Exception:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-    logger = logging.getLogger("A_Memorix.LPMMConverter")
-
+except Exception as exc:
+    logger.warning("操作异常: %s", exc)
 try:
     import networkx as nx
     from scipy import sparse
@@ -290,8 +289,8 @@ class LPMMConverter:
                 self.graph_store.add_edges([(subject, obj)], relation_hashes=[rel_hash])
                 try:
                     self.metadata_store.set_relation_vector_state(rel_hash, "none")
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("操作异常: %s", exc)
                 imported += 1
 
         return imported
