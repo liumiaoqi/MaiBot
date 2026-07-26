@@ -228,9 +228,18 @@ CA 派发审查任务时，CC 按以下维度输出报告（写入 `.shared/hand
 
 # 待后续
 
+## Phoenix 后路线（优先级从高到低）
+
+1. **清算遗留问题** — 消除所有技术债
+2. **QQ 能力革命** — 重构 MaiBot 中与 QQ 能力相关的部分（napcat adapter、消息格式、平台特定逻辑），Phoenix 结束后规划细节
+3. **日志与调试系统升级** — 探索更好方案：结构化日志（JSON 格式、链路追踪、correlation ID）、远程调试（WebUI 实时日志流、Runner 调试面板）、日志聚合（多 Runner 统一收集+查询）
+
+## 遗留问题清单
+
 - ⬜ 欲望驱动主动发言集成
 - ⬜ WebUI 记忆可视化
 - ⬜ A_memorix 内部 322 处 bare except
 - ⬜ mem_core_gap 未覆盖的 8 项差距（G16/G18/G19/G21/G22/G23/G24/G28）
 - ⬜ noqa TID251 暂不可拆解 5 处（runtime.py MCPConfig + config.py WebUI + routes.py 2处 + core.py 反射）+ 过渡期 fallback 3 处（emoji_manager）+ 适配器层合法 5 处
 - ⬜ WebUI 配置管理面（routes.py/config.py 3处）暂不可拆解
+- ⬜ identity.py get_bot_config_port() None 防御（statistic.py 线程池时序竞争）
