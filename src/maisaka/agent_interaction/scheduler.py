@@ -10,12 +10,10 @@ logger = get_logger("auto.scheduler")
 
 
 import asyncio
-import logging
 
 from src.core.adapters.agent_config_port import get_agent_config_provider
 from src.maisaka.agent_interaction.trigger_scheduler import InteractionTrigger
 
-logger = logging.getLogger(__name__)
 
 _DEFAULT_EVALUATION_INTERVAL = 300  # 5分钟
 

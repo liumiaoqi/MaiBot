@@ -12,7 +12,6 @@ logger = get_logger("auto.dream_trigger")
 
 
 import asyncio
-import logging
 import time
 from typing import Any, Optional
 
@@ -22,7 +21,6 @@ from ..lifecycle import SubAgentLifecycleManager
 from ..models import SubAgentLifecycle, SubAgentSpec, SubAgentType, TriggerType
 from ..scheduler import SubAgentScheduler
 
-logger = logging.getLogger(__name__)
 
 _CHECK_INTERVAL_SECONDS = 3600  # 每小时检查一次
 

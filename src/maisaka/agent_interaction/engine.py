@@ -9,7 +9,6 @@ logger = get_logger("auto.engine")
 
 
 import json
-import logging
 from dataclasses import dataclass, field
 
 from src.maisaka.agent_interaction.effect_calculator import EffectCalculator
@@ -20,7 +19,6 @@ from src.maisaka.agent_interaction.models import InteractionEventCreate
 from src.maisaka.agent_interaction.relationship_manager import AgentRelationshipManager
 from src.maisaka.agent_interaction.trigger_base import TriggerEvaluation
 
-logger = logging.getLogger(__name__)
 
 
 @dataclass

@@ -11,7 +11,6 @@ Phase 5: 精简验证（保持画像紧凑）
 
 from __future__ import annotations
 
-import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
@@ -19,7 +18,9 @@ from typing import Any, Optional
 from ..config.dream import DreamConfig
 from ..models import SubAgentSpec, SubAgentState, SubAgentStatus, SubAgentType
 
-logger = logging.getLogger(__name__)
+from src.common.logger import get_logger
+logger = get_logger(__name__)
+
 
 
 @dataclass

@@ -22,7 +22,6 @@ from src.common.logger import get_logger
 logger = get_logger("auto.checkpoint_writer")
 
 
-import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
@@ -31,7 +30,6 @@ from ..config.checkpoint_writer import CheckpointWriterConfig
 from ..fork_context import ForkContext
 from ..models import SubAgentSpec, SubAgentStatus
 
-logger = logging.getLogger(__name__)
 
 SECTION_NAMES = [
     "当前意图",

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 import re
 from pathlib import Path
 from typing import Optional
@@ -9,9 +8,11 @@ import yaml
 
 from ..config import AgentConfig
 
-logger = logging.getLogger(__name__)
+from src.common.logger import get_logger
+logger = get_logger(__name__)
 
 _FRONTMATTER_PATTERN = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
+
 
 
 class AgentConfigLoader:

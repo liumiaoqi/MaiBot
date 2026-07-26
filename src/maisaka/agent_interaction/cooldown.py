@@ -1,4 +1,3 @@
-import logging
 from datetime import datetime, timedelta
 
 from sqlalchemy import select
@@ -6,7 +5,9 @@ from sqlalchemy import select
 from src.common.database.database import get_db_session
 from src.common.database.database_model import InteractionCooldown as InteractionCooldownTable
 
-logger = logging.getLogger(__name__)
+from src.common.logger import get_logger
+logger = get_logger(__name__)
+
 
 
 def build_agent_pair_key(agent_a: str, agent_b: str) -> str:

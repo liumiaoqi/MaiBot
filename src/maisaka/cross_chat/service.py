@@ -5,14 +5,15 @@
 
 from __future__ import annotations
 
-import logging
 from typing import Any, Optional
 
 from .injector import CrossChatContextInjector
 from .sharing import ContextSharingManager
 from .summarizer import ContextSummarizer, ContextSummary
 
-logger = logging.getLogger(__name__)
+from src.common.logger import get_logger
+logger = get_logger(__name__)
+
 
 
 class CrossChatContextService:

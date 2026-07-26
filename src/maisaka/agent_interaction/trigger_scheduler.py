@@ -6,7 +6,8 @@
 
 from __future__ import annotations
 
-import logging
+from src.common.logger import get_logger
+
 
 from src.maisaka.agent.config import AgentConfig
 
@@ -18,7 +19,7 @@ from src.maisaka.agent_interaction.relationship_manager import AgentRelationship
 from src.maisaka.agent_interaction.trigger_base import TriggerEvaluation, TriggerRegistry
 from src.maisaka.time_awareness.service import TimeAwarenessService
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # 综合触发权重
 _EMOTION_WEIGHT = 0.4

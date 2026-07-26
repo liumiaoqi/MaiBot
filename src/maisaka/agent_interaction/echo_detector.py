@@ -7,13 +7,14 @@
 from __future__ import annotations
 
 import asyncio
-import logging
+
+from src.common.logger import get_logger
 
 
 from src.maisaka.agent_interaction.engine import InteractionResult
 from src.maisaka.agent_interaction.trigger_base import TriggerEvaluation
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 _ECHO_EMOTION_THRESHOLD = 20.0
 _ECHO_TIMEOUT_SECONDS = 30

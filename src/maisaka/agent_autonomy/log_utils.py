@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-import logging
 from typing import Optional
 
-logger = logging.getLogger("agent_autonomy.log_utils")
+from src.common.logger import get_logger
+logger = get_logger("agent_autonomy.log_utils")
+
 
 
 def fmt_agent(agent_id: str, display_name: str = "", session_name: str = "") -> str:

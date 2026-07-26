@@ -9,13 +9,14 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 import threading
 from typing import Any, Optional
 
 from .models import SubAgentSpec, SubAgentState, SubAgentStatus, SubAgentType
 
-logger = logging.getLogger(__name__)
+from src.common.logger import get_logger
+logger = get_logger(__name__)
+
 
 
 class ThreadSafeStatusStore:

@@ -9,7 +9,6 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 import time
 from typing import Optional
 
@@ -24,10 +23,12 @@ from .models import (
 )
 from .registry import SubAgentRegistry
 
-logger = logging.getLogger(__name__)
+from src.common.logger import get_logger
+logger = get_logger(__name__)
 
 MAX_CONCURRENT_PER_AGENT = 3
 SPAWN_TIMEOUT_SECONDS = 5.0
+
 
 
 class SpawnTimeoutError(Exception):

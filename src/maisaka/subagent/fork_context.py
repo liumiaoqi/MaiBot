@@ -9,13 +9,11 @@ from src.common.logger import get_logger
 logger = get_logger("auto.fork_context")
 
 
-import logging
 import time
 from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
-logger = logging.getLogger(__name__)
 
 
 class ToolDefinition(BaseModel):

@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-import logging
 import time
 from dataclasses import dataclass, field
 from datetime import date, datetime
@@ -14,7 +13,9 @@ from typing import Optional
 
 from .lunar import get_lunar_info, get_solar_terms_near
 
-logger = logging.getLogger(__name__)
+from src.common.logger import get_logger
+logger = get_logger(__name__)
+
 
 
 @dataclass

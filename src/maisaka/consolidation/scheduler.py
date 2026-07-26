@@ -5,7 +5,6 @@ Dream 由 M1 的 DreamTrigger 定时调度管理，此处仅管理 Distill。
 
 from __future__ import annotations
 
-import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
@@ -13,7 +12,9 @@ from typing import Any, Optional
 from .distill import DistillAgent
 from .knowledge_store import KnowledgeStore
 
-logger = logging.getLogger(__name__)
+from src.common.logger import get_logger
+logger = get_logger(__name__)
+
 
 
 @dataclass

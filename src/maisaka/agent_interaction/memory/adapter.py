@@ -10,13 +10,11 @@ from src.common.logger import get_logger
 logger = get_logger("auto.adapter")
 
 
-import logging
 import time
 
 from src.core.protocols import MemoryServicePort
 from src.core.types import MemorySearchResult, MemoryWriteResult
 
-logger = logging.getLogger(__name__)
 
 _CHAT_ID_PREFIX = "agent_interaction"
 _PERSON_ID_PREFIX = "agent"

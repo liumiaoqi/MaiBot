@@ -274,13 +274,13 @@ lab/{topic}/ → lab/integration/ → 主仓库 src/
 
 | 优先级 | 编号 | 类别 | 数量 | 一句话 |
 |--------|------|------|------|--------|
-| P0 | CQ-9 | `except Exception:` 吞没 | 336 | 全项目最大规模债务 |
-| P0 | CQ-10 | `except Exception: pass` | 160 | 异常完全消失，无迹可查 |
-| P0 | CQ-3 | identity.py None 防御 | 2 | 运行时崩溃风险 |
-| P1 | CQ-7 | 欲望驱动主动发言未集成 | 1 | 核心功能缺口 |
-| P1 | CQ-11 | `import logging` 绕过统一日志 | 45 | maisaka 日志碎片化 |
-| P1 | CQ-15 | `chat_manager` 直接导入 | ~20 | 应走 SessionQueryPort |
-| P1 | CQ-14 | `config_manager` 直接导入 | ~15 | 应走 AppConfigPort |
-| P1 | CQ-13 | `heartflow_manager` 直接导入 | 2 | 应走 ChatRuntimeRegistry |
+| P0 | CQ-9 | `except Exception:` 吞没 | 336→6 | ✅ CQ-1 完成，残留 6 处均有日志 |
+| P0 | CQ-10 | `except Exception: pass` | 88→0 | ✅ CQ-1 完成 |
+| P0 | CQ-3 | identity.py None 防御 | 2→0 | ✅ CQ-1 完成 |
+| P1 | CQ-7 | 欲望驱动主动发言 | 1 | ✅ 已集成（vitality_manager._try_proactive_speech） |
+| P1 | CQ-11 | `import logging` 绕过统一日志 | 45 | ⬜ CQ-2，maisaka 日志碎片化 |
+| P1 | CQ-15 | `chat_manager` 直接导入 | 1 | ⬜ CQ-2，uni_message_sender 跨层导入 |
+| P1 | CQ-14 | `config_manager` 直接导入 | 8 | ⬜ CQ-2，5 文件需迁移 |
+| P1 | CQ-13 | `heartflow_manager` 直接导入 | 1 | ⬜ CQ-2，routes.py 1 处 |
 | P2 | CQ-4/1/5/6 | 代码质量债 | 若干 | noqa/bare except/getattr/global_config 残留 |
 | P3 | CQ-8/12 | 低优先清理 | 若干 | V1/V2 共存评估、TODO/FIXME |

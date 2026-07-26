@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-import logging
 from datetime import datetime
 from typing import Optional
 
@@ -15,7 +14,9 @@ from src.maisaka.agent.config import AgentConfig, TimeTriggerRule
 from .context_builder import TimeContext, TimeContextBuilder
 from .scheduler import TimeTriggerScheduler, TriggerEvent
 
-logger = logging.getLogger(__name__)
+from src.common.logger import get_logger
+logger = get_logger(__name__)
+
 
 
 class TimeAwarenessService:

@@ -5,14 +5,15 @@
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import Any
 
 from .sensor import GroupEvent
 
-logger = logging.getLogger(__name__)
+from src.common.logger import get_logger
+logger = get_logger(__name__)
+
 
 
 class EventPriority(IntEnum):

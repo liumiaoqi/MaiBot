@@ -1,5 +1,4 @@
 
-import logging
 import time
 from datetime import datetime
 
@@ -12,7 +11,9 @@ from src.maisaka.agent_interaction.models import (
     InteractionEventRead,
 )
 
-logger = logging.getLogger(__name__)
+from src.common.logger import get_logger
+logger = get_logger(__name__)
+
 
 
 def _generate_event_id(agent_id: str) -> str:

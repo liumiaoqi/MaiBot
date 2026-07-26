@@ -11,7 +11,6 @@
 
 from __future__ import annotations
 
-import logging
 import time
 from dataclasses import dataclass, field
 from enum import IntEnum
@@ -20,7 +19,9 @@ from typing import Any, Optional
 from ..config.compaction import CompactionConfig
 from ..models import SubAgentSpec, SubAgentStatus
 
-logger = logging.getLogger(__name__)
+from src.common.logger import get_logger
+logger = get_logger(__name__)
+
 
 
 class CompactionLevel(IntEnum):

@@ -9,7 +9,6 @@ from src.common.logger import get_logger
 logger = get_logger("auto.profile")
 
 
-import logging
 
 from dataclasses import dataclass, field
 from typing import Any
@@ -17,7 +16,6 @@ from typing import Any
 from src.maisaka.agent_interaction.event_store import InteractionEventStore
 from src.maisaka.agent_interaction.memory.adapter import AgentMemoryAdapter
 
-logger = logging.getLogger(__name__)
 
 # 画像缓存TTL（秒）
 _PROFILE_CACHE_TTL = 300  # 5分钟

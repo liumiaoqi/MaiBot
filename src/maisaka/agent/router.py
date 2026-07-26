@@ -3,7 +3,6 @@ from src.common.logger import get_logger
 logger = get_logger("auto.router")
 
 
-import logging
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
@@ -11,7 +10,6 @@ if TYPE_CHECKING:
 
 from .config import AgentConfig
 
-logger = logging.getLogger(__name__)
 
 
 class AgentRouter:

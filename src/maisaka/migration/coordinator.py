@@ -10,14 +10,15 @@
 from __future__ import annotations
 
 import json
-import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any, Optional
 
-logger = logging.getLogger(__name__)
+from src.common.logger import get_logger
+logger = get_logger(__name__)
+
 
 
 class MigrationPhase(str, Enum):

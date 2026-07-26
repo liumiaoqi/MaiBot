@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import json
-import logging
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -14,9 +13,11 @@ from typing import Any, Optional
 
 from .distill import DistillAsset, DistillAssetType
 
-logger = logging.getLogger(__name__)
+from src.common.logger import get_logger
+logger = get_logger(__name__)
 
 _DEFAULT_STORE_DIR = Path("data/knowledge_assets")
+
 
 
 @dataclass

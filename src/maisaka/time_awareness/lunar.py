@@ -8,11 +8,9 @@ from src.common.logger import get_logger
 logger = get_logger("auto.lunar")
 
 
-import logging
 from dataclasses import dataclass
 from datetime import date, datetime
 
-logger = logging.getLogger(__name__)
 
 
 @dataclass

@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-import logging
 import time
 from typing import Any
 
@@ -15,7 +14,8 @@ from src.maisaka.agent_interaction.memory.adapter import AgentMemoryAdapter
 from src.maisaka.agent_interaction.models import AgentInteractionRelationshipRead
 from src.maisaka.agent_interaction.trigger_base import BaseTrigger, TriggerEvaluation
 
-logger = logging.getLogger(__name__)
+from src.common.logger import get_logger
+logger = get_logger(__name__)
 
 # 默认配置值
 _POSITIVE_BONUS = 0.2
@@ -23,6 +23,7 @@ _NEGATIVE_PENALTY = 0.3
 _RECONCILE_BONUS = 0.15
 _REUNION_PROBABILITY = 0.15
 _REUNION_THRESHOLD_HOURS = 24
+
 
 
 class MemoryDrivenTrigger(BaseTrigger):

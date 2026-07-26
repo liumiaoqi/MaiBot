@@ -3,13 +3,11 @@ from src.common.logger import get_logger
 logger = get_logger("auto.registry")
 
 
-import logging
 from typing import Optional
 
 from .config import AgentConfig
 from .config_loader import AgentConfigLoader
 
-logger = logging.getLogger(__name__)
 
 
 class AgentConfigRegistry:

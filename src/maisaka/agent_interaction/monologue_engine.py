@@ -11,7 +11,6 @@ logger = get_logger("auto.monologue_engine")
 
 
 import json
-import logging
 import time
 from dataclasses import dataclass
 
@@ -25,7 +24,6 @@ from src.maisaka.agent_interaction.emotion_registry import AgentEmotionManagerRe
 from src.maisaka.agent_interaction.memory.adapter import AgentMemoryAdapter
 from src.maisaka.agent_interaction.monologue_trigger import MonologueTrigger
 
-logger = logging.getLogger(__name__)
 
 
 def _generate_monologue_id(agent_id: str) -> str:

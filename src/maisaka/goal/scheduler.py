@@ -6,12 +6,13 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 import time
 
 from .manager import GoalManager
 
-logger = logging.getLogger(__name__)
+from src.common.logger import get_logger
+logger = get_logger(__name__)
+
 
 
 class GoalScheduler:

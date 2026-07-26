@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -14,7 +13,9 @@ from src.maisaka.agent.config import AgentConfig, EventReactionRule
 
 from .sensor import GroupEvent, GroupEventType
 
-logger = logging.getLogger(__name__)
+from src.common.logger import get_logger
+logger = get_logger(__name__)
+
 
 
 @dataclass

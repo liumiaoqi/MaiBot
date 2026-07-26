@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-import logging
 from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel, Field
 
-logger = logging.getLogger(__name__)
+from src.common.logger import get_logger
+logger = get_logger(__name__)
+
 
 
 class TimeTriggerRule(BaseModel):

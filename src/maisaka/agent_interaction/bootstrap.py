@@ -13,7 +13,8 @@ InteractionScheduler → InteractionTrigger → 6个触发器
 
 from __future__ import annotations
 
-import logging
+from src.common.logger import get_logger
+
 
 from src.core.app_config_port_registry import get_app_config_port
 from src.core.protocols import MemoryServicePort
@@ -37,7 +38,7 @@ from src.maisaka.agent_interaction.triggers import (
     TimeAwarenessTrigger,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def build_interaction_scheduler(memory_port: MemoryServicePort) -> InteractionScheduler | None:

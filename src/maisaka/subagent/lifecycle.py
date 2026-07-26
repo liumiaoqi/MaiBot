@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import logging
 from typing import Optional
 
 from .models import (
@@ -18,7 +17,9 @@ from .models import (
     generate_subagent_id,
 )
 
-logger = logging.getLogger(__name__)
+from src.common.logger import get_logger
+logger = get_logger(__name__)
+
 
 
 class SubAgentLifecycleManager:
