@@ -268,7 +268,7 @@ class VitalityManager:
                         f"{n.need_type}({n.strength:.0f})" for n in needs[:3]
                     )
             except Exception as exc:
-                logger.debug(f"[vitality] 内在需求评估跳过: agent={agent_id} error={exc}")
+                logger.warning(f"[vitality] 内在需求评估跳过: agent={agent_id} error={exc}")
 
         # 情绪加成（仅活跃智能体）
         emotion_bonus = 0.0

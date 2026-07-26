@@ -264,7 +264,7 @@ class HeuristicMemoryInjector:
                 timeout_ms=10000,
             )
         except Exception as exc:
-            logger.debug(f"启发式记忆命中来源解析失败，已按未知来源处理: {exc}")
+            logger.warning(f"启发式记忆命中来源解析失败，已按未知来源处理: {exc}")
             return {}
         if not isinstance(payload, dict) or not bool(payload.get("success", False)):
             return {}

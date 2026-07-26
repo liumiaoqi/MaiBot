@@ -349,7 +349,7 @@ class AgentOrchestrator:
                     result, self._session_id, agent_id, emotion_state,
                 )
             except Exception:
-                logger.debug(
+                logger.warning(
                     "体验写入发起失败: agent=%s", agent_id, exc_info=True,
                 )
 
@@ -991,7 +991,7 @@ class AgentOrchestrator:
                 f"session={self._session_name} sender={sender_id}"
             )
         except Exception as exc:
-            logger.debug(f"[agent_autonomy] ambient_notice处理异常: {exc}")
+            logger.warning(f"[agent_autonomy] ambient_notice处理异常: {exc}")
 
     async def handle_interaction_signal(self, event: Any) -> None:
         """处理 agent-interaction-alive 的交互信号。"""
@@ -1234,7 +1234,7 @@ class AgentOrchestrator:
                         f"speaker={speaker_agent_id} mentioned={agent.agent_id}"
                     )
         except Exception as exc:
-            logger.debug(
+            logger.warning(
                 f"[agent_autonomy] 插话提及检测异常: error={exc}"
             )
 

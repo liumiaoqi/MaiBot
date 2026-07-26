@@ -79,7 +79,7 @@ class ExperienceWriter:
             )
             await self._memory_port.observe_experience(request)
         except Exception:
-            logger.debug(
+            logger.warning(
                 "体验写入失败: agent=%s action=%s", agent_id, action, exc_info=True,
             )
 

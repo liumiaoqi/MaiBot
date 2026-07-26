@@ -104,7 +104,7 @@ class ChineseTypoGenerator:
         try:
             return "\u4e00" <= char <= "\u9fff"
         except Exception as e:
-            logger.debug(str(e))
+            logger.warning(str(e))
             return False
 
     def _get_pinyin(self, sentence):

@@ -648,7 +648,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
                     wait_for_build=False,
                 )
             except Exception as exc:
-                logger.debug(
+                logger.warning(
                     f"{self.log_prefix} 调度已发送图片识别失败: "
                     f"message_id={message_id} image_hash={image.binary_hash} error={exc}"
                 )
@@ -794,7 +794,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
             _refresh_pending_visual_components(message.raw_message.components)
             self._register_monitor_visual_placeholder_refresh(message)
         except Exception as exc:
-            logger.debug(
+            logger.warning(
                 f"{self.log_prefix} 刷新监控消息媒体描述失败: "
                 f"message_id={message.message_id} error={exc}"
             )
@@ -924,7 +924,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
             try:
                 asyncio.create_task(self._agent_orchestrator.handle_message(message))
             except Exception as exc:
-                logger.debug(f"[agent_autonomy] handle_message 调度异常: {exc}")
+                logger.warning(f"[agent_autonomy] handle_message 调度异常: {exc}")
 
         if is_ambient_notice:
             return
@@ -1546,7 +1546,7 @@ class MaisakaHeartFlowChatting(MaisakaFocusRuntimeMixin, MaisakaRuntimeDisplayMi
                 if _query_port is not None:
                     asyncio.create_task(recovery.recover_all(_query_port))
             except Exception as recovery_exc:
-                logger.debug(
+                logger.warning(
                     f"[agent_autonomy] 会话恢复跳过: {recovery_exc}"
                 )
 

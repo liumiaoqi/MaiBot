@@ -153,7 +153,7 @@ class InteractionEngine:
                 )
                 await detector.check_and_propagate(result, evaluation)
             except Exception as e:
-                logger.debug("[agent_interaction] 回声检测异常，静默截断: %s", e)
+                logger.warning("[agent_interaction] 回声检测异常，静默截断: %s", e)
 
             # 非阻塞：发布交互信号到自主性架构
             try:

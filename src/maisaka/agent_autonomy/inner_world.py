@@ -163,7 +163,7 @@ class InnerWorld:
             try:
                 self._emotion_manager.apply_decay()
             except Exception as exc:
-                logger.debug("情绪衰减跳过: agent=%s error=%s", self._agent_id, exc)
+                logger.warning("情绪衰减跳过: agent=%s error=%s", self._agent_id, exc)
 
     @property
     def emotion_manager(self) -> Any | None:

@@ -381,7 +381,7 @@ class DreamAgent:
                     )
                     added += 1
                 except Exception as e:
-                    logger.debug("合并写入跳过: %s", e)
+                    logger.warning("合并写入跳过: %s", e)
                     result.skipped_count += 1
 
         result.added_count = added

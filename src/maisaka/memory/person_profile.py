@@ -116,7 +116,7 @@ def _resolve_candidate(
         else:
             person_id = ""
     except Exception as exc:
-        logger.debug(f"解析人物画像候选失败: source={source} user_id={clean_user_id!r} name={clean_person_name!r} err={exc}")
+        logger.warning(f"解析人物画像候选失败: source={source} user_id={clean_user_id!r} name={clean_person_name!r} err={exc}")
         return None
 
     if not person_id:
@@ -294,7 +294,7 @@ async def build_person_profile_injection_messages(
                 limit=PROFILE_QUERY_LIMIT,
             )
         except Exception as exc:
-            logger.debug(f"查询人物画像注入内容失败: person_id={candidate.person_id!r} err={exc}")
+            logger.warning(f"查询人物画像注入内容失败: person_id={candidate.person_id!r} err={exc}")
             continue
 
         if not payload:

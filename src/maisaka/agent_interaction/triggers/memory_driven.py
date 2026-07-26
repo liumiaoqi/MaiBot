@@ -119,7 +119,7 @@ class MemoryDrivenTrigger(BaseTrigger):
                         memory_desc = "好久没互动了"
 
             except Exception as e:
-                logger.debug("[agent_interaction] 记忆检索失败: %s", e)
+                logger.warning("[agent_interaction] 记忆检索失败: %s", e)
                 prob = mention * 0.3
 
             if prob > best_prob:

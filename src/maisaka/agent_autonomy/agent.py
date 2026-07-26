@@ -191,7 +191,7 @@ class AutonomousAgent:
             except RuntimeError:
                 asyncio.run(port.set_memory_personality(self._agent_id, params))
         except Exception as exc:
-            logger.debug("记忆性格传递跳过: agent=%s error=%s", self._agent_id, exc)
+            logger.warning("记忆性格传递跳过: agent=%s error=%s", self._agent_id, exc)
 
     def get_emotion_state(self) -> Any | None:
         """获取当前情绪状态快照。"""

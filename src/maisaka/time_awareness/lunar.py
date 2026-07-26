@@ -144,7 +144,7 @@ def get_today_solar_term(target_date: date | None = None) -> SolarTermInfo | Non
     except ImportError:
         pass
     except Exception as e:
-        logger.debug("节气计算失败: %s", e)
+        logger.warning("节气计算失败: %s", e)
 
     return None
 
@@ -187,6 +187,6 @@ def get_solar_terms_near(target_date: date | None = None, days: int = 7) -> list
     except ImportError:
         logger.debug("lunarcalendar 库未安装，节气计算不可用")
     except Exception as e:
-        logger.debug("节气范围计算失败: %s", e)
+        logger.warning("节气范围计算失败: %s", e)
 
     return results

@@ -268,7 +268,7 @@ class AgentMemoryAdapter:
                 reason=f"agent_interaction_decay:{agent_id}:{target_agent_id}",
             )
         except Exception as e:
-            logger.debug("[agent_interaction] 记忆衰减失败: %s", e)
+            logger.warning("[agent_interaction] 记忆衰减失败: %s", e)
 
     async def reinforce_memory(
         self,
@@ -281,7 +281,7 @@ class AgentMemoryAdapter:
             target = content_hash or self.build_chat_id(agent_id, target_agent_id)
             await self.memory_port.maintain_memory(action="reinforce", target=target)
         except Exception as e:
-            logger.debug("[agent_interaction] 记忆强化失败: %s", e)
+            logger.warning("[agent_interaction] 记忆强化失败: %s", e)
 
     async def check_frequent_interaction(
         self,

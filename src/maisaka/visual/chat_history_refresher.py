@@ -136,7 +136,7 @@ def log_tracked_image_recognition_completed(image_hash: str) -> None:
         try:
             refresher(image_hash)
         except Exception as exc:
-            logger.debug(f"通知 MaiSaka 监控图片占位刷新失败，image_hash={image_hash}: {exc}")
+            logger.warning(f"通知 MaiSaka 监控图片占位刷新失败，image_hash={image_hash}: {exc}")
 
 
 def register_monitor_image_placeholder_refresh(image_hash: str, refresher: Callable[[str], None]) -> None:

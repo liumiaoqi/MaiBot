@@ -146,7 +146,7 @@ class DistillAgent:
                         try:
                             self._knowledge_store.store_asset(asset)
                         except Exception as e:
-                            logger.debug("资产存储跳过: %s", e)
+                            logger.warning("资产存储跳过: %s", e)
                 elif asset.evidence_count > 0:
                     result.skipped_low_confidence += 1
                 else:

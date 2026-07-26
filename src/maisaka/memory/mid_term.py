@@ -494,7 +494,7 @@ def _save_mid_term_memory_prompt_preview(
         )
         logger.debug(f"{log_prefix} 聊天回想生成 Prompt 预览已保存")
     except Exception as exc:
-        logger.debug(f"{log_prefix} 聊天回想生成 Prompt 预览保存失败，已跳过: {exc}")
+        logger.warning(f"{log_prefix} 聊天回想生成 Prompt 预览保存失败，已跳过: {exc}")
 
 
 def _count_prompt_message_chars(messages: Sequence[Message]) -> int:

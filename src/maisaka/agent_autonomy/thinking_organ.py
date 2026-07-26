@@ -700,7 +700,7 @@ class ThinkingOrgan:
             )
             logger.info(cycle_log.to_log_line())
         except Exception as exc:
-            logger.debug(f"[thinking_organ] 日志输出失败: agent={self._agent_id} error={exc}")
+            logger.warning(f"[thinking_organ] 日志输出失败: agent={self._agent_id} error={exc}")
 
     # ========================================================================
     # 监控事件 + 结构化日志
@@ -742,7 +742,7 @@ class ThinkingOrgan:
                 end_detail=f"rounds={rounds} tool_calls={total_tool_calls}",
             )
         except Exception as exc:
-            logger.debug(f"[thinking_organ] 监控事件广播失败: agent={self._agent_id} error={exc}")
+            logger.warning(f"[thinking_organ] 监控事件广播失败: agent={self._agent_id} error={exc}")
 
     def _save_prompt_preview(
         self,
@@ -797,5 +797,5 @@ class ThinkingOrgan:
                 )
             )
         except Exception as exc:
-            logger.debug(f"[thinking_organ] Prompt预览保存失败: agent={self._agent_id} error={exc}")
+            logger.warning(f"[thinking_organ] Prompt预览保存失败: agent={self._agent_id} error={exc}")
 

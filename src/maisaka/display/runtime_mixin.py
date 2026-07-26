@@ -336,7 +336,7 @@ class MaisakaRuntimeDisplayMixin:
             try:
                 normalized_messages = deserialize_prompt_messages(request_messages)
             except Exception as exc:
-                logger.debug(
+                logger.warning(
                     f"工具 {tool_name} 的 request_messages 无法还原为模型消息，将使用瘦身结构预览: {exc}"
                 )
                 normalized_messages = request_messages
