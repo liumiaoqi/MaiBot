@@ -9,7 +9,7 @@ import uuid
 from dataclasses import dataclass, field
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(slots=True)
 class RunnerEndpointConfig:
     """Runner 端 gRPC 连接配置。"""
 
@@ -29,9 +29,9 @@ class RunnerEndpointConfig:
 
     def __post_init__(self) -> None:
         if not self.runner_id:
-            object.__setattr__(self, "runner_id", uuid.uuid4().hex)
+            self.runner_id = uuid.uuid4().hex
         if not self.sdk_version:
-            object.__setattr__(self, "sdk_version", "4.0.0")
+            self.sdk_version = "4.0.0"
 
 
 class ReconnectPolicy:

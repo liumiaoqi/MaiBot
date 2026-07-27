@@ -6103,9 +6103,9 @@ class PluginRuntimeV2Config(ConfigBase):
     __ui_parent__ = "plugin"
     __ui_label__ = "运行时 v2 (Phoenix)"
 
-    enabled: bool = Field(default=False)
+    enabled: bool = Field(default=True)
     host_listen_address: str = Field(default="0.0.0.0:50051")
-    runner_spawn_count: int = Field(default=1)
+    runner_spawn_count: int = Field(default=0)
     runner_spawn_timeout_sec: float = Field(default=30.0)
     health_check_interval_sec: float = Field(default=60.0)
     max_restart_attempts: int = Field(default=3)

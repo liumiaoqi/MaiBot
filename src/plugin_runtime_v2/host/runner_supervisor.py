@@ -69,10 +69,12 @@ class RunnerSupervisor:
         self,
         config: RunnerSupervisorConfig,
         registry: RunnerRegistry,
+        host_listen_address: str,
+        token_service=None,
     ) -> None:
         self._config = config
         self._registry = registry
-        self._spawner = RunnerSpawner(config=config)
+        self._spawner = RunnerSpawner(host_listen_address=host_listen_address, config=config, token_service=token_service)
         self._log_forwarders: dict[str, LogForwarder] = {}
         self._restart_counts: dict[str, int] = {}
         self._restart_timestamps: dict[str, list[float]] = {}

@@ -167,3 +167,8 @@ class PluginContext:
     async def get_session_info(self, session_id: str) -> dict[str, Any]:
         self._check_scope("get_session_info", "session:read:detail")
         return await self._runner.get_session_info(session_id)
+
+    def update_granted_scopes(self, new_scopes: set[str]) -> None:
+        """更新已授权的 scope 集合（Host 拒绝部分 scope 后调用）。"""
+        self._send._granted_scopes = new_scopes
+        self._storage._granted_scopes = new_scopes

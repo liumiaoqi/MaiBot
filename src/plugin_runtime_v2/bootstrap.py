@@ -11,6 +11,7 @@ from src.plugin_runtime_v2.host.connection import HostEndpointConfig
 from src.plugin_runtime_v2.host.endpoint import HostEndpoint
 from src.plugin_runtime_v2.host.rate_limiter import PluginRateLimiter
 from src.plugin_runtime_v2.host.storage_service import PerPluginStorage
+from src.core.adapters.message_ingestion_port import get_message_ingestion_port
 from src.plugin_runtime_v2.mcp.event_dispatcher import EventDispatcher
 from src.plugin_runtime_v2.mcp.host_bridge import MCPHostBridge
 from src.plugin_runtime_v2.scope.approval_store import ScopeApprovalStore
@@ -43,7 +44,7 @@ async def init_v2_host_endpoint(app_config_port: AppConfigPort) -> HostEndpoint:
 
     # 3. 创建 MCP Host Bridge
     tool_registry = _get_tool_registry()
-    event_dispatcher = EventDispatcher()
+    event_dispatcher = EventDispatcher(get_message_port=get_message_ingestion_port)
     person_info_port = _get_person_info_port()
     host_bridge = MCPHostBridge(
         tool_registry=tool_registry,
@@ -72,24 +73,47 @@ async def init_v2_host_endpoint(app_config_port: AppConfigPort) -> HostEndpoint:
     await endpoint.start()
 
     # 8. 创建 RunnerSupervisor
+    from pathlib import Path
+
     from src.plugin_runtime_v2.host.runner_supervisor import RunnerSupervisor, RunnerSupervisorConfig
+
     runner_spawn_count = app_config_port.get_plugin_runtime_v2_runner_spawn_count()
-    if runner_spawn_count > 0:
+    if runner_spawn_count != -1:
         sup_cfg = RunnerSupervisorConfig(
             max_restart_attempts=3,
             spawn_timeout_sec=30.0,
         )
         registry = endpoint._registry
-        supervisor = RunnerSupervisor(config=sup_cfg, registry=registry)
+        supervisor = RunnerSupervisor(config=sup_cfg, registry=registry, host_listen_address=listen_address, token_service=token_service)
         supervisor.start()
         endpoint.set_supervisor(supervisor)
-        for i in range(runner_spawn_count):
-            await supervisor.spawn_and_wait(f"runner-{i}", "plugins")
-        logger.info("RunnerSupervisor 已创建，spawn %d 个 Runner", runner_spawn_count)
+
+        plugins_root = Path("plugins-v2")
+        plugin_dirs = sorted(
+            d for d in plugins_root.iterdir()
+            if d.is_dir() and ((d / "manifest.json").is_file() or (d / "_manifest.json").is_file())
+        ) if plugins_root.is_dir() else []
+
+        spawned = 0
+        for plugin_dir in plugin_dirs:
+            runner_id = f"runner-{plugin_dir.name}"
+            try:
+                await supervisor.spawn_and_wait(runner_id, str(plugin_dir))
+                spawned += 1
+            except Exception as exc:
+                logger.error("spawn Runner %s 失败: %s", runner_id, exc)
+            if runner_spawn_count > 0 and spawned >= runner_spawn_count:
+                break
+
+        if not plugin_dirs:
+            logger.warning("plugins-v2/ 下未发现有效插件目录")
+        limit_desc = str(runner_spawn_count) if runner_spawn_count > 0 else "不限"
+        logger.info("RunnerSupervisor 已创建，spawn %d 个 Runner (上限=%s)", spawned, limit_desc)
 
     logger.info(
         "v2 HostEndpoint 已启动: listen=%s scope_file=%s",
-        endpoint.listen_address, scope_file,
+        endpoint.listen_address,
+        scope_file,
     )
     return endpoint
 
@@ -98,17 +122,21 @@ def _get_tool_registry():
     """从核心层获取 ToolRegistry 实例。"""
     try:
         from src.maisaka.agent_autonomy.tool_registry import get_tool_registry
+
         return get_tool_registry()
     except ImportError:
         from src.core.tooling import ToolRegistry
+
         return ToolRegistry()
 
 
 def _get_person_info_port():
     """从注册点获取 PersonInfoPort 实例。"""
     from src.core.person_info_port_registry import get_person_info_port
+
     port = get_person_info_port()
     if port is not None:
         return port
     from src.core.adapters.person_info_port import PersonInfoPortAdapter
+
     return PersonInfoPortAdapter()

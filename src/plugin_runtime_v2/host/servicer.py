@@ -268,17 +268,15 @@ class _PluginHostServicer(PluginHostServicer):
             return False, "MISSING_REQUIRED_FIELD: runner_id"
         if not hello.sdk_version:
             return False, "MISSING_REQUIRED_FIELD: sdk_version"
-        if not hello.session_token:
+        if not hello.session_token and self._token_service is not None:
             return False, "MISSING_REQUIRED_FIELD: session_token"
-        if not hello.scopes:
-            return False, "MISSING_REQUIRED_FIELD: scopes"
         if self._registry.has(hello.runner_id):
             return False, "RUNNER_ALREADY_CONNECTED"
         if not _check_sdk_version(hello.sdk_version):
             return False, "SDK_VERSION_MISMATCH"
         self._pending_plugin_id = ""
-        if self._token_service is not None:
-            valid, plugin_id = self._token_service.validate(hello.session_token)
+        if self._token_service is not None and hello.session_token:
+            valid, plugin_id = self._token_service.validate_session(hello.session_token)
             if not valid:
                 return False, "TOKEN_INVALID"
             self._pending_plugin_id = plugin_id

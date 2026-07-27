@@ -76,17 +76,11 @@ class RunnerEndpoint:
 
         # 加载插件（仅首次，重连时复用）
         if self._plugin_loader is not None and not self._plugin_loader.is_loaded:
-            declarations = self._plugin_loader.load()
-            if declarations[3] is not None:
-                self._config.tools = declarations[0]
-                self._config.events = declarations[1]
-                self._plugin_instance = declarations[3]
-                # 构造 homecard_registry
-                homecard_registry: dict[str, dict[str, Any]] = {}
-                for evt in declarations[1]:
-                    card_meta = evt.get("card_metadata")
-                    if card_meta:
-                        homecard_registry[evt["name"]] = card_meta
+            tools, events, homecard_registry, plugin_instance = await self._plugin_loader.load()
+            if plugin_instance is not None:
+                self._config.tools = tools
+                self._config.events = events
+                self._plugin_instance = plugin_instance
                 # 注入 PluginContext
                 from src.plugin_runtime_v2.sdk.context import PluginContext
                 ctx = PluginContext(
@@ -96,7 +90,7 @@ class RunnerEndpoint:
                     homecard_registry=homecard_registry,
                 )
                 self._plugin_instance.ctx = ctx
-                for tool_entry in declarations[0]:
+                for tool_entry in tools:
                     self._tool_router.register(
                         tool_name=tool_entry["name"],
                         plugin=self._plugin_instance,
@@ -109,12 +103,21 @@ class RunnerEndpoint:
                     logger.error("插件 on_load 失败: %s", exc)
 
         while True:
+            if self._shutting_down:
+                return
             self._transition(ConnectionState.CONNECTING)
             try:
                 await self._connect_and_handshake()
                 # 连接+握手+注册成功，进入 READY
                 self._reconnect.reset()
-                return
+                # 阻塞等待接收循环结束（连接断开），然后重连
+                recv_task = self._recv_task
+                if recv_task is not None:
+                    try:
+                        await recv_task
+                    except asyncio.CancelledError:
+                        return
+                continue
             except _HandshakeRejected as exc:
                 logger.error("Runner %s 握手被拒绝: %s，停止重连", self._config.runner_id, exc)
                 self._transition(ConnectionState.DISCONNECTED)

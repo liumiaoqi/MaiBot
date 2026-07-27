@@ -74,7 +74,7 @@ class TestLogForwarder:
 class TestHealthCheck:
     @pytest.mark.asyncio
     async def test_check_health_running(self):
-        sv = RunnerSupervisor("localhost:0", RunnerSupervisorConfig(), MagicMock())
+        sv = RunnerSupervisor(RunnerSupervisorConfig(), MagicMock(), host_listen_address="localhost:0")
         mock_proc = MagicMock()
         mock_proc.returncode = None
         mock_proc.pid = 123
@@ -90,7 +90,7 @@ class TestHealthCheck:
 
     @pytest.mark.asyncio
     async def test_check_health_zombie(self):
-        sv = RunnerSupervisor("localhost:0", RunnerSupervisorConfig(), MagicMock())
+        sv = RunnerSupervisor(RunnerSupervisorConfig(), MagicMock(), host_listen_address="localhost:0")
         mock_proc = MagicMock()
         mock_proc.returncode = None
         mock_proc.pid = 123
@@ -104,7 +104,7 @@ class TestHealthCheck:
 
     @pytest.mark.asyncio
     async def test_check_health_failed(self):
-        sv = RunnerSupervisor("localhost:0", RunnerSupervisorConfig(), MagicMock())
+        sv = RunnerSupervisor(RunnerSupervisorConfig(), MagicMock(), host_listen_address="localhost:0")
         mock_proc = MagicMock()
         mock_proc.returncode = 1
         mock_proc.pid = 123
@@ -119,24 +119,24 @@ class TestHealthCheck:
 
 class TestShouldRestart:
     def test_restart_under_limit(self):
-        sv = RunnerSupervisor("localhost:0", RunnerSupervisorConfig(max_restart_attempts=3), MagicMock())
+        sv = RunnerSupervisor(RunnerSupervisorConfig(max_restart_attempts=3), MagicMock(), host_listen_address="localhost:0")
         sv._restart_counts["r1"] = 1
         assert sv._should_restart("r1") is True
 
     def test_restart_over_limit(self):
-        sv = RunnerSupervisor("localhost:0", RunnerSupervisorConfig(max_restart_attempts=3), MagicMock())
+        sv = RunnerSupervisor(RunnerSupervisorConfig(max_restart_attempts=3), MagicMock(), host_listen_address="localhost:0")
         sv._restart_counts["r1"] = 3
         assert sv._should_restart("r1") is False
 
     def test_restart_storm_detected(self):
-        sv = RunnerSupervisor("localhost:0", RunnerSupervisorConfig(storm_window_s=60, storm_threshold=5), MagicMock())
+        sv = RunnerSupervisor(RunnerSupervisorConfig(storm_window_s=60, storm_threshold=5), MagicMock(), host_listen_address="localhost:0")
         now = time_module.monotonic()
         sv._restart_timestamps["r1"] = [now] * 5
         sv._restart_counts["r1"] = 4
         assert sv._should_restart("r1") is False
 
     def test_reset_counters_if_stable(self):
-        sv = RunnerSupervisor("localhost:0", RunnerSupervisorConfig(stability_window_s=0.01), MagicMock())
+        sv = RunnerSupervisor(RunnerSupervisorConfig(stability_window_s=0.01), MagicMock(), host_listen_address="localhost:0")
         now = time_module.monotonic()
         sv._stable_since["r1"] = now - 3600
         sv._restart_counts["r1"] = 5
@@ -148,7 +148,7 @@ class TestShouldRestart:
 class TestReload:
     @pytest.mark.asyncio
     async def test_reload_one_success(self):
-        sv = RunnerSupervisor("localhost:0", RunnerSupervisorConfig(), MagicMock())
+        sv = RunnerSupervisor(RunnerSupervisorConfig(), MagicMock(), host_listen_address="localhost:0")
         sv._spawner.spawn = AsyncMock()
         sv._spawner.spawn.return_value = MagicMock(pid=123)
         sv._log_forwarders["r1"] = MagicMock()
@@ -164,7 +164,7 @@ class TestReload:
 
     @pytest.mark.asyncio
     async def test_reload_one_not_ready(self):
-        sv = RunnerSupervisor("localhost:0", RunnerSupervisorConfig(), MagicMock())
+        sv = RunnerSupervisor(RunnerSupervisorConfig(), MagicMock(), host_listen_address="localhost:0")
         sv._registry.get.return_value = None
         result = await sv.reload_one("r1")
         assert not result.success
@@ -172,7 +172,7 @@ class TestReload:
 
     @pytest.mark.asyncio
     async def test_reload_one_already_reloading(self):
-        sv = RunnerSupervisor("localhost:0", RunnerSupervisorConfig(), MagicMock())
+        sv = RunnerSupervisor(RunnerSupervisorConfig(), MagicMock(), host_listen_address="localhost:0")
         sv._reloading.add("r1")
         result = await sv.reload_one("r1")
         assert not result.success

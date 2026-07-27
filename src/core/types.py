@@ -848,6 +848,7 @@ __all__ = [
     "PersonInfoResult",
     "SessionMessage",
     "PluginRuntimeSnapshot",
+    "PluginRuntimeRenderSnapshot",
     "PluginRuntimeV2Snapshot",
     "PersonDetailSnapshot",
     "CacheCleanupConfig",
@@ -993,12 +994,24 @@ class PluginRuntimeSnapshot:
 
 
 @dataclass(frozen=True)
+class PluginRuntimeRenderSnapshot:
+    """插件运行时浏览器渲染配置快照 — 替代 global_config.plugin_runtime.render 访问。"""
+
+    enabled: bool = True
+    browser_ws_endpoint: str = ""
+    executable_path: str = ""
+    browser_install_root: str = "data/playwright-browsers"
+    headless: bool = True
+    concurrency_limit: int = 3
+
+
+@dataclass(frozen=True)
 class PluginRuntimeV2Snapshot:
     """v2 插件运行时配置快照。"""
 
     enabled: bool = False
     host_listen_address: str = "0.0.0.0:50051"
-    runner_spawn_count: int = 1
+    runner_spawn_count: int = 0
     runner_spawn_timeout_sec: float = 30.0
     health_check_interval_sec: float = 60.0
     max_restart_attempts: int = 3

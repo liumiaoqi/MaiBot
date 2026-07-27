@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from src.core.types import AgentAutonomySnapshot, AgentInteractionSnapshot, AMemorixIntegrationSnapshot
-from src.core.types import CacheCleanupConfig, MaimMessageConfigSnapshot, PluginRuntimeSnapshot
+from src.core.types import CacheCleanupConfig, MaimMessageConfigSnapshot, PluginRuntimeRenderSnapshot, PluginRuntimeSnapshot
 
 
 from src.common.logger import get_logger
@@ -342,6 +342,17 @@ class GlobalConfigAppConfigPort:
             hook_blocking_timeout_sec=float(cfg.hook_blocking_timeout_sec),
         )
 
+    def get_plugin_runtime_render_config(self) -> PluginRuntimeRenderSnapshot:
+        render = self._get_cfg().plugin_runtime.render
+        return PluginRuntimeRenderSnapshot(
+            enabled=bool(render.enabled),
+            browser_ws_endpoint=str(render.browser_ws_endpoint or ""),
+            executable_path=str(render.executable_path or ""),
+            browser_install_root=str(render.browser_install_root or ""),
+            headless=bool(render.headless),
+            concurrency_limit=int(render.concurrency_limit),
+        )
+
     def register_reload_callback(self, callback: object) -> None:
         from src.config.config import config_manager  # noqa: TID251 — 适配器层允许导入
         config_manager.register_reload_callback(callback)
@@ -418,7 +429,7 @@ class GlobalConfigAppConfigPort:
 
     def get_plugin_runtime_v2_runner_spawn_count(self) -> int:
         cfg = getattr(self._get_cfg(), "plugin_runtime_v2", None)
-        return int(cfg.runner_spawn_count) if cfg else 1
+        return int(cfg.runner_spawn_count) if cfg else 0
 
     def get_plugin_runtime_v2_runner_spawn_timeout_sec(self) -> float:
         cfg = getattr(self._get_cfg(), "plugin_runtime_v2", None)

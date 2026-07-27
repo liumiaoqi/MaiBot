@@ -1,15 +1,13 @@
 # 使用基于时间戳的文件处理器，简单的轮转份数限制
 
+import logging
 from datetime import date, datetime, timedelta, timezone
-from src.common.logger import get_logger
-logger = get_logger("auto.logger")
 
 from pathlib import Path
 from typing import Callable, Optional
 
 import asyncio
 import json
-import logging
 import threading
 import time
 
@@ -18,6 +16,7 @@ import tomlkit
 
 from .logger_color_and_mapping import MODULE_ALIASES, RESET_COLOR, CONVERTED_MODULE_COLORS as MODULE_COLORS
 
+logger = logging.getLogger("auto.logger")
 
 # 创建logs目录
 LOG_DIR = Path("logs")
@@ -486,14 +485,8 @@ def reconfigure_existing_loggers():
             if not logger_obj.handlers:
                 logger_obj.propagate = True
 
-            # 如果logger有自己的handler，重新配置它们（避免重复创建文件handler）
-            for handler in original_handlers:
-                if isinstance(handler, TimestampedFileHandler):
-                    # 不重新添加，让它使用根logger的文件handler
-                    continue
-                elif isinstance(handler, logging.StreamHandler):
-                    handler.setFormatter(console_formatter)
-                    logger_obj.addHandler(handler)
+            # 不重新添加子logger自己的handler，统一走根logger传播
+            # 之前重新添加StreamHandler导致propagate=True时每条日志输出两次
 
 
 def adopt_library_logger(logger_name: str, handler_names: Optional[set[str]] = None):
@@ -566,11 +559,11 @@ def convert_pathname_to_module(logger, method_name, event_dict):
             event_dict["module"] = module_path
             # 移除原始的 pathname 字段
             del event_dict["pathname"]
-        except Exception as exc:
-            logger.warning("操作异常 in logger.py", exc_info=True)
-            # 如果转换失败，删除 pathname 但保留原始的 module（如果有的话）
-            del event_dict["pathname"]
-            # 如果没有 module 字段，使用文件名作为备选
+        except Exception:
+            # 子进程初始化期间 logger 可能为 None，不能用 logger.warning()
+            # 直接 fallback：删除 pathname，用文件名作 module 备选
+            if "pathname" in event_dict:
+                del event_dict["pathname"]
             if "module" not in event_dict:
                 event_dict["module"] = Path(pathname).stem
 
