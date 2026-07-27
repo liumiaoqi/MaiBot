@@ -81,7 +81,7 @@ services:
       - ./data/MaiMBot:/MaiMBot/data # 共享目录
     container_name: maim-bot-napcat
     restart: always
-    image: mlikiowa/napcat-docker:latest
+    image: mlikiowa/napcat-docker:v4.18.8
     networks:
       - maim_bot
   sqlite-web:
