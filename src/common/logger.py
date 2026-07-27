@@ -759,7 +759,7 @@ def configure_structlog():
             structlog.dev.set_exc_info,
             structlog.processors.format_exc_info,
             structlog.processors.TimeStamper(fmt=get_timestamp_format(), utc=False),
-            # 根据输出类型选择不同的渲染器
+            structlog.stdlib.PositionalArgumentsFormatter(),
             structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
         ],
         wrapper_class=structlog.stdlib.BoundLogger,
