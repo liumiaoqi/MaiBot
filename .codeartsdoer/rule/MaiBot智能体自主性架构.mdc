@@ -140,45 +140,13 @@ LLM 仍然是"被调用"的，但调用它的不是人，而是智能体自己�
 - silence_reason: 沉默原因（仅 action=SILENT 时有值）
 - thought_summary: 内心独白摘要
 
-## 记忆叙事原型（已主线集成）
+## 记忆叙事原型（已主线集成，详见 `src/A_memorix/core/connectionist/`）
 
-5 子系统架构（已从 lab 毕业到 `src/A_memorix/core/connectionist/`）：
+5 子系统：NarrativeWeaver / CognitiveStratifier / LifecycleManager / IntuitionEngine / MemoryField。直觉召回走纯规则不走 LLM。
 
-1. **NarrativeWeaver**（叙事编织器）：观察序列 → Fragment → Episode → Saga
-2. **CognitiveStratifier**（认知分层器）：按重要性/时效分层存储
-3. **LifecycleManager**（生命周期管理器）：记忆衰减/强化/遗忘
-4. **IntuitionEngine**（直觉引擎）：非 LLM 的快速召回（目标 ≤50ms）
-5. **MemoryField**（记忆场）：激活模式扩散，"记忆是连接而非对象"的物理实现
+## lab 原型实验室（已全部毕业）
 
-关键设计决策：
-- Fragment 是最小叙事单元（单条观察 + 情感标记），不是 Paragraph
-- Episode 由相关 Fragment 编织而成（有时间跨度），不是 Entity
-- Saga 是长期叙事弧（跨多个 Episode），不是 Profile
-- 直觉召回走纯规则（概念激活扩散），不走 LLM
-- LLM 仅用于概念提取（memory_v11.py）和叙事编织的语义判断
-
-## lab 原型实验室
-
-Lab 是 MaiBot 的**实验场**，不是生产代码。核心原则：**lab 是沙盒，不是草稿箱**——每个原型必须有明确的实验假设和验证标准。
-
-Lab 是独立 git 仓库（`lab/.git`），不入主仓库共享历史（主仓库 `.gitignore` 排除 `lab/`），但通过子模块引用追踪。
-
-### 毕业流程
-
-```
-lab/{topic}/ → lab/integration/ → 主仓库 src/
-概念验证         集成验证            生产代码
-```
-
-### 当前实验线
-
-| 主题 | 目录 | 最新版本 | 状态 |
-|------|------|---------|------|
-| 记忆系统 | `memory/` | v11 | ✅ 已毕业（连接主义范式，主线集成） |
-| 回复系统 | `reply/` | v7 | ✅ 已毕业（直通发送，MessagePortV2） |
-| 管家系统 | `graduated/` | v4 | ✅ 已毕业（三层过滤+提醒，主线集成） |
-| 架构验证 | `architecture/` | - | ✅ 已完成（maisaka 独立、replyer 迁移、fallback 清理） |
-| 探索脚本 | `exploratory/` | - | 活跃（fallback 分析、冗余检测等） |
+Lab 是独立 git 仓库（`lab/.git`），不入主仓库共享历史。毕业流程：`lab/{topic}/ → lab/integration/ → 主仓库 src/`。当前仅 `exploratory/` 活跃。
 
 ## 规则文件同步元规则
 
@@ -232,32 +200,9 @@ lab/{topic}/ → lab/integration/ → 主仓库 src/
 3. **不枚举下一步**：不写"下一步要做 A、B、C"再逐一执行——做完 A 再决定 B
 4. **用户更新简洁**：一句话说清在做什么，不前置 `Now I'll...` / `So I'm going to...` 这类过渡
 
-## Phoenix：插件系统革命（已完成）
+## Phoenix：插件系统革命（已完成，详见 `.codeartsdoer/specs/_archive/phoenix/`）
 
-> SSD-1~13 完成微内核架构改造，Phoenix-0~9 完成插件系统革命。详见 `.codeartsdoer/specs/_archive/phoenix/`。
-
-三大支柱：
-- **MCP Tool/Event 统一组件模型**：8 种组件类型 → 2 种（Tool 拉取式 + Event 推送式），与 ThinkingOrgan 工具循环天然对接
-- **OAuth Scope 细粒度能力授权**：粗粒度 capabilities → 细粒度 scope（如 `database:read:session_message`），用户可逐项审批/撤销
-- **gRPC 标准化传输**：自研 4-byte prefix + MsgPack → gRPC 双向流，消除 2000+ 行传输代码，支持跨语言插件
-
-关键决策：不兼容现有插件，napcat-adapter 等直接重写，SDK 大版本升级（v3→v4），manifest 格式重新设计。老插件通过兼容层插件（P-8）代理。
-
-| 编号 | 主题 | 依赖 | 核心交付 | 状态 |
-|------|------|------|---------|------|
-| Phoenix-0 | 基础准备 | 无 | .proto Schema + v2 目录骨架 + SDK v4 接口设计 + Scope 词汇表 | ✅ 已完成 |
-| Phoenix-1 | gRPC 传输层 | P-0 | gRPC Host/Runner 实现，替换自研 IPC | ✅ 已完成 |
-| Phoenix-2 | MCP 组件模型 | P-1 | 8→2（Tool + Event），SDK 运行时，ToolProvider 桥接，Event 分发，Tool 执行路由 | ✅ 已完成 |
-| Phoenix-3 | OAuth Scope 授权 | P-2 | scope 声明/签发/校验，WebUI 审批 | ✅ 已完成 |
-| Phoenix-4 | 能力层 Protocol 化 | P-1 | P0/P1 消除，能力模块化，global_config 清除 | ✅ 已完成 |
-| Phoenix-5 | v2 主程序集成 | P-4 | HostEndpoint 接入 main.py，Scope WebUI 激活 | ✅ 已完成 |
-| Phoenix-6 | SDK RPC 通道 | P-5 | SendContext/StorageContext/PluginContext gRPC 通道实现 | ✅ 已完成 |
-| Phoenix-7 | napcat-adapter 重写 | P-6 | napcat-adapter v4 格式 + 7b 补完 | ✅ 已完成 |
-| Phoenix-8 | 兼容层插件 | P-5 | v1 运行时封装为 v4 插件，老插件零修改继续运行 | ✅ 已完成 |
-| Phoenix-9 | Runner 进程管理增强 | P-8 | Host spawn Runner、健康检查、自动重启、热重载 | ✅ 已完成 |
-| Phoenix-10 | WebUI 插件管理面 | P-8 | Scope 审批前端 UI + 插件安装/卸载/配置 | ⏸️ 延后 |
-
-依赖关系：`P-0 → P-1 → P-2 → P-3`，`P-1 → P-4`，`P-4 → P-5 → P-6 → P-7`，`P-5 → P-8 → P-9/P-10`
+三大支柱：MCP Tool/Event 统一组件模型、OAuth Scope 细粒度授权、gRPC 标准化传输。P-0~P-9 ✅，P-10 ⏸️ 延后。关键决策：不兼容现有插件，SDK v3→v4。
 
 ## 炉火纯青（ChunQing）：Phoenix 后清算
 
@@ -274,13 +219,11 @@ lab/{topic}/ → lab/integration/ → 主仓库 src/
 
 | 优先级 | 编号 | 类别 | 数量 | 一句话 |
 |--------|------|------|------|--------|
-| P0 | CQ-9 | `except Exception:` 吞没 | 336→6 | ✅ CQ-1 完成，残留 6 处均有日志 |
-| P0 | CQ-10 | `except Exception: pass` | 88→0 | ✅ CQ-1 完成 |
-| P0 | CQ-3 | identity.py None 防御 | 2→0 | ✅ CQ-1 完成 |
-| P1 | CQ-7 | 欲望驱动主动发言 | 1 | ✅ 已集成（vitality_manager._try_proactive_speech） |
 | P1 | CQ-11 | `import logging` 绕过统一日志 | 45 | ⬜ CQ-2，maisaka 日志碎片化 |
 | P1 | CQ-15 | `chat_manager` 直接导入 | 1 | ⬜ CQ-2，uni_message_sender 跨层导入 |
 | P1 | CQ-14 | `config_manager` 直接导入 | 8 | ⬜ CQ-2，5 文件需迁移 |
 | P1 | CQ-13 | `heartflow_manager` 直接导入 | 1 | ⬜ CQ-2，routes.py 1 处 |
 | P2 | CQ-4/1/5/6 | 代码质量债 | 若干 | noqa/bare except/getattr/global_config 残留 |
 | P3 | CQ-8/12 | 低优先清理 | 若干 | V1/V2 共存评估、TODO/FIXME |
+
+已完成：CQ-9/10（except 吞没 336→6, pass 88→0）✅、CQ-3（None 防御）✅、CQ-7（欲望驱动主动发言）✅、CQ-5（启动崩溃修复 6 处）✅

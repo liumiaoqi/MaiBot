@@ -58,9 +58,7 @@
 2. 本地实验目录不进入共享历史
 
 # 插件开发
-- 文档：https://github.com/Mai-with-u/maibot-plugin-sdk/blob/main/docs/guide.md
 - 插件在 /plugins 下独立仓库，改主程序代码需先请求许可
-- 提交：https://github.com/Mai-with-u/plugin-repo/blob/main/CONTRIBUTING.md
 
 # 修改文档
 功能性变更可修改 /mai-docs，不在上层目录新建
@@ -85,43 +83,8 @@
 9. 禁止核心直接导入 global_config ✅
 10. 禁止使用 AutonomyEventBus.get_instance() ✅
 
-## 核心接口层
+Protocol 接口和注册点详见 `src/core/protocols.py` 和 `src/core/adapters/`，不在此枚举。
 
-| Protocol | 职责 | 实现者 |
-|---|---|---|
-| MessagePortV2 | 统一消息发送 | SendServiceMessagePortV2 |
-| SessionRepository | 会话查询 | ChatManagerAdapter |
-| AgentRoutingService | 智能体路由 | ChatManagerRoutingAdapter |
-| ChatRuntimeRegistry | 运行时注册表 | HeartflowRuntimeRegistry |
-| ChatRuntimeFactory | 运行时工厂 | MaisakaRuntimeFactory |
-| MemoryServicePort | 记忆服务（16方法） | AMemorixMemoryServicePort |
-| ThinkingOrgan | 思维管道 | ThinkingOrgan |
-| BotConfigPort | 机器人配置查询 | GlobalConfigBotConfigPort |
-| ChatConfigPort | 聊天配置查询 | GlobalConfigChatConfigPort |
-| AppConfigPort | 应用配置查询 | GlobalConfigAppConfigPort |
-| ModelConfigPort | 模型配置查询 | ConfigManagerModelConfigPort |
-| LLMService | LLM服务 | LLMServiceAdapter |
-| AutonomyEventBusPort | 事件总线 | AutonomyEventBus |
-
-## 全局注册点
-
-| 注册点文件 | Protocol |
-|-----------|---------|
-| app_config_port_registry.py | AppConfigPort |
-| person_info_port_registry.py | PersonInfoPort |
-| model_config_port_registry.py | ModelConfigPort |
-| runtime_port_registry.py | ChatRuntimeRegistry + ChatRuntimeFactory |
-
-# SSD 审查规范
-
-CA 派发审查任务时，CC 按以下维度输出报告（写入 `.shared/handoff/cc2ca_{task}_review_{date}.md`）：
-
-- **事实准确性**：对照代码验证路径、类名、行号
-- **设计合理性**：大道至简？够彻底？
-- **任务可执行性**：每个 `- [ ]` 是否能完成
-- **CC/Codex 派发建议**：标注负责人+理由
-- **遗漏检查**：文档没覆盖的依赖、调用方
-- **审查自由度**：不需逐行核对，小问题不卡住任务
 
 # 炉火纯青（ChunQing）：Phoenix 后清算
 
@@ -133,22 +96,22 @@ CA 派发审查任务时，CC 按以下维度输出报告（写入 `.shared/hand
 - **用现在换未来**（优先投入）：修 exception handling 换未来可追踪；集成欲望换主动说话
 - **不影响未来**（低优先）：V1 getattr 残留、TODO 清理
 
-## 债务全景（CQ-1 已完成 P0，CQ-2 待执行 P1）
+## 债务全景
 
 | 优先级 | 编号 | 类别 | 数量 | 状态 |
 |--------|------|------|------|------|
-| P0 | CQ-9/10 | `except Exception:` 吞没 | 336→6 | ✅ CQ-1 完成 |
-| P0 | CQ-3 | identity.py None 防御 | 2 | ✅ CQ-1 完成 |
-| P1 | CQ-7 | 欲望驱动主动发言 | — | ✅ 已集成 |
-| P1 | CQ-11 | `import logging` 绕过统一日志 | 45 | ⬜ CQ-2 |
-| P1 | CQ-15 | `chat_manager` 直接导入 | ~20 | ⬜ CQ-2 |
-| P1 | CQ-14 | `config_manager` 直接导入 | ~15 | ⬜ CQ-2 |
-| P1 | CQ-13 | `heartflow_manager` 直接导入 | 2 | ⬜ CQ-2 |
-| P2 | CQ-4/1/5/6 | 代码质量债 | 若干 | ⬜ CQ-3+ |
-| P3 | CQ-8/12 | V1/V2 共存+TODO | 若干 | ⬜ CQ-3+ |
+| **P0** | **CQ-6** | **v2 EventDispatcher 闭环 + napcat-adapter 插件化** | 4 断点 | ⬜ SSD 就绪（`.codeartsdoer/specs/cq6_adapter/`） |
+| **P0** | **CQ-16** | **v2 Runner 端到端路径验证** | 19→0 | ✅ 编码完成，⬜ Docker 验证（详见 `.shared/active_tasks.md`） |
+| **P1** | **CQ-7** | **A_memorix 记忆系统重设计** | 7 问题 | ⬜ SSD 就绪（`.codeartsdoer/specs/cq7_memorix/`） |
+| P2 | CQ-8 | SQLAlchemy 3.14 兼容 | ChunkedIteratorResult | ⬜ 待规划 |
+| P3 | CQ-9x | napcat-adapter Tool 扩展 | 5→~30 @Tool | ⬜ 扩展任务 |
+| P3 | CQ-10 | V1/V2 共存+TODO | 若干 | ⬜ 低优先 |
+
+已完成：CQ-9/10（except 吞没）✅、CQ-3（None 防御）✅、CQ-5（启动崩溃修复）✅、CQ-7（欲望驱动）✅、CQ-11（统一日志）✅、CQ-159/14/13（Port 迁移）✅、CQ-4（代码质量）✅
+
 
 # Phoenix 后路线
 
-1. **炉火纯青（ChunQing）** — 清算遗留问题（进行中）
+1. **炉火纯青（ChunQing）** — 清算遗留问题（CQ-1~5 ✅，CQ-6/7 ⬜ 进行中）
 2. **QQ 能力革命** — 重构 QQ 相关部分
-3. **日志与调试系统升级** — 结构化日志、远程调试、日志聚合
+3. **日志与调试系统升级** — 结构化日志、远程调试、日志聚合（L1~L4 ✅）
