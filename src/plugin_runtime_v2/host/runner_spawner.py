@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -50,7 +51,12 @@ class RunnerSpawner:
             "--runner-id", runner_id,
             "--session-token", session_token,
         ]
-        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env={**os.environ, "PYTHONUNBUFFERED": "1"},
+        )
         self._processes[runner_id] = process
         self._plugin_dirs[runner_id] = plugin_dir
         logger.info("Spawned Runner: %s plugin_dir=%s", runner_id, plugin_dir)

@@ -50,5 +50,7 @@ class LogForwarder:
                 text = line.decode("utf-8", errors="replace").rstrip("\r\n")
                 if text:
                     logger.info("[runner:%s:%s] %s", self._runner_id, label, text)
-        except (BrokenPipeError, ValueError, asyncio.CancelledError):
+        except asyncio.CancelledError:
             pass
+        except (BrokenPipeError, ValueError) as exc:
+            logger.debug("[runner:%s:%s] pipe 读取结束: %s", self._runner_id, label, exc)
