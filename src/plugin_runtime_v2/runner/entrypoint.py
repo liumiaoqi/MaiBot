@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from src.common.logger import get_logger
+from src.common.logger import get_logger, initialize_logging
 
 if TYPE_CHECKING:
     from src.plugin_runtime_v2.runner.endpoint import RunnerEndpoint
@@ -22,6 +22,7 @@ logger = get_logger("plugin_runtime_v2.runner.entrypoint")
 
 
 def main() -> None:
+    initialize_logging()
     parser = argparse.ArgumentParser(description="MaiBot Plugin Runner")
     parser.add_argument("--host-address", required=True, help="Host gRPC 地址")
     parser.add_argument("--plugin-dir", required=True, help="插件目录路径")

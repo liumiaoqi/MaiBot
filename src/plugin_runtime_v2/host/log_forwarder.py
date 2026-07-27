@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import subprocess
 
 from src.common.logger import get_logger
 
 logger = get_logger("plugin_runtime_v2.host.log_forwarder")
+
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
 
 
 class LogForwarder:
@@ -48,6 +51,8 @@ class LogForwarder:
                 if not line:
                     break
                 text = line.decode("utf-8", errors="replace").rstrip("\r\n")
+                text = _ANSI_RE.sub("", text)
+                text = text.replace("%", "%%")
                 if text:
                     logger.info("[runner:%s:%s] %s", self._runner_id, label, text)
         except asyncio.CancelledError:
