@@ -40,7 +40,7 @@ def _get_configured_qq_account() -> str:
     port = get_bot_config_port()
     if port is None:
         return ""
-    qq_account = str(port.get_bot_qq_account()).strip()
+    qq_account = str(port.get_bot_primary_account()).strip()
     if qq_account in {"", "0"}:
         return ""
     return qq_account

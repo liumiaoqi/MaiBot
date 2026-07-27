@@ -35,7 +35,7 @@ class AgentRelationshipManager:
         with get_db_session() as session:
             for agent in agents:
                 for rel in agent.internal_relationships:
-                    exists = await session.execute(
+                    exists = session.execute(
                         select(AIRTable).where(
                             AIRTable.agent_id == agent.agent_id,
                             AIRTable.target_agent_id == rel.target_agent_id,

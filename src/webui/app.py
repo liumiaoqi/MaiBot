@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse, JSONResponse
 
 from src.common.i18n import t
 from src.common.logger import get_logger
+from src.core.webui_chat_port_registry import register_webui_chat_broadcast
 from src.webui.dependencies import require_auth
 from src.webui.errors import AppError
 from src.webui.errors.codes import ErrorCode
@@ -107,6 +108,7 @@ def create_app(
     _setup_anti_crawler(app)
     _setup_cors(app, port)
     _register_api_routes(app)
+    _register_webui_chat_broadcast()
     _setup_robots_txt(app)
 
     if enable_static:
@@ -203,6 +205,15 @@ def _register_api_routes(app: FastAPI):
         logger.debug(t("startup.webui_api_routes_registered"))
     except Exception as e:
         logger.error(t("startup.webui_api_routes_register_failed", error=e), exc_info=True)
+
+
+def _register_webui_chat_broadcast() -> None:
+    """注册 WebUI 聊天广播到 Port 注册点，供 chat 层使用。"""
+    try:
+        from src.webui.routers.chat.service import WEBUI_CHAT_PLATFORM, chat_manager
+        register_webui_chat_broadcast(chat_manager.broadcast_to_group, WEBUI_CHAT_PLATFORM)
+    except Exception as e:
+        logger.debug(f"WebUI 聊天广播注册跳过（WebUI 未启用或 chat 模块未就绪）: {e}")
 
 
 def _setup_static_files(app: FastAPI):

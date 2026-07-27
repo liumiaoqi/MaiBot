@@ -30,7 +30,7 @@ from src.config.official_configs import (
     BotConfig,
     ChatConfig,
     ChineseTypoConfig,
-    DatabaseConfig,
+
     DebugConfig,
     EmojiConfig,
     ExpressionConfig,
@@ -1425,7 +1425,7 @@ async def get_config_section_schema(section_name: str):
     - log: LogConfig
     - maim_message: MaimMessageConfig
     - webui: WebUIConfig
-    - database: DatabaseConfig
+
     - mcp: MCPConfig
     - plugin: PluginConfig
     - plugin_runtime: PluginRuntimeConfig
@@ -1453,7 +1453,7 @@ async def get_config_section_schema(section_name: str):
         "log": LogConfig,
         "maim_message": MaimMessageConfig,
         "webui": WebUIConfig,
-        "database": DatabaseConfig,
+
         "mcp": MCPConfig,
         "plugin": PluginConfig,
         "plugin_runtime": PluginRuntimeConfig,

@@ -12,6 +12,7 @@ from src.common.database.database import get_db_session
 from src.common.logger import get_logger
 from src.common.message_server.api import get_global_api
 from src.common.utils.utils_message import MessageUtils
+from src.core.webui_chat_port_registry import get_webui_broadcast_fn, get_webui_platform_name
 from src.webui.routers.chat.serializers import serialize_message_sequence
 
 install(extra_lines=3)
@@ -25,23 +26,26 @@ _webui_chat_broadcaster: Optional[Tuple[Any, Optional[str], Optional[str]]] = No
 VIRTUAL_GROUP_ID_PREFIX = "webui_virtual_group_"
 
 
-# TODO: 重构完成后完成webui相关
+
 def get_webui_chat_broadcaster() -> Tuple[Any, Optional[str], Optional[str]]:
     """获取 WebUI 聊天室广播器。
 
     Returns:
-        Tuple[Any, Optional[str], Optional[str]]: ``(chat_manager, platform_name, default_group_id)`` 三元组；
+        Tuple[Any, Optional[str], Optional[str]]: ``(broadcast_fn, platform_name, default_group_id)`` 三元组；
         若 WebUI 相关模块不可用，则元素会退化为 ``None``。
     """
     global _webui_chat_broadcaster
     if _webui_chat_broadcaster is None:
-        try:
-            from src.webui.routers.chat import WEBUI_CHAT_PLATFORM, chat_manager
-
-            # 默认不再强制虚拟群聊；WebUI 默认走私聊频道，需要的话由调用者传入虚拟群 ID。
-            _webui_chat_broadcaster = (chat_manager, WEBUI_CHAT_PLATFORM, None)
-        except ImportError:
-            _webui_chat_broadcaster = (None, None, None)
+        broadcast_fn = get_webui_broadcast_fn()
+        platform_name = get_webui_platform_name()
+        if broadcast_fn is not None:
+            _webui_chat_broadcaster = (broadcast_fn, platform_name, None)
+        else:
+            try:
+                from src.webui.routers.chat import WEBUI_CHAT_PLATFORM, chat_manager  # noqa: TID251 — Port 未注册时 fallback
+                _webui_chat_broadcaster = (chat_manager, WEBUI_CHAT_PLATFORM, None)
+            except ImportError:
+                _webui_chat_broadcaster = (None, None, None)
     return _webui_chat_broadcaster
 
 

@@ -2393,7 +2393,7 @@ class ImportTaskManager:
                 process.kill()
                 await asyncio.wait_for(process.wait(), timeout=timeout_cfg["process_kill_seconds"])
             except Exception:
-            logger.warning("操作异常: %s", exc)
+                logger.warning("操作异常: %s", exc)
 
     async def _reload_stores_after_external_migration(self) -> None:
         async with self._storage_lock:

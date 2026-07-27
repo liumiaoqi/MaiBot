@@ -38,6 +38,7 @@ if TYPE_CHECKING:
         ObserveRequest,
         PersonDetailSnapshot,
         PersonInfoResult,
+        PluginRuntimeRenderSnapshot,
         PluginRuntimeSnapshot,
         ReplyTimingSnapshot,
         ReplyStyleSnapshot,
@@ -1162,6 +1163,14 @@ class AppConfigPort(Protocol):
 
         Returns:
             PluginRuntimeSnapshot 不可变快照
+        """
+        ...
+
+    def get_plugin_runtime_render_config(self) -> PluginRuntimeRenderSnapshot:
+        """获取插件运行时浏览器渲染配置快照。
+
+        Returns:
+            PluginRuntimeRenderSnapshot 不可变快照
         """
         ...
 

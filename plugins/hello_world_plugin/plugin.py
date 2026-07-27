@@ -145,6 +145,6 @@ class HelloWorldPlugin(MaiBotPlugin):
         return {"success": True}
 
 
-def create_plugin() -> HelloWorldPlugin:
-    """创建 Hello World 示例插件实例。"""
-    return HelloWorldPlugin()
+def create_plugin() -> type[HelloWorldPlugin]:
+    """返回 Hello World 示例插件类。"""
+    return HelloWorldPlugin

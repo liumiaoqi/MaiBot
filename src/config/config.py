@@ -16,12 +16,7 @@ from .config_upgrade_hooks import apply_config_upgrade_hooks
 from .config_utils import compare_versions, output_config_changes, recursive_parse_item_to_table
 from .default_model_config import create_default_model_config
 from .file_watcher import FileChange, FileWatcher
-from .legacy_migration import (
-    mark_legacy_config_migration_completed,
-    migrate_legacy_bind_env_to_bot_config_dict,
-    should_apply_legacy_migration,
-    try_migrate_legacy_bot_config_dict,
-)
+
 from .model_configs import APIProvider, ModelInfo, ModelTaskConfig
 from .official_configs import (
     AMemorixConfig,
@@ -67,8 +62,8 @@ PROJECT_ROOT: Path = Path(__file__).parent.parent.parent.absolute().resolve()
 CONFIG_DIR: Path = PROJECT_ROOT / "config"
 BOT_CONFIG_PATH: Path = (CONFIG_DIR / "bot_config.toml").resolve().absolute()
 MODEL_CONFIG_PATH: Path = (CONFIG_DIR / "model_config.toml").resolve().absolute()
-LEGACY_ENV_PATH: Path = (PROJECT_ROOT / ".env").resolve().absolute()
-A_MEMORIX_LEGACY_CONFIG_PATH: Path = (CONFIG_DIR / "a_memorix.toml").resolve().absolute()
+
+
 MMC_VERSION: str = read_project_version(PROJECT_ROOT)
 CONFIG_VERSION: str = "8.24.0"
 MODEL_CONFIG_VERSION: str = "1.17.6"
@@ -218,30 +213,6 @@ def _normalize_a_memorix_legacy_config(config_data: dict[str, Any]) -> dict[str,
         web_config["import_config"] = web_config.pop("import")
     return normalized
 
-
-def _migrate_legacy_a_memorix_config(config_data: dict[str, Any]) -> tuple[dict[str, Any], bool]:
-    if isinstance(config_data.get("a_memorix"), dict):
-        return config_data, False
-    if not A_MEMORIX_LEGACY_CONFIG_PATH.exists():
-        return config_data, False
-
-    try:
-        with A_MEMORIX_LEGACY_CONFIG_PATH.open("r", encoding="utf-8") as handle:
-            legacy_data = tomlkit.load(handle).unwrap()
-    except Exception as exc:
-        logger.warning(f"读取旧版 A_Memorix 配置失败，已使用主配置默认值: {A_MEMORIX_LEGACY_CONFIG_PATH}，原因: {exc}")
-        return config_data, False
-
-    if not isinstance(legacy_data, dict):
-        logger.warning(f"旧版 A_Memorix 配置内容无效，已使用主配置默认值: {A_MEMORIX_LEGACY_CONFIG_PATH}")
-        return config_data, False
-
-    migrated_data = copy.deepcopy(config_data)
-    migrated_data["a_memorix"] = _normalize_a_memorix_legacy_config(legacy_data)
-    logger.warning(
-        f"检测到旧版 A_Memorix 配置，已迁移到 bot_config.toml 的 [a_memorix]: {A_MEMORIX_LEGACY_CONFIG_PATH}"
-    )
-    return migrated_data, True
 
 
 def _normalize_loaded_bot_config_dict(config_data: dict[str, Any]) -> dict[str, Any]:
@@ -561,19 +532,6 @@ def generate_new_config_file(
     write_config_to_file(config, config_path, inner_config_version, override_repr)
 
 
-def remove_legacy_env_file(env_path: Path) -> None:
-    """删除已完成迁移的旧版 `.env` 文件。"""
-
-    if not env_path.exists():
-        return
-
-    try:
-        env_path.unlink()
-    except OSError as exc:
-        logger.warning(f"旧版 .env 配置文件删除失败，请手动删除: {env_path}，原因: {exc}")
-    else:
-        logger.warning(f"检测到旧版环境变量绑定配置迁移成功，已删除旧版 .env 文件: {env_path}")
-
 
 def load_config_from_file(
     config_class: type[T], config_path: Path, new_ver: str, override_repr: bool = False
@@ -591,78 +549,30 @@ def load_config_from_file(
     if not isinstance(inner_version, str):
         raise TypeError(t("config.invalid_inner_version"))
     old_ver: str = inner_version
-    env_migration_applied: bool = False
-    legacy_config_migration_applied: bool = False
-    a_memorix_migration_applied: bool = False
     upgrade_hook_applied: bool = False
-    legacy_config_migration_reasons: list[str] = []
-    config_data.remove("inner")  # 移除 inner 部分，避免干扰后续处理
-    config_data = config_data.unwrap()  # 转换为普通字典，方便后续处理
-    legacy_migration_enabled = config_class.__name__ == "Config" and should_apply_legacy_migration(config_path.name)
-    if legacy_migration_enabled:
-        env_migration = migrate_legacy_bind_env_to_bot_config_dict(config_data)
-        env_migration_applied = env_migration.migrated
-        if env_migration.migrated:
-            logger.warning(f"检测到旧版环境变量绑定配置，已迁移到主配置: {env_migration.reason}")
-            legacy_config_migration_reasons.append(env_migration.reason)
-        config_data = env_migration.data
-        legacy_migration = try_migrate_legacy_bot_config_dict(config_data)
-        if legacy_migration.migrated:
-            logger.warning(t("config.legacy_migrated", reason=legacy_migration.reason))
-            legacy_config_migration_applied = True
-            legacy_config_migration_reasons.append(legacy_migration.reason)
-        config_data = legacy_migration.data
-        config_data, a_memorix_migration_applied = _migrate_legacy_a_memorix_config(config_data)
-        if a_memorix_migration_applied:
-            legacy_config_migration_reasons.append("a_memorix_legacy_config")
-        config_data = _normalize_loaded_bot_config_dict(config_data)
+    config_data.remove("inner")
+    config_data = config_data.unwrap()
+    config_data = _normalize_loaded_bot_config_dict(config_data)
     hook_result = apply_config_upgrade_hooks(config_data, config_path.name, old_ver, new_ver)
     upgrade_hook_applied = hook_result.migrated
     if hook_result.migrated:
         logger.warning(f"检测到配置升级钩子变更，已应用: {hook_result.reason}")
     config_data = hook_result.data
-    # 保留一份“干净”的原始数据副本，避免第一次 from_dict 过程中对 dict 的就地修改
-    original_data: dict[str, Any] = copy.deepcopy(config_data)
     try:
         updated: bool = False
         try:
             target_config = config_class.from_dict(attribute_data, config_data)
         except TypeError as e:
-            # 可拔插的旧配置修复（仅针对 bot_config.toml 的已知结构变更）
-            if legacy_migration_enabled:
-                # 基于未被部分构造污染的 original_data 做迁移尝试
-                mig = try_migrate_legacy_bot_config_dict(original_data)
-                if mig.migrated:
-                    logger.warning(t("config.legacy_migrated", reason=mig.reason))
-                    legacy_config_migration_applied = True
-                    legacy_config_migration_reasons.append(mig.reason)
-                    migrated_data = mig.data
-                    target_config = config_class.from_dict(attribute_data, migrated_data)
-                else:
-                    raise e
-            else:
-                raise e
-        if (
-            compare_versions(old_ver, new_ver)
-            or env_migration_applied
-            or legacy_config_migration_applied
-            or a_memorix_migration_applied
-            or upgrade_hook_applied
-        ):
+            raise e
+        if compare_versions(old_ver, new_ver) or upgrade_hook_applied:
             output_config_changes(attribute_data, logger, old_ver, new_ver, config_path.name)
             write_config_to_file(target_config, config_path, new_ver, override_repr)
-            if env_migration_applied:
-                remove_legacy_env_file(LEGACY_ENV_PATH)
             updated = True
-        if legacy_migration_enabled:
-            mark_legacy_config_migration_completed(
-                migrated=env_migration_applied or legacy_config_migration_applied or a_memorix_migration_applied,
-                reason=",".join(reason for reason in legacy_config_migration_reasons if reason),
-            )
         return target_config, updated
     except Exception as e:
         logger.critical(t("config.parse_failed", file_name=config_path.name))
         raise e
+
 
 
 def write_config_to_file(

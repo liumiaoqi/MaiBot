@@ -20,16 +20,16 @@ from src.core.types import ObserveRequest, PermanentMemoryError, TemporaryMemory
 logger = get_logger("core.adapters.memory_service")
 
 
-def _classify_memory_error(message: str, exc: Exception) -> MemoryServiceError:
+def _classify_memory_error(message: str, original: Exception) -> MemoryServiceError:
     """根据原始异常类型分类为临时性或永久性。"""
-    if isinstance(exc, (ConnectionError, TimeoutError, OSError)):
-        return TemporaryMemoryError(message, original=exc)
-    if isinstance(exc, asyncio.TimeoutError):
-        return TemporaryMemoryError(message, original=exc)
-    exc_name = type(exc).__name__.lower()
+    if isinstance(original, (ConnectionError, TimeoutError, OSError)):
+        return TemporaryMemoryError(message, original=original)
+    if isinstance(original, asyncio.TimeoutError):
+        return TemporaryMemoryError(message, original=original)
+    exc_name = type(original).__name__.lower()
     if any(kw in exc_name for kw in ("timeout", "connection", "network")):
-        return TemporaryMemoryError(message, original=exc)
-    return PermanentMemoryError(message, original=exc)
+        return TemporaryMemoryError(message, original=original)
+    return PermanentMemoryError(message, original=original)
 
 
 class AMemorixMemoryServicePort:

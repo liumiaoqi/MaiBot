@@ -11,6 +11,7 @@ import tomlkit
 from src.common.logger import get_logger
 from src.common.utils.utils_config import AMemorixConfigUtils
 from src.config.official_configs import AMemorixConfig
+from src.core.types import AMemorixIntegrationSnapshot
 from src.webui.utils.toml_utils import _update_toml_doc
 
 from .paths import repo_root, schema_path
@@ -642,7 +643,7 @@ class AMemorixHostService:
         from src.common.database.database import get_db_session
         from src.common.database.database_model import PersonInfo
         from src.common.data_models.llm_service_data_models import LLMServiceResult
-        from src.config.config import config_manager
+        from src.config.config import config_manager  # noqa: TID251 — AMemorixServicePorts 内部端口容器
         from src.llm_models.exceptions import NetworkConnectionError
         from src.llm_models.model_client.base_client import EmbeddingRequest, client_registry
         from src.services import llm_service as llm_api
@@ -680,8 +681,9 @@ class AMemorixHostService:
         return dict(self._config_cache)
 
     @staticmethod
-    def _config_model_to_runtime_dict(config_model: AMemorixConfig) -> Dict[str, Any]:
-        payload = config_model.model_dump(mode="json")
+    def _config_model_to_runtime_dict(config_model: AMemorixIntegrationSnapshot) -> Dict[str, Any]:
+        import dataclasses
+        payload = dataclasses.asdict(config_model)
         web_config = payload.get("web")
         if isinstance(web_config, dict) and "import_config" in web_config:
             web_config["import"] = web_config.pop("import_config")

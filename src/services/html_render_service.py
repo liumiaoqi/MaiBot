@@ -24,7 +24,7 @@ import sys
 import time
 
 from src.common.logger import PROJECT_ROOT, get_logger
-from src.config.config import config_manager
+from src.core.app_config_port_registry import get_app_config_port
 from src.config.official_configs import PluginRuntimeRenderConfig
 
 logger = get_logger("services.html_render_service")
@@ -168,13 +168,16 @@ class HTMLRenderService:
         self._render_semaphore: Optional[asyncio.Semaphore] = None
         self._render_semaphore_limit: int = 0
 
-    def _get_render_config(self) -> PluginRuntimeRenderConfig:
+    def _get_render_config(self):
         """读取当前插件运行时的浏览器渲染配置。
 
         Returns:
-            PluginRuntimeRenderConfig: 当前生效的浏览器渲染配置。
+            PluginRuntimeRenderSnapshot: 当前生效的浏览器渲染配置快照。
         """
-
+        port = get_app_config_port()
+        if port is not None:
+            return port.get_plugin_runtime_render_config()
+        from src.config.config import config_manager  # noqa: TID251 — Port 未注册时 fallback
         return config_manager.get_global_config().plugin_runtime.render
 
     def _get_render_semaphore(self) -> asyncio.Semaphore:

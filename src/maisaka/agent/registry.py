@@ -20,9 +20,13 @@ class AgentConfigRegistry:
             try:
                 from src.core.app_config_port_registry import get_app_config_port
 
-                config_dir = get_app_config_port().get_agents_dir()
+                port = get_app_config_port()
+                if port is not None:
+                    config_dir = port.get_agents_dir()
+                else:
+                    config_dir = "agents/"
             except Exception as exc:
-                logger.warning("操作异常 in registry.py", exc_info=True)
+                logger.warning("获取 agents 目录失败，使用默认值", exc_info=True)
                 config_dir = "agents/"
         self._loader = AgentConfigLoader(config_dir)
         self._agents: dict[str, AgentConfig] = {}
