@@ -365,6 +365,7 @@ run_pet.bat
 !/plugins
 !/plugins/hello_world_plugin
 !/plugins/emoji_manage_plugin
+!/plugins/maibot-team.napcat-adapter
 !/plugins/__init__.py
 
 config.toml
