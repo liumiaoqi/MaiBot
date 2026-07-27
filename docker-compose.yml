@@ -32,6 +32,7 @@ services:
       - ./data/MaiMBot:/MaiMBot/data # 共享目录
       - ./data/MaiMBot/emoji:/data/emoji # 持久化表情包
       - ./data/MaiMBot/plugins:/MaiMBot/plugins # 插件目录
+      - ./plugins:/MaiMBot/plugins-v2 # v2 插件目录（宿主机修改即时生效）
       - ./docker-entrypoint-wrapper.sh:/MaiMBot/docker-entrypoint-wrapper.sh:ro # 去重入口包装
       - ./data/MaiMBot/logs:/MaiMBot/logs # 日志目录
 
