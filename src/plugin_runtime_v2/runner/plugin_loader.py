@@ -57,7 +57,7 @@ class PluginLoader:
         self._homecard_registry = {}
 
         for name, method in inspect.getmembers(self._plugin_cls, predicate=inspect.isfunction):
-            if name.startswith("_"):
+            if name.startswith("__"):
                 continue
             self._collect_tool(method)
             self._collect_event(method)
