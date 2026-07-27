@@ -42,6 +42,7 @@ class RunnerSpawner:
         if self._token_service is not None:
             plugin_id = _read_plugin_id(plugin_dir, runner_id)
             session_token = self._token_service.issue(plugin_id)
+
         cmd = [
             sys.executable, "-m", "src.plugin_runtime_v2.runner.entrypoint",
             "--host-address", self._host_addr,
