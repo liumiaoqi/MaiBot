@@ -397,3 +397,6 @@ skills
 lab
 MemoryConstellations/
 tmp_logs.txt
+check_logger*.py
+check_stderr.py
+openclaw/
