@@ -17,7 +17,6 @@ class ProfileEvidenceService:
         person_profile_service: Any,
         tokens: Callable[..., List[str]],
         trim_text: Callable[[str, int], str],
-        query_person_profile_with_feedback_refresh: Callable[..., Coroutine[Any, Any, Dict[str, Any]]],
         execute_delete_action: Callable[..., Coroutine[Any, Any, Dict[str, Any]]],
         invalidate_import_manifest_for_sources: Callable[[Dict[str, Any]], Coroutine[Any, Any, None]],
     ) -> None:
@@ -25,7 +24,6 @@ class ProfileEvidenceService:
         self._person_profile_service = person_profile_service
         self._tokens = tokens
         self._trim_text = trim_text
-        self._query_person_profile_with_feedback_refresh = query_person_profile_with_feedback_refresh
         self._execute_delete_action = execute_delete_action
         self._invalidate_import_manifest_for_sources = invalidate_import_manifest_for_sources
 
@@ -198,10 +196,10 @@ class ProfileEvidenceService:
         limit: int = 12,
         force_refresh: bool = False,
     ) -> Dict[str, Any]:
-        profile = await self._query_person_profile_with_feedback_refresh(
+        profile = await self._person_profile_service.query_person_profile(
             person_id=person_id,
             person_keyword=person_keyword,
-            limit=max(1, int(limit or 12)),
+            top_k=max(1, int(limit or 12)),
             force_refresh=force_refresh,
             source_note="sdk_memory_kernel.memory_profile_admin.evidence",
         )

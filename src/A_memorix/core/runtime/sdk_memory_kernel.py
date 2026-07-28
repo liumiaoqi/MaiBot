@@ -27,8 +27,6 @@ from ..utils.summary_importer import SummaryImporter
 from ..utils.time_parser import format_timestamp, parse_query_datetime_to_timestamp
 from ..utils.web_import_manager import ImportTaskManager
 from .search_runtime_initializer import SearchRuntimeBundle, build_search_runtime
-from .services.feedback_correction import FeedbackCorrectionService
-from .services.fuzzy_modify import FuzzyModifyService
 from .services.graph_ops import GraphOpsService
 from .services.hit_filter import HitFilterService
 from .services.kernel_initializer import KernelInitializer
@@ -79,15 +77,9 @@ class SDKMemoryKernel:
         self._active_person_timestamps: Dict[str, float] = {}
         self._embedding_health_service: Optional[Any] = None
         self._current_effective_filter_cache: Dict[str, Any] = {"checked_at": 0.0, "needed": False}
-        self._feedback_classifier: Optional[Any] = None
-        self._fuzzy_modify_planner: Optional[Any] = None
         self._session_info_port: Any = None
-        self._feedback_config: Optional[Any] = None
-        self._fuzzy_modify_config: Optional[Any] = None
         self._admin_handlers: Dict[str, Any] = {}
         self._delete_service: Optional[Any] = None
-        self._fuzzy_modify_service: Optional[Any] = None
-        self._feedback_correction_service: Optional[Any] = None
         self._profile_evidence_service: Optional[Any] = None
         self._memory_field: Optional[Any] = None
         self._migration_adapter: Optional[Any] = None
@@ -379,7 +371,6 @@ class SDKMemoryKernel:
             cfg=self._cfg,
             metadata_store_getter=lambda: self.metadata_store,
             person_profile_service_getter=lambda: self.person_profile_service,
-            feedback_correction_service_getter=lambda: self._feedback_correction_service,
             hit_filter_service_getter=lambda: self._hit_filter_service,
             active_person_timestamps=self._active_person_timestamps,
             background_scheduler=self._background_scheduler,
@@ -562,18 +553,6 @@ class SDKMemoryKernel:
     async def search_memory(self, request: KernelSearchRequest) -> Dict[str, Any]:
         await self.initialize()
         return await self._search_service.search_memory(request)
-
-    async def _fuzzy_modify_search_memory_adapter(self, request_text: str, limit: int, scope: str, person_id: str, chat_id: str) -> Dict[str, Any]:
-        return await self.search_memory(
-            KernelSearchRequest(
-                query=request_text,
-                limit=limit,
-                mode="aggregate",
-                chat_id=chat_id,
-                person_id=person_id,
-                respect_filter=True,
-            )
-        )
 
     @staticmethod
     def _empty_person_profile_response(*, person_id: str = "", person_name: str = "") -> Dict[str, Any]:

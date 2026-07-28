@@ -7,7 +7,6 @@ from src.common.logger import get_logger
 from src.core.app_config_port_registry import get_app_config_port
 from src.core.tooling import ToolExecutionContext, ToolExecutionResult, ToolInvocation, ToolSpec
 from src.core.types import MemorySearchResult
-from src.maisaka.utils.tool_post_execution import with_memory_feedback_task
 from src.person_info.person_info import resolve_person_id_for_memory
 
 from .context import BuiltinToolRuntimeContext
@@ -325,7 +324,7 @@ async def handle_tool(
             "提示：人物定向检索未命中，已自动降级为关键词检索。\n"
             f"{content}"
         )
-    metadata: Dict[str, Any] = with_memory_feedback_task()
+    metadata: Dict[str, Any] = {}
     replyer_memory_reference = _build_replyer_memory_reference(structured_content)
     if replyer_memory_reference:
         metadata["replyer_memory_reference"] = replyer_memory_reference

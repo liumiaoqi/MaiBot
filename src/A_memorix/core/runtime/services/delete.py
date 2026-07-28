@@ -818,34 +818,6 @@ class DeleteService:
             },
         }
 
-    # ── 反馈纠正软删除 ───────────────────────────────────────
-
-    def soft_delete_feedback_correction_paragraphs(self, paragraph_hashes: Sequence[str]) -> Dict[str, Any]:
-        assert self.metadata_store is not None
-        hashes = self._tokens(paragraph_hashes)
-        if not hashes:
-            return {"deleted_hashes": [], "deleted_external_refs": []}
-
-        paragraph_rows = {hash_value: self.metadata_store.get_paragraph(hash_value) for hash_value in hashes}
-        self.metadata_store.mark_as_deleted(hashes, "paragraph")
-        conn = self.metadata_store.get_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            f"DELETE FROM paragraph_entities WHERE paragraph_hash IN ({','.join(['?'] * len(hashes))})",
-            tuple(hashes),
-        )
-        cursor.execute(
-            f"DELETE FROM paragraph_relations WHERE paragraph_hash IN ({','.join(['?'] * len(hashes))})",
-            tuple(hashes),
-        )
-        conn.commit()
-        deleted_external_refs = self.metadata_store.delete_external_memory_refs_by_paragraphs(hashes)
-        return {
-            "deleted_hashes": hashes,
-            "paragraph_rows": paragraph_rows,
-            "deleted_external_refs": deleted_external_refs,
-        }
-
     # ── 来源删除 ──────────────────────────────────────────────
 
     def apply_cleanup_plan(self, cleanup: Dict[str, Any]) -> None:

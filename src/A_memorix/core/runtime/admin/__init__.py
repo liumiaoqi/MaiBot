@@ -7,9 +7,7 @@ from .import_handler import ImportAdminHandler
 from .tuning import TuningAdminHandler
 from .v5 import V5AdminHandler
 from .delete import DeleteAdminHandler
-from .correction import CorrectionAdminHandler
 from .profile import ProfileAdminHandler
-from .feedback import FeedbackAdminHandler
 from .episode import EpisodeAdminHandler
 from .source import SourceAdminHandler
 
@@ -23,9 +21,7 @@ __all__ = [
     "TuningAdminHandler",
     "V5AdminHandler",
     "DeleteAdminHandler",
-    "CorrectionAdminHandler",
     "ProfileAdminHandler",
-    "FeedbackAdminHandler",
     "EpisodeAdminHandler",
     "SourceAdminHandler",
 ]

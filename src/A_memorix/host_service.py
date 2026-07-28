@@ -201,14 +201,11 @@ class AMemorixHostService:
         "memory_source_admin": "source",
         "memory_episode_admin": "episode",
         "memory_profile_admin": "profile",
-        "memory_feedback_admin": "feedback",
         "memory_runtime_admin": "runtime",
         "memory_import_admin": "import",
         "memory_tuning_admin": "tuning",
         "memory_v5_admin": "v5",
         "memory_delete_admin": "delete",
-        "memory_correction_admin": "correction",
-        "memory_fuzzy_modify_admin": "correction",
     }
 
     async def _dispatch(self, kernel: Any, component_name: str, payload: dict) -> Any:
@@ -237,16 +234,6 @@ class AMemorixHostService:
                         user_id=payload.get("user_id", "").strip(),
                         group_id=payload.get("group_id", "").strip(),
                     )
-                )
-    
-            if component_name == "enqueue_feedback_task":
-                return await kernel._feedback_correction_service.enqueue_feedback_task(
-                    query_tool_id=payload.get("query_tool_id", ""),
-                    session_id=payload.get("session_id", ""),
-                    query_timestamp=payload.get("query_timestamp"),
-                    structured_content=payload.get("structured_content")
-                    if isinstance(payload.get("structured_content"), dict)
-                    else {},
                 )
     
             if component_name == "ingest_summary":
@@ -795,14 +782,6 @@ class AMemorixHostService:
                 "embedding_dimension": 0,
                 "auto_save": False,
                 "data_dir": "",
-            }
-
-        if component_name == "enqueue_feedback_task":
-            return {
-                "success": True,
-                "queued": False,
-                "disabled": True,
-                "reason": reason,
             }
 
         if component_name == "metadata_get_paragraphs_by_source":

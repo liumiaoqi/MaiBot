@@ -16,7 +16,7 @@ import sqlite3
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import tomlkit
 
@@ -302,14 +302,8 @@ def _preflight_impl(config_path: Path, data_dir: Path) -> Dict[str, Any]:
             facts["schema_migrations_exists"] = has_schema_table
             has_paragraph_backfill = _sqlite_table_exists(conn, "paragraph_vector_backfill")
             facts["paragraph_vector_backfill_exists"] = has_paragraph_backfill
-            has_stale_marks = _sqlite_table_exists(conn, "paragraph_stale_relation_marks")
-            facts["paragraph_stale_relation_marks_exists"] = has_stale_marks
             has_profile_refresh_queue = _sqlite_table_exists(conn, "person_profile_refresh_queue")
             facts["person_profile_refresh_queue_exists"] = has_profile_refresh_queue
-            has_feedback_rollback_status = _sqlite_column_exists(conn, "memory_feedback_tasks", "rollback_status")
-            facts["memory_feedback_tasks_rollback_status_exists"] = has_feedback_rollback_status
-            has_feedback_rollback_plan = _sqlite_column_exists(conn, "memory_feedback_tasks", "rollback_plan_json")
-            facts["memory_feedback_tasks_rollback_plan_exists"] = has_feedback_rollback_plan
             if not has_schema_table:
                 checks.append(
                     CheckItem(
@@ -352,28 +346,12 @@ def _preflight_impl(config_path: Path, data_dir: Path) -> Dict[str, Any]:
                             "paragraph_vector_backfill table missing under current schema version",
                         )
                     )
-                elif not has_stale_marks:
-                    checks.append(
-                        CheckItem(
-                            "CP-15",
-                            "error",
-                            "paragraph_stale_relation_marks table missing under current schema version",
-                        )
-                    )
                 elif not has_profile_refresh_queue:
                     checks.append(
                         CheckItem(
                             "CP-16",
                             "error",
                             "person_profile_refresh_queue table missing under current schema version",
-                        )
-                    )
-                elif not has_feedback_rollback_status or not has_feedback_rollback_plan:
-                    checks.append(
-                        CheckItem(
-                            "CP-17",
-                            "error",
-                            "memory_feedback_tasks rollback columns missing under current schema version",
                         )
                     )
 
@@ -679,46 +657,6 @@ def _verify_impl(config_path: Path, data_dir: Path) -> Dict[str, Any]:
                             "CP-14",
                             "error",
                             "paragraph_vector_backfill table missing after migration",
-                        )
-                    )
-                has_feedback_tasks = _sqlite_table_exists(conn, "memory_feedback_tasks")
-                facts["memory_feedback_tasks_exists"] = bool(has_feedback_tasks)
-                if not has_feedback_tasks:
-                    checks.append(
-                        CheckItem(
-                            "CP-15",
-                            "error",
-                            "memory_feedback_tasks table missing after migration",
-                        )
-                    )
-                has_feedback_logs = _sqlite_table_exists(conn, "memory_feedback_action_logs")
-                facts["memory_feedback_action_logs_exists"] = bool(has_feedback_logs)
-                if not has_feedback_logs:
-                    checks.append(
-                        CheckItem(
-                            "CP-16",
-                            "error",
-                            "memory_feedback_action_logs table missing after migration",
-                        )
-                    )
-                has_feedback_rollback_status = _sqlite_column_exists(conn, "memory_feedback_tasks", "rollback_status")
-                facts["memory_feedback_tasks_rollback_status_exists"] = bool(has_feedback_rollback_status)
-                if not has_feedback_rollback_status:
-                    checks.append(
-                        CheckItem(
-                            "CP-17",
-                            "error",
-                            "memory_feedback_tasks.rollback_status missing after migration",
-                        )
-                    )
-                has_feedback_rollback_plan = _sqlite_column_exists(conn, "memory_feedback_tasks", "rollback_plan_json")
-                facts["memory_feedback_tasks_rollback_plan_exists"] = bool(has_feedback_rollback_plan)
-                if not has_feedback_rollback_plan:
-                    checks.append(
-                        CheckItem(
-                            "CP-18",
-                            "error",
-                            "memory_feedback_tasks.rollback_plan_json missing after migration",
                         )
                     )
                 conflicts = _collect_hash_alias_conflicts(conn)

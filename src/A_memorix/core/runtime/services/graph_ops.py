@@ -462,7 +462,6 @@ class GraphOpsService:
                 for relation in relations
             ],
             "is_stale": bool(stale_marks),
-            "stale_relation_marks": stale_marks,
         }
 
     def build_evidence_graph(

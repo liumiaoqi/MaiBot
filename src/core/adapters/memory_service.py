@@ -128,26 +128,6 @@ class AMemorixMemoryServicePort:
                 f"删除管理失败: action={action}", original=exc,
             ) from exc
 
-    async def enqueue_feedback_task(
-        self,
-        *,
-        query_tool_id: str,
-        session_id: str,
-        query_timestamp: Any = None,
-        structured_content: Optional[dict[str, Any]] = None,
-    ) -> dict[str, Any]:
-        try:
-            return await self._get_memory_service().enqueue_feedback_task(
-                query_tool_id=query_tool_id,
-                session_id=session_id,
-                query_timestamp=query_timestamp,
-                structured_content=structured_content,
-            )
-        except Exception as exc:
-            raise _classify_memory_error(
-                f"反馈任务入队失败: session={session_id}", original=exc,
-            ) from exc
-
     async def build_profile_injection_text(self, raw_text: str) -> str:
         return await self._get_memory_service().migration_build_profile_injection_text(raw_text)
 

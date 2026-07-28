@@ -68,14 +68,11 @@ class AMemorixPlugin(MaiBotPlugin):
         "memory_source_admin": "source",
         "memory_episode_admin": "episode",
         "memory_profile_admin": "profile",
-        "memory_feedback_admin": "feedback",
         "memory_runtime_admin": "runtime",
         "memory_import_admin": "import",
         "memory_tuning_admin": "tuning",
         "memory_v5_admin": "v5",
         "memory_delete_admin": "delete",
-        "memory_correction_admin": "correction",
-        "memory_fuzzy_modify_admin": "correction",
     }
 
     async def _dispatch_admin_tool(self, method_name: str, action: str, **kwargs):
@@ -297,13 +294,6 @@ class AMemorixPlugin(MaiBotPlugin):
     async def handle_memory_delete_admin(self, action: str, **kwargs):
         return await self._dispatch_admin_tool("memory_delete_admin", action=action, **kwargs)
 
-    @Tool("memory_correction_admin", description="长期记忆修正管理接口", parameters=_ADMIN_TOOL_PARAMS)
-    async def handle_memory_correction_admin(self, action: str, **kwargs):
-        return await self._dispatch_admin_tool("memory_correction_admin", action=action, **kwargs)
-
-    @Tool("memory_fuzzy_modify_admin", description="长期记忆修正管理兼容接口", parameters=_ADMIN_TOOL_PARAMS)
-    async def handle_memory_fuzzy_modify_admin(self, action: str, **kwargs):
-        return await self._dispatch_admin_tool("memory_fuzzy_modify_admin", action=action, **kwargs)
 
 
 def create_plugin():

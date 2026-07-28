@@ -14,8 +14,6 @@ class KernelInitializer:
     @staticmethod
     def init_core_storage(kernel: SDKMemoryKernel) -> None:
         from ..config.vector_pool_config import VectorPoolConfig
-        from ..config.feedback_config import FeedbackConfig
-        from ..config.fuzzy_modify_config import FuzzyModifyConfig
         from .embedding_health import EmbeddingHealthService
         from .background_scheduler import BackgroundTaskScheduler
         from ...storage import GraphStore, MetadataStore
@@ -30,8 +28,6 @@ class KernelInitializer:
             vector_pool_config=VectorPoolConfig.from_config(kernel.config),
         )
         kernel._background_scheduler = BackgroundTaskScheduler()
-        kernel._feedback_config = FeedbackConfig.from_config_dict(kernel.config)
-        kernel._fuzzy_modify_config = FuzzyModifyConfig.from_config_dict(kernel.config)
 
         kernel.embedding_manager = create_embedding_api_adapter(
             batch_size=int(kernel._cfg("embedding.batch_size", 32)),
@@ -152,8 +148,8 @@ class KernelInitializer:
         from ..admin import (
             GraphAdminHandler, ParagraphAdminHandler, RelationAdminHandler,
             RuntimeAdminHandler, ImportAdminHandler, TuningAdminHandler,
-            V5AdminHandler, DeleteAdminHandler, CorrectionAdminHandler,
-            ProfileAdminHandler, FeedbackAdminHandler, EpisodeAdminHandler,
+            V5AdminHandler, DeleteAdminHandler,
+            ProfileAdminHandler, EpisodeAdminHandler,
             SourceAdminHandler,
         )
         kernel._admin_handlers = {
@@ -165,9 +161,7 @@ class KernelInitializer:
             "tuning": TuningAdminHandler(kernel),
             "v5": V5AdminHandler(kernel),
             "delete": DeleteAdminHandler(kernel),
-            "correction": CorrectionAdminHandler(kernel),
             "profile": ProfileAdminHandler(kernel),
-            "feedback": FeedbackAdminHandler(kernel),
             "episode": EpisodeAdminHandler(kernel),
             "source": SourceAdminHandler(kernel),
         }
@@ -183,8 +177,6 @@ class KernelInitializer:
             chat_source=kernel._chat_source,
             chat_filter_config_allows=kernel._chat_filter_config_allows,
             session_info_port=kernel._ports.session_info_port if kernel._ports else None,
-            feedback_cfg_paragraph_hard_filter_enabled=lambda: kernel._feedback_config.paragraph_hard_filter_enabled,
-            feedback_cfg_episode_query_block_enabled=lambda: kernel._feedback_config.episode_query_block_enabled,
             current_effective_filter_cache=lambda: kernel._current_effective_filter_cache,
             update_effective_filter_cache=lambda v: setattr(kernel, '_current_effective_filter_cache', v),
         )
@@ -230,68 +222,6 @@ class KernelInitializer:
         )
 
     @staticmethod
-    def init_fuzzy_modify_service(kernel: SDKMemoryKernel) -> None:
-        from .fuzzy_modify import FuzzyModifyService
-        from .graph_ops import GraphOpsService
-        kernel._fuzzy_modify_service = FuzzyModifyService(
-            metadata_store=kernel.metadata_store,
-            fuzzy_modify_config=kernel._fuzzy_modify_config,
-            fuzzy_modify_planner=kernel._fuzzy_modify_planner,
-            tokens=kernel._tokens,
-            merge_tokens=kernel._merge_tokens,
-            argument_tokens=kernel._argument_tokens,
-            merge_argument_tokens=kernel._merge_argument_tokens,
-            optional_float=kernel._optional_float,
-            trim_text=GraphOpsService._trim_text,
-            safe_json_loads=kernel._safe_json_loads,
-            persist=kernel._persist,
-            rebuild_graph_from_metadata=kernel._graph_ops_service.rebuild_graph_from_metadata,
-            relation_has_remaining_paragraphs=kernel._relation_has_remaining_paragraphs,
-            execute_delete_action=kernel._delete_service.execute_delete_action,
-            search_memory=kernel._fuzzy_modify_search_memory_adapter,
-            ingest_text=kernel.ingest_text,
-            refresh_person_profile=kernel.refresh_person_profile,
-            profile_evidence_admin=lambda *a, **kw: kernel._profile_evidence_service.profile_evidence_admin(*a, **kw),
-            person_profile_service=kernel.person_profile_service,
-            invalidate_filter_cache=lambda: setattr(kernel, '_current_effective_filter_cache', {"checked_at": 0.0, "needed": True}),
-            llm_api=kernel._ports.require_llm_service() if kernel._ports else None,
-        )
-
-    @staticmethod
-    def init_feedback_correction_service(kernel: SDKMemoryKernel) -> None:
-        from .feedback_correction import FeedbackCorrectionService
-        from .graph_ops import GraphOpsService
-        kernel._feedback_correction_service = FeedbackCorrectionService(
-            metadata_store=kernel.metadata_store,
-            feedback_config=kernel._feedback_config,
-            feedback_classifier=kernel._feedback_classifier,
-            person_profile_service=kernel.person_profile_service,
-            episode_service=kernel.episode_service,
-            background_scheduler=kernel._background_scheduler,
-            delete_service=kernel._delete_service,
-            tokens=kernel._tokens,
-            merge_tokens=kernel._merge_tokens,
-            argument_tokens=kernel._argument_tokens,
-            persist=kernel._persist,
-            rebuild_graph_from_metadata=kernel._graph_ops_service.rebuild_graph_from_metadata,
-            cfg=kernel._cfg,
-            safe_json_loads=kernel._safe_json_loads,
-            chat_source=kernel._chat_source,
-            format_relation_text=GraphOpsService._format_relation_text,
-            load_paragraph_rows=kernel._graph_ops_service.load_paragraph_rows,
-            query_relation_rows_by_hashes=kernel._graph_ops_service.query_relation_rows_by_hashes,
-            apply_v5_relation_action=lambda *a, **kw: kernel._v5_memory_service.apply_v5_relation_action(*a, **kw),
-            ingest_text=kernel.ingest_text,
-            refresh_person_profile=kernel.refresh_person_profile,
-            soft_delete_feedback_correction_paragraphs=kernel._delete_service.soft_delete_feedback_correction_paragraphs,
-            person_profile_refresh_max_retry=kernel._person_profile_refresh_max_retry,
-            process_person_profile_refresh_queue_batch=kernel._process_person_profile_refresh_queue_batch,
-            initialize=kernel.initialize,
-            message_api=kernel._ports.require_message_service() if kernel._ports else None,
-            llm_api=kernel._ports.require_llm_service() if kernel._ports else None,
-        )
-
-    @staticmethod
     def init_profile_evidence_service(kernel: SDKMemoryKernel) -> None:
         from .profile_evidence import ProfileEvidenceService
         from .graph_ops import GraphOpsService
@@ -300,7 +230,6 @@ class KernelInitializer:
             person_profile_service=kernel.person_profile_service,
             tokens=kernel._tokens,
             trim_text=GraphOpsService._trim_text,
-            query_person_profile_with_feedback_refresh=kernel._feedback_correction_service._query_person_profile_with_feedback_refresh,
             execute_delete_action=kernel._delete_service.execute_delete_action,
             invalidate_import_manifest_for_sources=kernel._invalidate_import_manifest_for_sources,
         )
@@ -452,8 +381,6 @@ class KernelInitializer:
         KernelInitializer.init_hit_filter_service(kernel)
         KernelInitializer.init_graph_ops_service(kernel)
         KernelInitializer.init_delete_service(kernel)
-        KernelInitializer.init_fuzzy_modify_service(kernel)
-        KernelInitializer.init_feedback_correction_service(kernel)
         KernelInitializer.init_profile_evidence_service(kernel)
         KernelInitializer.init_v5_memory_service(kernel)
         KernelInitializer.init_search_service(kernel)
@@ -660,8 +587,6 @@ class KernelInitializer:
             "memory_maintenance": kernel._maintenance_service.memory_maintenance_loop,
             "person_profile_refresh": kernel._person_profile_refresh_loop,
             "person_profile_refresh_queue": kernel._person_profile_refresh_queue_loop,
-            "feedback_correction": kernel._feedback_correction_service._feedback_correction_loop,
-            "feedback_correction_reconcile": kernel._feedback_correction_service._feedback_correction_reconcile_loop,
         }
         if kernel._should_start_dual_vector_auto_migration():
             registrations["dual_vector_auto_migration"] = kernel._dual_vector_auto_migration_loop

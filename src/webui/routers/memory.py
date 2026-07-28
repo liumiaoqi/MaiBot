@@ -33,14 +33,10 @@ from src.webui.schemas.memory import (
     EdgeWeightRequest,
     EpisodeProcessPendingRequest,
     EpisodeRebuildRequest,
-    FeedbackRollbackRequest,
     ImportChatTarget,
     ImportChatTargetsResponse,
     MaintainRequest,
     MemoryConfigUpdateRequest,
-    MemoryCorrectionExecuteRequest,
-    MemoryCorrectionPreviewRequest,
-    MemoryCorrectionRollbackRequest,
     MemoryRawConfigUpdateRequest,
     MemoryTimelineChat,
     MemoryTimelineEvent,
@@ -62,10 +58,6 @@ from src.webui.schemas.memory import (
 router = APIRouter(prefix="/memory", tags=["memory"], dependencies=[Depends(require_auth)])
 compat_router = APIRouter(prefix="/api", tags=["memory-compat"], dependencies=[Depends(require_auth)])
 STAGING_ROOT = Path(__file__).resolve().parents[3] / "data" / "memory_upload_staging"
-
-FuzzyModifyPreviewRequest = MemoryCorrectionPreviewRequest
-FuzzyModifyExecuteRequest = MemoryCorrectionExecuteRequest
-FuzzyModifyRollbackRequest = MemoryCorrectionRollbackRequest
 
 def _build_import_guide_markdown(settings: dict[str, Any]) -> str:
     path_aliases_raw = settings.get("path_aliases")
@@ -265,56 +257,6 @@ def _format_chat_session_lookup_label(chat_session: ChatSession, latest_messages
     user_id = str(chat_session.user_id or "").strip()
     identifier = group_id or user_id or chat_id
     return f"{chat_name}({identifier})" if identifier and identifier != chat_name else chat_name
-
-def _resolve_memory_correction_chat_id(chat_id: str) -> str:
-    raw_chat_id = str(chat_id or "").strip()
-    if not raw_chat_id:
-        return ""
-    real_chat_session = _find_real_chat_session(raw_chat_id)
-    if real_chat_session is not None:
-        return str(real_chat_session.session_id or raw_chat_id).strip()
-
-    query_token = _normalize_chat_lookup_token(raw_chat_id)
-    if not query_token:
-        return raw_chat_id
-
-    with get_db_session() as session:
-        rows = list(
-            session.exec(
-                select(ChatSession).order_by(
-                    col(ChatSession.last_active_timestamp).desc(),
-                    col(ChatSession.created_timestamp).desc(),
-                )
-            ).all()
-        )
-        session_ids = [str(chat_session.session_id or "").strip() for chat_session in rows]
-        latest_messages = _prefetch_latest_messages_by_session(session, [item for item in session_ids if item])
-
-    scored_rows: list[tuple[int, ChatSession]] = []
-    for chat_session in rows:
-        session_id = str(chat_session.session_id or "").strip()
-        if not session_id:
-            continue
-        tokens = _get_chat_session_lookup_tokens(chat_session, latest_messages)
-        score = _score_chat_session_lookup(query_token, tokens)
-        if score > 0:
-            scored_rows.append((score, chat_session))
-
-    if not scored_rows:
-        return raw_chat_id
-
-    scored_rows.sort(key=lambda item: item[0], reverse=True)
-    best_score = scored_rows[0][0]
-    best_rows = [chat_session for score, chat_session in scored_rows if score == best_score]
-    if len(best_rows) > 1:
-        candidates = "、".join(_format_chat_session_lookup_label(item, latest_messages) for item in best_rows[:5])
-        raise AppError(
-            ErrorCode.PARAM_INVALID,
-            f"聊天流匹配不唯一: {raw_chat_id}，请填写更完整的名称、群号、用户 ID 或 session_id。候选：{candidates}",
-            http_status=400,
-        )
-
-    return str(best_rows[0].session_id or raw_chat_id).strip()
 
 def _timeline_chat_from_session(chat_session: ChatSession) -> MemoryTimelineChat:
     chat_id = str(chat_session.session_id or "").strip()
@@ -693,112 +635,6 @@ async def _timeline_episode_events(
             )
     return [event for event in events if _types_match(event, accepted_types)]
 
-def _feedback_person_ids(task: dict[str, Any]) -> list[str]:
-    candidates: list[Any] = []
-    for key in ("decision_payload", "rollback_plan", "rollback_result", "query_snapshot"):
-        value = task.get(key)
-        if isinstance(value, dict):
-            candidates.extend(value.get("person_ids") or [])
-            candidates.extend(value.get("profile_person_ids") or [])
-            profile_payload = value.get("profile")
-            if isinstance(profile_payload, dict):
-                candidates.append(profile_payload.get("person_id"))
-    normalized: list[str] = []
-    seen: set[str] = set()
-    for candidate in candidates:
-        token = str(candidate or "").strip()
-        if token and token not in seen:
-            seen.add(token)
-            normalized.append(token)
-    return normalized
-
-async def _timeline_feedback_events(
-    *,
-    chat: MemoryTimelineChat,
-    time_start: Optional[float],
-    time_end: Optional[float],
-    accepted_types: set[str],
-    limit: int,
-) -> list[MemoryTimelineEvent]:
-    query_limit = _timeline_query_limit(limit, 3, 100)
-    rows = await _query_memory_rows(
-        _append_limit(
-            """
-        SELECT *
-        FROM memory_feedback_tasks
-        WHERE session_id = ?
-        ORDER BY COALESCE(updated_at, query_timestamp, created_at, 0) DESC
-        """,
-            query_limit,
-        ),
-        (chat.chat_id, *((query_limit,) if query_limit is not None else ())),
-    )
-    events: list[MemoryTimelineEvent] = []
-    for row in rows:
-        task = dict(row)
-        task["query_snapshot"] = _decode_json_payload(task.get("query_snapshot_json"), {})
-        task["decision_payload"] = _decode_json_payload(task.get("decision_json"), {})
-        task["rollback_plan"] = _decode_json_payload(task.get("rollback_plan_json"), {})
-        task["rollback_result"] = _decode_json_payload(task.get("rollback_result_json"), {})
-        task_id = str(task.get("id")).strip()
-        query_tool_id = str(task.get("query_tool_id")).strip()
-        status = str(task.get("status")).strip()
-        updated_at = _first_float(task.get("updated_at"), task.get("query_timestamp"), task.get("created_at"))
-        if updated_at is not None and _event_in_range(updated_at, time_start, time_end):
-            events.append(
-                _timeline_event(
-                    event_type="feedback_correction_applied",
-                    category="feedback",
-                    occurred_at=updated_at,
-                    chat=chat,
-                    title="反馈纠错处理",
-                    summary=f"纠错任务状态：{status or '未知'}",
-                    object_count=1,
-                    key_id=task_id,
-                    source=query_tool_id,
-                    attribution="feedback.session_id",
-                    metadata={"task_id": task_id, "query_tool_id": query_tool_id, "status": status},
-                    jump_target={"tab": "feedback", "params": {"task_id": task_id}},
-                )
-            )
-        rolled_back_at = _safe_float(task.get("rolled_back_at"))
-        if rolled_back_at is not None and _event_in_range(rolled_back_at, time_start, time_end):
-            events.append(
-                _timeline_event(
-                    event_type="feedback_correction_rollback",
-                    category="feedback",
-                    occurred_at=rolled_back_at,
-                    chat=chat,
-                    title="反馈纠错回滚",
-                    summary=str(task.get("rollback_reason") or "纠错任务已回滚"),
-                    object_count=1,
-                    key_id=task_id,
-                    source=query_tool_id,
-                    attribution="feedback.session_id",
-                    metadata={"task_id": task_id, "query_tool_id": query_tool_id},
-                    jump_target={"tab": "feedback", "params": {"task_id": task_id}},
-                )
-            )
-        for person_id in _feedback_person_ids(task):
-            if updated_at is not None and _event_in_range(updated_at, time_start, time_end):
-                events.append(
-                    _timeline_event(
-                        event_type="profile_updated",
-                        category="profile",
-                        occurred_at=updated_at,
-                        chat=chat,
-                        title="相关画像变更",
-                        summary="画像操作由该聊天流的反馈纠错记录关联触发",
-                        object_count=1,
-                        key_id=person_id,
-                        source=query_tool_id,
-                        attribution="feedback.session_id",
-                        metadata={"person_id": person_id, "task_id": task_id},
-                        jump_target={"tab": "profiles", "params": {"person_id": person_id}},
-                    )
-                )
-    return [event for event in events if _types_match(event, accepted_types)]
-
 async def _operation_payload_matches_chat(value: Any, chat_id: str) -> bool:
     if isinstance(value, dict):
         if _metadata_matches_chat(value, chat_id):
@@ -1131,7 +967,6 @@ async def _memory_timeline(
     collectors = (
         _timeline_paragraph_events,
         _timeline_episode_events,
-        _timeline_feedback_events,
         _timeline_delete_events,
         _timeline_profile_events,
         _timeline_maintenance_events,
@@ -1722,39 +1557,11 @@ async def _profile_correct_evidence(person_id: str, payload: ProfileEvidenceCorr
         limit=payload.limit,
     )
 
-async def _feedback_list(limit: int, status: str, rollback_status: str, query: str) -> dict:
-    statuses = [item.strip() for item in str(status or "").split(",") if item.strip()]
-    rollback_statuses = [item.strip() for item in str(rollback_status or "").split(",") if item.strip()]
-    return await memory_service.feedback_admin(
-        action="list",
-        limit=limit,
-        statuses=statuses,
-        rollback_statuses=rollback_statuses,
-        query=query,
-    )
-
-async def _feedback_get(task_id: int) -> dict:
-    return await memory_service.feedback_admin(action="get", task_id=task_id)
-
-async def _feedback_rollback(task_id: int, payload: FeedbackRollbackRequest) -> dict:
-    return await memory_service.feedback_admin(
-        action="rollback",
-        task_id=task_id,
-        requested_by=payload.requested_by,
-        reason=payload.reason,
-    )
-
 async def _runtime_save() -> dict:
     return await memory_service.runtime_admin(action="save")
 
 async def _runtime_config() -> dict:
-    payload = await memory_service.runtime_admin(action="get_config")
-    config = payload.get("config") if isinstance(payload.get("config"), dict) else {}
-    integration = config.get("integration") if isinstance(config.get("integration"), dict) else {}
-    candidate_limit = integration.get("fuzzy_modify_candidate_limit")
-    if candidate_limit is not None:
-        payload["fuzzy_modify_candidate_limit"] = candidate_limit
-    return payload
+    return await memory_service.runtime_admin(action="get_config")
 
 async def _runtime_self_check(refresh: bool) -> dict:
     return await memory_service.runtime_admin(action="refresh_self_check" if refresh else "self_check")
@@ -1874,46 +1681,6 @@ async def _delete_purge(payload: DeletePurgeRequest) -> dict:
         grace_hours=payload.grace_hours,
         limit=payload.limit,
     )
-
-async def _memory_correction_preview(payload: MemoryCorrectionPreviewRequest) -> dict:
-    resolved_chat_id = _resolve_memory_correction_chat_id(payload.chat_id)
-    return await memory_service.memory_correction_admin(
-        action="preview",
-        request_text=payload.request_text,
-        scope=payload.scope,
-        person_id=payload.person_id,
-        person_keyword=payload.person_keyword,
-        chat_id=resolved_chat_id,
-        limit=payload.limit,
-        requested_by=payload.requested_by,
-        reason=payload.reason,
-    )
-
-async def _memory_correction_execute(payload: MemoryCorrectionExecuteRequest) -> dict:
-    return await memory_service.memory_correction_admin(
-        action="execute",
-        plan_id=payload.plan_id,
-        confirmed=payload.confirmed,
-        requested_by=payload.requested_by,
-        reason=payload.reason,
-    )
-
-async def _memory_correction_rollback(plan_id: str, payload: MemoryCorrectionRollbackRequest) -> dict:
-    return await memory_service.memory_correction_admin(
-        action="rollback",
-        plan_id=plan_id,
-        requested_by=payload.requested_by,
-        reason=payload.reason,
-    )
-
-async def _fuzzy_modify_preview(payload: FuzzyModifyPreviewRequest) -> dict:
-    return await _memory_correction_preview(payload)
-
-async def _fuzzy_modify_execute(payload: FuzzyModifyExecuteRequest) -> dict:
-    return await _memory_correction_execute(payload)
-
-async def _fuzzy_modify_rollback(plan_id: str, payload: FuzzyModifyRollbackRequest) -> dict:
-    return await _memory_correction_rollback(plan_id, payload)
 
 async def _import_settings() -> dict:
     return await memory_service.import_admin(action="get_settings")
@@ -2294,23 +2061,6 @@ async def get_memory_profile_evidence(
 async def correct_memory_profile_evidence(person_id: str, payload: ProfileEvidenceCorrectRequest):
     return await _profile_correct_evidence(person_id, payload)
 
-@router.get("/feedback-corrections")
-async def list_memory_feedback_corrections(
-    limit: int = Query(50, ge=1, le=200),
-    status: str = Query(""),
-    rollback_status: str = Query(""),
-    query: str = Query(""),
-):
-    return await _feedback_list(limit, status, rollback_status, query)
-
-@router.get("/feedback-corrections/{task_id}")
-async def get_memory_feedback_correction(task_id: int):
-    return await _feedback_get(task_id)
-
-@router.post("/feedback-corrections/{task_id}/rollback")
-async def rollback_memory_feedback_correction(task_id: int, payload: FeedbackRollbackRequest):
-    return await _feedback_rollback(task_id, payload)
-
 @router.post("/runtime/save")
 async def save_memory_runtime():
     return await _runtime_save()
@@ -2436,64 +2186,6 @@ async def get_memory_delete_operation(operation_id: str):
 @router.post("/delete/purge")
 async def purge_memory_delete(payload: DeletePurgeRequest):
     return await _delete_purge(payload)
-
-@router.post("/fuzzy-modify/preview")
-async def preview_memory_fuzzy_modify(payload: FuzzyModifyPreviewRequest):
-    return await _fuzzy_modify_preview(payload)
-
-@router.post("/corrections/preview")
-async def preview_memory_correction(payload: MemoryCorrectionPreviewRequest):
-    return await _memory_correction_preview(payload)
-
-@router.post("/fuzzy-modify/execute")
-async def execute_memory_fuzzy_modify(payload: FuzzyModifyExecuteRequest):
-    return await _fuzzy_modify_execute(payload)
-
-@router.post("/corrections/execute")
-async def execute_memory_correction(payload: MemoryCorrectionExecuteRequest):
-    return await _memory_correction_execute(payload)
-
-@router.get("/fuzzy-modify/plans")
-async def list_memory_fuzzy_modify_plans(
-    limit: int = Query(50, ge=1, le=200),
-    status: str = Query(""),
-    scope: str = Query(""),
-):
-    return await memory_service.memory_correction_admin(
-        action="list",
-        limit=limit,
-        status=status,
-        scope=scope,
-    )
-
-@router.get("/corrections/plans")
-async def list_memory_correction_plans(
-    limit: int = Query(50, ge=1, le=200),
-    status: str = Query(""),
-    scope: str = Query(""),
-):
-    return await memory_service.memory_correction_admin(
-        action="list",
-        limit=limit,
-        status=status,
-        scope=scope,
-    )
-
-@router.get("/fuzzy-modify/plans/{plan_id}")
-async def get_memory_fuzzy_modify_plan(plan_id: str):
-    return await memory_service.memory_correction_admin(action="get", plan_id=plan_id)
-
-@router.get("/corrections/plans/{plan_id}")
-async def get_memory_correction_plan(plan_id: str):
-    return await memory_service.memory_correction_admin(action="get", plan_id=plan_id)
-
-@router.post("/fuzzy-modify/plans/{plan_id}/rollback")
-async def rollback_memory_fuzzy_modify_plan(plan_id: str, payload: FuzzyModifyRollbackRequest):
-    return await _fuzzy_modify_rollback(plan_id, payload)
-
-@router.post("/corrections/plans/{plan_id}/rollback")
-async def rollback_memory_correction_plan(plan_id: str, payload: MemoryCorrectionRollbackRequest):
-    return await _memory_correction_rollback(plan_id, payload)
 
 @router.get("/import/settings")
 async def get_memory_import_settings():

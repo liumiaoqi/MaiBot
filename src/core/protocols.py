@@ -401,26 +401,6 @@ class MemoryServicePort(Protocol):
             操作结果字典
         """
 
-    async def enqueue_feedback_task(
-        self,
-        *,
-        query_tool_id: str,
-        session_id: str,
-        query_timestamp: Any = None,
-        structured_content: Optional[dict[str, Any]] = None,
-    ) -> dict[str, Any]:
-        """反馈纠错任务入队。
-
-        Args:
-            query_tool_id: 查询工具调用 ID
-            session_id: 会话 ID
-            query_timestamp: 查询时间戳
-            structured_content: 结构化内容
-
-        Returns:
-            入队结果字典
-        """
-
     async def build_profile_injection_text(self, raw_text: str) -> str:
         """构建画像注入文本。
 

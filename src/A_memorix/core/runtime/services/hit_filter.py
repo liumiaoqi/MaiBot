@@ -1,5 +1,5 @@
 import time
-from typing import Any, Callable, Dict, List, Optional, Sequence, Set
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from ...storage import MetadataStore
 from ...utils.metadata import coerce_metadata_dict
@@ -19,8 +19,6 @@ class HitFilterService:
         chat_source: Callable[[str], str],
         chat_filter_config_allows: Callable[..., bool],
         session_info_port: Any,
-        feedback_cfg_paragraph_hard_filter_enabled: Callable[[], bool],
-        feedback_cfg_episode_query_block_enabled: Callable[[], bool],
         current_effective_filter_cache: Callable[[], Dict[str, Any]],
         update_effective_filter_cache: Callable[[Dict[str, Any]], None],
     ) -> None:
@@ -31,8 +29,6 @@ class HitFilterService:
         self._chat_source = chat_source
         self._chat_filter_config_allows = chat_filter_config_allows
         self._session_info_port = session_info_port
-        self._feedback_cfg_paragraph_hard_filter_enabled = feedback_cfg_paragraph_hard_filter_enabled
-        self._feedback_cfg_episode_query_block_enabled = feedback_cfg_episode_query_block_enabled
         self._get_cache = current_effective_filter_cache
         self._set_cache = update_effective_filter_cache
 
@@ -49,7 +45,7 @@ class HitFilterService:
         normalized = self._tokens(paragraph_hashes)
         if not normalized:
             return {}, {}
-        marks_by_paragraph = self._metadata_store.get_paragraph_stale_relation_marks_batch(normalized)
+        marks_by_paragraph = {}
         relation_hashes = self._tokens(
             mark.get("relation_hash", "")
             for marks in marks_by_paragraph.values()
@@ -67,7 +63,7 @@ class HitFilterService:
         relation_status_map: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> bool:
         token = str(paragraph_hash or "").strip()
-        if not token or not self._feedback_cfg_paragraph_hard_filter_enabled():
+        if not token:
             return False
 
         marks_map = marks_by_paragraph if isinstance(marks_by_paragraph, dict) else {}
@@ -91,8 +87,6 @@ class HitFilterService:
         return False
 
     def filter_episode_hits(self, hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        if not self._feedback_cfg_episode_query_block_enabled():
-            return hits
         filtered: List[Dict[str, Any]] = []
         for item in hits:
             if str(item.get("type", "")).strip() != "episode":
@@ -150,21 +144,7 @@ class HitFilterService:
     def _current_effective_filter_store_check_needed(self, hits: List[Dict[str, Any]]) -> bool:
         if any(isinstance(coerce_metadata_dict(item.get("metadata")).get("memory_change"), dict) for item in hits):
             return True
-        cache = self._get_cache()
-        now = time.time()
-        if now - float(cache.get("checked_at", 0.0) or 0.0) < 60.0:
-            return bool(cache.get("needed", False))
-        needed = False
-        try:
-            plans = self._metadata_store.list_fuzzy_modify_plans(
-                limit=1,
-                statuses=["executing", "executed", "rolled_back", "rollback_failed"],
-            )
-            needed = bool(plans)
-        except Exception as exc:
-            logger.warning("操作异常: %s", exc)
-        self._set_cache({"checked_at": now, "needed": needed})
-        return needed
+        return False
 
     def _filter_hits_by_memory_change_metadata(self, hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         now = time.time()

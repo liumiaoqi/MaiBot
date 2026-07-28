@@ -523,9 +523,6 @@ class PersonProfileService:
         self,
         evidence: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
-        integration_cfg = self.plugin_config.get("integration") if isinstance(self.plugin_config, dict) else None
-        if not bool((integration_cfg or {}).get("feedback_correction_paragraph_hard_filter_enabled", True)):
-            return evidence
         paragraph_hashes = [
             str(item.get("hash", "")).strip()
             for item in evidence
@@ -534,7 +531,7 @@ class PersonProfileService:
         if not paragraph_hashes:
             return evidence
 
-        marks_by_paragraph = self.metadata_store.get_paragraph_stale_relation_marks_batch(paragraph_hashes)
+        marks_by_paragraph = {}
         relation_hashes: List[str] = []
         seen = set()
         for marks in marks_by_paragraph.values():

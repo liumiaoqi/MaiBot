@@ -15,10 +15,10 @@ class ProfileAdminHandler(BaseAdminHandler):
 
         act = self._str_action(action)
         if act == "query":
-            profile = await self._kernel._feedback_correction_service._query_person_profile_with_feedback_refresh(
+            profile = await self._kernel.person_profile_service.query_person_profile(
                 person_id=str(kwargs.get("person_id", "")).strip(),
                 person_keyword=str(kwargs.get("person_keyword", "") or kwargs.get("keyword", "") or "").strip(),
-                limit=max(1, int(kwargs.get("limit", kwargs.get("top_k", 12)) or 12)),
+                top_k=max(1, int(kwargs.get("limit", kwargs.get("top_k", 12)) or 12)),
                 force_refresh=bool(kwargs.get("force_refresh", False)),
                 source_note="sdk_memory_kernel.memory_profile_admin.query",
             )
@@ -51,8 +51,8 @@ class ProfileAdminHandler(BaseAdminHandler):
             return {"success": True, **summary}
 
         if act == "process_pending":
-            result = await self._kernel._feedback_correction_service._process_feedback_profile_refresh_batch(
-                limit=max(1, int(kwargs.get("limit", self._kernel._feedback_config.reconcile_batch_size) or self._kernel._feedback_config.reconcile_batch_size))
+            result = await self._kernel._person_profile_facade.process_person_profile_refresh_queue_batch(
+                limit=max(1, int(kwargs.get("limit", 20) or 20))
             )
             return {"success": True, **result}
 

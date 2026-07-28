@@ -17,7 +17,6 @@ class PersonProfileFacade:
         cfg: Callable[[str, Any], Any],
         metadata_store_getter: Callable[[], Any],
         person_profile_service_getter: Callable[[], Any],
-        feedback_correction_service_getter: Callable[[], Any],
         hit_filter_service_getter: Callable[[], Any],
         active_person_timestamps: Dict[str, float],
         background_scheduler: Any,
@@ -26,7 +25,6 @@ class PersonProfileFacade:
         self._cfg = cfg
         self._get_metadata_store = metadata_store_getter
         self._get_person_profile_service = person_profile_service_getter
-        self._get_feedback_correction_service = feedback_correction_service_getter
         self._get_hit_filter_service = hit_filter_service_getter
         self._active_person_timestamps = active_person_timestamps
         self._scheduler = background_scheduler
@@ -114,10 +112,11 @@ class PersonProfileFacade:
         assert self._get_metadata_store() is not None
         assert self._get_person_profile_service() is not None
         self.mark_person_active(person_id)
-        fcs = self._get_feedback_correction_service()
-        profile = await fcs._query_person_profile_with_feedback_refresh(
+        pps = self._get_person_profile_service()
+        profile = await pps.query_person_profile(
             person_id=person_id,
-            limit=max(4, int(limit or 10)),
+            top_k=max(4, int(limit or 10)),
+            force_refresh=False,
             source_note="person_profile_facade.get_person_profile",
         )
         return self.build_person_profile_response(profile, requested_person_id=person_id, limit=limit)
@@ -182,13 +181,45 @@ class PersonProfileFacade:
         return int(request.get("retry_count", 0) or 0) < self._max_retry()
 
     async def process_person_profile_refresh_queue_batch(self, *, limit: int) -> Dict[str, Any]:
-        fcs = self._get_feedback_correction_service()
-        return await fcs._process_feedback_profile_refresh_batch(
+        metadata_store = self._get_metadata_store()
+        pps = self._get_person_profile_service()
+        if metadata_store is None or pps is None:
+            return {"processed": 0, "errors": []}
+
+        debounce = self._debounce_seconds()
+        retry_backoff = self._retry_backoff_seconds()
+        max_retry_count = self._max_retry()
+        processed = 0
+        errors: List[Dict[str, Any]] = []
+
+        pending_rows = metadata_store.fetch_person_profile_refresh_batch(
             limit=limit,
-            debounce_seconds=self._debounce_seconds(),
-            retry_backoff_seconds=self._retry_backoff_seconds(),
-            max_retry=self._max_retry(),
+            debounce_seconds=debounce,
+            retry_backoff_seconds=retry_backoff,
+            max_retry=max_retry_count,
         )
+        for row in pending_rows:
+            person_id = str(row.get("person_id", "")).strip()
+            if not person_id:
+                continue
+            try:
+                metadata_store.mark_person_profile_refresh_running(person_id)
+                await pps.query_person_profile(
+                    person_id=person_id,
+                    top_k=12,
+                    force_refresh=True,
+                    source_note="person_profile_facade.queue_processor",
+                )
+                metadata_store.mark_person_profile_refresh_done(person_id)
+                processed += 1
+            except Exception as exc:
+                metadata_store.mark_person_profile_refresh_failed(person_id, str(exc))
+                errors.append({"person_id": person_id, "error": str(exc)})
+            except asyncio.CancelledError:
+                metadata_store.mark_person_profile_refresh_failed(person_id, "cancelled")
+                raise
+
+        return {"processed": processed, "errors": errors}
 
     async def person_profile_refresh_loop(self) -> None:
         try:

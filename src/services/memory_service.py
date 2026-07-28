@@ -126,26 +126,6 @@ class MemoryService:
         )
         return self._coerce_search_result(payload)
 
-    async def enqueue_feedback_task(
-        self,
-        *,
-        query_tool_id: str,
-        session_id: str,
-        query_timestamp: Any = None,
-        structured_content: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
-        payload = await self._invoke(
-            "enqueue_feedback_task",
-            {
-                "query_tool_id": str(query_tool_id or "").strip(),
-                "session_id": str(session_id or "").strip(),
-                "query_timestamp": query_timestamp,
-                "structured_content": structured_content if isinstance(structured_content, dict) else {},
-            },
-            timeout_ms=10000,
-        )
-        return payload if isinstance(payload, dict) else {"success": False, "queued": False, "reason": "invalid_payload"}
-
     async def ingest_summary(
         self,
         *,
@@ -253,9 +233,6 @@ class MemoryService:
     async def profile_admin(self, *, action: str, **kwargs) -> Dict[str, Any]:
         return await self._invoke_admin("memory_profile_admin", action=action, **kwargs)
 
-    async def feedback_admin(self, *, action: str, **kwargs) -> Dict[str, Any]:
-        return await self._invoke_admin("memory_feedback_admin", action=action, **kwargs)
-
     async def runtime_admin(self, *, action: str, **kwargs) -> Dict[str, Any]:
         return await self._invoke_admin("memory_runtime_admin", action=action, **kwargs)
 
@@ -270,12 +247,6 @@ class MemoryService:
 
     async def delete_admin(self, *, action: str, timeout_ms: int = 120000, **kwargs) -> Dict[str, Any]:
         return await self._invoke_admin("memory_delete_admin", action=action, timeout_ms=timeout_ms, **kwargs)
-
-    async def memory_correction_admin(self, *, action: str, timeout_ms: int = 120000, **kwargs) -> Dict[str, Any]:
-        return await self._invoke_admin("memory_correction_admin", action=action, timeout_ms=timeout_ms, **kwargs)
-
-    async def fuzzy_modify_admin(self, *, action: str, timeout_ms: int = 120000, **kwargs) -> Dict[str, Any]:
-        return await self.memory_correction_admin(action=action, timeout_ms=timeout_ms, **kwargs)
 
     async def get_recycle_bin(self, *, limit: int = 50) -> Dict[str, Any]:
         payload = await self._invoke("maintain_memory", {"action": "recycle_bin", "limit": max(1, int(limit or 50))})

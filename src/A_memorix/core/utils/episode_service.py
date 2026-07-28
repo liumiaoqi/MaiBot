@@ -528,12 +528,7 @@ class EpisodeService:
                 "paragraph_count": 0,
             }
 
-        integration_cfg = self.plugin_config.get("integration") if isinstance(self.plugin_config, dict) else None
-        exclude_stale = bool((integration_cfg or {}).get("feedback_correction_paragraph_hard_filter_enabled", True))
-        paragraphs = self.metadata_store.get_live_paragraphs_by_source(
-            token,
-            exclude_stale=exclude_stale,
-        )
+        paragraphs = self.metadata_store.get_live_paragraphs_by_source(token)
         if not paragraphs:
             replace_result = self.metadata_store.replace_episodes_for_source(token, [])
             return {
