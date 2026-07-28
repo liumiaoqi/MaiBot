@@ -81,14 +81,8 @@ try:
     VectorStore = core_module.VectorStore
     GraphStore = core_module.GraphStore
     MetadataStore = core_module.MetadataStore
-    ImportStrategy = core_module.ImportStrategy
     create_embedding_api_adapter = core_module.create_embedding_api_adapter
     RelationWriteService = getattr(core_module, "RelationWriteService", None)
-
-    looks_like_quote_text = storage_module.looks_like_quote_text
-    parse_import_strategy = storage_module.parse_import_strategy
-    resolve_stored_knowledge_type = storage_module.resolve_stored_knowledge_type
-    select_import_strategy = storage_module.select_import_strategy
 
     from A_memorix.core.utils.import_payloads import (
         ImportPayloadValidationError,
@@ -152,10 +146,9 @@ class AutoImporter:
         self.force = force
         self.clear_manifest = clear_manifest
         self.chat_log = chat_log
-        parsed_target_type = parse_import_strategy(target_type, default=ImportStrategy.AUTO)
-        self.target_type = ImportStrategy.NARRATIVE.value if chat_log else parsed_target_type.value
+        self.target_type = "narrative" if chat_log else target_type
         self.chat_reference_dt = self._parse_reference_time(chat_reference_time)
-        if self.chat_log and parsed_target_type not in {ImportStrategy.AUTO, ImportStrategy.NARRATIVE}:
+        if self.chat_log and target_type not in {"auto", "narrative"}:
             logger.warning(
                 f"chat_log 模式已启用，target_type={target_type} 将被覆盖为 narrative"
             )
@@ -368,19 +361,13 @@ Chat paragraph:
 
     def _determine_strategy(self, filename: str, content: str) -> BaseStrategy:
         """Layer 1: Global Strategy Routing"""
-        strategy = select_import_strategy(
-            content,
-            override=self.target_type,
-            chat_log=self.chat_log,
-        )
         if self.chat_log:
             logger.info(f"chat_log 模式: {filename} 强制使用 NarrativeStrategy")
-        elif strategy == ImportStrategy.QUOTE:
-            logger.info(f"Auto-detected Quote/Lyric type for {filename}")
-
-        if strategy == ImportStrategy.FACTUAL:
+            return NarrativeStrategy(filename)
+        strategy = self.target_type if self.target_type != "auto" else "narrative"
+        if strategy == "factual":
             return FactualStrategy(filename)
-        if strategy == ImportStrategy.QUOTE:
+        if strategy == "quote":
             return QuoteStrategy(filename)
         return NarrativeStrategy(filename)
 
@@ -389,10 +376,6 @@ Chat paragraph:
         # If we are already in Quote strategy, no need to rescue
         if chunk.type == StratKnowledgeType.QUOTE:
             return None
-
-        if looks_like_quote_text(chunk.chunk.text):
-            logger.info(f"  > Rescuing chunk {chunk.chunk.index} as Quote")
-            return QuoteStrategy(filename)
 
         return None
 
@@ -523,10 +506,7 @@ Chat paragraph:
         para_item = {
             "content": chunk.chunk.text,
             "source": chunk.source.file,
-            "knowledge_type": resolve_stored_knowledge_type(
-                chunk.type.value,
-                content=chunk.chunk.text,
-            ).value,
+            "knowledge_type": "mixed",
             "entities": [],
             "relations": []
         }
@@ -761,10 +741,10 @@ Chat paragraph:
                             self.metadata_store.set_relation_vector_state(rel_hash, "none")
                         except Exception as exc:
                             logger.warning("操作异常: %s", exc)
-            logger.warning(f\"操作失败 in src/A_memorix/scripts/process_knowledge.py\", exc_info=True)
+            logger.warning("操作失败 in src/A_memorix/scripts/process_knowledge.py", exc_info=True)
 
-                if progress_callback:
-                    progress_callback(1)
+            if progress_callback:
+                progress_callback(1)
 
             for entity_index, raw_entity in enumerate(data.get("entities", []) or []):
                 entity_name = normalize_entity_import_item(raw_entity)
@@ -816,7 +796,7 @@ Chat paragraph:
                         self.metadata_store.set_relation_vector_state(rel_hash, "none")
                     except Exception as exc:
                         logger.warning("操作异常: %s", exc)
-            logger.warning(f\"操作失败 in src/A_memorix/scripts/process_knowledge.py\", exc_info=True)
+            logger.warning("操作失败 in src/A_memorix/scripts/process_knowledge.py", exc_info=True)
 
         if warning_count > 0:
             logger.warning(f"脚本导入完成，跳过异常项 {warning_count} 条")

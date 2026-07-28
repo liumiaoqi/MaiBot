@@ -4,7 +4,6 @@
 from typing import Any, Dict, List, Optional
 import re
 
-from ..storage import KnowledgeType, resolve_stored_knowledge_type
 from .time_parser import normalize_time_meta
 
 _HASH_TOKEN_PATTERN = re.compile(r"^[0-9a-fA-F]+$")
@@ -126,10 +125,9 @@ def normalize_paragraph_import_item(
                 field="content",
                 value=content,
             )
-        knowledge_type = resolve_stored_knowledge_type(None, content=content)
         return {
             "content": content,
-            "knowledge_type": knowledge_type.value,
+            "knowledge_type": "mixed",
             "source": str(default_source or "").strip(),
             "time_meta": None,
             "entities": [],
@@ -170,10 +168,7 @@ def normalize_paragraph_import_item(
     if isinstance(time_meta_field, dict):
         raw_time_meta.update(time_meta_field)
 
-    knowledge_type_raw = item.get("knowledge_type")
-    if knowledge_type_raw is None:
-        knowledge_type_raw = item.get("type")
-    knowledge_type = resolve_stored_knowledge_type(knowledge_type_raw, content=content)
+    knowledge_type = "mixed"
     source = str(item.get("source") or default_source or "").strip()
     if not source:
         source = str(default_source or "").strip()
@@ -181,7 +176,7 @@ def normalize_paragraph_import_item(
     normalized_time_meta = normalize_time_meta(raw_time_meta)
     return {
         "content": content,
-        "knowledge_type": knowledge_type.value,
+        "knowledge_type": knowledge_type,
         "source": source,
         "time_meta": normalized_time_meta if normalized_time_meta else None,
         "entities": _normalize_entities(item.get("entities")),
@@ -189,7 +184,7 @@ def normalize_paragraph_import_item(
     }
 
 
-def normalize_summary_knowledge_type(value: Any) -> KnowledgeType:
+def normalize_summary_knowledge_type(value: Any) -> str:
     """Normalize config-driven summary knowledge type."""
 
-    return resolve_stored_knowledge_type(value, content="")
+    return "mixed"

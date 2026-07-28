@@ -34,7 +34,6 @@ import numpy as np
 import tomlkit
 
 from _bootstrap import (
-logger = get_logger("A_memorix.scripts.migrate_maibot_memory")
     DEFAULT_CONFIG_PATH as BOOTSTRAP_DEFAULT_CONFIG_PATH,
     DEFAULT_DATA_DIR as BOOTSTRAP_DEFAULT_DATA_DIR,
     DEFAULT_DB_PATH as BOOTSTRAP_DEFAULT_DB_PATH,
@@ -50,7 +49,6 @@ VectorStore = None
 GraphStore = None
 MetadataStore = None
 create_embedding_api_adapter = None
-KnowledgeType = None
 QuantizationType = None
 SparseMatrixFormat = None
 compute_hash = None
@@ -163,7 +161,6 @@ def _bootstrap_runtime_symbols() -> None:
     vector_store_module = importlib.import_module(f"{pkg}.storage.vector_store")
     graph_store_module = importlib.import_module(f"{pkg}.storage.graph_store")
     metadata_store_module = importlib.import_module(f"{pkg}.storage.metadata_store")
-    knowledge_types_module = importlib.import_module(f"{pkg}.storage.knowledge_types")
     hash_module = importlib.import_module(f"{pkg}.utils.hash")
     io_module = importlib.import_module(f"{pkg}.utils.io")
     relation_write_service_module = importlib.import_module(f"{pkg}.utils.relation_write_service")
@@ -171,7 +168,6 @@ def _bootstrap_runtime_symbols() -> None:
     VectorStore = vector_store_module.VectorStore
     GraphStore = graph_store_module.GraphStore
     MetadataStore = metadata_store_module.MetadataStore
-    KnowledgeType = knowledge_types_module.KnowledgeType
     QuantizationType = vector_store_module.QuantizationType
     SparseMatrixFormat = graph_store_module.SparseMatrixFormat
     compute_hash = hash_module.compute_hash
@@ -1462,7 +1458,7 @@ class MigrationRunner:
                         end_ts,
                         granularity,
                         confidence,
-                        KnowledgeType.NARRATIVE.value,
+                        "narrative",
                     )
                 )
 

@@ -25,14 +25,8 @@ from src.common.logger import get_logger
 
 from ...paths import default_data_dir, repo_root, resolve_repo_path, scripts_root
 from ..storage import (
-    KnowledgeType,
     MetadataStore,
-    parse_import_strategy,
-    resolve_stored_knowledge_type,
-    select_import_strategy,
 )
-from ..storage.knowledge_types import ImportStrategy
-from ..storage.type_detection import looks_like_quote_text
 from ..strategies.base import KnowledgeType as StrategyKnowledgeType, ProcessedChunk
 from ..strategies.factual import FactualStrategy
 from ..strategies.narrative import NarrativeStrategy
@@ -227,16 +221,6 @@ def _safe_filename(name: str) -> str:
     if not base:
         return f"unnamed_{uuid.uuid4().hex[:8]}.txt"
     return base
-
-
-def _storage_type_from_strategy(strategy_type: StrategyKnowledgeType) -> str:
-    if strategy_type == StrategyKnowledgeType.NARRATIVE:
-        return KnowledgeType.NARRATIVE.value
-    if strategy_type == StrategyKnowledgeType.FACTUAL:
-        return KnowledgeType.FACTUAL.value
-    if strategy_type == StrategyKnowledgeType.QUOTE:
-        return KnowledgeType.QUOTE.value
-    return KnowledgeType.MIXED.value
 
 
 @dataclass
@@ -537,7 +521,6 @@ class ImportTaskManager:
         file_record: ImportFileRecord,
         content: str,
         source: str,
-        knowledge_type: str,
         metadata: Optional[Dict[str, Any]] = None,
         time_meta: Optional[Dict[str, Any]] = None,
     ) -> str:
@@ -546,7 +529,7 @@ class ImportTaskManager:
                 content=content,
                 source=source,
                 metadata=metadata,
-                knowledge_type=knowledge_type,
+                knowledge_type="mixed",
                 time_meta=time_meta,
             )
             self._record_file_source(file_record, source)
@@ -1070,10 +1053,7 @@ class ImportTaskManager:
         chunk_concurrency = _clamp(chunk_concurrency, 1, self._max_chunk_concurrency())
 
         llm_enabled = _coerce_bool(payload.get("llm_enabled", True), True)
-        strategy_override = parse_import_strategy(
-            payload.get("strategy_override", "auto"),
-            default=ImportStrategy.AUTO,
-        ).value
+        strategy_override = str(payload.get("strategy_override", "auto")).strip().lower() or "auto"
 
         dedupe_policy = str(payload.get("dedupe_policy", default_dedupe) or default_dedupe).strip().lower()
         if dedupe_policy not in {"content_hash", "manifest", "none"}:
@@ -3405,10 +3385,6 @@ class ImportTaskManager:
                         skip_write = True
                     if skip_write:
                         pass
-                    k_type = resolve_stored_knowledge_type(
-                        unit.get("knowledge_type"),
-                        content=content,
-                    ).value
                     source = str(unit.get("source") or f"web_import:{file_record.name}")
                     if not skip_write:
                         para_hash = await self._add_paragraph_metadata(
@@ -3416,7 +3392,6 @@ class ImportTaskManager:
                             content=content,
                             source=source,
                             metadata=paragraph_metadata,
-                            knowledge_type=k_type,
                             time_meta=unit.get("time_meta"),
                         )
                         vector_result = await self._write_paragraph_vector_or_enqueue(
@@ -3541,7 +3516,6 @@ class ImportTaskManager:
             content=content,
             source=source,
             metadata=metadata,
-            knowledge_type=_storage_type_from_strategy(processed.type),
             time_meta=time_meta,
         )
 
@@ -3838,21 +3812,19 @@ JSON schema:
     def _chunk_rescue(self, chunk: ProcessedChunk, filename: str) -> Optional[Any]:
         if chunk.type == StrategyKnowledgeType.QUOTE:
             return None
-        if looks_like_quote_text(chunk.chunk.text):
-            return QuoteStrategy(filename)
         return None
 
     def _instantiate_strategy(
         self,
         filename: str,
-        strategy: ImportStrategy,
+        strategy: str,
         *,
         import_params: Optional[Dict[str, Any]] = None,
     ) -> Any:
         params = import_params or {}
-        if strategy == ImportStrategy.FACTUAL:
+        if strategy == "factual":
             return FactualStrategy(filename, target_size=_coerce_int(params.get("factual_target_size"), 1200))
-        if strategy == ImportStrategy.QUOTE:
+        if strategy == "quote":
             return QuoteStrategy(filename)
         return NarrativeStrategy(
             filename,
@@ -3869,11 +3841,8 @@ JSON schema:
         chat_log: bool = False,
         import_params: Optional[Dict[str, Any]] = None,
     ) -> Any:
-        strategy = select_import_strategy(
-            content,
-            override=override,
-            chat_log=chat_log,
-        )
+        # Use override if specified and not "auto", otherwise default to narrative
+        strategy = override if override and override != "auto" else ("narrative" if chat_log else "narrative")
         return self._instantiate_strategy(filename, strategy, import_params=import_params)
 
     async def _set_file_strategy(self, task_id: str, file_id: str, strategy: Any) -> None:

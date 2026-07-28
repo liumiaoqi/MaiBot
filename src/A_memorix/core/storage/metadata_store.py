@@ -17,12 +17,6 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 from src.common.logger import get_logger
 from ..utils.hash import compute_hash, normalize_text
 from ..utils.time_parser import normalize_time_meta
-from .knowledge_types import (
-    KnowledgeType,
-    allowed_knowledge_type_values,
-    resolve_stored_knowledge_type,
-    validate_stored_knowledge_type,
-)
 
 try:
     import jieba  # type: ignore
@@ -165,12 +159,10 @@ class MetadataStore:
         )
         self._migrate_schema()
         alias_result = self.rebuild_relation_hash_aliases()
-        knowledge_type_result = self.normalize_paragraph_knowledge_types()
         self.set_schema_version(SCHEMA_VERSION)
         logger.info(
             f"metadata schema 运行时自动迁移完成: {current_version} -> {SCHEMA_VERSION}, "
-            f"alias_inserted={int(alias_result.get('inserted', 0) or 0)}, "
-            f"knowledge_normalized={int(knowledge_type_result.get('normalized', 0) or 0)}",
+            f"alias_inserted={int(alias_result.get('inserted', 0) or 0)}",
         )
 
     def close(self) -> None:
@@ -200,7 +192,6 @@ class MetadataStore:
                 event_time_end REAL,
                 time_granularity TEXT,
                 time_confidence REAL DEFAULT 1.0,
-                knowledge_type TEXT DEFAULT 'mixed',
                 is_permanent BOOLEAN DEFAULT 0,
                 last_accessed REAL,
                 access_count INTEGER DEFAULT 0,
@@ -831,22 +822,6 @@ class MetadataStore:
             CREATE INDEX IF NOT EXISTS idx_delete_operation_items_hash
             ON delete_operation_items(item_hash)
         """)
-        # 检查paragraphs表是否有knowledge_type列
-        cursor.execute("PRAGMA table_info(paragraphs)")
-        columns = [row[1] for row in cursor.fetchall()]
-        
-        if "knowledge_type" not in columns:
-            logger.info("检测到旧版schema，正在迁移添加knowledge_type字段...")
-            try:
-                cursor.execute("""
-                    ALTER TABLE paragraphs 
-                    ADD COLUMN knowledge_type TEXT DEFAULT 'mixed'
-                """)
-                self._conn.commit()
-                logger.info("Schema迁移完成：已添加knowledge_type字段")
-            except sqlite3.OperationalError as e:
-                logger.warning(f"Schema迁移失败（可能已存在）: {e}")
-
         # 问题2: 时序字段迁移
         cursor.execute("PRAGMA table_info(paragraphs)")
         columns = [row[1] for row in cursor.fetchall()]
@@ -993,8 +968,8 @@ class MetadataStore:
         # 症状: vector_index (本应是int) 变成了文件名字符串, source (本应是文件名) 变成了类型字符串
         try:
             cursor.execute("""
-                SELECT count(*) FROM paragraphs 
-                WHERE typeof(vector_index) = 'text' 
+                SELECT count(*) FROM paragraphs
+                WHERE typeof(vector_index) = 'text'
                 AND source IN ('mixed', 'factual', 'narrative', 'structured', 'auto')
             """)
             count = cursor.fetchone()[0]
@@ -1002,11 +977,10 @@ class MetadataStore:
                 logger.warning(f"检测到 {count} 条数据存在列错位（文件名误存入vector_index），正在自动修复...")
                 cursor.execute("""
                     UPDATE paragraphs
-                    SET 
-                        knowledge_type = source,
+                    SET
                         source = vector_index,
                         vector_index = NULL
-                    WHERE typeof(vector_index) = 'text' 
+                    WHERE typeof(vector_index) = 'text'
                     AND source IN ('mixed', 'factual', 'narrative', 'structured', 'auto')
                 """)
                 self._conn.commit()
@@ -1111,83 +1085,14 @@ class MetadataStore:
         离线迁移入口：
         - 复用旧迁移逻辑补齐历史库字段
         - 重建 relation 32位别名
-        - 归一化历史 knowledge_type
         - 写入 vNext schema 版本
         """
         self._migrate_schema()
         alias_result = self.rebuild_relation_hash_aliases()
-        knowledge_type_result = self.normalize_paragraph_knowledge_types()
         self.set_schema_version(SCHEMA_VERSION)
         return {
             "schema_version": SCHEMA_VERSION,
             "alias_result": alias_result,
-            "knowledge_type_result": knowledge_type_result,
-        }
-
-    def list_invalid_paragraph_knowledge_types(self) -> List[str]:
-        """列出当前库中不合法的段落 knowledge_type。"""
-
-        cursor = self._conn.cursor()
-        cursor.execute(
-            """
-            SELECT DISTINCT knowledge_type
-            FROM paragraphs
-            WHERE knowledge_type IS NULL
-               OR TRIM(COALESCE(knowledge_type, '')) = ''
-               OR LOWER(TRIM(knowledge_type)) NOT IN ({placeholders})
-            ORDER BY knowledge_type
-            """.format(placeholders=", ".join("?" for _ in allowed_knowledge_type_values())),
-            tuple(allowed_knowledge_type_values()),
-        )
-        invalid: List[str] = []
-        for row in cursor.fetchall():
-            raw = row[0]
-            invalid.append(str(raw) if raw is not None else "")
-        return invalid
-
-    def normalize_paragraph_knowledge_types(self) -> Dict[str, Any]:
-        """将历史非法 knowledge_type 归一化为合法值。"""
-
-        cursor = self._conn.cursor()
-        cursor.execute("SELECT hash, content, knowledge_type FROM paragraphs")
-        rows = cursor.fetchall()
-
-        normalized_count = 0
-        normalized_map: Dict[str, int] = {}
-        invalid_before: List[str] = []
-        invalid_seen = set()
-
-        for row in rows:
-            paragraph_hash = str(row["hash"])
-            content = str(row["content"] or "")
-            raw_value = row["knowledge_type"]
-            try:
-                validate_stored_knowledge_type(raw_value)
-                continue
-            except ValueError:
-                raw_text = str(raw_value) if raw_value is not None else ""
-                if raw_text not in invalid_seen:
-                    invalid_seen.add(raw_text)
-                    invalid_before.append(raw_text)
-
-            normalized_type = resolve_stored_knowledge_type(
-                raw_value,
-                content=content,
-                allow_legacy=True,
-                unknown_fallback=KnowledgeType.MIXED,
-            )
-            cursor.execute(
-                "UPDATE paragraphs SET knowledge_type = ? WHERE hash = ?",
-                (normalized_type.value, paragraph_hash),
-            )
-            normalized_count += 1
-            normalized_map[normalized_type.value] = normalized_map.get(normalized_type.value, 0) + 1
-
-        self._conn.commit()
-        return {
-            "normalized": normalized_count,
-            "invalid_before": sorted(invalid_before),
-            "normalized_to": normalized_map,
         }
 
     def _resolve_conn(self, conn: Optional[sqlite3.Connection] = None) -> sqlite3.Connection:
@@ -2170,7 +2075,7 @@ class MetadataStore:
             vector_index: 向量索引
             source: 来源
             metadata: 额外元数据
-            knowledge_type: 知识类型 (narrative/factual/quote/structured/mixed)
+            knowledge_type: 知识类型（已废弃，固定为 mixed）
             time_meta: 时间元信息 (event_time/event_time_start/event_time_end/...)
 
         Returns:
@@ -2178,7 +2083,6 @@ class MetadataStore:
         """
         content_normalized = normalize_text(content)
         hash_value = compute_hash(content_normalized)
-        resolved_knowledge_type = validate_stored_knowledge_type(knowledge_type)
 
         now = datetime.now().timestamp()
         word_count = len(content_normalized.split())
@@ -2190,10 +2094,9 @@ class MetadataStore:
                 INSERT INTO paragraphs
                 (
                     hash, content, vector_index, created_at, updated_at, metadata, source, word_count,
-                    event_time, event_time_start, event_time_end, time_granularity, time_confidence,
-                    knowledge_type
+                    event_time, event_time_start, event_time_end, time_granularity, time_confidence
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 hash_value,
                 content,
@@ -2208,7 +2111,6 @@ class MetadataStore:
                 normalized_time.get("event_time_end"),
                 normalized_time.get("time_granularity"),
                 normalized_time.get("time_confidence", 1.0),
-                resolved_knowledge_type.value,
             ))
             self._upsert_paragraph_ngram_if_ready(
                 hash_value,
@@ -2224,9 +2126,8 @@ class MetadataStore:
                 )
             except Exception as e:
                 logger.warning(f"Episode source 重建入队失败: hash={hash_value[:16]}..., err={e}")
-            logger.warning(
-                f"添加段落: hash={hash_value[:16]}..., words={word_count}, type={resolved_knowledge_type.value}",
-                exc_info=True,
+            logger.info(
+                f"添加段落: hash={hash_value[:16]}..., words={word_count}",
             )
             return hash_value
         except sqlite3.IntegrityError:
@@ -4123,23 +4024,6 @@ class MetadataStore:
         cursor = self._conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM entities")
         return cursor.fetchone()[0]
-
-    def get_knowledge_type_distribution(self) -> Dict[str, int]:
-        """获取段落知识类型分布。"""
-        cursor = self._conn.cursor()
-        cursor.execute(
-            """
-            SELECT knowledge_type, COUNT(*) as count
-            FROM paragraphs
-            WHERE is_deleted = 0
-            GROUP BY knowledge_type
-            """
-        )
-        result: Dict[str, int] = {}
-        for row in cursor.fetchall():
-            type_name = row[0] if row[0] else "未分类"
-            result[str(type_name)] = int(row[1] or 0)
-        return result
 
     def get_memory_status_summary(self, now_ts: Optional[float] = None) -> Dict[str, int]:
         """聚合 memory status 统计。"""

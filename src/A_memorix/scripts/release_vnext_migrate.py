@@ -62,7 +62,7 @@ if any(arg in {"-h", "--help"} for arg in sys.argv[1:]):
     raise SystemExit(0)
 
 try:
-    from A_memorix.core.storage import GraphStore, KnowledgeType, MetadataStore, QuantizationType, VectorStore
+    from A_memorix.core.storage import GraphStore, MetadataStore, QuantizationType, VectorStore
     from A_memorix.core.storage.metadata_store import (
         RUNTIME_AUTO_MIGRATION_MIN_SCHEMA_VERSION,
         SCHEMA_VERSION,
@@ -161,21 +161,6 @@ def _collect_hash_alias_conflicts(conn: sqlite3.Connection) -> Dict[str, List[st
     return {k: sorted(v) for k, v in conflicts.items()}
 
 
-def _collect_invalid_knowledge_types(conn: sqlite3.Connection) -> List[str]:
-    if not _sqlite_table_exists(conn, "paragraphs"):
-        return []
-    if not _sqlite_column_exists(conn, "paragraphs", "knowledge_type"):
-        return []
-
-    allowed = {item.value for item in KnowledgeType}
-    rows = conn.execute("SELECT DISTINCT knowledge_type FROM paragraphs").fetchall()
-    invalid: List[str] = []
-    for row in rows:
-        raw = row[0]
-        value = str(raw).strip().lower() if raw is not None else ""
-        if value not in allowed:
-            invalid.append(str(raw) if raw is not None else "")
-    return sorted(set(invalid))
 
 
 def _guess_vector_dimension(config_doc: Dict[str, Any], vectors_dir: Path) -> int:
@@ -256,7 +241,7 @@ def _preflight_impl(config_path: Path, data_dir: Path) -> Dict[str, Any]:
             )
         )
 
-    if summary_knowledge_type not in {item.value for item in KnowledgeType}:
+    if summary_knowledge_type not in {"narrative", "factual", "quote", "structured", "mixed"}:
         checks.append(
             CheckItem(
                 "CP-13",
@@ -371,18 +356,6 @@ def _preflight_impl(config_path: Path, data_dir: Path) -> Dict[str, Any]:
                         {"aliases": sorted(conflicts.keys())[:20], "total": len(conflicts)},
                     )
                 )
-
-            invalid_knowledge_types = _collect_invalid_knowledge_types(conn)
-            facts["invalid_knowledge_type_values"] = invalid_knowledge_types
-            if invalid_knowledge_types:
-                checks.append(
-                    CheckItem(
-                        "CP-12",
-                        "error",
-                        "invalid paragraph knowledge_type values detected",
-                        {"values": invalid_knowledge_types[:20], "total": len(invalid_knowledge_types)},
-                    )
-                )
         finally:
             conn.close()
     else:
@@ -472,7 +445,7 @@ def _migrate_config(config_doc: Dict[str, Any]) -> Dict[str, Any]:
         changes["summarization.model_name"] = {"old": summary_model, "new": normalized}
 
     default_knowledge_type = str(summary.get("default_knowledge_type", "narrative") or "").strip().lower()
-    allowed_knowledge_types = {item.value for item in KnowledgeType}
+    allowed_knowledge_types = {"narrative", "factual", "quote", "structured", "mixed"}
     if default_knowledge_type not in allowed_knowledge_types:
         summary["default_knowledge_type"] = "narrative"
         changes["summarization.default_knowledge_type"] = {
@@ -615,7 +588,7 @@ def _verify_impl(config_path: Path, data_dir: Path) -> Dict[str, Any]:
     summary_knowledge_type = str(
         _get_nested(config_doc, ("summarization", "default_knowledge_type"), "narrative") or "narrative"
     ).strip().lower()
-    if summary_knowledge_type not in {item.value for item in KnowledgeType}:
+    if summary_knowledge_type not in {"narrative", "factual", "quote", "structured", "mixed"}:
         checks.append(
             CheckItem("CP-13", "error", f"invalid summarization.default_knowledge_type: {summary_knowledge_type}")
         )
@@ -644,7 +617,6 @@ def _verify_impl(config_path: Path, data_dir: Path) -> Dict[str, Any]:
         facts["relations_count"] = relation_count
 
         conflicts = {}
-        invalid_knowledge_types: List[str] = []
         db_path = metadata_dir / "metadata.db"
         if db_path.exists():
             conn = sqlite3.connect(str(db_path))
@@ -660,7 +632,6 @@ def _verify_impl(config_path: Path, data_dir: Path) -> Dict[str, Any]:
                         )
                     )
                 conflicts = _collect_hash_alias_conflicts(conn)
-                invalid_knowledge_types = _collect_invalid_knowledge_types(conn)
             finally:
                 conn.close()
         if conflicts:
@@ -672,16 +643,6 @@ def _verify_impl(config_path: Path, data_dir: Path) -> Dict[str, Any]:
                     {"aliases": sorted(conflicts.keys())[:20], "total": len(conflicts)},
                 )
             )
-        if invalid_knowledge_types:
-            checks.append(
-                CheckItem(
-                    "CP-12",
-                    "error",
-                    "invalid paragraph knowledge_type values remain after migration",
-                    {"values": invalid_knowledge_types[:20], "total": len(invalid_knowledge_types)},
-                )
-            )
-
         if relation_count > 0:
             graph_dir = data_dir / "graph"
             if not (graph_dir / "graph_metadata.pkl").exists():

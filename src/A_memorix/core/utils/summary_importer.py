@@ -17,11 +17,9 @@ from src.common.logger import get_logger
 
 
 from ..storage import (
-    KnowledgeType,
     VectorStore,
     GraphStore,
     MetadataStore,
-    resolve_stored_knowledge_type,
 )
 from ..embedding import EmbeddingAPIAdapter
 from .model_routing import (
@@ -671,19 +669,14 @@ class SummaryImporter:
     ) -> str:
         """将数据写入存储"""
         # 获取默认知识类型
-        type_str = self.plugin_config.get("summarization", {}).get("default_knowledge_type", "narrative")
-        try:
-            knowledge_type = resolve_stored_knowledge_type(type_str, content=summary)
-        except ValueError:
-            logger.warning(f"非法 summarization.default_knowledge_type={type_str}，回退 narrative")
-            knowledge_type = KnowledgeType.NARRATIVE
+        knowledge_type = "narrative"
 
         # 导入总结文本
         hash_value = self.metadata_store.add_paragraph(
             content=summary,
             source=f"chat_summary:{stream_id}",
             metadata=metadata,
-            knowledge_type=knowledge_type.value,
+            knowledge_type=knowledge_type,
             time_meta=time_meta,
         )
 
