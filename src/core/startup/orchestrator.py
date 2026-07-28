@@ -3,6 +3,7 @@
 
 import asyncio
 import time
+from typing import Any, Awaitable, Callable
 
 
 from src.common.logger import get_logger
@@ -59,6 +60,28 @@ class StartupOrchestrator:
                     f"在阶段 {component.phase.name} 序号 {component.order} 冲突"
                 )
         self._components.append(component)
+
+    def register_from_descriptor(
+        self,
+        descriptor: dict,
+        init_fn: Callable[[], Awaitable[None]],
+        core_readiness_flag: str = "",
+    ) -> None:
+        """从 __service_descriptor__ 字典 + init_fn 闭包注册组件。
+
+        Args:
+            descriptor: port_registry 模块的 __service_descriptor__ 字典
+            init_fn: 初始化函数（由 main.py 闭包提供）
+            core_readiness_flag: 核心就绪贡献标记（可选）
+        """
+        self.register(StartupComponent(
+            name=descriptor["name"],
+            phase=descriptor["phase"],
+            order=descriptor["order"],
+            critical=descriptor["critical"],
+            init_fn=init_fn,
+            core_readiness_flag=core_readiness_flag,
+        ))
 
     async def run(self) -> StartupResult:
         """按 StartupPhase 枚举顺序执行全部 6 个阶段。"""
