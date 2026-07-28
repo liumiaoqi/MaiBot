@@ -73,6 +73,17 @@ A_memorix 代码量 49,527 行 / 2.2 MB，目标 ~8,750 行。部分功能从未
 4. 不删除数据库列（避免数据迁移），仅删除代码引用和逻辑
 5. 删除引用时保持调用链完整——被删功能的调用方要么删除调用，要么用默认值替代
 
+## 技术约束
+
+### Python 特性（参见 `.shared/memo.md`）
+
+- **enum StrEnum** (3.11+)：DEL-2 删除 KnowledgeType 后，如需保留简化类型标记，用 StrEnum 替代 str Enum
+
+### OpenClaw 借鉴（参见 `.shared/memo.md`）
+
+- **Fallback 是产品决策**：DEL-1 删除的模糊修改本质是 fallback——"改不了就模糊改"，违反此原则
+- **Lean code**："Refactors should delete about as much local complexity as they add"——纯删除任务天然满足
+
 ## 验收标准
 
 - [ ] DEL-1: fuzzy_modify + feedback_correction 文件删除，所有引用清理，ruff 通过

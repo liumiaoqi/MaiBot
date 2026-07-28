@@ -72,6 +72,21 @@ MaiBot 最大的架构缺陷：社会关系是僵化的。人物画像和关系�
 4. 主动关系行为有冷却期（同一关系不频繁主动）
 5. 不破坏现有管家三层过滤的核心逻辑（仅改变权重来源）
 
+## 技术约束
+
+### Python 特性（参见 `.shared/memo.md`）
+
+- **match/case**：SOC-2 关系标签涌现的交互模式分类用 match/case
+- **dataclass(frozen=True)**：关系强度快照（RelationshipSnapshot）用 frozen dataclass，更新用 copy.replace()
+- **uuid7**：关系变化事件的 ID 用 uuid7（按时间排序，方便查询变化历史）
+- **asyncio.TaskGroup**：SOC-5 主动关系行为的并发触发用 TaskGroup
+
+### OpenClaw 借鉴（参见 `.shared/memo.md`）
+
+- **Fallback 是产品决策**：SOC-1 关系强度演化失败不应静默 fallback 到旧值，应明确报错
+- **Core stays plugin-agnostic**：关系动态化逻辑在 A_memorix 内部实现，核心只通过 Protocol 接口查询关系强度
+- **Hot path 不重复发现**：SOC-3 管家过滤权重应在关系变化时预计算缓存，不在每次过滤时重新查询
+
 ## 验收标准
 
 - [ ] SOC-1: 关系强度随交互演化，可查询任意关系当前 strength 和变化历史

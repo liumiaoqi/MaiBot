@@ -67,6 +67,20 @@ EmotionManager（7 种离散情绪，指数衰减）和 A_memorix（Valence + Em
 4. 记忆反馈情绪是微调（单次 ±0.1），不覆盖外部触发
 5. 动态参数有合理上下界（sensitivity ∈ [0.5, 2.0], slowdown ∈ [0.3, 5.0]）
 
+## 技术约束
+
+### Python 特性（参见 `.shared/memo.md`）
+
+- **match/case**：EMO-1 情绪→Valence 映射、EMO-4 情绪→EmotionalAxis 映射用 match/case 替代 if/elif
+- **dataclass(frozen=True)**：情绪事件（EmotionEvent）、桥接参数用 frozen dataclass
+- **uuid7**：情绪事件 ID 用 uuid7
+- **enum StrEnum** (3.11+)：Valence/EmotionalAxis 用 StrEnum
+
+### OpenClaw 借鉴（参见 `.shared/memo.md`）
+
+- **Core stays plugin-agnostic**：桥接层通过 Protocol 接口交互，EmotionManager 不直接导入 A_memorix 内部
+- **Fallback 是产品决策**：EMO-2 记忆反馈情绪失败（如 A_memorix 不可用）不应静默，应记录并跳过（这是有意的降级决策）
+
 ## 验收标准
 
 - [ ] EMO-1: 情绪变化超过阈值自动写入记忆，可在 A_memorix 中查询情绪事件

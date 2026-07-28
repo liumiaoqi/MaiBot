@@ -40,6 +40,19 @@
 3. 分类涌现不调 LLM（纯规则/统计，保持 ≤5ms）
 4. 如果 CLS-1 结论是"保留离散分类+优化"，则 CLS-2 改为优化现有 CognitiveStratifier 而非替换
 
+## 技术约束
+
+### Python 特性（参见 `.shared/memo.md`）
+
+- **match/case**：CLS-2 涌现规则的分支逻辑用 match/case
+- **dataclass(frozen=True)**：分类结果快照用 frozen dataclass
+- **enum StrEnum** (3.11+)：如保留离散分类，CognitiveType 用 StrEnum
+
+### OpenClaw 借鉴（参见 `.shared/memo.md`）
+
+- **Lean code**：CLS-3 删除 CognitiveStratifier 后，涌现机制代码量应 ≤ 删除量
+- **Comment shape: why, not what**：涌现规则的注释说明"为什么这样涌现"而非"涌现了什么"
+
 ## 验收标准
 
 - [ ] CLS-1: 调研报告完成，含 4 个研究问题的分析和推荐方案

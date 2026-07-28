@@ -87,6 +87,26 @@
 5. STO-5 批量管道不改变导入结果的正确性
 6. 每个子任务独立可提交
 
+## 技术约束
+
+### Python 特性（参见 `.shared/memo.md`）
+
+- **match/case**：STO-1 拆分后 host_service._dispatch 用 match/case 替代 if 链路由
+- **dataclass(frozen=True)**：新 Store 的配置/参数对象用 frozen dataclass
+- **uuid7**：新 schema 的主键用 uuid7（时间排序，B-tree 索引友好）
+- **zip(strict=True)**：STO-5 批量导入中 ID+向量并行迭代必须 strict=True
+- **asyncio.TaskGroup**：STO-5 批量嵌入的并发任务用 TaskGroup 替代 gather
+- **enum StrEnum** (3.11+)：RetrievalStrategy 等枚举用 StrEnum
+
+### OpenClaw 借鉴（参见 `.shared/memo.md`）
+
+- **SQLite-only storage**：STO-4 pickle→SQLite 对齐此原则——运行时状态统一进 SQLite
+- **doctor --fix migration**：STO-3 schema 重置的迁移脚本即 doctor --fix 的雏形
+- **Hot path 不重复发现**：STO-2 HNSW 索引启动时加载一次，检索时不再重新组装
+- **Startup Trace**：STO-1 拆分后每个 Store 初始化测耗时，定位慢在哪
+- **Crash Loop Breaker**：A_memorix 初始化失败降级为"记忆不可用"，不拖垮启动
+- **Lean code**：MetadataStore 8537→~2000 行，净删除 >6000 行
+
 ## 验收标准
 
 - [ ] STO-1: MetadataStore 拆为 5 个独立 Store，总行数 < 2,000
