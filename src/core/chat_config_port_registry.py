@@ -1,10 +1,11 @@
 """ChatConfig 注册点。"""
 
+from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import Any, Optional
 
-if TYPE_CHECKING:
-    from src.core.protocols import ChatConfigPort
+from src.core.protocols import ChatConfigPort
+from src.core.startup.types import StartupPhase
 
 _provider: Optional[ChatConfigPort] = None
 
@@ -21,3 +22,14 @@ def set_chat_config_port(port: ChatConfigPort) -> None:
 def reset_chat_config_port() -> None:
     global _provider
     _provider = None
+
+
+__service_descriptor__: dict[str, Any] = {
+    "name": "chat_config_port",
+    "phase": StartupPhase.CORE_SERVICES,
+    "order": 11,
+    "critical": True,
+    "protocol": ChatConfigPort,
+    "register_fn": set_chat_config_port,
+    "depends_on": (),
+}

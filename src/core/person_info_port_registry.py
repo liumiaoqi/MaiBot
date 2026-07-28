@@ -1,10 +1,11 @@
 """PersonInfoPort 注册点。"""
 
+from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import Any, Optional
 
-if TYPE_CHECKING:
-    from src.core.protocols import PersonInfoPort
+from src.core.protocols import PersonInfoPort
+from src.core.startup.types import StartupPhase
 
 _provider: Optional[PersonInfoPort] = None
 
@@ -21,3 +22,14 @@ def set_person_info_port(port: PersonInfoPort) -> None:
 def reset_person_info_port() -> None:
     global _provider
     _provider = None
+
+
+__service_descriptor__: dict[str, Any] = {
+    "name": "person_info_port",
+    "phase": StartupPhase.CORE_SERVICES,
+    "order": 9,
+    "critical": True,
+    "protocol": PersonInfoPort,
+    "register_fn": set_person_info_port,
+    "depends_on": (),
+}

@@ -10,8 +10,9 @@
 - MessageRegistryPort：入站消息注册
 """
 
+from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from src.core.protocols import (
     MessageRegistryPort,
@@ -19,6 +20,7 @@ from src.core.protocols import (
     SessionLifecyclePort,
     SessionQueryPort,
 )
+from src.core.startup.types import StartupPhase
 from src.core.types import SessionInfo
 
 _info_port: Optional[SessionInfoPort] = None
@@ -127,3 +129,14 @@ def register_message_registry_port(port: MessageRegistryPort) -> None:
 def get_message_registry_port() -> Optional[MessageRegistryPort]:
     """获取全局 MessageRegistryPort 实例。未注册时返回 None。"""
     return _registry_port
+
+
+__service_descriptor__: dict[str, Any] = {
+    "name": "chat_manager_adapter",
+    "phase": StartupPhase.CORE_SERVICES,
+    "order": 2,
+    "critical": True,
+    "protocol": SessionInfoPort,  # 主 port（实际注册 4 个）
+    "register_fn": register_session_info_port,
+    "depends_on": ("agent_registry", "session_submodules"),
+}

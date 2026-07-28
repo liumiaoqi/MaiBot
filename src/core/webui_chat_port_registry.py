@@ -1,7 +1,10 @@
 """WebUI 聊天广播端口全局注册点 — chat 层通过此注册点获取 WebUI 广播能力，不直接导入 webui 内部模块。"""
 
+from __future__ import annotations
 
 from typing import Any, Callable, Optional
+
+from src.core.startup.types import StartupPhase
 
 _broadcast_fn: Optional[Callable[..., Any]] = None
 _platform_name: Optional[str] = None
@@ -22,3 +25,14 @@ def get_webui_broadcast_fn() -> Optional[Callable[..., Any]]:
 def get_webui_platform_name() -> Optional[str]:
     """获取 WebUI 平台名称。"""
     return _platform_name
+
+
+__service_descriptor__: dict[str, Any] = {
+    "name": "webui_chat_broadcast",
+    "phase": StartupPhase.READY,
+    "order": 99,  # 不经过 main.py，在 webui/app.py 内部注册
+    "critical": False,
+    "protocol": None,  # 广播函数，非 Protocol
+    "register_fn": register_webui_chat_broadcast,
+    "depends_on": (),
+}

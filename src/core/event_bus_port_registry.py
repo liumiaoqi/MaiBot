@@ -1,10 +1,11 @@
 """EventBus 注册点。"""
 
+from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import Any, Optional
 
-if TYPE_CHECKING:
-    from src.core.protocols import AutonomyEventBusPort
+from src.core.protocols import AutonomyEventBusPort
+from src.core.startup.types import StartupPhase
 
 _provider: Optional[AutonomyEventBusPort] = None
 
@@ -21,3 +22,14 @@ def set_event_bus_port(port: AutonomyEventBusPort) -> None:
 def reset_event_bus_port() -> None:
     global _provider
     _provider = None
+
+
+__service_descriptor__: dict[str, Any] = {
+    "name": "event_bus_port",
+    "phase": StartupPhase.CORE_SERVICES,
+    "order": 13,
+    "critical": True,
+    "protocol": AutonomyEventBusPort,
+    "register_fn": set_event_bus_port,
+    "depends_on": (),
+}

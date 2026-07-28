@@ -8,10 +8,12 @@ maisaka 通过 ChatRuntimeRegistry 接口查询运行时，不依赖 heartflow_m
 - ChatRuntimeFactory：运行时工厂（heartflow_manager 通过此创建运行时，不依赖 maisaka 具体类）
 """
 
+from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional
 
 from src.core.protocols import ChatRuntimeFactory, ChatRuntimeRegistry
+from src.core.startup.types import StartupPhase
 
 _registry: Optional[ChatRuntimeRegistry] = None
 _factory: Optional[ChatRuntimeFactory] = None
@@ -54,3 +56,14 @@ def get_chat_runtime_factory() -> Optional[ChatRuntimeFactory]:
         ChatRuntimeFactory 实例，未注册时返回 None
     """
     return _factory
+
+
+__service_descriptor__: dict[str, Any] = {
+    "name": "runtime_port",
+    "phase": StartupPhase.CORE_SERVICES,
+    "order": 5,
+    "critical": True,
+    "protocol": ChatRuntimeRegistry,  # 主 port
+    "register_fn": register_chat_runtime_registry,
+    "depends_on": (),
+}
