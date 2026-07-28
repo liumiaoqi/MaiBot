@@ -140,6 +140,7 @@ class MainSystem:
         orchestrator.register(StartupComponent(
             name="agent_registry", phase=StartupPhase.CORE_SERVICES, order=0, critical=True,
             init_fn=self._init_agent_registry,
+            core_readiness_flag="agent_thinking_ready",
         ))
         orchestrator.register(StartupComponent(
             name="session_submodules", phase=StartupPhase.CORE_SERVICES, order=1, critical=True,
@@ -148,10 +149,12 @@ class MainSystem:
         orchestrator.register(StartupComponent(
             name="chat_manager_adapter", phase=StartupPhase.CORE_SERVICES, order=2, critical=True,
             init_fn=self._init_adapter_and_ports,
+            core_readiness_flag="message_pipeline_ready",
         ))
         orchestrator.register(StartupComponent(
             name="replyer_port", phase=StartupPhase.CORE_SERVICES, order=3, critical=True,
             init_fn=self._init_replyer_port,
+            core_readiness_flag="reply_capability_ready",
         ))
         orchestrator.register(StartupComponent(
             name="image_port", phase=StartupPhase.CORE_SERVICES, order=4, critical=True,

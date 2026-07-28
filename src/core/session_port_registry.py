@@ -10,7 +10,6 @@
 - MessageRegistryPort：入站消息注册
 """
 
-from __future__ import annotations
 
 from typing import Any, Optional
 

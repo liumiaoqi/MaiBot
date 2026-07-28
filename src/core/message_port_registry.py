@@ -4,7 +4,6 @@
 不直接依赖 send_service 或其他组件。
 """
 
-from __future__ import annotations
 
 from typing import Any, Optional
 

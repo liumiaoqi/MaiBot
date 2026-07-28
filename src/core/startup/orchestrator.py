@@ -237,13 +237,9 @@ class StartupOrchestrator:
         return True
 
     def _update_core_readiness(self, result: PhaseResult) -> None:
-        """阶段 2 完成后根据指定组件更新核心就绪状态。"""
+        """阶段 2 完成后根据组件声明的 core_readiness_flag 更新核心就绪状态。"""
         for c in result.components:
-            if c.name == "chat_manager_adapter" and c.status == ComponentStatus.SUCCESS:
-                self._core_readiness.message_pipeline_ready = True
-            elif c.name == "agent_registry" and c.status == ComponentStatus.SUCCESS:
-                self._core_readiness.agent_thinking_ready = True
-            elif c.name == "replyer_port" and c.status == ComponentStatus.SUCCESS:
-                self._core_readiness.reply_capability_ready = True
+            if c.core_readiness_flag and c.status == ComponentStatus.SUCCESS:
+                setattr(self._core_readiness, c.core_readiness_flag, True)
         if self._core_readiness.core_ready and self._core_ready_time == 0.0:
             self._core_ready_time = time.monotonic()

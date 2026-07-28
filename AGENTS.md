@@ -104,10 +104,11 @@ Protocol 接口和注册点详见 `src/core/protocols.py` 和 `src/core/adapters
 | **P0** | **CQ-16** | **v2 Runner 端到端路径验证** | 19→0 | ✅ 完成 |
 | **P1** | **CQ-7** | **A_memorix 记忆系统重设计** | 7 问题 | ⬜ SSD 就绪（`.codeartsdoer/specs/cq7_memorix/`） |
 | P2 | CQ-8 | SQLAlchemy 3.14 兼容 | ChunkedIteratorResult | ⬜ 待规划 |
+| P2 | CQ-17 | v1 旧链发送清算 | legacy_driver+fallback | ⬜ 调研完成（`.shared/handoff/cc2ca_v1_legacy_send_0728_research.md`），待大清算 |
 | P3 | CQ-9x | napcat-adapter Tool 扩展 | 5→~30 @Tool | ⬜ 扩展任务 |
 | P3 | CQ-10 | V1/V2 共存+TODO | 若干 | ⬜ 低优先 |
 
-已完成：CQ-9/10（except 吞没）✅、CQ-3（None 防御）✅、CQ-5（启动崩溃修复）✅、CQ-7（欲望驱动）✅、CQ-11（统一日志）✅、CQ-159/14/13（Port 迁移）✅、CQ-4（代码质量）✅
+已完成：CQ-9/10（except 吞没）✅、CQ-3（None 防御）✅、CQ-5（启动崩溃修复）✅、CQ-7（欲望驱动）✅、CQ-11（统一日志）✅、CQ-159/14/13（Port 迁移）✅、CQ-4（代码质量）✅、TG-0（Python 3.14 兼容性）✅、TG-1（调试基础设施文档化）✅
 
 
 # Phoenix 后路线

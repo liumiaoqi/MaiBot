@@ -39,6 +39,7 @@ class StartupComponent:
     order: int
     critical: bool
     init_fn: Callable[[], Awaitable[None]]
+    core_readiness_flag: str = ""
     status: ComponentStatus = ComponentStatus.PENDING
     start_time: float = 0.0
     end_time: float = 0.0

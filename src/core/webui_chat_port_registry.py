@@ -1,6 +1,5 @@
 """WebUI 聊天广播端口全局注册点 — chat 层通过此注册点获取 WebUI 广播能力，不直接导入 webui 内部模块。"""
 
-from __future__ import annotations
 
 from typing import Any, Callable, Optional
 
