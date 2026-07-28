@@ -186,7 +186,7 @@ class VectorRebuildService:
                 self._update_dual_vector_auto_migration_stage("legacy_source_load")
                 legacy_source_store.load()
                 self._update_dual_vector_auto_migration_stage("legacy_source_warmup")
-                legacy_source_store.warmup_index(force_train=False)
+                legacy_source_store.warmup_index()
                 self._update_dual_vector_auto_migration_stage("legacy_source_ready")
             except Exception as exc:
                 logger.warning(f"加载旧单池向量用于双池迁移失败，将回退 embedding 重建: {exc}")
@@ -407,12 +407,12 @@ class VectorRebuildService:
                 try:
                     if build_paragraph_vector_store is not None:
                         self._update_dual_vector_auto_migration_stage("paragraph_pool_warmup")
-                        build_paragraph_vector_store.warmup_index(force_train=True)
+                        build_paragraph_vector_store.warmup_index()
                         self._update_dual_vector_auto_migration_stage("paragraph_pool_save")
                         self._vpm.save_vector_store(build_paragraph_vector_store)
                     if build_graph_vector_store is not None:
                         self._update_dual_vector_auto_migration_stage("graph_pool_warmup")
-                        build_graph_vector_store.warmup_index(force_train=True)
+                        build_graph_vector_store.warmup_index()
                         self._update_dual_vector_auto_migration_stage("graph_pool_save")
                         self._vpm.save_vector_store(build_graph_vector_store)
                     self._update_dual_vector_auto_migration_stage("activate_dirs")
@@ -455,7 +455,7 @@ class VectorRebuildService:
         else:
             self._update_dual_vector_auto_migration_stage("single_pool_warmup")
             vector_store = self._get_vector_store()
-            vector_store.warmup_index(force_train=True)
+            vector_store.warmup_index()
             self._set_paragraph_vector_store(self._vpm.make_vector_store(self._vpm.paragraph_vector_dir()))
             self._set_graph_vector_store(self._vpm.make_vector_store(self._vpm.graph_vector_dir()))
             self._refresh_relation_write_service()

@@ -138,7 +138,7 @@ class DualVectorMigrationService:
         if source_store is not None and source_store.has_data():
             try:
                 source_store.load()
-                source_store.warmup_index(force_train=False)
+                source_store.warmup_index()
             except Exception as exc:
                 logger.warning(f"加载旧单池向量用于双池增量补齐失败，将回退 embedding 重建: {exc}")
 

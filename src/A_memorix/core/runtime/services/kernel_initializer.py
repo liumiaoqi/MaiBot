@@ -98,7 +98,7 @@ class KernelInitializer:
 
         if kernel.vector_store.has_data():
             kernel.vector_store.load()
-            kernel.vector_store.warmup_index(force_train=True)
+            kernel.vector_store.warmup_index()
         kernel._vector_pool_manager.dual_pools_ready = False
         if kernel._vector_pool_manager.config.config_enabled:
             kernel._vector_pool_manager.cleanup_stale_dual_vector_build_dirs()

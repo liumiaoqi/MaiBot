@@ -495,10 +495,10 @@ class VectorPoolManager:
             graph_store = self.make_vector_store(self.graph_vector_dir())
             if paragraph_store.has_data():
                 paragraph_store.load()
-                paragraph_store.warmup_index(force_train=True)
+                paragraph_store.warmup_index()
             if graph_store.has_data():
                 graph_store.load()
-                graph_store.warmup_index(force_train=True)
+                graph_store.warmup_index()
         except Exception as exc:
             logger.warning(f"加载双池向量失败，将暂时回退单池: {exc}")
             self._dual_vector_pools_ready = False

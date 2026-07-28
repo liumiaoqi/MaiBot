@@ -342,21 +342,12 @@ async def initialize_storage_async(plugin: Any) -> None:
                 logger.warning(f"加载 {store_name} 数据失败: {e}")
 
     try:
-        warmup_summary = plugin.vector_store.warmup_index(force_train=True)
-        if warmup_summary.get("ok"):
-            logger.info(
-                "向量索引预热完成: "
-                f"trained={warmup_summary.get('trained')}, "
-                f"index_ntotal={warmup_summary.get('index_ntotal')}, "
-                f"fallback_ntotal={warmup_summary.get('fallback_ntotal')}, "
-                f"bin_count={warmup_summary.get('bin_count')}, "
-                f"duration_ms={float(warmup_summary.get('duration_ms', 0.0)):.2f}"
-            )
-        else:
-            logger.warning(
-                "向量索引预热失败，继续启用 sparse 降级路径: "
-                f"{warmup_summary.get('error', 'unknown')}"
-            )
+        warmup_summary = plugin.vector_store.warmup_index()
+        logger.info(
+            "向量索引预热完成: "
+            f"total={warmup_summary.get('total')}, "
+            f"dimension={warmup_summary.get('dimension')}"
+        )
     except Exception as e:
         logger.warning(f"向量索引预热异常，继续启用 sparse 降级路径: {e}")
     if dual_vector_ready:
@@ -365,7 +356,7 @@ async def initialize_storage_async(plugin: Any) -> None:
             if store is None:
                 continue
             try:
-                store.warmup_index(force_train=True)
+                store.warmup_index()
             except Exception as e:
                 logger.warning(f"{store_name} 预热失败，后续检索可能降级: {e}")
 

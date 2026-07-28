@@ -1,17 +1,16 @@
 """
 向量存储模块
 
-基于Faiss的高效向量存储与检索，支持SQ8量化、Append-Only磁盘存储和内存映射。
+基于Faiss的高效向量存储与检索，HNSW索引 + Append-Only磁盘存储。
 """
 
-import os
 import pickle
 import hashlib
 import shutil
 import time
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Sequence, Set, Tuple, Union
-import threading  # Added threading import
+import threading
 
 import numpy as np
 
@@ -30,17 +29,24 @@ logger = get_logger("A_Memorix.VectorStore")
 
 class VectorStore:
     """
-    向量存储类 (SQ8 + Append-Only Disk)
+    向量存储类 (HNSW + Append-Only Disk)
 
     特性：
-    - 索引: IndexIDMap2(IndexScalarQuantizer(QT_8bit))
+    - 索引: IndexHNSWFlat (M=32, ef_construction=200)
+    - 搜索: ef_search=50
     - 存储: float16 on-disk binary (vectors.bin)
-    - 内存: 仅索引常驻 RAM (<512MB for 100k vectors)
+    - 内存: 索引常驻 RAM
     - ID: SHA1-based stable int64 IDs
     - 一致性: 强制 L2 Normalization (IP == Cosine)
+    - 无需训练：HNSW 图索引直接构建
     """
 
-    # 默认训练触发阈值 (40 样本，过大可能导致小数据集不生效，过小可能量化退化)
+    # HNSW 参数
+    HNSW_M = 32
+    HNSW_EF_CONSTRUCTION = 200
+    HNSW_EF_SEARCH = 50
+
+    # 默认训练触发阈值 (保留用于旧 SQ8 索引迁移，新 HNSW 索引无需训练)
     DEFAULT_MIN_TRAIN = 40
 
     def __init__(
@@ -59,26 +65,14 @@ class VectorStore:
         self.data_dir = Path(data_dir) if data_dir else None
         if self.data_dir:
             self.data_dir.mkdir(parents=True, exist_ok=True)
-        if quantization_type != QuantizationType.INT8:
-            raise ValueError(
-                "vNext 仅支持 quantization_type=int8(SQ8)。"
-                " 请更新配置并执行 scripts/release_vnext_migrate.py migrate。"
-            )
-        normalized_index_type = str(index_type or "sq8").strip().lower()
-        if normalized_index_type not in {"sq8", "int8"}:
-            raise ValueError(
-                "vNext 仅支持 index_type=sq8。"
-                " 请更新配置并执行 scripts/release_vnext_migrate.py migrate。"
-            )
         self.quantization_type = QuantizationType.INT8
-        self.index_type = "sq8"
+        self.index_type = "hnsw"
         self.buffer_size = buffer_size
         self.min_train_threshold = self.DEFAULT_MIN_TRAIN
 
-        self._index: Optional[faiss.IndexIDMap2] = None
+        self._index: Optional[faiss.IndexHNSWFlat] = None
         self._init_index()
 
-        self._is_trained = False
         self._vector_norm = "l2"
 
         self._known_hashes: Set[str] = set()
@@ -94,17 +88,17 @@ class VectorStore:
         # Thread safety lock
         self._lock = threading.RLock()
 
-        logger.info(f"向量存储初始化: dim={dimension}, mode=SQ8")
+        logger.info(f"向量存储初始化: dim={dimension}, mode=HNSW")
 
     def _init_index(self):
-        """初始化空的 Faiss 索引"""
-        quantizer = faiss.IndexScalarQuantizer(
+        """初始化空的 HNSW Faiss 索引"""
+        self._index = faiss.IndexHNSWFlat(
             self.dimension,
-            faiss.ScalarQuantizer.QT_8bit,
-            faiss.METRIC_INNER_PRODUCT
+            self.HNSW_M,
+            faiss.METRIC_INNER_PRODUCT,
         )
-        self._index = faiss.IndexIDMap2(quantizer)
-        self._is_trained = False
+        self._index.hnsw.efConstruction = self.HNSW_EF_CONSTRUCTION
+        self._index.hnsw.efSearch = self.HNSW_EF_SEARCH
 
     @staticmethod
     def _generate_id(key: str) -> int:
@@ -189,8 +183,7 @@ class VectorStore:
 
         self._bin_count += len(batch_ids)
 
-        if self._is_trained and self._index.is_trained:
-            self._index.add_with_ids(batch_vecs, batch_ids)
+        self._index.add_with_ids(batch_vecs, batch_ids)
 
         self._write_buffer_vecs.clear()
         self._write_buffer_ids.clear()
@@ -225,17 +218,14 @@ class VectorStore:
 
         faiss.normalize_L2(query_local)
 
-        # 查询路径仅负责检索，不在此触发训练/回放。
-        # 训练/回放前置到 warmup_index()，并由插件启动阶段触发。
         # Faiss 索引在并发 search 下可能出现阻塞，这里串行化检索调用保证稳定性。
         with self._lock:
             self._flush_write_buffer_unlocked()
-            search_index = self._index
-            if search_index.ntotal == 0:
+            if self._index.ntotal == 0:
                 logger.warning("Index is empty. No data to search.")
                 return [], []
             # 执行检索
-            dists, ids = search_index.search(query_local, k * 2)
+            dists, ids = self._index.search(query_local, k * 2)
 
         # Faiss search 返回的是 (1, K) 的数组，取第一行
         dists = dists[0]
@@ -243,7 +233,8 @@ class VectorStore:
 
         results = []
         for id_val, score in zip(ids, dists, strict=True):
-            if id_val == -1: continue
+            if id_val == -1:
+                continue
             if filter_deleted and id_val in self._deleted_ids:
                 continue
 
@@ -385,18 +376,15 @@ class VectorStore:
 
             return result
 
-    def warmup_index(self, force_train: bool = True) -> Dict[str, Any]:
+    def warmup_index(self) -> Dict[str, Any]:
         """
-        预热向量索引（训练/回放前置），避免首个线上查询触发重初始化。
-
-        Args:
-            force_train: 是否在满足阈值时强制训练 SQ8 索引
+        预热向量索引，验证索引状态并记录日志。
 
         Returns:
             预热状态摘要
         """
         started = time.perf_counter()
-        logger.debug(f"metric.vector_index_prewarm_started=1 force_train={bool(force_train)}")
+        logger.debug("metric.vector_index_prewarm_started=1")
 
         try:
             with self._lock:
@@ -407,25 +395,18 @@ class VectorStore:
                 else:
                     self._bin_count = 0
 
+                ntotal = int(self._index.ntotal)
                 duration_ms = (time.perf_counter() - started) * 1000.0
                 summary = {
-                    "ok": True,
-                    "trained": bool(self._is_trained),
-                    "index_ntotal": int(self._index.ntotal),
-                    "bin_count": int(self._bin_count),
-                    "duration_ms": duration_ms,
-                    "error": None,
+                    "total": ntotal,
+                    "dimension": self.dimension,
                 }
         except Exception as e:
             logger.warning("操作失败", exc_info=True)
             duration_ms = (time.perf_counter() - started) * 1000.0
             summary = {
-                "ok": False,
-                "trained": bool(self._is_trained),
-                "index_ntotal": int(self._index.ntotal) if self._index is not None else 0,
-                "bin_count": int(getattr(self, "_bin_count", 0)),
-                "duration_ms": duration_ms,
-                "error": str(e),
+                "total": int(self._index.ntotal) if self._index is not None else 0,
+                "dimension": self.dimension,
             }
             logger.error(
                 "metric.vector_index_prewarm_fail=1 "
@@ -436,10 +417,9 @@ class VectorStore:
 
         logger.debug(
             "metric.vector_index_prewarm_success=1 "
-            f"metric.vector_index_prewarm_duration_ms={summary['duration_ms']:.2f} "
-            f"trained={summary['trained']} "
-            f"index_ntotal={summary['index_ntotal']} "
-            f"bin_count={summary['bin_count']}"
+            f"metric.vector_index_prewarm_duration_ms={duration_ms:.2f} "
+            f"ntotal={ntotal} "
+            f"bin_count={self._bin_count}"
         )
         return summary
 
@@ -452,8 +432,7 @@ class VectorStore:
                 int_id = self._generate_id(str_id)
                 if int_id not in self._deleted_ids:
                     self._deleted_ids.add(int_id)
-                    if self._index.is_trained:
-                         self._index.remove_ids(np.array([int_id], dtype=np.int64))
+                    self._index.remove_ids(np.array([int_id], dtype=np.int64))
                     count += 1
             self._total_deleted += count
 
@@ -463,7 +442,8 @@ class VectorStore:
 
     def _check_rebuild_needed(self):
         """GC Excution Check"""
-        if self._bin_count == 0: return
+        if self._bin_count == 0:
+            return
         ratio = len(self._deleted_ids) / self._bin_count
         if ratio > 0.3 and len(self._deleted_ids) > 1000:
             logger.info(f"Triggering GC/Rebuild (deleted ratio: {ratio:.2f})")
@@ -493,7 +473,8 @@ class VectorStore:
             while True:
                 vec_data = f_vec.read(chunk_size * vec_item_size)
                 id_data = f_id.read(chunk_size * id_item_size)
-                if not vec_data: break
+                if not vec_data:
+                    break
 
                 batch_fp16 = np.frombuffer(vec_data, dtype=np.float16).reshape(-1, self.dimension)
                 batch_ids = np.frombuffer(id_data, dtype='>i8').astype(np.int64)
@@ -513,7 +494,6 @@ class VectorStore:
 
         # Close current index
         self._index.reset()
-        self._is_trained = False
 
         # Swap files
         shutil.move(str(tmp_bin), str(self._bin_path))
@@ -522,11 +502,10 @@ class VectorStore:
         # Reset Tombstones (Critical)
         self._deleted_ids.clear()
 
-        # 3. Reload/Rebuild Index (Fresh Train)
-        # We need to re-train because data distribution might have changed significantly after deletion
-        self._init_index()
-
-        logger.info("Compaction Complete.")
+        # 3. Rebuild HNSW index from compacted bin files
+        if self._bin_path.exists() and self._ids_bin_path.exists():
+            self._load_bin_into_index(self._bin_path, self._ids_bin_path)
+        logger.info(f"Compaction Complete. ntotal={self._index.ntotal}")
 
     def save(
         self,
@@ -559,15 +538,15 @@ class VectorStore:
                         if isinstance(previous_raw, dict) and previous_raw:
                             previous_embedding_fingerprint = dict(previous_raw)
 
-            if self._is_trained:
-                index_path = data_dir / "vectors.index"
-                with atomic_save_path(index_path) as tmp:
-                    faiss.write_index(self._index, tmp)
+            index_path = data_dir / "vectors.index"
+            with atomic_save_path(index_path) as tmp:
+                faiss.write_index(self._index, tmp)
 
             meta = {
                 "dimension": self.dimension,
                 "quantization_type": self.quantization_type.value,
-                "is_trained": self._is_trained,
+                "index_type": self.index_type,
+                "is_trained": True,
                 "vector_norm": self._vector_norm,
                 "deleted_ids": list(self._deleted_ids),
                 "known_hashes": list(self._known_hashes),
@@ -610,7 +589,6 @@ class VectorStore:
             self._write_buffer_vecs.clear()
             self._write_buffer_ids.clear()
             self._init_index()
-            self._is_trained = False
             self._bin_count = 0
 
             self._migrate_from_npy_unlocked(npy_path, idx_path, target_dir)
@@ -619,12 +597,14 @@ class VectorStore:
 
     def load(self, data_dir: Optional[Union[str, Path]] = None) -> None:
         with self._lock:
-            if not data_dir: data_dir = self.data_dir
+            if not data_dir:
+                data_dir = self.data_dir
             data_dir = Path(data_dir)
 
             npy_path = data_dir / "vectors.npy"
             idx_path = data_dir / "vectors.index"
             bin_path = data_dir / "vectors.bin"
+            ids_bin_path = data_dir / "vectors_ids.bin"
 
             if npy_path.exists() and not bin_path.exists():
                 raise RuntimeError(
@@ -647,24 +627,48 @@ class VectorStore:
                 self._init_index()
                 return
 
-            self._is_trained = meta.get("is_trained", False)
             self._vector_norm = meta.get("vector_norm", "l2")
             self._deleted_ids = set(meta.get("deleted_ids", []))
             self._known_hashes = set(meta.get("known_hashes", []))
 
-            if self._is_trained:
-                if idx_path.exists():
-                    try:
-                        self._index = faiss.read_index(str(idx_path))
-                        if not isinstance(self._index, faiss.IndexIDMap2):
-                            logger.warning("Loaded index type mismatch. Rebuilding...")
-                            self._init_index()
-                    except Exception as e:
-                         logger.error(f"Failed to load index: {e}. Rebuilding...")
-                         self._init_index()
+            # SQ8 → HNSW 迁移检测
+            needs_migration = (
+                meta.get("index_type") == "sq8" or not meta.get("is_trained", False)
+            )
+            if needs_migration and idx_path.exists():
+                logger.warning("检测到旧 SQ8 索引，正在重建 HNSW...")
+                # 备份旧索引
+                bak_path = data_dir / "vectors.index.sq8.bak"
+                shutil.move(str(idx_path), str(bak_path))
+                logger.info(f"旧 SQ8 索引已备份至 {bak_path}")
+
+                # 从 vectors.bin 重建 HNSW 索引
+                if bin_path.exists() and ids_bin_path.exists():
+                    self._load_bin_into_index(bin_path, ids_bin_path)
+                    logger.info(f"HNSW 索引重建完成: ntotal={self._index.ntotal}")
+
+                    # 保存新索引
+                    with atomic_save_path(idx_path) as tmp:
+                        faiss.write_index(self._index, tmp)
                 else:
-                    logger.warning("Index file missing despite metadata indicating trained. Rebuilding from bin...")
+                    logger.warning("vectors.bin 缺失，无法重建 HNSW 索引，使用空索引")
                     self._init_index()
+
+                # 更新元数据
+                meta["index_type"] = "hnsw"
+                meta["is_trained"] = True
+                with atomic_write(meta_path, "wb") as f:
+                    pickle.dump(meta, f)
+            elif idx_path.exists():
+                # HNSW 索引直接加载
+                try:
+                    self._index = faiss.read_index(str(idx_path))
+                except Exception as e:
+                    logger.error(f"Failed to load index: {e}. Rebuilding...")
+                    self._init_index()
+            else:
+                logger.warning("Index file missing. Starting with empty index.")
+                self._init_index()
 
             if bin_path.exists():
                 self._bin_count = bin_path.stat().st_size // (self.dimension * 2)
@@ -702,6 +706,27 @@ class VectorStore:
             shutil.move(str(idx_path), str(idx_path) + ".bak")
 
         logger.info("Migration complete.")
+
+    def _load_bin_into_index(self, bin_path: Path, ids_bin_path: Path) -> None:
+        """从 vectors.bin + vectors_ids.bin 重建 HNSW 索引（内部辅助方法）。"""
+        self._init_index()
+        vec_item_size = self.dimension * 2
+        id_item_size = 8
+        chunk_size = 10000
+
+        with open(bin_path, "rb") as f_vec, open(ids_bin_path, "rb") as f_id:
+            while True:
+                vec_data = f_vec.read(chunk_size * vec_item_size)
+                id_data = f_id.read(chunk_size * id_item_size)
+                if not vec_data:
+                    break
+
+                batch_fp16 = np.frombuffer(vec_data, dtype=np.float16).reshape(-1, self.dimension)
+                batch_fp32 = batch_fp16.astype(np.float32)
+                faiss.normalize_L2(batch_fp32)
+                batch_ids = np.frombuffer(id_data, dtype=">i8").astype(np.int64)
+
+                self._index.add_with_ids(batch_fp32, batch_ids)
 
     def clear(self) -> None:
         with self._lock:
