@@ -1,6 +1,5 @@
 """Maisaka 人物画像自动注入服务。"""
 
-from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Sequence

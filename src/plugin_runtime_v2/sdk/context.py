@@ -4,7 +4,6 @@
 所有方法使用 session_id 替代 v3 的 stream_id。Phoenix-6 补全 RPC 调用。
 """
 
-from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 

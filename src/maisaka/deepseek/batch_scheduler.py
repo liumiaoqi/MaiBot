@@ -5,7 +5,6 @@
 禁止将实时性要求高的任务提交到批处理 API。
 """
 
-from __future__ import annotations
 
 import time
 from enum import Enum

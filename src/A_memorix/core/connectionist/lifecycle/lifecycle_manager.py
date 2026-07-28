@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import time
 
 from src.common.logger import get_logger

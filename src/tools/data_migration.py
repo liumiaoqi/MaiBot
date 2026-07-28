@@ -8,7 +8,6 @@
 幂等设计：所有操作均可重复执行，不会产生重复数据。
 """
 
-from __future__ import annotations
 
 import shutil
 import time

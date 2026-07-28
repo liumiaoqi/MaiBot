@@ -1,6 +1,5 @@
 """日志管理 API — 动态级别调整、日志搜索、ThinkCycleLog 查询。"""
 
-from __future__ import annotations
 
 import json
 import logging

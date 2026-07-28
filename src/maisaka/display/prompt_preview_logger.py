@@ -1,6 +1,5 @@
 """Maisaka Prompt 预览落盘器。"""
 
-from __future__ import annotations
 from src.common.logger import get_logger
 logger = get_logger("auto.prompt_preview_logger")
 

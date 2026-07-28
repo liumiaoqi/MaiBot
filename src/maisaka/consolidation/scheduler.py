@@ -3,7 +3,6 @@
 Dream 由 M1 的 DreamTrigger 定时调度管理，此处仅管理 Distill。
 """
 
-from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field

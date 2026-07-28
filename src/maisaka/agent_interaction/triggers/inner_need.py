@@ -4,7 +4,6 @@
 产生"无聊"内部需求，主动寻求与其他智能体交互。
 """
 
-from __future__ import annotations
 
 from typing import Any
 

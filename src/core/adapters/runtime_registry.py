@@ -1,6 +1,5 @@
 """HeartflowRuntimeRegistry — ChatRuntimeRegistry 的 heartflow_manager 适配器。"""
 
-from __future__ import annotations
 
 from typing import Any, Optional
 

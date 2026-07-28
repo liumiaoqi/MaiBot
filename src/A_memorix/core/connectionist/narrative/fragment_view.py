@@ -1,6 +1,3 @@
-from __future__ import annotations
-
-
 from ..enums import Valence
 from ..models import Fragment, Trace
 

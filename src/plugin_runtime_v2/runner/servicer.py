@@ -3,7 +3,6 @@
 Phoenix-1 阶段返回 NOT_IMPLEMENTED，Phoenix-2 接入 SDK v4 @Tool 装饰器。
 """
 
-from __future__ import annotations
 
 import json
 

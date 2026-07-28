@@ -1,6 +1,5 @@
 """Maisaka 内置工具执行上下文。"""
 
-from __future__ import annotations
 
 from base64 import b64decode
 from datetime import datetime

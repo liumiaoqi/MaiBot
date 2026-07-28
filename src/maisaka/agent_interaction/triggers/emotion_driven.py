@@ -4,7 +4,6 @@
 选择最合适的目标智能体发起交互。
 """
 
-from __future__ import annotations
 
 from typing import Any
 

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Run A_Memorix runtime self-check against real embedding/runtime configuration."""
 
-from __future__ import annotations
 
 import argparse
 import asyncio

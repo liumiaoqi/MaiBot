@@ -3,7 +3,6 @@
 负责将主程序官方配置中的 MCP 配置转换为运行时使用的结构化对象。
 """
 
-from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal

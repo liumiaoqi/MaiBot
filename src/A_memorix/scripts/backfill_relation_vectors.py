@@ -9,7 +9,6 @@
 4. 可选自动纳入“ready 但向量缺失”的漂移记录进行修复。
 """
 
-from __future__ import annotations
 
 import argparse
 import asyncio

@@ -4,7 +4,6 @@
 管家决策，Orchestrator 执行。
 """
 
-from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum

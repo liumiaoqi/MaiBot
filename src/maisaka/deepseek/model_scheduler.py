@@ -3,7 +3,6 @@
 根据任务类型、复杂度和智能体级模型调度偏好在 deepseek-v4-pro/flash/think 之间自动选择。
 """
 
-from __future__ import annotations
 
 from enum import Enum
 

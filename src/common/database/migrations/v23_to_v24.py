@@ -1,6 +1,5 @@
 """v23 到 v24 schema 迁移：收敛行为动作/结果实体并移除冗余图边。"""
 
-from __future__ import annotations
 
 from datetime import datetime
 from hashlib import sha256

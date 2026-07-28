@@ -1,6 +1,5 @@
 """A_memorix MemoryServicePort 适配器 — 核心通过此接口访问记忆服务。"""
 
-from __future__ import annotations
 
 import asyncio
 import uuid

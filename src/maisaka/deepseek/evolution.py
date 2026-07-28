@@ -9,7 +9,6 @@
 - 任何分配比例最小值0.01
 """
 
-from __future__ import annotations
 
 import time
 import uuid

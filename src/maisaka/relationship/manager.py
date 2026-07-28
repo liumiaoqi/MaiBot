@@ -1,6 +1,5 @@
 """关系管理器，管理智能体与用户的关系进展。"""
 
-from __future__ import annotations
 
 import time
 from datetime import datetime

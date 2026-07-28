@@ -1,6 +1,5 @@
 """MCP 宿主回调声明。"""
 
-from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable

@@ -4,7 +4,6 @@
 确保核心依赖就绪后再启动子系统。
 """
 
-from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING

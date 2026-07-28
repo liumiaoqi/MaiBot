@@ -4,7 +4,6 @@
 `src.llm_models` 中的底层嵌入调度器。
 """
 
-from __future__ import annotations
 
 from typing import Any, Coroutine, List, TypeVar
 

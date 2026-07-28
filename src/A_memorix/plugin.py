@@ -4,7 +4,6 @@ MaiBot 主线当前通过 `src.A_memorix.host_service` 直接接入 A_Memorix，
 不再通过插件运行时发现或加载本模块。
 """
 
-from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 

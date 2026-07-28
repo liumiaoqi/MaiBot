@@ -1,6 +1,5 @@
 """发言冷却管理器——按智能体+会话管理插话和主动发言的冷却时间与频率限制。"""
 
-from __future__ import annotations
 
 from datetime import datetime, timedelta
 

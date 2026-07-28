@@ -3,7 +3,6 @@
 定义 SubAgentSpec（规格）、SubAgentStatus（运行状态）、SubAgentHandle（句柄）。
 """
 
-from __future__ import annotations
 
 import time
 import uuid

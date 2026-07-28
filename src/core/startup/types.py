@@ -1,6 +1,5 @@
 """启动框架数据模型。"""
 
-from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum, IntEnum

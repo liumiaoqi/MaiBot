@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from ..connectionist.enums import Valence
 from ..connectionist.models import MemoryPersonalityV2
 

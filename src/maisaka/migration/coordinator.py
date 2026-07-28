@@ -7,7 +7,6 @@
   4. 已完成 (completed)
 """
 
-from __future__ import annotations
 
 import json
 import time

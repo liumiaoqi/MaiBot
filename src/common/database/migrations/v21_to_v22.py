@@ -1,6 +1,5 @@
 """v21 到 v22 schema 迁移：重建行为场景索引并清理 legacy v1 遗留表。"""
 
-from __future__ import annotations
 
 from sqlalchemy.engine import Connection
 

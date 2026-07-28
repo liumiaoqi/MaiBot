@@ -1,6 +1,5 @@
 """关系查询规格解析工具。"""
 
-from __future__ import annotations
 
 import re
 from dataclasses import dataclass

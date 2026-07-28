@@ -1,6 +1,5 @@
 """工具执行后的通用后处理工具。"""
 
-from __future__ import annotations
 
 from typing import Any, Dict, Optional
 

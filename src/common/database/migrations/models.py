@@ -1,6 +1,5 @@
 """数据库迁移基础设施核心数据模型。"""
 
-from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone

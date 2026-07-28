@@ -1,6 +1,5 @@
 """关系等级与快照模型。"""
 
-from __future__ import annotations
 
 from enum import IntEnum
 

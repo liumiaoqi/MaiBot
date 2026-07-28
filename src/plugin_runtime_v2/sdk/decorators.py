@@ -4,7 +4,6 @@
 Command = Tool 语法糖，HomeCard = Event 语法糖。
 """
 
-from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Callable

@@ -3,7 +3,6 @@
 这些类型不包含业务逻辑，都是纯数据容器。
 """
 
-from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, List

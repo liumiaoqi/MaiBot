@@ -3,7 +3,6 @@
 群事件反应与正常对话消息协调，用户消息优先级高于群事件反应。
 """
 
-from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import IntEnum

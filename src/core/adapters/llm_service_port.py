@@ -1,6 +1,5 @@
 """LLMServiceAdapter — 将 LLMServiceClient 包装为 LLMService Protocol。"""
 
-from __future__ import annotations
 
 from collections import OrderedDict
 from typing import TYPE_CHECKING

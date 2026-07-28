@@ -3,7 +3,6 @@
 定义 RunnerEndpoint 端点配置和指数退避重连算法。
 """
 
-from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field

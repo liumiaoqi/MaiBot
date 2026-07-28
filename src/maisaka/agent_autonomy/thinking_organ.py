@@ -6,7 +6,6 @@ Orchestrator 只协调"谁在思考"，不关心"怎么思考"。
 思考-行动分离：content = 内心独白（永远不发给用户），reply 工具调用 = 对外回复。
 """
 
-from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field

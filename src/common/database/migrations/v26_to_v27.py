@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from sqlalchemy.engine import Connection
 
 from src.common.logger import get_logger

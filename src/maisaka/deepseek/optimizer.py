@@ -6,7 +6,6 @@
 - lean: 128K窗口精简注入
 """
 
-from __future__ import annotations
 
 from src.common.logger import get_logger
 

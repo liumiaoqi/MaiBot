@@ -3,7 +3,6 @@
 整合摘要生成+共享管理+注入。
 """
 
-from __future__ import annotations
 
 from typing import Any, Optional
 

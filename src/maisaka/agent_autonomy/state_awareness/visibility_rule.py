@@ -1,6 +1,5 @@
 """状态可见性规则——判定目标智能体对观察者的可见信息粒度。"""
 
-from __future__ import annotations
 
 from dataclasses import dataclass
 

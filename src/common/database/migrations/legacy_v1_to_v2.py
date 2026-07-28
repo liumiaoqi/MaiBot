@@ -1,6 +1,5 @@
 """旧版 ``0.x`` 数据库升级到 v2 schema 的迁移逻辑。"""
 
-from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass

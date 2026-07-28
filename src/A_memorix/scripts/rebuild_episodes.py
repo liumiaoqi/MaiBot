@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Episode source 级重建工具。"""
 
-from __future__ import annotations
 
 import argparse
 import asyncio

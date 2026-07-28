@@ -7,7 +7,6 @@
 持久化使用 JSONL 文件，按 session 分文件存储。
 """
 
-from __future__ import annotations
 
 import json
 import re

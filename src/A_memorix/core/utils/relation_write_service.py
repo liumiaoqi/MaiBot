@@ -7,7 +7,6 @@
 3. 向量失败不回滚 metadata，依赖状态机与回填任务修复。
 """
 
-from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Dict, Optional

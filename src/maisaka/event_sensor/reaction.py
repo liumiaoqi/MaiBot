@@ -4,7 +4,6 @@
 同一事件只反应一次。
 """
 
-from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Optional

@@ -1,6 +1,5 @@
 """CLI 下的 Prompt 可视化渲染模块。"""
 
-from __future__ import annotations
 from src.common.logger import get_logger
 logger = get_logger("auto.prompt_cli_renderer")
 

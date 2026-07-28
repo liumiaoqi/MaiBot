@@ -3,7 +3,6 @@
 使用 collections.deque 存储时间戳，asyncio 单线程无需加锁。
 """
 
-from __future__ import annotations
 
 import time
 from collections import deque

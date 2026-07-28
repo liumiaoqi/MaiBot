@@ -3,7 +3,6 @@
 使用独立模型（temperature=0）评估 Goal 执行结果。
 """
 
-from __future__ import annotations
 
 from typing import Any
 

@@ -4,7 +4,6 @@
 RunnerSpawner 保留为底层工具类，Supervisor 在其上增加管理逻辑。
 """
 
-from __future__ import annotations
 
 import asyncio
 import signal

@@ -8,7 +8,6 @@
 生成时间: 2026-07-04
 """
 
-from __future__ import annotations
 
 C_EXTENSION_ASSESSMENT: dict[str, dict[str, str]] = {
     # A级：已支持自由线程

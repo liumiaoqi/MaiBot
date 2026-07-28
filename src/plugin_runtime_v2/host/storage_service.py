@@ -1,6 +1,5 @@
 """Per-plugin JSON 文件存储服务。"""
 
-from __future__ import annotations
 
 import json
 import os

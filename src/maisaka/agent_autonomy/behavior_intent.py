@@ -1,6 +1,5 @@
 """行为意图引擎——智能体基于内在需求、情绪、对话上下文自主产生行为意图。"""
 
-from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass

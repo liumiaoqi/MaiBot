@@ -1,5 +1,4 @@
 """ReplyerServiceAdapter — 将 replyer_manager 包装为 ReplyerServicePort 接口。"""
-from __future__ import annotations
 
 from typing import Any, Optional
 

@@ -1,6 +1,5 @@
 """数值→自然语言映射——生命力等级与情绪倾向。"""
 
-from __future__ import annotations
 
 from enum import Enum
 

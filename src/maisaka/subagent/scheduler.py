@@ -6,7 +6,6 @@
 - 级联取消：取消父级智能体时所有子智能体同时被取消。
 """
 
-from __future__ import annotations
 
 import asyncio
 import time

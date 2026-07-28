@@ -9,7 +9,6 @@
 摘要格式遵循结构化模板。
 """
 
-from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field

@@ -11,7 +11,6 @@ InteractionScheduler → InteractionTrigger → 6个触发器
                        → MonologueEngine
 """
 
-from __future__ import annotations
 
 from src.common.logger import get_logger
 

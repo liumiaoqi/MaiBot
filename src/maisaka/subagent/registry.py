@@ -4,7 +4,6 @@
 拒绝 explore/peer 等未授权类型。
 """
 
-from __future__ import annotations
 
 from typing import Any, Optional, Type
 

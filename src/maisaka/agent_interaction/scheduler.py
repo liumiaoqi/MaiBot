@@ -4,7 +4,6 @@
 异常时降级为静默模式，不影响主对话流程。
 """
 
-from __future__ import annotations
 from src.common.logger import get_logger
 logger = get_logger("auto.scheduler")
 

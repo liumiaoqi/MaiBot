@@ -4,7 +4,6 @@
 摘要超过30分钟未更新时标记为待更新。
 """
 
-from __future__ import annotations
 
 import time
 from typing import Optional

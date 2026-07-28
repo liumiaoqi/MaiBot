@@ -1,6 +1,5 @@
 """Terminal display helpers for the Maisaka runtime."""
 
-from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Optional

@@ -1,6 +1,5 @@
 """Host 端 Runner 子进程管理器。"""
 
-from __future__ import annotations
 
 import json
 import os

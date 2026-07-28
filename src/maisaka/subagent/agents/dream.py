@@ -9,7 +9,6 @@ Phase 4: 合并去重（写入持久知识到画像6桶）
 Phase 5: 精简验证（保持画像紧凑）
 """
 
-from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field

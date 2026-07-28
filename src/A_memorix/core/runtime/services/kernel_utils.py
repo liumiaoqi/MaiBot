@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 from src.common.logger import get_logger
 logger = get_logger("A_memorix.core.runtime.services.kernel_utils")

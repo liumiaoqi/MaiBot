@@ -1,6 +1,5 @@
 """v24 到 v25 schema 迁移：场景簇只保留 domain 分布。"""
 
-from __future__ import annotations
 
 from typing import Any
 

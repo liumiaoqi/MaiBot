@@ -3,7 +3,6 @@
 Phoenix-2 阶段假设 1 Runner = 1 Plugin。
 """
 
-from __future__ import annotations
 
 import json
 from typing import Any

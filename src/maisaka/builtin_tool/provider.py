@@ -1,6 +1,5 @@
 """Maisaka 内置工具 Provider。"""
 
-from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from typing import Dict, Optional

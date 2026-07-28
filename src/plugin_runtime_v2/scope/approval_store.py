@@ -4,7 +4,6 @@
 支持自动批准（approval_required=False 的 scope）和词汇表清理。
 """
 
-from __future__ import annotations
 
 import json
 import time

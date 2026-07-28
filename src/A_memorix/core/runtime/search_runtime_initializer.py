@@ -1,6 +1,5 @@
 """Shared runtime initializer for Action/Tool/Command retrieval components."""
 
-from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Dict, Optional

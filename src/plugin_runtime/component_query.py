@@ -4,7 +4,6 @@
 供 HFC、ToolExecutor 和运行时能力层查询与调用。
 """
 
-from __future__ import annotations
 
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, Optional, Tuple, cast

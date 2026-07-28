@@ -1,6 +1,5 @@
 """自主性架构统一日志器——所有智能体活动日志的入口。"""
 
-from __future__ import annotations
 
 from typing import Any
 

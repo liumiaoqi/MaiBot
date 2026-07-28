@@ -1,5 +1,4 @@
 """ImageDescriptionAdapter — 将 image_manager 包装为 ImageDescriptionPort 接口。"""
-from __future__ import annotations
 
 from typing import Any
 

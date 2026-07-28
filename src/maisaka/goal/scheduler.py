@@ -3,7 +3,6 @@
 定期检查超时 Goal，触发 Goal 评估。
 """
 
-from __future__ import annotations
 
 import asyncio
 import time

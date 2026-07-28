@@ -1,6 +1,5 @@
 """Runner 连接注册表 — 管理所有活跃 Runner 连接的增删改查。"""
 
-from __future__ import annotations
 
 from src.plugin_runtime_v2.host.connection import RunnerConnection, RunnerConnectionSnapshot
 

@@ -1,6 +1,5 @@
 """内置命名 Hook 目录注册器。"""
 
-from __future__ import annotations
 
 from collections.abc import Callable
 from typing import List

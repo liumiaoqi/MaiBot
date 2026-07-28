@@ -1,6 +1,5 @@
 """Runtime self-check helpers for A_Memorix."""
 
-from __future__ import annotations
 
 import time
 from typing import Any, Dict, Optional

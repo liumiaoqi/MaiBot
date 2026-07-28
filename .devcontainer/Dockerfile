@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/devcontainers/python:1-3.13-bookworm
+FROM mcr.microsoft.com/devcontainers/python:1-3.14-bookworm
 
 # 修复 Yarn APT 仓库 GPG 密钥过期（NO_PUBKEY 62D54FD4003F6525）
 # 必须在任何 apt-get update 之前移除，否则 features 中的 apt-packages 等会失败

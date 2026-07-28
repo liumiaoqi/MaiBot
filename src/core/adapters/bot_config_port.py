@@ -1,6 +1,5 @@
 """GlobalConfigBotConfigPort — 从 global_config.bot 读取 Bot 配置。"""
 
-from __future__ import annotations
 
 
 class GlobalConfigBotConfigPort:

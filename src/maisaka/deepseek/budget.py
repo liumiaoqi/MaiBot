@@ -1,6 +1,5 @@
 """Token 预算分配模型，管理各上下文注入段的 Token 占比。"""
 
-from __future__ import annotations
 
 from pydantic import BaseModel, Field, model_validator
 

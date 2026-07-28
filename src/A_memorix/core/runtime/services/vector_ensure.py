@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from typing import Any, Callable, Dict, Optional
 
 from src.A_memorix.core.storage import VectorStore

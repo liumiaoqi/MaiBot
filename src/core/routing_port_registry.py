@@ -3,7 +3,6 @@
 遵循项目 Port 注册模式：模块级全局变量 + register/get 函数。
 """
 
-from __future__ import annotations
 
 from typing import Optional
 

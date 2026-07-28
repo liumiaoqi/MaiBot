@@ -5,7 +5,6 @@
 命名空间隔离，不污染用户记忆。
 """
 
-from __future__ import annotations
 from src.common.logger import get_logger
 logger = get_logger("auto.adapter")
 

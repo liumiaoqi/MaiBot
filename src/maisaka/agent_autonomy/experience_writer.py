@@ -4,7 +4,6 @@
 fire-and-forget 模式，不阻塞思考循环。
 """
 
-from __future__ import annotations
 
 import asyncio
 import time

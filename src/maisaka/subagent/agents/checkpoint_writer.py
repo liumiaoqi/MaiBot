@@ -17,7 +17,6 @@
 §11 开放笔记
 """
 
-from __future__ import annotations
 from src.common.logger import get_logger
 logger = get_logger("auto.checkpoint_writer")
 

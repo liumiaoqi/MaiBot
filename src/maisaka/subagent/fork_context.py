@@ -4,7 +4,6 @@ ForkContext: 冻结父级 LLM 请求前缀的不可变快照。
 ForkContextCapturer: 从活跃心流运行时捕获 ForkContext。
 """
 
-from __future__ import annotations
 from src.common.logger import get_logger
 logger = get_logger("auto.fork_context")
 

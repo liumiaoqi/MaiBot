@@ -1,6 +1,5 @@
 """人物画像结构化文本助手。"""
 
-from __future__ import annotations
 
 from typing import Dict, Iterable, List
 

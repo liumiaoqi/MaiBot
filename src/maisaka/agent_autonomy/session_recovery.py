@@ -1,6 +1,5 @@
 """会话恢复服务——重启时从数据库恢复智能体与会话的关联。"""
 
-from __future__ import annotations
 
 from typing import Any
 

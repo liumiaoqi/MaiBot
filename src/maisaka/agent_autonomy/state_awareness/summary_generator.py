@@ -1,6 +1,5 @@
 """共居状态摘要生成器——将共居智能体状态映射为自然语言摘要文本。"""
 
-from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 

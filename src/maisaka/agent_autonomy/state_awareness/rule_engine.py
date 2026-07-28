@@ -1,6 +1,5 @@
 """状态感知规则引擎——基于共居智能体状态调整行为参数。"""
 
-from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING

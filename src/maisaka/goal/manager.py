@@ -4,7 +4,6 @@
 约束：max_react=3、同一会话单 Goal、30分钟超时。
 """
 
-from __future__ import annotations
 
 import time
 import uuid

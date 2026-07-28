@@ -2,7 +2,6 @@
 
 SSD-4 桥接消除：chat/message_receive/message.py 保留 re-export。
 """
-from __future__ import annotations
 
 import asyncio
 from asyncio import Task

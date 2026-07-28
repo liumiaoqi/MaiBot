@@ -1,6 +1,5 @@
 """工具调用记录落库数据构造工具。"""
 
-from __future__ import annotations
 from src.common.logger import get_logger
 logger = get_logger("auto.tool_record_payload")
 

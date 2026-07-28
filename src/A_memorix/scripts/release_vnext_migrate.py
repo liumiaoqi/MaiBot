@@ -8,7 +8,6 @@ Subcommands:
 - verify: strict post-migration consistency checks
 """
 
-from __future__ import annotations
 
 import argparse
 import json

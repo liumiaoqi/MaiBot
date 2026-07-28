@@ -1,6 +1,5 @@
 """ModelConfigPort 注册点。"""
 
-from __future__ import annotations
 
 from typing import TYPE_CHECKING, Optional
 

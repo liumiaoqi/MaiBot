@@ -1,6 +1,5 @@
 """关系轨迹追踪，记录关系变化的历史事件。"""
 
-from __future__ import annotations
 
 import time
 

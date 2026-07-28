@@ -4,7 +4,6 @@
 触发内心独白。同一智能体的内心独白有冷却期。
 """
 
-from __future__ import annotations
 
 import time
 

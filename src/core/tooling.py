@@ -4,7 +4,6 @@
 用于收敛插件 Tool、兼容旧 Action、MaiSaka 内置 Tool 与 MCP Tool。
 """
 
-from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass, field

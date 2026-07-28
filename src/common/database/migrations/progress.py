@@ -1,6 +1,5 @@
 """数据库迁移进度展示工具。"""
 
-from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from datetime import timedelta

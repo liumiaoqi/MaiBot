@@ -3,7 +3,6 @@
 管理 Runner 连接：启动 gRPC 服务器、优雅关停、状态查询。
 """
 
-from __future__ import annotations
 
 import asyncio
 

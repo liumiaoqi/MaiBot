@@ -7,7 +7,6 @@ Episode 语义切分服务（LLM 主路径）。
 3. 严格校验输出结构，返回标准化结果
 """
 
-from __future__ import annotations
 
 import json
 from typing import Any, Dict, List, Optional, Tuple

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from src.common.logger import get_logger
 
 from .models import MigrationExecutionContext

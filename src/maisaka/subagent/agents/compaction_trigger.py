@@ -5,7 +5,6 @@
 - 降级路径: Compaction 不可用时回退到 mid_term.py 同步压缩
 """
 
-from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field

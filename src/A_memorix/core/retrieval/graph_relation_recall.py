@@ -1,6 +1,5 @@
 """Graph-assisted relation candidate recall for relation-oriented queries."""
 
-from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence, Set

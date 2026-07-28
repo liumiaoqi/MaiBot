@@ -3,7 +3,6 @@
 适配器层是唯一允许导入 ConfigManager 具体类的地方。
 """
 
-from __future__ import annotations
 
 import copy
 from src.common.logger import get_logger

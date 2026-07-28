@@ -4,7 +4,6 @@
 向关联智能体传播信号。此触发器需要外部事件信号驱动。
 """
 
-from __future__ import annotations
 
 from typing import Any
 

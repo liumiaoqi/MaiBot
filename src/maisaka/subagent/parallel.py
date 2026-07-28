@@ -6,7 +6,6 @@
 - 不引入 GIL 依赖的全局可变状态
 """
 
-from __future__ import annotations
 
 import asyncio
 import threading

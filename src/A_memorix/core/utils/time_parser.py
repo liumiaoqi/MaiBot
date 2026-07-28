@@ -8,7 +8,6 @@
 2. 入库时允许更宽松格式（含时间戳、YYYY-MM-DD 等）。
 """
 
-from __future__ import annotations
 
 import re
 from datetime import datetime

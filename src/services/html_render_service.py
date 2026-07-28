@@ -3,7 +3,6 @@
 负责在 Host 侧复用已有浏览器，并将 HTML 内容渲染为 PNG 图片。
 """
 
-from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone

@@ -1,6 +1,5 @@
 """智能体情绪状态管理。"""
 
-from __future__ import annotations
 
 import math
 import time

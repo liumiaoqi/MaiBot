@@ -3,7 +3,6 @@
 组合 gRPC 客户端（连 Host 的 Connect 双向流）和服务端（暴露 InvokeTool）。
 """
 
-from __future__ import annotations
 
 import asyncio
 import json

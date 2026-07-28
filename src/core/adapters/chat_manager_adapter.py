@@ -4,7 +4,6 @@
 子模块实例通过构造注入，不再通过 ChatManager 单例间接访问。
 """
 
-from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 

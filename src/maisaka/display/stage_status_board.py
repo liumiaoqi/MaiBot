@@ -1,6 +1,5 @@
 """Maisaka 阶段状态广播。"""
 
-from __future__ import annotations
 
 from typing import Any
 

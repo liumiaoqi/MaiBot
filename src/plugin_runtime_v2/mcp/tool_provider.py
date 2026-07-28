@@ -4,7 +4,6 @@
 将 ToolInvocation 转发为 InvokeTool RPC 调用。
 """
 
-from __future__ import annotations
 
 import json
 from typing import Any

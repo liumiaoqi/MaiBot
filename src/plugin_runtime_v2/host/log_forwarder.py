@@ -1,6 +1,5 @@
 """LogForwarder — 异步读取子进程 stdout/stderr 并转发到 Host 日志。"""
 
-from __future__ import annotations
 
 import asyncio
 import re

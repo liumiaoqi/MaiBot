@@ -4,7 +4,6 @@
 上下文构建耗时 <5ms。
 """
 
-from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field

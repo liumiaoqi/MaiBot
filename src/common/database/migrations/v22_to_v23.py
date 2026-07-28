@@ -1,6 +1,5 @@
 """v22 到 v23 schema 迁移：移除行为场景簇冗余身份字段。"""
 
-from __future__ import annotations
 
 from sqlalchemy.engine import Connection
 

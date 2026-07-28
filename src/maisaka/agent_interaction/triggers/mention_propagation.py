@@ -4,7 +4,6 @@
 可能触发情绪和关系变化。此触发器需要外部信号驱动，不自行轮询。
 """
 
-from __future__ import annotations
 
 from typing import Any
 

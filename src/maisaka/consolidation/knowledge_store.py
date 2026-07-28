@@ -3,7 +3,6 @@
 使用 JSONL 文件存储提取出的行为资产，支持按智能体查询和去重。
 """
 
-from __future__ import annotations
 
 import json
 import time

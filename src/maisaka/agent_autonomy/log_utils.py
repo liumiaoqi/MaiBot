@@ -1,6 +1,5 @@
 """智能体自主性日志工具 — 统一的日志格式辅助。"""
 
-from __future__ import annotations
 
 from typing import Optional
 

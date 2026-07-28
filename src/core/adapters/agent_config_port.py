@@ -1,6 +1,5 @@
 """AgentConfigProviderAdapter — 将 AgentConfigRegistry 包装为 AgentConfigProvider Protocol。"""
 
-from __future__ import annotations
 
 from typing import TYPE_CHECKING
 

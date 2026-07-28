@@ -1,6 +1,5 @@
 """插话调度器——基于智能体自主报告的行为意图强度调度插话。"""
 
-from __future__ import annotations
 
 from dataclasses import dataclass
 

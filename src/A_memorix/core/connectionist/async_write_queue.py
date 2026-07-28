@@ -4,7 +4,6 @@
 失败时重试 1 次，仍失败则 ERROR 日志记录。
 """
 
-from __future__ import annotations
 
 import asyncio
 import time

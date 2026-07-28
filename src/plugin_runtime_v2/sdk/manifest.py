@@ -4,7 +4,6 @@
 manifest_version 从 2 升级为 3，id 格式要求 组织名.插件名。
 """
 
-from __future__ import annotations
 
 from typing import Literal
 

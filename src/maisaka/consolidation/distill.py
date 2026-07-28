@@ -10,7 +10,6 @@
 30天窗口扫描，最小重复次数阈值=3。
 """
 
-from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field

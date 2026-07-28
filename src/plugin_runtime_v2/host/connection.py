@@ -3,7 +3,6 @@
 定义连接生命周期状态枚举、Runner 连接实例、不可变快照、Host 配置。
 """
 
-from __future__ import annotations
 
 import time
 import uuid

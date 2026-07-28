@@ -1,6 +1,5 @@
 """命名 Hook 规格注册中心。"""
 
-from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass, field

@@ -3,7 +3,6 @@
 将 Phoenix-1~4 的产出组件组装为完整的 v2 Host 端点。
 """
 
-from __future__ import annotations
 
 from src.common.logger import get_logger
 from src.core.protocols import AppConfigPort

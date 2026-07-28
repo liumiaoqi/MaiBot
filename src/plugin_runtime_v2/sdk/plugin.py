@@ -4,7 +4,6 @@
 在 scopes 类属性中声明所需权限。
 """
 
-from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 

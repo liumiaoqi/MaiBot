@@ -8,7 +8,6 @@
 3. 写入 event_time=created_at, time_granularity=day, time_confidence=0.2
 """
 
-from __future__ import annotations
 
 import argparse
 

@@ -1,6 +1,5 @@
 """回复效果评分规则。"""
 
-from __future__ import annotations
 
 from typing import Iterable, List
 

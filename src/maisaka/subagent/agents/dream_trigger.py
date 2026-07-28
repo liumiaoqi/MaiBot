@@ -6,7 +6,6 @@
 - 最小间隔：两次派生之间至少 min_spawn_gap_seconds 秒
 """
 
-from __future__ import annotations
 from src.common.logger import get_logger
 logger = get_logger("auto.dream_trigger")
 

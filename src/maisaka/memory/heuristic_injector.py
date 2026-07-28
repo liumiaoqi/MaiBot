@@ -1,6 +1,5 @@
 """Maisaka 启发式长期记忆自然拉起服务。"""
 
-from __future__ import annotations
 
 from dataclasses import dataclass, field
 from time import time

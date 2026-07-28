@@ -1,6 +1,5 @@
 """Goal 判决结果。"""
 
-from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum

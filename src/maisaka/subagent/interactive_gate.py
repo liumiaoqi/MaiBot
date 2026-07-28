@@ -5,7 +5,6 @@
 避免后台智能体弹出人类审批导致死锁。
 """
 
-from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any, Optional

@@ -23,7 +23,6 @@ Host 端将其重放到主进程的 Logger（以 plugin.<name> 为名）中，�
 - IPC 发送失败时静默忽略；stderr fallback 由 supervisor 的 drain task 覆盖
 """
 
-from __future__ import annotations
 from src.common.logger import get_logger
 logger = get_logger("auto.log_handler")
 

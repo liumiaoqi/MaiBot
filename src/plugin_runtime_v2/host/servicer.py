@@ -3,7 +3,6 @@
 实现 service PluginHost：握手校验、组件注册、消息循环、注册超时。
 """
 
-from __future__ import annotations
 
 import asyncio
 import importlib.metadata

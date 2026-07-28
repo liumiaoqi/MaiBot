@@ -4,7 +4,6 @@
 纯内存存储，Host 重启后全部 token 失效。
 """
 
-from __future__ import annotations
 
 import secrets
 import time

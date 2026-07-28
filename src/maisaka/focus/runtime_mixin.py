@@ -1,6 +1,5 @@
 """Focus-mode helpers for the Maisaka runtime."""
 
-from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime

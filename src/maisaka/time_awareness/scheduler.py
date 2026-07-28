@@ -4,7 +4,6 @@
 检测并跳过重复触发，确保每个时间规则每个周期只执行一次。
 """
 
-from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field

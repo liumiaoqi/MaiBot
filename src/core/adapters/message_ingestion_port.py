@@ -1,6 +1,5 @@
 """ChatBotMessageIngestionPort — 将 ChatBot 包装为 MessageIngestionPort Protocol。"""
 
-from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Dict
 

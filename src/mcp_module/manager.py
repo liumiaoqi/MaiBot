@@ -3,7 +3,6 @@ MaiSaka - MCP 管理器
 管理所有 MCP 服务器连接，提供统一的工具、Prompt 与 Resource 访问入口。
 """
 
-from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Optional
 

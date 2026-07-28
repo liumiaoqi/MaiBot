@@ -6,7 +6,6 @@
 适配器层（src/core/adapters/）是唯一允许导入组件具体类的地方。
 """
 
-from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 

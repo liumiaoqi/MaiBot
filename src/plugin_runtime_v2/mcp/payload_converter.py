@@ -3,7 +3,6 @@
 CQ-6 T2: 将 napcat-adapter 推送的 Event payload dict 转为核心统一的 SessionMessage。
 """
 
-from __future__ import annotations
 
 from datetime import datetime
 from typing import Any

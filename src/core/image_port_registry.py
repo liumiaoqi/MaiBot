@@ -1,5 +1,4 @@
 """ImageDescriptionPort 注册点。"""
-from __future__ import annotations
 
 from typing import Any, Optional
 

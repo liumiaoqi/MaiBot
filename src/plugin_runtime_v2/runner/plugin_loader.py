@@ -1,6 +1,5 @@
 """插件加载器 — 扫描 MaiBotPlugin 子类、收集装饰器声明、管理生命周期。"""
 
-from __future__ import annotations
 
 import inspect
 from typing import Any

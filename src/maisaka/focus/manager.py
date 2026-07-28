@@ -1,6 +1,5 @@
 """Focus mode state shared by Maisaka chat runtimes."""
 
-from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime

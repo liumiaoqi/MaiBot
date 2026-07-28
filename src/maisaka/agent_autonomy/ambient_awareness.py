@@ -1,6 +1,5 @@
 """环境感知处理器——待命智能体感知会话消息、提及和话题，不产生可见回复。"""
 
-from __future__ import annotations
 
 import re
 from typing import TYPE_CHECKING

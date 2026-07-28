@@ -4,7 +4,6 @@
 插件发现通过扫描 plugins/ 目录的 _manifest.json。
 """
 
-from __future__ import annotations
 
 import json
 from pathlib import Path

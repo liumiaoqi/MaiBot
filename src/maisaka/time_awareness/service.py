@@ -4,7 +4,6 @@
 支持智能体差异化时间行为（琪亚娜早起型、符华夜猫型）。
 """
 
-from __future__ import annotations
 
 from datetime import datetime
 from typing import Optional

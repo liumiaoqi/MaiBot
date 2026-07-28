@@ -9,7 +9,6 @@ MaiBot 记忆迁移脚本（chat_history -> A_memorix）
 4. 可确认筛选：支持时间区间、聊天流（stream/group/user）筛选，并先预览后确认
 """
 
-from __future__ import annotations
 
 import argparse
 import ast

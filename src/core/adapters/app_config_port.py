@@ -1,6 +1,5 @@
 """GlobalConfigAppConfigPort — 从 global_config 各域读取应用配置。"""
 
-from __future__ import annotations
 
 from typing import Any
 

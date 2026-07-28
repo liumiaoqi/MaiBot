@@ -5,7 +5,6 @@
 内心独白不触发任何外部行为。
 """
 
-from __future__ import annotations
 from src.common.logger import get_logger
 logger = get_logger("auto.monologue_engine")
 

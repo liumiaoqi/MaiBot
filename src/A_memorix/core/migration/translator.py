@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from typing import Any
 
 from src.common.logger import get_logger

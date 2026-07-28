@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from pathlib import Path
 
 A_MEMORIX_SYSTEM_ID = "a_memorix"

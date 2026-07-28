@@ -1,6 +1,5 @@
 """GlobalConfigChatConfigPort — 从 global_config.chat 读取聊天配置。"""
 
-from __future__ import annotations
 
 from typing import Any
 

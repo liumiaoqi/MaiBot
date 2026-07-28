@@ -3,7 +3,6 @@
 追踪 DeepSeek API 的 Token 消耗和费用，提供按智能体、按任务类型维度的成本报告。
 """
 
-from __future__ import annotations
 
 import time
 from collections import defaultdict

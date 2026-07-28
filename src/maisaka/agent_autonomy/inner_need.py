@@ -1,6 +1,5 @@
 """内在需求引擎——智能体基于情绪、记忆、性格产生内在驱动力。"""
 
-from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field

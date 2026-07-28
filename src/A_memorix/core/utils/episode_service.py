@@ -9,7 +9,6 @@ Episode 聚合与落库服务。
 5. LLM 失败时使用确定性 fallback
 """
 
-from __future__ import annotations
 
 import json
 import re

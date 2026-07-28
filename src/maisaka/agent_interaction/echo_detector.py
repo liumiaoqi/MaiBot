@@ -4,7 +4,6 @@
 回声链最大深度3层，每层影响量衰减，环路检测截断。
 """
 
-from __future__ import annotations
 
 import asyncio
 

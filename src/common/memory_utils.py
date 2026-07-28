@@ -3,7 +3,6 @@
 _memory_service 和 migration_router 共享这些函数，避免代码重复。
 """
 
-from __future__ import annotations
 
 from typing import Any, List
 

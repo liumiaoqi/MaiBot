@@ -8,7 +8,6 @@ maisaka 通过 ChatRuntimeRegistry 接口查询运行时，不依赖 heartflow_m
 - ChatRuntimeFactory：运行时工厂（heartflow_manager 通过此创建运行时，不依赖 maisaka 具体类）
 """
 
-from __future__ import annotations
 
 from typing import Optional
 

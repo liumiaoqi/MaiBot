@@ -1,6 +1,5 @@
 """启动协调器 — 按阶段顺序执行组件初始化。"""
 
-from __future__ import annotations
 
 import asyncio
 import time

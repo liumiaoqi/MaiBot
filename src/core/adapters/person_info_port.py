@@ -1,6 +1,5 @@
 """PersonInfoPortAdapter — 将 Person 类包装为 PersonInfoPort Protocol。"""
 
-from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Optional
 

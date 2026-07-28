@@ -4,7 +4,6 @@
 选择最优触发决策并调用交互引擎执行。
 """
 
-from __future__ import annotations
 
 from src.common.logger import get_logger
 

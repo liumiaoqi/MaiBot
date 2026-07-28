@@ -1,6 +1,5 @@
 """关系信号提取器，从LLM推理内容中提取关系相关信号。"""
 
-from __future__ import annotations
 
 from src.common.logger import get_logger
 

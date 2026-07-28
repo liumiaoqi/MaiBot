@@ -4,7 +4,6 @@
 本模块仅保留 segments_to_message_sequence 工具函数，供 plugin_runtime 等调用方使用。
 """
 
-from __future__ import annotations
 
 from typing import Any
 

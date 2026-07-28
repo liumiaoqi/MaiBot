@@ -1,6 +1,5 @@
 """生命力管理器——待命智能体的生命力计算、跃迁判定与共居参数动态调整。"""
 
-from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass

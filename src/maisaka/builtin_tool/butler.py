@@ -1,6 +1,5 @@
 """管家专用内置工具 — 丽塔·洛丝薇瑟协调客厅的 LLM 工具。"""
 
-from __future__ import annotations
 
 import traceback
 from typing import Any, Optional

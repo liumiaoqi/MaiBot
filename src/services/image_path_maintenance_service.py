@@ -1,6 +1,5 @@
 """图片存储路径一次性规整任务。"""
 
-from __future__ import annotations
 
 from dataclasses import dataclass
 from json import dumps, loads

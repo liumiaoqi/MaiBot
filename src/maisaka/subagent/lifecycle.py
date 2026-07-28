@@ -5,7 +5,6 @@
 - persistent: 任务完成后保留状态，可恢复执行。
 """
 
-from __future__ import annotations
 
 from typing import Optional
 

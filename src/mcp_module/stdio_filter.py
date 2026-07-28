@@ -18,7 +18,6 @@ MCP stdio 协议规定 stdout 仅可承载 JSON-RPC 消息，所有日志/状态
 SDK 升级若调整这些符号，此处会在首次连接时立刻报错暴露问题。
 """
 
-from __future__ import annotations
 from src.common.logger import get_logger
 logger = get_logger("auto.stdio_filter")
 

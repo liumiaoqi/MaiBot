@@ -1,6 +1,5 @@
 """Shared path-fallback helpers for search post-processing."""
 
-from __future__ import annotations
 
 import hashlib
 from typing import Any, Dict, List, Optional, Sequence, Tuple

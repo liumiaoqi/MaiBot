@@ -1,6 +1,5 @@
 """工具记录维护收尾任务。"""
 
-from __future__ import annotations
 
 from dataclasses import dataclass
 from json import dumps, loads

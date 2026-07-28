@@ -1,6 +1,5 @@
 """Maisaka Prompt 预览路径工具。"""
 
-from __future__ import annotations
 
 from pathlib import Path
 from urllib.parse import quote

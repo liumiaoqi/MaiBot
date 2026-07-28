@@ -3,7 +3,6 @@
 执行交互触发决策，原子化写入情绪变化、关系更新、记忆写入和事件持久化。
 """
 
-from __future__ import annotations
 from src.common.logger import get_logger
 logger = get_logger("auto.engine")
 

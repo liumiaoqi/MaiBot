@@ -4,7 +4,6 @@
 摘要生成失败时使用上一次成功的摘要。
 """
 
-from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field

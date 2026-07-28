@@ -4,7 +4,6 @@
 连续超时后判定 Runner 断开。
 """
 
-from __future__ import annotations
 
 import asyncio
 from typing import Awaitable, Callable

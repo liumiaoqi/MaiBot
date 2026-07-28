@@ -4,7 +4,6 @@
 禁止跨智能体共享上下文摘要。
 """
 
-from __future__ import annotations
 
 from typing import Optional
 

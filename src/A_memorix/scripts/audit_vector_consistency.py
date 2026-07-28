@@ -9,7 +9,6 @@ A_Memorix 一致性审计脚本。
 4. 状态与向量文件不一致统计
 """
 
-from __future__ import annotations
 
 import argparse
 import json

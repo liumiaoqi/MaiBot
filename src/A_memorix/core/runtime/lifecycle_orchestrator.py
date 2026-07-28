@@ -1,6 +1,5 @@
 """Lifecycle bootstrap/teardown helpers extracted from plugin.py."""
 
-from __future__ import annotations
 
 import asyncio
 import json

@@ -3,7 +3,6 @@
 根据 tool_name 查找 @Tool/@Command 装饰器注册的处理函数并执行。
 """
 
-from __future__ import annotations
 
 import asyncio
 import inspect

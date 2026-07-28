@@ -1,6 +1,5 @@
 """生命力心跳调度器——周期性触发待命智能体的生命力评估。"""
 
-from __future__ import annotations
 
 import asyncio
 from typing import TYPE_CHECKING

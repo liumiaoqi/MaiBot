@@ -3,7 +3,6 @@
 自动检测 Docker cgroups 的 CPU 和内存限制，调整线程池大小和运行时参数。
 """
 
-from __future__ import annotations
 
 import os
 

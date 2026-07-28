@@ -8,7 +8,6 @@
 - 提醒流：定时器触发 → 管家协调谁提醒 → 主智能体优先
 """
 
-from __future__ import annotations
 
 import json
 import random

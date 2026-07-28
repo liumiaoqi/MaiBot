@@ -4,7 +4,6 @@
 不依赖核心 EventBus，避免与 MaiMessages 耦合。
 """
 
-from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field

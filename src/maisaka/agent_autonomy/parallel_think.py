@@ -3,7 +3,6 @@
 使用 asyncio.Semaphore 控制并发数，避免同时发起过多 LLM 请求。
 """
 
-from __future__ import annotations
 
 import asyncio
 

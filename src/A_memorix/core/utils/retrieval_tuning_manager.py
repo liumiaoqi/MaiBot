@@ -2,7 +2,6 @@
 Retrieval tuning manager for WebUI.
 """
 
-from __future__ import annotations
 
 import asyncio
 import copy

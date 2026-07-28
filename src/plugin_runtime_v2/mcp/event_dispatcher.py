@@ -3,7 +3,6 @@
 CQ-6 T3: 消息类 Event 路由到 MessageIngestionPort，闭环 v2 消息入站。
 """
 
-from __future__ import annotations
 
 from typing import Any, Callable, TYPE_CHECKING
 

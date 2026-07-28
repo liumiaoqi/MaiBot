@@ -1,6 +1,5 @@
 """Hook 参数模型构造辅助。"""
 
-from __future__ import annotations
 
 from copy import deepcopy
 from typing import Any, Dict, Sequence

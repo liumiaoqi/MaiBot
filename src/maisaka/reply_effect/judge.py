@@ -1,6 +1,5 @@
 """回复效果 LLM 窄维度评审。"""
 
-from __future__ import annotations
 from src.common.logger import get_logger
 logger = get_logger("auto.judge")
 

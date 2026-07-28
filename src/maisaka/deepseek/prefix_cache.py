@@ -6,7 +6,6 @@
 稳定层（不随对话轮次变化）命中缓存；可变层每轮更新。
 """
 
-from __future__ import annotations
 
 import time
 from typing import Optional

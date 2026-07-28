@@ -5,7 +5,6 @@
 - 可选混合排序（Weighted RRF）
 """
 
-from __future__ import annotations
 
 import asyncio
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple

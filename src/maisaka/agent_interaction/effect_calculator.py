@@ -3,7 +3,6 @@
 基于交互类型和关系类型的规则引擎，计算量化的情绪/关系影响。
 """
 
-from __future__ import annotations
 
 from dataclasses import dataclass, field
 

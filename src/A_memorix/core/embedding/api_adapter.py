@@ -7,7 +7,6 @@
 - provider-specific 字段在适配层内部完成映射
 """
 
-from __future__ import annotations
 
 import asyncio
 import hashlib

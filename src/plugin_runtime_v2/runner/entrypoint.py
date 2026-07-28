@@ -1,6 +1,5 @@
 """Runner 独立进程入口 — 由 Host 的 RunnerSpawner 调用。"""
 
-from __future__ import annotations
 
 import argparse
 import asyncio

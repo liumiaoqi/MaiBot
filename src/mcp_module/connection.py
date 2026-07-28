@@ -3,7 +3,6 @@ MaiSaka - 单个 MCP 服务器连接管理
 封装单个 MCP 服务器的连接生命周期：连接 → 发现能力 → 调用工具/读取资源 → 断开。
 """
 
-from __future__ import annotations
 from src.common.logger import get_logger
 logger = get_logger("auto.connection")
 

@@ -1,6 +1,5 @@
 """Heuristic detection for import strategies and stored knowledge types."""
 
-from __future__ import annotations
 
 import re
 from typing import Optional

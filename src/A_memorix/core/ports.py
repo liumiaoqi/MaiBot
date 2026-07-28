@@ -4,7 +4,6 @@ A_memorix/core/ 内部模块禁止直接导入 MaiBot 服务层（src.services /
 必须通过此容器获取外部能力。host_service 是唯一允许导入 MaiBot 服务层的 A_memorix 模块。
 """
 
-from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Callable

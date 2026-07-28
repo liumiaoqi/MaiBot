@@ -4,7 +4,6 @@ Web Import Task Manager
 为 A_Memorix WebUI 提供导入任务队列、状态管理、并发调度与取消/重试能力。
 """
 
-from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass, field

@@ -1,6 +1,5 @@
 """Plugin ID matching policy for A_Memorix."""
 
-from __future__ import annotations
 
 from typing import Any
 

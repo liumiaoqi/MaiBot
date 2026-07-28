@@ -4,7 +4,6 @@
 增加 observer_agent_id / refresh_status 等扩展字段。
 """
 
-from __future__ import annotations
 from src.common.logger import get_logger
 logger = get_logger("auto.profile")
 

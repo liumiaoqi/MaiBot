@@ -1,6 +1,5 @@
 """智能体生命周期状态机——5 状态 6 转换。"""
 
-from __future__ import annotations
 
 from enum import Enum
 

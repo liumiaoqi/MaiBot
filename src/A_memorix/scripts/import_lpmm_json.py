@@ -8,7 +8,6 @@ LPMM OpenIE JSON 导入工具。
 3. 复用 `process_knowledge.py` 中的 `AutoImporter` 直接入库
 """
 
-from __future__ import annotations
 
 import argparse
 import asyncio

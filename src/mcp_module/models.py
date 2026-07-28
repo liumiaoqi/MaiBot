@@ -4,7 +4,6 @@
 避免连接层和管理器层直接操作大量弱类型字段。
 """
 
-from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any, Optional
