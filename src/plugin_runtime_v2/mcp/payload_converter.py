@@ -102,12 +102,19 @@ class NapCatPayloadConverter:
 
     @staticmethod
     def _build_group_info(payload: dict[str, Any]) -> GroupInfo | None:
-        """从 payload 构造 GroupInfo（群聊时）。"""
+        """从 payload 构造 GroupInfo（群聊时）。
+
+        notice 事件不含 group_name 字段（NapCat OneBot 11 限制），
+        用 group_id 作为降级值避免 Hook 拒绝。
+        """
         group_id = payload.get("qq_group_id")
         if group_id:
+            group_name = str(payload.get("group_name", ""))
+            if not group_name:
+                group_name = str(group_id)
             return GroupInfo(
                 group_id=str(group_id),
-                group_name=str(payload.get("group_name", "")),
+                group_name=group_name,
             )
         return None
 
