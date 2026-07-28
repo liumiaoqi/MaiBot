@@ -6,13 +6,13 @@
 from __future__ import annotations
 
 import copy
-import logging
+from src.common.logger import get_logger
 from typing import Callable, Optional, Sequence
 
 from src.config.config import ConfigManager, ModelConfig
 from src.config.model_configs import APIProvider, ModelInfo, ModelTaskConfig, TaskConfig
 
-logger = logging.getLogger("core.adapters.model_config_port")
+logger = get_logger("core.adapters.model_config_port")
 
 
 class ConfigManagerModelConfigPort:

@@ -5,7 +5,7 @@ from contextvars import ContextVar
 from pathlib import Path
 from typing import Iterator
 
-import logging
+from src.common.logger import get_logger
 import os
 import threading
 
@@ -14,7 +14,7 @@ from .formatting import select_plural_category
 from .loaders import format_template
 from .loaders import DEFAULT_LOCALE, TranslationValue, get_locales_root, load_locale_catalog, normalize_locale
 
-logger = logging.getLogger("maibot.i18n")
+logger = get_logger("maibot.i18n")
 
 
 class I18nManager:

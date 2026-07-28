@@ -7,14 +7,14 @@ from typing import Any
 from tomlkit import parse as parse_toml
 
 import json
-import logging
+from src.common.logger import get_logger
 import os
 import re
 
 from .i18n import get_locale, t
 from .i18n.loaders import DEFAULT_LOCALE, extract_placeholders, normalize_locale
 
-logger = logging.getLogger("maibot.prompt_i18n")
+logger = get_logger("maibot.prompt_i18n")
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PROMPTS_ROOT = (PROJECT_ROOT / "prompts").resolve()
