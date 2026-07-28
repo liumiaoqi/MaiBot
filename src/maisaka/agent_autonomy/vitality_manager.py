@@ -44,8 +44,11 @@ class VitalityManager:
 
     @staticmethod
     def _get_default_routing_service() -> AgentRoutingService:
-        from src.core.adapters.routing_adapter import ChatManagerRoutingAdapter
-        return ChatManagerRoutingAdapter()
+        from src.core.routing_port_registry import get_routing_service
+        service = get_routing_service()
+        if service is None:
+            raise RuntimeError("AgentRoutingService 未注册")
+        return service
 
     @property
     def registry(self) -> StandbyAgentRegistry:

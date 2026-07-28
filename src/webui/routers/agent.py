@@ -12,8 +12,7 @@ from src.common.logger import get_logger
 from src.maisaka.agent.config import AgentConfig
 from src.maisaka.agent.emotion import EMOTION_LABELS_ZH, EmotionManager
 from src.core.adapters.agent_config_port import get_agent_config_provider
-
-from src.core.adapters.routing_adapter import ChatManagerRoutingAdapter
+from src.core.protocols import AgentRoutingService
 from src.maisaka.relationship.level import RelationshipLevel
 from src.webui.dependencies import require_auth
 from src.webui.errors import AppError
@@ -88,10 +87,11 @@ router = APIRouter(prefix="/agents", tags=["Agent"], dependencies=[Depends(requi
 def _get_registry() -> Any:
     return get_agent_config_provider()
 
-def _get_agent_router() -> ChatManagerRoutingAdapter:
-    """获取 ChatManager 持有的智能体路由器单例（通过适配器层访问）"""
-    adapter = ChatManagerRoutingAdapter()
-    if adapter._ensure_router() is None:
+def _get_agent_router() -> AgentRoutingService:
+    """获取 ChatManager 持有的智能体路由器单例（通过 Port 注册点访问）"""
+    from src.core.routing_port_registry import get_routing_service
+    adapter = get_routing_service()
+    if adapter is None:
         raise AppError(ErrorCode.SYS_SERVICE_UNAVAILABLE, "ChatManager 尚未初始化，智能体路由器不可用")
     return adapter
 

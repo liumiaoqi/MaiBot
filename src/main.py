@@ -317,8 +317,10 @@ class MainSystem:
             register_session_query_port,
             register_message_registry_port,
         )
+        from src.core.routing_port_registry import register_routing_service
 
         routing_adapter = ChatManagerRoutingAdapter(self._agent_router)
+        register_routing_service(routing_adapter)
         _adapter = ChatManagerAdapter(
             routing_service=routing_adapter,
             session_store=self._session_store,
