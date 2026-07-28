@@ -102,7 +102,7 @@ Protocol 接口和注册点详见 `src/core/protocols.py` 和 `src/core/adapters
 | --------| -----------| -----------------------------------------------------| ------------------------| ---------------------------------------------------------------------------------|
 | **P0** | **CQ-6**　| **v2 EventDispatcher 闭环 + napcat-adapter 插件化** | T0~T6 ✅　　　　　　　　| ✅ 端到端验证通过　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
 | **P0** | **CQ-16** | **v2 Runner 端到端路径验证**　　　　　　　　　　　　| 19→0　　　　　　　　　 | ✅ 完成　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
-| **P1** | **LT-1**　| **灵台（Lingtai）：A_memorix 记忆系统重设计**　 | 7 问题　　　　　　　　 | ⬜ 独立系列，待规划　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
+| **P1** | **LT-1**　| **灵台（Lingtai）：A_memorix 记忆系统重设计**　 | 7 问题　　　　　　　　 | ⬜ lt_del ✅（-5,667行），lt3_storage 进行中，lt0/1/2 待规划 |
 | P2　　 | CQ-8　　　| SQLAlchemy 3.14 兼容　　　　　　　　　　　　　　　　| ChunkedIteratorResult　| ⬜ 待规划　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
 | P2　　 | CQ-17　　 | v1 旧链发送清算　　　　　　　　　　　　　　　　　　 | legacy_driver+fallback | ⬜ 调研完成（`.shared/handoff/cc2ca_v1_legacy_send_0728_research.md`），待大清算 |
 | P2　　 | TG-6　　　| match/case 模式匹配　　　　　　　　　　　　　　　　 | NoticeClassifier 等　　| ✅ CX 完成　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 |
