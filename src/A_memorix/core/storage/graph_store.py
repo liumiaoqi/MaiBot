@@ -4,12 +4,12 @@
 基于SciPy稀疏矩阵的知识图谱存储与计算。
 """
 
-import pickle
+import json
+import sqlite3
 from enum import Enum
 from pathlib import Path
 from typing import Optional, Union, Tuple, List, Dict, Set, Any
 from collections import defaultdict
-import threading
 import asyncio
 
 import numpy as np
@@ -42,7 +42,6 @@ except ImportError:
 
 import contextlib
 from src.common.logger import get_logger
-from ..utils.hash import compute_hash
 from ..utils.io import atomic_write
 
 logger = get_logger("A_Memorix.GraphStore")
@@ -75,13 +74,15 @@ class GraphStore:
         self,
         matrix_format: Union[str, SparseMatrixFormat] = "csr",
         data_dir: Optional[Union[str, Path]] = None,
+        conn: Optional[sqlite3.Connection] = None,
     ):
         """
         初始化图存储
 
         Args:
             matrix_format: 稀疏矩阵格式（csr/csc）
-            data_dir: 数据目录
+            data_dir: 数据目录（用于邻接矩阵 .npz 持久化）
+            conn: SQLite 连接（用于节点/边元数据持久化）
         """
         if not HAS_SCIPY:
             raise ImportError("SciPy 未安装，请安装: pip install scipy")
@@ -91,6 +92,7 @@ class GraphStore:
         else:
             self.matrix_format = str(matrix_format).lower()
         self.data_dir = Path(data_dir) if data_dir else None
+        self._conn = conn
 
         # 节点管理
         self._nodes: List[str] = []  # 节点列表
@@ -126,6 +128,43 @@ class GraphStore:
         if not node:
             return ""
         return str(node).strip().lower()
+
+    def _upsert_edge_sqlite(self, src_canon: str, tgt_canon: str) -> None:
+        """将 _edge_hash_map 中 (src, tgt) 的 relation hashes 同步到 SQLite。"""
+        if self._conn is None:
+            return
+        s_idx = self._node_to_idx.get(src_canon)
+        t_idx = self._node_to_idx.get(tgt_canon)
+        if s_idx is None or t_idx is None:
+            return
+        hashes = self._edge_hash_map.get((s_idx, t_idx), set())
+        metadata_json = json.dumps(
+            {"relation_hashes": sorted(str(h) for h in hashes if h)},
+            ensure_ascii=False,
+        )
+        try:
+            self._conn.execute(
+                "INSERT OR REPLACE INTO graph_edges "
+                "(source_node_id, target_node_id, edge_type, weight, metadata_json) "
+                "VALUES (?, ?, 'related', 1.0, ?)",
+                (src_canon, tgt_canon, metadata_json),
+            )
+            self._conn.commit()
+        except sqlite3.Error as e:
+            logger.warning(f"写入 graph_edges 失败: {e}")
+
+    def _delete_edge_sqlite(self, src_canon: str, tgt_canon: str) -> None:
+        """从 SQLite 删除边元数据。"""
+        if self._conn is None:
+            return
+        try:
+            self._conn.execute(
+                "DELETE FROM graph_edges WHERE source_node_id = ? AND target_node_id = ?",
+                (src_canon, tgt_canon),
+            )
+            self._conn.commit()
+        except sqlite3.Error as e:
+            logger.warning(f"删除 graph_edges 失败: {e}")
 
     @contextlib.contextmanager
     def batch_update(self):
@@ -208,6 +247,17 @@ class GraphStore:
             else:
                 self._node_attrs[canon] = {}
 
+            # 写入 SQLite
+            if self._conn is not None:
+                try:
+                    self._conn.execute(
+                        "INSERT OR REPLACE INTO graph_nodes (node_id, node_type, attributes_json) VALUES (?, ?, ?)",
+                        (canon, "entity", json.dumps(self._node_attrs.get(canon, {}), ensure_ascii=False)),
+                    )
+                    self._conn.commit()
+                except sqlite3.Error as e:
+                    logger.warning(f"写入 graph_nodes 失败: {e}")
+
             added += 1
             self._total_nodes_added += 1
 
@@ -279,11 +329,17 @@ class GraphStore:
 
                  # V5: Update edge hash map
                  if relation_hashes:
+                     synced: set = set()
                      for (src, tgt), r_hash in zip(edges, relation_hashes, strict=True):
                          if r_hash:
-                             s_idx = self._node_to_idx[self._canonicalize(src)]
-                             t_idx = self._node_to_idx[self._canonicalize(tgt)]
+                             src_canon = self._canonicalize(src)
+                             tgt_canon = self._canonicalize(tgt)
+                             s_idx = self._node_to_idx[src_canon]
+                             t_idx = self._node_to_idx[tgt_canon]
                              self._edge_hash_map[(s_idx, t_idx)].add(r_hash)
+                             synced.add((src_canon, tgt_canon))
+                     for sc, tc in synced:
+                         self._upsert_edge_sqlite(sc, tc)
 
                  logger.debug(f"增量添加 {len(edges)} 条边 (LIL)")
                  return len(edges)
@@ -329,14 +385,20 @@ class GraphStore:
 
         # V5: 更新边哈希映射 (Edge Hash Map)
         if relation_hashes:
+            synced: set = set()
             for (src, tgt), r_hash in zip(edges, relation_hashes, strict=True):
                 if r_hash:
                     try:
-                        s_idx = self._node_to_idx[self._canonicalize(src)]
-                        t_idx = self._node_to_idx[self._canonicalize(tgt)]
+                        src_canon = self._canonicalize(src)
+                        tgt_canon = self._canonicalize(tgt)
+                        s_idx = self._node_to_idx[src_canon]
+                        t_idx = self._node_to_idx[tgt_canon]
                         self._edge_hash_map[(s_idx, t_idx)].add(r_hash)
+                        synced.add((src_canon, tgt_canon))
                     except KeyError:
                         pass # 正常情况下节点已在上方添加，此处仅作防错处理
+            for sc, tc in synced:
+                self._upsert_edge_sqlite(sc, tc)
 
         logger.debug(f"添加 {len(edges)} 条边")
         return len(edges)
@@ -463,6 +525,21 @@ class GraphStore:
                     new_edge_hash_map[(old_to_new[old_src], old_to_new[old_tgt])] = set(hashes)
             self._edge_hash_map = new_edge_hash_map
 
+        # 同步删除 SQLite graph_nodes 中的记录
+        if self._conn is not None:
+            for node in existing_nodes:
+                canon = self._canonicalize(node)
+                try:
+                    self._conn.execute(
+                        "DELETE FROM graph_nodes WHERE node_id = ?", (canon,)
+                    )
+                except sqlite3.Error as e:
+                    logger.warning(f"删除 graph_nodes 记录失败 ({node}): {e}")
+            try:
+                self._conn.commit()
+            except sqlite3.Error as e:
+                logger.warning(f"提交 graph_nodes 删除失败: {e}")
+
         deleted_count = len(existing_nodes)
         self._total_nodes_deleted += deleted_count
         self._adjacency_dirty = True
@@ -527,10 +604,18 @@ class GraphStore:
             if self.matrix_format == "csc":
                 self._adjacency = self._adjacency.tocsc()
 
-        # delete_edges 是“物理删除”语义，必须同步清理 edge_hash_map。
+        # delete_edges 是"物理删除"语义，必须同步清理 edge_hash_map。
         if edges_to_delete and self._edge_hash_map:
             for key in edges_to_delete:
                 self._edge_hash_map.pop(key, None)
+
+        # 同步删除 SQLite graph_edges 中的记录
+        if self._conn is not None and edges_to_delete:
+            for src_idx, tgt_idx in edges_to_delete:
+                if 0 <= src_idx < len(self._nodes) and 0 <= tgt_idx < len(self._nodes):
+                    src_canon = self._canonicalize(self._nodes[src_idx])
+                    tgt_canon = self._canonicalize(self._nodes[tgt_idx])
+                    self._delete_edge_sqlite(src_canon, tgt_canon)
 
         self._total_edges_deleted += deleted
         self._adjacency_dirty = True
@@ -588,6 +673,72 @@ class GraphStore:
         """
         canon = self._canonicalize(node)
         return self._node_attrs.get(canon)
+
+    def get_node(self, node_id: str) -> Optional[Dict[str, Any]]:
+        """
+        从 SQLite 获取单个节点的完整信息。
+
+        Args:
+            node_id: 规范化节点标识
+
+        Returns:
+            节点信息字典（node_id, node_type, attributes, created_at），不存在则返回 None
+        """
+        if self._conn is None:
+            return self._node_attrs.get(self._canonicalize(node_id))
+        canon = self._canonicalize(node_id)
+        try:
+            row = self._conn.execute(
+                "SELECT node_id, node_type, attributes_json, created_at FROM graph_nodes WHERE node_id = ?",
+                (canon,),
+            ).fetchone()
+            if row is None:
+                return None
+            attrs = json.loads(row[2]) if row[2] else {}
+            return {
+                "node_id": row[0],
+                "node_type": row[1],
+                "attributes": attrs,
+                "created_at": row[3],
+            }
+        except sqlite3.Error as e:
+            logger.warning(f"查询 graph_nodes 失败: {e}")
+            return None
+
+    def get_edges(self, node_id: str) -> List[Dict[str, Any]]:
+        """
+        从 SQLite 获取与指定节点相关的所有边（出边 + 入边）。
+
+        Args:
+            node_id: 规范化节点标识
+
+        Returns:
+            边信息列表
+        """
+        if self._conn is None:
+            return []
+        canon = self._canonicalize(node_id)
+        try:
+            rows = self._conn.execute(
+                "SELECT source_node_id, target_node_id, edge_type, weight, metadata_json, created_at "
+                "FROM graph_edges WHERE source_node_id = ? OR target_node_id = ?",
+                (canon, canon),
+            ).fetchall()
+            result = []
+            for row in rows:
+                meta = json.loads(row[4]) if row[4] else {}
+                result.append({
+                    "source": row[0],
+                    "target": row[1],
+                    "edge_type": row[2],
+                    "weight": row[3],
+                    "metadata": meta,
+                    "created_at": row[5],
+                })
+            return result
+        except sqlite3.Error as e:
+            logger.warning(f"查询 graph_edges 失败: {e}")
+            return []
 
     def get_neighbors(self, node: str) -> List[str]:
         """
@@ -755,7 +906,7 @@ class GraphStore:
 
         if self._adjacency_dirty or self._adjacency_T is None:
             # 只有在确实需要时才计算转置
-            # find_paths 以“按行读取邻居”为主，因此统一缓存为 CSR，避免
+            # find_paths 以"按行读取邻居"为主，因此统一缓存为 CSR，避免
             # CSR->CSC 转置后按行切片读出错误的索引视图。
             self._adjacency_T = self._adjacency.transpose().tocsr()
 
@@ -1052,6 +1203,7 @@ class GraphStore:
             return
 
         edges_to_check_removal = set()
+        affected_edges: set = set()  # (src_canon, tgt_canon) pairs that were modified
 
         # 1. 更新映射 (Update Map)
         for src, tgt, h in operations:
@@ -1069,6 +1221,13 @@ class GraphStore:
                      if not self._edge_hash_map[key]:
                          del self._edge_hash_map[key]
                          edges_to_check_removal.add((src, tgt))
+                         self._delete_edge_sqlite(src_canon, tgt_canon)
+                     else:
+                         affected_edges.add((src_canon, tgt_canon))
+
+        # 同步更新到 SQLite：仍有 hashes 的边需要更新 metadata_json
+        for sc, tc in affected_edges:
+            self._upsert_edge_sqlite(sc, tc)
 
         # 2. 从矩阵中移除空边 (Remove Empty Edges from Matrix)
         if edges_to_check_removal:
@@ -1171,6 +1330,16 @@ class GraphStore:
         self._total_edges_added = 0
         self._total_nodes_deleted = 0
         self._total_edges_deleted = 0
+
+        # 同步清空 SQLite 表
+        if self._conn is not None:
+            try:
+                self._conn.execute("DELETE FROM graph_edges")
+                self._conn.execute("DELETE FROM graph_nodes")
+                self._conn.commit()
+            except sqlite3.Error as e:
+                logger.warning(f"清空 SQLite 图存储表失败: {e}")
+
         logger.info("图存储已清空")
 
     def save(self, data_dir: Optional[Union[str, Path]] = None) -> None:
@@ -1199,25 +1368,9 @@ class GraphStore:
             matrix_path.unlink()
             logger.debug(f"删除陈旧邻接矩阵: {matrix_path}")
 
-        # 保存元数据
-        metadata = {
-            "nodes": self._nodes,
-            "node_to_idx": self._node_to_idx,
-            "node_attrs": self._node_attrs,
-            "matrix_format": self.matrix_format,
-            "total_nodes_added": self._total_nodes_added,
-            "total_edges_added": self._total_edges_added,
-            "total_nodes_deleted": self._total_nodes_deleted,
-            "total_edges_deleted": self._total_edges_deleted,
-            "edge_hash_map": dict(self._edge_hash_map), # 持久化 V5 映射 (将 defaultdict 转换为普通 dict)
-        }
-
-        metadata_path = data_dir / "graph_metadata.pkl"
-        with atomic_write(metadata_path, "wb") as f:
-            pickle.dump(metadata, f)
-        logger.debug(f"保存元数据: {metadata_path} | 图存储已保存到: {data_dir}")
-
+        # 节点/边元数据已通过 write-through 写入 SQLite，无需额外保存
         logger.info("记忆图已保存")
+
     def load(self, data_dir: Optional[Union[str, Path]] = None) -> None:
         """
         从磁盘加载
@@ -1235,45 +1388,14 @@ class GraphStore:
         if not data_dir.exists():
             raise FileNotFoundError(f"数据目录不存在: {data_dir}")
 
-        # 加载元数据
-        metadata_path = data_dir / "graph_metadata.pkl"
-        if not metadata_path.exists():
-            raise FileNotFoundError(f"元数据文件不存在: {metadata_path}")
+        # 从 SQLite 加载节点元数据
+        if self._conn is not None:
+            self._load_nodes_from_sqlite()
+            self._load_edges_from_sqlite()
+        else:
+            logger.warning("SQLite 连接未设置，跳过节点/边元数据加载")
 
-        with open(metadata_path, "rb") as f:
-            metadata = pickle.load(f)
-
-        # 恢复状态，并通过规范化处理旧数据中的重复项
-        self._nodes = metadata["nodes"]
-        self._node_attrs = {} # 重新构建以确保键名 (Key) 规范化
-        self._node_to_idx = {} # 重新构建以确保键名 (Key) 规范化
-
-        # 重新构建映射，处理旧数据中的碰撞
-        for idx, node_name in enumerate(self._nodes):
-            canon = self._canonicalize(node_name)
-            if canon not in self._node_to_idx:
-                self._node_to_idx[canon] = idx
-
-            # 处理属性 (优先保留已有的)
-            orig_attrs = metadata.get("node_attrs", {})
-            if node_name in orig_attrs and canon not in self._node_attrs:
-                self._node_attrs[canon] = orig_attrs[node_name]
-
-        self.matrix_format = metadata["matrix_format"]
-        self._total_nodes_added = metadata["total_nodes_added"]
-        self._total_edges_added = metadata["total_edges_added"]
-        self._total_nodes_deleted = metadata["total_nodes_deleted"]
-        self._total_edges_deleted = metadata["total_edges_deleted"]
-
-        # 恢复 V5 边哈希映射 (Restore V5 edge hash map)
-        edge_map_data = metadata.get("edge_hash_map", {})
-        # 重新初始化为 defaultdict(set)
-        self._edge_hash_map = defaultdict(set)
-        if edge_map_data:
-            for k, v in edge_map_data.items():
-                self._edge_hash_map[k] = set(v) # 确保类型为 set
-
-        # 加载邻接矩阵
+        # 加载邻接矩阵 (.npz)
         matrix_path = data_dir / "graph_adjacency.npz"
         if matrix_path.exists():
             self._adjacency = load_npz(str(matrix_path))
@@ -1319,6 +1441,56 @@ class GraphStore:
             f"图存储已加载: 节点={len(self._nodes)}, "
             f"边={self._adjacency.nnz if self._adjacency is not None else 0}"
         )
+
+    def _load_nodes_from_sqlite(self) -> None:
+        """从 SQLite graph_nodes 表加载节点数据。"""
+        self._nodes.clear()
+        self._node_to_idx.clear()
+        self._node_attrs.clear()
+        try:
+            rows = self._conn.execute(
+                "SELECT node_id, node_type, attributes_json FROM graph_nodes ORDER BY id"
+            ).fetchall()
+            for idx, (node_id, _node_type, attrs_json) in enumerate(rows):
+                self._nodes.append(node_id)
+                canon = self._canonicalize(node_id)
+                self._node_to_idx[canon] = idx
+                try:
+                    attrs = json.loads(attrs_json) if attrs_json else {}
+                except (json.JSONDecodeError, TypeError):
+                    attrs = {}
+                self._node_attrs[canon] = attrs
+            self._total_nodes_added = len(self._nodes)
+            logger.debug(f"从 SQLite 加载 {len(self._nodes)} 个节点")
+        except sqlite3.Error as e:
+            logger.warning(f"加载 graph_nodes 失败: {e}")
+
+    def _load_edges_from_sqlite(self) -> None:
+        """从 SQLite graph_edges 表加载边哈希映射。"""
+        self._edge_hash_map = defaultdict(set)
+        try:
+            rows = self._conn.execute(
+                "SELECT source_node_id, target_node_id, metadata_json FROM graph_edges"
+            ).fetchall()
+            for source_id, target_id, metadata_json in rows:
+                src_canon = self._canonicalize(source_id)
+                tgt_canon = self._canonicalize(target_id)
+                if src_canon not in self._node_to_idx or tgt_canon not in self._node_to_idx:
+                    continue
+                s_idx = self._node_to_idx[src_canon]
+                t_idx = self._node_to_idx[tgt_canon]
+                try:
+                    meta = json.loads(metadata_json) if metadata_json else {}
+                except (json.JSONDecodeError, TypeError):
+                    meta = {}
+                hashes = meta.get("relation_hashes", [])
+                for h in hashes:
+                    if h:
+                        self._edge_hash_map[(s_idx, t_idx)].add(str(h))
+            self._total_edges_added = len(rows)
+            logger.debug(f"从 SQLite 加载 {len(rows)} 条边元数据")
+        except sqlite3.Error as e:
+            logger.warning(f"加载 graph_edges 失败: {e}")
 
     def _expand_adjacency_matrix(self, added_nodes: int) -> None:
         """
@@ -1426,10 +1598,20 @@ class GraphStore:
         return self.num_nodes
 
     def has_data(self) -> bool:
-        """检查磁盘上是否存在现有数据"""
+        """检查是否存在现有数据（SQLite 节点表 或 邻接矩阵文件）。"""
         if self.data_dir is None:
             return False
-        return (self.data_dir / "graph_metadata.pkl").exists()
+        if (self.data_dir / "graph_adjacency.npz").exists():
+            return True
+        if self._conn is not None:
+            try:
+                row = self._conn.execute(
+                    "SELECT COUNT(*) FROM graph_nodes"
+                ).fetchone()
+                return row is not None and row[0] > 0
+            except sqlite3.Error:
+                pass
+        return False
 
     def __repr__(self) -> str:
         return (
@@ -1451,7 +1633,8 @@ class GraphStore:
         self._edge_hash_map = defaultdict(set)
 
         for s, p, o, h in triples:
-            if not h: continue
+            if not h:
+                continue
 
             s_canon = self._canonicalize(s)
             o_canon = self._canonicalize(o)
@@ -1464,6 +1647,37 @@ class GraphStore:
                 # 映射键对应特定的边方向。
                 self._edge_hash_map[(u, v)].add(h)
                 count += 1
+
+        # 同步到 SQLite
+        if self._conn is not None:
+            try:
+                self._conn.execute("DELETE FROM graph_edges")
+            except sqlite3.Error as e:
+                logger.warning(f"清空 graph_edges 失败: {e}")
+            synced: set = set()
+            for (u, v), hashes in self._edge_hash_map.items():
+                if u < len(self._nodes) and v < len(self._nodes):
+                    sc = self._canonicalize(self._nodes[u])
+                    tc = self._canonicalize(self._nodes[v])
+                    metadata_json = json.dumps(
+                        {"relation_hashes": sorted(str(h) for h in hashes if h)},
+                        ensure_ascii=False,
+                    )
+                    try:
+                        self._conn.execute(
+                            "INSERT OR REPLACE INTO graph_edges "
+                            "(source_node_id, target_node_id, edge_type, weight, metadata_json) "
+                            "VALUES (?, ?, 'related', 1.0, ?)",
+                            (sc, tc, metadata_json),
+                        )
+                    except sqlite3.Error as e:
+                        logger.warning(f"写入 graph_edges 失败 ({sc}->{tc}): {e}")
+                    synced.add((sc, tc))
+            try:
+                self._conn.commit()
+            except sqlite3.Error as e:
+                logger.warning(f"提交 graph_edges 批量写入失败: {e}")
+            logger.debug(f"同步 {len(synced)} 条边到 SQLite")
 
         self._adjacency_dirty = True
         logger.info(f"已从 {count} 条哈希重建边哈希映射，覆盖 {len(self._edge_hash_map)} 条边")

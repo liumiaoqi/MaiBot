@@ -511,7 +511,13 @@ def _migrate_impl(config_path: Path, data_dir: Path, dry_run: bool) -> Dict[str,
     graph_dir = data_dir / "graph"
     graph_dir.mkdir(parents=True, exist_ok=True)
     graph_matrix_format = str(_get_nested(config_doc, ("graph", "sparse_matrix_format"), "csr") or "csr")
-    graph_store = GraphStore(matrix_format=graph_matrix_format, data_dir=graph_dir)
+    # 复用 metadata_db 连接，确保图元数据写入 SQLite
+    graph_conn = sqlite3.connect(str(metadata_db)) if metadata_db.exists() else None
+    graph_store = GraphStore(
+        matrix_format=graph_matrix_format,
+        data_dir=graph_dir,
+        conn=graph_conn,
+    )
     graph_step: Dict[str, Any] = {
         "rebuilt": False,
         "mapped_hashes": 0,
@@ -636,11 +642,17 @@ def _verify_impl(config_path: Path, data_dir: Path) -> Dict[str, Any]:
             )
         if relation_count > 0:
             graph_dir = data_dir / "graph"
-            if not (graph_dir / "graph_metadata.pkl").exists():
+            graph_metadata_exists = (graph_dir / "graph_adjacency.npz").exists()
+            if not graph_metadata_exists:
                 checks.append(CheckItem("CP-06", "error", "graph metadata missing while relations exist"))
             else:
                 matrix_format = str(_get_nested(config_doc, ("graph", "sparse_matrix_format"), "csr") or "csr")
-                graph_store = GraphStore(matrix_format=matrix_format, data_dir=graph_dir)
+                graph_db = metadata_dir / "metadata.db"
+                graph_store = GraphStore(
+                    matrix_format=matrix_format,
+                    data_dir=graph_dir,
+                    conn=sqlite3.connect(str(graph_db)) if graph_db.exists() else None,
+                )
                 graph_store.load()
                 if not graph_store.has_edge_hash_map():
                     checks.append(CheckItem("CP-06", "error", "edge_hash_map is empty"))

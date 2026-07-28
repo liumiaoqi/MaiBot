@@ -67,9 +67,13 @@ class KernelInitializer:
             kernel._vector_pool_manager.graph_vector_dir(),
             dimension=provisional_dimension,
         )
-        kernel.graph_store = GraphStore(matrix_format=graph_format, data_dir=kernel.data_dir / "graph")
         kernel.metadata_store = MetadataStore(data_dir=kernel.data_dir / "metadata")
         kernel.metadata_store.connect()
+        kernel.graph_store = GraphStore(
+            matrix_format=graph_format,
+            data_dir=kernel.data_dir / "graph",
+            conn=kernel.metadata_store._conn,
+        )
 
         if kernel.graph_store.has_data():
             kernel.graph_store.load()

@@ -9,7 +9,7 @@ from src.common.logger import get_logger
 
 logger = get_logger("A_Memorix.SchemaManager")
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 class SchemaManager:
@@ -67,7 +67,7 @@ class SchemaManager:
         if version != SCHEMA_VERSION:
             raise RuntimeError(
                 f"metadata schema 版本不匹配: current={version}, expected={SCHEMA_VERSION}。"
-                " 请执行 scripts/lt_migrate_v15_to_v1.py。"
+                " 请执行 scripts/lt_migrate_pickle_to_sqlite.py 或 scripts/lt_migrate_v15_to_v1.py。"
             )
 
     def get_schema_version(self, conn: sqlite3.Connection) -> int:
@@ -246,6 +246,41 @@ def _create_all_tables(cursor: sqlite3.Cursor) -> None:
 
     # --- Episode 情景记忆表 ---
     _create_episode_tables(cursor)
+
+    # --- 图存储节点表 ---
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS graph_nodes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            node_id TEXT NOT NULL UNIQUE,
+            node_type TEXT NOT NULL DEFAULT 'entity',
+            attributes_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+
+    # --- 图存储边表 ---
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS graph_edges (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_node_id TEXT NOT NULL,
+            target_node_id TEXT NOT NULL,
+            edge_type TEXT NOT NULL DEFAULT 'related',
+            weight REAL NOT NULL DEFAULT 1.0,
+            metadata_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+
+    # --- 图存储索引 ---
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_graph_nodes_type ON graph_nodes(node_type)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_graph_edges_source ON graph_edges(source_node_id)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_graph_edges_target ON graph_edges(target_node_id)"
+    )
 
     # --- 队列 / 操作记录表 ---
     _create_queue_tables(cursor)

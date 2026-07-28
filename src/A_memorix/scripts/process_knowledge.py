@@ -224,13 +224,14 @@ class AutoImporter:
         m_fmt_str = self.plugin_config.get("graph", {}).get("sparse_matrix_format", "csr")
         m_map = {"csr": SparseMatrixFormat.CSR, "csc": SparseMatrixFormat.CSC}
         
-        self.graph_store = GraphStore(
-            matrix_format=m_map.get(m_fmt_str, SparseMatrixFormat.CSR),
-            data_dir=DATA_DIR / "graph"
-        )
-        
         self.metadata_store = MetadataStore(data_dir=DATA_DIR / "metadata")
         self.metadata_store.connect()
+
+        self.graph_store = GraphStore(
+            matrix_format=m_map.get(m_fmt_str, SparseMatrixFormat.CSR),
+            data_dir=DATA_DIR / "graph",
+            conn=self.metadata_store._conn,
+        )
 
         if RelationWriteService is not None:
             self.relation_write_service = RelationWriteService(

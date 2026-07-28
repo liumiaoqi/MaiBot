@@ -264,15 +264,16 @@ async def initialize_storage_async(plugin: Any) -> None:
     }
     matrix_format = matrix_format_map.get(matrix_format_str, SparseMatrixFormat.CSR)
 
-    plugin.graph_store = GraphStore(
-        matrix_format=matrix_format,
-        data_dir=data_dir / "graph",
-    )
-    logger.debug("图存储初始化完成")
-
     plugin.metadata_store = MetadataStore(data_dir=data_dir / "metadata")
     plugin.metadata_store.connect()
     logger.debug("元数据存储初始化完成")
+
+    plugin.graph_store = GraphStore(
+        matrix_format=matrix_format,
+        data_dir=data_dir / "graph",
+        conn=plugin.metadata_store._conn,
+    )
+    logger.debug("图存储初始化完成")
 
     plugin.relation_write_service = RelationWriteService(
         metadata_store=plugin.metadata_store,
