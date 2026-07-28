@@ -64,7 +64,6 @@ if any(arg in {"-h", "--help"} for arg in sys.argv[1:]):
 try:
     from A_memorix.core.storage import GraphStore, MetadataStore, QuantizationType, VectorStore
     from A_memorix.core.storage.metadata_store import (
-        RUNTIME_AUTO_MIGRATION_MIN_SCHEMA_VERSION,
         SCHEMA_VERSION,
     )
 except Exception as e:  # pragma: no cover
@@ -301,28 +300,14 @@ def _preflight_impl(config_path: Path, data_dir: Path) -> Dict[str, Any]:
                 row = conn.execute("SELECT MAX(version) FROM schema_migrations").fetchone()
                 version = int(row[0]) if row and row[0] is not None else 0
                 facts["schema_version"] = version
-                runtime_auto_migratable = (
-                    version < SCHEMA_VERSION
-                    and version >= RUNTIME_AUTO_MIGRATION_MIN_SCHEMA_VERSION
-                )
-                facts["schema_runtime_auto_migratable"] = runtime_auto_migratable
                 if version != SCHEMA_VERSION:
-                    if runtime_auto_migratable:
-                        checks.append(
-                            CheckItem(
-                                "CP-18",
-                                "warning",
-                                f"schema version behind runtime target: current={version}, expected={SCHEMA_VERSION}; runtime auto migration will handle this update",
-                            )
+                    checks.append(
+                        CheckItem(
+                            "CP-08",
+                            "error",
+                            f"schema version mismatch: current={version}, expected={SCHEMA_VERSION}",
                         )
-                    else:
-                        checks.append(
-                            CheckItem(
-                                "CP-08",
-                                "error",
-                                f"schema version mismatch: current={version}, expected={SCHEMA_VERSION}",
-                            )
-                        )
+                    )
                 elif not has_paragraph_backfill:
                     checks.append(
                         CheckItem(
@@ -509,7 +494,13 @@ def _migrate_impl(config_path: Path, data_dir: Path, dry_run: bool) -> Dict[str,
             if dry_run:
                 metadata_result = {"migrated": False, "reason": "dry_run"}
             else:
-                metadata_result = store.run_legacy_migration_for_vnext()
+                # SCHEMA_VERSION=1: no runtime migration needed; just verify schema
+                current_version = store.get_schema_version()
+                metadata_result = {
+                    "schema_version": SCHEMA_VERSION,
+                    "current_version": current_version,
+                    "migrated": current_version == SCHEMA_VERSION,
+                }
             relation_count = int(store.count_relations())
             if relation_count > 0:
                 triples = [(str(s), str(p), str(o), str(h)) for s, p, o, h in store.get_all_triples()]
