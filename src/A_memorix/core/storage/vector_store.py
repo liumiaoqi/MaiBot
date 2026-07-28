@@ -11,7 +11,6 @@ import shutil
 import time
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Sequence, Set, Tuple, Union
-import random
 import threading  # Added threading import
 
 import numpy as np
@@ -43,11 +42,6 @@ class VectorStore:
 
     # 默认训练触发阈值 (40 样本，过大可能导致小数据集不生效，过小可能量化退化)
     DEFAULT_MIN_TRAIN = 40
-    # 强制训练样本量
-    TRAIN_SIZE = 10000
-    # 储水池采样上限 (流式处理前 50k 数据)
-    RESERVOIR_CAPACITY = 10000
-    RESERVOIR_SAMPLE_SCOPE = 50000
 
     def __init__(
         self,
@@ -87,16 +81,8 @@ class VectorStore:
         self._is_trained = False
         self._vector_norm = "l2"
 
-        # Fallback Index (Flat) - 用于在 SQ8 训练完成前提供检索能力
-        # 必须使用 IndexIDMap2 以保证 ID 与主索引一致
-        self._fallback_index: Optional[faiss.IndexIDMap2] = None
-        self._init_fallback_index()
-
         self._known_hashes: Set[str] = set()
         self._deleted_ids: Set[int] = set()
-
-        self._reservoir_buffer: List[np.ndarray] = []
-        self._seen_count_for_reservoir = 0
 
         self._write_buffer_vecs: List[np.ndarray] = []
         self._write_buffer_ids: List[int] = []
@@ -119,12 +105,6 @@ class VectorStore:
         )
         self._index = faiss.IndexIDMap2(quantizer)
         self._is_trained = False
-
-    def _init_fallback_index(self):
-        """初始化 Flat 回退索引"""
-        flat_index = faiss.IndexFlatIP(self.dimension)
-        self._fallback_index = faiss.IndexIDMap2(flat_index)
-        logger.debug("Fallback index (Flat) initialized.")
 
     @staticmethod
     def _generate_id(key: str) -> int:
@@ -184,16 +164,6 @@ class VectorStore:
             if len(self._write_buffer_ids) >= self.buffer_size:
                 self._flush_write_buffer_unlocked()
 
-            if not self._is_trained:
-                # 双写到回退索引
-                self._fallback_index.add_with_ids(batch_vecs, batch_ids)
-
-                self._update_reservoir(batch_vecs)
-                # 这里的 TRAIN_SIZE 取默认 10k，或者根据当前数据量动态判断
-                if len(self._reservoir_buffer) >= 10000:
-                    logger.info(f"训练样本达到上限，开始训练...")
-                    self._train_and_replay_unlocked()
-
             self._total_added += len(batch_ids)
             return len(batch_ids)
 
@@ -221,87 +191,9 @@ class VectorStore:
 
         if self._is_trained and self._index.is_trained:
             self._index.add_with_ids(batch_vecs, batch_ids)
-        else:
-            # 即使在 flush 时，如果未训练，也要同步到 fallback
-            self._fallback_index.add_with_ids(batch_vecs, batch_ids)
 
         self._write_buffer_vecs.clear()
         self._write_buffer_ids.clear()
-
-    def _update_reservoir(self, vectors: np.ndarray):
-        for vec in vectors:
-            self._seen_count_for_reservoir += 1
-            if len(self._reservoir_buffer) < self.RESERVOIR_CAPACITY:
-                self._reservoir_buffer.append(vec)
-            else:
-                if self._seen_count_for_reservoir <= self.RESERVOIR_SAMPLE_SCOPE:
-                    r = random.randint(0, self._seen_count_for_reservoir - 1)
-                    if r < self.RESERVOIR_CAPACITY:
-                        self._reservoir_buffer[r] = vec
-
-    def _train_and_replay(self):
-        with self._lock:
-            self._train_and_replay_unlocked()
-
-    def _train_and_replay_unlocked(self):
-        if not self._reservoir_buffer:
-            logger.warning("No training data available.")
-            return
-
-        train_data = np.array(self._reservoir_buffer, dtype=np.float32)
-        logger.info(f"Training Index with {len(train_data)} samples...")
-
-        try:
-            self._index.train(train_data)
-        except Exception as e:
-            logger.error(f"SQ8 Training failed: {e}. Staying in fallback mode.")
-            return
-
-        self._is_trained = True
-        self._reservoir_buffer = []
-
-        logger.info("Replaying data from disk to populate index...")
-        try:
-            replay_count = self._replay_vectors_to_index()
-            # 只有当 replay 成功且数据量一致时，才释放回退索引
-            if self._index.ntotal >= self._bin_count:
-                logger.info(f"Replay successful ({self._index.ntotal}/{self._bin_count}). Releasing fallback index.")
-                self._fallback_index.reset()
-            else:
-                logger.warning(f"Replay count mismatch: {self._index.ntotal} vs {self._bin_count}. Keeping fallback index.")
-        except Exception as e:
-            logger.error(f"Replay failed: {e}. Keeping fallback index as backup.")
-
-    def _replay_vectors_to_index(self) -> int:
-        """从 vectors.bin 读取并添加到 index"""
-        if not self._bin_path.exists() or not self._ids_bin_path.exists():
-            return 0
-
-        vec_item_size = self.dimension * 2
-        id_item_size = 8
-        chunk_size = 10000
-
-        with open(self._bin_path, "rb") as f_vec, open(self._ids_bin_path, "rb") as f_id:
-            while True:
-                vec_data = f_vec.read(chunk_size * vec_item_size)
-                id_data = f_id.read(chunk_size * id_item_size)
-
-                if not vec_data:
-                    break
-
-                batch_fp16 = np.frombuffer(vec_data, dtype=np.float16).reshape(-1, self.dimension)
-                batch_fp32 = batch_fp16.astype(np.float32)
-                faiss.normalize_L2(batch_fp32)
-
-                batch_ids = np.frombuffer(id_data, dtype='>i8').astype(np.int64)
-
-                valid_mask = [id_ not in self._deleted_ids for id_ in batch_ids]
-                if not all(valid_mask):
-                    batch_fp32 = batch_fp32[valid_mask]
-                    batch_ids = batch_ids[valid_mask]
-
-                if len(batch_ids) > 0:
-                    self._index.add_with_ids(batch_fp32, batch_ids)
 
     def search(
         self,
@@ -338,9 +230,9 @@ class VectorStore:
         # Faiss 索引在并发 search 下可能出现阻塞，这里串行化检索调用保证稳定性。
         with self._lock:
             self._flush_write_buffer_unlocked()
-            search_index = self._index if (self._is_trained and self._index.ntotal > 0) else self._fallback_index
+            search_index = self._index
             if search_index.ntotal == 0:
-                logger.warning("Indices are empty. No data to search.")
+                logger.warning("Index is empty. No data to search.")
                 return [], []
             # 执行检索
             dists, ids = search_index.search(query_local, k * 2)
@@ -515,29 +407,11 @@ class VectorStore:
                 else:
                     self._bin_count = 0
 
-                needs_fallback_bootstrap = (
-                    self._bin_count > 0
-                    and self._fallback_index.ntotal == 0
-                    and (not self._is_trained or self._index.ntotal == 0)
-                )
-                if needs_fallback_bootstrap:
-                    self._bootstrap_fallback_from_disk()
-
-                min_train = max(1, int(getattr(self, "min_train_threshold", self.DEFAULT_MIN_TRAIN)))
-                needs_train = (
-                    bool(force_train)
-                    and self._bin_count >= min_train
-                    and not self._is_trained
-                )
-                if needs_train:
-                    self._force_train_small_data()
-
                 duration_ms = (time.perf_counter() - started) * 1000.0
                 summary = {
                     "ok": True,
                     "trained": bool(self._is_trained),
                     "index_ntotal": int(self._index.ntotal),
-                    "fallback_ntotal": int(self._fallback_index.ntotal),
                     "bin_count": int(self._bin_count),
                     "duration_ms": duration_ms,
                     "error": None,
@@ -549,7 +423,6 @@ class VectorStore:
                 "ok": False,
                 "trained": bool(self._is_trained),
                 "index_ntotal": int(self._index.ntotal) if self._index is not None else 0,
-                "fallback_ntotal": int(self._fallback_index.ntotal) if self._fallback_index is not None else 0,
                 "bin_count": int(getattr(self, "_bin_count", 0)),
                 "duration_ms": duration_ms,
                 "error": str(e),
@@ -566,67 +439,9 @@ class VectorStore:
             f"metric.vector_index_prewarm_duration_ms={summary['duration_ms']:.2f} "
             f"trained={summary['trained']} "
             f"index_ntotal={summary['index_ntotal']} "
-            f"fallback_ntotal={summary['fallback_ntotal']} "
             f"bin_count={summary['bin_count']}"
         )
         return summary
-
-    def _bootstrap_fallback_from_disk(self):
-        with self._lock:
-            self._bootstrap_fallback_from_disk_unlocked()
-
-    def _bootstrap_fallback_from_disk_unlocked(self):
-        """重启后自举：从磁盘 vectors.bin 加载数据到 fallback 索引"""
-        if not self._bin_path.exists() or not self._ids_bin_path.exists():
-            return
-
-        logger.info("Replaying all disk vectors to fallback index...")
-        vec_item_size = self.dimension * 2
-        id_item_size = 8
-        chunk_size = 10000
-
-        with open(self._bin_path, "rb") as f_vec, open(self._ids_bin_path, "rb") as f_id:
-            while True:
-                vec_data = f_vec.read(chunk_size * vec_item_size)
-                id_data = f_id.read(chunk_size * id_item_size)
-                if not vec_data: break
-
-                batch_fp16 = np.frombuffer(vec_data, dtype=np.float16).reshape(-1, self.dimension)
-                batch_fp32 = batch_fp16.astype(np.float32)
-                faiss.normalize_L2(batch_fp32)
-                batch_ids = np.frombuffer(id_data, dtype='>i8').astype(np.int64)
-
-                valid_mask = [id_ not in self._deleted_ids for id_ in batch_ids]
-                if any(valid_mask):
-                    self._fallback_index.add_with_ids(batch_fp32[valid_mask], batch_ids[valid_mask])
-
-        logger.info(f"Fallback index self-bootstrapped with {self._fallback_index.ntotal} items.")
-
-    def _force_train_small_data(self):
-        with self._lock:
-            self._force_train_small_data_unlocked()
-
-    def _force_train_small_data_unlocked(self):
-        logger.info("Forcing training on small dataset...")
-        self._reservoir_buffer = []
-
-        chunk_size = 10000
-        vec_item_size = self.dimension * 2
-
-        with open(self._bin_path, "rb") as f:
-            while len(self._reservoir_buffer) < self.TRAIN_SIZE:
-                data = f.read(chunk_size * vec_item_size)
-                if not data: break
-                fp16 = np.frombuffer(data, dtype=np.float16).reshape(-1, self.dimension)
-                fp32 = fp16.astype(np.float32)
-                faiss.normalize_L2(fp32)
-
-                for vec in fp32:
-                    self._reservoir_buffer.append(vec)
-                    if len(self._reservoir_buffer) >= self.TRAIN_SIZE:
-                        break
-
-        self._train_and_replay_unlocked()
 
     def delete(self, ids: List[str]) -> int:
         with self._lock:
@@ -639,9 +454,6 @@ class VectorStore:
                     self._deleted_ids.add(int_id)
                     if self._index.is_trained:
                          self._index.remove_ids(np.array([int_id], dtype=np.int64))
-                    # 同步从 fallback 移除
-                    if self._fallback_index.ntotal > 0:
-                         self._fallback_index.remove_ids(np.array([int_id], dtype=np.int64))
                     count += 1
             self._total_deleted += count
 
@@ -701,7 +513,6 @@ class VectorStore:
 
         # Close current index
         self._index.reset()
-        if self._fallback_index: self._fallback_index.reset() # Also clear fallback
         self._is_trained = False
 
         # Swap files
@@ -714,8 +525,6 @@ class VectorStore:
         # 3. Reload/Rebuild Index (Fresh Train)
         # We need to re-train because data distribution might have changed significantly after deletion
         self._init_index()
-        self._init_fallback_index() # Re-init fallback too
-        self._force_train_small_data() # This will train and replay from the NEW compact file
 
         logger.info("Compaction Complete.")
 
@@ -801,7 +610,6 @@ class VectorStore:
             self._write_buffer_vecs.clear()
             self._write_buffer_ids.clear()
             self._init_index()
-            self._init_fallback_index()
             self._is_trained = False
             self._bin_count = 0
 
@@ -837,7 +645,6 @@ class VectorStore:
                 self._known_hashes = set(meta.get("ids", [])) | set(meta.get("known_hashes", []))
                 self._deleted_ids = set(meta.get("deleted_ids", []))
                 self._init_index()
-                self._force_train_small_data()
                 return
 
             self._is_trained = meta.get("is_trained", False)
@@ -852,15 +659,12 @@ class VectorStore:
                         if not isinstance(self._index, faiss.IndexIDMap2):
                             logger.warning("Loaded index type mismatch. Rebuilding...")
                             self._init_index()
-                            self._force_train_small_data()
                     except Exception as e:
                          logger.error(f"Failed to load index: {e}. Rebuilding...")
                          self._init_index()
-                         self._force_train_small_data()
                 else:
                     logger.warning("Index file missing despite metadata indicating trained. Rebuilding from bin...")
                     self._init_index()
-                    self._force_train_small_data()
 
             if bin_path.exists():
                 self._bin_count = bin_path.stat().st_size // (self.dimension * 2)
@@ -892,9 +696,6 @@ class VectorStore:
             sub_arr = arr[i : i+chunk]
             sub_ids = old_ids[i : i+chunk]
             self.add(sub_arr, sub_ids)
-
-        if not self._is_trained:
-            self._force_train_small_data()
 
         shutil.move(str(npy_path), str(npy_path) + ".bak")
         if idx_path.exists():
