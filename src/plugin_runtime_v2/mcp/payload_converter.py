@@ -35,8 +35,8 @@ class NapCatPayloadConverter:
         platform = "qq"
 
         user_info = UserInfo(
-            user_id=str(payload.get("qq_user_id", "")),
-            user_nickname=str(payload.get("sender_name", "")),
+            user_id=str(payload.get("qq_user_id", "") or "unknown"),
+            user_nickname=str(payload.get("sender_name", "") or "unknown"),
             user_cardname=None,
         )
 
@@ -74,8 +74,8 @@ class NapCatPayloadConverter:
         platform = "qq"
 
         user_info = UserInfo(
-            user_id=str(qq_user_id),
-            user_nickname=str(payload.get("sender_name", "")),
+            user_id=str(qq_user_id or "unknown"),
+            user_nickname=str(payload.get("sender_name", "") or "unknown"),
             user_cardname=None,
         )
 
