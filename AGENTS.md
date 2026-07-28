@@ -100,8 +100,8 @@ Protocol 接口和注册点详见 `src/core/protocols.py` 和 `src/core/adapters
 
 | 优先级 | 编号 | 类别 | 数量 | 状态 |
 |--------|------|------|------|------|
-| **P0** | **CQ-6** | **v2 EventDispatcher 闭环 + napcat-adapter 插件化** | 4 断点 | ⬜ SSD 就绪（`.codeartsdoer/specs/cq6_adapter/`） |
-| **P0** | **CQ-16** | **v2 Runner 端到端路径验证** | 19→0 | ✅ 编码完成，⬜ Docker 验证（详见 `.shared/active_tasks.md`） |
+| **P0** | **CQ-6** | **v2 EventDispatcher 闭环 + napcat-adapter 插件化** | T0~T6 ✅ | ⬜ 需真实QQ消息验证端到端 |
+| **P0** | **CQ-16** | **v2 Runner 端到端路径验证** | 19→0 | ✅ 完成 |
 | **P1** | **CQ-7** | **A_memorix 记忆系统重设计** | 7 问题 | ⬜ SSD 就绪（`.codeartsdoer/specs/cq7_memorix/`） |
 | P2 | CQ-8 | SQLAlchemy 3.14 兼容 | ChunkedIteratorResult | ⬜ 待规划 |
 | P3 | CQ-9x | napcat-adapter Tool 扩展 | 5→~30 @Tool | ⬜ 扩展任务 |
