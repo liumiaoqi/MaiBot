@@ -1,7 +1,7 @@
 """Scope 词汇表 — Phoenix 细粒度授权定义。
 
 三段式格式：资源域:操作:资源类型（如 message:send:text）。
-11 个资源域，54 个 scope 条目，覆盖全部 75 个旧 capabilities。
+11 个资源域，57 个 scope 条目，覆盖全部 75 个旧 capabilities。
 版本：1.0.0
 """
 
@@ -23,7 +23,7 @@ class ScopeEntry:
 
 
 _SCOPE_ENTRIES: frozenset[ScopeEntry] = frozenset({
-    # ── message 资源域（9 个） ──
+    # ── message 资源域（12 个） ──
     ScopeEntry("message:send:text", "发送文本消息", "send.text", "low", False),
     ScopeEntry("message:send:image", "发送图片消息", "send.image", "medium", True),
     ScopeEntry("message:send:emoji", "发送表情包", "send.emoji", "medium", True),
@@ -33,6 +33,9 @@ _SCOPE_ENTRIES: frozenset[ScopeEntry] = frozenset({
     ScopeEntry("message:read:by_time", "按时间范围读取消息", "message.get_by_time", "low", False),
     ScopeEntry("message:read:by_id", "按 ID 读取消息", "message.get_by_id", "low", False),
     ScopeEntry("message:write:context", "向聊天上下文追加消息", "maisaka.context.append", "high", True),
+    ScopeEntry("message:receive:group", "接收群聊消息", None, "low", False),
+    ScopeEntry("message:receive:private", "接收私聊消息", None, "low", False),
+    ScopeEntry("message:receive:notice", "接收通知消息", None, "low", False),
 
     # ── database 资源域（8 个） ──
     ScopeEntry("database:read:session_message", "读取会话消息表", "db.query, db.get", "low", False),
