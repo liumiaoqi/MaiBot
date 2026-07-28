@@ -114,10 +114,10 @@ class GlobalConfigChatConfigPort:
         )
 
     def get_reply_style_chat_prompts(self) -> list[str]:
-        return list(self._get_cfg().chat.reply_style.chat_prompts)
+        return list(self._get_chat().reply_style.chat_prompts)
 
     def get_reply_timing_talk_value(self) -> float:
-        return float(self._get_cfg().chat.reply_timing.talk_value)
+        return float(self._get_chat().reply_timing.talk_value)
 
     def get_reply_timing_private_talk_value(self) -> float:
-        return float(self._get_cfg().chat.reply_timing.private_talk_value)
+        return float(self._get_chat().reply_timing.private_talk_value)
