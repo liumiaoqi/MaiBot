@@ -2,7 +2,7 @@
 
 
 import json
-import os
+from pathlib import Path
 from typing import Any
 
 from src.common.logger import get_logger
@@ -20,7 +20,7 @@ class PerPluginStorage:
     def __init__(self, base_dir: str = "data/plugin_storage") -> None:
         self._base_dir = base_dir
         self._data: dict[str, dict[str, Any]] = {}
-        os.makedirs(base_dir, exist_ok=True)
+        Path(base_dir).mkdir(parents=True, exist_ok=True)
         self._load_all()
 
     def get(self, plugin_id: str, key: str, default: Any = None) -> Any:
@@ -39,21 +39,19 @@ class PerPluginStorage:
         return False
 
     def _load_all(self) -> None:
-        if not os.path.isdir(self._base_dir):
+        base = Path(self._base_dir)
+        if not base.is_dir():
             return
-        for fname in os.listdir(self._base_dir):
-            if not fname.endswith(".json"):
-                continue
-            plugin_id = fname[:-5]
-            fpath = os.path.join(self._base_dir, fname)
+        for fpath in base.glob("*.json"):
+            plugin_id = fpath.stem
             try:
-                with open(fpath, "r", encoding="utf-8") as f:
+                with fpath.open("r", encoding="utf-8") as f:
                     self._data[plugin_id] = json.load(f)
             except (json.JSONDecodeError, OSError) as e:
                 logger.warning("加载插件存储失败: %s: %s", plugin_id, e)
 
     def _save(self, plugin_id: str) -> None:
-        fpath = os.path.join(self._base_dir, f"{plugin_id}.json")
+        fpath = Path(self._base_dir) / f"{plugin_id}.json"
         try:
             with open(fpath, "w", encoding="utf-8") as f:
                 json.dump(self._data.get(plugin_id, {}), f, ensure_ascii=False, indent=2)
