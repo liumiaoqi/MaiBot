@@ -535,6 +535,117 @@ class ImportTaskManager:
             self._record_file_source(file_record, source)
             return para_hash
 
+    async def _batch_insert_paragraphs(
+        self,
+        *,
+        file_record: ImportFileRecord,
+        paragraph_units: List[Dict[str, Any]],
+    ) -> Dict[str, str]:
+        """批量插入段落元数据，返回 unit_chunk_id -> paragraph_hash 映射。"""
+        if not paragraph_units:
+            return {}
+
+        batch_paragraphs: List[dict] = []
+        unit_sources: Dict[str, str] = {}
+        for unit in paragraph_units:
+            chunk_id = unit["chunk_id"]
+            content = str(unit.get("content", ""))
+            source = str(unit.get("source") or f"web_import:{file_record.name}")
+            unit_sources[chunk_id] = source
+            batch_paragraphs.append({"content": content})
+
+        async with self._storage_lock:
+            hashes = self.plugin.metadata_store.add_paragraph_batch(batch_paragraphs)
+
+        chunk_to_hash: Dict[str, str] = {}
+        for unit, h in zip(paragraph_units, hashes, strict=True):
+            source = unit_sources.get(unit["chunk_id"], "")
+            async with self._storage_lock:
+                self._record_file_source(file_record, source)
+            chunk_to_hash[unit["chunk_id"]] = h
+
+        logger.info(
+            f"批量插入段落完成: file={file_record.name}, count={len(hashes)}"
+        )
+        return chunk_to_hash
+
+    async def _batch_encode_paragraph_vectors(
+        self,
+        paragraph_units: List[Dict[str, Any]],
+        chunk_to_hash: Dict[str, str],
+    ) -> Dict[str, Any]:
+        """批量编码段落向量并写入 vector store。"""
+        results: Dict[str, Any] = {"success": 0, "queued": 0, "failed": 0, "details": []}
+
+        texts: List[str] = []
+        hashes: List[str] = []
+        for unit in paragraph_units:
+            chunk_id = unit["chunk_id"]
+            h = chunk_to_hash.get(chunk_id)
+            content = str(unit.get("content", ""))
+            if not h or not content.strip():
+                continue
+            texts.append(content)
+            hashes.append(h)
+
+        if not texts:
+            return results
+
+        target_store = self._paragraph_vector_store()
+        if target_store is None or self.plugin.embedding_manager is None:
+            if not self._allow_metadata_only_write():
+                raise RuntimeError("向量写入依赖未初始化")
+            for h in hashes:
+                await self._enqueue_paragraph_backfill_locked(h, error="vector_runtime_components_missing")
+            results["queued"] = len(hashes)
+            return results
+
+        if self._is_embedding_degraded():
+            if not self._allow_metadata_only_write():
+                raise RuntimeError("embedding 处于降级态且 metadata-only 写入被禁用")
+            for h in hashes:
+                await self._enqueue_paragraph_backfill_locked(h, error="embedding_degraded")
+            results["queued"] = len(hashes)
+            return results
+
+        # 过滤已存在的
+        new_texts = []
+        new_hashes = []
+        for text, h in zip(texts, hashes, strict=True):
+            if h in target_store:
+                results["details"].append({"hash": h, "status": "already_exists"})
+                results["success"] += 1
+                continue
+            new_texts.append(text)
+            new_hashes.append(h)
+
+        if not new_texts:
+            return results
+
+        try:
+            embeddings = await self.plugin.embedding_manager.encode(new_texts)
+            if embeddings.ndim == 1:
+                embeddings = embeddings.reshape(1, -1)
+
+            async with self._storage_lock:
+                added = target_store.add(embeddings, new_hashes)
+            results["success"] += int(added)
+            results["details"].extend(
+                {"hash": h, "status": "written"} for h in new_hashes
+            )
+        except Exception as exc:
+            logger.warning(f"批量向量写入失败: {exc}")
+            if not self._allow_metadata_only_write():
+                raise
+            for h in new_hashes:
+                await self._enqueue_paragraph_backfill_locked(h, error=str(exc))
+            results["queued"] += len(new_hashes)
+            results["details"].extend(
+                {"hash": h, "status": "queued", "error": str(exc)} for h in new_hashes
+            )
+
+        return results
+
     async def _set_relation_vector_state_locked(
         self,
         relation_hash: str,
@@ -3152,7 +3263,19 @@ class ImportTaskManager:
             await self._append_file_warnings(task_id, file_record.file_id, build_warnings)
         await self._register_json_units(task_id, file_record.file_id, units)
 
+        # 批量插入段落元数据以减少 SQLite 事务开销
+        paragraph_units = [u for u in units if u.get("kind") == "paragraph"]
+        chunk_to_hash: Dict[str, str] = {}
+        if paragraph_units:
+            chunk_to_hash = await self._batch_insert_paragraphs(
+                file_record=file_record,
+                paragraph_units=paragraph_units,
+            )
+            # 批量编码段落向量
+            await self._batch_encode_paragraph_vectors(paragraph_units, chunk_to_hash)
+
         await self._set_file_state(task_id, file_record.file_id, "extracting", "extracting")
+        # 段落单元：传递预计算 hash 跳过重复插入；非段落单元正常处理
         jobs = [
             asyncio.create_task(
                 self._process_json_unit(
@@ -3161,6 +3284,7 @@ class ImportTaskManager:
                     unit,
                     chunk_semaphore,
                     paragraph_metadata=paragraph_metadata,
+                    pre_inserted_hash=chunk_to_hash.get(unit["chunk_id"]),
                 )
             )
             for unit in units
@@ -3363,6 +3487,7 @@ class ImportTaskManager:
         unit: Dict[str, Any],
         chunk_semaphore: asyncio.Semaphore,
         paragraph_metadata: Optional[Dict[str, Any]] = None,
+        pre_inserted_hash: Optional[str] = None,
     ) -> None:
         chunk_id = unit["chunk_id"]
         async with chunk_semaphore:
@@ -3387,22 +3512,25 @@ class ImportTaskManager:
                         pass
                     source = str(unit.get("source") or f"web_import:{file_record.name}")
                     if not skip_write:
-                        para_hash = await self._add_paragraph_metadata(
-                            file_record=file_record,
-                            content=content,
-                            source=source,
-                            metadata=paragraph_metadata,
-                            time_meta=unit.get("time_meta"),
-                        )
-                        vector_result = await self._write_paragraph_vector_or_enqueue(
-                            paragraph_hash=para_hash,
-                            content=content,
-                            context="web_import_json",
-                        )
-                        if str(vector_result.get("warning", "")).strip():
-                            logger.warning(
-                                f"web_import json paragraph 向量写入降级: hash={para_hash[:8]} detail={vector_result.get('detail')}"
+                        if pre_inserted_hash:
+                            para_hash = pre_inserted_hash
+                        else:
+                            para_hash = await self._add_paragraph_metadata(
+                                file_record=file_record,
+                                content=content,
+                                source=source,
+                                metadata=paragraph_metadata,
+                                time_meta=unit.get("time_meta"),
                             )
+                            vector_result = await self._write_paragraph_vector_or_enqueue(
+                                paragraph_hash=para_hash,
+                                content=content,
+                                context="web_import_json",
+                            )
+                            if str(vector_result.get("warning", "")).strip():
+                                logger.warning(
+                                    f"web_import json paragraph 向量写入降级: hash={para_hash[:8]} detail={vector_result.get('detail')}"
+                                )
                         for name in unit.get("entities", []) or []:
                             n = str(name or "").strip()
                             if not n:
@@ -3468,7 +3596,7 @@ class ImportTaskManager:
         imported_sources = file_record.imported_sources
         if imported_sources is None:
             imported_sources = []
-            setattr(file_record, "imported_sources", imported_sources)
+            file_record.imported_sources = imported_sources
         if source_text not in imported_sources:
             imported_sources.append(source_text)
 

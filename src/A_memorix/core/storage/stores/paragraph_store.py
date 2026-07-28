@@ -96,6 +96,24 @@ class ParagraphStore:
             self.revive_if_deleted(paragraph_hashes=[hash_value])
             return hash_value
 
+    def add_paragraph_batch(self, paragraphs: list[dict]) -> list[str]:
+        """批量添加段落，使用 executemany。返回 hash 列表。"""
+        hashes = []
+        rows = []
+        now = datetime.now().timestamp()
+        for p in paragraphs:
+            content_normalized = normalize_text(p["content"])
+            h = compute_hash(content_normalized)
+            hashes.append(h)
+            word_count = len(content_normalized.split())
+            rows.append((h, p["content"], word_count, now, now))
+        with self._conn:
+            self._conn.executemany(
+                "INSERT OR IGNORE INTO paragraphs (hash, content, word_count, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+                rows,
+            )
+        return hashes
+
     def get_paragraph(self, hash_value: str) -> Optional[Dict[str, Any]]:
         cursor = self._conn.cursor()
         cursor.execute("SELECT * FROM paragraphs WHERE hash = ?", (hash_value,))

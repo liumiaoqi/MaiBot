@@ -220,6 +220,9 @@ class MetadataStore:
             logger.warning(f"Episode source 重建入队失败: hash={hash_value[:16]}..., err={e}")
         return hash_value
 
+    def add_paragraph_batch(self, paragraphs: list[dict]) -> list[str]:
+        return self.paragraphs.add_paragraph_batch(paragraphs)
+
     def get_paragraph(self, hash_value: str) -> Optional[Dict[str, Any]]:
         return self.paragraphs.get_paragraph(hash_value)
 
