@@ -120,4 +120,4 @@ class SubAgentHandle(BaseModel):
 
 def generate_subagent_id() -> str:
     """生成子智能体实例ID。"""
-    return f"sub_{uuid.uuid4().hex[:12]}"
+    return f"sub_{uuid.uuid7().hex[:12]}"

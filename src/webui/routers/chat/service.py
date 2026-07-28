@@ -588,7 +588,7 @@ def normalize_webui_user_id(user_id: Optional[str]) -> str:
         str: 带统一前缀的用户 ID。
     """
     if not user_id:
-        return f"{WEBUI_USER_ID_PREFIX}{uuid.uuid4().hex[:16]}"
+        return f"{WEBUI_USER_ID_PREFIX}{uuid.uuid7().hex[:16]}"
     if user_id.startswith(WEBUI_USER_ID_PREFIX):
         return user_id
     return f"{WEBUI_USER_ID_PREFIX}{user_id}"
@@ -1077,12 +1077,12 @@ def create_message_data(
         Dict[str, Any]: 聊天核心可处理的消息数据。
     """
     if message_id is None:
-        message_id = str(uuid.uuid4())
+        message_id = str(uuid.uuid7())
 
     if virtual_config and virtual_config.enabled:
         platform = virtual_config.platform or WEBUI_CHAT_PLATFORM
         group_id: Optional[str] = (
-            virtual_config.group_id or f"{VIRTUAL_GROUP_ID_PREFIX}{uuid.uuid4().hex[:8]}"
+            virtual_config.group_id or f"{VIRTUAL_GROUP_ID_PREFIX}{uuid.uuid7().hex[:8]}"
         )
         group_name: Optional[str] = virtual_config.group_name or "WebUI虚拟群聊"
         actual_user_id = virtual_config.user_id or user_id
@@ -1203,7 +1203,7 @@ async def handle_chat_message(
     display_content = build_display_content(content, images, emojis, files, voices)
 
     next_user_name = str(data.get("user_name", current_user_name))
-    message_id = str(uuid.uuid4())
+    message_id = str(uuid.uuid7())
     timestamp = time.time()
     sender_name, sender_user_id = resolve_sender_identity(
         current_user_name=next_user_name,

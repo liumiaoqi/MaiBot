@@ -112,7 +112,7 @@ class GoalManager:
             else:
                 self._close_goal(existing, GoalVerdictStatus.CANCELLED)
 
-        goal_id = f"goal:{agent_id}:{uuid.uuid4().hex[:8]}"
+        goal_id = f"goal:{agent_id}:{uuid.uuid7().hex[:8]}"
         now = time.time()
         goal = Goal(
             goal_id=goal_id,

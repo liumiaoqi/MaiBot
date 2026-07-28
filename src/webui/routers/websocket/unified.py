@@ -578,7 +578,7 @@ async def websocket_endpoint(websocket: WebSocket, token: Optional[str] = Query(
         await websocket.close(code=4001, reason="认证失败，请重新登录")
         return
 
-    connection_id = uuid.uuid4().hex
+    connection_id = uuid.uuid7().hex
     await websocket_manager.connect(connection_id=connection_id, websocket=websocket)
     logger.info(f"统一 WebSocket 客户端已连接: connection={connection_id}")
     await websocket_manager.send_event(

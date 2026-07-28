@@ -114,7 +114,7 @@ class ParameterEvolutionEngine:
         )
 
         log = ParameterEvolutionAuditLog(
-            log_id=f"evo_{uuid.uuid4().hex[:8]}",
+            log_id=f"evo_{uuid.uuid7().hex[:8]}",
             agent_id=agent_id,
             parameter_name=parameter_name,
             new_value=new_value,
@@ -173,7 +173,7 @@ class ParameterEvolutionEngine:
             self._constraint.last_auto_adjust_time[key] = time.time()
 
             log = ParameterEvolutionAuditLog(
-                log_id=f"evo_{uuid.uuid4().hex[:8]}",
+                log_id=f"evo_{uuid.uuid7().hex[:8]}",
                 agent_id=agent_id,
                 parameter_name=segment,
                 old_value=old_value,
@@ -216,7 +216,7 @@ class ParameterEvolutionEngine:
         self._constraint.last_auto_adjust_time[key] = time.time()
 
         log = ParameterEvolutionAuditLog(
-            log_id=f"evo_{uuid.uuid4().hex[:8]}",
+            log_id=f"evo_{uuid.uuid7().hex[:8]}",
             agent_id=agent_id,
             parameter_name=parameter_name,
             old_value=hit_rate,

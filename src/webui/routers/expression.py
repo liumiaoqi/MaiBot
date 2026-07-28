@@ -687,7 +687,7 @@ async def save_legacy_db_upload(file: UploadFile) -> Path:
     filename = Path(file.filename or "legacy.db").name
     suffix = Path(filename).suffix or ".db"
     LEGACY_IMPORT_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    target_path = (LEGACY_IMPORT_UPLOAD_DIR / f"{uuid.uuid4().hex}{suffix}").resolve()
+    target_path = (LEGACY_IMPORT_UPLOAD_DIR / f"{uuid.uuid7().hex}{suffix}").resolve()
     try:
         with target_path.open("wb") as target_file:
             while chunk := await file.read(1024 * 1024):

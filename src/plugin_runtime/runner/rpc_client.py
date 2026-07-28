@@ -69,7 +69,7 @@ class RPCClient:
 
         self._id_gen = RequestIdGenerator()
         self._connection: Optional[Connection] = None
-        self._runner_id: str = str(uuid.uuid4())
+        self._runner_id: str = str(uuid.uuid7())
         self._method_handlers: Dict[str, MethodHandler] = {}
         self._pending_requests: Dict[int, asyncio.Future[Envelope]] = {}
         self._running: bool = False

@@ -73,7 +73,7 @@ def append_ai_review_log(
     """记录一次表达方式 AI 审核结果，供 WebUI 回看和人工救回。"""
 
     entry: Dict[str, Any] = {
-        "id": uuid.uuid4().hex,
+        "id": uuid.uuid7().hex,
         "event": AI_REVIEW_EVENT,
         "created_at": _now_iso(),
         "expression_id": expression_id,
@@ -104,7 +104,7 @@ def append_manual_rescue_log(
     """记录一次从 AI 审核日志中人工恢复表达方式的操作。"""
 
     entry: Dict[str, Any] = {
-        "id": uuid.uuid4().hex,
+        "id": uuid.uuid7().hex,
         "event": MANUAL_RESCUE_EVENT,
         "created_at": _now_iso(),
         "review_log_id": str(review_log_id),

@@ -105,14 +105,14 @@ Protocol 接口和注册点详见 `src/core/protocols.py` 和 `src/core/adapters
 | **P1** | **CQ-7**　| **A_memorix 记忆系统重设计**　　　　　　　　　　　　| 7 问题　　　　　　　　 | ⬜ SSD 就绪（`.codeartsdoer/specs/cq7_memorix/`）　　　　　　　　　　　　　　　　|
 | P2　　 | CQ-8　　　| SQLAlchemy 3.14 兼容　　　　　　　　　　　　　　　　| ChunkedIteratorResult　| ⬜ 待规划　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
 | P2　　 | CQ-17　　 | v1 旧链发送清算　　　　　　　　　　　　　　　　　　 | legacy_driver+fallback | ⬜ 调研完成（`.shared/handoff/cc2ca_v1_legacy_send_0728_research.md`），待大清算 |
-| P2　　 | TG-6　　　| match/case 模式匹配　　　　　　　　　　　　　　　　| NoticeClassifier 等　 | ⬜ 长 if/elif → match/case　　　　　　　　　　　　　　　　　　　　　　　　　　　|
-| P2　　 | TG-9　　　| uuid7 时间排序 UUID　　　　　　　　　　　　　　　　| activity_store 等　　 | ⬜ B-tree 索引友好　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
+| P2　　 | TG-6　　　| match/case 模式匹配　　　　　　　　　　　　　　　　 | NoticeClassifier 等　　| ⬜ 长 if/elif → match/case　　　　　　　　　　　　　　　　　　　　　　　　　　　 |
+| P2　　 | TG-9　　　| uuid7 时间排序 UUID　　　　　　　　　　　　　　　　 | activity_store 等　　　| ⬜ B-tree 索引友好　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 |
 | P3　　 | CQ-9x　　 | napcat-adapter Tool 扩展　　　　　　　　　　　　　　| 5→~30 @Tool　　　　　　| ⬜ 扩展任务　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
 | P3　　 | CQ-10　　 | V1/V2 共存+TODO　　　　　　　　　　　　　　　　　　 | 若干　　　　　　　　　 | ⬜ 低优先　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
-| P3　　 | TG-7　　　| Exception Groups + except*　　　　　　　　　　　　 | Orchestrator 并行　　 | ⬜ 多错误分类捕获　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
-| P3　　 | TG-8　　　| Type Parameter Syntax　　　　　　　　　　　　　　　| Protocol 注册表　　　 | ⬜ class X[T]: 泛型简化　　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
-| P3　　 | TG-10　　 | map() strict=True　　　　　　　　　　　　　　　　　 | 批量 LLM 映射　　　　 | ⬜ 防沉默截断　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
-| P3　　 | TG-11　　 | dataclass replace()　　　　　　　　　　　　　　　　 | frozen DTO 修改　　　 | ⬜ 不可变对象更新　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
+| P3　　 | TG-7　　　| Exception Groups + except*　　　　　　　　　　　　　| Orchestrator 并行　　　| ⬜ 多错误分类捕获　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
+| P3　　 | TG-8　　　| Type Parameter Syntax　　　　　　　　　　　　　　　 | Protocol 注册表　　　　| ⬜ class X[T]: 泛型简化　　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
+| P3　　 | TG-10　　 | map() strict=True　　　　　　　　　　　　　　　　　 | 批量 LLM 映射　　　　　| ⬜ 防沉默截断　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
+| P3　　 | TG-11　　 | dataclass replace()　　　　　　　　　　　　　　　　 | frozen DTO 修改　　　　| ⬜ 不可变对象更新　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
 
 已完成：CQ-9/10（except 吞没）✅、CQ-3（None 防御）✅、CQ-5（启动崩溃修复）✅、CQ-7（欲望驱动）✅、CQ-11（统一日志）✅、CQ-159/14/13（Port 迁移）✅、CQ-4（代码质量）✅、TG-0（Python 3.14 兼容性）✅、TG-1（调试基础设施文档化）✅、TG-2（registry descriptor + CoreReadiness 声明式）✅、TG-3（启动编排声明式）✅、TG-5（代码风格统一）✅
 

@@ -76,7 +76,7 @@ class ReplyEffectTracker:
     ) -> ReplyEffectRecord:
         """登记一条已经成功发出的 reply 回复。"""
 
-        effect_id = str(uuid.uuid4())
+        effect_id = str(uuid.uuid7())
         target_user_info = target_message.message_info.user_info
         record = ReplyEffectRecord(
             effect_id=effect_id,

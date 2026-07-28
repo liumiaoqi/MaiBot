@@ -4031,7 +4031,7 @@ class MetadataStore:
         updated_by: str = "",
         result: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        operation_id = f"v5_{uuid.uuid4().hex}"
+        operation_id = f"v5_{uuid.uuid7().hex}"
         created_at = datetime.now().timestamp()
         payload = {
             "operation_id": operation_id,
@@ -4079,7 +4079,7 @@ class MetadataStore:
         reason: str = "",
         plan_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        op_id = str(plan_id or f"fuzzy_{uuid.uuid4().hex}").strip()
+        op_id = str(plan_id or f"fuzzy_{uuid.uuid7().hex}").strip()
         now = datetime.now().timestamp()
         payload = {
             "plan_id": op_id,
@@ -4259,7 +4259,7 @@ class MetadataStore:
         summary: Optional[Dict[str, Any]] = None,
         operation_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        op_id = str(operation_id or f"del_{uuid.uuid4().hex}").strip()
+        op_id = str(operation_id or f"del_{uuid.uuid7().hex}").strip()
         created_at = datetime.now().timestamp()
         normalized_items: List[Dict[str, Any]] = []
         for item in items or []:

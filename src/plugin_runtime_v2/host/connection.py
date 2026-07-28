@@ -131,4 +131,4 @@ class HostEndpointConfig:
 
     def __post_init__(self) -> None:
         if not self.server_id:
-            object.__setattr__(self, "server_id", uuid.uuid4().hex[:8])
+            object.__setattr__(self, "server_id", uuid.uuid7().hex[:8])

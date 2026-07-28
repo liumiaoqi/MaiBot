@@ -1390,7 +1390,7 @@ class ImportTaskManager:
                 raise ValueError("任务队列已满，请稍后重试")
 
             task = ImportTaskRecord(
-                task_id=uuid.uuid4().hex,
+                task_id=uuid.uuid7().hex,
                 source="upload",
                 params=params,
                 status="queued",
@@ -1401,7 +1401,7 @@ class ImportTaskManager:
 
             max_size = self._max_file_size_bytes()
             for idx, uploaded in enumerate(files):
-                file_id = uuid.uuid4().hex
+                file_id = uuid.uuid7().hex
                 if isinstance(uploaded, dict):
                     staged_path_raw = uploaded.get("staged_path") or uploaded.get("path") or ""
                     staged_path = Path(str(staged_path_raw or "")).expanduser().resolve()
@@ -1465,7 +1465,7 @@ class ImportTaskManager:
                 raise ValueError("任务队列已满，请稍后重试")
 
             task = ImportTaskRecord(
-                task_id=uuid.uuid4().hex,
+                task_id=uuid.uuid7().hex,
                 source="paste",
                 params=params,
                 status="queued",
@@ -1473,7 +1473,7 @@ class ImportTaskManager:
             )
             task.files.append(
                 ImportFileRecord(
-                    file_id=uuid.uuid4().hex,
+                    file_id=uuid.uuid7().hex,
                     name=name,
                     source_kind="paste",
                     input_mode=params["input_mode"],
@@ -1513,7 +1513,7 @@ class ImportTaskManager:
                 raise ValueError("任务队列已满，请稍后重试")
 
             task = ImportTaskRecord(
-                task_id=uuid.uuid4().hex,
+                task_id=uuid.uuid7().hex,
                 source="raw_scan",
                 params=params,
                 status="queued",
@@ -1523,7 +1523,7 @@ class ImportTaskManager:
                 mode = "json" if path.suffix.lower() == ".json" else params["input_mode"]
                 task.files.append(
                     ImportFileRecord(
-                        file_id=uuid.uuid4().hex,
+                        file_id=uuid.uuid7().hex,
                         name=path.name,
                         source_kind="raw_scan",
                         input_mode=mode,
@@ -1573,7 +1573,7 @@ class ImportTaskManager:
             if self._pending_task_count() >= self._queue_limit():
                 raise ValueError("任务队列已满，请稍后重试")
             task = ImportTaskRecord(
-                task_id=uuid.uuid4().hex,
+                task_id=uuid.uuid7().hex,
                 source="lpmm_openie",
                 params=params,
                 status="queued",
@@ -1583,7 +1583,7 @@ class ImportTaskManager:
             for path in files:
                 task.files.append(
                     ImportFileRecord(
-                        file_id=uuid.uuid4().hex,
+                        file_id=uuid.uuid7().hex,
                         name=path.name,
                         source_kind="lpmm_openie",
                         input_mode="json",
@@ -1613,7 +1613,7 @@ class ImportTaskManager:
             if self._pending_task_count() >= self._queue_limit():
                 raise ValueError("任务队列已满，请稍后重试")
             task = ImportTaskRecord(
-                task_id=uuid.uuid4().hex,
+                task_id=uuid.uuid7().hex,
                 source="temporal_backfill",
                 params=params,
                 status="queued",
@@ -1621,7 +1621,7 @@ class ImportTaskManager:
             )
             task.files.append(
                 ImportFileRecord(
-                    file_id=uuid.uuid4().hex,
+                    file_id=uuid.uuid7().hex,
                     name=f"temporal_backfill_{int(_now())}",
                     source_kind="temporal_backfill",
                     input_mode="json",
@@ -1659,7 +1659,7 @@ class ImportTaskManager:
             if self._pending_task_count() >= self._queue_limit():
                 raise ValueError("任务队列已满，请稍后重试")
             task = ImportTaskRecord(
-                task_id=uuid.uuid4().hex,
+                task_id=uuid.uuid7().hex,
                 source="lpmm_convert",
                 params={**params, "source_path": str(source_path), "target_path": str(target_path)},
                 status="queued",
@@ -1667,7 +1667,7 @@ class ImportTaskManager:
             )
             task.files.append(
                 ImportFileRecord(
-                    file_id=uuid.uuid4().hex,
+                    file_id=uuid.uuid7().hex,
                     name=f"lpmm_convert_{int(_now())}",
                     source_kind="lpmm_convert",
                     input_mode="json",
@@ -1696,7 +1696,7 @@ class ImportTaskManager:
                 raise ValueError("任务队列已满，请稍后重试")
 
             task = ImportTaskRecord(
-                task_id=uuid.uuid4().hex,
+                task_id=uuid.uuid7().hex,
                 source="maibot_migration",
                 params=params,
                 status="queued",
@@ -1704,7 +1704,7 @@ class ImportTaskManager:
             )
             task.files.append(
                 ImportFileRecord(
-                    file_id=uuid.uuid4().hex,
+                    file_id=uuid.uuid7().hex,
                     name=f"maibot_migration_{int(_now())}",
                     source_kind="maibot_migration",
                     input_mode="text",
@@ -1850,7 +1850,7 @@ class ImportTaskManager:
             if src_path is None:
                 return False, "upload_source_missing"
             data = src_path.read_bytes()
-            file_id = uuid.uuid4().hex
+            file_id = uuid.uuid7().hex
             name = _safe_filename(failed_file.name)
             dst = task_dir / f"{file_id}_{name}"
             dst.write_bytes(data)
@@ -1872,7 +1872,7 @@ class ImportTaskManager:
                 return False, "paste_content_missing"
             retry_task.files.append(
                 ImportFileRecord(
-                    file_id=uuid.uuid4().hex,
+                    file_id=uuid.uuid7().hex,
                     name=_safe_filename(failed_file.name),
                     source_kind="paste",
                     input_mode=failed_file.input_mode,
@@ -1886,7 +1886,7 @@ class ImportTaskManager:
         if source_kind == "maibot_migration":
             retry_task.files.append(
                 ImportFileRecord(
-                    file_id=uuid.uuid4().hex,
+                    file_id=uuid.uuid7().hex,
                     name=_safe_filename(failed_file.name),
                     source_kind="maibot_migration",
                     input_mode="text",
@@ -1900,7 +1900,7 @@ class ImportTaskManager:
         if source_kind in {"raw_scan", "lpmm_openie", "lpmm_convert", "temporal_backfill"}:
             retry_task.files.append(
                 ImportFileRecord(
-                    file_id=uuid.uuid4().hex,
+                    file_id=uuid.uuid7().hex,
                     name=_safe_filename(failed_file.name),
                     source_kind=source_kind,
                     input_mode=failed_file.input_mode,
@@ -1938,7 +1938,7 @@ class ImportTaskManager:
             if self._pending_task_count() >= self._queue_limit():
                 raise ValueError("任务队列已满，请稍后重试")
             retry_task = ImportTaskRecord(
-                task_id=uuid.uuid4().hex,
+                task_id=uuid.uuid7().hex,
                 source=task.source,
                 params=params,
                 status="queued",

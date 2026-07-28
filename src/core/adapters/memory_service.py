@@ -44,7 +44,7 @@ class AMemorixMemoryServicePort:
         return self._memory_service
 
     async def observe_experience(self, request: ObserveRequest) -> MemoryWriteResult:
-        trace_id = uuid.uuid4().hex[:12]
+        trace_id = uuid.uuid7().hex[:12]
         effective_source_id = request.source_id or f"trace:{trace_id}"
         result = await self._get_memory_service().observe(
             text=request.text,

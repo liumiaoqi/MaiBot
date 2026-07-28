@@ -2065,7 +2065,7 @@ async def _tuning_report(task_id: str, fmt: str) -> dict:
 
 async def _stage_upload_files(files: list[UploadFile]) -> tuple[Path, list[dict[str, Any]]]:
     STAGING_ROOT.mkdir(parents=True, exist_ok=True)
-    staging_dir = STAGING_ROOT / uuid.uuid4().hex
+    staging_dir = STAGING_ROOT / uuid.uuid7().hex
     staging_dir.mkdir(parents=True, exist_ok=True)
     staged_files: list[dict[str, Any]] = []
     for index, upload in enumerate(files):

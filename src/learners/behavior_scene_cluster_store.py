@@ -143,7 +143,7 @@ def _select_tag_cluster_rows_by_keys(
 
 
 def _new_tag_cluster_key() -> str:
-    return f"tc_{uuid.uuid4().hex}"
+    return f"tc_{uuid.uuid7().hex}"
 
 
 def _choose_merge_tag_cluster_key(

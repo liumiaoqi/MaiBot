@@ -28,7 +28,7 @@ class RunnerEndpointConfig:
 
     def __post_init__(self) -> None:
         if not self.runner_id:
-            self.runner_id = uuid.uuid4().hex
+            self.runner_id = uuid.uuid7().hex
         if not self.sdk_version:
             self.sdk_version = "4.0.0"
 

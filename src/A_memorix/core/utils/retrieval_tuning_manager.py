@@ -922,7 +922,7 @@ class RetrievalTuningManager:
             if self._pending_task_count() >= self._queue_limit():
                 raise ValueError("调优任务队列已满，请稍后重试")
             task = RetrievalTuningTaskRecord(
-                task_id=uuid.uuid4().hex,
+                task_id=uuid.uuid7().hex,
                 status="queued",
                 progress=0.0,
                 objective=objective,
