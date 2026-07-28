@@ -279,7 +279,7 @@ class GraphStore:
 
                  # V5: Update edge hash map
                  if relation_hashes:
-                     for (src, tgt), r_hash in zip(edges, relation_hashes):
+                     for (src, tgt), r_hash in zip(edges, relation_hashes, strict=True):
                          if r_hash:
                              s_idx = self._node_to_idx[self._canonicalize(src)]
                              t_idx = self._node_to_idx[self._canonicalize(tgt)]
@@ -297,7 +297,7 @@ class GraphStore:
         col_indices = []
         data_values = []
 
-        for (src, tgt), weight in zip(edges, weights):
+        for (src, tgt), weight in zip(edges, weights, strict=True):
             src_idx = self._node_to_idx[self._canonicalize(src)]
             tgt_idx = self._node_to_idx[self._canonicalize(tgt)]
 
@@ -329,7 +329,7 @@ class GraphStore:
 
         # V5: 更新边哈希映射 (Edge Hash Map)
         if relation_hashes:
-            for (src, tgt), r_hash in zip(edges, relation_hashes):
+            for (src, tgt), r_hash in zip(edges, relation_hashes, strict=True):
                 if r_hash:
                     try:
                         s_idx = self._node_to_idx[self._canonicalize(src)]
@@ -511,7 +511,7 @@ class GraphStore:
             new_col = []
             new_data = []
 
-            for i, j, val in zip(adj_coo.row, adj_coo.col, adj_coo.data):
+            for i, j, val in zip(adj_coo.row, adj_coo.col, adj_coo.data, strict=True):
                 if (i, j) not in edges_to_delete:
                     new_row.append(i)
                     new_col.append(j)

@@ -350,7 +350,7 @@ class VectorStore:
         ids = ids[0]
 
         results = []
-        for id_val, score in zip(ids, dists):
+        for id_val, score in zip(ids, dists, strict=True):
             if id_val == -1: continue
             if filter_deleted and id_val in self._deleted_ids:
                 continue

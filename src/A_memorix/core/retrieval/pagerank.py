@@ -198,7 +198,7 @@ class PersonalizedPageRank:
         if len(weights) != len(entities):
             raise ValueError(f"权重数量与实体数量不匹配: {len(weights)} vs {len(entities)}")
 
-        personalization = {entity: weight for entity, weight in zip(entities, weights)}
+        personalization = {entity: weight for entity, weight in zip(entities, weights, strict=True)}
 
         return self.compute(personalization=personalization, normalize=normalize)
 

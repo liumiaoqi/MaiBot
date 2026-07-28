@@ -347,9 +347,9 @@ class ThinkingOrgan:
                         level="warning",
                     )
                     # 注入重试提示到 inner_voice_text（ThinkContext 是 frozen，需用 replace）
-                    import dataclasses
+                    import copy
                     retry_hint = "reply 工具调用失败了。请重新调用 reply 工具回复用户，这次不要传 msg_id 参数（系统会自动回复最新消息）。"
-                    context = dataclasses.replace(
+                    context = copy.replace(
                         context,
                         inner_voice_text=(context.inner_voice_text + "\n" + retry_hint).strip(),
                     )
