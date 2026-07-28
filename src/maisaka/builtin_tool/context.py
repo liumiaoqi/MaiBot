@@ -340,20 +340,21 @@ class BuiltinToolRuntimeContext:
 
             tag = match.group("tag").lower()
             body = match.group("body") or ""
-            if tag == "split":
-                flush_components()
-            elif tag == "send":
-                components.append(TextComponent(original_reply_text))
-            elif tag == "text":
-                replacement_text = body.strip() or original_reply_text
-                if replacement_text:
-                    components.append(TextComponent(replacement_text))
-            elif tag == "pic":
-                components.append(await self._resolve_image_component(body))
-            elif tag == "emoji":
-                components.append(await self._resolve_emoji_component(body))
-            elif tag == "at":
-                components.append(self._resolve_at_component(body))
+            match tag:
+                case "split":
+                    flush_components()
+                case "send":
+                    components.append(TextComponent(original_reply_text))
+                case "text":
+                    replacement_text = body.strip() or original_reply_text
+                    if replacement_text:
+                        components.append(TextComponent(replacement_text))
+                case "pic":
+                    components.append(await self._resolve_image_component(body))
+                case "emoji":
+                    components.append(await self._resolve_emoji_component(body))
+                case "at":
+                    components.append(self._resolve_at_component(body))
             cursor = match.end()
 
         suffix_text = normalized_output[cursor:]

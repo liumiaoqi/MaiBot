@@ -127,17 +127,19 @@ class InnerVoiceGenerator:
         return "；".join(parts)
 
     def _apply_style(self, style: InnerVoiceStyle, intensity: float) -> float:
-        if style == InnerVoiceStyle.AMPLIFY:
-            return min(100.0, intensity * 1.5)
-        if style == InnerVoiceStyle.NEUTRALIZE:
-            return intensity * 0.5
-        if style == InnerVoiceStyle.PRESERVE:
-            return intensity
-        if style == InnerVoiceStyle.INVERT:
-            return 100.0 - intensity
-        if style == InnerVoiceStyle.CHAOTIC:
-            return max(0.0, min(100.0, intensity + random.uniform(-30, 30)))
-        return intensity
+        match style:
+            case InnerVoiceStyle.AMPLIFY:
+                return min(100.0, intensity * 1.5)
+            case InnerVoiceStyle.NEUTRALIZE:
+                return intensity * 0.5
+            case InnerVoiceStyle.PRESERVE:
+                return intensity
+            case InnerVoiceStyle.INVERT:
+                return 100.0 - intensity
+            case InnerVoiceStyle.CHAOTIC:
+                return max(0.0, min(100.0, intensity + random.uniform(-30, 30)))
+            case _:
+                return intensity
 
     def _render_template(
         self,

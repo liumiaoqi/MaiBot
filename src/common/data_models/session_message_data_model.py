@@ -108,44 +108,38 @@ class SessionMessage(MaiMessage):
         Returns:
             str: 组件摘要文本。
         """
-        if isinstance(component, TextComponent):
-            return f"Text(text={self._truncate_text(component.text, 80)})"
-        if isinstance(component, ImageComponent):
-            return f"Image(content={self._truncate_text(component.content or None, 60)})"
-        if isinstance(component, EmojiComponent):
-            return f"Emoji(content={self._truncate_text(component.content or None, 60)})"
-        if isinstance(component, AtComponent):
-            target_name = component.target_user_cardname or component.target_user_nickname or component.target_user_id
-            return f"At(target={target_name!r})"
-        if isinstance(component, VoiceComponent):
-            return f"Voice(content={self._truncate_text(component.content or None, 60)})"
-        if isinstance(component, FileComponent):
-            return f"File(name={component.name!r}, size={component.size!r})"
-        if isinstance(component, ReplyComponent):
-            sender_name = (
-                component.target_message_sender_cardname
-                or component.target_message_sender_nickname
-                or component.target_message_sender_id
-            )
-            return (
-                "Reply("
-                f"target_message_id={component.target_message_id!r}, "
-                f"target_sender={sender_name!r}, "
-                f"target_content={self._truncate_text(component.target_message_content, 80)}"
-                ")"
-            )
-        if isinstance(component, ForwardNodeComponent):
-            return f"ForwardNode(count={len(component.forward_components)})"
-        return f"{component.__class__.__name__}"
-    #便于调试的打印函数end
+        match component:
+            case TextComponent():
+                return f"Text(text={self._truncate_text(component.text, 80)})"
+            case ImageComponent():
+                return f"Image(content={self._truncate_text(component.content or None, 60)})"
+            case EmojiComponent():
+                return f"Emoji(content={self._truncate_text(component.content or None, 60)})"
+            case AtComponent():
+                target_name = component.target_user_cardname or component.target_user_nickname or component.target_user_id
+                return f"At(target={target_name!r})"
+            case VoiceComponent():
+                return f"Voice(content={self._truncate_text(component.content or None, 60)})"
+            case FileComponent():
+                return f"File(name={component.name!r}, size={component.size!r})"
+            case ReplyComponent():
+                sender_name = (
+                    component.target_message_sender_cardname
+                    or component.target_message_sender_nickname
+                    or component.target_message_sender_id
+                )
+                return (
+                    "Reply("
+                    f"target_message_id={component.target_message_id!r}, "
+                    f"target_sender={sender_name!r}, "
+                    f"target_content={self._truncate_text(component.target_message_content, 80)}"
+                    ")"
+                )
+            case ForwardNodeComponent():
+                return f"ForwardNode(count={len(component.forward_components)})"
+            case _:
+                return f"{component.__class__.__name__}"
 
-    async def process(
-        self,
-        *,
-        enable_heavy_media_analysis: bool = True,
-        enable_voice_transcription: bool = True,
-    ) -> None:
-        """处理消息内容并转化为纯文本。
 
         Args:
             enable_heavy_media_analysis: 是否同步执行图片与表情包描述生成。
@@ -205,41 +199,43 @@ class SessionMessage(MaiMessage):
         Returns:
             str: 组件对应的文本表示。
         """
-        if isinstance(component, TextComponent):
-            return component.text
-        elif isinstance(component, ImageComponent):
-            return await self.process_image_component(
-                component,
-                enable_heavy_media_analysis=enable_heavy_media_analysis,
-            )
-        elif isinstance(component, EmojiComponent):
-            return await self.process_emoji_component(
-                component,
-                enable_heavy_media_analysis=enable_heavy_media_analysis,
-            )
-        elif isinstance(component, AtComponent):
-            return await self.process_at_component(component)
-        elif isinstance(component, VoiceComponent):
-            return await self.process_voice_component(
-                component,
-                enable_voice_transcription=enable_voice_transcription,
-            )
-        elif isinstance(component, FileComponent):
-            return component.to_plain_text()
-        elif isinstance(component, ReplyComponent):
-            return await self.process_reply_component(component, id_content_map)
-        elif isinstance(component, ForwardNodeComponent):
-            return await self.process_forward_component(
-                component,
-                id_content_map,
-                recursion_depth=recursion_depth + 1,
-                enable_heavy_media_analysis=enable_heavy_media_analysis,
-                enable_voice_transcription=enable_voice_transcription,
-            )
-        elif isinstance(component, DictComponent):
-            return self.process_dict_component(component)
-        else:
-            raise NotImplementedError(f"暂时不支持的消息组件类型: {type(component)}")
+        match component:
+            case TextComponent():
+                return component.text
+            case ImageComponent():
+                return await self.process_image_component(
+                    component,
+                    enable_heavy_media_analysis=enable_heavy_media_analysis,
+                )
+            case EmojiComponent():
+                return await self.process_emoji_component(
+                    component,
+                    enable_heavy_media_analysis=enable_heavy_media_analysis,
+                )
+            case AtComponent():
+                return await self.process_at_component(component)
+            case VoiceComponent():
+                return await self.process_voice_component(
+                    component,
+                    enable_voice_transcription=enable_voice_transcription,
+                )
+            case FileComponent():
+                return component.to_plain_text()
+            case ReplyComponent():
+                return await self.process_reply_component(component, id_content_map)
+            case ForwardNodeComponent():
+                return await self.process_forward_component(
+                    component,
+                    id_content_map,
+                    recursion_depth=recursion_depth + 1,
+                    enable_heavy_media_analysis=enable_heavy_media_analysis,
+                    enable_voice_transcription=enable_voice_transcription,
+                )
+            case DictComponent():
+                return self.process_dict_component(component)
+            case _:
+                raise NotImplementedError(f"暂时不支持的消息组件类型: {type(component)}")
+
 
     def process_dict_component(self, component: DictComponent) -> str:
         """处理字典组件，保留非标准消息的可读摘要。"""

@@ -455,26 +455,27 @@ class _PluginHostServicer(PluginHostServicer):
 
         # 组装 MessageSequence
         msg_seq = MessageSequence([])
-        if request.message_type == "TEXT":
-            msg_seq.text(request.text_content)
-        elif request.message_type == "IMAGE":
-            from src.common.data_models.message_component_data_model import ImageComponent
-            img_data = base64.b64decode(request.image_base64) if request.image_base64 else b""
-            msg_seq.image(img_data)
-        elif request.message_type == "EMOJI":
-            from src.common.data_models.message_component_data_model import EmojiComponent
-            emoji_data = base64.b64decode(request.emoji_base64) if request.emoji_base64 else b""
-            msg_seq.emoji(emoji_data)
-        elif request.message_type == "FORWARD":
-            from src.common.data_models.message_component_data_model import ReplyComponent
-            msg_seq.components.append(ReplyComponent(target_message_id=request.forward_message_id))
-        elif request.message_type == "HYBRID":
-            import json as _json
-            try:
-                payload = _json.loads(request.hybrid_payload)
-            except _json.JSONDecodeError:
-                return plugin_host_pb2.SendMessageResponse(success=False, error="INVALID_HYBRID_PAYLOAD")
-            msg_seq = self._build_hybrid_message(payload)
+        match request.message_type:
+            case "TEXT":
+                msg_seq.text(request.text_content)
+            case "IMAGE":
+                from src.common.data_models.message_component_data_model import ImageComponent
+                img_data = base64.b64decode(request.image_base64) if request.image_base64 else b""
+                msg_seq.image(img_data)
+            case "EMOJI":
+                from src.common.data_models.message_component_data_model import EmojiComponent
+                emoji_data = base64.b64decode(request.emoji_base64) if request.emoji_base64 else b""
+                msg_seq.emoji(emoji_data)
+            case "FORWARD":
+                from src.common.data_models.message_component_data_model import ReplyComponent
+                msg_seq.components.append(ReplyComponent(target_message_id=request.forward_message_id))
+            case "HYBRID":
+                import json as _json
+                try:
+                    payload = _json.loads(request.hybrid_payload)
+                except _json.JSONDecodeError:
+                    return plugin_host_pb2.SendMessageResponse(success=False, error="INVALID_HYBRID_PAYLOAD")
+                msg_seq = self._build_hybrid_message(payload)
 
         if not msg_seq.components:
             return plugin_host_pb2.SendMessageResponse(success=False, error="EMPTY_MESSAGE")
