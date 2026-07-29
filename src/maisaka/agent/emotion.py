@@ -134,8 +134,17 @@ class EmotionManager:
         self._apply_decay()
 
     async def check_and_write_emotional_imprint(self, agent_id: str, trigger_reason: str = "") -> None:
-        """LS-2: 检查情绪强度并写入情绪印记到 CognitiveStratifier。"""
-        now = time.time()
+        """LS-5: 检查情绪强度并写入情绪印记到 A_memorix。
+
+        门控1：情绪强度 ≥ 80 才写入
+        门控2：同类型情绪冷却 600s（10分钟）
+        """
+        import time as _time
+
+        from src.common.logger import get_logger
+
+        _logger = get_logger("agent.emotion")
+        now = _time.time()
         for etype, intensity in self._state.emotions.items():
             if intensity < 80.0:
                 continue
@@ -146,16 +155,37 @@ class EmotionManager:
             concept = f"{label}事件：{trigger_reason or '自发'}（强度{intensity:.0f}）"
             try:
                 from src.core.adapters import get_memory_service_port
+                from src.core.types import ObserveRequest
+
                 port = get_memory_service_port()
                 if port is not None:
-                    await port.observe_experience(
+                    request = ObserveRequest(
+                        text=concept,
+                        valence=self._emotion_to_valence(etype),
+                        source_id=f"emotional_imprint:{agent_id}:{int(now)}",
                         agent_id=agent_id,
-                        content=concept,
+                        tags=("emotional_imprint", etype),
                         metadata={"cognitive_type": "emotional_imprint", "emotion": etype, "intensity": intensity},
                     )
+                    await port.observe_experience(request)
                     self._imprint_cooldowns[etype] = now
-            except Exception:
-                pass
+                    _logger.info(
+                        f"情绪印记写入: agent={agent_id} emotion={etype} "
+                        f"intensity={intensity:.0f} reason={trigger_reason}"
+                    )
+            except Exception as exc:
+                _logger.warning(f"情绪印记写入失败: agent={agent_id} emotion={etype} error={exc}")
+
+    @staticmethod
+    def _emotion_to_valence(emotion_type: str) -> str:
+        """情绪类型 → valence 映射。"""
+        positive = {"happy", "excited", "calm"}
+        negative = {"sad", "anxious", "angry", "lonely"}
+        if emotion_type in positive:
+            return "positive"
+        if emotion_type in negative:
+            return "negative"
+        return "neutral"
 
     def _apply_decay(self) -> None:
         """按时间衰减情绪强度，趋向基线。"""
