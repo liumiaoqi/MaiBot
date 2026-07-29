@@ -623,6 +623,8 @@ class AgentInteractionRelationship(SQLModel, table=True):
     attitude: str = Field(default="", max_length=64)
     interaction_count: int = Field(default=0)
     last_interaction_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime, nullable=True))
+    coactivation_strength: float = Field(default=0.0)
+    last_coactivation_at: float = Field(default=0.0)
     created_at: Optional[datetime] = Field(default_factory=datetime.now, sa_column=Column(DateTime, nullable=True))
     updated_at: Optional[datetime] = Field(default_factory=datetime.now, sa_column=Column(DateTime, nullable=True))
 
