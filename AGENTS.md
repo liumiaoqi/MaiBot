@@ -108,7 +108,7 @@ Protocol 接口和注册点详见 `src/core/protocols.py` 和 `src/core/adapters
 | **P1** | **LS-4**　| **灵枢：社会关系动态化**　　　　　　　　　　　　 | Hebbian共激活　　　　 | ✅ T1~T6完成，T7待端到端验证 |
 | **P1** | **LS-3**　| **灵枢：记忆动态管理**　　　　　　　　　　　　　 | 事件驱动+矛盾处理　　| ✅ 完成 |
 | **P1** | **LS-5**　| **灵枢：情绪-记忆桥接**　　　　　　　　　　　　 | L0情绪印记写入　　　　| ✅ 完成（修复写入路径断路+valence映射+异常日志） |
-| **P2** | **LS-6**　| **灵枢：分类涌现机制**　　　　　　　　　　　　　 | 分类从关系涌现　　　　 | ⬜ 待执行（含LT-2） |
+| **P2** | **LS-6**　| **灵枢：分类涌现机制**　　　　　　　　　　　　　 | 分类从关系涌现　　　　 | ✅ 完成（阈值切断+连通分量+双轨制+涌现类型映射） |
 | **P2** | **LS-7**　| **灵枢：性格可修改工具**　　　　　　　　　　　　 | L2自我修改工具　　　　| ⬜ 待执行 |
 | P2　　 | CQ-8　　　| SQLAlchemy 3.14 兼容　　　　　　　　　　　　　　　　| ChunkedIteratorResult　| ⬜ 待规划　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
 | P2　　 | CQ-17　　 | v1 旧链发送清算　　　　　　　　　　　　　　　　　　 | legacy_driver+fallback | ⬜ 调研完成（`.shared/handoff/cc2ca_v1_legacy_send_0728_research.md`），待大清算 |
