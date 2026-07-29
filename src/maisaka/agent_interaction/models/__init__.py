@@ -70,5 +70,7 @@ class AgentInteractionRelationshipRead(BaseModel):
     attitude: str
     interaction_count: int
     last_interaction_at: Optional[datetime] = None
+    coactivation_strength: float = 0.0
+    last_coactivation_at: float = 0.0
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

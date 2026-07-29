@@ -10,6 +10,7 @@
 
 
 import json
+import math
 import random
 import time
 from dataclasses import dataclass
@@ -196,9 +197,16 @@ class Butler:
     # ── 对话流 ──────────────────────────────────────────
 
     def _rule_filter(self, user_text: str, agent_text: str) -> list[InterjectionCandidate]:
-        """第一层：规则过滤（零成本）。"""
+        """第一层：规则过滤（零成本）。
+
+        LS-4: has_relation 分支使用 Sigmoid 映射 coactivation_strength，
+        公式: 0.2 + 0.6 / (1 + exp(-8 * (x - 0.5)))
+        """
         all_text = f"{user_text} {agent_text}"
         candidates = []
+
+        # LS-4: 预加载共激活强度
+        coactivation_map = self._get_coactivation_map()
 
         for brief in self._resident_briefs:
             aid = brief["id"]
@@ -225,8 +233,12 @@ class Butler:
                     is_mentioned=True,
                     has_relation=has_relation,
                 ))
-            elif has_relation and random.random() < 0.5:
-                prob = 0.5 + (0.3 if focus_matched else 0.0)
+            elif has_relation:
+                # LS-4: Sigmoid 映射 coactivation_strength
+                coactivation = coactivation_map.get(aid, 0.0)
+                prob = self._sigmoid_interjection_prob(coactivation)
+                if focus_matched:
+                    prob += 0.1
                 if random.random() < prob:
                     candidates.append(InterjectionCandidate(
                         agent_id=aid,
@@ -250,6 +262,19 @@ class Butler:
                 ))
 
         return candidates
+
+    @staticmethod
+    def _sigmoid_interjection_prob(coactivation: float) -> float:
+        """LS-4: Sigmoid 映射 coactivation → 插话概率。
+
+        prob = 0.2 + 0.6 / (1 + exp(-8 * (x - 0.5)))
+        coactivation=0 → ~0.21, 0.5 → 0.50, 1.0 → ~0.79
+        """
+        return 0.2 + 0.6 / (1.0 + math.exp(-8.0 * (coactivation - 0.5)))
+
+    def _get_coactivation_map(self) -> dict[str, float]:
+        """LS-4: 返回预加载的共激活映射。由 _load_coactivation_map 填充。"""
+        return getattr(self, "_coactivation_cache", {})
 
     async def _llm_filter(
         self,
@@ -342,10 +367,26 @@ class Butler:
         agent_text: str,
     ) -> list[InterjectionCandidate]:
         """管家决策：谁该插话。"""
+        # LS-4: 预加载共激活强度供 _rule_filter 使用
+        await self._load_coactivation_map()
         candidates = self._rule_filter(user_text, agent_text)
         if not candidates:
             return []
         return await self._llm_filter(user_text, agent_text, candidates)
+
+    async def _load_coactivation_map(self) -> None:
+        """LS-4: 异步加载共激活强度到缓存。"""
+        try:
+            from src.maisaka.agent_interaction.relationship_manager import AgentRelationshipManager
+
+            rel_manager = AgentRelationshipManager()
+            result = {}
+            for aid in self._resident_ids:
+                result[aid] = await rel_manager.get_coactivation(aid, self._primary_agent_id)
+            self._coactivation_cache = result
+        except Exception as exc:
+            logger.debug(f"[butler] 共激活加载失败: error={exc}")
+            self._coactivation_cache = {}
 
     def mark_interjected(self, agent_id: str) -> None:
         """标记智能体刚插过话，进入冷却。"""

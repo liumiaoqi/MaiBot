@@ -43,9 +43,15 @@ class EmotionDrivenTrigger(BaseTrigger):
     """情绪驱动触发器。
 
     触发逻辑：遍历智能体关系，对每个关系计算触发概率：
-    主导情绪强度/100 × mention_tendency × 情绪-关系匹配系数。
+    主导情绪强度/100 × (0.3 * coactivation + 0.7 * mention_tendency) × 情绪-关系匹配系数。
     选择触发概率最高的目标智能体。
+
+    LS-4: mention_tendency 和 coactivation 用加权平均融合（CC 原型实验推荐）。
     """
+
+    # LS-4: 加权平均权重
+    _COACTIVATION_WEIGHT = 0.3
+    _MENTION_WEIGHT = 0.7
 
     async def evaluate(
         self,
@@ -69,7 +75,10 @@ class EmotionDrivenTrigger(BaseTrigger):
             coeff_map = _EMOTION_RELATIONSHIP_COEFFICIENT.get(dominant, {})
             coeff = coeff_map.get(rel.relationship_type, _DEFAULT_COEFFICIENT)
             mention = min(rel.score / 300.0, 1.0) if rel.score > 0 else 0.1
-            prob = (intensity / 100.0) * mention * coeff
+            # LS-4: 加权平均融合 coactivation 和 mention_tendency
+            coactivation = rel.coactivation_strength
+            relation_factor = self._COACTIVATION_WEIGHT * coactivation + self._MENTION_WEIGHT * mention
+            prob = (intensity / 100.0) * relation_factor * coeff
 
             if prob > best_prob:
                 best_prob = prob

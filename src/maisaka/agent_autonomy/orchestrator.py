@@ -869,6 +869,12 @@ class AgentOrchestrator:
             if self._config.interjection_enabled:
                 await self._schedule_interjections()
 
+            # LS-4: 共在场/提及事件触发 coactivation 更新
+            if self._primary_agent_id:
+                await self._update_coactivation_on_message(
+                    primary_reply_text, content,
+                )
+
             # 管家发言权转移决策（统一临时借用和永久转移）
             if self._butler is not None and content:
                 try:
@@ -1623,3 +1629,51 @@ class AgentOrchestrator:
         if not parts:
             return ""
         return "直觉触发：\n" + "\n".join(f"- {p}" for p in parts)
+
+    async def _update_coactivation_on_message(
+        self, agent_reply_text: str, user_text: str,
+    ) -> None:
+        """LS-4: 消息后更新共激活强度。
+
+        1. 共在场：主智能体发言后，检查最近5分钟内其他活跃智能体是否发言
+        2. 互相提及：检查回复文本是否提及其他智能体名字
+        """
+        import time as _time
+
+        try:
+            from src.maisaka.agent_interaction.relationship_manager import (
+                AgentRelationshipManager,
+                _COACTIVATION_DELTA_COPRESENCE,
+                _COACTIVATION_DELTA_MENTION,
+            )
+
+            rel_manager = AgentRelationshipManager()
+            primary_id = self._primary_agent_id or ""
+            now = _time.time()
+            copresence_window = 300.0  # 5分钟
+
+            # 1. 共在场：检查活跃智能体最近是否发言
+            active_agents = self._activity_store.get_active_agents(self._session_id)
+            for activity in active_agents:
+                aid = activity.agent_id
+                if aid == primary_id:
+                    continue
+                last_spoke_at = activity.last_spoke_at
+                if last_spoke_at and (now - last_spoke_at.timestamp()) < copresence_window:
+                    await rel_manager.update_coactivation(primary_id, aid, _COACTIVATION_DELTA_COPRESENCE)
+                    await rel_manager.update_coactivation(aid, primary_id, _COACTIVATION_DELTA_COPRESENCE)
+
+            # 2. 互相提及：检查回复文本中是否提及其他智能体
+            if agent_reply_text:
+                all_text = f"{user_text} {agent_reply_text}"
+                registry = self._vitality_manager._registry
+                for agent_cfg in registry.all_agents():
+                    aid = agent_cfg.agent_id
+                    if aid == primary_id:
+                        continue
+                    name = agent_cfg.display_name
+                    if name in all_text or aid in all_text:
+                        await rel_manager.update_coactivation(primary_id, aid, _COACTIVATION_DELTA_MENTION)
+                        await rel_manager.update_coactivation(aid, primary_id, _COACTIVATION_DELTA_MENTION)
+        except Exception as exc:
+            logger.debug(f"[agent_autonomy] 共激活更新跳过: error={exc}")

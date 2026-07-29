@@ -54,6 +54,8 @@ class VitalityTickScheduler:
                 await self._vitality_manager.evaluate_vitality_tick()
                 # LS-0: 心跳驱动情绪衰减
                 self._tick_emotion_decay()
+                # LS-4: 心跳驱动共激活衰减
+                await self._tick_coactivation_decay()
             except asyncio.CancelledError:
                 break
             except Exception as exc:
@@ -77,3 +79,16 @@ class VitalityTickScheduler:
                         pass
         except Exception as exc:
             logger.debug(f"[vitality_tick] 情绪衰减跳过: error={exc}")
+
+    async def _tick_coactivation_decay(self) -> None:
+        """LS-4: 遍历活跃智能体，衰减共激活强度。"""
+        try:
+            from src.maisaka.agent_interaction.relationship_manager import AgentRelationshipManager
+
+            rel_manager = AgentRelationshipManager()
+            for agent in self._vitality_manager._registry.all_agents():
+                decayed = await rel_manager.decay_coactivations(agent.agent_id)
+                if decayed > 0:
+                    logger.debug(f"[vitality_tick] 共激活衰减: agent={agent.agent_id} rows={decayed}")
+        except Exception as exc:
+            logger.debug(f"[vitality_tick] 共激活衰减跳过: error={exc}")
