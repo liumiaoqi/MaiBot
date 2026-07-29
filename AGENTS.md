@@ -102,7 +102,14 @@ Protocol 接口和注册点详见 `src/core/protocols.py` 和 `src/core/adapters
 | --------| -----------| -----------------------------------------------------| ------------------------| ---------------------------------------------------------------------------------|
 | **P0** | **CQ-6**　| **v2 EventDispatcher 闭环 + napcat-adapter 插件化** | T0~T6 ✅　　　　　　　　| ✅ 端到端验证通过　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
 | **P0** | **CQ-16** | **v2 Runner 端到端路径验证**　　　　　　　　　　　　| 19→0　　　　　　　　　 | ✅ 完成　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
-| **P1** | **LT-1**　| **灵台（Lingtai）：A_memorix 记忆系统重设计**　 | 7 问题　　　　　　　　 | ⬜ lt_del ✅（-5,667行），lt3_storage 进行中，lt0/1/2 待规划 |
+| **P0** | **LS-0**　| **灵枢：思维连续性**　　　　　　　　　　　　　　 | 状态持久化+规则演化　 | ✅ 生产代码T1~T5已实施 |
+| **P0** | **LS-1**　| **灵枢：欲望控制流反转**　　　　　　　　　　　　 | VitalityManager降级　 | ✅ 完成 |
+| **P1** | **LS-2**　| **灵枢：记忆检索分层输出**　　　　　　　　　　　 | 事实/印象/情绪/假设　 | ✅ 完成 |
+| **P1** | **LS-4**　| **灵枢：社会关系动态化**　　　　　　　　　　　　 | Hebbian共激活　　　　 | ✅ T1~T6完成，T7待端到端验证 |
+| **P1** | **LS-3**　| **灵枢：记忆动态管理**　　　　　　　　　　　　　 | 事件驱动+矛盾处理　　| ✅ 完成 |
+| **P1** | **LS-5**　| **灵枢：情绪-记忆桥接**　　　　　　　　　　　　 | L0情绪印记写入　　　　| ⬜ 待执行（含LT-1） |
+| **P2** | **LS-6**　| **灵枢：分类涌现机制**　　　　　　　　　　　　　 | 分类从关系涌现　　　　 | ⬜ 待执行（含LT-2） |
+| **P2** | **LS-7**　| **灵枢：性格可修改工具**　　　　　　　　　　　　 | L2自我修改工具　　　　| ⬜ 待执行 |
 | P2　　 | CQ-8　　　| SQLAlchemy 3.14 兼容　　　　　　　　　　　　　　　　| ChunkedIteratorResult　| ⬜ 待规划　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
 | P2　　 | CQ-17　　 | v1 旧链发送清算　　　　　　　　　　　　　　　　　　 | legacy_driver+fallback | ⬜ 调研完成（`.shared/handoff/cc2ca_v1_legacy_send_0728_research.md`），待大清算 |
 | P2　　 | TG-6　　　| match/case 模式匹配　　　　　　　　　　　　　　　　 | NoticeClassifier 等　　| ✅ CX 完成　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 |
@@ -114,11 +121,12 @@ Protocol 接口和注册点详见 `src/core/protocols.py` 和 `src/core/adapters
 | P3　　 | TG-10　　 | zip() strict=True　　　　　　　　　　　　　　　　　 | 10 处缺 strict　　　　| ✅ 10 处已加 strict=True（防数据截断）　　　　　　　　　　　　　　　　　　　 |
 | P3　　 | TG-11　　 | dataclass replace()　　　　　　　　　　　　　　　　 | 1 处 replace　　　　　 | ✅ dataclasses.replace → copy.replace（PEP 711）　　　　　　　　　　　　　　　 |
 
-已完成：CQ-9/10（except 吞没）✅、CQ-3（None 防御）✅、CQ-5（启动崩溃修复）✅、CQ-7（欲望驱动）✅、CQ-11（统一日志）✅、CQ-159/14/13（Port 迁移）✅、CQ-4（代码质量）✅、TG-0（Python 3.14 兼容性）✅、TG-1（调试基础设施文档化）✅、TG-2（registry descriptor + CoreReadiness 声明式）✅、TG-3（启动编排声明式）✅、TG-5（代码风格统一）✅、TG-6（match/case）✅、TG-9（uuid7）✅、TG-10（zip strict）✅、TG-11（dataclass replace）✅
+已完成：CQ-9/10（except 吞没）✅、CQ-3（None 防御）✅、CQ-5（启动崩溃修复）✅、CQ-7（欲望驱动）✅、CQ-11（统一日志）✅、CQ-159/14/13（Port 迁移）✅、CQ-4（代码质量）✅、TG-0（Python 3.14 兼容性）✅、TG-1（调试基础设施文档化）✅、TG-2（registry descriptor + CoreReadiness 声明式）✅、TG-3（启动编排声明式）✅、TG-5（代码风格统一）✅、TG-6（match/case）✅、TG-9（uuid7）✅、TG-10（zip strict）✅、TG-11（dataclass replace）✅、lt_del（灵台代码清算 -5,667行）✅、lt3_storage（灵台存储架构重写）✅
 
 
 # Phoenix 后路线
 
-1. **炉火纯青（ChunQing）** — 清算遗留问题（CQ-1~6 ✅，CQ-7 ⬜ 进行中）
-2. **QQ 能力革命** — 重构 QQ 相关部分
-3. **日志与调试系统升级** — 结构化日志、远程调试、日志聚合（L1~L4 ✅）
+1. **灵枢（LingShu）** — 内核革命：反射弧→生命体（LS-0~12）
+2. **炉火纯青（ChunQing）** — 清算遗留问题（CQ-1~6 ✅，CQ-7 ⬜ 进行中）
+3. **QQ 能力革命** — 重构 QQ 相关部分
+4. **日志与调试系统升级** — 结构化日志、远程调试、日志聚合（L1~L4 ✅）
