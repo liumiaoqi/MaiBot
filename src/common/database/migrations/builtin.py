@@ -43,6 +43,7 @@ from .v34_to_v35 import migrate_v34_to_v35
 from .v35_to_v36 import migrate_v35_to_v36
 from .v36_to_v37 import migrate_v36_to_v37
 from .v37_to_v38 import migrate_v37_to_v38
+from .v38_to_v39 import migrate_v38_to_v39
 from .version_store import SQLiteUserVersionStore
 
 EMPTY_SCHEMA_VERSION = 0
@@ -1830,6 +1831,13 @@ def build_default_migration_registry() -> MigrationRegistry:
                 name="v37_to_v38",
                 description="agent_autonomy_activities 增加思维连续性字段（thought_summary, last_think_at）。",
                 handler=migrate_v37_to_v38,
+            ),
+            MigrationStep(
+                version_from=V38_SCHEMA_VERSION,
+                version_to=V39_SCHEMA_VERSION,
+                name="v38_to_v39",
+                description="agent_interaction_relationships 增加 Hebbian 共激活字段（coactivation_strength, last_coactivation_at）。",
+                handler=migrate_v38_to_v39,
             ),
         ]
     )
