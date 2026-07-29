@@ -37,6 +37,10 @@ from .builtin import (
     V32_SCHEMA_VERSION,
     V33_SCHEMA_VERSION,
     V34_SCHEMA_VERSION,
+    V35_SCHEMA_VERSION,
+    V36_SCHEMA_VERSION,
+    V37_SCHEMA_VERSION,
+    V38_SCHEMA_VERSION,
     build_default_migration_registry,
     build_default_schema_version_resolver,
 )

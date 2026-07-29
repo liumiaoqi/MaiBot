@@ -128,6 +128,10 @@ class EmotionManager:
         self._state.dominant_emotion = self._state.get_dominant()
         self._last_decay_time = time.time()
 
+    def tick_decay(self) -> None:
+        """LS-0: 心跳驱动的情绪衰减（公开接口）。"""
+        self._apply_decay()
+
     def _apply_decay(self) -> None:
         """按时间衰减情绪强度，趋向基线。"""
         now = time.time()

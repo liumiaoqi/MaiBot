@@ -570,6 +570,13 @@ class ThinkContext:
     discovered_tools: tuple[str, ...] = ()
     """已发现的 deferred 工具名称（不可变）"""
 
+    # LS-0: 思维连续性
+    prev_thought_summary: str = ""
+    """上次思考的内心独白摘要"""
+
+    time_since_last_think: float = 0.0
+    """距上次思考的秒数"""
+
 
 class ThinkAction(Enum):
     """思考动作类型。"""

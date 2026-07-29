@@ -356,6 +356,50 @@ class AgentOrchestrator:
                     "体验写入发起失败: agent=%s", agent_id, exc_info=True,
                 )
 
+    async def _persist_thought_summary(self, agent_id: str, thought_summary: str) -> None:
+        """LS-0: 将 thought_summary 写入 AgentAutonomyActivity 表。"""
+        if not thought_summary:
+            return
+        try:
+            from src.common.database.database_manager import get_session
+            from src.common.database.database_model import AgentAutonomyActivity
+            from datetime import datetime
+
+            with get_session() as db:
+                activity = db.query(AgentAutonomyActivity).filter(
+                    AgentAutonomyActivity.session_id == self._session_id,
+                    AgentAutonomyActivity.agent_id == agent_id,
+                    AgentAutonomyActivity.state == "active",
+                ).first()
+                if activity is not None:
+                    activity.thought_summary = thought_summary[:500]
+                    activity.last_think_at = datetime.now()
+                    db.commit()
+        except Exception as exc:
+            logger.debug("thought_summary 持久化跳过: agent=%s", agent_id, exc_info=True)
+
+    async def _load_thought_summary(self, agent_id: str) -> tuple[str, float]:
+        """LS-0: 从 AgentAutonomyActivity 读取 thought_summary 和距上次思考的秒数。"""
+        try:
+            from src.common.database.database_manager import get_session
+            from src.common.database.database_model import AgentAutonomyActivity
+            from datetime import datetime
+
+            with get_session() as db:
+                activity = db.query(AgentAutonomyActivity).filter(
+                    AgentAutonomyActivity.session_id == self._session_id,
+                    AgentAutonomyActivity.agent_id == agent_id,
+                    AgentAutonomyActivity.state == "active",
+                ).first()
+                if activity is not None and activity.thought_summary:
+                    elapsed = 0.0
+                    if activity.last_think_at:
+                        elapsed = (datetime.now() - activity.last_think_at).total_seconds()
+                    return activity.thought_summary, elapsed
+        except Exception as exc:
+            logger.debug("thought_summary 读取跳过: agent=%s", agent_id, exc_info=True)
+        return "", 0.0
+
     def _start_reminder_tick(self) -> None:
         """启动提醒心跳检查。"""
         if self._reminder_tick_task is not None:
@@ -822,6 +866,9 @@ class AgentOrchestrator:
         result = await task
 
         self._try_write_experience(self._primary_agent_id, result)
+
+        # LS-0: 思维连续性 — 持久化 thought_summary
+        await self._persist_thought_summary(self._primary_agent_id, result.thought_summary)
 
         if result.action == ThinkAction.REPLY and result.text and not result.reply_sent:
             from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
@@ -1334,6 +1381,17 @@ class AgentOrchestrator:
             emotion_state_text = snapshot.emotion_state_text
             memory_personality_params = snapshot.memory_personality_params.model_dump()
 
+        # LS-0: inner_voice 自然淡出（5分钟后指数淡出，30分钟后清空）
+        if inner_voice_text:
+            prev_summary, elapsed = await self._load_thought_summary(agent.agent_id)
+            if elapsed > 300:
+                import math
+                decay = math.exp(-0.1 * (elapsed / 60 - 5))
+                if decay < 0.1:
+                    inner_voice_text = ""
+                else:
+                    inner_voice_text = f"[淡出中] {inner_voice_text}"
+
         memory_snippets: tuple[str, ...] = ()
         intuition_context = None
         try:
@@ -1361,6 +1419,9 @@ class AgentOrchestrator:
         except Exception as exc:
             logger.warning("记忆检索跳过: agent=%s", agent.agent_id, exc_info=True)
 
+        # LS-0: 读取上次思考摘要
+        prev_thought_summary, time_since_last_think = await self._load_thought_summary(agent.agent_id)
+
         return ThinkContext(
             messages=messages,
             emotion_state_text=emotion_state_text,
@@ -1372,4 +1433,6 @@ class AgentOrchestrator:
             metadata=metadata or {},
             session_id=self._session_id,
             is_group_chat=self._is_group_chat,
+            prev_thought_summary=prev_thought_summary,
+            time_since_last_think=time_since_last_think,
         )

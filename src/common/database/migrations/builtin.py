@@ -42,6 +42,7 @@ from .v33_to_v34 import migrate_v33_to_v34
 from .v34_to_v35 import migrate_v34_to_v35
 from .v35_to_v36 import migrate_v35_to_v36
 from .v36_to_v37 import migrate_v36_to_v37
+from .v37_to_v38 import migrate_v37_to_v38
 from .version_store import SQLiteUserVersionStore
 
 EMPTY_SCHEMA_VERSION = 0
@@ -82,7 +83,8 @@ V34_SCHEMA_VERSION = 34
 V35_SCHEMA_VERSION = 35
 V36_SCHEMA_VERSION = 36
 V37_SCHEMA_VERSION = 37
-LATEST_SCHEMA_VERSION = 37
+V38_SCHEMA_VERSION = 38
+LATEST_SCHEMA_VERSION = 38
 
 _LEGACY_V1_EXCLUSIVE_TABLES = (
     "chat_streams",
@@ -1820,6 +1822,13 @@ def build_default_migration_registry() -> MigrationRegistry:
                 name="v36_to_v37",
                 description="创建 subagent_execution_records 表用于存储子智能体执行审计日志。",
                 handler=migrate_v36_to_v37,
+            ),
+            MigrationStep(
+                version_from=V37_SCHEMA_VERSION,
+                version_to=V38_SCHEMA_VERSION,
+                name="v37_to_v38",
+                description="agent_autonomy_activities 增加思维连续性字段（thought_summary, last_think_at）。",
+                handler=migrate_v37_to_v38,
             ),
         ]
     )

@@ -633,6 +633,14 @@ class ThinkingOrgan:
         """构建上下文注入消息。"""
         parts: list[str] = []
 
+        # LS-0: 思维连续性注入
+        if context.prev_thought_summary:
+            if context.time_since_last_think < 3600:
+                time_desc = f"（{int(context.time_since_last_think)}秒前）"
+            else:
+                time_desc = f"（{int(context.time_since_last_think / 3600)}小时前）"
+            parts.append(f"你刚才在想：{context.prev_thought_summary}{time_desc}。继续思考。")
+
         if context.inner_voice_text:
             parts.append(f"内心声音：{context.inner_voice_text}")
         if context.emotion_state_text:

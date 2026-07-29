@@ -654,6 +654,10 @@ class AgentAutonomyActivity(SQLModel, table=True):
     fallback_to_standby_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime, nullable=True))
     inner_need_summary: str = Field(default="", max_length=500)
 
+    # 思维连续性字段（LS-0）
+    thought_summary: str = Field(default="", max_length=500)
+    last_think_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime, nullable=True))
+
     __table_args__ = (
         Index("ix_agent_autonomy_activities_session", "session_id"),
         Index("ix_agent_autonomy_activities_agent", "agent_id"),

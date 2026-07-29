@@ -52,7 +52,19 @@ class VitalityTickScheduler:
             try:
                 await asyncio.sleep(self._interval)
                 await self._vitality_manager.evaluate_vitality_tick()
+                # LS-0: 心跳驱动情绪衰减
+                self._tick_emotion_decay()
             except asyncio.CancelledError:
                 break
             except Exception as exc:
                 logger.warning(f"[vitality_tick] 心跳评估异常: error={exc}")
+
+    def _tick_emotion_decay(self) -> None:
+        """LS-0: 遍历活跃智能体，触发情绪衰减。"""
+        try:
+            for agent in self._vitality_manager._registry.all_agents():
+                emotion_manager = getattr(agent, "emotion_manager", None)
+                if emotion_manager is not None:
+                    emotion_manager.tick_decay()
+        except Exception as exc:
+            logger.debug(f"[vitality_tick] 情绪衰减跳过: error={exc}")

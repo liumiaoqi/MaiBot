@@ -54,9 +54,10 @@ class InnerVoiceGenerator:
         desire_summary: str = "",
         memory_personality: Optional[MemoryPersonalityV2] = None,
         current_context: str = "",
+        prev_thought_summary: str = "",
     ) -> str:
         if self._inner_voices:
-            return self._generate_multi_voice(emotion_state, desire_summary, memory_personality)
+            return self._generate_multi_voice(emotion_state, desire_summary, memory_personality, prev_thought_summary)
         if self._template_text:
             return self._render_template(emotion_state, desire_summary, current_context)
         return self._fallback_text
@@ -66,6 +67,7 @@ class InnerVoiceGenerator:
         emotion_state: Optional[object],
         desire_summary: str,
         memory_personality: Optional[MemoryPersonalityV2],
+        prev_thought_summary: str = "",
     ) -> str:
         fragments: list[tuple[float, str]] = []
 
@@ -91,6 +93,13 @@ class InnerVoiceGenerator:
                 overlap = set(voice.concept_focus) & set(memory_personality.attention_tags)
                 if overlap:
                     weight *= 1.0 + 0.2 * len(overlap)
+
+            # LS-0: prev_thought_summary 与 concept_focus 匹配时权重 bonus
+            if prev_thought_summary and voice.concept_focus:
+                for concept in voice.concept_focus:
+                    if concept in prev_thought_summary:
+                        weight += 0.3
+                        break
 
             processed_emotion = self._apply_style(voice.style, dominant_intensity)
             emotion_desc = _EMOTION_DESC.get(dominant_emotion, "心有所感")
