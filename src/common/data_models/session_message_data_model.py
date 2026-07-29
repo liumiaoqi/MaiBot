@@ -140,6 +140,13 @@ class SessionMessage(MaiMessage):
             case _:
                 return f"{component.__class__.__name__}"
 
+    async def process(
+        self,
+        *,
+        enable_heavy_media_analysis: bool = True,
+        enable_voice_transcription: bool = True,
+    ) -> None:
+        """处理消息内容并转化为纯文本。
 
         Args:
             enable_heavy_media_analysis: 是否同步执行图片与表情包描述生成。
