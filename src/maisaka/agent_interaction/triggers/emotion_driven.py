@@ -73,7 +73,12 @@ class EmotionDrivenTrigger(BaseTrigger):
 
         for rel in relationships:
             coeff_map = _EMOTION_RELATIONSHIP_COEFFICIENT.get(dominant, {})
-            coeff = coeff_map.get(rel.relationship_type, _DEFAULT_COEFFICIENT)
+            # LS-6: 涌现类型映射
+            rtype = rel.relationship_type
+            if rtype.startswith("emerged_"):
+                from src.maisaka.agent_interaction.relationship_manager import AgentRelationshipManager
+                rtype = AgentRelationshipManager.resolve_effect_type(rtype)
+            coeff = coeff_map.get(rtype, _DEFAULT_COEFFICIENT)
             mention = min(rel.score / 300.0, 1.0) if rel.score > 0 else 0.1
             # LS-4: 加权平均融合 coactivation 和 mention_tendency
             coactivation = rel.coactivation_strength

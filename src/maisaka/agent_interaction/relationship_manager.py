@@ -40,6 +40,7 @@ class AgentRelationshipManager:
 
     def __init__(self) -> None:
         self._registry = get_agent_config_provider()
+        self._interaction_counter = 0
 
     async def initialize_from_config(self) -> None:
         agents = self._registry.list_agents()
@@ -106,7 +107,43 @@ class AgentRelationshipManager:
                 row.updated_at = datetime.now()
             session.commit()
             session.refresh(row)
+            # LS-6: 交互计数触发涌现检测
+            self._interaction_counter += 1
+            if self._interaction_counter >= self._EMERGENCE_INTERACTION_INTERVAL:
+                self._interaction_counter = 0
+                try:
+                    communities = await self.detect_emergent_communities()
+                    if communities:
+                        await self._apply_emergent_types(communities)
+                except Exception as exc:
+                    logger.debug(f"涌现检测跳过: error={exc}")
             return _table_to_read(row)
+
+    async def _apply_emergent_types(self, communities: list[dict]) -> None:
+        """LS-6: 将涌现类型写入关系记录的 relationship_type（双轨制，不覆盖配置类型）。"""
+        with get_db_session() as session:
+            for community in communities:
+                agents = set(community["agents"])
+                emerged_type = community["emerged_type"]
+                for aid in agents:
+                    for target_id in agents:
+                        if aid == target_id:
+                            continue
+                        result = session.execute(
+                            select(AIRTable).where(
+                                AIRTable.agent_id == aid,
+                                AIRTable.target_agent_id == target_id,
+                            )
+                        )
+                        row = result.scalar_one_or_none()
+                        if row is None:
+                            continue
+                        # 双轨制：只在无配置类型或配置类型为默认值时标注涌现类型
+                        if not row.relationship_type or row.relationship_type in self._KNOWN_TYPES:
+                            # 保留原配置类型，涌现类型存入 attitude 字段
+                            if not row.attitude.startswith("[emerged:"):
+                                row.attitude = f"[emerged:{emerged_type}] {row.attitude}"
+            session.commit()
 
     async def update_coactivation(
         self, agent_id: str, target_agent_id: str, delta: float
@@ -193,3 +230,115 @@ class AgentRelationshipManager:
             if hours_elapsed > 0 and row.coactivation_strength > 0:
                 return row.coactivation_strength * math.exp(-_COACTIVATION_DECAY_RATE * hours_elapsed)
             return row.coactivation_strength
+
+    # ── LS-6: 分类涌现 ──────────────────────────────────
+
+    _EMERGENCE_THRESHOLD = 0.5
+    _EMERGENCE_INTERACTION_INTERVAL = 50
+    _KNOWN_TYPES = {"family", "romantic", "friend", "mentor", "rival"}
+    _EMERGED_PREFIX = "emerged_"
+
+    async def detect_emergent_communities(self) -> list[dict]:
+        """LS-6: 阈值切断 + 连通分量，从共激活图中涌现社区。
+
+        返回 [{"agents": [...], "dominant_type": "friend", "emerged_type": "emerged_friend"}, ...]
+        """
+        graph = await self._build_coactivation_graph()
+        if not graph:
+            return []
+
+        # 阈值切断：只保留 coactivation >= threshold 的边
+        threshold = self._EMERGENCE_THRESHOLD
+        filtered = {aid: {} for aid in graph}
+        for aid, neighbors in graph.items():
+            for target, strength in neighbors.items():
+                if strength >= threshold:
+                    filtered[aid][target] = strength
+
+        # 连通分量（BFS）
+        visited: set[str] = set()
+        communities: list[set[str]] = []
+        for aid in filtered:
+            if aid in visited:
+                continue
+            component: set[str] = set()
+            queue = [aid]
+            while queue:
+                node = queue.pop(0)
+                if node in component:
+                    continue
+                component.add(node)
+                for neighbor in filtered.get(node, {}):
+                    if neighbor not in component:
+                        queue.append(neighbor)
+            visited.update(component)
+            if len(component) >= 2:
+                communities.append(component)
+
+        # 为每个社区确定涌现类型
+        result = []
+        for community in communities:
+            agents = sorted(community)
+            dominant_type = self._infer_community_type(community, graph)
+            emerged_type = f"{self._EMERGED_PREFIX}{dominant_type}"
+            result.append({
+                "agents": agents,
+                "dominant_type": dominant_type,
+                "emerged_type": emerged_type,
+                "size": len(agents),
+            })
+
+        if result:
+            logger.info(
+                f"涌现社区检测: communities={len(result)} "
+                f"types={','.join(r['emerged_type'] for r in result)}"
+            )
+        return result
+
+    async def _build_coactivation_graph(self) -> dict[str, dict[str, float]]:
+        """构建共激活邻接表（全量）。"""
+        import time as _time
+
+        now = _time.time()
+        graph: dict[str, dict[str, float]] = {}
+        with get_db_session() as session:
+            rows = session.execute(select(AIRTable)).scalars().all()
+            for row in rows:
+                strength = row.coactivation_strength
+                if strength <= 0:
+                    continue
+                hours_elapsed = (now - row.last_coactivation_at) / 3600.0
+                if hours_elapsed > 0:
+                    import math
+                    strength = strength * math.exp(-_COACTIVATION_DECAY_RATE * hours_elapsed)
+                if strength < 0.001:
+                    continue
+                graph.setdefault(row.agent_id, {})[row.target_agent_id] = strength
+        return graph
+
+    def _infer_community_type(self, community: set[str], graph: dict[str, dict[str, float]]) -> str:
+        """从社区内边的 relationship_type 众数推断类型。"""
+        type_counts: dict[str, int] = {}
+        with get_db_session() as session:
+            rows = session.execute(select(AIRTable)).scalars().all()
+            for row in rows:
+                if row.agent_id in community and row.target_agent_id in community:
+                    rtype = row.relationship_type
+                    if rtype:
+                        type_counts[rtype] = type_counts.get(rtype, 0) + 1
+        if not type_counts:
+            return "group"
+        return max(type_counts, key=type_counts.get)
+
+    @staticmethod
+    def resolve_effect_type(relationship_type: str) -> str:
+        """LS-6: 将涌现类型映射到 effect_calculator 可识别的类型。
+
+        emerged_friend → friend, emerged_intimate → friend, 未知 → friend
+        """
+        if relationship_type.startswith("emerged_"):
+            base = relationship_type[len("emerged_"):]
+            if base in AgentRelationshipManager._KNOWN_TYPES:
+                return base
+            return "friend"
+        return relationship_type

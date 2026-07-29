@@ -227,8 +227,13 @@ class EffectCalculator:
             InteractionEffect 交互影响结果
         """
         type_rules = _EFFECT_RULES.get(interaction_type, {})
+        # LS-6: 涌现类型映射到已知类型
+        resolved_type = relationship_type
+        if relationship_type.startswith("emerged_"):
+            from src.maisaka.agent_interaction.relationship_manager import AgentRelationshipManager
+            resolved_type = AgentRelationshipManager.resolve_effect_type(relationship_type)
         initiator_deltas, target_deltas, rel_delta, tag = type_rules.get(
-            relationship_type, _DEFAULT_RULE
+            resolved_type, _DEFAULT_RULE
         )
 
         # 回声衰减
