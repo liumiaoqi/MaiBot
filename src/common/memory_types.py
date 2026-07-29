@@ -128,6 +128,7 @@ class RecallItem:
     detail_level: float = 0.0
     relative_time: str = ""
     cognitive_type: str = ""
+    contradicts_id: int | None = None
 
 
 @dataclass(frozen=True, slots=True)

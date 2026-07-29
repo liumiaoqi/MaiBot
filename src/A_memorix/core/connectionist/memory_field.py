@@ -149,7 +149,22 @@ class MemoryField:
         max_results: int = 20,
     ) -> list[RecallItem]:
         personality = self._personality_registry.get_personality(agent_id)
-        return self._spreading_activation.recall(seeds, agent_id, personality, min_weight, max_results)
+        items = self._spreading_activation.recall(seeds, agent_id, personality, min_weight, max_results)
+        # LS-2/LS-3: 从 CognitiveStratifier 补充 cognitive_type 和 contradicts_id
+        for item in items:
+            if not item.concept:
+                continue
+            try:
+                entries = self._cognitive_stratifier.get_cognitive_entries(agent_id, item.concept)
+                if entries:
+                    best = entries[0]
+                    if best.type and not item.cognitive_type:
+                        item.cognitive_type = best.type
+                    if best.contradicts_id is not None and item.contradicts_id is None:
+                        item.contradicts_id = best.contradicts_id
+            except Exception:
+                pass
+        return items
 
     def recall_with_intuition(
         self,

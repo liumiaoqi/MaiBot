@@ -1,4 +1,6 @@
+import json
 import time
+from typing import Any
 
 
 from src.common.logger import get_logger
@@ -107,6 +109,7 @@ class CognitiveStratifier:
             entries_processed += 1
             if entry.expires_at and now > entry.expires_at:
                 self._store.update_entry(entry.id, status="resolved")
+                self._record_evolution(entry, "status_change", "active", "resolved", "expired")
                 states_expired += 1
             elif entry.last_evidence_at > 0:
                 days_since = (now - entry.last_evidence_at) / 86400
@@ -121,6 +124,7 @@ class CognitiveStratifier:
             days_since = (now - entry.last_evidence_at) / 86400 if entry.last_evidence_at > 0 else 999
             if days_since >= _HYPOTHESIS_ABANDON_DAYS:
                 self._store.update_entry(entry.id, status="abandoned")
+                self._record_evolution(entry, "status_change", "active", "abandoned", "no_evidence_14d")
                 hypotheses_abandoned += 1
 
         # stable_trait 14天无证据 → dormant
@@ -130,7 +134,26 @@ class CognitiveStratifier:
             days_since = (now - entry.last_evidence_at) / 86400 if entry.last_evidence_at > 0 else 999
             if days_since >= _TRAIT_DORMANT_DAYS:
                 self._store.update_entry(entry.id, status="dormant")
+                self._record_evolution(entry, "status_change", "active", "dormant", "no_evidence_14d")
                 traits_dormant += 1
+
+        # LS-3: dormant stable_trait 复活（last_evidence_at < 14天 → active）
+        dormant_traits = self._store.query_by_type(agent_id, ["stable_trait"], status="dormant")
+        for entry in dormant_traits:
+            entries_processed += 1
+            days_since = (now - entry.last_evidence_at) / 86400 if entry.last_evidence_at > 0 else 999
+            if days_since < _TRAIT_DORMANT_DAYS:
+                self._store.update_entry(entry.id, status="active")
+                self._record_evolution(entry, "status_change", "dormant", "active", "new_evidence_resurrect")
+
+        # LS-3: needs_review 7天自动降级
+        needs_review_entries = self._store.query_by_status(agent_id, "needs_review")
+        for entry in needs_review_entries:
+            entries_processed += 1
+            days_since = (now - entry.last_evidence_at) / 86400 if entry.last_evidence_at > 0 else 999
+            if days_since >= 7.0:
+                self._store.update_entry(entry.id, status="resolved", confidence=0.3)
+                self._record_evolution(entry, "status_change", "needs_review", "resolved", "auto_downgrade_7d")
 
         elapsed = (time.monotonic() - start) * 1000
         return CognitiveDecayResult(
@@ -204,6 +227,12 @@ class CognitiveStratifier:
 
             if is_contradictory:
                 self._store.increment_evidence(entry.id, observation_id, -_CONTRADICTION_PENALTY)
+                # LS-3: 写入 contradicts_id（双向）+ 演化历史
+                if entry.contradicts_id is None:
+                    self._store.update_entry(entry.id, contradicts_id=entry.id)
+                self._record_evolution(
+                    entry, "contradiction_detected", with_id=entry.id, new_valence=valence.value,
+                )
                 self._check_contradiction_threshold(entry, agent_id, now)
             else:
                 new_diversity = entry.source_diversity
@@ -222,12 +251,48 @@ class CognitiveStratifier:
                         if u.id == entry.id and u.confidence >= _HYPOTHESIS_UPGRADE_CONFIDENCE:
                             self._upgrade_hypothesis(u, agent_id, now)
 
+    _NEGATION_WORDS = frozenset({"不", "没", "无", "别", "非", "从未", "从不", "很少"})
+
     def _is_contradictory(self, entry: CognitiveEntry, valence: Valence) -> bool:
-        # immutable_fact 不接受矛盾
-        if entry.type == "immutable_fact":
+        # LS-3: 真实矛盾检测
+        if entry.type in ("immutable_fact", "current_state", "emotional_imprint"):
             return False
-        # 简化：如果条目是 positive trait 但新证据是 negative，视为矛盾
-        return False  # 原型阶段简化，不做矛盾检测
+        if valence == Valence.NEUTRAL:
+            return False
+        if entry.type not in ("stable_trait", "active_hypothesis"):
+            return False
+        entry_valence = self._infer_valence(entry)
+        if entry_valence == Valence.NEUTRAL:
+            return False
+        return entry_valence != valence
+
+    @classmethod
+    def _infer_valence(cls, entry: CognitiveEntry) -> Valence:
+        """从 entry content/tags 推断 valence 方向。"""
+        text = entry.content or entry.concept or ""
+        has_neg = any(w in text for w in cls._NEGATION_WORDS)
+        if has_neg:
+            return Valence.NEGATIVE
+        return Valence.POSITIVE
+
+    def _record_evolution(
+        self, entry: CognitiveEntry, event: str, from_status: str = "", to_status: str = "", reason: str = "", **extra: Any,
+    ) -> None:
+        """LS-3: 记录演化历史。"""
+        record: dict[str, Any] = {"at": time.time(), "event": event}
+        if from_status:
+            record["from"] = from_status
+        if to_status:
+            record["to"] = to_status
+        if reason:
+            record["reason"] = reason
+        record.update(extra)
+        history = list(entry.evolution_history or [])
+        history.append(record)
+        try:
+            self._store.update_entry(entry.id, evolution_history=json.dumps(history))
+        except Exception as exc:
+            logger.debug("演化历史写入跳过: entry=%d, error=%s", entry.id, exc)
 
     def _check_contradiction_threshold(self, entry: CognitiveEntry, agent_id: str, now: float) -> None:
         if entry.type != "stable_trait":

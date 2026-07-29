@@ -1559,7 +1559,8 @@ class AgentOrchestrator:
             for entry in entries[:limit]:
                 concept = getattr(entry, "concept", "") or str(entry)
                 confidence = getattr(entry, "activation", 0.0)
-                result.append(f"[{label}] {concept}（置信度{confidence:.1f}）")
+                contra_mark = "[矛盾]" if getattr(entry, "contradicts_id", None) else ""
+                result.append(f"[{label}]{contra_mark} {concept}（置信度{confidence:.1f}）")
 
         return tuple(result)
 

@@ -121,6 +121,15 @@ class CognitiveStore:
             rows = conn.execute(sql, params).fetchall()
         return [self._row_to_entry(row) for row in rows]
 
+    def query_by_status(self, agent_id: str, status: str) -> list[CognitiveEntry]:
+        """按状态查询认知条目（不限类型）。"""
+        with sqlite3.connect(self._db_path) as conn:
+            rows = conn.execute(
+                "SELECT * FROM cognitive_entries WHERE agent_id=? AND status=?",
+                (agent_id, status),
+            ).fetchall()
+        return [self._row_to_entry(row) for row in rows]
+
     def query_active_current_state(self, agent_id: str, limit: int = 12) -> list[CognitiveEntry]:
         with sqlite3.connect(self._db_path) as conn:
             rows = conn.execute(
