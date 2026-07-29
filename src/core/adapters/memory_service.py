@@ -7,6 +7,7 @@ from typing import Any, Optional
 
 from src.common.logger import get_logger
 from src.common.memory_types import (
+    COGNITIVE_TYPE_TO_DETAIL,
     MemorySearchResult,
     MemoryWriteResult,
     ProfileView,
@@ -164,8 +165,14 @@ class AMemorixMemoryServicePort:
             if isinstance(raw, dict):
                 items = raw.get("recall_items", []) or []
                 intuition = raw.get("intuition")
+                recall_items: list[RecallItem] = []
+                for i in items:
+                    item = RecallItem(**i) if isinstance(i, dict) else i
+                    if item.cognitive_type and item.cognitive_type in COGNITIVE_TYPE_TO_DETAIL:
+                        item.detail_level = COGNITIVE_TYPE_TO_DETAIL[item.cognitive_type]
+                    recall_items.append(item)
                 return RecallResult(
-                    recall_items=[RecallItem(**i) if isinstance(i, dict) else i for i in items],
+                    recall_items=recall_items,
                     intuition=intuition,
                 )
             return RecallResult()

@@ -91,6 +91,33 @@ class MemoryWriteResult:
         }
 
 
+COGNITIVE_TYPE_TO_DETAIL: dict[str, float] = {
+    "immutable_fact": 1.0,
+    "stable_trait": 0.8,
+    "emotional_imprint": 0.9,
+    "current_state": 0.5,
+    "active_hypothesis": 0.3,
+}
+
+COGNITIVE_TYPE_LABELS: dict[str, str] = {
+    "immutable_fact": "事实",
+    "stable_trait": "特质",
+    "current_state": "印象",
+    "active_hypothesis": "假设",
+    "emotional_imprint": "情绪印记",
+    "": "记忆",
+}
+
+COGNITIVE_TYPE_SORT_ORDER: dict[str, int] = {
+    "immutable_fact": 0,
+    "stable_trait": 1,
+    "emotional_imprint": 2,
+    "current_state": 3,
+    "active_hypothesis": 4,
+    "": 5,
+}
+
+
 @dataclass
 class RecallItem:
     """概念激活扩散召回项。"""
@@ -100,6 +127,7 @@ class RecallItem:
     valence: str = "neutral"
     detail_level: float = 0.0
     relative_time: str = ""
+    cognitive_type: str = ""
 
 
 @dataclass(frozen=True, slots=True)

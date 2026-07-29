@@ -77,6 +77,7 @@ class EmotionManager:
         )
         self._state.dominant_emotion = self._state.get_dominant()
         self._last_decay_time = time.time()
+        self._imprint_cooldowns: dict[str, float] = {}
 
     @property
     def state(self) -> EmotionState:
@@ -131,6 +132,30 @@ class EmotionManager:
     def tick_decay(self) -> None:
         """LS-0: 心跳驱动的情绪衰减（公开接口）。"""
         self._apply_decay()
+
+    async def check_and_write_emotional_imprint(self, agent_id: str, trigger_reason: str = "") -> None:
+        """LS-2: 检查情绪强度并写入情绪印记到 CognitiveStratifier。"""
+        now = time.time()
+        for etype, intensity in self._state.emotions.items():
+            if intensity < 80.0:
+                continue
+            last_imprint = self._imprint_cooldowns.get(etype, 0.0)
+            if now - last_imprint < 600.0:
+                continue
+            label = EMOTION_LABELS_ZH.get(etype, etype)
+            concept = f"{label}事件：{trigger_reason or '自发'}（强度{intensity:.0f}）"
+            try:
+                from src.core.adapters import get_memory_service_port
+                port = get_memory_service_port()
+                if port is not None:
+                    await port.observe_experience(
+                        agent_id=agent_id,
+                        content=concept,
+                        metadata={"cognitive_type": "emotional_imprint", "emotion": etype, "intensity": intensity},
+                    )
+                    self._imprint_cooldowns[etype] = now
+            except Exception:
+                pass
 
     def _apply_decay(self) -> None:
         """按时间衰减情绪强度，趋向基线。"""

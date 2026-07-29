@@ -649,10 +649,74 @@ class ThinkingOrgan:
             parts.append(f"关系描述：{context.relationship_text}")
         if context.memory_snippets:
             parts.append("相关记忆：\n" + "\n".join(f"- {s}" for s in context.memory_snippets))
+        if context.intuition_context:
+            intuition_text = self._format_intuition_for_prompt(context.intuition_context)
+            if intuition_text:
+                parts.append(intuition_text)
         if context.cohabitant_summary:
             parts.append(f"共居状态：{context.cohabitant_summary}")
 
         return parts
+
+    @staticmethod
+    def _format_intuition_for_prompt(intuition: Any) -> str:
+        """LS-2: 格式化直觉上下文为 prompt 文本。"""
+        if intuition is None:
+            return ""
+
+        entries: list[dict] = []
+        episodes: list[dict] = []
+        sagas_list: list[dict] = []
+
+        if isinstance(intuition, dict):
+            entries = intuition.get("triggered_entries", []) or []
+            episodes = intuition.get("triggered_episodes", []) or []
+            sagas_list = intuition.get("triggered_sagas", []) or []
+        else:
+            entries = list(getattr(intuition, "triggered_entries", ()) or ())
+            episodes = list(getattr(intuition, "triggered_episodes", ()) or ())
+            sagas_list = list(getattr(intuition, "triggered_sagas", ()) or ())
+
+        if not entries and not episodes and not sagas_list:
+            return ""
+
+        parts: list[str] = []
+        type_groups: dict[str, list[str]] = {
+            "current_state": [],
+            "stable_trait": [],
+            "active_hypothesis": [],
+        }
+        for entry in entries:
+            etype = entry.get("type", "") if isinstance(entry, dict) else getattr(entry, "type", "")
+            concept = entry.get("concept", "") if isinstance(entry, dict) else getattr(entry, "concept", "")
+            if etype in type_groups and concept:
+                type_groups[etype].append(concept)
+
+        type_labels = {"current_state": "当前状态", "stable_trait": "稳定特质", "active_hypothesis": "活跃假设"}
+        for etype, label in type_labels.items():
+            items = type_groups[etype][:2]
+            if items:
+                parts.append(f"{label}：" + "、".join(items))
+
+        ep_concepts = []
+        for ep in episodes[:2]:
+            title = ep.get("title", "") if isinstance(ep, dict) else getattr(ep, "title", "")
+            if title:
+                ep_concepts.append(title)
+        if ep_concepts:
+            parts.append("相关事件：" + "、".join(ep_concepts))
+
+        saga_concepts = []
+        for s in sagas_list[:2]:
+            title = s.get("title", "") if isinstance(s, dict) else getattr(s, "title", "")
+            if title:
+                saga_concepts.append(title)
+        if saga_concepts:
+            parts.append("叙事线索：" + "、".join(saga_concepts))
+
+        if not parts:
+            return ""
+        return "直觉触发：\n" + "\n".join(f"- {p}" for p in parts)
 
     def _should_replace_reasoning(self, content: str) -> bool:
         """思考相似度检测 — 防止死循环。"""

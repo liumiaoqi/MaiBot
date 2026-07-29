@@ -380,63 +380,31 @@ class VitalityManager:
         session_id: str,
         inner_need_summary: str,
     ) -> None:
-        """欲望驱动主动发言：跃迁后检查冷却并触发 think_proactive。"""
-        cooldown_manager = self._orchestrator._cooldown_manager
+        """LS-1: 欲望状态更新（不再直接调 think_proactive）。
 
-        if not cooldown_manager.can_speak_proactively(session_id, agent_id):
-            logger.debug(
-                f"[vitality] agent={agent_id} proactive_speech=skipped "
-                f"reason=cooldown session={session_id}"
-            )
+        控制流反转：VitalityManager 只负责更新欲求状态，
+        Orchestrator 的心跳检查基于此状态决定是否触发主动思考。
+        """
+        if not inner_need_summary:
             return
 
         agent = self._orchestrator._active_agents.get(agent_id)
-        if agent is None or agent.thinking_organ is None:
+        if agent is None:
             return
 
         try:
-            from src.core.types import ThinkContext
-
-
-            think_context = ThinkContext(
-                messages=[],
-                emotion_state_text=agent.emotion_manager.state.to_prompt_text() if agent.emotion_manager else "",
-                relationship_text="",
-                memory_snippets="",
-                cohabitant_summary="",
-                trigger_reason=f"inner_need:{inner_need_summary or 'vitality_activation'}",
-                metadata={"proactive_reason": "inner_need"},
+            info = self._registry.get(agent_id, session_id)
+            self._activity_store.update_vitality(
+                session_id, agent_id,
+                info.vitality_value if info else 0.0,
+                inner_need_summary,
             )
-
-            result = await agent.thinking_organ.think_proactive("inner_need", think_context)
-
-            if result.action.value == "reply" and result.text and not result.reply_sent:
-                from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
-                from src.core.message_port_registry import get_message_port_v2
-                port = get_message_port_v2()
-                await port.send_message(
-                    session_id=session_id,
-                    message=MessageSequence(components=[TextComponent(text=result.text)]),
-                    agent_id=agent_id,
-                    source="proactive_desire",
-                )
-                cooldown_manager.record_proactive_speech(session_id, agent_id)
-                logger.info(
-                    f"[vitality] agent={agent_id} proactive_speech=sent "
-                    f"reason=inner_need session={session_id}"
-                )
-            elif result.action.value == "reply" and result.reply_sent:
-                logger.info(
-                    f"[vitality] agent={agent_id} proactive_speech=skip_reply_sent "
-                    f"session={session_id}"
-                )
-            else:
-                logger.debug(
-                    f"[vitality] agent={agent_id} proactive_speech=silent "
-                    f"action={result.action.value} session={session_id}"
-                )
+            logger.debug(
+                f"[vitality] agent={agent_id} desire_state=updated "
+                f"summary={inner_need_summary[:50]} session={session_id}"
+            )
         except Exception as exc:
-            logger.warning(
-                f"[vitality] agent={agent_id} proactive_speech=failed "
+            logger.debug(
+                f"[vitality] agent={agent_id} desire_state=update_failed "
                 f"error={exc} session={session_id}"
             )

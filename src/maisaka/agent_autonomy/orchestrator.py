@@ -141,6 +141,9 @@ class AgentOrchestrator:
         # 提醒心跳检查
         self._reminder_tick_task: asyncio.Task | None = None
 
+        # LS-1: 欲求驱动主动发言心跳
+        self._desire_tick_task: asyncio.Task | None = None
+
         # 交互引擎（插话反哺用）
         self._interaction_engine: InteractionEngine | None = None
 
@@ -407,6 +410,13 @@ class AgentOrchestrator:
         self._reminder_tick_task = asyncio.create_task(self._reminder_tick_loop())
         logger.info(f"[agent_autonomy] 提醒心跳启动: session={self._session_name}")
 
+    def _start_desire_tick(self) -> None:
+        """LS-1: 启动欲求驱动主动发言心跳。"""
+        if self._desire_tick_task is not None:
+            return
+        self._desire_tick_task = asyncio.create_task(self._desire_tick_loop())
+        logger.info(f"[agent_autonomy] 欲求心跳启动: session={self._session_name}")
+
     async def _reminder_tick_loop(self) -> None:
         """周期性检查到期提醒，直接触发主智能体的 ThinkingOrgan。"""
         while True:
@@ -465,6 +475,92 @@ class AgentOrchestrator:
                 break
             except Exception as exc:
                 logger.warning(f"[agent_autonomy] 提醒心跳异常: error={exc}")
+
+    async def _desire_tick_loop(self) -> None:
+        """LS-1: 欲求驱动主动发言心跳。
+
+        周期性检查活跃主智能体的 inner_need_summary，
+        若欲求强度超过阈值且冷却允许，触发主动思考。
+        """
+        while True:
+            try:
+                await asyncio.sleep(60)
+                if not self._primary_agent_id:
+                    continue
+
+                agent = self._active_agents.get(self._primary_agent_id)
+                if agent is None or agent.thinking_organ is None:
+                    continue
+
+                inner_need_summary = ""
+                try:
+                    from src.common.database.database_manager import get_session
+                    from src.common.database.database_model import AgentAutonomyActivity
+
+                    with get_session() as db:
+                        activity = db.query(AgentAutonomyActivity).filter(
+                            AgentAutonomyActivity.session_id == self._session_id,
+                            AgentAutonomyActivity.agent_id == self._primary_agent_id,
+                            AgentAutonomyActivity.state == "active",
+                        ).first()
+                        if activity is not None and activity.inner_need_summary:
+                            inner_need_summary = activity.inner_need_summary
+                except Exception:
+                    pass
+
+                if not inner_need_summary:
+                    continue
+
+                if not self._cooldown_manager.can_speak_proactively(self._session_id, self._primary_agent_id):
+                    continue
+
+                max_strength = 0.0
+                for part in inner_need_summary.split(","):
+                    part = part.strip()
+                    if "(" in part and part.endswith(")"):
+                        try:
+                            strength = float(part[part.index("(") + 1 : -1])
+                            max_strength = max(max_strength, strength)
+                        except ValueError:
+                            pass
+
+                if max_strength < 30.0:
+                    continue
+
+                think_context = await self._build_think_context(
+                    agent=agent,
+                    messages=(),
+                    trigger_reason=f"inner_need:{inner_need_summary}",
+                    metadata={"proactive_reason": "desire_tick"},
+                )
+                task = self._think_scheduler.schedule_proactive(
+                    self._primary_agent_id, agent.thinking_organ, "inner_need", think_context,
+                )
+                result = await task
+
+                self._try_write_experience(self._primary_agent_id, result)
+                await self._persist_thought_summary(self._primary_agent_id, result.thought_summary)
+
+                if result.action == ThinkAction.REPLY and result.text and not result.reply_sent:
+                    from src.common.data_models.message_component_data_model import MessageSequence, TextComponent
+                    from src.core.message_port_registry import get_message_port_v2
+                    port = get_message_port_v2()
+                    if port is not None:
+                        await port.send_message(
+                            session_id=self._session_id,
+                            message=MessageSequence(components=[TextComponent(text=result.text)]),
+                            agent_id=self._primary_agent_id,
+                            source="proactive_desire",
+                        )
+                        self._cooldown_manager.record_proactive_speech(self._session_id, self._primary_agent_id)
+                        logger.info(
+                            f"[agent_autonomy] 欲求主动发言: agent={self._primary_agent_id} "
+                            f"desire={inner_need_summary[:30]} session={self._session_name}"
+                        )
+            except asyncio.CancelledError:
+                break
+            except Exception as exc:
+                logger.warning(f"[agent_autonomy] 欲求心跳异常: error={exc}")
 
     @property
     def session_id(self) -> str:
@@ -527,6 +623,7 @@ class AgentOrchestrator:
                 )
                 self._butler.reminder_manager.load_session(self._session_id)
                 self._start_reminder_tick()
+                self._start_desire_tick()
 
             self._activity_store.save_activity(
                 session_id=self._session_id,
@@ -585,6 +682,7 @@ class AgentOrchestrator:
                 )
                 self._butler.reminder_manager.load_session(self._session_id)
                 self._start_reminder_tick()
+                self._start_desire_tick()
                 logger.info(
                     f"[agent_autonomy] 管家初始化(恢复): "
                     f"primary={agent_id} session={self._session_name}"
@@ -837,6 +935,7 @@ class AgentOrchestrator:
             )
             self._butler.reminder_manager.load_session(self._session_id)
             self._start_reminder_tick()
+            self._start_desire_tick()
             logger.info(
                 f"[agent_autonomy] 管家延迟初始化: "
                 f"primary={self._primary_agent_id} session={self._session_name}"
@@ -1409,12 +1508,7 @@ class AgentOrchestrator:
                 )
                 items = getattr(recall_result, "recall_items", []) or []
                 if isinstance(items, list) and items:
-                    snippets = []
-                    for item in items[:5]:
-                        concept = getattr(item, "concept", "") or str(item)
-                        detail = getattr(item, "detail_level", 0.5) or 0.5
-                        snippets.append(f"[{detail:.1f}] {concept}")
-                    memory_snippets = tuple(snippets)
+                    memory_snippets = self._format_layered_memory_snippets(items)
                 intuition_context = getattr(recall_result, "intuition", None)
         except Exception as exc:
             logger.warning("记忆检索跳过: agent=%s", agent.agent_id, exc_info=True)
@@ -1436,3 +1530,95 @@ class AgentOrchestrator:
             prev_thought_summary=prev_thought_summary,
             time_since_last_think=time_since_last_think,
         )
+
+    @staticmethod
+    def _format_layered_memory_snippets(items: list) -> tuple[str, ...]:
+        """LS-2: 按认知类型分层格式化记忆条目。"""
+        from src.common.memory_types import COGNITIVE_TYPE_LABELS, COGNITIVE_TYPE_SORT_ORDER
+
+        TYPE_LIMITS: dict[str, int] = {
+            "immutable_fact": 99,
+            "stable_trait": 3,
+            "emotional_imprint": 2,
+            "current_state": 3,
+            "active_hypothesis": 2,
+            "": 5,
+        }
+
+        grouped: dict[str, list] = {}
+        for item in items:
+            ctype = getattr(item, "cognitive_type", "") or ""
+            grouped.setdefault(ctype, []).append(item)
+
+        result: list[str] = []
+        for ctype in sorted(grouped, key=lambda t: COGNITIVE_TYPE_SORT_ORDER.get(t, 99)):
+            entries = grouped[ctype]
+            entries.sort(key=lambda x: getattr(x, "activation", 0.0), reverse=True)
+            limit = TYPE_LIMITS.get(ctype, 5)
+            label = COGNITIVE_TYPE_LABELS.get(ctype, "记忆")
+            for entry in entries[:limit]:
+                concept = getattr(entry, "concept", "") or str(entry)
+                confidence = getattr(entry, "activation", 0.0)
+                result.append(f"[{label}] {concept}（置信度{confidence:.1f}）")
+
+        return tuple(result)
+
+    @staticmethod
+    def _format_intuition_context(intuition: Any) -> str:
+        """LS-2: 格式化直觉上下文为 prompt 注入文本。"""
+        if intuition is None:
+            return ""
+
+        entries: list[dict] = []
+        episodes: list[dict] = []
+        sagas: list[dict] = []
+
+        if isinstance(intuition, dict):
+            entries = intuition.get("triggered_entries", []) or []
+            episodes = intuition.get("triggered_episodes", []) or []
+            sagas = intuition.get("triggered_sagas", []) or []
+        else:
+            entries = list(getattr(intuition, "triggered_entries", ()) or ())
+            episodes = list(getattr(intuition, "triggered_episodes", ()) or ())
+            sagas = list(getattr(intuition, "triggered_sagas", ()) or ())
+
+        if not entries and not episodes and not saga:
+            return ""
+
+        parts: list[str] = []
+        type_groups: dict[str, list[str]] = {
+            "current_state": [],
+            "stable_trait": [],
+            "active_hypothesis": [],
+        }
+        for entry in entries:
+            etype = entry.get("type", "") if isinstance(entry, dict) else getattr(entry, "type", "")
+            concept = entry.get("concept", "") if isinstance(entry, dict) else getattr(entry, "concept", "")
+            if etype in type_groups and concept:
+                type_groups[etype].append(concept)
+
+        type_labels = {"current_state": "当前状态", "stable_trait": "稳定特质", "active_hypothesis": "活跃假设"}
+        for etype, label in type_labels.items():
+            items = type_groups[etype][:2]
+            if items:
+                parts.append(f"{label}：" + "、".join(items))
+
+        ep_concepts = []
+        for ep in episodes[:2]:
+            title = ep.get("title", "") if isinstance(ep, dict) else getattr(ep, "title", "")
+            if title:
+                ep_concepts.append(title)
+        if ep_concepts:
+            parts.append("相关事件：" + "、".join(ep_concepts))
+
+        saga_concepts = []
+        for s in sagas[:2]:
+            title = s.get("title", "") if isinstance(s, dict) else getattr(s, "title", "")
+            if title:
+                saga_concepts.append(title)
+        if saga_concepts:
+            parts.append("叙事线索：" + "、".join(saga_concepts))
+
+        if not parts:
+            return ""
+        return "直觉触发：\n" + "\n".join(f"- {p}" for p in parts)

@@ -66,5 +66,14 @@ class VitalityTickScheduler:
                 emotion_manager = getattr(agent, "emotion_manager", None)
                 if emotion_manager is not None:
                     emotion_manager.tick_decay()
+                    try:
+                        asyncio.get_event_loop().create_task(
+                            emotion_manager.check_and_write_emotional_imprint(
+                                agent_id=agent.agent_id,
+                                trigger_reason="vitality_tick",
+                            )
+                        )
+                    except RuntimeError:
+                        pass
         except Exception as exc:
             logger.debug(f"[vitality_tick] 情绪衰减跳过: error={exc}")

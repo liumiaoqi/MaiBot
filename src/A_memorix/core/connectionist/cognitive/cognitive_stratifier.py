@@ -165,6 +165,10 @@ class CognitiveStratifier:
     def _classify_initial(
         self, concept: str, valence: Valence, concept_types: dict[str, str], source_quality: str
     ) -> str:
+        # LS-2: 情绪印记识别 — concept 以情绪标签+"事件"开头
+        for label in ("开心事件", "难过事件", "焦虑事件", "生气事件", "平静事件", "兴奋事件", "孤独事件"):
+            if concept.startswith(label):
+                return "emotional_imprint"
         has_emotion = "emotional" if valence != Valence.NEUTRAL else "neutral"
         ctype = concept_types.get(concept, "object")
         key = (has_emotion, ctype, source_quality)
@@ -172,7 +176,7 @@ class CognitiveStratifier:
 
     @staticmethod
     def _decay_type_for(cog_type: str) -> str:
-        if cog_type == "immutable_fact":
+        if cog_type in ("immutable_fact", "emotional_imprint"):
             return "none"
         if cog_type == "current_state":
             return "exponential"
