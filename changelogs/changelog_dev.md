@@ -2,6 +2,24 @@
 
 正式版更新日志见 [changelog.md](changelog.md)。
 
+# 1.0.0-rc.8
+
+## 用户感知功能
+
+### 服务管理器
+- 新增运行时组件健康状态可观测性：系统健康四等级（HEALTHY/DEGRADED/FAULT/RECOVERING），核心就绪三标志持续判定
+- 组件故障自动恢复：指数退避 + 重启风暴保护，连续故障达阈值后转入人工模式
+
+## 开发侧
+
+### 服务管理器（ZG-1）
+- 新增 `src/core/service_manager/` 包：5 引擎（依赖图/状态聚合/恢复/健康检查/生命周期）+ 数据模型 + 异常
+- 新增 `src/core/protocols.py` 中 ServiceManagerPort(12方法) + CoreReadinessPort(3方法) + HealthProbePort(1方法) 三个 Protocol
+- 新增 `src/core/adapters/service_manager_adapter.py`：适配器组装 5 引擎，实现 ServiceManagerPort
+- 新增 `src/core/adapters/core_readiness_port.py`：CoreReadinessPort 适配器，运行时持续判定
+- 69 单元测试覆盖全部引擎逻辑
+- AGENTS.md 新增核心禁止项：禁止核心直接导入 ServiceManagerAdapter
+
 # 1.0.0-rc.7
 
 ## 用户感知功能

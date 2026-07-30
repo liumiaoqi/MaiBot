@@ -1,3 +1,5 @@
+> 硬性规则 + 路由策略。架构哲学见 `.codeartsdoer/rule/MaiBot智能体自主性架构.mdc`，工作手册见 `CLAUDE.md`，债务追踪见 `.codeartsdoer/specs/memo/zg_cast_bone_research.md`。
+
 # 代码规范
 
 ## import 规范
@@ -30,6 +32,9 @@
 
 # 运行/调试/构建/测试/依赖
 优先使用 uv，依赖项以 pyproject.toml 为准
+
+# Python 版本
+新代码必须兼容 Python 3.14.6。不使用 `from __future__ import annotations`。
 
 # 语言规范
 首选简体中文（注释、日志、WebUI）
@@ -82,51 +87,15 @@
 8. 禁止核心直接导入 config_manager 获取模型配置 ✅
 9. 禁止核心直接导入 global_config ✅
 10. 禁止使用 AutonomyEventBus.get_instance() ✅
+11. 禁止核心直接导入 ServiceManagerAdapter ✅
 
 Protocol 接口和注册点详见 `src/core/protocols.py` 和 `src/core/adapters/`，不在此枚举。
 
 
-# 炉火纯青（ChunQing）：Phoenix 后清算
-
-> 项目代号：炉火纯青（ChunQing），简写 CQ。策略：分批 SSD + 中间调研动态调整。
-
-## 核心原则：用现在换未来，不是拿未来换现在
+# 债务原则：用现在换未来，不是拿未来换现在
 
 - **拿未来换现在**（必须消除）：`except Exception: pass` 透支排障能力；绕过 Port 直接导入透支重构自由度
 - **用现在换未来**（优先投入）：修 exception handling 换未来可追踪；集成欲望换主动说话
 - **不影响未来**（低优先）：V1 getattr 残留、TODO 清理
 
-## 债务全景
-
-| 优先级 | 编号　　　| 类别　　　　　　　　　　　　　　　　　　　　　　　　| 数量　　　　　　　　　 | 状态　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
-| --------| -----------| -----------------------------------------------------| ------------------------| ---------------------------------------------------------------------------------|
-| **P0** | **CQ-6**　| **v2 EventDispatcher 闭环 + napcat-adapter 插件化** | T0~T6 ✅　　　　　　　　| ✅ 端到端验证通过　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
-| **P0** | **CQ-16** | **v2 Runner 端到端路径验证**　　　　　　　　　　　　| 19→0　　　　　　　　　 | ✅ 完成　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
-| **P0** | **LS-0**　| **灵枢：思维连续性**　　　　　　　　　　　　　　 | 状态持久化+规则演化　 | ✅ 生产代码T1~T5已实施 |
-| **P0** | **LS-1**　| **灵枢：欲望控制流反转**　　　　　　　　　　　　 | VitalityManager降级　 | ✅ 完成 |
-| **P1** | **LS-2**　| **灵枢：记忆检索分层输出**　　　　　　　　　　　 | 事实/印象/情绪/假设　 | ✅ 完成 |
-| **P1** | **LS-4**　| **灵枢：社会关系动态化**　　　　　　　　　　　　 | Hebbian共激活　　　　 | ✅ T1~T6完成，T7待端到端验证 |
-| **P1** | **LS-3**　| **灵枢：记忆动态管理**　　　　　　　　　　　　　 | 事件驱动+矛盾处理　　| ✅ 完成 |
-| **P1** | **LS-5**　| **灵枢：情绪-记忆桥接**　　　　　　　　　　　　 | L0情绪印记写入　　　　| ✅ 完成（修复写入路径断路+valence映射+异常日志） |
-| **P2** | **LS-6**　| **灵枢：分类涌现机制**　　　　　　　　　　　　　 | 分类从关系涌现　　　　 | ✅ 完成（阈值切断+连通分量+双轨制+涌现类型映射） |
-| **P2** | **LS-7**　| **灵枢：性格可修改工具**　　　　　　　　　　　　 | L2自我修改工具　　　　| ⬜ 待执行 |
-| P2　　 | CQ-8　　　| SQLAlchemy 3.14 兼容　　　　　　　　　　　　　　　　| ChunkedIteratorResult　| ⬜ 待规划　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
-| P2　　 | CQ-17　　 | v1 旧链发送清算　　　　　　　　　　　　　　　　　　 | legacy_driver+fallback | ⬜ 调研完成（`.shared/handoff/cc2ca_v1_legacy_send_0728_research.md`），待大清算 |
-| P2　　 | TG-6　　　| match/case 模式匹配　　　　　　　　　　　　　　　　 | NoticeClassifier 等　　| ✅ CX 完成　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 |
-| P2　　 | TG-9　　　| uuid7 时间排序 UUID　　　　　　　　　　　　　　　　 | activity_store 等　　　| ✅ CX 完成　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 |
-| P3　　 | CQ-9x　　 | napcat-adapter Tool 扩展　　　　　　　　　　　　　　| 5→~30 @Tool　　　　　　| ⬜ 扩展任务　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
-| P3　　 | CQ-10　　 | V1/V2 共存+TODO　　　　　　　　　　　　　　　　　　 | 若干　　　　　　　　　 | ⬜ 低优先　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
-| P3　　 | TG-7　　　| Exception Groups + except*　　　　　　　　　　　　　| 24 gather 场景　　　　 | ⏸️ DEFER：存量统一处理不需分类，新并发代码采用 TaskGroup　　　　　　　　　　 |
-| P3　　 | TG-8　　　| Type Parameter Syntax　　　　　　　　　　　　　　　 | 3 Generic+8 TypeVar　 | ⏸️ DEFER：纯美学，Pydantic 多继承兼容性待验证　　　　　　　　　　　　　　　 |
-| P3　　 | TG-10　　 | zip() strict=True　　　　　　　　　　　　　　　　　 | 10 处缺 strict　　　　| ✅ 10 处已加 strict=True（防数据截断）　　　　　　　　　　　　　　　　　　　 |
-| P3　　 | TG-11　　 | dataclass replace()　　　　　　　　　　　　　　　　 | 1 处 replace　　　　　 | ✅ dataclasses.replace → copy.replace（PEP 711）　　　　　　　　　　　　　　　 |
-
-已完成：CQ-9/10（except 吞没）✅、CQ-3（None 防御）✅、CQ-5（启动崩溃修复）✅、CQ-7（欲望驱动）✅、CQ-11（统一日志）✅、CQ-159/14/13（Port 迁移）✅、CQ-4（代码质量）✅、TG-0（Python 3.14 兼容性）✅、TG-1（调试基础设施文档化）✅、TG-2（registry descriptor + CoreReadiness 声明式）✅、TG-3（启动编排声明式）✅、TG-5（代码风格统一）✅、TG-6（match/case）✅、TG-9（uuid7）✅、TG-10（zip strict）✅、TG-11（dataclass replace）✅、lt_del（灵台代码清算 -5,667行）✅、lt3_storage（灵台存储架构重写）✅
-
-
-# Phoenix 后路线
-
-1. **灵枢（LingShu）** — 内核革命：反射弧→生命体（LS-0~12）
-2. **炉火纯青（ChunQing）** — 清算遗留问题（CQ-1~6 ✅，CQ-7 ⬜ 进行中）
-3. **QQ 能力革命** — 重构 QQ 相关部分
-4. **日志与调试系统升级** — 结构化日志、远程调试、日志聚合（L1~L4 ✅）
+债务全景和路线图详见 `.codeartsdoer/specs/memo/zg_cast_bone_research.md`，不在本文件追踪具体状态。
