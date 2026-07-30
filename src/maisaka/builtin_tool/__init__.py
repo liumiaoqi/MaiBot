@@ -34,6 +34,12 @@ from .wait import get_tool_spec as get_wait_tool_spec
 from .wait import handle_tool as handle_wait_tool
 from .butler import get_switch_primary_spec, handle_switch_primary
 from .butler import get_activate_agent_spec, handle_activate_agent
+from .adjust_expression import get_tool_spec as get_adjust_expression_tool_spec
+from .adjust_expression import handle_tool as handle_adjust_expression_tool
+from .reflect_on_self import get_tool_spec as get_reflect_on_self_tool_spec
+from .reflect_on_self import handle_tool as handle_reflect_on_self_tool
+from .update_relationship import get_tool_spec as get_update_relationship_tool_spec
+from .update_relationship import handle_tool as handle_update_relationship_tool
 
 BuiltinToolHandler = Callable[[ToolInvocation, Optional[ToolExecutionContext]], Awaitable[ToolExecutionResult]]
 BuiltinToolRawHandler = Callable[
@@ -109,6 +115,10 @@ BUILTIN_TOOL_ENTRIES: List[BuiltinToolEntry] = [
     # 管家专用工具（deferred：仅管家通过 tool_search 发现并使用）
     BuiltinToolEntry("switch_primary", get_switch_primary_spec, handle_switch_primary, stage="both", visibility="deferred"),
     BuiltinToolEntry("activate_agent", get_activate_agent_spec, handle_activate_agent, stage="both", visibility="deferred"),
+    # LS-7: 性格修改工具集
+    BuiltinToolEntry("adjust_expression", get_adjust_expression_tool_spec, handle_adjust_expression_tool, stage="both", visibility="visible"),
+    BuiltinToolEntry("reflect_on_self", get_reflect_on_self_tool_spec, handle_reflect_on_self_tool, stage="both", visibility="visible"),
+    BuiltinToolEntry("update_relationship", get_update_relationship_tool_spec, handle_update_relationship_tool, stage="both", visibility="visible"),
 ]
 
 
