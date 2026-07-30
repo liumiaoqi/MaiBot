@@ -649,12 +649,22 @@ class ThinkingOrgan:
             parts.append(f"关系描述：{context.relationship_text}")
         if context.memory_snippets:
             parts.append("相关记忆：\n" + "\n".join(f"- {s}" for s in context.memory_snippets))
+
+        # T5.4: 体验层 → 注入消息
+        if context.experience_layer_text:
+            parts.append(f"你的真实感受（不对外表现）：{context.experience_layer_text}")
+
         if context.intuition_context:
             intuition_text = self._format_intuition_for_prompt(context.intuition_context)
             if intuition_text:
                 parts.append(intuition_text)
         if context.cohabitant_summary:
             parts.append(f"共居状态：{context.cohabitant_summary}")
+
+        # T5.5: LLM 看到自己的最近消息
+        self_reply_text = self._build_self_reply_injection(context)
+        if self_reply_text:
+            parts.append(self_reply_text)
 
         return parts
 
@@ -717,6 +727,61 @@ class ThinkingOrgan:
         if not parts:
             return ""
         return "直觉触发：\n" + "\n".join(f"- {p}" for p in parts)
+
+    def _build_self_reply_injection(self, context: ThinkContext) -> str:
+        """T5.5: 构建自回复注入文本 — LLM 看到自己的最近消息。
+
+        由 self_reply_visibility 控制：
+        - "disabled": 跳过
+        - "summary_only"（默认）: 注入摘要
+        - "full": 延期到 Stage 3
+        """
+        if context.self_reply_visibility == "disabled":
+            return ""
+
+        # "full" 延期到 Stage 3，暂按 summary_only 处理
+        if context.self_reply_visibility == "full":
+            return ""
+
+        # summary_only: 使用 self_reply_summaries
+        if not context.self_reply_summaries:
+            # 回退：从聊天历史中提取自己的最近消息
+            summaries = self._extract_self_reply_summaries()
+            if not summaries:
+                return ""
+            texts = summaries
+        else:
+            texts = list(context.self_reply_summaries)
+
+        if not texts:
+            return ""
+
+        joined = "；".join(texts[:5])
+        return f"你最近说过：{joined}"
+
+    def _extract_self_reply_summaries(self) -> list[str]:
+        """从聊天历史中提取自己的最近回复摘要（每条 ≤ 100 字符）。"""
+        try:
+            history = self._get_chat_history()
+            if not history:
+                return []
+
+            summaries: list[str] = []
+            for msg in reversed(history):
+                sender = getattr(msg, "sender_id", "") or getattr(msg, "user_id", "")
+                if sender == self._agent_id:
+                    text = getattr(msg, "plain_text", "") or getattr(msg, "message", "") or ""
+                    if isinstance(text, str) and text.strip():
+                        summary = text.strip()[:100]
+                        summaries.append(summary)
+                        if len(summaries) >= 5:
+                            break
+
+            summaries.reverse()
+            return summaries
+        except Exception as exc:
+            logger.warning(f"[thinking_organ] 自回复提取失败: agent={self._agent_id} error={exc}")
+            return []
 
     def _should_replace_reasoning(self, content: str) -> bool:
         """思考相似度检测 — 防止死循环。"""

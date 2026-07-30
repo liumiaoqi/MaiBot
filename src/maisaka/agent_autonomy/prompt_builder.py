@@ -126,7 +126,18 @@ class EmbodiedPlannerPromptBuilder:
             "agent_relationship": "",
             "butler_context": self._build_butler_context(),
             "cohabitant_states": self._build_cohabitant_states(),
+            "expression_layer": self._build_expression_layer_text(agent_config),
         }
+
+    def _build_expression_layer_text(self, agent_config: object) -> str:
+        """构建表现层文本 — 来自 LayeredPersonality.expression_layer."""
+        try:
+            layered = getattr(agent_config, "layered_personality", None)
+            if layered is not None:
+                return getattr(layered, "expression_layer", "") or ""
+        except Exception:
+            logger.warning("操作异常 in prompt_builder.py", exc_info=True)
+        return ""
 
     def _build_butler_context(self) -> str:
         """构建管家存在提示文本。"""

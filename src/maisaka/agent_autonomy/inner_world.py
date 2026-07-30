@@ -16,6 +16,9 @@ class InnerWorldSnapshot:
     desire_summary: str
     inner_voice_text: str
     memory_personality_params: MemoryPersonalityV2
+    expression_layer_text: str = ""
+    experience_layer_text: str = ""
+    lambda_value: float = 0.5
 
 
 class InnerWorld:
@@ -80,6 +83,9 @@ class InnerWorld:
         emotion_text = ""
         desire_summary = ""
         inner_voice = ""
+        expression_text = ""
+        experience_text = ""
+        lambda_val = 0.5
 
         if self._emotion_manager is not None:
             try:
@@ -103,22 +109,74 @@ class InnerWorld:
                 logger.warning("操作异常 in inner_world.py", exc_info=True)
                 desire_summary = ""
 
+        # T5.3: 分层性格 — 从 LayeredPersonality 获取 expression/experience 文本
+        layered = self._agent_config.layered_personality
+        if layered is not None:
+            expression_text = layered.expression_layer or ""
+            experience_text = layered.experience_layer or ""
+
+        # T5.3: A3 λ 计算 — lazy import
+        emotion_intensity = 0.0
+        coactivation_strength = 0.0
+        if self._emotion_manager is not None:
+            try:
+                state = self._emotion_manager.state
+                dominant = getattr(state, "dominant_emotion", "calm")
+                emotions = getattr(state, "emotions", {})
+                if isinstance(emotions, dict) and dominant in emotions:
+                    emotion_intensity = float(emotions[dominant]) / 100.0
+            except Exception:
+                emotion_intensity = 0.0
+
+        # 共激活强度：从内部关系中估算
+        if self._agent_config.internal_relationships:
+            coactivation_strength = min(1.0, len(self._agent_config.internal_relationships) * 0.15)
+
+        try:
+            from src.maisaka.agent_autonomy.personality_algo.engine import PersonalityAlgorithmEngine
+            engine = PersonalityAlgorithmEngine(self._agent_config.layered_personality_config)
+            lambda_val = engine.compute_lambda(emotion_intensity, coactivation_strength)
+        except Exception:
+            lambda_val = 0.5
+
+        # T5.3: 可选 LLM 路径 — 如果 LLM 服务可用则用 generate_llm
         if self._voice_generator is not None:
             try:
-                inner_voice = self._voice_generator.generate(
+                from src.core.adapters.llm_service_port import get_llm_service
+                llm_svc = get_llm_service()
+                inner_voice = await self._voice_generator.generate_llm(
+                    experience_layer_text=experience_text,
                     emotion_state=self._emotion_manager.state if self._emotion_manager else None,
                     desire_summary=desire_summary,
                     memory_personality=self._memory_personality,
+                    current_context="",
+                    prev_thought_summary="",
+                    relationship_summary="",
+                    inner_speech_style=self._agent_config.inner_speech_style,
+                    llm_service=llm_svc,
+                    timeout_seconds=2.0,
+                    max_output_tokens=500,
                 )
             except Exception as exc:
-                logger.warning("操作异常 in inner_world.py", exc_info=True)
-                inner_voice = "心里闪过一个念头..."
+                logger.warning("LLM 内言语生成失败，回退到规则引擎: %s", exc)
+                try:
+                    inner_voice = self._voice_generator.generate(
+                        emotion_state=self._emotion_manager.state if self._emotion_manager else None,
+                        desire_summary=desire_summary,
+                        memory_personality=self._memory_personality,
+                    )
+                except Exception:
+                    logger.warning("操作异常 in inner_world.py", exc_info=True)
+                    inner_voice = "心里闪过一个念头..."
 
         return InnerWorldSnapshot(
             emotion_state_text=emotion_text,
             desire_summary=desire_summary,
             inner_voice_text=inner_voice,
             memory_personality_params=self._memory_personality,
+            expression_layer_text=expression_text,
+            experience_layer_text=experience_text,
+            lambda_value=lambda_val,
         )
 
     async def generate_inner_voice(self) -> str:

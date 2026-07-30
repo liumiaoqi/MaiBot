@@ -1,3 +1,4 @@
+import asyncio
 import random
 from typing import Optional
 
@@ -61,6 +62,82 @@ class InnerVoiceGenerator:
         if self._template_text:
             return self._render_template(emotion_state, desire_summary, current_context)
         return self._fallback_text
+
+    async def generate_llm(
+        self,
+        experience_layer_text: str,
+        emotion_state: object,
+        desire_summary: str = "",
+        memory_personality: object = None,
+        current_context: str = "",
+        prev_thought_summary: str = "",
+        relationship_summary: str = "",
+        inner_speech_style: object = None,
+        llm_service: object = None,
+        timeout_seconds: float = 2.0,
+        max_output_tokens: int = 500,
+    ) -> str:
+        """L1 LLM 路径：用云端小模型生成 inner_voice。极短 prompt，不传完整对话历史。"""
+        # 提取情绪文本
+        emotion_text = ""
+        if emotion_state is not None:
+            dominant = getattr(emotion_state, "dominant_emotion", "")
+            if dominant:
+                emotion_text = _EMOTION_DESC.get(dominant, dominant)
+
+        # 构建极短 prompt（≤ 200 tokens）
+        prompt_parts: list[str] = []
+        if experience_layer_text:
+            prompt_parts.append(f"内心底色：{experience_layer_text}")
+        if emotion_text:
+            prompt_parts.append(f"当前情绪：{emotion_text}")
+        if relationship_summary:
+            prompt_parts.append(f"关系：{relationship_summary}")
+
+        # 风格指令
+        style_hint = "用一句话（不超过30字）表达此刻的内心独白，像内心声音，不要解释。"
+        if inner_speech_style is not None:
+            style_type = getattr(inner_speech_style, "style", "fragmented")
+            if style_type == "fragmented":
+                style_hint = "用碎片化的一句话（不超过20字）表达内心独白，跳跃、不完整，像真实的内心声音。"
+            elif style_type == "narrative":
+                style_hint = "用一句话（不超过40字）表达内心独白，叙事化但仍然是内心声音。"
+        prompt_parts.append(style_hint)
+
+        prompt = "。".join(prompt_parts)
+
+        # 尝试 LLM 路径
+        if llm_service is not None:
+            try:
+                from src.common.data_models.llm_service_data_models import LLMGenerationOptions
+
+                options = LLMGenerationOptions(
+                    temperature=0.9,
+                    max_tokens=min(max_output_tokens, 128),
+                )
+                response = await asyncio.wait_for(
+                    llm_service.generate_response(
+                        task_name="inner_voice",
+                        prompt=prompt,
+                        options=options,
+                    ),
+                    timeout=timeout_seconds,
+                )
+                if response and getattr(response, "content", ""):
+                    content = response.content.strip()
+                    if content:
+                        return content[:200]
+            except (asyncio.TimeoutError, Exception):
+                logger.debug("LLM 内言语生成失败，回退到规则引擎")
+
+        # 回退到纯规则路径
+        return self.generate(
+            emotion_state=emotion_state,
+            desire_summary=desire_summary,
+            memory_personality=memory_personality,
+            current_context=current_context,
+            prev_thought_summary=prev_thought_summary,
+        )
 
     def _generate_multi_voice(
         self,

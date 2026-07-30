@@ -577,6 +577,22 @@ class ThinkContext:
     time_since_last_think: float = 0.0
     """距上次思考的秒数"""
 
+    # T5: L1 内言语升级 + 分层性格注入
+    expression_layer_text: str = ""
+    """表现层性格文本（外显行为模式）"""
+
+    experience_layer_text: str = ""
+    """体验层性格文本（真实感受、内心性格）"""
+
+    self_reply_summaries: tuple[str, ...] = ()
+    """智能体自己最近说过的话摘要（每条 ≤ 100 字符）"""
+
+    self_reply_visibility: str = "summary_only"
+    """自回复可见性: summary_only / disabled / full"""
+
+    lambda_value: float = 0.5
+    """A3 λ 参数 — 控制 inner_voice 对 L2 的影响权重"""
+
 
 class ThinkAction(Enum):
     """思考动作类型。"""
