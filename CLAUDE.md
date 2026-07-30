@@ -1,15 +1,25 @@
 # Claude Code — MaiBot 项目笔记
 
+> 工作手册。硬性规则见 `AGENTS.md`，架构哲学见 `.codeartsdoer/rule/MaiBot智能体自主性架构.mdc`，债务追踪见 `.codeartsdoer/specs/memo/zg_cast_bone_research.md`。
+
+## Python 3.14 速查（写新代码必读）
+
+详细版：`.shared/decisions/python314_new_code_cheatsheet.md`
+精简版：`.shared/decisions/python314_features.md`
+
+**写新代码时必须遵守**：
+- `from __future__ import annotations` — **禁止**（3.14 默认延迟求值）
+- `uuid.uuid4()` — 仅用于临时/安全场景（token、nonce）；数据存储主键用 `uuid.uuid7()`
+- `zip(a, b)` — **禁止无 strict**；要么 `strict=True`（理应等长）要么 `strict=False`（显式允许不等）
+- 新并发代码首选 `asyncio.TaskGroup`，替代 `asyncio.gather`
+- frozen dataclass 更新用 `copy.replace()`，替代 `dataclasses.replace()`
+
 ## 运行环境
 
 - Docker 容器：`maim-bot-core`，Python 3.14.6
 - 依赖管理：**uv**，不用 pip
-- Docker 可用：`docker exec maim-bot-core bash -c "cd /MaiMBot && uv run ..."`
+- Docker 可?用：`docker exec maim-bot-core bash -c "cd /MaiMBot && uv run ..."`
 - 我的验收终点：`ruff check` 通过 + pytest 通过。验证命令直接在 Docker 容器内执行
-
-## 活跃任务
-
-详见 `.shared/active_tasks.md`
 
 ## 项目灵魂
 
@@ -18,6 +28,14 @@ MaiBot 不是一个技术项目，它是一个家。角色是人不是标签，�
 ## 用户偏好
 
 **革命而非改良。** 不做 DeprecationWarning 渐进式迁移，不做 fallback 回退路径，不保留新旧两套 API 并存。一次性改到位，炸了就修调用方。
+
+## 债务原则
+
+- **拿未来换现在**（必须消除）：`except Exception: pass` 透支排障能力；绕过 Port 直接导入透支重构自由度
+- **用现在换未来**（优先投入）：修 exception handling 换未来可追踪；集成欲望换主动说话
+- **不影响未来**（低优先）：V1 getattr 残留、TODO 清理
+
+债务全景详见 `.codeartsdoer/specs/memo/zg_cast_bone_research.md`。
 
 ## CC ↔ Codex 分工
 
@@ -83,3 +101,17 @@ CA 派发审查任务时，按以下维度输出报告（写入 `.shared/handoff
 4. **ThinkAction vs SilenceReason** — `INTENTIONAL` 是 SilenceReason 枚举值，action=SILENT + silence_reason=INTENTIONAL 才是"深思熟虑后不回"
 5. **Python 的 `field()` 无 @dataclass 时只是类型注解**，不会生成 __init__
 6. **不要本地镜像类型** — 在 A_memorix 内创建核心类型的副本注定不同步，正确方案是下放到 common 层
+
+## .shared/ 写新文件规则
+
+`.shared/` 是异步上下文共享区（git 子仓库），写新文件时必须遵守：
+
+1. **头部元数据**：每个 .md 文件头部加 `> 最后更新：YYYY-MM-DD`，decisions/ 文件额外加状态标记（📚参考 / 🔬研究 / 🏗️设计 / 🔧工程）
+2. **命名规范**：
+   - decisions/：`snake_case.md`，主题一目了然
+   - handoff/：`{src}2{dst}_{topic}_{date}.md`（如 `ca2cc_zg9_extreme_tuning_0731.md`）
+   - research/：`snake_case_extracts.md`
+3. **decisions/ 新文件必须更新 `_INDEX.md`**：加一行摘要+状态
+4. **memo.md 不再堆内容**：新主题一律放 decisions/，memo.md 只加索引行指向
+5. **active_tasks.md 只放当前活跃任务**：已完成的移入 roadmap.md 的"已完成里程碑"
+6. **roadmap.md 状态与 research memo 同步**：改一个必须检查另一个
