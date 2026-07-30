@@ -4,6 +4,29 @@
 # 2. 修补 official_configs.py: 注入 AMemorixRelationVectorizationConfig
 #    根因: Pydantic extra=forbid 导致 TOML 中 [a_memorix.retrieval.relation_vectorization] 被丢弃
 #    方案: 用 sed 在容器内原文件上精确注入缺失的类定义和字段引用
+# 3. ZG-9: OOM 分层保护
+
+
+# === ZG-9: OOM 分层保护 ===
+setup_oom_protection() {
+    if [ ! -d /proc ]; then
+        return
+    fi
+
+    # 关键进程：OOM score adj = -1000（绝对豁免）
+    for proc_name in orchestrator thinking_organ; do
+        for pid in $(pgrep -f "$proc_name" 2>/dev/null); do
+            echo -1000 > /proc/$pid/oom_score_adj 2>/dev/null
+        done
+    done
+
+    # 非关键进程：OOM score adj = 1000（优先被杀）
+    for proc_name in telemetry emoji_service; do
+        for pid in $(pgrep -f "$proc_name" 2>/dev/null); do
+            echo 1000 > /proc/$pid/oom_score_adj 2>/dev/null
+        done
+    done
+}
 
 
 ADAPTER_A="/MaiMBot/plugins/MaiBot-Napcat-Adapter"
@@ -63,5 +86,8 @@ class AMemorixRelationVectorizationConfig(ConfigBase):\\
         echo "[wrapper] 修补完成"
     fi
 fi
+
+# ZG-9: 启动 OOM 保护（后台延迟执行，等进程启动后）
+(sleep 10 && setup_oom_protection) &
 
 exec /MaiMBot/docker-entrypoint.sh "$@"

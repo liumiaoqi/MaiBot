@@ -11,6 +11,16 @@ services:
     # image: sengokucola/maibot:dev
     # image: infinitycat/maibot:dev
     entrypoint: ["/bin/sh", "/MaiMBot/docker-entrypoint-wrapper.sh"]
+
+    # === ZG-9 资源控制 ===
+    mem_limit: 4g
+    mem_reservation: 2g
+    mem_swappiness: 0
+    oom_kill_disable: false
+    oom_score_adj: -500
+    tmpfs:
+      - /tmp:size=512M
+
     environment:
       - TZ=Asia/Shanghai
       - EULA_AGREE=8e6e7d647f7f82d6ea98456b73908656
