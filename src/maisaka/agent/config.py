@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -151,12 +151,101 @@ class FavorDescriptions(BaseModel):
     stranger: str = Field(default="", description="对陌生人的偏爱描述")
 
 
+class PersonalityLayer(Enum):
+    """性格四层模型 — 层枚举"""
+
+    EXISTENCE = "existence"       # 存在层：时代世界 + 不可转移的社会存在
+    EXPRESSION = "expression"     # 表现层：外显行为模式
+    EXPERIENCE = "experience"     # 体验层：真实感受
+    IDENTITY = "identity"         # 认同层：自我认知
+
+
+class LayeredPersonality(BaseModel):
+    """性格四层模型 — 替代扁平 personality 文本"""
+
+    existence_layer: str = Field(default="", description="存在层：时代世界+不可转移的社会存在（不可修改）")
+    expression_layer: str = Field(default="", description="表现层：外显行为模式")
+    experience_layer: str = Field(default="", description="体验层：真实感受、内心性格")
+    identity_layer: str = Field(default="", description="认同层：自我认知、'我认为自己是什么样的人'")
+    self_constraints: str = Field(default="", description="自我约束：'我绝不...'（认同层派生，LS-7 不可绕过）")
+
+    def get_layer_text(self, layer: PersonalityLayer) -> str:
+        """获取指定层的文本"""
+        match layer:
+            case PersonalityLayer.EXISTENCE:
+                return self.existence_layer
+            case PersonalityLayer.EXPRESSION:
+                return self.expression_layer
+            case PersonalityLayer.EXPERIENCE:
+                return self.experience_layer
+            case PersonalityLayer.IDENTITY:
+                return self.identity_layer
+
+    def set_layer_text(self, layer: PersonalityLayer, text: str) -> None:
+        """设置指定层的文本（存在层不可修改）"""
+        if layer == PersonalityLayer.EXISTENCE:
+            raise ValueError("存在层不可修改——这是角色的世界设定，不是可变的性格特征")
+        match layer:
+            case PersonalityLayer.EXPRESSION:
+                self.expression_layer = text
+            case PersonalityLayer.EXPERIENCE:
+                self.experience_layer = text
+            case PersonalityLayer.IDENTITY:
+                self.identity_layer = text
+
+    def is_modifiable(self, layer: PersonalityLayer) -> bool:
+        """判断指定层是否可被 LS-7 工具修改"""
+        return layer != PersonalityLayer.EXISTENCE
+
+
+class LayeredPersonalityConfig(BaseModel):
+    """六算法公共参数 — 所有参数零 LLM 调用"""
+
+    # A5: 锚定/可塑
+    plasticity_n_mid: int = Field(default=50, ge=20, le=200, description="半固化所需交互次数")
+    plasticity_k: float = Field(default=0.05, ge=0.01, le=0.1, description="固化速率常数")
+    plasticity_min: float = Field(default=0.05, ge=0.01, le=0.2, description="最小可塑性（floor）")
+    re_plastication_boost: float = Field(default=0.3, ge=0.01, le=0.5, description="新角色投资重新可塑提升量")
+
+    # A2: 加权检索
+    recall_gamma: float = Field(default=0.95, ge=0.8, le=0.999, description="recency 衰减系数（Park 修正）")
+
+    # A3: λ 内言语控制
+    default_lambda: float = Field(default=0.5, ge=0.0, le=1.0, description="默认内言语贡献系数")
+    lambda_emotion_threshold: float = Field(default=0.6, ge=0.0, le=1.0, description="情绪触发 λ 提升的强度阈值")
+    lambda_emotion_scale: float = Field(default=0.5, ge=0.0, le=1.0, description="情绪对 λ 的提升幅度")
+    lambda_relationship_scale: float = Field(default=0.3, ge=0.0, le=1.0, description="关系对 λ 的提升幅度")
+
+    # A1: 自我差异
+    discrepancy_d_norm: float = Field(default=1.0, ge=0.5, le=2.0, description="差异幅度归一化除数")
+
+    # A6: 自我验证
+    verification_certainty_threshold: float = Field(default=0.6, ge=0.3, le=0.9, description="自我确定度阈值")
+    verification_public_threshold: float = Field(default=0.5, ge=0.3, le=0.9, description="公开场合判断阈值")
+    verification_temperature: float = Field(default=0.3, ge=0.1, le=1.0, description="选择性注意 softmax 温度")
+
+    # A4: 预测处理
+    predictive_l0_lr: float = Field(default=0.1, ge=0.01, le=0.5, description="L0 学习率（情绪层，较快）")
+    predictive_l1_lr: float = Field(default=0.05, ge=0.01, le=0.5, description="L1 学习率（行为层）")
+    predictive_l2_lr: float = Field(default=0.01, ge=0.001, le=0.1, description="L2 学习率（认同层，极慢）")
+
+
+class InnerSpeechStyleConfig(BaseModel):
+    """内言语风格配置 — 对应 Granato λ 参数 + Fernyhough 压缩度"""
+
+    style: Literal["fragmented", "narrative"] = Field(
+        default="fragmented", description="内言语风格：碎片化(fragmented)或完整叙事(narrative)"
+    )
+    condensation: float = Field(default=0.7, ge=0.0, le=1.0, description="压缩度（Fernyhough L3-L4），越高越压缩/简短")
+    voice_count: int = Field(default=1, ge=1, le=5, description="多声部对话中的声音数量")
+
+
 class AgentConfig(BaseModel):
     """智能体配置模型"""
 
     agent_id: str = Field(default="silver_wolf", description="智能体唯一标识")
     display_name: str = Field(default="银狼", description="显示名称")
-    personality: str = Field(default="", description="人格设定（Markdown正文部分）")
+    personality: str = Field(default="", description="人格设定（Markdown正文部分）[deprecated: 迁移到 layered_personality]")
     reply_style: str = Field(default="", description="表达风格描述")
     is_default: bool = Field(default=False, description="是否为默认智能体")
 
@@ -241,9 +330,29 @@ class AgentConfig(BaseModel):
     is_butler: bool = Field(default=False, description="是否为管家智能体")
     butler_config: dict = Field(default_factory=dict, description="管家配置（see_all_messages/coordinate_interjection/handle_reminders/can_switch_primary/can_speak）")
 
+    # LS-7/LS-8: 性格分层
+    layered_personality: Optional[LayeredPersonality] = Field(
+        default=None, description="四层性格模型（优先于 personality 字段）"
+    )
+    layered_personality_config: LayeredPersonalityConfig = Field(
+        default_factory=LayeredPersonalityConfig, description="六算法公共参数"
+    )
+    inner_speech_style: InnerSpeechStyleConfig = Field(
+        default_factory=InnerSpeechStyleConfig, description="内言语风格配置"
+    )
+
     @property
     def identity_prompt(self) -> str:
-        """构建完整的人格提示词（personality + reply_style）"""
+        """构建完整的人格提示词。
+
+        优先使用 layered_personality.expression_layer，
+        fallback 到旧的 personality + reply_style 拼接。
+        """
+        if self.layered_personality is not None and self.layered_personality.expression_layer:
+            parts: list[str] = [self.layered_personality.expression_layer]
+            if self.layered_personality.self_constraints:
+                parts.append(f"自我约束：{self.layered_personality.self_constraints}")
+            return "\n\n".join(parts)
         parts: list[str] = []
         if self.personality:
             parts.append(self.personality)

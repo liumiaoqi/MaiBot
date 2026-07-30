@@ -717,6 +717,28 @@ class AgentAutonomyInterjectionEvent(SQLModel, table=True):
     )
 
 
+class AgentSelfModification(SQLModel, table=True):
+    """LS-7: 智能体自我修改记录 — 运行时性格变化持久化"""
+
+    __tablename__ = "agent_self_modifications"  # type: ignore
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    agent_id: str = Field(index=True, max_length=64)
+    layer: str = Field(max_length=16, description="PersonalityLayer: expression/experience/identity")
+    field: str = Field(max_length=32, description="被修改的字段名")
+    modification_text: str = Field(description="增量修改文本")
+    trigger: str = Field(max_length=32, description="触发来源: adjust_expression/reflect_on_self/update_relationship/algorithm/admin")
+    old_value_hash: str = Field(max_length=64, description="SHA-256 of pre-modification value")
+    new_value_hash: str = Field(max_length=64, description="SHA-256 of post-modification value")
+    overridden_by_yaml: bool = Field(default=False, description="是否已被管理员 YAML 覆盖")
+    created_at: Optional[datetime] = Field(default_factory=datetime.now, sa_column=Column(DateTime, nullable=True))
+
+    __table_args__ = (
+        Index("ix_agent_self_mod_agent_layer", "agent_id", "layer"),
+        Index("ix_agent_self_mod_created", "created_at"),
+    )
+
+
 class AgentAutonomySpeakerChangeRecord(SQLModel, table=True):
     """智能体自主性——发言权变更记录"""
 
