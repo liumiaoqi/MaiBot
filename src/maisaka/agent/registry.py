@@ -1,11 +1,13 @@
-from src.common.logger import get_logger
-logger = get_logger("auto.registry")
-
-
+import time
 from typing import Optional
+
+from src.common.logger import get_logger
+from src.core.service_manager.types import HealthCheckResult
 
 from .config import AgentConfig
 from .config_loader import AgentConfigLoader
+
+logger = get_logger("auto.registry")
 
 
 
@@ -24,7 +26,7 @@ class AgentConfigRegistry:
                     config_dir = port.get_agents_dir()
                 else:
                     config_dir = "agents/"
-            except Exception as exc:
+            except Exception:
                 logger.warning("获取 agents 目录失败，使用默认值", exc_info=True)
                 config_dir = "agents/"
         self._loader = AgentConfigLoader(config_dir)
@@ -120,3 +122,23 @@ class AgentConfigRegistry:
         self._agents[agent_id] = config
         logger.info("智能体配置已重载: %s", agent_id)
         return True
+
+    async def health_probe(self) -> HealthCheckResult:
+        """检查智能体注册表是否已加载且包含至少一个智能体配置。
+
+        快速返回（≤5s），不执行 I/O。
+        """
+        now = time.monotonic()
+        if not self._loaded:
+            return HealthCheckResult(
+                alive=False, timestamp=now, detail="智能体注册表未加载"
+            )
+        if not self._agents:
+            return HealthCheckResult(
+                alive=False, timestamp=now, detail="无智能体配置"
+            )
+        return HealthCheckResult(
+            alive=True,
+            timestamp=now,
+            detail=f"已加载 {len(self._agents)} 个智能体配置",
+        )

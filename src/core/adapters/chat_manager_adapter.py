@@ -5,17 +5,14 @@
 """
 
 
+import time
 from typing import Any, Dict, List, Optional
 
 from src.common.logger import get_logger
 from src.core.protocols import (
     AgentRoutingService,
-    MessageRegistryPort,
-    SessionInfoPort,
-    SessionLifecyclePort,
-    SessionQueryPort,
-    SessionRepository,
 )
+from src.core.service_manager.types import HealthCheckResult
 from src.core.types import SessionInfo
 from src.platform_io.route_key_factory import RouteKeyFactory
 
@@ -222,3 +219,28 @@ class ChatManagerAdapter:
 
     def register_message(self, message: Any) -> None:
         self._message_registry.register(message)
+
+    # ── HealthProbePort ───────────────────────────────────────────
+
+    async def health_probe(self) -> HealthCheckResult:
+        """检查消息管道核心子模块是否可用。
+
+        快速检查（≤5s），验证注入的 session_store / routing_service / message_registry 均可访问。
+        """
+        now = time.monotonic()
+        checks: list[str] = []
+
+        if self._session_store is None:
+            checks.append("session_store 为 None")
+        if self._routing_service is None:
+            checks.append("routing_service 为 None")
+        if self._message_registry is None:
+            checks.append("message_registry 为 None")
+
+        if checks:
+            return HealthCheckResult(
+                alive=False, timestamp=now, detail="; ".join(checks)
+            )
+        return HealthCheckResult(
+            alive=True, timestamp=now, detail="消息管道所有核心子模块可用"
+        )

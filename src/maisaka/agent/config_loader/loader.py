@@ -33,7 +33,7 @@ class AgentConfigLoader:
         if cached is not None and cached[0] == mtime:
             return cached[1]
 
-        config = await self._load_file(file_path)
+        config = self._load_file(file_path)
         if config is not None:
             self._cache[agent_id] = (mtime, config)
         return config
@@ -47,7 +47,7 @@ class AgentConfigLoader:
         result: dict[str, AgentConfig] = {}
         for file_path in sorted(self._config_dir.glob("*.md")):
             agent_id = file_path.stem
-            config = await self._load_file(file_path)
+            config = self._load_file(file_path)
             if config is not None:
                 if config.agent_id != agent_id:
                     logger.warning(
@@ -75,7 +75,7 @@ class AgentConfigLoader:
             return file_path
         return None
 
-    async def _load_file(self, file_path: Path) -> Optional[AgentConfig]:
+    def _load_file(self, file_path: Path) -> Optional[AgentConfig]:
         """从Markdown文件加载配置"""
         try:
             content = file_path.read_text(encoding="utf-8")

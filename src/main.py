@@ -39,6 +39,8 @@ class MainSystem:
         self._interaction_scheduler: Any | None = None
         self._agent_registry: Any | None = None
         self._model_config_port: Any | None = None
+        self._chat_manager_adapter: Any | None = None
+        self._replyer_adapter: Any | None = None
         self._v2_host_endpoint: Any | None = None
         self._init_start_time: float = 0.0
         self._orchestrator: Any | None = None
@@ -96,7 +98,7 @@ class MainSystem:
 
         try:
             await self._init_components()
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in main.py", exc_info=True)
             if self.webui_server:
                 await self.webui_server.shutdown()
@@ -272,7 +274,17 @@ class MainSystem:
             get_dependency_relations,
             get_service_descriptors,
         )
-        self._service_manager = ServiceManagerAdapter()
+
+        # 构建核心组件健康探针
+        probe_functions: dict = {}
+        if self._chat_manager_adapter is not None:
+            probe_functions["chat_manager_adapter"] = self._chat_manager_adapter.health_probe
+        if self._agent_registry is not None:
+            probe_functions["agent_registry"] = self._agent_registry.health_probe
+        if self._replyer_adapter is not None:
+            probe_functions["replyer_port"] = self._replyer_adapter.health_probe
+
+        self._service_manager = ServiceManagerAdapter(probe_functions=probe_functions)
         await self._service_manager.adopt_from_startup(
             self._startup_result,
             get_service_descriptors(),
@@ -349,18 +361,20 @@ class MainSystem:
             binding_restorer=self._binding_restorer,
             session_lifecycle=self._session_lifecycle,
         )
+        self._chat_manager_adapter = _adapter
         register_session_info_port(_adapter)
         register_session_lifecycle_port(_adapter)
         register_session_query_port(_adapter)
         register_message_registry_port(_adapter)
 
-    @staticmethod
-    async def _init_replyer_port() -> None:
+    async def _init_replyer_port(self) -> None:
         from src.chat.replyer.replyer_manager import replyer_manager
         from src.core.adapters.replyer_service_adapter import ReplyerServiceAdapter
         from src.core.replyer_port_registry import register_replyer_service_port
 
-        register_replyer_service_port(ReplyerServiceAdapter(replyer_manager))
+        adapter = ReplyerServiceAdapter(replyer_manager)
+        self._replyer_adapter = adapter
+        register_replyer_service_port(adapter)
 
     @staticmethod
     async def _init_image_port() -> None:
@@ -482,7 +496,7 @@ class MainSystem:
             if webui is not None and webui.app is not None:
                 webui.app.state.scope_store = self._v2_host_endpoint._scope_store
                 webui.app.state.token_service = self._v2_host_endpoint._token_service
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in main.py", exc_info=True)
 
     @staticmethod
