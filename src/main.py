@@ -41,6 +41,8 @@ class MainSystem:
         self._model_config_port: Any | None = None
         self._v2_host_endpoint: Any | None = None
         self._init_start_time: float = 0.0
+        self._orchestrator: Any | None = None
+        self._service_manager: Any | None = None
 
     def _ensure_message_server(self) -> None:
         """按需初始化消息 API，避免阻塞主启动链路的早期阶段。"""
@@ -255,6 +257,7 @@ class MainSystem:
             init_fn=self._start_interaction_scheduler,
         ))
 
+        self._orchestrator = orchestrator
         self._startup_result = await orchestrator.run()
 
         if not self._startup_result.ready:
@@ -262,6 +265,19 @@ class MainSystem:
             if failed_names:
                 raise RuntimeError(f"关键组件初始化失败: {failed_names}")
             logger.warning(f"系统降级启动，失败组件: {[c.name for c in self._startup_result.failed_components]}")
+
+        # ZG-1: 服务管理器接管运行时组件
+        from src.core.adapters.service_manager_adapter import ServiceManagerAdapter
+        from src.core.service_manager.descriptors import (
+            get_dependency_relations,
+            get_service_descriptors,
+        )
+        self._service_manager = ServiceManagerAdapter()
+        await self._service_manager.adopt_from_startup(
+            self._startup_result,
+            get_service_descriptors(),
+            get_dependency_relations(),
+        )
 
         init_time = int(1000 * (time.time() - self._init_start_time))
         logger.info(t("startup.initialization_completed_cycles", init_time=init_time))
@@ -595,6 +611,8 @@ async def main() -> None:
         await system.initialize()
         await system.schedule_tasks()
     finally:
+        if system._service_manager is not None:
+            await system._service_manager.shutdown()
         if system._interaction_scheduler is not None:
             await system._interaction_scheduler.stop()
         if system.webui_server:
