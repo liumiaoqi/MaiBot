@@ -52,12 +52,15 @@ class StateAggregator:
         for snapshot in self._registry.values():
             if snapshot.state == ServiceState.RESTARTING:
                 has_restarting = True
-            elif snapshot.state in (ServiceState.FAULT, ServiceState.FAULT_MANUAL):
-                if snapshot.identifier in self._core_readiness_map:
+            elif snapshot.identifier in self._core_readiness_map:
+                # 核心就绪贡献组件：任一非 RUNNING → FAULT
+                if snapshot.state != ServiceState.RUNNING:
                     has_core_fault = True
-                else:
-                    has_degraded_or_non_core_fault = True
-            elif snapshot.state == ServiceState.DEGRADED:
+            elif snapshot.state in (
+                ServiceState.FAULT,
+                ServiceState.FAULT_MANUAL,
+                ServiceState.DEGRADED,
+            ):
                 has_degraded_or_non_core_fault = True
 
         if has_restarting:
