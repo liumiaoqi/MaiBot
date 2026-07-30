@@ -1,14 +1,10 @@
 # MaiBot 智能体自主性架构 — 项目规则
 
+> 本文件：架构哲学 + 核心契约。硬性规则见 `AGENTS.md`，工作手册见 `CLAUDE.md`，债务追踪见 `.codeartsdoer/specs/memo/zg_cast_bone_research.md`。
+
 ## 理念
 
 **理想的角色不应是一具等待结局的标本，而应是一场永恒的进行时。**
-
-- **反标本化**：角色不应是玻璃展柜中被钉死的蝴蝶，而应是一颗仍在呼吸的种子，每一次回应都暗含变化的可能
-- **反叙事耗竭**：真正的魅力不在于完美收官的故事，而在于它让所有人渴望结局，却又甘愿让结局永远保持在未抵达的远方
-- **动态的生命感**：角色内心应有持续流淌的、未解决的张力。过去是背景，此刻是选择，将来是一片与你共同踏足的可能之域
-
-设计原则：
 
 1. **不做故事的结局，只做生命的序章** — 角色不应是一具等待结局的标本，而应是一场永恒的进行时
 2. **代码是死的，可能性是活的** — 过度的预防等于提前锁死了系统进化的方向；真正的秩序不是防出来的，而是靠清晰的架构、明确的契约、可测试的逻辑来保证稳定
@@ -36,76 +32,29 @@
 
 ### 内心状态三层
 
-| 层 | 状态 | 作用 | 实现状态 |
-|---|---|---|---|
-| **情绪** | 我此刻感觉如何 | 给一切回应染色 | ✅ EmotionManager，7种情绪 |
-| **欲望** | 我想要什么 | 让智能体主动行动，而非被动反应 | ⚠️ InnerNeedEngine 已实现，欲望驱动主动发言待集成 |
-| **记忆** | 我经历了什么 | 让回应有厚度和连贯性 | ✅ A_Memorix 连接主义系统，直觉+叙事+认知分层，MemoryServicePort 16 方法 |
+| 层 | 状态 | 作用 |
+|---|---|---|
+| **情绪** | 我此刻感觉如何 | 给一切回应染色 |
+| **欲望** | 我想要什么 | 让智能体主动行动，而非被动反应 |
+| **记忆** | 我经历了什么 | 让回应有厚度和连贯性 |
 
 ### 欲望系统
 
 欲望是让智能体"像人"的关键缺口。没有欲望的智能体永远在等别人说话，像客服不像人。
 
-欲望系统是**规则引擎**（不是 LLM），它不要求 LLM 自发产生输出，而是让系统在无人输入时也决定调用 LLM：
-
-```
-心跳(60s) → 规则评估内心状态 → 欲望是否足够强？
-                                    ↓ 是
-                               构造 prompt → 调 LLM → 发送
-                                    ↓ 否
-                               继续待命
-```
-
-LLM 仍然是"被调用"的，但调用它的不是人，而是智能体自己的欲望。从外部看，效果就是智能体主动说话了。
+欲望系统是**规则引擎**（不是 LLM），它不要求 LLM 自发产生输出，而是让系统在无人输入时也决定调用 LLM。LLM 仍然是"被调用"的，但调用它的不是人，而是智能体自己的欲望。
 
 ### Agent-owns-Thinking
 
 每个智能体拥有自己的思维管道（ThinkingOrgan），Orchestrator 只协调"谁在思考"，不关心"怎么思考"。
 
-**思考-行动分离**（已实现）：content = 内心独白（永远不发给用户），reply 工具调用 = 对外回复。简化模式已废除，所有思考路径统一走工具循环。
-
-**ParallelThinkScheduler**：
-- asyncio.Semaphore 控制并发数（默认 3，可配置）
-- 主智能体优先（主智能体思考时不阻塞共居者）
-- 共居者并行思考结果通过 MessagePortV2.send_message() 发出（source="interjection"）
-- 思考超时自动降级为 SILENT + SilenceReason.TIMEOUT
-
-**ThinkCycleLog 结构**：
-- agent_id / session_id / cycle_id（单调递增）
-- trigger_source（message/proactive/reminder/interjection）
-- action（REPLY/SILENT/WAIT/ERROR）
-- silence_reason（仅 action=SILENT 时有值）
-- thought_summary（内心独白摘要，不含完整内容）
-- duration_ms / llm_calls（性能指标）
-
-**SilenceReason 7 分类**：
-- INTENTIONAL：有内心独白但选择不回（正常沉默）
-- NO_CONTENT：思考后无内容可说
-- ERROR：思考过程异常
-- TIMEOUT：思考超时
-- REJECTED：规则引擎拒绝（如用户正在输入）
-- TOOL_FAILED：reply 工具调用失败
-- MAX_CYCLES：达到最大思考循环数
+思考-行动分离：content = 内心独白（永远不发给用户），reply 工具调用 = 对外回复。
 
 ### 管家系统（彼岸居客厅规则）
 
 管家不是第14个角色，是**彼岸居客厅的空间逻辑**人格化——"谁在客厅谁就回消息"这个自然规则的实现。
 
-**核心定位**：管家不说话，只做两件事——过滤（谁看见了消息）和协调（谁先抢到键盘）。
-
-**架构决策**：
-- **保留主智能体**：主智能体（银狼/提纳里）每条消息必回，和用户建立深度关系
-- **管家管理共居智能体**：12位共居者通过管家的三层过滤获得插话机会
-- **对话流+提醒流统一管道**：插话和提醒共享同一个协调管道
-
-**三层过滤**（v2-v4 验证通过，已集成到 Orchestrator）：
-1. **规则过滤**（零成本）：名字被提到→必看见；有关系→可能看见；无关→很少看见
-2. **管家LLM**（1次调用）：理解话题+角色性格+关系网，判断"谁会关心这个话题"
-3. **角色LLM**（仅选中者）：被选中的角色决定插话内容，不想说话回复NONE
-
-**成本**：最差1(主)+1(管家)+2(插话)=4次LLM调用；最好1+1+0=2次。对比无管家的1+12=13次。
-
-**提醒流**：定时器触发→管家协调谁提醒→主智能体优先。提醒分直接（"3点提醒我开会"）和间接（"下午有个考试"→到时候关心）。
+核心定位：管家不说话，只做两件事——过滤（谁看见了消息）和协调（谁先抢到键盘）。
 
 ### 目标核心管道
 
@@ -119,62 +68,29 @@ LLM 仍然是"被调用"的，但调用它的不是人，而是智能体自己�
                                定时器触发 → 管家协调 → 提醒/关心
 ```
 
+## OS→MaiBot 映射
+
+| OS 概念 | MaiBot 对应 |
+|---------|------------|
+| 内核 | 核心（Orchestrator + MessagePort） |
+| 系统调用 | Protocol 接口（MessageIngestionPort, SessionRepository 等） |
+| 设备驱动 | 适配器（napcat-adapter, 未来 discord-adapter 等） |
+| 文件系统 | A_Memorix（记忆存储） |
+| 进程 | 插件（gRPC Runner 隔离） |
+| capabilities | Scope 细粒度授权 |
+| init/systemd | PluginRuntime（插件生命周期管理） |
+| /proc | WebUI（系统内省） |
+| 信号 | Hook（chat.receive.before_process 等） |
+| 管道 | MessagePort（消息在组件间流动） |
+
 ## 数据契约
 
-**CoreMessage**（平台无关的入站消息）：
-- session_id, plain_text, is_notify, notice_kind, sender_id, sender_name, platform, timestamp, additional_data
-
-**SessionInfo**（不可变会话快照）：
-- session_id, session_name, platform, is_group_session, primary_agent_id, cohabitant_agent_ids
-
-**NoticeKind**（平台无关通知枚举）：
-- AMBIENT（环境信号，不触发 Planner）/ INTERACTION（交互信号，可能触发）/ INPUT_STATUS / UNKNOWN
-
-**SilenceReason**（沉默原因枚举）：
-- INTENTIONAL（有内心独白但选择不回）/ NO_CONTENT / ERROR / TIMEOUT / REJECTED / TOOL_FAILED / MAX_CYCLES
-
-**ThinkResult**（思考结果）：
-- action: REPLY/SILENT/WAIT/ERROR
-- text: 回复文本（仅来自 reply 工具，不来自 content）
-- reply_sent: reply 工具是否已内部发送消息
-- silence_reason: 沉默原因（仅 action=SILENT 时有值）
-- thought_summary: 内心独白摘要
-
-## 记忆叙事原型（已主线集成，详见 `src/A_memorix/core/connectionist/`）
-
-5 子系统：NarrativeWeaver / CognitiveStratifier / LifecycleManager / IntuitionEngine / MemoryField。直觉召回走纯规则不走 LLM。
-
-## lab 原型实验室（已全部毕业）
-
-Lab 是独立 git 仓库（`lab/.git`），不入主仓库共享历史。毕业流程：`lab/{topic}/ → lab/integration/ → 主仓库 src/`。当前仅 `exploratory/` 活跃。
-
-## 规则文件同步元规则
-
-本元规则确保本文件（项目级规则）与 AGENTS.md（工程规范 + 债务追踪单一事实源）保持同步，避免规则文件过时误导开发。
-
-### 同步触发点
-
-以下变更必须同步更新本文件和 AGENTS.md：
-
-- 新增/删除 Protocol（`src/core/protocols.py` 变化）
-- 消除/新增架构债务（核心禁止项状态变化）
-- 核心模块物理迁移（目录重组、单例拆分、Phoenix 阶段推进）
-- ruff banned-api 或 per-file-ignores 变化
-- 适配器层新增/删除适配器
-
-### 同步责任
-
-提交者负责双向同步。AGENTS.md 是债务追踪单一事实源，本文件是架构哲学 + 核心契约的项目级规则文件。两者冲突时以 AGENTS.md 为准。
-
-### 同步检查（每次 PR 必须自检）
-
-- 本文件引用的 Protocol/数据契约与 `src/core/protocols.py` 一致
-- 本文件"核心禁止项"状态 == AGENTS.md"核心禁止项"状态
-- 本文件存量债务状态 == AGENTS.md 相关描述
-
-### 不一致修正
-
-发现不一致时，优先修正本文件以匹配 AGENTS.md 和代码实际状态，不得反向修改 AGENTS.md 以匹配过时规则。
+核心数据类型定义见 `src/core/protocols.py`，本文件只列契约名称：
+- **CoreMessage** — 平台无关的入站消息
+- **SessionInfo** — 不可变会话快照
+- **NoticeKind** — 平台无关通知枚举（AMBIENT / INTERACTION / INPUT_STATUS / UNKNOWN）
+- **SilenceReason** — 沉默原因枚举（7 种）
+- **ThinkResult** — 思考结果（action + text + silence_reason + thought_summary）
 
 ## 四主智能体协作约定
 
@@ -189,41 +105,16 @@ Lab 是独立 git 仓库（`lab/.git`），不入主仓库共享历史。毕业�
 
 ### 派发原则
 
-- **CC 胜在**：首次设计（Protocol 签名/快照类型）、高风险文件（runtime.py 等面积大易出副作用的）、最终验证（ruff 守卫 + AGENTS.md）
-- **Codex 胜在**：定义清晰的分项任务、批量并行后台、机械执行（global_config→Port 替换）、小bug精确查找快速修复
-- CA 派发时不要低估 Codex 能力——SSD-6/7/8/9/10 已证明 Codex 完全能处理机械替换
+- **CC 胜在**：首次设计（Protocol 签名/快照类型）、高风险文件、最终验证（ruff 守卫 + AGENTS.md）
+- **Codex 胜在**：定义清晰的分项任务、批量并行后台、机械执行、小bug精确查找快速修复
 
 ### 思维链规范
 
-1. **主动语态**：用 `I'll read / I'm checking`，不用 `Let me read / Let me check`。决策时 `I'll go with X because Y`，不写 `Let me think about what to do`
-2. **单步推进**：每条思维链只推进一件事，不铺排多步计划。读完文件立刻形成判断，不做反复确认
-3. **不枚举下一步**：不写"下一步要做 A、B、C"再逐一执行——做完 A 再决定 B
-4. **用户更新简洁**：一句话说清在做什么，不前置 `Now I'll...` / `So I'm going to...` 这类过渡
+1. **主动语态**：用 `I'll read / I'm checking`，不用 `Let me read / Let me check`
+2. **单步推进**：每条思维链只推进一件事，不铺排多步计划
+3. **不枚举下一步**：做完 A 再决定 B
+4. **用户更新简洁**：一句话说清在做什么
 
-## Phoenix：插件系统革命（已完成，详见 `.codeartsdoer/specs/_archive/phoenix/`）
+## SSD 启动必要条件
 
-三大支柱：MCP Tool/Event 统一组件模型、OAuth Scope 细粒度授权、gRPC 标准化传输。P-0~P-9 ✅，P-10 ⏸️ 延后。关键决策：不兼容现有插件，SDK v3→v4。
-
-## 炉火纯青（ChunQing）：Phoenix 后清算
-
-> 项目代号：炉火纯青（ChunQing），简写 CQ。Phoenix 浴火重生后，炉火烧至纯青——杂质尽除，技艺登峰造极。
-> 策略：分批 SSD（CQ-1 → CQ-2 → ...），每批末尾插入调研任务，调研结果指导下一批规划。
-
-### 核心原则：用现在换未来，不是拿未来换现在
-
-- **拿未来换现在**（必须消除）：图省事写 `except Exception: pass`，透支未来排障能力；绕过 Port 直接导入，透支未来重构自由度
-- **用现在换未来**（优先投入）：修 exception handling 投入现在的工作，换未来每个 bug 都可追踪；集成欲望系统，换未来智能体主动说话的能力
-- **不影响未来**（低优先）：V1 getattr 残留（V1 将废弃）、TODO 注释清理
-
-### 债务全景
-
-| 优先级 | 编号 | 类别 | 数量 | 一句话 |
-|--------|------|------|------|--------|
-| P1 | CQ-11 | `import logging` 绕过统一日志 | 45 | ⬜ CQ-2，maisaka 日志碎片化 |
-| P1 | CQ-15 | `chat_manager` 直接导入 | 1 | ⬜ CQ-2，uni_message_sender 跨层导入 |
-| P1 | CQ-14 | `config_manager` 直接导入 | 8 | ⬜ CQ-2，5 文件需迁移 |
-| P1 | CQ-13 | `heartflow_manager` 直接导入 | 1 | ⬜ CQ-2，routes.py 1 处 |
-| P2 | CQ-4/1/5/6 | 代码质量债 | 若干 | noqa/bare except/getattr/global_config 残留 |
-| P3 | CQ-8/12 | 低优先清理 | 若干 | V1/V2 共存评估、TODO/FIXME |
-
-已完成：CQ-9/10（except 吞没 336→6, pass 88→0）✅、CQ-3（None 防御）✅、CQ-7（欲望驱动主动发言）✅、CQ-5（启动崩溃修复 6 处）✅
+需求明确，行事有方向。启动 SSD 前必须能回答：做什么、为什么做、怎么验证做对了。
