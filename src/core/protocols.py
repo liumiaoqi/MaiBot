@@ -7,7 +7,7 @@
 """
 
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 from typing import Protocol, runtime_checkable
 
@@ -23,6 +23,18 @@ if TYPE_CHECKING:
         LLMResponseResult,
         MessageFactory,
     )
+    from src.core.service_manager.types import (
+        AdoptionResult,
+        DependencyRelation,
+        FaultRecord,
+        HealthCheckResult,
+        LifecycleActionResult,
+        ServiceDescriptor,
+        ServiceState,
+        ServiceStateSnapshot,
+        SystemHealthView,
+    )
+    from src.core.startup.types import CoreReadiness, StartupResult
     from src.maisaka.agent.config import AgentConfig
     from src.core.types import (
         AgentAutonomySnapshot,
@@ -1192,3 +1204,109 @@ class AutonomyEventBusPort(Protocol):
     def unsubscribe(self, event_type: str, handler: Any) -> None: ...
     async def emit(self, event_type: str, data: dict[str, Any]) -> None: ...
     def emit_sync(self, event_type: str, data: dict[str, Any]) -> None: ...
+
+
+@runtime_checkable
+class ServiceManagerPort(Protocol):
+    """服务管理器接口 — 运行时组件生命周期管理、健康检查、故障恢复、状态聚合。
+
+    核心通过此接口管理组件运行时状态，不直接依赖具体实现。
+    适配器层（ServiceManagerAdapter）是唯一允许导入具体引擎类的地方。
+    """
+
+    async def adopt_from_startup(
+        self,
+        result: "StartupResult",
+        descriptors: dict[str, "ServiceDescriptor"],
+        dependencies: list["DependencyRelation"] = (),
+    ) -> "AdoptionResult":
+        """从 StartupOrchestrator 结果接管组件。
+
+        前置条件：仅在 StartupOrchestrator.run() 返回后调用一次。
+        后置条件：全部 status=success 组件状态为"运行中"。
+        """
+
+    async def stop(
+        self, component_id: str, *, force: bool = False, confirmed: bool = False
+    ) -> "LifecycleActionResult":
+        """停止组件（级联停止依赖方，核心就绪贡献组件需 confirmed）。
+
+        后置条件：组件及强依赖方状态为"已停止"，弱依赖方状态为"降级"。
+        """
+
+    async def start(self, component_id: str) -> "LifecycleActionResult":
+        """启动组件（校验依赖就绪，未就绪拒绝）。
+
+        后置条件：组件状态为"运行中"或"降级"（依赖缺失时）。
+        """
+
+    async def restart(self, component_id: str, *, confirmed: bool = False) -> "LifecycleActionResult":
+        """重启组件（停止后启动，限时 30s）。"""
+
+    def get_state(self, component_id: str) -> Optional["ServiceStateSnapshot"]:
+        """查询单个组件状态（内存，≤100ms）。"""
+
+    def list_states(
+        self, *, filter_state: Optional["ServiceState"] = None
+    ) -> list["ServiceStateSnapshot"]:
+        """查询全部组件状态，可按状态过滤。"""
+
+    def get_system_health_view(self) -> "SystemHealthView":
+        """查询系统健康视图（内存聚合，≤100ms，无 I/O）。"""
+
+    def get_fault_history(
+        self, component_id: str, *, limit: int = 100
+    ) -> list["FaultRecord"]:
+        """查询组件故障历史（环形缓冲，最近 limit 条）。"""
+
+    async def report_heartbeat(self, component_id: str, timestamp: float) -> None:
+        """接收组件心跳上报（被动心跳模式）。"""
+
+    async def report_external_fault(
+        self, component_id: str, reason: str, detail: str = ""
+    ) -> None:
+        """接收外部故障事件（ZG-3 看门狗等上报）。"""
+
+    def subscribe_health_change(self, callback: Callable[["SystemHealthView"], None]) -> None:
+        """订阅系统健康等级变更事件。"""
+
+    def unsubscribe_health_change(self, callback: Callable[["SystemHealthView"], None]) -> None:
+        """取消订阅。"""
+
+
+@runtime_checkable
+class CoreReadinessPort(Protocol):
+    """运行时核心就绪判定接口 — 复用 CoreReadiness 三标志语义，持续更新。
+
+    CoreReadinessPortAdapter 是 CoreReadiness 的运行时权威源——
+    update_flag() 优先于 StartupOrchestrator._update_core_readiness() 的初始设定。
+    """
+
+    def get_core_readiness(self) -> "CoreReadiness":
+        """查询核心就绪三标志快照。"""
+
+    def is_core_ready(self) -> bool:
+        """查询核心是否就绪（三标志与运算）。"""
+
+    def update_flag(self, flag_name: str, value: bool) -> None:
+        """更新单个就绪标志（组件状态变更时由 StateAggregator 调用）。
+
+        Args:
+            flag_name: message_pipeline_ready / agent_thinking_ready / reply_capability_ready
+            value: 就绪状态
+
+        Raises:
+            ValueError: flag_name 不为三标志之一
+        """
+
+
+@runtime_checkable
+class HealthProbePort(Protocol):
+    """受管组件存活探针契约 — 组件实现此接口供管理器主动探测。"""
+
+    async def health_probe(self) -> "HealthCheckResult":
+        """存活探针，管理器调用以判定组件是否存活。
+
+        Returns:
+            HealthCheckResult，实现应快速返回（≤5s），超时由管理器判定
+        """
