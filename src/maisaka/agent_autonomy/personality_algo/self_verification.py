@@ -32,7 +32,8 @@ class SelfVerificationCalculator:
         Returns:
             'verification' 或 'enhancement'
         """
-        if self_certainty > self._certainty_threshold and context_publicness > self._public_threshold:
+        # Swann: 私下+高确定 → verification（坚持自我）；公开或低确定 → enhancement
+        if self_certainty > self._certainty_threshold and context_publicness < self._public_threshold:
             return "verification"
         return "enhancement"
 

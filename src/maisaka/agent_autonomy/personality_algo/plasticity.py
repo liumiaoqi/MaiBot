@@ -46,7 +46,7 @@ class PlasticityCalculator:
         except Exception:
             sigmoid = 0.5
 
-        stability = 1.0 - sigmoid
+        stability = sigmoid  # sigmoid 直接就是稳定性曲线：n 小→低稳定性，n 大→高稳定性
         plasticity = max(self._plasticity_min, 1.0 - stability)
 
         if role_investment > 0.5:
