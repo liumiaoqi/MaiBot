@@ -144,7 +144,11 @@ class AmbientAwarenessProcessor:
             return []
 
         agent_config = registry.get_agent(agent_id)
-        personality = agent_config.personality
+        personality = (
+            agent_config.layered_personality.expression_layer
+            if agent_config.layered_personality and agent_config.layered_personality.expression_layer
+            else ""
+        )
 
         if not personality:
             return []

@@ -345,20 +345,23 @@ class AgentConfig(BaseModel):
     def identity_prompt(self) -> str:
         """构建完整的人格提示词。
 
-        优先使用 layered_personality.expression_layer，
-        fallback 到旧的 personality + reply_style 拼接。
+        从 layered_personality 四层组合（expression→experience→identity→constraints）。
+        当 layered_personality 为 None 时 fallback 到 deprecated personality 字段。
         """
-        if self.layered_personality is not None and self.layered_personality.expression_layer:
-            parts: list[str] = [self.layered_personality.expression_layer]
+        if self.layered_personality is not None:
+            parts: list[str] = []
+            if self.layered_personality.expression_layer:
+                parts.append(self.layered_personality.expression_layer)
+            if self.layered_personality.experience_layer:
+                parts.append(self.layered_personality.experience_layer)
+            if self.layered_personality.identity_layer:
+                parts.append(self.layered_personality.identity_layer)
             if self.layered_personality.self_constraints:
                 parts.append(f"自我约束：{self.layered_personality.self_constraints}")
             return "\n\n".join(parts)
-        parts: list[str] = []
-        if self.personality:
-            parts.append(self.personality)
-        if self.reply_style:
-            parts.append(self.reply_style)
-        return "\n\n".join(parts)
+
+        logger.warning("identity_prompt: layered_personality 为 None，fallback 到 deprecated personality 字段")
+        return self.personality
 
     @property
     def anti_mechanization_prompt(self) -> str:
@@ -403,8 +406,8 @@ class AgentConfig(BaseModel):
     def get_identity_summary(self) -> str:
         """生成供管家系统使用的身份摘要（≤200字）"""
         parts: list[str] = []
-        if self.personality:
-            parts.append(self.personality[:80])
+        if self.layered_personality and self.layered_personality.expression_layer:
+            parts.append(self.layered_personality.expression_layer[:80])
         if self.internal_relationships:
             rel_strs = [
                 f"{rel.target_agent_id}({rel.relationship_type})"

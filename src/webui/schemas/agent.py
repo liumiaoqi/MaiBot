@@ -14,10 +14,17 @@ class InternalRelationshipResponse(BaseModel):
     mention_tendency: float = 0.3
     anti_mechanization: str = ""
 
+class LayeredPersonalityResponse(BaseModel):
+    existence_layer: str = ""
+    expression_layer: str = ""
+    experience_layer: str = ""
+    identity_layer: str = ""
+    self_constraints: str = ""
+
 class AgentConfigResponse(BaseModel):
     agent_id: str
     display_name: str
-    personality: str = ""
+    layered_personality: Optional[LayeredPersonalityResponse] = None
     reply_style: str = ""
     is_default: bool = False
     color: str = "#9b59b6"

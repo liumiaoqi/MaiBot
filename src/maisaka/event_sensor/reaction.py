@@ -95,7 +95,11 @@ class EventReactionMapper:
     ) -> EventReaction:
         """获取默认反应。"""
         if event.event_type == GroupEventType.RED_PACKET:
-            personality = agent_config.personality.lower()
+            personality = (
+                agent_config.layered_personality.expression_layer.lower()
+                if agent_config.layered_personality and agent_config.layered_personality.expression_layer
+                else ""
+            )
             if any(kw in personality for kw in ["活泼", "调皮", "贪吃", "琪亚娜", "银狼"]):
                 return EventReaction(
                     should_react=True,

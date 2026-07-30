@@ -53,6 +53,7 @@ from src.webui.schemas.agent import (
     InterjectionEventsResponse,
     InternalRelationshipResponse,
     InternalRelationshipSummaryItem,
+    LayeredPersonalityResponse,
     ManualTriggerRequest,
     ManualTriggerResponse,
     MigrationAdvanceResponse,
@@ -99,7 +100,17 @@ def _config_to_response(config: AgentConfig) -> AgentConfigResponse:
     return AgentConfigResponse(
         agent_id=config.agent_id,
         display_name=config.display_name,
-        personality=config.personality,
+        layered_personality=(
+            LayeredPersonalityResponse(
+                existence_layer=config.layered_personality.existence_layer,
+                expression_layer=config.layered_personality.expression_layer,
+                experience_layer=config.layered_personality.experience_layer,
+                identity_layer=config.layered_personality.identity_layer,
+                self_constraints=config.layered_personality.self_constraints,
+            )
+            if config.layered_personality
+            else None
+        ),
         reply_style=config.reply_style,
         is_default=config.is_default,
         color=config.color,

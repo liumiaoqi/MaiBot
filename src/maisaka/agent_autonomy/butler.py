@@ -106,7 +106,11 @@ class Butler:
                 self._butler_config = agent
                 self._butler_id = agent.agent_id
                 self._butler_display_name = agent.display_name
-                self._butler_personality = agent.personality or ""
+                self._butler_personality = (
+                    agent.layered_personality.expression_layer
+                    if agent.layered_personality and agent.layered_personality.expression_layer
+                    else ""
+                )
                 self._butler_anti_mechanization = list(agent.anti_mechanization_rules or [])
                 logger.info(
                     f"[butler] 管家配置加载: id={agent.agent_id} name={agent.display_name}"
