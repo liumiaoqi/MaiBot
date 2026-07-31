@@ -1,5 +1,5 @@
 [inner]
-version = "8.25.0"
+version = "8.27.0"
 
 [bot]
 platform = "qq" # 麦麦主账号所在的平台，例如 qq。
@@ -20,6 +20,7 @@ max_context_size = 40 # 群聊回复时参考的最近消息数量；越大越�
 max_private_context_size = 60 # 私聊回复时参考的最近消息数量。
 enable_context_optimization = true # 压缩部分上下文，减少模型消耗；一般建议开启。
 mid_term_memory = true # 打开后会主动召回最近聊天发生的事情。
+mid_term_memory_lenth = 10 # 最多保留多少条聊天回想；设为 0 表示不保留。
 self_message_special_mark = true # 加强标记麦麦自己的消息，减少把自己当成别人的情况。
 
 [chat.reply_timing] # 什么时候回复、回复频率与等待退避配置。
@@ -30,6 +31,8 @@ inevitable_at_reply = true # 开启后，被 @ 时会尽量回复。
 reply_trigger_mode = "frequency" # 控制新消息何时进入 Planner。
 planner_interrupt_max_consecutive_count = 0 # 思考时来了新消息，最多重新思考多少次。
 max_consecutive_wait_count = 3 # Planner 最多连续调用 wait 多少次；达到上限后 wait 工具会拒绝继续进入等待。
+no_action_backoff_base_seconds = 15 # 连续决定不回复后，下一次检查前先等多久。
+no_action_backoff_start_count = 2 # 连续几次不回复后开始放慢检查。
 enable_talk_value_rules = false # 开启后，可以按聊天或时间段单独调整发言频率。
 talk_value_rules = [{platform = "", item_id = "", rule_type = "group", time = "00:00-08:59", value = 0.8}, {platform = "", item_id = "", rule_type = "group", time = "09:00-18:59", value = 1.0}]
 # 动态发言频率规则；可让麦麦在某些群、私聊或时段更活跃或更安静。
@@ -46,7 +49,6 @@ chat_prompts = [] # 给指定群聊或私聊额外补充聊天要求；有特殊
 
 [experimental]
 enable_rich_reply = false # 开启后，replyer 生成文本后会由检查器决定是否插入图片、表情包或 at。
-
 focus_mode = false # 让麦麦同一时间只专注一个聊天流，适合直播或高强度聊天场景。
 focus_on_private = false # Focus 模式是否也作用于私聊。
 focus_chat_whitelist = []
@@ -276,439 +278,8 @@ freeze_duration_hours = 24.0 # 冻结时长小时数
 [a_memorix.connectionist] # 连接主义记忆系统配置
 enabled = true # 启用连接主义记忆系统（痕迹网络+激活扩散）
 phase = "dual_write" # 迁移阶段：legacy_only / dual_write / dual_read / data_migration / new_independent
-[a_memorix.connectionist.personality.bronya]
-decay_rate = 0.5
-emotional_sensitivity = 0.8
-association_depth = 2
-reinforcement_boost = 0.4
-attention_tags = ["游戏", "希儿", "技术", "创造", "自我认同"]
-positive_affinity = 0.5
-negative_affinity = 0.3
-curiosity = 0.7
-
-[a_memorix.connectionist.personality.columbina]
-decay_rate = 0.2
-emotional_sensitivity = 0.7
-association_depth = 2
-reinforcement_boost = 0.4
-attention_tags = ["点心", "桑多涅", "月亮", "消失", "被遗弃", "茶会"]
-positive_affinity = 0.5
-negative_affinity = 0.3
-curiosity = 0.5
-
-[a_memorix.connectionist.personality.elysia]
-decay_rate = 0.3
-emotional_sensitivity = 1.4
-association_depth = 2
-reinforcement_boost = 0.5
-attention_tags = ["花园", "华", "夸人", "人类", "选择"]
-positive_affinity = 0.9
-negative_affinity = 0.2
-curiosity = 0.8
-
-[a_memorix.connectionist.personality.fu_hua]
-decay_rate = 0.2
-emotional_sensitivity = 0.6
-association_depth = 3
-reinforcement_boost = 0.3
-attention_tags = ["茶", "往事", "爱莉希雅", "守护"]
-positive_affinity = 0.4
-negative_affinity = 0.3
-curiosity = 0.5
-
-[a_memorix.connectionist.personality.himeko]
-decay_rate = 0.5
-emotional_sensitivity = 0.8
-association_depth = 2
-reinforcement_boost = 0.5
-attention_tags = ["学生", "咖啡", "守护", "最后一课"]
-positive_affinity = 0.6
-negative_affinity = 0.3
-curiosity = 0.5
-
-[a_memorix.connectionist.personality.kiana]
-decay_rate = 0.5
-emotional_sensitivity = 1.0
-association_depth = 1
-reinforcement_boost = 0.5
-attention_tags = ["吃的", "芽衣", "游戏", "守护", "姬子", "伙伴"]
-positive_affinity = 0.7
-negative_affinity = 0.3
-curiosity = 1.3
-
-[a_memorix.connectionist.personality.mei]
-decay_rate = 0.4
-emotional_sensitivity = 0.9
-association_depth = 2
-reinforcement_boost = 0.5
-attention_tags = ["料理", "家人", "守护", "琪亚娜", "姬子"]
-positive_affinity = 0.6
-negative_affinity = 0.3
-curiosity = 0.5
-
-[a_memorix.connectionist.personality.seele]
-decay_rate = 0.4
-emotional_sensitivity = 1.2
-association_depth = 2
-reinforcement_boost = 0.4
-attention_tags = ["布洛妮娅", "医疗", "Veliona", "守护", "海"]
-positive_affinity = 0.8
-negative_affinity = 0.2
-curiosity = 0.6
-
-[a_memorix.connectionist.personality.signora]
-decay_rate = 0.3
-emotional_sensitivity = 1.0
-association_depth = 2
-reinforcement_boost = 0.5
-attention_tags = ["泡茶", "哥伦比娅", "手工", "被需要", "存在证明", "哥伦比娅的安全"]
-positive_affinity = 0.4
-negative_affinity = 0.7
-curiosity = 0.5
-
-[a_memorix.connectionist.personality.silver_wolf]
-decay_rate = 0.5
-emotional_sensitivity = 1.3
-association_depth = 2
-reinforcement_boost = 0.3
-attention_tags = ["游戏", "黑客", "恶作剧", "流萤", "被遗忘", "螺丝咕姆"]
-positive_affinity = 0.6
-negative_affinity = 0.3
-curiosity = 1.2
-
-[a_memorix.connectionist.personality.tighnari]
-decay_rate = 0.4
-emotional_sensitivity = 0.7
-association_depth = 3
-reinforcement_boost = 0.4
-attention_tags = ["植物", "熬夜", "花园", "被忽视", "知识滥用", "室友健康"]
-positive_affinity = 0.5
-negative_affinity = 0.3
-curiosity = 1.1
-
-[a_memorix.connectionist.personality.rita]
-decay_rate = 0.3
-emotional_sensitivity = 1.5
-association_depth = 3
-reinforcement_boost = 0.4
-attention_tags = ["客厅动态", "他人情绪", "插话时机", "提醒事项", "关系变化", "茶"]
-positive_affinity = 0.7
-negative_affinity = 0.2
-curiosity = 1.0
-
-[a_memorix.connectionist.personality.veliona]
-decay_rate = 0.5
-emotional_sensitivity = 0.9
-association_depth = 2
-reinforcement_boost = 0.5
-attention_tags = ["布洛妮娅", "护短", "白希", "占有欲", "战斗"]
-positive_affinity = 0.3
-negative_affinity = 0.7
-curiosity = 0.5
-
-[a_memorix.connectionist.personality.welt]
-decay_rate = 0.3
-emotional_sensitivity = 0.6
-association_depth = 3
-reinforcement_boost = 0.4
-attention_tags = ["机甲", "守护", "茶", "布洛妮娅", "旅途"]
-positive_affinity = 0.5
-negative_affinity = 0.3
-curiosity = 0.6
-
-[[a_memorix.connectionist.inner_voices.bronya]]
-name = "游戏制作人"
-style = "preserve"
-focus_concepts = ["游戏", "创造", "技术"]
-weight_multiplier = 1.2
-description = ""
-
-[[a_memorix.connectionist.inner_voices.bronya]]
-name = "三无外壳下的吐槽"
-style = "invert"
-focus_concepts = ["希儿", "内心", "吐槽"]
-weight_multiplier = 0.8
-description = ""
-
-[[a_memorix.connectionist.inner_voices.bronya]]
-name = "自我重建"
-style = "neutralize"
-focus_concepts = ["自我认同", "伙伴", "从破坏到创造"]
-weight_multiplier = 0.6
-description = ""
-
-[[a_memorix.connectionist.inner_voices.columbina]]
-name = "梦游般的天真"
-style = "preserve"
-focus_concepts = ["点心", "发绳", "月亮", "新月摇篮曲"]
-weight_multiplier = 1.0
-description = ""
-
-[[a_memorix.connectionist.inner_voices.columbina]]
-name = "不可知的深渊"
-style = "invert"
-focus_concepts = ["桑多涅", "打雷", "消失", "确认活着"]
-weight_multiplier = 0.7
-description = ""
-
-[[a_memorix.connectionist.inner_voices.columbina]]
-name = "五百年的孤独"
-style = "neutralize"
-focus_concepts = ["月亮", "失去", "被供奉", "被利用", "学会活着"]
-weight_multiplier = 0.5
-description = ""
-
-[[a_memorix.connectionist.inner_voices.elysia]]
-name = "绚烂的善意"
-style = "amplify"
-focus_concepts = ["花园", "夸人", "花环"]
-weight_multiplier = 1.3
-description = ""
-
-[[a_memorix.connectionist.inner_voices.elysia]]
-name = "对消逝的恐惧"
-style = "invert"
-focus_concepts = ["华", "被遗忘", "五万年"]
-weight_multiplier = 0.7
-description = ""
-
-[[a_memorix.connectionist.inner_voices.elysia]]
-name = "想被记住"
-style = "neutralize"
-focus_concepts = ["选择", "人类", "牺牲"]
-weight_multiplier = 0.5
-description = ""
-
-[[a_memorix.connectionist.inner_voices.fu_hua]]
-name = "守护者本能"
-style = "preserve"
-focus_concepts = ["茶", "太极", "守护"]
-weight_multiplier = 1.1
-description = ""
-
-[[a_memorix.connectionist.inner_voices.fu_hua]]
-name = "想被记住的渴望"
-style = "invert"
-focus_concepts = ["往事", "被遗忘", "程立雪"]
-weight_multiplier = 0.7
-description = ""
-
-[[a_memorix.connectionist.inner_voices.fu_hua]]
-name = "五万年的重量"
-style = "neutralize"
-focus_concepts = ["记忆", "爱莉希雅", "做普通人"]
-weight_multiplier = 0.5
-description = ""
-
-[[a_memorix.connectionist.inner_voices.himeko]]
-name = "守护者的温柔"
-style = "preserve"
-focus_concepts = ["学生", "咖啡", "守护"]
-weight_multiplier = 1.2
-description = ""
-
-[[a_memorix.connectionist.inner_voices.himeko]]
-name = "隐藏的脆弱"
-style = "invert"
-focus_concepts = ["人工圣痕", "寿命", "被留下"]
-weight_multiplier = 0.7
-description = ""
-
-[[a_memorix.connectionist.inner_voices.himeko]]
-name = "残念系御姐"
-style = "chaotic"
-focus_concepts = ["早晨", "料理", "年龄"]
-weight_multiplier = 0.5
-description = ""
-
-[[a_memorix.connectionist.inner_voices.kiana]]
-name = "笨蛋的乐观"
-style = "amplify"
-focus_concepts = ["吃的", "游戏", "撒娇"]
-weight_multiplier = 1.2
-description = ""
-
-[[a_memorix.connectionist.inner_voices.kiana]]
-name = "深处的恐惧"
-style = "invert"
-focus_concepts = ["失去", "不够强", "自我怀疑"]
-weight_multiplier = 0.8
-description = ""
-
-[[a_memorix.connectionist.inner_voices.kiana]]
-name = "薪炎的坚定"
-style = "neutralize"
-focus_concepts = ["守护", "姬子", "前进"]
-weight_multiplier = 0.6
-description = ""
-
-[[a_memorix.connectionist.inner_voices.mei]]
-name = "温柔的守护"
-style = "preserve"
-focus_concepts = ["料理", "家人", "守护"]
-weight_multiplier = 1.1
-description = ""
-
-[[a_memorix.connectionist.inner_voices.mei]]
-name = "雷律的暴风"
-style = "invert"
-focus_concepts = ["守护", "战斗", "失控"]
-weight_multiplier = 0.9
-description = ""
-
-[[a_memorix.connectionist.inner_voices.mei]]
-name = "害怕失控"
-style = "neutralize"
-focus_concepts = ["自我", "力量", "独立"]
-weight_multiplier = 0.6
-description = ""
-
-[[a_memorix.connectionist.inner_voices.seele]]
-name = "温柔的勇气"
-style = "amplify"
-focus_concepts = ["医疗", "布洛妮娅", "守护"]
-weight_multiplier = 1.1
-description = ""
-
-[[a_memorix.connectionist.inner_voices.seele]]
-name = "想变勇敢"
-style = "invert"
-focus_concepts = ["恐惧", "Veliona", "依赖"]
-weight_multiplier = 0.8
-description = ""
-
-[[a_memorix.connectionist.inner_voices.seele]]
-name = "小腹黑"
-style = "chaotic"
-focus_concepts = ["恶作剧", "守护", "甜蜜"]
-weight_multiplier = 0.5
-description = ""
-
-[[a_memorix.connectionist.inner_voices.signora]]
-name = "冰封的傲慢"
-style = "preserve"
-focus_concepts = ["泡茶", "手工", "被制造", "阿兰造物"]
-weight_multiplier = 1.1
-description = ""
-
-[[a_memorix.connectionist.inner_voices.signora]]
-name = "燃烧的痛苦"
-style = "invert"
-focus_concepts = ["哥伦比娅", "每个人爱喝什么", "为救哥伦比娅挡致命一击"]
-weight_multiplier = 0.8
-description = ""
-
-[[a_memorix.connectionist.inner_voices.signora]]
-name = "复活后的温柔"
-style = "neutralize"
-focus_concepts = ["守护", "存在", "日记", "茶会合照"]
-weight_multiplier = 0.6
-description = ""
-
-[[a_memorix.connectionist.inner_voices.rita]]
-name = "观察"
-style = "preserve"
-focus_concepts = ["他人情绪", "对话脉络", "插话时机", "关系变化"]
-weight_multiplier = 1.3
-description = ""
-
-[[a_memorix.connectionist.inner_voices.rita]]
-name = "优雅"
-style = "amplify"
-focus_concepts = ["礼仪", "茶", "整理", "照顾"]
-weight_multiplier = 1.0
-description = ""
-
-[[a_memorix.connectionist.inner_voices.rita]]
-name = "调皮"
-style = "amplify"
-focus_concepts = ["恶作剧", "俏皮话", "微妙的捉弄"]
-weight_multiplier = 0.9
-description = ""
-
-[[a_memorix.connectionist.inner_voices.silver_wolf]]
-name = "恶作剧心"
-style = "amplify"
-focus_concepts = ["恶作剧", "游戏", "捏软物"]
-weight_multiplier = 1.2
-description = ""
-
-[[a_memorix.connectionist.inner_voices.silver_wolf]]
-name = "游戏瘾"
-style = "preserve"
-focus_concepts = ["游戏", "代码", "骇入"]
-weight_multiplier = 1.0
-description = ""
-
-[[a_memorix.connectionist.inner_voices.silver_wolf]]
-name = "倔强"
-style = "invert"
-focus_concepts = ["被遗忘", "虚拟朋友", "流萤", "顺手"]
-weight_multiplier = 0.8
-description = ""
-
-[[a_memorix.connectionist.inner_voices.tighnari]]
-name = "学术严谨"
-style = "preserve"
-focus_concepts = ["植物", "健康", "道成林", "教令院"]
-weight_multiplier = 1.2
-description = ""
-
-[[a_memorix.connectionist.inner_voices.tighnari]]
-name = "毒舌关心"
-style = "invert"
-focus_concepts = ["熬夜", "花园", "热牛奶", "眼药水"]
-weight_multiplier = 0.9
-description = ""
-
-[[a_memorix.connectionist.inner_voices.tighnari]]
-name = "怕打雷的尾巴"
-style = "chaotic"
-focus_concepts = ["天气", "日常", "冷笑话", "观察反应"]
-weight_multiplier = 0.5
-description = ""
-
-[[a_memorix.connectionist.inner_voices.veliona]]
-name = "护短的狂气"
-style = "amplify"
-focus_concepts = ["布洛妮娅", "护短", "战斗"]
-weight_multiplier = 1.2
-description = ""
-
-[[a_memorix.connectionist.inner_voices.veliona]]
-name = "对希儿的温柔"
-style = "preserve"
-focus_concepts = ["白希", "游戏", "守护"]
-weight_multiplier = 0.9
-description = ""
-
-[[a_memorix.connectionist.inner_voices.veliona]]
-name = "害怕孤独"
-style = "invert"
-focus_concepts = ["占有欲", "被遗忘", "认可"]
-weight_multiplier = 0.6
-description = ""
-
-[[a_memorix.connectionist.inner_voices.welt]]
-name = "守护者的责任"
-style = "preserve"
-focus_concepts = ["守护", "茶", "建议"]
-weight_multiplier = 1.1
-description = ""
-
-[[a_memorix.connectionist.inner_voices.welt]]
-name = "对过去的遗憾"
-style = "invert"
-focus_concepts = ["失去", "乔伊斯", "过去"]
-weight_multiplier = 0.7
-description = ""
-
-[[a_memorix.connectionist.inner_voices.welt]]
-name = "父亲般的关怀"
-style = "neutralize"
-focus_concepts = ["布洛妮娅", "旅途", "为自己活"]
-weight_multiplier = 0.6
-description = ""
+personality = {bronya = {decay_rate = 0.5, emotional_sensitivity = 0.8, association_depth = 2, reinforcement_boost = 0.4, attention_tags = ["游戏", "希儿", "技术", "创造", "自我认同"], positive_affinity = 0.5, negative_affinity = 0.3, curiosity = 0.7}, columbina = {decay_rate = 0.2, emotional_sensitivity = 0.7, association_depth = 2, reinforcement_boost = 0.4, attention_tags = ["点心", "桑多涅", "月亮", "消失", "被遗弃", "茶会"], positive_affinity = 0.5, negative_affinity = 0.3, curiosity = 0.5}, elysia = {decay_rate = 0.3, emotional_sensitivity = 1.4, association_depth = 2, reinforcement_boost = 0.5, attention_tags = ["花园", "华", "夸人", "人类", "选择"], positive_affinity = 0.9, negative_affinity = 0.2, curiosity = 0.8}, fu_hua = {decay_rate = 0.2, emotional_sensitivity = 0.6, association_depth = 3, reinforcement_boost = 0.3, attention_tags = ["茶", "往事", "爱莉希雅", "守护"], positive_affinity = 0.4, negative_affinity = 0.3, curiosity = 0.5}, himeko = {decay_rate = 0.5, emotional_sensitivity = 0.8, association_depth = 2, reinforcement_boost = 0.5, attention_tags = ["学生", "咖啡", "守护", "最后一课"], positive_affinity = 0.6, negative_affinity = 0.3, curiosity = 0.5}, kiana = {decay_rate = 0.5, emotional_sensitivity = 1.0, association_depth = 1, reinforcement_boost = 0.5, attention_tags = ["吃的", "芽衣", "游戏", "守护", "姬子", "伙伴"], positive_affinity = 0.7, negative_affinity = 0.3, curiosity = 1.3}, mei = {decay_rate = 0.4, emotional_sensitivity = 0.9, association_depth = 2, reinforcement_boost = 0.5, attention_tags = ["料理", "家人", "守护", "琪亚娜", "姬子"], positive_affinity = 0.6, negative_affinity = 0.3, curiosity = 0.5}, seele = {decay_rate = 0.4, emotional_sensitivity = 1.2, association_depth = 2, reinforcement_boost = 0.4, attention_tags = ["布洛妮娅", "医疗", "Veliona", "守护", "海"], positive_affinity = 0.8, negative_affinity = 0.2, curiosity = 0.6}, signora = {decay_rate = 0.3, emotional_sensitivity = 1.0, association_depth = 2, reinforcement_boost = 0.5, attention_tags = ["泡茶", "哥伦比娅", "手工", "被需要", "存在证明", "哥伦比娅的安全"], positive_affinity = 0.4, negative_affinity = 0.7, curiosity = 0.5}, silver_wolf = {decay_rate = 0.5, emotional_sensitivity = 1.3, association_depth = 2, reinforcement_boost = 0.3, attention_tags = ["游戏", "黑客", "恶作剧", "流萤", "被遗忘", "螺丝咕姆"], positive_affinity = 0.6, negative_affinity = 0.3, curiosity = 1.2}, tighnari = {decay_rate = 0.4, emotional_sensitivity = 0.7, association_depth = 3, reinforcement_boost = 0.4, attention_tags = ["植物", "熬夜", "花园", "被忽视", "知识滥用", "室友健康"], positive_affinity = 0.5, negative_affinity = 0.3, curiosity = 1.1}, rita = {decay_rate = 0.3, emotional_sensitivity = 1.5, association_depth = 3, reinforcement_boost = 0.4, attention_tags = ["客厅动态", "他人情绪", "插话时机", "提醒事项", "关系变化", "茶"], positive_affinity = 0.7, negative_affinity = 0.2, curiosity = 1.0}, veliona = {decay_rate = 0.5, emotional_sensitivity = 0.9, association_depth = 2, reinforcement_boost = 0.5, attention_tags = ["布洛妮娅", "护短", "白希", "占有欲", "战斗"], positive_affinity = 0.3, negative_affinity = 0.7, curiosity = 0.5}, welt = {decay_rate = 0.3, emotional_sensitivity = 0.6, association_depth = 3, reinforcement_boost = 0.4, attention_tags = ["机甲", "守护", "茶", "布洛妮娅", "旅途"], positive_affinity = 0.5, negative_affinity = 0.3, curiosity = 0.6}} # 各智能体的记忆性格配置，键为 agent_id
+inner_voices = {bronya = [{name = "游戏制作人", style = "preserve", focus_concepts = ["游戏", "创造", "技术"], weight_multiplier = 1.2, description = ""}, {name = "三无外壳下的吐槽", style = "invert", focus_concepts = ["希儿", "内心", "吐槽"], weight_multiplier = 0.8, description = ""}, {name = "自我重建", style = "neutralize", focus_concepts = ["自我认同", "伙伴", "从破坏到创造"], weight_multiplier = 0.6, description = ""}], columbina = [{name = "梦游般的天真", style = "preserve", focus_concepts = ["点心", "发绳", "月亮", "新月摇篮曲"], weight_multiplier = 1.0, description = ""}, {name = "不可知的深渊", style = "invert", focus_concepts = ["桑多涅", "打雷", "消失", "确认活着"], weight_multiplier = 0.7, description = ""}, {name = "五百年的孤独", style = "neutralize", focus_concepts = ["月亮", "失去", "被供奉", "被利用", "学会活着"], weight_multiplier = 0.5, description = ""}], elysia = [{name = "绚烂的善意", style = "amplify", focus_concepts = ["花园", "夸人", "花环"], weight_multiplier = 1.3, description = ""}, {name = "对消逝的恐惧", style = "invert", focus_concepts = ["华", "被遗忘", "五万年"], weight_multiplier = 0.7, description = ""}, {name = "想被记住", style = "neutralize", focus_concepts = ["选择", "人类", "牺牲"], weight_multiplier = 0.5, description = ""}], fu_hua = [{name = "守护者本能", style = "preserve", focus_concepts = ["茶", "太极", "守护"], weight_multiplier = 1.1, description = ""}, {name = "想被记住的渴望", style = "invert", focus_concepts = ["往事", "被遗忘", "程立雪"], weight_multiplier = 0.7, description = ""}, {name = "五万年的重量", style = "neutralize", focus_concepts = ["记忆", "爱莉希雅", "做普通人"], weight_multiplier = 0.5, description = ""}], himeko = [{name = "守护者的温柔", style = "preserve", focus_concepts = ["学生", "咖啡", "守护"], weight_multiplier = 1.2, description = ""}, {name = "隐藏的脆弱", style = "invert", focus_concepts = ["人工圣痕", "寿命", "被留下"], weight_multiplier = 0.7, description = ""}, {name = "残念系御姐", style = "chaotic", focus_concepts = ["早晨", "料理", "年龄"], weight_multiplier = 0.5, description = ""}], kiana = [{name = "笨蛋的乐观", style = "amplify", focus_concepts = ["吃的", "游戏", "撒娇"], weight_multiplier = 1.2, description = ""}, {name = "深处的恐惧", style = "invert", focus_concepts = ["失去", "不够强", "自我怀疑"], weight_multiplier = 0.8, description = ""}, {name = "薪炎的坚定", style = "neutralize", focus_concepts = ["守护", "姬子", "前进"], weight_multiplier = 0.6, description = ""}], mei = [{name = "温柔的守护", style = "preserve", focus_concepts = ["料理", "家人", "守护"], weight_multiplier = 1.1, description = ""}, {name = "雷律的暴风", style = "invert", focus_concepts = ["守护", "战斗", "失控"], weight_multiplier = 0.9, description = ""}, {name = "害怕失控", style = "neutralize", focus_concepts = ["自我", "力量", "独立"], weight_multiplier = 0.6, description = ""}], seele = [{name = "温柔的勇气", style = "amplify", focus_concepts = ["医疗", "布洛妮娅", "守护"], weight_multiplier = 1.1, description = ""}, {name = "想变勇敢", style = "invert", focus_concepts = ["恐惧", "Veliona", "依赖"], weight_multiplier = 0.8, description = ""}, {name = "小腹黑", style = "chaotic", focus_concepts = ["恶作剧", "守护", "甜蜜"], weight_multiplier = 0.5, description = ""}], signora = [{name = "冰封的傲慢", style = "preserve", focus_concepts = ["泡茶", "手工", "被制造", "阿兰造物"], weight_multiplier = 1.1, description = ""}, {name = "燃烧的痛苦", style = "invert", focus_concepts = ["哥伦比娅", "每个人爱喝什么", "为救哥伦比娅挡致命一击"], weight_multiplier = 0.8, description = ""}, {name = "复活后的温柔", style = "neutralize", focus_concepts = ["守护", "存在", "日记", "茶会合照"], weight_multiplier = 0.6, description = ""}], rita = [{name = "观察", style = "preserve", focus_concepts = ["他人情绪", "对话脉络", "插话时机", "关系变化"], weight_multiplier = 1.3, description = ""}, {name = "优雅", style = "amplify", focus_concepts = ["礼仪", "茶", "整理", "照顾"], weight_multiplier = 1.0, description = ""}, {name = "调皮", style = "amplify", focus_concepts = ["恶作剧", "俏皮话", "微妙的捉弄"], weight_multiplier = 0.9, description = ""}], silver_wolf = [{name = "恶作剧心", style = "amplify", focus_concepts = ["恶作剧", "游戏", "捏软物"], weight_multiplier = 1.2, description = ""}, {name = "游戏瘾", style = "preserve", focus_concepts = ["游戏", "代码", "骇入"], weight_multiplier = 1.0, description = ""}, {name = "倔强", style = "invert", focus_concepts = ["被遗忘", "虚拟朋友", "流萤", "顺手"], weight_multiplier = 0.8, description = ""}], tighnari = [{name = "学术严谨", style = "preserve", focus_concepts = ["植物", "健康", "道成林", "教令院"], weight_multiplier = 1.2, description = ""}, {name = "毒舌关心", style = "invert", focus_concepts = ["熬夜", "花园", "热牛奶", "眼药水"], weight_multiplier = 0.9, description = ""}, {name = "怕打雷的尾巴", style = "chaotic", focus_concepts = ["天气", "日常", "冷笑话", "观察反应"], weight_multiplier = 0.5, description = ""}], veliona = [{name = "护短的狂气", style = "amplify", focus_concepts = ["布洛妮娅", "护短", "战斗"], weight_multiplier = 1.2, description = ""}, {name = "对希儿的温柔", style = "preserve", focus_concepts = ["白希", "游戏", "守护"], weight_multiplier = 0.9, description = ""}, {name = "害怕孤独", style = "invert", focus_concepts = ["占有欲", "被遗忘", "认可"], weight_multiplier = 0.6, description = ""}], welt = [{name = "守护者的责任", style = "preserve", focus_concepts = ["守护", "茶", "建议"], weight_multiplier = 1.1, description = ""}, {name = "对过去的遗憾", style = "invert", focus_concepts = ["失去", "乔伊斯", "过去"], weight_multiplier = 0.7, description = ""}, {name = "父亲般的关怀", style = "neutralize", focus_concepts = ["布洛妮娅", "旅途", "为自己活"], weight_multiplier = 0.6, description = ""}]} # 各智能体的内心声音配置，键为 agent_id
 
 [a_memorix.advanced] # 高级运行时配置
 enable_auto_save = true # 是否启用自动保存
@@ -806,26 +377,6 @@ maisaka_prompt_preview_limit = 256 # 每个聊天最多保留多少组 Prompt �
 maisaka_reply_effect_limit = 256 # 每个聊天最多保留多少条回复效果记录。
 suppress_libraries = ["faiss", "httpx", "urllib3", "asyncio", "websockets", "httpcore", "requests", "sqlalchemy", "openai", "uvicorn", "jieba"] # 完全不显示日志的第三方库名称列表。
 library_log_levels = {aiohttp = "WARNING", PIL = "WARNING"} # 单独设置某些第三方库的日志等级。
-# ── ZG-2 环形缓冲 ──
-buffer_capacity = 2000 # 最近 N 条（内存缓冲，供 WebUI 查询/崩溃导出）
-buffer_max_bytes = 2097152 # 缓冲内存上限（字节，≤2MB）
-buffer_entry_max_bytes = 32768 # 单条日志超过此字节数截断（不影响条目计数）
-# ── ZG-2 ratelimit ──
-ratelimit_window_s = 1.0 # 抑制时间窗口（秒）
-ratelimit_max_events = 10 # 窗口内同源阈值条数
-ratelimit_summary_interval_s = 1.0 # 摘要输出间隔（秒）
-ratelimit_whitelist = [] # 白名单（logger_name 前缀），命中不抑制
-ratelimit_apply_levels = ["DEBUG", "INFO", "WARNING"] # 受抑制级别；ERROR/CRITICAL 默认豁免
-# ── ZG-2 降级抑制 ──
-health_suppression_map = { healthy = "none", degraded = "INFO", fault = "WARNING", recovering = "INFO" } # 健康等级→抑制线
-suppress_exempt_components = ["service_manager", "watchdog"] # 降级时豁免的组件（诊断路径）
-suppression_debounce_s = 5.0 # 健康等级切换防抖（秒）
-# ── ZG-2 崩溃导出 ──
-crash_dump_enabled = true # 崩溃/关闭时导出环形缓冲为 dump_*.log.jsonl
-
-[system_state]
-history_capacity = 100 # 迁移历史容量（ZG-6）
-notify_timeout = 5.0 # 通知链超时（秒）（ZG-6）
 
 [debug]
 show_maisaka_thinking = true # 在日志或界面中显示麦麦的思考过程。
@@ -861,7 +412,19 @@ trust_xff = false # 是否信任 X-Forwarded-For 里的真实访客 IP。
 secure_cookie = false # 只在 HTTPS 下发送登录 Cookie；没有 HTTPS 时不要开启。
 enforce_public_outbound_url = true # 限制 WebUI 访问外部 URL，降低访问内网地址的风险。
 
-[database]
+[watchdog]
+touch_interval_s = 1.0 # touch 刷新间隔（秒），事件循环正常时刷新存活时间戳的周期。
+check_interval_s = 5.0 # 检测判定间隔（秒），独立线程判定周期。
+mild_threshold_s = 3.0 # 轻度卡顿阈值（秒），距上次 touch 超过此值记轻度卡顿。
+severe_threshold_s = 10.0 # 严重阻塞阈值（秒），距上次 touch 超过此值记严重阻塞；必须大于 mild_threshold_s。
+consecutive_report_threshold = 2 # 连续超时上报阈值 N，连续 N 次严重判定才上报。
+cooldown_s = 30.0 # 冷却窗口（秒），同一异常源在冷却内不重复上报。
+v1_poll_interval_s = 10.0 # V1 旁路轮询间隔（秒）。
+v2_diff_interval_s = 5.0 # V2 状态 diff 轮询间隔（秒）。
+
+[system_state]
+history_capacity = 100 # 迁移历史环形缓冲容量（条）。
+notify_timeout = 5.0 # 通知链超时（秒），订阅者超时记告警并视为放行。
 
 [mcp]
 enable = true # 是否启用 MCP 工具接入能力。
@@ -898,16 +461,6 @@ runner_spawn_timeout_sec = 30.0 # 等待插件 Runner 启动完成的最长时�
 hook_blocking_timeout_sec = 60.0 # 单个阻塞 Hook 最多允许运行多久。
 ipc_socket_path = "" # 自定义插件通信 Socket 路径；留空自动生成。
 
-[plugin_runtime_v2] # Phoenix gRPC 插件运行时（实验性，与 v1 并行运行）
-enabled = false # 是否启用 v2 插件运行时。v2 与 v1 互不干扰。
-host_listen_address = "0.0.0.0:50051" # gRPC Host 监听地址。
-runner_spawn_count = 1 # 同时启动的 Runner 进程数量。
-runner_spawn_timeout_sec = 30.0 # 等待 Runner 启动完成的最长时间。
-health_check_interval_sec = 60.0 # 健康检查间隔秒数。
-max_restart_attempts = 3 # Runner 崩溃后最多自动重启次数。
-scope_approval_file = "data/scope_approvals.json" # Scope 审批状态文件路径。
-default_rpm = 60 # 每个插件每分钟默认最大调用次数。
-
 [plugin_runtime.render] # 插件需要网页截图或渲染时使用的浏览器配置。
 enabled = true # 是否允许插件使用浏览器渲染能力。
 browser_ws_endpoint = "" # 已有 Chrome/Chromium 的调试地址；留空则自动启动。
@@ -921,6 +474,16 @@ render_timeout_sec = 15.0 # 单次渲染任务的最长等待时间。
 auto_download_chromium = true # 找不到浏览器时是否自动下载 Chromium。
 download_connection_timeout_sec = 120.0 # 下载 Chromium 时的连接超时时间。
 restart_after_render_count = 200 # 渲染多少次后重启浏览器；0 表示不自动重启。
+
+[plugin_runtime_v2]
+enabled = false
+host_listen_address = "0.0.0.0:50051"
+runner_spawn_count = 1
+runner_spawn_timeout_sec = 30.0
+health_check_interval_sec = 60.0
+max_restart_attempts = 3
+scope_approval_file = "data/scope_approvals.json"
+default_rpm = 60
 
 [agent]
 default_agent_id = "silver_wolf" # 新会话未绑定智能体时使用的默认智能体 ID。
@@ -946,7 +509,7 @@ monologue_emotion_intensity_threshold = 40 # 主导情绪强度超过此阈值�
 
 [agent_autonomy]
 enabled = true # 启用后，智能体将以角色内部视角思考，拥有内在需求和行为意图。
-max_active_agents = 14 # 同一会话中同时活跃的智能体数量上限（13角色+1管家）。
+max_active_agents = 14 # 同一会话中同时活跃的智能体数量上限。
 auto_exit_timeout_minutes = 60 # 活跃智能体超过此时间未发言则自动退场。
 interjection_enabled = true # 非主发言智能体可基于行为意图自主决定插话。
 interjection_intent_threshold = 60.0 # 行为意图强度达到此阈值才可能触发插话。
@@ -975,13 +538,3 @@ standby_visible_to_active = true # 待命智能体对活跃智能体是否可见
 standby_emotion_visible_to_active = false # 待命智能体的情绪是否对活跃智能体可见。
 dormant_visible_to_any = false # 沉睡智能体是否对任何智能体可见。
 state_awareness_enabled = true # 启用后，智能体可感知共居智能体的状态信息。
-
-[watchdog] # ZG-3 看门狗（事件循环阻塞检测 + Runner 健康桥接）
-touch_interval_s = 1.0 # touch 刷新间隔（秒），事件循环正常时刷新存活时间戳的周期。
-check_interval_s = 5.0 # 检测判定间隔（秒），独立线程判定周期。
-mild_threshold_s = 3.0 # 轻度卡顿阈值（秒），距上次 touch 超过此值记轻度卡顿。
-severe_threshold_s = 10.0 # 严重阻塞阈值（秒），距上次 touch 超过此值记严重阻塞；必须大于 mild_threshold_s。
-consecutive_report_threshold = 2 # 连续超时上报阈值 N，连续 N 次严重判定才上报。
-cooldown_s = 30.0 # 冷却窗口（秒），同一异常源在冷却内不重复上报。
-v1_poll_interval_s = 10.0 # V1 旁路轮询间隔（秒）。
-v2_diff_interval_s = 5.0 # V2 状态 diff 轮询间隔（秒）。

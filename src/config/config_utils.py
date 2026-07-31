@@ -129,6 +129,17 @@ def convert_field(config_item_name: str, config_item_info: FieldInfo, value: Any
         for k, v in value.items():
             if isinstance(value_type, type) and issubclass(value_type, ConfigBase):
                 toml_sub_table.add(k, recursive_parse_item_to_table(v, True, override_repr))
+            elif get_origin(value_type) in {list, set, List, Set}:
+                # dict[str, list[ConfigBase]] 嵌套泛型
+                inner_type = get_args(value_type)[0]
+                toml_list = tomlkit.array()
+                if isinstance(inner_type, type) and issubclass(inner_type, ConfigBase):
+                    for item in v:
+                        toml_list.append(recursive_parse_item_to_table(item, True, override_repr))
+                else:
+                    for item in v:
+                        toml_list.append(item)
+                toml_sub_table.add(k, toml_list)
             else:
                 toml_sub_table.add(k, v)
         return toml_sub_table

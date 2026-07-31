@@ -59,7 +59,7 @@ ZG 在 CQ 基础上，从"能跑"走向"能可靠地跑、能优雅地降级、�
 |------|------|------|------|
 | **ZG-4** | 事件总线增强（D-Bus 化） | AutonomyEventBusPort 已有雏形，增加 BAD 否决语义+补偿回滚有价值，但当前够用 | 应用 |
 | **ZG-5** | 资源限制（cgroups 化） | 单进程下需求弱，会话/智能体数增长后价值上升。可先做每会话 LLM 配额 | 应用 |
-| **ZG-6** | 系统状态机（system_state 化） | BOOTING→READY→DEGRADING→SHUTTING_DOWN，组件根据状态自适应。CoreReadiness 已有雏形 | 应用 |
+| ~~**ZG-6**~~ | ~~系统状态机（system_state 化）~~ | ✅ **已完成**（2026-08-01，见已完成表） | 应用 |
 
 ### 🔵 P2 — 打磨
 
@@ -116,6 +116,18 @@ ZG-9 OOM 保护与 ZG-3 看门狗分工：OOM 保护管"死之前的优先级排
 | 2026-07-30 | 扁平人格→四层模型迁移（6 调用方 + 30 测试） | 54514e7f8 |
 | 2026-07-30 | send_service 废弃方法清理（7 方法 ~250 行） | 更早 |
 | 2026-07-30 | ZG 研究备忘 + 废弃系统清单 | 文档 |
+| 2026-08-01 | **ZG-6 系统状态机**（BOOTING→READY→DEGRADING→SHUTTING_DOWN + 通知链 + 崩溃导出 + WebUI /lifecycle + 信号退出联动，20 需求 48 验收全覆盖，38 测试） | c38dd6f1c |
+
+## ZG-6 系统状态机遗留事项（2026-08-01）
+
+> ZG-6 已编码完成并合并（c38dd6f1c）。CA 审查通过，CX 审查 2 bug 已修。
+> 交接报告：`.shared/handoff/cc2ca_zg6_coding_0801.md`；审查报告：`.shared/handoff/ca2cc_zg6_review_0801.md`
+
+| # | 项 | 内容 | 触发时机 |
+|---|-----|------|---------|
+| ZG-6-R1 | 全量既有回归确认 | 本批次修复了 pyproject pytest-asyncio 配置段（mode=STRICT→AUTO），历史 async 测试可能首次真正在 auto 模式运行，需全量 pytest 确认无潜伏失败 | 合并后（docker 恢复即跑） |
+| ZG-6-R2 | 通知链 per-subscriber 超时 | 当前全局 5s 超时；design 已裁定不优先，订阅者超时记告警视为 DONE | 出现"单一慢订阅者拖累全局"实证时 |
+| ZG-6-R3 | ServiceManager 自适应接入 | 适配器谓词已就绪，ServiceManager/消息管道按状态自适应（BOOTING 拒收等）尚未接线 | 后续系统审阅时评估 |
 
 ## 交叉的 CQ 债务
 
