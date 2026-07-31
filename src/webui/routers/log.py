@@ -4,8 +4,7 @@
 import json
 import logging
 import os
-import re
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -138,14 +137,16 @@ async def search_logs(
     since: str = Query(""),
     until: str = Query(""),
     limit: int = Query(100, ge=1, le=500),
+    source: str = Query("file", pattern="^(file|buffer|all)$"),
 ) -> dict[str, Any]:
-    """从 JSONL 日志文件倒序搜索。
+    """从 JSONL 日志文件倒序搜索（ZG-2 追加 source 参数，默认 file 保契约）。
 
     - module: 模块名前缀匹配
     - level: 最低日志级别 (DEBUG/INFO/WARNING/ERROR/CRITICAL)
     - keyword: event 字段包含的关键词
     - since/until: ISO 时间范围
     - limit: 返回最大条数 (默认 100, 最大 500)
+    - source: file(默认,仅 JSONL) / buffer(仅环形缓冲,含未落盘) / all(缓冲优先+文件补全)
     """
     min_level = _parse_log_level(level)
     since_ts = 0.0
@@ -158,21 +159,46 @@ async def search_logs(
     except ValueError:
         pass
 
-    log_files = sorted(
-        _LOG_DIR.glob("maibot_*.log.jsonl"), key=os.path.getmtime, reverse=True,
-    )
     results: list[dict] = []
-    for fp in log_files:
-        if len(results) >= limit:
-            break
-        entries = _read_jsonl_reverse(fp, limit * 2)
-        for entry in entries:
+
+    # ZG-2: 环形缓冲查询（source=buffer/all，含未落盘条目）
+    if source in ("buffer", "all"):
+        from src.common.logger import get_ring_buffer_snapshot
+
+        for entry in get_ring_buffer_snapshot(limit * 4):
             if _match_log_entry(entry, module, min_level, keyword, since_ts, until_ts):
                 results.append(entry)
                 if len(results) >= limit:
                     break
 
+    # 文件查询（source=file/all；all 时缓冲优先，文件补全不足部分）
+    if source in ("file", "all") and len(results) < limit:
+        log_files = sorted(
+            _LOG_DIR.glob("maibot_*.log.jsonl"), key=os.path.getmtime, reverse=True,
+        )
+        remaining = limit - len(results)
+        for fp in log_files:
+            if len(results) >= limit:
+                break
+            entries = _read_jsonl_reverse(fp, remaining * 2)
+            for entry in entries:
+                if _match_log_entry(entry, module, min_level, keyword, since_ts, until_ts):
+                    results.append(entry)
+                    if len(results) >= limit:
+                        break
+
     return {"count": len(results), "results": results}
+
+
+@router.get("/status")
+async def get_pipeline_status() -> dict[str, Any]:
+    """ZG-2 管线状态内省（MNT-02）。
+
+    返回缓冲水位 / ratelimit 抑制计数 / 当前抑制线。
+    """
+    from src.common.logger import get_pipeline_status as _get_pipeline_status
+
+    return _get_pipeline_status()
 
 
 # ── T4: ThinkCycleLog 查询 ────────────────────────────────────
