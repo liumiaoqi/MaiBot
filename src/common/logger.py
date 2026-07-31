@@ -16,6 +16,7 @@ import structlog
 from src.common.log_pipeline.ring_buffer import BufferEntry, RingBuffer
 from src.common.log_pipeline.ratelimit import RateLimiter
 from src.common.log_pipeline.suppressor import Suppressor
+from src.common.log_pipeline.crash_dump import CrashDump
 import tomlkit
 
 from .logger_color_and_mapping import MODULE_ALIASES, RESET_COLOR, CONVERTED_MODULE_COLORS as MODULE_COLORS
@@ -415,6 +416,7 @@ _rate_limiter: RateLimiter | None = None
 _suppressor: Suppressor | None = None
 _suppression_filter: "SuppressionFilter | None" = None
 _ring_buffer_handler: "RingBufferHandler | None" = None
+_crash_dump: CrashDump | None = None
 
 
 class SuppressionFilter(logging.Filter):
@@ -552,6 +554,14 @@ def init_log_pipeline() -> None:
     _ring_buffer_handler = RingBufferHandler(_ring_buffer)
     _ring_buffer_handler.addFilter(_suppression_filter)
     root_logger.addHandler(_ring_buffer_handler)
+
+    # 崩溃/关闭导出（kmsg_dump）
+    global _crash_dump
+    if bool(cfg.get("crash_dump_enabled", True)):
+        from pathlib import Path
+
+        _crash_dump = CrashDump(_ring_buffer, LOG_DIR, enabled=True)
+        _crash_dump.register_hooks()
 
 
 def get_pipeline_status() -> dict:
@@ -1119,18 +1129,19 @@ def cleanup_old_logs():
         deleted_count = 0
         deleted_size = 0
 
-        # 遍历日志目录
-        for log_file in LOG_DIR.glob("*.log*"):
-            try:
-                file_time = datetime.fromtimestamp(log_file.stat().st_mtime)
-                if file_time < cutoff_date:
-                    file_size = log_file.stat().st_size
-                    log_file.unlink()
-                    deleted_count += 1
-                    deleted_size += file_size
-            except Exception as e:
-                logger = get_logger("logger")
-                logger.warning(f"清理日志文件 {log_file} 时出错: {e}")
+        # 遍历日志目录（显式三模式，天然排除 dump_* 独立命名空间）
+        for pattern in ("app_*.log.jsonl", "maibot_*.log.jsonl", "think_cycles_*.log.jsonl"):
+            for log_file in LOG_DIR.glob(pattern):
+                try:
+                    file_time = datetime.fromtimestamp(log_file.stat().st_mtime)
+                    if file_time < cutoff_date:
+                        file_size = log_file.stat().st_size
+                        log_file.unlink()
+                        deleted_count += 1
+                        deleted_size += file_size
+                except Exception as e:
+                    logger = get_logger("logger")
+                    logger.warning(f"清理日志文件 {log_file} 时出错: {e}")
 
         if deleted_count > 0:
             logger = get_logger("logger")
@@ -1164,6 +1175,10 @@ def shutdown_logging():
     """优雅关闭日志系统，释放所有文件句柄"""
     # 先输出到控制台，避免日志系统关闭后无法输出
     print("[logger] 正在关闭日志系统...")
+
+    # ZG-2: 正常关闭前导出环形缓冲（关闭 handlers 之前，缓冲仍完整）
+    if _crash_dump is not None:
+        _crash_dump.export("shutdown")
 
     # 关闭所有handler
     root_logger = logging.getLogger()
