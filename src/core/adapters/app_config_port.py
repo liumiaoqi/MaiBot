@@ -239,8 +239,6 @@ class GlobalConfigAppConfigPort:
     def get_plugin_runtime_hook_blocking_timeout_sec(self) -> float:
         return float(self._get_cfg().plugin_runtime.hook_blocking_timeout_sec or 60.0)
 
-    def get_telemetry_enable(self) -> bool:
-        return bool(self._get_cfg().telemetry.enable)
 
     def get_message_receive_ban_words(self) -> list[str]:
         return list(self._get_cfg().message_receive.ban_words or [])

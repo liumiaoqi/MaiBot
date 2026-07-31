@@ -45,7 +45,6 @@ from src.config.official_configs import (
     PluginRuntimeConfig,
     ResponsePostProcessConfig,
     ResponseSplitterConfig,
-    TelemetryConfig,
     VisualConfig,
     VoiceConfig,
     WebUIConfig,
@@ -96,7 +95,7 @@ _LEGACY_CUSTOM_PROMPT_VERSION_ID = "legacy-current"
 
 # 修改后需要重启 MaiBot 才能生效的配置节
 _RESTART_REQUIRED_SECTIONS = frozenset({
-    "bot", "database", "log", "webui", "debug", "telemetry",
+    "bot", "database", "log", "webui", "debug",
 })
 
 
@@ -1421,7 +1420,6 @@ async def get_config_section_schema(section_name: str):
     - chinese_typo: ChineseTypoConfig
     - response_post_process: ResponsePostProcessConfig
     - response_splitter: ResponseSplitterConfig
-    - telemetry: TelemetryConfig
     - log: LogConfig
     - maim_message: MaimMessageConfig
     - webui: WebUIConfig
@@ -1449,7 +1447,6 @@ async def get_config_section_schema(section_name: str):
         "chinese_typo": ChineseTypoConfig,
         "response_post_process": ResponsePostProcessConfig,
         "response_splitter": ResponseSplitterConfig,
-        "telemetry": TelemetryConfig,
         "log": LogConfig,
         "maim_message": MaimMessageConfig,
         "webui": WebUIConfig,

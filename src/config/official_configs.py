@@ -4913,27 +4913,6 @@ class LogConfig(ConfigBase):
     )
     """单独设置某些第三方库的日志等级。"""
 
-
-class TelemetryConfig(ConfigBase):
-    """遥测配置类"""
-
-    __ui_parent__ = "debug"
-
-    enable: bool = Field(
-        default=True,
-        json_schema_extra={
-            "label": {
-                "zh_CN": "启用遥测",
-                "en_US": "Enable telemetry",
-                "ja_JP": "テレメトリを有効化",
-            },
-            "x-widget": "switch",
-            "x-icon": "activity",
-        },
-    )
-    """是否发送匿名运行统计；关闭不影响正常使用。"""
-
-
 class DebugConfig(ConfigBase):
     """调试配置类"""
 
