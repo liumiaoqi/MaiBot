@@ -1444,7 +1444,17 @@ async def get_system_lifecycle():
     adapter = get_system_lifecycle_adapter()
     if adapter is None:
         # 未注册（启动早期）：返回 BOOTING 默认值
-        return ApiResponse(data=SystemLifecycleResponse())
+        return ApiResponse(
+            data=SystemLifecycleResponse(
+                state="booting",
+                health_level="healthy",
+                core_readiness={
+                    "message_pipeline_ready": False,
+                    "agent_thinking_ready": False,
+                    "reply_capability_ready": False,
+                },
+            )
+        )
 
     view = adapter.get_view()
     return ApiResponse(

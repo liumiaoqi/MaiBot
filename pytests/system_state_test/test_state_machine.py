@@ -71,19 +71,21 @@ async def test_legal_transitions():
 async def test_illegal_transition_rejected():
     """AC-ZG6-STM-03-6/7: 非法迁移抛 IllegalTransitionError + 终态不可迁出。"""
     sm = SystemStateMachine()
-    with pytest.raises(IllegalTransitionError):
-        await sm.trigger_health_level_change("degraded")  # BOOTING 忽略（非抛错）
+    # BOOTING 时健康变更被忽略（不迁移、不抛错）
+    await sm.trigger_health_level_change("degraded")
+    assert sm.is_booting()
     # READY 时重复 STARTUP_COMPLETE 非法
     await sm.trigger_startup_complete()
     with pytest.raises(IllegalTransitionError):
         await sm.trigger_startup_complete()
-    # 终态不可迁出
+    # 终态不可迁出：非 SHUTDOWN_SIGNAL 触发抛错；健康变更被生命周期忽略（不迁移不抛）
     await sm.trigger_shutdown()
     assert sm.is_shutting_down()
     with pytest.raises(IllegalTransitionError):
         await sm.trigger_startup_complete()
-    with pytest.raises(IllegalTransitionError):
-        await sm.trigger_health_level_change("healthy")
+    await sm.trigger_health_level_change("healthy")  # SHUTTING_DOWN 忽略
+    assert sm.is_shutting_down()
+    assert len(sm.get_history()) == 2
 
 
 async def test_health_level_mapping():
@@ -107,7 +109,7 @@ async def test_health_level_mapping():
 
 
 async def test_transition_atomicity():
-    """AC-ZG6-STM-04-1: 并发迁移 Lock 串行化，通知不交错。"""
+    """AC-ZG6-STM-04-1: 并发迁移 Lock 串行化——第二个触发看到第一个的迁移结果。"""
     sm = SystemStateMachine()
     events: list[str] = []
 
@@ -118,15 +120,20 @@ async def test_transition_atomicity():
         return TransitionVote.DONE
 
     sm.subscribe(sub)
-    await asyncio.gather(
+    results = await asyncio.gather(
         sm.trigger_startup_complete(),  # BOOTING→READY 合法
-        sm.trigger_startup_complete_degraded(),  # BOOTING→DEGRADING 合法
+        sm.trigger_startup_complete(),  # 串行化后从 READY 出发 → 非法（证明锁生效）
+        return_exceptions=True,
     )
-    # 串行执行：第一段 exit 先于第二段 enter
+    # 一个成功一个被拒：若锁未串行化，两个都从 BOOTING 出发双双成功
+    assert sum(r is None for r in results) == 1
+    assert sum(isinstance(r, IllegalTransitionError) for r in results) == 1
+    # 被拒的迁移在通知前就抛错，唯一成功的通知完整无交错
+    assert events[0].startswith("enter:")
     assert events[1].startswith("exit:")
-    assert events[2].startswith("enter:")
-    assert len(sm.get_history()) == 2
-    assert sm.get_state() in (SystemLifecycleState.READY, SystemLifecycleState.DEGRADING)
+    assert len(events) == 2
+    assert len(sm.get_history()) == 1
+    assert sm.is_ready()
 
 
 async def test_query_during_transition_returns_old_state():
@@ -177,23 +184,23 @@ async def test_predicates():
 
 
 async def test_idempotent_shutdown():
-    """AC-ZG6-LIFE-02-1/2: 重复 SHUTDOWN_SIGNAL 只触发一次通知与状态变更。"""
+    """AC-ZG6-LIFE-02-1/2: 进入 SHUTTING_DOWN 后重复信号静默返回（如 SIGTERM 后又 SIGINT）。"""
     sm = SystemStateMachine()
-    notify_count = 0
+    reasons: list[str] = []
 
     async def sub(old, new, reason):
-        nonlocal notify_count
-        notify_count += 1
+        reasons.append(reason.value)
         return TransitionVote.DONE
 
     sm.subscribe(sub)
-    await sm.trigger_startup_complete()
-    await sm.trigger_shutdown()
-    await sm.trigger_shutdown()
-    await sm.trigger_shutdown()
-    assert notify_count == 1
+    await sm.trigger_startup_complete()  # 通知 1 次（startup_complete）
+    await sm.trigger_shutdown()  # READY→SHUTTING_DOWN，通知 1 次（shutdown_signal）
+    await sm.trigger_shutdown()  # 已 SHUTTING_DOWN：幂等静默返回，不抛错
+    await sm.trigger_shutdown()  # 重复信号
+    assert reasons.count("shutdown_signal") == 1
+    assert reasons == ["startup_complete", "shutdown_signal"]
     assert sm.is_shutting_down()
-    assert len(sm.get_history()) == 2  # 仅 READY→SHUTTING_DOWN 一条新增
+    assert len(sm.get_history()) == 2  # BOOTING→READY + READY→SHUTTING_DOWN
 
 
 async def test_shutdown_history_export(tmp_path, monkeypatch):

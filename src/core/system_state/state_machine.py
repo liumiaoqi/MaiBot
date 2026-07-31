@@ -134,15 +134,18 @@ class SystemStateMachine:
         start = time.monotonic()
         async with self._lock:
             old = self._state
+
+            # 幂等守卫（机制 4）：进入 SHUTTING_DOWN 后重复 SHUTDOWN_SIGNAL
+            # （如 SIGTERM 后又 SIGINT）静默返回，不抛错也不重复通知。
+            # 必须在查表前：终态下 SHUTDOWN_SIGNAL 不在迁移表中，先查表会误抛。
+            if reason == TransitionReason.SHUTDOWN_SIGNAL and self._shutdown_entered:
+                return
+
             target = self._TRANSITION_TABLE.get((old, reason))
             if target is None:
                 raise IllegalTransitionError(
                     f"非法迁移: {old.snake_case} --({reason.value})--> ?"
                 )
-
-            # 幂等守卫（机制 4）：重复 SHUTDOWN_SIGNAL 只执行一次
-            if reason == TransitionReason.SHUTDOWN_SIGNAL and self._shutdown_entered:
-                return
 
             if target == SystemLifecycleState.SHUTTING_DOWN:
                 # robust 模式：STOP 否决 + 逆序回滚（机制 2）

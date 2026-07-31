@@ -160,6 +160,7 @@ async def test_subscriber_timeout_treated_as_done():
         await asyncio.sleep(1.0)
         return TransitionVote.DONE
 
+    chain.register(sub_slow)
     results = await chain.notify(OLD, NEW, REASON)
     assert results[0][1] == TransitionVote.DONE
 
