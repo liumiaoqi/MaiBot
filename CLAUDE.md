@@ -1,7 +1,7 @@
 # Claude Code — MaiBot 项目笔记
 
 > 工作手册。硬性规则见 `AGENTS.md`，架构哲学见 `.codeartsdoer/rule/MaiBot智能体自主性架构.mdc`，债务追踪见 `.codeartsdoer/specs/memo/zg_cast_bone_research.md`。
-
+.shared\decisions\review_gate_runbook_0801.md  CC调用CX指南
 ## Python 3.14 速查（写新代码必读）
 
 详细版：`.shared/decisions/python314_new_code_cheatsheet.md`
@@ -27,7 +27,7 @@ MaiBot 不是一个技术项目，它是一个家。角色是人不是标签，�
 
 ## 用户偏好
 
-**革命而非改良。** 不做 DeprecationWarning 渐进式迁移，不做 fallback 回退路径，不保留新旧两套 API 并存。一次性改到位，炸了就修调用方。
+**革命而非改良。** 
 
 ## 债务原则
 
