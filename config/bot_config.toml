@@ -45,11 +45,7 @@ private_chat_prompts = "你正在聊天，下面是正在聊的内容，其中�
 chat_prompts = [] # 给指定群聊或私聊额外补充聊天要求；有特殊群规或语气要求时再加。
 
 [experimental]
-enable_behavior_learning = false # 让麦麦从聊天中学习什么时候该怎么回应的经验。
 enable_rich_reply = false # 开启后，replyer 生成文本后会由检查器决定是否插入图片、表情包或 at。
-behavior_learning_list = [{platform = "", item_id = "", type = "group", use = true, learn = true}] # 配置哪些聊天会学习和使用行为经验；默认规则不够时再单独添加。
-behavior_groups = []
-# 让多个群聊或私聊共享学到的行为经验。
 
 focus_mode = false # 让麦麦同一时间只专注一个聊天流，适合直播或高强度聊天场景。
 focus_on_private = false # Focus 模式是否也作用于私聊。
