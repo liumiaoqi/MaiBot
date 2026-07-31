@@ -293,6 +293,31 @@ class MainSystem:
             get_dependency_relations(),
         )
 
+        # ZG-6: 系统生命周期状态机 + 适配器（启动完成后创建，紧随其后触发迁移）
+        # 时序约束：__init__ 强制核心就绪三标志 False 先于 trigger_startup_complete，
+        # 同一协程内顺序执行，避免启动瞬间标志已置 True 的窗口。
+        from src.config.config import config_manager as _cm
+        from src.core.adapters.core_readiness_port import CoreReadinessPortAdapter
+        from src.core.adapters.system_lifecycle_adapter import SystemLifecycleAdapter
+        from src.core.system_state.state_machine import SystemStateMachine
+        from src.core.system_state_port_registry import set_system_lifecycle_adapter
+
+        sys_state_cfg = _cm.get_global_config().system_state
+        self._lifecycle_sm = SystemStateMachine(
+            history_capacity=sys_state_cfg.history_capacity,
+            notify_timeout=sys_state_cfg.notify_timeout,
+        )
+        self._lifecycle_adapter = SystemLifecycleAdapter(
+            state_machine=self._lifecycle_sm,
+            core_readiness_port=CoreReadinessPortAdapter(orchestrator.get_core_readiness()),
+            state_aggregator=self._service_manager.get_state_aggregator(),
+        )
+        set_system_lifecycle_adapter(self._lifecycle_adapter)
+        if self._startup_result.ready:
+            await self._lifecycle_adapter.trigger_startup_complete()
+        else:
+            await self._lifecycle_adapter.trigger_startup_complete_degraded()
+
         # ZG-3: 注册 ServiceManagerPort + 启动看门狗
         from src.core.service_manager_port_registry import set_service_manager_port
 
@@ -658,6 +683,25 @@ async def main() -> None:
     system = MainSystem()
     try:
         await system.initialize()
+
+        # ZG-6 W2: SIGTERM/SIGINT → SHUTTING_DOWN（幂等）+ 联动主循环退出。
+        # 后注册覆盖 ZG-2 crash_dump / ZG-6 适配器的 signal handler，生产走优雅关闭链：
+        # trigger_shutdown 通知订阅者 → gather 被打断 → finally 执行现有关闭链。
+        import signal as _signal
+
+        main_task = asyncio.current_task()
+
+        def _on_terminate_signal() -> None:
+            asyncio.create_task(system._lifecycle_adapter.trigger_shutdown())
+            if main_task is not None and not main_task.done():
+                main_task.cancel()
+
+        for _sig in (_signal.SIGTERM, _signal.SIGINT):
+            try:
+                asyncio.get_running_loop().add_signal_handler(_sig, _on_terminate_signal)
+            except NotImplementedError:
+                pass  # 仅主线程可用；不可用则保留适配器兜底 handler
+
         await system.schedule_tasks()
     finally:
         if system._watchdog_touch_task is not None:

@@ -823,6 +823,10 @@ suppression_debounce_s = 5.0 # 健康等级切换防抖（秒）
 # ── ZG-2 崩溃导出 ──
 crash_dump_enabled = true # 崩溃/关闭时导出环形缓冲为 dump_*.log.jsonl
 
+[system_state]
+history_capacity = 100 # 迁移历史容量（ZG-6）
+notify_timeout = 5.0 # 通知链超时（秒）（ZG-6）
+
 [debug]
 show_maisaka_thinking = true # 在日志或界面中显示麦麦的思考过程。
 show_jargon_prompt = false # 调试黑话学习时显示相关 Prompt。

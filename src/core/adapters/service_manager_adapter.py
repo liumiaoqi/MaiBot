@@ -281,6 +281,10 @@ class ServiceManagerAdapter:
         assert self._state_aggregator is not None
         return self._state_aggregator.build_view()
 
+    def get_state_aggregator(self) -> Optional[StateAggregator]:
+        """返回状态聚合引擎（ZG-6 生命周期适配器衔接用）。"""
+        return self._state_aggregator
+
     def get_fault_history(
         self, component_id: str, *, limit: int = 100
     ) -> list[FaultRecord]:

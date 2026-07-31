@@ -6838,3 +6838,17 @@ class WatchdogSectionConfig(ConfigBase):
 
     v2_diff_interval_s: float = Field(default=5.0)
     """V2 状态 diff 轮询间隔（秒）。"""
+
+
+class SystemStateSectionConfig(ConfigBase):
+    """系统生命周期状态机配置（ZG-6）。
+
+    与核心层 SystemStateMachine 构造参数一一对应，全部带默认值；
+    非法值由核心层 __init__ 兜底（此处不加 validator）。
+    """
+
+    history_capacity: int = Field(default=100)
+    """迁移历史环形缓冲容量（条）。"""
+
+    notify_timeout: float = Field(default=5.0)
+    """通知链超时（秒），订阅者超时记告警并视为放行。"""

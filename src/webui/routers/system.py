@@ -54,8 +54,11 @@ from src.webui.schemas.system import (
     LocalCacheStatsResponse,
     RestartResponse,
     StatusResponse,
+    SystemLifecycleResponse,
     SystemResourcesResponse,
+    TransitionRecordResponse,
 )
+
 
 router = APIRouter(prefix="/system", tags=["system"], dependencies=[Depends(require_auth)])
 logger = get_logger("webui_system")
@@ -1147,6 +1150,15 @@ async def _delayed_restart() -> None:
     except Exception as exc:
         logger.error(f"WebUI 重启前清理运行时失败，将继续退出以触发外部 runner 重启: {exc}", exc_info=True)
     finally:
+        # ZG-6: 重启前触发 SHUTTING_DOWN 迁移（best-effort：订阅者做关闭准备 + 迁移历史导出）
+        try:
+            from src.core.system_state_port_registry import get_system_lifecycle_adapter
+
+            adapter = get_system_lifecycle_adapter()
+            if adapter is not None:
+                await adapter.trigger_shutdown()
+        except Exception as exc:
+            logger.warning(f"WebUI 重启前触发 SHUTTING_DOWN 失败: {exc}")
         logger.info(f"WebUI 请求重启，退出代码 {_RESTART_EXIT_CODE}")
         os._exit(_RESTART_EXIT_CODE)
 
@@ -1203,7 +1215,7 @@ async def get_system_resources():
     try:
         import psutil
     except ImportError:
-        raise AppError(ErrorCode.SYS_SERVICE_UNAVAILABLE, "psutil 未安装，无法采集系统资源数据")
+        raise AppError(ErrorCode.SYS_SERVICE_UNAVAILABLE, "psutil 未安装，无法采集系统资源数据") from None
 
     try:
         cpu_percent = psutil.cpu_percent(interval=0.5)
@@ -1419,3 +1431,41 @@ async def reload_config():
     # 示例：await app_instance.reload_config()
 
     return {"success": True, "message": "配置重载功能待实现"}
+
+
+@router.get("/lifecycle", response_model=ApiResponse[SystemLifecycleResponse])
+async def get_system_lifecycle():
+    """ZG-6 系统生命周期状态内省。
+
+    返回当前生命周期状态 + 健康等级 + 核心就绪三标志 + 迁移历史。
+    """
+    from src.core.system_state_port_registry import get_system_lifecycle_adapter
+
+    adapter = get_system_lifecycle_adapter()
+    if adapter is None:
+        # 未注册（启动早期）：返回 BOOTING 默认值
+        return ApiResponse(data=SystemLifecycleResponse())
+
+    view = adapter.get_view()
+    return ApiResponse(
+        data=SystemLifecycleResponse(
+            state=view.state.snake_case,
+            health_level=view.health_level,
+            core_readiness={
+                "message_pipeline_ready": view.core_readiness[0],
+                "agent_thinking_ready": view.core_readiness[1],
+                "reply_capability_ready": view.core_readiness[2],
+            },
+            transition_history=[
+                TransitionRecordResponse(
+                    timestamp=r.timestamp,
+                    old_state=r.old_state.snake_case,
+                    new_state=r.new_state.snake_case,
+                    reason=r.reason.value,
+                    duration_ms=r.duration_ms,
+                )
+                for r in view.transition_history
+            ],
+            generated_at=view.generated_at,
+        )
+    )

@@ -1,6 +1,11 @@
-from typing import Any, Dict, List, Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
+
+# 与 routers/system.py L148-149 的别名保持一致（本文件不得反向 import routers）
+CacheImageTarget = Literal["images", "emoji"]
+DatabaseCleanupMode = Literal["all", "older_than_days"]
+
 
 class RestartResponse(BaseModel):
     """重启响应"""
@@ -217,3 +222,23 @@ class SystemResourcesResponse(BaseModel):
     disk_total: int = Field(0, description="总磁盘（字节）")
     database_size: int = Field(0, description="数据库大小（字节）")
     timestamp: float = Field(0.0, description="采集时间戳")
+
+
+class TransitionRecordResponse(BaseModel):
+    """迁移历史条目（ZG-6）。"""
+
+    timestamp: float = Field(0.0, description="迁移时间戳")
+    old_state: str = Field("", description="旧状态 snake_case")
+    new_state: str = Field("", description="新状态 snake_case")
+    reason: str = Field("", description="迁移原因")
+    duration_ms: float = Field(0.0, description="迁移耗时（毫秒）")
+
+
+class SystemLifecycleResponse(BaseModel):
+    """系统生命周期状态（ZG-6）。"""
+
+    state: str = Field("", description="生命周期状态 booting/ready/degrading/shutting_down")
+    health_level: str = Field("", description="健康等级 healthy/degraded/fault/recovering")
+    core_readiness: dict[str, bool] = Field(default_factory=dict, description="核心就绪三标志")
+    transition_history: list[TransitionRecordResponse] = Field(default_factory=list, description="迁移历史")
+    generated_at: float = Field(0.0, description="生成时间戳")
