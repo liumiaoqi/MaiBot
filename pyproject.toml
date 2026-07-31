@@ -59,6 +59,10 @@ dev = [
 ]
 
 
+[tool.pytest.ini_options]
+markers = ["benchmark: 性能基准用例（NFR-PER 验收），常规回归不运行"]
+addopts = "-m 'not benchmark'"
+
 [tool.pytest-asyncio]
 asyncio_mode = "auto"
 
