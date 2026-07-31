@@ -15,10 +15,6 @@ from src.core.runtime_port_registry import get_chat_runtime_registry
 from src.common.database.database import get_db_session
 from src.core.session_port_registry import get_session_name as _get_session_name_via_port
 from src.common.database.database_model import (
-    BehaviorAction,
-    BehaviorExperiencePath,
-    BehaviorOutcome,
-    BehaviorSceneCluster,
     ChatSession,
     Expression,
     HighFrequencyTerm,
@@ -30,7 +26,6 @@ from src.common.database.database_model import (
 )
 from src.common.logger import get_logger
 from src.common.utils.utils_config import (
-    BehaviorConfigUtils,
     ChatConfigUtils,
     ExpressionConfigUtils,
     JargonConfigUtils,

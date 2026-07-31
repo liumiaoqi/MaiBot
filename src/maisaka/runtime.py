@@ -21,7 +21,7 @@ from src.common.data_models.message_component_data_model import (
 )
 from src.common.logger import get_logger
 from src.common.message_repository import find_messages
-from src.common.utils.utils_config import BehaviorConfigUtils, ChatConfigUtils, ExpressionConfigUtils, JargonConfigUtils
+from src.common.utils.utils_config import ChatConfigUtils, ExpressionConfigUtils, JargonConfigUtils
 from src.core.chat_config_port_registry import get_chat_config_port
 from src.core.app_config_port_registry import get_app_config_port
 from src.core.protocols import NoticeClassifier
