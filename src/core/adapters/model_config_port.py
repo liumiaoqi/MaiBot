@@ -166,7 +166,7 @@ class ConfigManagerModelConfigPort:
                 "智能体 %s 覆盖后任务 %s 的 model_list 为空，回退到全局配置",
                 agent_id, task_name,
             )
-            setattr(merged, "model_list", copy.deepcopy(global_model_list))
+            merged.model_list = copy.deepcopy(global_model_list)
 
         return merged
 

@@ -183,7 +183,7 @@ class TimestampedFileHandler(logging.Handler):
                     self.current_stream.write(msg + "\n")
                     self.current_stream.flush()
 
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in logger.py", exc_info=True)
             self.handleError(record)
 
@@ -218,7 +218,7 @@ class WebSocketLogHandler(logging.Handler):
             task.result()
         except asyncio.CancelledError:
             pass
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in logger.py", exc_info=True)
 
     def _schedule_broadcast(self, log_data: dict, target_loop: asyncio.AbstractEventLoop) -> None:
@@ -232,14 +232,14 @@ class WebSocketLogHandler(logging.Handler):
             broadcast_coro = broadcast_log(log_data)
             try:
                 task = target_loop.create_task(broadcast_coro)
-            except Exception as exc:
+            except Exception:
                 logger.warning("操作异常 in logger.py", exc_info=True)
                 broadcast_coro.close()
                 raise
             task.add_done_callback(self._consume_broadcast_result)
         except RuntimeError:
             pass
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in logger.py", exc_info=True)
 
     def emit(self, record):
@@ -284,12 +284,12 @@ class WebSocketLogHandler(logging.Handler):
             # 异步广播日志(不阻塞日志记录)
             try:
                 target_loop.call_soon_threadsafe(self._schedule_broadcast, log_data, target_loop)
-            except Exception as exc:
+            except Exception:
                 logger.warning("操作异常 in logger.py", exc_info=True)
                 # WebSocket 推送失败不影响日志记录
                 pass
 
-        except Exception as exc:
+        except Exception:
             logger.warning("操作异常 in logger.py", exc_info=True)
             # 不要让 WebSocket 错误影响日志系统
             self.handleError(record)
@@ -589,7 +589,6 @@ def init_log_pipeline() -> None:
     # 崩溃/关闭导出（kmsg_dump）
     global _crash_dump
     if bool(cfg.get("crash_dump_enabled", True)):
-        from pathlib import Path
 
         _crash_dump = CrashDump(_ring_buffer, LOG_DIR, enabled=True)
         _crash_dump.register_hooks()
@@ -1240,7 +1239,6 @@ def log_think_cycle(entry: dict) -> None:
     Args:
         entry: 包含 agent_id/action/cycles/total_tokens/elapsed_ms 等字段的字典。
     """
-    from datetime import date
     _log_dir = Path("logs")
     _log_dir.mkdir(parents=True, exist_ok=True)
     log_path = _log_dir / f"think_cycles_{date.today().isoformat()}.log.jsonl"
