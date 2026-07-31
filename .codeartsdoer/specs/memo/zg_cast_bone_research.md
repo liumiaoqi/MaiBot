@@ -46,12 +46,12 @@ ZG 在 CQ 基础上，从"能跑"走向"能可靠地跑、能优雅地降级、�
 
 ### 🔴 P0 — 应该做
 
-| 编号 | 方向 | 理由 | 复杂度 | 层级 |
-|------|------|------|--------|------|
-| **ZG-1** | 服务管理器（systemd 化） | 组件挂了没人知道，排障靠运气。"从能跑到能可靠地跑"的第一步 | 低 | 应用 |
-| **ZG-2** | 统一日志管线（journald 化） | CQ-11 已在清理 45 处 `import logging` 残留，趁机加结构化+环形缓冲+ratelimit | 中 | 应用 |
-| **ZG-3** | 看门狗（watchdog 化） | asyncio 事件循环阻塞 + Runner 子进程无响应，当前最痛的运行时风险 | 低 | 应用 |
-| **ZG-9** | 极端环境加固 | 内核调参+OOM防护+I/O隔离，确保极端条件下不崩不卡死可预测降级 | 低 | 基础 |
+| 编号　　 | 方向　　　　　　　　　　　　| 理由　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　| 复杂度 | 层级 |
+| ----------| -----------------------------| -----------------------------------------------------------------------------| --------| ------|
+| **ZG-1** | 服务管理器（systemd 化）　　| 组件挂了没人知道，排障靠运气。"从能跑到能可靠地跑"的第一步　　　　　　　　　| 低　　 | 应用 |
+| **ZG-2** | 统一日志管线（journald 化） | CQ-11 已在清理 45 处 `import logging` 残留，趁机加结构化+环形缓冲+ratelimit | 中　　 | 应用 |
+| **ZG-3** | 看门狗（watchdog 化）　　　 | asyncio 事件循环阻塞 + Runner 子进程无响应，当前最痛的运行时风险　　　　　　| 低　　 | 应用 |
+| **ZG-9** | 极端环境加固　　　　　　　　| 内核调参+OOM防护+I/O隔离，确保极端条件下不崩不卡死可预测降级　　　　　　　　| 低　　 | 基础 |
 
 ### 🟡 P1 — 值得做但靠后
 
@@ -265,6 +265,8 @@ DEPRECATED 标记的含义**不是**"这个函数废弃了可以删"，而是"**
 
 ## ZG-3 看门狗编码遗留问题（2026-07-31）
 
+> ⚠️ **Linux 源码研究遗漏**：ZG-3 编码时未深入调研 Linux `kernel/watchdog.c` / `kernel/hung_task.c` / `include/linux/nmi.h` 源码。对照参考仅凭经验级知识，可能遗漏 hard/soft 双层检测、touch 机制、buddy 互检等设计精髓。后续 ZG-4 调研时一并补查 `kernel/watchdog_hld.c`（hardlockup detector）和 `kernel/workqueue.c`（hung work detection）。
+
 | # | 严重度 | 位置 | 问题 | 当前影响 | 后续处理 |
 |---|--------|------|------|---------|---------|
 | 1 | 中 | `runner_health_bridge.py:50-80` | `register_v2_supervisor` 未将 `_on_v2_timeout` 注入到 `heartbeat_manager` 的 `timeout_callback` | V2 心跳超时回调桥接未连接，仅 V2 状态 diff 轮询工作 | 需了解 HeartbeatManager.start 的调用时机，在注册时注入包装回调 |
@@ -275,6 +277,7 @@ DEPRECATED 标记的含义**不是**"这个函数废弃了可以删"，而是"**
 ## ZG-2 统一日志管线遗留标记（2026-08-01，以后再改）
 
 > ZG-2 已编码完成并合并（693b735f6）。printk 对照复盘见 `.shared/decisions/zg2_printk_review_0801.md`。
+> ⚠️ **Linux 源码研究遗漏**：ZG-2 编码时未深入调研 Linux `kernel/printk/printk.c` / `include/linux/printk.h` / `kernel/printk/printk_safe.c` 源码。printk 对照仅凭经验级知识，可能遗漏 lockless ring buffer 的实际实现细节、cont 计数行续接、console_lock handover、kmsg_dump dispatcher 等设计精髓。后续 ZG-4 调研时一并补查。
 > 以下为"以后再改"的可改进项，不阻塞当前使用：
 
 | # | 项 | 内容 | 触发时机 |
