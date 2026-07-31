@@ -88,6 +88,21 @@ async def test_illegal_transition_rejected():
     assert len(sm.get_history()) == 2
 
 
+async def test_health_change_race_no_raise():
+    """CX 审查回归：并发健康变更竞态（锁外预检查读到旧状态）不抛 IllegalTransitionError。"""
+    sm = SystemStateMachine()
+    await sm.trigger_startup_complete()  # READY
+    results = await asyncio.gather(
+        sm.trigger_health_level_change("degraded"),
+        sm.trigger_health_level_change("fault"),
+        return_exceptions=True,
+    )
+    # 锁内判定：第二个看到 DEGRADING 后忽略而非查表误抛
+    assert all(r is None for r in results)
+    assert sm.is_degrading()
+    assert len(sm.get_history()) == 2
+
+
 async def test_health_level_mapping():
     """AC-ZG6-INT-02 映射: READY+降级→DEGRADING, DEGRADING+恢复→READY, BOOTING 忽略。"""
     sm = SystemStateMachine()

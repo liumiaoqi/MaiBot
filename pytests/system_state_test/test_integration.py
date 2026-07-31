@@ -42,9 +42,18 @@ def _snapshot(identifier: str, state: ServiceState) -> ServiceStateSnapshot:
 
 
 def _build_aggregator(state: ServiceState = ServiceState.RUNNING) -> StateAggregator:
+    """三核心就绪贡献组件齐全（对齐生产 map，compute_core_readiness 可测恢复）。"""
     return StateAggregator(
-        component_registry={"chat": _snapshot("chat", state)},
-        core_readiness_map={},
+        component_registry={
+            "chat": _snapshot("chat", state),
+            "agent": _snapshot("agent", state),
+            "reply": _snapshot("reply", state),
+        },
+        core_readiness_map={
+            "chat": "message_pipeline_ready",
+            "agent": "agent_thinking_ready",
+            "reply": "reply_capability_ready",
+        },
     )
 
 
@@ -130,7 +139,7 @@ async def test_health_level_change_fault_mapping():
 
 
 async def test_core_readiness_booting_false():
-    """AC-ZG6-INT-03-1: BOOTING 期间三标志全 False（适配器刚创建、trigger 前的窗口）。"""
+    """AC-ZG6-INT-03-1/2: BOOTING 全 False；READY 后按聚合器计算值恢复（CX 审查回归）。"""
     sm = SystemStateMachine()
     crp = CoreReadinessPortAdapter(CoreReadiness())
     # 模拟启动完成时三标志已置 True
@@ -138,14 +147,21 @@ async def test_core_readiness_booting_false():
     crp.update_flag("agent_thinking_ready", True)
     crp.update_flag("reply_capability_ready", True)
     agg = _build_aggregator()
-    SystemLifecycleAdapter(state_machine=sm, core_readiness_port=crp, state_aggregator=agg)
+    adapter = SystemLifecycleAdapter(state_machine=sm, core_readiness_port=crp, state_aggregator=agg)
     # trigger 前窗口：三标志全 False
     assert crp.get_core_readiness().message_pipeline_ready is False
     assert crp.get_core_readiness().agent_thinking_ready is False
     assert crp.get_core_readiness().reply_capability_ready is False
-    # 后续可被外部（StateAggregator 驱动）更新，适配器不锁死标志
-    crp.update_flag("message_pipeline_ready", True)
-    assert crp.get_core_readiness().message_pipeline_ready is True
+    # READY 后按聚合器恢复（三核心组件 RUNNING → 全 True）
+    await adapter.trigger_startup_complete()
+    cr = crp.get_core_readiness()
+    assert cr.message_pipeline_ready is True
+    assert cr.agent_thinking_ready is True
+    assert cr.reply_capability_ready is True
+    # 健康变更驱动持续同步：核心组件离开 RUNNING → 对应标志 False + 迁移 DEGRADING
+    _notify_level_change(agg, ServiceState.READY)
+    await _wait_until(lambda: sm.is_degrading())
+    assert crp.get_core_readiness().message_pipeline_ready is False
 
 
 async def test_zg2_provider_registered():

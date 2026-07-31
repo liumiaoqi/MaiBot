@@ -65,7 +65,14 @@ class SystemLifecycleAdapter:
             return None
 
     def _on_health_view_change(self, view) -> None:
-        """StateAggregator 同步回调 → 异步触发迁移（提示 1：无 loop 回退同步）。"""
+        """StateAggregator 同步回调 → 异步触发迁移（提示 1：无 loop 回退同步）。
+
+        非 BOOTING 时同步三标志（CX 审查发现：__init__ 强制 False 后若无
+        恢复点，标志永久 False——按聚合器计算值持续驱动）。
+        """
+        if not self._sm.is_booting():
+            self._sync_core_readiness()
+
         async def _trigger() -> None:
             await self._sm.trigger_health_level_change(view.level)
 
@@ -79,12 +86,14 @@ class SystemLifecycleAdapter:
     # ── 衔接 1/6：启动完成 / 关闭信号 ───────────────────────
 
     async def trigger_startup_complete(self) -> None:
-        """衔接 1：正常启动完成 → READY。"""
+        """衔接 1：正常启动完成 → READY（迁移后按聚合器恢复三标志）。"""
         await self._sm.trigger_startup_complete()
+        self._sync_core_readiness()
 
     async def trigger_startup_complete_degraded(self) -> None:
-        """衔接 1：降级启动完成 → DEGRADING（W1）。"""
+        """衔接 1：降级启动完成 → DEGRADING（W1，迁移后恢复三标志）。"""
         await self._sm.trigger_startup_complete_degraded()
+        self._sync_core_readiness()
 
     async def trigger_shutdown(self) -> None:
         """衔接 6：信号/主动 shutdown → SHUTTING_DOWN（幂等）。"""
@@ -126,6 +135,20 @@ class SystemLifecycleAdapter:
                 self._crp.update_flag(flag, value)
             except Exception:
                 logger.exception("强制核心就绪标志失败: %s", flag)
+
+    def _sync_core_readiness(self) -> None:
+        """按聚合器计算值同步三标志（READY/DEGRADING 后由 StateAggregator 驱动）。
+
+        CX 审查发现：__init__ 强制 False 后若无恢复点，标志永久 False——
+        此处实现 core_readiness_port.py docstring 承诺的"运行时持续更新"语义。
+        """
+        try:
+            msg, agent, reply = self._agg.compute_core_readiness()
+            self._crp.update_flag("message_pipeline_ready", msg)
+            self._crp.update_flag("agent_thinking_ready", agent)
+            self._crp.update_flag("reply_capability_ready", reply)
+        except Exception:
+            logger.exception("同步核心就绪标志失败")
 
     # ── 崩溃导出钩子（提示 2）───────────────────────────────
 

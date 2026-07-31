@@ -95,15 +95,20 @@ class SystemStateMachine:
         await self._execute_transition(TransitionReason.STARTUP_COMPLETE_DEGRADED)
 
     async def trigger_health_level_change(self, new_level) -> None:
-        """健康等级变更驱动 READY↔DEGRADING（StateAggregator 衔接映射）。"""
+        """健康等级变更驱动 READY↔DEGRADING（StateAggregator 衔接映射）。
+
+        状态/等级判定在锁内进行（CX 审查发现）：锁外预检查在并发迁移
+        （如关闭通知持锁）时读到旧状态，进锁后查表误抛 IllegalTransitionError。
+        """
         level_value = getattr(new_level, "value", new_level)
-        if self._state == SystemLifecycleState.READY:
-            if level_value in ("degraded", "fault"):
-                await self._execute_transition(TransitionReason.HEALTH_LEVEL_CHANGE)
-        elif self._state == SystemLifecycleState.DEGRADING:
-            if level_value in ("healthy", "recovering"):
-                await self._execute_transition(TransitionReason.RECOVERY)
-        # BOOTING / SHUTTING_DOWN → 忽略（生命周期阶段优先）
+        async with self._lock:
+            if self._state == SystemLifecycleState.READY:
+                if level_value in ("degraded", "fault"):
+                    await self._execute_transition_locked(TransitionReason.HEALTH_LEVEL_CHANGE)
+            elif self._state == SystemLifecycleState.DEGRADING:
+                if level_value in ("healthy", "recovering"):
+                    await self._execute_transition_locked(TransitionReason.RECOVERY)
+            # BOOTING / SHUTTING_DOWN → 忽略（生命周期阶段优先）
 
     async def trigger_shutdown(self) -> None:
         """SHUTDOWN_SIGNAL（SIGTERM/SIGINT/shutdown()），幂等守卫。"""
@@ -130,52 +135,56 @@ class SystemStateMachine:
     # ── 内部 ──────────────────────────────────────────────
 
     async def _execute_transition(self, reason: TransitionReason) -> None:
-        """迁移执行流程（Lock 串行化 → 查表 → 幂等 → 先通知后赋值 → 记历史）。"""
-        start = time.monotonic()
+        """迁移执行入口（Lock 串行化后转锁内实现）。"""
         async with self._lock:
-            old = self._state
+            await self._execute_transition_locked(reason)
 
-            # 幂等守卫（机制 4）：进入 SHUTTING_DOWN 后重复 SHUTDOWN_SIGNAL
-            # （如 SIGTERM 后又 SIGINT）静默返回，不抛错也不重复通知。
-            # 必须在查表前：终态下 SHUTDOWN_SIGNAL 不在迁移表中，先查表会误抛。
-            if reason == TransitionReason.SHUTDOWN_SIGNAL and self._shutdown_entered:
+    async def _execute_transition_locked(self, reason: TransitionReason) -> None:
+        """锁内迁移执行（幂等 → 查表 → 先通知后赋值 → 记历史）。"""
+        start = time.monotonic()
+        old = self._state
+
+        # 幂等守卫（机制 4）：进入 SHUTTING_DOWN 后重复 SHUTDOWN_SIGNAL
+        # （如 SIGTERM 后又 SIGINT）静默返回，不抛错也不重复通知。
+        # 必须在查表前：终态下 SHUTDOWN_SIGNAL 不在迁移表中，先查表会误抛。
+        if reason == TransitionReason.SHUTDOWN_SIGNAL and self._shutdown_entered:
+            return
+
+        target = self._TRANSITION_TABLE.get((old, reason))
+        if target is None:
+            raise IllegalTransitionError(
+                f"非法迁移: {old.snake_case} --({reason.value})--> ?"
+            )
+
+        if target == SystemLifecycleState.SHUTTING_DOWN:
+            # robust 模式：STOP 否决 + 逆序回滚（机制 2）
+            ok = await self._notifier.notify_robust(old, target, reason)
+            if not ok:
+                logger.warning("→SHUTTING_DOWN 被订阅者否决，状态保持 %s", old.snake_case)
                 return
+        else:
+            # 普通模式：健康降级不可否决（AC-ADAPT-01-3）
+            await self._notifier.notify(old, target, reason)
 
-            target = self._TRANSITION_TABLE.get((old, reason))
-            if target is None:
-                raise IllegalTransitionError(
-                    f"非法迁移: {old.snake_case} --({reason.value})--> ?"
-                )
-
-            if target == SystemLifecycleState.SHUTTING_DOWN:
-                # robust 模式：STOP 否决 + 逆序回滚（机制 2）
-                ok = await self._notifier.notify_robust(old, target, reason)
-                if not ok:
-                    logger.warning("→SHUTTING_DOWN 被订阅者否决，状态保持 %s", old.snake_case)
-                    return
-            else:
-                # 普通模式：健康降级不可否决（AC-ADAPT-01-3）
-                await self._notifier.notify(old, target, reason)
-
-            # 先通知后迁移（机制 5）：全部放行后才赋值
-            self._state = target
-            duration_ms = (time.monotonic() - start) * 1000
-            self._history.append(
-                TransitionRecord(
-                    timestamp=time.time(),
-                    old_state=old,
-                    new_state=target,
-                    reason=reason,
-                    duration_ms=round(duration_ms, 2),
-                )
+        # 先通知后迁移（机制 5）：全部放行后才赋值
+        self._state = target
+        duration_ms = (time.monotonic() - start) * 1000
+        self._history.append(
+            TransitionRecord(
+                timestamp=time.time(),
+                old_state=old,
+                new_state=target,
+                reason=reason,
+                duration_ms=round(duration_ms, 2),
             )
-            if target == SystemLifecycleState.SHUTTING_DOWN:
-                self._shutdown_entered = True
-                self._export_history_on_shutdown()
-            logger.info(
-                "系统状态迁移: %s → %s（原因: %s, 耗时 %.2fms）",
-                old.snake_case, target.snake_case, reason.value, duration_ms,
-            )
+        )
+        if target == SystemLifecycleState.SHUTTING_DOWN:
+            self._shutdown_entered = True
+            self._export_history_on_shutdown()
+        logger.info(
+            "系统状态迁移: %s → %s（原因: %s, 耗时 %.2fms）",
+            old.snake_case, target.snake_case, reason.value, duration_ms,
+        )
 
     def _export_history_on_shutdown(self) -> None:
         """正常关闭时导出迁移历史（提示 2）。best-effort。"""
