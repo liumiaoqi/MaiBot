@@ -28,6 +28,9 @@ class HeartbeatManager:
         self._tasks: dict[str, asyncio.Task] = {}
         self._response_events: dict[str, asyncio.Event] = {}
         self._miss_counts: dict[str, int] = {}
+        self._timeout_listeners: dict[
+            str, set[Callable[[str, Optional[dict[str, Any]]], Awaitable[None]]]
+        ] = {}
 
     def start(
         self,
@@ -61,6 +64,34 @@ class HeartbeatManager:
             task.cancel()
         self._response_events.pop(runner_id, None)
         self._miss_counts.pop(runner_id, None)
+        self._timeout_listeners.pop(runner_id, None)
+
+    def add_timeout_listener(
+        self,
+        runner_id: str,
+        listener: Callable[[str, Optional[dict[str, Any]]], Awaitable[None]],
+    ) -> None:
+        """为该 runner 注册心跳超时旁路监听器。
+
+        前置条件：无（不依赖 start 是否已调用，start 前/后均可注册）。
+        后置条件：该 runner 心跳连续超时判定时，listener(runner_id, context)
+        在原始回调之前被调用；同一可调用对象重复注册不产生重复调用
+        （set 去重）；listener 在 stop(runner_id) 时随任务一并清理。
+        """
+        self._timeout_listeners.setdefault(runner_id, set()).add(listener)
+
+    def remove_timeout_listener(
+        self,
+        runner_id: str,
+        listener: Callable[[str, Optional[dict[str, Any]]], Awaitable[None]],
+    ) -> None:
+        """移除该 runner 的指定心跳超时监听器。不存在时静默忽略。"""
+        listeners = self._timeout_listeners.get(runner_id)
+        if listeners is None:
+            return
+        listeners.discard(listener)
+        if not listeners:
+            self._timeout_listeners.pop(runner_id, None)
 
     def stop_all(self) -> None:
         """停止全部心跳任务。"""
@@ -96,7 +127,7 @@ class HeartbeatManager:
 
                 try:
                     await send_callback()
-                except Exception as exc:
+                except Exception:
                     logger.warning(
                         "Runner %s 发送心跳请求失败，计入丢失", runner_id
                     )
@@ -123,12 +154,23 @@ class HeartbeatManager:
                             "Runner %s 心跳连续超时 %d 次，判定断开",
                             runner_id, miss_count,
                         )
+                        context = {
+                            "detection_source": "heartbeat",
+                            "consecutive_failures": miss_count,
+                        }
+                        # 旁路监听器优先执行（W1：原始回调经 context.abort
+                        # 必然抛异常不返回，监听器必须在其之前执行，否则永不触发）
+                        for listener in tuple(
+                            self._timeout_listeners.get(runner_id, ())
+                        ):
+                            try:
+                                await listener(runner_id, context)
+                            except Exception:
+                                logger.exception(
+                                    "心跳监听器异常（runner_id=%s）", runner_id
+                                )
                         # 向后兼容：按签名探测结果选择调用方式
                         if callback_param_count >= 2:
-                            context = {
-                                "detection_source": "heartbeat",
-                                "consecutive_failures": miss_count,
-                            }
                             await timeout_callback(runner_id, context)
                         else:
                             await timeout_callback(runner_id)

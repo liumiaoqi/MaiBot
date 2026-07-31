@@ -299,13 +299,28 @@ class MainSystem:
         set_service_manager_port(self._service_manager)
 
         from src.core.adapters.watchdog_adapter import WatchdogAdapter
-        from src.core.watchdog.config import WatchdogConfig
+        from src.core.app_config_port_registry import get_app_config_port
         from src.core.watchdog_port_registry import set_watchdog_port
 
-        watchdog_config = WatchdogConfig()
+        watchdog_config = get_app_config_port().get_watchdog_config()
         self._watchdog = WatchdogAdapter(config=watchdog_config)
         set_watchdog_port(self._watchdog)
         await self._watchdog.start(asyncio.get_running_loop())
+
+        # ZG-3: V1 Runner 批量注册到看门狗桥接（V1 在阶段 3 已启动，
+        # 早于看门狗；group_name ∈ {builtin, third_party}，v1-* 与 V2 runner-* 隔离；
+        # 看门狗/管理器异常时降级跳过，不阻断启动链路）
+        try:
+            from src.plugin_runtime.integration import get_plugin_runtime_manager
+
+            for sv in get_plugin_runtime_manager().supervisors:
+                self._watchdog.register_v1_supervisor(
+                    f"v1-{sv.group_name}", sv, "plugin_runtime",
+                )
+        except Exception:
+            logger.warning(
+                "V1 Runner 注册到看门狗桥接失败，已降级跳过", exc_info=True
+            )
 
         async def _watchdog_touch_loop() -> None:
             while True:
