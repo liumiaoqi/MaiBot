@@ -16,6 +16,7 @@ from src.core.person_info_port_registry import get_person_info_port, reset_perso
 from src.core.adapters.routing_adapter import ChatManagerRoutingAdapter
 from src.core.adapters.runtime_registry import HeartflowRuntimeRegistry
 from src.core.adapters.service_manager_adapter import ServiceManagerAdapter
+from src.core.adapters.watchdog_adapter import WatchdogAdapter
 from src.core.bot_config_port_registry import get_bot_config_port  # noqa: F401
 from src.core.chat_config_port_registry import get_chat_config_port  # noqa: F401
 from src.core.app_config_port_registry import get_app_config_port  # noqa: F401
@@ -27,6 +28,7 @@ __all__ = [
     "ChatManagerRoutingAdapter",
     "HeartflowRuntimeRegistry",
     "ServiceManagerAdapter",
+    "WatchdogAdapter",
     "get_agent_config_provider",
     "get_llm_service",
     "get_message_ingestion_port",

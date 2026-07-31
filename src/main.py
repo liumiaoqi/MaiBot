@@ -45,6 +45,8 @@ class MainSystem:
         self._init_start_time: float = 0.0
         self._orchestrator: Any | None = None
         self._service_manager: Any | None = None
+        self._watchdog: Any | None = None
+        self._watchdog_touch_task: asyncio.Task | None = None
 
     def _ensure_message_server(self) -> None:
         """按需初始化消息 API，避免阻塞主启动链路的早期阶段。"""
@@ -289,6 +291,29 @@ class MainSystem:
             self._startup_result,
             get_service_descriptors(),
             get_dependency_relations(),
+        )
+
+        # ZG-3: 注册 ServiceManagerPort + 启动看门狗
+        from src.core.service_manager_port_registry import set_service_manager_port
+
+        set_service_manager_port(self._service_manager)
+
+        from src.core.adapters.watchdog_adapter import WatchdogAdapter
+        from src.core.watchdog.config import WatchdogConfig
+        from src.core.watchdog_port_registry import set_watchdog_port
+
+        watchdog_config = WatchdogConfig()
+        self._watchdog = WatchdogAdapter(config=watchdog_config)
+        set_watchdog_port(self._watchdog)
+        await self._watchdog.start(asyncio.get_running_loop())
+
+        async def _watchdog_touch_loop() -> None:
+            while True:
+                self._watchdog.touch()
+                await asyncio.sleep(watchdog_config.touch_interval_s)
+
+        self._watchdog_touch_task = asyncio.create_task(
+            _watchdog_touch_loop(), name="watchdog-touch"
         )
 
         init_time = int(1000 * (time.time() - self._init_start_time))
@@ -625,6 +650,14 @@ async def main() -> None:
         await system.initialize()
         await system.schedule_tasks()
     finally:
+        if system._watchdog_touch_task is not None:
+            system._watchdog_touch_task.cancel()
+            try:
+                await system._watchdog_touch_task
+            except asyncio.CancelledError:
+                pass
+        if system._watchdog is not None:
+            await system._watchdog.stop()
         if system._service_manager is not None:
             await system._service_manager.shutdown()
         if system._interaction_scheduler is not None:

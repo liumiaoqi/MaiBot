@@ -7,6 +7,8 @@
 """
 
 
+import asyncio
+
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 from typing import Protocol, runtime_checkable
@@ -35,6 +37,7 @@ if TYPE_CHECKING:
         SystemHealthView,
     )
     from src.core.startup.types import CoreReadiness, StartupResult
+    from src.core.watchdog.types import RunnerBridgeStatus, WatchdogStatus
     from src.maisaka.agent.config import AgentConfig
     from src.core.types import (
         AgentAutonomySnapshot,
@@ -1309,4 +1312,127 @@ class HealthProbePort(Protocol):
 
         Returns:
             HealthCheckResult，实现应快速返回（≤5s），超时由管理器判定
+        """
+
+
+@runtime_checkable
+class WatchdogPort(Protocol):
+    """看门狗接口 — 事件循环阻塞检测与 Runner 健康结果桥接上报。
+
+    核心通过此接口管理看门狗生命周期、刷新存活信号、查询检测状态、
+    订阅状态变更、注册/取消注册 Runner 桥接源。
+    适配器层（WatchdogAdapter）是唯一允许导入具体引擎类的地方。
+    """
+
+    async def start(self, main_loop: asyncio.AbstractEventLoop) -> None:
+        """启动看门狗：启动检测线程 + 桥接轮询。
+
+        前置条件：ServiceManagerPort 已注册（上报目标就绪）。
+        后置条件：检测线程运行、桥接轮询运行。
+
+        Raises:
+            ServiceManagerPortNotReadyError: ServiceManagerPort 未注册
+            WatchdogAlreadyRunningError: 看门狗已在运行
+        """
+
+    async def stop(self) -> None:
+        """停止看门狗：停止检测线程 + 桥接轮询。
+
+        后置条件：全部检测任务停止，状态保留供最后查询。
+        """
+
+    def touch(self) -> None:
+        """刷新事件循环存活时间戳（由主事件循环内协程周期调用）。
+
+        后置条件：last_touch 更新为 time.monotonic()。
+        """
+
+    def get_status(self) -> "WatchdogStatus":
+        """查询事件循环检测状态快照（内存，无 I/O）。
+
+        Returns:
+            WatchdogStatus 不可变快照
+        """
+
+    def get_runner_bridge_status(self, runner_id: str) -> Optional["RunnerBridgeStatus"]:
+        """查询单个 Runner 桥接状态快照。
+
+        Args:
+            runner_id: Runner 标识
+
+        Returns:
+            RunnerBridgeStatus 快照，未注册时返回 None
+        """
+
+    def list_runner_bridge_status(self) -> list["RunnerBridgeStatus"]:
+        """查询全部 Runner 桥接状态快照。
+
+        Returns:
+            RunnerBridgeStatus 列表
+        """
+
+    def subscribe_status_change(self, callback: Callable[["WatchdogStatus"], None]) -> None:
+        """订阅检测状态变更事件（供 WebUI 内省）。
+
+        Args:
+            callback: 状态变更回调函数
+        """
+
+    def unsubscribe_status_change(self, callback: Callable[["WatchdogStatus"], None]) -> None:
+        """取消订阅。
+
+        Args:
+            callback: 先前注册过的回调函数
+        """
+
+    def register_v2_supervisor(
+        self,
+        runner_id: str,
+        supervisor: Any,
+        heartbeat_manager: Any,
+        component_id: str = "",
+    ) -> None:
+        """注册 V2 RunnerSupervisor + HeartbeatManager 供桥接订阅。
+
+        前置条件：supervisor 提供 get_health_status() 方法。
+        后置条件：桥接方订阅其 timeout_callback + 定时轮询 get_health_status。
+
+        Args:
+            runner_id: Runner 标识
+            supervisor: V2 RunnerSupervisor 实例
+            heartbeat_manager: HeartbeatManager 实例
+            component_id: ZG-1 受管组件标识，空时用 runner_id
+
+        Raises:
+            ValueError: supervisor 不提供 get_health_status() 方法
+        """
+
+    def register_v1_supervisor(
+        self,
+        runner_id: str,
+        supervisor: Any,
+        component_id: str = "",
+    ) -> None:
+        """注册 V1 PluginRunnerSupervisor 供旁路轮询。
+
+        前置条件：supervisor 持有 _runner_process 和 _restart_count 属性。
+        后置条件：桥接方定时轮询其进程存活 + 重启计数 diff。
+
+        Args:
+            runner_id: Runner 标识
+            supervisor: V1 PluginRunnerSupervisor 实例
+            component_id: ZG-1 受管组件标识，空时用 runner_id
+
+        Raises:
+            ValueError: supervisor 不持有 _runner_process 或 _restart_count 属性
+        """
+
+    def unregister_runner(self, runner_id: str) -> None:
+        """取消注册 Runner（停止对该 Runner 的桥接）。
+
+        Args:
+            runner_id: Runner 标识
+
+        Raises:
+            UnknownRunnerError: runner_id 未注册
         """

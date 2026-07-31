@@ -6,7 +6,8 @@
 
 
 import asyncio
-from typing import Awaitable, Callable
+import inspect
+from typing import Any, Awaitable, Callable, Optional
 
 from src.common.logger import get_logger
 
@@ -32,14 +33,17 @@ class HeartbeatManager:
         self,
         runner_id: str,
         send_callback: Callable[[], Awaitable[None]],
-        timeout_callback: Callable[[str], Awaitable[None]],
+        timeout_callback: Callable[[str, Optional[dict[str, Any]]], Awaitable[None]],
     ) -> None:
         """为指定 runner_id 启动心跳定时器。
 
         Args:
             runner_id: Runner 标识
             send_callback: 发送 HeartbeatRequest 的异步回调
-            timeout_callback: 连续超时判定断开后的异步回调
+            timeout_callback: 连续超时判定断开后的异步回调。
+                支持两种签名（向后兼容）：
+                - 旧签名: Callable[[str], Awaitable[None]] — 仅接收 runner_id
+                - 新签名: Callable[[str, Optional[dict]], Awaitable[None]] — 额外接收上下文
         """
         if runner_id in self._tasks:
             return
@@ -74,9 +78,16 @@ class HeartbeatManager:
         self,
         runner_id: str,
         send_callback: Callable[[], Awaitable[None]],
-        timeout_callback: Callable[[str], Awaitable[None]],
+        timeout_callback: Callable[[str, Optional[dict[str, Any]]], Awaitable[None]],
     ) -> None:
         """单 Runner 心跳循环。"""
+        # 向后兼容：探测 timeout_callback 接受的参数数量
+        try:
+            sig = inspect.signature(timeout_callback)
+            callback_param_count = len(sig.parameters)
+        except Exception:
+            callback_param_count = 1
+            logger.warning("无法检测 timeout_callback 签名，按旧签名(1参数)调用")
         try:
             while runner_id in self._tasks:
                 await asyncio.sleep(self._interval_s)
@@ -112,7 +123,15 @@ class HeartbeatManager:
                             "Runner %s 心跳连续超时 %d 次，判定断开",
                             runner_id, miss_count,
                         )
-                        await timeout_callback(runner_id)
+                        # 向后兼容：按签名探测结果选择调用方式
+                        if callback_param_count >= 2:
+                            context = {
+                                "detection_source": "heartbeat",
+                                "consecutive_failures": miss_count,
+                            }
+                            await timeout_callback(runner_id, context)
+                        else:
+                            await timeout_callback(runner_id)
                         return
         except asyncio.CancelledError:
             pass

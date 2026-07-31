@@ -88,6 +88,7 @@
 9. 禁止核心直接导入 global_config ✅
 10. 禁止使用 AutonomyEventBus.get_instance() ✅
 11. 禁止核心直接导入 ServiceManagerAdapter ✅
+12. 禁止核心直接导入 WatchdogAdapter ✅
 
 Protocol 接口和注册点详见 `src/core/protocols.py` 和 `src/core/adapters/`，不在此枚举。
 
