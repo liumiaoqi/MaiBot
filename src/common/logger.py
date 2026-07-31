@@ -417,6 +417,16 @@ _suppressor: Suppressor | None = None
 _suppression_filter: "SuppressionFilter | None" = None
 _ring_buffer_handler: "RingBufferHandler | None" = None
 _crash_dump: CrashDump | None = None
+_last_summary_flush = 0.0
+
+
+def _is_rate_limit_record(record: logging.LogRecord) -> bool:
+    """判断摘要日志：rate_limit 可能在 record 属性或 structlog 事件 dict 中。"""
+    if getattr(record, "rate_limit", False):
+        return True
+    if isinstance(record.msg, dict) and record.msg.get("rate_limit"):
+        return True
+    return False
 
 
 class SuppressionFilter(logging.Filter):
@@ -428,12 +438,15 @@ class SuppressionFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         try:
+            # 周期性摘要输出（窗口过期且有抑制时）
+            if not _is_rate_limit_record(record):
+                _maybe_flush_summaries()
             # 同一 record 经多个 handler filter 时只判定一次（避免重复计数）
             cached = getattr(record, "_zg2_filter_result", None)
             if cached is not None:
                 return cached
             # 摘要日志直接放行（防嵌套，不计数）
-            if getattr(record, "rate_limit", False):
+            if _is_rate_limit_record(record):
                 result = True
             elif _suppressor is not None and _suppressor.should_suppress(
                 record.levelno, record.name
@@ -460,19 +473,38 @@ class RingBufferHandler(logging.Handler):
 
     def emit(self, record: logging.LogRecord) -> None:
         try:
+            # structlog 的 record.msg 是事件 dict，event 字段从 dict 提取
+            msg = record.getMessage()
+            if isinstance(record.msg, dict):
+                event = record.msg.get("event", msg)
+            else:
+                event = msg
             entry = BufferEntry(
                 sequence=0,  # 由 RingBuffer 分配单调序号
                 timestamp=datetime.fromtimestamp(record.created).strftime("%Y-%m-%d %H:%M:%S"),
                 level=record.levelname,
                 logger_name=record.name,
                 module=getattr(record, "module", "") or "",
-                event=record.getMessage(),
-                rate_limit=bool(getattr(record, "rate_limit", False)),
+                event=event,
+                rate_limit=_is_rate_limit_record(record),
                 extra=dict(getattr(record, "extra", {}) or {}),
             )
             self._ring_buffer.append(entry)
         except Exception:
             pass  # 异常隔离：写入失败不影响落盘/WS
+
+
+def _maybe_flush_summaries() -> None:
+    """周期性摘要输出（挂 filter 调用频率，窗口过期且有抑制时输出）。"""
+    global _last_summary_flush
+    if _rate_limiter is None:
+        return
+    now = time.monotonic()
+    interval = getattr(_rate_limiter, "_summary_interval_s", 1.0)
+    if now - _last_summary_flush < interval:
+        return
+    _last_summary_flush = now
+    _emit_ratelimit_summaries()
 
 
 def _emit_ratelimit_summaries() -> None:
@@ -496,9 +528,8 @@ def _log_summary(summary: dict) -> None:
     """输出摘要日志（带 rate_limit 标记，经 get_logger 走统一链路）。"""
     summary_logger = get_logger(summary.get("source") or "log_pipeline")
     summary_logger.warning(
-        "日志频率抑制摘要",
+        summary.get("event") or "日志频率抑制摘要",
         rate_limit=True,
-        event=summary.get("event", ""),
         actual_count=summary.get("actual_count", 0),
         suppressed_count=summary.get("suppressed_count", 0),
         first_ts=summary.get("first_ts", 0.0),
