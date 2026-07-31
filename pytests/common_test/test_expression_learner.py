@@ -149,7 +149,9 @@ async def test_upsert_expression_creates_new_record_when_style_is_different(
 def test_get_session_display_name_uses_chat_manager(monkeypatch: pytest.MonkeyPatch) -> None:
     """表达学习日志应优先展示聊天流名称。"""
 
-    from src.chat.message_receive.chat_manager import chat_manager
+    from src.chat.message_receive.chat_manager import ChatManager
+
+    chat_manager = ChatManager.__new__(ChatManager)
 
     learner = ExpressionLearner(session_id="session-a")
 
@@ -202,11 +204,6 @@ async def test_ai_self_reflect_expression_stays_unchecked(
             del prompt_template
             return "prompt"
 
-    class FakeLearnModel:
-        async def generate_response_with_messages(self, builder, options, session_id: str):
-            del builder, options, session_id
-            return SimpleNamespace(response="response")
-
     class FakeRuntimeManager:
         async def invoke_hook(self, *args, **kwargs):
             del args, kwargs
@@ -228,7 +225,6 @@ async def test_ai_self_reflect_expression_stays_unchecked(
 
     monkeypatch.setattr(expression_learner_module, "get_db_session", fake_get_db_session)
     monkeypatch.setattr(expression_learner_module, "prompt_manager", FakePromptManager())
-    monkeypatch.setattr(expression_learner_module, "express_learn_model", FakeLearnModel())
     monkeypatch.setattr(
         expression_learner_module,
         "global_config",
