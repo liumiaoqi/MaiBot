@@ -102,7 +102,7 @@
 - **用户是唯一中继**
 - `.shared/` 是异步上下文共享区（git 子仓库），交接文件命名：`ca2cc_*.md` / `ca2cx_*.md` / `cc2ca_*.md` / `cx2ca_*.md`
 - 编码期间执行主智能体（CC 或 Codex）拥有代码修改权，CA 只读
-- **worktree 协作**：多智能体并行编码用独立 worktree 隔离（即用即建、合并即扔）；CA 用 Windows 侧（E:\Users\lmq\MaiBot_ca），CC/CX 用 WSL 侧（/mnt/e/Users/lmq/maibot-*），两侧路径视角不同，勿互相 prune
+- **worktree 规则**：并行编码必须用独立 worktree 隔离（即用即建、合并即扔）；禁止在主仓库工作区切分支/合并；各智能体只用自己一侧的 worktree，勿跨侧 prune
 
 ### 派发原则见协作约定
 
