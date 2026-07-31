@@ -12,6 +12,10 @@ import threading
 import time
 
 import structlog
+
+from src.common.log_pipeline.ring_buffer import BufferEntry, RingBuffer
+from src.common.log_pipeline.ratelimit import RateLimiter
+from src.common.log_pipeline.suppressor import Suppressor
 import tomlkit
 
 from .logger_color_and_mapping import MODULE_ALIASES, RESET_COLOR, CONVERTED_MODULE_COLORS as MODULE_COLORS
@@ -380,6 +384,198 @@ def load_log_config():  # sourcery skip: use-contextlib-suppress
 
 
 LOG_CONFIG = load_log_config()
+
+# ============================================================
+# ZG-2 日志管线：环形缓冲 / ratelimit / 降级抑制（裁决层）
+# ============================================================
+
+_ring_buffer: RingBuffer | None = None
+_rate_limiter: RateLimiter | None = None
+_suppressor: Suppressor | None = None
+_suppression_filter: "SuppressionFilter | None" = None
+_ring_buffer_handler: "RingBufferHandler | None" = None
+
+
+class SuppressionFilter(logging.Filter):
+    """root logger 级 Filter：SUP（降级抑制）+ RTL（ratelimit）统一裁决。
+
+    返回 False 则整条日志对所有 handler 不可见。全程 try/except：
+    异常时返回 True 放行，绝不阻断原链路（NFR-REL-01）。
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        try:
+            # 同一 record 经多个 handler filter 时只判定一次（避免重复计数）
+            cached = getattr(record, "_zg2_filter_result", None)
+            if cached is not None:
+                return cached
+            # 摘要日志直接放行（防嵌套，不计数）
+            if getattr(record, "rate_limit", False):
+                result = True
+            elif _suppressor is not None and _suppressor.should_suppress(
+                record.levelno, record.name
+            ):
+                # SUP 判定（先于 RTL：FAULT 时低级别不进限频计数）
+                result = False
+            elif _rate_limiter is not None and not _rate_limiter.check(record):
+                # RTL 判定
+                result = False
+            else:
+                result = True
+            record._zg2_filter_result = result
+            return result
+        except Exception:
+            return True  # 异常放行 + 降级（不阻断落盘/WS）
+
+
+class RingBufferHandler(logging.Handler):
+    """root logger 旁路 handler：emit 时写环形缓冲，不拦截其他 handler。"""
+
+    def __init__(self, ring_buffer: RingBuffer) -> None:
+        super().__init__()
+        self._ring_buffer = ring_buffer
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            entry = BufferEntry(
+                sequence=0,  # 由 RingBuffer 分配单调序号
+                timestamp=datetime.fromtimestamp(record.created).strftime("%Y-%m-%d %H:%M:%S"),
+                level=record.levelname,
+                logger_name=record.name,
+                module=getattr(record, "module", "") or "",
+                event=record.getMessage(),
+                rate_limit=bool(getattr(record, "rate_limit", False)),
+                extra=dict(getattr(record, "extra", {}) or {}),
+            )
+            self._ring_buffer.append(entry)
+        except Exception:
+            pass  # 异常隔离：写入失败不影响落盘/WS
+
+
+def _emit_ratelimit_summaries() -> None:
+    """摘要批量输出（由事件循环调度调用）。"""
+    if _rate_limiter is None:
+        return
+
+    def _output(summary: dict) -> None:
+        try:
+            _log_summary(summary)
+        except Exception:
+            pass
+
+    try:
+        _rate_limiter.emit_summaries(_output)
+    except Exception:
+        pass
+
+
+def _log_summary(summary: dict) -> None:
+    """输出摘要日志（带 rate_limit 标记，经 get_logger 走统一链路）。"""
+    summary_logger = get_logger(summary.get("source") or "log_pipeline")
+    summary_logger.warning(
+        "日志频率抑制摘要",
+        rate_limit=True,
+        event=summary.get("event", ""),
+        actual_count=summary.get("actual_count", 0),
+        suppressed_count=summary.get("suppressed_count", 0),
+        first_ts=summary.get("first_ts", 0.0),
+        last_ts=summary.get("last_ts", 0.0),
+    )
+
+
+def _schedule_summary_output() -> None:
+    """摘要输出调度：事件循环可用时 call_soon_threadsafe，否则回退同步（低频单条）。"""
+    try:
+        loop = asyncio.get_running_loop()
+        loop.call_soon_threadsafe(_emit_ratelimit_summaries)
+    except RuntimeError:
+        _emit_ratelimit_summaries()
+
+
+def init_log_pipeline() -> None:
+    """初始化 ZG-2 管线组件并挂载到 root logger（_immediate_setup 内调用）。"""
+    global _ring_buffer, _rate_limiter, _suppressor, _suppression_filter, _ring_buffer_handler
+
+    cfg = LOG_CONFIG
+    _ring_buffer = RingBuffer(
+        capacity=int(cfg.get("buffer_capacity", 2000)),
+        max_bytes=int(cfg.get("buffer_max_bytes", 2 * 1024 * 1024)),
+        entry_max_bytes=int(cfg.get("buffer_entry_max_bytes", 32768)),
+    )
+    _rate_limiter = RateLimiter(
+        window_s=float(cfg.get("ratelimit_window_s", 1.0)),
+        max_events=int(cfg.get("ratelimit_max_events", 10)),
+        apply_levels={
+            logging.getLevelNamesMapping().get(lv, logging.WARNING)
+            for lv in cfg.get("ratelimit_apply_levels", ["DEBUG", "INFO", "WARNING"])
+        },
+        whitelist=tuple(cfg.get("ratelimit_whitelist", []) or []),
+        summary_interval_s=float(cfg.get("ratelimit_summary_interval_s", 1.0)),
+    )
+    _suppressor = Suppressor(
+        health_map=cfg.get(
+            "health_suppression_map",
+            {"healthy": "none", "degraded": "INFO", "fault": "WARNING", "recovering": "INFO"},
+        ),
+        exempt_components=tuple(cfg.get("suppress_exempt_components", ["service_manager", "watchdog"]) or []),
+        debounce_s=float(cfg.get("suppression_debounce_s", 5.0)),
+    )
+
+    root_logger = logging.getLogger()
+    _suppression_filter = SuppressionFilter()
+    # logger 级 filter 只作用于该 logger 自身的 handle；
+    # 子 logger 传播时走 handler 级 filter —— 须给每个 handler 挂载（抑制即全 handler 不可见）
+    root_logger.addFilter(_suppression_filter)
+    for handler in root_logger.handlers[:]:
+        handler.addFilter(_suppression_filter)
+    _ring_buffer_handler = RingBufferHandler(_ring_buffer)
+    _ring_buffer_handler.addFilter(_suppression_filter)
+    root_logger.addHandler(_ring_buffer_handler)
+
+
+def get_pipeline_status() -> dict:
+    """管线内省（MNT-02）：缓冲水位 / 抑制计数 / 当前抑制线。"""
+    status: dict = {
+        "buffer": {"size": 0, "capacity": 2000, "total_bytes": 0, "max_bytes": 0},
+        "ratelimit": {"active_sources": 0, "total_suppressed": 0},
+        "suppression": {"health_level": "healthy", "current_line": "none"},
+    }
+    if _ring_buffer is not None:
+        status["buffer"] = {
+            "size": _ring_buffer.size,
+            "capacity": _ring_buffer._capacity,
+            "total_bytes": _ring_buffer.total_bytes,
+            "max_bytes": _ring_buffer._max_bytes,
+        }
+    if _rate_limiter is not None:
+        status["ratelimit"] = _rate_limiter.stats()
+    if _suppressor is not None:
+        from src.common.log_pipeline.suppressor import _get_current_health_level
+
+        status["suppression"] = {
+            "health_level": _get_current_health_level(),
+            "current_line": _suppressor.current_line(),
+        }
+    return status
+
+
+def get_ring_buffer_snapshot(limit: int | None = None) -> list[dict]:
+    """缓冲快照（供 WebUI /search?source=buffer 查询）。"""
+    if _ring_buffer is None:
+        return []
+    return [
+        {
+            "sequence": e.sequence,
+            "timestamp": e.timestamp,
+            "level": e.level,
+            "logger_name": e.logger_name,
+            "module": e.module,
+            "event": e.event,
+            "rate_limit": e.rate_limit,
+        }
+        for e in _ring_buffer.snapshot(limit)
+    ]
+
 
 
 def get_library_log_levels() -> dict[str, str]:
@@ -849,6 +1045,9 @@ def _immediate_setup():
     # 重新配置所有已存在的logger
     reconfigure_existing_loggers()
 
+    # ZG-2: 管线挂载（裁决层 Filter + 环形缓冲旁路 Handler）
+    init_log_pipeline()
+
 
 # 立即执行配置
 _immediate_setup()
@@ -889,24 +1088,6 @@ def initialize_logging(verbose: bool = True):
     _logging_initialized = True
 
     LOG_CONFIG = load_log_config()
-    # print(LOG_CONFIG)
-    configure_third_party_loggers()
-    reconfigure_existing_loggers()
-
-    # 启动日志清理任务
-    start_log_cleanup_task()
-
-    # 只在 verbose=True 时输出详细的初始化信息
-    if verbose:
-        logger = get_logger("logger")
-        console_level = LOG_CONFIG.get("console_log_level", LOG_CONFIG.get("log_level", "INFO"))
-        file_level = LOG_CONFIG.get("file_log_level", LOG_CONFIG.get("log_level", "INFO"))
-        max_log_files = max(1, int(LOG_CONFIG.get("max_log_files", 30) or 30))
-        log_cleanup_days = max(1, int(LOG_CONFIG.get("log_cleanup_days", 30) or 30))
-        logger.info(
-            f"日志系统已初始化：控制台={console_level}，文件={file_level}，"
-            f"轮转={max_log_files}个文件，清理={log_cleanup_days}天前"
-        )
 
 
 def cleanup_old_logs():
