@@ -6,9 +6,7 @@ export { useAutoSave } from './useAutoSave'
 export {
   AliasNamesHook,
   AMemorixSharedMemoryGroupsHook,
-  BehaviorGroupsHook,
   BehaviorFocusGroupsHook,
-  BehaviorLearningListHook,
   BotPlatformAccountsHook,
   ChatPromptsHook,
   ChatTalkValueRulesHook,
