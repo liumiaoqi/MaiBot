@@ -125,9 +125,23 @@ ZG-9 OOM 保护与 ZG-3 看门狗分工：OOM 保护管"死之前的优先级排
 
 | # | 项 | 内容 | 触发时机 |
 |---|-----|------|---------|
-| ZG-6-R1 | 全量既有回归确认 | 本批次修复了 pyproject pytest-asyncio 配置段（mode=STRICT→AUTO），历史 async 测试可能首次真正在 auto 模式运行，需全量 pytest 确认无潜伏失败 | 合并后（docker 恢复即跑） |
+| ZG-6-R1 | 全量既有回归确认 | ✅ 已完成（2026-08-01）：pyproject asyncio_mode 修复后全量 pytest 首次真正跑 auto 模式。结果：**601 passed（含 ZG-6 全部 38 测试）**；195 failed + 77 errors 均为**主仓库既有测试债务**（测试与代码不同步：引用已删模块 `behavior_pattern_store`/`expression._chat_manager`/`message.TextComponent`、config fixture 未初始化、lab/ 实验目录混入），无一由 ZG-6 或配置修复引入。需另立治理项 | ✅ 完成 |
 | ZG-6-R2 | 通知链 per-subscriber 超时 | 当前全局 5s 超时；design 已裁定不优先，订阅者超时记告警视为 DONE | 出现"单一慢订阅者拖累全局"实证时 |
 | ZG-6-R3 | ServiceManager 自适应接入 | 适配器谓词已就绪，ServiceManager/消息管道按状态自适应（BOOTING 拒收等）尚未接线 | 后续系统审阅时评估 |
+
+## 全量回归暴露的既有测试债务（2026-08-01，ZG-6-R1 副产品）
+
+> 主容器排除 lab/ 与 10 个已知行为学习遗留文件后：601 passed / 195 failed / 77 errors。
+> 这些失败在 pytest-asyncio 配置修复前被 strict 模式掩盖（async 测试根本不跑），修复后暴露——**是长期债务，不是回归**。
+
+| 类别 | 文件/范围 | 根因 |
+|------|----------|------|
+| 引用已删模块 | common_test behavior_*（4 文件，534b8890b 废弃后测试未同步清理） | 行为学习系统删除遗留 |
+| 引用已删模块 | webui expression/jargon routes、session_message_test 等 | 路由/API 重构后测试未同步 |
+| fixture 未初始化 | chat_config_utils 等（config_manager 未 init） | 测试环境依赖缺失 |
+| 目录混入 | lab/exploratory/（8 文件） | 本地实验目录混入回归收集，AGENTS.md 默认原则应排除 |
+
+**治理建议**：另立测试卫生批次（对齐"功能/组件审阅清理"主线）——同步/删除失效测试 + 全量回归加入 `--ignore=lab` 基线命令（建议写入 pyproject addopts）。
 
 ## 交叉的 CQ 债务
 
