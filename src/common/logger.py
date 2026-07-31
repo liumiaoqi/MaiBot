@@ -371,13 +371,34 @@ def load_log_config():  # sourcery skip: use-contextlib-suppress
             "jieba",
         ],
         "library_log_levels": DEFAULT_LIBRARY_LOG_LEVELS.copy(),
+        # ── ZG-2 环形缓冲 ──
+        "buffer_capacity": 2000,          # 最近 N 条（spec 6.1）
+        "buffer_max_bytes": 2097152,      # 内存上限 ≤2MB（NFR-PER-02）
+        "buffer_entry_max_bytes": 32768,  # 单条超长截断（BUF-02）
+        # ── ZG-2 ratelimit ──
+        "ratelimit_window_s": 1.0,        # 窗口（秒）
+        "ratelimit_max_events": 10,       # 窗口内阈值
+        "ratelimit_summary_interval_s": 1.0,  # 摘要输出间隔
+        "ratelimit_whitelist": [],        # logger_name 前缀 / 事件签名
+        "ratelimit_apply_levels": ["DEBUG", "INFO", "WARNING"],  # ERROR/CRITICAL 默认豁免
+        # ── ZG-2 降级抑制 ──
+        "health_suppression_map": {"healthy": "none", "degraded": "INFO", "fault": "WARNING", "recovering": "INFO"},
+        "suppress_exempt_components": ["service_manager", "watchdog"],
+        "suppression_debounce_s": 5.0,
+        # ── ZG-2 崩溃导出 ──
+        "crash_dump_enabled": True,
     }
 
     try:
         if config_path.exists():
             with open(config_path, "r", encoding="utf-8") as f:
                 config = tomlkit.load(f)
-                return config.get("log", default_config)
+                loaded = config.get("log", default_config)
+                # 默认值兜底：旧配置缺新键时用默认（ZG-2 新增 12 键不破坏旧配置）
+                merged = default_config.copy()
+                if isinstance(loaded, dict):
+                    merged.update(dict(loaded))
+                return merged
     except Exception as e:
         print(f"[日志系统] 加载日志配置失败: {e}")
     return default_config

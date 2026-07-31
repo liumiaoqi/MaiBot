@@ -806,6 +806,22 @@ maisaka_prompt_preview_limit = 256 # 每个聊天最多保留多少组 Prompt �
 maisaka_reply_effect_limit = 256 # 每个聊天最多保留多少条回复效果记录。
 suppress_libraries = ["faiss", "httpx", "urllib3", "asyncio", "websockets", "httpcore", "requests", "sqlalchemy", "openai", "uvicorn", "jieba"] # 完全不显示日志的第三方库名称列表。
 library_log_levels = {aiohttp = "WARNING", PIL = "WARNING"} # 单独设置某些第三方库的日志等级。
+# ── ZG-2 环形缓冲 ──
+buffer_capacity = 2000 # 最近 N 条（内存缓冲，供 WebUI 查询/崩溃导出）
+buffer_max_bytes = 2097152 # 缓冲内存上限（字节，≤2MB）
+buffer_entry_max_bytes = 32768 # 单条日志超过此字节数截断（不影响条目计数）
+# ── ZG-2 ratelimit ──
+ratelimit_window_s = 1.0 # 抑制时间窗口（秒）
+ratelimit_max_events = 10 # 窗口内同源阈值条数
+ratelimit_summary_interval_s = 1.0 # 摘要输出间隔（秒）
+ratelimit_whitelist = [] # 白名单（logger_name 前缀），命中不抑制
+ratelimit_apply_levels = ["DEBUG", "INFO", "WARNING"] # 受抑制级别；ERROR/CRITICAL 默认豁免
+# ── ZG-2 降级抑制 ──
+health_suppression_map = { healthy = "none", degraded = "INFO", fault = "WARNING", recovering = "INFO" } # 健康等级→抑制线
+suppress_exempt_components = ["service_manager", "watchdog"] # 降级时豁免的组件（诊断路径）
+suppression_debounce_s = 5.0 # 健康等级切换防抖（秒）
+# ── ZG-2 崩溃导出 ──
+crash_dump_enabled = true # 崩溃/关闭时导出环形缓冲为 dump_*.log.jsonl
 
 [debug]
 show_maisaka_thinking = true # 在日志或界面中显示麦麦的思考过程。
