@@ -23,6 +23,7 @@ from src.plugin_runtime_v2.proto import common_pb2, plugin_host_pb2
 from src.plugin_runtime_v2.proto.plugin_host_pb2_grpc import PluginHostServicer
 
 if TYPE_CHECKING:
+    from src.common.data_models.message_component_data_model import MessageSequence
     from src.plugin_runtime_v2.mcp.host_bridge import MCPHostBridge
 
 logger = get_logger("plugin_runtime_v2.host.servicer")
@@ -194,6 +195,24 @@ class _PluginHostServicer(PluginHostServicer):
 
         self._heartbeat_mgr.start(runner_id, _send_heartbeat, _on_heartbeat_timeout)
 
+        # ZG-3: V2 Runner 注册到看门狗桥接（经注册点，不导入具体类；
+        # 看门狗未注册/异常时降级跳过，不阻断 Runner 连接）
+        try:
+            from src.core.watchdog_port_registry import get_watchdog_port
+
+            watchdog = get_watchdog_port()
+            supervisor = getattr(self, "_supervisor", None)
+            if supervisor is not None:
+                watchdog.register_v2_supervisor(
+                    runner_id, supervisor, self._heartbeat_mgr, "plugin_runtime_v2",
+                )
+        except Exception:
+            logger.warning(
+                "V2 Runner 注册到看门狗桥接失败，已降级跳过（runner_id=%s）",
+                runner_id,
+                exc_info=True,
+            )
+
         # ── 消息循环 ──
         async def _recv_loop() -> None:
             """接收 RunnerMessage 的后台任务。"""
@@ -220,7 +239,7 @@ class _PluginHostServicer(PluginHostServicer):
                     elif payload_kind == "heartbeat":
                         self._heartbeat_mgr.record_response(runner_id)
                         conn.record_heartbeat()
-            except Exception as exc:
+            except Exception:
                 logger.warning("Runner %s 接收循环退出", runner_id, exc_info=True)
             finally:
                 await outbox.put(None)  # 发送终止信号
@@ -396,6 +415,21 @@ class _PluginHostServicer(PluginHostServicer):
     def _cleanup_connection(self, runner_id: str) -> None:
         """清理 Runner 连接资源。"""
         self._heartbeat_mgr.stop(runner_id)
+
+        # ZG-3: V2 Runner 从看门狗桥接注销（stop 已清理心跳监听器，
+        # unregister_runner 摘除监听器为静默忽略；看门狗未注册时降级跳过）
+        try:
+            from src.core.watchdog_port_registry import get_watchdog_port
+
+            watchdog = get_watchdog_port()
+            watchdog.unregister_runner(runner_id)
+        except Exception:
+            logger.warning(
+                "V2 Runner 从看门狗桥接注销失败，已降级跳过（runner_id=%s）",
+                runner_id,
+                exc_info=True,
+            )
+
         self._registry.unregister(runner_id)
         self._outboxes.pop(runner_id, None)
         if self._host_bridge is not None:
@@ -459,11 +493,9 @@ class _PluginHostServicer(PluginHostServicer):
             case "TEXT":
                 msg_seq.text(request.text_content)
             case "IMAGE":
-                from src.common.data_models.message_component_data_model import ImageComponent
                 img_data = base64.b64decode(request.image_base64) if request.image_base64 else b""
                 msg_seq.image(img_data)
             case "EMOJI":
-                from src.common.data_models.message_component_data_model import EmojiComponent
                 emoji_data = base64.b64decode(request.emoji_base64) if request.emoji_base64 else b""
                 msg_seq.emoji(emoji_data)
             case "FORWARD":
@@ -593,9 +625,7 @@ class _PluginHostServicer(PluginHostServicer):
         import base64
 
         from src.common.data_models.message_component_data_model import (
-            ImageComponent,
             MessageSequence,
-            TextComponent,
         )
 
         seq = MessageSequence([])

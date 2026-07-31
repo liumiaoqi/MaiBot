@@ -55,6 +55,11 @@ class RunnerHealthBridge:
         component_id: str,
     ) -> None:
         """注册 V2 RunnerSupervisor + HeartbeatManager 供桥接订阅。"""
+        if runner_id in self._v2_supervisors:
+            logger.info(
+                "V2 Runner 已注册，忽略重复注册（runner_id=%s）", runner_id
+            )
+            return
         if not hasattr(supervisor, "get_health_status"):
             raise ValueError(
                 f"V2 supervisor 缺少 get_health_status() 方法: {runner_id}"
@@ -71,6 +76,15 @@ class RunnerHealthBridge:
             is_recovering=False,
         )
         self._v2_supervisors[runner_id] = (supervisor, heartbeat_manager)
+
+        # 注入心跳超时旁路监听器（FR-1 根因修复），不依赖 start 已调用；
+        # heartbeat_manager 缺该方法时防御性降级，不阻断桥接其余能力
+        try:
+            heartbeat_manager.add_timeout_listener(runner_id, self._on_v2_timeout)
+        except Exception:
+            logger.exception(
+                "V2 心跳监听器注入失败，已降级跳过（runner_id=%s）", runner_id
+            )
 
         task = asyncio.ensure_future(
             self._v2_diff_loop(runner_id), loop=self._main_loop
@@ -137,6 +151,11 @@ class RunnerHealthBridge:
         component_id: str,
     ) -> None:
         """注册 V1 PluginRunnerSupervisor 供旁路轮询。"""
+        if runner_id in self._v1_supervisors:
+            logger.info(
+                "V1 Runner 已注册，忽略重复注册（runner_id=%s）", runner_id
+            )
+            return
         if not hasattr(supervisor, "_runner_process") or not hasattr(
             supervisor, "_restart_count"
         ):
@@ -302,6 +321,19 @@ class RunnerHealthBridge:
         """取消注册 Runner。"""
         if runner_id not in self._bridge_status:
             raise UnknownRunnerError(runner_id)
+
+        # V2 条目先摘除心跳超时监听器（与 heartbeat_mgr.stop 的清理语义配套）
+        entry = self._v2_supervisors.get(runner_id)
+        if entry is not None:
+            _, heartbeat_manager = entry
+            try:
+                heartbeat_manager.remove_timeout_listener(
+                    runner_id, self._on_v2_timeout
+                )
+            except Exception:
+                logger.exception(
+                    "V2 心跳监听器摘除失败，已降级跳过（runner_id=%s）", runner_id
+                )
 
         task = self._poll_tasks.pop(runner_id, None)
         if task is not None:
