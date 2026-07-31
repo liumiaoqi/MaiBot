@@ -5,6 +5,7 @@ from typing import Any
 
 from src.core.types import AgentAutonomySnapshot, AgentInteractionSnapshot, AMemorixIntegrationSnapshot
 from src.core.types import CacheCleanupConfig, MaimMessageConfigSnapshot, PluginRuntimeRenderSnapshot, PluginRuntimeSnapshot
+from src.core.watchdog.config import WatchdogConfig
 
 
 from src.common.logger import get_logger
@@ -350,6 +351,20 @@ class GlobalConfigAppConfigPort:
             browser_install_root=str(render.browser_install_root or ""),
             headless=bool(render.headless),
             concurrency_limit=int(render.concurrency_limit),
+        )
+
+    def get_watchdog_config(self) -> WatchdogConfig:
+
+        cfg = self._get_cfg().watchdog
+        return WatchdogConfig(
+            touch_interval_s=float(cfg.touch_interval_s),
+            check_interval_s=float(cfg.check_interval_s),
+            mild_threshold_s=float(cfg.mild_threshold_s),
+            severe_threshold_s=float(cfg.severe_threshold_s),
+            consecutive_report_threshold=int(cfg.consecutive_report_threshold),
+            cooldown_s=float(cfg.cooldown_s),
+            v1_poll_interval_s=float(cfg.v1_poll_interval_s),
+            v2_diff_interval_s=float(cfg.v2_diff_interval_s),
         )
 
     def register_reload_callback(self, callback: object) -> None:

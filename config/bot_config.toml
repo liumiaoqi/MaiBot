@@ -962,3 +962,13 @@ standby_visible_to_active = true # 待命智能体对活跃智能体是否可见
 standby_emotion_visible_to_active = false # 待命智能体的情绪是否对活跃智能体可见。
 dormant_visible_to_any = false # 沉睡智能体是否对任何智能体可见。
 state_awareness_enabled = true # 启用后，智能体可感知共居智能体的状态信息。
+
+[watchdog] # ZG-3 看门狗（事件循环阻塞检测 + Runner 健康桥接）
+touch_interval_s = 1.0 # touch 刷新间隔（秒），事件循环正常时刷新存活时间戳的周期。
+check_interval_s = 5.0 # 检测判定间隔（秒），独立线程判定周期。
+mild_threshold_s = 3.0 # 轻度卡顿阈值（秒），距上次 touch 超过此值记轻度卡顿。
+severe_threshold_s = 10.0 # 严重阻塞阈值（秒），距上次 touch 超过此值记严重阻塞；必须大于 mild_threshold_s。
+consecutive_report_threshold = 2 # 连续超时上报阈值 N，连续 N 次严重判定才上报。
+cooldown_s = 30.0 # 冷却窗口（秒），同一异常源在冷却内不重复上报。
+v1_poll_interval_s = 10.0 # V1 旁路轮询间隔（秒）。
+v2_diff_interval_s = 5.0 # V2 状态 diff 轮询间隔（秒）。

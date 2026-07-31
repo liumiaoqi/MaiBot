@@ -37,6 +37,7 @@ if TYPE_CHECKING:
         SystemHealthView,
     )
     from src.core.startup.types import CoreReadiness, StartupResult
+    from src.core.watchdog.config import WatchdogConfig
     from src.core.watchdog.types import RunnerBridgeStatus, WatchdogStatus
     from src.maisaka.agent.config import AgentConfig
     from src.core.types import (
@@ -1032,6 +1033,7 @@ class AppConfigPort(Protocol):
     === Message Receive 域 ===
     === Chat 域 ===
     === Jargon 域 ===
+    === Watchdog 域 ===
     === System 域 ===
     """
 
@@ -1165,6 +1167,14 @@ class AppConfigPort(Protocol):
 
         Returns:
             PluginRuntimeRenderSnapshot 不可变快照
+        """
+        ...
+
+    def get_watchdog_config(self) -> WatchdogConfig:
+        """获取看门狗配置快照（事件循环阻塞检测 + Runner 健康桥接）。
+
+        Returns:
+            WatchdogConfig 不可变快照（8 项，来自配置文件 [watchdog] 域）
         """
         ...
 

@@ -46,6 +46,7 @@ from .official_configs import (
     TelemetryConfig,
     VisualConfig,
     VoiceConfig,
+    WatchdogSectionConfig,
     WebUIConfig,
 )
 
@@ -65,7 +66,7 @@ MODEL_CONFIG_PATH: Path = (CONFIG_DIR / "model_config.toml").resolve().absolute(
 
 
 MMC_VERSION: str = read_project_version(PROJECT_ROOT)
-CONFIG_VERSION: str = "8.24.0"
+CONFIG_VERSION: str = "8.25.0"
 MODEL_CONFIG_VERSION: str = "1.17.6"
 
 logger = get_logger("config")
@@ -137,6 +138,8 @@ class Config(ConfigBase):
     webui: WebUIConfig = Field(default_factory=WebUIConfig)
     """WebUI配置类"""
 
+    watchdog: WatchdogSectionConfig = Field(default_factory=WatchdogSectionConfig)
+    """看门狗配置类"""
 
     mcp: MCPConfig = Field(default_factory=MCPConfig)
     """MCP 配置类"""
@@ -617,7 +620,7 @@ def write_config_to_file(
             a_memorix_web = full_config_data["a_memorix"]["web"]
             if "import_config" in a_memorix_web and "import" not in a_memorix_web:
                 a_memorix_web["import"] = a_memorix_web.pop("import_config")
-        except Exception as exc:
+        except Exception:
             logger.warning("A_Memorix 配置写出时转换 web.import_config 失败", exc_info=True)
 
     # 备份旧文件

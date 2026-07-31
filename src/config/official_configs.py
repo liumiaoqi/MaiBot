@@ -6880,3 +6880,35 @@ class AgentAutonomySectionConfig(ConfigBase):
         },
     )
     """启用后，智能体可感知共居智能体的状态信息。"""
+
+
+class WatchdogSectionConfig(ConfigBase):
+    """看门狗配置类（ZG-3 事件循环阻塞检测与 Runner 健康桥接）。
+
+    8 项字段与核心层 WatchdogConfig 一一对应，全部带默认值；
+    非法值校验由核心层 WatchdogConfig.__post_init__ 兜底（此处不加 validator）。
+    """
+
+    touch_interval_s: float = Field(default=1.0)
+    """touch 刷新间隔（秒），事件循环正常时刷新存活时间戳的周期。"""
+
+    check_interval_s: float = Field(default=5.0)
+    """检测判定间隔（秒），独立线程判定周期。"""
+
+    mild_threshold_s: float = Field(default=3.0)
+    """轻度卡顿阈值（秒），距上次 touch 超过此值记轻度卡顿。"""
+
+    severe_threshold_s: float = Field(default=10.0)
+    """严重阻塞阈值（秒），距上次 touch 超过此值记严重阻塞；必须大于 mild_threshold_s。"""
+
+    consecutive_report_threshold: int = Field(default=2)
+    """连续超时上报阈值 N，连续 N 次严重判定才上报。"""
+
+    cooldown_s: float = Field(default=30.0)
+    """冷却窗口（秒），同一异常源在冷却内不重复上报。"""
+
+    v1_poll_interval_s: float = Field(default=10.0)
+    """V1 旁路轮询间隔（秒）。"""
+
+    v2_diff_interval_s: float = Field(default=5.0)
+    """V2 状态 diff 轮询间隔（秒）。"""

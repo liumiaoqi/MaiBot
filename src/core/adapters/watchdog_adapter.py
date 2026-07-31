@@ -82,12 +82,14 @@ class WatchdogAdapter(WatchdogPort):
         asyncio.run_coroutine_threadsafe(
             self._do_report(event), self._main_loop
         )
-        self._notify_subscribers()
+        asyncio.run_coroutine_threadsafe(
+            self._notify_subscribers_async(), self._main_loop
+        )
 
     async def _async_report_callback(self, event: FaultReportEvent) -> None:
         """供 RunnerHealthBridge 在主循环内调用。"""
         await self._do_report(event)
-        self._notify_subscribers()
+        await self._notify_subscribers_async()
 
     async def _do_report(self, event: FaultReportEvent) -> None:
         """经 ServiceManagerPort 上报故障。"""
@@ -102,7 +104,7 @@ class WatchdogAdapter(WatchdogPort):
         except Exception:
             logger.exception("故障上报异常（component_id=%s）", event.component_id)
 
-    def _notify_subscribers(self) -> None:
+    async def _notify_subscribers_async(self) -> None:
         """向状态订阅者推送当前状态快照。"""
         if not self._status_subscribers:
             return
