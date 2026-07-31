@@ -18,7 +18,6 @@ export interface MenuItem {
   path: string
   searchDescription?: string
   tourId?: string
-  featureFlag?: 'behaviorLearning'
 }
 
 export interface MenuSection {

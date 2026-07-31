@@ -80,7 +80,7 @@ const PAGE_SIZE = 10
 type ChatTypeFilter = 'all' | ChatStreamType
 type ChatManagementView = 'groups' | 'streams'
 type MutualGroupKind = 'expression' | 'jargon' | 'memory'
-type LearningKind = 'expression' | 'jargon' | 'behavior'
+type LearningKind = 'expression' | 'jargon'
 const MUTUAL_GROUP_CHAT_RESULT_LIMIT = 50
 
 const MUTUAL_GROUP_KIND_LABEL: Record<MutualGroupKind, string> = {
@@ -1629,11 +1629,6 @@ function ConfigStatusRows({ detail }: { detail: ChatStreamDetail }) {
   const configRows = [
     { kind: 'expression' as const, title: '表达', status: detail.expression },
     { kind: 'jargon' as const, title: '黑话', status: detail.jargon },
-    {
-      kind: 'behavior' as const,
-      title: '行为',
-      status: detail.behavior,
-    },
   ]
 
   return (

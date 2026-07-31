@@ -80,11 +80,6 @@ const NATURAL_LANGUAGE_TEXT_STYLE: CSSProperties = {
     "'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC', 'Noto Sans SC', system-ui, sans-serif",
 }
 const STAGE_LABELS: Record<string, string> = {
-  behavior_consolidator: '行为整合',
-  behavior_feedback: '行为反馈',
-  behavior_learner: '行为学习',
-  behavior_scenario_analyzer: '行为场景分析',
-  behavior_selector: '行为选择',
   emotion: '表情包发送',
   expression_learner: '表达学习',
   expression_selection: '表达选择',
@@ -2423,15 +2418,8 @@ export function ReasoningProcessPage({
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
-                          {(item.has_behavior_choice_insert || previewText) && (
+                          {previewText && (
                             <div className="flex min-w-0 items-start gap-1.5">
-                              {item.has_behavior_choice_insert && (
-                                <span
-                                  className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-violet-500"
-                                  title="包含行为表现参考"
-                                  aria-label="包含行为表现参考"
-                                />
-                              )}
                               {previewText && (
                                 <div
                                   className="text-foreground line-clamp-2 min-w-0 text-sm font-medium"

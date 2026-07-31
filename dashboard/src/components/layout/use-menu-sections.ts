@@ -5,20 +5,8 @@ import { BOT_CONFIG_UPDATED_EVENT, getBotConfigCached } from '@/lib/config-api'
 import { menuSections } from './constants'
 import type { MenuSection } from './types'
 
-interface MenuFeatureFlags {
-  behaviorLearning: boolean
-}
-
-function resolveMenuFeatureFlags(config: Record<string, unknown> | null): MenuFeatureFlags {
-  const experimental = config?.experimental
-  const behaviorLearning =
-    experimental && typeof experimental === 'object' && 'enable_behavior_learning' in experimental
-      ? Boolean((experimental as Record<string, unknown>).enable_behavior_learning)
-      : true
-
-  return {
-    behaviorLearning,
-  }
+function resolveMenuFeatureFlags(_config: Record<string, unknown> | null): Record<string, never> {
+  return {}
 }
 
 function filterMenuSections(flags: MenuFeatureFlags | null): MenuSection[] {
@@ -26,7 +14,6 @@ function filterMenuSections(flags: MenuFeatureFlags | null): MenuSection[] {
     .map((section) => ({
       ...section,
       items: section.items.filter((item) => {
-        if (item.featureFlag === 'behaviorLearning') return flags?.behaviorLearning === true
         return true
       }),
     }))
@@ -48,7 +35,7 @@ export function useMenuSections(): MenuSection[] {
         })
         .catch(() => {
           if (!cancelled) {
-            setFeatureFlags({ behaviorLearning: true })
+            setFeatureFlags({})
           }
         })
     }
