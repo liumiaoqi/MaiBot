@@ -1,5 +1,7 @@
 """Unix Domain Socket 传输实现
 
+from src.common.logger import get_logger
+
 适用于 Linux / macOS 平台。
 
 注意：UDS (Unix Domain Socket) 是 Unix-like 系统特有的 IPC 机制，
@@ -89,8 +91,7 @@ class UDSTransportServer(TransportServer):
             # 设置文件权限为仅当前用户可访问
             self._socket_path.chmod(0o600)
         except Exception as exc:
-            import logging
-            logging.debug("UDS 传输异常: %s", exc)
+            get_logger("plugin_runtime.transport").debug("UDS 传输异常: %s", exc)
             # 启动失败时清理可能创建的目录和 socket 文件
             if self._socket_path.exists():
                 self._socket_path.unlink()

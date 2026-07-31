@@ -162,7 +162,7 @@ class ConfigManagerModelConfigPort:
         merged_model_list = getattr(merged, "model_list", None)
         if isinstance(merged_model_list, list) and not merged_model_list:
             global_model_list = getattr(global_task_cfg, "model_list", [])
-            logging.warning(
+            get_logger("model_config_port").warning(
                 "智能体 %s 覆盖后任务 %s 的 model_list 为空，回退到全局配置",
                 agent_id, task_name,
             )

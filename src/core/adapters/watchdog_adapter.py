@@ -5,7 +5,6 @@
 
 
 import asyncio
-import logging
 from typing import Any, Callable, Optional
 
 from src.core.protocols import WatchdogPort
@@ -24,7 +23,9 @@ from src.core.watchdog.types import (
     WatchdogStatus,
 )
 
-logger = logging.getLogger(__name__)
+from src.common.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class WatchdogAdapter(WatchdogPort):

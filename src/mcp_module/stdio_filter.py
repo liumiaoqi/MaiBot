@@ -24,7 +24,6 @@ logger = get_logger("auto.stdio_filter")
 
 from contextlib import asynccontextmanager
 from typing import TextIO
-import logging
 import sys
 
 from anyio.streams.text import TextReceiveStream
@@ -42,7 +41,7 @@ from mcp.client.stdio import (
 )
 from mcp.shared.message import SessionMessage
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 _MAX_GARBAGE_PREVIEW = 200
 

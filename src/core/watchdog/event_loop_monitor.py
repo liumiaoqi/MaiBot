@@ -6,7 +6,6 @@ touch 时间戳刷新（主循环协程）+ 独立线程周期检测 + 双层判
 
 
 import asyncio
-import logging
 import threading
 import time
 from typing import Callable, Optional
@@ -14,7 +13,9 @@ from typing import Callable, Optional
 from src.core.watchdog.config import WatchdogConfig
 from src.core.watchdog.types import BlockSeverity, FaultReason, FaultReportEvent, WatchdogStatus
 
-logger = logging.getLogger(__name__)
+from src.common.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class EventLoopMonitor:

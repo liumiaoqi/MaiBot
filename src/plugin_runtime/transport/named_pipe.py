@@ -1,5 +1,7 @@
 """Windows Named Pipe 传输实现。
 
+from src.common.logger import get_logger
+
 适用于 Windows 平台，使用 asyncio ProactorEventLoop 的 named pipe 支持。
 
 注意：Named Pipe 是 Windows 特有的 IPC 机制，
@@ -121,8 +123,7 @@ class _NamedPipeServerProtocol(asyncio.StreamReaderProtocol):
                     }
                 )
             except Exception as exc:
-                import logging
-                logging.debug("Named Pipe 传输异常: %s", exc)
+                get_logger("plugin_runtime.transport").debug("Named Pipe 传输异常: %s", exc)
                 # 如果 loop 已经关闭，忽略异常
                 pass
 

@@ -5,7 +5,6 @@
 
 
 import asyncio
-import logging
 import time
 from collections import deque
 from typing import TYPE_CHECKING, Awaitable, Callable, Optional
@@ -15,7 +14,9 @@ from src.core.service_manager.types import ServiceDescriptor
 if TYPE_CHECKING:
     from src.core.service_manager.lifecycle import LifecycleManager
 
-logger = logging.getLogger(__name__)
+from src.common.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class RecoveryEngine:

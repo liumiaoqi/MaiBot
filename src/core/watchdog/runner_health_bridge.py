@@ -7,7 +7,6 @@ V1 旁路轮询（进程存活 + 重启计数 diff）+ 上报限流 + 恢复信�
 
 
 import asyncio
-import logging
 import time
 from typing import Any, Awaitable, Callable, Optional
 
@@ -21,7 +20,9 @@ from src.core.watchdog.types import (
     RunnerBridgeStatus,
 )
 
-logger = logging.getLogger(__name__)
+from src.common.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class RunnerHealthBridge:

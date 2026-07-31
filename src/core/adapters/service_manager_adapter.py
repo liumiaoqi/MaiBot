@@ -5,7 +5,6 @@
 
 
 import asyncio
-import logging
 import time
 from collections import deque
 from dataclasses import replace
@@ -31,7 +30,9 @@ from src.core.service_manager.types import (
 )
 from src.core.startup.types import ComponentStatus, StartupResult
 
-logger = logging.getLogger(__name__)
+from src.common.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class ServiceManagerAdapter:
