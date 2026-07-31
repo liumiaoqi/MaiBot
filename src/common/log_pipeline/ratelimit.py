@@ -8,7 +8,8 @@ ERROR/CRITICAL 默认豁免（apply_levels 不含），白名单前缀逐条放�
 import logging
 import threading
 import time
-from dataclasses import dataclass, field
+from typing import Callable
+from dataclasses import dataclass
 
 
 @dataclass

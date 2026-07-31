@@ -111,6 +111,7 @@ ignore = ["E711", "E501", "TID252"]
 "src.config.config.global_config" = {msg = "禁止直接导入 global_config，请使用 BotConfigPort/ChatConfigPort/AppConfigPort Protocol 接口"}
 "src.core.event_bus.AutonomyEventBus.get_instance" = {msg = "禁止调用 AutonomyEventBus.get_instance()，请使用 AutonomyEventBusPort 构造注入"}
 "src.chat.heart_flow.heartflow_manager.heartflow_manager" = {msg = "禁止直接导入 heartflow_manager 全局单例，请使用 ChatRuntimeRegistry Protocol 接口（get_chat_runtime_registry()）"}
+"logging" = {msg = "禁止直接 import logging，请使用 src.common.logger.get_logger() 统一入口；受控 stdlib_logging 用法见 .codeartsdoer/specs/zg2_log_pipeline/spec.md 附录 A 受控清单"}
 
 [tool.ruff.lint.per-file-ignores]
 "src/core/adapters/*" = ["TID251"]
@@ -128,6 +129,14 @@ ignore = ["E711", "E501", "TID252"]
 "src/services/html_render_service.py" = ["TID251"]
 "src/services/telemetry_stats_service.py" = ["TID251"]
 "src/plugin_runtime_v2/proto/*_pb2*.py" = ["F401", "E402"]
+"src/common/logger.py" = ["TID251", "TID253"]
+"src/webui/routers/log.py" = ["TID251", "TID253"]
+"src/plugin_runtime/host/logger_bridge.py" = ["TID251", "TID253"]
+"src/plugin_runtime/runner/log_handler.py" = ["TID251", "TID253"]
+"src/plugin_runtime/runner/runner_main.py" = ["TID251", "TID253"]
+"src/plugin_runtime/protocol/envelope.py" = ["TID251", "TID253"]
+"src/A_memorix/scripts/migrate_maibot_memory.py" = ["TID251", "TID253"]  # 仅 bootstrap fallback 受控用途
+"src/common/log_pipeline/*" = ["TID251", "TID253"]  # 操作 stdlib LogRecord 的受控用途
 
 [tool.ruff.format]
 docstring-code-format = true

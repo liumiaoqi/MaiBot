@@ -58,6 +58,7 @@ RelationWriteService = None
 
 
 def _create_bootstrap_logger():
+    import logging  # 受控 bootstrap 用途（引导期 get_logger 不可用）
     fallback = logging.getLogger("A_Memorix.MaiBotMigration")
     if not fallback.handlers:
         fallback.addHandler(logging.NullHandler())

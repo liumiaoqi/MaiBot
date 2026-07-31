@@ -1,12 +1,12 @@
 """Unix Domain Socket 传输实现
 
-from src.common.logger import get_logger
-
 适用于 Linux / macOS 平台。
 
 注意：UDS (Unix Domain Socket) 是 Unix-like 系统特有的 IPC 机制，
 在 Windows 平台上不可用。Windows 平台请使用 Named Pipe 传输。
 """
+
+from src.common.logger import get_logger
 
 from pathlib import Path
 from typing import Optional
