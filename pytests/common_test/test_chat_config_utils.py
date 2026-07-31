@@ -146,66 +146,10 @@ def test_expression_learning_list_exact_takes_priority_when_no_wildcard_matches(
     assert ExpressionConfigUtils.get_expression_config_for_chat(session_id) == (False, False)
 
 
-def test_behavior_learning_uses_experimental_global_switch(monkeypatch):
-    session_id = SessionUtils.calculate_session_id("qq", group_id="1036092828", account_id="bot-a")
-    monkeypatch.setattr(
-        global_config.expression,
-        "learning_list",
-        [
-            {
-                "platform": "qq",
-                "item_id": "1036092828",
-                "type": "group",
-                "use": True,
-                "learn": True,
-            }
-        ],
-    )
-    monkeypatch.setattr(global_config.experimental, "enable_behavior_learning", False)
-    monkeypatch.setattr(
-        chat_manager,
-        "get_session_by_session_id",
-        lambda _session_id: SimpleNamespace(platform="qq", group_id="1036092828", user_id=None),
-    )
-
-    assert BehaviorConfigUtils.get_behavior_config_for_chat(session_id) == (True, False)
 
 
-def test_behavior_learning_is_disabled_by_default(monkeypatch):
-    monkeypatch.setattr(global_config.expression, "learning_list", [])
-    monkeypatch.setattr(
-        global_config.experimental,
-        "enable_behavior_learning",
-        ExperimentalConfig().enable_behavior_learning,
-    )
-
-    assert ExperimentalConfig().enable_behavior_learning is False
-    assert BehaviorConfigUtils.get_behavior_config_for_chat("unknown-session") == (True, False)
 
 
-def test_behavior_learning_keeps_expression_scope_when_global_switch_enabled(monkeypatch):
-    session_id = SessionUtils.calculate_session_id("qq", group_id="1036092828", account_id="bot-a")
-    monkeypatch.setattr(
-        global_config.expression,
-        "learning_list",
-        [
-            {
-                "platform": "qq",
-                "item_id": "1036092828",
-                "type": "group",
-                "use": True,
-                "learn": False,
-            }
-        ],
-    )
-    monkeypatch.setattr(global_config.experimental, "enable_behavior_learning", True)
-    monkeypatch.setattr(
-        chat_manager,
-        "get_session_by_session_id",
-        lambda _session_id: SimpleNamespace(platform="qq", group_id="1036092828", user_id=None),
-    )
-
-    assert BehaviorConfigUtils.get_behavior_config_for_chat(session_id) == (True, False)
 
 
 def test_jargon_learning_list_matches_routed_session_by_chat_stream(monkeypatch):

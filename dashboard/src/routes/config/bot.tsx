@@ -366,8 +366,6 @@ function BotConfigPageContent() {
       ['chat.reply_timing.talk_value_rules', ChatTalkValueRulesHook],
       ['experimental.focus_chat_whitelist', FocusWhitelistHook],
       ['experimental.focus_groups', BehaviorFocusGroupsHook],
-      ['experimental.behavior_groups', BehaviorGroupsHook],
-      ['experimental.behavior_learning_list', BehaviorLearningListHook],
       ['expression.expression_groups', ExpressionGroupsHook],
       ['expression.learning_list', ExpressionLearningListHook],
       ['jargon.jargon_groups', JargonGroupsHook],

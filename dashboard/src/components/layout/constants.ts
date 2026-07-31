@@ -107,10 +107,6 @@ export const menuSections: MenuSection[] = [
       },
       {
         icon: BehaviorIcon,
-        label: 'sidebar.menu.behaviorLearning',
-        path: '/resource/behavior',
-        searchDescription: 'search.items.behaviorLearningDesc',
-        featureFlag: 'behaviorLearning',
       },
       {
         icon: KnowledgeIcon,

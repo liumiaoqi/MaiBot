@@ -48,18 +48,9 @@ class GlobalConfigAppConfigPort:
     def get_emoji_send_num(self) -> int:
         return self._get_cfg().emoji.emoji_send_num
 
-    def get_experimental_behavior_learning_list(self) -> list[str]:
-        return list(self._get_cfg().experimental.behavior_learning_list)
-
-    def get_experimental_behavior_groups(self) -> list[str]:
-        return list(self._get_cfg().experimental.behavior_groups)
-
     def get_experimental_enable_rich_reply(self) -> bool:
         return self._get_cfg().experimental.enable_rich_reply
 
-
-    def get_experimental_enable_behavior_learning(self) -> bool:
-        return self._get_cfg().experimental.enable_behavior_learning
 
     def get_visual_max_image_num(self) -> int:
         return self._get_cfg().visual.max_image_num

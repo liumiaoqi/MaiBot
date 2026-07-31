@@ -135,15 +135,6 @@ const jargonManagementRoute = createRoute({
 })
 
 // 资源管理路由 - 知识库图谱可视化
-const behaviorLearningRoute = createRoute({
-  getParentRoute: () => protectedRoute,
-  path: '/resource/behavior',
-  component: lazyRouteComponent(
-    () => import('./routes/resource/behavior/index.tsx'),
-    'BehaviorLearningPage'
-  ),
-})
-
 const knowledgeGraphRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/resource/knowledge-graph',
@@ -399,7 +390,6 @@ const routeTree = rootRoute.addChildren([
     emojiManagementRoute,
     expressionManagementRoute,
     jargonManagementRoute,
-    behaviorLearningRoute,
     personManagementRoute,
     knowledgeGraphRoute,
     knowledgeBaseRoute,
