@@ -10,17 +10,17 @@ LPMM 到 A_memorix 存储转换器
 """
 
 import sys
-import os
-import json
 import argparse
 import asyncio
 import pickle
 from pathlib import Path
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, Tuple
 import numpy as np
 import tomlkit
 
 from _bootstrap import DEFAULT_CONFIG_PATH, resolve_repo_path
+from src.common.logger import get_logger
+
 logger = get_logger("A_memorix.scripts.convert_lpmm")
 
 def _build_arg_parser() -> argparse.ArgumentParser:
@@ -51,7 +51,7 @@ except Exception as exc:
     logger.warning("操作异常: %s", exc)
 try:
     import networkx as nx
-    from scipy import sparse
+    from scipy import sparse  # noqa: F401  # scipy 可用性检测
     import pyarrow.parquet as pq
 except ImportError as e:
     logger.error(f"缺少依赖: {e}")

@@ -1,12 +1,12 @@
 """Windows Named Pipe 传输实现。
 
-from src.common.logger import get_logger
-
 适用于 Windows 平台，使用 asyncio ProactorEventLoop 的 named pipe 支持。
 
 注意：Named Pipe 是 Windows 特有的 IPC 机制，
 在 Linux/macOS 平台上不可用。Unix-like 平台请使用 UDS 传输。
 """
+
+from src.common.logger import get_logger
 
 from typing import Any, Callable, Dict, List, Optional, Protocol, Tuple, cast
 

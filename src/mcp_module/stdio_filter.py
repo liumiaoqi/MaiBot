@@ -22,15 +22,14 @@ import sys
 from contextlib import asynccontextmanager
 from typing import TextIO
 
-from src.common.logger import get_logger
-
-logger = get_logger("auto.stdio_filter")
-
 from anyio.streams.text import TextReceiveStream
 import anyio
 import anyio.lowlevel
 
 from mcp import types
+
+from src.common.logger import get_logger
+
 from mcp.client.stdio import (
     PROCESS_TERMINATION_TIMEOUT,
     StdioServerParameters,
@@ -41,7 +40,9 @@ from mcp.client.stdio import (
 )
 from mcp.shared.message import SessionMessage
 
-logger = get_logger(__name__)
+
+logger = get_logger("auto.stdio_filter")
+
 
 _MAX_GARBAGE_PREVIEW = 200
 
@@ -117,7 +118,7 @@ async def tolerant_stdio_client(
                             continue
                         try:
                             message = types.JSONRPCMessage.model_validate_json(line)
-                        except Exception as exc:
+                        except Exception:
                             logger.warning(
                                 "Dropped malformed JSON-RPC line from MCP stdio server: %r",
                                 line[:_MAX_GARBAGE_PREVIEW],
@@ -156,7 +157,7 @@ async def tolerant_stdio_client(
             if process.stdin:
                 try:
                     await process.stdin.aclose()
-                except Exception as exc:
+                except Exception:
                     logger.warning("操作异常 in stdio_filter", exc_info=True)
             try:
                 with anyio.fail_after(PROCESS_TERMINATION_TIMEOUT):
