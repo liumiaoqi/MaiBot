@@ -401,3 +401,7 @@ tmp_logs.txt
 check_logger*.py
 check_stderr.py
 openclaw/
+memclone
+Science-Discovery/
+importantClone/
+scientific-agent-skills/
