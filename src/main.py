@@ -602,11 +602,6 @@ class MainSystem:
         await async_task_manager.add_task(OnlineTimeRecordTask())
         await async_task_manager.add_task(StatisticOutputTask())
 
-        from src.common.remote import TelemetryHeartBeatTask, TelemetryStatsUploadTask
-
-        await async_task_manager.add_task(TelemetryHeartBeatTask())
-        await async_task_manager.add_task(TelemetryStatsUploadTask())
-
     async def _start_interaction_scheduler(self) -> None:
         try:
             from src.maisaka.agent_interaction.bootstrap import build_interaction_scheduler

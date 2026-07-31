@@ -795,9 +795,6 @@ max_split_num = 3 # 一次回复最多拆成几条消息。
 enable_kaomoji_protection = false # 尽量避免把颜文字从中间拆开。
 enable_overflow_return_all = false # 句子太多时是否直接保留完整回复，不再强行截断。
 
-[telemetry]
-enable = true # 是否发送匿名运行统计；关闭不影响正常使用。
-
 [log]
 date_style = "m-d H:i:s" # 日志时间的显示格式。
 log_level_style = "lite" # 日志等级的显示样式，只影响日志外观。

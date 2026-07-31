@@ -43,7 +43,6 @@ from .official_configs import (
     PythonRuntimeSectionConfig,
     ResponsePostProcessConfig,
     ResponseSplitterConfig,
-    TelemetryConfig,
     VisualConfig,
     VoiceConfig,
     WatchdogSectionConfig,
@@ -122,9 +121,6 @@ class Config(ConfigBase):
 
     response_splitter: ResponseSplitterConfig = Field(default_factory=ResponseSplitterConfig)
     """回复分割器配置类"""
-
-    telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig)
-    """遥测配置类"""
 
     log: LogConfig = Field(default_factory=LogConfig)
     """日志配置类"""
