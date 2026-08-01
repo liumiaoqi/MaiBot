@@ -111,15 +111,15 @@ ZG-9 OOM 保护与 ZG-3 看门狗分工：OOM 保护管"死之前的优先级排
 
 ## 已完成
 
-| 日期 | 内容 | 提交 |
-|------|------|------|
-| 2026-07-30 | 扁平人格→四层模型迁移（6 调用方 + 30 测试） | 54514e7f8 |
-| 2026-07-30 | send_service 废弃方法清理（7 方法 ~250 行） | 更早 |
-| 2026-07-30 | ZG 研究备忘 + 废弃系统清单 | 文档 |
-| 2026-07-31 | **ZG-1 服务管理器**（systemd 化：引擎层 dependency_graph/health_check/lifecycle/recovery + 适配器 + main.py 启动接管 + E2E，84 测试） | 86a1e91ff |
-| 2026-07-31 | **ZG-9 极端环境加固**（mem_limit/swap=0/OOM 保护/tmpfs，WSL2 内核 6.18；Kernel7.0 特性待升级时补） | 89ee8c815 |
+| 日期　　　 | 内容　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 | 提交　　　|
+| ------------| ----------------------------------------------------------------------------------------------------------------------------------------------------| -----------|
+| 2026-07-30 | 扁平人格→四层模型迁移（6 调用方 + 30 测试）　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　| 54514e7f8 |
+| 2026-07-30 | send_service 废弃方法清理（7 方法 ~250 行）　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　| 更早　　　|
+| 2026-07-30 | ZG 研究备忘 + 废弃系统清单　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 | 文档　　　|
+| 2026-07-31 | **ZG-1 服务管理器**（systemd 化：引擎层 dependency_graph/health_check/lifecycle/recovery + 适配器 + main.py 启动接管 + E2E，84 测试）　　　　　　　| 86a1e91ff |
+| 2026-07-31 | **ZG-9 极端环境加固**（mem_limit/swap=0/OOM 保护/tmpfs，WSL2 内核 6.18；Kernel7.0 特性待升级时补）　　　　　　　　　　　　　　　　　　　　　　　　 | 89ee8c815 |
 | 2026-08-01 | **ZG-6 系统状态机**（BOOTING→READY→DEGRADING→SHUTTING_DOWN + 通知链 + 崩溃导出 + WebUI /lifecycle + 信号退出联动，20 需求 48 验收全覆盖，38 测试） | c38dd6f1c |
-| 2026-08-01 | **ZG-4 事件总线增强**（统一 Vote 四值投票 + BAD-only robust 回滚 + EventBus robust/nofail + unique_priority + 内省，28 需求 39 验收，78 测试） | 200dd93cf |
+| 2026-08-01 | **ZG-4 事件总线增强**（统一 Vote 四值投票 + BAD-only robust 回滚 + EventBus robust/nofail + unique_priority + 内省，28 需求 39 验收，78 测试）　　 | 200dd93cf |
 
 ## ZG-6 系统状态机遗留事项（2026-08-01）
 
@@ -268,7 +268,7 @@ DEPRECATED 标记的含义**不是**"这个函数废弃了可以删"，而是"**
 
 ## ZG-3 看门狗编码遗留问题（2026-07-31）
 
-> ⚠️ **Linux 源码研究遗漏**：ZG-3 编码时未深入调研 Linux `kernel/watchdog.c` / `kernel/hung_task.c` / `include/linux/nmi.h` 源码。对照参考仅凭经验级知识，可能遗漏 hard/soft 双层检测、touch 机制、buddy 互检等设计精髓。后续 ZG-4 调研时一并补查 `kernel/watchdog_hld.c`（hardlockup detector）和 `kernel/workqueue.c`（hung work detection）。
+> ✅ **Linux 源码研究已补**（2026-08-02）：`kernel/watchdog.c` / `kernel/hung_task.c` / `include/linux/nmi.h` / `watchdog_hld.c` / `workqueue.c` 调研完成，产出 `.codeartsdoer/specs/zg3_watchdog/linux_watchdog_research.md`（CA）。结论：现有实现对应良好，S1 延迟报告 / S2 检测线程健康 / S3 V2 注册 / S4 blocker 追踪已落地（ZG-3 补强，见已完成表）。
 
 | # | 严重度 | 位置 | 问题 | 当前影响 | 后续处理 |
 |---|--------|------|------|---------|---------|
@@ -280,11 +280,11 @@ DEPRECATED 标记的含义**不是**"这个函数废弃了可以删"，而是"**
 ## ZG-2 统一日志管线遗留标记（2026-08-01，以后再改）
 
 > ZG-2 已编码完成并合并（693b735f6）。printk 对照复盘见 `.shared/decisions/zg2_printk_review_0801.md`。
-> ⚠️ **Linux 源码研究遗漏**：ZG-2 编码时未深入调研 Linux `kernel/printk/printk.c` / `include/linux/printk.h` / `kernel/printk/printk_safe.c` 源码。printk 对照仅凭经验级知识，可能遗漏 lockless ring buffer 的实际实现细节、cont 计数行续接、console_lock handover、kmsg_dump dispatcher 等设计精髓。后续 ZG-4 调研时一并补查。
+> ✅ **Linux 源码深入研究已完成**（2026-08-02）：详见 `.codeartsdoer/specs/zg2_log_pipeline/linux_printk_research.md`。覆盖无锁环形缓冲（prb 双层环设计）、cont 行续接（KERN_CONT）、console_lock handover（friendly handover + nbcon takeover）、kmsg_dump dispatcher（多 dumper RCU 分发）、deferred output（per-CPU 安全模式）、__ratelimit（每调用点 token 桶）。6 项未吸收精髓逐项裁决"不补"并写明理由。
 > 以下为"以后再改"的可改进项，不阻塞当前使用：
 
-| # | 项 | 内容 | 触发时机 |
-|---|-----|------|---------|
-| ZG-2-L1 | 摘要输出完全异步化 | 当前事件循环不可用时同步 fallback；对标 printk deferred output，改为排队而非同步阻塞 | 日志风暴期间摘要输出阻塞写线程的实测证据出现时 |
-| ZG-2-L2 | RingBuffer 无锁方案评估 | 当前 RLock 保护；printk 是 lockless ring buffer（写路径永不当机哲学）。Python 单线程场景收益待测 | 多线程日志并发成为瓶颈（基准实测 >1ms/条）时 |
-| ZG-2-L3 | 按调用点 ratelimit | 当前按 logger_name+event 签名；printk 是每调用点（__ratelimit 宏）。粒度差异导致同 logger 不同调用点合并计数 | 误抑制日志（不同调用点被同源合并抑制）的实证出现时 |
+| #       | 项　　　　　　　　　　　| 内容　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 | 触发时机　　　　　　　　　　　　　　　　　　　　　 |
+| ---------| -------------------------| --------------------------------------------------------------------------------------------------------------| ----------------------------------------------------|
+| ZG-2-L1 | 摘要输出完全异步化　　　| 当前事件循环不可用时同步 fallback；对标 printk deferred output，改为排队而非同步阻塞　　　　　　　　　　　　 | 日志风暴期间摘要输出阻塞写线程的实测证据出现时　　 |
+| ZG-2-L2 | RingBuffer 无锁方案评估 | 当前 RLock 保护；printk 是 lockless ring buffer（写路径永不当机哲学）。Python 单线程场景收益待测　　　　　　 | 多线程日志并发成为瓶颈（基准实测 >1ms/条）时　　　 |
+| ZG-2-L3 | 按调用点 ratelimit　　　| 当前按 logger_name+event 签名；printk 是每调用点（__ratelimit 宏）。粒度差异导致同 logger 不同调用点合并计数 | 误抑制日志（不同调用点被同源合并抑制）的实证出现时 |
