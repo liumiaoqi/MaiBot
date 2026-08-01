@@ -457,6 +457,40 @@ allow_url = false # 是否允许 MCP 服务器请求打开 URL。
 [plugin]
 permission = [] # 允许用聊天命令管理插件的用户，格式如 qq:123456789。
 
+# ZG-5 资源限制 — 插件资源计量、四档限制、压力分级、OOM 处理
+# 对标 Linux cgroup memory controller v2 + vmpressure + OOM killer
+# 渐进启用：未配置四档限制的插件不受干预；global_enabled=false 可全局关闭
+[resource_limit]
+global_enabled = false # 全局开关，false 时所有插件不受资源限制
+
+[resource_limit.pressure] # 压力检测参数（对标 vmpressure）
+win_size = 512 # 采样窗口大小（默认 512，对标 vmpressure_win）
+priority_critical_threshold = 3 # 优先级 ≤此值强制 CRITICAL（对标 vmpressure_prio）
+
+[resource_limit.oom] # OOM 处理参数（对标 oom_kill）
+lock_timeout_sec = 5.0 # oom_lock 获取超时秒数
+reap_max_attempts = 10 # 异步杀除重试上限
+reap_retry_interval_sec = 0.5 # 重试间隔（2Hz，对标 oom_reaper）
+
+[resource_limit.event] # 事件传播参数（对标 memory.events）
+dedup_window_ms = 1000 # 事件去重窗口毫秒
+max_depth = 32 # 父链传播最大深度
+
+# 插件资源配置示例（取消注释并按需调整）
+# [resource_limit.plugins.my_plugin]
+# oom_group = false # 整组杀除标志
+# events_local = false # 事件仅本地
+# [resource_limit.plugins.my_plugin.token]
+# min = 0 # 硬保护量（OOM 时跳过 usage < min 的插件）
+# low = 0 # 软保护偏好量（超出标记 reclaimable）
+# high = 0 # 警戒软限（超出触发异步回收）
+# max = 0 # 硬限上限（超出阻断并触发 OOM）
+# [resource_limit.plugins.my_plugin.message]
+# min = 0
+# low = 0
+# high = 0
+# max = 0
+
 [plugin_runtime]
 enabled = true # 是否启用新版插件运行时。
 health_check_interval_sec = 30.0 # 每隔多少秒检查一次插件运行状态。

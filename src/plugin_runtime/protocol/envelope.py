@@ -552,3 +552,32 @@ class LogBatchPayload(BaseModel):
 
     entries: List[LogEntry] = Field(description="本批次日志记录列表，按时间升序排列")
     """本批次日志记录列表，按时间升序排列"""
+
+
+# ====== ZG-5 资源限制 Payload ======
+
+class ResourceUsageReportPayload(BaseModel):
+    """Runner → Host 上报资源消耗（ZG-5 资源限制）。
+
+    Runner 定期上报当前插件的四维度资源消耗量，
+    Host 接收后转发给 ResourceLimitPort.charge 做计量。
+    """
+
+    plugin_id: str = Field(description="上报资源的插件标识")
+    token_usage: int = Field(default=0, ge=0, description="Token 消耗量")
+    message_usage: int = Field(default=0, ge=0, description="消息处理量")
+    concurrent_usage: int = Field(default=0, ge=0, description="并发数")
+    memory_usage: int = Field(default=0, ge=0, description="内存占用（MB）")
+
+
+class ResourceActionPayload(BaseModel):
+    """Host → Runner 下发降级/杀除指令（ZG-5 资源限制）。
+
+    OOM 处置时 Host 向 Runner 下发处置指令。
+    首版 KILL = 退出 Runner 进程（必须实现）。
+    DEGRADE 首版不实现、标记 TODO（后续版本再定降级模式语义）。
+    """
+
+    plugin_id: str = Field(description="处置目标插件标识")
+    action: str = Field(description="处置动作: kill / degrade")
+    decision_id: str = Field(description="OOM 决策标识，供审计追踪")
