@@ -58,8 +58,12 @@ def test_blocker_info_length_limit():
 
 
 def test_blocker_info_sensitive_reject():
-    """tasks 5.1.4: 含敏感数据抛 ValueError（FR-S4-03）。"""
-    for sensitive in ("sk-xxxx", "Key-Abc123", "TOKEN_abc"):
+    """tasks 5.1.4: 含敏感数据抛 ValueError（FR-S4-03）。
+
+    CX 审查修正（P3）：敏感模式为密钥特征（sk-/key=/token=/-----BEGIN），
+    不误拒合法名称（tokenizer_lock 等）。
+    """
+    for sensitive in ("sk-xxxx", "key=abc123", "token=xyz", "-----BEGIN RSA PRIVATE KEY-----"):
         with pytest.raises(ValueError):
             FaultReportEvent(
                 component_id="x",
@@ -69,6 +73,20 @@ def test_blocker_info_sensitive_reject():
                 check_period_no=0,
                 blocker_info=sensitive,
             )
+
+
+def test_blocker_info_legit_names_accepted():
+    """CX P3 回归: 合法阻塞源名称（tokenizer/key 开头）不被误拒。"""
+    for legit in ("tokenizer_lock", "token_bucket_wait", "key_holder", "registry_connection_failed"):
+        event = FaultReportEvent(
+            component_id="x",
+            reason=FaultReason.RUNNER_UNRESPONSIVE,
+            detail="d",
+            report_time=0.0,
+            check_period_no=0,
+            blocker_info=legit,
+        )
+        assert event.blocker_info == legit
 
 
 def _fresh_status() -> RunnerBridgeStatus:

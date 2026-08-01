@@ -66,8 +66,11 @@ class RunnerBridgeStatus:
     is_recovering: bool
 
 
-# blocker_info 敏感数据前缀（ZG-3 补强 S4）：匹配即拒绝（FR-S4-03）
-_SENSITIVE_PREFIXES = ("sk-", "key-", "token")
+# blocker_info 敏感数据模式（ZG-3 补强 S4）：匹配即拒绝（FR-S4-03）。
+# CX 审查修正（P3）：原 "token"/"key" 裸前缀会误拒合法名称（tokenizer_lock、
+# key_holder 等）；改为密钥特征形式——sk-（OpenAI/DeepSeek key 前缀）、
+# key=/token=（键值对形式）、-----BEGIN（PEM 证书块）。
+_SENSITIVE_PATTERNS = ("sk-", "key=", "token=", "-----begin")
 
 
 @dataclass(frozen=True)
@@ -97,7 +100,7 @@ class FaultReportEvent:
                     f"FaultReportEvent.blocker_info 长度 {len(self.blocker_info)} 超过 200 字符上限"
                 )
             lowered = self.blocker_info.lower()
-            if any(lowered.startswith(p) for p in _SENSITIVE_PREFIXES):
+            if any(lowered.startswith(p) for p in _SENSITIVE_PATTERNS):
                 raise ValueError(
                     "FaultReportEvent.blocker_info 含敏感数据，已拒绝（FR-S4-03）"
                 )
