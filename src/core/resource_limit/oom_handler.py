@@ -6,7 +6,7 @@ oom_lock 在异步处置派发之前释放（ADR-04：锁内无 I/O）。
 
 
 import asyncio
-import logging
+from src.common.logger import get_logger
 import time
 import uuid
 from collections import deque
@@ -19,7 +19,7 @@ from src.core.resource_limit.types import (
     ResourceDimension,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 _OOM_LOCK_TIMEOUT = 5.0
 _REAP_MAX_ATTEMPTS = 10
@@ -57,6 +57,10 @@ class OOMHandler:
         """触发 OOM 处理，对应 design §3.4.3。
 
         单锁串行，oom_lock 超时 5s 放弃。
+        锁内仅纯内存操作（选受害者/计数/决策/历史），所有 await
+        （事件发布/故障上报）在锁释放后执行（ADR-04：锁内无 I/O，
+        CX 审查 P3 修正——原 emit/report 在锁内 await，慢回调可
+        持锁超过 5s 获取超时导致并发 OOM 被丢弃）。
         """
         try:
             await asyncio.wait_for(self._oom_lock.acquire(), timeout=_OOM_LOCK_TIMEOUT)
@@ -64,91 +68,102 @@ class OOMHandler:
             logger.warning("OOM 锁获取超时 %.1fs，放弃当前 OOM", _OOM_LOCK_TIMEOUT)
             return None
 
+        victim = None
+        group_targets: list[Any] = []
+        decision: Optional[OOMDecision] = None
+        record: Optional[OOMDecisionRecord] = None
+        unresolved = False
+
         try:
-            # 选受害者
+            # 选受害者（纯内存）
             victim = self._select_victim(dimension)
             if victim is None:
                 logger.warning("OOM 无可用受害者（全受保护或树空）")
-                if self._event_bus:
-                    try:
-                        await self._event_bus.emit("resource.oom_unresolvable", {
-                            "trigger_plugin_id": trigger_plugin_id,
-                            "dimension": dimension.value,
-                            "usage": usage,
-                            "limit": limit,
-                        })
-                    except Exception as e:
-                        logger.error("发布 oom_unresolvable 事件失败: %s", e)
-                return None
+                unresolved = True
+            else:
+                # 查找 oom_group 根
+                group_targets = self._find_oom_group_targets(victim)
+                # under_oom 计数递增
+                self._increment_under_oom_chain(victim)
 
-            # 查找 oom_group 根
-            group_targets = self._find_oom_group_targets(victim)
+                # 生成决策
+                decision_id = str(uuid.uuid4())
+                decision_time = time.monotonic()
+                action = OOMAction.KILL
+                decision = OOMDecision(
+                    decision_id=decision_id,
+                    victim_plugin_id=victim.plugin_id,
+                    victim_group=[t.plugin_id for t in group_targets],
+                    action=action,
+                    decision_time=decision_time,
+                )
 
-            # under_oom 计数递增
-            self._increment_under_oom_chain(victim)
-
-            # 生成决策
-            decision_id = str(uuid.uuid4())
-            decision_time = time.monotonic()
-            action = OOMAction.KILL
-            decision = OOMDecision(
-                decision_id=decision_id,
-                victim_plugin_id=victim.plugin_id,
-                victim_group=[t.plugin_id for t in group_targets],
-                action=action,
-                decision_time=decision_time,
-            )
-
-            # 发布 OOM 事件
-            if self._event_bus:
-                try:
-                    await self._event_bus.emit("resource.oom", {
-                        "decision_id": decision_id,
-                        "victim": victim.plugin_id,
-                        "group": [t.plugin_id for t in group_targets],
-                        "action": action.value,
-                        "trigger_plugin_id": trigger_plugin_id,
-                        "trigger_dimension": dimension.value,
-                    })
-                except Exception as e:
-                    logger.error("发布 OOM 事件失败: %s", e)
-
-            # 故障上报
-            if self._service_manager:
-                try:
-                    await self._service_manager.report_external_fault(
-                        victim.plugin_id,
-                        "resource_oom",
-                        f"dimension={dimension.value}, usage={usage}, limit={limit}",
-                    )
-                except Exception as e:
-                    logger.error("故障上报失败，OOM 流程继续: %s", e)
-
-            # 记录决策到历史
-            record = OOMDecisionRecord(
-                decision_id=decision_id,
-                victim_plugin_id=victim.plugin_id,
-                victim_group=[t.plugin_id for t in group_targets],
-                action=action,
-                decision_time=decision_time,
-                trigger_plugin_id=trigger_plugin_id,
-                trigger_dimension=dimension,
-                trigger_usage=usage,
-                trigger_limit=limit,
-                reap_attempts=0,
-                reap_success=False,
-            )
-            self._oom_history.append(record)
-
+                # 记录决策到历史
+                record = OOMDecisionRecord(
+                    decision_id=decision_id,
+                    victim_plugin_id=victim.plugin_id,
+                    victim_group=[t.plugin_id for t in group_targets],
+                    action=action,
+                    decision_time=decision_time,
+                    trigger_plugin_id=trigger_plugin_id,
+                    trigger_dimension=dimension,
+                    trigger_usage=usage,
+                    trigger_limit=limit,
+                    reap_attempts=0,
+                    reap_success=False,
+                )
+                self._oom_history.append(record)
         finally:
-            # oom_lock 在异步处置派发之前释放（ADR-04）
+            # oom_lock 在异步处置派发之前释放（ADR-04：锁内无 I/O）
             self._oom_lock.release()
 
+        # ── 锁外：所有 await（CX 审查 P3 修正）──────────────────
+
+        if unresolved:
+            # 无可用受害者：锁外发布事件后返回
+            if self._event_bus:
+                try:
+                    await self._event_bus.emit("resource.oom_unresolvable", {
+                        "trigger_plugin_id": trigger_plugin_id,
+                        "dimension": dimension.value,
+                        "usage": usage,
+                        "limit": limit,
+                    })
+                except Exception as e:
+                    logger.error("发布 oom_unresolvable 事件失败: %s", e)
+            return None
+
+        # 发布 OOM 事件
+        if self._event_bus and decision is not None and victim is not None:
+            try:
+                await self._event_bus.emit("resource.oom", {
+                    "decision_id": decision.decision_id,
+                    "victim": decision.victim_plugin_id,
+                    "group": decision.victim_group,
+                    "action": decision.action.value,
+                    "trigger_plugin_id": trigger_plugin_id,
+                    "trigger_dimension": dimension.value,
+                })
+            except Exception as e:
+                logger.error("发布 OOM 事件失败: %s", e)
+
+        # 故障上报
+        if self._service_manager and decision is not None:
+            try:
+                await self._service_manager.report_external_fault(
+                    decision.victim_plugin_id,
+                    "resource_oom",
+                    f"dimension={dimension.value}, usage={usage}, limit={limit}",
+                )
+            except Exception as e:
+                logger.error("故障上报失败，OOM 流程继续: %s", e)
+
         # 异步处置（oom_lock 已释放）
-        task = asyncio.create_task(
-            self._reap_worker(group_targets, decision_id, record)
-        )
-        self._reap_tasks[decision_id] = task
+        if decision is not None and record is not None:
+            task = asyncio.create_task(
+                self._reap_worker(group_targets, decision.decision_id, record)
+            )
+            self._reap_tasks[decision.decision_id] = task
 
         return decision
 

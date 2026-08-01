@@ -5,14 +5,13 @@
 """
 
 
-import logging
-import os
+from src.common.logger import get_logger
 import time
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
 from src.core.resource_limit.types import PressureLevel
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # 滞回阈值（比率百分比）
 _RATIO_UP_CRITICAL = 95.0

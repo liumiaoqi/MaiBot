@@ -5,9 +5,9 @@
 """
 
 
-import logging
+from src.common.logger import get_logger
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 from src.core.resource_limit.types import (
@@ -17,7 +17,7 @@ from src.core.resource_limit.types import (
     ResourceDimension,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass(frozen=True)

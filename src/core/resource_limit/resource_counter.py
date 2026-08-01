@@ -7,7 +7,7 @@ GIL 保证单线程原子性，无需原子操作（design §3.1.4 D1）。
 """
 
 
-import logging
+from src.common.logger import get_logger
 import time
 from typing import Callable, Optional
 
@@ -17,7 +17,7 @@ from src.core.resource_limit.types import (
     ResourceUsageSnapshot,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 _ROOT_ID = "__root__"
 

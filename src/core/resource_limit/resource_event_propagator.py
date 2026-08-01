@@ -5,11 +5,11 @@
 """
 
 
-import logging
+from src.common.logger import get_logger
 import time
 from typing import Any, Optional
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 _DEFAULT_DEDUP_WINDOW_MS = 1000
 _DEFAULT_MAX_DEPTH = 32
