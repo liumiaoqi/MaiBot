@@ -46,12 +46,12 @@ ZG 在 CQ 基础上，从"能跑"走向"能可靠地跑、能优雅地降级、�
 
 ### 🔴 P0 — 应该做
 
-| 编号　　 | 方向　　　　　　　　　　　　| 理由　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　| 复杂度 | 层级 |
-| ----------| -----------------------------| -----------------------------------------------------------------------------| --------| ------|
-| ~~**ZG-1**~~ | ~~服务管理器（systemd 化）~~　　| ✅ **已完成**（2026-07-31，引擎层+适配器+main.py 启动接管，见已完成表） | 低　　 | 应用 |
-| **ZG-2** | 统一日志管线（journald 化） | CQ-11 已在清理 45 处 `import logging` 残留，趁机加结构化+环形缓冲+ratelimit | 中　　 | 应用 |
-| **ZG-3** | 看门狗（watchdog 化）　　　 | asyncio 事件循环阻塞 + Runner 子进程无响应，当前最痛的运行时风险　　　　　　| 低　　 | 应用 |
-| ~~**ZG-9**~~ | ~~极端环境加固~~　　　　　　　　| ✅ **已完成**（2026-07-31，mem_limit/swap=0/OOM保护/tmpfs，WSL2 内核 6.18；Kernel7.0 特性待升级时补） | 低　　 | 基础 |
+| 编号　　　　 | 方向　　　　　　　　　　　　 | 理由　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 | 复杂度 | 层级 |
+| --------------| ------------------------------| ------------------------------------------------------------------------------------------------------| --------| ------|
+| ~~**ZG-1**~~ | ~~服务管理器（systemd 化）~~ | ✅ **已完成**（2026-07-31，引擎层+适配器+main.py 启动接管，见已完成表）　　　　　　　　　　　　　　　 | 低　　 | 应用 |
+| **ZG-2**　　 | 统一日志管线（journald 化）　| CQ-11 已在清理 45 处 `import logging` 残留，趁机加结构化+环形缓冲+ratelimit　　　　　　　　　　　　　| 中　　 | 应用 |
+| **ZG-3**　　 | 看门狗（watchdog 化）　　　　| asyncio 事件循环阻塞 + Runner 子进程无响应，当前最痛的运行时风险　　　　　　　　　　　　　　　　　　 | 低　　 | 应用 |
+| ~~**ZG-9**~~ | ~~极端环境加固~~　　　　　　 | ✅ **已完成**（2026-07-31，mem_limit/swap=0/OOM保护/tmpfs，WSL2 内核 6.18；Kernel7.0 特性待升级时补） | 低　　 | 基础 |
 
 ### 🟡 P1 — 值得做但靠后
 
@@ -122,6 +122,8 @@ ZG-9 OOM 保护与 ZG-3 看门狗分工：OOM 保护管"死之前的优先级排
 | 2026-08-01 | **ZG-4 事件总线增强**（统一 Vote 四值投票 + BAD-only robust 回滚 + EventBus robust/nofail + unique_priority + 内省，28 需求 39 验收，78 测试）　　 | 200dd93cf |
 | 2026-08-02 | **ZG-5 资源限制**（cgroups 化：ResourceCounter 层级计数 + FourTierLimit 四档限制 + PressureDetector 压力分级 + OOMHandler OOM 处置 + EventPropagator 事件传播 + Adapter 适配器，§1-§10+§12 完成 75 测试全通过，worktree `zg5-resource-limit`） | 16d53f284+ |
 | 2026-08-02 | ZG-5 **§11 WebUI 内省接口暂缓**（用户决定：和 WebUI 有关的暂时不做。适配器内省方法 `get_resource_tree_view`/`get_pressure_history`/`get_oom_history` 已实现，仅缺 WebUI 后端路由暴露） | 未做　　　 |
+| 2026-08-02 | **审阅清理：零引用死代码删除**（subagent/18 + consolidation/4 + goal/5 + event_sensor/4 + message_port + embedding manager+presets + monologue 2文件 = 37文件 -5140行） | f63ca9bf1 |
+| 2026-08-02 | **审阅清理：路线图标记** — cross_chat/ 待实现（社会关系功能）；deepseek 4文件 待评估（LLM优化适配）；learners/ expression+jargon 待独立 SSD 任务（21处活跃引用，与社会关系理念不合） | 文档　　　 |
 
 ## ZG-6 系统状态机遗留事项（2026-08-01）
 
